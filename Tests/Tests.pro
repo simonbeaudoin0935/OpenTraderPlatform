@@ -1,0 +1,10 @@
+TEMPLATE = app
+TARGET = test_fmpclient
+CONFIG += testlib
+QT += core network testlib
+SOURCES += FMPClient/test_fmpclient.cpp FMPClient/main.cpp
+HEADERS += FMPClient/test_fmpclient.h
+LIBS += -L../FMPClient -lFMPClient
+INCLUDEPATH += ../FMPClient
+DEPENDPATH += ../FMPClient
+QMAKE_CXXFLAGS += -O0
