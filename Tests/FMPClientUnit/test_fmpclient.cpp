@@ -49,16 +49,21 @@ void TestFMPClient::testFetchAsyncQuote() {
 
     QSignalSpy spy(&client, &FMPClient::quoteReceived);
 
+    QVERIFY(spy.isValid());
+
     {
         client.fetchAsyncQuote("AAPL");
-        QTest::qWait(2000);
+
+        bool triggered = spy.wait(2000);
+        QVERIFY(triggered);
     }
 
     QVERIFY2(spy.count() == 1, "Async fetch did not emit signal");
     QList<QVariant> arguments = spy.takeFirst();
-    QVERIFY(arguments.at(0).toDouble() > 0.0);
-    QVERIFY(arguments.at(1).toDouble() >= 0.0);
-    QVERIFY(arguments.at(2).toDouble() >= 0.0);
+    QVERIFY(arguments.at(0).toString() == "AAPL");
+    QVERIFY(arguments.at(1).toDouble() > 0.0);  // price
+    QVERIFY(arguments.at(2).toDouble() >= 0.0); // bid
+    QVERIFY(arguments.at(3).toDouble() >= 0.0); // ask
 
     QVERIFY(client.isCleanedUp());
 }
@@ -84,8 +89,6 @@ void TestFMPClient::testFetchSyncSharesFloat()
 
     QVERIFY(client.isCleanedUp());
 }
-
-// TODO configure the timeout and network latency duration test
 
 /*
  * Testing that when the fetcher times out because the reply took too long to arrive,
@@ -136,15 +139,51 @@ void TestFMPClient::testFetchSyncQuoteWithFakeNetworkLatency()
 void TestFMPClient::testFetchAsyncQuoteWithFakeNetworkLatency()
 {
     FMPClient& client = FMPClient::getInstance();
+    double price, bid, ask;
+    bool success;
+    unsigned int tmp;
 
     QVERIFY(client.isCleanedUp());
 
+    QSignalSpy spy(&client, &FMPClient::quoteReceived);
+
+    QVERIFY(spy.isValid());
+
+    client.simulate_reply_network_latency = true;
     {
-        // TODO
+        tmp = client.fetchSyncTimeoutMs;
+        client.fetchSyncTimeoutMs = 1000; // Accelerate the unit test
+
+        QVERIFY(0 == client.onReplyFinished_sem.available());
+
+        client.fetchAsyncQuote("AAPL");
+
+        bool triggered = spy.wait(2000);
+        QVERIFY(triggered);
+
+        // The timeout for a sync fetch is FMPClient::fetchSyncTimeoutMs, and the activated internal delay to the FMPClient thread is +1000ms of that.
+        // Wait here until the object notifies us it completed its onReplyFinished()
+        // We should technically have to wait for 1000ms, give 2000ms for 1000ms of room.
+        // We WANT to wait this extra second in order to test how the rest of onReplyFinished() handles
+        // the case whese the fetchSyncQuote() timedout and bailed.
+        bool notified = client.onReplyFinished_sem.tryAcquire(1, 2000);
+
+        // We SHOULD have been notified within the 1000ms extra room!
+        QVERIFY(notified);
+
+        client.fetchSyncTimeoutMs = tmp; // Back to normal
     }
+    client.simulate_reply_network_latency = false;
 
-    QVERIFY(0);
+    QVERIFY2(spy.count() == 1, "Async fetch did not emit signal");
+    QList<QVariant> arguments = spy.takeFirst();
+    QVERIFY(arguments.at(0).toString() == "AAPL");
+    QVERIFY(arguments.at(1).toDouble() > 0.0);  // price
+    QVERIFY(arguments.at(2).toDouble() >= 0.0); // bid
+    QVERIFY(arguments.at(3).toDouble() >= 0.0); // ask
 
+
+    // Particularly important here, this is what tests that onReplyFinished() properly handled
+    // fetchSyncQuote() timing out and bailing.
     QVERIFY(client.isCleanedUp());
-
 }

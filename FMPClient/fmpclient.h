@@ -29,6 +29,8 @@ public:
     // API data fetchers
     void fetchAsyncQuote(const QString &symbol);
     bool fetchSyncQuote(const QString &symbol, double &price, double &bid, double &ask);
+
+    void fetchAsyncSharesFloat(const QString &symbol);
     bool fetchSyncSharesFloat(const QString &symbol, QString &date, double &freeFloat, double &floatShares, double &outstandingShares);
 
     // Singleton : Delete copy constructor and assignment operator
@@ -37,7 +39,8 @@ public:
 
 signals:
     // API Async version signals
-    void quoteReceived(double price, double bid, double ask);
+    void quoteReceived(QString symbol, double price, double bid, double ask);
+    void sharesFloatReceived(QString symbol, QString date, double freeFloat, double floatShares, double outstandingShares);
 
 private slots:
     void onThreadStarted() const;
@@ -48,17 +51,27 @@ private:
     explicit FMPClient();
     ~FMPClient();
 
-    enum class RequestType { QuoteAsync, QuoteSync };
+    enum class RequestSynchronicity { Async, Sync };
+    enum class RequestType {
+        None,
+        Quote,
+        SharesFloat
+    };
 
     struct RequestInfo {
-        RequestType type;
+        RequestSynchronicity synchronicity;
+        RequestType type = RequestType::None;
         bool completed = false;
         QJsonArray *jsonArray = nullptr;
     };
 
     QString buildUrlWithEndpoint(const QString &endpoint) const;
     QString buildUrlWithEndpointAndSymbol(const QString &endpoint, const QString &symbol) const;
+
     bool fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToDelete);
+    void fetchAsync(const QString &url, RequestType type);
+
+    void emitSignalDemuxer(RequestType type, const QJsonArray &doc);
 
     QThread *thread;
     QNetworkAccessManager *manager;
@@ -86,6 +99,8 @@ private:
     #define TRACK_NEW_JSON_ARRAY(x) x;
     #define TRACK_DELETED_JSON_ARRAY(x) x;
 #endif
+
+
 };
 
 #endif // FMPCLIENT_H

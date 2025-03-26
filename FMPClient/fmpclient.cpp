@@ -72,22 +72,32 @@ QString FMPClient::buildUrlWithEndpointAndSymbol(const QString &endpoint, const 
            QString("apikey=%1").arg(apiKey);
 }
 
-void FMPClient::fetchAsyncQuote(const QString &symbol) {
-    QString url = buildUrlWithEndpointAndSymbol("quote",symbol);
-
-    // TODO Likely not needed
-    QMutexLocker locker(&pendingRequestsMutex);
-
+void FMPClient::fetchAsync(const QString &url, RequestType type) {
     // Invoke this method in the distinct thread of the FMPClient singleton.
     // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
     // is actually invoking this method NOT in the caller's thread.
-    QMetaObject::invokeMethod(this, [this, url]() {
+    QMetaObject::invokeMethod(this, [this, url, type]() {
         QNetworkReply *reply = manager->get(QNetworkRequest(url));
 
         QMutexLocker locker(&pendingRequestsMutex);
-        pendingRequests[reply] = {RequestType::QuoteAsync};
+        pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Async,
+                                   .type = type,
+                                   .completed = false,
+                                   .jsonArray = nullptr};
     }, Qt::QueuedConnection);
+}
 
+void FMPClient::fetchAsyncQuote(const QString &symbol) {
+    QString url = buildUrlWithEndpointAndSymbol("quote",symbol);
+
+    fetchAsync(url, RequestType::Quote);
+}
+
+void FMPClient::fetchAsyncSharesFloat(const QString &symbol)
+{
+    QString url = buildUrlWithEndpointAndSymbol("shares-float",symbol);
+
+    fetchAsync(url, RequestType::SharesFloat);
 }
 
 /*
@@ -109,7 +119,7 @@ bool FMPClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToD
 
         QMutexLocker locker(&pendingRequestsMutex);
         {
-            pendingRequests[reply] = {RequestType::QuoteSync};
+            pendingRequests[reply] = {RequestSynchronicity::Sync};
         }
 
     }, Qt::QueuedConnection);
@@ -215,6 +225,9 @@ bool FMPClient::fetchSyncSharesFloat(const QString &symbol, QString &date, doubl
 
         // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
         TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
+    } else {
+        // Make sure that if fetchSync failed that this pointed has not been allocated
+        Q_ASSERT(jsonArrayFromReplyToDelete == nullptr);
     }
 
     return ret;
@@ -277,17 +290,21 @@ void FMPClient::onReplyFinished(QNetworkReply *reply) {
     }
 
     // Only if the request is SYNC do we need to store the reply in the pendindRequests map and allocate a json array
-    if (info->type == RequestType::QuoteSync) {
+    if (info->synchronicity == RequestSynchronicity::Sync) {
         info->completed = true;
         TRACK_NEW_JSON_ARRAY(info->jsonArray = new QJsonArray(doc.array()));
+    } else {
+        // In the case of Async request, no need use new
     }
 
 notify:
-    if (info->type == RequestType::QuoteAsync) {
-        emit quoteReceived(-1, -1, -1);                           // TODO fix this shit
+    if (info->synchronicity == RequestSynchronicity::Async) {
+        emitSignalDemuxer(info->type, doc.array());
         pendingRequests.remove(reply);
-    } else if (info->type == RequestType::QuoteSync) {
+    } else if (info->synchronicity == RequestSynchronicity::Sync) {
         waitCondition.wakeOne();
+    } else {
+        Q_UNREACHABLE();
     }
 
 delete_later:
@@ -300,6 +317,37 @@ delete_later:
         onReplyFinished_sem.release(1);
     }
 #endif
+}
+
+void FMPClient::emitSignalDemuxer(RequestType type, const QJsonArray &doc) {
+
+    QJsonObject obj = doc.first().toObject();
+
+    switch(type) {
+
+    case RequestType::None:
+        Q_ASSERT_X(0,"","Should not be None anymore");
+        break;
+
+    case RequestType::Quote:
+        emit quoteReceived(obj["symbol"].toString(),
+                           obj["price"].toDouble(),
+                           obj["bidPrice"].toDouble(),
+                           obj["askPrice"].toDouble());
+        break;
+    case RequestType::SharesFloat:
+        emit sharesFloatReceived(obj["symbol"].toString(),
+                                 obj["date"].toString(),
+                                 obj["freeFloat"].toDouble(),
+                                 obj["floatShares"].toDouble(),
+                                 obj["outstandingShares"].toDouble());
+
+        break;
+
+    default:
+        Q_UNREACHABLE();
+        break;
+    }
 }
 
 #ifdef UNIT_TESTING
