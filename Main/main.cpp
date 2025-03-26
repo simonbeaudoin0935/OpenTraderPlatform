@@ -29,10 +29,13 @@ int main(int argc, char *argv[])
 
     FMPClient& client = FMPClient::getInstance();
 
+    /*
     QObject::connect(&client, &FMPClient::quoteReceived, [](double price, double bid, double ask) {
         qDebug() << "Async Quote - Price:" << price << "Bid:" << bid << "Ask:" << ask;
     });
+
     client.fetchQuoteAsync("AAPL");
+    */
 
     double price, bid, ask;
     if (client.fetchQuoteSync("MSFT", price, bid, ask)) {

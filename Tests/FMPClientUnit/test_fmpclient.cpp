@@ -4,36 +4,70 @@
 extern QString fmpKey;
 
 void TestFMPClient::initTestCase() {
-    qDebug() << "Start of test suite";
+    QLoggingCategory::setFilterRules("FMPClient.debug=true");
+
+    qInfo() << "Start of test suite";
 
     FMPClient::setAPIKey(fmpKey);
+
 }
 
 void TestFMPClient::testFetchQuoteSync() {
     FMPClient& client = FMPClient::getInstance();
-
     double price, bid, ask;
+    bool success;
 
-    bool success = client.fetchQuoteSync("AAPL", price, bid, ask);
+    QVERIFY(client.pendingRequests.isEmpty());
+
+    success = client.fetchQuoteSync("AAPL", price, bid, ask);
+
     QVERIFY2(success, "Sync fetch failed or timed out");
     QVERIFY(price > 0.0);
     QVERIFY(bid >= 0.0);
     QVERIFY(ask >= 0.0);
+
+    QVERIFY(client.pendingRequests.isEmpty());
 }
 
 void TestFMPClient::testFetchSharesFloatSync()
 {
     FMPClient& client = FMPClient::getInstance();
-
     QString date;
     double freeFloat, floatShares, outstandingShares;
+    bool success;
 
-    bool success = client.fetchSharesFloatSync("AAPL", date, freeFloat, floatShares, outstandingShares);
+    QVERIFY(client.pendingRequests.isEmpty());
+
+    success = client.fetchSharesFloatSync("AAPL", date, freeFloat, floatShares, outstandingShares);
+
     QVERIFY2(success, "Sync fetch failed or timed out");
     QVERIFY(!date.isEmpty());
     QVERIFY(freeFloat >= 0.0 && freeFloat < 100.0);
     QVERIFY(floatShares >= 0.0);
     QVERIFY(outstandingShares >= 0.0);
+    QVERIFY(client.pendingRequests.isEmpty());
+}
+
+void TestFMPClient::testFetchQuoteSyncWithFake6sNetworkLatency()
+{
+    FMPClient& client = FMPClient::getInstance();
+    double price, bid, ask;
+    bool success;
+
+    QVERIFY(client.pendingRequests.isEmpty());
+
+    client.introduce_6s_network_latency = true;
+
+    success = client.fetchQuoteSync("AAPL", price, bid, ask);
+
+    client.introduce_6s_network_latency = false;
+
+    QVERIFY2(success == false, "Sync fetch SHOULD fail or time out");
+    QVERIFY(price > 0.0);
+    QVERIFY(bid >= 0.0);
+    QVERIFY(ask >= 0.0);
+
+    QVERIFY(client.pendingRequests.isEmpty());
 }
 
 void TestFMPClient::testFetchQuoteAsync() {

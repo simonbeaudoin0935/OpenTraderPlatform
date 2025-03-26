@@ -1,10 +1,17 @@
 #include "fmpclient.h"
+#include <QNetworkAccessManager>
+#include <QThread>
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QMutexLocker>
 #include <QDebug>
+#ifdef UNIT_TESTING
+#include <QtTest/QtTest>
+#endif
+// Define the logging category
+Q_LOGGING_CATEGORY(FMPClientLog, "FMPClient")
 
 // Initialize static member outside class
 FMPClient* FMPClient::instance = nullptr;
@@ -12,7 +19,10 @@ FMPClient* FMPClient::instance = nullptr;
 QString FMPClient::apiKey = "";
 
 FMPClient& FMPClient::getInstance() {
+
     if (instance == nullptr) {
+        qCDebug(FMPClientLog) << "Singleton instance created";
+
         instance = new FMPClient();  // Create on first call
     }
     return *instance;
@@ -21,18 +31,19 @@ FMPClient& FMPClient::getInstance() {
 void FMPClient::setAPIKey(const QString &apiKey)
 {
     FMPClient::apiKey = apiKey;
+    qCDebug(FMPClientLog) << "API key set to " << apiKey;
 }
 
 FMPClient::FMPClient() :
     thread(new QThread()),
     manager(new QNetworkAccessManager(this))
 {
-    qDebug() << Q_FUNC_INFO << ": FMPClient created using KEY=" << apiKey;
+    qCDebug(FMPClientLog) << Q_FUNC_INFO << ": FMPClient created using KEY=" << apiKey;
+
     Q_ASSERT(!apiKey.isEmpty());
 
     thread->setObjectName("FPMClientThread");
 
-    //manager->moveToThread(thread);
     this->moveToThread(thread);
 
     connect(thread, &QThread::started, this, &FMPClient::onThreadStarted);
@@ -41,7 +52,8 @@ FMPClient::FMPClient() :
 }
 
 FMPClient::~FMPClient() {
-    qDebug() << Q_FUNC_INFO << ": FPM Client destroyed with key=" << apiKey;
+    qCDebug(FMPClientLog) << "Singleton instance destroyed";
+
     thread->quit();
     thread->wait();
 }
@@ -59,8 +71,10 @@ QString FMPClient::buildUrlWithEndpointAndSymbol(const QString &endpoint, const 
 }
 
 void FMPClient::fetchQuoteAsync(const QString &symbol) {
-    QMutexLocker locker(&mutex);
     QString url = buildUrlWithEndpointAndSymbol("quote",symbol);
+
+    QMutexLocker locker(&mutex);
+
     QMetaObject::invokeMethod(this, [this, url]() {
         QNetworkRequest request(url);
         QNetworkReply *reply = manager->get(request);
@@ -77,26 +91,28 @@ bool FMPClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToD
     QMutexLocker locker(&mutex);
     QNetworkReply *reply = nullptr;
 
+    Q_ASSERT(jsonArrayFromReplyToDelete != nullptr);
+
     QMetaObject::invokeMethod(this, [this, url, &reply]() {
         QNetworkRequest request(url);
         reply = manager->get(request);
         QMutexLocker locker(&mutex);
         pendingRequests[reply] = {RequestType::QuoteSync};
 
-        qDebug() << Q_FUNC_INFO
-                 << " : Thread [" << QThread::currentThread()->objectName()
-                 << "] executed the queued method GET and registered the reply " << static_cast<void*>(reply) ;
+        qCDebug(FMPClientLog) << Q_FUNC_INFO <<
+            " : Thread [" << QThread::currentThread()->objectName() <<
+            "] executed the queued method GET and registered the reply " << static_cast<void*>(reply) ;
 
     }, Qt::QueuedConnection);
 
-    qDebug() << Q_FUNC_INFO
-             << " : Thread [" << QThread::currentThread()->objectName()
-             << "] invoked the queued method to GET url " << url ;
+    qCDebug(FMPClientLog) << Q_FUNC_INFO <<
+        " : Thread [" << QThread::currentThread()->objectName() <<
+        "] invoked the queued method to GET url " << url ;
 
 
     if (!waitCondition.wait(&mutex, 5000)) {
         pendingRequests.remove(reply);
-        qDebug() << Q_FUNC_INFO << " : The condition wait timed out.";
+        qCWarning(FMPClientLog) << Q_FUNC_INFO << " : The condition wait timed out.";
         return false;
     }
 
@@ -104,7 +120,7 @@ bool FMPClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToD
     if (pendingRequests.contains(reply) && pendingRequests[reply].completed) {
         jsonArrayFromReplyToDelete = pendingRequests[reply].jsonArray;
 
-        qDebug() << Q_FUNC_INFO << " : The request " << static_cast<void*>(reply) << " successfuly completed.";
+        qCDebug(FMPClientLog) << Q_FUNC_INFO << " : The request " << static_cast<void*>(reply) << " successfuly completed.";
 
         pendingRequests.remove(reply);
 
@@ -115,7 +131,7 @@ bool FMPClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToD
 
     pendingRequests.remove(reply);
 
-    qDebug() << Q_FUNC_INFO << " : The pending requests did not contain the reply, or was not marked as completed.";
+    qWarning() << Q_FUNC_INFO << " : The pending requests did not contain the reply, or was not marked as completed.";
 
     return false;
 }
@@ -177,15 +193,22 @@ void FMPClient::onThreadStarted() const {
 
 void FMPClient::onReplyFinished(QNetworkReply *reply) {
     QMutexLocker locker(&mutex);
+
+#ifdef UNIT_TESTING
+    if (introduce_6s_network_latency) {
+        QTest::qWait(6000);
+    }
+#endif
+
     if (!pendingRequests.contains(reply)) {
         reply->deleteLater();
         Q_ASSERT(0);
         return;
     }
 
-    qDebug() << Q_FUNC_INFO
-             << " : Thread [" << QThread::currentThread()->objectName()
-             << "] working on request " << static_cast<void*>(reply);
+    qCDebug(FMPClientLog) << Q_FUNC_INFO <<
+        " : Thread [" << QThread::currentThread()->objectName() <<
+        "] working on request " << static_cast<void*>(reply);
 
     RequestInfo &info = pendingRequests[reply];
     QJsonDocument doc;
@@ -195,19 +218,19 @@ void FMPClient::onReplyFinished(QNetworkReply *reply) {
     info.completed = false;
 
     if (reply->error() != QNetworkReply::NoError) {
-        qDebug() << Q_FUNC_INFO << " : Error with the reply";
+        qCWarning(FMPClientLog) << Q_FUNC_INFO << " : Error with the reply";
         goto end;
     }
 
     doc = QJsonDocument::fromJson(reply->readAll());
 
     if (doc.isNull() || !doc.isArray()) {
-        qDebug() << Q_FUNC_INFO << " : JSON doc is null or not an array";
+        qCWarning(FMPClientLog) << Q_FUNC_INFO << " : JSON doc is null or not an array";
         goto end;
     }
 
     if (doc.array().isEmpty()) {
-        qDebug() << Q_FUNC_INFO << " : Doc array is empty";
+        qCWarning(FMPClientLog) << Q_FUNC_INFO << " : Doc array is empty";
     } else {        
         info.jsonArray = new QJsonArray(doc.array());
         info.completed = true;

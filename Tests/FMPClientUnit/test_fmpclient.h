@@ -10,9 +10,12 @@ private slots:
     void initTestCase();
 
     void testFetchQuoteSync();
+    void testFetchQuoteAsync();
+
     void testFetchSharesFloatSync();
 
-    void testFetchQuoteAsync();
+    void testFetchQuoteSyncWithFake6sNetworkLatency();
+
 };
 
 #endif // TEST_FMPCLIENT_H
