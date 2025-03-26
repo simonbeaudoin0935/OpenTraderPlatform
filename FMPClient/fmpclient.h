@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QMutex>
+#include <QSemaphore>
 #include <QWaitCondition>
 #include <QHash>
 #include <QLoggingCategory>
@@ -26,16 +27,13 @@ public:
     static void setAPIKey(const QString &apiKey);
 
     // API data fetchers
-    void fetchQuoteAsync(const QString &symbol);
-    bool fetchQuoteSync(const QString &symbol, double &price, double &bid, double &ask);
-    bool fetchSharesFloatSync(const QString &symbol, QString &date, double &freeFloat, double &floatShares, double &outstandingShares);
+    void fetchAsyncQuote(const QString &symbol);
+    bool fetchSyncQuote(const QString &symbol, double &price, double &bid, double &ask);
+    bool fetchSyncSharesFloat(const QString &symbol, QString &date, double &freeFloat, double &floatShares, double &outstandingShares);
 
     // Singleton : Delete copy constructor and assignment operator
     FMPClient(const FMPClient&) = delete;
     FMPClient& operator=(const FMPClient&) = delete;
-
-    // Declare TestFMPClient as a friend class so it inspect its variables during the unit tests
-    friend class TestFMPClient;
 
 signals:
     // API Async version signals
@@ -64,7 +62,7 @@ private:
 
     QThread *thread;
     QNetworkAccessManager *manager;
-    mutable QMutex mutex;
+    mutable QMutex pendingRequestsMutex;
     QWaitCondition waitCondition;
     QHash<QNetworkReply*, RequestInfo> pendingRequests;
     const QString baseUrl = "https://financialmodelingprep.com/stable/";
@@ -74,9 +72,19 @@ private:
     static QString apiKey;
 
 
-    // *** Test knobs only used by friend test class TestFMPClient
 #ifdef UNIT_TESTING
-    bool introduce_6s_network_latency = false;
+    friend class TestFMPClient;
+    bool simulate_reply_network_latency = false;
+    int allocated_json_arrays = 0;
+    bool isCleanedUp();
+    QSemaphore onReplyFinished_sem;
+    unsigned long fetchSyncTimeoutMs = 5000;
+    #define TRACK_NEW_JSON_ARRAY(x) x; allocated_json_arrays++;
+    #define TRACK_DELETED_JSON_ARRAY(x) x; allocated_json_arrays--;
+#else
+    const unsigned long fetchSyncTimeoutMs = 5000; // Const under normal operation
+    #define TRACK_NEW_JSON_ARRAY(x) x;
+    #define TRACK_DELETED_JSON_ARRAY(x) x;
 #endif
 };
 

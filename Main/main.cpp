@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
     */
 
     double price, bid, ask;
-    if (client.fetchQuoteSync("MSFT", price, bid, ask)) {
+    if (client.fetchSyncQuote("MSFT", price, bid, ask)) {
         qDebug() << "Sync Quote - Price:" << price << "Bid:" << bid << "Ask:" << ask;
     } else {
         qDebug() << "Sync Quote failed or timed out";

@@ -1,4 +1,5 @@
 #include "fmpclient.h"
+#include "qtestsupport_core.h"
 #include <QNetworkAccessManager>
 #include <QThread>
 #include <QNetworkReply>
@@ -10,6 +11,7 @@
 #ifdef UNIT_TESTING
 #include <QtTest/QtTest>
 #endif
+
 // Define the logging category
 Q_LOGGING_CATEGORY(FMPClientLog, "FMPClient")
 
@@ -23,7 +25,7 @@ FMPClient& FMPClient::getInstance() {
     if (instance == nullptr) {
         qCDebug(FMPClientLog) << "Singleton instance created";
 
-        instance = new FMPClient();  // Create on first call
+        instance = new FMPClient();
     }
     return *instance;
 }
@@ -70,15 +72,19 @@ QString FMPClient::buildUrlWithEndpointAndSymbol(const QString &endpoint, const 
            QString("apikey=%1").arg(apiKey);
 }
 
-void FMPClient::fetchQuoteAsync(const QString &symbol) {
+void FMPClient::fetchAsyncQuote(const QString &symbol) {
     QString url = buildUrlWithEndpointAndSymbol("quote",symbol);
 
-    QMutexLocker locker(&mutex);
+    // TODO Likely not needed
+    QMutexLocker locker(&pendingRequestsMutex);
 
+    // Invoke this method in the distinct thread of the FMPClient singleton.
+    // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
+    // is actually invoking this method NOT in the caller's thread.
     QMetaObject::invokeMethod(this, [this, url]() {
-        QNetworkRequest request(url);
-        QNetworkReply *reply = manager->get(request);
-        QMutexLocker locker(&mutex);
+        QNetworkReply *reply = manager->get(QNetworkRequest(url));
+
+        QMutexLocker locker(&pendingRequestsMutex);
         pendingRequests[reply] = {RequestType::QuoteAsync};
     }, Qt::QueuedConnection);
 
@@ -88,20 +94,23 @@ void FMPClient::fetchQuoteAsync(const QString &symbol) {
  * Underlying function doing the fetching of the JSON common to all fetchXSync methods
  */
 bool FMPClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToDelete) {
-    QMutexLocker locker(&mutex);
     QNetworkReply *reply = nullptr;
 
-    Q_ASSERT(jsonArrayFromReplyToDelete != nullptr);
-
+    // Invoke this method in the distinct thread of the FMPClient singleton.
+    // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
+    // is actually invoking this method NOT in the caller's thread.
     QMetaObject::invokeMethod(this, [this, url, &reply]() {
         QNetworkRequest request(url);
         reply = manager->get(request);
-        QMutexLocker locker(&mutex);
-        pendingRequests[reply] = {RequestType::QuoteSync};
 
         qCDebug(FMPClientLog) << Q_FUNC_INFO <<
             " : Thread [" << QThread::currentThread()->objectName() <<
-            "] executed the queued method GET and registered the reply " << static_cast<void*>(reply) ;
+            "] executed the queued GET request and registered the reply " << static_cast<void*>(reply) << " for later reception.";
+
+        QMutexLocker locker(&pendingRequestsMutex);
+        {
+            pendingRequests[reply] = {RequestType::QuoteSync};
+        }
 
     }, Qt::QueuedConnection);
 
@@ -109,18 +118,38 @@ bool FMPClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToD
         " : Thread [" << QThread::currentThread()->objectName() <<
         "] invoked the queued method to GET url " << url ;
 
+    QMutexLocker locker(&pendingRequestsMutex);
 
-    if (!waitCondition.wait(&mutex, 5000)) {
-        pendingRequests.remove(reply);
-        qCWarning(FMPClientLog) << Q_FUNC_INFO << " : The condition wait timed out.";
+    // Mutex is released while we wait
+    if (!waitCondition.wait(&pendingRequestsMutex, fetchSyncTimeoutMs)) {
+        // Mutex is re-aquired
+
+        qCWarning(FMPClientLog) << Q_FUNC_INFO <<
+            " : The condition wait timed out after " << fetchSyncTimeoutMs <<
+            "ms. Removing the *reply " << static_cast<void*>(reply) << " from pendingRequests";
+
+        // If we timed out before receiving the reply, we remove the *reply from the map.
+        // This is important so that *if* the reply/error eventually arrives, its onReplyFinished()
+        // processing will notice it is not in the map. This will signify to the onReplyFinished()
+        // that there is nobody waiting for this reply anymore.
+        bool was_removed = pendingRequests.remove(reply);
+
+        // There is a logic problem if the *reply was not in the map at this point
+        Q_ASSERT(was_removed);
+
         return false;
     }
 
+    // At this point, we got notified by the waitCondition. The FMPClient thread MUST have executed
+    // the invoked method above and populated the reply
+    Q_ASSERT(reply != nullptr);
+
+    // TODO asserts on the container here toooo
 
     if (pendingRequests.contains(reply) && pendingRequests[reply].completed) {
         jsonArrayFromReplyToDelete = pendingRequests[reply].jsonArray;
 
-        qCDebug(FMPClientLog) << Q_FUNC_INFO << " : The request " << static_cast<void*>(reply) << " successfuly completed.";
+        qCDebug(FMPClientLog) << Q_FUNC_INFO << " : The *reply " << static_cast<void*>(reply) << " successfuly completed.";
 
         pendingRequests.remove(reply);
 
@@ -136,13 +165,13 @@ bool FMPClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToD
     return false;
 }
 
-bool FMPClient::fetchQuoteSync(const QString &symbol, double &price, double &bid, double &ask) {    
+bool FMPClient::fetchSyncQuote(const QString &symbol, double &price, double &bid, double &ask) {
     QString url = buildUrlWithEndpointAndSymbol("quote",symbol);
-    QJsonArray *jsonArrayFromReplyToDelete;
+    QJsonArray *jsonArrayFromReplyToDelete = nullptr;
 
-    bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
+    bool success = fetchSync(url, jsonArrayFromReplyToDelete);
 
-    if (ret) {
+    if (success) {
         // The positive return value implies jsonArrayFromReplyToDelete has been allocated to something
         Q_ASSERT(jsonArrayFromReplyToDelete != nullptr);
 
@@ -155,13 +184,16 @@ bool FMPClient::fetchQuoteSync(const QString &symbol, double &price, double &bid
         ask = obj["askPrice"].toDouble();
 
         // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
-        delete jsonArrayFromReplyToDelete;
+        TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
+    } else {
+        // Make sure that if fetchSync failed that this pointed has not been allocated
+        Q_ASSERT(jsonArrayFromReplyToDelete == nullptr);
     }
 
-    return ret;
+    return success;
 }
 
-bool FMPClient::fetchSharesFloatSync(const QString &symbol, QString &date, double &freeFloat, double &floatShares, double &outstandingShares)
+bool FMPClient::fetchSyncSharesFloat(const QString &symbol, QString &date, double &freeFloat, double &floatShares, double &outstandingShares)
 {
     QString url = buildUrlWithEndpointAndSymbol("shares-float",symbol);
     QJsonArray *jsonArrayFromReplyToDelete;
@@ -182,7 +214,7 @@ bool FMPClient::fetchSharesFloatSync(const QString &symbol, QString &date, doubl
         outstandingShares = obj["outstandingShares"].toDouble();
 
         // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
-        delete jsonArrayFromReplyToDelete;
+        TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
     }
 
     return ret;
@@ -192,59 +224,99 @@ void FMPClient::onThreadStarted() const {
 }
 
 void FMPClient::onReplyFinished(QNetworkReply *reply) {
-    QMutexLocker locker(&mutex);
+    QJsonDocument doc;
+    RequestInfo *info;
 
 #ifdef UNIT_TESTING
-    if (introduce_6s_network_latency) {
-        QTest::qWait(6000);
+    if (simulate_reply_network_latency) {
+        qCDebug(FMPClientLog) << Q_FUNC_INFO <<
+            " : Performing a (fetchSyncTimeoutMs + 1000) of " << (fetchSyncTimeoutMs + 1000) <<
+            "ms delay in [" << QThread::currentThread()->objectName() << "] to simulate extreme network latency. ZZZZzzzzz..";
+
+        QTest::qWait(fetchSyncTimeoutMs + 1000);
     }
 #endif
 
+    // Mutex is intentionally aquired after the unit test latency delay above
+    QMutexLocker locker(&pendingRequestsMutex);
+
     if (!pendingRequests.contains(reply)) {
-        reply->deleteLater();
-        Q_ASSERT(0);
-        return;
+
+        qCWarning(FMPClientLog) << Q_FUNC_INFO <<
+            " : pendingRequests did not containt the reply " << static_cast<void*>(reply) << " : Likely due to a caller's timeout.";
+
+        goto delete_later;
     }
+
+    info = &pendingRequests[reply];
 
     qCDebug(FMPClientLog) << Q_FUNC_INFO <<
         " : Thread [" << QThread::currentThread()->objectName() <<
-        "] working on request " << static_cast<void*>(reply);
+        "] working on reply of request " << static_cast<void*>(reply);
 
-    RequestInfo &info = pendingRequests[reply];
-    QJsonDocument doc;
 
     // Those are the default values, just being explicit by resetting them to default
-    info.jsonArray = nullptr;
-    info.completed = false;
+    info->jsonArray = nullptr;
+    info->completed = false;
 
     if (reply->error() != QNetworkReply::NoError) {
-        qCWarning(FMPClientLog) << Q_FUNC_INFO << " : Error with the reply";
-        goto end;
+        qCWarning(FMPClientLog) << Q_FUNC_INFO << " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString();
+        goto notify;
     }
 
     doc = QJsonDocument::fromJson(reply->readAll());
 
     if (doc.isNull() || !doc.isArray()) {
         qCWarning(FMPClientLog) << Q_FUNC_INFO << " : JSON doc is null or not an array";
-        goto end;
+        goto notify;
     }
 
     if (doc.array().isEmpty()) {
         qCWarning(FMPClientLog) << Q_FUNC_INFO << " : Doc array is empty";
-    } else {        
-        info.jsonArray = new QJsonArray(doc.array());
-        info.completed = true;
+        goto notify;
     }
 
-end:
-    if (info.type == RequestType::QuoteAsync) {
-        //emit quoteReceived(info.price, info.bid, info.ask);
-        emit quoteReceived(-1, -1, -1);
+    // Only if the request is SYNC do we need to store the reply in the pendindRequests map and allocate a json array
+    if (info->type == RequestType::QuoteSync) {
+        info->completed = true;
+        TRACK_NEW_JSON_ARRAY(info->jsonArray = new QJsonArray(doc.array()));
+    }
+
+notify:
+    if (info->type == RequestType::QuoteAsync) {
+        emit quoteReceived(-1, -1, -1);                           // TODO fix this shit
         pendingRequests.remove(reply);
-    } else if (info.type == RequestType::QuoteSync) {
+    } else if (info->type == RequestType::QuoteSync) {
         waitCondition.wakeOne();
     }
 
+delete_later:
+
     reply->deleteLater();
+
+#ifdef UNIT_TESTING
+    if (simulate_reply_network_latency) {
+        qCDebug(FMPClientLog) << Q_FUNC_INFO << " : Signaling onReplyFinished_sem";
+        onReplyFinished_sem.release(1);
+    }
+#endif
 }
 
+#ifdef UNIT_TESTING
+bool FMPClient::isCleanedUp()
+{
+    bool isClean = true;
+
+    if (!pendingRequests.isEmpty()) {
+        qCWarning(FMPClientLog) << Q_FUNC_INFO << " : pendingRequests not empty";
+        isClean = false;
+    }
+
+    if (allocated_json_arrays != 0) {
+        qCWarning(FMPClientLog) << Q_FUNC_INFO << " : allocated_json_arrays != 0 : " << allocated_json_arrays;
+        isClean = false;
+    }
+
+    return isClean;
+}
+#endif

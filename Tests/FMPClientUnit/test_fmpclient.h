@@ -2,19 +2,21 @@
 #define TEST_FMPCLIENT_H
 
 #include <QtTest/QtTest>
-#include "../../FMPClient/fmpclient.h"
 
 class TestFMPClient : public QObject {
     Q_OBJECT
 private slots:
     void initTestCase();
 
-    void testFetchQuoteSync();
-    void testFetchQuoteAsync();
+    // TODO add test about giving a bad symbol name
 
-    void testFetchSharesFloatSync();
+    void testFetchSyncQuote();
+    void testFetchAsyncQuote();
 
-    void testFetchQuoteSyncWithFake6sNetworkLatency();
+    void testFetchSyncSharesFloat();
+
+    void testFetchSyncQuoteWithFakeNetworkLatency();
+    void testFetchAsyncQuoteWithFakeNetworkLatency();
 
 };
 
