@@ -5,10 +5,13 @@ extern QString fmpKey;
 
 void TestFMPClient::initTestCase() {
     qDebug() << "Start of test suite";
+
+    FMPClient::setAPIKey(fmpKey);
 }
 
 void TestFMPClient::testFetchQuoteSync() {
-    FMPClient client(fmpKey);
+    FMPClient& client = FMPClient::getInstance();
+
     double price, bid, ask;
 
     bool success = client.fetchQuoteSync("AAPL", price, bid, ask);
@@ -18,8 +21,24 @@ void TestFMPClient::testFetchQuoteSync() {
     QVERIFY(ask >= 0.0);
 }
 
+void TestFMPClient::testFetchSharesFloatSync()
+{
+    FMPClient& client = FMPClient::getInstance();
+
+    QString date;
+    double freeFloat, floatShares, outstandingShares;
+
+    bool success = client.fetchSharesFloatSync("AAPL", date, freeFloat, floatShares, outstandingShares);
+    QVERIFY2(success, "Sync fetch failed or timed out");
+    QVERIFY(!date.isEmpty());
+    QVERIFY(freeFloat >= 0.0 && freeFloat < 100.0);
+    QVERIFY(floatShares >= 0.0);
+    QVERIFY(outstandingShares >= 0.0);
+}
+
 void TestFMPClient::testFetchQuoteAsync() {
-    FMPClient client(fmpKey);
+    FMPClient& client = FMPClient::getInstance();
+
     QSignalSpy spy(&client, &FMPClient::quoteReceived);
 
     client.fetchQuoteAsync("AAPL");

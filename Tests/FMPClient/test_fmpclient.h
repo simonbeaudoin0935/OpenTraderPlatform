@@ -8,7 +8,10 @@ class TestFMPClient : public QObject {
     Q_OBJECT
 private slots:
     void initTestCase();
+
     void testFetchQuoteSync();
+    void testFetchSharesFloatSync();
+
     void testFetchQuoteAsync();
 };
 

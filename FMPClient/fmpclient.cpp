@@ -6,10 +6,26 @@
 #include <QMutexLocker>
 #include <QDebug>
 
-FMPClient::FMPClient(const QString &apiKey) :
+// Initialize static member outside class
+FMPClient* FMPClient::instance = nullptr;
+
+QString FMPClient::apiKey = "";
+
+FMPClient& FMPClient::getInstance() {
+    if (instance == nullptr) {
+        instance = new FMPClient();  // Create on first call
+    }
+    return *instance;
+}
+
+void FMPClient::setAPIKey(const QString &apiKey)
+{
+    FMPClient::apiKey = apiKey;
+}
+
+FMPClient::FMPClient() :
     thread(new QThread()),
-    manager(new QNetworkAccessManager(this)),
-    apiKey(apiKey)
+    manager(new QNetworkAccessManager(this))
 {
     qDebug() << Q_FUNC_INFO << ": FMPClient created using KEY=" << apiKey;
     Q_ASSERT(!apiKey.isEmpty());
@@ -30,6 +46,12 @@ FMPClient::~FMPClient() {
     thread->wait();
 }
 
+
+QString FMPClient::buildUrlWithEndpoint(const QString &endpoint) const {
+    return baseUrl + endpoint + "?" +
+           QString("apikey=%1").arg(apiKey);
+}
+
 QString FMPClient::buildUrlWithEndpointAndSymbol(const QString &endpoint, const QString &symbol) const {
     return baseUrl + endpoint + "?" +
            QString("symbol=%1").arg(symbol) + "&" +
@@ -48,9 +70,11 @@ void FMPClient::fetchQuoteAsync(const QString &symbol) {
 
 }
 
-bool FMPClient::fetchQuoteSync(const QString &symbol, double &price, double &bid, double &ask) {
+/*
+ * Underlying function doing the fetching of the JSON common to all fetchXSync methods
+ */
+bool FMPClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToDelete) {
     QMutexLocker locker(&mutex);
-    QString url = buildUrlWithEndpointAndSymbol("quote",symbol);
     QNetworkReply *reply = nullptr;
 
     QMetaObject::invokeMethod(this, [this, url, &reply]() {
@@ -76,10 +100,9 @@ bool FMPClient::fetchQuoteSync(const QString &symbol, double &price, double &bid
         return false;
     }
 
+
     if (pendingRequests.contains(reply) && pendingRequests[reply].completed) {
-        price = pendingRequests[reply].price;
-        bid = pendingRequests[reply].bid;
-        ask = pendingRequests[reply].ask;
+        jsonArrayFromReplyToDelete = pendingRequests[reply].jsonArray;
 
         qDebug() << Q_FUNC_INFO << " : The request " << static_cast<void*>(reply) << " successfuly completed.";
 
@@ -87,11 +110,66 @@ bool FMPClient::fetchQuoteSync(const QString &symbol, double &price, double &bid
 
         return true;
     }
+
+    jsonArrayFromReplyToDelete = nullptr;
+
     pendingRequests.remove(reply);
 
     qDebug() << Q_FUNC_INFO << " : The pending requests did not contain the reply, or was not marked as completed.";
 
     return false;
+}
+
+bool FMPClient::fetchQuoteSync(const QString &symbol, double &price, double &bid, double &ask) {    
+    QString url = buildUrlWithEndpointAndSymbol("quote",symbol);
+    QJsonArray *jsonArrayFromReplyToDelete;
+
+    bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
+
+    if (ret) {
+        // The positive return value implies jsonArrayFromReplyToDelete has been allocated to something
+        Q_ASSERT(jsonArrayFromReplyToDelete != nullptr);
+
+        QJsonObject obj = jsonArrayFromReplyToDelete->first().toObject();
+
+        Q_ASSERT(symbol == obj["symbol"].toString());
+
+        price = obj["price"].toDouble();
+        bid = obj["bidPrice"].toDouble();
+        ask = obj["askPrice"].toDouble();
+
+        // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
+        delete jsonArrayFromReplyToDelete;
+    }
+
+    return ret;
+}
+
+bool FMPClient::fetchSharesFloatSync(const QString &symbol, QString &date, double &freeFloat, double &floatShares, double &outstandingShares)
+{
+    QString url = buildUrlWithEndpointAndSymbol("shares-float",symbol);
+    QJsonArray *jsonArrayFromReplyToDelete;
+
+    bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
+
+    if (ret) {
+        // The positive return value implies jsonArrayFromReplyToDelete has been allocated to something
+        Q_ASSERT(jsonArrayFromReplyToDelete != nullptr);
+
+        QJsonObject obj = jsonArrayFromReplyToDelete->first().toObject();
+
+        Q_ASSERT(symbol == obj["symbol"].toString());
+
+        date = obj["date"].toString();
+        freeFloat = obj["freeFloat"].toDouble();
+        floatShares = obj["floatShares"].toDouble();
+        outstandingShares = obj["outstandingShares"].toDouble();
+
+        // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
+        delete jsonArrayFromReplyToDelete;
+    }
+
+    return ret;
 }
 
 void FMPClient::onThreadStarted() const {
@@ -113,9 +191,7 @@ void FMPClient::onReplyFinished(QNetworkReply *reply) {
     QJsonDocument doc;
 
     // Those are the default values, just being explicit by resetting them to default
-    info.price = 0;
-    info.bid = 0;
-    info.ask = 0;
+    info.jsonArray = nullptr;
     info.completed = false;
 
     if (reply->error() != QNetworkReply::NoError) {
@@ -132,17 +208,15 @@ void FMPClient::onReplyFinished(QNetworkReply *reply) {
 
     if (doc.array().isEmpty()) {
         qDebug() << Q_FUNC_INFO << " : Doc array is empty";
-    } else {
-        QJsonObject obj = doc.array().first().toObject();
-        info.price = obj["price"].toDouble();
-        info.bid = obj["bidPrice"].toDouble();
-        info.ask = obj["askPrice"].toDouble();
+    } else {        
+        info.jsonArray = new QJsonArray(doc.array());
         info.completed = true;
     }
 
 end:
     if (info.type == RequestType::QuoteAsync) {
-        emit quoteReceived(info.price, info.bid, info.ask);
+        //emit quoteReceived(info.price, info.bid, info.ask);
+        emit quoteReceived(-1, -1, -1);
         pendingRequests.remove(reply);
     } else if (info.type == RequestType::QuoteSync) {
         waitCondition.wakeOne();
@@ -150,3 +224,4 @@ end:
 
     reply->deleteLater();
 }
+

@@ -25,8 +25,9 @@ int main(int argc, char *argv[])
     QSettings settings(tokenFile, QSettings::IniFormat);
     QString fmpKey = settings.value("FMP/AccessToken", "DEFAULT_KEY_IF_NOT_FOUND").toString();
 
+    FMPClient::setAPIKey(fmpKey);
 
-    FMPClient client(fmpKey);
+    FMPClient& client = FMPClient::getInstance();
 
     QObject::connect(&client, &FMPClient::quoteReceived, [](double price, double bid, double ask) {
         qDebug() << "Async Quote - Price:" << price << "Bid:" << bid << "Ask:" << ask;
