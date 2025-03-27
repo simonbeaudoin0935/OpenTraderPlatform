@@ -8,8 +8,14 @@ SOURCES += FMPClientUnit/test_fmpclient.cpp FMPClientUnit/main.cpp
 HEADERS += FMPClientUnit/test_fmpclient.h
 
 #FMPClient sources
-SOURCES += ../FMPClient/fmpclient.cpp
-HEADERS += ../FMPClient/fmpclient.h
+SOURCES += \
+    ../FMPClient/fmpclient.cpp \
+    ../FMPClient/companyscreenerfilter.cpp
+
+HEADERS += \
+    ../FMPClient/fmpclient.h \
+    ../FMPClient/companyscreenerfilter.h
+
 INCLUDEPATH += ../FMPClient
 DEPENDPATH += ../FMPClient
 

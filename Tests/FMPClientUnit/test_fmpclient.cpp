@@ -19,7 +19,16 @@ void TestFMPClient::initTestCase() {
 
 }
 
-void TestFMPClient::testFetchSyncQuote() {
+void TestFMPClient::init()
+{
+    // Make sure the debug prints are enabled
+    QLoggingCategory::setFilterRules("FMPClient.debug=true");
+
+    // A test could change the logging behavior to suppress too much logging,
+    // but it will be reset before each test
+}
+
+void TestFMPClient::testFetchSyncQuoteShort() {
     FMPClient& client = FMPClient::getInstance();
     double price, change;
     qsizetype volume;
@@ -39,7 +48,7 @@ void TestFMPClient::testFetchSyncQuote() {
     QVERIFY(client.isCleanedUp());
 }
 
-void TestFMPClient::testFetchAsyncQuote() {
+void TestFMPClient::testFetchAsyncQuoteShort() {
     FMPClient& client = FMPClient::getInstance();
 
     QVERIFY(client.isCleanedUp());
@@ -87,11 +96,78 @@ void TestFMPClient::testFetchSyncSharesFloat()
     QVERIFY(client.isCleanedUp());
 }
 
+void TestFMPClient::testFetchAsyncSharesFloat()
+{
+    FMPClient& client = FMPClient::getInstance();
+
+    QVERIFY(client.isCleanedUp());
+
+    QSignalSpy spy(&client, &FMPClient::sharesFloatReceived);
+
+    QVERIFY(spy.isValid());
+
+    {
+        client.fetchAsyncSharesFloat("AAPL");
+
+        bool triggered = spy.wait(2000);
+        QVERIFY(triggered);
+    }
+
+    QVERIFY2(spy.count() == 1, "Async fetch did not emit signal");
+    QList<QVariant> arguments = spy.takeFirst();
+    QVERIFY(arguments.at(0).toString() == "AAPL");
+    {
+        QString ret_date = arguments.at(1).toString();
+        QString format = "yyyy-MM-dd HH:mm:ss";
+        QDateTime dt = QDateTime::fromString(ret_date, format);
+
+        QVERIFY(dt.isValid());  // date
+    }
+    QVERIFY(arguments.at(2).toDouble() != 0.0); // free-float
+    QVERIFY(arguments.at(3).toInt() >= 0); // float shares
+    QVERIFY(arguments.at(4).toInt() >= 0); // outstanding shares
+
+    QVERIFY(client.isCleanedUp());
+}
+
+// TODO do more testing?? perhaps
+void TestFMPClient::testFetchSyncCompanyScreener()
+{
+    FMPClient& client = FMPClient::getInstance();
+    bool success;
+    QVector<CompanyScreenerResult> results;
+
+    QVERIFY(client.isCleanedUp());
+
+    {
+        CompanyScreenerFilter filter;
+
+        filter.setIndustry("Biotechnology");
+        filter.setPriceMoreThan(2.0);
+        filter.setPriceLowerThan(20.0);
+        filter.setExchange("NASDAQ");
+        filter.setIsActivelyTrading(true);
+        filter.setIsEtf(false);
+        filter.setIsFund(false);
+        filter.setCountry("US");
+        filter.setVolumeMoreThan(10000);
+
+        success = client.fetchSyncCompanyScreener(filter, results);
+
+        qDebug() << "Company-Screener produced " << results.size() << " results";
+
+    }
+
+    QVERIFY2(success, "Sync fetch failed or timed out");
+    QVERIFY(!results.isEmpty());
+    QVERIFY(client.isCleanedUp());
+}
+
 /*
  * Testing that when the fetcher times out because the reply took too long to arrive,
  * that no resources are leaked.
  */
-void TestFMPClient::testFetchSyncQuoteWithFakeNetworkLatency()
+void TestFMPClient::testFetchSyncQuoteShortWithFakeNetworkLatency()
 {
     FMPClient& client = FMPClient::getInstance();
     double price, change;
@@ -133,7 +209,7 @@ void TestFMPClient::testFetchSyncQuoteWithFakeNetworkLatency()
     QVERIFY(client.isCleanedUp());
 }
 
-void TestFMPClient::testFetchAsyncQuoteWithFakeNetworkLatency()
+void TestFMPClient::testFetchAsyncQuoteShortWithFakeNetworkLatency()
 {
     FMPClient& client = FMPClient::getInstance();
 
@@ -184,4 +260,40 @@ void TestFMPClient::testFetchAsyncQuoteWithFakeNetworkLatency()
     // Particularly important here, this is what tests that onReplyFinished() properly handled
     // fetchSyncQuote() timing out and bailing.
     QVERIFY(client.isCleanedUp());
+}
+
+void TestFMPClient::testFetchingMoreThanMaximumPerMinute()
+{
+    qDebug() << "Turned of qCDebug(FMPClient.debug) for this test so as to not flood the console.";
+
+    // Suppress debug prints for this test as we will do a huge number of requests
+    QLoggingCategory::setFilterRules("FMPClient.debug=false");
+
+
+    FMPClient& client = FMPClient::getInstance();
+
+    QVERIFY(client.isCleanedUp());
+
+    QSignalSpy spy(&client, &FMPClient::quoteShortReceived);
+
+    QVERIFY(spy.isValid());
+
+    const qsizetype APIMaxCallsPerMinute = 750;
+    {
+        qDebug() << "Expect a couple of 'Error with the reply' :";
+        // Launch max + 1 as fast as possible
+        for(size_t i = 0; i != APIMaxCallsPerMinute + 1; i++) {
+            client.fetchAsyncQuoteShort("AAPL");
+        }
+
+        // 5s should be enough to perform those 701 requests
+        QTest::qWait(5000);
+    }
+
+    qDebug() << "Made " << spy.count() << " requests";
+    QVERIFY2(spy.count() > (APIMaxCallsPerMinute/2), "Expecting at *least* half the requests succeeded and made it to the slot");
+    QVERIFY2(spy.count() <= APIMaxCallsPerMinute, "Should not have been able to perform 1 more request than 750");
+
+    QVERIFY(client.isCleanedUp());
+
 }

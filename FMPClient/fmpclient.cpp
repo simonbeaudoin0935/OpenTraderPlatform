@@ -87,6 +87,13 @@ QString FMPClient::buildUrlWithEndpointAndSymbol(const QString &endpoint, const 
            QString("apikey=%1").arg(apiKey);
 }
 
+QString FMPClient::buildUrlWithEndpointAndParamsList(const QString &endpoint, const QString &paramsList) const
+{
+    return baseUrl + endpoint + "?" +
+           paramsList + "&" +
+           QString("apikey=%1").arg(apiKey);
+}
+
 void FMPClient::fetchAsync(const QString &url, RequestType type) {
     // Invoke this method in the distinct thread of the FMPClient singleton.
     // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
@@ -169,7 +176,7 @@ bool FMPClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToD
     // the invoked method above and populated the reply
     Q_ASSERT(reply != nullptr);
 
-    // TODO asserts on the container here toooo
+#warning TODO asserts on the container here toooo
 
     if (pendingRequests.contains(reply) && pendingRequests[reply].completed) {
         jsonArrayFromReplyToDelete = pendingRequests[reply].jsonArray;
@@ -189,8 +196,6 @@ bool FMPClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToD
 
     return false;
 }
-
-#warning "TODO switch to short quote"
 
 bool FMPClient::fetchSyncQuoteShort(const QString &symbol, double &price, double &change, qsizetype &volume) {
     QString url = buildUrlWithEndpointAndSymbol("quote-short",symbol);
@@ -239,6 +244,34 @@ bool FMPClient::fetchSyncSharesFloat(const QString &symbol, QString &date, doubl
         freeFloat = obj["freeFloat"].toDouble();
         floatShares = obj["floatShares"].toDouble();
         outstandingShares = obj["outstandingShares"].toDouble();
+
+        // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
+        TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
+    } else {
+        // Make sure that if fetchSync failed that this pointed has not been allocated
+        Q_ASSERT(jsonArrayFromReplyToDelete == nullptr);
+    }
+
+    return ret;
+}
+
+bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QVector<CompanyScreenerResult> &results)
+{
+    QString url = buildUrlWithEndpointAndParamsList("company-screener", filter.getURLParameters());
+    QJsonArray *jsonArrayFromReplyToDelete = nullptr;
+
+    bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
+
+    if (ret) {
+        // The positive return value implies jsonArrayFromReplyToDelete has been allocated to something
+        Q_ASSERT(jsonArrayFromReplyToDelete != nullptr);
+
+        // Resize the array in advance
+        results.reserve(jsonArrayFromReplyToDelete->count());
+
+        for (QJsonValue json: *jsonArrayFromReplyToDelete) {
+            results.push_back(CompanyScreenerResult(json.toObject()));
+        }
 
         // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
         TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
@@ -316,9 +349,11 @@ void FMPClient::onReplyFinished(QNetworkReply *reply) {
         goto notify;
     }
 
+    // At this point, the reply is legit
+    info->completed = true;
+
     // Only if the request is SYNC do we need to store the reply in the pendindRequests map and allocate a json array
     if (info->synchronicity == RequestSynchronicity::Sync) {
-        info->completed = true;
         TRACK_NEW_JSON_ARRAY(info->jsonArray = new QJsonArray(doc.array()));
     } else {
         // In the case of Async request, no need use new
@@ -326,7 +361,12 @@ void FMPClient::onReplyFinished(QNetworkReply *reply) {
 
 notify:
     if (info->synchronicity == RequestSynchronicity::Async) {
-        emitSignalDemuxer(info->type, doc.array());
+        if (info->completed == true) {
+            // If the request failed, do not emit the signal. This is a design choice I guess.
+            // Time will tell if the app should still receive a signal, albeit with an error flag set.
+            emitSignalDemuxer(info->type, doc.array());
+        }
+        // Whether the request was successful or not, take it out of the map
         pendingRequests.remove(reply);
     } else if (info->synchronicity == RequestSynchronicity::Sync) {
         waitCondition.wakeOne();

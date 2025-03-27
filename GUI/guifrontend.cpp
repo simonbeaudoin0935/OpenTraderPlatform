@@ -24,7 +24,7 @@ GuiFrontend::~GuiFrontend() {
 }
 
 void GuiFrontend::onPriceUpdated(const QJsonObject& priceData) {
-
+#warning deal with this shit
 }
 
 void GuiFrontend::onPricesFetched() {

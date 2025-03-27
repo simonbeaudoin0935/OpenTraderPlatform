@@ -9,12 +9,14 @@ SOURCES += \
     main.cpp \
     ../Core/appfrontend.cpp \
     ../FMPClient/fmpclient.cpp \
+    ../FMPClient/companyscreenerfilter.cpp \
     settings.cpp
 
 HEADERS += \
     ../Core/appfrontend.h \
     ../Core/mainapp.h \
     ../FMPClient/fmpclient.h \
+    ../FMPClient/companyscreenerfilter.h \
     argumentparser.h \
     settings.h
 

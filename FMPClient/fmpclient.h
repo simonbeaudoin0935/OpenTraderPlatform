@@ -8,6 +8,9 @@
 #include <QHash>
 #include <QLoggingCategory>
 #include <atomic>
+#include <QVector>
+
+#include "companyscreenerfilter.h"
 
 Q_DECLARE_LOGGING_CATEGORY(FMPClientLog)
 
@@ -17,13 +20,17 @@ class QThread;
 class QNetworkAccessManager;
 class QNetworkReply;
 
+
 class FMPClient : public QObject {
     Q_OBJECT
 public:
 
-    // Singleton : instance getter
+    // Singleton : Instance getter
     static FMPClient& getInstance();
     static FMPClient* getInstancePtr();
+    // Singleton : Delete copy constructor and assignment operator
+    FMPClient(const FMPClient&) = delete;
+    FMPClient& operator=(const FMPClient&) = delete;
 
     // Must be called before the first getInstance() call
     static void setAPIKey(const QString &apiKey);
@@ -31,15 +38,19 @@ public:
     qsizetype getTotalDataReceivedBytes() const;
 
     // API data fetchers
+
+    // https://site.financialmodelingprep.com/developer/docs/stable/quote-short
     void fetchAsyncQuoteShort(const QString &symbol);
     bool fetchSyncQuoteShort(const QString &symbol, double &price, double &change, qsizetype &volume);
 
+    // https://site.financialmodelingprep.com/developer/docs/stable/shares-float
     void fetchAsyncSharesFloat(const QString &symbol);
     bool fetchSyncSharesFloat(const QString &symbol, QString &date, double &freeFloat, double &floatShares, double &outstandingShares);
 
-    // Singleton : Delete copy constructor and assignment operator
-    FMPClient(const FMPClient&) = delete;
-    FMPClient& operator=(const FMPClient&) = delete;
+    // https://site.financialmodelingprep.com/developer/docs/stable/search-company-screener
+    bool fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QVector<CompanyScreenerResult> &results);
+
+
 
 signals:
     // API Async version signals
@@ -73,6 +84,8 @@ private:
 
     QString buildUrlWithEndpoint(const QString &endpoint) const;
     QString buildUrlWithEndpointAndSymbol(const QString &endpoint, const QString &symbol) const;
+    QString buildUrlWithEndpointAndParamsList(const QString &endpoint, const QString &paramsList) const;
+
 
     bool fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToDelete);
     void fetchAsync(const QString &url, RequestType type);

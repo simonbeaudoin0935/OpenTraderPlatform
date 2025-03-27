@@ -8,16 +8,25 @@ class TestFMPClient : public QObject {
 private slots:
     void initTestCase();
 
+    void init();
+
     // TODO add test about giving a bad symbol name
 
-    void testFetchSyncQuote();
-    void testFetchAsyncQuote();
+    void testFetchSyncQuoteShort();
+    void testFetchAsyncQuoteShort();
 
     void testFetchSyncSharesFloat();
+    void testFetchAsyncSharesFloat();
 
-    void testFetchSyncQuoteWithFakeNetworkLatency();
-    void testFetchAsyncQuoteWithFakeNetworkLatency();
+    void testFetchSyncCompanyScreener();
 
+
+    void testFetchSyncQuoteShortWithFakeNetworkLatency();
+    void testFetchAsyncQuoteShortWithFakeNetworkLatency();
+
+    void testFetchingMoreThanMaximumPerMinute();
+    //TODO should perhaps implement a max-per-minute limiter to queue the exceeding requests
+    //     for the next minute instead of having them fail
 };
 
 #endif // TEST_FMPCLIENT_H
