@@ -7,6 +7,7 @@
 #include <QWaitCondition>
 #include <QHash>
 #include <QLoggingCategory>
+#include <atomic>
 
 Q_DECLARE_LOGGING_CATEGORY(FMPClientLog)
 
@@ -25,6 +26,8 @@ public:
 
     // Must be called before the first getInstance() call
     static void setAPIKey(const QString &apiKey);
+
+    qsizetype getTotalDataReceivedBytes() const;
 
     // API data fetchers
     void fetchAsyncQuote(const QString &symbol);
@@ -79,6 +82,7 @@ private:
     QWaitCondition waitCondition;
     QHash<QNetworkReply*, RequestInfo> pendingRequests;
     const QString baseUrl = "https://financialmodelingprep.com/stable/";
+    std::atomic<qsizetype> totalDataReceivedBytes = 0;
 
     // Singleton
     static FMPClient* instance;

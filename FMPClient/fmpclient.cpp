@@ -36,6 +36,11 @@ void FMPClient::setAPIKey(const QString &apiKey)
     qCDebug(FMPClientLog) << "API key set to " << apiKey;
 }
 
+qsizetype FMPClient::getTotalDataReceivedBytes() const
+{
+    return totalDataReceivedBytes.load(std::memory_order_relaxed);
+}
+
 FMPClient::FMPClient() :
     thread(new QThread()),
     manager(new QNetworkAccessManager(this))
@@ -206,7 +211,7 @@ bool FMPClient::fetchSyncQuote(const QString &symbol, double &price, double &bid
 bool FMPClient::fetchSyncSharesFloat(const QString &symbol, QString &date, double &freeFloat, double &floatShares, double &outstandingShares)
 {
     QString url = buildUrlWithEndpointAndSymbol("shares-float",symbol);
-    QJsonArray *jsonArrayFromReplyToDelete;
+    QJsonArray *jsonArrayFromReplyToDelete = nullptr;
 
     bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
 
@@ -250,6 +255,12 @@ void FMPClient::onReplyFinished(QNetworkReply *reply) {
     }
 #endif
 
+    QByteArray rawData = reply->readAll();
+    qsizetype bytesReceived = rawData.size();
+    totalDataReceivedBytes.fetch_add(bytesReceived, std::memory_order_relaxed);  // Atomic increment
+
+    qCDebug(FMPClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << totalDataReceivedBytes.load(std::memory_order_relaxed) << " bytes";
+
     // Mutex is intentionally aquired after the unit test latency delay above
     QMutexLocker locker(&pendingRequestsMutex);
 
@@ -277,7 +288,8 @@ void FMPClient::onReplyFinished(QNetworkReply *reply) {
         goto notify;
     }
 
-    doc = QJsonDocument::fromJson(reply->readAll());
+
+    doc = QJsonDocument::fromJson(rawData);
 
     if (doc.isNull() || !doc.isArray()) {
         qCWarning(FMPClientLog) << Q_FUNC_INFO << " : JSON doc is null or not an array";

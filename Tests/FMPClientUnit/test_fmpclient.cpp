@@ -147,6 +147,7 @@ void TestFMPClient::testFetchAsyncQuoteWithFakeNetworkLatency()
 
     client.simulate_reply_network_latency = true;
     {
+        bool triggered;
         unsigned int tmp = client.fetchSyncTimeoutMs;
         client.fetchSyncTimeoutMs = 1000; // Accelerate the unit test
 
@@ -154,8 +155,12 @@ void TestFMPClient::testFetchAsyncQuoteWithFakeNetworkLatency()
 
         client.fetchAsyncQuote("AAPL");
 
-        bool triggered = spy.wait(2000);
+        triggered = spy.wait(500);
+        QVERIFY(false == triggered);
+
+        triggered = spy.wait(3000); // TODO explain why 3000ms
         QVERIFY(triggered);
+
 
         // The timeout for a sync fetch is FMPClient::fetchSyncTimeoutMs, and the activated internal delay to the FMPClient thread is +1000ms of that.
         // Wait here until the object notifies us it completed its onReplyFinished()
