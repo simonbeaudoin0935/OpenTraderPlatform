@@ -23,6 +23,7 @@ public:
 
     // Singleton : instance getter
     static FMPClient& getInstance();
+    static FMPClient* getInstancePtr();
 
     // Must be called before the first getInstance() call
     static void setAPIKey(const QString &apiKey);
@@ -30,8 +31,8 @@ public:
     qsizetype getTotalDataReceivedBytes() const;
 
     // API data fetchers
-    void fetchAsyncQuote(const QString &symbol);
-    bool fetchSyncQuote(const QString &symbol, double &price, double &bid, double &ask);
+    void fetchAsyncQuoteShort(const QString &symbol);
+    bool fetchSyncQuoteShort(const QString &symbol, double &price, double &change, qsizetype &volume);
 
     void fetchAsyncSharesFloat(const QString &symbol);
     bool fetchSyncSharesFloat(const QString &symbol, QString &date, double &freeFloat, double &floatShares, double &outstandingShares);
@@ -42,8 +43,10 @@ public:
 
 signals:
     // API Async version signals
-    void quoteReceived(QString symbol, double price, double bid, double ask);
+    void quoteShortReceived(QString symbol, double price, double change, qsizetype volume);
     void sharesFloatReceived(QString symbol, QString date, double freeFloat, double floatShares, double outstandingShares);
+
+    void totalDataReceivedBytesIncreased(qsizetype dataSize);
 
 private slots:
     void onThreadStarted() const;

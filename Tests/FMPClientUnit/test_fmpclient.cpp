@@ -21,38 +21,35 @@ void TestFMPClient::initTestCase() {
 
 void TestFMPClient::testFetchSyncQuote() {
     FMPClient& client = FMPClient::getInstance();
-    double price, bid, ask;
+    double price, change;
+    qsizetype volume;
     bool success;
 
     QVERIFY(client.isCleanedUp());
 
     {
-        success = client.fetchSyncQuote("AAPL", price, bid, ask);
+        success = client.fetchSyncQuoteShort("AAPL", price, change, volume);
     }
 
     QVERIFY2(success, "Sync fetch failed or timed out");
     QVERIFY(price > 0.0);
-    QVERIFY(bid >= 0.0);
-    QVERIFY(ask >= 0.0);
+    QVERIFY(change != 0.0);
+    QVERIFY(volume >= 0);
 
     QVERIFY(client.isCleanedUp());
 }
-
-
-
-
 
 void TestFMPClient::testFetchAsyncQuote() {
     FMPClient& client = FMPClient::getInstance();
 
     QVERIFY(client.isCleanedUp());
 
-    QSignalSpy spy(&client, &FMPClient::quoteReceived);
+    QSignalSpy spy(&client, &FMPClient::quoteShortReceived);
 
     QVERIFY(spy.isValid());
 
     {
-        client.fetchAsyncQuote("AAPL");
+        client.fetchAsyncQuoteShort("AAPL");
 
         bool triggered = spy.wait(2000);
         QVERIFY(triggered);
@@ -62,8 +59,8 @@ void TestFMPClient::testFetchAsyncQuote() {
     QList<QVariant> arguments = spy.takeFirst();
     QVERIFY(arguments.at(0).toString() == "AAPL");
     QVERIFY(arguments.at(1).toDouble() > 0.0);  // price
-    QVERIFY(arguments.at(2).toDouble() >= 0.0); // bid
-    QVERIFY(arguments.at(3).toDouble() >= 0.0); // ask
+    QVERIFY(arguments.at(2).toDouble() != 0.0); // change
+    QVERIFY(arguments.at(3).toInt() >= 0); // volume
 
     QVERIFY(client.isCleanedUp());
 }
@@ -97,7 +94,8 @@ void TestFMPClient::testFetchSyncSharesFloat()
 void TestFMPClient::testFetchSyncQuoteWithFakeNetworkLatency()
 {
     FMPClient& client = FMPClient::getInstance();
-    double price, bid, ask;
+    double price, change;
+    qsizetype volume;
     bool success;
 
     QVERIFY(client.isCleanedUp());
@@ -109,7 +107,7 @@ void TestFMPClient::testFetchSyncQuoteWithFakeNetworkLatency()
 
         QVERIFY(0 == client.onReplyFinished_sem.available());
 
-        success = client.fetchSyncQuote("AAPL", price, bid, ask);
+        success = client.fetchSyncQuoteShort("AAPL", price, change, volume);
 
         // The timeout for a sync fetch is FMPClient::fetchSyncTimeoutMs, and the activated internal delay to the FMPClient thread is +1000ms of that.
         // Wait here until the object notifies us it completed its onReplyFinished()
@@ -127,8 +125,8 @@ void TestFMPClient::testFetchSyncQuoteWithFakeNetworkLatency()
 
     QVERIFY2(success == false, "Sync fetch SHOULD fail or time out");
     QVERIFY(price > 0.0);
-    QVERIFY(bid >= 0.0);
-    QVERIFY(ask >= 0.0);
+    QVERIFY(change >= 0.0);
+    QVERIFY(volume >= 0);
 
     // Particularly important here, this is what tests that onReplyFinished() properly handled
     // fetchSyncQuote() timing out and bailing.
@@ -141,7 +139,7 @@ void TestFMPClient::testFetchAsyncQuoteWithFakeNetworkLatency()
 
     QVERIFY(client.isCleanedUp());
 
-    QSignalSpy spy(&client, &FMPClient::quoteReceived);
+    QSignalSpy spy(&client, &FMPClient::quoteShortReceived);
 
     QVERIFY(spy.isValid());
 
@@ -153,7 +151,7 @@ void TestFMPClient::testFetchAsyncQuoteWithFakeNetworkLatency()
 
         QVERIFY(0 == client.onReplyFinished_sem.available());
 
-        client.fetchAsyncQuote("AAPL");
+        client.fetchAsyncQuoteShort("AAPL");
 
         triggered = spy.wait(500);
         QVERIFY(false == triggered);
@@ -180,8 +178,8 @@ void TestFMPClient::testFetchAsyncQuoteWithFakeNetworkLatency()
     QList<QVariant> arguments = spy.takeFirst();
     QVERIFY(arguments.at(0).toString() == "AAPL");
     QVERIFY(arguments.at(1).toDouble() > 0.0);  // price
-    QVERIFY(arguments.at(2).toDouble() >= 0.0); // bid
-    QVERIFY(arguments.at(3).toDouble() >= 0.0); // ask
+    QVERIFY(arguments.at(2).toDouble() != 0.0); // change
+    QVERIFY(arguments.at(3).toInt() >= 0); // volume
 
     // Particularly important here, this is what tests that onReplyFinished() properly handled
     // fetchSyncQuote() timing out and bailing.

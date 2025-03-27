@@ -23,6 +23,8 @@ void parseArguments(const QStringList &args) {
     parser.process(args);
 
     QString tokensFile = parser.value(configTokensOption);
+
+    qDebug() << "fmp token file : " << tokensFile;
     if(tokensFile.isEmpty()){
         qFatal() << "No tokens file specified. Usage: ./tradestation_algo --tokens <tokens_file>";
     }

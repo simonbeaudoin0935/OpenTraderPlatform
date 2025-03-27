@@ -13,6 +13,8 @@ public:
 public slots:
     virtual void onPriceUpdated(const QJsonObject& priceData) = 0;
     virtual void onPricesFetched() = 0;
+
+    virtual void onFMPClientDataUsageUpdate(qsizetype newDataUsage) = 0;
 };
 
 #endif

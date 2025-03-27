@@ -11,8 +11,9 @@
 #endif
 
 #include "argumentparser.h"
+#include "settings.h"
 #include "../Core/mainapp.h"
-
+#include "../FMPClient/fmpclient.h"
 
 int main(int argc, char *argv[])
 {
@@ -22,6 +23,13 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationVersion("1.0");
 
     parseArguments(app.arguments());
+
+    QString fmpToken = tokensSettings->value("FMP/AccessToken").toString();
+    if (fmpToken.isEmpty()) {
+        qFatal() << "No FMP access token found in config.ini. Exiting...";
+    }
+
+    FMPClient::setAPIKey(fmpToken);
 
     MainApp mainApp(new FRONTEND());
 

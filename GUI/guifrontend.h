@@ -3,6 +3,7 @@
 
 #include "../Core/appfrontend.h"
 #include <QMainWindow>
+#include <QTimer>
 
 // Forward declare the generated UI class
 namespace Ui {
@@ -18,9 +19,18 @@ public:
 public slots:
     void onPriceUpdated(const QJsonObject& priceData) override;
     void onPricesFetched() override;
+    void onFMPClientDataUsageUpdate(qsizetype newDataUsage) override;
+
+private slots:
+    void onUpdateTimerTimeout();
+
+    //TODO test
+    void onQuoteShortReceived(const QString symbol, double price, double change, qsizetype volume);
 
 private:
     Ui::GuiFrontend* ui;  // Pointer to the UI object
+
+    QTimer updateTimer;
 };
 
 #endif // GUIFRONTEND_H

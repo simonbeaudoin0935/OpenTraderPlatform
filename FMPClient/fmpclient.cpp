@@ -30,6 +30,16 @@ FMPClient& FMPClient::getInstance() {
     return *instance;
 }
 
+FMPClient* FMPClient::getInstancePtr() {
+
+    if (instance == nullptr) {
+        qCDebug(FMPClientLog) << "Singleton instance created";
+
+        instance = new FMPClient();
+    }
+    return instance;
+}
+
 void FMPClient::setAPIKey(const QString &apiKey)
 {
     FMPClient::apiKey = apiKey;
@@ -92,8 +102,8 @@ void FMPClient::fetchAsync(const QString &url, RequestType type) {
     }, Qt::QueuedConnection);
 }
 
-void FMPClient::fetchAsyncQuote(const QString &symbol) {
-    QString url = buildUrlWithEndpointAndSymbol("quote",symbol);
+void FMPClient::fetchAsyncQuoteShort(const QString &symbol) {
+    QString url = buildUrlWithEndpointAndSymbol("quote-short",symbol);
 
     fetchAsync(url, RequestType::Quote);
 }
@@ -180,8 +190,10 @@ bool FMPClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToD
     return false;
 }
 
-bool FMPClient::fetchSyncQuote(const QString &symbol, double &price, double &bid, double &ask) {
-    QString url = buildUrlWithEndpointAndSymbol("quote",symbol);
+#warning "TODO switch to short quote"
+
+bool FMPClient::fetchSyncQuoteShort(const QString &symbol, double &price, double &change, qsizetype &volume) {
+    QString url = buildUrlWithEndpointAndSymbol("quote-short",symbol);
     QJsonArray *jsonArrayFromReplyToDelete = nullptr;
 
     bool success = fetchSync(url, jsonArrayFromReplyToDelete);
@@ -195,8 +207,8 @@ bool FMPClient::fetchSyncQuote(const QString &symbol, double &price, double &bid
         Q_ASSERT(symbol == obj["symbol"].toString());
 
         price = obj["price"].toDouble();
-        bid = obj["bidPrice"].toDouble();
-        ask = obj["askPrice"].toDouble();
+        change = obj["change"].toDouble();
+        volume = obj["volume"].toInteger();
 
         // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
         TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
@@ -258,6 +270,9 @@ void FMPClient::onReplyFinished(QNetworkReply *reply) {
     QByteArray rawData = reply->readAll();
     qsizetype bytesReceived = rawData.size();
     totalDataReceivedBytes.fetch_add(bytesReceived, std::memory_order_relaxed);  // Atomic increment
+
+    // Broadcast the new data size (ie to update the GUI)
+    emit totalDataReceivedBytesIncreased(totalDataReceivedBytes.load(std::memory_order_relaxed));
 
     qCDebug(FMPClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << totalDataReceivedBytes.load(std::memory_order_relaxed) << " bytes";
 
@@ -342,10 +357,10 @@ void FMPClient::emitSignalDemuxer(RequestType type, const QJsonArray &doc) {
         break;
 
     case RequestType::Quote:
-        emit quoteReceived(obj["symbol"].toString(),
-                           obj["price"].toDouble(),
-                           obj["bidPrice"].toDouble(),
-                           obj["askPrice"].toDouble());
+        emit quoteShortReceived(obj["symbol"].toString(),
+                                obj["price"].toDouble(),
+                                obj["change"].toDouble(),
+                                obj["volume"].toInteger());
         break;
     case RequestType::SharesFloat:
         emit sharesFloatReceived(obj["symbol"].toString(),
