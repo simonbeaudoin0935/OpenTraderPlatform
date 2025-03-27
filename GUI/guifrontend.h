@@ -20,6 +20,7 @@ public slots:
     void onPriceUpdated(const QJsonObject& priceData) override;
     void onPricesFetched() override;
     void onFMPClientDataUsageUpdate(qsizetype newDataUsage) override;
+    void onMemoryUsageUpdate(qint64 newDataUsage) override;
 
 private slots:
     void onUpdateTimerTimeout();
@@ -31,6 +32,9 @@ private:
     Ui::GuiFrontend* ui;  // Pointer to the UI object
 
     QTimer updateTimer;
+
+    qsizetype FMPDataUsage = 0;
+    qint64 memoryUsage = 0;
 };
 
 #endif // GUIFRONTEND_H

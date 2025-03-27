@@ -1,4 +1,5 @@
 #include <QCommandLineParser>
+#include <QFileInfo>
 
 #include "argumentparser.h"
 #include "settings.h"
@@ -23,26 +24,31 @@ void parseArguments(const QStringList &args) {
     parser.process(args);
 
     QString tokensFile = parser.value(configTokensOption);
-
-    qDebug() << "fmp token file : " << tokensFile;
-    if(tokensFile.isEmpty()){
-        qFatal() << "No tokens file specified. Usage: ./tradestation_algo --tokens <tokens_file>";
+    {
+        QFileInfo fileInfo(tokensFile);
+        if (!fileInfo.exists() || !fileInfo.isFile()) {
+            qFatal() << "Error: The specified path does not exist or is not a file : " << tokensFile;
+        }
     }
-
     tokensSettings = new QSettings(tokensFile, QSettings::IniFormat);
 
     QString configFile = parser.value(configConfigOption);
-    if(configFile.isEmpty()){
-        qFatal() << "No config file specified. Usage: ./tradestation_algo --config <config_file>";
+    {
+        QFileInfo fileInfo(configFile);
+        if (!fileInfo.exists() || !fileInfo.isFile()) {
+            qCritical() << "Error: The specified path does not exist or is not a file : " << configFile;
+            // TODO tackle
+        }
     }
-
     configSettings = new QSettings(configFile, QSettings::IniFormat);
 
     QString criteriaFile = parser.value(configCriteriaOption);
-    if(criteriaFile.isEmpty()){
-        qFatal() << "No criteria file file specified. Usage: ./tradestation_algo --criteria <criteria_file>";
+    {
+        QFileInfo fileInfo(criteriaFile);
+        if (!fileInfo.exists() || !fileInfo.isFile()) {
+            qFatal() << "Error: The specified path does not exist or is not a file : " << criteriaFile;
+        }
     }
-
     criteriaSettings = new QSettings(criteriaFile, QSettings::IniFormat);
 
 }

@@ -32,9 +32,10 @@ public:
     FMPClient(const FMPClient&) = delete;
     FMPClient& operator=(const FMPClient&) = delete;
 
-    // Must be called before the first getInstance() call
+    // Must be called before the first getInstance() call otherwise an assert is triggered in the constructor
     static void setAPIKey(const QString &apiKey);
 
+    // To monitor usage
     qsizetype getTotalDataReceivedBytes() const;
 
     // API data fetchers
@@ -45,7 +46,7 @@ public:
 
     // https://site.financialmodelingprep.com/developer/docs/stable/shares-float
     void fetchAsyncSharesFloat(const QString &symbol);
-    bool fetchSyncSharesFloat(const QString &symbol, QString &date, double &freeFloat, double &floatShares, double &outstandingShares);
+    bool fetchSyncSharesFloat(const QString &symbol, QString &date, double &freeFloat, qint64 &floatShares, qint64 &outstandingShares);
 
     // https://site.financialmodelingprep.com/developer/docs/stable/search-company-screener
     bool fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QVector<CompanyScreenerResult> &results);
@@ -55,8 +56,9 @@ public:
 signals:
     // API Async version signals
     void quoteShortReceived(QString symbol, double price, double change, qsizetype volume);
-    void sharesFloatReceived(QString symbol, QString date, double freeFloat, double floatShares, double outstandingShares);
+    void sharesFloatReceived(QString symbol, QString date, double freeFloat, qint64 floatShares, qint64 outstandingShares);
 
+    // Emited at basically every new message
     void totalDataReceivedBytesIncreased(qsizetype dataSize);
 
 private slots:
@@ -119,8 +121,6 @@ private:
     #define TRACK_NEW_JSON_ARRAY(x) x;
     #define TRACK_DELETED_JSON_ARRAY(x) x;
 #endif
-
-
 };
 
 #endif // FMPCLIENT_H

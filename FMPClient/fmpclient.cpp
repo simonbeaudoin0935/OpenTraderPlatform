@@ -1,5 +1,4 @@
 #include "fmpclient.h"
-#include "qtestsupport_core.h"
 #include <QNetworkAccessManager>
 #include <QThread>
 #include <QNetworkReply>
@@ -176,7 +175,7 @@ bool FMPClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToD
     // the invoked method above and populated the reply
     Q_ASSERT(reply != nullptr);
 
-#warning TODO asserts on the container here toooo
+#warning TODO asserts on the container here toooo... maybe?
 
     if (pendingRequests.contains(reply) && pendingRequests[reply].completed) {
         jsonArrayFromReplyToDelete = pendingRequests[reply].jsonArray;
@@ -225,7 +224,7 @@ bool FMPClient::fetchSyncQuoteShort(const QString &symbol, double &price, double
     return success;
 }
 
-bool FMPClient::fetchSyncSharesFloat(const QString &symbol, QString &date, double &freeFloat, double &floatShares, double &outstandingShares)
+bool FMPClient::fetchSyncSharesFloat(const QString &symbol, QString &date, double &freeFloat, qint64 &floatShares, qint64 &outstandingShares)
 {
     QString url = buildUrlWithEndpointAndSymbol("shares-float",symbol);
     QJsonArray *jsonArrayFromReplyToDelete = nullptr;
@@ -242,8 +241,8 @@ bool FMPClient::fetchSyncSharesFloat(const QString &symbol, QString &date, doubl
 
         date = obj["date"].toString();
         freeFloat = obj["freeFloat"].toDouble();
-        floatShares = obj["floatShares"].toDouble();
-        outstandingShares = obj["outstandingShares"].toDouble();
+        floatShares = obj["floatShares"].toInteger();
+        outstandingShares = obj["outstandingShares"].toInteger();
 
         // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
         TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
@@ -406,8 +405,8 @@ void FMPClient::emitSignalDemuxer(RequestType type, const QJsonArray &doc) {
         emit sharesFloatReceived(obj["symbol"].toString(),
                                  obj["date"].toString(),
                                  obj["freeFloat"].toDouble(),
-                                 obj["floatShares"].toDouble(),
-                                 obj["outstandingShares"].toDouble());
+                                 obj["floatShares"].toInteger(),
+                                 obj["outstandingShares"].toInteger());
 
         break;
 

@@ -1,4 +1,5 @@
 #include "companyscreenerfilter.h"
+#include <QJsonDocument>
 
 CompanyScreenerFilter::CompanyScreenerFilter() {
     // Default constructor leaves all fields unset (std::nullopt)
@@ -115,3 +116,27 @@ QString CompanyScreenerResult::getCountry() const { return country; }
 bool CompanyScreenerResult::getIsEtf() const { return isEtf; }
 bool CompanyScreenerResult::getIsFund() const { return isFund; }
 bool CompanyScreenerResult::getIsActivelyTrading() const { return isActivelyTrading; }
+
+QString CompanyScreenerResult::toJsonString() const {
+    // Construct a QJsonObject from the member variables
+    QJsonObject jsonObj;
+    jsonObj["symbol"] = symbol;
+    jsonObj["companyName"] = companyName;
+    jsonObj["marketCap"] = static_cast<qint64>(marketCap); // Use qint64 for long long
+    jsonObj["sector"] = sector;
+    jsonObj["industry"] = industry;
+    jsonObj["beta"] = beta;
+    jsonObj["price"] = price;
+    jsonObj["lastAnnualDividend"] = lastAnnualDividend;
+    jsonObj["volume"] = static_cast<qint64>(volume); // Use qint64 for long long
+    jsonObj["exchange"] = exchange;
+    jsonObj["exchangeShortName"] = exchangeShortName;
+    jsonObj["country"] = country;
+    jsonObj["isEtf"] = isEtf;
+    jsonObj["isFund"] = isFund;
+    jsonObj["isActivelyTrading"] = isActivelyTrading;
+
+    // Convert to formatted JSON string
+    QJsonDocument doc(jsonObj);
+    return QString(doc.toJson(QJsonDocument::Indented)); // Indented for readability
+}

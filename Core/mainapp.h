@@ -3,6 +3,8 @@
 
 #include "../FMPClient/fmpclient.h"
 #include "appfrontend.h"
+#include "../Algo/mainalgo.h"
+#include "memorymonitor.h"
 
 class MainApp
 {
@@ -12,6 +14,8 @@ public:
 private:
     AppFrontend* appFrontend;
     FMPClient*   fmpClient;
+    MainAlgo*    mainAlgo;
+    MemoryMonitor memoryMonitor;
 };
 
 #endif // MAINAPP_H

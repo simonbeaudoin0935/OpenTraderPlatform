@@ -15,6 +15,7 @@ public slots:
     virtual void onPricesFetched() = 0;
 
     virtual void onFMPClientDataUsageUpdate(qsizetype newDataUsage) = 0;
+    virtual void onMemoryUsageUpdate(qint64 newDataUsage) = 0;
 };
 
 #endif

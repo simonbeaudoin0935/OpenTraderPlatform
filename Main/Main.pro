@@ -4,17 +4,21 @@ QT += core network
 CONFIG += console c++11
 
 SOURCES += \
+    main.cpp \
+    ../Algo/mainalgo.cpp \
     ../Core/mainapp.cpp \
     argumentparser.cpp \
-    main.cpp \
     ../Core/appfrontend.cpp \
+    ../Core/memorymonitor.cpp \
     ../FMPClient/fmpclient.cpp \
     ../FMPClient/companyscreenerfilter.cpp \
     settings.cpp
 
 HEADERS += \
+    ../Algo/mainalgo.h \
     ../Core/appfrontend.h \
     ../Core/mainapp.h \
+    ../Core/memorymonitor.h \
     ../FMPClient/fmpclient.h \
     ../FMPClient/companyscreenerfilter.h \
     argumentparser.h \

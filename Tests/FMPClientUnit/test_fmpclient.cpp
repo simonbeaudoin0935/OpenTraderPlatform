@@ -78,7 +78,8 @@ void TestFMPClient::testFetchSyncSharesFloat()
 {
     FMPClient& client = FMPClient::getInstance();
     QString date;
-    double freeFloat, floatShares, outstandingShares;
+    double freeFloat;
+    qint64 floatShares, outstandingShares;
     bool success;
 
     QVERIFY(client.isCleanedUp());
@@ -90,8 +91,8 @@ void TestFMPClient::testFetchSyncSharesFloat()
     QVERIFY2(success, "Sync fetch failed or timed out");
     QVERIFY(!date.isEmpty());
     QVERIFY(freeFloat >= 0.0 && freeFloat < 100.0);
-    QVERIFY(floatShares >= 0.0);
-    QVERIFY(outstandingShares >= 0.0);
+    QVERIFY(floatShares >= 0);
+    QVERIFY(outstandingShares >= 0);
 
     QVERIFY(client.isCleanedUp());
 }

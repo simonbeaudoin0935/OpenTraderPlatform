@@ -102,6 +102,7 @@ public:
     bool getIsFund() const;
     bool getIsActivelyTrading() const;
 
+    QString toJsonString() const;
 private:
     // Member variables corresponding to JSON fields
     QString symbol;
