@@ -99,13 +99,12 @@ void TestFMPClient::testFetchSyncQuoteWithFakeNetworkLatency()
     FMPClient& client = FMPClient::getInstance();
     double price, bid, ask;
     bool success;
-    unsigned int tmp;
 
     QVERIFY(client.isCleanedUp());
 
     client.simulate_reply_network_latency = true;
     {
-        tmp = client.fetchSyncTimeoutMs;
+        unsigned int tmp = client.fetchSyncTimeoutMs;
         client.fetchSyncTimeoutMs = 1000; // Accelerate the unit test
 
         QVERIFY(0 == client.onReplyFinished_sem.available());
@@ -139,9 +138,6 @@ void TestFMPClient::testFetchSyncQuoteWithFakeNetworkLatency()
 void TestFMPClient::testFetchAsyncQuoteWithFakeNetworkLatency()
 {
     FMPClient& client = FMPClient::getInstance();
-    double price, bid, ask;
-    bool success;
-    unsigned int tmp;
 
     QVERIFY(client.isCleanedUp());
 
@@ -151,7 +147,7 @@ void TestFMPClient::testFetchAsyncQuoteWithFakeNetworkLatency()
 
     client.simulate_reply_network_latency = true;
     {
-        tmp = client.fetchSyncTimeoutMs;
+        unsigned int tmp = client.fetchSyncTimeoutMs;
         client.fetchSyncTimeoutMs = 1000; // Accelerate the unit test
 
         QVERIFY(0 == client.onReplyFinished_sem.available());
@@ -181,7 +177,6 @@ void TestFMPClient::testFetchAsyncQuoteWithFakeNetworkLatency()
     QVERIFY(arguments.at(1).toDouble() > 0.0);  // price
     QVERIFY(arguments.at(2).toDouble() >= 0.0); // bid
     QVERIFY(arguments.at(3).toDouble() >= 0.0); // ask
-
 
     // Particularly important here, this is what tests that onReplyFinished() properly handled
     // fetchSyncQuote() timing out and bailing.
