@@ -10,11 +10,13 @@ HEADERS += FMPClientUnit/test_fmpclient.h
 #FMPClient sources
 SOURCES += \
     ../FMPClient/fmpclient.cpp \
-    ../FMPClient/companyscreenerfilter.cpp
+    ../FMPClient/companyscreenerfilter.cpp \
+    ../FMPClient/stocknewsfilter.cpp
 
 HEADERS += \
     ../FMPClient/fmpclient.h \
-    ../FMPClient/companyscreenerfilter.h
+    ../FMPClient/companyscreenerfilter.h \
+    ../FMPClient/stocknewsfilter.h
 
 INCLUDEPATH += ../FMPClient
 DEPENDPATH += ../FMPClient

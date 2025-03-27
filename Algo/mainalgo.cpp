@@ -82,20 +82,18 @@ void MainAlgo::onThreadStarted()
     qCDebug(MainAlgoLog) << "\n\n\nOut of those, these have a good float :";
 
     QVector<CompanyScreenerResult> screened_results_by_float;
-    for (CompanyScreenerResult &result : results) {
-        QString date;
-        double freeFloat;
-        qint64 floatShares, outstandingShares;
 
-        success = client.fetchSyncSharesFloat(result.getSymbol(), date, freeFloat, floatShares, outstandingShares);
+    for (CompanyScreenerResult &CSresult : results) {
+        struct FMPClient::SharesFloatResult floatResult;
+
+        success = client.fetchSyncSharesFloat(CSresult.getSymbol(), floatResult);
 
         Q_ASSERT(success);
 
-        if (floatShares < (qint64) PreferedFloat) {
-            screened_results_by_float.append(result);
+        if (floatResult.floatShares < (qint64) PreferedFloat) {
+            screened_results_by_float.append(CSresult);
 
-            qCDebug(MainAlgoLog) << "Float=" << floatShares << " : " << result.toJsonString();
-
+            qCDebug(MainAlgoLog) << "Float=" << floatResult.floatShares << " : " << CSresult.toJsonString();
         }
     }
 

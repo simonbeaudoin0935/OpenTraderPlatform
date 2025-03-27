@@ -196,7 +196,7 @@ bool FMPClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToD
     return false;
 }
 
-bool FMPClient::fetchSyncQuoteShort(const QString &symbol, double &price, double &change, qsizetype &volume) {
+bool FMPClient::fetchSyncQuoteShort(const QString &symbol, struct QuoteShortResult &result) {
     QString url = buildUrlWithEndpointAndSymbol("quote-short",symbol);
     QJsonArray *jsonArrayFromReplyToDelete = nullptr;
 
@@ -209,10 +209,10 @@ bool FMPClient::fetchSyncQuoteShort(const QString &symbol, double &price, double
         QJsonObject obj = jsonArrayFromReplyToDelete->first().toObject();
 
         Q_ASSERT(symbol == obj["symbol"].toString());
-
-        price = obj["price"].toDouble();
-        change = obj["change"].toDouble();
-        volume = obj["volume"].toInteger();
+        result.symbol = obj["symbol"].toString();
+        result.price = obj["price"].toDouble();
+        result.change = obj["change"].toDouble();
+        result.volume = obj["volume"].toInteger();
 
         // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
         TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
@@ -224,7 +224,7 @@ bool FMPClient::fetchSyncQuoteShort(const QString &symbol, double &price, double
     return success;
 }
 
-bool FMPClient::fetchSyncSharesFloat(const QString &symbol, QString &date, double &freeFloat, qint64 &floatShares, qint64 &outstandingShares)
+bool FMPClient::fetchSyncSharesFloat(const QString &symbol, struct SharesFloatResult &result)
 {
     QString url = buildUrlWithEndpointAndSymbol("shares-float",symbol);
     QJsonArray *jsonArrayFromReplyToDelete = nullptr;
@@ -239,10 +239,11 @@ bool FMPClient::fetchSyncSharesFloat(const QString &symbol, QString &date, doubl
 
         Q_ASSERT(symbol == obj["symbol"].toString());
 
-        date = obj["date"].toString();
-        freeFloat = obj["freeFloat"].toDouble();
-        floatShares = obj["floatShares"].toInteger();
-        outstandingShares = obj["outstandingShares"].toInteger();
+        result.symbol = obj["symbol"].toString();
+        result.date = obj["date"].toString();
+        result.freeFloat = obj["freeFloat"].toDouble();
+        result.floatShares = obj["floatShares"].toInteger();
+        result.outstandingShares = obj["outstandingShares"].toInteger();
 
         // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
         TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
@@ -270,6 +271,34 @@ bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QV
 
         for (QJsonValue json: *jsonArrayFromReplyToDelete) {
             results.push_back(CompanyScreenerResult(json.toObject()));
+        }
+
+        // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
+        TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
+    } else {
+        // Make sure that if fetchSync failed that this pointed has not been allocated
+        Q_ASSERT(jsonArrayFromReplyToDelete == nullptr);
+    }
+
+    return ret;
+}
+
+bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockNewsResult> &results)
+{
+    QString url = buildUrlWithEndpointAndParamsList("news/stock", filter.getURLParameters());
+    QJsonArray *jsonArrayFromReplyToDelete = nullptr;
+
+    bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
+
+    if (ret) {
+        // The positive return value implies jsonArrayFromReplyToDelete has been allocated to something
+        Q_ASSERT(jsonArrayFromReplyToDelete != nullptr);
+
+        // Resize the array in advance
+        results.reserve(jsonArrayFromReplyToDelete->count());
+
+        for (QJsonValue json: *jsonArrayFromReplyToDelete) {
+            results.push_back(StockNewsResult(json.toObject()));
         }
 
         // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
@@ -396,17 +425,19 @@ void FMPClient::emitSignalDemuxer(RequestType type, const QJsonArray &doc) {
         break;
 
     case RequestType::Quote:
-        emit quoteShortReceived(obj["symbol"].toString(),
-                                obj["price"].toDouble(),
-                                obj["change"].toDouble(),
-                                obj["volume"].toInteger());
+        emit quoteShortReceived(QuoteShortResult{
+                                    obj["symbol"].toString(),
+                                    obj["price"].toDouble(),
+                                    obj["change"].toDouble(),
+                                    obj["volume"].toInteger()});
         break;
     case RequestType::SharesFloat:
-        emit sharesFloatReceived(obj["symbol"].toString(),
-                                 obj["date"].toString(),
-                                 obj["freeFloat"].toDouble(),
-                                 obj["floatShares"].toInteger(),
-                                 obj["outstandingShares"].toInteger());
+        emit sharesFloatReceived(SharesFloatResult{
+                                    obj["symbol"].toString(),
+                                    obj["date"].toString(),
+                                    obj["freeFloat"].toDouble(),
+                                    obj["floatShares"].toInteger(),
+                                    obj["outstandingShares"].toInteger()});
 
         break;
 

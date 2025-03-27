@@ -11,6 +11,7 @@
 #include <QVector>
 
 #include "companyscreenerfilter.h"
+#include "stocknewsfilter.h"
 
 Q_DECLARE_LOGGING_CATEGORY(FMPClientLog)
 
@@ -41,22 +42,36 @@ public:
     // API data fetchers
 
     // https://site.financialmodelingprep.com/developer/docs/stable/quote-short
+    struct QuoteShortResult{
+        QString symbol;
+        double price;
+        double change;
+        qsizetype volume;
+    };
     void fetchAsyncQuoteShort(const QString &symbol);
-    bool fetchSyncQuoteShort(const QString &symbol, double &price, double &change, qsizetype &volume);
+    bool fetchSyncQuoteShort(const QString &symbol, struct QuoteShortResult &result);
 
     // https://site.financialmodelingprep.com/developer/docs/stable/shares-float
+    struct SharesFloatResult{
+        QString symbol;
+        QString date;
+        double freeFloat;
+        qsizetype floatShares;
+        qsizetype outstandingShares;
+    };
     void fetchAsyncSharesFloat(const QString &symbol);
-    bool fetchSyncSharesFloat(const QString &symbol, QString &date, double &freeFloat, qint64 &floatShares, qint64 &outstandingShares);
+    bool fetchSyncSharesFloat(const QString &symbol, struct SharesFloatResult &result);
 
     // https://site.financialmodelingprep.com/developer/docs/stable/search-company-screener
     bool fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QVector<CompanyScreenerResult> &results);
 
-
+    // https://site.financialmodelingprep.com/developer/docs/stable/stock-news
+    bool fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockNewsResult> &results);
 
 signals:
     // API Async version signals
-    void quoteShortReceived(QString symbol, double price, double change, qsizetype volume);
-    void sharesFloatReceived(QString symbol, QString date, double freeFloat, qint64 floatShares, qint64 outstandingShares);
+    void quoteShortReceived(struct QuoteShortResult result);
+    void sharesFloatReceived(struct SharesFloatResult result);
 
     // Emited at basically every new message
     void totalDataReceivedBytesIncreased(qsizetype dataSize);

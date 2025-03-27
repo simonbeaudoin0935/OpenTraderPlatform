@@ -2,7 +2,6 @@
 #include "ui_guifrontend.h"
 #include <QJsonDocument>
 
-#include <fmpclient.h>
 
 GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     ui = new Ui::GuiFrontend();
@@ -68,19 +67,19 @@ void GuiFrontend::onMemoryUsageUpdate(qint64 newDataUsage)
 void GuiFrontend::onUpdateTimerTimeout()
 {
     //TODO test
-    FMPClient::getInstance().fetchAsyncQuoteShort("BTCUSD");
+    FMPClient::getInstance().fetchAsyncQuoteShort("AAPL");
 }
 
-void GuiFrontend::onQuoteShortReceived(const QString symbol, double price, double change, qsizetype volume)
+void GuiFrontend::onQuoteShortReceived(const FMPClient::QuoteShortResult quoteResult)
 {
-    ui->logDisplay->append(QString("Price Updated: %1").arg(price));
+    ui->logDisplay->append(QString("Price Updated: %1").arg(quoteResult.price));
 
-    ui->priceChart->setSymbol(symbol);
+    ui->priceChart->setSymbol(quoteResult.symbol);
 
     QDateTime timestamp = QDateTime::currentDateTime();
 
     if (timestamp.isValid()) {
-        ui->priceChart->addPrice(price, timestamp);
+        ui->priceChart->addPrice(quoteResult.price, timestamp);
     } else {
         ui->logDisplay->append("Cant add a point to the chart, the date is fucked.");
     }

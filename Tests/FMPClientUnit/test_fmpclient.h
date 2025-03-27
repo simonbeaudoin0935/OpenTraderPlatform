@@ -19,10 +19,12 @@ private slots:
     void testFetchAsyncSharesFloat();
 
     void testFetchSyncCompanyScreener();
-
+    void testFetchSyncStockNews();
 
     void testFetchSyncQuoteShortWithFakeNetworkLatency();
     void testFetchAsyncQuoteShortWithFakeNetworkLatency();
+
+    void testFetchFloatFrom100CompaniesMixingSyncAndAsync();
 
     void testFetchingMoreThanMaximumPerMinute();
     //TODO should perhaps implement a max-per-minute limiter to queue the exceeding requests

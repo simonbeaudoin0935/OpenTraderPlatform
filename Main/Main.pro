@@ -12,6 +12,7 @@ SOURCES += \
     ../Core/memorymonitor.cpp \
     ../FMPClient/fmpclient.cpp \
     ../FMPClient/companyscreenerfilter.cpp \
+    ../FMPClient/stocknewsfilter.cpp \
     settings.cpp
 
 HEADERS += \
@@ -21,6 +22,7 @@ HEADERS += \
     ../Core/memorymonitor.h \
     ../FMPClient/fmpclient.h \
     ../FMPClient/companyscreenerfilter.h \
+    ../FMPClient/stocknewsfilter.h \
     argumentparser.h \
     settings.h
 

@@ -5,6 +5,8 @@
 #include <QMainWindow>
 #include <QTimer>
 
+#include <fmpclient.h>
+
 // Forward declare the generated UI class
 namespace Ui {
 class GuiFrontend;
@@ -26,7 +28,7 @@ private slots:
     void onUpdateTimerTimeout();
 
     //TODO test
-    void onQuoteShortReceived(const QString symbol, double price, double change, qsizetype volume);
+    void onQuoteShortReceived(const FMPClient::QuoteShortResult quoteResult);
 
 private:
     Ui::GuiFrontend* ui;  // Pointer to the UI object
