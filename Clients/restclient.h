@@ -78,6 +78,7 @@ protected:
 
 private:
     friend class TestFMPClient;
+    friend class TestTradeStationClient;
 
     const QString baseUrl;
     QLoggingCategory *loggingCategory;

@@ -58,8 +58,8 @@ public:
 
 signals:
     // API Async version signals
-    void quoteShortReceived(struct QuoteShortResult result);
-    void sharesFloatReceived(struct SharesFloatResult result);
+    void quoteShortReceived(struct FMPClient::QuoteShortResult result);
+    void sharesFloatReceived(struct FMPClient::SharesFloatResult result);
 
 private slots:
 
@@ -80,8 +80,6 @@ private:
     static FMPClient* instance;
 
     friend class TestFMPClient;
-
-
 };
 
 #endif // FMPCLIENT_H

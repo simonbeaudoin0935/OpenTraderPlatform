@@ -16,7 +16,6 @@ Q_LOGGING_CATEGORY(FMPClientLog, "FMPlient")
 // Initialize static member outside class
 FMPClient* FMPClient::instance = nullptr;
 
-
 FMPClient& FMPClient::getInstance() {
 
     if (instance == nullptr) {
@@ -36,7 +35,6 @@ FMPClient* FMPClient::getInstancePtr() {
     }
     return instance;
 }
-
 
 FMPClient::FMPClient() :
     RESTClient(baseUrlFMP)

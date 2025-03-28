@@ -1,0 +1,2 @@
+- create a monitor to monitor the amount of requests performed per minute. perhaps query
+- adjust the tests to use QCOMPARE in lieu of QVERIFY which should be only for bool

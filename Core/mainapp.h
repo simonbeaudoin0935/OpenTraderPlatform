@@ -2,6 +2,7 @@
 #define MAINAPP_H
 
 #include "../Clients/FMPClient/fmpclient.h"
+#include "../Clients/TradeStationClient/tradestationclient.h"
 #include "appfrontend.h"
 #include "../Algo/mainalgo.h"
 #include "memorymonitor.h"
@@ -14,6 +15,7 @@ public:
 private:
     AppFrontend* appFrontend;
     FMPClient*   fmpClient;
+    TradeStationClient* tradeStationClient;
     MainAlgo*    mainAlgo;
     MemoryMonitor memoryMonitor;
 };

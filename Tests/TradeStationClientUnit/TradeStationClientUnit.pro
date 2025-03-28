@@ -9,9 +9,11 @@ HEADERS += test_tradestationclient.h
 
 #TradeStationClient sources
 SOURCES += \
+    ../../Clients/restclient.cpp \
     ../../Clients/TradeStationClient/tradestationclient.cpp
 
 HEADERS += \
+    ../../Clients/restclient.h \
     ../../Clients/TradeStationClient/tradestationclient.h
 
 INCLUDEPATH += ../../Clients/TradeStationClient
