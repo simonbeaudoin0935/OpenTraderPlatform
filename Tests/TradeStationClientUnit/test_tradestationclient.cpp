@@ -1,6 +1,6 @@
 #include <QDebug>
 #include "test_tradestationclient.h"
-#include "../../TradeStationClient/tradestationclient.h"
+#include "../../Clients/TradeStationClient/tradestationclient.h"
 
 extern QString tradeStationKey;
 

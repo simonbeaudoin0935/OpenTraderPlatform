@@ -3,3 +3,4 @@ build/
 *.pro.user
 .qmake.stash
 Makefile
+.vscode

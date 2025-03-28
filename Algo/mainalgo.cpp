@@ -2,7 +2,7 @@
 
 #include "mainalgo.h"
 #include "../Main/settings.h"
-#include "../FMPClient/fmpclient.h"
+#include "../Clients/FMPClient/fmpclient.h"
 
 Q_LOGGING_CATEGORY(MainAlgoLog, "MainAlgo")
 

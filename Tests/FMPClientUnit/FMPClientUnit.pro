@@ -9,17 +9,17 @@ HEADERS += test_fmpclient.h
 
 #FMPClient sources
 SOURCES += \
-    ../../FMPClient/fmpclient.cpp \
-    ../../FMPClient/companyscreenerfilter.cpp \
-    ../../FMPClient/stocknewsfilter.cpp
+    ../../Clients/FMPClient/fmpclient.cpp \
+    ../../Clients/FMPClient/companyscreenerfilter.cpp \
+    ../../Clients/FMPClient/stocknewsfilter.cpp
 
 HEADERS += \
-    ../../FMPClient/fmpclient.h \
-    ../../FMPClient/companyscreenerfilter.h \
-    ../../FMPClient/stocknewsfilter.h
+    ../../Clients/FMPClient/fmpclient.h \
+    ../../Clients/FMPClient/companyscreenerfilter.h \
+    ../../Clients/FMPClient/stocknewsfilter.h
 
-INCLUDEPATH += ../../FMPClient
-DEPENDPATH += ../../FMPClient
+INCLUDEPATH += ../../Clients/FMPClient
+DEPENDPATH += ../../Clients/FMPClient
 
 QMAKE_CXXFLAGS += -Og
 

@@ -13,7 +13,7 @@
 #include "argumentparser.h"
 #include "settings.h"
 #include "../Core/mainapp.h"
-#include "../FMPClient/fmpclient.h"
+#include "../Clients/FMPClient/fmpclient.h"
 
 int main(int argc, char *argv[])
 {

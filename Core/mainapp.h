@@ -1,7 +1,7 @@
 #ifndef MAINAPP_H
 #define MAINAPP_H
 
-#include "../FMPClient/fmpclient.h"
+#include "../Clients/FMPClient/fmpclient.h"
 #include "appfrontend.h"
 #include "../Algo/mainalgo.h"
 #include "memorymonitor.h"

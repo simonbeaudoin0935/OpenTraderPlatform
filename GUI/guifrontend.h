@@ -5,7 +5,7 @@
 #include <QMainWindow>
 #include <QTimer>
 
-#include <fmpclient.h>
+#include "../Clients/FMPClient/fmpclient.h"
 
 // Forward declare the generated UI class
 namespace Ui {

@@ -10,9 +10,9 @@ SOURCES += \
     argumentparser.cpp \
     ../Core/appfrontend.cpp \
     ../Core/memorymonitor.cpp \
-    ../FMPClient/fmpclient.cpp \
-    ../FMPClient/companyscreenerfilter.cpp \
-    ../FMPClient/stocknewsfilter.cpp \
+    ../Clients/FMPClient/fmpclient.cpp \
+    ../Clients/FMPClient/companyscreenerfilter.cpp \
+    ../Clients/FMPClient/stocknewsfilter.cpp \
     settings.cpp
 
 HEADERS += \
@@ -20,14 +20,14 @@ HEADERS += \
     ../Core/appfrontend.h \
     ../Core/mainapp.h \
     ../Core/memorymonitor.h \
-    ../FMPClient/fmpclient.h \
-    ../FMPClient/companyscreenerfilter.h \
-    ../FMPClient/stocknewsfilter.h \
+    ../Clients/FMPClient/fmpclient.h \
+    ../Clients/FMPClient/companyscreenerfilter.h \
+    ../Clients/FMPClient/stocknewsfilter.h \
     argumentparser.h \
     settings.h
 
-INCLUDEPATH += ../FMPClient
-DEPENDPATH += ../FMPClient
+INCLUDEPATH += ../Clients/FMPClient
+DEPENDPATH += ../Clients/FMPClient
 
 !gui {
     SOURCES += \

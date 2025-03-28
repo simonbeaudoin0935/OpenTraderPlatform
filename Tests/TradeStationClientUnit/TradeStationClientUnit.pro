@@ -9,13 +9,13 @@ HEADERS += test_tradestationclient.h
 
 #TradeStationClient sources
 SOURCES += \
-    ../../TradeStationClient/tradestationclient.cpp
+    ../../Clients/TradeStationClient/tradestationclient.cpp
 
 HEADERS += \
-    ../../TradeStationClient/tradestationclient.h
+    ../../Clients/TradeStationClient/tradestationclient.h
 
-INCLUDEPATH += ../../TradeStationClient
-DEPENDPATH += ../../TradeStationClient
+INCLUDEPATH += ../../Clients/TradeStationClient
+DEPENDPATH += ../../Clients/TradeStationClient
 
 QMAKE_CXXFLAGS += -Og
 
