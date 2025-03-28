@@ -14,7 +14,9 @@ SOURCES += \
     ../Clients/restclient.cpp \
     ../Clients/FMPClient/fmpclient.cpp \
     ../Clients/FMPClient/companyscreenerfilter.cpp \
-    ../Clients/FMPClient/stocknewsfilter.cpp
+    ../Clients/FMPClient/stocknewsfilter.cpp \
+    ../Clients/TradeStationClient/tradestationclient.cpp
+
 
 
 HEADERS += \
@@ -27,8 +29,8 @@ HEADERS += \
     ../Clients/restclient.h \
     ../Clients/FMPClient/fmpclient.h \
     ../Clients/FMPClient/companyscreenerfilter.h \
-    ../Clients/FMPClient/stocknewsfilter.h
-
+    ../Clients/FMPClient/stocknewsfilter.h \
+    ../Clients/TradeStationClient/tradestationclient.h
 
 INCLUDEPATH += ../Clients/FMPClient
 DEPENDPATH += ../Clients/FMPClient

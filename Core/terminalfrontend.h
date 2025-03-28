@@ -9,8 +9,6 @@ public:
     explicit TerminalFrontend(QObject* parent = nullptr);
 
 public slots:
-    void onPriceUpdated(const QJsonObject& priceData) override;
-    void onPricesFetched() override;
     void onFMPClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onMemoryUsageUpdate(qint64 newDataUsage) override;
 };

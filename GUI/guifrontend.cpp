@@ -23,14 +23,6 @@ GuiFrontend::~GuiFrontend() {
     delete ui;
 }
 
-void GuiFrontend::onPriceUpdated(const QJsonObject& priceData) {
-#warning deal with this shit
-}
-
-void GuiFrontend::onPricesFetched() {
-    ui->logDisplay->append("Prices Fetched - TODO act on prices");
-}
-
 QString bytesToString(qint64 bytes) {
     if (bytes >= 1024 * 1024) {
         double megabytes = static_cast<double>(bytes) / (1024 * 1024);
