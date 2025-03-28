@@ -9,11 +9,13 @@ HEADERS += test_fmpclient.h
 
 #FMPClient sources
 SOURCES += \
+    ../../Clients/restclient.cpp \
     ../../Clients/FMPClient/fmpclient.cpp \
     ../../Clients/FMPClient/companyscreenerfilter.cpp \
     ../../Clients/FMPClient/stocknewsfilter.cpp
 
 HEADERS += \
+    ../../Clients/restclient.h \
     ../../Clients/FMPClient/fmpclient.h \
     ../../Clients/FMPClient/companyscreenerfilter.h \
     ../../Clients/FMPClient/stocknewsfilter.h

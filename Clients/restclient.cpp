@@ -1,130 +1,88 @@
-#include "tradestationclient.h"
-#include <QNetworkAccessManager>
-#include <QThread>
-#include <QNetworkReply>
 #include <QJsonDocument>
-#include <QJsonObject>
 #include <QJsonArray>
-#include <QMutexLocker>
-#include <QDebug>
 #ifdef UNIT_TESTING
-#include <QtTest>
+#include <QtTest/QtTest>
 #endif
 
-// Define the logging category
-Q_LOGGING_CATEGORY(TradeStationClientLog, "TradeStationClient")
+#include "restclient.h"
+#include "qtestsupport_core.h"
 
-// Initialize static member outside class
-TradeStationClient* TradeStationClient::instance = nullptr;
 
-QString TradeStationClient::apiKey = "";
+Q_LOGGING_CATEGORY(RESTClientLog, "RESTClient");
 
-TradeStationClient& TradeStationClient::getInstance() {
-    if (instance == nullptr) {
-        qCDebug(TradeStationClientLog) << "Singleton instance created";
-        instance = new TradeStationClient();
-    }
-    return *instance;
-}
 
-TradeStationClient* TradeStationClient::getInstancePtr() {
-    if (instance == nullptr) {
-        qCDebug(TradeStationClientLog) << "Singleton instance created";
-        instance = new TradeStationClient();
-    }
-    return instance;
-}
+QString RESTClient::apiKey = "";
 
-void TradeStationClient::setAPIKey(const QString &apiKey)
+
+RESTClient::RESTClient(const QString &baseUrl, QObject *parent)
+    : QObject(parent),
+    thread(new QThread()),
+    manager(new QNetworkAccessManager(this)),
+    baseUrl(baseUrl)
 {
-    TradeStationClient::apiKey = apiKey;
-    qCDebug(TradeStationClientLog) << "API key set to " << apiKey;
+    connect(manager, &QNetworkAccessManager::finished, this, &RESTClient::onReplyFinished);
 }
 
-qsizetype TradeStationClient::getTotalDataReceivedBytes() const
+RESTClient::~RESTClient() {
+
+}
+
+void RESTClient::setAPIKey(const QString &apiKey)
+{
+    RESTClient::apiKey = apiKey;
+}
+
+qsizetype RESTClient::getTotalDataReceivedBytes() const
 {
     return totalDataReceivedBytes.load(std::memory_order_relaxed);
 }
 
-TradeStationClient::TradeStationClient() :
-    thread(new QThread()),
-    manager(new QNetworkAccessManager(this))
-{
-    qCDebug(TradeStationClientLog) << Q_FUNC_INFO << ": TradeStationClient created using KEY=" << apiKey;
-
-    Q_ASSERT(!apiKey.isEmpty());
-
-    thread->setObjectName("TradeStationClientThread");
-
-    this->moveToThread(thread);
-
-    connect(thread, &QThread::started, this, &TradeStationClient::onThreadStarted);
-    connect(manager, &QNetworkAccessManager::finished, this, &TradeStationClient::onReplyFinished);
-    thread->start();
-}
-
-TradeStationClient::~TradeStationClient() {
-    qCDebug(TradeStationClientLog) << "Singleton instance destroyed";
-
-    thread->quit();
-    thread->wait();
-}
-
-QString TradeStationClient::buildUrlWithEndpoint(const QString &endpoint) const {
+QString RESTClient::buildUrlWithEndpoint(const QString &endpoint) const {
     return baseUrl + endpoint + "?" +
            QString("apikey=%1").arg(apiKey);
 }
 
-QString TradeStationClient::buildUrlWithEndpointAndSymbol(const QString &endpoint, const QString &symbol) const {
+QString RESTClient::buildUrlWithEndpointAndSymbol(const QString &endpoint, const QString &symbol) const {
     return baseUrl + endpoint + "?" +
            QString("symbol=%1").arg(symbol) + "&" +
            QString("apikey=%1").arg(apiKey);
 }
 
-QString TradeStationClient::buildUrlWithEndpointAndParamsList(const QString &endpoint, const QString &paramsList) const
+QString RESTClient::buildUrlWithEndpointAndParamsList(const QString &endpoint, const QString &paramsList) const
 {
     return baseUrl + endpoint + "?" +
            paramsList + "&" +
            QString("apikey=%1").arg(apiKey);
 }
 
-void TradeStationClient::fetchAsync(const QString &url, RequestType type) {
-    // Invoke this method in the distinct thread of the TradeStationClient singleton.
-    // Having ->moveToThread() the TradeStationClient to a dedicated thread makes that calling to 'this'
-    // is actually invoking this method NOT in the caller's thread.
-    QMetaObject::invokeMethod(this, [this, url, type]() {
-        QNetworkReply *reply = manager->get(QNetworkRequest(url));
-
-        QMutexLocker locker(&pendingRequestsMutex);
-        pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Async,
-                                   .type = type,
-                                   .completed = false,
-                                   .jsonArray = nullptr};
-    }, Qt::QueuedConnection);
-}
-
-bool TradeStationClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToDelete) {
+/*
+ * Underlying function doing the fetching of the JSON common to all fetchXSync methods
+ */
+bool RESTClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToDelete) {
     QNetworkReply *reply = nullptr;
 
-    // Invoke this method in the distinct thread of the TradeStationClient singleton.
-    // Having ->moveToThread() the TradeStationClient to a dedicated thread makes that calling to 'this'
+    // Invoke this method in the distinct thread of the FMPClient singleton.
+    // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
     // is actually invoking this method NOT in the caller's thread.
     QMetaObject::invokeMethod(this, [this, url, &reply]() {
         QNetworkRequest request(url);
         reply = manager->get(request);
 
-        qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+        qCDebug(RESTClientLog) << Q_FUNC_INFO <<
             " : Thread [" << QThread::currentThread()->objectName() <<
             "] executed the queued GET request and registered the reply " << static_cast<void*>(reply) << " for later reception.";
 
         QMutexLocker locker(&pendingRequestsMutex);
         {
-            pendingRequests[reply] = {RequestSynchronicity::Sync};
+            pendingRequests[reply] = {.synchronicity = RequestSynchronicity::Sync,
+                                      .type = RequestTypeNone,
+                                      .completed = false,
+                                      .jsonArray = nullptr};
         }
 
     }, Qt::QueuedConnection);
 
-    qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+    qCDebug(RESTClientLog) << Q_FUNC_INFO <<
         " : Thread [" << QThread::currentThread()->objectName() <<
         "] invoked the queued method to GET url " << url ;
 
@@ -134,7 +92,7 @@ bool TradeStationClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFro
     if (!waitCondition.wait(&pendingRequestsMutex, fetchSyncTimeoutMs)) {
         // Mutex is re-aquired
 
-        qCWarning(TradeStationClientLog) << Q_FUNC_INFO <<
+        qCWarning(RESTClientLog) << Q_FUNC_INFO <<
             " : The condition wait timed out after " << fetchSyncTimeoutMs <<
             "ms. Removing the *reply " << static_cast<void*>(reply) << " from pendingRequests";
 
@@ -150,14 +108,16 @@ bool TradeStationClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFro
         return false;
     }
 
-    // At this point, we got notified by the waitCondition. The TradeStationClient thread MUST have executed
+    // At this point, we got notified by the waitCondition. The FMPClient thread MUST have executed
     // the invoked method above and populated the reply
     Q_ASSERT(reply != nullptr);
+
+    //#warning TODO asserts on the container here toooo... maybe?
 
     if (pendingRequests.contains(reply) && pendingRequests[reply].completed) {
         jsonArrayFromReplyToDelete = pendingRequests[reply].jsonArray;
 
-        qCDebug(TradeStationClientLog) << Q_FUNC_INFO << " : The *reply " << static_cast<void*>(reply) << " successfuly completed.";
+        qCDebug(RESTClientLog) << Q_FUNC_INFO << " : The *reply " << static_cast<void*>(reply) << " successfuly completed.";
 
         pendingRequests.remove(reply);
 
@@ -173,16 +133,28 @@ bool TradeStationClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFro
     return false;
 }
 
-void TradeStationClient::onThreadStarted() const {
+void RESTClient::fetchAsync(const QString &url, RequestTypeInt type) {
+    // Invoke this method in the distinct thread of the FMPClient singleton.
+    // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
+    // is actually invoking this method NOT in the caller's thread.
+    QMetaObject::invokeMethod(this, [this, url, type]() {
+        QNetworkReply *reply = manager->get(QNetworkRequest(url));
+
+        QMutexLocker locker(&pendingRequestsMutex);
+        pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Async,
+                                  .type = type,
+                                  .completed = false,
+                                  .jsonArray = nullptr};
+    }, Qt::QueuedConnection);
 }
 
-void TradeStationClient::onReplyFinished(QNetworkReply *reply) {
+void RESTClient::onReplyFinished(QNetworkReply *reply) {
     QJsonDocument doc;
     RequestInfo *info;
 
 #ifdef UNIT_TESTING
     if (simulate_reply_network_latency) {
-        qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+        qCDebug(RESTClientLog) << Q_FUNC_INFO <<
             " : Performing a (fetchSyncTimeoutMs + 1000) of " << (fetchSyncTimeoutMs + 1000) <<
             "ms delay in [" << QThread::currentThread()->objectName() << "] to simulate extreme network latency. ZZZZzzzzz..";
 
@@ -197,13 +169,14 @@ void TradeStationClient::onReplyFinished(QNetworkReply *reply) {
     // Broadcast the new data size (ie to update the GUI)
     emit totalDataReceivedBytesIncreased(totalDataReceivedBytes.load(std::memory_order_relaxed));
 
-    qCDebug(TradeStationClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << totalDataReceivedBytes.load(std::memory_order_relaxed) << " bytes";
+    qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << totalDataReceivedBytes.load(std::memory_order_relaxed) << " bytes";
 
     // Mutex is intentionally aquired after the unit test latency delay above
     QMutexLocker locker(&pendingRequestsMutex);
 
     if (!pendingRequests.contains(reply)) {
-        qCWarning(TradeStationClientLog) << Q_FUNC_INFO <<
+
+        qCWarning(RESTClientLog) << Q_FUNC_INFO <<
             " : pendingRequests did not containt the reply " << static_cast<void*>(reply) << " : Likely due to a caller's timeout.";
 
         goto delete_later;
@@ -211,28 +184,30 @@ void TradeStationClient::onReplyFinished(QNetworkReply *reply) {
 
     info = &pendingRequests[reply];
 
-    qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+    qCDebug(RESTClientLog) << Q_FUNC_INFO <<
         " : Thread [" << QThread::currentThread()->objectName() <<
         "] working on reply of request " << static_cast<void*>(reply);
+
 
     // Those are the default values, just being explicit by resetting them to default
     info->jsonArray = nullptr;
     info->completed = false;
 
     if (reply->error() != QNetworkReply::NoError) {
-        qCWarning(TradeStationClientLog) << Q_FUNC_INFO << " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString();
+        qCWarning(RESTClientLog) << Q_FUNC_INFO << " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString();
         goto notify;
     }
+
 
     doc = QJsonDocument::fromJson(rawData);
 
     if (doc.isNull() || !doc.isArray()) {
-        qCWarning(TradeStationClientLog) << Q_FUNC_INFO << " : JSON doc is null or not an array";
+        qCWarning(RESTClientLog) << Q_FUNC_INFO << " : JSON doc is null or not an array";
         goto notify;
     }
 
     if (doc.array().isEmpty()) {
-        qCWarning(TradeStationClientLog) << Q_FUNC_INFO << " : Doc array is empty";
+        qCWarning(RESTClientLog) << Q_FUNC_INFO << " : Doc array is empty";
         goto notify;
     }
 
@@ -251,7 +226,8 @@ notify:
         if (info->completed == true) {
             // If the request failed, do not emit the signal. This is a design choice I guess.
             // Time will tell if the app should still receive a signal, albeit with an error flag set.
-            emitSignalDemuxer(info->type, doc.array());
+            emitSignalDemuxer(info->type,
+                              doc.array());
         }
         // Whether the request was successful or not, take it out of the map
         pendingRequests.remove(reply);
@@ -262,35 +238,32 @@ notify:
     }
 
 delete_later:
+
     reply->deleteLater();
 
 #ifdef UNIT_TESTING
     if (simulate_reply_network_latency) {
-        qCDebug(TradeStationClientLog) << Q_FUNC_INFO << " : Signaling onReplyFinished_sem";
+        qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Signaling onReplyFinished_sem";
         onReplyFinished_sem.release(1);
     }
 #endif
 }
 
-void TradeStationClient::emitSignalDemuxer(RequestType type, const QJsonArray &doc) {
-    // TODO: Implement signal demuxing when we add specific request types
-}
-
 #ifdef UNIT_TESTING
-bool TradeStationClient::isCleanedUp()
+bool RESTClient::isCleanedUp()
 {
     bool isClean = true;
 
     if (!pendingRequests.isEmpty()) {
-        qCWarning(TradeStationClientLog) << Q_FUNC_INFO << " : pendingRequests not empty";
+        qCWarning(RESTClientLog) << Q_FUNC_INFO << " : pendingRequests not empty";
         isClean = false;
     }
 
     if (allocated_json_arrays != 0) {
-        qCWarning(TradeStationClientLog) << Q_FUNC_INFO << " : allocated_json_arrays != 0 : " << allocated_json_arrays;
+        qCWarning(RESTClientLog) << Q_FUNC_INFO << " : allocated_json_arrays != 0 : " << allocated_json_arrays;
         isClean = false;
     }
 
     return isClean;
 }
-#endif 
+#endif

@@ -5,26 +5,30 @@ CONFIG += console c++11
 
 SOURCES += \
     main.cpp \
+    settings.cpp \
+    argumentparser.cpp \
     ../Algo/mainalgo.cpp \
     ../Core/mainapp.cpp \
-    argumentparser.cpp \
     ../Core/appfrontend.cpp \
     ../Core/memorymonitor.cpp \
+    ../Clients/restclient.cpp \
     ../Clients/FMPClient/fmpclient.cpp \
     ../Clients/FMPClient/companyscreenerfilter.cpp \
-    ../Clients/FMPClient/stocknewsfilter.cpp \
-    settings.cpp
+    ../Clients/FMPClient/stocknewsfilter.cpp
+
 
 HEADERS += \
+    settings.h \
+    argumentparser.h \
     ../Algo/mainalgo.h \
     ../Core/appfrontend.h \
     ../Core/mainapp.h \
     ../Core/memorymonitor.h \
+    ../Clients/restclient.h \
     ../Clients/FMPClient/fmpclient.h \
     ../Clients/FMPClient/companyscreenerfilter.h \
-    ../Clients/FMPClient/stocknewsfilter.h \
-    argumentparser.h \
-    settings.h
+    ../Clients/FMPClient/stocknewsfilter.h
+
 
 INCLUDEPATH += ../Clients/FMPClient
 DEPENDPATH += ../Clients/FMPClient
