@@ -30,14 +30,14 @@ int main(int argc, char *argv[])
         qFatal() << "No FMP access token found in config.ini. Exiting...";
     }
 
-    FMPClient::setAPIKey(fmpToken);
+    FMPClient::getInstance().setAPIKey(fmpToken);
 
     QString tradeStationToken = tokensSettings->value("TradeStation/AccessToken").toString();
     if (tradeStationToken.isEmpty()) {
         qFatal() << "No TradeStation access token found in config.ini. Exiting...";
     }
 
-    TradeStationClient::setAPIKey(tradeStationToken);
+    TradeStationClient::getInstance().setAPIKey(tradeStationToken);
 
     MainApp mainApp(new FRONTEND());
 

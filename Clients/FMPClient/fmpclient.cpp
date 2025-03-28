@@ -41,11 +41,7 @@ FMPClient::FMPClient() :
 {
     qCDebug(FMPClientLog) << Q_FUNC_INFO << ": FMPClient created using KEY=" << apiKey;
 
-    Q_ASSERT(!apiKey.isEmpty());
-
     thread->setObjectName("FPMClientThread");
-
-    this->moveToThread(thread);
 
     thread->start();
 }

@@ -40,11 +40,7 @@ TradeStationClient::TradeStationClient() :
 {
     qCDebug(TradeStationClientLog) << Q_FUNC_INFO << ": TradeStationClient created using KEY=" << apiKey;
 
-    Q_ASSERT(!apiKey.isEmpty());
-
     thread->setObjectName("TradeStationClientThread");
-
-    this->moveToThread(thread);
 
     thread->start();
 }

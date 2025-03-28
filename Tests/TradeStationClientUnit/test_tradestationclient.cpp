@@ -9,7 +9,7 @@ void TestTradeStationClient::initTestCase() {
 
     qInfo() << "Start of test suite";
 
-    TradeStationClient::setAPIKey(tradeStationKey);
+    TradeStationClient::getInstance().setAPIKey(tradeStationKey);
 }
 
 void TestTradeStationClient::init()

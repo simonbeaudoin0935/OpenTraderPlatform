@@ -16,7 +16,7 @@ void TestFMPClient::initTestCase() {
 
     qInfo() << "Start of test suite";
 
-    FMPClient::setAPIKey(fmpKey);
+    FMPClient::getInstance().setAPIKey(fmpKey);
 
 }
 

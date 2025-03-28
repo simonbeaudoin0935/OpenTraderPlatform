@@ -32,7 +32,7 @@ public:
     virtual ~RESTClient();
 
     // Must be called before the first getInstance() call otherwise an assert is triggered in the constructor
-    static void setAPIKey(const QString &apiKey);
+    void setAPIKey(const QString &apiKey);
 
     // To monitor usage
     qsizetype getTotalDataReceivedBytes() const;
@@ -65,7 +65,7 @@ protected:
     virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonArray &doc) = 0;
 
     std::atomic<qsizetype> totalDataReceivedBytes = 0; // TODO at the end, will do in private
-    static QString apiKey;
+    QString apiKey;
     QThread *thread;
     QNetworkAccessManager *manager;
     mutable QMutex pendingRequestsMutex;

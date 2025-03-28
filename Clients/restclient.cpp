@@ -10,16 +10,14 @@
 
 Q_LOGGING_CATEGORY(RESTClientLog, "RESTClient");
 
-
-QString RESTClient::apiKey = "";
-
-
 RESTClient::RESTClient(const QString &baseUrl, QObject *parent)
     : QObject(parent),
     thread(new QThread()),
     manager(new QNetworkAccessManager(this)),
     baseUrl(baseUrl)
 {
+    this->moveToThread(thread);
+
     connect(manager, &QNetworkAccessManager::finished, this, &RESTClient::onReplyFinished);
 }
 
@@ -29,7 +27,7 @@ RESTClient::~RESTClient() {
 
 void RESTClient::setAPIKey(const QString &apiKey)
 {
-    RESTClient::apiKey = apiKey;
+    this->apiKey = apiKey;
 }
 
 qsizetype RESTClient::getTotalDataReceivedBytes() const
