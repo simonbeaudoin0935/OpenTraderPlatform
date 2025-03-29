@@ -13,11 +13,9 @@ SOURCES += \
     ../Core/memorymonitor.cpp \
     ../Clients/restclient.cpp \
     ../Clients/FMPClient/fmpclient.cpp \
-    ../Clients/FMPClient/companyscreenerfilter.cpp \
-    ../Clients/FMPClient/stocknewsfilter.cpp \
+    ../Clients/FMPClient/Filters/companyscreenerfilter.cpp \
+    ../Clients/FMPClient/Filters/stocknewsfilter.cpp \
     ../Clients/TradeStationClient/tradestationclient.cpp
-
-
 
 HEADERS += \
     settings.h \
@@ -28,8 +26,8 @@ HEADERS += \
     ../Core/memorymonitor.h \
     ../Clients/restclient.h \
     ../Clients/FMPClient/fmpclient.h \
-    ../Clients/FMPClient/companyscreenerfilter.h \
-    ../Clients/FMPClient/stocknewsfilter.h \
+    ../Clients/FMPClient/Filters/companyscreenerfilter.h \
+    ../Clients/FMPClient/Filters/stocknewsfilter.h \
     ../Clients/TradeStationClient/tradestationclient.h
 
 INCLUDEPATH += ../Clients/FMPClient

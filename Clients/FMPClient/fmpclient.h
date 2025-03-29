@@ -7,8 +7,8 @@
 #include <QVector>
 
 #include "../restclient.h"
-#include "companyscreenerfilter.h"
-#include "stocknewsfilter.h"
+#include "Filters/companyscreenerfilter.h"
+#include "Filters/stocknewsfilter.h"
 
 Q_DECLARE_LOGGING_CATEGORY(FMPClientLog)
 

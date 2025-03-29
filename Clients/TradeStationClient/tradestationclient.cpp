@@ -53,6 +53,8 @@ TradeStationClient::~TradeStationClient() {
 }
 
 void TradeStationClient::emitSignalDemuxer(RequestTypeInt type, const QJsonArray &doc) {
+    Q_UNUSED(type);
+    Q_UNUSED(doc);
     // TODO: Implement signal demuxing when we add specific request types
 }
 
