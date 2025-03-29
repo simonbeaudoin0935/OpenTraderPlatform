@@ -7,6 +7,7 @@
 #include <atomic>
 #include "../restclient.h"
 #include "Auth/AuthWindow.h"
+#include "Account/accountresult.h"
 
 Q_DECLARE_LOGGING_CATEGORY(TradeStationClientLog)
 
@@ -28,6 +29,10 @@ public:
 
     // Authentication methods
     void launchAuthProcess(QWidget* parent = nullptr);
+
+    // Account methods
+    // https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
+    bool fetchSyncAccounts(QVector<AccountResult> &results);
 
 signals:
     void authenticationStateChanged(bool isAuthenticated);

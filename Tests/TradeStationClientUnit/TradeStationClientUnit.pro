@@ -11,11 +11,13 @@ HEADERS += test_tradestationclient.h
 SOURCES += \
     ../../Clients/restclient.cpp \
     ../../Clients/TradeStationClient/tradestationclient.cpp \
+    ../../Clients/TradeStationClient/Account/accountresult.cpp \
     ../../Clients/TradeStationClient/Auth/AuthWindow.cpp
 
 HEADERS += \
     ../../Clients/restclient.h \
     ../../Clients/TradeStationClient/tradestationclient.h \
+    ../../Clients/TradeStationClient/Account/accountresult.h \
     ../../Clients/TradeStationClient/Auth/AuthWindow.h
 
 

@@ -88,3 +88,31 @@ void TradeStationClient::handleAuthFailed(const QString error) {
 void TradeStationClient::handleAuthWindowDestroyed() {
     authWindow = nullptr;
 }
+
+bool TradeStationClient::fetchSyncAccounts(QVector<AccountResult> &results)
+{
+    QString url = buildUrlWithEndpointAndApiKeyHeaderParam("brokerage/accounts");
+    QJsonArray *jsonArrayFromReplyToDelete = nullptr;
+
+    bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
+
+    if (ret) {
+        // The positive return value implies jsonArrayFromReplyToDelete has been allocated to something
+        Q_ASSERT(jsonArrayFromReplyToDelete != nullptr);
+
+        // Resize the array in advance
+        results.reserve(jsonArrayFromReplyToDelete->count());
+
+        for (QJsonValue json: *jsonArrayFromReplyToDelete) {
+            results.push_back(AccountResult(json.toObject()));
+        }
+
+        // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
+        TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
+    } else {
+        // Make sure that if fetchSync failed that this pointed has not been allocated
+        Q_ASSERT(jsonArrayFromReplyToDelete == nullptr);
+    }
+
+    return ret;
+}

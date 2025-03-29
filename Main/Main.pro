@@ -15,7 +15,8 @@ SOURCES += \
     ../Clients/FMPClient/fmpclient.cpp \
     ../Clients/FMPClient/Filters/companyscreenerfilter.cpp \
     ../Clients/FMPClient/Filters/stocknewsfilter.cpp \
-    ../Clients/TradeStationClient/tradestationclient.cpp
+    ../Clients/TradeStationClient/tradestationclient.cpp \
+    ../Clients/TradeStationClient/Account/accountresult.cpp
 
 HEADERS += \
     settings.h \
@@ -28,7 +29,8 @@ HEADERS += \
     ../Clients/FMPClient/fmpclient.h \
     ../Clients/FMPClient/Filters/companyscreenerfilter.h \
     ../Clients/FMPClient/Filters/stocknewsfilter.h \
-    ../Clients/TradeStationClient/tradestationclient.h
+    ../Clients/TradeStationClient/tradestationclient.h \
+    ../Clients/TradeStationClient/Account/accountresult.h
 
 INCLUDEPATH += ../Clients/FMPClient
 DEPENDPATH += ../Clients/FMPClient
