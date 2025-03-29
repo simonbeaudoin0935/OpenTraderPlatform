@@ -61,6 +61,9 @@ private:
     bool authInProgress = false;  // Track if authentication process is in progress
     AuthWindow* authWindow = nullptr;  // Authentication window
 
+    // API key placement configuration
+    static constexpr ApiKeyPlacement API_KEY_PLACEMENT = ApiKeyPlacement::InHeader;
+
     friend class TestTradeStationClient;
 };
 

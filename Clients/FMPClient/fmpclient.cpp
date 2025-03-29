@@ -7,8 +7,9 @@
 #include <QJsonArray>
 #include <QMutexLocker>
 #include <QDebug>
+#include <QNetworkRequest>
 
-const QString baseUrlFMP = "https://financialmodelingprep.com/stable/";
+const QUrl baseUrlFMP("https://financialmodelingprep.com/stable/");
 
 // Define the logging category
 Q_LOGGING_CATEGORY(FMPClientLog, "FMPClient")
@@ -54,23 +55,21 @@ FMPClient::~FMPClient() {
 }
 
 void FMPClient::fetchAsyncQuoteShort(const QString &symbol) {
-    QString url = buildUrlWithEndpointSymbolAndApiKeyParam("quote-short",symbol);
-
-    fetchAsync(url, static_cast<RequestTypeInt>(RequestType::Quote));
+    QNetworkRequest request = buildUrlWithEndpointSymbolAndApiKeyParam("quote-short", symbol, API_KEY_PLACEMENT);
+    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::Quote));
 }
 
 void FMPClient::fetchAsyncSharesFloat(const QString &symbol)
 {
-    QString url = buildUrlWithEndpointSymbolAndApiKeyParam("shares-float",symbol);
-
-    fetchAsync(url, static_cast<RequestTypeInt>(RequestType::SharesFloat));
+    QNetworkRequest request = buildUrlWithEndpointSymbolAndApiKeyParam("shares-float", symbol, API_KEY_PLACEMENT);
+    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::SharesFloat));
 }
 
 bool FMPClient::fetchSyncQuoteShort(const QString &symbol, struct QuoteShortResult &result) {
-    QString url = buildUrlWithEndpointSymbolAndApiKeyParam("quote-short",symbol);
+    QNetworkRequest request = buildUrlWithEndpointSymbolAndApiKeyParam("quote-short", symbol, API_KEY_PLACEMENT);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool success = fetchSync(url, jsonDocumentFromReplyToDelete);
+    bool success = fetchSync(request, jsonDocumentFromReplyToDelete);
 
     if (success) {
         // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
@@ -96,10 +95,10 @@ bool FMPClient::fetchSyncQuoteShort(const QString &symbol, struct QuoteShortResu
 
 bool FMPClient::fetchSyncSharesFloat(const QString &symbol, struct SharesFloatResult &result)
 {
-    QString url = buildUrlWithEndpointSymbolAndApiKeyParam("shares-float",symbol);
+    QNetworkRequest request = buildUrlWithEndpointSymbolAndApiKeyParam("shares-float", symbol, API_KEY_PLACEMENT);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool ret = fetchSync(url, jsonDocumentFromReplyToDelete);
+    bool ret = fetchSync(request, jsonDocumentFromReplyToDelete);
 
     if (ret) {
         // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
@@ -127,10 +126,10 @@ bool FMPClient::fetchSyncSharesFloat(const QString &symbol, struct SharesFloatRe
 
 bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QVector<CompanyScreenerResult> &results)
 {
-    QString url = buildUrlWithEndpointParamsAndApiKeyParam("company-screener", filter.toUrlQuery().toString(QUrl::FullyEncoded));
+    QNetworkRequest request = buildUrlWithEndpointParamsAndApiKeyParam("company-screener", filter.toUrlQuery(), API_KEY_PLACEMENT);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool ret = fetchSync(url, jsonDocumentFromReplyToDelete);
+    bool ret = fetchSync(request, jsonDocumentFromReplyToDelete);
 
     if (ret) {
         // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
@@ -155,10 +154,10 @@ bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QV
 
 bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockNewsResult> &results)
 {
-    QString url = buildUrlWithEndpointParamsAndApiKeyParam("news/stock", filter.toUrlQuery().toString(QUrl::FullyEncoded));
+    QNetworkRequest request = buildUrlWithEndpointParamsAndApiKeyParam("news/stock", filter.toUrlQuery(), API_KEY_PLACEMENT);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool ret = fetchSync(url, jsonDocumentFromReplyToDelete);
+    bool ret = fetchSync(request, jsonDocumentFromReplyToDelete);
 
     if (ret) {
         // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something

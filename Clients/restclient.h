@@ -4,6 +4,9 @@
 #include <QSemaphore>
 #include <QWaitCondition>
 #include <QHash>
+#include <QUrlQuery>
+#include <QUrl>
+#include <QNetworkRequest>
 
 #include <QObject>
 #include <atomic>
@@ -28,7 +31,7 @@ class RESTClient : public QObject
     Q_OBJECT
 
 public:
-    explicit RESTClient(const QString &baseUrl, QObject *parent = nullptr);
+    explicit RESTClient(const QUrl &baseUrl, QObject *parent = nullptr);
     virtual ~RESTClient();
 
     // Must be called before the first getInstance() call otherwise an assert is triggered in the constructor
@@ -55,14 +58,17 @@ protected:
         QJsonDocument *jsonDocument = nullptr;
     };
 
+    enum class ApiKeyPlacement {
+        InUrl,      // API key is sent as a URL parameter
+        InHeader    // API key is sent in the Authorization header
+    };
 
-    QString buildUrlWithEndpointAndApiKeyParam(const QString &endpoint) const;
-    QString buildUrlWithEndpointSymbolAndApiKeyParam(const QString &endpoint, const QString &symbol) const;
-    QString buildUrlWithEndpointParamsAndApiKeyParam(const QString &endpoint, const QString &paramsList) const;
-    QString buildUrlWithEndpointAndApiKeyHeaderParam(const QString &endpoint) const;
+    QNetworkRequest buildUrlWithEndpointAndApiKeyParam(const QString &endpoint, ApiKeyPlacement placement) const;
+    QNetworkRequest buildUrlWithEndpointSymbolAndApiKeyParam(const QString &endpoint, const QString &symbol, ApiKeyPlacement placement) const;
+    QNetworkRequest buildUrlWithEndpointParamsAndApiKeyParam(const QString &endpoint, const QUrlQuery &query, ApiKeyPlacement placement) const;
 
-    bool fetchSync(const QString &url, QJsonDocument *&jsonDocumentFromReplyToDelete);
-    void fetchAsync(const QString &url, RequestTypeInt type);
+    bool fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete);
+    void fetchAsync(const QNetworkRequest &request, RequestTypeInt type);
 
     virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) = 0;
 
@@ -82,7 +88,7 @@ private:
     friend class TestFMPClient;
     friend class TestTradeStationClient;
 
-    const QString baseUrl;
+    const QUrl baseUrl;
     QLoggingCategory *loggingCategory;
 
 #ifdef UNIT_TESTING

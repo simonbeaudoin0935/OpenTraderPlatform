@@ -11,7 +11,7 @@
 #include <QtTest>
 #endif
 
-const QString baseUrlTradeStation = "https://sim-api.tradestation.com/v3/";
+const QUrl baseUrlTradeStation("https://sim-api.tradestation.com/v3/");
 
 // Define the logging category
 Q_LOGGING_CATEGORY(TradeStationClientLog, "TradeStationClient")
@@ -91,10 +91,10 @@ void TradeStationClient::handleAuthWindowDestroyed() {
 
 bool TradeStationClient::fetchSyncAccounts(QVector<AccountResult> &results)
 {
-    QString url = buildUrlWithEndpointAndApiKeyHeaderParam("brokerage/accounts");
+    QNetworkRequest request = buildUrlWithEndpointAndApiKeyParam("brokerage/accounts", API_KEY_PLACEMENT);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool ret = fetchSync(url, jsonDocumentFromReplyToDelete);
+    bool ret = fetchSync(request, jsonDocumentFromReplyToDelete);
 
     if (ret) {
         // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something

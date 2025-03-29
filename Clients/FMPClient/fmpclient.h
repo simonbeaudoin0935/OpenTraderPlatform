@@ -79,6 +79,9 @@ private:
     // Singleton
     static FMPClient* instance;
 
+    // API key placement configuration
+    static constexpr ApiKeyPlacement API_KEY_PLACEMENT = ApiKeyPlacement::InUrl;
+
     friend class TestFMPClient;
 };
 

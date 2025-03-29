@@ -2,17 +2,18 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QUrlQuery>
 #ifdef UNIT_TESTING
 #include <QtTest/QtTest>
 #endif
 
 #include "restclient.h"
-#include "qtestsupport_core.h"
+//#include "qtestsupport_core.h"
 
 
 Q_LOGGING_CATEGORY(RESTClientLog, "RESTClient");
 
-RESTClient::RESTClient(const QString &baseUrl, QObject *parent)
+RESTClient::RESTClient(const QUrl &baseUrl, QObject *parent)
     : QObject(parent),
     thread(new QThread()),
     manager(new QNetworkAccessManager(this)),
@@ -37,47 +38,81 @@ qsizetype RESTClient::getTotalDataReceivedBytes() const
     return totalDataReceivedBytes.load(std::memory_order_relaxed);
 }
 
-QString RESTClient::buildUrlWithEndpointAndApiKeyParam(const QString &endpoint) const {
-    return baseUrl + endpoint + "?" +
-           QString("apikey=%1").arg(apiKey);
+QNetworkRequest RESTClient::buildUrlWithEndpointAndApiKeyParam(const QString &endpoint, ApiKeyPlacement placement) const {
+    QUrl url = baseUrl;
+    url.setPath(url.path() + endpoint);
+    
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    
+    if (placement == ApiKeyPlacement::InUrl) {
+        QUrlQuery query;
+        query.addQueryItem("apikey", apiKey);
+        url.setQuery(query);
+        request.setUrl(url);
+    } else {
+        request.setRawHeader("Authorization", QString("Bearer %1").arg(apiKey).toUtf8());
+    }
+    
+    return request;
 }
 
-QString RESTClient::buildUrlWithEndpointSymbolAndApiKeyParam(const QString &endpoint, const QString &symbol) const {
-    return baseUrl + endpoint + "?" +
-           QString("symbol=%1").arg(symbol) + "&" +
-           QString("apikey=%1").arg(apiKey);
+QNetworkRequest RESTClient::buildUrlWithEndpointSymbolAndApiKeyParam(const QString &endpoint, const QString &symbol, ApiKeyPlacement placement) const {
+    QUrl url = baseUrl;
+    url.setPath(url.path() + endpoint);
+    
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    
+    if (placement == ApiKeyPlacement::InUrl) {
+        QUrlQuery query;
+        query.addQueryItem("symbol", symbol);
+        query.addQueryItem("apikey", apiKey);
+        url.setQuery(query);
+        request.setUrl(url);
+    } else {
+        request.setRawHeader("Authorization", QString("Bearer %1").arg(apiKey).toUtf8());
+        QUrlQuery query;
+        query.addQueryItem("symbol", symbol);
+        url.setQuery(query);
+        request.setUrl(url);
+    }
+    
+    return request;
 }
 
-QString RESTClient::buildUrlWithEndpointParamsAndApiKeyParam(const QString &endpoint, const QString &paramsList) const
+QNetworkRequest RESTClient::buildUrlWithEndpointParamsAndApiKeyParam(const QString &endpoint, const QUrlQuery &query, ApiKeyPlacement placement) const
 {
-    return baseUrl + endpoint + "?" +
-           paramsList + "&" +
-           QString("apikey=%1").arg(apiKey);
-}
-
-QString RESTClient::buildUrlWithEndpointAndApiKeyHeaderParam(const QString &endpoint) const {
-    return baseUrl + endpoint;
+    QUrl url = baseUrl;
+    url.setPath(url.path() + endpoint);
+    
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    
+    if (placement == ApiKeyPlacement::InUrl) {
+        QUrlQuery finalQuery(query);
+        finalQuery.addQueryItem("apikey", apiKey);
+        url.setQuery(finalQuery);
+        request.setUrl(url);
+    } else {
+        request.setRawHeader("Authorization", QString("Bearer %1").arg(apiKey).toUtf8());
+        url.setQuery(query);
+        request.setUrl(url);
+    }
+    
+    return request;
 }
 
 /*
  * Underlying function doing the fetching of the JSON common to all fetchXSync methods
  */
-bool RESTClient::fetchSync(const QString &url, QJsonDocument *&jsonDocumentFromReplyToDelete) {
+bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete) {
     QNetworkReply *reply = nullptr;
 
     // Invoke this method in the distinct thread of the FMPClient singleton.
     // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
     // is actually invoking this method NOT in the caller's thread.
-    QMetaObject::invokeMethod(this, [this, url, &reply]() {
-        QNetworkRequest request(url);
-        
-        // If the URL was built with buildUrlWithEndpointAndApiKeyHeaderParam,
-        // the API key should be added as a Bearer token in the Authorization header
-        if (!url.contains("apikey=")) {
-            request.setRawHeader("Authorization", QString("Bearer %1").arg(apiKey).toUtf8());
-            request.setRawHeader("Content-Type", "application/json");
-        }
-        
+    QMetaObject::invokeMethod(this, [this, request, &reply]() {
         reply = manager->get(request);
 
         qCDebug(RESTClientLog) << Q_FUNC_INFO <<
@@ -96,7 +131,7 @@ bool RESTClient::fetchSync(const QString &url, QJsonDocument *&jsonDocumentFromR
 
     qCDebug(RESTClientLog) << Q_FUNC_INFO <<
         " : Thread [" << QThread::currentThread()->objectName() <<
-        "] invoked the queued method to GET url " << url ;
+        "] invoked the queued method to GET url " << request.url().toString();
 
     QMutexLocker locker(&pendingRequestsMutex);
 
@@ -145,20 +180,11 @@ bool RESTClient::fetchSync(const QString &url, QJsonDocument *&jsonDocumentFromR
     return false;
 }
 
-void RESTClient::fetchAsync(const QString &url, RequestTypeInt type) {
+void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type) {
     // Invoke this method in the distinct thread of the FMPClient singleton.
     // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
     // is actually invoking this method NOT in the caller's thread.
-    QMetaObject::invokeMethod(this, [this, url, type]() {
-        QNetworkRequest request(url);
-        
-        // If the URL was built with buildUrlWithEndpointAndApiKeyHeaderParam,
-        // the API key should be added as a Bearer token in the Authorization header
-        if (!url.contains("apikey=")) {
-            request.setRawHeader("Authorization", QString("Bearer %1").arg(apiKey).toUtf8());
-            request.setRawHeader("Content-Type", "application/json");
-        }
-        
+    QMetaObject::invokeMethod(this, [this, request, type]() {
         QNetworkReply *reply = manager->get(request);
 
         QMutexLocker locker(&pendingRequestsMutex);
