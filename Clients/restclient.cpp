@@ -35,22 +35,26 @@ qsizetype RESTClient::getTotalDataReceivedBytes() const
     return totalDataReceivedBytes.load(std::memory_order_relaxed);
 }
 
-QString RESTClient::buildUrlWithEndpoint(const QString &endpoint) const {
+QString RESTClient::buildUrlWithEndpointAndApiKeyParam(const QString &endpoint) const {
     return baseUrl + endpoint + "?" +
            QString("apikey=%1").arg(apiKey);
 }
 
-QString RESTClient::buildUrlWithEndpointAndSymbol(const QString &endpoint, const QString &symbol) const {
+QString RESTClient::buildUrlWithEndpointSymbolAndApiKeyParam(const QString &endpoint, const QString &symbol) const {
     return baseUrl + endpoint + "?" +
            QString("symbol=%1").arg(symbol) + "&" +
            QString("apikey=%1").arg(apiKey);
 }
 
-QString RESTClient::buildUrlWithEndpointAndParamsList(const QString &endpoint, const QString &paramsList) const
+QString RESTClient::buildUrlWithEndpointParamsAndApiKeyParam(const QString &endpoint, const QString &paramsList) const
 {
     return baseUrl + endpoint + "?" +
            paramsList + "&" +
            QString("apikey=%1").arg(apiKey);
+}
+
+QString RESTClient::buildUrlWithEndpointAndApiKeyHeaderParam(const QString &endpoint) const {
+    return baseUrl + endpoint;
 }
 
 /*
@@ -64,6 +68,14 @@ bool RESTClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyTo
     // is actually invoking this method NOT in the caller's thread.
     QMetaObject::invokeMethod(this, [this, url, &reply]() {
         QNetworkRequest request(url);
+        
+        // If the URL was built with buildUrlWithEndpointAndApiKeyHeaderParam,
+        // the API key should be added as a Bearer token in the Authorization header
+        if (!url.contains("apikey=")) {
+            request.setRawHeader("Authorization", QString("Bearer %1").arg(apiKey).toUtf8());
+            request.setRawHeader("Content-Type", "application/json");
+        }
+        
         reply = manager->get(request);
 
         qCDebug(RESTClientLog) << Q_FUNC_INFO <<
@@ -136,7 +148,16 @@ void RESTClient::fetchAsync(const QString &url, RequestTypeInt type) {
     // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
     // is actually invoking this method NOT in the caller's thread.
     QMetaObject::invokeMethod(this, [this, url, type]() {
-        QNetworkReply *reply = manager->get(QNetworkRequest(url));
+        QNetworkRequest request(url);
+        
+        // If the URL was built with buildUrlWithEndpointAndApiKeyHeaderParam,
+        // the API key should be added as a Bearer token in the Authorization header
+        if (!url.contains("apikey=")) {
+            request.setRawHeader("Authorization", QString("Bearer %1").arg(apiKey).toUtf8());
+            request.setRawHeader("Content-Type", "application/json");
+        }
+        
+        QNetworkReply *reply = manager->get(request);
 
         QMutexLocker locker(&pendingRequestsMutex);
         pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Async,

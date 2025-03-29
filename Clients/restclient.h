@@ -55,9 +55,11 @@ protected:
         QJsonArray *jsonArray = nullptr;
     };
 
-    QString buildUrlWithEndpoint(const QString &endpoint) const;
-    QString buildUrlWithEndpointAndSymbol(const QString &endpoint, const QString &symbol) const;
-    QString buildUrlWithEndpointAndParamsList(const QString &endpoint, const QString &paramsList) const;
+
+    QString buildUrlWithEndpointAndApiKeyParam(const QString &endpoint) const;
+    QString buildUrlWithEndpointSymbolAndApiKeyParam(const QString &endpoint, const QString &symbol) const;
+    QString buildUrlWithEndpointParamsAndApiKeyParam(const QString &endpoint, const QString &paramsList) const;
+    QString buildUrlWithEndpointAndApiKeyHeaderParam(const QString &endpoint) const;
 
     bool fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToDelete);
     void fetchAsync(const QString &url, RequestTypeInt type);

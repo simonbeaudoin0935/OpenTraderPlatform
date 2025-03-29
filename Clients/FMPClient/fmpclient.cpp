@@ -54,20 +54,20 @@ FMPClient::~FMPClient() {
 }
 
 void FMPClient::fetchAsyncQuoteShort(const QString &symbol) {
-    QString url = buildUrlWithEndpointAndSymbol("quote-short",symbol);
+    QString url = buildUrlWithEndpointSymbolAndApiKeyParam("quote-short",symbol);
 
     fetchAsync(url, static_cast<RequestTypeInt>(RequestType::Quote));
 }
 
 void FMPClient::fetchAsyncSharesFloat(const QString &symbol)
 {
-    QString url = buildUrlWithEndpointAndSymbol("shares-float",symbol);
+    QString url = buildUrlWithEndpointSymbolAndApiKeyParam("shares-float",symbol);
 
     fetchAsync(url, static_cast<RequestTypeInt>(RequestType::SharesFloat));
 }
 
 bool FMPClient::fetchSyncQuoteShort(const QString &symbol, struct QuoteShortResult &result) {
-    QString url = buildUrlWithEndpointAndSymbol("quote-short",symbol);
+    QString url = buildUrlWithEndpointSymbolAndApiKeyParam("quote-short",symbol);
     QJsonArray *jsonArrayFromReplyToDelete = nullptr;
 
     bool success = fetchSync(url, jsonArrayFromReplyToDelete);
@@ -96,7 +96,7 @@ bool FMPClient::fetchSyncQuoteShort(const QString &symbol, struct QuoteShortResu
 
 bool FMPClient::fetchSyncSharesFloat(const QString &symbol, struct SharesFloatResult &result)
 {
-    QString url = buildUrlWithEndpointAndSymbol("shares-float",symbol);
+    QString url = buildUrlWithEndpointSymbolAndApiKeyParam("shares-float",symbol);
     QJsonArray *jsonArrayFromReplyToDelete = nullptr;
 
     bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
@@ -127,7 +127,7 @@ bool FMPClient::fetchSyncSharesFloat(const QString &symbol, struct SharesFloatRe
 
 bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QVector<CompanyScreenerResult> &results)
 {
-    QString url = buildUrlWithEndpointAndParamsList("company-screener", filter.getURLParameters());
+    QString url = buildUrlWithEndpointParamsAndApiKeyParam("company-screener", filter.getURLParameters());
     QJsonArray *jsonArrayFromReplyToDelete = nullptr;
 
     bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
@@ -155,7 +155,7 @@ bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QV
 
 bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockNewsResult> &results)
 {
-    QString url = buildUrlWithEndpointAndParamsList("news/stock", filter.getURLParameters());
+    QString url = buildUrlWithEndpointParamsAndApiKeyParam("news/stock", filter.getURLParameters());
     QJsonArray *jsonArrayFromReplyToDelete = nullptr;
 
     bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
