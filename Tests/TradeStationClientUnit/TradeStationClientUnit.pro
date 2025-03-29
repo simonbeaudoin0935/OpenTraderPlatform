@@ -12,13 +12,15 @@ SOURCES += \
     ../../Clients/restclient.cpp \
     ../../Clients/TradeStationClient/tradestationclient.cpp \
     ../../Clients/TradeStationClient/Account/accountresult.cpp \
-    ../../Clients/TradeStationClient/Auth/AuthWindow.cpp
+    ../../Clients/TradeStationClient/Auth/AuthWindow.cpp \
+    ../../Clients/TradeStationClient/Auth/authtoken.cpp
 
 HEADERS += \
     ../../Clients/restclient.h \
     ../../Clients/TradeStationClient/tradestationclient.h \
     ../../Clients/TradeStationClient/Account/accountresult.h \
-    ../../Clients/TradeStationClient/Auth/AuthWindow.h
+    ../../Clients/TradeStationClient/Auth/AuthWindow.h \
+    ../../Clients/TradeStationClient/Auth/authtoken.h
 
 
 INCLUDEPATH += ../../Clients/TradeStationClient

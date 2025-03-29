@@ -3,6 +3,7 @@
 
 #include <QtTest/QtTest>
 #include <QSettings>
+#include "../../Clients/TradeStationClient/Auth/authtoken.h"
 
 class TestTradeStationClient : public QObject {
     Q_OBJECT
@@ -22,17 +23,7 @@ private slots:
     //     for the next minute instead of having them fail
 
 private:
-    struct AuthData {
-        QString accessToken;
-        QString idToken;
-        QString refreshToken;
-        QString tokenReceivedTime;
-        int tokenTimeoutSeconds;
-    };
-    
-    AuthData readExistingAuthData();
-    void restoreAuthData(const AuthData& data);
-    AuthData originalAuthData;  // Store the original auth data
+    AuthToken savedValidAuthToken;
 };
 
 #endif // TEST_TRADESTATIONCLIENT_H 

@@ -63,12 +63,22 @@ protected:
         InHeader    // API key is sent in the Authorization header
     };
 
+    enum class HttpMethod {
+        GET,
+        POST
+    };
+
+    // Static method to build refresh token request
+    static QNetworkRequest buildRefreshTokenRequest(const QString &clientId, 
+                                                  const QString &clientSecret,
+                                                  const QString &refreshToken);
+
     // Overloaded function to build network requests
     QNetworkRequest buildRequest(ApiKeyPlacement placement, const QString &endpoint, const QString &symbol = "") const;
     QNetworkRequest buildRequest(ApiKeyPlacement placement, const QString &endpoint, const QUrlQuery &query) const;
 
-    bool fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete);
-    void fetchAsync(const QNetworkRequest &request, RequestTypeInt type);
+    bool fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete, HttpMethod method = HttpMethod::GET, const QByteArray *postData = nullptr);
+    void fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method = HttpMethod::GET, const QByteArray *postData = nullptr);
 
     virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) = 0;
 

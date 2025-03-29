@@ -90,18 +90,27 @@ QNetworkRequest RESTClient::buildRequest(ApiKeyPlacement placement, const QStrin
 /*
  * Underlying function doing the fetching of the JSON common to all fetchXSync methods
  */
-bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete) {
+bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete, HttpMethod method, const QByteArray *postData) {
     QNetworkReply *reply = nullptr;
 
     // Invoke this method in the distinct thread of the FMPClient singleton.
     // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
     // is actually invoking this method NOT in the caller's thread.
-    QMetaObject::invokeMethod(this, [this, request, &reply]() {
-        reply = manager->get(request);
+    QMetaObject::invokeMethod(this, [this, request, &reply, method, postData]() {
+        switch (method) {
+            case HttpMethod::GET:
+                reply = manager->get(request);
+                break;
+            case HttpMethod::POST:
+                // Use the provided postData if available, otherwise send empty data
+                reply = manager->post(request, postData ? *postData : QByteArray());
+                break;
+        }
 
         qCDebug(RESTClientLog) << Q_FUNC_INFO <<
             " : Thread [" << QThread::currentThread()->objectName() <<
-            "] executed the queued GET request and registered the reply " << static_cast<void*>(reply) << " for later reception.";
+            "] executed the queued" << (method == HttpMethod::GET ? "GET" : "POST") << 
+            "request and registered the reply " << static_cast<void*>(reply) << " for later reception.";
 
         QMutexLocker locker(&pendingRequestsMutex);
         {
@@ -115,7 +124,8 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
 
     qCDebug(RESTClientLog) << Q_FUNC_INFO <<
         " : Thread [" << QThread::currentThread()->objectName() <<
-        "] invoked the queued method to GET url " << request.url().toString();
+        "] invoked the queued method to" << (method == HttpMethod::GET ? "GET" : "POST") <<
+        "url " << request.url().toString();
 
     QMutexLocker locker(&pendingRequestsMutex);
 
@@ -164,12 +174,22 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
     return false;
 }
 
-void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type) {
+void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method, const QByteArray *postData) {
     // Invoke this method in the distinct thread of the FMPClient singleton.
     // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
     // is actually invoking this method NOT in the caller's thread.
-    QMetaObject::invokeMethod(this, [this, request, type]() {
-        QNetworkReply *reply = manager->get(request);
+    QMetaObject::invokeMethod(this, [this, request, type, method, postData]() {
+        QNetworkReply *reply = nullptr;
+        
+        switch (method) {
+            case HttpMethod::GET:
+                reply = manager->get(request);
+                break;
+            case HttpMethod::POST:
+                // Use the provided postData if available, otherwise send empty data
+                reply = manager->post(request, postData ? *postData : QByteArray());
+                break;
+        }
 
         QMutexLocker locker(&pendingRequestsMutex);
         pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Async,

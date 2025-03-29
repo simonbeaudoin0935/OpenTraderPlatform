@@ -12,6 +12,7 @@
 #include <QSettings>
 #include <QInputDialog>
 #include <QMessageBox>
+#include "authtoken.h"
 
 Q_DECLARE_LOGGING_CATEGORY(tsAuth)
 
@@ -24,9 +25,9 @@ public:
     ~AuthWindow() override;
 
     // Static getter methods for authentication results
-    static QString getAccessToken() { return accessToken; }
-    static QString getRefreshToken() { return refreshToken; }
-    static QString getIdToken() { return idToken; }
+    static QString getAccessToken() { return authToken.getAccessToken(); }
+    static QString getRefreshToken() { return authToken.getRefreshToken(); }
+    static QString getIdToken() { return authToken.getIdToken(); }
     static bool isAlreadyAuthenticated() { return loadTokens(); }
     static void clearTokens();
 
@@ -54,11 +55,7 @@ private:
     QString clientSecret;
     QString redirectUri;
     QString expectedState;
-    static QString accessToken;
-    static QString refreshToken;
-    static QString idToken;
-    QDateTime tokenReceivedTime;
-    int tokenTimeoutSeconds; // Token timeout in seconds
+    static AuthToken authToken;
 
     // Server configuration
     static const quint16 DEFAULT_PORT = 8080;
@@ -82,7 +79,6 @@ private:
 
     // Token validation
     bool areTokensValid() const;
-    void setTokenTimeout(int seconds);
 
     // Credential management
     bool loadCredentials();

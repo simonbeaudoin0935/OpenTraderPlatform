@@ -4,9 +4,9 @@
 #include <QObject>
 #include <QLoggingCategory>
 #include <QVector>
-#include <atomic>
 #include "../restclient.h"
 #include "Auth/AuthWindow.h"
+#include "Auth/authtoken.h"
 #include "Account/accountresult.h"
 
 Q_DECLARE_LOGGING_CATEGORY(TradeStationClientLog)
@@ -30,6 +30,14 @@ public:
     // Authentication methods
     void launchAuthProcess(QWidget* parent = nullptr);
     bool refreshSyncAccessToken();
+
+    // Static helper methods for authentication
+    static QNetworkRequest buildRefreshTokenRequest(const QString &clientId, 
+                                                  const QString &clientSecret,
+                                                  const QString &refreshToken);
+    static QByteArray buildRefreshTokenQuery(const QString &clientId,
+                                           const QString &clientSecret,
+                                           const QString &refreshToken);
 
     // Account methods
     // https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts

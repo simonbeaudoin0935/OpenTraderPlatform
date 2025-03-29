@@ -98,9 +98,9 @@ bool FMPClient::fetchSyncSharesFloat(const QString &symbol, struct SharesFloatRe
     QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "shares-float", symbol);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool ret = fetchSync(request, jsonDocumentFromReplyToDelete);
+    bool success = fetchSync(request, jsonDocumentFromReplyToDelete);
 
-    if (ret) {
+    if (success) {
         // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
         Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
 
@@ -121,7 +121,7 @@ bool FMPClient::fetchSyncSharesFloat(const QString &symbol, struct SharesFloatRe
         Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
     }
 
-    return ret;
+    return success;
 }
 
 bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QVector<CompanyScreenerResult> &results)
@@ -129,9 +129,9 @@ bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QV
     QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "company-screener", filter);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool ret = fetchSync(request, jsonDocumentFromReplyToDelete);
+    bool success = fetchSync(request, jsonDocumentFromReplyToDelete);
 
-    if (ret) {
+    if (success) {
         // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
         Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
 
@@ -149,7 +149,7 @@ bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QV
         Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
     }
 
-    return ret;
+    return success;
 }
 
 bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockNewsResult> &results)
@@ -157,9 +157,9 @@ bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockN
     QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "news/stock", filter);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool ret = fetchSync(request, jsonDocumentFromReplyToDelete);
+    bool success = fetchSync(request, jsonDocumentFromReplyToDelete);
 
-    if (ret) {
+    if (success) {
         // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
         Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
 
@@ -177,7 +177,7 @@ bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockN
         Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
     }
 
-    return ret;
+    return success;
 }
 
 void FMPClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) {

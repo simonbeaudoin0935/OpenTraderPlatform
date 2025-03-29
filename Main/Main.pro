@@ -16,6 +16,7 @@ SOURCES += \
     ../Clients/FMPClient/Filters/companyscreenerfilter.cpp \
     ../Clients/FMPClient/Filters/stocknewsfilter.cpp \
     ../Clients/TradeStationClient/tradestationclient.cpp \
+    ../Clients/TradeStationClient/Auth/authtoken.cpp \
     ../Clients/TradeStationClient/Account/accountresult.cpp
 
 HEADERS += \
@@ -30,6 +31,7 @@ HEADERS += \
     ../Clients/FMPClient/Filters/companyscreenerfilter.h \
     ../Clients/FMPClient/Filters/stocknewsfilter.h \
     ../Clients/TradeStationClient/tradestationclient.h \
+    ../Clients/TradeStationClient/Auth/authtoken.h \
     ../Clients/TradeStationClient/Account/accountresult.h
 
 INCLUDEPATH += ../Clients/FMPClient
@@ -55,9 +57,8 @@ gui {
     HEADERS += \
         ../GUI/guifrontend.h \
         ../GUI/stockpricechart.h \
-        ../Clients/TradeStationClient/Auth/AuthWindow.h
+        ../Clients/TradeStationClient/Auth/AuthWindow.h \
 
     FORMS += \
         ../GUI/guifrontend.ui
-
 }
