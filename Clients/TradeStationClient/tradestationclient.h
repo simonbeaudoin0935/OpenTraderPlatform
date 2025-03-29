@@ -2,10 +2,9 @@
 #define TRADESTATIONCLIENT_H
 
 #include <QObject>
-
 #include <QLoggingCategory>
 #include <QVector>
-
+#include <atomic>
 #include "../restclient.h"
 #include "Auth/AuthWindow.h"
 
@@ -13,11 +12,9 @@ Q_DECLARE_LOGGING_CATEGORY(TradeStationClientLog)
 
 // This is a singleton
 
-
 class TradeStationClient : public RESTClient {
     Q_OBJECT
 public:
-
     // Singleton : Instance getter
     static TradeStationClient& getInstance();
     static TradeStationClient* getInstancePtr();
@@ -27,9 +24,10 @@ public:
 
     // Authentication state getter
     bool isAuthenticated() const { return authenticated; }
+    bool isAuthInProgress() const { return authInProgress; }
 
     // Authentication methods
-    void showAuthWindow(QWidget* parent = nullptr);
+    void launchAuthProcess(QWidget* parent = nullptr);
 
 signals:
     void authenticationStateChanged(bool isAuthenticated);
@@ -37,8 +35,8 @@ signals:
 
 private slots:
     void handleAuthCompleted(bool success);
-    void handleAuthFailed(const QString& error);
-    void handleAuthWindowDestroyed();  // New slot to handle window deletion
+    void handleAuthFailed(const QString error);
+    void handleAuthWindowDestroyed();
 
 private:
     // Singleton : private constructor
@@ -54,6 +52,7 @@ private:
     // Singleton
     static TradeStationClient* instance;
     bool authenticated = false;  // Track authentication state
+    bool authInProgress = false;  // Track if authentication process is in progress
     AuthWindow* authWindow = nullptr;  // Authentication window
 
     friend class TestTradeStationClient;

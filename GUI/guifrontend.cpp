@@ -8,6 +8,19 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     ui->setupUi(new QMainWindow());
     static_cast<QMainWindow*>(ui->centralwidget->parent())->show();
 
+    // Create and setup TradeStation login button
+    tradeStationLoginButton = new QPushButton("Login to TradeStation", ui->statusbar);
+    tradeStationLoginButton->setFlat(true);  // Make it look like a status bar item
+    tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
+    ui->statusbar->addPermanentWidget(tradeStationLoginButton);
+
+    // Connect TradeStation signals and slots
+    connect(tradeStationLoginButton, &QPushButton::clicked, this, &GuiFrontend::onTradeStationLoginClicked);
+    connect(TradeStationClient::getInstancePtr(), &TradeStationClient::authenticationStateChanged,
+            this, &GuiFrontend::onTradeStationAuthStateChanged);
+    connect(TradeStationClient::getInstancePtr(), &TradeStationClient::authenticationError,
+            this, &GuiFrontend::onTradeStationAuthError);
+
     QObject::connect(&updateTimer, &QTimer::timeout, this, &GuiFrontend::onUpdateTimerTimeout);
     QObject::connect(FMPClient::getInstancePtr(), &FMPClient::totalDataReceivedBytesIncreased, this, &GuiFrontend::onFMPClientDataUsageUpdate);
 
@@ -75,4 +88,25 @@ void GuiFrontend::onQuoteShortReceived(const FMPClient::QuoteShortResult quoteRe
     } else {
         ui->logDisplay->append("Cant add a point to the chart, the date is fucked.");
     }
+}
+
+void GuiFrontend::onTradeStationLoginClicked() {
+    // AuthWindow is modal, so it's impossible to click the button while authentication is in progress
+    Q_ASSERT(!TradeStationClient::getInstance().isAuthInProgress());
+    TradeStationClient::getInstance().launchAuthProcess(static_cast<QMainWindow*>(ui->centralwidget->parent()));
+}
+
+void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated) {
+    if (isAuthenticated) {
+        tradeStationLoginButton->setText("TradeStation Connected");
+        tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #E6FFE6; color: #4CAF50; padding: 2px 6px; border-radius: 3px; }");
+    } else {
+        tradeStationLoginButton->setText("Login to TradeStation");
+        tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
+    }
+}
+
+void GuiFrontend::onTradeStationAuthError(const QString& error) {
+    tradeStationLoginButton->setText("Login Failed: " + error);
+    tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #FFE6E6; color: #f44336; padding: 2px 6px; border-radius: 3px; }");
 }

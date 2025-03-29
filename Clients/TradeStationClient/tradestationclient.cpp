@@ -52,38 +52,37 @@ TradeStationClient::~TradeStationClient() {
     thread->wait();
 }
 
-
 void TradeStationClient::emitSignalDemuxer(RequestTypeInt type, const QJsonArray &doc) {
     // TODO: Implement signal demuxing when we add specific request types
 }
 
-void TradeStationClient::showAuthWindow(QWidget* parent)
-{
-    if (!authWindow) {
-        authWindow = new AuthWindow(parent);
-        connect(authWindow, &AuthWindow::authenticationCompleted,
-                this, &TradeStationClient::handleAuthCompleted);
-        connect(authWindow, &AuthWindow::authenticationFailed,
-                this, &TradeStationClient::handleAuthFailed);
-        connect(authWindow, &QObject::destroyed,
-                this, &TradeStationClient::handleAuthWindowDestroyed);
-        authWindow->exec();
+void TradeStationClient::launchAuthProcess(QWidget* parent) {
+
+    if (authInProgress) {
+        qCWarning(TradeStationClientLog) << "Authentication process already in progress";
+        return;
     }
+
+    authInProgress = true;
+    authWindow = new AuthWindow(parent);
+    connect(authWindow, &AuthWindow::authenticationCompleted, this, &TradeStationClient::handleAuthCompleted);
+    connect(authWindow, &AuthWindow::authenticationFailed, this, &TradeStationClient::handleAuthFailed);
+    connect(authWindow, &QObject::destroyed, this, &TradeStationClient::handleAuthWindowDestroyed);
+    authWindow->show();
 }
 
-void TradeStationClient::handleAuthCompleted(bool success)
-{
+void TradeStationClient::handleAuthCompleted(bool success) {
     authenticated = success;
+    authInProgress = false;
     emit authenticationStateChanged(authenticated);
 }
 
-void TradeStationClient::handleAuthFailed(const QString& error)
-{
+void TradeStationClient::handleAuthFailed(const QString error) {
     authenticated = false;
+    authInProgress = false;
     emit authenticationError(error);
 }
 
-void TradeStationClient::handleAuthWindowDestroyed()
-{
+void TradeStationClient::handleAuthWindowDestroyed() {
     authWindow = nullptr;
 }

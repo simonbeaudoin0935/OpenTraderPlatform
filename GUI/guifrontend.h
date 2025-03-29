@@ -4,8 +4,10 @@
 #include "../Core/appfrontend.h"
 #include <QMainWindow>
 #include <QTimer>
+#include <QPushButton>
 
 #include "../Clients/FMPClient/fmpclient.h"
+#include "../Clients/TradeStationClient/tradestationclient.h"
 
 // Forward declare the generated UI class
 namespace Ui {
@@ -19,18 +21,19 @@ public:
     ~GuiFrontend() override;
 
 public slots:
-
     void onFMPClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onMemoryUsageUpdate(qint64 newDataUsage) override; // TODO deal with qint64 vs qsizetype
 
 private slots:
     void onUpdateTimerTimeout();
-
-    //TODO test
     void onQuoteShortReceived(const FMPClient::QuoteShortResult quoteResult);
+    void onTradeStationLoginClicked();
+    void onTradeStationAuthStateChanged(bool isAuthenticated);
+    void onTradeStationAuthError(const QString& error);
 
 private:
     Ui::GuiFrontend* ui;  // Pointer to the UI object
+    QPushButton* tradeStationLoginButton;  // Login button in status bar
 
     QTimer updateTimer;
 

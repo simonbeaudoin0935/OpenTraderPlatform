@@ -31,7 +31,7 @@ public:
 
 signals:
     void authenticationCompleted(bool success);
-    void authenticationFailed(const QString& error);
+    void authenticationFailed(const QString error);
 
 private slots:
     void handleNewConnection();

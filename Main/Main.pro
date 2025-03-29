@@ -17,6 +17,8 @@ SOURCES += \
     ../Clients/FMPClient/stocknewsfilter.cpp \
     ../Clients/TradeStationClient/tradestationclient.cpp
 
+
+
 HEADERS += \
     settings.h \
     argumentparser.h \
@@ -57,4 +59,5 @@ gui {
 
     FORMS += \
         ../GUI/guifrontend.ui
+
 }
