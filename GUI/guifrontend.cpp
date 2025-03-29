@@ -16,21 +16,24 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
 
     // Connect TradeStation signals and slots
     connect(tradeStationLoginButton, &QPushButton::clicked, this, &GuiFrontend::onTradeStationLoginClicked);
+
+    // Connect app frontend signals and slots
     connect(this, &AppFrontend::tradeStationAuthStateChanged,
             this, &GuiFrontend::onTradeStationAuthStateChanged);
     connect(this, &AppFrontend::tradeStationAuthError,
             this, &GuiFrontend::onTradeStationAuthError);
-
-    QObject::connect(&updateTimer, &QTimer::timeout, this, &GuiFrontend::onUpdateTimerTimeout);
     connect(this, &AppFrontend::fmpDataUsageUpdated,
             this, &GuiFrontend::onFMPClientDataUsageUpdate);
+
+    QObject::connect(&updateTimer, &QTimer::timeout, this, &GuiFrontend::onUpdateTimerTimeout);
+
 
     // TODO test
     QObject::connect(FMPClient::getInstancePtr(), &FMPClient::quoteShortReceived, this, &GuiFrontend::onQuoteShortReceived);
 
 
     //TODO test
-    updateTimer.start(1000);
+    //updateTimer.start(1000);
 }
 
 GuiFrontend::~GuiFrontend() {

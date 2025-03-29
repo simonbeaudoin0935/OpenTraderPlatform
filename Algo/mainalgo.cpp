@@ -60,6 +60,9 @@ void MainAlgo::onThreadStarted()
     QVector<CompanyScreenerResult> results;
     CompanyScreenerFilter filter;
 
+    // TODO turn this off for now
+    return;
+
     filter.setIndustry("Biotechnology");
     filter.setPriceMoreThan(PriceRangeLow);
     filter.setPriceLowerThan(PriceRangeHigh);
