@@ -378,6 +378,7 @@ bool AuthWindow::parseTokenResponse(const QJsonObject& response)
         return false;
     }
     accessToken = response["access_token"].toString();
+    
     if (accessToken.isEmpty()) {
         qCWarning(tsAuth) << "Empty access_token in response";
         return false;
@@ -405,8 +406,7 @@ bool AuthWindow::parseTokenResponse(const QJsonObject& response)
         return false;
     }
     
-    // Set the token received time
-    tokenReceivedTime = QDateTime::currentDateTime();
+
     
     // Get the expires_in value from the response
     if (!response.contains("expires_in")) {
@@ -419,6 +419,9 @@ bool AuthWindow::parseTokenResponse(const QJsonObject& response)
         qCWarning(tsAuth) << "Invalid expires_in value:" << tokenTimeoutSeconds;
         return false;
     }
+    
+        // Set the token received time
+    tokenReceivedTime = QDateTime::currentDateTime();
     
     qCDebug(tsAuth) << "Token details:";
     qCDebug(tsAuth) << "  Access Token length:" << accessToken.length();

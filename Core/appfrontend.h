@@ -10,6 +10,10 @@ public:
     explicit AppFrontend(QObject* parent = nullptr) : QObject(parent) {}
     virtual ~AppFrontend() = default;
 
+signals:
+    void tradeStationAuthStateChanged(bool isAuthenticated);
+    void tradeStationAuthError(const QString& error);
+
 public slots:
 
     virtual void onFMPClientDataUsageUpdate(qsizetype newDataUsage) = 0;

@@ -11,7 +11,7 @@
 const QString baseUrlFMP = "https://financialmodelingprep.com/stable/";
 
 // Define the logging category
-Q_LOGGING_CATEGORY(FMPClientLog, "FMPlient")
+Q_LOGGING_CATEGORY(FMPClientLog, "FMPClient")
 
 // Initialize static member outside class
 FMPClient* FMPClient::instance = nullptr;
