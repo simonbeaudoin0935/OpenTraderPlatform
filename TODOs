@@ -1,3 +1,4 @@
 - create a monitor to monitor the amount of requests performed per minute. perhaps query
 - adjust the tests to use QCOMPARE in lieu of QVERIFY which should be only for bool
--Implement the refresh logic
+-Implement the tradestation token refresh logic
+- eventually make the tradestation authtication process headless

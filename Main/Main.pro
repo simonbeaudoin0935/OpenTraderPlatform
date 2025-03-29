@@ -44,16 +44,18 @@ DEPENDPATH += ../Clients/FMPClient
 
 # GUI-specific files and module
 gui {
-    QT += widgets charts    # Adds QtWidgets (and implicitly QtGui)
+    QT += widgets charts webenginewidgets   # Adds QtWidgets (and implicitly QtGui)
     DEFINES += GUI_ENABLED  # For conditional compilation in code
 
     SOURCES += \
         ../GUI/guifrontend.cpp \
         ../GUI/stockpricechart.cpp \
+        ../Clients/TradeStationClient/Auth/AuthWindow.cpp
 
     HEADERS += \
         ../GUI/guifrontend.h \
-        ../GUI/stockpricechart.h
+        ../GUI/stockpricechart.h \
+        ../Clients/TradeStationClient/Auth/AuthWindow.h
 
     FORMS += \
         ../GUI/guifrontend.ui
