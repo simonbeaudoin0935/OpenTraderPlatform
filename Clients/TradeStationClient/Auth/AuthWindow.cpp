@@ -17,6 +17,11 @@
 
 Q_LOGGING_CATEGORY(tsAuth, "tradestation.auth")
 
+// Define static members
+QString AuthWindow::accessToken;
+QString AuthWindow::refreshToken;
+QString AuthWindow::idToken;
+
 AuthWindow::AuthWindow(QWidget *parent) : QDialog(parent)
 {
     qCDebug(tsAuth) << "Initializing TradeStation Auth Window";
@@ -348,7 +353,10 @@ void AuthWindow::exchangeCodeForTokens(const QString& code)
 
 void AuthWindow::handleTokenResponse(const QJsonObject& response)
 {
-    parseTokenResponse(response);
+    if (!parseTokenResponse(response)) {
+        handleTokenError("Invalid token response");
+        return;
+    }
     saveTokens();
     accept(); // Close dialog on success
 }
@@ -360,22 +368,56 @@ void AuthWindow::handleTokenError(const QString& error)
     reject(); // Close dialog on error
 }
 
-void AuthWindow::parseTokenResponse(const QJsonObject& response)
+bool AuthWindow::parseTokenResponse(const QJsonObject& response)
 {
     qCDebug(tsAuth) << "Parsing token response...";
+    
+    // Check for access_token
+    if (!response.contains("access_token")) {
+        qCWarning(tsAuth) << "No access_token in response";
+        return false;
+    }
     accessToken = response["access_token"].toString();
+    if (accessToken.isEmpty()) {
+        qCWarning(tsAuth) << "Empty access_token in response";
+        return false;
+    }
+    
+    // Check for refresh_token
+    if (!response.contains("refresh_token")) {
+        qCWarning(tsAuth) << "No refresh_token in response";
+        return false;
+    }
     refreshToken = response["refresh_token"].toString();
+    if (refreshToken.isEmpty()) {
+        qCWarning(tsAuth) << "Empty refresh_token in response";
+        return false;
+    }
+    
+    // Check for id_token
+    if (!response.contains("id_token")) {
+        qCWarning(tsAuth) << "No id_token in response";
+        return false;
+    }
     idToken = response["id_token"].toString();
+    if (idToken.isEmpty()) {
+        qCWarning(tsAuth) << "Empty id_token in response";
+        return false;
+    }
     
     // Set the token received time
     tokenReceivedTime = QDateTime::currentDateTime();
     
     // Get the expires_in value from the response
-    if (response.contains("expires_in")) {
-        tokenTimeoutSeconds = response["expires_in"].toInt();
-        qCDebug(tsAuth) << "Token timeout set to" << tokenTimeoutSeconds << "seconds";
-    } else {
-        qCDebug(tsAuth) << "No expires_in value in response, using default timeout of" << tokenTimeoutSeconds << "seconds";
+    if (!response.contains("expires_in")) {
+        qCWarning(tsAuth) << "No expires_in value in response";
+        return false;
+    }
+    
+    tokenTimeoutSeconds = response["expires_in"].toInt();
+    if (tokenTimeoutSeconds <= 0) {
+        qCWarning(tsAuth) << "Invalid expires_in value:" << tokenTimeoutSeconds;
+        return false;
     }
     
     qCDebug(tsAuth) << "Token details:";
@@ -384,6 +426,8 @@ void AuthWindow::parseTokenResponse(const QJsonObject& response)
     qCDebug(tsAuth) << "  ID Token length:" << idToken.length();
     qCDebug(tsAuth) << "  Received at:" << tokenReceivedTime.toString(Qt::ISODate);
     qCDebug(tsAuth) << "  Timeout:" << tokenTimeoutSeconds << "seconds";
+    
+    return true;
 }
 
 void AuthWindow::saveTokens()
@@ -430,7 +474,7 @@ bool AuthWindow::loadTokens()
         return false;
     }
     
-    tokenReceivedTime = QDateTime::fromString(timeStr, Qt::ISODate);
+    QDateTime tokenReceivedTime = QDateTime::fromString(timeStr, Qt::ISODate);
     if (!tokenReceivedTime.isValid()) {
         qCDebug(tsAuth) << "Tokens are invalid: token received time is invalid";
         clearTokens();
@@ -438,10 +482,10 @@ bool AuthWindow::loadTokens()
     }
     
     // Load timeout value
-    tokenTimeoutSeconds = settings.value("token_timeout_seconds", 3600).toInt();
+    int tokenTimeoutSeconds = settings.value("token_timeout_seconds", 3600).toInt();
     
     // Check if tokens are expired
-    if (isTokenExpired()) {
+    if (isTokenExpired(tokenReceivedTime, tokenTimeoutSeconds)) {
         qCDebug(tsAuth) << "Tokens are invalid: token has expired";
         clearTokens();
         return false;
@@ -469,7 +513,7 @@ bool AuthWindow::areTokensValid() const
         return false;
     }
     
-    if (isTokenExpired()) {
+    if (isTokenExpired(tokenReceivedTime, tokenTimeoutSeconds)) {
         qCDebug(tsAuth) << "Tokens are invalid: token has expired";
         return false;
     }
@@ -477,7 +521,7 @@ bool AuthWindow::areTokensValid() const
     return true;
 }
 
-bool AuthWindow::isTokenExpired() const
+bool AuthWindow::isTokenExpired(const QDateTime& tokenReceivedTime, int tokenTimeoutSeconds)
 {
     if (!tokenReceivedTime.isValid()) {
         return true;
@@ -512,8 +556,6 @@ void AuthWindow::clearTokens()
     accessToken.clear();
     refreshToken.clear();
     idToken.clear();
-    tokenReceivedTime = QDateTime();
-    tokenTimeoutSeconds = 3600; // Reset to default
     
     QSettings settings("TradeStationAuth", "Auth");
     settings.remove("access_token");
@@ -523,7 +565,7 @@ void AuthWindow::clearTokens()
     settings.remove("token_timeout_seconds");
     settings.sync();
     
-    qCDebug(tsAuth) << "Tokens cleared from storage";
+    qCDebug(tsAuth) << "Tokens cleared from memory and persistent storage";
 }
 
 QString AuthWindow::generateRandomState()

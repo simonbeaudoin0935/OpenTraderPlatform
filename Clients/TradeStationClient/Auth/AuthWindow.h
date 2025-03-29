@@ -23,11 +23,11 @@ public:
     explicit AuthWindow(QWidget *parent = nullptr);
     ~AuthWindow() override;
 
-    // New methods for getting authentication results
-    QString getAccessToken() const { return accessToken; }
-    QString getRefreshToken() const { return refreshToken; }
-    QString getIdToken() const { return idToken; }
-    bool isAuthenticated() const { return !accessToken.isEmpty(); }
+    // Static getter methods for authentication results
+    static QString getAccessToken() { return accessToken; }
+    static QString getRefreshToken() { return refreshToken; }
+    static QString getIdToken() { return idToken; }
+    static bool isAlreadyAuthenticated() { return loadTokens(); }
 
 signals:
     void authenticationCompleted(bool success);
@@ -53,33 +53,36 @@ private:
     QString clientSecret;
     QString redirectUri;
     QString expectedState;
-    QString accessToken;
-    QString refreshToken;
-    QString idToken;
+    static QString accessToken;
+    static QString refreshToken;
+    static QString idToken;
     QDateTime tokenReceivedTime;
-    int tokenTimeoutSeconds = 3600; // Default 1 hour timeout
+    int tokenTimeoutSeconds; // Token timeout in seconds
 
     // Server configuration
     static const quint16 DEFAULT_PORT = 8080;
     static const quint16 MAX_PORT_ATTEMPTS = 10;
     quint16 currentPort = DEFAULT_PORT;
 
+    // Static token management functions
+    static bool loadTokens();
+    static bool isTokenExpired(const QDateTime& tokenReceivedTime, int tokenTimeoutSeconds);
+    static void clearTokens();
+
+    // Instance-specific UI and server functions
     void setupUi();
     void startAuthorization();
     void startHttpServer();
     bool tryBindPort(quint16 port);
     void updateRedirectUri(quint16 port);
     void exchangeCodeForTokens(const QString& code);
-    void parseTokenResponse(const QJsonObject& response);
+    bool parseTokenResponse(const QJsonObject& response);
     void saveTokens();
-    bool loadTokens();
     QString generateRandomState();
 
     // Token validation
     bool areTokensValid() const;
-    bool isTokenExpired() const;
     void setTokenTimeout(int seconds);
-    void clearTokens();
 
     // Credential management
     bool loadCredentials();
