@@ -28,6 +28,7 @@ public:
     static QString getRefreshToken() { return refreshToken; }
     static QString getIdToken() { return idToken; }
     static bool isAlreadyAuthenticated() { return loadTokens(); }
+    static void clearTokens();
 
 signals:
     void authenticationCompleted(bool success);
@@ -67,7 +68,6 @@ private:
     // Static token management functions
     static bool loadTokens();
     static bool isTokenExpired(const QDateTime& tokenReceivedTime, int tokenTimeoutSeconds);
-    static void clearTokens();
 
     // Instance-specific UI and server functions
     void setupUi();

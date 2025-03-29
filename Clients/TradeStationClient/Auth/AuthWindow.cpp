@@ -436,7 +436,8 @@ bool AuthWindow::parseTokenResponse(const QJsonObject& response)
 void AuthWindow::saveTokens()
 {
     qCDebug(tsAuth) << "Saving tokens to persistent storage...";
-    QSettings settings("TradeStationAuth", "Auth");
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                       "TradeStationAuth", "Tokens");
     settings.setValue("access_token", accessToken);
     settings.setValue("refresh_token", refreshToken);
     settings.setValue("id_token", idToken);
@@ -449,7 +450,8 @@ void AuthWindow::saveTokens()
 bool AuthWindow::loadTokens()
 {
     qCDebug(tsAuth) << "Loading tokens from persistent storage...";
-    QSettings settings("TradeStationAuth", "Auth");
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                       "TradeStationAuth", "Tokens");
     
     // Early return if no access token exists
     accessToken = settings.value("access_token").toString();
@@ -556,11 +558,13 @@ void AuthWindow::setTokenTimeout(int seconds)
 
 void AuthWindow::clearTokens()
 {
-    accessToken.clear();
-    refreshToken.clear();
-    idToken.clear();
+    // TODO check if this is needed
+    //accessToken.clear();
+    //refreshToken.clear();
+    //idToken.clear();
     
-    QSettings settings("TradeStationAuth", "Auth");
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                       "TradeStationAuth", "Tokens");
     settings.remove("access_token");
     settings.remove("refresh_token");
     settings.remove("id_token");
@@ -615,7 +619,7 @@ void AuthWindow::initializeCredentialStore()
 {
     // Initialize settings with organization and application name
     credentialsStore = new QSettings(QSettings::IniFormat, QSettings::UserScope,
-                                   "TradeStationAuth", "Credentials", this);
+                                     "TradeStationAuth", "Credentials", this);
     credentialsStore->setFallbacksEnabled(false);  // Don't fall back to global settings
 
     qCDebug(tsAuth) << "Credentials storage location:" << credentialsStore->fileName();

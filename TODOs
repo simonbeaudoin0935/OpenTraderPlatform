@@ -6,3 +6,8 @@
 
 - when loading tokens in tradestation, perform an initial request to make sure the token indeed works
 - if the token works immediately perform a token refresh
+  - create the token refresh functionality in TS
+  - Modity the sync method to have the header
+    - modify RESTClient to build the url with a header
+
+

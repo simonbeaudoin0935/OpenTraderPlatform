@@ -9,7 +9,12 @@ private slots:
     void initTestCase();
     void init();
 
+    void testIsAlreadyAuthenticatedReturnsFalseWhenNoTokens();
+    void testIsAlreadyAuthenticatedReturnsFalseWhenTokenExpired();
+
+    void testAuthentication();
     void testFetchingMoreThanMaximumPerMinute();
+
     //TODO should perhaps implement a max-per-minute limiter to queue the exceeding requests
     //     for the next minute instead of having them fail
 };

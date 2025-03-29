@@ -3,6 +3,18 @@
 #include <QJsonDocument>
 
 
+QString GuiFrontend::bytesToString(qint64 bytes) {
+    if (bytes >= 1024 * 1024) {
+        double megabytes = static_cast<double>(bytes) / (1024 * 1024);
+        return QString("%1 MB").arg(megabytes, 0, 'f', 2);
+    } else if (bytes >= 1024) {
+        double kilobytes = static_cast<double>(bytes) / 1024;
+        return QString("%1 KB").arg(kilobytes, 0, 'f', 2);
+    } else {
+        return QString("%1 bytes").arg(bytes);
+    }
+}
+
 GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     ui = new Ui::GuiFrontend();
     ui->setupUi(new QMainWindow());
@@ -25,31 +37,19 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     connect(this, &AppFrontend::fmpDataUsageUpdated,
             this, &GuiFrontend::onFMPClientDataUsageUpdate);
 
-    QObject::connect(&updateTimer, &QTimer::timeout, this, &GuiFrontend::onUpdateTimerTimeout);
 
 
-    // TODO test
+    // TODO disconnect this and pass through the frontend
     QObject::connect(FMPClient::getInstancePtr(), &FMPClient::quoteShortReceived, this, &GuiFrontend::onQuoteShortReceived);
 
 
     //TODO test
+    // QObject::connect(&updateTimer, &QTimer::timeout, this, &GuiFrontend::onUpdateTimerTimeout);
     //updateTimer.start(1000);
 }
 
 GuiFrontend::~GuiFrontend() {
     delete ui;
-}
-
-QString bytesToString(qint64 bytes) {
-    if (bytes >= 1024 * 1024) {
-        double megabytes = static_cast<double>(bytes) / (1024 * 1024);
-        return QString("%1 MB").arg(megabytes, 0, 'f', 2);
-    } else if (bytes >= 1024) {
-        double kilobytes = static_cast<double>(bytes) / 1024;
-        return QString("%1 KB").arg(kilobytes, 0, 'f', 2);
-    } else {
-        return QString("%1 bytes").arg(bytes);
-    }
 }
 
 void GuiFrontend::onFMPClientDataUsageUpdate(qsizetype newDataUsage)

@@ -32,6 +32,7 @@ private slots:
     void onTradeStationAuthError(const QString& error);
 
 private:
+    static QString bytesToString(qint64 bytes);
     Ui::GuiFrontend* ui;  // Pointer to the UI object
     QPushButton* tradeStationLoginButton;  // Login button in status bar
 
