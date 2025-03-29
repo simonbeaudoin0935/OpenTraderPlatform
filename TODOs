@@ -10,4 +10,4 @@
   - Modity the sync method to have the header
     - modify RESTClient to build the url with a header
 
-
+- rework the TS.setAPIKey

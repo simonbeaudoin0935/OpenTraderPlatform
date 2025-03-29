@@ -7,12 +7,25 @@
 #include <QSettings>
 #include <QDateTime>
 
+void TestTradeStationClient::initTestCase_data()
+{
+    // Store the original auth data before any test modifications
+    originalAuthData = readExistingAuthData();
+
+    // Check if the stored auth data is valid
+    QVERIFY(!originalAuthData.accessToken.isEmpty());
+    
+    QDateTime tokenTime = QDateTime::fromString(originalAuthData.tokenReceivedTime, Qt::ISODate);
+    QDateTime currentTime = QDateTime::currentDateTime();
+    int ageInSeconds = tokenTime.secsTo(currentTime);
+    
+    QCOMPARE_LT(ageInSeconds, originalAuthData.tokenTimeoutSeconds - 10); // Token should be less than 20 minutes old minut 10s for the test to work
+}
 
 void TestTradeStationClient::initTestCase() {
     QLoggingCategory::setFilterRules("TradeStationClient.debug=true");
 
     qInfo() << "Start of test suite";
-
 }
 
 void TestTradeStationClient::init()
@@ -43,7 +56,7 @@ void TestTradeStationClient::testIsAlreadyAuthenticatedReturnsFalseWhenTokenExpi
     settings.setValue("id_token", "expired_token");
     settings.setValue("refresh_token", "expired_token");
     settings.setValue("token_received_time", QDateTime::currentDateTime().addSecs(-3600).toString(Qt::ISODate));
-    settings.setValue("token_timeout_seconds", 1800); // 30 minutes
+    settings.setValue("token_timeout_seconds", 1200); // 20 minutes
     settings.sync();
 
     // Verify that isAlreadyAuthenticated returns false for expired token
@@ -131,6 +144,8 @@ void TestTradeStationClient::testAuthentication()
 
 void TestTradeStationClient::testFetchingMoreThanMaximumPerMinute()
 {
+    QSKIP("Manual test requiring user interaction - skipping in automated tests");
+
     qInfo() << "Turned of qCDebug(TradeStationClient.debug) for this test so as to not flood the console.";
 
     // Suppress debug prints for this test as we will do a huge number of requests
@@ -153,4 +168,101 @@ void TestTradeStationClient::testFetchingMoreThanMaximumPerMinute()
     }
 
     QVERIFY(client.isCleanedUp());
+}
+
+void TestTradeStationClient::testFetchSyncAccounts()
+{
+    TradeStationClient& client = TradeStationClient::getInstance();
+    
+    restoreAuthData(originalAuthData);
+    
+    // Verify initial state
+    QVERIFY(client.isCleanedUp());
+    QVERIFY(AuthWindow::isAlreadyAuthenticated());
+    
+
+    qDebug() << "Setting Key into TraceStationClient";
+    client.setAPIKey(originalAuthData.accessToken);
+
+    QVector<AccountResult> results;
+    bool success = client.fetchSyncAccounts(results);
+
+    // Verify the results
+    QVERIFY(success);
+    QVERIFY(!results.isEmpty());
+    qDebug() << "\nFound" << results.size() << "accounts:";
+
+    // Verify each account has valid data
+    for (const AccountResult& account : results) {
+        qDebug() << "\nVerifying Account:";
+        
+        qDebug() << "  ID:" << account.getAccountId();
+        QVERIFY(!account.getAccountId().isEmpty());
+        
+        qDebug() << "  Type:" << account.getAccountType();
+        QVERIFY(!account.getAccountType().isEmpty());
+        
+        qDebug() << "  Display Name:" << account.getDisplayName();
+        QVERIFY(!account.getDisplayName().isEmpty());
+        
+        qDebug() << "  Status:" << account.getStatus();
+        QVERIFY(!account.getStatus().isEmpty());
+        
+        qDebug() << "  Currency:" << account.getCurrency();
+        QVERIFY(!account.getCurrency().isEmpty());
+        
+        qDebug() << "  Current Balance:" << account.getCurrentBalance();
+        QVERIFY(account.getCurrentBalance() >= 0.0);
+        
+        qDebug() << "  Available Balance:" << account.getAvailableBalance();
+        QVERIFY(account.getAvailableBalance() >= 0.0);
+        
+        qDebug() << "  Day Trading Buying Power:" << account.getDayTradingBuyingPower();
+        QVERIFY(account.getDayTradingBuyingPower() >= 0.0);
+        
+        qDebug() << "  Day Trading Equity:" << account.getDayTradingEquity();
+        QVERIFY(account.getDayTradingEquity() >= 0.0);
+        
+        qDebug() << "  Initial Margin:" << account.getInitialMargin();
+        QVERIFY(account.getInitialMargin() >= 0.0);
+        
+        qDebug() << "  Maintenance Margin:" << account.getMaintenanceMargin();
+        QVERIFY(account.getMaintenanceMargin() >= 0.0);
+        
+        qDebug() << "  Last Updated:" << account.getLastUpdated();
+        QVERIFY(account.getLastUpdated() > 0.0);
+    }
+
+    // Verify no resources were leaked
+    QVERIFY(client.isCleanedUp());
+}
+
+TestTradeStationClient::AuthData TestTradeStationClient::readExistingAuthData()
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                      "TradeStationAuth", "Tokens", this);
+    settings.setFallbacksEnabled(false);
+
+    AuthData data;
+    data.accessToken = settings.value("access_token").toString();
+    data.idToken = settings.value("id_token").toString();
+    data.refreshToken = settings.value("refresh_token").toString();
+    data.tokenReceivedTime = settings.value("token_received_time").toString();
+    data.tokenTimeoutSeconds = settings.value("token_timeout_seconds").toInt();
+
+    return data;
+}
+
+void TestTradeStationClient::restoreAuthData(const AuthData& data)
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                      "TradeStationAuth", "Tokens", this);
+    settings.setFallbacksEnabled(false);
+
+    settings.setValue("access_token", data.accessToken);
+    settings.setValue("id_token", data.idToken);
+    settings.setValue("refresh_token", data.refreshToken);
+    settings.setValue("token_received_time", data.tokenReceivedTime);
+    settings.setValue("token_timeout_seconds", data.tokenTimeoutSeconds);
+    settings.sync();
 } 

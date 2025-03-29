@@ -502,7 +502,7 @@ bool AuthWindow::loadTokens()
     qCDebug(tsAuth) << "  Access Token length:" << accessToken.length();
     qCDebug(tsAuth) << "  Refresh Token length:" << refreshToken.length();
     qCDebug(tsAuth) << "  ID Token length:" << idToken.length();
-    
+
     return true;
 }
 
