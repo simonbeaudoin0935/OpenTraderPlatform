@@ -91,7 +91,7 @@ void TradeStationClient::handleAuthWindowDestroyed() {
 
 bool TradeStationClient::fetchSyncAccounts(QVector<AccountResult> &results)
 {
-    QNetworkRequest request = buildUrlWithEndpointAndApiKeyParam("brokerage/accounts", API_KEY_PLACEMENT);
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "brokerage/accounts", "");
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
     bool ret = fetchSync(request, jsonDocumentFromReplyToDelete);

@@ -63,9 +63,9 @@ protected:
         InHeader    // API key is sent in the Authorization header
     };
 
-    QNetworkRequest buildUrlWithEndpointAndApiKeyParam(const QString &endpoint, ApiKeyPlacement placement) const;
-    QNetworkRequest buildUrlWithEndpointSymbolAndApiKeyParam(const QString &endpoint, const QString &symbol, ApiKeyPlacement placement) const;
-    QNetworkRequest buildUrlWithEndpointParamsAndApiKeyParam(const QString &endpoint, const QUrlQuery &query, ApiKeyPlacement placement) const;
+    // Overloaded function to build network requests
+    QNetworkRequest buildRequest(ApiKeyPlacement placement, const QString &endpoint, const QString &symbol = "") const;
+    QNetworkRequest buildRequest(ApiKeyPlacement placement, const QString &endpoint, const QUrlQuery &query) const;
 
     bool fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete);
     void fetchAsync(const QNetworkRequest &request, RequestTypeInt type);

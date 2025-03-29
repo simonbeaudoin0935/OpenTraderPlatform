@@ -170,35 +170,52 @@ void TestFMPClient::testFetchSyncStockNews()
     FMPClient& client = FMPClient::getInstance();
     bool success;
     QVector<StockNewsResult> results;
+    StockNewsFilter filter;
 
     QVERIFY(client.isCleanedUp());
 
     {
-        StockNewsFilter filter;
+        // Test with date range
         filter.setSymbol("AAPL");
         filter.setLimit(5);  // Limit to 5 news items for faster testing
+        
+        // Set date range for last 7 days
+        QDate toDate = QDate::currentDate();
+        QDate fromDate = toDate.addDays(-7);
+        filter.setFrom(fromDate);
+        filter.setTo(toDate);
 
         success = client.fetchSyncStockNews(filter, results);
 
-        qDebug() << "Stock News produced " << results.size() << " results";
+        qDebug() << "Stock News produced" << results.size() << "results between" 
+                 << fromDate.toString("yyyy-MM-dd") << "and" << toDate.toString("yyyy-MM-dd");
     }
 
     QVERIFY2(success, "Sync fetch failed or timed out");
     QVERIFY(!results.isEmpty());
     QVERIFY(results.size() <= 5);  // Should not exceed our limit
 
-    // Verify the content of the first result
-    const StockNewsResult& news = results.first();
-    QVERIFY(!news.getSymbol().isEmpty());
-    QVERIFY(!news.getTitle().isEmpty());
-    QVERIFY(!news.getText().isEmpty());
-    QVERIFY(!news.getUrl().isEmpty());
+    // Verify the content of each result
+    for (const StockNewsResult& news : results) {
+        QVERIFY(!news.getSymbol().isEmpty());
+        QVERIFY(!news.getTitle().isEmpty());
+        QVERIFY(!news.getText().isEmpty());
+        QVERIFY(!news.getUrl().isEmpty());
 
-    // If date is present, verify its format
-    if (!news.getDate().isEmpty()) {
-        QString format = "yyyy-MM-dd HH:mm:ss";
-        QDateTime dt = QDateTime::fromString(news.getDate(), format);
-        QVERIFY(dt.isValid());
+        // Verify date is within our specified range
+        if (!news.getDate().isEmpty()) {
+            QString format = "yyyy-MM-dd HH:mm:ss";
+            QDateTime newsDate = QDateTime::fromString(news.getDate(), format);
+            QVERIFY(newsDate.isValid());
+            
+            // Convert to date for comparison (ignoring time)
+            QDate articleDate = newsDate.date();
+            QVERIFY2(articleDate >= filter.getFrom() && articleDate <= filter.getTo(),
+                    qPrintable(QString("News date %1 is outside range %2 to %3")
+                             .arg(articleDate.toString("yyyy-MM-dd"))
+                             .arg(filter.getFrom().value_or(QDate()).toString("yyyy-MM-dd"))
+                             .arg(filter.getTo().value_or(QDate()).toString("yyyy-MM-dd"))));
+        }
     }
 
     QVERIFY(client.isCleanedUp());

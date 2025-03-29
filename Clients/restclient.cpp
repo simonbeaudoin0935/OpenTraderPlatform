@@ -8,7 +8,6 @@
 #endif
 
 #include "restclient.h"
-//#include "qtestsupport_core.h"
 
 
 Q_LOGGING_CATEGORY(RESTClientLog, "RESTClient");
@@ -38,7 +37,7 @@ qsizetype RESTClient::getTotalDataReceivedBytes() const
     return totalDataReceivedBytes.load(std::memory_order_relaxed);
 }
 
-QNetworkRequest RESTClient::buildUrlWithEndpointAndApiKeyParam(const QString &endpoint, ApiKeyPlacement placement) const {
+QNetworkRequest RESTClient::buildRequest(ApiKeyPlacement placement, const QString &endpoint, const QString &symbol) const {
     QUrl url = baseUrl;
     url.setPath(url.path() + endpoint);
     
@@ -47,41 +46,26 @@ QNetworkRequest RESTClient::buildUrlWithEndpointAndApiKeyParam(const QString &en
     
     if (placement == ApiKeyPlacement::InUrl) {
         QUrlQuery query;
+        if (!symbol.isEmpty()) {
+            query.addQueryItem("symbol", symbol);
+        }
         query.addQueryItem("apikey", apiKey);
         url.setQuery(query);
         request.setUrl(url);
     } else {
         request.setRawHeader("Authorization", QString("Bearer %1").arg(apiKey).toUtf8());
+        if (!symbol.isEmpty()) {
+            QUrlQuery query;
+            query.addQueryItem("symbol", symbol);
+            url.setQuery(query);
+            request.setUrl(url);
+        }
     }
     
     return request;
 }
 
-QNetworkRequest RESTClient::buildUrlWithEndpointSymbolAndApiKeyParam(const QString &endpoint, const QString &symbol, ApiKeyPlacement placement) const {
-    QUrl url = baseUrl;
-    url.setPath(url.path() + endpoint);
-    
-    QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    
-    if (placement == ApiKeyPlacement::InUrl) {
-        QUrlQuery query;
-        query.addQueryItem("symbol", symbol);
-        query.addQueryItem("apikey", apiKey);
-        url.setQuery(query);
-        request.setUrl(url);
-    } else {
-        request.setRawHeader("Authorization", QString("Bearer %1").arg(apiKey).toUtf8());
-        QUrlQuery query;
-        query.addQueryItem("symbol", symbol);
-        url.setQuery(query);
-        request.setUrl(url);
-    }
-    
-    return request;
-}
-
-QNetworkRequest RESTClient::buildUrlWithEndpointParamsAndApiKeyParam(const QString &endpoint, const QUrlQuery &query, ApiKeyPlacement placement) const
+QNetworkRequest RESTClient::buildRequest(ApiKeyPlacement placement, const QString &endpoint, const QUrlQuery &query) const
 {
     QUrl url = baseUrl;
     url.setPath(url.path() + endpoint);

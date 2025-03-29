@@ -55,18 +55,18 @@ FMPClient::~FMPClient() {
 }
 
 void FMPClient::fetchAsyncQuoteShort(const QString &symbol) {
-    QNetworkRequest request = buildUrlWithEndpointSymbolAndApiKeyParam("quote-short", symbol, API_KEY_PLACEMENT);
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "quote-short", symbol);
     fetchAsync(request, static_cast<RequestTypeInt>(RequestType::Quote));
 }
 
 void FMPClient::fetchAsyncSharesFloat(const QString &symbol)
 {
-    QNetworkRequest request = buildUrlWithEndpointSymbolAndApiKeyParam("shares-float", symbol, API_KEY_PLACEMENT);
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "shares-float", symbol);
     fetchAsync(request, static_cast<RequestTypeInt>(RequestType::SharesFloat));
 }
 
 bool FMPClient::fetchSyncQuoteShort(const QString &symbol, struct QuoteShortResult &result) {
-    QNetworkRequest request = buildUrlWithEndpointSymbolAndApiKeyParam("quote-short", symbol, API_KEY_PLACEMENT);
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "quote-short", symbol);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
     bool success = fetchSync(request, jsonDocumentFromReplyToDelete);
@@ -95,7 +95,7 @@ bool FMPClient::fetchSyncQuoteShort(const QString &symbol, struct QuoteShortResu
 
 bool FMPClient::fetchSyncSharesFloat(const QString &symbol, struct SharesFloatResult &result)
 {
-    QNetworkRequest request = buildUrlWithEndpointSymbolAndApiKeyParam("shares-float", symbol, API_KEY_PLACEMENT);
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "shares-float", symbol);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
     bool ret = fetchSync(request, jsonDocumentFromReplyToDelete);
@@ -126,7 +126,7 @@ bool FMPClient::fetchSyncSharesFloat(const QString &symbol, struct SharesFloatRe
 
 bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QVector<CompanyScreenerResult> &results)
 {
-    QNetworkRequest request = buildUrlWithEndpointParamsAndApiKeyParam("company-screener", filter.toUrlQuery(), API_KEY_PLACEMENT);
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "company-screener", filter);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
     bool ret = fetchSync(request, jsonDocumentFromReplyToDelete);
@@ -154,7 +154,7 @@ bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QV
 
 bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockNewsResult> &results)
 {
-    QNetworkRequest request = buildUrlWithEndpointParamsAndApiKeyParam("news/stock", filter.toUrlQuery(), API_KEY_PLACEMENT);
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "news/stock", filter);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
     bool ret = fetchSync(request, jsonDocumentFromReplyToDelete);

@@ -57,6 +57,9 @@ public:
     // Helper function to generate URL query
     QUrlQuery toUrlQuery() const;
 
+    // Implicit conversion operator
+    operator QUrlQuery() const { return toUrlQuery(); }
+
 private:
     // Member variables using std::optional for optional values
     std::optional<long long> marketCapMoreThan;

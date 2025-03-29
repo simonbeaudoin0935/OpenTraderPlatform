@@ -6,6 +6,7 @@
 #include <QString>
 #include <QJsonObject>
 #include <QUrlQuery>
+#include <QDate>
 
 class StockNewsFilter {
 public:
@@ -13,23 +14,34 @@ public:
     StockNewsFilter();
 
     // Setters for each filter criterion
-    void setSymbol(std::optional<std::string> value);
-    void setLimit(std::optional<int> value);
-    void setOffset(std::optional<int> value);
+    void setSymbol(const QString &symbol);  // Required parameter
+    void setLimit(std::optional<int> limit);  // Optional parameter
+    void setPage(std::optional<int> page);   // Optional parameter
+    void setFrom(std::optional<QDate> from); // Optional parameter
+    void setTo(std::optional<QDate> to);     // Optional parameter
 
     // Getters for each filter criterion
-    std::optional<std::string> getSymbol() const;
-    std::optional<int> getLimit() const;
-    std::optional<int> getOffset() const;
+    QString getSymbol() const;               // Always returns a value
+    std::optional<int> getLimit() const;     // May return std::nullopt
+    std::optional<int> getPage() const;      // May return std::nullopt
+    std::optional<QDate> getFrom() const;    // May return std::nullopt
+    std::optional<QDate> getTo() const;      // May return std::nullopt
 
     // Helper function to generate URL query
     QUrlQuery toUrlQuery() const;
 
+    // Implicit conversion operator
+    operator QUrlQuery() const { return toUrlQuery(); }
+
 private:
-    // Member variables using std::optional for optional values
-    std::optional<std::string> symbol;
+    // Required parameter
+    QString symbol;
+
+    // Optional parameters using std::optional
     std::optional<int> limit;
-    std::optional<int> offset;
+    std::optional<int> page;
+    std::optional<QDate> from;
+    std::optional<QDate> to;
 };
 
 // New class for API result
