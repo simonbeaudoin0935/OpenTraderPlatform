@@ -22,7 +22,8 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
             this, &GuiFrontend::onTradeStationAuthError);
 
     QObject::connect(&updateTimer, &QTimer::timeout, this, &GuiFrontend::onUpdateTimerTimeout);
-    QObject::connect(FMPClient::getInstancePtr(), &FMPClient::totalDataReceivedBytesIncreased, this, &GuiFrontend::onFMPClientDataUsageUpdate);
+    connect(this, &AppFrontend::fmpDataUsageUpdated,
+            this, &GuiFrontend::onFMPClientDataUsageUpdate);
 
     // TODO test
     QObject::connect(FMPClient::getInstancePtr(), &FMPClient::quoteShortReceived, this, &GuiFrontend::onQuoteShortReceived);

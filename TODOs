@@ -3,3 +3,6 @@
 -Implement the tradestation token refresh logic
 - eventually make the tradestation authtication process headless
 - if the auth is lost with TS, have button reflect it
+
+- when loading tokens in tradestation, perform an initial request to make sure the token indeed works
+- if the token works immediately perform a token refresh

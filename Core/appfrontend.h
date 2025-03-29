@@ -13,6 +13,7 @@ public:
 signals:
     void tradeStationAuthStateChanged(bool isAuthenticated);
     void tradeStationAuthError(const QString& error);
+    void fmpDataUsageUpdated(qsizetype newDataUsage);
 
 public slots:
 
