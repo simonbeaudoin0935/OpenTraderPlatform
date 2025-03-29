@@ -52,7 +52,7 @@ TradeStationClient::~TradeStationClient() {
     thread->wait();
 }
 
-void TradeStationClient::emitSignalDemuxer(RequestTypeInt type, const QJsonArray &doc) {
+void TradeStationClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) {
     Q_UNUSED(type);
     Q_UNUSED(doc);
     // TODO: Implement signal demuxing when we add specific request types
@@ -92,26 +92,30 @@ void TradeStationClient::handleAuthWindowDestroyed() {
 bool TradeStationClient::fetchSyncAccounts(QVector<AccountResult> &results)
 {
     QString url = buildUrlWithEndpointAndApiKeyHeaderParam("brokerage/accounts");
-    QJsonArray *jsonArrayFromReplyToDelete = nullptr;
+    QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
+    bool ret = fetchSync(url, jsonDocumentFromReplyToDelete);
 
     if (ret) {
-        // The positive return value implies jsonArrayFromReplyToDelete has been allocated to something
-        Q_ASSERT(jsonArrayFromReplyToDelete != nullptr);
+        // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
+        Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
+
+        // The API returns a single object with an "Accounts" array
+        QJsonObject responseObj = jsonDocumentFromReplyToDelete->object();
+        QJsonArray accountsArray = responseObj["Accounts"].toArray();
 
         // Resize the array in advance
-        results.reserve(jsonArrayFromReplyToDelete->count());
+        results.reserve(accountsArray.count());
 
-        for (QJsonValue json: *jsonArrayFromReplyToDelete) {
+        for (QJsonValue json: accountsArray) {
             results.push_back(AccountResult(json.toObject()));
         }
 
-        // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
-        TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
+        // This pointer to a JSON document was allocated in the fetchSync and needs to be deleted after use
+        TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
     } else {
         // Make sure that if fetchSync failed that this pointed has not been allocated
-        Q_ASSERT(jsonArrayFromReplyToDelete == nullptr);
+        Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
     }
 
     return ret;

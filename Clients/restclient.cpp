@@ -1,5 +1,7 @@
 #include <QJsonDocument>
 #include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #ifdef UNIT_TESTING
 #include <QtTest/QtTest>
 #endif
@@ -60,7 +62,7 @@ QString RESTClient::buildUrlWithEndpointAndApiKeyHeaderParam(const QString &endp
 /*
  * Underlying function doing the fetching of the JSON common to all fetchXSync methods
  */
-bool RESTClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToDelete) {
+bool RESTClient::fetchSync(const QString &url, QJsonDocument *&jsonDocumentFromReplyToDelete) {
     QNetworkReply *reply = nullptr;
 
     // Invoke this method in the distinct thread of the FMPClient singleton.
@@ -87,7 +89,7 @@ bool RESTClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyTo
             pendingRequests[reply] = {.synchronicity = RequestSynchronicity::Sync,
                                       .type = RequestTypeNone,
                                       .completed = false,
-                                      .jsonArray = nullptr};
+                                      .jsonDocument = nullptr};
         }
 
     }, Qt::QueuedConnection);
@@ -125,7 +127,7 @@ bool RESTClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyTo
     //#warning TODO asserts on the container here toooo... maybe?
 
     if (pendingRequests.contains(reply) && pendingRequests[reply].completed) {
-        jsonArrayFromReplyToDelete = pendingRequests[reply].jsonArray;
+        jsonDocumentFromReplyToDelete = pendingRequests[reply].jsonDocument;
 
         qCDebug(RESTClientLog) << Q_FUNC_INFO << " : The *reply " << static_cast<void*>(reply) << " successfuly completed.";
 
@@ -134,7 +136,7 @@ bool RESTClient::fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyTo
         return true;
     }
 
-    jsonArrayFromReplyToDelete = nullptr;
+    jsonDocumentFromReplyToDelete = nullptr;
 
     pendingRequests.remove(reply);
 
@@ -163,7 +165,7 @@ void RESTClient::fetchAsync(const QString &url, RequestTypeInt type) {
         pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Async,
                                   .type = type,
                                   .completed = false,
-                                  .jsonArray = nullptr};
+                                  .jsonDocument = nullptr};
     }, Qt::QueuedConnection);
 }
 
@@ -209,7 +211,7 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 
 
     // Those are the default values, just being explicit by resetting them to default
-    info->jsonArray = nullptr;
+    info->jsonDocument = nullptr;
     info->completed = false;
 
     if (reply->error() != QNetworkReply::NoError) {
@@ -220,22 +222,27 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 
     doc = QJsonDocument::fromJson(rawData);
 
-    if (doc.isNull() || !doc.isArray()) {
-        qCWarning(RESTClientLog) << Q_FUNC_INFO << " : JSON doc is null or not an array";
+    if (doc.isNull()){
+        qCWarning(RESTClientLog) << Q_FUNC_INFO << " : JSON doc is null";
         goto notify;
     }
 
-    if (doc.array().isEmpty()) {
+    if (doc.isArray() && doc.array().isEmpty()) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO << " : Doc array is empty";
         goto notify;
     }
+
+    if (doc.isObject() && doc.object().isEmpty()) {
+        qCWarning(RESTClientLog) << Q_FUNC_INFO << " : Doc object is empty";
+        goto notify;
+    }   
 
     // At this point, the reply is legit
     info->completed = true;
 
     // Only if the request is SYNC do we need to store the reply in the pendindRequests map and allocate a json array
     if (info->synchronicity == RequestSynchronicity::Sync) {
-        TRACK_NEW_JSON_ARRAY(info->jsonArray = new QJsonArray(doc.array()));
+        TRACK_NEW_JSON_ARRAY(info->jsonDocument = new QJsonDocument(doc));
     } else {
         // In the case of Async request, no need use new
     }
@@ -245,8 +252,7 @@ notify:
         if (info->completed == true) {
             // If the request failed, do not emit the signal. This is a design choice I guess.
             // Time will tell if the app should still receive a signal, albeit with an error flag set.
-            emitSignalDemuxer(info->type,
-                              doc.array());
+            emitSignalDemuxer(info->type, doc);
         }
         // Whether the request was successful or not, take it out of the map
         pendingRequests.remove(reply);

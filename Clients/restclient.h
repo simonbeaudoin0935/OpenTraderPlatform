@@ -52,7 +52,7 @@ protected:
         RequestSynchronicity synchronicity;
         RequestTypeInt type;
         bool completed = false;
-        QJsonArray *jsonArray = nullptr;
+        QJsonDocument *jsonDocument = nullptr;
     };
 
 
@@ -61,10 +61,10 @@ protected:
     QString buildUrlWithEndpointParamsAndApiKeyParam(const QString &endpoint, const QString &paramsList) const;
     QString buildUrlWithEndpointAndApiKeyHeaderParam(const QString &endpoint) const;
 
-    bool fetchSync(const QString &url, QJsonArray *&jsonArrayFromReplyToDelete);
+    bool fetchSync(const QString &url, QJsonDocument *&jsonDocumentFromReplyToDelete);
     void fetchAsync(const QString &url, RequestTypeInt type);
 
-    virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonArray &doc) = 0;
+    virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) = 0;
 
     std::atomic<qsizetype> totalDataReceivedBytes = 0; // TODO at the end, will do in private
     QString apiKey;

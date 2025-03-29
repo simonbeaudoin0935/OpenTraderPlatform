@@ -74,7 +74,7 @@ private:
         SharesFloat
     };
 
-    void emitSignalDemuxer(RequestTypeInt type, const QJsonArray &doc);
+    void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc);
 
     // Singleton
     static FMPClient* instance;

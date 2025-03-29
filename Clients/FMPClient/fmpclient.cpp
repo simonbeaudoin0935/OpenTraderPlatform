@@ -68,15 +68,15 @@ void FMPClient::fetchAsyncSharesFloat(const QString &symbol)
 
 bool FMPClient::fetchSyncQuoteShort(const QString &symbol, struct QuoteShortResult &result) {
     QString url = buildUrlWithEndpointSymbolAndApiKeyParam("quote-short",symbol);
-    QJsonArray *jsonArrayFromReplyToDelete = nullptr;
+    QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool success = fetchSync(url, jsonArrayFromReplyToDelete);
+    bool success = fetchSync(url, jsonDocumentFromReplyToDelete);
 
     if (success) {
-        // The positive return value implies jsonArrayFromReplyToDelete has been allocated to something
-        Q_ASSERT(jsonArrayFromReplyToDelete != nullptr);
+        // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
+        Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
 
-        QJsonObject obj = jsonArrayFromReplyToDelete->first().toObject();
+        QJsonObject obj = jsonDocumentFromReplyToDelete->array().first().toObject();
 
         Q_ASSERT(symbol == obj["symbol"].toString());
         result.symbol = obj["symbol"].toString();
@@ -85,10 +85,10 @@ bool FMPClient::fetchSyncQuoteShort(const QString &symbol, struct QuoteShortResu
         result.volume = obj["volume"].toInteger();
 
         // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
-        TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
+        TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
     } else {
         // Make sure that if fetchSync failed that this pointed has not been allocated
-        Q_ASSERT(jsonArrayFromReplyToDelete == nullptr);
+        Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
     }
 
     return success;
@@ -97,15 +97,15 @@ bool FMPClient::fetchSyncQuoteShort(const QString &symbol, struct QuoteShortResu
 bool FMPClient::fetchSyncSharesFloat(const QString &symbol, struct SharesFloatResult &result)
 {
     QString url = buildUrlWithEndpointSymbolAndApiKeyParam("shares-float",symbol);
-    QJsonArray *jsonArrayFromReplyToDelete = nullptr;
+    QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
+    bool ret = fetchSync(url, jsonDocumentFromReplyToDelete);
 
     if (ret) {
-        // The positive return value implies jsonArrayFromReplyToDelete has been allocated to something
-        Q_ASSERT(jsonArrayFromReplyToDelete != nullptr);
+        // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
+        Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
 
-        QJsonObject obj = jsonArrayFromReplyToDelete->first().toObject();
+        QJsonObject obj = jsonDocumentFromReplyToDelete->array().first().toObject();
 
         Q_ASSERT(symbol == obj["symbol"].toString());
 
@@ -116,10 +116,10 @@ bool FMPClient::fetchSyncSharesFloat(const QString &symbol, struct SharesFloatRe
         result.outstandingShares = obj["outstandingShares"].toInteger();
 
         // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
-        TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
+        TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
     } else {
         // Make sure that if fetchSync failed that this pointed has not been allocated
-        Q_ASSERT(jsonArrayFromReplyToDelete == nullptr);
+        Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
     }
 
     return ret;
@@ -128,26 +128,26 @@ bool FMPClient::fetchSyncSharesFloat(const QString &symbol, struct SharesFloatRe
 bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QVector<CompanyScreenerResult> &results)
 {
     QString url = buildUrlWithEndpointParamsAndApiKeyParam("company-screener", filter.getURLParameters());
-    QJsonArray *jsonArrayFromReplyToDelete = nullptr;
+    QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
+    bool ret = fetchSync(url, jsonDocumentFromReplyToDelete);
 
     if (ret) {
-        // The positive return value implies jsonArrayFromReplyToDelete has been allocated to something
-        Q_ASSERT(jsonArrayFromReplyToDelete != nullptr);
+        // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
+        Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
 
         // Resize the array in advance
-        results.reserve(jsonArrayFromReplyToDelete->count());
+        results.reserve(jsonDocumentFromReplyToDelete->array().count());
 
-        for (QJsonValue json: *jsonArrayFromReplyToDelete) {
+        for (QJsonValue json: jsonDocumentFromReplyToDelete->array()) {
             results.push_back(CompanyScreenerResult(json.toObject()));
         }
 
         // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
-        TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
+        TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
     } else {
         // Make sure that if fetchSync failed that this pointed has not been allocated
-        Q_ASSERT(jsonArrayFromReplyToDelete == nullptr);
+        Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
     }
 
     return ret;
@@ -156,34 +156,34 @@ bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QV
 bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockNewsResult> &results)
 {
     QString url = buildUrlWithEndpointParamsAndApiKeyParam("news/stock", filter.getURLParameters());
-    QJsonArray *jsonArrayFromReplyToDelete = nullptr;
+    QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool ret = fetchSync(url, jsonArrayFromReplyToDelete);
+    bool ret = fetchSync(url, jsonDocumentFromReplyToDelete);
 
     if (ret) {
-        // The positive return value implies jsonArrayFromReplyToDelete has been allocated to something
-        Q_ASSERT(jsonArrayFromReplyToDelete != nullptr);
+        // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
+        Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
 
         // Resize the array in advance
-        results.reserve(jsonArrayFromReplyToDelete->count());
+        results.reserve(jsonDocumentFromReplyToDelete->array().count());
 
-        for (QJsonValue json: *jsonArrayFromReplyToDelete) {
+        for (QJsonValue json: jsonDocumentFromReplyToDelete->array()) {
             results.push_back(StockNewsResult(json.toObject()));
         }
 
         // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
-        TRACK_DELETED_JSON_ARRAY(delete jsonArrayFromReplyToDelete);
+        TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
     } else {
         // Make sure that if fetchSync failed that this pointed has not been allocated
-        Q_ASSERT(jsonArrayFromReplyToDelete == nullptr);
+        Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
     }
 
     return ret;
 }
 
-void FMPClient::emitSignalDemuxer(RequestTypeInt type, const QJsonArray &doc) {
+void FMPClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) {
 
-    QJsonObject obj = doc.first().toObject();
+        QJsonObject obj = doc.array().first().toObject();
 
     RequestType requestType = static_cast<RequestType>(type);
 
