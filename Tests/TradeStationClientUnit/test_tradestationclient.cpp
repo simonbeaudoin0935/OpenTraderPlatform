@@ -190,11 +190,11 @@ void TestTradeStationClient::testFetchSyncAccounts()
     // Verify the results
     QVERIFY(success);
     QVERIFY(!results.isEmpty());
-    qDebug() << "\nFound" << results.size() << "accounts:";
+    qDebug() << "Found" << results.size() << "accounts:";
 
     // Verify each account has valid data
     for (const AccountResult& account : results) {
-        qDebug() << "\nVerifying Account:";
+        qDebug() << "Verifying Account:";
         
         qDebug() << "  ID:" << account.getAccountId();
         QVERIFY(!account.getAccountId().isEmpty());

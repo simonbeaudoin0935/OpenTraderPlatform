@@ -5,6 +5,7 @@
 #include <optional>
 #include <QString>
 #include <QJsonObject>
+#include <QUrlQuery>
 
 class StockNewsFilter {
 public:
@@ -21,8 +22,8 @@ public:
     std::optional<int> getLimit() const;
     std::optional<int> getOffset() const;
 
-    // Helper function to generate URL parameters
-    QString getURLParameters() const;
+    // Helper function to generate URL query
+    QUrlQuery toUrlQuery() const;
 
 private:
     // Member variables using std::optional for optional values

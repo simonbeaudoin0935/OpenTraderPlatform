@@ -127,7 +127,7 @@ bool FMPClient::fetchSyncSharesFloat(const QString &symbol, struct SharesFloatRe
 
 bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QVector<CompanyScreenerResult> &results)
 {
-    QString url = buildUrlWithEndpointParamsAndApiKeyParam("company-screener", filter.getURLParameters());
+    QString url = buildUrlWithEndpointParamsAndApiKeyParam("company-screener", filter.toUrlQuery().toString(QUrl::FullyEncoded));
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
     bool ret = fetchSync(url, jsonDocumentFromReplyToDelete);
@@ -155,7 +155,7 @@ bool FMPClient::fetchSyncCompanyScreener(const CompanyScreenerFilter &filter, QV
 
 bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockNewsResult> &results)
 {
-    QString url = buildUrlWithEndpointParamsAndApiKeyParam("news/stock", filter.getURLParameters());
+    QString url = buildUrlWithEndpointParamsAndApiKeyParam("news/stock", filter.toUrlQuery().toString(QUrl::FullyEncoded));
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
     bool ret = fetchSync(url, jsonDocumentFromReplyToDelete);

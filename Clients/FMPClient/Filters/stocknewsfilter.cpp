@@ -15,22 +15,15 @@ std::optional<std::string> StockNewsFilter::getSymbol() const { return symbol; }
 std::optional<int> StockNewsFilter::getLimit() const { return limit; }
 std::optional<int> StockNewsFilter::getOffset() const { return offset; }
 
-// Helper function to generate URL parameters
-QString StockNewsFilter::getURLParameters() const {
-    QString params;
-    bool firstParam = true;
+// Helper function to generate URL query
+QUrlQuery StockNewsFilter::toUrlQuery() const {
+    QUrlQuery query;
 
-    auto appendParam = [&](const QString& key, const QString& value) {
-        if (!firstParam) params.append('&');
-        params.append(key + '=' + value);
-        firstParam = false;
-    };
+    if (symbol.has_value()) query.addQueryItem("symbol", QString::fromStdString(symbol.value()));
+    if (limit.has_value()) query.addQueryItem("limit", QString::number(limit.value()));
+    if (offset.has_value()) query.addQueryItem("offset", QString::number(offset.value()));
 
-    if (symbol.has_value()) appendParam("symbol", QString::fromStdString(symbol.value()));
-    if (limit.has_value()) appendParam("limit", QString::number(limit.value()));
-    if (offset.has_value()) appendParam("offset", QString::number(offset.value()));
-
-    return params;
+    return query;
 }
 
 // Implementation of StockNewsResult

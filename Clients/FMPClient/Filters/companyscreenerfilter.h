@@ -4,7 +4,8 @@
 #include <string>
 #include <optional>
 #include <QString>
-#include <QJsonObject> // Added for QJsonObject support
+#include <QJsonObject>
+#include <QUrlQuery>
 
 class CompanyScreenerFilter {
 public:
@@ -53,8 +54,8 @@ public:
     std::optional<int> getLimit() const;
     std::optional<bool> getIncludeAllShareClasses() const;
 
-    // Helper function to generate URL parameters
-    QString getURLParameters() const;
+    // Helper function to generate URL query
+    QUrlQuery toUrlQuery() const;
 
 private:
     // Member variables using std::optional for optional values

@@ -47,38 +47,31 @@ std::optional<bool> CompanyScreenerFilter::getIsActivelyTrading() const { return
 std::optional<int> CompanyScreenerFilter::getLimit() const { return limit; }
 std::optional<bool> CompanyScreenerFilter::getIncludeAllShareClasses() const { return includeAllShareClasses; }
 
-// Helper function to generate URL parameters (unchanged, included for completeness)
-QString CompanyScreenerFilter::getURLParameters() const  {
-    QString params;
-    bool firstParam = true;
+// Helper function to generate URL query
+QUrlQuery CompanyScreenerFilter::toUrlQuery() const {
+    QUrlQuery query;
 
-    auto appendParam = [&](const QString& key, const QString& value) {
-        if (!firstParam) params.append('&');
-        params.append(key + '=' + value);
-        firstParam = false;
-    };
+    if (marketCapMoreThan.has_value()) query.addQueryItem("marketCapMoreThan", QString::number(marketCapMoreThan.value()));
+    if (marketCapLowerThan.has_value()) query.addQueryItem("marketCapLowerThan", QString::number(marketCapLowerThan.value()));
+    if (sector.has_value()) query.addQueryItem("sector", QString::fromStdString(sector.value()));
+    if (industry.has_value()) query.addQueryItem("industry", QString::fromStdString(industry.value()));
+    if (betaMoreThan.has_value()) query.addQueryItem("betaMoreThan", QString::number(betaMoreThan.value()));
+    if (betaLowerThan.has_value()) query.addQueryItem("betaLowerThan", QString::number(betaLowerThan.value()));
+    if (priceMoreThan.has_value()) query.addQueryItem("priceMoreThan", QString::number(priceMoreThan.value()));
+    if (priceLowerThan.has_value()) query.addQueryItem("priceLowerThan", QString::number(priceLowerThan.value()));
+    if (dividendMoreThan.has_value()) query.addQueryItem("dividendMoreThan", QString::number(dividendMoreThan.value()));
+    if (dividendLowerThan.has_value()) query.addQueryItem("dividendLowerThan", QString::number(dividendLowerThan.value()));
+    if (volumeMoreThan.has_value()) query.addQueryItem("volumeMoreThan", QString::number(volumeMoreThan.value()));
+    if (volumeLowerThan.has_value()) query.addQueryItem("volumeLowerThan", QString::number(volumeLowerThan.value()));
+    if (exchange.has_value()) query.addQueryItem("exchange", QString::fromStdString(exchange.value()));
+    if (country.has_value()) query.addQueryItem("country", QString::fromStdString(country.value()));
+    if (isEtf.has_value()) query.addQueryItem("isEtf", isEtf.value() ? "true" : "false");
+    if (isFund.has_value()) query.addQueryItem("isFund", isFund.value() ? "true" : "false");
+    if (isActivelyTrading.has_value()) query.addQueryItem("isActivelyTrading", isActivelyTrading.value() ? "true" : "false");
+    if (limit.has_value()) query.addQueryItem("limit", QString::number(limit.value()));
+    if (includeAllShareClasses.has_value()) query.addQueryItem("includeAllShareClasses", includeAllShareClasses.value() ? "true" : "false");
 
-    if (marketCapMoreThan.has_value()) appendParam("marketCapMoreThan", QString::number(marketCapMoreThan.value()));
-    if (marketCapLowerThan.has_value()) appendParam("marketCapLowerThan", QString::number(marketCapLowerThan.value()));
-    if (sector.has_value()) appendParam("sector", QString::fromStdString(sector.value()));
-    if (industry.has_value()) appendParam("industry", QString::fromStdString(industry.value()));
-    if (betaMoreThan.has_value()) appendParam("betaMoreThan", QString::number(betaMoreThan.value()));
-    if (betaLowerThan.has_value()) appendParam("betaLowerThan", QString::number(betaLowerThan.value()));
-    if (priceMoreThan.has_value()) appendParam("priceMoreThan", QString::number(priceMoreThan.value()));
-    if (priceLowerThan.has_value()) appendParam("priceLowerThan", QString::number(priceLowerThan.value()));
-    if (dividendMoreThan.has_value()) appendParam("dividendMoreThan", QString::number(dividendMoreThan.value()));
-    if (dividendLowerThan.has_value()) appendParam("dividendLowerThan", QString::number(dividendLowerThan.value()));
-    if (volumeMoreThan.has_value()) appendParam("volumeMoreThan", QString::number(volumeMoreThan.value()));
-    if (volumeLowerThan.has_value()) appendParam("volumeLowerThan", QString::number(volumeLowerThan.value()));
-    if (exchange.has_value()) appendParam("exchange", QString::fromStdString(exchange.value()));
-    if (country.has_value()) appendParam("country", QString::fromStdString(country.value()));
-    if (isEtf.has_value()) appendParam("isEtf", isEtf.value() ? "true" : "false");
-    if (isFund.has_value()) appendParam("isFund", isFund.value() ? "true" : "false");
-    if (isActivelyTrading.has_value()) appendParam("isActivelyTrading", isActivelyTrading.value() ? "true" : "false");
-    if (limit.has_value()) appendParam("limit", QString::number(limit.value()));
-    if (includeAllShareClasses.has_value()) appendParam("includeAllShareClasses", includeAllShareClasses.value() ? "true" : "false");
-
-    return params;
+    return query;
 }
 
 // Implementation of CompanyScreenerResult

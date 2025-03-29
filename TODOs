@@ -10,4 +10,6 @@
   - Modity the sync method to have the header
     - modify RESTClient to build the url with a header
 
-- rework the TS.setAPIKey
+- rework the TS.setAPIKey between the class and the authwindow
+
+- rework restclient so that the buildUrl* methods return QNetworkRequests. Use QUrl instead of QString, and use QUrlQuery to build the param list

@@ -120,3 +120,9 @@ bool TradeStationClient::fetchSyncAccounts(QVector<AccountResult> &results)
 
     return ret;
 }
+
+bool TradeStationClient::refreshSyncAccessToken()
+{
+    // TODO: Implement refresh of access token
+    return true;
+}

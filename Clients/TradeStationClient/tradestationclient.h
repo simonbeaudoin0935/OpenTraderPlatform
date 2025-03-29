@@ -29,6 +29,7 @@ public:
 
     // Authentication methods
     void launchAuthProcess(QWidget* parent = nullptr);
+    bool refreshSyncAccessToken();
 
     // Account methods
     // https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
