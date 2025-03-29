@@ -202,35 +202,25 @@ void TestTradeStationClient::testFetchSyncAccounts()
         qDebug() << "  Type:" << account.getAccountType();
         QVERIFY(!account.getAccountType().isEmpty());
         
-        qDebug() << "  Display Name:" << account.getDisplayName();
-        QVERIFY(!account.getDisplayName().isEmpty());
-        
         qDebug() << "  Status:" << account.getStatus();
         QVERIFY(!account.getStatus().isEmpty());
         
         qDebug() << "  Currency:" << account.getCurrency();
         QVERIFY(!account.getCurrency().isEmpty());
-        
-        qDebug() << "  Current Balance:" << account.getCurrentBalance();
-        QVERIFY(account.getCurrentBalance() >= 0.0);
-        
-        qDebug() << "  Available Balance:" << account.getAvailableBalance();
-        QVERIFY(account.getAvailableBalance() >= 0.0);
-        
-        qDebug() << "  Day Trading Buying Power:" << account.getDayTradingBuyingPower();
-        QVERIFY(account.getDayTradingBuyingPower() >= 0.0);
-        
-        qDebug() << "  Day Trading Equity:" << account.getDayTradingEquity();
-        QVERIFY(account.getDayTradingEquity() >= 0.0);
-        
-        qDebug() << "  Initial Margin:" << account.getInitialMargin();
-        QVERIFY(account.getInitialMargin() >= 0.0);
-        
-        qDebug() << "  Maintenance Margin:" << account.getMaintenanceMargin();
-        QVERIFY(account.getMaintenanceMargin() >= 0.0);
-        
-        qDebug() << "  Last Updated:" << account.getLastUpdated();
-        QVERIFY(account.getLastUpdated() > 0.0);
+
+        // Check AccountDetail if it exists
+        const auto& detail = account.getAccountDetail();
+        if (detail.has_value()) {
+            qDebug() << "  Account Detail:";
+            qDebug() << "    Stock Locate Eligible:" << detail->isStockLocateEligible;
+            qDebug() << "    Enrolled in RegT Program:" << detail->enrolledInRegTProgram;
+            qDebug() << "    Requires Buying Power Warning:" << detail->requiresBuyingPowerWarning;
+            qDebug() << "    Day Trading Qualified:" << detail->dayTradingQualified;
+            qDebug() << "    Option Approval Level:" << detail->optionApprovalLevel;
+            qDebug() << "    Pattern Day Trader:" << detail->patternDayTrader;
+        } else {
+            qDebug() << "  No Account Detail available";
+        }
     }
 
     // Verify no resources were leaked

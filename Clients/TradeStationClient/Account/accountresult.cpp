@@ -4,36 +4,43 @@
 AccountResult::AccountResult(const QJsonObject& jsonObj) {
     accountId = jsonObj["AccountID"].toString();
     accountType = jsonObj["AccountType"].toString();
-    displayName = jsonObj["DisplayName"].toString();
     status = jsonObj["Status"].toString();
-    isActive = jsonObj["IsActive"].toBool();
-    isPrimary = jsonObj["IsPrimary"].toBool();
     currency = jsonObj["Currency"].toString();
-    currentBalance = jsonObj["CurrentBalance"].toDouble();
-    availableBalance = jsonObj["AvailableBalance"].toDouble();
-    dayTradingBuyingPower = jsonObj["DayTradingBuyingPower"].toDouble();
-    dayTradingEquity = jsonObj["DayTradingEquity"].toDouble();
-    initialMargin = jsonObj["InitialMargin"].toDouble();
-    maintenanceMargin = jsonObj["MaintenanceMargin"].toDouble();
-    lastUpdated = jsonObj["LastUpdated"].toDouble();
+    
+    // AccountDetail is optional, only parse if it exists
+    if (jsonObj.contains("AccountDetail")) {
+        accountDetail = AccountDetail(jsonObj["AccountDetail"].toObject());
+    }
 }
 
 QString AccountResult::toJsonString() const {
     QJsonObject jsonObj;
     jsonObj["AccountID"] = accountId;
     jsonObj["AccountType"] = accountType;
-    jsonObj["DisplayName"] = displayName;
     jsonObj["Status"] = status;
-    jsonObj["IsActive"] = isActive;
-    jsonObj["IsPrimary"] = isPrimary;
     jsonObj["Currency"] = currency;
-    jsonObj["CurrentBalance"] = currentBalance;
-    jsonObj["AvailableBalance"] = availableBalance;
-    jsonObj["DayTradingBuyingPower"] = dayTradingBuyingPower;
-    jsonObj["DayTradingEquity"] = dayTradingEquity;
-    jsonObj["InitialMargin"] = initialMargin;
-    jsonObj["MaintenanceMargin"] = maintenanceMargin;
-    jsonObj["LastUpdated"] = lastUpdated;
+    
+    // Only include AccountDetail if it exists and has any non-default values
+    if (accountDetail.has_value()) {
+        const auto& detail = accountDetail.value();
+        if (detail.isStockLocateEligible || 
+            detail.enrolledInRegTProgram || 
+            detail.requiresBuyingPowerWarning || 
+            detail.dayTradingQualified || 
+            detail.optionApprovalLevel != 0 || 
+            detail.patternDayTrader) {
+            
+            QJsonObject detailObj;
+            detailObj["IsStockLocateEligible"] = detail.isStockLocateEligible;
+            detailObj["EnrolledInRegTProgram"] = detail.enrolledInRegTProgram;
+            detailObj["RequiresBuyingPowerWarning"] = detail.requiresBuyingPowerWarning;
+            detailObj["DayTradingQualified"] = detail.dayTradingQualified;
+            detailObj["OptionApprovalLevel"] = detail.optionApprovalLevel;
+            detailObj["PatternDayTrader"] = detail.patternDayTrader;
+            
+            jsonObj["AccountDetail"] = detailObj;
+        }
+    }
 
     QJsonDocument doc(jsonObj);
     return QString(doc.toJson(QJsonDocument::Indented));

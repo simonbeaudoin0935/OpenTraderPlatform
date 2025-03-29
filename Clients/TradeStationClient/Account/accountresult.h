@@ -3,6 +3,26 @@
 
 #include <QString>
 #include <QJsonObject>
+#include <optional>
+
+struct AccountDetail {
+    AccountDetail() = default;
+    AccountDetail(const QJsonObject& jsonObj) {
+        isStockLocateEligible = jsonObj["IsStockLocateEligible"].toBool();
+        enrolledInRegTProgram = jsonObj["EnrolledInRegTProgram"].toBool();
+        requiresBuyingPowerWarning = jsonObj["RequiresBuyingPowerWarning"].toBool();
+        dayTradingQualified = jsonObj["DayTradingQualified"].toBool();
+        optionApprovalLevel = jsonObj["OptionApprovalLevel"].toInt();
+        patternDayTrader = jsonObj["PatternDayTrader"].toBool();
+    }
+
+    bool isStockLocateEligible = false;
+    bool enrolledInRegTProgram = false;
+    bool requiresBuyingPowerWarning = false;
+    bool dayTradingQualified = false;
+    int optionApprovalLevel = 0;
+    bool patternDayTrader = false;
+};
 
 struct AccountResult {
     AccountResult(const QJsonObject& jsonObj);
@@ -10,36 +30,18 @@ struct AccountResult {
     // Getters for each member
     QString getAccountId() const { return accountId; }
     QString getAccountType() const { return accountType; }
-    QString getDisplayName() const { return displayName; }
     QString getStatus() const { return status; }
-    bool getIsActive() const { return isActive; }
-    bool getIsPrimary() const { return isPrimary; }
     QString getCurrency() const { return currency; }
-    double getCurrentBalance() const { return currentBalance; }
-    double getAvailableBalance() const { return availableBalance; }
-    double getDayTradingBuyingPower() const { return dayTradingBuyingPower; }
-    double getDayTradingEquity() const { return dayTradingEquity; }
-    double getInitialMargin() const { return initialMargin; }
-    double getMaintenanceMargin() const { return maintenanceMargin; }
-    double getLastUpdated() const { return lastUpdated; }
+    const std::optional<AccountDetail>& getAccountDetail() const { return accountDetail; }
 
     QString toJsonString() const;
 
 private:
     QString accountId;
     QString accountType;
-    QString displayName;
     QString status;
-    bool isActive;
-    bool isPrimary;
     QString currency;
-    double currentBalance;
-    double availableBalance;
-    double dayTradingBuyingPower;
-    double dayTradingEquity;
-    double initialMargin;
-    double maintenanceMargin;
-    double lastUpdated;
+    std::optional<AccountDetail> accountDetail;
 };
 
 #endif // ACCOUNTRESULT_H 
