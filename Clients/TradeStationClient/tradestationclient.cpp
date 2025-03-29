@@ -11,7 +11,7 @@
 #include <QtTest>
 #endif
 
-const QString baseUrlTradeStation = "fuck";
+const QString baseUrlTradeStation = "https://sim-api.tradestation.com/v3";
 
 // Define the logging category
 Q_LOGGING_CATEGORY(TradeStationClientLog, "TradeStationClient")
