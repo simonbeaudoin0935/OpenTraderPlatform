@@ -17,8 +17,6 @@ SOURCES += \
     ../Clients/FMPClient/stocknewsfilter.cpp \
     ../Clients/TradeStationClient/tradestationclient.cpp
 
-
-
 HEADERS += \
     settings.h \
     argumentparser.h \
@@ -44,7 +42,7 @@ DEPENDPATH += ../Clients/FMPClient
 
 # GUI-specific files and module
 gui {
-    QT += widgets charts webenginewidgets   # Adds QtWidgets (and implicitly QtGui)
+    QT += widgets charts webenginewidgets gui  # Adds QtWidgets (and implicitly QtGui)
     DEFINES += GUI_ENABLED  # For conditional compilation in code
 
     SOURCES += \
@@ -59,5 +57,4 @@ gui {
 
     FORMS += \
         ../GUI/guifrontend.ui
-
 }

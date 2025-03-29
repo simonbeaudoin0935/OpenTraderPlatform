@@ -7,6 +7,7 @@
 #include <QVector>
 
 #include "../restclient.h"
+#include "Auth/AuthWindow.h"
 
 Q_DECLARE_LOGGING_CATEGORY(TradeStationClientLog)
 
@@ -24,11 +25,20 @@ public:
     TradeStationClient(const TradeStationClient&) = delete;
     TradeStationClient& operator=(const TradeStationClient&) = delete;
 
+    // Authentication state getter
+    bool isAuthenticated() const { return authenticated; }
 
+    // Authentication methods
+    void showAuthWindow(QWidget* parent = nullptr);
 
 signals:
+    void authenticationStateChanged(bool isAuthenticated);
+    void authenticationError(const QString& error);
 
 private slots:
+    void handleAuthCompleted(bool success);
+    void handleAuthFailed(const QString& error);
+    void handleAuthWindowDestroyed();  // New slot to handle window deletion
 
 private:
     // Singleton : private constructor
@@ -43,6 +53,8 @@ private:
 
     // Singleton
     static TradeStationClient* instance;
+    bool authenticated = false;  // Track authentication state
+    AuthWindow* authWindow = nullptr;  // Authentication window
 
     friend class TestTradeStationClient;
 };
