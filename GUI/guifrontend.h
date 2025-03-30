@@ -22,14 +22,14 @@ public:
 
 public slots:
     void onFMPClientDataUsageUpdate(qsizetype newDataUsage) override;
+    void onTradeStationClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onMemoryUsageUpdate(qint64 newDataUsage) override; // TODO deal with qint64 vs qsizetype
 
 private slots:
     void onUpdateTimerTimeout();
     void onQuoteShortReceived(const FMPClient::QuoteShortResult quoteResult);
     void onTradeStationLoginClicked();
-    void onTradeStationAuthStateChanged(bool isAuthenticated);
-    void onTradeStationAuthError(const QString& error);
+    void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
 
 private:
     static QString bytesToString(qint64 bytes);
@@ -38,7 +38,8 @@ private:
 
     QTimer updateTimer;
 
-    qsizetype FMPDataUsage = 0;
+    qsizetype FMPClientDataUsage = 0;
+    qsizetype TradeStationClientDataUsage = 0;
     qint64 memoryUsage = 0;
 };
 

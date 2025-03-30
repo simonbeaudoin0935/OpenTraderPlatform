@@ -32,20 +32,20 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     // Connect app frontend signals and slots
     connect(this, &AppFrontend::tradeStationAuthStateChanged,
             this, &GuiFrontend::onTradeStationAuthStateChanged);
-    connect(this, &AppFrontend::tradeStationAuthError,
-            this, &GuiFrontend::onTradeStationAuthError);
+
     connect(this, &AppFrontend::fmpDataUsageUpdated,
             this, &GuiFrontend::onFMPClientDataUsageUpdate);
 
-
+    connect(this, &AppFrontend::tradeStationDataUsageUpdated,
+            this, &GuiFrontend::onTradeStationClientDataUsageUpdate);
 
     // TODO disconnect this and pass through the frontend
     QObject::connect(FMPClient::getInstancePtr(), &FMPClient::quoteShortReceived, this, &GuiFrontend::onQuoteShortReceived);
 
 
     //TODO test
-    // QObject::connect(&updateTimer, &QTimer::timeout, this, &GuiFrontend::onUpdateTimerTimeout);
-    // updateTimer.start(1000);
+    QObject::connect(&updateTimer, &QTimer::timeout, this, &GuiFrontend::onUpdateTimerTimeout);
+    updateTimer.start(1000);
 }
 
 GuiFrontend::~GuiFrontend() {
@@ -54,23 +54,36 @@ GuiFrontend::~GuiFrontend() {
 
 void GuiFrontend::onFMPClientDataUsageUpdate(qsizetype newDataUsage)
 {
-    FMPDataUsage = newDataUsage;
+    FMPClientDataUsage = newDataUsage;
 
     QString usageFMP = bytesToString(newDataUsage);
+    QString usageTS  = bytesToString(TradeStationClientDataUsage);
     QString usageMemory = bytesToString(memoryUsage);
 
 
-    ui->statusbar->showMessage("FMP usage : " + usageFMP + " - Memory usage : " + usageMemory);
+    ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
+}
+
+void GuiFrontend::onTradeStationClientDataUsageUpdate(qsizetype newDataUsage)
+{
+    TradeStationClientDataUsage = newDataUsage;
+
+    QString usageFMP = bytesToString(FMPClientDataUsage);
+    QString usageTS  = bytesToString(newDataUsage);
+    QString usageMemory = bytesToString(memoryUsage);
+
+    ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
 }
 
 void GuiFrontend::onMemoryUsageUpdate(qint64 newDataUsage)
 {
     memoryUsage = newDataUsage;
 
-    QString usageFMP = bytesToString(FMPDataUsage);
+    QString usageFMP = bytesToString(FMPClientDataUsage);
+    QString usageTS  = bytesToString(TradeStationClientDataUsage);
     QString usageMemory = bytesToString(newDataUsage);
 
-    ui->statusbar->showMessage("FMP usage : " + usageFMP + " - Memory usage : " + usageMemory);
+    ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
 }
 
 void GuiFrontend::onUpdateTimerTimeout()
@@ -100,17 +113,30 @@ void GuiFrontend::onTradeStationLoginClicked() {
     TradeStationClient::getInstance().launchAuthProcess(static_cast<QMainWindow*>(ui->centralwidget->parent()));
 }
 
-void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated) {
+void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason) {
+    static bool isFirstTime = true;
+    QString log;
+
+
     if (isAuthenticated) {
         tradeStationLoginButton->setText("TradeStation Connected");
         tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #E6FFE6; color: #4CAF50; padding: 2px 6px; border-radius: 3px; }");
+        log += "TradeStation Client AUTHENTICATED : " + reason;
     } else {
-        tradeStationLoginButton->setText("Login to TradeStation");
-        tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
+        if (isFirstTime) {
+            // If its the first time we receive this signal and its negative state, it just
+            // means that at startup we are not authenticated, not that there was an error.
+            // Present the normal blue button to login
+            tradeStationLoginButton->setText("Login to TradeStation");
+            tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
+        } else {
+            tradeStationLoginButton->setText("Login Failed: " + reason);
+            tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #FFE6E6; color: #f44336; padding: 2px 6px; border-radius: 3px; }");
+            log += "TradeStation Client UN-AUTHENTICATED : " + reason;
+        }
     }
-}
 
-void GuiFrontend::onTradeStationAuthError(const QString& error) {
-    tradeStationLoginButton->setText("Login Failed: " + error);
-    tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #FFE6E6; color: #f44336; padding: 2px 6px; border-radius: 3px; }");
+    ui->logDisplay->append(log);
+
+    isFirstTime = false;
 }

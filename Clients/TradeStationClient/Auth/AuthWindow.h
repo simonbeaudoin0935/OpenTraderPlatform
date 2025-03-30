@@ -25,16 +25,8 @@ public:
     explicit AuthWindow(QWidget *parent = nullptr);
     ~AuthWindow() override;
 
-    // Static getter methods for authentication results
-    static QString getAccessToken() { return authToken.getAccessToken(); }
-    static QString getRefreshToken() { return authToken.getRefreshToken(); }
-    static QString getIdToken() { return authToken.getIdToken(); }
-    static bool isAlreadyAuthenticated() { return loadTokens(); }
-    static void clearTokens();
-
 signals:
-    void authenticationCompleted(bool success);
-    void authenticationFailed(const QString error);
+    void authFinished(bool success, AuthToken token, QString reason);
 
 private slots:
     void handleNewConnection();
@@ -47,23 +39,21 @@ private slots:
     void handleDialogFinished(int result);
 
 private:
+
+    AuthToken authToken;
+    ClientToken clientToken;
+
     QWebEngineView *webView = nullptr;
     QTcpServer *httpServer = nullptr;
     QNetworkAccessManager *networkManager = nullptr;
     
     QString redirectUri;
     QString expectedState;
-    static AuthToken authToken;
-    ClientToken clientToken;
 
     // Server configuration
     static const quint16 DEFAULT_PORT = 8080;
     static const quint16 MAX_PORT_ATTEMPTS = 10;
     quint16 currentPort = DEFAULT_PORT;
-
-    // Static token management functions
-    static bool loadTokens();
-    static bool isTokenExpired(const QDateTime& tokenReceivedTime, int tokenTimeoutSeconds);
 
     // Instance-specific UI and server functions
     void setupUi();
@@ -73,11 +63,7 @@ private:
     void updateRedirectUri(quint16 port);
     void exchangeCodeForTokens(const QString& code);
     bool parseTokenResponse(const QJsonObject& response);
-    void saveTokens();
     QString generateRandomState();
-
-    // Token validation
-    bool areTokensValid() const;
 
     // Credential management
     bool promptForCredentials();

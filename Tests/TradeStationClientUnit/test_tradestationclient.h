@@ -3,7 +3,6 @@
 
 #include <QtTest/QtTest>
 #include <QSettings>
-#include "../../Clients/TradeStationClient/Auth/authtoken.h"
 
 class TestTradeStationClient : public QObject {
     Q_OBJECT
@@ -11,11 +10,14 @@ private slots:
     void initTestCase_data();
     void initTestCase();
     void init();
+    void cleanup();
+
+    // Need to be first
+    void testRefreshSyncAccessToken();
 
     void testIsAlreadyAuthenticatedReturnsFalseWhenNoTokens();
     void testIsAlreadyAuthenticatedReturnsFalseWhenTokenExpired();
 
-    void testAuthentication();
     void testFetchingMoreThanMaximumPerMinute();
     void testFetchSyncAccounts();
 
@@ -23,7 +25,6 @@ private slots:
     //     for the next minute instead of having them fail
 
 private:
-    AuthToken savedValidAuthToken;
 };
 
 #endif // TEST_TRADESTATIONCLIENT_H 

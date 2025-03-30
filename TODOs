@@ -13,3 +13,5 @@
 - rework the TS.setAPIKey between the class and the authwindow
 
 - rework restclient so that the buildUrl* methods return QNetworkRequests. Use QUrl instead of QString, and use QUrlQuery to build the param list
+
+- Do not start the threads in their constructors

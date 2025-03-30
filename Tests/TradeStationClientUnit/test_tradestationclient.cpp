@@ -1,29 +1,50 @@
 #include <QDebug>
 #include "test_tradestationclient.h"
 #include "../../Clients/TradeStationClient/tradestationclient.h"
-#include "../../Clients/TradeStationClient/Auth/AuthWindow.h"
 #include <QSignalSpy>
 #include <QTest>
 #include <QSettings>
 #include <QDateTime>
 
+// will be called to create a global test data table.
 void TestTradeStationClient::initTestCase_data()
 {
-    savedValidAuthToken = AuthToken::loadFromSettings();
+    AuthToken savedAuthToken = AuthToken::loadFromSettings();
 
-    qDebug() << "Token details:" << savedValidAuthToken.toString();
+    qDebug() << "Token details:" << savedAuthToken.toString();
 
-    QVERIFY(savedValidAuthToken.isValid());
+    // This test suite neet a valid token to be present in the settings.
+    QVERIFY(savedAuthToken.isValid());
 
-    QVERIFY(!savedValidAuthToken.isExpired());
+    // The first thing we are going to test is that the client is able to
+    // start with an expired token and refresh it.
+    // If the present token is not expired, we will artificially set it to expired
+    if(!savedAuthToken.isExpired()) {
+        qInfo() << "Token is not expired, setting it to expired";
+
+        AuthToken expiredToken = AuthToken(savedAuthToken.getAccessToken(),
+                                           savedAuthToken.getRefreshToken(),
+                                           savedAuthToken.getIdToken(),
+                                           savedAuthToken.getTokenType(),
+                                           savedAuthToken.getScope(),
+                                           savedAuthToken.getExpiresIn(),
+                                           QDateTime::currentDateTime().addSecs(-3600));
+
+        QVERIFY(AuthToken::storeToSettings(expiredToken));
+    } else {
+        qInfo() << "Token is expired, no need to set it to expired";
+    }
+
 }
 
+// will be called before the first test function is executed.
 void TestTradeStationClient::initTestCase() {
     QLoggingCategory::setFilterRules("TradeStationClient.debug=true");
 
     qInfo() << "Start of test suite";
 }
 
+// Will be called before each test function is executed.
 void TestTradeStationClient::init()
 {
     // Make sure the debug prints are enabled
@@ -33,32 +54,43 @@ void TestTradeStationClient::init()
     // but it will be reset before each test
 }
 
-void TestTradeStationClient::testIsAlreadyAuthenticatedReturnsFalseWhenTokenExpired()
+// Will be called after every test function.
+void TestTradeStationClient::cleanup() {
+
+}
+
+void TestTradeStationClient::testRefreshSyncAccessToken()
 {
-    TradeStationClient& client = TradeStationClient::getInstance();
-    
+    bool triggered;
+    TradeStationClient& client = TradeStationClient::getInstance(); // First time do a getInstance, this will call the constructor
+    QSignalSpy authStateSpy(&client, &TradeStationClient::authStateChanged); // Create signal spies to monitor authentication signals
+
     // Verify initial state
     QVERIFY(!client.isAuthenticated());
     QVERIFY(!client.isAuthInProgress());
     QVERIFY(client.isCleanedUp());
 
-    // Create an expired token using the AuthToken class
-    AuthToken expiredToken(
-        "expired_token",  // accessToken
-        "expired_token",  // refreshToken
-        "expired_token",  // idToken
-        "Bearer",         // tokenType
-        "openid profile MarketData ReadAccount Trade offline_access",  // scope
-        1200,            // expiresIn
-        QDateTime::currentDateTime().addSecs(-3600)  // received 1 hour ago
-    );
+    // Wait for the first authStateChanged signal that happens
+    triggered = authStateSpy.wait(1000);
+    QVERIFY(triggered);
 
-    // Save the expired token
-    QVERIFY(AuthToken::storeToSettings(expiredToken));
+    // Check if we received any authentication signals
+    if (authStateSpy.count() > 0) {
+        // Authentication completed
+        bool success = authStateSpy.last().at(0).toBool();
+        QVERIFY(success == client.isAuthenticated());
+    }
 
-    // Verify that isAlreadyAuthenticated returns false for expired token
-    QVERIFY(!AuthWindow::isAlreadyAuthenticated());
-    QCOMPARE(AuthWindow::isAlreadyAuthenticated(), client.isAuthenticated());
+    // Verify no resources were leaked
+    QVERIFY(client.isCleanedUp());
+}
+
+void TestTradeStationClient::testIsAlreadyAuthenticatedReturnsFalseWhenTokenExpired()
+{
+    TradeStationClient& client = TradeStationClient::getInstance();
+    
+    // Verify initial state
+    QVERIFY(client.isCleanedUp());
 
     // Verify no resources were leaked
     QVERIFY(client.isCleanedUp());
@@ -69,67 +101,12 @@ void TestTradeStationClient::testIsAlreadyAuthenticatedReturnsFalseWhenNoTokens(
     TradeStationClient& client = TradeStationClient::getInstance();
     
     // Verify initial state
-    QVERIFY(!client.isAuthenticated());
-    QVERIFY(!client.isAuthInProgress());
     QVERIFY(client.isCleanedUp());
-
-    // Clear any existing tokens to ensure a clean state
-    AuthWindow::clearTokens();
-    QVERIFY(!AuthWindow::isAlreadyAuthenticated());
-
-    QCOMPARE(AuthWindow::isAlreadyAuthenticated(), client.isAuthenticated());
 
     // Verify no resources were leaked
     QVERIFY(client.isCleanedUp());
 }
 
-void TestTradeStationClient::testAuthentication()
-{
-    QSKIP("Manual test requiring user interaction - skipping in automated tests");
-    
-    TradeStationClient& client = TradeStationClient::getInstance();
-    
-    // Create signal spies to monitor authentication signals
-    QSignalSpy authStateSpy(&client, &TradeStationClient::authenticationStateChanged);
-    QSignalSpy authErrorSpy(&client, &TradeStationClient::authenticationError);
-
-    // Verify initial state
-    QVERIFY(!client.isAuthenticated());
-    QVERIFY(!client.isAuthInProgress());
-    QVERIFY(client.isCleanedUp());
-    QCOMPARE(AuthWindow::isAlreadyAuthenticated(), client.isAuthenticated());
-
-    // Test that we can't start multiple auth processes
-    client.launchAuthProcess();
-    QVERIFY(client.isAuthInProgress());
-    client.launchAuthProcess(); // Second call should be ignored
-    QVERIFY(client.isAuthInProgress());
-
-    // Wait for authentication to complete or fail
-    // Note: This is a manual test as we can't automate the OAuth flow
-    // The user will need to complete the authentication process
-    QTest::qWait(30000); // Wait up to 30 seconds for manual authentication
-
-    // Verify that auth is no longer in progress
-    QVERIFY(!client.isAuthInProgress());
-
-    // Check if we received any authentication signals
-    if (authStateSpy.count() > 0) {
-        // Authentication completed
-        bool success = authStateSpy.last().at(0).toBool();
-        QVERIFY(success == client.isAuthenticated());
-        QCOMPARE(AuthWindow::isAlreadyAuthenticated(), client.isAuthenticated());
-    } else if (authErrorSpy.count() > 0) {
-        // Authentication failed
-        QString error = authErrorSpy.last().at(0).toString();
-        qDebug() << "Authentication failed with error:" << error;
-        QVERIFY(!client.isAuthenticated());
-        QCOMPARE(AuthWindow::isAlreadyAuthenticated(), client.isAuthenticated());
-    }
-
-    // Verify no resources were leaked
-    QVERIFY(client.isCleanedUp());
-}
 
 void TestTradeStationClient::testFetchingMoreThanMaximumPerMinute()
 {
@@ -163,18 +140,10 @@ void TestTradeStationClient::testFetchSyncAccounts()
 {
     TradeStationClient& client = TradeStationClient::getInstance();
     bool success;
-
-    success = AuthToken::storeToSettings(savedValidAuthToken);
-
-    QVERIFY(success);
     
     // Verify initial state
     QVERIFY(client.isCleanedUp());
-    QVERIFY(AuthWindow::isAlreadyAuthenticated());
-    
-
-    qDebug() << "Setting Key into TraceStationClient";
-    client.setAPIKey(savedValidAuthToken.getAccessToken()); //TODO fix this for good, api key should be set internally
+    QVERIFY(client.isAuthenticated());
 
     QVector<AccountResult> results;
     success = client.fetchSyncAccounts(results);

@@ -11,21 +11,17 @@ MainApp::MainApp(AppFrontend* appFrontend) :
     memoryMonitor.startMonitoring(500);
 
     // Connect TradeStation authentication state changes to frontend
-    QObject::connect(tradeStationClient, &TradeStationClient::authenticationStateChanged,
+    // When the client thread starts and the event loop kicks, there will be an initial
+    // emition to signal what is the initial state
+    QObject::connect(tradeStationClient, &TradeStationClient::authStateChanged,
                     appFrontend, &AppFrontend::tradeStationAuthStateChanged);
-
-    // Connect TradeStation authentication errors to frontend
-    QObject::connect(tradeStationClient, &TradeStationClient::authenticationError,
-                    appFrontend, &AppFrontend::tradeStationAuthError);
 
     // Connect FMP data usage updates to frontend
     QObject::connect(fmpClient, &FMPClient::totalDataReceivedBytesIncreased,
                     appFrontend, &AppFrontend::fmpDataUsageUpdated);
 
-    // Check TradeStation authentication state once at startup after the event loop starts
-    // This allows the frontend to be updated with the initial authentication state
-    QTimer::singleShot(0, [this]() {
-        bool isAuthenticated = AuthWindow::isAlreadyAuthenticated();
-        emit this->appFrontend->tradeStationAuthStateChanged(isAuthenticated);
-    });
+    // Connect TradeStation data usage updates to frontend
+    QObject::connect(tradeStationClient, &TradeStationClient::totalDataReceivedBytesIncreased,
+                     appFrontend, &AppFrontend::tradeStationDataUsageUpdated);
+
 }

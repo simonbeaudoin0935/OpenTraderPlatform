@@ -29,12 +29,9 @@ public:
 
     // Authentication methods
     void launchAuthProcess(QWidget* parent = nullptr);
-    bool refreshSyncAccessToken();
 
     // Static helper methods for authentication
-    static QNetworkRequest buildRefreshTokenRequest(const QString &clientId, 
-                                                  const QString &clientSecret,
-                                                  const QString &refreshToken);
+    static QNetworkRequest buildRefreshTokenRequest();
     static QByteArray buildRefreshTokenQuery(const QString &clientId,
                                            const QString &clientSecret,
                                            const QString &refreshToken);
@@ -44,27 +41,36 @@ public:
     bool fetchSyncAccounts(QVector<AccountResult> &results);
 
 signals:
-    void authenticationStateChanged(bool isAuthenticated);
-    void authenticationError(const QString& error);
+    void authStateChanged(bool isAuthenticated, QString reason);
 
 private slots:
-    void handleAuthCompleted(bool success);
-    void handleAuthFailed(const QString error);
-    void handleAuthWindowDestroyed();
+    void onAuthFinished(bool success, AuthToken token, QString reason);
+    void onAsyncRefreshTokenFinished(const AuthToken &newToken);
+    void onAuthWindowDestroyed();
 
 private:
     // Singleton : private constructor
     explicit TradeStationClient();
     ~TradeStationClient();
 
+#warning this blocks the client thread
+    bool refreshSyncAccessToken();
+    void refreshAsyncAccessToken();
+
     enum class RequestType {
-        None
+        None,
+        RefreshAccessToken
     };
 
     void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc);
 
+    // tokens
+    AuthToken authToken;
+    ClientToken clientToken;
+
     // Singleton
     static TradeStationClient* instance;
+
     bool authenticated = false;  // Track authentication state
     bool authInProgress = false;  // Track if authentication process is in progress
     AuthWindow* authWindow = nullptr;  // Authentication window

@@ -54,6 +54,30 @@ bool AuthToken::isValid() const
            validateExpiresIn(expiresIn);
 }
 
+bool AuthToken::isValidRefreshedToken() const
+{
+    return !accessToken.isEmpty() &&
+           refreshToken.isEmpty() && // *** Note here we expect the refresh token to be empty when refreshed
+           !idToken.isEmpty() &&
+           validateTokenType(tokenType) &&
+           validateScope(scope) &&
+           validateExpiresIn(expiresIn);
+}
+
+int AuthToken::secondsUntilExpiration() {
+    QDateTime expirationDate = receivedAt.addSecs(expiresIn);
+    QDateTime currentTime    = QDateTime::currentDateTime();
+
+    return currentTime.secsTo(expirationDate);
+}
+
+int AuthToken::secondsToNextRefreshRequest() {
+    QDateTime expirationDate = receivedAt.addSecs(expiresIn);
+    QDateTime currentTime    = QDateTime::currentDateTime();
+
+    return currentTime.secsTo(expirationDate) - EXPIRY_BUFFER_SECONDS;
+}
+
 bool AuthToken::isExpired() const
 {
     if (!receivedAt.isValid()) {

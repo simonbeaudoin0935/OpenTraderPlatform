@@ -42,7 +42,10 @@ public:
     QDateTime getReceivedAt() const { return receivedAt; }
 
     // Utility methods
+    int secondsUntilExpiration(); // Gives the number of seconds until expiration
+    int secondsToNextRefreshRequest(); // Gives the number of seconds until the next refhesh should be performed (takes into account the 5s margin)
     bool isValid() const;
+    bool isValidRefreshedToken() const;
     bool isExpired() const;
     QJsonObject toJson() const;
     QString toString() const;  // For debugging/logging

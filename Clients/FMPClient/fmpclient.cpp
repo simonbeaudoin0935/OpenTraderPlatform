@@ -182,7 +182,7 @@ bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockN
 
 void FMPClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) {
 
-        QJsonObject obj = doc.array().first().toObject();
+    QJsonObject obj = doc.array().first().toObject();
 
     RequestType requestType = static_cast<RequestType>(type);
 

@@ -15,10 +15,9 @@
 #include <QMessageBox>
 #include <QDialogButtonBox>
 
-Q_LOGGING_CATEGORY(tsAuth, "tradestation.auth")
 
-// Define static members
-AuthToken AuthWindow::authToken;
+Q_LOGGING_CATEGORY(tsAuth, "tradestation.auth")
+#warning there are objects leaking. fix it
 
 AuthWindow::AuthWindow(QWidget *parent) : QDialog(parent)
 {
@@ -33,12 +32,6 @@ AuthWindow::AuthWindow(QWidget *parent) : QDialog(parent)
     // Connect dialog finished signal first
     connect(this, &QDialog::finished, this, &AuthWindow::handleDialogFinished);
     
-    // Load tokens first and check if they're valid
-    if (loadTokens()) {
-        qCDebug(tsAuth) << "Valid tokens found, completing authentication immediately";
-        QTimer::singleShot(0, this, &QDialog::accept);
-        return;
-    }
     
     // Generate random state for CSRF protection
     expectedState = generateRandomState();
@@ -46,6 +39,7 @@ AuthWindow::AuthWindow(QWidget *parent) : QDialog(parent)
     
     // Load credentials first
     clientToken = ClientToken::loadFromSettings();
+
     if (!clientToken.isValid()) {
 
         bool success = promptForCredentials();
@@ -72,9 +66,9 @@ AuthWindow::~AuthWindow() = default;
 void AuthWindow::handleDialogFinished(int result)
 {
     if (result == QDialog::Accepted) {
-        emit authenticationCompleted(true);
+        emit authFinished(true, authToken, "Authentification successful");
     } else {
-        emit authenticationFailed("Authentication cancelled or failed");
+        emit authFinished(false, authToken, "Authentication cancelled or failed");
     }
 }
 
@@ -366,7 +360,6 @@ void AuthWindow::handleTokenResponse(const QJsonObject& response)
         handleTokenError("Invalid token response");
         return;
     }
-    saveTokens();
     accept(); // Close dialog on success
 }
 
@@ -394,51 +387,7 @@ bool AuthWindow::parseTokenResponse(const QJsonObject& response)
     return true;
 }
 
-void AuthWindow::saveTokens()
-{
-    qCDebug(tsAuth) << "Saving tokens to persistent storage...";
-    if (! AuthToken::storeToSettings(authToken)) {
-        qCWarning(tsAuth) << "Failed to save tokens to persistent storage";
-    } else {
-        qCDebug(tsAuth) << "Tokens saved successfully";
-    }
-}
 
-bool AuthWindow::loadTokens()
-{
-    qCDebug(tsAuth) << "Loading tokens from persistent storage...";
-    
-    authToken = AuthToken::loadFromSettings();
-
-    // Load tokens using AuthToken class
-    if (!authToken.isValid()) {
-        qCDebug(tsAuth) << "No existing tokens found or tokens are invalid";
-        return false;
-    }
-    
-    // Check if tokens are expired
-    if (authToken.isExpired()) {
-        qCDebug(tsAuth) << "Tokens are invalid: token has expired";
-        clearTokens();
-        return false;
-    }
-    
-    qCDebug(tsAuth) << "Existing tokens found and loaded";
-    qCDebug(tsAuth) << "Token details:" << authToken.toString();
-
-    return true;
-}
-
-bool AuthWindow::areTokensValid() const
-{
-    return authToken.isValid() && !authToken.isExpired();
-}
-
-void AuthWindow::clearTokens()
-{
-    authToken.clearSettings();
-    qCDebug(tsAuth) << "Tokens cleared from memory and persistent storage";
-}
 
 QString AuthWindow::generateRandomState()
 {

@@ -90,7 +90,7 @@ QNetworkRequest RESTClient::buildRequest(ApiKeyPlacement placement, const QStrin
 /*
  * Underlying function doing the fetching of the JSON common to all fetchXSync methods
  */
-bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete, HttpMethod method, const QByteArray *postData) {
+bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete, HttpMethod method, const QByteArray &postData) {
     QNetworkReply *reply = nullptr;
 
     // Invoke this method in the distinct thread of the FMPClient singleton.
@@ -103,7 +103,7 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
                 break;
             case HttpMethod::POST:
                 // Use the provided postData if available, otherwise send empty data
-                reply = manager->post(request, postData ? *postData : QByteArray());
+                reply = manager->post(request, postData);
                 break;
         }
 
@@ -125,7 +125,9 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
     qCDebug(RESTClientLog) << Q_FUNC_INFO <<
         " : Thread [" << QThread::currentThread()->objectName() <<
         "] invoked the queued method to" << (method == HttpMethod::GET ? "GET" : "POST") <<
-        "url " << request.url().toString();
+        " with URL " << request.url().toString() <<
+        " header : " << request.headers() <<
+        " and data : " << postData;
 
     QMutexLocker locker(&pendingRequestsMutex);
 
@@ -174,7 +176,7 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
     return false;
 }
 
-void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method, const QByteArray *postData) {
+void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method, const QByteArray &postData) {
     // Invoke this method in the distinct thread of the FMPClient singleton.
     // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
     // is actually invoking this method NOT in the caller's thread.
@@ -187,9 +189,14 @@ void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type,
                 break;
             case HttpMethod::POST:
                 // Use the provided postData if available, otherwise send empty data
-                reply = manager->post(request, postData ? *postData : QByteArray());
+                reply = manager->post(request, postData);
                 break;
         }
+
+        qCDebug(RESTClientLog) << Q_FUNC_INFO <<
+            " : Thread [" << QThread::currentThread()->objectName() <<
+            "] executed the queued" << (method == HttpMethod::GET ? "GET" : "POST") <<
+            "request and registered the reply " << static_cast<void*>(reply) << " for later reception.";
 
         QMutexLocker locker(&pendingRequestsMutex);
         pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Async,
@@ -197,6 +204,14 @@ void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type,
                                   .completed = false,
                                   .jsonDocument = nullptr};
     }, Qt::QueuedConnection);
+
+
+    qCDebug(RESTClientLog) << Q_FUNC_INFO <<
+        " : Thread [" << QThread::currentThread()->objectName() <<
+        "] invoked the queued method to" << (method == HttpMethod::GET ? "GET" : "POST") <<
+        " with URL " << request.url().toString() <<
+        " header : " << request.headers() <<
+        " and data : " << postData;
 }
 
 void RESTClient::onReplyFinished(QNetworkReply *reply) {
@@ -215,7 +230,7 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 
     QByteArray rawData = reply->readAll();
     qsizetype bytesReceived = rawData.size();
-    totalDataReceivedBytes.fetch_add(bytesReceived, std::memory_order_relaxed);  // Atomic increment
+    totalDataReceivedBytes.fetch_add(bytesReceived, std::memory_order_relaxed);  // TODO not needed because we emit a signal when this changes
 
     // Broadcast the new data size (ie to update the GUI)
     emit totalDataReceivedBytesIncreased(totalDataReceivedBytes.load(std::memory_order_relaxed));
