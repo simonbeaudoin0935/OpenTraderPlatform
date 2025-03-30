@@ -17,6 +17,7 @@ SOURCES += \
     ../Clients/FMPClient/Filters/stocknewsfilter.cpp \
     ../Clients/TradeStationClient/tradestationclient.cpp \
     ../Clients/TradeStationClient/Auth/authtoken.cpp \
+    ../Clients/TradeStationClient/Auth/clienttoken.cpp \
     ../Clients/TradeStationClient/Account/accountresult.cpp
 
 HEADERS += \
@@ -32,6 +33,7 @@ HEADERS += \
     ../Clients/FMPClient/Filters/stocknewsfilter.h \
     ../Clients/TradeStationClient/tradestationclient.h \
     ../Clients/TradeStationClient/Auth/authtoken.h \
+    ../Clients/TradeStationClient/Auth/clienttoken.h \
     ../Clients/TradeStationClient/Account/accountresult.h
 
 INCLUDEPATH += ../Clients/FMPClient

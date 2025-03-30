@@ -45,13 +45,19 @@ AuthWindow::AuthWindow(QWidget *parent) : QDialog(parent)
     qCDebug(tsAuth) << "Generated expected state:" << expectedState;
     
     // Load credentials first
-    if (!loadCredentials()) {
-        qCDebug(tsAuth) << "Failed to load or obtain valid credentials";
-        QMessageBox::critical(this, "Error",
-                            "Unable to obtain valid TradeStation API credentials. "
-                            "The authentication will be cancelled.");
-        QTimer::singleShot(0, this, &QDialog::reject);
-        return;
+    clientToken = ClientToken::loadFromSettings();
+    if (!clientToken.isValid()) {
+
+        bool success = promptForCredentials();
+
+        if (!success) {
+            qCDebug(tsAuth) << "Failed to load or obtain valid credentials";
+            QMessageBox::critical(this, "Error",
+                                "Unable to obtain valid TradeStation API credentials. "
+                                "The authentication will be cancelled.");
+            QTimer::singleShot(0, this, &QDialog::reject);
+            return;
+        }
     }
 
     // Initialize other components
@@ -182,7 +188,7 @@ void AuthWindow::startAuthorization()
                               "response_type=code&client_id=%1&redirect_uri=%2&"
                               "audience=https://api.tradestation.com&state=%3&"
                               "scope=openid%20offline_access%20profile%20MarketData%20ReadAccount%20Trade")
-                          .arg(clientId, redirectUri, expectedState);
+                          .arg(clientToken.getClientId(), redirectUri, expectedState);
 
     qCDebug(tsAuth) << "Authorization URL:" << authUrl;
     qCDebug(tsAuth) << "Loading URL in web view...";
@@ -318,15 +324,20 @@ void AuthWindow::handleCodeReceived(const QString& code)
 
 void AuthWindow::exchangeCodeForTokens(const QString& code)
 {
-    qCDebug(tsAuth) << "Starting token exchange process...";
+    qCDebug(tsAuth) << "Exchanging authorization code for tokens...";
+    
+    // Construct the token URL
     QUrl tokenUrl("https://signin.tradestation.com/oauth/token");
+    
+    // Create the request
     QNetworkRequest request(tokenUrl);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-
+    
+    // Create the form data
     QUrlQuery query;
     query.addQueryItem("grant_type", "authorization_code");
-    query.addQueryItem("client_id", clientId);
-    query.addQueryItem("client_secret", clientSecret);
+    query.addQueryItem("client_id", clientToken.getClientId());
+    query.addQueryItem("client_secret", clientToken.getClientSecret());
     query.addQueryItem("code", code);
     query.addQueryItem("redirect_uri", redirectUri);
 
@@ -469,71 +480,6 @@ void AuthWindow::handleSocketStateChanged(QAbstractSocket::SocketState socketSta
     qCDebug(tsAuth) << "  Peer Port:" << socket->peerPort();
 }
 
-void AuthWindow::initializeCredentialStore()
-{
-    // Initialize settings with organization and application name
-    credentialsStore = new QSettings(QSettings::IniFormat, QSettings::UserScope,
-                                     "TradeStationAuth", "Credentials", this);
-    credentialsStore->setFallbacksEnabled(false);  // Don't fall back to global settings
-
-    qCDebug(tsAuth) << "Credentials storage location:" << credentialsStore->fileName();
-}
-
-bool AuthWindow::loadCredentials()
-{
-    if (!credentialsStore) {
-        initializeCredentialStore();
-    }
-
-    // Check if credentials exist
-    if (credentialsStore->contains("credentials/client_id") &&
-        credentialsStore->contains("credentials/client_secret")) {
-        
-        clientId = credentialsStore->value("credentials/client_id").toString();
-        clientSecret = credentialsStore->value("credentials/client_secret").toString();
-
-        if (validateCredentials(clientId, clientSecret)) {
-            qCDebug(tsAuth) << "Successfully loaded credentials from secure storage";
-            return true;
-        } else {
-            qCDebug(tsAuth) << "Loaded credentials failed validation";
-            clearCredentials();  // Clear invalid credentials
-            return promptForCredentials();
-        }
-    }
-
-    qCDebug(tsAuth) << "No existing credentials found";
-    return promptForCredentials();
-}
-
-bool AuthWindow::saveCredentials(const QString& newClientId, const QString& newClientSecret)
-{
-    if (!credentialsStore) {
-        initializeCredentialStore();
-    }
-
-    if (!validateCredentials(newClientId, newClientSecret)) {
-        qCDebug(tsAuth) << "Invalid credentials format - not saving";
-        return false;
-    }
-
-    credentialsStore->setValue("credentials/client_id", newClientId);
-    credentialsStore->setValue("credentials/client_secret", newClientSecret);
-    
-    // Force an immediate write to disk and check for errors
-    credentialsStore->sync();
-    
-    if (credentialsStore->status() != QSettings::NoError) {
-        qCDebug(tsAuth) << "Error saving credentials:" << credentialsStore->status();
-        QMessageBox::critical(this, "Error", 
-                            "Failed to save credentials securely. Please check file permissions.");
-        return false;
-    }
-
-    qCDebug(tsAuth) << "Credentials saved successfully to:" << credentialsStore->fileName();
-    return true;
-}
-
 bool AuthWindow::promptForCredentials()
 {
     bool ok;
@@ -561,7 +507,10 @@ bool AuthWindow::promptForCredentials()
         return false;
     }
 
-    if (validateCredentials(newClientId, newClientSecret)) {
+    // Create a new ClientToken with the provided credentials
+    clientToken = ClientToken(newClientId, newClientSecret);
+    
+    if (clientToken.isValid()) {
         // Ask user if they want to save credentials
         QMessageBox::StandardButton saveChoice = QMessageBox::question(
             this,
@@ -573,17 +522,13 @@ bool AuthWindow::promptForCredentials()
         );
 
         if (saveChoice == QMessageBox::Yes) {
-            if (saveCredentials(newClientId, newClientSecret)) {
-                clientId = newClientId;
-                clientSecret = newClientSecret;
+            if (ClientToken::storeToSettings(clientToken)) {
                 qCDebug(tsAuth) << "Credentials saved successfully";
                 return true;
             }
         } else {
             qCDebug(tsAuth) << "User chose not to save credentials";
-            clearCredentials();  // Clear any existing credentials
-            clientId = newClientId;
-            clientSecret = newClientSecret;
+            ClientToken::clearSettings();  // Clear any existing credentials
             return true;
         }
     } else {
@@ -593,59 +538,4 @@ bool AuthWindow::promptForCredentials()
     }
 
     return false;
-}
-
-void AuthWindow::clearCredentials()
-{
-    if (!credentialsStore) {
-        initializeCredentialStore();
-    }
-
-    credentialsStore->remove("credentials/client_id");
-    credentialsStore->remove("credentials/client_secret");
-    credentialsStore->sync();
-
-    clientId.clear();
-    clientSecret.clear();
-
-    qCDebug(tsAuth) << "Credentials cleared from secure storage";
-}
-
-bool AuthWindow::validateCredentials(const QString& clientId, const QString& clientSecret)
-{
-    qCDebug(tsAuth) << "Validating credentials:";
-    qCDebug(tsAuth) << "  Client ID length:" << clientId.length();
-    qCDebug(tsAuth) << "  Client Secret length:" << clientSecret.length();
-
-    // Basic validation of credential format
-    // TradeStation client IDs are typically 32 characters
-    // and client secrets are typically longer
-    if (clientId.length() < 20) {
-        qCDebug(tsAuth) << "Validation failed: Client ID too short (minimum 20 characters)";
-        return false;
-    }
-    
-    if (clientSecret.length() < 20) {
-        qCDebug(tsAuth) << "Validation failed: Client Secret too short (minimum 20 characters)";
-        return false;
-    }
-
-    // Check for valid characters (alphanumeric only for client ID)
-    QRegularExpression validClientId("^[a-zA-Z0-9]+$");
-    
-    if (!validClientId.match(clientId).hasMatch()) {
-        qCDebug(tsAuth) << "Validation failed: Client ID contains invalid characters (must be alphanumeric)";
-        return false;
-    }
-    
-    // Check for valid characters (alphanumeric, hyphen, and underscore for client secret)
-    QRegularExpression validClientSecret("^[a-zA-Z0-9_-]+$");
-    
-    if (!validClientSecret.match(clientSecret).hasMatch()) {
-        qCDebug(tsAuth) << "Validation failed: Client Secret contains invalid characters (must be alphanumeric, hyphen, or underscore)";
-        return false;
-    }
-
-    qCDebug(tsAuth) << "Credential validation successful";
-    return true;
 }

@@ -13,6 +13,7 @@
 #include <QInputDialog>
 #include <QMessageBox>
 #include "authtoken.h"
+#include "clienttoken.h"
 
 Q_DECLARE_LOGGING_CATEGORY(tsAuth)
 
@@ -49,13 +50,11 @@ private:
     QWebEngineView *webView = nullptr;
     QTcpServer *httpServer = nullptr;
     QNetworkAccessManager *networkManager = nullptr;
-    QSettings *credentialsStore = nullptr;
     
-    QString clientId;
-    QString clientSecret;
     QString redirectUri;
     QString expectedState;
     static AuthToken authToken;
+    ClientToken clientToken;
 
     // Server configuration
     static const quint16 DEFAULT_PORT = 8080;
@@ -81,12 +80,7 @@ private:
     bool areTokensValid() const;
 
     // Credential management
-    bool loadCredentials();
-    bool saveCredentials(const QString& clientId, const QString& clientSecret);
     bool promptForCredentials();
-    void initializeCredentialStore();
-    void clearCredentials();
-    bool validateCredentials(const QString& clientId, const QString& clientSecret);
 };
 
 #endif // AUTHWINDOW_H

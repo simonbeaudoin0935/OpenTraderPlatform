@@ -166,14 +166,12 @@ bool TradeStationClient::refreshSyncAccessToken()
         refreshToken = AuthWindow::getRefreshToken();
         Q_ASSERT_X(!refreshToken.isEmpty(), "refreshSyncAccessToken", "No refresh token available");
 
-        // Load credentials from settings
-        QSettings credentialsStore(QSettings::IniFormat, QSettings::UserScope,
-                                "TradeStationAuth", "Credentials");
-        clientId = credentialsStore.value("credentials/client_id").toString();
-        clientSecret = credentialsStore.value("credentials/client_secret").toString();
-
-        Q_ASSERT_X(!clientId.isEmpty(), "refreshSyncAccessToken", "Client ID not available");
-        Q_ASSERT_X(!clientSecret.isEmpty(), "refreshSyncAccessToken", "Client secret not available");
+        // Load credentials using ClientToken
+        ClientToken clientToken = ClientToken::loadFromSettings();
+        Q_ASSERT_X(clientToken.isValid(), "refreshSyncAccessToken", "Invalid client credentials");
+        
+        clientId = clientToken.getClientId();
+        clientSecret = clientToken.getClientSecret();
     }
 
     {
