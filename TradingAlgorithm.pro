@@ -1,5 +1,3 @@
 CONFIG += c++17
 TEMPLATE = subdirs
-SUBDIRS += \
-    Tests \
-    Main
+SUBDIRS = Main.pro Tests

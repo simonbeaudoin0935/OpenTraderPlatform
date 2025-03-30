@@ -17,11 +17,13 @@ SOURCES += \
 HEADERS += \
     ../../Clients/RESTClient.h \
     ../../Clients/FMPClient/FMPClient.h \
-    ../../Clients/FMPClient/Filters/CompanyScreenerSilter.h \
+    ../../Clients/FMPClient/Filters/CompanyScreenerF`ilter.h \
     ../../Clients/FMPClient/Filters/StockNewsFilter.h
 
 INCLUDEPATH += ../../Clients/FMPClient
 DEPENDPATH += ../../Clients/FMPClient
+
+INCLUDEPATH
 
 QMAKE_CXXFLAGS += -Og
 

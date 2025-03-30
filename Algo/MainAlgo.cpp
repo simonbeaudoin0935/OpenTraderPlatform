@@ -1,8 +1,8 @@
 #include <QThread>
 
 #include "MainAlgo.h"
-#include "../Main/Settings.h"
-#include "../Clients/FMPClient/FMPClient.h"
+#include "Misc/Settings.h"
+#include "Clients/FMPClient/FMPClient.h"
 
 Q_LOGGING_CATEGORY(MainAlgoLog, "MainAlgo")
 

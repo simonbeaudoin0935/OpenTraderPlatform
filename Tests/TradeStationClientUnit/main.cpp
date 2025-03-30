@@ -1,8 +1,8 @@
 #include <QtTest>
-#include "test_tradestationclient.h"
 #include <QCommandLineParser>
 #include <QString>
 
+#include "TestTradeStationClient.h"
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);

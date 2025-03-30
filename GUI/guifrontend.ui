@@ -100,7 +100,7 @@
   <customwidget>
    <class>StockPriceChart</class>
    <extends>QWidget</extends>
-   <header>../GUI/stockpricechart.h</header>
+   <header>GUI/StockPriceChart.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

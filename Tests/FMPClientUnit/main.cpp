@@ -1,7 +1,8 @@
 #include <QtTest>
-#include "test_fmpclient.h"
 #include <QCommandLineParser>
 #include <QString>
+
+#include "../FMPClientUnit/TestFMPClient.h"
 
 // Global variable to store the token file path
 QString fmpKey;
