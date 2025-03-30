@@ -167,7 +167,10 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
 
         qCDebug(RESTClientLog) << Q_FUNC_INFO << " : The *reply " << static_cast<void*>(reply) << " successfuly completed.";
 
-        pendingRequests.remove(reply);
+        bool was_removed = pendingRequests.remove(reply);
+
+        // There is a logic problem if the *reply was not in the map at this point
+        Q_ASSERT(was_removed);
 
         return true;
     }
@@ -305,7 +308,11 @@ notify:
             emitSignalDemuxer(info->type, doc);
         }
         // Whether the request was successful or not, take it out of the map
-        pendingRequests.remove(reply);
+        bool was_removed = pendingRequests.remove(reply);
+
+        // There is a logic problem if the *reply was not in the map at this point / not successfuly removed
+        Q_ASSERT(was_removed);
+
     } else if (info->synchronicity == RequestSynchronicity::Sync) {
         waitCondition.wakeOne();
     } else {
@@ -330,8 +337,17 @@ bool RESTClient::isCleanedUp()
     bool isClean = true;
 
     if (!pendingRequests.isEmpty()) {
-        qCWarning(RESTClientLog) << Q_FUNC_INFO << " : pendingRequests not empty";
+        qCWarning(RESTClientLog) << Q_FUNC_INFO << " : ********************* pendingRequests not empty ****************";
         isClean = false;
+
+        size_t i = 0;
+        for (const auto& request : pendingRequests) {
+            qDebug() << "Request info #" << i;
+            qDebug() << "  Syncronicity : " << ((request.synchronicity == RequestSynchronicity::Async) ? "ASYNC" : "SYNC");
+            qDebug() << "  RequestType  : " << request.type;
+            qDebug() << "  Completed    : " << ((request.completed) ? "TRUE" : "FALSE");
+            qDebug() << "  Docptr       : " << static_cast<void*>(request.jsonDocument);
+        }
     }
 
     if (allocated_json_arrays != 0) {

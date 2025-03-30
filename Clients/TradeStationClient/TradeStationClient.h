@@ -8,6 +8,7 @@
 #include "Auth/AuthWindow.h"
 #include "Auth/AuthToken.h"
 #include "Account/AccountResult.h"
+#include "OrderExecution/PlaceOrder/PlaceOrder.h"
 
 Q_DECLARE_LOGGING_CATEGORY(TradeStationClientLog)
 
@@ -48,7 +49,9 @@ public slots:
 
 signals:
     void authStateChanged(bool isAuthenticated, QString reason);
-    void accountsReceived(QVector<AccountResult> results);
+
+
+    void accountsAsyncReceived(QVector<AccountResult> results);
 
     // Place Order signals
     void placeAsyncOrderReceived(const PlaceOrderResult &result);

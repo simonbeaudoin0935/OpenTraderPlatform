@@ -6,7 +6,6 @@
 #include <QJsonObject>
 #include <QDateTime>
 #include <QVector>
-#include <Q_ASSERT>
 
 // Enum for order types
 enum class OrderType {
@@ -217,6 +216,9 @@ private:
     std::optional<TrailingStop> trailingStop;
 };
 
+// TODO Add buying power warning here
+// TODO Add legs here
+// TODO Add OSO here    
 class PlaceOrderRequest {
 public:
     // Constructor

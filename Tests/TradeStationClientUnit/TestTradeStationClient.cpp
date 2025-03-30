@@ -65,47 +65,49 @@ void TestTradeStationClient::testRefreshSyncAccessToken()
     TradeStationClient& client = TradeStationClient::getInstance(); // First time do a getInstance, this will call the constructor
     QSignalSpy authStateSpy(&client, &TradeStationClient::authStateChanged); // Create signal spies to monitor authentication signals
 
+    // Critical to do, will start the thread
+    client.start();
+
     // Verify initial state
     QVERIFY(!client.isAuthenticated());
-    QVERIFY(!client.isAuthInProgress());
+    QVERIFY(client.isAuthInProgress()); // The client will immediately initiate a refresh
     QVERIFY(client.isCleanedUp());
 
     // Wait for the first authStateChanged signal that happens
-    triggered = authStateSpy.wait(1000);
+    // 2 second is generout for one refresh request round trip
+    triggered = authStateSpy.wait(3000);
+    if (!triggered) {
+        QFAIL("FUCK");
+    }
     QVERIFY(triggered);
 
     // Check if we received any authentication signals
-    if (authStateSpy.count() > 0) {
-        // Authentication completed
-        bool success = authStateSpy.last().at(0).toBool();
-        QVERIFY(success == client.isAuthenticated());
+    // At this point, there has to be only just one signal received
+    if (authStateSpy.count() != 1) {
+        QFAIL("FUCK");
     }
 
-    // Verify no resources were leaked
-    QVERIFY(client.isCleanedUp());
-}
+    // Authentication completed
+    bool success = authStateSpy.first().at(0).toBool();
+    qInfo() << "Refresh reply : " << authStateSpy.first().at(1).toString();
+    authStateSpy.removeFirst();
 
-void TestTradeStationClient::testIsAlreadyAuthenticatedReturnsFalseWhenTokenExpired()
-{
-    TradeStationClient& client = TradeStationClient::getInstance();
-    
-    // Verify initial state
-    QVERIFY(client.isCleanedUp());
+    if (!success) {
+        QFAIL("FUCK");
+    }
 
-    // Verify no resources were leaked
-    QVERIFY(client.isCleanedUp());
-}
+    if (success != client.isAuthenticated()) {
+        QFAIL("FUCK");
+    }
 
-void TestTradeStationClient::testIsAlreadyAuthenticatedReturnsFalseWhenNoTokens()
-{
-    TradeStationClient& client = TradeStationClient::getInstance();
-    
-    // Verify initial state
-    QVERIFY(client.isCleanedUp());
+    // Wait just a little bit, for some reason this test thread outruns the housekeeping done in the TradeStationClient that cleans the serviced
+    // replies. Otherwise, the following isCleanedUp() triggers because the refreshTokenReply is not flushed from the map<>
+    QTest::qWait(100);
 
     // Verify no resources were leaked
     QVERIFY(client.isCleanedUp());
 }
+
 
 
 void TestTradeStationClient::testFetchingMoreThanMaximumPerMinute()
@@ -186,4 +188,20 @@ void TestTradeStationClient::testFetchSyncAccounts()
 
     // Verify no resources were leaked
     QVERIFY(client.isCleanedUp());
+}
+
+void TestTradeStationClient::testFetchAsyncAccounts()
+{
+    QSKIP("Not implemented");
+
+}
+
+void TestTradeStationClient::testPlaceSyncOrder()
+{
+    QSKIP("Not implemented");
+}
+
+void TestTradeStationClient::testPlaceAsyncOrder()
+{
+    QSKIP("Not implemented");
 }

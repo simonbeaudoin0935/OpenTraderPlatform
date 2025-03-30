@@ -50,7 +50,7 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
 
     //TODO test
     QObject::connect(&updateTimer, &QTimer::timeout, this, &GuiFrontend::onUpdateTimerTimeout);
-    updateTimer.start(1000);
+    //updateTimer.start(1000);
 }
 
 GuiFrontend::~GuiFrontend() {

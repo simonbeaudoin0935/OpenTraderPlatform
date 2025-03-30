@@ -277,7 +277,7 @@ void TradeStationClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
             "Unsuccessful auth token refresh";
     }
 
-#warning kick a watchdog timer in case the reply never comes
+#warning TODO kick a watchdog timer in case the reply never comes
 }
 
 bool TradeStationClient::refreshSyncAccessToken()
@@ -404,7 +404,7 @@ void TradeStationClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocum
                 results.push_back(AccountResult(json.toObject()));
             }
 
-            emit accountsReceived(results);
+            emit accountsAsyncReceived(results);
             break;
         }
 
@@ -420,10 +420,10 @@ void TradeStationClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocum
 }
 
 bool TradeStationClient::placeSyncOrder(const PlaceOrderRequest &order, const PlaceOrderResult &result) {
-
+#warning complete
 }
 
-void TraceStationClient::placeAsyncOrder(const PlaceOrderRequest &order) {
-
+void TradeStationClient::placeAsyncOrder(const PlaceOrderRequest &order) {
+#warning complete
 }
 
