@@ -16,6 +16,8 @@ class MainAlgo : public QObject
 public:
     MainAlgo();
 
+    void start();
+
 private slots:
     void onThreadStarted();
 

@@ -34,6 +34,9 @@ public:
     explicit RESTClient(const QUrl &baseUrl, QObject *parent = nullptr);
     virtual ~RESTClient();
 
+    // starts the inner thread
+    void start();
+
     // Must be called before the first getInstance() call otherwise an assert is triggered in the constructor
     void setAPIKey(const QString &apiKey);
 

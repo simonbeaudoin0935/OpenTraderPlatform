@@ -20,6 +20,11 @@ MainAlgo::MainAlgo() :
     thread->start();
 }
 
+void MainAlgo::start()
+{
+    thread->start();
+}
+
 void MainAlgo::loadCriterias()
 {
     PriceRangeLow = criteriaSettings->value("Criterias/PriceRangeLow",0.0).toDouble();

@@ -14,7 +14,6 @@
 #include "settings.h"
 #include "../Core/mainapp.h"
 #include "../Clients/FMPClient/fmpclient.h"
-#include "../Clients/TradeStationClient/tradestationclient.h"
 
 int main(int argc, char *argv[])
 {
@@ -30,16 +29,12 @@ int main(int argc, char *argv[])
         qFatal() << "No FMP access token found in config.ini. Exiting...";
     }
 
+#warning Fix this shit
     FMPClient::getInstance().setAPIKey(fmpToken);
 
-    QString tradeStationToken = tokensSettings->value("TradeStation/AccessToken").toString();
-    if (tradeStationToken.isEmpty()) {
-        qFatal() << "No TradeStation access token found in config.ini. Exiting...";
-    }
-
-    TradeStationClient::getInstance().setAPIKey(tradeStationToken);
-
     MainApp mainApp(new FRONTEND());
+
+    mainApp.start();
 
     return app.exec();
 }

@@ -27,6 +27,11 @@ RESTClient::~RESTClient() {
 
 }
 
+void RESTClient::start()
+{
+    thread->start();
+}
+
 void RESTClient::setAPIKey(const QString &apiKey)
 {
     this->apiKey = apiKey;

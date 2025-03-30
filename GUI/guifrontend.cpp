@@ -33,6 +33,11 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     connect(this, &AppFrontend::tradeStationAuthStateChanged,
             this, &GuiFrontend::onTradeStationAuthStateChanged);
 
+    connect(this, &AppFrontend::tradeStationAccountsReceived,
+            this, &GuiFrontend::onTradeStationAccountsReceived);
+
+
+
     connect(this, &AppFrontend::fmpDataUsageUpdated,
             this, &GuiFrontend::onFMPClientDataUsageUpdate);
 
@@ -75,6 +80,30 @@ void GuiFrontend::onTradeStationClientDataUsageUpdate(qsizetype newDataUsage)
     ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
 }
 
+void GuiFrontend::onTradeStationAccountsReceived(QVector<AccountResult> results)
+{
+    for (const AccountResult& account : results) {
+        ui->logDisplay->append("  ID:" + account.getAccountId());
+        ui->logDisplay->append("  Type:" + account.getAccountType());
+        ui->logDisplay->append("  Status:" + account.getStatus());
+        ui->logDisplay->append("  Currency:" + account.getCurrency());
+
+        // Check AccountDetail if it exists
+        const auto& detail = account.getAccountDetail();
+        if (detail.has_value()) {
+            ui->logDisplay->append("  Account Detail:");
+            ui->logDisplay->append("    Stock Locate Eligible:" + QString::number(detail->isStockLocateEligible));
+            ui->logDisplay->append("    Enrolled in RegT Program:" + QString::number(detail->enrolledInRegTProgram));
+            ui->logDisplay->append("    Requires Buying Power Warning:" + QString::number(detail->requiresBuyingPowerWarning));
+            ui->logDisplay->append("    Day Trading Qualified:" + QString::number(detail->dayTradingQualified));
+            ui->logDisplay->append("    Option Approval Level:" + QString::number(detail->optionApprovalLevel));
+            ui->logDisplay->append("    Pattern Day Trader:" + QString::number(detail->patternDayTrader));
+        } else {
+            ui->logDisplay->append("  No Account Detail available");
+        }
+    }
+}
+
 void GuiFrontend::onMemoryUsageUpdate(qint64 newDataUsage)
 {
     memoryUsage = newDataUsage;
@@ -94,7 +123,7 @@ void GuiFrontend::onUpdateTimerTimeout()
 
 void GuiFrontend::onQuoteShortReceived(const FMPClient::QuoteShortResult quoteResult)
 {
-    ui->logDisplay->append(QString("Price Updated: %1").arg(quoteResult.price));
+    //ui->logDisplay->append(QString("Price Updated: %1").arg(quoteResult.price));
 
     ui->priceChart->setSymbol(quoteResult.symbol);
 
@@ -108,6 +137,7 @@ void GuiFrontend::onQuoteShortReceived(const FMPClient::QuoteShortResult quoteRe
 }
 
 void GuiFrontend::onTradeStationLoginClicked() {
+#warning rework this, or at least better document that its this thread executing it. There is a race for sure with the TSClient internal flags
     // AuthWindow is modal, so it's impossible to click the button while authentication is in progress
     Q_ASSERT(!TradeStationClient::getInstance().isAuthInProgress());
     TradeStationClient::getInstance().launchAuthProcess(static_cast<QMainWindow*>(ui->centralwidget->parent()));
@@ -122,6 +152,9 @@ void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
         tradeStationLoginButton->setText("TradeStation Connected");
         tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #E6FFE6; color: #4CAF50; padding: 2px 6px; border-radius: 3px; }");
         log += "TradeStation Client AUTHENTICATED : " + reason;
+
+        TradeStationClient::getInstance().fetchAsyncAccounts();
+
     } else {
         if (isFirstTime) {
             // If its the first time we receive this signal and its negative state, it just

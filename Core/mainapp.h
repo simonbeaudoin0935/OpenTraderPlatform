@@ -12,6 +12,8 @@ class MainApp
 public:
     MainApp(AppFrontend* appFrontend);
 
+    void start();
+
 private:
     AppFrontend* appFrontend;
     FMPClient*   fmpClient;

@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QJsonObject>
+#include "../Clients/TradeStationClient/Account/accountresult.h"
 
 class AppFrontend : public QObject {
     Q_OBJECT
@@ -12,6 +13,8 @@ public:
 
 signals:
     void tradeStationAuthStateChanged(bool isAuthenticated, QString reason);
+    void tradeStationAccountsReceived(QVector<AccountResult> results);
+
 
     void fmpDataUsageUpdated(qsizetype newDataUsage);
     void tradeStationDataUsageUpdated(qsizetype newDataUsage);
@@ -21,6 +24,7 @@ public slots:
 
     virtual void onFMPClientDataUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onTradeStationClientDataUsageUpdate(qsizetype newDataUsage) = 0;
+    virtual void onTradeStationAccountsReceived(QVector<AccountResult> results) = 0;
     virtual void onMemoryUsageUpdate(qint64 newDataUsage) = 0;
 };
 

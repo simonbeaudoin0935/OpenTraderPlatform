@@ -23,7 +23,9 @@ public:
 public slots:
     void onFMPClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onTradeStationClientDataUsageUpdate(qsizetype newDataUsage) override;
+    void onTradeStationAccountsReceived(QVector<AccountResult> results) override;
     void onMemoryUsageUpdate(qint64 newDataUsage) override; // TODO deal with qint64 vs qsizetype
+
 
 private slots:
     void onUpdateTimerTimeout();

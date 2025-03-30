@@ -83,7 +83,7 @@ TradeStationClient::TradeStationClient() :
         Q_ASSERT(secsUntilExpiration > 4);
 
         qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
-            "Auth token is valid and not expired, still has " <<
+            "Auth token is valid and already not expired, still has " <<
             secsUntilExpiration  << "second left to it";
 
         int secondsToNextRefreshRequest = authToken.secondsToNextRefreshRequest();
@@ -95,8 +95,12 @@ TradeStationClient::TradeStationClient() :
             "Initiating a refresh in " << secondsToNextRefreshRequest << "seconds";
 
         // Launch a request in X seconds from now.
-        QTimer::singleShot(secondsToNextRefreshRequest, this, [this]() {
+        QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() {
             refreshAsyncAccessToken();
+        });
+
+        QTimer::singleShot(0, this, [this]() {
+            emit authStateChanged(true, "Auth token valid and not expired");
         });
 
     } else {
@@ -104,9 +108,6 @@ TradeStationClient::TradeStationClient() :
     }
 
     thread->setObjectName("TradeStationClientThread");
-
-#warning dont start in the constructor
-    thread->start();
 }
 
 TradeStationClient::~TradeStationClient() {
@@ -208,6 +209,14 @@ bool TradeStationClient::fetchSyncAccounts(QVector<AccountResult> &results)
     return ret;
 }
 
+void TradeStationClient::fetchAsyncAccounts()
+{
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "brokerage/accounts");
+    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::Accounts));
+
+    qCDebug(TradeStationClientLog) << Q_FUNC_INFO << "Fetching accounts";
+}
+
 void TradeStationClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
 {
     authInProgress = false;
@@ -215,12 +224,51 @@ void TradeStationClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
 
     if (success) {
         authenticated = true;
-        authToken = newToken;
+
+        // For some reason (security maybe) the new token return doesn't contain the refresh_key
+        // All other fields are good (which is why it needs a special isValidRefreshedToken()
+        // methods that does like isValid(), but omits the refresh_token field)
+        // Now, we want to store this new token on disk, but we first need to retreive the
+        // refresh_token from the actual token, stick it in there then save.
         emit authStateChanged(true, "Auth token refresh successful");\
 
         qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
             "Successful auth token refresh";
 
+        // For some reason (security maybe) the new token return doesn't contain the refresh_key
+        // All other fields are good (which is why it needs a special isValidRefreshedToken()
+        // methods that does like isValid(), but omits the refresh_token field)
+        // Now, we want to store this new token on disk, but we first need to retreive the
+        // refresh_token from the actual token, stick it in there then save.
+        AuthToken validNewToken(newToken.getAccessToken(),
+                                authToken.getRefreshToken(),
+                                newToken.getIdToken(),
+                                newToken.getTokenType(),
+                                newToken.getScope(),
+                                newToken.getExpiresIn(),
+                                newToken.getReceivedAt());
+
+        AuthToken::storeToSettings(validNewToken);
+
+        authToken = validNewToken;
+
+        RESTClient::setAPIKey(authToken.getAccessToken());
+
+        // Kick a new refresh in 20min - 5s
+        {
+            int secondsToNextRefreshRequest = authToken.secondsToNextRefreshRequest();
+
+            // Logically if we are here this HAS to be t least 1s
+            Q_ASSERT(secondsToNextRefreshRequest > 1 && secondsToNextRefreshRequest <= 1195);
+
+            qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+                "Programming the nest refresh in " << secondsToNextRefreshRequest << "seconds";
+
+            // Launch a request in X seconds from now.
+            QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() {
+                refreshAsyncAccessToken();
+            });
+        }
     } else {
         authenticated = false;
         emit authStateChanged(false, "Failed to refresh access token");
@@ -229,7 +277,6 @@ void TradeStationClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
             "Unsuccessful auth token refresh";
     }
 
-#warning kick a new timer
 #warning kick a watchdog timer in case the reply never comes
 }
 
@@ -345,6 +392,22 @@ void TradeStationClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocum
             Q_ASSERT_X(0,"","Should not be None anymore");
             break;
 
+        case RequestType::Accounts:
+        {
+            QJsonArray accountsArray = obj["Accounts"].toArray();
+            QVector<AccountResult> results;
+
+            // Resize the array in advance
+            results.reserve(accountsArray.count());
+
+            for (QJsonValue json: accountsArray) {
+                results.push_back(AccountResult(json.toObject()));
+            }
+
+            emit accountsReceived(results);
+            break;
+        }
+
         case RequestType::RefreshAccessToken:
             // No emit on purpose, this is calling a private function of this class
             onAsyncRefreshTokenFinished(AuthToken::receiveAuthToken(obj));
@@ -354,7 +417,4 @@ void TradeStationClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocum
         Q_UNREACHABLE();
         break;
     }
-
-
-    // TODO: Implement signal demuxing when we add specific request types
 }

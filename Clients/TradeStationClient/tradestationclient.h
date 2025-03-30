@@ -39,9 +39,11 @@ public:
     // Account methods
     // https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
     bool fetchSyncAccounts(QVector<AccountResult> &results);
+    void fetchAsyncAccounts();
 
 signals:
     void authStateChanged(bool isAuthenticated, QString reason);
+    void accountsReceived(QVector<AccountResult> results);
 
 private slots:
     void onAuthFinished(bool success, AuthToken token, QString reason);
@@ -53,12 +55,12 @@ private:
     explicit TradeStationClient();
     ~TradeStationClient();
 
-#warning this blocks the client thread
-    bool refreshSyncAccessToken();
+    bool refreshSyncAccessToken(); // TODO remove or think about something because this causes a deadlocl when called within TSClient itself
     void refreshAsyncAccessToken();
 
     enum class RequestType {
         None,
+        Accounts,
         RefreshAccessToken
     };
 

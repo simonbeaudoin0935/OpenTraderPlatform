@@ -104,20 +104,21 @@ QJsonObject AuthToken::toJson() const
 
 QString AuthToken::toString() const
 {
-    return QString("Access Token: %1\n"
-                  "Refresh Token: %2\n"
-                  "ID Token: %3\n"
-                  "Token Type: %4\n"
-                  "Scope: %5\n"
-                  "Received at: %6\n"
-                  "Expires in: %7 seconds")
+    return QString("\n"
+                  "  Access Token: %1\n"
+                  "  Refresh Token: %2\n"
+                  "  ID Token: %3\n"
+                  "  Token Type: %4\n"
+                  "  Scope: %5\n"
+                  "  Received at: %6\n"
+                  "  Expires in: %7 seconds")
         .arg(accessToken)
         .arg(refreshToken)
         .arg(idToken)
         .arg(tokenType)
         .arg(scope)
         .arg(receivedAt.toString(Qt::ISODate))
-        .arg(expiresIn);
+        .arg(QString::number(expiresIn));
 }
 
 bool AuthToken::validateScope(const QString &scope)
