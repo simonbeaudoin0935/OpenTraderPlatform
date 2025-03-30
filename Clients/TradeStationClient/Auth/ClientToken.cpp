@@ -1,5 +1,6 @@
-#include "clienttoken.h"
 #include <QDebug>
+
+#include "ClientToken.h"
 
 Q_LOGGING_CATEGORY(tsClientToken, "tradestation.clienttoken")
 

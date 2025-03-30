@@ -4,21 +4,21 @@ QT += core network testlib
 CONFIG += testlib
 
 #test sources
-SOURCES += test_fmpclient.cpp main.cpp
-HEADERS += test_fmpclient.h
+SOURCES += TestFMPClient.cpp main.cpp
+HEADERS += TestFMPClient.h
 
 #FMPClient sources
 SOURCES += \
-    ../../Clients/restclient.cpp \
-    ../../Clients/FMPClient/fmpclient.cpp \
-    ../../Clients/FMPClient/Filters/companyscreenerfilter.cpp \
-    ../../Clients/FMPClient/Filters/stocknewsfilter.cpp
+    ../../Clients/RESTClient.cpp \
+    ../../Clients/FMPClient/FMPClient.cpp \
+    ../../Clients/FMPClient/Filters/CompanyScreenerFilter.cpp \
+    ../../Clients/FMPClient/Filters/StockNewsFilter.cpp
 
 HEADERS += \
-    ../../Clients/restclient.h \
-    ../../Clients/FMPClient/fmpclient.h \
-    ../../Clients/FMPClient/Filters/companyscreenerfilter.h \
-    ../../Clients/FMPClient/Filters/stocknewsfilter.h
+    ../../Clients/RESTClient.h \
+    ../../Clients/FMPClient/FMPClient.h \
+    ../../Clients/FMPClient/Filters/CompanyScreenerSilter.h \
+    ../../Clients/FMPClient/Filters/StockNewsFilter.h
 
 INCLUDEPATH += ../../Clients/FMPClient
 DEPENDPATH += ../../Clients/FMPClient

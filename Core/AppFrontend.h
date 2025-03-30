@@ -3,7 +3,7 @@
 
 #include <QObject>
 #include <QJsonObject>
-#include "../Clients/TradeStationClient/Account/accountresult.h"
+#include "../Clients/TradeStationClient/Account/AccountResult.h"
 
 class AppFrontend : public QObject {
     Q_OBJECT

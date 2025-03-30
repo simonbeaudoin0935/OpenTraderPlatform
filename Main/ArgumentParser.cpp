@@ -2,8 +2,8 @@
 #include <QFileInfo>
 #include <QLoggingCategory>
 
-#include "argumentparser.h"
-#include "settings.h"
+#include "ArgumentParser.h"
+#include "Settings.h"
 
 void parseArguments(const QStringList &args) {
     QCommandLineParser parser;

@@ -1,19 +1,19 @@
 #ifdef GUI_ENABLED
 #include <QApplication>
-#include "../GUI/guifrontend.h"
+#include "../GUI/GuiFrontend.h"
 #define FRONTEND GuiFrontend
 #define APPLICATION QApplication
 #else
 #include <QCoreApplication>
-#include "../Core/terminalfrontend.h"
+#include "../Core/TerminalFrontend.h"
 #define FRONTEND TerminalFrontend
 #define APPLICATION QCoreApplication
 #endif
 
-#include "argumentparser.h"
-#include "settings.h"
-#include "../Core/mainapp.h"
-#include "../Clients/FMPClient/fmpclient.h"
+#include "ArgumentParser.h"
+#include "Settings.h"
+#include "../Core/MainApp.h"
+#include "../Clients/FMPClient/FMPClient.h"
 
 int main(int argc, char *argv[])
 {

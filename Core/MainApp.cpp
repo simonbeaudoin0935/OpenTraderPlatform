@@ -1,4 +1,4 @@
-#include "mainapp.h"
+#include "MainApp.h"
 
 MainApp::MainApp(AppFrontend* appFrontend) :
     appFrontend(appFrontend),

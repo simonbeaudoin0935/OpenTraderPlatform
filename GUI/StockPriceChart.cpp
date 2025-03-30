@@ -1,4 +1,4 @@
-#include "stockpricechart.h"
+#include "StockPriceChart.h"
 #include <QtCharts/QChart>
 #include <QtCharts/QDateTimeAxis>
 #include <QtCharts/QValueAxis>

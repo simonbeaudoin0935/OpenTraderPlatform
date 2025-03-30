@@ -4,10 +4,10 @@
 #include <QObject>
 #include <QLoggingCategory>
 #include <QVector>
-#include "../restclient.h"
+#include "../RESTClient.h"
 #include "Auth/AuthWindow.h"
-#include "Auth/authtoken.h"
-#include "Account/accountresult.h"
+#include "Auth/AuthToken.h"
+#include "Account/AccountResult.h"
 
 Q_DECLARE_LOGGING_CATEGORY(TradeStationClientLog)
 

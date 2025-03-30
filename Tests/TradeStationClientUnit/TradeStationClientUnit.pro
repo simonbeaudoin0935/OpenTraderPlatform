@@ -4,25 +4,25 @@ QT += core network testlib widgets webenginewidgets gui
 CONFIG += testlib
 
 #test sources
-SOURCES += test_tradestationclient.cpp main.cpp
-HEADERS += test_tradestationclient.h
+SOURCES += TestTradeStationClient.cpp main.cpp
+HEADERS += TestTradeStationClient.h
 
 #TradeStationClient sources
 SOURCES += \
-    ../../Clients/restclient.cpp \
-    ../../Clients/TradeStationClient/tradestationclient.cpp \
-    ../../Clients/TradeStationClient/Account/accountresult.cpp \
+    ../../Clients/RESTClient.cpp \
+    ../../Clients/TradeStationClient/TradeStationClient.cpp \
+    ../../Clients/TradeStationClient/Account/AccountResult.cpp \
     ../../Clients/TradeStationClient/Auth/AuthWindow.cpp \
-    ../../Clients/TradeStationClient/Auth/authtoken.cpp \
-    ../../Clients/TradeStationClient/Auth/clienttoken.cpp
+    ../../Clients/TradeStationClient/Auth/AuthToken.cpp \
+    ../../Clients/TradeStationClient/Auth/ClientToken.cpp
 
 HEADERS += \
-    ../../Clients/restclient.h \
-    ../../Clients/TradeStationClient/tradestationclient.h \
-    ../../Clients/TradeStationClient/Account/accountresult.h \
+    ../../Clients/RESTClient.h \
+    ../../Clients/TradeStationClient/TradeStationClient.h \
+    ../../Clients/TradeStationClient/Account/AccountResult.h \
     ../../Clients/TradeStationClient/Auth/AuthWindow.h \
-    ../../Clients/TradeStationClient/Auth/authtoken.h \
-    ../../Clients/TradeStationClient/Auth/clienttoken.h
+    ../../Clients/TradeStationClient/Auth/AuthToken.h \
+    ../../Clients/TradeStationClient/Auth/ClientToken.h
 
 
 INCLUDEPATH += ../../Clients/TradeStationClient

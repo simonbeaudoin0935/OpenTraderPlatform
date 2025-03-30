@@ -5,45 +5,45 @@ CONFIG += console c++11
 
 SOURCES += \
     main.cpp \
-    settings.cpp \
-    argumentparser.cpp \
-    ../Algo/mainalgo.cpp \
-    ../Core/mainapp.cpp \
-    ../Core/appfrontend.cpp \
-    ../Core/memorymonitor.cpp \
-    ../Clients/restclient.cpp \
-    ../Clients/FMPClient/fmpclient.cpp \
-    ../Clients/FMPClient/Filters/companyscreenerfilter.cpp \
-    ../Clients/FMPClient/Filters/stocknewsfilter.cpp \
-    ../Clients/TradeStationClient/tradestationclient.cpp \
-    ../Clients/TradeStationClient/Auth/authtoken.cpp \
-    ../Clients/TradeStationClient/Auth/clienttoken.cpp \
-    ../Clients/TradeStationClient/Account/accountresult.cpp
+    Settings.cpp \
+    ArgumentParser.cpp \
+    ../Algo/MainAlgo.cpp \
+    ../Core/MainApp.cpp \
+    ../Core/AppFrontend.cpp \
+    ../Core/MemoryMonitor.cpp \
+    ../Clients/RESTClient.cpp \
+    ../Clients/FMPClient/FMPClient.cpp \
+    ../Clients/FMPClient/Filters/CompanyScreenerFilter.cpp \
+    ../Clients/FMPClient/Filters/StockNewsFilter.cpp \
+    ../Clients/TradeStationClient/TradeStationClient.cpp \
+    ../Clients/TradeStationClient/Auth/AuthToken.cpp \
+    ../Clients/TradeStationClient/Auth/ClientToken.cpp \
+    ../Clients/TradeStationClient/Account/AccountResult.cpp
 
 HEADERS += \
-    settings.h \
-    argumentparser.h \
-    ../Algo/mainalgo.h \
-    ../Core/appfrontend.h \
-    ../Core/mainapp.h \
-    ../Core/memorymonitor.h \
-    ../Clients/restclient.h \
-    ../Clients/FMPClient/fmpclient.h \
+    Settings.h \
+    ArgumentParser.h \
+    ../Algo/MainAlgo.h \
+    ../Core/AppFrontend.h \
+    ../Core/MainApp.h \
+    ../Core/MemoryMonitor.h \
+    ../Clients/RESTClient.h \
+    ../Clients/FMPClient/FMPClient.h \
     ../Clients/FMPClient/Filters/companyscreenerfilter.h \
     ../Clients/FMPClient/Filters/stocknewsfilter.h \
-    ../Clients/TradeStationClient/tradestationclient.h \
-    ../Clients/TradeStationClient/Auth/authtoken.h \
-    ../Clients/TradeStationClient/Auth/clienttoken.h \
-    ../Clients/TradeStationClient/Account/accountresult.h
+    ../Clients/TradeStationClient/TradeStationClient.h \
+    ../Clients/TradeStationClient/Auth/AuthToken.h \
+    ../Clients/TradeStationClient/Auth/ClientToken.h \
+    ../Clients/TradeStationClient/Account/AccountResult.h
 
 INCLUDEPATH += ../Clients/FMPClient
 DEPENDPATH += ../Clients/FMPClient
 
 !gui {
     SOURCES += \
-        ../Core/terminalfrontend.cpp
+        ../Core/TerminalFrontend.cpp
     HEADERS += \
-        ../Core/terminalfrontend.h
+        ../Core/TerminalFrontend.h
 }
 
 # GUI-specific files and module
@@ -52,13 +52,13 @@ gui {
     DEFINES += GUI_ENABLED  # For conditional compilation in code
 
     SOURCES += \
-        ../GUI/guifrontend.cpp \
-        ../GUI/stockpricechart.cpp \
+        ../GUI/GuiFrontend.cpp \
+        ../GUI/StockPriceChart.cpp \
         ../Clients/TradeStationClient/Auth/AuthWindow.cpp
 
     HEADERS += \
-        ../GUI/guifrontend.h \
-        ../GUI/stockpricechart.h \
+        ../GUI/GuiFrontend.h \
+        ../GUI/StockPriceChart.h \
         ../Clients/TradeStationClient/Auth/AuthWindow.h \
 
     FORMS += \

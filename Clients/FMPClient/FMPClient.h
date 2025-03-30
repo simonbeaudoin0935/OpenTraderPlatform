@@ -6,9 +6,9 @@
 #include <QLoggingCategory>
 #include <QVector>
 
-#include "../restclient.h"
-#include "Filters/companyscreenerfilter.h"
-#include "Filters/stocknewsfilter.h"
+#include "../RESTClient.h"
+#include "Filters/CompanyScreenerFilter.h"
+#include "Filters/StockNewsFilter.h"
 
 Q_DECLARE_LOGGING_CATEGORY(FMPClientLog)
 

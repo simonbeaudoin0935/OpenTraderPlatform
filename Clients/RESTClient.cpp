@@ -7,7 +7,7 @@
 #include <QtTest/QtTest>
 #endif
 
-#include "restclient.h"
+#include "RESTClient.h"
 
 
 Q_LOGGING_CATEGORY(RESTClientLog, "RESTClient");

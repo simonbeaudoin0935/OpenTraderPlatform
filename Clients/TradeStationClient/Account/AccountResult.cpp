@@ -1,5 +1,6 @@
-#include "accountresult.h"
 #include <QJsonDocument>
+
+#include "AccountResult.h"
 
 AccountResult::AccountResult(const QJsonObject& jsonObj) {
     accountId = jsonObj["AccountID"].toString();

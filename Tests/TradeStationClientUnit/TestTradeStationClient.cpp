@@ -1,6 +1,6 @@
 #include <QDebug>
-#include "test_tradestationclient.h"
-#include "../../Clients/TradeStationClient/tradestationclient.h"
+#include "TestTradeStationClient.h"
+#include "../../Clients/TradeStationClient/TradeStationClient.h"
 #include <QSignalSpy>
 #include <QTest>
 #include <QSettings>

@@ -1,4 +1,4 @@
-#include "terminalfrontend.h"
+#include "TerminalFrontend.h"
 #include <QDebug>
 
 TerminalFrontend::TerminalFrontend(QObject* parent) : AppFrontend(parent) {

@@ -1,4 +1,4 @@
-#include "memorymonitor.h"
+#include "MemoryMonitor.h"
 #include <QDebug>
 
 #ifdef Q_OS_WIN

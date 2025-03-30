@@ -1,4 +1,4 @@
-#include "companyscreenerfilter.h"
+#include "CompanyScreenerFilter.h"
 #include <QJsonDocument>
 
 CompanyScreenerFilter::CompanyScreenerFilter() {

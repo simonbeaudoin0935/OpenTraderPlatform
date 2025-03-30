@@ -1,6 +1,6 @@
 #include <QDebug>
-#include "test_fmpclient.h"
-#include "../../Clients/FMPClient/fmpclient.h"
+#include "TestFMPClient.h"
+#include "../../Clients/FMPClient/FMPClient.h"
 
 extern QString fmpKey;
 

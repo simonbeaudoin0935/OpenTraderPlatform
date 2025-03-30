@@ -1,4 +1,4 @@
-#include "guifrontend.h"
+#include "GuiFrontend.h"
 #include "ui_guifrontend.h"
 #include <QJsonDocument>
 

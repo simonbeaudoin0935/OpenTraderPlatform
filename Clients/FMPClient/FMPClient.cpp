@@ -1,4 +1,3 @@
-#include "fmpclient.h"
 #include <QNetworkAccessManager>
 #include <QThread>
 #include <QNetworkReply>
@@ -8,6 +7,8 @@
 #include <QMutexLocker>
 #include <QDebug>
 #include <QNetworkRequest>
+
+#include "FMPClient.h"
 
 const QUrl baseUrlFMP("https://financialmodelingprep.com/stable/");
 

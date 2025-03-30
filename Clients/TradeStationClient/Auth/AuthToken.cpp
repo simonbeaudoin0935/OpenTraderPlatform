@@ -1,6 +1,7 @@
-#include "authtoken.h"
 #include <QJsonDocument>
 #include <QDebug>
+
+#include "AuthToken.h"
 
 // Initialize static constants
 const QString AuthToken::EXPECTED_TOKEN_TYPE = "Bearer";

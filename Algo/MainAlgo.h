@@ -3,6 +3,7 @@
 
 #include <QLoggingCategory>
 #include <QObject>
+#include "../Main/Settings.h"
 
 // Define the logging category
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)

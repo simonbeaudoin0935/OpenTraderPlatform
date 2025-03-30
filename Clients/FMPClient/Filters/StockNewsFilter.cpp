@@ -1,5 +1,6 @@
-#include "stocknewsfilter.h"
 #include <QJsonDocument>
+
+#include "StockNewsFilter.h"
 
 StockNewsFilter::StockNewsFilter() {
     // Default constructor leaves all optional fields unset (std::nullopt)

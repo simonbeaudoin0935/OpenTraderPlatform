@@ -1,4 +1,4 @@
-#include "tradestationclient.h"
+#include "TradeStationClient.h"
 #include <QNetworkAccessManager>
 #include <QThread>
 #include <QNetworkReply>

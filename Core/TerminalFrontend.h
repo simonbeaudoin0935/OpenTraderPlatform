@@ -1,7 +1,7 @@
 #ifndef TERMINALFRONTEND_H
 #define TERMINALFRONTEND_H
 
-#include "appfrontend.h"
+#include "AppFrontend.h"
 
 class TerminalFrontend : public AppFrontend {
     Q_OBJECT

@@ -12,8 +12,9 @@
 #include <QSettings>
 #include <QInputDialog>
 #include <QMessageBox>
-#include "authtoken.h"
-#include "clienttoken.h"
+
+#include "AuthToken.h"
+#include "ClientToken.h"
 
 Q_DECLARE_LOGGING_CATEGORY(tsAuth)
 

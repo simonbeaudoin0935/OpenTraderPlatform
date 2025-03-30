@@ -1,13 +1,13 @@
 #ifndef GUIFRONTEND_H
 #define GUIFRONTEND_H
 
-#include "../Core/appfrontend.h"
+#include "../Core/AppFrontend.h"
 #include <QMainWindow>
 #include <QTimer>
 #include <QPushButton>
 
-#include "../Clients/FMPClient/fmpclient.h"
-#include "../Clients/TradeStationClient/tradestationclient.h"
+#include "../Clients/FMPClient/FMPClient.h"
+#include "../Clients/TradeStationClient/TradeStationClient.h"
 
 // Forward declare the generated UI class
 namespace Ui {
