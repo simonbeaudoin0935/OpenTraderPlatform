@@ -418,3 +418,12 @@ void TradeStationClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocum
         break;
     }
 }
+
+bool TradeStationClient::placeSyncOrder(const PlaceOrderRequest &order, const PlaceOrderResult &result) {
+
+}
+
+void TraceStationClient::placeAsyncOrder(const PlaceOrderRequest &order) {
+
+}
+

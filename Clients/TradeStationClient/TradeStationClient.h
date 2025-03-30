@@ -16,10 +16,9 @@ Q_DECLARE_LOGGING_CATEGORY(TradeStationClientLog)
 class TradeStationClient : public RESTClient {
     Q_OBJECT
 public:
-    // Singleton : Instance getter
+    // Singleton : Instance getter  and delete copy and assignment
     static TradeStationClient& getInstance();
     static TradeStationClient* getInstancePtr();
-    // Singleton : Delete copy constructor and assignment operator
     TradeStationClient(const TradeStationClient&) = delete;
     TradeStationClient& operator=(const TradeStationClient&) = delete;
 
@@ -27,23 +26,32 @@ public:
     bool isAuthenticated() const { return authenticated; }
     bool isAuthInProgress() const { return authInProgress; }
 
-    // Authentication methods
-    void launchAuthProcess(QWidget* parent = nullptr);
+    // -------- Brokerage methods
 
-    // Static helper methods for authentication
-    static QNetworkRequest buildRefreshTokenRequest();
-    static QByteArray buildRefreshTokenQuery(const QString &clientId,
-                                           const QString &clientSecret,
-                                           const QString &refreshToken);
-
-    // Account methods
     // https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
     bool fetchSyncAccounts(QVector<AccountResult> &results);
     void fetchAsyncAccounts();
 
+
+    // -------- Order execution methods
+ 
+    // Place order
+    // https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/PlaceOrder    // https://api.tradestation.com/docs/specification#tag/Brokerage/operation/PostOrder
+    bool placeSyncOrder(const PlaceOrderRequest &order, const PlaceOrderResult &result);
+    void placeAsyncOrder(const PlaceOrderRequest &order);
+
+
+public slots:
+    // Authentication methods
+    void launchAuthProcess(QWidget* parent = nullptr);
+
+
 signals:
     void authStateChanged(bool isAuthenticated, QString reason);
     void accountsReceived(QVector<AccountResult> results);
+
+    // Place Order signals
+    void placeAsyncOrderReceived(const PlaceOrderResult &result);
 
 private slots:
     void onAuthFinished(bool success, AuthToken token, QString reason);
@@ -55,6 +63,13 @@ private:
     explicit TradeStationClient();
     ~TradeStationClient();
 
+
+    // Static helper methods for authentication
+    static QNetworkRequest buildRefreshTokenRequest();
+    static QByteArray buildRefreshTokenQuery(const QString &clientId,
+                                           const QString &clientSecret,
+                                           const QString &refreshToken);
+                                           
     bool refreshSyncAccessToken(); // TODO remove or think about something because this causes a deadlocl when called within TSClient itself
     void refreshAsyncAccessToken();
 
