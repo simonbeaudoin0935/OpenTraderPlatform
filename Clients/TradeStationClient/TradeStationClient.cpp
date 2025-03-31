@@ -177,7 +177,7 @@ QByteArray TradeStationClient::buildRefreshTokenQuery(const QString &clientId,
     return query.toString(QUrl::FullyEncoded).toUtf8();
 }
 
-bool TradeStationClient::fetchSyncAccounts(QVector<AccountResult> &results)
+bool TradeStationClient::fetchSyncAccounts(QVector<AccountsResult> &results)
 {
     QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "brokerage/accounts", "");
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
@@ -196,7 +196,7 @@ bool TradeStationClient::fetchSyncAccounts(QVector<AccountResult> &results)
         results.reserve(accountsArray.count());
 
         for (QJsonValue json: accountsArray) {
-            results.push_back(AccountResult(json.toObject()));
+            results.push_back(AccountsResult(json.toObject()));
         }
 
         // This pointer to a JSON document was allocated in the fetchSync and needs to be deleted after use
@@ -262,7 +262,7 @@ void TradeStationClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
             Q_ASSERT(secondsToNextRefreshRequest > 1 && secondsToNextRefreshRequest <= 1195);
 
             qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
-                "Programming the nest refresh in " << secondsToNextRefreshRequest << "seconds";
+                "Programming the next refresh in " << secondsToNextRefreshRequest << "seconds";
 
             // Launch a request in X seconds from now.
             QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() {
@@ -395,13 +395,13 @@ void TradeStationClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocum
         case RequestType::Accounts:
         {
             QJsonArray accountsArray = obj["Accounts"].toArray();
-            QVector<AccountResult> results;
+            QVector<AccountsResult> results;
 
             // Resize the array in advance
             results.reserve(accountsArray.count());
 
             for (QJsonValue json: accountsArray) {
-                results.push_back(AccountResult(json.toObject()));
+                results.push_back(AccountsResult(json.toObject()));
             }
 
             emit accountsAsyncReceived(results);

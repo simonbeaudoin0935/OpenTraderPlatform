@@ -1,8 +1,8 @@
 #include <QJsonDocument>
 
-#include "AccountResult.h"
+#include "AccountsResult.h"
 
-AccountResult::AccountResult(const QJsonObject& jsonObj) {
+AccountsResult::AccountsResult(const QJsonObject& jsonObj) {
     accountId = jsonObj["AccountID"].toString();
     accountType = jsonObj["AccountType"].toString();
     status = jsonObj["Status"].toString();
@@ -14,7 +14,7 @@ AccountResult::AccountResult(const QJsonObject& jsonObj) {
     }
 }
 
-QString AccountResult::toJsonString() const {
+QString AccountsResult::toJsonString() const {
     QJsonObject jsonObj;
     jsonObj["AccountID"] = accountId;
     jsonObj["AccountType"] = accountType;

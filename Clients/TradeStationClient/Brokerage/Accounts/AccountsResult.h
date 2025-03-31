@@ -24,8 +24,8 @@ struct AccountDetail {
     bool patternDayTrader = false;
 };
 
-struct AccountResult {
-    AccountResult(const QJsonObject& jsonObj);
+struct AccountsResult {
+    AccountsResult(const QJsonObject& jsonObj);
 
     // Getters for each member
     QString getAccountId() const { return accountId; }

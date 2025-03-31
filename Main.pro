@@ -18,7 +18,7 @@ SOURCES += \
     Clients/TradeStationClient/TradeStationClient.cpp \
     Clients/TradeStationClient/Auth/AuthToken.cpp \
     Clients/TradeStationClient/Auth/ClientToken.cpp \
-    Clients/TradeStationClient/Account/AccountResult.cpp \
+    Clients/TradeStationClient/Brokerage/Accounts/AccountsResult.cpp \
     Clients/TradeStationClient/OrderExecution/PlaceOrder/PlaceOrder.cpp
 
 HEADERS += \
@@ -35,7 +35,7 @@ HEADERS += \
     Clients/TradeStationClient/TradeStationClient.h \
     Clients/TradeStationClient/Auth/AuthToken.h \
     Clients/TradeStationClient/Auth/ClientToken.h \
-    Clients/TradeStationClient/Account/AccountResult.h \
+    Clients/TradeStationClient/Brokerage/Accounts/AccountsResult.h \
     Clients/TradeStationClient/OrderExecution/PlaceOrder/PlaceOrder.h
 
 INCLUDEPATH += \

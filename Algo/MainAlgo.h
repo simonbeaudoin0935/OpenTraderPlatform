@@ -3,6 +3,8 @@
 
 #include <QLoggingCategory>
 #include <QObject>
+#include <QFile>
+
 
 #include "FMPClient.h"
 #include "Filters/StockNewsFilter.h"
@@ -34,6 +36,9 @@ private:
     void fetchAsyncNewsStockScreenedByFloat();
 
     void processReceivedNews();
+    void processReceivedNewsPingPongBuffers();
+
+    void alternateNewsPerSymbolPingPong();
 
     QThread *thread;
 
@@ -49,7 +54,14 @@ private:
     // Variables for the algorithm :
     QVector<CompanyScreenerResult> screeningResults;
     QVector<QString> symbolsScreenedByFloat;
-    QMap<QString, QVector<StockNewsResult>> latestNewsPerSymbol;
+
+    QMap<QString, QVector<StockNewsResult>> latestNewsPerSymbolPingPong1;
+    QMap<QString, QVector<StockNewsResult>> latestNewsPerSymbolPingPong2;
+
+    QMap<QString, QVector<StockNewsResult>> *latestNewsPerSymbolPingPongPtr;
+
+    QTextStream *out;
+    QFile *file;
 };
 
 #endif // MAINALGO_H

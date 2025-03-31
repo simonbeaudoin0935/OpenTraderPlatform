@@ -1,7 +1,6 @@
 #ifndef STOCK_NEWS_FILTER_H
 #define STOCK_NEWS_FILTER_H
 
-#include <string>
 #include <optional>
 #include <QString>
 #include <QJsonObject>
@@ -48,29 +47,33 @@ private:
 class StockNewsResult {
 public:
     // Constructor taking a QJsonObject
+    StockNewsResult() = default;
     StockNewsResult(const QJsonObject& jsonObj);
 
     // Getters for each member
     QString getSymbol() const;
+    QString getPublishedDate() const;
+    QString getPublisher() const;
     QString getTitle() const;
-    QString getDate() const;
+    QString getImage() const;
+    QString getSite() const;
     QString getText() const;
     QString getUrl() const;
-    QString getSite() const;
-    QString getImage() const;
-    QString getSource() const;
 
     QString toJsonString() const;
+
+    void TESTsetPublishedDateToNow() {publishedDate = QDateTime::currentDateTime().toString();};
+
 private:
     // Member variables corresponding to JSON fields
     QString symbol;
+    QString publishedDate;
+    QString publisher;
     QString title;
-    QString date;
+    QString image;
+    QString site;
     QString text;
     QString url;
-    QString site;
-    QString image;
-    QString source;
 };
 
 #endif // STOCK_NEWS_FILTER_H 

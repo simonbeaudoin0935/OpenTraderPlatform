@@ -80,36 +80,36 @@ QUrlQuery StockNewsFilter::toUrlQuery() const {
 // Implementation of StockNewsResult
 StockNewsResult::StockNewsResult(const QJsonObject& jsonObj) {
     symbol = jsonObj["symbol"].toString();
+    publishedDate = jsonObj["publishedDate"].toString();
+    publisher = jsonObj["publisher"].toString();
     title = jsonObj["title"].toString();
-    date = jsonObj["date"].toString();
+    image = jsonObj["image"].toString();
+    site = jsonObj["site"].toString();
     text = jsonObj["text"].toString();
     url = jsonObj["url"].toString();
-    site = jsonObj["site"].toString();
-    image = jsonObj["image"].toString();
-    source = jsonObj["source"].toString();
 }
 
 // Getters for StockNewsResult
 QString StockNewsResult::getSymbol() const { return symbol; }
+QString StockNewsResult::getPublishedDate() const { return publishedDate; }
+QString StockNewsResult::getPublisher() const { return publisher; }
 QString StockNewsResult::getTitle() const { return title; }
-QString StockNewsResult::getDate() const { return date; }
+QString StockNewsResult::getImage() const { return image; }
+QString StockNewsResult::getSite() const { return site; }
 QString StockNewsResult::getText() const { return text; }
 QString StockNewsResult::getUrl() const { return url; }
-QString StockNewsResult::getSite() const { return site; }
-QString StockNewsResult::getImage() const { return image; }
-QString StockNewsResult::getSource() const { return source; }
 
 QString StockNewsResult::toJsonString() const {
     // Construct a QJsonObject from the member variables
     QJsonObject jsonObj;
     jsonObj["symbol"] = symbol;
+    jsonObj["publishedDate"] = publishedDate;
+    jsonObj["publisher"] = publisher;
     jsonObj["title"] = title;
-    jsonObj["date"] = date;
+    jsonObj["image"] = image;
+    jsonObj["site"] = site;
     jsonObj["text"] = text;
     jsonObj["url"] = url;
-    jsonObj["site"] = site;
-    jsonObj["image"] = image;
-    jsonObj["source"] = source;
 
     // Convert to formatted JSON string
     QJsonDocument doc(jsonObj);

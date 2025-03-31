@@ -1,6 +1,8 @@
 #include <QThread>
 
 #include <QTimer>
+#include <QTextStream>
+#include <QDir>
 
 #include "MainAlgo.h"
 #include "Misc/Settings.h"
@@ -8,7 +10,9 @@
 
 Q_LOGGING_CATEGORY(MainAlgoLog, "MainAlgo")
 
-static const int newsFetchingInterval = 30;
+//TODO should be parameters
+static const int newsFetchingInterval = 20;
+static const int newsFetchDepthLimit = 5;
 
 MainAlgo::MainAlgo() :
     thread(new QThread())
@@ -22,6 +26,33 @@ MainAlgo::MainAlgo() :
     connect(FMPClient::getInstancePtr(), &FMPClient::sharesFloatReceived, this, &MainAlgo::onSharesFloatReceived);
     connect(FMPClient::getInstancePtr(), &FMPClient::stockNewsReceived, this, &MainAlgo::onStockNewsReceived);
     loadCriterias();
+
+    // IMPORTANT init the pointer with the first pingpong buffer
+    latestNewsPerSymbolPingPongPtr = &this->latestNewsPerSymbolPingPong1;
+
+
+    {
+        QString filePath = QDir::homePath() + "/Documents/results.txt";
+
+        // Create QFile object
+        file = new QFile(filePath);
+
+        // Open the file in the desired mode
+        QIODevice::OpenMode mode = QIODevice::Text | QIODevice::Append;
+
+        if (!file->open(mode)) {
+            qCDebug(MainAlgoLog) << "Failed to open file for writing:" << filePath
+                                 << "Error:" << file->errorString();
+            Q_ASSERT(0);
+        }
+
+        // Create a QTextStream attached to the file
+
+        out =  new QTextStream(file);
+
+        // Optional: Set encoding (UTF-8 is default in modern Qt)
+        out->setEncoding(QStringConverter::Utf8);
+    }
 }
 
 void MainAlgo::start()
@@ -74,11 +105,10 @@ void MainAlgo::fetchAsyncNewsStockScreenedByFloat()
     for (QString &symbol : symbolsScreenedByFloat) {
 
         filter.setSymbol(symbol);
-        filter.setLimit(2);
+        filter.setLimit(newsFetchDepthLimit);
 
         client.fetchAsyncStockNews(filter);
     }
-
 }
 
 void MainAlgo::fetchSyncNewsStockScreenedByFloat()
@@ -104,23 +134,58 @@ void MainAlgo::fetchSyncNewsStockScreenedByFloat()
             qCDebug(MainAlgoLog) << "Error during the fetching of the news...";
         } else {
             qCDebug(MainAlgoLog) << "Fetched " << newsResults.size();
-            latestNewsPerSymbol.insert(symbol, newsResults);
+            latestNewsPerSymbolPingPongPtr->insert(symbol, newsResults);
         }
-
     }
 
-    qCDebug(MainAlgoLog) << "Done fetching news. Fetched : " << latestNewsPerSymbol.size() << " news";
+    alternateNewsPerSymbolPingPong();
 }
 
 void MainAlgo::processReceivedNews()
 {
     qCDebug(MainAlgoLog) << "Processing the news for the " << symbolsScreenedByFloat.size() << " symbols" ;
 
-    qCDebug(MainAlgoLog) << "Launching a timer to fetch the news again in " << newsFetchingInterval << " seconds" ;
+    // TODELETE : introduce a new news to test
+    if (false) {
+        static size_t a = 0;
+        a++;
+        if (a == 3) {
+            a = 0;
+            latestNewsPerSymbolPingPongPtr->first().first().TESTsetPublishedDateToNow();
+        }
+    }
 
-    QTimer::singleShot(1000 * newsFetchingInterval, this, [this]() {
-        fetchAsyncNewsStockScreenedByFloat();
-    });
+    // Processing the news
+    {
+        processReceivedNewsPingPongBuffers();
+    }
+
+    // Processing done. Prepare the next iteration of the algorithm
+    {
+        alternateNewsPerSymbolPingPong();
+
+        qCDebug(MainAlgoLog) << "Launching a timer to fetch the news again in " << newsFetchingInterval << " seconds" ;
+
+        QTimer::singleShot(1000 * newsFetchingInterval, this, [this]() {
+            fetchAsyncNewsStockScreenedByFloat();
+        });
+    }
+}
+
+void MainAlgo::alternateNewsPerSymbolPingPong()
+{
+    bool isPingPong1 = ((latestNewsPerSymbolPingPongPtr == &latestNewsPerSymbolPingPong1) ? true : false);
+
+    qCDebug(MainAlgoLog) << "Done fetching news. Fetched : " << latestNewsPerSymbolPingPongPtr->size() << " news in pingpong " <<
+        (isPingPong1 ? "1" : "2");
+
+    qCDebug(MainAlgoLog) << "Switching pingpong ptr to " << (isPingPong1 ? "2" : "1");
+
+    latestNewsPerSymbolPingPongPtr = (isPingPong1 ? &latestNewsPerSymbolPingPong2 : &latestNewsPerSymbolPingPong1);
+
+    qCDebug(MainAlgoLog) << "Clearing pingpong " << (isPingPong1 ? "2" : "1");
+
+    latestNewsPerSymbolPingPongPtr->clear();
 }
 
 void MainAlgo::onThreadStarted()
@@ -182,6 +247,8 @@ void MainAlgo::onSharesFloatReceived(FMPClient::SharesFloatResult result)
 
         numFloatReceived = 0; // Reset for future use
 
+        // IMPORTANT launch the fetching of the news, which will be the initial kick
+        // to the loop of fetching
         fetchAsyncNewsStockScreenedByFloat();
     }
 }
@@ -192,12 +259,12 @@ void MainAlgo::onStockNewsReceived(QVector<StockNewsResult> results)
 
     numStockNewsReceived++;
 
-    qCDebug(MainAlgoLog) << "Received " << numStockNewsReceived << " stock news";
+    //qCDebug(MainAlgoLog) << "Received " << numStockNewsReceived << " stock news";
 
     if (results.isEmpty()) {
-        qCDebug(MainAlgoLog) << "Received an empty result. I guess this is to be expected";
+        //qCDebug(MainAlgoLog) << "Received an empty result. I guess this is to be expected";
     } else {
-        latestNewsPerSymbol.insert(results.first().getSymbol(), results);
+        latestNewsPerSymbolPingPongPtr->insert(results.first().getSymbol(), results);
     }
 
     if (numStockNewsReceived == (unsigned) symbolsScreenedByFloat.size()) {
@@ -207,3 +274,109 @@ void MainAlgo::onStockNewsReceived(QVector<StockNewsResult> results)
         processReceivedNews();
     }
 }
+
+// Function to find the newest StockNewsResult
+const StockNewsResult& getNewestNews(const QVector<StockNewsResult>& newsVector) {
+    // Assert that the vector is not empty
+    Q_ASSERT(!newsVector.isEmpty() && "News vector must not be empty");
+    if (newsVector.isEmpty()) {
+        qCDebug(MainAlgoLog) << "Error: Attempted to retrieve newest news from an empty vector";
+        throw std::out_of_range("Cannot retrieve newest news from an empty vector");
+    }
+
+    // Initialize with the first entry
+    const StockNewsResult* newest = &newsVector[0];
+    QDateTime newestDate = QDateTime::fromString(newest->getPublishedDate(), Qt::ISODate);
+
+    // Log if the initial date is invalid
+    if (!newestDate.isValid()) {
+        qCDebug(MainAlgoLog) << "Invalid published date for initial news:" << newest->getPublishedDate();
+    }
+
+    // Iterate through the vector to find the newest entry
+    for (int i = 1; i < newsVector.size(); ++i) {
+        QDateTime currentDate = QDateTime::fromString(newsVector[i].getPublishedDate(), Qt::ISODate);
+        if (!currentDate.isValid()) {
+            qCDebug(MainAlgoLog) << "Invalid published date for news at index" << i << ":"
+                                 << newsVector[i].getPublishedDate();
+            continue; // Skip invalid dates
+        }
+
+        if (currentDate > newestDate) {
+            newest = &newsVector[i];
+            newestDate = currentDate;
+        }
+    }
+
+    // Assert that at least one valid date was found
+    Q_ASSERT(newestDate.isValid() && "At least one valid published date must exist in the news vector");
+    if (!newestDate.isValid()) {
+        qCDebug(MainAlgoLog) << "No valid published dates found in news vector";
+        throw std::runtime_error("All published dates in the vector are invalid");
+    }
+
+    return *newest;
+}
+
+void MainAlgo::processReceivedNewsPingPongBuffers()
+{
+    QMap<QString, QVector<StockNewsResult>> *newBuffer;
+    QMap<QString, QVector<StockNewsResult>> *oldBuffer;
+
+    newBuffer = latestNewsPerSymbolPingPongPtr;
+    oldBuffer = (latestNewsPerSymbolPingPongPtr == &latestNewsPerSymbolPingPong1) ? &latestNewsPerSymbolPingPong2 : &latestNewsPerSymbolPingPong1;
+
+    qCDebug(MainAlgoLog).noquote() << Q_FUNC_INFO << "\n\n                                ****** EXECUTING THE NEWS ALGORITHM ********\n";
+
+
+    if (oldBuffer->isEmpty()) {
+        qCDebug(MainAlgoLog) << "First iteration of the pingpong buffer processing. SKIP";
+        return;
+    }
+
+    // Iterate through every symbol in the pingpong buffer
+    QMap<QString, QVector<StockNewsResult>>::const_iterator it;
+    for (it = newBuffer->constBegin(); it != newBuffer->constEnd(); ++it) {
+        QString symbol = it.key();
+        const QVector<StockNewsResult>& newNewsVector = it.value();
+
+        // Find the newest new in the old news buffer
+        const StockNewsResult &newestOldNews = getNewestNews((*oldBuffer)[symbol]);
+        QDateTime dateNewestOldNews = QDateTime::fromString(newestOldNews.getPublishedDate());
+
+        //qDebug(MainAlgoLog) << " Parsing news for Symbol:" << symbol;
+        //qDebug(MainAlgoLog) << "  Date of newest old news :" << newestOldNews.getPublishedDate();
+
+        for (const StockNewsResult& newNews : newNewsVector) {
+            //qDebug(MainAlgoLog) << "  Date:" << newNews.getPublishedDate() << "\n  Title:" << newNews.getTitle();
+
+            QDateTime dateNewNews = QDateTime::fromString(newNews.getPublishedDate());
+
+            if (dateNewNews > dateNewestOldNews) {
+                qDebug(MainAlgoLog) << "  ******************** STRIKE ****************";
+                qDebug(MainAlgoLog) << "  Date     : " << newNews.getPublishedDate();
+                qDebug(MainAlgoLog) << "  Title    : " << newNews.getTitle();
+                qDebug(MainAlgoLog) << "  Url      : " << newNews.getUrl();
+                qDebug(MainAlgoLog) << "  Found at : " << QDateTime::currentDateTime();
+                qDebug(MainAlgoLog) << "  ******************** STRIKE ****************";
+
+                *out << "  ******************** STRIKE ****************\n";
+                *out << "  Published date : " << newNews.getPublishedDate() << "\n";
+                *out << "  Title          : " << newNews.getTitle() << "\n";
+                *out << "  Url            : " << newNews.getUrl() << "\n";
+                *out << "  Found at       : " << QDateTime::currentDateTime().toString() << "\n";
+                *out << "  ******************** STRIKE ****************\n\n";
+                out->flush();
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+

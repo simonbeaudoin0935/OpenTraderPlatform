@@ -37,7 +37,6 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
             this, &GuiFrontend::onTradeStationAccountsReceived);
 
 
-
     connect(this, &AppFrontend::fmpDataUsageUpdated,
             this, &GuiFrontend::onFMPClientDataUsageUpdate);
 
@@ -80,9 +79,9 @@ void GuiFrontend::onTradeStationClientDataUsageUpdate(qsizetype newDataUsage)
     ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
 }
 
-void GuiFrontend::onTradeStationAccountsReceived(QVector<AccountResult> results)
+void GuiFrontend::onTradeStationAccountsReceived(QVector<AccountsResult> results)
 {
-    for (const AccountResult& account : results) {
+    for (const AccountsResult& account : results) {
         ui->logDisplay->append("  ID:" + account.getAccountId());
         ui->logDisplay->append("  Type:" + account.getAccountType());
         ui->logDisplay->append("  Status:" + account.getStatus());

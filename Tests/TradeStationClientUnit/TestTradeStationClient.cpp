@@ -150,7 +150,7 @@ void TestTradeStationClient::testFetchSyncAccounts()
     QVERIFY(client.isCleanedUp());
     QVERIFY(client.isAuthenticated());
 
-    QVector<AccountResult> results;
+    QVector<AccountsResult> results;
     success = client.fetchSyncAccounts(results);
 
     // Verify the results
@@ -163,7 +163,7 @@ void TestTradeStationClient::testFetchSyncAccounts()
     qDebug() << "Saved second account ID for place order test:" << retreivedSIMAccountID;
 
     // Verify each account has valid data
-    for (const AccountResult& account : results) {
+    for (const AccountsResult& account : results) {
         qDebug() << "Verifying Account:";
         
         qDebug() << "  ID:" << account.getAccountId();

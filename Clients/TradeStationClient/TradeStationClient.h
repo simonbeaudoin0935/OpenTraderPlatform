@@ -7,7 +7,7 @@
 #include "../RESTClient.h"
 #include "Auth/AuthWindow.h"
 #include "Auth/AuthToken.h"
-#include "Account/AccountResult.h"
+#include "Brokerage/Accounts/AccountsResult.h"
 #include "OrderExecution/PlaceOrder/PlaceOrder.h"
 
 Q_DECLARE_LOGGING_CATEGORY(TradeStationClientLog)
@@ -32,7 +32,7 @@ public:
     // -------- Brokerage methods ----------
 
     // https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
-    bool fetchSyncAccounts(QVector<AccountResult> &results);
+    bool fetchSyncAccounts(QVector<AccountsResult> &results);
     void fetchAsyncAccounts();
 
 
@@ -53,7 +53,7 @@ signals:
     void authStateChanged(bool isAuthenticated, QString reason);
 
 
-    void accountsAsyncReceived(QVector<AccountResult> results);
+    void accountsAsyncReceived(QVector<AccountsResult> results);
 
     // Place Order signals
     void placeAsyncOrderReceived(const PlaceOrderResult &result);

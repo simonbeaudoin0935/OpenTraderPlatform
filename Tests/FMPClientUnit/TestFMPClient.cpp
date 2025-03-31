@@ -203,9 +203,9 @@ void TestFMPClient::testFetchSyncStockNews()
         QVERIFY(!news.getUrl().isEmpty());
 
         // Verify date is within our specified range
-        if (!news.getDate().isEmpty()) {
+        if (!news.getPublishedDate().isEmpty()) {
             QString format = "yyyy-MM-dd HH:mm:ss";
-            QDateTime newsDate = QDateTime::fromString(news.getDate(), format);
+            QDateTime newsDate = QDateTime::fromString(news.getPublishedDate(), format);
             QVERIFY(newsDate.isValid());
             
             // Convert to date for comparison (ignoring time)
