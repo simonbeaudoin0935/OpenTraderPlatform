@@ -25,6 +25,7 @@ struct AccountDetail {
 };
 
 struct AccountsResult {
+    AccountsResult() = default;
     AccountsResult(const QJsonObject& jsonObj);
 
     // Getters for each member
@@ -35,6 +36,7 @@ struct AccountsResult {
     const std::optional<AccountDetail>& getAccountDetail() const { return accountDetail; }
 
     QString toJsonString() const;
+    bool isValid() const;
 
 private:
     QString accountId;
@@ -43,5 +45,9 @@ private:
     QString currency;
     std::optional<AccountDetail> accountDetail;
 };
+
+// Necessary to be able to use a QSignalSpy and intercept the emition of a QVector<AccountsResult>
+Q_DECLARE_METATYPE(AccountsResult)
+Q_DECLARE_METATYPE(QVector<AccountsResult>)
 
 #endif // ACCOUNTRESULT_H 

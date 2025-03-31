@@ -7,7 +7,7 @@
 #include <QDateTime>
 
 static QString retreivedSIMAccountID;
-TSClient* TSClient;
+TSClient* client;
 
 
 // will be called to create a global test data table.
@@ -46,6 +46,8 @@ void TestTSClient::initTestCase() {
     QLoggingCategory::setFilterRules("TSClient.debug=true");
 
     qInfo() << "Start of test suite";
+
+    client = TSClient::getInstancePtr(); // ***** First time to do a getInstance, this will call the constructor
 }
 
 // Will be called before each test function is executed.
@@ -63,46 +65,57 @@ void TestTSClient::cleanup() {
 
 }
 
+// This test HAS to be the first, because we want to test the refresh logic, which launches when
+// calling client->start() only. Since we use the same singleton instance throughout the whole test
+// suite this has to be done first
 void TestTSClient::testRefreshSyncAccessToken()
 {
     bool triggered;
-    TSClient = TSClient::getInstancePtr(); // First time do a getInstance, this will call the constructor
-    QSignalSpy authStateSpy(TSClient, &TSClient::authStateChanged); // Create signal spies to monitor authentication signals
 
-    // Critical to do, will start the thread
-    TSClient->start();
+    QSignalSpy authStateSpy(client, &TSClient::authStateChanged); // Create signal spies to monitor authentication signals
 
-    // Verify initial state
-    QVERIFY(!TSClient->isAuthenticated());
-    QVERIFY(TSClient->isAuthInProgress()); // The client will immediately initiate a refresh
-    QVERIFY(TSClient->isCleanedUp());
+    QVERIFY(client->isCleanedUp());
+    QVERIFY(!client->isAuthenticated());
+    QVERIFY(!client->isAuthInProgress());
 
-    // Wait for the first authStateChanged signal that happens
-    // 2 second is generout for one refresh request round trip
-    triggered = authStateSpy.wait(3000);
+    // ****** This will kickstart the refresh logic
+    client->start();
+
+    // Wait 1ms, just to make sure the client thread has started and
+    QTest::qWait(1);
+
+    // Verify the refresh has started
+    QVERIFY(!client->isAuthenticated());
+    QVERIFY(client->isAuthInProgress()); // The client will immediately initiate a refresh
+
+
+    // Wait for authStateChanged signal to be fired
+    // 2 second is generous for one refresh request round trip
+    triggered = authStateSpy.wait(2000);
 
     QVERIFY(triggered);
 
-    // Check if we received any authentication signals
-    // At this point, there has to be only just one signal received
+    // Logically, only one signal must be emited
     QCOMPARE(authStateSpy.count(), 1);
 
     // Authentication completed
-    bool success = authStateSpy.first().at(0).toBool();
-    qInfo() << "Refresh reply : " << authStateSpy.first().at(1).toString();
+    bool success   = authStateSpy.first().at(0).toBool();
+    QString reason = authStateSpy.first().at(1).toString();
+
+    qInfo() << "Refresh reply : " << reason;
     authStateSpy.removeFirst();
 
     QVERIFY(success);
 
-    QVERIFY(TSClient->isAuthenticated());
-    QVERIFY(!TSClient->isAuthInProgress());
+    QVERIFY(client->isAuthenticated());
+    QVERIFY(!client->isAuthInProgress());
 
     // Wait just a little bit, for some reason this test thread outruns the housekeeping done in the TSClient that cleans the serviced
     // replies. Otherwise, the following isCleanedUp() triggers because the refreshTokenReply is not flushed from the map<>
     QTest::qWait(100);
 
     // Verify no resources were leaked
-    QVERIFY(TSClient->isCleanedUp());
+    QVERIFY(client->isCleanedUp());
 }
 
 
@@ -113,11 +126,11 @@ void TestTSClient::testFetchSyncAccounts()
     bool success;
     
     // Verify initial state
-    QVERIFY(TSClient->isCleanedUp());
-    QVERIFY(TSClient->isAuthenticated());
+    QVERIFY(client->isCleanedUp());
+    QVERIFY(client->isAuthenticated());
 
     QVector<AccountsResult> results;
-    success = TSClient->fetchSyncAccounts(results);
+    success = client->fetchSyncAccounts(results);
 
     // Verify the results
     QVERIFY(success);
@@ -130,45 +143,53 @@ void TestTSClient::testFetchSyncAccounts()
 
     // Verify each account has valid data
     for (const AccountsResult& account : results) {
-        qDebug() << "Verifying Account:";
-        
-        qDebug() << "  ID:" << account.getAccountId();
-        QVERIFY(!account.getAccountId().isEmpty());
-        
-        qDebug() << "  Type:" << account.getAccountType();
-        QVERIFY(!account.getAccountType().isEmpty());
-        
-        qDebug() << "  Status:" << account.getStatus();
-        QVERIFY(!account.getStatus().isEmpty());
-        
-        qDebug() << "  Currency:" << account.getCurrency();
-        QVERIFY(!account.getCurrency().isEmpty());
 
-        // Check AccountDetail if it exists
-        const auto& detail = account.getAccountDetail();
-        if (detail.has_value()) {
-            qDebug() << "  Account Detail:";
-            qDebug() << "    Stock Locate Eligible:" << detail->isStockLocateEligible;
-            qDebug() << "    Enrolled in RegT Program:" << detail->enrolledInRegTProgram;
-            qDebug() << "    Requires Buying Power Warning:" << detail->requiresBuyingPowerWarning;
-            qDebug() << "    Day Trading Qualified:" << detail->dayTradingQualified;
-            qDebug() << "    Option Approval Level:" << detail->optionApprovalLevel;
-            qDebug() << "    Pattern Day Trader:" << detail->patternDayTrader;
-        } else {
-            qDebug() << "  No Account Detail available";
-        }
+        QVERIFY(account.isValid());
+
+        qDebug().noquote() << "* Account info *\n" << account.toJsonString();
     }
 
     // Verify no resources were leaked
-    QVERIFY(TSClient->isCleanedUp());
+    QVERIFY(client->isCleanedUp());
 }
 
 void TestTSClient::testFetchAsyncAccounts()
-{   
-    QSignalSpy authStateSpy(TSClient, &TSClient::authStateChanged); // Create signal spies to monitor authentication signals
+{
+    // Verify initial state
+    QVERIFY(client->isCleanedUp());
+    QVERIFY(client->isAuthenticated());
+    QVERIFY(!client->isAuthInProgress());
 
-    QSKIP("Not implemented");
+    // Intercept the accounts when they are received
+    QSignalSpy fetchAsyncAccoutnsSpy(client, &TSClient::accountsAsyncReceived); // Create signal spies to monitor authentication signals
 
+    client->fetchAsyncAccounts();
+
+    bool triggered = fetchAsyncAccoutnsSpy.wait(2000);
+    QVERIFY(triggered);
+
+    // Logically, only one signal must be emited
+    QCOMPARE(fetchAsyncAccoutnsSpy.count(), 1);
+
+    // Extract the first emission's argument
+    QList<QVariant> firstSignal = fetchAsyncAccoutnsSpy.first();
+    QVERIFY(firstSignal.size() == 1); // One argument
+
+    // Convert QVariant to QVector<AccountsResult>
+    QVariant arg = firstSignal.at(0);
+    QVERIFY(arg.canConvert<QVector<AccountsResult>>());
+
+
+    QVector<AccountsResult> results = arg.value<QVector<AccountsResult>>();
+    // Verify each account has valid data
+    for (const AccountsResult& account : results) {
+
+        QVERIFY(account.isValid());
+
+        qDebug().noquote() << "* Account info *\n" << account.toJsonString();
+    }
+
+    QVERIFY(client->isCleanedUp());
 }
 
 void TestTSClient::testPlaceSyncOrder()
@@ -202,7 +223,7 @@ void TestTSClient::testPlaceSyncOrder()
 
     // Place the order
     PlaceOrderResult result;
-    bool success = TSClient->placeSyncOrder(order, result);
+    bool success = client->placeSyncOrder(order, result);
     
     // Verify the order was placed successfully
     QVERIFY(success);
@@ -242,7 +263,7 @@ void TestTSClient::testFetchingMoreThanMaximumPerMinute()
     // Suppress debug prints for this test as we will do a huge number of requests
     QLoggingCategory::setFilterRules("TSClient.debug=false");
 
-    QVERIFY(TSClient->isCleanedUp());
+    QVERIFY(client->isCleanedUp());
 
     const qsizetype APIMaxCallsPerMinute = 750;
     {
@@ -256,5 +277,5 @@ void TestTSClient::testFetchingMoreThanMaximumPerMinute()
         QTest::qWait(5000);
     }
 
-    QVERIFY(TSClient->isCleanedUp());
+    QVERIFY(client->isCleanedUp());
 }

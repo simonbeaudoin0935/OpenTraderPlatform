@@ -45,4 +45,55 @@ QString AccountsResult::toJsonString() const {
 
     QJsonDocument doc(jsonObj);
     return QString(doc.toJson(QJsonDocument::Indented));
-} 
+}
+
+bool AccountsResult::isValid() const {
+    // Check required fields
+    if (accountId.isEmpty()) {
+        qWarning() << "AccountID is required but not set";
+        return false;
+    }
+
+    if (accountType.isEmpty()) {
+        qWarning() << "AccountType is required but not set";
+        return false;
+    }
+
+    if (status.isEmpty()) {
+        qWarning() << "Status is required but not set";
+        return false;
+    }
+
+    if (currency.isEmpty()) {
+        qWarning() << "Currency is required but not set";
+        return false;
+    }
+
+    // Validate status values
+    if (status != "Active" && status != "Pending" && status != "Closed") {
+        qWarning() << "Invalid status value:" << status;
+        return false;
+    }
+
+    // Validate account type values
+    if (accountType != "Individual" && accountType != "Joint" && accountType != "IRA" &&
+        accountType != "Roth IRA" && accountType != "Futures" && accountType != "Margin") {
+        qWarning() << "Invalid account type:" << accountType;
+        return false;
+    }
+
+    // Validate currency format (should be 3-letter code)
+    if (currency.length() != 3) {
+        qWarning() << "Invalid currency format:" << currency;
+        return false;
+    }
+
+    // If AccountDetail is present, validate its fields
+    if (accountDetail.has_value()) {
+        // No specific validation needed for AccountDetail fields
+        // as they are all boolean flags except optionApprovalLevel
+        // which can have any non-negative value
+    }
+
+    return true;
+}

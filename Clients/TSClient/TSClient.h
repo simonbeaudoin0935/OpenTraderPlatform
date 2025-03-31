@@ -51,11 +51,7 @@ public slots:
 
 signals:
     void authStateChanged(bool isAuthenticated, QString reason);
-
-
     void accountsAsyncReceived(QVector<AccountsResult> results);
-
-    // Place Order signals
     void placeAsyncOrderReceived(const PlaceOrderResult &result);
 
 private slots:

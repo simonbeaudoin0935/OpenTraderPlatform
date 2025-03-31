@@ -11,7 +11,9 @@
 #include <QtTest>
 #endif
 
-const QUrl baseUrlTradeStation("https://sim-api.tradestation.com/v3/");
+#define BASE_URL_TS_API_SIMULATION "https://sim-api.tradestation.com/v3/"
+
+#define AT_THREAD_START 0
 
 // Define the logging category
 Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
@@ -36,7 +38,7 @@ TSClient* TSClient::getInstancePtr() {
 }
 
 TSClient::TSClient() :
-    RESTClient(baseUrlTradeStation),
+    RESTClient(QUrl(BASE_URL_TS_API_SIMULATION)),
     authenticated(false),
     authInProgress(false)
 {
@@ -48,7 +50,8 @@ TSClient::TSClient() :
         qCDebug(TSClientLog) << Q_FUNC_INFO <<
             "Auth token or Client token is invalid/absent, will need an authentification process";
 
-        QTimer::singleShot(0, this, [this]() {
+        // Schedule an emition for when the event loop is started
+        QTimer::singleShot(AT_THREAD_START, this, [this]() {
             emit authStateChanged(false, "authentification token invalid or absent at startup");
         });
     }
@@ -60,9 +63,10 @@ TSClient::TSClient() :
         qCDebug(TSClientLog) << Q_FUNC_INFO <<
             "Auth token is valid but expired, perform a refresh now.";
 
-        // Its okay to do this in the constructor, this will queue the request for when
-        // the event loop starts
-        refreshAsyncAccessToken();
+        // Schedule a refresh for when the thread starts
+        QTimer::singleShot(AT_THREAD_START, this, [this]() {
+            refreshAsyncAccessToken();
+        });
     }
 
     // If the token is valid and not expired (has at least 5s left in it,
@@ -99,7 +103,8 @@ TSClient::TSClient() :
             refreshAsyncAccessToken();
         });
 
-        QTimer::singleShot(0, this, [this]() {
+        // Schedule an emition for when the event loop is started
+        QTimer::singleShot(AT_THREAD_START, this, [this]() {
             emit authStateChanged(true, "Auth token valid and not expired");
         });
 
