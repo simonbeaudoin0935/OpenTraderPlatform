@@ -15,15 +15,14 @@ private slots:
     // Need to be first
     void testRefreshSyncAccessToken();
 
-
-    void testFetchingMoreThanMaximumPerMinute();
-
     void testFetchSyncAccounts();
     void testFetchAsyncAccounts();
 
     void testPlaceSyncOrder();
     void testPlaceAsyncOrder();
 
+
+    void testFetchingMoreThanMaximumPerMinute();
 
     //TODO should perhaps implement a max-per-minute limiter to queue the exceeding requests
     //     for the next minute instead of having them fail

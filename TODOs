@@ -1,17 +1,16 @@
 - create a monitor to monitor the amount of requests performed per minute. perhaps query
 - adjust the tests to use QCOMPARE in lieu of QVERIFY which should be only for bool
--Implement the tradestation token refresh logic
-- eventually make the tradestation authtication process headless
-- if the auth is lost with TS, have button reflect it
+
+
+
 
 - when loading tokens in tradestation, perform an initial request to make sure the token indeed works
-- if the token works immediately perform a token refresh
-  - create the token refresh functionality in TS
-  - Modity the sync method to have the header
-    - modify RESTClient to build the url with a header
+
 
 - rework the TS.setAPIKey between the class and the authwindow
 
 - rework restclient so that the buildUrl* methods return QNetworkRequests. Use QUrl instead of QString, and use QUrlQuery to build the param list
 
-- Do not start the threads in their constructors
+- somethimes fetching account does1nt work at startup
+
+- have RESTClient [print the name of the chiold oobject

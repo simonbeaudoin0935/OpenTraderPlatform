@@ -357,14 +357,14 @@ void MainAlgo::processReceivedNewsPingPongBuffers()
                 qDebug(MainAlgoLog) << "  Date     : " << newNews.getPublishedDate();
                 qDebug(MainAlgoLog) << "  Title    : " << newNews.getTitle();
                 qDebug(MainAlgoLog) << "  Url      : " << newNews.getUrl();
-                qDebug(MainAlgoLog) << "  Found at : " << QDateTime::currentDateTime();
+                qDebug(MainAlgoLog) << "  Found at : " << QDateTime::currentDateTimeUtc();
                 qDebug(MainAlgoLog) << "  ******************** STRIKE ****************";
 
                 *out << "  ******************** STRIKE ****************\n";
                 *out << "  Published date : " << newNews.getPublishedDate() << "\n";
                 *out << "  Title          : " << newNews.getTitle() << "\n";
                 *out << "  Url            : " << newNews.getUrl() << "\n";
-                *out << "  Found at       : " << QDateTime::currentDateTime().toString() << "\n";
+                *out << "  Found at       : " << QDateTime::currentDateTimeUtc().toString() << "\n";
                 *out << "  ******************** STRIKE ****************\n\n";
                 out->flush();
             }

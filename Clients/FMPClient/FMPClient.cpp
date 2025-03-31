@@ -10,7 +10,7 @@
 
 #include "FMPClient.h"
 
-const QUrl baseUrlFMP("https://financialmodelingprep.com/stable/");
+#define BASE_URL_FMP_API "https://financialmodelingprep.com/stable/"
 
 // Define the logging category
 Q_LOGGING_CATEGORY(FMPClientLog, "FMPClient")
@@ -39,7 +39,7 @@ FMPClient* FMPClient::getInstancePtr() {
 }
 
 FMPClient::FMPClient() :
-    RESTClient(baseUrlFMP)
+    RESTClient(QUrl(BASE_URL_FMP_API))
 {
     qCDebug(FMPClientLog) << Q_FUNC_INFO << ": FMPClient created using KEY=" << apiKey;
 

@@ -67,6 +67,7 @@ signals:
 private slots:
 
 private:
+
     // Singleton : private constructor
     explicit FMPClient();
     ~FMPClient();
