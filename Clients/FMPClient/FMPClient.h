@@ -55,11 +55,14 @@ public:
 
     // https://site.financialmodelingprep.com/developer/docs/stable/stock-news
     bool fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockNewsResult> &results);
+    void fetchAsyncStockNews(const StockNewsFilter &filter);
+
 
 signals:
     // API Async version signals
     void quoteShortReceived(struct FMPClient::QuoteShortResult result);
     void sharesFloatReceived(struct FMPClient::SharesFloatResult result);
+    void stockNewsReceived(QVector<StockNewsResult> results);
 
 private slots:
 
@@ -71,7 +74,8 @@ private:
     enum class RequestType {
         None,
         Quote,
-        SharesFloat
+        SharesFloat,
+        StockNews
     };
 
     void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc);

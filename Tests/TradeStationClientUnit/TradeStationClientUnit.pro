@@ -11,6 +11,7 @@ HEADERS += TestTradeStationClient.h
 SOURCES += \
     ../../Clients/RESTClient.cpp \
     ../../Clients/TradeStationClient/TradeStationClient.cpp \
+    ../../Clients/TradeStationClient/OrderExecution/PlaceOrder/PlaceOrder.cpp \
     ../../Clients/TradeStationClient/Account/AccountResult.cpp \
     ../../Clients/TradeStationClient/Auth/AuthWindow.cpp \
     ../../Clients/TradeStationClient/Auth/AuthToken.cpp \
@@ -19,6 +20,7 @@ SOURCES += \
 HEADERS += \
     ../../Clients/RESTClient.h \
     ../../Clients/TradeStationClient/TradeStationClient.h \
+    ../../Clients/TradeStationClient/OrderExecution/PlaceOrder/PlaceOrder.h \
     ../../Clients/TradeStationClient/Account/AccountResult.h \
     ../../Clients/TradeStationClient/Auth/AuthWindow.h \
     ../../Clients/TradeStationClient/Auth/AuthToken.h \

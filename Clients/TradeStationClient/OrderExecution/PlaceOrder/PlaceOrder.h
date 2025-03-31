@@ -256,8 +256,14 @@ public:
     std::optional<QString> getOcaGroupName() const;
     std::optional<QString> getOcaGroupType() const;
 
+    // Validation
+    bool isValid() const;
+
     // Convert to JSON for API request
     QJsonObject toJson() const;
+    
+    // Convert to JSON string for debugging/logging
+    QString toJsonString() const;
 
 private:
     // Required fields
@@ -277,13 +283,14 @@ private:
     std::optional<QString> orderConfirmID;
     std::optional<QString> route;  // Defaults to "Intelligent" for stocks and options
     std::optional<double> stopPrice;
-    std::optional<QString> ocaGroupName;
-    std::optional<QString> ocaGroupType;
 };
 
+
+#warning Redo this class. cursor fucked up
 class PlaceOrderResult {
 public:
     // Constructor taking a QJsonObject
+    PlaceOrderResult() = default;
     PlaceOrderResult(const QJsonObject& jsonObj);
 
     // Getters for response fields

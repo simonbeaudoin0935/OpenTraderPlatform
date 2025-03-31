@@ -1,3 +1,4 @@
+#include "qtestsupport_core.h"
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -267,13 +268,15 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
     info->jsonDocument = nullptr;
     info->completed = false;
 
+    doc = QJsonDocument::fromJson(rawData);
+
     if (reply->error() != QNetworkReply::NoError) {
-        qCWarning(RESTClientLog) << Q_FUNC_INFO << " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString();
+        qCWarning(RESTClientLog) << Q_FUNC_INFO <<
+            " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString();
+        qCWarning(RESTClientLog).noquote() << Q_FUNC_INFO <<
+            " : Content of the reply : \n" << doc.toJson(QJsonDocument::Indented);
         goto notify;
     }
-
-
-    doc = QJsonDocument::fromJson(rawData);
 
     if (doc.isNull()){
         qCWarning(RESTClientLog) << Q_FUNC_INFO << " : JSON doc is null";
@@ -282,7 +285,7 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 
     if (doc.isArray() && doc.array().isEmpty()) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO << " : Doc array is empty";
-        goto notify;
+        //goto notify;
     }
 
     if (doc.isObject() && doc.object().isEmpty()) {

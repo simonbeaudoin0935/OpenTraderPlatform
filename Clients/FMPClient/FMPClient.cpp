@@ -66,6 +66,12 @@ void FMPClient::fetchAsyncSharesFloat(const QString &symbol)
     fetchAsync(request, static_cast<RequestTypeInt>(RequestType::SharesFloat));
 }
 
+void FMPClient::fetchAsyncStockNews(const StockNewsFilter &filter)
+{
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "news/stock", filter);
+    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::StockNews));
+}
+
 bool FMPClient::fetchSyncQuoteShort(const QString &symbol, struct QuoteShortResult &result) {
     QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "quote-short", symbol);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
@@ -181,6 +187,8 @@ bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockN
     return success;
 }
 
+
+
 void FMPClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) {
 
     QJsonObject obj = doc.array().first().toObject();
@@ -209,6 +217,18 @@ void FMPClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc)
                                         obj["outstandingShares"].toInteger()});
 
             break;
+
+        case RequestType::StockNews:
+        {
+            QVector<StockNewsResult> results;
+
+            for (QJsonValue json: doc.array()) {
+                results.push_back(StockNewsResult(json.toObject()));
+            }
+
+            emit stockNewsReceived(results);
+            break;
+        }
 
         default:
             Q_UNREACHABLE();

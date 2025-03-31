@@ -6,6 +6,8 @@
 #include <QSettings>
 #include <QDateTime>
 
+static QString retreivedSIMAccountID;
+
 // will be called to create a global test data table.
 void TestTradeStationClient::initTestCase_data()
 {
@@ -76,6 +78,7 @@ void TestTradeStationClient::testRefreshSyncAccessToken()
     // Wait for the first authStateChanged signal that happens
     // 2 second is generout for one refresh request round trip
     triggered = authStateSpy.wait(3000);
+
     if (!triggered) {
         QFAIL("FUCK");
     }
@@ -152,8 +155,12 @@ void TestTradeStationClient::testFetchSyncAccounts()
 
     // Verify the results
     QVERIFY(success);
-    QVERIFY(!results.isEmpty());
+    QCOMPARE(results.size(), 2); // Verify exactly 2 accounts
     qDebug() << "Found" << results.size() << "accounts:";
+
+    // Save the second account's ID for use in place order test
+    retreivedSIMAccountID = results[1].getAccountId();
+    qDebug() << "Saved second account ID for place order test:" << retreivedSIMAccountID;
 
     // Verify each account has valid data
     for (const AccountResult& account : results) {
@@ -198,7 +205,56 @@ void TestTradeStationClient::testFetchAsyncAccounts()
 
 void TestTradeStationClient::testPlaceSyncOrder()
 {
-    QSKIP("Not implemented");
+    TradeStationClient& client = TradeStationClient::getInstance();
+
+    // Create a test order request
+    PlaceOrderRequest order;
+    order.setAccountID(retreivedSIMAccountID); // Use the saved second account ID
+    order.setOrderType(OrderType::Market);
+    order.setQuantity(100);
+    order.setSymbol("AAPL");
+    order.setTradeAction(TradeAction::Buy);
+    order.setRoute("Intelligent");
+
+    order.setOrderConfirmID("5109740935");
+
+    // Set up time in force
+    TimeInForce timeInForce(OrderDuration::Day);
+    order.setTimeInForce(timeInForce);
+    
+    // Set up advanced options
+    //AdvancedOptions advancedOptions;
+    //advancedOptions.setAllOrNone(true);
+    //order.setAdvancedOptions(advancedOptions);
+    
+    QVERIFY(order.isValid());
+
+    qDebug().noquote() << "Content of the request :\n" << order.toJsonString();
+
+    // Place the order
+    PlaceOrderResult result;
+    bool success = client.placeSyncOrder(order, result);
+    
+    // Verify the order was placed successfully
+    QVERIFY(success);
+    
+    qDebug().noquote() << "Received reault :\n" << result.toJsonString();
+
+    // Verify the result contains expected data
+    QVERIFY(!result.getOrderID().isEmpty());
+    QCOMPARE(result.getSymbol(), QString("AAPL"));
+    QCOMPARE(result.getQuantity(), 100);
+    QCOMPARE(result.getOrderType(), QString("Market"));
+    
+    // Verify the status is one of the expected values
+    QString status = result.getStatus();
+    QVERIFY(status == "OK" || status == "ACCEPTED" || status == "PENDING");
+    
+    // If there was an error, log it
+    if (!result.getError().isEmpty()) {
+        qWarning() << "Order placement had error:" << result.getError();
+        qWarning() << "Detailed message:" << result.getDetailedMessage();
+    }
 }
 
 void TestTradeStationClient::testPlaceAsyncOrder()

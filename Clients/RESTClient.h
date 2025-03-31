@@ -80,6 +80,7 @@ protected:
     QNetworkRequest buildRequest(ApiKeyPlacement placement, const QString &endpoint, const QString &symbol = "") const;
     QNetworkRequest buildRequest(ApiKeyPlacement placement, const QString &endpoint, const QUrlQuery &query) const;
 
+
     bool fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete, HttpMethod method = HttpMethod::GET, const QByteArray &postData = QByteArray());
     void fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method = HttpMethod::GET, const QByteArray &postData =  QByteArray());
 

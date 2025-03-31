@@ -419,8 +419,41 @@ void TradeStationClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocum
     }
 }
 
-bool TradeStationClient::placeSyncOrder(const PlaceOrderRequest &order, const PlaceOrderResult &result) {
-#warning complete
+bool TradeStationClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &result) {
+
+    QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
+
+    Q_ASSERT(order.isValid());
+
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "orderexecution/orders");
+
+    QByteArray postData = QJsonDocument(order.toJson()).toJson(QJsonDocument::Compact);
+
+    bool success = fetchSync(request,
+                             jsonDocumentFromReplyToDelete,
+                             HttpMethod::POST,
+                             postData);
+    
+    
+
+    if (!success) {
+        // Make sure that if fetchSync failed that this pointed has not been allocated
+        Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
+
+        return false;
+    }
+
+    // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
+    Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
+
+    result = PlaceOrderResult(jsonDocumentFromReplyToDelete->object());
+
+    qDebug().noquote() << "result : \n" << jsonDocumentFromReplyToDelete->toJson(QJsonDocument::Indented);
+
+    // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
+    TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
+
+    return true;
 }
 
 void TradeStationClient::placeAsyncOrder(const PlaceOrderRequest &order) {

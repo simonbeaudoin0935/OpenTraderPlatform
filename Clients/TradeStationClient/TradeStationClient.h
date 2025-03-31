@@ -27,18 +27,20 @@ public:
     bool isAuthenticated() const { return authenticated; }
     bool isAuthInProgress() const { return authInProgress; }
 
-    // -------- Brokerage methods
+    // -------- Market data methods --------    
+
+    // -------- Brokerage methods ----------
 
     // https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
     bool fetchSyncAccounts(QVector<AccountResult> &results);
     void fetchAsyncAccounts();
 
 
-    // -------- Order execution methods
+    // -------- Order execution methods --------
  
     // Place order
     // https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/PlaceOrder    // https://api.tradestation.com/docs/specification#tag/Brokerage/operation/PostOrder
-    bool placeSyncOrder(const PlaceOrderRequest &order, const PlaceOrderResult &result);
+    bool placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &result);
     void placeAsyncOrder(const PlaceOrderRequest &order);
 
 

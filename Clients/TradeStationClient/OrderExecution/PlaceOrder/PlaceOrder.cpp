@@ -64,9 +64,9 @@ bool TimeInForce::isValidExpiration(const QString& expiration) {
 // PlaceOrderRequest implementation
 PlaceOrderRequest::PlaceOrderRequest()
     : orderType(OrderType::Market)
-    , tradeAction(TradeAction::Buy)
     , quantity(0)
     , timeInForce(OrderDuration::Day)
+    , tradeAction(TradeAction::Buy)
 {
 }
 
@@ -97,8 +97,6 @@ void PlaceOrderRequest::setOrderConfirmID(const std::optional<QString>& value) {
 }
 void PlaceOrderRequest::setRoute(const std::optional<QString>& value) { route = value; }
 void PlaceOrderRequest::setStopPrice(const std::optional<double>& value) { stopPrice = value; }
-void PlaceOrderRequest::setOcaGroupName(const std::optional<QString>& value) { ocaGroupName = value; }
-void PlaceOrderRequest::setOcaGroupType(const std::optional<QString>& value) { ocaGroupType = value; }
 
 // Getters
 QString PlaceOrderRequest::getAccountID() const { return accountID; }
@@ -111,8 +109,6 @@ std::optional<double> PlaceOrderRequest::getLimitPrice() const { return limitPri
 std::optional<QString> PlaceOrderRequest::getOrderConfirmID() const { return orderConfirmID; }
 std::optional<QString> PlaceOrderRequest::getRoute() const { return route; }
 std::optional<double> PlaceOrderRequest::getStopPrice() const { return stopPrice; }
-std::optional<QString> PlaceOrderRequest::getOcaGroupName() const { return ocaGroupName; }
-std::optional<QString> PlaceOrderRequest::getOcaGroupType() const { return ocaGroupType; }
 
 QJsonObject PlaceOrderRequest::toJson() const {
     QJsonObject json;
@@ -145,15 +141,13 @@ QJsonObject PlaceOrderRequest::toJson() const {
     }
     json["TradeAction"] = tradeActionStr;
     
-    json["Quantity"] = quantity;
+    json["Quantity"] = QString::number(quantity);
     json["TimeInForce"] = timeInForce.toJson();
     
     // Optional fields
-    if (limitPrice) json["LimitPrice"] = *limitPrice;
-    if (stopPrice) json["StopPrice"] = *stopPrice;
-    
-    if (ocaGroupName) json["OCAGroupName"] = *ocaGroupName;
-    if (ocaGroupType) json["OCAGroupType"] = *ocaGroupType;
+    if (limitPrice) json["LimitPrice"] = QString::number(*limitPrice);
+    if (stopPrice) json["StopPrice"] = QString::number(*stopPrice);
+
     if (route) json["Route"] = *route;
     if (orderConfirmID) json["OrderConfirmID"] = *orderConfirmID;
     
@@ -162,6 +156,103 @@ QJsonObject PlaceOrderRequest::toJson() const {
     }
     
     return json;
+}
+
+QString PlaceOrderRequest::toJsonString() const {
+    QJsonDocument doc(toJson());
+    return doc.toJson(QJsonDocument::Indented);
+}
+
+bool PlaceOrderRequest::isValid() const {
+    // Check required fields
+    if (accountID.isEmpty()) {
+        qWarning() << "AccountID is required but not set";
+        return false;
+    }
+
+    if (symbol.isEmpty()) {
+        qWarning() << "Symbol is required but not set";
+        return false;
+    }
+
+    if (quantity <= 0) {
+        qWarning() << "Quantity must be greater than 0";
+        return false;
+    }
+
+    // Validate order type specific requirements
+    switch (orderType) {
+        case OrderType::Limit:
+            if (!limitPrice || *limitPrice <= 0) {
+                qWarning() << "Limit orders require a valid limit price";
+                return false;
+            }
+            break;
+
+        case OrderType::StopMarket:
+        case OrderType::StopLimit:
+            if (!stopPrice || *stopPrice <= 0) {
+                qWarning() << "Stop orders require a valid stop price";
+                return false;
+            }
+            if (orderType == OrderType::StopLimit && (!limitPrice || *limitPrice <= 0)) {
+                qWarning() << "Stop limit orders require both a valid stop price and limit price";
+                return false;
+            }
+            break;
+    }
+
+    // Validate time in force
+    if (timeInForce.getDuration() == OrderDuration::GTD) {
+        if (!timeInForce.getExpiration()) {
+            qWarning() << "GTD orders require an expiration date";
+            return false;
+        }
+        if (!TimeInForce::isValidExpiration(*timeInForce.getExpiration())) {
+            qWarning() << "GTD expiration date must be in the future and within 90 days";
+            return false;
+        }
+    }
+
+    // Validate advanced options if present
+    if (advancedOptions) {
+        const auto& options = *advancedOptions;
+        
+        // Validate market activation rules if present
+        if (!options.getMarketActivationRules().isEmpty()) {
+            for (const auto& rule : options.getMarketActivationRules()) {
+                if (rule.getSymbol().isEmpty()) {
+                    qWarning() << "Market activation rules require a symbol";
+                    return false;
+                }
+                if (rule.getPrice().isEmpty()) {
+                    qWarning() << "Market activation rules require a price";
+                    return false;
+                }
+            }
+        }
+
+        // Validate time activation rules if present
+        if (!options.getTimeActivationRules().isEmpty()) {
+            for (const auto& rule : options.getTimeActivationRules()) {
+                if (rule.getTimeUtc().isEmpty()) {
+                    qWarning() << "Time activation rules require a time";
+                    return false;
+                }
+            }
+        }
+
+        // Validate trailing stop if present
+        if (options.getTrailingStop()) {
+            const auto& trailingStop = *options.getTrailingStop();
+            if (!trailingStop.getAmount() && !trailingStop.getPercent()) {
+                qWarning() << "Trailing stop requires either an amount or percent";
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 // PlaceOrderResult implementation
@@ -225,7 +316,7 @@ QString PlaceOrderResult::toJsonString() const {
     json["GTDDate"] = gtdDate;
     
     QJsonDocument doc(json);
-    return doc.toJson(QJsonDocument::Compact);
+    return doc.toJson(QJsonDocument::Indented);
 }
 
 // MarketActivationRule implementation
