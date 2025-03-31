@@ -1,12 +1,6 @@
 - create a monitor to monitor the amount of requests performed per minute. perhaps query
 - adjust the tests to use QCOMPARE in lieu of QVERIFY which should be only for bool
 
-
-
-
-- when loading tokens in tradestation, perform an initial request to make sure the token indeed works
-
-
 - rework the TS.setAPIKey between the class and the authwindow
 
 - rework restclient so that the buildUrl* methods return QNetworkRequests. Use QUrl instead of QString, and use QUrlQuery to build the param list
@@ -14,3 +8,10 @@
 - somethimes fetching account does1nt work at startup
 
 - have RESTClient [print the name of the chiold oobject
+
+- Kick a watchod for ASYNC methods so that a signal can be emitted when a reply never arrives to ensure
+  the code that expect a response never freezes
+
+
+- THIS COULD BE AN ISSUE : https://www.reddit.com/r/algotrading/comments/1gwjwhf/tradestation_data_synchronization_issues/
+

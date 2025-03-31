@@ -187,31 +187,33 @@ bool TSClient::fetchSyncAccounts(QVector<AccountsResult> &results)
     QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "brokerage/accounts", "");
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
-    bool ret = fetchSync(request, jsonDocumentFromReplyToDelete);
+    bool success = fetchSync(request, jsonDocumentFromReplyToDelete);
 
-    if (ret) {
-        // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
-        Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
-
-        // The API returns a single object with an "Accounts" array
-        QJsonObject responseObj = jsonDocumentFromReplyToDelete->object();
-        QJsonArray accountsArray = responseObj["Accounts"].toArray();
-
-        // Resize the array in advance
-        results.reserve(accountsArray.count());
-
-        for (QJsonValue json: accountsArray) {
-            results.push_back(AccountsResult(json.toObject()));
-        }
-
-        // This pointer to a JSON document was allocated in the fetchSync and needs to be deleted after use
-        TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
-    } else {
+    if (false == success) {
         // Make sure that if fetchSync failed that this pointed has not been allocated
         Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
+
+        return false;
     }
 
-    return ret;
+    // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
+    Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
+
+    // The API returns a single object with an "Accounts" array
+    QJsonObject responseObj = jsonDocumentFromReplyToDelete->object();
+    const QJsonArray accountsArray = responseObj["Accounts"].toArray();
+
+    // Resize the array in advance
+    results.reserve(accountsArray.count());
+
+    for (const QJsonValue &json: accountsArray) {
+        results.push_back(AccountsResult(json.toObject()));
+    }
+
+    // This pointer to a JSON document was allocated in the fetchSync and needs to be deleted after use
+    TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
+
+    return true;
 }
 
 void TSClient::fetchAsyncAccounts()
@@ -224,65 +226,66 @@ void TSClient::fetchAsyncAccounts()
 
 void TSClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
 {
-    authInProgress = false;
     bool success = newToken.isValidRefreshedToken() && !newToken.isExpired();
 
-    if (success) {
-        authenticated = true;
+    authInProgress = false;
+    authenticated  = success;
 
-        // For some reason (security maybe) the new token return doesn't contain the refresh_key
-        // All other fields are good (which is why it needs a special isValidRefreshedToken()
-        // methods that does like isValid(), but omits the refresh_token field)
-        // Now, we want to store this new token on disk, but we first need to retreive the
-        // refresh_token from the actual token, stick it in there then save.
-        emit authStateChanged(true, "Auth token refresh successful");\
-
-        qCDebug(TSClientLog) << Q_FUNC_INFO <<
-            "Successful auth token refresh";
-
-        // For some reason (security maybe) the new token return doesn't contain the refresh_key
-        // All other fields are good (which is why it needs a special isValidRefreshedToken()
-        // methods that does like isValid(), but omits the refresh_token field)
-        // Now, we want to store this new token on disk, but we first need to retreive the
-        // refresh_token from the actual token, stick it in there then save.
-        AuthToken validNewToken(newToken.getAccessToken(),
-                                authToken.getRefreshToken(),
-                                newToken.getIdToken(),
-                                newToken.getTokenType(),
-                                newToken.getScope(),
-                                newToken.getExpiresIn(),
-                                newToken.getReceivedAt());
-
-        AuthToken::storeToSettings(validNewToken);
-
-        authToken = validNewToken;
-
-        RESTClient::setAPIKey(authToken.getAccessToken());
-
-        // Kick a new refresh in 20min - 5s
-        {
-            int secondsToNextRefreshRequest = authToken.secondsToNextRefreshRequest();
-
-            // Logically if we are here this HAS to be t least 1s
-            Q_ASSERT(secondsToNextRefreshRequest > 1 && secondsToNextRefreshRequest <= 1195);
-
-            qCDebug(TSClientLog) << Q_FUNC_INFO <<
-                "Programming the next refresh in " << secondsToNextRefreshRequest << "seconds";
-
-            // Launch a request in X seconds from now.
-            QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() {
-                refreshAsyncAccessToken();
-            });
-        }
-    } else {
-        authenticated = false;
+    if (false == success) {
         emit authStateChanged(false, "Failed to refresh access token");
 
         qCDebug(TSClientLog) << Q_FUNC_INFO <<
             "Unsuccessful auth token refresh";
+
+        return;
     }
 
-#warning TODO kick a watchdog timer in case the reply never comes
+    // For some reason (security maybe) the new token return doesn't contain the refresh_key
+    // All other fields are good (which is why it needs a special isValidRefreshedToken()
+    // methods that does like isValid(), but omits the refresh_token field)
+    // Now, we want to store this new token on disk, but we first need to retreive the
+    // refresh_token from the actual token, stick it in there then save.
+    emit authStateChanged(true, "Auth token refresh successful");\
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO <<
+        "Successful auth token refresh";
+
+    // For some reason (security maybe) the new token return doesn't contain the refresh_key
+    // All other fields are good (which is why it needs a special isValidRefreshedToken()
+    // methods that does like isValid(), but omits the refresh_token field)
+    // Now, we want to store this new token on disk, but we first need to retreive the
+    // refresh_token from the actual token, stick it in there then save.
+    AuthToken validNewToken(newToken.getAccessToken(),
+                            authToken.getRefreshToken(),
+                            newToken.getIdToken(),
+                            newToken.getTokenType(),
+                            newToken.getScope(),
+                            newToken.getExpiresIn(),
+                            newToken.getReceivedAt());
+
+    AuthToken::storeToSettings(validNewToken);
+
+    authToken = validNewToken;
+
+    RESTClient::setAPIKey(authToken.getAccessToken());
+
+    // Kick a new refresh in 20min - 5s
+    {
+        int secondsToNextRefreshRequest = authToken.secondsToNextRefreshRequest();
+
+        // Logically if we are here this HAS to be t least 1s
+        Q_ASSERT(secondsToNextRefreshRequest > 1 && secondsToNextRefreshRequest <= 1195);
+
+        qCDebug(TSClientLog) << Q_FUNC_INFO <<
+            "Programming the next refresh in " << secondsToNextRefreshRequest << "seconds";
+
+        // Launch a request in X seconds from now.
+        QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() {
+            refreshAsyncAccessToken();
+        });
+    }
+
+    // TODO kick a watchdog timer
 }
 
 bool TSClient::refreshSyncAccessToken()
@@ -290,20 +293,17 @@ bool TSClient::refreshSyncAccessToken()
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
     bool success;
 
-    Q_ASSERT_X(0, "refreshSyncAccessToken", "DO NOT USE, CAUSES A DEADLOCK");
-
     authInProgress = true;
+
+    Q_ASSERT_X(0, "refreshSyncAccessToken", "DO NOT USE, CAUSES A DEADLOCK");
+    Q_ASSERT(authToken.isValid()); // Note we don't check if authToken is expired, as it can be logically both
+    Q_ASSERT(clientToken.isValid());
 
     qCDebug(TSClientLog) << Q_FUNC_INFO <<
         "Starting a SYNC token refresh request";
 
-    // Make sure we are good to go
-    {
-        // Note we don't check if authToken is expired, as it can be logically both
-        Q_ASSERT(authToken.isValid());
-        Q_ASSERT(clientToken.isValid());
-    }
 
+    // Fetch the token
     {
         QNetworkRequest request;
         QByteArray postData;
@@ -318,11 +318,12 @@ bool TSClient::refreshSyncAccessToken()
         success = fetchSync(request, jsonDocumentFromReplyToDelete, HttpMethod::POST, postData);
     }
 
-    if (!success) {
+    if (false == success) {
+        Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
+
         qCWarning(TSClientLog) << "Failed to refresh access token";
         authenticated = false;
         authInProgress = false;
-        Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
         emit authStateChanged(false, "Failed to refresh access token");
         return false;
     }
@@ -342,6 +343,9 @@ bool TSClient::refreshSyncAccessToken()
         emit authStateChanged(false, "Received refreshed token is invalid");
         return false;
     }
+
+    //TODO store that new token
+    authToken = newToken;
 
     authInProgress = false;
     authenticated = true;
@@ -399,13 +403,13 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) 
 
         case RequestType::Accounts:
         {
-            QJsonArray accountsArray = obj["Accounts"].toArray();
+            const QJsonArray accountsArray = obj["Accounts"].toArray();
             QVector<AccountsResult> results;
 
             // Resize the array in advance
             results.reserve(accountsArray.count());
 
-            for (QJsonValue json: accountsArray) {
+            for (const QJsonValue &json: accountsArray) {
                 results.push_back(AccountsResult(json.toObject()));
             }
 
@@ -453,7 +457,7 @@ bool TSClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &
 
     result = PlaceOrderResult(jsonDocumentFromReplyToDelete->object());
 
-    qDebug().noquote() << "result : \n" << jsonDocumentFromReplyToDelete->toJson(QJsonDocument::Indented);
+    qCDebug(TSClientLog).noquote() << Q_FUNC_INFO << "Received JSON : \n" << jsonDocumentFromReplyToDelete->toJson(QJsonDocument::Indented);
 
     // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
     TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
@@ -462,6 +466,6 @@ bool TSClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &
 }
 
 void TSClient::placeAsyncOrder(const PlaceOrderRequest &order) {
-#warning complete
+    Q_UNUSED(order);
 }
 

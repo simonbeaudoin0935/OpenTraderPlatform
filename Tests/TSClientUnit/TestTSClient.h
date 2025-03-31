@@ -1,8 +1,7 @@
 #ifndef TEST_TRADESTATIONCLIENT_H
 #define TEST_TRADESTATIONCLIENT_H
 
-#include <QtTest/QtTest>
-#include <QSettings>
+#include <QObject>
 
 class TestTSClient : public QObject {
     Q_OBJECT
@@ -28,6 +27,8 @@ private slots:
     //     for the next minute instead of having them fail
 
 private:
+    bool isMarketClosed();
+
     QString secondAccountId; // Store the second account's ID for use in place order test
 };
 

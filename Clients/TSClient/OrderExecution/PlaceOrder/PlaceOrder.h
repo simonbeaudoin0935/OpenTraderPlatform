@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QDateTime>
 #include <QVector>
+#include <QMetaType>
 
 // Enum for order types
 enum class OrderType {
@@ -285,55 +286,56 @@ private:
     std::optional<double> stopPrice;
 };
 
-
-#warning Redo this class. cursor fucked up
-class PlaceOrderResult {
+class OrderResultItem {
 public:
+    // Default constructor
+    OrderResultItem() = default;
+    
     // Constructor taking a QJsonObject
-    PlaceOrderResult() = default;
-    PlaceOrderResult(const QJsonObject& jsonObj);
+    OrderResultItem(const QJsonObject& jsonObj);
 
-    // Getters for response fields
-    QString getOrderID() const;
-    QString getStatus() const;
-    QString getMessage() const;
-    QString getError() const;
-    QString getDetailedMessage() const;
-    QString getOrderDateTime() const;
-    QString getOrderStatus() const;
-    QString getPrimaryOrderID() const;
-    QString getSecondaryOrderID() const;
-    QString getOrderType() const;
-    QString getSymbol() const;
-    int getQuantity() const;
-    double getLimitPrice() const;
-    double getStopPrice() const;
-    QString getDuration() const;
-    bool getAllOrNone() const;
-    QString getGtdDate() const;
+    // Getters
+    QString getOrderID() const { return orderID; }
+    QString getMessage() const { return message; }
+    std::optional<QString> getError() const { return error; }
+
+    // Check if this is an error result
+    bool isError() const { return error.has_value(); }
 
     // Convert to JSON string for debugging/logging
     QString toJsonString() const;
 
 private:
-    // Response fields
-    QString orderID;
-    QString status;
-    QString message;
-    QString error;
-    QString detailedMessage;
-    QString orderDateTime;
-    QString orderStatus;
-    QString primaryOrderID;
-    QString secondaryOrderID;
-    QString orderType;
-    QString symbol;
-    int quantity;
-    double limitPrice;
-    double stopPrice;
-    QString duration;
-    bool allOrNone;
-    QString gtdDate;
+    QString orderID;           // Required
+    QString message;          // Required
+    std::optional<QString> error;  // Optional, presence indicates error state
 };
+
+class PlaceOrderResult {
+public:
+    // Default constructor
+    PlaceOrderResult() = default;
+    
+    // Constructor taking a QJsonObject
+    PlaceOrderResult(const QJsonObject& jsonObj);
+
+    // Getters
+    const QVector<OrderResultItem>& getOrders() const { return orders; }
+    const QVector<OrderResultItem>& getErrors() const { return errors; }
+
+    // Helper methods
+    bool hasErrors() const { return !errors.isEmpty(); }
+    bool isAllSuccessful() const { return errors.isEmpty(); }
+
+    // Convert to JSON string for debugging/logging
+    QString toJsonString() const;
+
+private:
+    QVector<OrderResultItem> orders;  // Array of order results (both successful and failed)
+    QVector<OrderResultItem> errors;  // Array of error results (from documented "Errors" array)
+};
+
+Q_DECLARE_METATYPE(OrderResultItem)
+Q_DECLARE_METATYPE(PlaceOrderResult)
 
 #endif // PLACE_ORDER_H

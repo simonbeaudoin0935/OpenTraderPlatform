@@ -6,8 +6,7 @@
 #include <QSettings>
 #include <QDateTime>
 
-static QString retreivedSIMAccountID;
-TSClient* client;
+static TSClient* client;
 
 
 // will be called to create a global test data table.
@@ -118,9 +117,6 @@ void TestTSClient::testRefreshSyncAccessToken()
     QVERIFY(client->isCleanedUp());
 }
 
-
-
-
 void TestTSClient::testFetchSyncAccounts()
 {
     bool success;
@@ -138,11 +134,12 @@ void TestTSClient::testFetchSyncAccounts()
     qDebug() << "Found" << results.size() << "accounts:";
 
     // Save the second account's ID for use in place order test
-    retreivedSIMAccountID = results[1].getAccountId();
-    qDebug() << "Saved second account ID for place order test:" << retreivedSIMAccountID;
+    secondAccountId = results[1].getAccountId();
+    qDebug() << "Saved second account ID for place order test:" << secondAccountId;
 
     // Verify each account has valid data
-    for (const AccountsResult& account : results) {
+    const QVector<AccountsResult>& constResults = results;
+    for (const AccountsResult& account : constResults) {
 
         QVERIFY(account.isValid());
 
@@ -180,7 +177,7 @@ void TestTSClient::testFetchAsyncAccounts()
     QVERIFY(arg.canConvert<QVector<AccountsResult>>());
 
 
-    QVector<AccountsResult> results = arg.value<QVector<AccountsResult>>();
+    const QVector<AccountsResult> results = arg.value<QVector<AccountsResult>>();
     // Verify each account has valid data
     for (const AccountsResult& account : results) {
 
@@ -198,14 +195,14 @@ void TestTSClient::testPlaceSyncOrder()
 
     // Populate the order
     {
-        order.setAccountID(retreivedSIMAccountID); // Use the saved second account ID
+        order.setAccountID(secondAccountId); // Use the saved second account ID
         order.setOrderType(OrderType::Market);
         order.setQuantity(100);
         order.setSymbol("AAPL");
         order.setTradeAction(TradeAction::Buy);
         order.setRoute("Intelligent");
 
-        order.setOrderConfirmID("5109740935");
+        //order.setOrderConfirmID("5109740935");  //TODO ********************** add test cases for invalid orders
 
         // Set up time in force
         TimeInForce timeInForce(OrderDuration::Day);
@@ -228,22 +225,17 @@ void TestTSClient::testPlaceSyncOrder()
     // Verify the order was placed successfully
     QVERIFY(success);
     
-    qDebug().noquote() << "Received reault :\n" << result.toJsonString();
+    qDebug().noquote() << "Received result :\n" << result.toJsonString();
 
-    // Verify the result contains expected data
-    QVERIFY(!result.getOrderID().isEmpty());
-    QCOMPARE(result.getSymbol(), QString("AAPL"));
-    QCOMPARE(result.getQuantity(), 100);
-    QCOMPARE(result.getOrderType(), QString("Market"));
-    
-    // Verify the status is one of the expected values
-    QString status = result.getStatus();
-    QVERIFY(status == "OK" || status == "ACCEPTED" || status == "PENDING");
-    
-    // If there was an error, log it
-    if (!result.getError().isEmpty()) {
-        qWarning() << "Order placement had error:" << result.getError();
-        qWarning() << "Detailed message:" << result.getDetailedMessage();
+    bool marketClosed = isMarketClosed();
+
+    if (marketClosed) {
+        QVERIFY(result.hasErrors());
+        QVERIFY(result.getErrors().first().getError().has_value());
+        QVERIFY(result.getErrors().first().getMessage() == "Order failed. Reason: No Day orders after 4:00PM Eastern");
+        QVERIFY(result.getErrors().first().getOrderID().isEmpty() == false);
+    } else {
+        QVERIFY(result.isAllSuccessful());
     }
 }
 
@@ -278,4 +270,25 @@ void TestTSClient::testFetchingMoreThanMaximumPerMinute()
     }
 
     QVERIFY(client->isCleanedUp());
+}
+
+
+bool TestTSClient::isMarketClosed() {
+    // Get the current date and time in the system's local time zone
+    QDateTime currentTime = QDateTime::currentDateTime();
+
+    // Define the Eastern Time zone (America/New_York)
+    QTimeZone easternTimeZone("America/New_York");
+
+    // Convert to Eastern Time
+    QDateTime easternTime = currentTime.toTimeZone(easternTimeZone);
+
+    // Define 4:00 PM Eastern Time as the market closing time
+    QTime marketCloseTime(16, 0, 0); // 16:00:00 in 24-hour format
+
+    // Extract the current time component in Eastern Time
+    QTime currentEasternTime = easternTime.time();
+
+    // Return true if the current time is after 4:00 PM
+    return currentEasternTime > marketCloseTime;
 }

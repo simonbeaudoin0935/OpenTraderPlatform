@@ -173,7 +173,8 @@ bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockN
         // Resize the array in advance
         results.reserve(jsonDocumentFromReplyToDelete->array().count());
 
-        for (QJsonValue json: jsonDocumentFromReplyToDelete->array()) {
+        const QJsonArray& jsonArray = jsonDocumentFromReplyToDelete->array();
+        for (const QJsonValue &json: jsonArray) {
             results.push_back(StockNewsResult(json.toObject()));
         }
 
@@ -222,7 +223,8 @@ void FMPClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc)
         {
             QVector<StockNewsResult> results;
 
-            for (QJsonValue json: doc.array()) {
+            const QJsonArray& jsonArray = doc.array();
+            for (const QJsonValue &json: jsonArray) {
                 results.push_back(StockNewsResult(json.toObject()));
             }
 

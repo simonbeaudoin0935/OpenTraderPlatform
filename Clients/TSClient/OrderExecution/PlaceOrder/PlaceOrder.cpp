@@ -182,6 +182,10 @@ bool PlaceOrderRequest::isValid() const {
 
     // Validate order type specific requirements
     switch (orderType) {
+        case OrderType::Market:
+            // Market orders don't require any additional validation
+            break;
+
         case OrderType::Limit:
             if (!limitPrice || *limitPrice <= 0) {
                 qWarning() << "Limit orders require a valid limit price";
@@ -190,6 +194,7 @@ bool PlaceOrderRequest::isValid() const {
             break;
 
         case OrderType::StopMarket:
+            [[fallthrough]];
         case OrderType::StopLimit:
             if (!stopPrice || *stopPrice <= 0) {
                 qWarning() << "Stop orders require a valid stop price";
@@ -244,7 +249,7 @@ bool PlaceOrderRequest::isValid() const {
 
         // Validate trailing stop if present
         if (options.getTrailingStop()) {
-            const auto& trailingStop = *options.getTrailingStop();
+            const auto trailingStop = *options.getTrailingStop();
             if (!trailingStop.getAmount() && !trailingStop.getPercent()) {
                 qWarning() << "Trailing stop requires either an amount or percent";
                 return false;
@@ -257,66 +262,49 @@ bool PlaceOrderRequest::isValid() const {
 
 // PlaceOrderResult implementation
 PlaceOrderResult::PlaceOrderResult(const QJsonObject& jsonObj) {
-    orderID = jsonObj["OrderID"].toString();
-    status = jsonObj["Status"].toString();
-    message = jsonObj["Message"].toString();
-    error = jsonObj["Error"].toString();
-    detailedMessage = jsonObj["DetailedMessage"].toString();
-    orderDateTime = jsonObj["OrderDateTime"].toString();
-    orderStatus = jsonObj["OrderStatus"].toString();
-    primaryOrderID = jsonObj["PrimaryOrderID"].toString();
-    secondaryOrderID = jsonObj["SecondaryOrderID"].toString();
-    orderType = jsonObj["OrderType"].toString();
-    symbol = jsonObj["Symbol"].toString();
-    quantity = jsonObj["Quantity"].toInt();
-    limitPrice = jsonObj["LimitPrice"].toDouble();
-    stopPrice = jsonObj["StopPrice"].toDouble();
-    duration = jsonObj["Duration"].toString();
-    allOrNone = jsonObj["AllOrNone"].toBool();
-    gtdDate = jsonObj["GTDDate"].toString();
+    // Parse Orders array
+    if (jsonObj.contains("Orders")) {
+        const QJsonArray &ordersArray = jsonObj["Orders"].toArray();
+        for (const auto& orderJson : ordersArray) {
+            OrderResultItem order(orderJson.toObject());
+            
+            // If the order has an error field, it's a failed order in the Orders array
+            if (order.isError()) {
+                errors.append(order);
+            } else {
+                orders.append(order);
+            }
+        }
+    }
+    
+    // Parse Errors array (documented way)
+    if (jsonObj.contains("Errors")) {
+        const QJsonArray &errorsArray = jsonObj["Errors"].toArray();
+        for (const auto& errorJson : errorsArray) {
+            errors.append(OrderResultItem(errorJson.toObject()));
+        }
+    }
 }
 
-// Getters
-QString PlaceOrderResult::getOrderID() const { return orderID; }
-QString PlaceOrderResult::getStatus() const { return status; }
-QString PlaceOrderResult::getMessage() const { return message; }
-QString PlaceOrderResult::getError() const { return error; }
-QString PlaceOrderResult::getDetailedMessage() const { return detailedMessage; }
-QString PlaceOrderResult::getOrderDateTime() const { return orderDateTime; }
-QString PlaceOrderResult::getOrderStatus() const { return orderStatus; }
-QString PlaceOrderResult::getPrimaryOrderID() const { return primaryOrderID; }
-QString PlaceOrderResult::getSecondaryOrderID() const { return secondaryOrderID; }
-QString PlaceOrderResult::getOrderType() const { return orderType; }
-QString PlaceOrderResult::getSymbol() const { return symbol; }
-int PlaceOrderResult::getQuantity() const { return quantity; }
-double PlaceOrderResult::getLimitPrice() const { return limitPrice; }
-double PlaceOrderResult::getStopPrice() const { return stopPrice; }
-QString PlaceOrderResult::getDuration() const { return duration; }
-bool PlaceOrderResult::getAllOrNone() const { return allOrNone; }
-QString PlaceOrderResult::getGtdDate() const { return gtdDate; }
-
 QString PlaceOrderResult::toJsonString() const {
-    QJsonObject json;
-    json["OrderID"] = orderID;
-    json["Status"] = status;
-    json["Message"] = message;
-    json["Error"] = error;
-    json["DetailedMessage"] = detailedMessage;
-    json["OrderDateTime"] = orderDateTime;
-    json["OrderStatus"] = orderStatus;
-    json["PrimaryOrderID"] = primaryOrderID;
-    json["SecondaryOrderID"] = secondaryOrderID;
-    json["OrderType"] = orderType;
-    json["Symbol"] = symbol;
-    json["Quantity"] = quantity;
-    json["LimitPrice"] = limitPrice;
-    json["StopPrice"] = stopPrice;
-    json["Duration"] = duration;
-    json["AllOrNone"] = allOrNone;
-    json["GTDDate"] = gtdDate;
+    QJsonObject jsonObj;
     
-    QJsonDocument doc(json);
-    return doc.toJson(QJsonDocument::Indented);
+    // Build Orders array
+    QJsonArray ordersArray;
+    for (const auto& order : orders) {
+        ordersArray.append(QJsonDocument::fromJson(order.toJsonString().toUtf8()).object());
+    }
+    jsonObj["Orders"] = ordersArray;
+    
+    // Build Errors array
+    QJsonArray errorsArray;
+    for (const auto& error : errors) {
+        errorsArray.append(QJsonDocument::fromJson(error.toJsonString().toUtf8()).object());
+    }
+    jsonObj["Errors"] = errorsArray;
+    
+    QJsonDocument doc(jsonObj);
+    return QString(doc.toJson(QJsonDocument::Indented));
 }
 
 // MarketActivationRule implementation
@@ -419,7 +407,32 @@ QJsonObject AdvancedOptions::toJson() const {
         json["TimeActivationRules"] = rulesArray;
     }
     
-    if (trailingStop) json["TrailingStop"] = trailingStop->toJson();
+    if (trailingStop) {
+        const TrailingStop& trailingStopObj = *trailingStop;
+        json["TrailingStop"] = trailingStopObj.toJson();
+    }
     
     return json;
+}
+
+OrderResultItem::OrderResultItem(const QJsonObject& jsonObj) {
+    orderID = jsonObj["OrderID"].toString();
+    message = jsonObj["Message"].toString();
+    
+    // Error field is optional
+    if (jsonObj.contains("Error")) {
+        error = jsonObj["Error"].toString();
+    }
+}
+
+QString OrderResultItem::toJsonString() const {
+    QJsonObject jsonObj;
+    jsonObj["OrderID"] = orderID;
+    jsonObj["Message"] = message;
+    if (error.has_value()) {
+        jsonObj["Error"] = error.value();
+    }
+    
+    QJsonDocument doc(jsonObj);
+    return QString(doc.toJson(QJsonDocument::Indented));
 }
