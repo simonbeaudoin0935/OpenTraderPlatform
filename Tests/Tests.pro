@@ -2,7 +2,7 @@ TEMPLATE = subdirs
 
 SUBDIRS += \
     FMPClientUnit \
-    TradeStationClientUnit
+    TSClientUnit
 
 
 

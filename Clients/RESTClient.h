@@ -100,7 +100,7 @@ protected:
 
 private:
     friend class TestFMPClient;
-    friend class TestTradeStationClient;
+    friend class TestTSClient;
 
     const QUrl baseUrl;
     QLoggingCategory *loggingCategory;

@@ -1,17 +1,17 @@
 #include <QDebug>
-#include "TestTradeStationClient.h"
-#include "../../Clients/TradeStationClient/TradeStationClient.h"
+#include "TestTSClient.h"
+#include "../../Clients/TSClient/TSClient.h"
 #include <QSignalSpy>
 #include <QTest>
 #include <QSettings>
 #include <QDateTime>
 
 static QString retreivedSIMAccountID;
-TradeStationClient* TSClient;
+TSClient* TSClient;
 
 
 // will be called to create a global test data table.
-void TestTradeStationClient::initTestCase_data()
+void TestTSClient::initTestCase_data()
 {
     AuthToken savedAuthToken = AuthToken::loadFromSettings();
 
@@ -42,32 +42,32 @@ void TestTradeStationClient::initTestCase_data()
 }
 
 // will be called before the first test function is executed.
-void TestTradeStationClient::initTestCase() {
-    QLoggingCategory::setFilterRules("TradeStationClient.debug=true");
+void TestTSClient::initTestCase() {
+    QLoggingCategory::setFilterRules("TSClient.debug=true");
 
     qInfo() << "Start of test suite";
 }
 
 // Will be called before each test function is executed.
-void TestTradeStationClient::init()
+void TestTSClient::init()
 {
     // Make sure the debug prints are enabled
-    QLoggingCategory::setFilterRules("TradeStationClient.debug=true");
+    QLoggingCategory::setFilterRules("TSClient.debug=true");
 
     // A test could change the logging behavior to suppress too much logging,
     // but it will be reset before each test
 }
 
 // Will be called after every test function.
-void TestTradeStationClient::cleanup() {
+void TestTSClient::cleanup() {
 
 }
 
-void TestTradeStationClient::testRefreshSyncAccessToken()
+void TestTSClient::testRefreshSyncAccessToken()
 {
     bool triggered;
-    TSClient = TradeStationClient::getInstancePtr(); // First time do a getInstance, this will call the constructor
-    QSignalSpy authStateSpy(TSClient, &TradeStationClient::authStateChanged); // Create signal spies to monitor authentication signals
+    TSClient = TSClient::getInstancePtr(); // First time do a getInstance, this will call the constructor
+    QSignalSpy authStateSpy(TSClient, &TSClient::authStateChanged); // Create signal spies to monitor authentication signals
 
     // Critical to do, will start the thread
     TSClient->start();
@@ -97,7 +97,7 @@ void TestTradeStationClient::testRefreshSyncAccessToken()
     QVERIFY(TSClient->isAuthenticated());
     QVERIFY(!TSClient->isAuthInProgress());
 
-    // Wait just a little bit, for some reason this test thread outruns the housekeeping done in the TradeStationClient that cleans the serviced
+    // Wait just a little bit, for some reason this test thread outruns the housekeeping done in the TSClient that cleans the serviced
     // replies. Otherwise, the following isCleanedUp() triggers because the refreshTokenReply is not flushed from the map<>
     QTest::qWait(100);
 
@@ -108,7 +108,7 @@ void TestTradeStationClient::testRefreshSyncAccessToken()
 
 
 
-void TestTradeStationClient::testFetchSyncAccounts()
+void TestTSClient::testFetchSyncAccounts()
 {
     bool success;
     
@@ -163,15 +163,15 @@ void TestTradeStationClient::testFetchSyncAccounts()
     QVERIFY(TSClient->isCleanedUp());
 }
 
-void TestTradeStationClient::testFetchAsyncAccounts()
+void TestTSClient::testFetchAsyncAccounts()
 {   
-    QSignalSpy authStateSpy(TSClient, &TradeStationClient::authStateChanged); // Create signal spies to monitor authentication signals
+    QSignalSpy authStateSpy(TSClient, &TSClient::authStateChanged); // Create signal spies to monitor authentication signals
 
     QSKIP("Not implemented");
 
 }
 
-void TestTradeStationClient::testPlaceSyncOrder()
+void TestTSClient::testPlaceSyncOrder()
 {
     PlaceOrderRequest order;
 
@@ -226,21 +226,21 @@ void TestTradeStationClient::testPlaceSyncOrder()
     }
 }
 
-void TestTradeStationClient::testPlaceAsyncOrder()
+void TestTSClient::testPlaceAsyncOrder()
 {
     QSKIP("Not implemented");
 }
 
 
 
-void TestTradeStationClient::testFetchingMoreThanMaximumPerMinute()
+void TestTSClient::testFetchingMoreThanMaximumPerMinute()
 {
     QSKIP("Manual test requiring user interaction - skipping in automated tests");
 
-    qInfo() << "Turned of qCDebug(TradeStationClient.debug) for this test so as to not flood the console.";
+    qInfo() << "Turned of qCDebug(TSClient.debug) for this test so as to not flood the console.";
 
     // Suppress debug prints for this test as we will do a huge number of requests
-    QLoggingCategory::setFilterRules("TradeStationClient.debug=false");
+    QLoggingCategory::setFilterRules("TSClient.debug=false");
 
     QVERIFY(TSClient->isCleanedUp());
 

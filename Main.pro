@@ -15,11 +15,11 @@ SOURCES += \
     Clients/FMPClient/FMPClient.cpp \
     Clients/FMPClient/Filters/CompanyScreenerFilter.cpp \
     Clients/FMPClient/Filters/StockNewsFilter.cpp \
-    Clients/TradeStationClient/TradeStationClient.cpp \
-    Clients/TradeStationClient/Auth/AuthToken.cpp \
-    Clients/TradeStationClient/Auth/ClientToken.cpp \
-    Clients/TradeStationClient/Brokerage/Accounts/AccountsResult.cpp \
-    Clients/TradeStationClient/OrderExecution/PlaceOrder/PlaceOrder.cpp
+    Clients/TSClient/TSClient.cpp \
+    Clients/TSClient/Auth/AuthToken.cpp \
+    Clients/TSClient/Auth/ClientToken.cpp \
+    Clients/TSClient/Brokerage/Accounts/AccountsResult.cpp \
+    Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.cpp
 
 HEADERS += \
     Misc/Settings.h \
@@ -32,15 +32,15 @@ HEADERS += \
     Clients/FMPClient/FMPClient.h \
     Clients/FMPClient/Filters/CompanyScreenerFilter.h \
     Clients/FMPClient/Filters/StockNewsFilter.h \
-    Clients/TradeStationClient/TradeStationClient.h \
-    Clients/TradeStationClient/Auth/AuthToken.h \
-    Clients/TradeStationClient/Auth/ClientToken.h \
-    Clients/TradeStationClient/Brokerage/Accounts/AccountsResult.h \
-    Clients/TradeStationClient/OrderExecution/PlaceOrder/PlaceOrder.h
+    Clients/TSClient/TSClient.h \
+    Clients/TSClient/Auth/AuthToken.h \
+    Clients/TSClient/Auth/ClientToken.h \
+    Clients/TSClient/Brokerage/Accounts/AccountsResult.h \
+    Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.h
 
 INCLUDEPATH += \
     Clients/FMPClient
-    Clients/TradeStationClient
+    Clients/TSCClient
 
 DEPENDPATH += Clients/FMPClient
 
@@ -59,12 +59,12 @@ gui {
     SOURCES += \
         GUI/GuiFrontend.cpp \
         GUI/StockPriceChart.cpp \
-        Clients/TradeStationClient/Auth/AuthWindow.cpp
+        Clients/TSClient/Auth/AuthWindow.cpp
 
     HEADERS += \
         GUI/GuiFrontend.h \
         GUI/StockPriceChart.h \
-        Clients/TradeStationClient/Auth/AuthWindow.h \
+        Clients/TSClient/Auth/AuthWindow.h \
 
     FORMS += \
         GUI/guifrontend.ui

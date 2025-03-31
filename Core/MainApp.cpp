@@ -3,7 +3,7 @@
 MainApp::MainApp(AppFrontend* appFrontend) :
     appFrontend(appFrontend),
     fmpClient(FMPClient::getInstancePtr()),
-    tradeStationClient(TradeStationClient::getInstancePtr()),
+    tradeStationClient(TSClient::getInstancePtr()),
     mainAlgo(new MainAlgo())
 {
     // Connect memory usage updates to frontend
@@ -12,10 +12,10 @@ MainApp::MainApp(AppFrontend* appFrontend) :
     // Connect TradeStation authentication state changes to frontend
     // When the client thread starts and the event loop kicks, there will be an initial
     // emition to signal what is the initial state
-    QObject::connect(tradeStationClient, &TradeStationClient::authStateChanged,
+    QObject::connect(tradeStationClient, &TSClient::authStateChanged,
                     appFrontend, &AppFrontend::tradeStationAuthStateChanged);
 
-    QObject::connect(tradeStationClient, &TradeStationClient::accountsAsyncReceived,
+    QObject::connect(tradeStationClient, &TSClient::accountsAsyncReceived,
                      appFrontend, &AppFrontend::tradeStationAccountsReceived);
 
 
@@ -24,7 +24,7 @@ MainApp::MainApp(AppFrontend* appFrontend) :
                     appFrontend, &AppFrontend::fmpDataUsageUpdated);
 
     // Connect TradeStation data usage updates to frontend
-    QObject::connect(tradeStationClient, &TradeStationClient::totalDataReceivedBytesIncreased,
+    QObject::connect(tradeStationClient, &TSClient::totalDataReceivedBytesIncreased,
                      appFrontend, &AppFrontend::tradeStationDataUsageUpdated);
 
 }

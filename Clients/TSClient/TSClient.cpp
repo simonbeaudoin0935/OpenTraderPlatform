@@ -1,4 +1,4 @@
-#include "TradeStationClient.h"
+#include "TSClient.h"
 #include <QNetworkAccessManager>
 #include <QThread>
 #include <QNetworkReply>
@@ -14,28 +14,28 @@
 const QUrl baseUrlTradeStation("https://sim-api.tradestation.com/v3/");
 
 // Define the logging category
-Q_LOGGING_CATEGORY(TradeStationClientLog, "TradeStationClient")
+Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
 
 // Initialize static member outside class
-TradeStationClient* TradeStationClient::instance = nullptr;
+TSClient* TSClient::instance = nullptr;
 
-TradeStationClient& TradeStationClient::getInstance() {
+TSClient& TSClient::getInstance() {
     if (instance == nullptr) {
-        qCDebug(TradeStationClientLog) << "Singleton instance created";
-        instance = new TradeStationClient();
+        qCDebug(TSClientLog) << "Singleton instance created";
+        instance = new TSClient();
     }
     return *instance;
 }
 
-TradeStationClient* TradeStationClient::getInstancePtr() {
+TSClient* TSClient::getInstancePtr() {
     if (instance == nullptr) {
-        qCDebug(TradeStationClientLog) << "Singleton instance created";
-        instance = new TradeStationClient();
+        qCDebug(TSClientLog) << "Singleton instance created";
+        instance = new TSClient();
     }
     return instance;
 }
 
-TradeStationClient::TradeStationClient() :
+TSClient::TSClient() :
     RESTClient(baseUrlTradeStation),
     authenticated(false),
     authInProgress(false)
@@ -45,7 +45,7 @@ TradeStationClient::TradeStationClient() :
 
     // If the token is invalid/absent, we need to perform an authentification with the popup
     if (!authToken.isValid() || !clientToken.isValid()) {
-        qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+        qCDebug(TSClientLog) << Q_FUNC_INFO <<
             "Auth token or Client token is invalid/absent, will need an authentification process";
 
         QTimer::singleShot(0, this, [this]() {
@@ -57,7 +57,7 @@ TradeStationClient::TradeStationClient() :
     // just perform a refresh
     else if (authToken.isValid() && authToken.isExpired()) {
 
-        qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+        qCDebug(TSClientLog) << Q_FUNC_INFO <<
             "Auth token is valid but expired, perform a refresh now.";
 
         // Its okay to do this in the constructor, this will queue the request for when
@@ -73,8 +73,8 @@ TradeStationClient::TradeStationClient() :
 
         RESTClient::setAPIKey(authToken.getAccessToken());
 
-        qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
-            ": TradeStationClient created using KEY=" << authToken.getAccessToken();
+        qCDebug(TSClientLog) << Q_FUNC_INFO <<
+            ": TSClient created using KEY=" << authToken.getAccessToken();
 
         int secsUntilExpiration = authToken.secondsUntilExpiration();
 
@@ -82,7 +82,7 @@ TradeStationClient::TradeStationClient() :
         // Compare against 4 just in case we are at 5 seconds left
         Q_ASSERT(secsUntilExpiration > 4);
 
-        qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+        qCDebug(TSClientLog) << Q_FUNC_INFO <<
             "Auth token is valid and already not expired, still has " <<
             secsUntilExpiration  << "second left to it";
 
@@ -91,7 +91,7 @@ TradeStationClient::TradeStationClient() :
         // Logically if we are here this HAS to be t least 1s
         Q_ASSERT(secondsToNextRefreshRequest > 1);
 
-        qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+        qCDebug(TSClientLog) << Q_FUNC_INFO <<
             "Initiating a refresh in " << secondsToNextRefreshRequest << "seconds";
 
         // Launch a request in X seconds from now.
@@ -107,54 +107,54 @@ TradeStationClient::TradeStationClient() :
         Q_UNREACHABLE();
     }
 
-    thread->setObjectName("TradeStationClientThread");
+    thread->setObjectName("TSClientThread");
 }
 
-TradeStationClient::~TradeStationClient() {
-    qCDebug(TradeStationClientLog) << "Singleton instance destroyed";
+TSClient::~TSClient() {
+    qCDebug(TSClientLog) << "Singleton instance destroyed";
 
     thread->quit();
     thread->wait();
 }
 
 // Launches a pop up. We will receive a signal when the process finishes
-void TradeStationClient::launchAuthProcess(QWidget* parent) {
+void TSClient::launchAuthProcess(QWidget* parent) {
 
     if (authInProgress) {
-        qCWarning(TradeStationClientLog) << "Authentication process already in progress";
+        qCWarning(TSClientLog) << "Authentication process already in progress";
         Q_ASSERT(0); // TODO check if necessary
         return;
     }
 
     authInProgress = true;
     authWindow = new AuthWindow(parent);
-    connect(authWindow, &AuthWindow::authFinished, this, &TradeStationClient::onAuthFinished);
-    connect(authWindow, &QObject::destroyed, this, &TradeStationClient::onAuthWindowDestroyed);
+    connect(authWindow, &AuthWindow::authFinished, this, &TSClient::onAuthFinished);
+    connect(authWindow, &QObject::destroyed, this, &TSClient::onAuthWindowDestroyed);
     authWindow->show();
 }
 
-void TradeStationClient::onAuthFinished(bool success, AuthToken token, QString reason) {
+void TSClient::onAuthFinished(bool success, AuthToken token, QString reason) {
     authenticated = success;
     authInProgress = false;
 
     if (success) {
         bool stored = AuthToken::storeToSettings(token);
         Q_ASSERT(stored);
-        qDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+        qDebug(TSClientLog) << Q_FUNC_INFO <<
             "Auth successful : " << reason;
     } else {
-        qDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+        qDebug(TSClientLog) << Q_FUNC_INFO <<
             "Auth unsucessful : " << reason;
     }
     emit authStateChanged(authenticated, reason);
 }
 
-void TradeStationClient::onAuthWindowDestroyed() {
+void TSClient::onAuthWindowDestroyed() {
     // TODO race contition possible?
     authWindow = nullptr;
 }
 
-QNetworkRequest TradeStationClient::buildRefreshTokenRequest() {
+QNetworkRequest TSClient::buildRefreshTokenRequest() {
     QUrl url;
     url.setScheme("https");
     url.setHost("signin.tradestation.com");
@@ -166,7 +166,7 @@ QNetworkRequest TradeStationClient::buildRefreshTokenRequest() {
     return request;
 }
 
-QByteArray TradeStationClient::buildRefreshTokenQuery(const QString &clientId,
+QByteArray TSClient::buildRefreshTokenQuery(const QString &clientId,
                                                    const QString &clientSecret,
                                                    const QString &refreshToken) {
     QUrlQuery query;
@@ -177,7 +177,7 @@ QByteArray TradeStationClient::buildRefreshTokenQuery(const QString &clientId,
     return query.toString(QUrl::FullyEncoded).toUtf8();
 }
 
-bool TradeStationClient::fetchSyncAccounts(QVector<AccountsResult> &results)
+bool TSClient::fetchSyncAccounts(QVector<AccountsResult> &results)
 {
     QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "brokerage/accounts", "");
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
@@ -209,15 +209,15 @@ bool TradeStationClient::fetchSyncAccounts(QVector<AccountsResult> &results)
     return ret;
 }
 
-void TradeStationClient::fetchAsyncAccounts()
+void TSClient::fetchAsyncAccounts()
 {
     QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "brokerage/accounts");
     fetchAsync(request, static_cast<RequestTypeInt>(RequestType::Accounts));
 
-    qCDebug(TradeStationClientLog) << Q_FUNC_INFO << "Fetching accounts";
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching accounts";
 }
 
-void TradeStationClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
+void TSClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
 {
     authInProgress = false;
     bool success = newToken.isValidRefreshedToken() && !newToken.isExpired();
@@ -232,7 +232,7 @@ void TradeStationClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
         // refresh_token from the actual token, stick it in there then save.
         emit authStateChanged(true, "Auth token refresh successful");\
 
-        qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+        qCDebug(TSClientLog) << Q_FUNC_INFO <<
             "Successful auth token refresh";
 
         // For some reason (security maybe) the new token return doesn't contain the refresh_key
@@ -261,7 +261,7 @@ void TradeStationClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
             // Logically if we are here this HAS to be t least 1s
             Q_ASSERT(secondsToNextRefreshRequest > 1 && secondsToNextRefreshRequest <= 1195);
 
-            qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+            qCDebug(TSClientLog) << Q_FUNC_INFO <<
                 "Programming the next refresh in " << secondsToNextRefreshRequest << "seconds";
 
             // Launch a request in X seconds from now.
@@ -273,14 +273,14 @@ void TradeStationClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
         authenticated = false;
         emit authStateChanged(false, "Failed to refresh access token");
 
-        qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+        qCDebug(TSClientLog) << Q_FUNC_INFO <<
             "Unsuccessful auth token refresh";
     }
 
 #warning TODO kick a watchdog timer in case the reply never comes
 }
 
-bool TradeStationClient::refreshSyncAccessToken()
+bool TSClient::refreshSyncAccessToken()
 {
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
     bool success;
@@ -289,7 +289,7 @@ bool TradeStationClient::refreshSyncAccessToken()
 
     authInProgress = true;
 
-    qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+    qCDebug(TSClientLog) << Q_FUNC_INFO <<
         "Starting a SYNC token refresh request";
 
     // Make sure we are good to go
@@ -314,7 +314,7 @@ bool TradeStationClient::refreshSyncAccessToken()
     }
 
     if (!success) {
-        qCWarning(TradeStationClientLog) << "Failed to refresh access token";
+        qCWarning(TSClientLog) << "Failed to refresh access token";
         authenticated = false;
         authInProgress = false;
         Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
@@ -330,7 +330,7 @@ bool TradeStationClient::refreshSyncAccessToken()
     AuthToken newToken = AuthToken::receiveAuthToken(response);
 
     if (!newToken.isValid()) {
-        qCWarning(TradeStationClientLog) << "Received refreshed token is invalid";
+        qCWarning(TSClientLog) << "Received refreshed token is invalid";
         authenticated = false;
         authInProgress = false;
 
@@ -345,7 +345,7 @@ bool TradeStationClient::refreshSyncAccessToken()
     return true;
 }
 
-void TradeStationClient::refreshAsyncAccessToken()
+void TSClient::refreshAsyncAccessToken()
 {
     Q_ASSERT_X(authInProgress == false,
                Q_FUNC_INFO,
@@ -353,7 +353,7 @@ void TradeStationClient::refreshAsyncAccessToken()
 
     authInProgress = true;
 
-    qCDebug(TradeStationClientLog) << Q_FUNC_INFO <<
+    qCDebug(TSClientLog) << Q_FUNC_INFO <<
         "Starting an ASYNC token refresh request";
 
     // Make sure we are good to go
@@ -382,7 +382,7 @@ void TradeStationClient::refreshAsyncAccessToken()
 }
 
 
-void TradeStationClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) {
+void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) {
     RequestType requestType = static_cast<RequestType>(type);
     QJsonObject obj = doc.object();
 
@@ -419,7 +419,7 @@ void TradeStationClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocum
     }
 }
 
-bool TradeStationClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &result) {
+bool TSClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &result) {
 
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
@@ -456,7 +456,7 @@ bool TradeStationClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrd
     return true;
 }
 
-void TradeStationClient::placeAsyncOrder(const PlaceOrderRequest &order) {
+void TSClient::placeAsyncOrder(const PlaceOrderRequest &order) {
 #warning complete
 }
 

@@ -4,7 +4,7 @@
 #include <QtTest/QtTest>
 #include <QSettings>
 
-class TestTradeStationClient : public QObject {
+class TestTSClient : public QObject {
     Q_OBJECT
 private slots:
     void initTestCase_data();

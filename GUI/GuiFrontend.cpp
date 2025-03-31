@@ -41,7 +41,7 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
             this, &GuiFrontend::onFMPClientDataUsageUpdate);
 
     connect(this, &AppFrontend::tradeStationDataUsageUpdated,
-            this, &GuiFrontend::onTradeStationClientDataUsageUpdate);
+            this, &GuiFrontend::onTSClientDataUsageUpdate);
 
     // TODO disconnect this and pass through the frontend
     QObject::connect(FMPClient::getInstancePtr(), &FMPClient::quoteShortReceived, this, &GuiFrontend::onQuoteShortReceived);
@@ -61,16 +61,16 @@ void GuiFrontend::onFMPClientDataUsageUpdate(qsizetype newDataUsage)
     FMPClientDataUsage = newDataUsage;
 
     QString usageFMP = bytesToString(newDataUsage);
-    QString usageTS  = bytesToString(TradeStationClientDataUsage);
+    QString usageTS  = bytesToString(TSClientDataUsage);
     QString usageMemory = bytesToString(memoryUsage);
 
 
     ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
 }
 
-void GuiFrontend::onTradeStationClientDataUsageUpdate(qsizetype newDataUsage)
+void GuiFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
 {
-    TradeStationClientDataUsage = newDataUsage;
+    TSClientDataUsage = newDataUsage;
 
     QString usageFMP = bytesToString(FMPClientDataUsage);
     QString usageTS  = bytesToString(newDataUsage);
@@ -108,7 +108,7 @@ void GuiFrontend::onMemoryUsageUpdate(qint64 newDataUsage)
     memoryUsage = newDataUsage;
 
     QString usageFMP = bytesToString(FMPClientDataUsage);
-    QString usageTS  = bytesToString(TradeStationClientDataUsage);
+    QString usageTS  = bytesToString(TSClientDataUsage);
     QString usageMemory = bytesToString(newDataUsage);
 
     ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
@@ -138,8 +138,8 @@ void GuiFrontend::onQuoteShortReceived(const FMPClient::QuoteShortResult quoteRe
 void GuiFrontend::onTradeStationLoginClicked() {
 #warning rework this, or at least better document that its this thread executing it. There is a race for sure with the TSClient internal flags
     // AuthWindow is modal, so it's impossible to click the button while authentication is in progress
-    Q_ASSERT(!TradeStationClient::getInstance().isAuthInProgress());
-    TradeStationClient::getInstance().launchAuthProcess(static_cast<QMainWindow*>(ui->centralwidget->parent()));
+    Q_ASSERT(!TSClient::getInstance().isAuthInProgress());
+    TSClient::getInstance().launchAuthProcess(static_cast<QMainWindow*>(ui->centralwidget->parent()));
 }
 
 void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason) {
@@ -152,7 +152,7 @@ void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
         tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #E6FFE6; color: #4CAF50; padding: 2px 6px; border-radius: 3px; }");
         log += "TradeStation Client AUTHENTICATED : " + reason;
 
-        TradeStationClient::getInstance().fetchAsyncAccounts();
+        TSClient::getInstance().fetchAsyncAccounts();
 
     } else {
         if (isFirstTime) {

@@ -2,13 +2,13 @@
 #include <QCommandLineParser>
 #include <QString>
 
-#include "TestTradeStationClient.h"
+#include "TestTSClient.h"
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
 
     QThread::currentThread()->setObjectName("MainThread");
 
-    TestTradeStationClient test;
+    TestTSClient test;
     return QTest::qExec(&test, argc, argv);
 } 

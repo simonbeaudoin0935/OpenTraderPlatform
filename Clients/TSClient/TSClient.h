@@ -10,18 +10,18 @@
 #include "Brokerage/Accounts/AccountsResult.h"
 #include "OrderExecution/PlaceOrder/PlaceOrder.h"
 
-Q_DECLARE_LOGGING_CATEGORY(TradeStationClientLog)
+Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 
 // This is a singleton
 
-class TradeStationClient : public RESTClient {
+class TSClient : public RESTClient {
     Q_OBJECT
 public:
     // Singleton : Instance getter  and delete copy and assignment
-    static TradeStationClient& getInstance();
-    static TradeStationClient* getInstancePtr();
-    TradeStationClient(const TradeStationClient&) = delete;
-    TradeStationClient& operator=(const TradeStationClient&) = delete;
+    static TSClient& getInstance();
+    static TSClient* getInstancePtr();
+    TSClient(const TSClient&) = delete;
+    TSClient& operator=(const TSClient&) = delete;
 
     // Authentication state getter
     bool isAuthenticated() const { return authenticated; }
@@ -65,8 +65,8 @@ private slots:
 
 private:
     // Singleton : private constructor
-    explicit TradeStationClient();
-    ~TradeStationClient();
+    explicit TSClient();
+    ~TSClient();
 
 
     // Static helper methods for authentication
@@ -91,7 +91,7 @@ private:
     ClientToken clientToken;
 
     // Singleton
-    static TradeStationClient* instance;
+    static TSClient* instance;
 
     bool authenticated = false;  // Track authentication state
     bool authInProgress = false;  // Track if authentication process is in progress
@@ -100,7 +100,7 @@ private:
     // API key placement configuration
     static constexpr ApiKeyPlacement API_KEY_PLACEMENT = ApiKeyPlacement::InHeader;
 
-    friend class TestTradeStationClient;
+    friend class TestTSClient;
 };
 
 #endif // TRADESTATIONCLIENT_H 

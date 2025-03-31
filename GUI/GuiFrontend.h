@@ -7,7 +7,7 @@
 #include <QPushButton>
 
 #include "../Clients/FMPClient/FMPClient.h"
-#include "../Clients/TradeStationClient/TradeStationClient.h"
+#include "../Clients/TSClient/TSClient.h"
 
 // Forward declare the generated UI class
 namespace Ui {
@@ -22,7 +22,7 @@ public:
 
 public slots:
     void onFMPClientDataUsageUpdate(qsizetype newDataUsage) override;
-    void onTradeStationClientDataUsageUpdate(qsizetype newDataUsage) override;
+    void onTSClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onTradeStationAccountsReceived(QVector<AccountsResult> results) override;
     void onMemoryUsageUpdate(qint64 newDataUsage) override; // TODO deal with qint64 vs qsizetype
 
@@ -41,7 +41,7 @@ private:
     QTimer updateTimer;
 
     qsizetype FMPClientDataUsage = 0;
-    qsizetype TradeStationClientDataUsage = 0;
+    qsizetype TSClientDataUsage = 0;
     qint64 memoryUsage = 0;
 };
 
