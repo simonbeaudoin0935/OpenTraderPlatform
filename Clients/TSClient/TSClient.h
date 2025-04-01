@@ -1,5 +1,4 @@
-#ifndef TRADESTATIONCLIENT_H
-#define TRADESTATIONCLIENT_H
+#pragma once
 
 #include <QObject>
 #include <QLoggingCategory>
@@ -9,6 +8,7 @@
 #include "Auth/AuthToken.h"
 #include "Brokerage/Accounts/AccountsResult.h"
 #include "OrderExecution/PlaceOrder/PlaceOrder.h"
+#include "MarketData/StreamMarketDepthQuote/StreamMarketDepthQuote.h"
 
 Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 
@@ -27,22 +27,44 @@ public:
     bool isAuthenticated() const { return authenticated; }
     bool isAuthInProgress() const { return authInProgress; }
 
-    // -------- Market data methods --------    
+                              // -------- Market data methods ----------
 
-    // -------- Brokerage methods ----------
+    /*
+     * Creates a MarketDepthQuote Stream
+     *
+     * @return : nullptr if the stream could not be created
+     * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/StreamMarketDepthQuotes
+     *
+     * @note : Object dynamically allocated and returned. TSClient owns this object and it lives
+     *         in the thread of the client and shares the same network access manager. Later
+     *         calling closeStreamMarketDepthQuote will delete it. Do not delete outside.
+     *
+     * @note : ->startStream() needs to be called in order to start the stream. This gives time to the
+     *         caller to setup signal/slot connections
+     */
+    StreamMarketDepthQuote* openStreamMarketDepthQuote(QString &symbol, qsizetype depth = 20);
+    void closeStreamMarketDepthQuote(StreamMarketDepthQuote* stream);
 
-    // https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
+                              // -------- Brokerage methods -------------
+
+    /*
+     * Get Accounts
+     *
+     * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
+     */
     bool fetchSyncAccounts(QVector<AccountsResult> &results);
     void fetchAsyncAccounts();
 
 
-    // -------- Order execution methods --------
+                              // -------- Order execution methods --------
  
-    // Place order
-    // https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/PlaceOrder    // https://api.tradestation.com/docs/specification#tag/Brokerage/operation/PostOrder
+    /*
+     * Place order
+     *
+     * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/PlaceOrder
+     */
     bool placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &result);
     void placeAsyncOrder(const PlaceOrderRequest &order);
-
 
 public slots:
     // Authentication methods
@@ -53,6 +75,8 @@ signals:
     void authStateChanged(bool isAuthenticated, QString reason);
     void accountsAsyncReceived(QVector<AccountsResult> results);
     void placeAsyncOrderReceived(const PlaceOrderResult &result);
+
+    void marketDepthNotAvailable();
 
 private slots:
     void onAuthFinished(bool success, AuthToken token, QString reason);
@@ -93,10 +117,10 @@ private:
     bool authInProgress = false;  // Track if authentication process is in progress
     AuthWindow* authWindow = nullptr;  // Authentication window
 
+    QVector<Stream*> streams;
+
     // API key placement configuration
     static constexpr ApiKeyPlacement API_KEY_PLACEMENT = ApiKeyPlacement::InHeader;
 
-    friend class TestTSClient;
+    friend class TestTSClient; // For unit testing
 };
-
-#endif // TRADESTATIONCLIENT_H 

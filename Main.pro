@@ -18,6 +18,9 @@ SOURCES += \
     Clients/TSClient/TSClient.cpp \
     Clients/TSClient/Auth/AuthToken.cpp \
     Clients/TSClient/Auth/ClientToken.cpp \
+    Clients/TSClient/MarketData/Stream.cpp \
+    Clients/TSClient/MarketData/StreamMarketDepthQuote/StreamMarketDepthQuote.cpp \
+    Clients/TSClient/MarketData/StreamMarketDepthQuote/MarketDepthQuote.cpp \
     Clients/TSClient/Brokerage/Accounts/AccountsResult.cpp \
     Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.cpp
 
@@ -35,6 +38,9 @@ HEADERS += \
     Clients/TSClient/TSClient.h \
     Clients/TSClient/Auth/AuthToken.h \
     Clients/TSClient/Auth/ClientToken.h \
+    Clients/TSClient/MarketData/Stream.h \
+    Clients/TSClient/MarketData/StreamMarketDepthQuote/StreamMarketDepthQuote.h \
+    Clients/TSClient/MarketData/StreamMarketDepthQuote/MarketDepthQuote.h \
     Clients/TSClient/Brokerage/Accounts/AccountsResult.h \
     Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.h
 

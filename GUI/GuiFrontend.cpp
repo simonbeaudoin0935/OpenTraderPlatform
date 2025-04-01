@@ -43,6 +43,9 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     connect(this, &AppFrontend::tradeStationDataUsageUpdated,
             this, &GuiFrontend::onTSClientDataUsageUpdate);
 
+    connect(this, &AppFrontend::marketDepthNotAvailable,
+            this, &GuiFrontend::onMarketDepthNotAvailable);
+
     // TODO disconnect this and pass through the frontend
     QObject::connect(FMPClient::getInstancePtr(), &FMPClient::quoteShortReceived, this, &GuiFrontend::onQuoteShortReceived);
 
@@ -114,6 +117,17 @@ void GuiFrontend::onMemoryUsageUpdate(qint64 newDataUsage)
     ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
 }
 
+void GuiFrontend::onMarketDepthNotAvailable()
+{
+    QMessageBox::critical(ui->centralwidget, "Missing Level 2 data",
+                          "Received error 403 when accessing Level 2.\n"
+                          "This means Level 2 data is not activated on the account.\n"
+                          "You need to go to :\n"
+                          "https://clientcenter.tradestation.com/support/myaccount/change_data.aspx\n"
+                          "And subscribe to NASDAQ Real-Time Data Package #3.\n"
+                          "And by extention the Enhanced Market Depth package.");
+}
+
 void GuiFrontend::onUpdateTimerTimeout()
 {
     //TODO test
@@ -154,6 +168,9 @@ void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
 
         TSClient::getInstance().fetchAsyncAccounts();
 
+        QString symbol = "AAPL";
+
+        auto a = TSClient::getInstance().openStreamMarketDepthQuote(symbol);
     } else {
         if (isFirstTime) {
             // If its the first time we receive this signal and its negative state, it just

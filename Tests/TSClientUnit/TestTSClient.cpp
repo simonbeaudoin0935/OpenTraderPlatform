@@ -1,10 +1,11 @@
 #include <QDebug>
-#include "TestTSClient.h"
-#include "../../Clients/TSClient/TSClient.h"
 #include <QSignalSpy>
 #include <QTest>
 #include <QSettings>
 #include <QDateTime>
+
+#include "TestTSClient.h"
+#include "../../Clients/TSClient/TSClient.h"
 
 static TSClient* client;
 
@@ -234,6 +235,8 @@ void TestTSClient::testPlaceSyncOrder()
         QVERIFY(result.getErrors().first().getError().has_value());
         QVERIFY(result.getErrors().first().getMessage() == "Order failed. Reason: No Day orders after 4:00PM Eastern");
         QVERIFY(result.getErrors().first().getOrderID().isEmpty() == false);
+
+        qDebug() << "*** Market is closed this is expected ***";
     } else {
         QVERIFY(result.isAllSuccessful());
     }
@@ -248,7 +251,7 @@ void TestTSClient::testPlaceAsyncOrder()
 
 void TestTSClient::testFetchingMoreThanMaximumPerMinute()
 {
-    QSKIP("Manual test requiring user interaction - skipping in automated tests");
+    QSKIP("Not implemented");
 
     qInfo() << "Turned of qCDebug(TSClient.debug) for this test so as to not flood the console.";
 
@@ -272,6 +275,60 @@ void TestTSClient::testFetchingMoreThanMaximumPerMinute()
     QVERIFY(client->isCleanedUp());
 }
 
+void TestTSClient::testStreamMarketDepthQuote()
+{
+    // TODO: Implement test for market depth streaming
+    // This will likely involve:
+    // 1. Setting up a WebSocket connection
+    // 2. Subscribing to market depth updates for a symbol
+    // 3. Verifying the received data matches the expected format
+    // 4. Testing error cases and disconnection scenarios
+    // 5. Testing reconnection scenarios
+    // 6. Testing multiple symbol subscriptions
+    // 7. Testing unsubscribe functionality
+    QString symbol = "BTCUSD";
+    StreamMarketDepthQuote* stream;
+
+    stream = client->openStreamMarketDepthQuote(symbol);
+    QVERIFY(stream != nullptr);
+
+    QSignalSpy signalSpy(stream, &StreamMarketDepthQuote::receivedNewQuote);
+
+    // Let this thread's event loop run a bit to receive some market depth quotes
+    QTest::qWait(5000);
+
+    // Spit on that thang
+    client->closeStreamMarketDepthQuote(stream);
+
+    // Verifying integrity of received data
+    {
+        QVERIFY(signalSpy.count() > 0);
+
+        qDebug() << "Received " << signalSpy.count() << "Market Depth quotes";
+
+        // Validate every signal received
+        for (const QList<QVariant>& signal :  signalSpy) {
+            QVERIFY(signal.size() == 1); // One argument to StreamMarketDepthQuote::receiveNewQuote
+
+            // Convert QVariant to MarketDepthQuote
+            QVariant firstArgOfSignal = signal.at(0);
+
+            QVERIFY(firstArgOfSignal.canConvert<MarketDepthQuote>());
+
+            MarketDepthQuote quote = firstArgOfSignal.value<MarketDepthQuote>();
+
+            // Verify all the quotes contained in that signal
+            {
+                // Verify all the bid quotes
+                //QVERIFY(quote.getBids()...)
+
+                // Verify all the ask quotes
+                //QVERIFY(quote.getAsks()...)
+            }
+
+        }
+    }
+}
 
 bool TestTSClient::isMarketClosed() {
     // Get the current date and time in the system's local time zone

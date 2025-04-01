@@ -37,6 +37,77 @@ TSClient* TSClient::getInstancePtr() {
     return instance;
 }
 
+StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, qsizetype depth)
+{
+    // TODO perhaps assert if trying to pass multiple symbols in the symbol as to err early
+
+    // This is a function that is called on this object from another thread
+    // its necessary to be careful about thread safety
+    StreamMarketDepthQuote * stream;
+
+    QMetaObject::invokeMethod(this,
+        [this, &stream, &symbol]()
+        {
+
+            QUrl url(QString(BASE_URL_TS_API_SIMULATION) + "marketdata/stream/marketdepth/quotes/" + symbol);
+            //QUrlQuery query;
+            //query.addQueryItem("symbol", symbol);
+            //url.setQuery(query);
+
+            QNetworkRequest request(url);
+            request.setRawHeader("Authorization", QString("Bearer %1").arg(authToken.getAccessToken()).toUtf8());
+            request.setRawHeader("Accept", "application/json");
+            request.setRawHeader("Connection", "keep-alive");
+
+            QNetworkReply *reply = manager->get(request);
+
+            Q_ASSERT(reply != nullptr);
+
+            stream = new StreamMarketDepthQuote(reply);
+            stream->setParent(this);
+            streams.push_back(stream);
+
+            // Both the reply and stream object were created in the same thread (aka the TSClient one)
+            // This means its safe to use Qt::DrirectConnection for all of these connections
+            connect(reply, &QNetworkReply::readyRead,
+                    stream, &Stream::onReadyRead,
+                    Qt::DirectConnection);
+
+            connect(reply, &QNetworkReply::finished,
+                    stream, &Stream::onFinished,
+                    Qt::DirectConnection);
+
+            connect(reply, &QNetworkReply::errorOccurred,
+                    stream, &Stream::onError,
+                    Qt::DirectConnection);
+
+            connect(stream, &Stream::marketDepthNotAvailable,
+                    this, &TSClient::marketDepthNotAvailable,
+                    Qt::DirectConnection);
+
+        },Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
+                                   // finishes executing this lambda so that a valid pointer is returned
+
+    return stream;
+}
+
+void TSClient::closeStreamMarketDepthQuote(StreamMarketDepthQuote *stream)
+{
+    Q_ASSERT(stream != nullptr);
+
+    QMetaObject::invokeMethod(this,
+        [this, &stream]()
+        {
+            bool removed = streams.removeOne(stream);
+            Q_ASSERT(removed); // The stream was likely already closed, or a bad pointer was passed
+
+            delete stream;
+
+            // TODO there is likely something more to do
+        },
+    Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread finishes executing this lambda
+}
+
 TSClient::TSClient() :
     RESTClient(QUrl(BASE_URL_TS_API_SIMULATION)),
     authenticated(false),

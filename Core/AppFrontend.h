@@ -14,7 +14,7 @@ public:
 signals:
     void tradeStationAuthStateChanged(bool isAuthenticated, QString reason);
     void tradeStationAccountsReceived(QVector<AccountsResult> results);
-
+    void marketDepthNotAvailable();
 
     void fmpDataUsageUpdated(qsizetype newDataUsage);
     void tradeStationDataUsageUpdated(qsizetype newDataUsage);
@@ -26,6 +26,7 @@ public slots:
     virtual void onTSClientDataUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onTradeStationAccountsReceived(QVector<AccountsResult> results) = 0;
     virtual void onMemoryUsageUpdate(qint64 newDataUsage) = 0;
+    virtual void onMarketDepthNotAvailable() = 0;
 };
 
 #endif

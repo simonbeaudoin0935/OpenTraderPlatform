@@ -13,15 +13,17 @@ MainApp::MainApp(AppFrontend* appFrontend) :
     // When the client thread starts and the event loop kicks, there will be an initial
     // emition to signal what is the initial state
     QObject::connect(tradeStationClient, &TSClient::authStateChanged,
-                    appFrontend, &AppFrontend::tradeStationAuthStateChanged);
+                     appFrontend, &AppFrontend::tradeStationAuthStateChanged);
 
     QObject::connect(tradeStationClient, &TSClient::accountsAsyncReceived,
                      appFrontend, &AppFrontend::tradeStationAccountsReceived);
 
+    QObject::connect(tradeStationClient, &TSClient::marketDepthNotAvailable,
+                     appFrontend, &AppFrontend::marketDepthNotAvailable);
 
     // Connect FMP data usage updates to frontend
     QObject::connect(fmpClient, &FMPClient::totalDataReceivedBytesIncreased,
-                    appFrontend, &AppFrontend::fmpDataUsageUpdated);
+                     appFrontend, &AppFrontend::fmpDataUsageUpdated);
 
     // Connect TradeStation data usage updates to frontend
     QObject::connect(tradeStationClient, &TSClient::totalDataReceivedBytesIncreased,

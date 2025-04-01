@@ -25,7 +25,7 @@ public slots:
     void onTSClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onTradeStationAccountsReceived(QVector<AccountsResult> results) override;
     void onMemoryUsageUpdate(qint64 newDataUsage) override; // TODO deal with qint64 vs qsizetype
-
+    void onMarketDepthNotAvailable() override;
 
 private slots:
     void onUpdateTimerTimeout();
