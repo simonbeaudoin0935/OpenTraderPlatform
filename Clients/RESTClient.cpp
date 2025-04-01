@@ -228,6 +228,8 @@ void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type,
 // This is all a bit hacky for now...
 void RESTClient::fetchStream(const QNetworkRequest &request, void* arg)
 {
+    Q_ASSERT(arg != nullptr);
+
     // Fetch stream is only meant to be called from TSClient, and from context of the thread itself
     Q_ASSERT(QThread::currentThread() == this->thread);
 
@@ -246,6 +248,8 @@ void RESTClient::fetchStream(const QNetworkRequest &request, void* arg)
 
 void RESTClient::closeStream(void *arg)
 {
+    Q_ASSERT(arg != nullptr);
+
     // Fetch stream is only meant to be called from TSClient, and from context of the thread itself
     Q_ASSERT(QThread::currentThread() == this->thread);
 
@@ -365,7 +369,6 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
     // Those are the default values, just being explicit by resetting them to default
     info->jsonDocument = nullptr;
     info->completed = false;
-    info->optArg = nullptr;
 
     doc = QJsonDocument::fromJson(rawData);
 

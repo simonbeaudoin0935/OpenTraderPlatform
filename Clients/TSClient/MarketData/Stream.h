@@ -27,6 +27,5 @@ protected:
     //void onError(QNetworkReply::NetworkError error);
 
 private:
-    static bool isMarketDepthNotAvailableAlreadyEmitted;
 };
 

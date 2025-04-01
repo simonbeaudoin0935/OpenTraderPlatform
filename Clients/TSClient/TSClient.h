@@ -42,7 +42,7 @@ public:
      * @note : ->startStream() needs to be called in order to start the stream. This gives time to the
      *         caller to setup signal/slot connections
      */
-    StreamMarketDepthQuote* openStreamMarketDepthQuote(QString &symbol, qsizetype depth = 20);
+    StreamMarketDepthQuote* openStreamMarketDepthQuote(QString &symbol, unsigned int depth = 20);
     void closeStreamMarketDepthQuote(StreamMarketDepthQuote* stream);
 
                               // -------- Brokerage methods -------------

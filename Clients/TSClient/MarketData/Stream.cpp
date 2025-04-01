@@ -1,8 +1,7 @@
-#include "Stream.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 
-bool Stream::isMarketDepthNotAvailableAlreadyEmitted = false;
+#include "Stream.h"
 
 Stream::Stream()
 {
@@ -26,27 +25,35 @@ void Stream::onReadyRead(QNetworkReply *reply, QByteArray &data)
 
     QJsonObject jsonObj = doc.object();
     
-    // Check for error message about missing scope
-    if (jsonObj.contains("Message") && jsonObj.contains("StatusCode")) {
-        QString message = jsonObj["Message"].toString();
-        int statusCode = jsonObj["StatusCode"].toInt();
-        
-        if (message == "Missing required scope." && statusCode == 403) {
-            qWarning() << Q_FUNC_INFO << "Missing required scope error detected";
-            if (!isMarketDepthNotAvailableAlreadyEmitted) { // This is a hack to avoid emitting the signal multiple times
-                emit marketDepthNotAvailable();
-                isMarketDepthNotAvailableAlreadyEmitted = true;
-            }
-            return;
-        }
-    } else {
-        processJson(doc);
-    }
+    processJson(doc);
 }
 
 void Stream::onFinished(QNetworkReply *reply, QByteArray &data)
 {
     qWarning() << Q_FUNC_INFO << "The stream finished, which should not happen";
+
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+
+    if (parseError.error != QJsonParseError::NoError) {
+        qWarning() << Q_FUNC_INFO << "Failed to parse JSON:" << parseError.errorString();
+        return;
+    }
+
+    QJsonObject jsonObj = doc.object();
+
+    // Check for error message about missing scope
+    if (jsonObj.contains("Message") && jsonObj.contains("StatusCode")) {
+        QString message = jsonObj["Message"].toString();
+        int statusCode = jsonObj["StatusCode"].toInt();
+
+        if (message == "Missing required scope." && statusCode == 403) {
+            qWarning() << Q_FUNC_INFO << "Missing required scope error detected";
+
+            emit Stream::marketDepthNotAvailable();
+            return;
+        }
+    }
 }
 
 /*

@@ -37,7 +37,7 @@ TSClient* TSClient::getInstancePtr() {
     return instance;
 }
 
-StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, qsizetype depth)
+StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, unsigned int depth)
 {
     // TODO perhaps assert if trying to pass multiple symbols in the symbol as to err early
 
@@ -46,13 +46,13 @@ StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, qs
     StreamMarketDepthQuote * stream;
 
     QMetaObject::invokeMethod(this,
-        [this, &stream, &symbol]()
+        [this, &stream, &symbol, depth]()
         {
 
             QUrl url(QString(BASE_URL_TS_API_SIMULATION) + "marketdata/stream/marketdepth/quotes/" + symbol);
-            //QUrlQuery query;
-            //query.addQueryItem("symbol", symbol);
-            //url.setQuery(query);
+            QUrlQuery query;
+            query.addQueryItem("maxlevels", QString::number(depth));
+            url.setQuery(query);
 
             QNetworkRequest request(url);
             request.setRawHeader("Authorization", QString("Bearer %1").arg(authToken.getAccessToken()).toUtf8());
@@ -60,13 +60,13 @@ StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, qs
             request.setRawHeader("Connection", "keep-alive");
 
             stream = new StreamMarketDepthQuote();
+            stream->setParent(this);
             streams.push_back(stream);
 
             fetchStream(request, static_cast<void*>(stream));
 
             connect(stream, &Stream::marketDepthNotAvailable,
-                    this, &TSClient::marketDepthNotAvailable,
-                    Qt::DirectConnection);
+                    this, &TSClient::marketDepthNotAvailable);
 
         },Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
                                    // finishes executing this lambda so that a valid pointer is returned
@@ -84,9 +84,9 @@ void TSClient::closeStreamMarketDepthQuote(StreamMarketDepthQuote *stream)
             bool removed = streams.removeOne(stream);
             Q_ASSERT(removed); // The stream was likely already closed, or a bad pointer was passed
 
-            delete stream;
+            closeStream(static_cast<void*>(stream));
 
-            // TODO there is likely something more to do
+            delete stream;
         },
     Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread finishes executing this lambda
 }
@@ -484,12 +484,16 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) 
 
 void TSClient::processStreamFinished(QNetworkReply *reply, QByteArray &rawData, void *arg)
 {
+    Q_ASSERT(arg != nullptr);
+
     Stream* stream = static_cast<Stream*>(arg);
     stream->onFinished(reply, rawData);
 }
 
 void TSClient::processStreamReadyRead(QNetworkReply *reply, QByteArray &rawData, void *arg)
 {
+    Q_ASSERT(arg != nullptr);
+
     Stream* stream = static_cast<Stream*>(arg);
     stream->onReadyRead(reply, rawData);
 }
