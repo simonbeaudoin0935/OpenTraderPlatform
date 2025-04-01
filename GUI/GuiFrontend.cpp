@@ -31,20 +31,24 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
 
     // Connect app frontend signals and slots
     connect(this, &AppFrontend::tradeStationAuthStateChanged,
-            this, &GuiFrontend::onTradeStationAuthStateChanged);
+            this, &GuiFrontend::onTradeStationAuthStateChanged,
+            Qt::DirectConnection);
 
     connect(this, &AppFrontend::tradeStationAccountsReceived,
-            this, &GuiFrontend::onTradeStationAccountsReceived);
-
+            this, &GuiFrontend::onTradeStationAccountsReceived,
+            Qt::DirectConnection);
 
     connect(this, &AppFrontend::fmpDataUsageUpdated,
-            this, &GuiFrontend::onFMPClientDataUsageUpdate);
+            this, &GuiFrontend::onFMPClientDataUsageUpdate,
+            Qt::DirectConnection);
 
     connect(this, &AppFrontend::tradeStationDataUsageUpdated,
-            this, &GuiFrontend::onTSClientDataUsageUpdate);
+            this, &GuiFrontend::onTSClientDataUsageUpdate,
+            Qt::DirectConnection);
 
     connect(this, &AppFrontend::marketDepthNotAvailable,
-            this, &GuiFrontend::onMarketDepthNotAvailable);
+            this, &GuiFrontend::onMarketDepthNotAvailable,
+            Qt::DirectConnection);
 
     // TODO disconnect this and pass through the frontend
     QObject::connect(FMPClient::getInstancePtr(), &FMPClient::quoteShortReceived, this, &GuiFrontend::onQuoteShortReceived);
@@ -168,7 +172,7 @@ void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
 
         TSClient::getInstance().fetchAsyncAccounts();
 
-        QString symbol = "AAPL";
+        QString symbol = "USDBTC";
 
         auto a = TSClient::getInstance().openStreamMarketDepthQuote(symbol);
     } else {

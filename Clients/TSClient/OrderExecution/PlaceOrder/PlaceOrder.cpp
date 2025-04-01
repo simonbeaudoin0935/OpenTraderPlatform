@@ -407,10 +407,7 @@ QJsonObject AdvancedOptions::toJson() const {
         json["TimeActivationRules"] = rulesArray;
     }
     
-    if (trailingStop) {
-        const TrailingStop& trailingStopObj = *trailingStop;
-        json["TrailingStop"] = trailingStopObj.toJson();
-    }
+    if (trailingStop) json["TrailingStop"] = trailingStop->toJson();
     
     return json;
 }

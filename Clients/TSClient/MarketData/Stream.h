@@ -2,11 +2,17 @@
 
 #include <QObject>
 #include <QNetworkReply>
+#include <QJsonDocument>
 
 class Stream : public QObject {
     Q_OBJECT
+
+public:
+    void onReadyRead(QNetworkReply *reply, QByteArray &data);
+    void onFinished(QNetworkReply *reply, QByteArray &data);
+
 protected:
-    explicit Stream(QNetworkReply *reply);
+    explicit Stream();
     ~Stream();
     Stream(const Stream&) = delete;
     Stream& operator=(const Stream&) = delete;
@@ -14,13 +20,13 @@ protected:
 signals:
     void marketDepthNotAvailable();
 protected:
-    QNetworkReply *reply;
 
-    virtual void processJson(QByteArray &json) = 0; // Just to make sure Stream is an abstract class
+    virtual void processJson(const QJsonDocument& doc) = 0;
 
-    friend class TSClient; // Friended only to be able to connect to those signals. Perhaps a bit of a hack
-    void onReadyRead();
-    void onFinished();
-    void onError(QNetworkReply::NetworkError error);
+
+    //void onError(QNetworkReply::NetworkError error);
+
+private:
+    static bool isMarketDepthNotAvailableAlreadyEmitted;
 };
 

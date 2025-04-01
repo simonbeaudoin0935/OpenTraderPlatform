@@ -9,7 +9,6 @@
 #include <QNetworkRequest>
 
 #include <QObject>
-#include <atomic>
 #include <QLoggingCategory>
 #include <QThread>
 #include <QNetworkAccessManager>
@@ -49,9 +48,10 @@ signals:
 
 private slots:
     void onReplyFinished(QNetworkReply *reply);
+    void onReplyReadyRead(QNetworkReply *reply); // For streams
 
 protected:
-    enum class RequestSynchronicity { Async, Sync };
+    enum class RequestSynchronicity { Async, Sync, Stream };
     typedef int RequestTypeInt; // TODO explain why
     const int RequestTypeNone = 0;
     struct RequestInfo {
@@ -59,6 +59,7 @@ protected:
         RequestTypeInt type;
         bool completed = false;
         QJsonDocument *jsonDocument = nullptr;
+        void* optArg = nullptr;
     };
 
     enum class ApiKeyPlacement {
@@ -72,9 +73,9 @@ protected:
     };
 
     // Static method to build refresh token request
-    static QNetworkRequest buildRefreshTokenRequest(const QString &clientId, 
-                                                  const QString &clientSecret,
-                                                  const QString &refreshToken);
+    static QNetworkRequest buildRefreshTokenRequest(const QString &clientId,
+                                                    const QString &clientSecret,
+                                                    const QString &refreshToken);
 
     // Overloaded function to build network requests
     QNetworkRequest buildRequest(ApiKeyPlacement placement, const QString &endpoint, const QString &symbol = "") const;
@@ -83,16 +84,21 @@ protected:
 
     bool fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete, HttpMethod method = HttpMethod::GET, const QByteArray &postData = QByteArray());
     void fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method = HttpMethod::GET, const QByteArray &postData =  QByteArray());
+    void fetchStream(const QNetworkRequest &request, void *arg);
+    void closeStream(void *arg);
 
     virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) = 0;
 
-    std::atomic<qsizetype> totalDataReceivedBytes = 0; // TODO at the end, will do in private
+    virtual void processStreamFinished(QNetworkReply *reply, QByteArray &rawData, void* arg); // for stream
+    virtual void processStreamReadyRead(QNetworkReply *reply, QByteArray &rawData, void* arg); // for stream
+
+    qsizetype totalDataReceivedBytes = 0;
     QString apiKey;
     QThread *thread;
     QNetworkAccessManager *manager;
     mutable QMutex pendingRequestsMutex;
     QWaitCondition waitCondition;
-    QHash<QNetworkReply*, RequestInfo> pendingRequests;
+    QMap<QNetworkReply*, RequestInfo> pendingRequests;
 
 #ifdef UNIT_TESTING
     int allocated_json_arrays = 0;

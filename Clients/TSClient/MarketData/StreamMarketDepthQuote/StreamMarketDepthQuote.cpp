@@ -1,7 +1,7 @@
 #include "StreamMarketDepthQuote.h"
 
-StreamMarketDepthQuote::StreamMarketDepthQuote(QNetworkReply *reply) :
-    Stream(reply)
+StreamMarketDepthQuote::StreamMarketDepthQuote() :
+    Stream()
 {
 
 }
@@ -11,7 +11,7 @@ StreamMarketDepthQuote::~StreamMarketDepthQuote()
 
 }
 
-void StreamMarketDepthQuote::processJson(QByteArray &json)
+void StreamMarketDepthQuote::processJson(const QJsonDocument& doc)
 {
 
 }

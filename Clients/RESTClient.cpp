@@ -40,7 +40,7 @@ void RESTClient::setAPIKey(const QString &apiKey)
 
 qsizetype RESTClient::getTotalDataReceivedBytes() const
 {
-    return totalDataReceivedBytes.load(std::memory_order_relaxed);
+    return totalDataReceivedBytes;
 }
 
 QNetworkRequest RESTClient::buildRequest(ApiKeyPlacement placement, const QString &endpoint, const QString &symbol) const {
@@ -207,6 +207,8 @@ void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type,
             "] executed the queued" << (method == HttpMethod::GET ? "GET" : "POST") <<
             "request and registered the reply " << static_cast<void*>(reply) << " for later reception.";
 
+        Q_ASSERT(reply != nullptr);
+
         QMutexLocker locker(&pendingRequestsMutex);
         pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Async,
                                   .type = type,
@@ -221,6 +223,100 @@ void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type,
         " with URL " << request.url().toString() <<
         " header : " << request.headers() <<
         " and data : " << postData;
+}
+
+// This is all a bit hacky for now...
+void RESTClient::fetchStream(const QNetworkRequest &request, void* arg)
+{
+    // Fetch stream is only meant to be called from TSClient, and from context of the thread itself
+    Q_ASSERT(QThread::currentThread() == this->thread);
+
+    QNetworkReply *reply = manager->get(request);
+
+    Q_ASSERT(reply != nullptr);
+
+    QMutexLocker locker(&pendingRequestsMutex);
+
+    pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Stream,
+                              .type = 0,
+                              .completed = false,
+                              .jsonDocument = nullptr,
+                              .optArg = arg};
+}
+
+void RESTClient::closeStream(void *arg)
+{
+    // Fetch stream is only meant to be called from TSClient, and from context of the thread itself
+    Q_ASSERT(QThread::currentThread() == this->thread);
+
+    QMutexLocker locker(&pendingRequestsMutex);
+
+    QNetworkReply *replyToDelete = nullptr;
+
+    for (auto it = pendingRequests.constBegin(); it != pendingRequests.constEnd(); ++it) {
+        QNetworkReply *reply = it.key();
+        const RequestInfo &info = it.value();
+        if (info.optArg == arg) {
+            Q_ASSERT(info.synchronicity == RequestSynchronicity::Stream);
+            replyToDelete = reply;
+            break;
+        }
+    }
+
+    Q_ASSERT(replyToDelete != nullptr);
+
+    replyToDelete->abort();
+
+    replyToDelete->deleteLater();
+}
+
+void RESTClient::processStreamFinished(QNetworkReply *reply, QByteArray &rawData, void *arg)
+{
+    // Default implementation when not TSClient
+    Q_UNUSED(reply);
+    Q_UNUSED(rawData);
+    Q_UNUSED(arg);
+    Q_ASSERT(0);
+}
+
+void RESTClient::processStreamReadyRead(QNetworkReply *reply, QByteArray &rawData, void *arg)
+{
+    // Default implementation when not TSClient
+    Q_UNUSED(reply);
+    Q_UNUSED(rawData);
+    Q_UNUSED(arg);
+    Q_ASSERT(0);
+}
+
+/*
+void RESTClient::onError(QNetworkReply *reply) {
+
+}
+*/
+
+void RESTClient::onReplyReadyRead(QNetworkReply *reply){
+    QMutexLocker locker(&pendingRequestsMutex);  // TODO this works, but rethink this mutex as it would be held for a while
+
+    Q_ASSERT(pendingRequests.contains(reply));
+
+    if (pendingRequests[reply].synchronicity != RequestSynchronicity::Stream) {
+        // Only for https streams that dont finish do we expect to continue.
+        // All the other requests are finite and handled in onFinished()
+        return;
+    }
+
+    QByteArray rawData = reply->readAll();
+    qsizetype bytesReceived = rawData.size();
+
+    totalDataReceivedBytes += bytesReceived;
+
+    // Broadcast the new data size (ie to update the GUI)
+    emit totalDataReceivedBytesIncreased(totalDataReceivedBytes);
+
+    qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << totalDataReceivedBytes << " bytes";
+
+    processStreamReadyRead(reply, rawData, pendingRequests[reply].optArg);
+
 }
 
 void RESTClient::onReplyFinished(QNetworkReply *reply) {
@@ -239,12 +335,13 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 
     QByteArray rawData = reply->readAll();
     qsizetype bytesReceived = rawData.size();
-    totalDataReceivedBytes.fetch_add(bytesReceived, std::memory_order_relaxed);  // TODO not needed because we emit a signal when this changes
+
+    totalDataReceivedBytes += bytesReceived;
 
     // Broadcast the new data size (ie to update the GUI)
-    emit totalDataReceivedBytesIncreased(totalDataReceivedBytes.load(std::memory_order_relaxed));
+    emit totalDataReceivedBytesIncreased(totalDataReceivedBytes);
 
-    qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << totalDataReceivedBytes.load(std::memory_order_relaxed) << " bytes";
+    qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << totalDataReceivedBytes << " bytes";
 
     // Mutex is intentionally aquired after the unit test latency delay above
     QMutexLocker locker(&pendingRequestsMutex);
@@ -254,6 +351,7 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO <<
             " : pendingRequests did not containt the reply " << static_cast<void*>(reply) << " : Likely due to a caller's timeout.";
 
+        Q_ASSERT(0); // Should NOT happen
         goto delete_later;
     }
 
@@ -267,12 +365,13 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
     // Those are the default values, just being explicit by resetting them to default
     info->jsonDocument = nullptr;
     info->completed = false;
+    info->optArg = nullptr;
 
     doc = QJsonDocument::fromJson(rawData);
 
     if (reply->error() != QNetworkReply::NoError) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO <<
-            " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString();
+            " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString() << " : " << reply->error();
         qCWarning(RESTClientLog).noquote() << Q_FUNC_INFO <<
             " : Content of the reply : \n" << doc.toJson(QJsonDocument::Indented);
         goto notify;
@@ -285,12 +384,13 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 
     if (doc.isArray() && doc.array().isEmpty()) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO << " : Doc array is empty";
-        //goto notify;
+        //goto notify; <- I ended up accepting that an array can be null. FMP returns that for some stocks when they have no news AT ALL
     }
 
     if (doc.isObject() && doc.object().isEmpty()) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO << " : Doc object is empty";
         goto notify;
+#warning should probably do not do the goto line the one above
     }   
 
     // At this point, the reply is legit
@@ -300,7 +400,7 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
     if (info->synchronicity == RequestSynchronicity::Sync) {
         TRACK_NEW_JSON_ARRAY(info->jsonDocument = new QJsonDocument(doc));
     } else {
-        // In the case of Async request, no need use new
+        // In the case of Async or Stream request, no need use new
     }
 
 notify:
@@ -318,6 +418,10 @@ notify:
 
     } else if (info->synchronicity == RequestSynchronicity::Sync) {
         waitCondition.wakeOne();
+    } else if (info->synchronicity == RequestSynchronicity::Stream) {
+        processStreamFinished(reply, rawData, info->optArg);
+        bool was_removed = pendingRequests.remove(reply);
+        Q_ASSERT(was_removed);
     } else {
         Q_UNREACHABLE();
     }

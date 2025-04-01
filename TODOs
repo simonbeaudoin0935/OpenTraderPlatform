@@ -15,3 +15,7 @@
 
 - THIS COULD BE AN ISSUE : https://www.reddit.com/r/algotrading/comments/1gwjwhf/tradestation_data_synchronization_issues/
 
+
+- ***deal with reply 401 : access token has expired {"Message":"Access token has expired.","StatusCode":401,"TraceID":"0603649d-4d89-4b9a-96ce-b97dc10f2174"}
+
+- onFinished() is called both for the RESTClient class and the individual QNetworkReply for the streams

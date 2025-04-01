@@ -8,7 +8,7 @@
 class StreamMarketDepthQuote : public Stream {
     Q_OBJECT
 public:
-    explicit StreamMarketDepthQuote(QNetworkReply *reply);
+    explicit StreamMarketDepthQuote();
     ~StreamMarketDepthQuote();
     StreamMarketDepthQuote(const StreamMarketDepthQuote&) = delete;
     StreamMarketDepthQuote& operator=(const StreamMarketDepthQuote&) = delete;
@@ -18,5 +18,5 @@ signals:
 private:
 
 
-    void processJson(QByteArray &json);
+    virtual void processJson(const QJsonDocument& doc);
 };

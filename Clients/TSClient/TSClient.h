@@ -104,7 +104,10 @@ private:
         RefreshAccessToken
     };
 
-    void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc);
+    void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) override;
+
+    void processStreamFinished(QNetworkReply *reply, QByteArray &rawData, void *arg) override;
+    void processStreamReadyRead(QNetworkReply *reply, QByteArray &rawData, void *arg) override;
 
     // tokens
     AuthToken authToken;

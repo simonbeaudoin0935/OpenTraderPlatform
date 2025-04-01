@@ -190,9 +190,12 @@ void TestTSClient::testFetchAsyncAccounts()
     QVERIFY(client->isCleanedUp());
 }
 
+#warning create test for concurrent sync requests, there might be a race with the wait-condition where its only one for everybody
 void TestTSClient::testPlaceSyncOrder()
 {
     PlaceOrderRequest order;
+
+    QVERIFY(client->isCleanedUp());
 
     // Populate the order
     {
@@ -228,18 +231,19 @@ void TestTSClient::testPlaceSyncOrder()
     
     qDebug().noquote() << "Received result :\n" << result.toJsonString();
 
-    bool marketClosed = isMarketClosed();
 
-    if (marketClosed) {
+    if (isMarketOpened()) {
+        QVERIFY(result.isAllSuccessful());
+    } else {
         QVERIFY(result.hasErrors());
         QVERIFY(result.getErrors().first().getError().has_value());
         QVERIFY(result.getErrors().first().getMessage() == "Order failed. Reason: No Day orders after 4:00PM Eastern");
         QVERIFY(result.getErrors().first().getOrderID().isEmpty() == false);
 
         qDebug() << "*** Market is closed this is expected ***";
-    } else {
-        QVERIFY(result.isAllSuccessful());
     }
+
+    QVERIFY(client->isCleanedUp());
 }
 
 void TestTSClient::testPlaceAsyncOrder()
@@ -289,6 +293,8 @@ void TestTSClient::testStreamMarketDepthQuote()
     QString symbol = "BTCUSD";
     StreamMarketDepthQuote* stream;
 
+    QVERIFY(client->isCleanedUp());
+
     stream = client->openStreamMarketDepthQuote(symbol);
     QVERIFY(stream != nullptr);
 
@@ -328,9 +334,11 @@ void TestTSClient::testStreamMarketDepthQuote()
 
         }
     }
+
+    QVERIFY(client->isCleanedUp());
 }
 
-bool TestTSClient::isMarketClosed() {
+bool TestTSClient::isMarketOpened() {
     // Get the current date and time in the system's local time zone
     QDateTime currentTime = QDateTime::currentDateTime();
 
@@ -343,9 +351,13 @@ bool TestTSClient::isMarketClosed() {
     // Define 4:00 PM Eastern Time as the market closing time
     QTime marketCloseTime(16, 0, 0); // 16:00:00 in 24-hour format
 
+    // Define 9:30 PM Eastern Time as the market opening time
+    QTime marketOpenTime(9, 30, 0); // 16:00:00 in 24-hour format
+
+
     // Extract the current time component in Eastern Time
     QTime currentEasternTime = easternTime.time();
 
     // Return true if the current time is after 4:00 PM
-    return currentEasternTime > marketCloseTime;
+    return (currentEasternTime > marketOpenTime) && (currentEasternTime < marketCloseTime);
 }

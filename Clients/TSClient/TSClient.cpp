@@ -59,27 +59,10 @@ StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, qs
             request.setRawHeader("Accept", "application/json");
             request.setRawHeader("Connection", "keep-alive");
 
-            QNetworkReply *reply = manager->get(request);
-
-            Q_ASSERT(reply != nullptr);
-
-            stream = new StreamMarketDepthQuote(reply);
-            stream->setParent(this);
+            stream = new StreamMarketDepthQuote();
             streams.push_back(stream);
 
-            // Both the reply and stream object were created in the same thread (aka the TSClient one)
-            // This means its safe to use Qt::DrirectConnection for all of these connections
-            connect(reply, &QNetworkReply::readyRead,
-                    stream, &Stream::onReadyRead,
-                    Qt::DirectConnection);
-
-            connect(reply, &QNetworkReply::finished,
-                    stream, &Stream::onFinished,
-                    Qt::DirectConnection);
-
-            connect(reply, &QNetworkReply::errorOccurred,
-                    stream, &Stream::onError,
-                    Qt::DirectConnection);
+            fetchStream(request, static_cast<void*>(stream));
 
             connect(stream, &Stream::marketDepthNotAvailable,
                     this, &TSClient::marketDepthNotAvailable,
@@ -497,6 +480,18 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) 
         Q_UNREACHABLE();
         break;
     }
+}
+
+void TSClient::processStreamFinished(QNetworkReply *reply, QByteArray &rawData, void *arg)
+{
+    Stream* stream = static_cast<Stream*>(arg);
+    stream->onFinished(reply, rawData);
+}
+
+void TSClient::processStreamReadyRead(QNetworkReply *reply, QByteArray &rawData, void *arg)
+{
+    Stream* stream = static_cast<Stream*>(arg);
+    stream->onReadyRead(reply, rawData);
 }
 
 bool TSClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &result) {

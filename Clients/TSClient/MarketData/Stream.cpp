@@ -1,33 +1,55 @@
 #include "Stream.h"
+#include <QJsonDocument>
+#include <QJsonObject>
 
-Stream::Stream(QNetworkReply *reply) :
-    reply(reply)
+bool Stream::isMarketDepthNotAvailableAlreadyEmitted = false;
+
+Stream::Stream()
 {
 }
 
 Stream::~Stream()
 {
-    reply->abort();
-    reply->deleteLater();
 }
 
-void Stream::onReadyRead()
+void Stream::onReadyRead(QNetworkReply *reply, QByteArray &data)
 {
-    QByteArray json;
-
-    qDebug() << "**********************************************yeeeeeeeee";
-
-    QByteArray data = reply->readAll();
     qDebug() << "Data received:" << data;
 
-    processJson(json);
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+    
+    if (parseError.error != QJsonParseError::NoError) {
+        qWarning() << Q_FUNC_INFO << "Failed to parse JSON:" << parseError.errorString();
+        return;
+    }
+
+    QJsonObject jsonObj = doc.object();
+    
+    // Check for error message about missing scope
+    if (jsonObj.contains("Message") && jsonObj.contains("StatusCode")) {
+        QString message = jsonObj["Message"].toString();
+        int statusCode = jsonObj["StatusCode"].toInt();
+        
+        if (message == "Missing required scope." && statusCode == 403) {
+            qWarning() << Q_FUNC_INFO << "Missing required scope error detected";
+            if (!isMarketDepthNotAvailableAlreadyEmitted) { // This is a hack to avoid emitting the signal multiple times
+                emit marketDepthNotAvailable();
+                isMarketDepthNotAvailableAlreadyEmitted = true;
+            }
+            return;
+        }
+    } else {
+        processJson(doc);
+    }
 }
 
-void Stream::onFinished()
+void Stream::onFinished(QNetworkReply *reply, QByteArray &data)
 {
     qWarning() << Q_FUNC_INFO << "The stream finished, which should not happen";
 }
 
+/*
 void Stream::onError(QNetworkReply::NetworkError error)
 {
     Q_UNUSED(error);
@@ -37,8 +59,12 @@ void Stream::onError(QNetworkReply::NetworkError error)
         qWarning() << Q_FUNC_INFO <<
             "Level2 data is not activated on the account";
 
-        emit marketDepthNotAvailable();
+        if (!isMarketDepthNotAvailableAlreadyEmitted) { // This is a hack to avoid emitting the signal multiple times
+            emit marketDepthNotAvailable();
+            isMarketDepthNotAvailableAlreadyEmitted = true;
+        }
     }
     qWarning() << Q_FUNC_INFO <<
         "The stream received an error : " << reply->errorString() << reply->error();
 }
+*/
