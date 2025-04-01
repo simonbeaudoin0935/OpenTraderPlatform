@@ -32,6 +32,8 @@ void Stream::onFinished(QNetworkReply *reply, QByteArray &data)
 {
     qWarning() << Q_FUNC_INFO << "The stream finished, which should not happen";
 
+    receivedFinishedReply = true;
+
     QJsonParseError parseError;
     QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
 

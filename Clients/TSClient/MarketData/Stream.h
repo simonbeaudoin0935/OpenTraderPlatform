@@ -11,6 +11,7 @@ public:
     void onReadyRead(QNetworkReply *reply, QByteArray &data);
     void onFinished(QNetworkReply *reply, QByteArray &data);
 
+    bool isFinished() const {return receivedFinishedReply;};
 protected:
     explicit Stream();
     ~Stream();
@@ -21,6 +22,7 @@ signals:
     void marketDepthNotAvailable();
 protected:
 
+    bool receivedFinishedReply = false;
     virtual void processJson(const QJsonDocument& doc) = 0;
 
 

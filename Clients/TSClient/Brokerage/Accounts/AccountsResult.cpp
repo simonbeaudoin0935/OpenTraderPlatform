@@ -76,8 +76,7 @@ bool AccountsResult::isValid() const {
     }
 
     // Validate account type values
-    if (accountType != "Individual" && accountType != "Joint" && accountType != "IRA" &&
-        accountType != "Roth IRA" && accountType != "Futures" && accountType != "Margin") {
+    if (accountType != "Cash" && accountType != "Margin" && accountType != "Futures" && accountType != "DVP") {
         qWarning() << "Invalid account type:" << accountType;
         return false;
     }

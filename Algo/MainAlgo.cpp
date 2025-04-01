@@ -11,8 +11,8 @@
 Q_LOGGING_CATEGORY(MainAlgoLog, "MainAlgo")
 
 //TODO should be parameters
-static const int newsFetchingInterval = 20;
-static const int newsFetchDepthLimit = 5;
+static const int newsFetchingInterval = 30;
+static const int newsFetchDepthLimit = 2;
 
 MainAlgo::MainAlgo() :
     thread(new QThread())
@@ -235,7 +235,7 @@ void MainAlgo::onSharesFloatReceived(FMPClient::SharesFloatResult result)
 
     numFloatReceived++;
 
-    if (result.floatShares <= (signed) PreferedFloat) {
+    if (result.floatShares <= (signed) MaxFloat) {
         qCDebug(MainAlgoLog) << "Company : " << result.symbol << " has a float acceptable of : " << result.floatShares;
 
         symbolsScreenedByFloat.append(result.symbol);
@@ -331,6 +331,28 @@ void MainAlgo::processReceivedNewsPingPongBuffers()
 
     if (oldBuffer->isEmpty()) {
         qCDebug(MainAlgoLog) << "First iteration of the pingpong buffer processing. SKIP";
+
+        // Write to file here
+        {
+            // Iterate through every symbol in the new buffer
+            for (auto it = newBuffer->constBegin(); it != newBuffer->constEnd(); ++it) {
+                QString symbol = it.key();
+                const QVector<StockNewsResult>& newsVector = it.value();
+                
+                // Print each news item for this symbol
+                for (const StockNewsResult& news : newsVector) {
+                    *out << "Symbol: " << symbol << "\n";
+                    *out << "Title: " << news.getTitle() << "\n";
+                    *out << "Text: " << news.getText() << "\n";
+                    *out << "Date: " << news.getPublishedDate() << "\n";
+                    *out << "Publisher: " << news.getPublisher() << "\n";
+                    *out << "Site: " << news.getSite() << "\n";
+                    *out << "URL: " << news.getUrl() << "\n";
+                    *out << "----------------------------------------\n";
+                }
+            }
+        }
+
         return;
     }
 

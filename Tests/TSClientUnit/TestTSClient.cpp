@@ -300,8 +300,14 @@ void TestTSClient::testStreamMarketDepthQuote()
 
     QSignalSpy signalSpy(stream, &StreamMarketDepthQuote::receivedNewQuote);
 
+    qDebug() << "Waiting 5 seconds to let Level 2 data pile up...";
+
     // Let this thread's event loop run a bit to receive some market depth quotes
-    QTest::qWait(5000);
+    for (size_t i = 5; i != 0; i--) {
+        qDebug() << "Countdown : " << i << " seconds";
+
+        QTest::qWait(1000);
+    }
 
     // Spit on that thang
     client->closeStreamMarketDepthQuote(stream);

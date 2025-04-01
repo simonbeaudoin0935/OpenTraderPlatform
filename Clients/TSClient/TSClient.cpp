@@ -71,12 +71,16 @@ StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, un
         },Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
                                    // finishes executing this lambda so that a valid pointer is returned
 
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opened Stream " << static_cast<void*>(stream);
+
     return stream;
 }
 
 void TSClient::closeStreamMarketDepthQuote(StreamMarketDepthQuote *stream)
 {
     Q_ASSERT(stream != nullptr);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing Stream " << static_cast<void*>(stream);
 
     QMetaObject::invokeMethod(this,
         [this, &stream]()
@@ -226,8 +230,8 @@ QNetworkRequest TSClient::buildRefreshTokenRequest() {
 }
 
 QByteArray TSClient::buildRefreshTokenQuery(const QString &clientId,
-                                                   const QString &clientSecret,
-                                                   const QString &refreshToken) {
+                                            const QString &clientSecret,
+                                            const QString &refreshToken) {
     QUrlQuery query;
     query.addQueryItem("grant_type", "refresh_token");
     query.addQueryItem("client_id", clientId);
@@ -537,5 +541,7 @@ bool TSClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &
 
 void TSClient::placeAsyncOrder(const PlaceOrderRequest &order) {
     Q_UNUSED(order);
+
+    Q_ASSERT_X(0, "placeAsyncOrder", "TODO implement");
 }
 

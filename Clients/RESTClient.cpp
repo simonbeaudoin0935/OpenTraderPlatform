@@ -1,4 +1,4 @@
-#include "qtestsupport_core.h"
+#include "TSClient/MarketData/Stream.h"
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -237,6 +237,7 @@ void RESTClient::fetchStream(const QNetworkRequest &request, void* arg)
 
     Q_ASSERT(reply != nullptr);
 
+    qCDebug(RESTClientLog) << Q_FUNC_INFO << "GET network reply = " << static_cast<void*>(reply);
     QMutexLocker locker(&pendingRequestsMutex);
 
     pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Stream,
@@ -257,21 +258,39 @@ void RESTClient::closeStream(void *arg)
 
     QNetworkReply *replyToDelete = nullptr;
 
+    qCDebug(RESTClientLog) << Q_FUNC_INFO << "Going through all pending replies";
+
     for (auto it = pendingRequests.constBegin(); it != pendingRequests.constEnd(); ++it) {
         QNetworkReply *reply = it.key();
+
+        qCDebug(RESTClientLog) << Q_FUNC_INFO << "Checking reply " << static_cast<void*>(reply);
+
         const RequestInfo &info = it.value();
         if (info.optArg == arg) {
             Q_ASSERT(info.synchronicity == RequestSynchronicity::Stream);
             replyToDelete = reply;
+
+            qCDebug(RESTClientLog) << Q_FUNC_INFO << "Found that this reply has stream  " << static_cast<void*>(arg) << " attached";
+
             break;
         }
     }
 
-    Q_ASSERT(replyToDelete != nullptr);
+    Stream* stream = static_cast<Stream*>(arg);
 
-    replyToDelete->abort();
+    if (stream->isFinished()) {
+        Q_ASSERT(replyToDelete == nullptr);
+        return;
 
-    replyToDelete->deleteLater();
+    } else {
+        Q_ASSERT(replyToDelete != nullptr);
+        replyToDelete->abort();
+
+        replyToDelete->deleteLater();
+
+        bool removed = pendingRequests.remove(replyToDelete);
+        Q_ASSERT(removed);
+    }
 }
 
 void RESTClient::processStreamFinished(QNetworkReply *reply, QByteArray &rawData, void *arg)
@@ -423,6 +442,9 @@ notify:
         waitCondition.wakeOne();
     } else if (info->synchronicity == RequestSynchronicity::Stream) {
         processStreamFinished(reply, rawData, info->optArg);
+
+        qCDebug(RESTClientLog) << Q_FUNC_INFO << "Removing network reply " << static_cast<void*>(reply) << " for stream " << info->optArg;
+
         bool was_removed = pendingRequests.remove(reply);
         Q_ASSERT(was_removed);
     } else {
