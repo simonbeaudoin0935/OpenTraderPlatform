@@ -9,7 +9,6 @@
 
 static TSClient* client;
 
-
 // will be called to create a global test data table.
 void TestTSClient::initTestCase_data()
 {
@@ -46,6 +45,8 @@ void TestTSClient::initTestCase() {
     QLoggingCategory::setFilterRules("TSClient.debug=true");
 
     qInfo() << "Start of test suite";
+
+    QThread::currentThread()->setObjectName("UnitTestThread");
 
     client = TSClient::getInstancePtr(); // ***** First time to do a getInstance, this will call the constructor
 }
@@ -91,7 +92,10 @@ void TestTSClient::testRefreshSyncAccessToken()
 
     // Wait for authStateChanged signal to be fired
     // 2 second is generous for one refresh request round trip
-    triggered = authStateSpy.wait(2000);
+    // When debugging, 2 seconds wasnt enough. Bumbed it to 4.
+    // This is because the start of the suite is slow as the debugger sets up
+    // the maaaany runtime thangs the app links to
+    triggered = authStateSpy.wait(4000);
 
     QVERIFY(triggered);
 
@@ -274,6 +278,58 @@ void TestTSClient::testFetchingMoreThanMaximumPerMinute()
 
         // 5s should be enough to perform those requests
         QTest::qWait(5000);
+    }
+
+    QVERIFY(client->isCleanedUp());
+}
+
+void TestTSClient::testStreamBars()
+{
+    QString symbol = "BTCUSD";
+    StreamBars* streamBars;
+
+    QVERIFY(client->isCleanedUp());
+
+    streamBars = client->openStreamBars(symbol,
+                                        1,
+                                        TSClient::StreamBarsUnit::Minute,
+                                        10,
+                                        TSClient::StreamBarsSessionTemplate::USEQ24Hour);
+    QVERIFY(streamBars != nullptr);
+
+    QSignalSpy signalSpy(streamBars, &StreamBars::receivedNewBar);
+
+    qDebug() << "Waiting 5 seconds to let Stream Bars data pile up...";
+
+    // Let this thread's event loop run a bit to receive some market depth quotes
+    for (size_t i = 5; i != 0; i--) {
+        qDebug() << "Countdown : " << i << " seconds";
+
+        QTest::qWait(1000);
+    }
+
+    // Spit on that thang
+    client->closeStreamBars(streamBars);
+
+    // Verifying integrity of received data
+    {
+        QVERIFY(signalSpy.count() > 0);
+
+        qDebug() << "Received " << signalSpy.count() << " StreamBars bars";
+
+        // Validate every signal received
+        for (const QList<QVariant>& signal :  signalSpy) {
+            QVERIFY(signal.size() == 1); // One argument to StreamBar::receiveNewQuoteBars
+
+            // Convert QVariant to Bar
+            QVariant firstArgOfSignal = signal.at(0);
+
+            QVERIFY(firstArgOfSignal.canConvert<Bar>());
+
+            Bar bar = firstArgOfSignal.value<Bar>();
+
+            QVERIFY(bar.isValid());
+        }
     }
 
     QVERIFY(client->isCleanedUp());

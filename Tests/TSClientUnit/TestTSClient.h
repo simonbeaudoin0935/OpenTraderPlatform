@@ -21,6 +21,8 @@ private slots:
     void testPlaceAsyncOrder();
 
     void testFetchingMoreThanMaximumPerMinute();
+
+    void testStreamBars();
     void testStreamMarketDepthQuote();
 
     //TODO should perhaps implement a max-per-minute limiter to queue the exceeding requests

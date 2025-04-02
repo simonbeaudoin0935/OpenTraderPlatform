@@ -21,7 +21,8 @@ MainAlgo::MainAlgo() :
 
     this->moveToThread(thread);
 
-    connect(thread, &QThread::started, this, &MainAlgo::onThreadStarted);
+#warning reactivate this shit
+//  connect(thread, &QThread::started, this, &MainAlgo::onThreadStarted);
 
     connect(FMPClient::getInstancePtr(), &FMPClient::sharesFloatReceived, this, &MainAlgo::onSharesFloatReceived);
     connect(FMPClient::getInstancePtr(), &FMPClient::stockNewsReceived, this, &MainAlgo::onStockNewsReceived);

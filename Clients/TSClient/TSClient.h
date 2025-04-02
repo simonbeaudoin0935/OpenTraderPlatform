@@ -3,11 +3,13 @@
 #include <QObject>
 #include <QLoggingCategory>
 #include <QVector>
+
 #include "../RESTClient.h"
 #include "Auth/AuthWindow.h"
 #include "Auth/AuthToken.h"
 #include "Brokerage/Accounts/AccountsResult.h"
 #include "OrderExecution/PlaceOrder/PlaceOrder.h"
+#include "MarketData/StreamBars/StreamBars.h"
 #include "MarketData/StreamMarketDepthQuote/StreamMarketDepthQuote.h"
 
 Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
@@ -27,7 +29,29 @@ public:
     bool isAuthenticated() const { return authenticated; }
     bool isAuthInProgress() const { return authInProgress; }
 
+    void activateMockStreamCreation(bool activate) { activateMockStream = activate; };
+
                               // -------- Market data methods ----------
+    /*
+     * Creates a Bars Stream
+     *
+     * @return : nullptr if the stream could not be created
+     * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/StreamBars
+     *
+     * @note : Returned pointer dynamically allocated. Delete with closeStreamBars
+     *
+     * @note : ->startStream() needs to be called in order to start the stream. This gives time to the
+     *         caller to setup signal/slot connections
+     */
+    enum class StreamBarsUnit { Minute, Daily, Weekly, Monthly };
+    enum class StreamBarsSessionTemplate { USEQPre, USEQPost, USEPreAndPost,USEQ24Hour, Default };
+
+    StreamBars* openStreamBars(QString &symbol,
+                               unsigned int interval = 1,
+                               StreamBarsUnit unit = StreamBarsUnit::Daily,
+                               unsigned int barsback = 1,
+                               StreamBarsSessionTemplate sesstionTemplate = StreamBarsSessionTemplate::Default);
+    void closeStreamBars(StreamBars* stream);
 
     /*
      * Creates a MarketDepthQuote Stream
@@ -106,8 +130,7 @@ private:
 
     void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) override;
 
-    void processStreamFinished(QNetworkReply *reply, QByteArray &rawData, void *arg) override;
-    void processStreamReadyRead(QNetworkReply *reply, QByteArray &rawData, void *arg) override;
+    void processStreamFinished(QByteArray &rawData, void *arg) override;
 
     // tokens
     AuthToken authToken;
@@ -125,5 +148,11 @@ private:
     // API key placement configuration
     static constexpr ApiKeyPlacement API_KEY_PLACEMENT = ApiKeyPlacement::InHeader;
 
+    bool activateMockStream = false;
+
     friend class TestTSClient; // For unit testing
+
+
+    void openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Stream * const stream);
+    void closeStream(Stream* const stream);
 };

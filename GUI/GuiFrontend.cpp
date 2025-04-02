@@ -2,19 +2,6 @@
 #include "ui_guifrontend.h"
 #include <QJsonDocument>
 
-
-QString GuiFrontend::bytesToString(qint64 bytes) {
-    if (bytes >= 1024 * 1024) {
-        double megabytes = static_cast<double>(bytes) / (1024 * 1024);
-        return QString("%1 MB").arg(megabytes, 0, 'f', 2);
-    } else if (bytes >= 1024) {
-        double kilobytes = static_cast<double>(bytes) / 1024;
-        return QString("%1 KB").arg(kilobytes, 0, 'f', 2);
-    } else {
-        return QString("%1 bytes").arg(bytes);
-    }
-}
-
 GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     ui = new Ui::GuiFrontend();
     ui->setupUi(new QMainWindow());
@@ -134,7 +121,7 @@ void GuiFrontend::onMarketDepthNotAvailable()
 
 void GuiFrontend::onUpdateTimerTimeout()
 {
-    //TODO test
+#warning TODO test, remove
     FMPClient::getInstance().fetchAsyncQuoteShort("AAPL");
 }
 
@@ -172,9 +159,9 @@ void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
 
         TSClient::getInstance().fetchAsyncAccounts();
 
-        QString symbol = "USDBTC";
+        QString symbol = "BTCUSD";
 
-        auto a = TSClient::getInstance().openStreamMarketDepthQuote(symbol);
+        auto a = TSClient::getInstance().openStreamBars(symbol,1,TSClient::StreamBarsUnit::Minute,10,TSClient::StreamBarsSessionTemplate::USEQ24Hour);
     } else {
         if (isFirstTime) {
             // If its the first time we receive this signal and its negative state, it just
@@ -192,4 +179,16 @@ void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
     ui->logDisplay->append(log);
 
     isFirstTime = false;
+}
+
+QString GuiFrontend::bytesToString(qint64 bytes) {
+    if (bytes >= 1024 * 1024) {
+        double megabytes = static_cast<double>(bytes) / (1024 * 1024);
+        return QString("%1 MB").arg(megabytes, 0, 'f', 2);
+    } else if (bytes >= 1024) {
+        double kilobytes = static_cast<double>(bytes) / 1024;
+        return QString("%1 KB").arg(kilobytes, 0, 'f', 2);
+    } else {
+        return QString("%1 bytes").arg(bytes);
+    }
 }

@@ -14,6 +14,9 @@ SOURCES += \
     ../../Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.cpp \
     ../../Clients/TSClient/Brokerage/Accounts/AccountsResult.cpp \
     ../../Clients/TSClient/MarketData/Stream.cpp \
+    ../../Clients/TSClient/MarketData/MockStream/MockStreamNetworkReply.cpp \
+    ../../Clients/TSClient/MarketData/StreamBars/Bar.cpp \
+    ../../Clients/TSClient/MarketData/StreamBars/StreamBars.cpp \
     ../../Clients/TSClient/MarketData/StreamMarketDepthQuote/StreamMarketDepthQuote.cpp \
     ../../Clients/TSClient/MarketData/StreamMarketDepthQuote/MarketDepthQuote.cpp \
     ../../Clients/TSClient/Auth/AuthWindow.cpp \
@@ -26,6 +29,9 @@ HEADERS += \
     ../../Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.h \
     ../../Clients/TSClient/Brokerage/Accounts/AccountsResult.h \
     ../../Clients/TSClient/MarketData/Stream.h \
+    ../../Clients/TSClient/MarketData/MockStream/MockStreamNetworkReply.h \
+    ../../Clients/TSClient/MarketData/StreamBars/Bar.h \
+    ../../Clients/TSClient/MarketData/StreamBars/StreamBars.h \
     ../../Clients/TSClient/MarketData/StreamMarketDepthQuote/StreamMarketDepthQuote.h \
     ../../Clients/TSClient/MarketData/StreamMarketDepthQuote/MarketDepthQuote.h \
     ../../Clients/TSClient/Auth/AuthWindow.h \

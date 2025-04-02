@@ -11,11 +11,12 @@
 #include <QtTest>
 #endif
 
+
 #define BASE_URL_TS_API_SIMULATION "https://sim-api.tradestation.com/v3/"
 
-#define AT_THREAD_START 0
+#define ENDPOINT_STREAM_BARS               "marketdata/stream/barcharts"
+#define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes"
 
-// Define the logging category
 Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
 
 // Initialize static member outside class
@@ -37,63 +38,6 @@ TSClient* TSClient::getInstancePtr() {
     return instance;
 }
 
-StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, unsigned int depth)
-{
-    // TODO perhaps assert if trying to pass multiple symbols in the symbol as to err early
-
-    // This is a function that is called on this object from another thread
-    // its necessary to be careful about thread safety
-    StreamMarketDepthQuote * stream;
-
-    QMetaObject::invokeMethod(this,
-        [this, &stream, &symbol, depth]()
-        {
-
-            QUrl url(QString(BASE_URL_TS_API_SIMULATION) + "marketdata/stream/marketdepth/quotes/" + symbol);
-            QUrlQuery query;
-            query.addQueryItem("maxlevels", QString::number(depth));
-            url.setQuery(query);
-
-            QNetworkRequest request(url);
-            request.setRawHeader("Authorization", QString("Bearer %1").arg(authToken.getAccessToken()).toUtf8());
-            request.setRawHeader("Accept", "application/json");
-            request.setRawHeader("Connection", "keep-alive");
-
-            stream = new StreamMarketDepthQuote();
-            stream->setParent(this);
-            streams.push_back(stream);
-
-            fetchStream(request, static_cast<void*>(stream));
-
-            connect(stream, &Stream::marketDepthNotAvailable,
-                    this, &TSClient::marketDepthNotAvailable);
-
-        },Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
-                                   // finishes executing this lambda so that a valid pointer is returned
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opened Stream " << static_cast<void*>(stream);
-
-    return stream;
-}
-
-void TSClient::closeStreamMarketDepthQuote(StreamMarketDepthQuote *stream)
-{
-    Q_ASSERT(stream != nullptr);
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing Stream " << static_cast<void*>(stream);
-
-    QMetaObject::invokeMethod(this,
-        [this, &stream]()
-        {
-            bool removed = streams.removeOne(stream);
-            Q_ASSERT(removed); // The stream was likely already closed, or a bad pointer was passed
-
-            closeStream(static_cast<void*>(stream));
-
-            delete stream;
-        },
-    Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread finishes executing this lambda
-}
 
 TSClient::TSClient() :
     RESTClient(QUrl(BASE_URL_TS_API_SIMULATION)),
@@ -109,7 +53,7 @@ TSClient::TSClient() :
             "Auth token or Client token is invalid/absent, will need an authentification process";
 
         // Schedule an emition for when the event loop is started
-        QTimer::singleShot(AT_THREAD_START, this, [this]() {
+        QTimer::singleShot(0, this, [this]() {
             emit authStateChanged(false, "authentification token invalid or absent at startup");
         });
     }
@@ -122,7 +66,7 @@ TSClient::TSClient() :
             "Auth token is valid but expired, perform a refresh now.";
 
         // Schedule a refresh for when the thread starts
-        QTimer::singleShot(AT_THREAD_START, this, [this]() {
+        QTimer::singleShot(0, this, [this]() {
             refreshAsyncAccessToken();
         });
     }
@@ -162,7 +106,7 @@ TSClient::TSClient() :
         });
 
         // Schedule an emition for when the event loop is started
-        QTimer::singleShot(AT_THREAD_START, this, [this]() {
+        QTimer::singleShot(0, this, [this]() {
             emit authStateChanged(true, "Auth token valid and not expired");
         });
 
@@ -486,21 +430,13 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) 
     }
 }
 
-void TSClient::processStreamFinished(QNetworkReply *reply, QByteArray &rawData, void *arg)
+void TSClient::processStreamFinished(QByteArray &rawData, void *arg)
 {
     Q_ASSERT(arg != nullptr);
-
-    Stream* stream = static_cast<Stream*>(arg);
-    stream->onFinished(reply, rawData);
+    Q_UNUSED(rawData)
+#warning REMOVE this is dead code
 }
 
-void TSClient::processStreamReadyRead(QNetworkReply *reply, QByteArray &rawData, void *arg)
-{
-    Q_ASSERT(arg != nullptr);
-
-    Stream* stream = static_cast<Stream*>(arg);
-    stream->onReadyRead(reply, rawData);
-}
 
 bool TSClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &result) {
 
@@ -545,3 +481,143 @@ void TSClient::placeAsyncOrder(const PlaceOrderRequest &order) {
     Q_ASSERT_X(0, "placeAsyncOrder", "TODO implement");
 }
 
+void TSClient::openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Stream * const stream) {
+    Q_ASSERT(!symbol.isEmpty());
+    Q_ASSERT(symbol.length() >= 1 && symbol.length() <= 7);
+    Q_ASSERT(!symbol.contains(','));
+    Q_ASSERT(symbol.isUpper());
+    Q_ASSERT(stream != nullptr);
+    Q_ASSERT(!endpoint.isEmpty());
+
+    QMetaObject::invokeMethod(this,
+        [this, &symbol, &endpoint, &query, stream]()
+        {
+            QUrl url(QString(BASE_URL_TS_API_SIMULATION) + endpoint + "/" + symbol);
+            url.setQuery(query);
+
+            QNetworkRequest request(url);
+            request.setRawHeader("Authorization", QString("Bearer %1").arg(authToken.getAccessToken()).toUtf8());
+            //request.setRawHeader("Accept", "application/json");
+            //request.setRawHeader("Connection", "keep-alive");
+
+            // The stream was new'ed in the caller's thread
+            stream->setParent(this);
+            streams.push_back(stream);
+
+            QNetworkReply *reply = fetchStream(request, static_cast<void*>(stream));
+
+            // The readyRead, finished and errorOccured are connected internaly here.
+            // This call starts the timeout timer as well
+            stream->setNetworkReply(reply);
+
+            connect(stream, &Stream::receivedAmountOfData, this, &TSClient::onReceivedNewAmountOfData);
+        },
+    Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
+                                   // finishes executing this lambda so that a valid pointer is returned
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opened Stream " << static_cast<void*>(stream);
+
+    return;
+}
+
+void TSClient::closeStream(Stream* const stream) {
+    Q_ASSERT(stream != nullptr);
+
+    QMetaObject::invokeMethod(this,
+        [this, &stream]()
+        {
+            bool removed = streams.removeOne(stream);
+            Q_ASSERT(removed); // The stream was likely already closed, or a bad pointer was passed
+
+            RESTClient::closeStream(static_cast<void*>(stream));
+
+            delete stream;
+        },
+    Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread finishes executing this lambda
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closed Stream " << static_cast<void*>(stream);
+}
+
+
+StreamBars *TSClient::openStreamBars(QString &symbol, unsigned int interval, StreamBarsUnit unit, unsigned int barsback, StreamBarsSessionTemplate sessionTemplate)
+{
+    // Interval that each bar will consist of - for minute bars, the number of minutes aggregated in a single bar. For bar units other than minute, value must be 1.
+    if (unit == StreamBarsUnit::Minute) {Q_ASSERT(interval >= 1);}
+    else { Q_ASSERT(interval == 1);}
+    Q_ASSERT(barsback <= 57600);
+
+    const QString endpoint = ENDPOINT_STREAM_BARS;
+
+    QUrlQuery query;
+    query.addQueryItem("interval", QString::number(interval));
+    query.addQueryItem("unit", [unit]() -> QString {
+        switch (unit) {
+        case StreamBarsUnit::Minute: return "Minute";
+        case StreamBarsUnit::Daily: return "Daily";
+        case StreamBarsUnit::Weekly: return "Weekly";
+        case StreamBarsUnit::Monthly: return "Monthly";
+        default: Q_UNREACHABLE_RETURN("Unknown");
+        }
+    }());
+    query.addQueryItem("barsback", QString::number(interval));
+    query.addQueryItem("sessiontemplate", [sessionTemplate]() -> QString {
+        switch (sessionTemplate) {
+        case StreamBarsSessionTemplate::USEQPre: return "USEQPre";
+        case StreamBarsSessionTemplate::USEQPost: return "USEQPost";
+        case StreamBarsSessionTemplate::USEPreAndPost: return "USEPreAndPost";
+        case StreamBarsSessionTemplate::USEQ24Hour: return "USEQ24Hour";
+        case StreamBarsSessionTemplate::Default: return "Default";
+        default: Q_UNREACHABLE_RETURN("Unknown");
+        }
+    }());
+
+    StreamBars * stream = new StreamBars();
+    stream->moveToThread(thread);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamBars" << static_cast<void*>(stream);
+
+    TSClient::openStream(symbol, endpoint, query, stream);
+
+    return stream;
+}
+
+void TSClient::closeStreamBars(StreamBars *stream)
+{
+    Q_ASSERT(stream != nullptr);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamBars " << static_cast<void*>(stream);
+
+    TSClient::closeStream(stream);
+}
+
+StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, unsigned int depth)
+{
+    Q_ASSERT(depth >= 1 && depth <= 20);
+
+    const QString endpoint = ENDPOINT_STREAM_MARKET_DEPTH_QUOTE;
+    QUrlQuery query;
+    query.addQueryItem("maxlevels", QString::number(depth));
+
+    StreamMarketDepthQuote * stream = new StreamMarketDepthQuote();
+    stream->moveToThread(thread);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamMarketDepthQuote " << static_cast<void*>(stream);
+
+    TSClient::openStream(symbol, endpoint, query, stream);
+
+    // Specially to StreakMarketDepth Quote/Aggregates, there is the possibility that the client account
+    // do not have access to level2 data.
+    connect(stream, &Stream::marketDepthNotAvailable,
+            this, &TSClient::marketDepthNotAvailable);
+
+    return stream;
+}
+
+void TSClient::closeStreamMarketDepthQuote(StreamMarketDepthQuote *stream)
+{
+    Q_ASSERT(stream != nullptr);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamMarketDepthQuote " << static_cast<void*>(stream);
+
+    TSClient::closeStream(stream);
+}

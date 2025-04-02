@@ -1,33 +1,62 @@
 #pragma once
 
 #include <QObject>
-#include <QNetworkReply>
 #include <QJsonDocument>
+#include <QLoggingCategory>
+#include <QTimer>
+#include <QNetworkReply>
+
+Q_DECLARE_LOGGING_CATEGORY(StreamLog)
 
 class Stream : public QObject {
     Q_OBJECT
 
 public:
-    void onReadyRead(QNetworkReply *reply, QByteArray &data);
-    void onFinished(QNetworkReply *reply, QByteArray &data);
+    virtual ~Stream();
 
-    bool isFinished() const {return receivedFinishedReply;};
-protected:
-    explicit Stream();
-    ~Stream();
-    Stream(const Stream&) = delete;
-    Stream& operator=(const Stream&) = delete;
+    // Calling this function arms the timeout timer!
+    void setNetworkReply(QNetworkReply *networkReply);
+
+    bool isFinished() const {return streamIsFinished;}
+    bool isInError()  const {return streamIsInError;}
+
+    enum class StreamError {
+        Timeout,
+        BadRequest,
+        DualLogon,
+        GoAway,
+        InternalServerError,
+        Unknown
+    };
 
 signals:
     void marketDepthNotAvailable();
+    void streamErrorOccurred(StreamError error, QString errorMessage);
+    void receivedAmountOfData(qsizetype bytes);
+
+public slots:
+    void onReadyRead();
+    void onErrorOccurred(QNetworkReply::NetworkError code);
+    void onFinished();
+
+private slots:
+    void onHeartbeatTimerTimeout();
+
 protected:
+    explicit Stream();
 
-    bool receivedFinishedReply = false;
-    virtual void processJson(const QJsonDocument& doc) = 0;
+    Stream(const Stream&) = delete;
+    Stream& operator=(const Stream&) = delete;
 
+    virtual bool processJsonObject(const QJsonObject& doc) = 0;
 
-    //void onError(QNetworkReply::NetworkError error);
+    QTimer heartbeatTimer;
 
 private:
+    bool streamIsInError = false;
+    bool streamIsFinished = false;
+
+    QNetworkReply *reply = nullptr;
+    unsigned int timeoutMS = 7000;
 };
 

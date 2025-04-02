@@ -1,4 +1,3 @@
-#include "TSClient/MarketData/Stream.h"
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -9,7 +8,7 @@
 #endif
 
 #include "RESTClient.h"
-
+#include "TSClient/MarketData/Stream.h" // TODO I dont like having to include this header here
 
 Q_LOGGING_CATEGORY(RESTClientLog, "RESTClient");
 
@@ -19,6 +18,7 @@ RESTClient::RESTClient(const QUrl &baseUrl, QObject *parent)
     manager(new QNetworkAccessManager(this)),
     baseUrl(baseUrl)
 {
+
     this->moveToThread(thread);
 
     connect(manager, &QNetworkAccessManager::finished, this, &RESTClient::onReplyFinished);
@@ -98,11 +98,16 @@ QNetworkRequest RESTClient::buildRequest(ApiKeyPlacement placement, const QStrin
  */
 bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete, HttpMethod method, const QByteArray &postData) {
     QNetworkReply *reply = nullptr;
+    QSemaphore semaphore(0); // begin locked
 
-    // Invoke this method in the distinct thread of the FMPClient singleton.
-    // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
-    // is actually invoking this method NOT in the caller's thread.
-    QMetaObject::invokeMethod(this, [this, request, &reply, method, postData]() {
+    // Only external callers to TSClient thread should get here. Calling a fetch sync from within the TSClient's
+    // thread would cause a deadlock to itself
+    Q_ASSERT(QThread::currentThread() != thread);
+
+    // Invoke this method in the TSClient's thread. Note we are passing a reference to *reply so that TSClient's thread
+    // can give it us back to use it later. The parameters request and data are also passed by reference to avoid
+    // copying them. This is safe because we are using a BlockingQueuedConnection
+    QMetaObject::invokeMethod(this, [this, &semaphore, &request, &reply, method, &postData]() {
         switch (method) {
             case HttpMethod::GET:
                 reply = manager->get(request);
@@ -113,20 +118,25 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
                 break;
         }
 
+        Q_CHECK_PTR(reply);
+
         qCDebug(RESTClientLog) << Q_FUNC_INFO <<
             " : Thread [" << QThread::currentThread()->objectName() <<
             "] executed the queued" << (method == HttpMethod::GET ? "GET" : "POST") << 
             "request and registered the reply " << static_cast<void*>(reply) << " for later reception.";
 
-        QMutexLocker locker(&pendingRequestsMutex);
+        pendingRequestsRWLock.lockForWrite();
         {
             pendingRequests[reply] = {.synchronicity = RequestSynchronicity::Sync,
                                       .type = RequestTypeNone,
                                       .completed = false,
-                                      .jsonDocument = nullptr};
+                                      .jsonDocument = nullptr,
+                                      .optArg = static_cast<void*>(&semaphore)}; // giving the pointer to our semaphore so
+                                                                                 // TSClient knows who to wake up
         }
+        pendingRequestsRWLock.unlock();
 
-    }, Qt::QueuedConnection);
+    }, Qt::BlockingQueuedConnection);
 
     qCDebug(RESTClientLog) << Q_FUNC_INFO <<
         " : Thread [" << QThread::currentThread()->objectName() <<
@@ -135,24 +145,23 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
         " header : " << request.headers() <<
         " and data : " << postData;
 
-    QMutexLocker locker(&pendingRequestsMutex);
+    //TODO find the right wait mechanism
+    bool aquired = semaphore.tryAcquire(1,fetchSyncTimeoutMs);
 
-    // Mutex is released while we wait
-    if (!waitCondition.wait(&pendingRequestsMutex, fetchSyncTimeoutMs)) {
-        // Mutex is re-aquired
-
+    if (false == aquired) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO <<
-            " : The condition wait timed out after " << fetchSyncTimeoutMs <<
-            "ms. Removing the *reply " << static_cast<void*>(reply) << " from pendingRequests";
+            " : Timed out after  " << fetchSyncTimeoutMs << "ms. Removing the *reply " << static_cast<void*>(reply) << " from pendingRequests";
 
         // If we timed out before receiving the reply, we remove the *reply from the map.
         // This is important so that *if* the reply/error eventually arrives, its onReplyFinished()
         // processing will notice it is not in the map. This will signify to the onReplyFinished()
         // that there is nobody waiting for this reply anymore.
-        bool was_removed = pendingRequests.remove(reply);
-
-        // There is a logic problem if the *reply was not in the map at this point
-        Q_ASSERT(was_removed);
+        pendingRequestsRWLock.lockForWrite();
+        {
+            bool removed = pendingRequests.remove(reply);
+            Q_ASSERT(removed); // There is a logic problem if the *reply was not in the map at this point
+        }
+        pendingRequestsRWLock.unlock();
 
         return false;
     }
@@ -161,34 +170,41 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
     // the invoked method above and populated the reply
     Q_ASSERT(reply != nullptr);
 
-    //#warning TODO asserts on the container here toooo... maybe?
 
-    if (pendingRequests.contains(reply) && pendingRequests[reply].completed) {
+    pendingRequestsRWLock.lockForRead();
+    {
+        // We were woken up, our request HAS to be in the pendingRequests container
+        Q_ASSERT(pendingRequests.contains(reply));
+        // If it is, the request HAS to be completed synce this is a sync request
+        Q_ASSERT(pendingRequests[reply].completed == true);
+        // Being paranoid, but just double checking the synchronicity of our corresponding request is still SYNC
+        Q_ASSERT(pendingRequests[reply].synchronicity == RequestSynchronicity::Sync);
+        // If we are still alive here, the jsonDocument pointer MUST have been populated to something
+        Q_ASSERT(pendingRequests[reply].jsonDocument != nullptr);
+
+        // Finally, retreive our precious
         jsonDocumentFromReplyToDelete = pendingRequests[reply].jsonDocument;
-
-        qCDebug(RESTClientLog) << Q_FUNC_INFO << " : The *reply " << static_cast<void*>(reply) << " successfuly completed.";
-
-        bool was_removed = pendingRequests.remove(reply);
-
-        // There is a logic problem if the *reply was not in the map at this point
-        Q_ASSERT(was_removed);
-
-        return true;
     }
+    pendingRequestsRWLock.unlock();
 
-    jsonDocumentFromReplyToDelete = nullptr;
+    pendingRequestsRWLock.lockForWrite();
+    {
+        // Now that we fetched our Json document that was created by the TSClient's thread,
+        // remove the request from the list. This signify this sync request has finished to the eyes
+        // of the TSClient's thread.
+        bool removed = pendingRequests.remove(reply);
+        Q_ASSERT(removed);
+    }
+    pendingRequestsRWLock.unlock();
 
-    pendingRequests.remove(reply);
-
-    qWarning() << Q_FUNC_INFO << " : The pending requests did not contain the reply, or was not marked as completed.";
-
-    return false;
+    // If we got here without asserting, everything is fine
+    return true;
 }
 
 void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method, const QByteArray &postData) {
-    // Invoke this method in the distinct thread of the FMPClient singleton.
-    // Having ->moveToThread() the FMPClient to a dedicated thread makes that calling to 'this'
-    // is actually invoking this method NOT in the caller's thread.
+
+    // Because this is a queud method invocation, the parameters have to be passed by value
+    // TODO in the future, to avoid postData especialy, we could new it where it is build and deleted inside here
     QMetaObject::invokeMethod(this, [this, request, type, method, postData]() {
         QNetworkReply *reply = nullptr;
         
@@ -202,18 +218,22 @@ void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type,
                 break;
         }
 
+        Q_CHECK_PTR(reply);
+
         qCDebug(RESTClientLog) << Q_FUNC_INFO <<
             " : Thread [" << QThread::currentThread()->objectName() <<
             "] executed the queued" << (method == HttpMethod::GET ? "GET" : "POST") <<
             "request and registered the reply " << static_cast<void*>(reply) << " for later reception.";
 
-        Q_ASSERT(reply != nullptr);
 
-        QMutexLocker locker(&pendingRequestsMutex);
-        pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Async,
-                                  .type = type,
-                                  .completed = false,
-                                  .jsonDocument = nullptr};
+        pendingRequestsRWLock.lockForWrite();
+        {
+            pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Async,
+                                       .type = type,
+                                       .completed = false,
+                                       .jsonDocument = nullptr};
+        }
+        pendingRequestsRWLock.unlock();
     }, Qt::QueuedConnection);
 
 
@@ -226,125 +246,125 @@ void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type,
 }
 
 // This is all a bit hacky for now...
-void RESTClient::fetchStream(const QNetworkRequest &request, void* arg)
+QNetworkReply* RESTClient::fetchStream(const QNetworkRequest &request, void* arg)
 {
     Q_ASSERT(arg != nullptr);
 
-    // Fetch stream is only meant to be called from TSClient, and from context of the thread itself
+    // Fetch stream is only meant to be called from TSClient's thread
     Q_ASSERT(QThread::currentThread() == this->thread);
+
 
     QNetworkReply *reply = manager->get(request);
 
     Q_ASSERT(reply != nullptr);
 
-    qCDebug(RESTClientLog) << Q_FUNC_INFO << "GET network reply = " << static_cast<void*>(reply);
-    QMutexLocker locker(&pendingRequestsMutex);
+    qCDebug(RESTClientLog) << Q_FUNC_INFO <<
+        "GET network reply = " << static_cast<void*>(reply) <<
+        " with URL : " << request.url() <<
+        " and header : " << request.headers();
 
-    pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Stream,
-                              .type = 0,
-                              .completed = false,
-                              .jsonDocument = nullptr,
-                              .optArg = arg};
+
+    pendingRequestsRWLock.lockForWrite();
+    {
+        pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Stream,
+                                   .type = 0,
+                                   .completed = false,
+                                   .jsonDocument = nullptr,
+                                   .optArg = arg};
+    }
+    pendingRequestsRWLock.unlock();
+
+    return reply;
 }
 
 void RESTClient::closeStream(void *arg)
 {
+    QNetworkReply *replyToDelete = nullptr;
+
     Q_ASSERT(arg != nullptr);
 
-    // Fetch stream is only meant to be called from TSClient, and from context of the thread itself
+    // Closing the stream is only meant to be called from TSClient's
     Q_ASSERT(QThread::currentThread() == this->thread);
-
-    QMutexLocker locker(&pendingRequestsMutex);
-
-    QNetworkReply *replyToDelete = nullptr;
 
     qCDebug(RESTClientLog) << Q_FUNC_INFO << "Going through all pending replies";
 
-    for (auto it = pendingRequests.constBegin(); it != pendingRequests.constEnd(); ++it) {
-        QNetworkReply *reply = it.key();
+    pendingRequestsRWLock.lockForRead();
+    {
+        for (auto it = pendingRequests.constBegin(); it != pendingRequests.constEnd(); ++it) {
+            QNetworkReply *reply = it.key();
 
-        qCDebug(RESTClientLog) << Q_FUNC_INFO << "Checking reply " << static_cast<void*>(reply);
+            qCDebug(RESTClientLog) << Q_FUNC_INFO << "Checking reply " << static_cast<void*>(reply);
 
-        const RequestInfo &info = it.value();
-        if (info.optArg == arg) {
-            Q_ASSERT(info.synchronicity == RequestSynchronicity::Stream);
-            replyToDelete = reply;
+            const RequestInfo &info = it.value();
+            if (info.optArg == arg) {
 
-            qCDebug(RESTClientLog) << Q_FUNC_INFO << "Found that this reply has stream  " << static_cast<void*>(arg) << " attached";
+                // Paranoia. If we found the pendingRequest for which the stream arg corresponds, it has to have
+                // its type to stream
+                Q_ASSERT(info.synchronicity == RequestSynchronicity::Stream);
 
-            break;
+                replyToDelete = reply;
+
+                qCDebug(RESTClientLog) << Q_FUNC_INFO << "Found that this reply has stream  " << static_cast<void*>(arg) << " attached";
+
+                break;
+            }
         }
     }
+    pendingRequestsRWLock.unlock();
 
     Stream* stream = static_cast<Stream*>(arg);
 
     if (stream->isFinished()) {
+        // We are closing a Stream that previously received a finishing event from the remote server.
+        // This means that the TSClient already did some cleanup and removed its pendingRequest from the
+        // container. If the Stream was marked finished, it means it MUST have been removed from the list
         Q_ASSERT(replyToDelete == nullptr);
-        return;
-
     } else {
+        // On the other hand, we are closing a stream that is stil ongoing, it MUST still be present in the container
         Q_ASSERT(replyToDelete != nullptr);
-        replyToDelete->abort();
 
+        qCDebug(RESTClientLog) << Q_FUNC_INFO << "Aborting request";
+        // Close the connection and mark it
+        replyToDelete->abort();
         replyToDelete->deleteLater();
 
-        bool removed = pendingRequests.remove(replyToDelete);
-        Q_ASSERT(removed);
+        pendingRequestsRWLock.lockForWrite();
+        {
+            bool removed = pendingRequests.remove(replyToDelete);
+            if (removed) {
+                qCDebug(RESTClientLog) << Q_FUNC_INFO << " normal";
+            } else {
+                qCDebug(RESTClientLog) << Q_FUNC_INFO << " request not removed because it appears that the stream was manually closed before";
+            }
+        }
+        pendingRequestsRWLock.unlock();
     }
+
+    return;
 }
 
-void RESTClient::processStreamFinished(QNetworkReply *reply, QByteArray &rawData, void *arg)
+void RESTClient::processStreamFinished(QByteArray &rawData, void *arg)
 {
     // Default implementation when not TSClient
-    Q_UNUSED(reply);
     Q_UNUSED(rawData);
     Q_UNUSED(arg);
     Q_ASSERT(0);
 }
 
-void RESTClient::processStreamReadyRead(QNetworkReply *reply, QByteArray &rawData, void *arg)
+void RESTClient::processStreamReadyRead(QByteArray &rawData, void *arg)
 {
     // Default implementation when not TSClient
-    Q_UNUSED(reply);
     Q_UNUSED(rawData);
     Q_UNUSED(arg);
     Q_ASSERT(0);
-}
-
-/*
-void RESTClient::onError(QNetworkReply *reply) {
-
-}
-*/
-
-void RESTClient::onReplyReadyRead(QNetworkReply *reply){
-    QMutexLocker locker(&pendingRequestsMutex);  // TODO this works, but rethink this mutex as it would be held for a while
-
-    Q_ASSERT(pendingRequests.contains(reply));
-
-    if (pendingRequests[reply].synchronicity != RequestSynchronicity::Stream) {
-        // Only for https streams that dont finish do we expect to continue.
-        // All the other requests are finite and handled in onFinished()
-        return;
-    }
-
-    QByteArray rawData = reply->readAll();
-    qsizetype bytesReceived = rawData.size();
-
-    totalDataReceivedBytes += bytesReceived;
-
-    // Broadcast the new data size (ie to update the GUI)
-    emit totalDataReceivedBytesIncreased(totalDataReceivedBytes);
-
-    qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << totalDataReceivedBytes << " bytes";
-
-    processStreamReadyRead(reply, rawData, pendingRequests[reply].optArg);
-
 }
 
 void RESTClient::onReplyFinished(QNetworkReply *reply) {
     QJsonDocument doc;
-    RequestInfo *info;
+    RequestInfo *requestInfo;
+    QJsonParseError parseError;
+
+    Q_ASSERT(QThread::currentThread() == thread); // Paranoia
 
 #ifdef UNIT_TESTING
     if (simulate_reply_network_latency) {
@@ -361,35 +381,40 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 
     totalDataReceivedBytes += bytesReceived;
 
-    // Broadcast the new data size (ie to update the GUI)
     emit totalDataReceivedBytesIncreased(totalDataReceivedBytes);
 
     qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << totalDataReceivedBytes << " bytes";
 
-    // Mutex is intentionally aquired after the unit test latency delay above
-    QMutexLocker locker(&pendingRequestsMutex);
+    // lock for write for pretty much the rest of this function, since we modify a struct pointed in the contained
+#warning If we deadlock again, it might be due to side effect of holding this lock for too long (and calling the process* functions at the end of this block)
+    pendingRequestsRWLock.lockForWrite();
 
     if (!pendingRequests.contains(reply)) {
 
         qCWarning(RESTClientLog) << Q_FUNC_INFO <<
-            " : pendingRequests did not containt the reply " << static_cast<void*>(reply) << " : Likely due to a caller's timeout.";
+            " : pendingRequests did not containt the reply " << static_cast<void*>(reply) << " : Likely due to a SYNC caller timing out and bailed.";
 
-        Q_ASSERT(0); // Should NOT happen
         goto delete_later;
     }
 
-    info = &pendingRequests[reply];
+    // copying the struct so we can use it outside the RW lock
+    requestInfo = &pendingRequests[reply];
 
     qCDebug(RESTClientLog) << Q_FUNC_INFO <<
         " : Thread [" << QThread::currentThread()->objectName() <<
         "] working on reply of request " << static_cast<void*>(reply);
 
+    // Those are the default values, just being paranoid that we are consistent and nothing else corrupted those before us
+    Q_ASSERT(requestInfo->jsonDocument == nullptr);
+    Q_ASSERT(requestInfo->completed == false);
 
-    // Those are the default values, just being explicit by resetting them to default
-    info->jsonDocument = nullptr;
-    info->completed = false;
+    doc = QJsonDocument::fromJson(rawData, &parseError);
 
-    doc = QJsonDocument::fromJson(rawData);
+    if (parseError.error != QJsonParseError::NoError) {
+        qCWarning(RESTClientLog) << Q_FUNC_INFO << "Failed to parse JSON:" << parseError.errorString();
+        qCWarning(RESTClientLog) << Q_FUNC_INFO << "Content of the bad data : " << rawData;
+        goto notify;
+    }
 
     if (reply->error() != QNetworkReply::NoError) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO <<
@@ -406,52 +431,60 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 
     if (doc.isArray() && doc.array().isEmpty()) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO << " : Doc array is empty";
-        //goto notify; <- I ended up accepting that an array can be null. FMP returns that for some stocks when they have no news AT ALL
+        //Ccontinue, this is legal
     }
 
     if (doc.isObject() && doc.object().isEmpty()) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO << " : Doc object is empty";
-        goto notify;
-#warning should probably do not do the goto line the one above
+        // Continue, this is legal
     }   
 
     // At this point, the reply is legit
-    info->completed = true;
+    requestInfo->completed = true;
 
-    // Only if the request is SYNC do we need to store the reply in the pendindRequests map and allocate a json array
-    if (info->synchronicity == RequestSynchronicity::Sync) {
-        TRACK_NEW_JSON_ARRAY(info->jsonDocument = new QJsonDocument(doc));
+    if (requestInfo->synchronicity == RequestSynchronicity::Sync) {
+        // Only if the request is SYNC do we need to store the reply in the pendindRequests map and allocate a json array
+        TRACK_NEW_JSON_ARRAY(requestInfo->jsonDocument = new QJsonDocument(doc));
+        Q_CHECK_PTR(requestInfo->jsonDocument);
     } else {
         // In the case of Async or Stream request, no need use new
     }
 
 notify:
-    if (info->synchronicity == RequestSynchronicity::Async) {
-        if (info->completed == true) {
+    if (requestInfo->synchronicity == RequestSynchronicity::Async) {
+        if (requestInfo->completed == true) {
+            emitSignalDemuxer(requestInfo->type, doc);
+        } else {
             // If the request failed, do not emit the signal. This is a design choice I guess.
             // Time will tell if the app should still receive a signal, albeit with an error flag set.
-            emitSignalDemuxer(info->type, doc);
         }
+
         // Whether the request was successful or not, take it out of the map
-        bool was_removed = pendingRequests.remove(reply);
+        bool removed = pendingRequests.remove(reply);
+        Q_ASSERT(removed);
 
-        // There is a logic problem if the *reply was not in the map at this point / not successfuly removed
-        Q_ASSERT(was_removed);
+    } else if (requestInfo->synchronicity == RequestSynchronicity::Sync) {
+        Q_ASSERT(requestInfo->optArg != nullptr);
 
-    } else if (info->synchronicity == RequestSynchronicity::Sync) {
-        waitCondition.wakeOne();
-    } else if (info->synchronicity == RequestSynchronicity::Stream) {
-        processStreamFinished(reply, rawData, info->optArg);
+        QSemaphore *semaphore = static_cast<QSemaphore*>(requestInfo->optArg);
+        semaphore->release();
 
-        qCDebug(RESTClientLog) << Q_FUNC_INFO << "Removing network reply " << static_cast<void*>(reply) << " for stream " << info->optArg;
+        // Here we left the request in the container. The caller will remove it in its thread
 
-        bool was_removed = pendingRequests.remove(reply);
-        Q_ASSERT(was_removed);
+    } else if (requestInfo->synchronicity == RequestSynchronicity::Stream) {
+        processStreamFinished(rawData, requestInfo->optArg);
+
+        qCDebug(RESTClientLog) << Q_FUNC_INFO << "Removing network reply " << static_cast<void*>(reply) << " for stream " << requestInfo->optArg;
+
+        bool removed = pendingRequests.remove(reply);
+        Q_ASSERT(removed);
     } else {
         Q_UNREACHABLE();
     }
 
 delete_later:
+
+    pendingRequestsRWLock.unlock();
 
     reply->deleteLater();
 
@@ -463,24 +496,35 @@ delete_later:
 #endif
 }
 
+void RESTClient::onReceivedNewAmountOfData(qsizetype bytes)
+{
+    totalDataReceivedBytes += bytes;
+
+    emit totalDataReceivedBytesIncreased(totalDataReceivedBytes);
+}
+
 #ifdef UNIT_TESTING
 bool RESTClient::isCleanedUp()
 {
     bool isClean = true;
 
-    if (!pendingRequests.isEmpty()) {
-        qCWarning(RESTClientLog) << Q_FUNC_INFO << " : ********************* pendingRequests not empty ****************";
-        isClean = false;
+    pendingRequestsRWLock.lockForRead();
+    {
+        if (!pendingRequests.isEmpty()) {
+            qCWarning(RESTClientLog) << Q_FUNC_INFO << " : ********************* pendingRequests not empty ****************";
+            isClean = false;
 
-        size_t i = 0;
-        for (const auto& request : pendingRequests) {
-            qDebug() << "Request info #" << i;
-            qDebug() << "  Syncronicity : " << ((request.synchronicity == RequestSynchronicity::Async) ? "ASYNC" : "SYNC");
-            qDebug() << "  RequestType  : " << request.type;
-            qDebug() << "  Completed    : " << ((request.completed) ? "TRUE" : "FALSE");
-            qDebug() << "  Docptr       : " << static_cast<void*>(request.jsonDocument);
+            size_t i = 0;
+            for (const auto& request : pendingRequests) {
+                qDebug() << "Request info #" << i;
+                qDebug() << "  Syncronicity : " << ((request.synchronicity == RequestSynchronicity::Async) ? "ASYNC" : "SYNC");
+                qDebug() << "  RequestType  : " << request.type;
+                qDebug() << "  Completed    : " << ((request.completed) ? "TRUE" : "FALSE");
+                qDebug() << "  Docptr       : " << static_cast<void*>(request.jsonDocument);
+            }
         }
     }
+    pendingRequestsRWLock.unlock();
 
     if (allocated_json_arrays != 0) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO << " : allocated_json_arrays != 0 : " << allocated_json_arrays;

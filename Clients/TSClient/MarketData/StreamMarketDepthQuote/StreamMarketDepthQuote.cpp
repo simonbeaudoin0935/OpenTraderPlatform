@@ -3,15 +3,15 @@
 StreamMarketDepthQuote::StreamMarketDepthQuote() :
     Stream()
 {
-
 }
 
 StreamMarketDepthQuote::~StreamMarketDepthQuote()
 {
-
 }
 
-void StreamMarketDepthQuote::processJson(const QJsonDocument& doc)
+bool StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
 {
+    qCritical() << "NOT YET IMPLEMENTED";
 
+    return false;
 }

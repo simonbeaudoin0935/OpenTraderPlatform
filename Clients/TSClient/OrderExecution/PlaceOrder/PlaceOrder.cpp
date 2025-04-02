@@ -182,10 +182,6 @@ bool PlaceOrderRequest::isValid() const {
 
     // Validate order type specific requirements
     switch (orderType) {
-        case OrderType::Market:
-            // Market orders don't require any additional validation
-            break;
-
         case OrderType::Limit:
             if (!limitPrice || *limitPrice <= 0) {
                 qWarning() << "Limit orders require a valid limit price";
@@ -194,7 +190,6 @@ bool PlaceOrderRequest::isValid() const {
             break;
 
         case OrderType::StopMarket:
-            [[fallthrough]];
         case OrderType::StopLimit:
             if (!stopPrice || *stopPrice <= 0) {
                 qWarning() << "Stop orders require a valid stop price";
@@ -249,7 +244,7 @@ bool PlaceOrderRequest::isValid() const {
 
         // Validate trailing stop if present
         if (options.getTrailingStop()) {
-            const auto trailingStop = *options.getTrailingStop();
+            const auto& trailingStop = *options.getTrailingStop();
             if (!trailingStop.getAmount() && !trailingStop.getPercent()) {
                 qWarning() << "Trailing stop requires either an amount or percent";
                 return false;
@@ -264,7 +259,7 @@ bool PlaceOrderRequest::isValid() const {
 PlaceOrderResult::PlaceOrderResult(const QJsonObject& jsonObj) {
     // Parse Orders array
     if (jsonObj.contains("Orders")) {
-        const QJsonArray &ordersArray = jsonObj["Orders"].toArray();
+        QJsonArray ordersArray = jsonObj["Orders"].toArray();
         for (const auto& orderJson : ordersArray) {
             OrderResultItem order(orderJson.toObject());
             
@@ -279,7 +274,7 @@ PlaceOrderResult::PlaceOrderResult(const QJsonObject& jsonObj) {
     
     // Parse Errors array (documented way)
     if (jsonObj.contains("Errors")) {
-        const QJsonArray &errorsArray = jsonObj["Errors"].toArray();
+        QJsonArray errorsArray = jsonObj["Errors"].toArray();
         for (const auto& errorJson : errorsArray) {
             errors.append(OrderResultItem(errorJson.toObject()));
         }

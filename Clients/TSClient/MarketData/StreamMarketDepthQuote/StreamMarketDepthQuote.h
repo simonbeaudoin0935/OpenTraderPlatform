@@ -7,6 +7,7 @@
 
 class StreamMarketDepthQuote : public Stream {
     Q_OBJECT
+
 public:
     explicit StreamMarketDepthQuote();
     ~StreamMarketDepthQuote();
@@ -15,8 +16,7 @@ public:
 
 signals:
     void receivedNewQuote(MarketDepthQuote quote);
+
 private:
-
-
-    virtual void processJson(const QJsonDocument& doc);
+    bool processJsonObject(const QJsonObject& jsonObj);
 };

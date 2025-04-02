@@ -1,8 +1,7 @@
 #ifndef RESTCLIENT_H
 #define RESTCLIENT_H
-#include <QMutex>
+#include <QReadWriteLock>
 #include <QSemaphore>
-#include <QWaitCondition>
 #include <QHash>
 #include <QUrlQuery>
 #include <QUrl>
@@ -46,9 +45,11 @@ signals:
     // Emited at basically every new message
     void totalDataReceivedBytesIncreased(qsizetype dataSize);
 
+protected slots:
+    void onReceivedNewAmountOfData(qsizetype bytes);
+
 private slots:
     void onReplyFinished(QNetworkReply *reply);
-    void onReplyReadyRead(QNetworkReply *reply); // For streams
 
 protected:
     enum class RequestSynchronicity { Async, Sync, Stream };
@@ -84,20 +85,20 @@ protected:
 
     bool fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete, HttpMethod method = HttpMethod::GET, const QByteArray &postData = QByteArray());
     void fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method = HttpMethod::GET, const QByteArray &postData =  QByteArray());
-    void fetchStream(const QNetworkRequest &request, void *arg);
+
+    QNetworkReply *fetchStream(const QNetworkRequest &request, void *arg);
     void closeStream(void *arg);
 
     virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) = 0;
 
-    virtual void processStreamFinished(QNetworkReply *reply, QByteArray &rawData, void* arg); // for stream
-    virtual void processStreamReadyRead(QNetworkReply *reply, QByteArray &rawData, void* arg); // for stream
+    virtual void processStreamFinished(QByteArray &rawData, void* arg); // for stream
+    virtual void processStreamReadyRead(QByteArray &rawData, void* arg); // for stream
 
     qsizetype totalDataReceivedBytes = 0;
     QString apiKey;
     QThread *thread;
     QNetworkAccessManager *manager;
-    mutable QMutex pendingRequestsMutex;
-    QWaitCondition waitCondition;
+    mutable QReadWriteLock pendingRequestsRWLock;
     QMap<QNetworkReply*, RequestInfo> pendingRequests;
 
 #ifdef UNIT_TESTING
