@@ -4,6 +4,8 @@ QT += core network
 CONFIG += console c++11
 
 SOURCES += \
+    Algo/BreakingNewsFetcher/BreakingNewsFetcher.cpp \
+    Algo/StockScreener/StockScreener.cpp \
     main.cpp \
     Misc/Settings.cpp \
     Misc/ArgumentParser.cpp \
@@ -28,6 +30,8 @@ SOURCES += \
     Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.cpp
 
 HEADERS += \
+    Algo/BreakingNewsFetcher/BreakingNewsFetcher.h \
+    Algo/StockScreener/StockScreener.h \
     Misc/Settings.h \
     Misc/ArgumentParser.h \
     Algo/MainAlgo.h \
@@ -52,7 +56,7 @@ HEADERS += \
 
 INCLUDEPATH += \
     Clients/FMPClient
-    Clients/TSCClient
+    Clients/TSClient
 
 DEPENDPATH += Clients/FMPClient
 

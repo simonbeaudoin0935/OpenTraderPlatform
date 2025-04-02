@@ -124,6 +124,7 @@ TSClient::~TSClient() {
     thread->wait();
 }
 
+#ifdef GUI_ENABLED
 // Launches a pop up. We will receive a signal when the process finishes
 void TSClient::launchAuthProcess(QWidget* parent) {
 
@@ -160,6 +161,8 @@ void TSClient::onAuthWindowDestroyed() {
     // TODO race contition possible?
     authWindow = nullptr;
 }
+#endif
+
 
 QNetworkRequest TSClient::buildRefreshTokenRequest() {
     QUrl url;

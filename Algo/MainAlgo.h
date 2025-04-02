@@ -1,15 +1,11 @@
-#ifndef MAINALGO_H
-#define MAINALGO_H
-
+#pragma once
 #include <QLoggingCategory>
 #include <QObject>
 #include <QFile>
 
+#include "StockScreener/StockScreener.h"
+#include "BreakingNewsFetcher/BreakingNewsFetcher.h"
 
-#include "FMPClient.h"
-#include "Filters/StockNewsFilter.h"
-
-// Define the logging category
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
 
@@ -26,42 +22,15 @@ public:
 private slots:
     void onThreadStarted();
 
-    void onSharesFloatReceived(struct FMPClient::SharesFloatResult result);
-    void onStockNewsReceived(QVector<StockNewsResult> results);
+    void onStockScreenerFinished();
+    void onNewNewsFound(StockNewsResult newNews);
 
 private:
-    void loadCriterias();
+    QThread thread;
 
-    void fetchSyncNewsStockScreenedByFloat();
-    void fetchAsyncNewsStockScreenedByFloat();
+    StockScreener stockScreener;
+    BreakingNewsFetcher breakingNewsFetcher;
 
-    void processReceivedNews();
-    void processReceivedNewsPingPongBuffers();
-
-    void alternateNewsPerSymbolPingPong();
-
-    QThread *thread;
-
-    // Criterias
-    double PriceRangeLow;
-    double PriceRangeHigh;
-    unsigned long long PreferedFloat;
-    unsigned long long MaxFloat;
-    double RelativeVolume;
-    double GapPercentage;
-
-
-    // Variables for the algorithm :
-    QVector<CompanyScreenerResult> screeningResults;
-    QVector<QString> symbolsScreenedByFloat;
-
-    QMap<QString, QVector<StockNewsResult>> latestNewsPerSymbolPingPong1;
-    QMap<QString, QVector<StockNewsResult>> latestNewsPerSymbolPingPong2;
-
-    QMap<QString, QVector<StockNewsResult>> *latestNewsPerSymbolPingPongPtr;
-
-    QTextStream *out;
-    QFile *file;
+    QTextStream *algoLogFile;
+    QFile file;
 };
-
-#endif // MAINALGO_H

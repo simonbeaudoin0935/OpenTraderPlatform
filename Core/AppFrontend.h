@@ -22,10 +22,12 @@ signals:
 
 public slots:
 
+    // Usage uptade
     virtual void onFMPClientDataUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onTSClientDataUsageUpdate(qsizetype newDataUsage) = 0;
-    virtual void onTradeStationAccountsReceived(QVector<AccountsResult> results) = 0;
     virtual void onMemoryUsageUpdate(qint64 newDataUsage) = 0;
+
+    virtual void onTradeStationAccountsReceived(QVector<AccountsResult> results) = 0;
     virtual void onMarketDepthNotAvailable() = 0;
 };
 

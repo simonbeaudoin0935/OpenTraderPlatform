@@ -9,8 +9,15 @@ public:
     explicit TerminalFrontend(QObject* parent = nullptr);
 
 public slots:
-    void onFMPClientDataUsageUpdate(qsizetype newDataUsage) override;
-    void onMemoryUsageUpdate(qint64 newDataUsage) override;
+
+    // Usage uptade
+    void onFMPClientDataUsageUpdate(qsizetype newDataUsage);
+    void onTSClientDataUsageUpdate(qsizetype newDataUsage);
+    void onMemoryUsageUpdate(qint64 newDataUsage);
+
+    void onTradeStationAccountsReceived(QVector<AccountsResult> results);
+    void onMarketDepthNotAvailable();
+
 };
 
 #endif

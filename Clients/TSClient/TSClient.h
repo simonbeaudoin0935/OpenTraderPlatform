@@ -5,12 +5,15 @@
 #include <QVector>
 
 #include "../RESTClient.h"
-#include "Auth/AuthWindow.h"
 #include "Auth/AuthToken.h"
+#include "Auth/ClientToken.h"
 #include "Brokerage/Accounts/AccountsResult.h"
 #include "OrderExecution/PlaceOrder/PlaceOrder.h"
 #include "MarketData/StreamBars/StreamBars.h"
 #include "MarketData/StreamMarketDepthQuote/StreamMarketDepthQuote.h"
+#ifdef GUI_ENABLED
+#include "Auth/AuthWindow.h"
+#endif
 
 Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 
@@ -91,9 +94,10 @@ public:
     void placeAsyncOrder(const PlaceOrderRequest &order);
 
 public slots:
+    #ifdef GUI_ENABLED
     // Authentication methods
     void launchAuthProcess(QWidget* parent = nullptr);
-
+    #endif
 
 signals:
     void authStateChanged(bool isAuthenticated, QString reason);
@@ -103,9 +107,11 @@ signals:
     void marketDepthNotAvailable();
 
 private slots:
+    #ifdef GUI_ENABLED
     void onAuthFinished(bool success, AuthToken token, QString reason);
-    void onAsyncRefreshTokenFinished(const AuthToken &newToken);
     void onAuthWindowDestroyed();
+    #endif
+    void onAsyncRefreshTokenFinished(const AuthToken &newToken);
 
 private:
     // Singleton : private constructor
@@ -141,8 +147,10 @@ private:
 
     bool authenticated = false;  // Track authentication state
     bool authInProgress = false;  // Track if authentication process is in progress
-    AuthWindow* authWindow = nullptr;  // Authentication window
 
+#ifdef GUI_ENABLED
+    AuthWindow* authWindow = nullptr;  // Authentication window
+#endif
     QVector<Stream*> streams;
 
     // API key placement configuration
