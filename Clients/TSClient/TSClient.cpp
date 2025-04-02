@@ -12,7 +12,7 @@
 #endif
 
 
-#define BASE_URL_TS_API_SIMULATION "https://sim-api.tradestation.com/v3/"
+#define BASE_URL_TS_API_SIMULATION         "https://sim-api.tradestation.com/v3/"
 
 #define ENDPOINT_STREAM_BARS               "marketdata/stream/barcharts"
 #define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes"
@@ -245,13 +245,6 @@ void TSClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
         return;
     }
 
-    // For some reason (security maybe) the new token return doesn't contain the refresh_key
-    // All other fields are good (which is why it needs a special isValidRefreshedToken()
-    // methods that does like isValid(), but omits the refresh_token field)
-    // Now, we want to store this new token on disk, but we first need to retreive the
-    // refresh_token from the actual token, stick it in there then save.
-    emit authStateChanged(true, "Auth token refresh successful");\
-
     qCDebug(TSClientLog) << Q_FUNC_INFO <<
         "Successful auth token refresh";
 
@@ -282,13 +275,20 @@ void TSClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
         Q_ASSERT(secondsToNextRefreshRequest > 1 && secondsToNextRefreshRequest <= 1195);
 
         qCDebug(TSClientLog) << Q_FUNC_INFO <<
-            "Programming the next refresh in " << secondsToNextRefreshRequest << "seconds";
+            "Programming the next refresh in " << secondsToNextRefreshRequest << " seconds";
 
         // Launch a request in X seconds from now.
         QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() {
             refreshAsyncAccessToken();
         });
     }
+
+    QTimer::singleShot(100, this, [this]() {
+        // Based on observation, if we propagate the good new immediately and start
+        // making calls, the remote server will send us back an error 401 (unauthenticated)
+        // for the first API call. Almost as if the refresh did not properly propagade in their system
+        emit authStateChanged(true, "Auth token refresh successful");
+    });
 
     // TODO kick a watchdog timer
 }
@@ -574,7 +574,7 @@ StreamBars *TSClient::openStreamBars(QString &symbol, unsigned int interval, Str
         }
     }());
 
-    StreamBars * stream = new StreamBars();
+    StreamBars * stream = new StreamBars(symbol);
     stream->moveToThread(thread);
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamBars" << static_cast<void*>(stream);
@@ -601,7 +601,7 @@ StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, un
     QUrlQuery query;
     query.addQueryItem("maxlevels", QString::number(depth));
 
-    StreamMarketDepthQuote * stream = new StreamMarketDepthQuote();
+    StreamMarketDepthQuote * stream = new StreamMarketDepthQuote(symbol);
     stream->moveToThread(thread);
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamMarketDepthQuote " << static_cast<void*>(stream);

@@ -11,8 +11,7 @@ Q_LOGGING_CATEGORY(MainAlgoLog, "MainAlgo")
 static const int newsFetchingInterval = 30;
 static const int newsFetchDepthLimit = 2;
 
-MainAlgo::MainAlgo() :
-    thread(new QThread())
+MainAlgo::MainAlgo()
 {
     thread.setObjectName("MainAlgoThread");
 
@@ -52,7 +51,12 @@ void MainAlgo::start()
 void MainAlgo::onThreadStarted()
 {
     connect(&stockScreener, &StockScreener::finished, this, &MainAlgo::onStockScreenerFinished);
-    stockScreener.start();
+    //stockScreener.start();
+
+    connect(&stockBarsReceiver, &StockBarsReceiver::currentHighlightedReceivedNewBar,
+            this, &MainAlgo::currentHighlightedReceivedNewBar);
+
+    stockBarsReceiver.startStream("AAPL");
 }
 
 void MainAlgo::onStockScreenerFinished()
@@ -62,8 +66,8 @@ void MainAlgo::onStockScreenerFinished()
     connect(&breakingNewsFetcher, &BreakingNewsFetcher::foundNewNews, this, &MainAlgo::onNewNewsFound);
 
     breakingNewsFetcher.start(stockScreener.getStockScreeningResult(),
-                              newsFetchingInterval,
-                              newsFetchDepthLimit);
+                              newsFetchDepthLimit,
+                              newsFetchingInterval);
 }
 
 void MainAlgo::onNewNewsFound(StockNewsResult newNews)

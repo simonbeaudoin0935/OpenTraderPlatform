@@ -12,6 +12,37 @@ MarketDepthLevel::MarketDepthLevel(const QJsonObject& jsonObj) {
     name = jsonObj["Name"].toString();
 }
 
+bool MarketDepthLevel::isValid() const {
+    // Check that all required fields are present and have valid values
+    if (!timeStamp.isValid() || 
+        side.isEmpty() || 
+        price.isEmpty() || 
+        size.isEmpty() || 
+        name.isEmpty() || 
+        orderCount < 0) {
+        return false;
+    }
+
+    // Validate side is either "Bid" or "Ask"
+    if (side != "Bid" && side != "Ask") {
+        return false;
+    }
+
+    // Validate price and size are positive numbers
+    bool ok;
+    double priceValue = price.toDouble(&ok);
+    if (!ok || priceValue <= 0) {
+        return false;
+    }
+
+    double sizeValue = size.toDouble(&ok);
+    if (!ok || sizeValue <= 0) {
+        return false;
+    }
+
+    return true;
+}
+
 QString MarketDepthLevel::toJsonString() const {
     QJsonObject jsonObj;
     jsonObj["TimeStamp"] = timeStamp.toString(Qt::ISODate);
@@ -44,6 +75,35 @@ MarketDepthQuote::MarketDepthQuote(const QJsonObject& jsonObj) {
             asks.append(MarketDepthLevel(askJson.toObject()));
         }
     }
+}
+
+bool MarketDepthQuote::isValid() const {
+    // Check that we have at least one bid or ask
+    if (isEmpty()) {
+        return false;
+    }
+
+    // Validate all bid levels
+    for (const auto& bid : bids) {
+        if (!bid.isValid()) {
+            return false;
+        }
+        // Additional validation for bids: price should be lower than asks
+        for (const auto& ask : asks) {
+            if (bid.getPrice().toDouble() >= ask.getPrice().toDouble()) {
+                return false;
+            }
+        }
+    }
+
+    // Validate all ask levels
+    for (const auto& ask : asks) {
+        if (!ask.isValid()) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 QString MarketDepthQuote::toJsonString() const {

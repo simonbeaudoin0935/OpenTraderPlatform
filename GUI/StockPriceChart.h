@@ -4,9 +4,13 @@
 #include <QWidget>
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
+#include <QtCharts/QCandlestickSeries>
+#include <QtCharts/QCandlestickSet>
 #include <QDateTimeAxis>
 #include <QValueAxis>
 #include <QDateTime>
+#include <QGraphicsTextItem>
+#include "Clients/TSClient/MarketData/StreamBars/Bar.h"
 
 QT_USE_NAMESPACE
 
@@ -20,14 +24,37 @@ public:
 
 public slots:
     void addPrice(double price, const QDateTime& timestamp);
+    void addBar(const Bar& bar);
+
+protected:
+    void resizeEvent(QResizeEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override;
 
 private:
+    void updateChart();
+    void handleClosedBar(const Bar& bar);
+    void handleOpenBar(const Bar& bar);
+    void updateLastPriceLine(double price, bool isUpTick);
+    void updatePriceLabelPosition();
+
     QString symbol;
     QChart* chart;
-    QLineSeries* series;
+    QLineSeries* lineSeries;
+    QLineSeries* lastPriceLine;
+    QCandlestickSeries* candlestickSeries;
     QChartView* chartView;
     QDateTimeAxis* axisX;
     QValueAxis* axisY;
+    QGraphicsTextItem* priceLabel;
+
+    // Track the current open bar
+    Bar currentOpenBar;
+    bool hasOpenBar = false;
+    double lastPrice = 0.0;
+
+    // Store completed bars
+    QList<Bar> completedBars;
+    static const int MAX_BARS = 100; // Maximum number of bars to display
 };
 
 #endif // STOCKPRICECHART_H

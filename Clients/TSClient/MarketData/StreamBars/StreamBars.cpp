@@ -1,7 +1,7 @@
 #include "StreamBars.h"
 
-StreamBars::StreamBars() :
-    Stream()
+StreamBars::StreamBars(QString &symbol, QObject *parent) :
+    Stream(symbol, parent)
 {
 
 }
@@ -15,7 +15,7 @@ bool StreamBars::processJsonObject(const QJsonObject& jsonObj)
     Bar bar(jsonObj);
 
     if (bar.isValid()) {
-        emit receivedNewBar(bar);
+        emit receivedNewBar(symbol, bar);
         return true;
     } else {
         qCWarning(StreamLog) << "Bar malformed : " << bar.toJsonString();

@@ -1,7 +1,7 @@
 #include "StreamMarketDepthQuote.h"
 
-StreamMarketDepthQuote::StreamMarketDepthQuote() :
-    Stream()
+StreamMarketDepthQuote::StreamMarketDepthQuote(QString &symbol, QObject *parent) :
+    Stream(symbol, parent)
 {
 }
 
@@ -11,7 +11,23 @@ StreamMarketDepthQuote::~StreamMarketDepthQuote()
 
 bool StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
 {
-    qCritical() << "NOT YET IMPLEMENTED";
+    MarketDepthQuote quote(jsonObj);
+
+    if (quote.isValid()) {
+        emit receivedNewMarketDepthQuote(symbol, quote);
+        return true;
+    } else {
+        QJsonDocument doc(jsonObj);
+        QString jsonString = QString(doc.toJson(QJsonDocument::Indented));
+        qCWarning(StreamLog) << Q_FUNC_INFO <<
+            "Market Depth Quote invalid. Received data : " << jsonString <<
+            "Malformed object to string : " << quote.toJsonString();
+
+        return false;
+    }
+
+
+
 
     return false;
 }

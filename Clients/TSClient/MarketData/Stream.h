@@ -30,6 +30,7 @@ public:
     };
 
 signals:
+#warning TODO // Move this from Stream to marketDepth*
     void marketDepthNotAvailable();
     void streamErrorOccurred(StreamError error, QString errorMessage);
     void receivedAmountOfData(qsizetype bytes);
@@ -43,16 +44,16 @@ private slots:
     void onHeartbeatTimerTimeout();
 
 protected:
-    explicit Stream();
+    explicit Stream(QString &symbol, QObject *parent = nullptr);
 
     Stream(const Stream&) = delete;
     Stream& operator=(const Stream&) = delete;
 
     virtual bool processJsonObject(const QJsonObject& doc) = 0;
 
-    QTimer heartbeatTimer;
-
+    QString symbol;
 private:
+    QTimer *heartbeatTimer = nullptr;
     bool streamIsInError = false;
     bool streamIsFinished = false;
 

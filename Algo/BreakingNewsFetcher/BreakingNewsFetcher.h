@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QTimer>
 #include <QObject>
 #include <QLoggingCategory>
 
@@ -26,6 +27,8 @@ private slots:
     void onStockNewsReceived(QVector<StockNewsResult> results);
 
 private:
+    bool stopped = true;
+
     void fetchSyncNewsStockScreenedByFloat();
     void fetchAsyncNewsStockScreenedByFloat();
 

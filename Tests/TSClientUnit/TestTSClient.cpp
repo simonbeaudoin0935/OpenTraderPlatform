@@ -319,10 +319,10 @@ void TestTSClient::testStreamBars()
 
         // Validate every signal received
         for (const QList<QVariant>& signal :  signalSpy) {
-            QVERIFY(signal.size() == 1); // One argument to StreamBar::receiveNewQuoteBars
+            QVERIFY(signal.size() == 2); // One argument to StreamBar::receiveNewBar
 
-            // Convert QVariant to Bar
-            QVariant firstArgOfSignal = signal.at(0);
+            // Convert QVariant to Bar (bar is second argument)
+            QVariant firstArgOfSignal = signal.at(1);
 
             QVERIFY(firstArgOfSignal.canConvert<Bar>());
 
@@ -354,7 +354,7 @@ void TestTSClient::testStreamMarketDepthQuote()
     stream = client->openStreamMarketDepthQuote(symbol);
     QVERIFY(stream != nullptr);
 
-    QSignalSpy signalSpy(stream, &StreamMarketDepthQuote::receivedNewQuote);
+    QSignalSpy signalSpy(stream, &StreamMarketDepthQuote::receivedNewMarketDepthQuote);
 
     qDebug() << "Waiting 5 seconds to let Level 2 data pile up...";
 

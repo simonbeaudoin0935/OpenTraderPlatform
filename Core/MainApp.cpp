@@ -29,6 +29,8 @@ MainApp::MainApp(AppFrontend* appFrontend) :
     QObject::connect(tradeStationClient, &TSClient::totalDataReceivedBytesIncreased,
                      appFrontend, &AppFrontend::tradeStationDataUsageUpdated);
 
+    QObject::connect(mainAlgo, &MainAlgo::currentHighlightedReceivedNewBar,
+                     appFrontend, &AppFrontend::currentHighlightedStockBarReceived);
 }
 
 void MainApp::start()

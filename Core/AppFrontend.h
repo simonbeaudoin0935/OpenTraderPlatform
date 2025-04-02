@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QJsonObject>
 #include "../Clients/TSClient/Brokerage/Accounts/AccountsResult.h"
+#include "Clients/TSClient/MarketData/StreamBars/Bar.h"
 
 class AppFrontend : public QObject {
     Q_OBJECT
@@ -18,7 +19,7 @@ signals:
 
     void fmpDataUsageUpdated(qsizetype newDataUsage);
     void tradeStationDataUsageUpdated(qsizetype newDataUsage);
-
+    void currentHighlightedStockBarReceived(QString symbol, Bar bar);
 
 public slots:
 
@@ -29,6 +30,8 @@ public slots:
 
     virtual void onTradeStationAccountsReceived(QVector<AccountsResult> results) = 0;
     virtual void onMarketDepthNotAvailable() = 0;
+
+    virtual void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) = 0;
 };
 
 #endif

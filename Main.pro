@@ -5,6 +5,7 @@ CONFIG += console c++11
 
 SOURCES += \
     Algo/BreakingNewsFetcher/BreakingNewsFetcher.cpp \
+    Algo/StockBarsReceiver/StockBarsReceiver.cpp \
     Algo/StockScreener/StockScreener.cpp \
     main.cpp \
     Misc/Settings.cpp \
@@ -31,6 +32,7 @@ SOURCES += \
 
 HEADERS += \
     Algo/BreakingNewsFetcher/BreakingNewsFetcher.h \
+    Algo/StockBarsReceiver/StockBarsReceiver.h \
     Algo/StockScreener/StockScreener.h \
     Misc/Settings.h \
     Misc/ArgumentParser.h \

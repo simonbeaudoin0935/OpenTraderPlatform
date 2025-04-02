@@ -9,13 +9,13 @@ class StreamMarketDepthQuote : public Stream {
     Q_OBJECT
 
 public:
-    explicit StreamMarketDepthQuote();
+    explicit StreamMarketDepthQuote(QString &symbol, QObject *parent = nullptr);
     ~StreamMarketDepthQuote();
     StreamMarketDepthQuote(const StreamMarketDepthQuote&) = delete;
     StreamMarketDepthQuote& operator=(const StreamMarketDepthQuote&) = delete;
 
 signals:
-    void receivedNewQuote(MarketDepthQuote quote);
+    void receivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote);
 
 private:
     bool processJsonObject(const QJsonObject& jsonObj);

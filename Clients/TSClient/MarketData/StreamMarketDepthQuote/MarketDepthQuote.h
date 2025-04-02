@@ -23,6 +23,9 @@ public:
     int getOrderCount() const { return orderCount; }
     QString getName() const { return name; }
 
+    // Validation
+    bool isValid() const;
+
     // Convert to JSON string for debugging/logging
     QString toJsonString() const;
 
@@ -49,6 +52,7 @@ public:
 
     // Helper methods
     bool isEmpty() const { return bids.isEmpty() && asks.isEmpty(); }
+    bool isValid() const;
 
     // Convert to JSON string for debugging/logging
     QString toJsonString() const;

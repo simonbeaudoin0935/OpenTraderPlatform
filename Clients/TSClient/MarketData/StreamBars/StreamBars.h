@@ -10,13 +10,13 @@ class StreamBars : public Stream {
     Q_OBJECT
 
 public:
-    explicit StreamBars();
+    explicit StreamBars(QString &symbol, QObject *parent = nullptr);
     ~StreamBars();
     StreamBars(const StreamBars&) = delete;
     StreamBars& operator=(const StreamBars&) = delete;
 
 signals:
-    void receivedNewBar(Bar bar);
+    void receivedNewBar(QString symbol, Bar bar);
 
 private:
     virtual bool processJsonObject(const QJsonObject& jsonObj);

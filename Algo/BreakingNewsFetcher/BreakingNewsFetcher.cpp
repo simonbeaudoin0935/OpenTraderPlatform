@@ -1,5 +1,3 @@
-#include <QTimer>
-
 #include "FMPClient.h"
 #include "BreakingNewsFetcher.h"
 
@@ -13,6 +11,8 @@ void BreakingNewsFetcher::start(QVector<QString> &symbolsScreenedByFloat,
                                 int newsFetchDepthLimit,
                                 int newsFetchingInterval)
 {
+    stopped = false;
+
     symbolsToWatch = symbolsScreenedByFloat;
     fetchingInterval = newsFetchingInterval;
     fetchDepthLimit = newsFetchDepthLimit;
@@ -23,6 +23,11 @@ void BreakingNewsFetcher::start(QVector<QString> &symbolsScreenedByFloat,
     connect(FMPClient::getInstancePtr(), &FMPClient::stockNewsReceived, this, &BreakingNewsFetcher::onStockNewsReceived);
 
     fetchAsyncNewsStockScreenedByFloat();
+}
+
+void BreakingNewsFetcher::stop()
+{
+    stopped = true;
 }
 
 
@@ -99,9 +104,12 @@ void BreakingNewsFetcher::processReceivedNews()
 
         qCDebug(BreakingNewsFetcherLog) << "Launching a timer to fetch the news again in " << fetchingInterval << " seconds" ;
 
-        QTimer::singleShot(1000 * fetchingInterval, this, [this]() {
-            fetchAsyncNewsStockScreenedByFloat();
-        });
+#warning ameliorate this. what if the timer is alread armed and we want to stop if from happening in the future
+        if (!stopped) {
+            QTimer::singleShot(1000 * fetchingInterval, this, [this]() {
+                fetchAsyncNewsStockScreenedByFloat();
+            });
+        }
     }
 }
 

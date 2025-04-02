@@ -37,6 +37,10 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
             this, &GuiFrontend::onMarketDepthNotAvailable,
             Qt::DirectConnection);
 
+    connect(this, &AppFrontend::currentHighlightedStockBarReceived,
+            this, &GuiFrontend::onCurrentHighlightedStockBarReceived,
+            Qt::DirectConnection);
+
     // TODO disconnect this and pass through the frontend
     QObject::connect(FMPClient::getInstancePtr(), &FMPClient::quoteShortReceived, this, &GuiFrontend::onQuoteShortReceived);
 
@@ -44,6 +48,7 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     //TODO test
     QObject::connect(&updateTimer, &QTimer::timeout, this, &GuiFrontend::onUpdateTimerTimeout);
     //updateTimer.start(1000);
+
 }
 
 GuiFrontend::~GuiFrontend() {
@@ -119,6 +124,15 @@ void GuiFrontend::onMarketDepthNotAvailable()
                           "And by extention the Enhanced Market Depth package.");
 }
 
+void GuiFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
+{
+    qDebug() << "**********************************************";
+
+    ui->priceChart->setSymbol(symbol);
+
+    ui->priceChart->addBar(bar);
+}
+
 void GuiFrontend::onUpdateTimerTimeout()
 {
 #warning TODO test, remove
@@ -158,10 +172,6 @@ void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
         log += "TradeStation Client AUTHENTICATED : " + reason;
 
         TSClient::getInstance().fetchAsyncAccounts();
-
-        QString symbol = "BTCUSD";
-
-        auto a = TSClient::getInstance().openStreamBars(symbol,1,TSClient::StreamBarsUnit::Minute,10,TSClient::StreamBarsSessionTemplate::USEQ24Hour);
     } else {
         if (isFirstTime) {
             // If its the first time we receive this signal and its negative state, it just
