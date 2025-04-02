@@ -29,6 +29,10 @@ public slots:
 protected:
     void resizeEvent(QResizeEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
+    bool eventFilter(QObject* object, QEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
 
 private:
     void updateChart();
@@ -55,6 +59,10 @@ private:
     // Store completed bars
     QList<Bar> completedBars;
     static const int MAX_BARS = 100; // Maximum number of bars to display
+
+    // Mouse tracking for panning
+    bool isPanning = false;
+    QPoint lastMousePos;
 };
 
 #endif // STOCKPRICECHART_H
