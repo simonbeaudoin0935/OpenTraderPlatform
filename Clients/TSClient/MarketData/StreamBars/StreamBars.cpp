@@ -1,7 +1,8 @@
 #include "StreamBars.h"
 
 StreamBars::StreamBars(QString &symbol, QObject *parent) :
-    Stream(symbol, parent)
+    Stream(parent),
+    symbol(symbol)
 {
 
 }

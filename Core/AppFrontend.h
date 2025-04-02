@@ -1,5 +1,4 @@
-#ifndef APPFRONTEND_H
-#define APPFRONTEND_H
+#pragma once
 
 #include <QObject>
 #include <QJsonObject>
@@ -33,5 +32,3 @@ public slots:
 
     virtual void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) = 0;
 };
-
-#endif

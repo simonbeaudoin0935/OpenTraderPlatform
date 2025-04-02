@@ -1,5 +1,4 @@
-#ifndef PLACE_ORDER_H
-#define PLACE_ORDER_H
+#pragma once
 
 #include <optional>
 #include <QString>
@@ -337,5 +336,3 @@ private:
 
 Q_DECLARE_METATYPE(OrderResultItem)
 Q_DECLARE_METATYPE(PlaceOrderResult)
-
-#endif // PLACE_ORDER_H

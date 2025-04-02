@@ -2,7 +2,7 @@
 
 #include <QObject>
 
-#include "../Stream.h"
+#include "../../Clients/TSClient/Stream/Stream.h"
 #include "MarketDepthQuote.h"
 
 class StreamMarketDepthQuote : public Stream {
@@ -18,5 +18,6 @@ signals:
     void receivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote);
 
 private:
+    QString symbol;
     bool processJsonObject(const QJsonObject& jsonObj);
 };

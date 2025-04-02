@@ -1,5 +1,4 @@
-#ifndef STOCKPRICECHART_H
-#define STOCKPRICECHART_H
+#pragma once
 
 #include <QWidget>
 #include <QtCharts/QChartView>
@@ -14,7 +13,7 @@
 
 QT_USE_NAMESPACE
 
-class StockPriceChart : public QWidget {
+    class StockPriceChart : public QWidget {
     Q_OBJECT
 public:
     explicit StockPriceChart(QWidget* parent = nullptr);
@@ -64,5 +63,3 @@ private:
     bool isPanning = false;
     QPoint lastMousePos;
 };
-
-#endif // STOCKPRICECHART_H

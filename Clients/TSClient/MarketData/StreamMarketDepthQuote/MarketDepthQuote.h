@@ -1,5 +1,4 @@
-#ifndef MARKET_DEPTH_QUOTE_H
-#define MARKET_DEPTH_QUOTE_H
+#pragma once
 
 #include <QString>
 #include <QDateTime>
@@ -64,5 +63,3 @@ private:
 
 Q_DECLARE_METATYPE(MarketDepthLevel)
 Q_DECLARE_METATYPE(MarketDepthQuote)
-
-#endif // MARKET_DEPTH_QUOTE_H

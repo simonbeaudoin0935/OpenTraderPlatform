@@ -1,7 +1,8 @@
 #include "StreamMarketDepthQuote.h"
 
 StreamMarketDepthQuote::StreamMarketDepthQuote(QString &symbol, QObject *parent) :
-    Stream(symbol, parent)
+    Stream(parent),
+    symbol(symbol)
 {
 }
 

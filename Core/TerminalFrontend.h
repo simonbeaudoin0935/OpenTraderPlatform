@@ -1,5 +1,4 @@
-#ifndef TERMINALFRONTEND_H
-#define TERMINALFRONTEND_H
+#pragma once
 
 #include "AppFrontend.h"
 
@@ -20,4 +19,3 @@ public slots:
 
 };
 
-#endif

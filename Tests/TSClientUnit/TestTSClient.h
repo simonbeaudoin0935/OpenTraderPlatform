@@ -1,5 +1,4 @@
-#ifndef TEST_TRADESTATIONCLIENT_H
-#define TEST_TRADESTATIONCLIENT_H
+#pragma once
 
 #include <QObject>
 
@@ -33,5 +32,3 @@ private:
 
     QString secondAccountId; // Store the second account's ID for use in place order test
 };
-
-#endif // TEST_TRADESTATIONCLIENT_H 

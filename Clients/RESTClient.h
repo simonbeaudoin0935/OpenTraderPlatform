@@ -1,12 +1,11 @@
-#ifndef RESTCLIENT_H
-#define RESTCLIENT_H
+#pragma once
+
 #include <QReadWriteLock>
 #include <QSemaphore>
 #include <QHash>
 #include <QUrlQuery>
 #include <QUrl>
 #include <QNetworkRequest>
-
 #include <QObject>
 #include <QLoggingCategory>
 #include <QThread>
@@ -121,5 +120,3 @@ private:
     const unsigned long fetchSyncTimeoutMs = 5000; // Const under normal operation
 #endif
 };
-
-#endif // RESTCLIENT_H 

@@ -7,9 +7,8 @@
 Q_LOGGING_CATEGORY(StreamLog, "Stream")
 
 
-Stream::Stream(QString &symbol, QObject *parent) :
-    QObject(parent),
-    symbol(symbol)
+Stream::Stream(QObject *parent) :
+    QObject(parent)
 {
 }
 

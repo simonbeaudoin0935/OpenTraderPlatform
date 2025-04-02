@@ -562,7 +562,7 @@ StreamBars *TSClient::openStreamBars(QString &symbol, unsigned int interval, Str
         default: Q_UNREACHABLE_RETURN("Unknown");
         }
     }());
-    query.addQueryItem("barsback", QString::number(interval));
+    query.addQueryItem("barsback", QString::number(barsback));
     query.addQueryItem("sessiontemplate", [sessionTemplate]() -> QString {
         switch (sessionTemplate) {
         case StreamBarsSessionTemplate::USEQPre: return "USEQPre";

@@ -1,8 +1,6 @@
-#ifndef ARGUMENTPARSER_H
-#define ARGUMENTPARSER_H
+#pragma once
 
 #include <QStringList>
 
 void parseArguments(const QStringList &args);
 
-#endif // ARGUMENTPARSER_H

@@ -2,7 +2,7 @@
 
 #include <QObject>
 
-#include "../Stream.h"
+#include "../../Clients/TSClient/Stream/Stream.h"
 #include "Bar.h"
 
 
@@ -20,4 +20,5 @@ signals:
 
 private:
     virtual bool processJsonObject(const QJsonObject& jsonObj);
+    QString symbol;
 };

@@ -1,5 +1,4 @@
-#ifndef GUIFRONTEND_H
-#define GUIFRONTEND_H
+#pragma once
 
 #include "../Core/AppFrontend.h"
 #include <QMainWindow>
@@ -47,4 +46,3 @@ private:
     qint64 memoryUsage = 0;
 };
 
-#endif // GUIFRONTEND_H

@@ -1,5 +1,4 @@
-#ifndef MAINAPP_H
-#define MAINAPP_H
+#pragma once
 
 #include "../Clients/FMPClient/FMPClient.h"
 #include "../Clients/TSClient/TSClient.h"
@@ -21,5 +20,3 @@ private:
     MainAlgo*    mainAlgo;
     MemoryMonitor memoryMonitor;
 };
-
-#endif // MAINAPP_H

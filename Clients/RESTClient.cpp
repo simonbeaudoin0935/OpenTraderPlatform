@@ -8,7 +8,7 @@
 #endif
 
 #include "RESTClient.h"
-#include "TSClient/MarketData/Stream.h" // TODO I dont like having to include this header here
+#include "TSClient/Stream/Stream.h" // TODO I dont like having to include this header here
 
 Q_LOGGING_CATEGORY(RESTClientLog, "RESTClient");
 

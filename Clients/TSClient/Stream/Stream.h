@@ -44,14 +44,12 @@ private slots:
     void onHeartbeatTimerTimeout();
 
 protected:
-    explicit Stream(QString &symbol, QObject *parent = nullptr);
+    explicit Stream(QObject *parent = nullptr);
 
     Stream(const Stream&) = delete;
     Stream& operator=(const Stream&) = delete;
 
     virtual bool processJsonObject(const QJsonObject& doc) = 0;
-
-    QString symbol;
 private:
     QTimer *heartbeatTimer = nullptr;
     bool streamIsInError = false;

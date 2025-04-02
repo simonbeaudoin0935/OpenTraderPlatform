@@ -1,5 +1,4 @@
-#ifndef MEMORY_MONITOR_H
-#define MEMORY_MONITOR_H
+#pragma once
 
 #include <QObject>
 #include <QTimer>
@@ -23,5 +22,3 @@ private:
     QTimer* timer;
     qint64 getProcessMemoryUsage(); // Platform-specific memory query
 };
-
-#endif // MEMORY_MONITOR_H
