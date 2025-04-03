@@ -187,7 +187,7 @@ QByteArray TSClient::buildRefreshTokenQuery(const QString &clientId,
     return query.toString(QUrl::FullyEncoded).toUtf8();
 }
 
-bool TSClient::fetchSyncAccounts(QVector<AccountsResult> &results)
+bool TSClient::fetchSyncAccounts(QVector<Account> &results)
 {
     QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "brokerage/accounts", "");
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
@@ -212,7 +212,7 @@ bool TSClient::fetchSyncAccounts(QVector<AccountsResult> &results)
     results.reserve(accountsArray.count());
 
     for (const QJsonValue &json: accountsArray) {
-        results.push_back(AccountsResult(json.toObject()));
+        results.push_back(Account(json.toObject()));
     }
 
     // This pointer to a JSON document was allocated in the fetchSync and needs to be deleted after use
@@ -409,13 +409,13 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) 
         case RequestType::Accounts:
         {
             const QJsonArray accountsArray = obj["Accounts"].toArray();
-            QVector<AccountsResult> results;
+            QVector<Account> results;
 
             // Resize the array in advance
             results.reserve(accountsArray.count());
 
             for (const QJsonValue &json: accountsArray) {
-                results.push_back(AccountsResult(json.toObject()));
+                results.push_back(Account(json.toObject()));
             }
 
             emit accountsAsyncReceived(results);

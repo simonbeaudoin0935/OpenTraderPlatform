@@ -1,8 +1,8 @@
 #include <QJsonDocument>
 
-#include "AccountsResult.h"
+#include "Account.h"
 
-AccountsResult::AccountsResult(const QJsonObject& jsonObj) {
+Account::Account(const QJsonObject& jsonObj) {
     accountId = jsonObj["AccountID"].toString();
     accountType = jsonObj["AccountType"].toString();
     status = jsonObj["Status"].toString();
@@ -14,7 +14,7 @@ AccountsResult::AccountsResult(const QJsonObject& jsonObj) {
     }
 }
 
-QString AccountsResult::toJsonString() const {
+QString Account::toJsonString() const {
     QJsonObject jsonObj;
     jsonObj["AccountID"] = accountId;
     jsonObj["AccountType"] = accountType;
@@ -47,7 +47,7 @@ QString AccountsResult::toJsonString() const {
     return QString(doc.toJson(QJsonDocument::Indented));
 }
 
-bool AccountsResult::isValid() const {
+bool Account::isValid() const {
     // Check required fields
     if (accountId.isEmpty()) {
         qWarning() << "AccountID is required but not set";

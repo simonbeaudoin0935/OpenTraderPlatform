@@ -29,7 +29,8 @@ SOURCES += \
     Clients/TSClient/MarketData/StreamBars/StreamBars.cpp \
     Clients/TSClient/MarketData/StreamMarketDepthQuote/StreamMarketDepthQuote.cpp \
     Clients/TSClient/MarketData/StreamMarketDepthQuote/MarketDepthQuote.cpp \
-    Clients/TSClient/Brokerage/Accounts/AccountsResult.cpp \
+    Clients/TSClient/Brokerage/GetAccounts/Account.cpp \
+    Clients/TSClient/Brokerage/GetAccounts/GetAccounts.cpp \
     Clients/TSClient/Brokerage/StreamPositions/Position.cpp \
     Clients/TSClient/Brokerage/StreamPositions/StreamPositions.cpp \
     Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.cpp
@@ -59,7 +60,8 @@ HEADERS += \
     Clients/TSClient/MarketData/StreamBars/StreamBars.h \
     Clients/TSClient/MarketData/StreamMarketDepthQuote/StreamMarketDepthQuote.h \
     Clients/TSClient/MarketData/StreamMarketDepthQuote/MarketDepthQuote.h \
-    Clients/TSClient/Brokerage/Accounts/AccountsResult.h \
+    Clients/TSClient/Brokerage/GetAccounts/Account.h \
+    Clients/TSClient/Brokerage/GetAccounts/GetAccounts.h \
     Clients/TSClient/Brokerage/StreamPositions/Positions.h \
     Clients/TSClient/Brokerage/StreamPositions/StreamPositions.h \
     Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.h

@@ -24,9 +24,9 @@ struct AccountDetail {
     bool patternDayTrader = false;
 };
 
-struct AccountsResult {
-    AccountsResult() = default;
-    AccountsResult(const QJsonObject& jsonObj);
+struct Account {
+    Account() = default;
+    Account(const QJsonObject& jsonObj);
 
     // Getters for each member
     QString getAccountId() const { return accountId; }
@@ -47,7 +47,7 @@ private:
 };
 
 // Necessary to be able to use a QSignalSpy and intercept the emition of a QVector<AccountsResult>
-Q_DECLARE_METATYPE(AccountsResult)
-Q_DECLARE_METATYPE(QVector<AccountsResult>)
+Q_DECLARE_METATYPE(Account)
+Q_DECLARE_METATYPE(QVector<Account>)
 
 #endif // ACCOUNTRESULT_H 

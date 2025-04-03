@@ -14,7 +14,8 @@ SOURCES += \
     ../../Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.cpp \
     ../../Clients/TSClient/Brokerage/StreamPositions/Position.cpp \
     ../../Clients/TSClient/Brokerage/StreamPositions/StreamPositions.cpp \
-    ../../Clients/TSClient/Brokerage/Accounts/AccountsResult.cpp \
+    ../../Clients/TSClient/Brokerage/GetAccounts/Account.cpp \
+    ../../Clients/TSClient/Brokerage/GetAccounts/GetAccounts.cpp \
     ../../Clients/TSClient/Stream/Stream.cpp \
     ../../Clients/TSClient/MarketData/MockStream/MockStreamNetworkReply.cpp \
     ../../Clients/TSClient/MarketData/StreamBars/Bar.cpp \
@@ -32,7 +33,8 @@ HEADERS += \
     ../../Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.h \
     ../../Clients/TSClient/Brokerage/StreamPositions/Positions.h \
     ../../Clients/TSClient/Brokerage/StreamPositions/StreamPositions.h \
-    ../../Clients/TSClient/Brokerage/Accounts/AccountsResult.h \
+    ../../Clients/TSClient/Brokerage/Accounts/Account.h \
+    ../../Clients/TSClient/Brokerage/GetAccounts/GetAccounts.h \
     ../../Clients/TSClient/Stream/Stream.h \
     ../../Clients/TSClient/MarketData/MockStream/MockStreamNetworkReply.h \
     ../../Clients/TSClient/MarketData/StreamBars/Bar.h \

@@ -83,9 +83,9 @@ void GuiFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
     ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
 }
 
-void GuiFrontend::onTradeStationAccountsReceived(QVector<AccountsResult> results)
+void GuiFrontend::onTradeStationAccountsReceived(QVector<Account> results)
 {
-    for (const AccountsResult& account : results) {
+    for (const Account& account : results) {
         ui->logDisplay->append("  ID:" + account.getAccountId());
         ui->logDisplay->append("  Type:" + account.getAccountType());
         ui->logDisplay->append("  Status:" + account.getStatus());

@@ -7,7 +7,7 @@
 #include "../RESTClient.h"
 #include "Auth/AuthToken.h"
 #include "Auth/ClientToken.h"
-#include "Brokerage/Accounts/AccountsResult.h"
+#include "Brokerage/GetAccounts/Account.h"
 #include "OrderExecution/PlaceOrder/PlaceOrder.h"
 #include "MarketData/StreamBars/StreamBars.h"
 #include "MarketData/StreamMarketDepthQuote/StreamMarketDepthQuote.h"
@@ -79,7 +79,7 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
      */
-    bool fetchSyncAccounts(QVector<AccountsResult> &results);
+    bool fetchSyncAccounts(QVector<Account> &results);
     void fetchAsyncAccounts();
 
 
@@ -101,7 +101,7 @@ public slots:
 
 signals:
     void authStateChanged(bool isAuthenticated, QString reason);
-    void accountsAsyncReceived(QVector<AccountsResult> results);
+    void accountsAsyncReceived(QVector<Account> results);
     void placeAsyncOrderReceived(const PlaceOrderResult &result);
 
     void marketDepthNotAvailable();

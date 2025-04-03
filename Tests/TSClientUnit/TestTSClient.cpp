@@ -130,7 +130,7 @@ void TestTSClient::testFetchSyncAccounts()
     QVERIFY(client->isCleanedUp());
     QVERIFY(client->isAuthenticated());
 
-    QVector<AccountsResult> results;
+    QVector<Account> results;
     success = client->fetchSyncAccounts(results);
 
     // Verify the results
@@ -143,8 +143,8 @@ void TestTSClient::testFetchSyncAccounts()
     qDebug() << "Saved second account ID for place order test:" << secondAccountId;
 
     // Verify each account has valid data
-    const QVector<AccountsResult>& constResults = results;
-    for (const AccountsResult& account : constResults) {
+    const QVector<Account>& constResults = results;
+    for (const Account& account : constResults) {
 
         QVERIFY(account.isValid());
 
@@ -177,14 +177,14 @@ void TestTSClient::testFetchAsyncAccounts()
     QList<QVariant> firstSignal = fetchAsyncAccoutnsSpy.first();
     QVERIFY(firstSignal.size() == 1); // One argument
 
-    // Convert QVariant to QVector<AccountsResult>
+    // Convert QVariant to QVector<Account>
     QVariant arg = firstSignal.at(0);
-    QVERIFY(arg.canConvert<QVector<AccountsResult>>());
+    QVERIFY(arg.canConvert<QVector<Account>>());
 
 
-    const QVector<AccountsResult> results = arg.value<QVector<AccountsResult>>();
+    const QVector<Account> results = arg.value<QVector<Account>>();
     // Verify each account has valid data
-    for (const AccountsResult& account : results) {
+    for (const Account& account : results) {
 
         QVERIFY(account.isValid());
 
