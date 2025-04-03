@@ -33,9 +33,26 @@
        <attribute name="title">
         <string>Tab 1</string>
        </attribute>
-       <layout class="QVBoxLayout" name="verticalLayout_2">
+       <layout class="QHBoxLayout" name="horizontalLayout">
         <item>
-         <widget class="StockPriceChart" name="priceChart" native="true"/>
+         <widget class="StockPriceChart" name="priceChart" native="true">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+            <horstretch>2</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="MarketDepthTable" name="marketDepthTable" native="true">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+            <horstretch>1</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -101,6 +118,11 @@
    <class>StockPriceChart</class>
    <extends>QWidget</extends>
    <header>GUI/StockPriceChart.h</header>
+  </customwidget>
+  <customwidget>
+   <class>MarketDepthTable</class>
+   <extends>QWidget</extends>
+   <header>GUI/MarketDepthTable.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

@@ -81,11 +81,15 @@ gui {
     SOURCES += \
         GUI/GuiFrontend.cpp \
         GUI/StockPriceChart.cpp \
+        GUI/MarketDepthTableView.cpp \
+        GUI/MarketDepthTable.cpp \
         Clients/TSClient/Auth/AuthWindow.cpp
 
     HEADERS += \
         GUI/GuiFrontend.h \
         GUI/StockPriceChart.h \
+        GUI/MarketDepthTableView.h \
+        GUI/MarketDepthTable.h \
         Clients/TSClient/Auth/AuthWindow.h \
 
     FORMS += \

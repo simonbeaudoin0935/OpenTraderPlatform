@@ -25,7 +25,6 @@ public slots:
     void onTradeStationAccountsReceived(QVector<AccountsResult> results) override;
     void onMemoryUsageUpdate(qint64 newDataUsage) override; // TODO deal with qint64 vs qsizetype
     void onMarketDepthNotAvailable() override;
-
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
 
 private slots:
@@ -36,9 +35,9 @@ private slots:
 
 private:
     static QString bytesToString(qint64 bytes);
+
     Ui::GuiFrontend* ui;  // Pointer to the UI object
     QPushButton* tradeStationLoginButton;  // Login button in status bar
-
     QTimer updateTimer;
 
     qsizetype FMPClientDataUsage = 0;

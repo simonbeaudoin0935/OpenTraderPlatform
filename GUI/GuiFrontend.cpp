@@ -1,6 +1,10 @@
 #include "GuiFrontend.h"
 #include "ui_guifrontend.h"
 #include <QJsonDocument>
+#include <QHeaderView>
+#include <QLabel>
+#include <QHBoxLayout>
+#include <QMessageBox>
 
 GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     ui = new Ui::GuiFrontend();
@@ -44,11 +48,9 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     // TODO disconnect this and pass through the frontend
     QObject::connect(FMPClient::getInstancePtr(), &FMPClient::quoteShortReceived, this, &GuiFrontend::onQuoteShortReceived);
 
-
     //TODO test
     QObject::connect(&updateTimer, &QTimer::timeout, this, &GuiFrontend::onUpdateTimerTimeout);
     //updateTimer.start(1000);
-
 }
 
 GuiFrontend::~GuiFrontend() {
@@ -62,7 +64,6 @@ void GuiFrontend::onFMPClientDataUsageUpdate(qsizetype newDataUsage)
     QString usageFMP = bytesToString(newDataUsage);
     QString usageTS  = bytesToString(TSClientDataUsage);
     QString usageMemory = bytesToString(memoryUsage);
-
 
     ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
 }
@@ -129,7 +130,6 @@ void GuiFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
     qDebug() << "**********************************************";
 
     ui->priceChart->setSymbol(symbol);
-
     ui->priceChart->addBar(bar);
 }
 
@@ -141,8 +141,6 @@ void GuiFrontend::onUpdateTimerTimeout()
 
 void GuiFrontend::onQuoteShortReceived(const FMPClient::QuoteShortResult quoteResult)
 {
-    //ui->logDisplay->append(QString("Price Updated: %1").arg(quoteResult.price));
-
     ui->priceChart->setSymbol(quoteResult.symbol);
 
     QDateTime timestamp = QDateTime::currentDateTime();
@@ -165,7 +163,6 @@ void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
     static bool isFirstTime = true;
     QString log;
 
-
     if (isAuthenticated) {
         tradeStationLoginButton->setText("TradeStation Connected");
         tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #E6FFE6; color: #4CAF50; padding: 2px 6px; border-radius: 3px; }");
@@ -187,7 +184,6 @@ void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
     }
 
     ui->logDisplay->append(log);
-
     isFirstTime = false;
 }
 
