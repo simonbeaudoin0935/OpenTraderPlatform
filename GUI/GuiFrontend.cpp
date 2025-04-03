@@ -45,6 +45,10 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
             this, &GuiFrontend::onCurrentHighlightedStockBarReceived,
             Qt::DirectConnection);
 
+    connect(this, &AppFrontend::currentHighlightedReceivedNewMarketDepthQuote,
+            this, &GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote,
+            Qt::DirectConnection);
+
     // TODO disconnect this and pass through the frontend
     QObject::connect(FMPClient::getInstancePtr(), &FMPClient::quoteShortReceived, this, &GuiFrontend::onQuoteShortReceived);
 
@@ -131,6 +135,11 @@ void GuiFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 
     ui->priceChart->setSymbol(symbol);
     ui->priceChart->addBar(bar);
+}
+
+void GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote)
+{
+    ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks());
 }
 
 void GuiFrontend::onUpdateTimerTimeout()

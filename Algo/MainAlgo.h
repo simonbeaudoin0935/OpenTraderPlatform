@@ -6,6 +6,7 @@
 #include "StockScreener/StockScreener.h"
 #include "BreakingNewsFetcher/BreakingNewsFetcher.h"
 #include "StockBarsReceiver/StockBarsReceiver.h"
+#include "MarketDepthQuoteReceiver/MarketDepthQuoteReceiver.h"
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
@@ -22,6 +23,7 @@ public:
 
 signals:
     void currentHighlightedReceivedNewBar(QString symbol, Bar bar);
+    void currentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote);
 
 private slots:
     void onThreadStarted();
@@ -35,6 +37,7 @@ private:
     StockScreener stockScreener;
     BreakingNewsFetcher breakingNewsFetcher;
     StockBarsReceiver stockBarsReceiver;
+    MarketDepthQuoteReceiver marketDepthQuoteReceiver;
 
     QTextStream *algoLogFile;
     QFile file;

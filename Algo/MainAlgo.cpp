@@ -53,10 +53,18 @@ void MainAlgo::onThreadStarted()
     connect(&stockScreener, &StockScreener::finished, this, &MainAlgo::onStockScreenerFinished);
     //stockScreener.start();
 
+
+#warning TODO rework this
     connect(&stockBarsReceiver, &StockBarsReceiver::currentHighlightedReceivedNewBar,
             this, &MainAlgo::currentHighlightedReceivedNewBar);
 
     stockBarsReceiver.startStream("AAPL");
+
+    connect(&marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::currentHighlightedReceivedMarketDepthQuote,
+            this, &MainAlgo::currentHighlightedReceivedNewMarketDepthQuote);
+
+    marketDepthQuoteReceiver.startStream("AAPL");
+
 }
 
 void MainAlgo::onStockScreenerFinished()

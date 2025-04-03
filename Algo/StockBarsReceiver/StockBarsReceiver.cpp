@@ -9,7 +9,7 @@ StockBarsReceiver::StockBarsReceiver(QObject *parent)
 
 void StockBarsReceiver::startStream(QString &symbol)
 {
-    qCDebug(StockBarsReceiverLog) << Q_FUNC_INFO << "Starting stream for " << symbol;
+    qCDebug(StockBarsReceiverLog) << Q_FUNC_INFO << "Starting Bars stream for " << symbol;
 
     StreamBars *stream = TSClient::getInstance().openStreamBars(symbol,
                                                                 1,
@@ -31,7 +31,7 @@ void StockBarsReceiver::startStream(const char *symbol)
 
 void StockBarsReceiver::stopStream(QString &symbol)
 {
-    qCDebug(StockBarsReceiverLog) << Q_FUNC_INFO << "Stopping stream for " << symbol;
+    qCDebug(StockBarsReceiverLog) << Q_FUNC_INFO << "Stopping StockBars stream for " << symbol;
 
     Q_ASSERT(streams.contains(symbol));
 

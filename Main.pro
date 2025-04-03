@@ -9,6 +9,7 @@ SOURCES += \
     Misc/ArgumentParser.cpp \
     Algo/MainAlgo.cpp \
     Algo/BreakingNewsFetcher/BreakingNewsFetcher.cpp \
+    Algo/MarketDepthQuoteReceiver/MarketDepthQuoteReceiver.cpp \
     Algo/StockBarsReceiver/StockBarsReceiver.cpp \
     Algo/StockScreener/StockScreener.cpp \
     Core/MainApp.cpp \
@@ -38,6 +39,7 @@ HEADERS += \
     Algo/MainAlgo.h \
     Algo/BreakingNewsFetcher/BreakingNewsFetcher.h \
     Algo/StockBarsReceiver/StockBarsReceiver.h \
+    Algo/MarketDepthQuoteReceiver/MarketDepthQuoteReceiver.h \
     Algo/StockScreener/StockScreener.h \
     Core/AppFrontend.h \
     Core/MainApp.h \

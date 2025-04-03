@@ -26,6 +26,7 @@ public slots:
     void onMemoryUsageUpdate(qint64 newDataUsage) override; // TODO deal with qint64 vs qsizetype
     void onMarketDepthNotAvailable() override;
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
+    void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote) override;
 
 private slots:
     void onUpdateTimerTimeout();
