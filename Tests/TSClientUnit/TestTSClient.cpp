@@ -285,7 +285,7 @@ void TestTSClient::testFetchingMoreThanMaximumPerMinute()
 
 void TestTSClient::testStreamBars()
 {
-    QString symbol = "BTCUSD";
+    QString symbol = "AAPL";
     StreamBars* streamBars;
 
     QVERIFY(client->isCleanedUp());
@@ -319,15 +319,19 @@ void TestTSClient::testStreamBars()
 
         // Validate every signal received
         for (const QList<QVariant>& signal :  signalSpy) {
-            QVERIFY(signal.size() == 2); // One argument to StreamBar::receiveNewBar
+            QVERIFY(signal.size() == 2); // Two argument to StreamBar::receiveNewBar
 
             // Convert QVariant to Bar (bar is second argument)
-            QVariant firstArgOfSignal = signal.at(1);
+            QVariant firstArgOfSignal = signal.at(0);
+            QVariant secondArgOfSignal = signal.at(1);
 
-            QVERIFY(firstArgOfSignal.canConvert<Bar>());
+            QVERIFY(firstArgOfSignal.canConvert<QString>());
+            QVERIFY(secondArgOfSignal.canConvert<Bar>());
 
-            Bar bar = firstArgOfSignal.value<Bar>();
+            QString stock = firstArgOfSignal.value<QString>();
+            Bar bar = secondArgOfSignal.value<Bar>();
 
+            QVERIFY(stock == symbol);
             QVERIFY(bar.isValid());
         }
     }
@@ -346,7 +350,8 @@ void TestTSClient::testStreamMarketDepthQuote()
     // 5. Testing reconnection scenarios
     // 6. Testing multiple symbol subscriptions
     // 7. Testing unsubscribe functionality
-    QString symbol = "BTCUSD";
+
+    QString symbol = "AAPL";
     StreamMarketDepthQuote* stream;
 
     QVERIFY(client->isCleanedUp());
@@ -376,14 +381,19 @@ void TestTSClient::testStreamMarketDepthQuote()
 
         // Validate every signal received
         for (const QList<QVariant>& signal :  signalSpy) {
-            QVERIFY(signal.size() == 1); // One argument to StreamMarketDepthQuote::receiveNewQuote
+            QVERIFY(signal.size() == 2); // Two argument to StreamMarketDepthQuote::receiveNewQuote
 
             // Convert QVariant to MarketDepthQuote
             QVariant firstArgOfSignal = signal.at(0);
+            QVariant secondArgOfSignal = signal.at(1);
 
-            QVERIFY(firstArgOfSignal.canConvert<MarketDepthQuote>());
+            QVERIFY(firstArgOfSignal.canConvert<QString>());
+            QVERIFY(secondArgOfSignal.canConvert<MarketDepthQuote>());
 
-            MarketDepthQuote quote = firstArgOfSignal.value<MarketDepthQuote>();
+            QString stock =firstArgOfSignal.value<QString>();
+            MarketDepthQuote quote = secondArgOfSignal.value<MarketDepthQuote>();
+
+            QVERIFY(stock == symbol);
 
             // Verify all the quotes contained in that signal
             {

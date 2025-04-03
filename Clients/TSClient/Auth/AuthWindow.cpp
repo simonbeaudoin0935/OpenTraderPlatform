@@ -181,7 +181,7 @@ void AuthWindow::startAuthorization()
     QString authUrl = QString("https://signin.tradestation.com/authorize?"
                               "response_type=code&client_id=%1&redirect_uri=%2&"
                               "audience=https://api.tradestation.com&state=%3&"
-                              "scope=openid%20offline_access%20profile%20MarketData%20ReadAccount%20Trade")
+                              "scope=openid%20offline_access%20profile%20MarketData%20Matrix%20ReadAccount%20Trade")
                           .arg(clientToken.getClientId(), redirectUri, expectedState);
 
     qCDebug(tsAuth) << "Authorization URL:" << authUrl;
