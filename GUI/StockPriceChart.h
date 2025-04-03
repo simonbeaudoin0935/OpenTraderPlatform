@@ -9,7 +9,10 @@
 #include <QValueAxis>
 #include <QDateTime>
 #include <QGraphicsTextItem>
-#include "Clients/TSClient/MarketData/StreamBars/Bar.h"
+#include <QGraphicsRectItem>
+#include <QMouseEvent>
+#include <QTimeZone>
+#include "../Clients/TSClient/MarketData/StreamBars/Bar.h"
 
 QT_USE_NAMESPACE
 
@@ -37,6 +40,8 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
 
 private:
+    static const int MAX_BARS = 1000;
+
     void updateChart();
     void handleClosedBar(const Bar& bar);
     void handleOpenBar(const Bar& bar);
@@ -54,7 +59,9 @@ private:
     QDateTimeAxis* axisX;
     QValueAxis* axisY;
     QGraphicsTextItem* priceLabel;
-    QGraphicsRectItem* afterHoursRect;
+    QList<QGraphicsRectItem*> afterHoursRects;  // List of rectangles for after-hours sessions
+    QList<QGraphicsRectItem*> preMarketRects;   // List of rectangles for pre-market sessions
+    QList<QGraphicsRectItem*> closedMarketRects; // List of rectangles for closed market periods
 
     // Track the current open bar
     Bar currentOpenBar;
@@ -62,10 +69,14 @@ private:
     double lastPrice = 0.0;
 
     // Store completed bars
-    QList<Bar> completedBars;
-    static const int MAX_BARS = 100; // Maximum number of bars to display
+    QVector<Bar> completedBars;
 
     // Mouse tracking for panning
     bool isPanning = false;
     QPoint lastMousePos;
+
+    // Helper method to create a background rectangle
+    QGraphicsRectItem* createBackgroundRect(const QColor& color, int zValue);
+    // Helper method to clear all background rectangles
+    void clearBackgroundRects();
 };

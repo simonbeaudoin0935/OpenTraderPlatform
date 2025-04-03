@@ -13,8 +13,7 @@
 #include "../Misc/MarketHours.h"
 
 StockPriceChart::StockPriceChart(QWidget* parent)
-    : QWidget(parent)
-    , afterHoursRect(nullptr) {
+    : QWidget(parent) {
     lineSeries = new QLineSeries();
     lastPriceLine = new QLineSeries();
     lastPriceLine->setPen(QPen(Qt::green, 1, Qt::DashLine)); // Start with green, dashed line
@@ -44,13 +43,6 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     QFont font = priceLabel->font();
     font.setBold(true);
     priceLabel->setFont(font);
-
-    // Create after hours background rectangle
-    afterHoursRect = new QGraphicsRectItem(chart);
-    afterHoursRect->setBrush(QColor(230, 230, 255, 100));  // Light purple with some transparency
-    afterHoursRect->setPen(Qt::NoPen);
-    afterHoursRect->setZValue(-1);  // Put it behind everything
-    chartView->scene()->addItem(afterHoursRect);
 
     setSymbol("");
 
@@ -155,7 +147,13 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
 
 void StockPriceChart::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
+    
+    // Update the chart's geometry
+    chart->resize(event->size());
+    
+    // Update price label and backgrounds
     updatePriceLabelPosition();
+    updateAfterHoursBackground();
 }
 
 void StockPriceChart::updatePriceLabelPosition() {
@@ -533,7 +531,11 @@ bool StockPriceChart::isAfterMarketHours(const QDateTime& localTime) {
 }
 
 void StockPriceChart::updateAfterHoursBackground() {
-    if (!afterHoursRect) return;
+    // Clear existing rectangles
+    clearBackgroundRects();
+
+    // Update the chart's geometry
+    chart->resize(chartView->size());
 
     QDateTime startTime = axisX->min();
     QDateTime endTime = axisX->max();
@@ -542,25 +544,163 @@ void StockPriceChart::updateAfterHoursBackground() {
     QPointF topLeft = chart->mapToPosition(QPointF(startTime.toMSecsSinceEpoch(), axisY->max()));
     QPointF bottomRight = chart->mapToPosition(QPointF(endTime.toMSecsSinceEpoch(), axisY->min()));
 
-    // If the entire range is after hours or pre-market, color everything
-    if (MarketHours::isAfterHours(startTime) || MarketHours::isPreMarket(startTime)) {
-        afterHoursRect->setRect(topLeft.x(), topLeft.y(), 
-                              bottomRight.x() - topLeft.x(), 
-                              bottomRight.y() - topLeft.y());
-        afterHoursRect->show();
+    // Convert times to NY timezone for date calculations
+    QTimeZone nyZone("America/New_York");
+    QDateTime nyStartTime = startTime.toTimeZone(nyZone);
+    QDateTime nyEndTime = endTime.toTimeZone(nyZone);
+
+    // Get all dates in the range, including the day before the start
+    QDate currentDate = nyStartTime.date().addDays(-1);  // Start from previous day
+    QDate endDate = nyEndTime.date();
+
+    // Create session boundaries for each day
+    while (currentDate <= endDate) {
+        // Skip weekends - show closed market background
+        if (currentDate.dayOfWeek() > 5) {
+            QDateTime dayStart = QDateTime(currentDate, QTime(0, 0), nyZone);
+            QDateTime dayEnd = QDateTime(currentDate, QTime(23, 59, 59), nyZone);
+            
+            // Convert to local time
+            dayStart = dayStart.toLocalTime();
+            dayEnd = dayEnd.toLocalTime();
+
+            // If any part of the weekend is visible
+            if ((dayStart >= startTime && dayStart <= endTime) ||
+                (dayEnd >= startTime && dayEnd <= endTime) ||
+                (startTime >= dayStart && endTime <= dayEnd)) {
+                QPointF sessionStart = chart->mapToPosition(QPointF(
+                    qMax(startTime.toMSecsSinceEpoch(), dayStart.toMSecsSinceEpoch()), axisY->max()));
+                QPointF sessionEnd = chart->mapToPosition(QPointF(
+                    qMin(endTime.toMSecsSinceEpoch(), dayEnd.toMSecsSinceEpoch()), axisY->max()));
+                
+                auto rect = createBackgroundRect(QColor(40, 40, 40, 100), -2);
+                rect->setRect(sessionStart.x(), topLeft.y(),
+                            sessionEnd.x() - sessionStart.x(),
+                            bottomRight.y() - topLeft.y());
+                closedMarketRects.append(rect);
+            }
+            currentDate = currentDate.addDays(1);
+            continue;
+        }
+
+        // Regular weekday sessions
+        QDateTime preMarketStart = QDateTime(currentDate, QTime(4, 0), nyZone);
+        QDateTime preMarketEnd = QDateTime(currentDate, QTime(9, 30), nyZone);
+        QDateTime afterHoursStart = QDateTime(currentDate, QTime(16, 0), nyZone);
+        QDateTime afterHoursEnd = QDateTime(currentDate, QTime(20, 0), nyZone);
+        QDateTime dayStart = QDateTime(currentDate, QTime(0, 0), nyZone);
+        QDateTime dayEnd = QDateTime(currentDate, QTime(23, 59, 59), nyZone);
+
+        // Convert all times to local timezone for comparison
+        dayStart = dayStart.toLocalTime();
+        dayEnd = dayEnd.toLocalTime();
+        preMarketStart = preMarketStart.toLocalTime();
+        preMarketEnd = preMarketEnd.toLocalTime();
+        afterHoursStart = afterHoursStart.toLocalTime();
+        afterHoursEnd = afterHoursEnd.toLocalTime();
+
+        // Handle overnight closed market (12:00 AM to 4:00 AM)
+        if ((dayStart >= startTime && preMarketStart <= endTime) ||
+            (startTime >= dayStart && endTime <= preMarketStart) ||
+            (startTime <= preMarketStart && endTime >= dayStart)) {
+            QPointF sessionStart = chart->mapToPosition(QPointF(
+                qMax(startTime.toMSecsSinceEpoch(), dayStart.toMSecsSinceEpoch()), axisY->max()));
+            QPointF sessionEnd = chart->mapToPosition(QPointF(
+                qMin(endTime.toMSecsSinceEpoch(), preMarketStart.toMSecsSinceEpoch()), axisY->max()));
+            
+            auto rect = createBackgroundRect(QColor(40, 40, 40, 100), -2);
+            rect->setRect(sessionStart.x(), topLeft.y(),
+                        sessionEnd.x() - sessionStart.x(),
+                        bottomRight.y() - topLeft.y());
+            closedMarketRects.append(rect);
+        }
+
+        // Handle late night closed market (8:00 PM to 11:59 PM)
+        if ((afterHoursEnd >= startTime && dayEnd <= endTime) ||
+            (startTime >= afterHoursEnd && endTime <= dayEnd) ||
+            (startTime <= dayEnd && endTime >= afterHoursEnd)) {
+            QPointF sessionStart = chart->mapToPosition(QPointF(
+                qMax(startTime.toMSecsSinceEpoch(), afterHoursEnd.toMSecsSinceEpoch()), axisY->max()));
+            QPointF sessionEnd = chart->mapToPosition(QPointF(
+                qMin(endTime.toMSecsSinceEpoch(), dayEnd.toMSecsSinceEpoch()), axisY->max()));
+            
+            auto rect = createBackgroundRect(QColor(40, 40, 40, 100), -2);
+            rect->setRect(sessionStart.x(), topLeft.y(),
+                        sessionEnd.x() - sessionStart.x(),
+                        bottomRight.y() - topLeft.y());
+            closedMarketRects.append(rect);
+        }
+
+        // Handle pre-market session
+        if ((preMarketStart >= startTime && preMarketEnd <= endTime) ||
+            (startTime >= preMarketStart && endTime <= preMarketEnd) ||
+            (startTime <= preMarketEnd && endTime >= preMarketEnd) ||
+            (startTime <= preMarketStart && endTime >= preMarketStart) ||
+            (startTime <= preMarketStart && endTime >= preMarketEnd)) {
+            // Pre-market session is visible (fully or partially)
+            QPointF sessionStart = chart->mapToPosition(QPointF(
+                qMax(startTime.toMSecsSinceEpoch(), preMarketStart.toMSecsSinceEpoch()), axisY->max()));
+            QPointF sessionEnd = chart->mapToPosition(QPointF(
+                qMin(endTime.toMSecsSinceEpoch(), preMarketEnd.toMSecsSinceEpoch()), axisY->max()));
+            
+            auto rect = createBackgroundRect(QColor(255, 200, 150, 100), -1);
+            rect->setRect(sessionStart.x(), topLeft.y(),
+                        sessionEnd.x() - sessionStart.x(),
+                        bottomRight.y() - topLeft.y());
+            preMarketRects.append(rect);
+        }
+
+        // Handle after-hours session
+        if ((afterHoursStart >= startTime && afterHoursEnd <= endTime) ||
+            (startTime >= afterHoursStart && endTime <= afterHoursEnd) ||
+            (startTime <= afterHoursEnd && endTime >= afterHoursEnd) ||
+            (startTime <= afterHoursStart && endTime >= afterHoursStart) ||
+            (startTime <= afterHoursStart && endTime >= afterHoursEnd)) {
+            // After-hours session is visible (fully or partially)
+            QPointF sessionStart = chart->mapToPosition(QPointF(
+                qMax(startTime.toMSecsSinceEpoch(), afterHoursStart.toMSecsSinceEpoch()), axisY->max()));
+            QPointF sessionEnd = chart->mapToPosition(QPointF(
+                qMin(endTime.toMSecsSinceEpoch(), afterHoursEnd.toMSecsSinceEpoch()), axisY->max()));
+            
+            auto rect = createBackgroundRect(QColor(230, 230, 255, 100), -1);
+            rect->setRect(sessionStart.x(), topLeft.y(),
+                        sessionEnd.x() - sessionStart.x(),
+                        bottomRight.y() - topLeft.y());
+            afterHoursRects.append(rect);
+        }
+
+        currentDate = currentDate.addDays(1);
     }
-    // If the range spans regular hours and after hours
-    else if (MarketHours::isAfterHours(endTime) || MarketHours::isPreMarket(endTime)) {
-        // Find the session change point
-        QDateTime sessionChange = MarketHours::getNextSessionChange(startTime);
-        QPointF changePoint = chart->mapToPosition(QPointF(sessionChange.toMSecsSinceEpoch(), axisY->max()));
-        
-        afterHoursRect->setRect(changePoint.x(), topLeft.y(),
-                              bottomRight.x() - changePoint.x(),
-                              bottomRight.y() - topLeft.y());
-        afterHoursRect->show();
+}
+
+QGraphicsRectItem* StockPriceChart::createBackgroundRect(const QColor& color, int zValue) {
+    QGraphicsRectItem* rect = new QGraphicsRectItem(chart);
+    rect->setBrush(color);
+    rect->setPen(Qt::NoPen);
+    rect->setZValue(zValue);
+    chartView->scene()->addItem(rect);
+    return rect;
+}
+
+void StockPriceChart::clearBackgroundRects() {
+    // Delete and clear after-hours rectangles
+    for (auto rect : afterHoursRects) {
+        chartView->scene()->removeItem(rect);
+        delete rect;
     }
-    else {
-        afterHoursRect->hide();
+    afterHoursRects.clear();
+
+    // Delete and clear pre-market rectangles
+    for (auto rect : preMarketRects) {
+        chartView->scene()->removeItem(rect);
+        delete rect;
     }
+    preMarketRects.clear();
+
+    // Delete and clear closed market rectangles
+    for (auto rect : closedMarketRects) {
+        chartView->scene()->removeItem(rect);
+        delete rect;
+    }
+    closedMarketRects.clear();
 }
