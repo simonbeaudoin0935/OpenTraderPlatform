@@ -15,6 +15,9 @@ MainApp::MainApp(AppFrontend* appFrontend) :
     QObject::connect(tradeStationClient, &TSClient::authStateChanged,
                      appFrontend, &AppFrontend::tradeStationAuthStateChanged);
 
+    QObject::connect(tradeStationClient, &TSClient::authStateChanged,
+                     mainAlgo, &MainAlgo::onTradeStationAuthStateChanged);
+
     QObject::connect(tradeStationClient, &TSClient::accountsAsyncReceived,
                      appFrontend, &AppFrontend::tradeStationAccountsReceived);
 

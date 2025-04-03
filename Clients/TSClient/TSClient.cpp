@@ -16,6 +16,7 @@
 
 #define ENDPOINT_STREAM_BARS               "marketdata/stream/barcharts"
 #define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes"
+#define ENDPOINT_STREAM_POSITIONS          "brokerage/stream/accounts/%1/positions"
 
 Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
 
@@ -486,22 +487,21 @@ void TSClient::placeAsyncOrder(const PlaceOrderRequest &order) {
 
 void TSClient::openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Stream * const stream) {
     Q_ASSERT(!symbol.isEmpty());
-    Q_ASSERT(symbol.length() >= 1 && symbol.length() <= 7);
+    if (symbol != "NOSYMBOL") Q_ASSERT(symbol.length() >= 1 && symbol.length() <= 8);
     Q_ASSERT(!symbol.contains(','));
     Q_ASSERT(symbol.isUpper());
     Q_ASSERT(stream != nullptr);
     Q_ASSERT(!endpoint.isEmpty());
 
+#warning fix this NOSYMBOL shit
     QMetaObject::invokeMethod(this,
         [this, &symbol, &endpoint, &query, stream]()
         {
-            QUrl url(QString(BASE_URL_TS_API_SIMULATION) + endpoint + "/" + symbol);
+            QUrl url(QString(BASE_URL_TS_API_SIMULATION) + endpoint + ((symbol=="NOSYMBOL") ? "" : ("/" + symbol)));
             url.setQuery(query);
 
             QNetworkRequest request(url);
             request.setRawHeader("Authorization", QString("Bearer %1").arg(authToken.getAccessToken()).toUtf8());
-            //request.setRawHeader("Accept", "application/json");
-            //request.setRawHeader("Connection", "keep-alive");
 
             // The stream was new'ed in the caller's thread
             stream->setParent(this);
@@ -621,6 +621,35 @@ void TSClient::closeStreamMarketDepthQuote(StreamMarketDepthQuote *stream)
     Q_ASSERT(stream != nullptr);
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamMarketDepthQuote " << static_cast<void*>(stream);
+
+    TSClient::closeStream(stream);
+}
+
+StreamPositions *TSClient::openStreamPositions(QString &account, bool changes)
+{
+    Q_ASSERT(account.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
+
+    const QString endpoint = QString(ENDPOINT_STREAM_POSITIONS).arg(account);
+
+    QUrlQuery query;
+    query.addQueryItem("changes", changes? "true":"false");
+
+    StreamPositions * stream = new StreamPositions(account);
+    stream->moveToThread(thread);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamPositions " << static_cast<void*>(stream);
+
+    TSClient::openStream("NOSYMBOL", endpoint, query, stream);
+
+
+    return stream;
+}
+
+void TSClient::closeStreamPositions(StreamPositions *stream)
+{
+    Q_ASSERT(stream != nullptr);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamPositions " << static_cast<void*>(stream);
 
     TSClient::closeStream(stream);
 }

@@ -4,6 +4,7 @@
 #include <QDir>
 
 #include "MainAlgo.h"
+#include "Clients/TSClient/TSClient.h"
 
 Q_LOGGING_CATEGORY(MainAlgoLog, "MainAlgo")
 
@@ -52,9 +53,16 @@ void MainAlgo::onThreadStarted()
 {
     connect(&stockScreener, &StockScreener::finished, this, &MainAlgo::onStockScreenerFinished);
     //stockScreener.start();
+}
 
+void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
+{
+    if (isAuthenticated) {
+        TSClient::getInstance().fetchSyncAccounts(accounts);
+    } else {
+        Q_ASSERT_X(false, "FUCK", "FUCKKK");
+    }
 
-#warning TODO rework this
     connect(&stockBarsReceiver, &StockBarsReceiver::currentHighlightedReceivedNewBar,
             this, &MainAlgo::currentHighlightedReceivedNewBar);
 
@@ -65,7 +73,15 @@ void MainAlgo::onThreadStarted()
 
     marketDepthQuoteReceiver.startStream("AAPL");
 
+#warning hack, better this. This is just for sim
+    QString accountNumber = accounts.at(1).getAccountId();
+
+    connect(&positionReceiver, &PositionsReceiver::receivedNewPosition,
+            this, &MainAlgo::onReceivedNewPosition);
+
+    positionReceiver.startStream(accountNumber);
 }
+
 
 void MainAlgo::onStockScreenerFinished()
 {
@@ -94,4 +110,14 @@ void MainAlgo::onNewNewsFound(StockNewsResult newNews)
     *algoLogFile << "  Found at       : " << QDateTime::currentDateTimeUtc().toString() << "\n";
     *algoLogFile << "  ******************** STRIKE ****************\n\n";
     algoLogFile->flush();
+}
+
+void MainAlgo::onReceivedNewPosition(QString account, Position position)
+{
+
+}
+
+void MainAlgo::onTradeStationAccountsReceived(QVector<Account> results)
+{
+
 }

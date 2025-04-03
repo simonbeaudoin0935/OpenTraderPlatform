@@ -52,9 +52,7 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     // TODO disconnect this and pass through the frontend
     QObject::connect(FMPClient::getInstancePtr(), &FMPClient::quoteShortReceived, this, &GuiFrontend::onQuoteShortReceived);
 
-    //TODO test
-    QObject::connect(&updateTimer, &QTimer::timeout, this, &GuiFrontend::onUpdateTimerTimeout);
-    //updateTimer.start(1000);
+
 }
 
 GuiFrontend::~GuiFrontend() {
@@ -131,8 +129,6 @@ void GuiFrontend::onMarketDepthNotAvailable()
 
 void GuiFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 {
-    qDebug() << "**********************************************";
-
     ui->priceChart->setSymbol(symbol);
     ui->priceChart->addBar(bar);
 }
@@ -140,12 +136,6 @@ void GuiFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 void GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote)
 {
     ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks());
-}
-
-void GuiFrontend::onUpdateTimerTimeout()
-{
-#warning TODO test, remove
-    FMPClient::getInstance().fetchAsyncQuoteShort("AAPL");
 }
 
 void GuiFrontend::onQuoteShortReceived(const FMPClient::QuoteShortResult quoteResult)

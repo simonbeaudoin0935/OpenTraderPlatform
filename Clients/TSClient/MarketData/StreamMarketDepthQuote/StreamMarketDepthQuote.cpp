@@ -27,8 +27,5 @@ bool StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
         return false;
     }
 
-
-
-
     return false;
 }

@@ -19,8 +19,6 @@ void StockScreener::start()
 
     CompanyScreenerFilter filter;
 
-    QLoggingCategory::setFilterRules("RESTClient.debug=false"); // *********************************
-
     // Set criterias
     {
         filter.setIndustry("Biotechnology");

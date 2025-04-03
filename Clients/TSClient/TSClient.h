@@ -8,6 +8,7 @@
 #include "Auth/AuthToken.h"
 #include "Auth/ClientToken.h"
 #include "Brokerage/GetAccounts/Account.h"
+#include "Brokerage/StreamPositions/StreamPositions.h"
 #include "OrderExecution/PlaceOrder/PlaceOrder.h"
 #include "MarketData/StreamBars/StreamBars.h"
 #include "MarketData/StreamMarketDepthQuote/StreamMarketDepthQuote.h"
@@ -42,9 +43,6 @@ public:
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/StreamBars
      *
      * @note : Returned pointer dynamically allocated. Delete with closeStreamBars
-     *
-     * @note : ->startStream() needs to be called in order to start the stream. This gives time to the
-     *         caller to setup signal/slot connections
      */
     enum class StreamBarsUnit { Minute, Daily, Weekly, Monthly };
     enum class StreamBarsSessionTemplate { USEQPre, USEQPost, USEPreAndPost,USEQ24Hour, Default };
@@ -65,9 +63,6 @@ public:
      * @note : Object dynamically allocated and returned. TSClient owns this object and it lives
      *         in the thread of the client and shares the same network access manager. Later
      *         calling closeStreamMarketDepthQuote will delete it. Do not delete outside.
-     *
-     * @note : ->startStream() needs to be called in order to start the stream. This gives time to the
-     *         caller to setup signal/slot connections
      */
     StreamMarketDepthQuote* openStreamMarketDepthQuote(QString &symbol, unsigned int depth = 20);
     void closeStreamMarketDepthQuote(StreamMarketDepthQuote* stream);
@@ -82,6 +77,18 @@ public:
     bool fetchSyncAccounts(QVector<Account> &results);
     void fetchAsyncAccounts();
 
+    /*
+     * Creates a StreamPositions Stream
+     *
+     * @return : nullptr if the stream could not be created
+     * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/StreamPositions
+     *
+     * @note : Object dynamically allocated and returned. TSClient owns this object and it lives
+     *         in the thread of the client and shares the same network access manager. Later
+     *         calling closeStreamMarketDepthQuote will delete it. Do not delete outside.
+     */
+    StreamPositions* openStreamPositions(QString &account, bool changes = false);
+    void closeStreamPositions(StreamPositions* stream);
 
                               // -------- Order execution methods --------
  

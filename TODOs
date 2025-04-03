@@ -22,3 +22,5 @@
 - implement a cache for FMP and then downgrade to free account
 
 - Form the doc, for streams for exmple, i see there is the reply, a heartbeat, and error. DEAL WITH THAT
+
+- if the token is expired and the app launches, it refreshes it fine, but it doesnt propagate this event for the rest of the shebang to happen, I need to close the app and then reopen it for it to start with a fresh token

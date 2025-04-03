@@ -50,7 +50,7 @@ void StockBarsReceiver::stopStream(const char* symbol) {
 
 void StockBarsReceiver::onReceivedNewBar(QString symbol, Bar bar)
 {
-    qDebug().noquote() << bar.toJsonString();
+    qCDebug(StockBarsReceiverLog).noquote() << bar.toJsonString();
 
     emit currentHighlightedReceivedNewBar(symbol, bar);
 }

@@ -29,7 +29,7 @@ public slots:
     void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote) override;
 
 private slots:
-    void onUpdateTimerTimeout();
+
     void onQuoteShortReceived(const FMPClient::QuoteShortResult quoteResult);
     void onTradeStationLoginClicked();
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
@@ -39,7 +39,6 @@ private:
 
     Ui::GuiFrontend* ui;  // Pointer to the UI object
     QPushButton* tradeStationLoginButton;  // Login button in status bar
-    QTimer updateTimer;
 
     qsizetype FMPClientDataUsage = 0;
     qsizetype TSClientDataUsage = 0;

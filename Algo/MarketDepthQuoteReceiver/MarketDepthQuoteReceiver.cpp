@@ -3,9 +3,11 @@
 
 Q_LOGGING_CATEGORY(MarketDepthQuoteReceiverLog, "MarketDepthQuoteReceiver")
 
-MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(QObject *parent)
-    : QObject{parent}
-{}
+MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(QObject *parent) :
+    QObject{parent}
+{
+
+}
 
 void MarketDepthQuoteReceiver::startStream(QString &symbol)
 {
@@ -48,7 +50,7 @@ void MarketDepthQuoteReceiver::stopStream(const char* symbol) {
 
 void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote)
 {
-    qDebug().noquote() << marketDepthQuote.toJsonString();
+    qCDebug(MarketDepthQuoteReceiverLog).noquote() << marketDepthQuote.toJsonString();
 
     emit currentHighlightedReceivedMarketDepthQuote(symbol, marketDepthQuote);
 }

@@ -4,6 +4,7 @@ QT += core network
 CONFIG += console c++11
 
 SOURCES += \
+    Algo/PositionsReceiver/PositionsReceiver.cpp \
     main.cpp \
     Misc/Settings.cpp \
     Misc/ArgumentParser.cpp \
@@ -36,6 +37,7 @@ SOURCES += \
     Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.cpp
 
 HEADERS += \
+    Algo/PositionsReceiver/PositionsReceiver.h \
     Misc/Settings.h \
     Misc/ArgumentParser.h \
     Misc/MarketHours.h \
@@ -62,7 +64,7 @@ HEADERS += \
     Clients/TSClient/MarketData/StreamMarketDepthQuote/MarketDepthQuote.h \
     Clients/TSClient/Brokerage/GetAccounts/Account.h \
     Clients/TSClient/Brokerage/GetAccounts/GetAccounts.h \
-    Clients/TSClient/Brokerage/StreamPositions/Positions.h \
+    Clients/TSClient/Brokerage/StreamPositions/Position.h \
     Clients/TSClient/Brokerage/StreamPositions/StreamPositions.h \
     Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.h
 
