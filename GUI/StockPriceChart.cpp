@@ -1,4 +1,3 @@
-
 #include "StockPriceChart.h"
 #include <QtCharts/QChart>
 #include <QtCharts/QDateTimeAxis>
@@ -7,11 +6,15 @@
 #include <QtCharts/QCandlestickSet>
 #include <QVBoxLayout>
 #include <QGraphicsTextItem>
+#include <QGraphicsRectItem>
 #include <QFont>
 #include <QDebug>
+#include <QTimeZone>
+#include "../Misc/MarketHours.h"
 
 StockPriceChart::StockPriceChart(QWidget* parent)
-    : QWidget(parent) {
+    : QWidget(parent)
+    , afterHoursRect(nullptr) {
     lineSeries = new QLineSeries();
     lastPriceLine = new QLineSeries();
     lastPriceLine->setPen(QPen(Qt::green, 1, Qt::DashLine)); // Start with green, dashed line
@@ -41,6 +44,13 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     QFont font = priceLabel->font();
     font.setBold(true);
     priceLabel->setFont(font);
+
+    // Create after hours background rectangle
+    afterHoursRect = new QGraphicsRectItem(chart);
+    afterHoursRect->setBrush(QColor(230, 230, 255, 100));  // Light purple with some transparency
+    afterHoursRect->setPen(Qt::NoPen);
+    afterHoursRect->setZValue(-1);  // Put it behind everything
+    chartView->scene()->addItem(afterHoursRect);
 
     setSymbol("");
 
@@ -73,6 +83,10 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     layout->setContentsMargins(0, 0, 0, 0);  // Remove widget margins
     layout->addWidget(chartView);
     setLayout(layout);
+
+    // Connect to the axis range changed signal
+    connect(axisX, &QDateTimeAxis::rangeChanged, this, &StockPriceChart::updateAfterHoursBackground);
+    connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::updateAfterHoursBackground);
 }
 
 StockPriceChart::~StockPriceChart() {
@@ -507,4 +521,46 @@ void StockPriceChart::mouseReleaseEvent(QMouseEvent* event) {
 
 void StockPriceChart::mouseMoveEvent(QMouseEvent* event) {
     event->ignore();
+}
+
+bool StockPriceChart::isAfterMarketHours(const QDateTime& localTime) {
+    // Convert local time to New York time
+    QTimeZone nyZone("America/New_York");
+    QDateTime nyTime = localTime.toTimeZone(nyZone);
+    
+    // Check if it's after 4 PM (16:00) NY time
+    return nyTime.time().hour() >= 16;
+}
+
+void StockPriceChart::updateAfterHoursBackground() {
+    if (!afterHoursRect) return;
+
+    QDateTime startTime = axisX->min();
+    QDateTime endTime = axisX->max();
+    
+    // Convert the range to points on the chart
+    QPointF topLeft = chart->mapToPosition(QPointF(startTime.toMSecsSinceEpoch(), axisY->max()));
+    QPointF bottomRight = chart->mapToPosition(QPointF(endTime.toMSecsSinceEpoch(), axisY->min()));
+
+    // If the entire range is after hours or pre-market, color everything
+    if (MarketHours::isAfterHours(startTime) || MarketHours::isPreMarket(startTime)) {
+        afterHoursRect->setRect(topLeft.x(), topLeft.y(), 
+                              bottomRight.x() - topLeft.x(), 
+                              bottomRight.y() - topLeft.y());
+        afterHoursRect->show();
+    }
+    // If the range spans regular hours and after hours
+    else if (MarketHours::isAfterHours(endTime) || MarketHours::isPreMarket(endTime)) {
+        // Find the session change point
+        QDateTime sessionChange = MarketHours::getNextSessionChange(startTime);
+        QPointF changePoint = chart->mapToPosition(QPointF(sessionChange.toMSecsSinceEpoch(), axisY->max()));
+        
+        afterHoursRect->setRect(changePoint.x(), topLeft.y(),
+                              bottomRight.x() - changePoint.x(),
+                              bottomRight.y() - topLeft.y());
+        afterHoursRect->show();
+    }
+    else {
+        afterHoursRect->hide();
+    }
 }

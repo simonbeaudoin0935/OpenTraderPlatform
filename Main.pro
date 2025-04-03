@@ -7,6 +7,7 @@ SOURCES += \
     main.cpp \
     Misc/Settings.cpp \
     Misc/ArgumentParser.cpp \
+    Misc/MarketHours.cpp \
     Algo/MainAlgo.cpp \
     Algo/BreakingNewsFetcher/BreakingNewsFetcher.cpp \
     Algo/MarketDepthQuoteReceiver/MarketDepthQuoteReceiver.cpp \
@@ -36,6 +37,7 @@ SOURCES += \
 HEADERS += \
     Misc/Settings.h \
     Misc/ArgumentParser.h \
+    Misc/MarketHours.h \
     Algo/MainAlgo.h \
     Algo/BreakingNewsFetcher/BreakingNewsFetcher.h \
     Algo/StockBarsReceiver/StockBarsReceiver.h \

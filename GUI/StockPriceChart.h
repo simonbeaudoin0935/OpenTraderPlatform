@@ -13,8 +13,11 @@
 
 QT_USE_NAMESPACE
 
-    class StockPriceChart : public QWidget {
+class QGraphicsRectItem;
+
+class StockPriceChart : public QWidget {
     Q_OBJECT
+
 public:
     explicit StockPriceChart(QWidget* parent = nullptr);
     ~StockPriceChart() override;
@@ -39,6 +42,8 @@ private:
     void handleOpenBar(const Bar& bar);
     void updateLastPriceLine(double price, bool isUpTick);
     void updatePriceLabelPosition();
+    bool isAfterMarketHours(const QDateTime& localTime);
+    void updateAfterHoursBackground();
 
     QString symbol;
     QChart* chart;
@@ -49,6 +54,7 @@ private:
     QDateTimeAxis* axisX;
     QValueAxis* axisY;
     QGraphicsTextItem* priceLabel;
+    QGraphicsRectItem* afterHoursRect;
 
     // Track the current open bar
     Bar currentOpenBar;

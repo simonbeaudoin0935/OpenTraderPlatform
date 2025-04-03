@@ -23,7 +23,8 @@ SOURCES += \
     ../../Clients/TSClient/MarketData/StreamMarketDepthQuote/MarketDepthQuote.cpp \
     ../../Clients/TSClient/Auth/AuthWindow.cpp \
     ../../Clients/TSClient/Auth/AuthToken.cpp \
-    ../../Clients/TSClient/Auth/ClientToken.cpp
+    ../../Clients/TSClient/Auth/ClientToken.cpp \
+    ../../Misc/MarketHours.cpp
 
 HEADERS += \
     ../../Clients/RESTClient.h \
@@ -40,8 +41,8 @@ HEADERS += \
     ../../Clients/TSClient/MarketData/StreamMarketDepthQuote/MarketDepthQuote.h \
     ../../Clients/TSClient/Auth/AuthWindow.h \
     ../../Clients/TSClient/Auth/AuthToken.h \
-    ../../Clients/TSClient/Auth/ClientToken.h
-
+    ../../Clients/TSClient/Auth/ClientToken.h \
+    ../../Misc/MarketHours.h
 
 INCLUDEPATH += ../../Clients/TSClient
 DEPENDPATH += ../../Clients/TSClient
