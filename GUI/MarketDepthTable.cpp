@@ -49,12 +49,36 @@ void MarketDepthTable::setupUI() {
 
     // Configure table view
     tableView->setModel(model);
-    tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     tableView->verticalHeader()->setVisible(false);
     tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     tableView->setAlternatingRowColors(true);
+    tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     tableView->setTopMargin(24);
+
+    // Set column widths
+    int priceWidth = 80;
+    int sizeWidth = 80;
+    int ordersWidth = 60;
+    int nameWidth = 80;
+    
+    // BID side
+    tableView->setColumnWidth(0, priceWidth);  // Price
+    tableView->setColumnWidth(1, sizeWidth);   // Size
+    tableView->setColumnWidth(2, ordersWidth); // Orders
+    tableView->setColumnWidth(3, nameWidth);   // Name
+    
+    // ASK side
+    tableView->setColumnWidth(4, priceWidth);  // Price
+    tableView->setColumnWidth(5, sizeWidth);   // Size
+    tableView->setColumnWidth(6, ordersWidth); // Orders
+    tableView->setColumnWidth(7, nameWidth);   // Name
+
+    // Calculate and set the fixed width for the entire widget
+    int totalWidth = (priceWidth + sizeWidth + ordersWidth + nameWidth) * 2; // *2 for both BID and ASK sides
+    setFixedWidth(totalWidth);
+    tableView->setFixedWidth(totalWidth);
 
     // Add widgets to main layout
     mainLayout->addWidget(headerWidget);
