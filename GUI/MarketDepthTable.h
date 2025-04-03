@@ -19,10 +19,11 @@ public:
 private:
     void setupUI();
     void setupStyles();
-    void setMarketDepthItem(QStandardItem* item, const MarketDepthLevel& level, const QString& field);
+    void setMarketDepthItem(QStandardItem* item, const MarketDepthLevel& level, const QString& field, int rowIndex);
 
     MarketDepthTableView* tableView;
     QStandardItemModel* model;
     QLabel* bidLabel;
     QLabel* askLabel;
+    QLabel* spreadLabel;
 }; 

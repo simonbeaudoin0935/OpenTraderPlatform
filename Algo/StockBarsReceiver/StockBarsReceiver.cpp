@@ -14,7 +14,7 @@ void StockBarsReceiver::startStream(QString &symbol)
     StreamBars *stream = TSClient::getInstance().openStreamBars(symbol,
                                                                 1,
                                                                 TSClient::StreamBarsUnit::Minute,
-                                                                1000,
+                                                                100,
                                                                 TSClient::StreamBarsSessionTemplate::USEQ24Hour);
 
     connect(stream, &StreamBars::receivedNewBar, this, &StockBarsReceiver::onReceivedNewBar);
