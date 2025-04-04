@@ -2,6 +2,7 @@
 
 #include <QDateTime>
 #include <QTimeZone>
+#include <QColor>
 
 /**
  * @brief Utility class to handle market hours in Eastern Time (ET)
@@ -46,6 +47,17 @@ public:
     static bool isDST(const QDateTime& localTime = QDateTime::currentDateTime());
     static int getUTCOffset(const QDateTime& localTime = QDateTime::currentDateTime());
     static QString getTimeZoneAbbreviation(const QDateTime& localTime = QDateTime::currentDateTime());
+
+    // Background color methods
+    static QColor getSessionColor(Session session);
+    static QColor getPreMarketColor();
+    static QColor getRegularHoursColor();
+    static QColor getAfterHoursColor();
+    static QColor getClosedColor();
+
+    // Session visibility methods
+    static bool isSessionVisible(const QDateTime& startTime, const QDateTime& endTime, Session session);
+    static QPair<QDateTime, QDateTime> getVisibleSessionRange(const QDateTime& startTime, const QDateTime& endTime, Session session);
 
 private:
     static const QTimeZone nyZone;

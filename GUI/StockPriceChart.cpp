@@ -491,23 +491,20 @@ void StockPriceChart::updateAfterHoursBackground() {
 
     // Create session boundaries for each day
     while (currentDate <= endDate) {
-        // Skip weekends - show closed market background
-        if (currentDate.dayOfWeek() > 5) {
-            QDateTime dayStart = QDateTime(currentDate, QTime(0, 0), nyZone);
-            QDateTime dayEnd = QDateTime(currentDate, QTime(23, 59, 59), nyZone);
-            
-            // Convert to local time
-            dayStart = dayStart.toLocalTime();
-            dayEnd = dayEnd.toLocalTime();
+        // Create base time in NY timezone
+        QDateTime currentDateTime = QDateTime(currentDate, QTime(0, 0), nyZone);
+        QDateTime nextDayDateTime = QDateTime(currentDate.addDays(1), QTime(0, 0), nyZone);
 
-            // If any part of the weekend is visible
-            if ((dayStart >= startTime && dayStart <= endTime) ||
-                (dayEnd >= startTime && dayEnd <= endTime) ||
-                (startTime >= dayStart && endTime <= dayEnd)) {
+        // Handle weekends - show closed market background
+        if (currentDate.dayOfWeek() > 5) {  // Saturday = 6, Sunday = 7
+            QDateTime visibleStart = qMax(startTime, currentDateTime.toLocalTime());
+            QDateTime visibleEnd = qMin(endTime, nextDayDateTime.toLocalTime());
+
+            if (visibleStart < visibleEnd) {
                 QPointF sessionStart = chart->mapToPosition(QPointF(
-                    qMax(startTime.toMSecsSinceEpoch(), dayStart.toMSecsSinceEpoch()), axisY->max()));
+                    visibleStart.toMSecsSinceEpoch(), axisY->max()));
                 QPointF sessionEnd = chart->mapToPosition(QPointF(
-                    qMin(endTime.toMSecsSinceEpoch(), dayEnd.toMSecsSinceEpoch()), axisY->max()));
+                    visibleEnd.toMSecsSinceEpoch(), axisY->max()));
                 
                 auto rect = createBackgroundRect(QColor(40, 40, 40, 100), -2);
                 rect->setRect(sessionStart.x(), topLeft.y(),
@@ -519,92 +516,62 @@ void StockPriceChart::updateAfterHoursBackground() {
             continue;
         }
 
-        // Regular weekday sessions
-        QDateTime preMarketStart = QDateTime(currentDate, QTime(4, 0), nyZone);
-        QDateTime preMarketEnd = QDateTime(currentDate, QTime(9, 30), nyZone);
-        QDateTime afterHoursStart = QDateTime(currentDate, QTime(16, 0), nyZone);
-        QDateTime afterHoursEnd = QDateTime(currentDate, QTime(20, 0), nyZone);
-        QDateTime dayStart = QDateTime(currentDate, QTime(0, 0), nyZone);
-        QDateTime dayEnd = QDateTime(currentDate, QTime(23, 59, 59), nyZone);
+        // Handle each hour of the day
+        for (int hour = 0; hour < 24; hour++) {
+            QDateTime hourStart = QDateTime(currentDate, QTime(hour, 0), nyZone);
+            QDateTime hourEnd = hour == 23 ? 
+                QDateTime(currentDate, QTime(23, 59, 59), nyZone) : 
+                QDateTime(currentDate, QTime(hour + 1, 0), nyZone);
 
-        // Convert all times to local timezone for comparison
-        dayStart = dayStart.toLocalTime();
-        dayEnd = dayEnd.toLocalTime();
-        preMarketStart = preMarketStart.toLocalTime();
-        preMarketEnd = preMarketEnd.toLocalTime();
-        afterHoursStart = afterHoursStart.toLocalTime();
-        afterHoursEnd = afterHoursEnd.toLocalTime();
+            // Convert to local time for visibility check
+            QDateTime localHourStart = hourStart.toLocalTime();
+            QDateTime localHourEnd = hourEnd.toLocalTime();
 
-        // Handle overnight closed market (12:00 AM to 4:00 AM)
-        if ((dayStart >= startTime && preMarketStart <= endTime) ||
-            (startTime >= dayStart && endTime <= preMarketStart) ||
-            (startTime <= preMarketStart && endTime >= dayStart)) {
-            QPointF sessionStart = chart->mapToPosition(QPointF(
-                qMax(startTime.toMSecsSinceEpoch(), dayStart.toMSecsSinceEpoch()), axisY->max()));
-            QPointF sessionEnd = chart->mapToPosition(QPointF(
-                qMin(endTime.toMSecsSinceEpoch(), preMarketStart.toMSecsSinceEpoch()), axisY->max()));
-            
-            auto rect = createBackgroundRect(QColor(40, 40, 40, 100), -2);
-            rect->setRect(sessionStart.x(), topLeft.y(),
-                        sessionEnd.x() - sessionStart.x(),
-                        bottomRight.y() - topLeft.y());
-            closedMarketRects.append(rect);
+            // Skip if this hour is not visible
+            if (localHourEnd < startTime || localHourStart > endTime) {
+                continue;
+            }
+
+            QDateTime visibleStart = qMax(startTime, localHourStart);
+            QDateTime visibleEnd = qMin(endTime, localHourEnd);
+
+            if (MarketHours::isPreMarket(hourStart)) {
+                auto rect = createBackgroundRect(QColor(255, 200, 150, 100), -1);
+                QPointF sessionStart = chart->mapToPosition(QPointF(
+                    visibleStart.toMSecsSinceEpoch(), axisY->max()));
+                QPointF sessionEnd = chart->mapToPosition(QPointF(
+                    visibleEnd.toMSecsSinceEpoch(), axisY->max()));
+                
+                rect->setRect(sessionStart.x(), topLeft.y(),
+                            sessionEnd.x() - sessionStart.x(),
+                            bottomRight.y() - topLeft.y());
+                preMarketRects.append(rect);
+            }
+            else if (MarketHours::isAfterHours(hourStart)) {
+                auto rect = createBackgroundRect(QColor(230, 230, 255, 100), -1);
+                QPointF sessionStart = chart->mapToPosition(QPointF(
+                    visibleStart.toMSecsSinceEpoch(), axisY->max()));
+                QPointF sessionEnd = chart->mapToPosition(QPointF(
+                    visibleEnd.toMSecsSinceEpoch(), axisY->max()));
+                
+                rect->setRect(sessionStart.x(), topLeft.y(),
+                            sessionEnd.x() - sessionStart.x(),
+                            bottomRight.y() - topLeft.y());
+                afterHoursRects.append(rect);
+            }
+            else if (!MarketHours::isRegularHours(hourStart)) {
+                auto rect = createBackgroundRect(QColor(40, 40, 40, 100), -2);
+                QPointF sessionStart = chart->mapToPosition(QPointF(
+                    visibleStart.toMSecsSinceEpoch(), axisY->max()));
+                QPointF sessionEnd = chart->mapToPosition(QPointF(
+                    visibleEnd.toMSecsSinceEpoch(), axisY->max()));
+                
+                rect->setRect(sessionStart.x(), topLeft.y(),
+                            sessionEnd.x() - sessionStart.x(),
+                            bottomRight.y() - topLeft.y());
+                closedMarketRects.append(rect);
+            }
         }
-
-        // Handle late night closed market (8:00 PM to 11:59 PM)
-        if ((afterHoursEnd >= startTime && dayEnd <= endTime) ||
-            (startTime >= afterHoursEnd && endTime <= dayEnd) ||
-            (startTime <= dayEnd && endTime >= afterHoursEnd)) {
-            QPointF sessionStart = chart->mapToPosition(QPointF(
-                qMax(startTime.toMSecsSinceEpoch(), afterHoursEnd.toMSecsSinceEpoch()), axisY->max()));
-            QPointF sessionEnd = chart->mapToPosition(QPointF(
-                qMin(endTime.toMSecsSinceEpoch(), dayEnd.toMSecsSinceEpoch()), axisY->max()));
-            
-            auto rect = createBackgroundRect(QColor(40, 40, 40, 100), -2);
-            rect->setRect(sessionStart.x(), topLeft.y(),
-                        sessionEnd.x() - sessionStart.x(),
-                        bottomRight.y() - topLeft.y());
-            closedMarketRects.append(rect);
-        }
-
-        // Handle pre-market session
-        if ((preMarketStart >= startTime && preMarketEnd <= endTime) ||
-            (startTime >= preMarketStart && endTime <= preMarketEnd) ||
-            (startTime <= preMarketEnd && endTime >= preMarketEnd) ||
-            (startTime <= preMarketStart && endTime >= preMarketStart) ||
-            (startTime <= preMarketStart && endTime >= preMarketEnd)) {
-            // Pre-market session is visible (fully or partially)
-            QPointF sessionStart = chart->mapToPosition(QPointF(
-                qMax(startTime.toMSecsSinceEpoch(), preMarketStart.toMSecsSinceEpoch()), axisY->max()));
-            QPointF sessionEnd = chart->mapToPosition(QPointF(
-                qMin(endTime.toMSecsSinceEpoch(), preMarketEnd.toMSecsSinceEpoch()), axisY->max()));
-            
-            auto rect = createBackgroundRect(QColor(255, 200, 150, 100), -1);
-            rect->setRect(sessionStart.x(), topLeft.y(),
-                        sessionEnd.x() - sessionStart.x(),
-                        bottomRight.y() - topLeft.y());
-            preMarketRects.append(rect);
-        }
-
-        // Handle after-hours session
-        if ((afterHoursStart >= startTime && afterHoursEnd <= endTime) ||
-            (startTime >= afterHoursStart && endTime <= afterHoursEnd) ||
-            (startTime <= afterHoursEnd && endTime >= afterHoursEnd) ||
-            (startTime <= afterHoursStart && endTime >= afterHoursStart) ||
-            (startTime <= afterHoursStart && endTime >= afterHoursEnd)) {
-            // After-hours session is visible (fully or partially)
-            QPointF sessionStart = chart->mapToPosition(QPointF(
-                qMax(startTime.toMSecsSinceEpoch(), afterHoursStart.toMSecsSinceEpoch()), axisY->max()));
-            QPointF sessionEnd = chart->mapToPosition(QPointF(
-                qMin(endTime.toMSecsSinceEpoch(), afterHoursEnd.toMSecsSinceEpoch()), axisY->max()));
-            
-            auto rect = createBackgroundRect(QColor(230, 230, 255, 100), -1);
-            rect->setRect(sessionStart.x(), topLeft.y(),
-                        sessionEnd.x() - sessionStart.x(),
-                        bottomRight.y() - topLeft.y());
-            afterHoursRects.append(rect);
-        }
-
         currentDate = currentDate.addDays(1);
     }
 }
