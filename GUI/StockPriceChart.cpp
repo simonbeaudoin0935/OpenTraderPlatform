@@ -12,6 +12,8 @@
 #include <QTimeZone>
 #include "../Misc/MarketHours.h"
 
+#define CANDLESTICK_BODY_WIDTH 0.9 // 90% of available space
+
 StockPriceChart::StockPriceChart(QWidget* parent)
     : QWidget(parent) {
     lineSeries = new QLineSeries();
@@ -21,7 +23,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     candlestickSeries = new QCandlestickSeries();
     candlestickSeries->setIncreasingColor(QColor(Qt::green));
     candlestickSeries->setDecreasingColor(QColor(Qt::red));
-    candlestickSeries->setBodyWidth(0.9); // Make bars wider (90% of available space)
+    candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
 
     chart = new QChart();
     chart->addSeries(lineSeries);
@@ -124,118 +126,54 @@ void StockPriceChart::addBar(const Bar& bar) {
 }
 
 void StockPriceChart::handleClosedBar(const Bar& bar) {
-    // If we have an open bar and it's not the same timestamp as the closed bar,
-    // add it to completed bars
-    if (hasOpenBar) {
-        QDateTime openBarTime = QDateTime::fromString(currentOpenBar.getTimeStamp(), Qt::ISODate);
-        QDateTime closedBarTime = QDateTime::fromString(bar.getTimeStamp(), Qt::ISODate);
-
-        if (openBarTime != closedBarTime) {
-            completedBars.append(currentOpenBar);
-        }
-        hasOpenBar = false;
+    if (!hasOpenBar) {
+        completedBars.append(bar);
+        maintainBarLimit();
+        return;
     }
 
-    // Add the closed bar to completed bars
-    completedBars.append(bar);
+    QDateTime openBarTime = QDateTime::fromString(currentOpenBar.getTimeStamp(), Qt::ISODate);
+    QDateTime closedBarTime = QDateTime::fromString(bar.getTimeStamp(), Qt::ISODate);
 
-    // Maintain maximum number of bars
+    if (openBarTime != closedBarTime) {
+        completedBars.append(currentOpenBar);
+    }
+    
+    hasOpenBar = false;
+    completedBars.append(bar);
+    maintainBarLimit();
+}
+
+void StockPriceChart::maintainBarLimit() {
     while (completedBars.size() > MAX_BARS) {
         completedBars.removeFirst();
     }
 }
 
-void StockPriceChart::resizeEvent(QResizeEvent* event) {
-    QWidget::resizeEvent(event);
-    
-    // Update the chart's geometry
-    chart->resize(event->size());
-    
-    // Update price label and backgrounds
-    updatePriceLabelPosition();
-    updateAfterHoursBackground();
-}
-
-void StockPriceChart::updatePriceLabelPosition() {
-    if (!lastPriceLine->points().isEmpty() && lastPriceLine->points().size() >= 2) {
-        QDateTime endTime = QDateTime::fromMSecsSinceEpoch(lastPriceLine->points().last().x());
-        double price = lastPriceLine->points().last().y();
-
-        // Get the price point in view coordinates
-        QPointF pricePoint(endTime.toMSecsSinceEpoch(), price);
-        QPointF viewPoint = chartView->mapToScene(
-            chartView->mapFromParent(
-                chart->mapToPosition(pricePoint, lastPriceLine).toPoint()
-                )
-            );
-
-        // Calculate position in view coordinates
-        QRectF viewRect = chartView->sceneRect();
-        qreal labelX = viewRect.right() - priceLabel->boundingRect().width() - 15;
-        qreal labelY = viewPoint.y() - (priceLabel->boundingRect().height() / 2);
-
-        // Keep label within view bounds
-        labelY = qMax(labelY, viewRect.top() + 10);
-        labelY = qMin(labelY, viewRect.bottom() - priceLabel->boundingRect().height() - 10);
-
-        priceLabel->setPos(labelX, labelY);
-    }
-}
-
-void StockPriceChart::updateLastPriceLine(double price, bool isUpTick) {
-    lastPriceLine->clear();
-
-    // Get the current visible range
-    QDateTime startTime = axisX->min();
-    QDateTime endTime = axisX->max();
-
-    // Create two points for the horizontal line spanning the visible range
-    lastPriceLine->append(startTime.toMSecsSinceEpoch(), price);
-    lastPriceLine->append(endTime.toMSecsSinceEpoch(), price);
-
-    // Update the line color based on price movement
-    QColor lineColor = isUpTick ? Qt::green : Qt::red;
-    lastPriceLine->setPen(QPen(lineColor, 1, Qt::DashLine));
-
-    // Update price label
-    priceLabel->setPlainText(QString::number(price, 'f', 2));
-    priceLabel->setDefaultTextColor(lineColor);
-
-    // Update the label position
-    updatePriceLabelPosition();
-
-    lastPrice = price;
-}
-
 void StockPriceChart::handleOpenBar(const Bar& bar) {
     QDateTime newBarTime = QDateTime::fromString(bar.getTimeStamp(), Qt::ISODate);
+    double newPrice = bar.getClose().toDouble();
 
     if (!hasOpenBar) {
-        // This is the first open bar for this time period
         currentOpenBar = bar;
         hasOpenBar = true;
-        updateLastPriceLine(bar.getClose().toDouble(),
-                            bar.getClose().toDouble() >= lastPrice);
-    } else {
-        QDateTime currentBarTime = QDateTime::fromString(currentOpenBar.getTimeStamp(), Qt::ISODate);
-
-        if (newBarTime != currentBarTime) {
-            // This is a new bar period - move current to completed
-            completedBars.append(currentOpenBar);
-            currentOpenBar = bar;
-        } else {
-            // Update the existing bar
-            currentOpenBar = bar;
-        }
-
-        double newPrice = bar.getClose().toDouble();
-        updateLastPriceLine(newPrice, newPrice >= currentOpenBar.getOpen().toDouble());
+        updateLastPriceLine(newPrice, newPrice >= lastPrice);
+        return;
     }
+
+    QDateTime currentBarTime = QDateTime::fromString(currentOpenBar.getTimeStamp(), Qt::ISODate);
+    if (newBarTime != currentBarTime) {
+        completedBars.append(currentOpenBar);
+    }
+
+    currentOpenBar = bar;
+    updateLastPriceLine(newPrice, newPrice >= currentOpenBar.getOpen().toDouble());
 }
 
 void StockPriceChart::updateChart() {
     // Clear existing candlesticks
     candlestickSeries->clear();
+    candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH); // Reset body width after clearing
 
     // Add completed bars
     for (const Bar& bar : completedBars) {
@@ -338,187 +276,185 @@ void StockPriceChart::updateChart() {
 }
 
 void StockPriceChart::wheelEvent(QWheelEvent* event) {
-    // Only handle scrolling when mouse is over the chart
-    if (chartView->rect().contains(event->position().toPoint())) {
-        // Calculate zoom factor based on scroll direction
-        qreal zoomFactor = event->angleDelta().y() > 0 ? 0.9 : 1.1;
-
-        if ((event->modifiers() & Qt::ShiftModifier) && (event->modifiers() & Qt::ControlModifier)) {
-            // Vertical panning (price axis)
-            qreal currentMin = axisY->min();
-            qreal currentMax = axisY->max();
-            qreal priceRange = currentMax - currentMin;
-
-            // Calculate shift amount (5% of the visible range per scroll step)
-            qreal shiftAmount = priceRange * 0.05;
-            if (event->angleDelta().y() < 0) {
-                shiftAmount = -shiftAmount; // Shift down for negative delta
-            }
-
-            // Update y-axis range by shifting both min and max
-            axisY->setRange(currentMin + shiftAmount, currentMax + shiftAmount);
-        } else if (event->modifiers() & Qt::AltModifier) {
-            // Horizontal panning (time axis)
-            QDateTime currentMin = axisX->min();
-            QDateTime currentMax = axisX->max();
-            qint64 timeRange = currentMax.toMSecsSinceEpoch() - currentMin.toMSecsSinceEpoch();
-
-            // Calculate shift amount (5% of the visible range per scroll step)
-            qint64 shiftAmount = timeRange * 0.05;
-
-            // Debug output
-            qDebug() << "Wheel delta:" << event->angleDelta().x();
-
-            // For Alt+wheel, use x() delta instead of y()
-            // Positive x delta means scroll right, negative means scroll left
-            shiftAmount = -shiftAmount * (event->angleDelta().x() > 0 ? 1 : -1);
-
-            // Update x-axis range by shifting both min and max
-            QDateTime newMinTime = QDateTime::fromMSecsSinceEpoch(currentMin.toMSecsSinceEpoch() + shiftAmount);
-            QDateTime newMaxTime = QDateTime::fromMSecsSinceEpoch(currentMax.toMSecsSinceEpoch() + shiftAmount);
-            axisX->setRange(newMinTime, newMaxTime);
-        } else if (event->modifiers() & Qt::ControlModifier) {
-            // Horizontal zoom (time axis)
-            QDateTime currentMin = axisX->min();
-            QDateTime currentMax = axisX->max();
-            qint64 timeRange = currentMax.toMSecsSinceEpoch() - currentMin.toMSecsSinceEpoch();
-            qint64 centerTime = currentMin.toMSecsSinceEpoch() + (timeRange / 2);
-
-            // Calculate new time range while keeping the center point
-            qint64 newTimeRange = timeRange * zoomFactor;
-            QDateTime newMinTime = QDateTime::fromMSecsSinceEpoch(centerTime - (newTimeRange / 2));
-            QDateTime newMaxTime = QDateTime::fromMSecsSinceEpoch(centerTime + (newTimeRange / 2));
-
-            // Update x-axis range
-            axisX->setRange(newMinTime, newMaxTime);
-        } else if (event->modifiers() & Qt::ShiftModifier) {
-            // Vertical zoom (price axis)
-            qreal currentMin = axisY->min();
-            qreal currentMax = axisY->max();
-            qreal range = currentMax - currentMin;
-            qreal center = (currentMax + currentMin) / 2;
-
-            // Calculate new range while keeping the center point
-            qreal newRange = range * zoomFactor;
-            qreal newMin = center - (newRange / 2);
-            qreal newMax = center + (newRange / 2);
-
-            // Update y-axis range
-            axisY->setRange(newMin, newMax);
-        } else {
-            // Both axes zoom (no modifier)
-            // Time axis zoom
-            QDateTime currentMin = axisX->min();
-            QDateTime currentMax = axisX->max();
-            qint64 timeRange = currentMax.toMSecsSinceEpoch() - currentMin.toMSecsSinceEpoch();
-            qint64 centerTime = currentMin.toMSecsSinceEpoch() + (timeRange / 2);
-
-            // Calculate new time range while keeping the center point
-            qint64 newTimeRange = timeRange * zoomFactor;
-            QDateTime newMinTime = QDateTime::fromMSecsSinceEpoch(centerTime - (newTimeRange / 2));
-            QDateTime newMaxTime = QDateTime::fromMSecsSinceEpoch(centerTime + (newTimeRange / 2));
-
-            // Price axis zoom
-            qreal currentMinPrice = axisY->min();
-            qreal currentMaxPrice = axisY->max();
-            qreal priceRange = currentMaxPrice - currentMinPrice;
-            qreal centerPrice = (currentMaxPrice + currentMinPrice) / 2;
-
-            // Calculate new price range while keeping the center point
-            qreal newPriceRange = priceRange * zoomFactor;
-            qreal newMinPrice = centerPrice - (newPriceRange / 2);
-            qreal newMaxPrice = centerPrice + (newPriceRange / 2);
-
-            // Update both axes ranges
-            axisX->setRange(newMinTime, newMaxTime);
-            axisY->setRange(newMinPrice, newMaxPrice);
-        }
-
-        // Update the price label position and last price line
-        updatePriceLabelPosition();
-        if (hasOpenBar) {
-            updateLastPriceLine(currentOpenBar.getClose().toDouble(),
-                                currentOpenBar.getClose().toDouble() >= currentOpenBar.getOpen().toDouble());
-        }
-
-        event->accept();
-    } else {
+    if (!chartView->rect().contains(event->position().toPoint())) {
         event->ignore();
+        return;
     }
-}
 
-bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
-    if (object == chartView->viewport()) {
-        switch (event->type()) {
-        case QEvent::MouseButtonPress: {
-            QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
-            if (mouseEvent->button() == Qt::LeftButton) {
-                isPanning = true;
-                lastMousePos = mouseEvent->pos();
-                chartView->setCursor(Qt::ClosedHandCursor);
-                return true;
-            }
-            break;
-        }
-        case QEvent::MouseButtonRelease: {
-            QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
-            if (mouseEvent->button() == Qt::LeftButton && isPanning) {
-                isPanning = false;
-                chartView->setCursor(Qt::ArrowCursor);
-                return true;
-            }
-            break;
-        }
-        case QEvent::MouseMove: {
-            QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
-            if (isPanning) {
-                QPoint delta = mouseEvent->pos() - lastMousePos;
-                lastMousePos = mouseEvent->pos();
+    // Calculate zoom factor based on scroll direction
+    qreal zoomFactor = event->angleDelta().y() > 0 ? 0.9 : 1.1;
 
-                // Convert pixel movement to time units for X axis
-                qreal timePerPixel = (axisX->max().toMSecsSinceEpoch() - axisX->min().toMSecsSinceEpoch()) / chartView->width();
-                qint64 timeOffset = -delta.x() * timePerPixel;
-
-                // Convert pixel movement to price units for Y axis
-                qreal pricePerPixel = (axisY->max() - axisY->min()) / chartView->height();
-                qreal priceOffset = delta.y() * pricePerPixel;
-
-                // Update axes ranges
-                QDateTime newMinTime = QDateTime::fromMSecsSinceEpoch(axisX->min().toMSecsSinceEpoch() + timeOffset);
-                QDateTime newMaxTime = QDateTime::fromMSecsSinceEpoch(axisX->max().toMSecsSinceEpoch() + timeOffset);
-                axisX->setRange(newMinTime, newMaxTime);
-
-                axisY->setRange(axisY->min() + priceOffset, axisY->max() + priceOffset);
-
-                // Update the price label position and last price line
-                updatePriceLabelPosition();
-                if (hasOpenBar) {
-                    updateLastPriceLine(currentOpenBar.getClose().toDouble(),
-                                        currentOpenBar.getClose().toDouble() >= currentOpenBar.getOpen().toDouble());
-                }
-
-                return true;
-            }
-            break;
-        }
-        default:
-            break;
-        }
+    if ((event->modifiers() & Qt::ShiftModifier) && (event->modifiers() & Qt::ControlModifier)) {
+        handleVerticalPanning(event);
+    } else if (event->modifiers() & Qt::AltModifier) {
+        handleHorizontalPanning(event);
+    } else if (event->modifiers() & Qt::ControlModifier) {
+        handleHorizontalZoom(event, zoomFactor);
+    } else if (event->modifiers() & Qt::ShiftModifier) {
+        handleVerticalZoom(event, zoomFactor);
+    } else {
+        handleBothAxesZoom(event, zoomFactor);
     }
-    return QWidget::eventFilter(object, event);
+
+    // Update the price label position
+    updatePriceLabelPosition();
+    event->accept();
 }
 
-// Remove the old mouse event handlers since we're now using the event filter
-void StockPriceChart::mousePressEvent(QMouseEvent* event) {
-    event->ignore();
+void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
+    qreal currentMin = axisY->min();
+    qreal currentMax = axisY->max();
+    qreal priceRange = currentMax - currentMin;
+
+    qreal shiftAmount = priceRange * 0.05;
+    if (event->angleDelta().y() < 0) {
+        shiftAmount = -shiftAmount;
+    }
+
+    axisY->setRange(currentMin + shiftAmount, currentMax + shiftAmount);
+    updateLastPriceLineIfNeeded();
 }
 
-void StockPriceChart::mouseReleaseEvent(QMouseEvent* event) {
-    event->ignore();
+void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
+    QDateTime currentMin = axisX->min();
+    QDateTime currentMax = axisX->max();
+    qint64 timeRange = currentMax.toMSecsSinceEpoch() - currentMin.toMSecsSinceEpoch();
+    qint64 shiftAmount = timeRange * 0.05;
+    shiftAmount = -shiftAmount * (event->angleDelta().x() > 0 ? 1 : -1);
+
+    QDateTime newMinTime = QDateTime::fromMSecsSinceEpoch(currentMin.toMSecsSinceEpoch() + shiftAmount);
+    QDateTime newMaxTime = QDateTime::fromMSecsSinceEpoch(currentMax.toMSecsSinceEpoch() + shiftAmount);
+    axisX->setRange(newMinTime, newMaxTime);
+    updateLastPriceLineIfNeeded();
 }
 
-void StockPriceChart::mouseMoveEvent(QMouseEvent* event) {
-    event->ignore();
+void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor) {
+    QDateTime currentMin = axisX->min();
+    QDateTime currentMax = axisX->max();
+    qint64 timeRange = currentMax.toMSecsSinceEpoch() - currentMin.toMSecsSinceEpoch();
+    qint64 centerTime = currentMin.toMSecsSinceEpoch() + (timeRange / 2);
+
+    qint64 newTimeRange = timeRange * zoomFactor;
+    QDateTime newMinTime = QDateTime::fromMSecsSinceEpoch(centerTime - (newTimeRange / 2));
+    QDateTime newMaxTime = QDateTime::fromMSecsSinceEpoch(centerTime + (newTimeRange / 2));
+
+    axisX->setRange(newMinTime, newMaxTime);
+    candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
+    updateLastPriceLineIfNeeded();
+}
+
+void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
+    qreal currentMin = axisY->min();
+    qreal currentMax = axisY->max();
+    qreal range = currentMax - currentMin;
+    qreal center = (currentMax + currentMin) / 2;
+
+    qreal newRange = range * zoomFactor;
+    qreal newMin = center - (newRange / 2);
+    qreal newMax = center + (newRange / 2);
+
+    axisY->setRange(newMin, newMax);
+    candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
+    updateLastPriceLineIfNeeded();
+}
+
+void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
+    // Time axis zoom
+    QDateTime currentMin = axisX->min();
+    QDateTime currentMax = axisX->max();
+    qint64 timeRange = currentMax.toMSecsSinceEpoch() - currentMin.toMSecsSinceEpoch();
+    qint64 centerTime = currentMin.toMSecsSinceEpoch() + (timeRange / 2);
+
+    qint64 newTimeRange = timeRange * zoomFactor;
+    QDateTime newMinTime = QDateTime::fromMSecsSinceEpoch(centerTime - (newTimeRange / 2));
+    QDateTime newMaxTime = QDateTime::fromMSecsSinceEpoch(centerTime + (newTimeRange / 2));
+
+    // Price axis zoom
+    qreal currentMinPrice = axisY->min();
+    qreal currentMaxPrice = axisY->max();
+    qreal priceRange = currentMaxPrice - currentMinPrice;
+    qreal centerPrice = (currentMaxPrice + currentMinPrice) / 2;
+
+    qreal newPriceRange = priceRange * zoomFactor;
+    qreal newMinPrice = centerPrice - (newPriceRange / 2);
+    qreal newMaxPrice = centerPrice + (newPriceRange / 2);
+
+    axisX->setRange(newMinTime, newMaxTime);
+    axisY->setRange(newMinPrice, newMaxPrice);
+    candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
+    updateLastPriceLineIfNeeded();
+}
+
+void StockPriceChart::updateLastPriceLineIfNeeded() {
+    if (!hasOpenBar) {
+        return;
+    }
+    updateLastPriceLine(currentOpenBar.getClose().toDouble(),
+                       currentOpenBar.getClose().toDouble() >= currentOpenBar.getOpen().toDouble());
+}
+
+void StockPriceChart::updatePriceLabelPosition() {
+    if (lastPriceLine->points().isEmpty() || lastPriceLine->points().size() < 2) {
+        return;
+    }
+
+    QDateTime endTime = QDateTime::fromMSecsSinceEpoch(lastPriceLine->points().last().x());
+    double price = lastPriceLine->points().last().y();
+
+    // Get the price point in view coordinates
+    QPointF pricePoint(endTime.toMSecsSinceEpoch(), price);
+    QPointF viewPoint = chartView->mapToScene(
+        chartView->mapFromParent(
+            chart->mapToPosition(pricePoint, lastPriceLine).toPoint()
+            )
+        );
+
+    // Calculate position in view coordinates
+    QRectF viewRect = chartView->sceneRect();
+    qreal labelX = viewRect.right() - priceLabel->boundingRect().width() - 15;
+    qreal labelY = viewPoint.y() - (priceLabel->boundingRect().height() / 2);
+
+    // Keep label within view bounds
+    labelY = qMax(labelY, viewRect.top() + 10);
+    labelY = qMin(labelY, viewRect.bottom() - priceLabel->boundingRect().height() - 10);
+
+    priceLabel->setPos(labelX, labelY);
+}
+
+void StockPriceChart::updateLastPriceLine(double price, bool isUpTick) {
+    lastPriceLine->clear();
+
+    // Get the current visible range
+    QDateTime startTime = axisX->min();
+    QDateTime endTime = axisX->max();
+
+    // Create two points for the horizontal line spanning the visible range
+    lastPriceLine->append(startTime.toMSecsSinceEpoch(), price);
+    lastPriceLine->append(endTime.toMSecsSinceEpoch(), price);
+
+    // Update the line color based on price movement
+    QColor lineColor = isUpTick ? Qt::green : Qt::red;
+    lastPriceLine->setPen(QPen(lineColor, 1, Qt::DashLine));
+
+    // Update price label
+    priceLabel->setPlainText(QString::number(price, 'f', 2));
+    priceLabel->setDefaultTextColor(lineColor);
+
+    // Update the label position
+    updatePriceLabelPosition();
+
+    lastPrice = price;
+}
+
+void StockPriceChart::resizeEvent(QResizeEvent* event) {
+    QWidget::resizeEvent(event);
+    
+    // Update the chart's geometry
+    chart->resize(event->size());
+    
+    // Update price label and backgrounds
+    updatePriceLabelPosition();
+    updateAfterHoursBackground();
 }
 
 bool StockPriceChart::isAfterMarketHours(const QDateTime& localTime) {
@@ -703,4 +639,78 @@ void StockPriceChart::clearBackgroundRects() {
         delete rect;
     }
     closedMarketRects.clear();
+}
+
+bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
+    if (object != chartView->viewport()) {
+        return QWidget::eventFilter(object, event);
+    }
+
+    switch (event->type()) {
+    case QEvent::MouseButtonPress: {
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        if (mouseEvent->button() != Qt::LeftButton) {
+            return false;
+        }
+        isPanning = true;
+        lastMousePos = mouseEvent->pos();
+        chartView->setCursor(Qt::ClosedHandCursor);
+        return true;
+    }
+
+    case QEvent::MouseButtonRelease: {
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        if (mouseEvent->button() != Qt::LeftButton || !isPanning) {
+            return false;
+        }
+        isPanning = false;
+        chartView->setCursor(Qt::ArrowCursor);
+        candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
+        if (hasOpenBar) {
+            updateLastPriceLine(currentOpenBar.getClose().toDouble(),
+                              currentOpenBar.getClose().toDouble() >= currentOpenBar.getOpen().toDouble());
+        }
+        return true;
+    }
+
+    case QEvent::MouseMove: {
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        if (!isPanning) {
+            return false;
+        }
+        handlePanning(mouseEvent);
+        return true;
+    }
+
+    default:
+        return QWidget::eventFilter(object, event);
+    }
+}
+
+void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
+    QPoint delta = mouseEvent->pos() - lastMousePos;
+    lastMousePos = mouseEvent->pos();
+
+    // Convert pixel movement to time units for X axis
+    qreal timePerPixel = (axisX->max().toMSecsSinceEpoch() - axisX->min().toMSecsSinceEpoch()) / chartView->width();
+    qint64 timeOffset = -delta.x() * timePerPixel;
+
+    // Convert pixel movement to price units for Y axis
+    qreal pricePerPixel = (axisY->max() - axisY->min()) / chartView->height();
+    qreal priceOffset = delta.y() * pricePerPixel;
+
+    // Update axes ranges
+    QDateTime newMinTime = QDateTime::fromMSecsSinceEpoch(axisX->min().toMSecsSinceEpoch() + timeOffset);
+    QDateTime newMaxTime = QDateTime::fromMSecsSinceEpoch(axisX->max().toMSecsSinceEpoch() + timeOffset);
+    axisX->setRange(newMinTime, newMaxTime);
+    axisY->setRange(axisY->min() + priceOffset, axisY->max() + priceOffset);
+
+    // Update the price label position and last price line
+    updatePriceLabelPosition();
+    if (hasOpenBar) {
+        updateLastPriceLine(currentOpenBar.getClose().toDouble(),
+                          currentOpenBar.getClose().toDouble() >= currentOpenBar.getOpen().toDouble());
+    }
+
+    candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
 }

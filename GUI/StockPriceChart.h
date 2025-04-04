@@ -35,9 +35,6 @@ protected:
     void resizeEvent(QResizeEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
     bool eventFilter(QObject* object, QEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
 
 private:
     static const int MAX_BARS = 1000;
@@ -49,6 +46,14 @@ private:
     void updatePriceLabelPosition();
     bool isAfterMarketHours(const QDateTime& localTime);
     void updateAfterHoursBackground();
+    void maintainBarLimit();
+    void handleVerticalPanning(QWheelEvent* event);
+    void handleHorizontalPanning(QWheelEvent* event);
+    void handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor);
+    void handleVerticalZoom(QWheelEvent* event, qreal zoomFactor);
+    void handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor);
+    void updateLastPriceLineIfNeeded();
+    void handlePanning(QMouseEvent* mouseEvent);
 
     QString symbol;
     QChart* chart;
