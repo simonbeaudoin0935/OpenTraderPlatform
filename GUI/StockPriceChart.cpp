@@ -126,6 +126,13 @@ void StockPriceChart::addBar(const Bar& bar) {
 }
 
 void StockPriceChart::handleClosedBar(const Bar& bar) {
+    // Store current view state
+    QDateTime currentMin = axisX->min();
+    QDateTime currentMax = axisX->max();
+    qreal currentYMin = axisY->min();
+    qreal currentYMax = axisY->max();
+    bool hadInitialView = currentMin != currentMax && currentMin.toMSecsSinceEpoch() != 0;
+
     if (!hasOpenBar) {
         completedBars.append(bar);
         maintainBarLimit();
@@ -142,6 +149,12 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
     hasOpenBar = false;
     completedBars.append(bar);
     maintainBarLimit();
+
+    // Restore view state if it was initialized
+    if (hadInitialView) {
+        axisX->setRange(currentMin, currentMax);
+        axisY->setRange(currentYMin, currentYMax);
+    }
 }
 
 void StockPriceChart::maintainBarLimit() {
@@ -203,8 +216,8 @@ void StockPriceChart::updateChart() {
         updateLastPriceLine(closePrice, closePrice >= currentOpenBar.getOpen().toDouble());
     }
 
-    // Update time axis range
-    if (candlestickSeries->count() > 0) {
+    // Update time axis range only if this is the initial setup
+    if (candlestickSeries->count() > 0 && (axisX->min() == axisX->max() || axisX->min().toMSecsSinceEpoch() == 0)) {
         QDateTime currentBarTime;
         if (hasOpenBar) {
             currentBarTime = QDateTime::fromString(currentOpenBar.getTimeStamp(), Qt::ISODate);
@@ -212,66 +225,64 @@ void StockPriceChart::updateChart() {
             currentBarTime = QDateTime::fromString(completedBars.last().getTimeStamp(), Qt::ISODate);
         }
 
-        // Get current visible time range
-        QDateTime currentMinTime = axisX->min();
-        QDateTime currentMaxTime = axisX->max();
-        qint64 currentTimeRange = currentMaxTime.toMSecsSinceEpoch() - currentMinTime.toMSecsSinceEpoch();
+        // Round current time down to the nearest 5-minute mark
+        int currentMinute = currentBarTime.time().minute();
+        int baseMinute = (currentMinute / 5) * 5;
+        QDateTime baseTime = currentBarTime;
+        baseTime.setTime(QTime(currentBarTime.time().hour(), baseMinute, 0));
 
-        // Only update the time range if it's the initial setup or if the current bar is outside the visible range
-        if (currentMinTime == currentMaxTime ||
-            currentBarTime < currentMinTime ||
-            currentBarTime > currentMaxTime) {
-            // Round current time down to the nearest 5-minute mark
-            int currentMinute = currentBarTime.time().minute();
-            int baseMinute = (currentMinute / 5) * 5;
-            QDateTime baseTime = currentBarTime;
-            baseTime.setTime(QTime(currentBarTime.time().hour(), baseMinute, 0));
+        // Set start time to 30 minutes before the base time
+        QDateTime startTime = baseTime.addSecs(-30 * 60);
+        // Set end time to the next 5-minute mark after base time plus a small buffer
+        QDateTime endTime = baseTime.addSecs(5 * 60 + 60); // Next 5-min mark + 1 min buffer
 
-            // Set start time to 30 minutes before the base time
-            QDateTime startTime = baseTime.addSecs(-30 * 60);
-            // Set end time to the next 5-minute mark after base time plus a small buffer
-            QDateTime endTime = baseTime.addSecs(5 * 60 + 60); // Next 5-min mark + 1 min buffer
+        axisX->setRange(startTime, endTime);
+    }
 
-            axisX->setRange(startTime, endTime);
-        }
+    // Calculate current visible price range
+    double currentMin = axisY->min();
+    double currentMax = axisY->max();
+    bool needsYRangeUpdate = false;
 
-        // Calculate current visible price range
-        double currentMin = axisY->min();
-        double currentMax = axisY->max();
-        bool needsYRangeUpdate = false;
+    // Find min/max prices of visible bars
+    double minPrice = std::numeric_limits<double>::max();
+    double maxPrice = std::numeric_limits<double>::lowest();
+    double currentPrice = 0.0;
 
-        // Find min/max prices of visible bars
-        double minPrice = std::numeric_limits<double>::max();
-        double maxPrice = std::numeric_limits<double>::lowest();
-        double currentPrice = 0.0;
-
-        // Find min/max prices and current price
-        for (int i = 0; i < candlestickSeries->count(); ++i) {
-            auto set = candlestickSeries->sets().at(i);
+    // Find min/max prices and current price for visible bars only
+    QDateTime visibleStart = axisX->min();
+    QDateTime visibleEnd = axisX->max();
+    
+    for (int i = 0; i < candlestickSeries->count(); ++i) {
+        auto set = candlestickSeries->sets().at(i);
+        QDateTime barTime = QDateTime::fromMSecsSinceEpoch(set->timestamp());
+        
+        // Only consider bars within the visible range
+        if (barTime >= visibleStart && barTime <= visibleEnd) {
             minPrice = qMin(minPrice, set->low());
             maxPrice = qMax(maxPrice, set->high());
             if (i == candlestickSeries->count() - 1) {
                 currentPrice = set->close();
             }
         }
+    }
 
-        // Check if prices are outside current range
-        if (minPrice < currentMin || maxPrice > currentMax || currentMin == currentMax) {
-            needsYRangeUpdate = true;
-        }
+    // Check if prices are outside current range
+    if (minPrice < currentMin || maxPrice > currentMax || currentMin == currentMax) {
+        needsYRangeUpdate = true;
+    }
 
-        // Only update Y axis range if necessary
-        if (needsYRangeUpdate) {
-            // Add padding
-            double padding = currentPrice * 0.0002; // 0.02% padding
-            // Ensure minimum range
-            double minRange = currentPrice * 0.0005; // 0.05% of current price
-            if (maxPrice - minPrice < minRange) {
-                maxPrice = currentPrice + (minRange / 2);
-                minPrice = currentPrice - (minRange / 2);
-            }
-            axisY->setRange(minPrice - padding, maxPrice + padding);
+    // Only update Y axis range if necessary
+    if (needsYRangeUpdate && minPrice != std::numeric_limits<double>::max()) {
+        // Add padding
+        double padding = currentPrice * 0.0002; // 0.02% padding
+        // Ensure minimum range
+        double minRange = currentPrice * 0.0005; // 0.05% of current price
+        if (maxPrice - minPrice < minRange) {
+            maxPrice = currentPrice + (minRange / 2);
+            minPrice = currentPrice - (minRange / 2);
         }
+        axisY->setRange(minPrice - padding, maxPrice + padding);
     }
 }
 
@@ -339,7 +350,6 @@ void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor)
     QDateTime newMaxTime = QDateTime::fromMSecsSinceEpoch(centerTime + (newTimeRange / 2));
 
     axisX->setRange(newMinTime, newMaxTime);
-    candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
     updateLastPriceLineIfNeeded();
 }
 
@@ -354,7 +364,6 @@ void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
     qreal newMax = center + (newRange / 2);
 
     axisY->setRange(newMin, newMax);
-    candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
     updateLastPriceLineIfNeeded();
 }
 
@@ -381,7 +390,6 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
 
     axisX->setRange(newMinTime, newMaxTime);
     axisY->setRange(newMinPrice, newMaxPrice);
-    candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
     updateLastPriceLineIfNeeded();
 }
 
@@ -403,22 +411,23 @@ void StockPriceChart::updatePriceLabelPosition() {
 
     // Get the price point in view coordinates
     QPointF pricePoint(endTime.toMSecsSinceEpoch(), price);
-    QPointF viewPoint = chartView->mapToScene(
-        chartView->mapFromParent(
-            chart->mapToPosition(pricePoint, lastPriceLine).toPoint()
-            )
-        );
+    QPointF viewPoint = chart->mapToPosition(pricePoint, lastPriceLine);
 
-    // Calculate position in view coordinates
-    QRectF viewRect = chartView->sceneRect();
-    qreal labelX = viewRect.right() - priceLabel->boundingRect().width() - 15;
+    // Calculate position in scene coordinates
+    QRectF plotArea = chart->plotArea();
+    QRectF chartRect = chart->geometry();
+    
+    // Position label in the right margin
+    qreal labelX = chartRect.right() - priceLabel->boundingRect().width() - 15;
     qreal labelY = viewPoint.y() - (priceLabel->boundingRect().height() / 2);
 
-    // Keep label within view bounds
-    labelY = qMax(labelY, viewRect.top() + 10);
-    labelY = qMin(labelY, viewRect.bottom() - priceLabel->boundingRect().height() - 10);
+    // Keep label within plot area bounds vertically
+    labelY = qMax(labelY, plotArea.top());
+    labelY = qMin(labelY, plotArea.bottom() - priceLabel->boundingRect().height());
 
-    priceLabel->setPos(labelX, labelY);
+    // Convert to scene coordinates
+    QPointF scenePos = chart->mapToScene(QPointF(labelX, labelY));
+    priceLabel->setPos(scenePos);
 }
 
 void StockPriceChart::updateLastPriceLine(double price, bool isUpTick) {
@@ -632,7 +641,6 @@ bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
         }
         isPanning = false;
         chartView->setCursor(Qt::ArrowCursor);
-        candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
         if (hasOpenBar) {
             updateLastPriceLine(currentOpenBar.getClose().toDouble(),
                               currentOpenBar.getClose().toDouble() >= currentOpenBar.getOpen().toDouble());
@@ -678,6 +686,4 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
         updateLastPriceLine(currentOpenBar.getClose().toDouble(),
                           currentOpenBar.getClose().toDouble() >= currentOpenBar.getOpen().toDouble());
     }
-
-    candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
 }
