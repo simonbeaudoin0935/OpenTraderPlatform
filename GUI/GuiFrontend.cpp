@@ -299,15 +299,7 @@ void GuiFrontend::onNewPositionReceived(QString account, Position position) {
 
 void GuiFrontend::onQuoteShortReceived(const FMPClient::QuoteShortResult quoteResult)
 {
-    ui->priceChart->setSymbol(quoteResult.symbol);
-
-    QDateTime timestamp = QDateTime::currentDateTime();
-
-    if (timestamp.isValid()) {
-        ui->priceChart->addPrice(quoteResult.price, timestamp);
-    } else {
-        ui->logDisplay->append("Cant add a point to the chart, the date is fucked.");
-    }
+    qCritical() << "UNUSED";
 }
 
 void GuiFrontend::onTradeStationLoginClicked() {

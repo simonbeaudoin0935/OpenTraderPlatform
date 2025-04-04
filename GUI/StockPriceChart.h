@@ -28,7 +28,6 @@ public:
     void setSymbol(const QString& symbol);
 
 public slots:
-    void addPrice(double price, const QDateTime& timestamp);
     void addBar(const Bar& bar);
 
 protected:
@@ -57,7 +56,6 @@ private:
 
     QString symbol;
     QChart* chart;
-    QLineSeries* lineSeries;
     QLineSeries* lastPriceLine;
     QCandlestickSeries* candlestickSeries;
     QChartView* chartView;

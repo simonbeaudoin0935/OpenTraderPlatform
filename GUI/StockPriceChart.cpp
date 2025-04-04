@@ -16,7 +16,6 @@
 
 StockPriceChart::StockPriceChart(QWidget* parent)
     : QWidget(parent) {
-    lineSeries = new QLineSeries();
     lastPriceLine = new QLineSeries();
     lastPriceLine->setPen(QPen(Qt::green, 1, Qt::DashLine)); // Start with green, dashed line
 
@@ -26,7 +25,6 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
 
     chart = new QChart();
-    chart->addSeries(lineSeries);
     chart->addSeries(candlestickSeries);
     chart->addSeries(lastPriceLine);
 
@@ -75,7 +73,6 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     axisX->setTickCount(7);
 
     chart->addAxis(axisX, Qt::AlignBottom);
-    lineSeries->attachAxis(axisX);
     candlestickSeries->attachAxis(axisX);
     lastPriceLine->attachAxis(axisX);
 
@@ -87,7 +84,6 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     axisY->setTitleBrush(QBrush(QColor(220, 220, 220)));
     
     chart->addAxis(axisY, Qt::AlignLeft);
-    lineSeries->attachAxis(axisY);
     candlestickSeries->attachAxis(axisY);
     lastPriceLine->attachAxis(axisY);
 
@@ -109,26 +105,8 @@ StockPriceChart::~StockPriceChart() {
 
 void StockPriceChart::setSymbol(const QString& symbol) {
     this->symbol = symbol;
-    lineSeries->setName(symbol);
     candlestickSeries->setName(symbol + " (Bars)");
     chart->setTitle("Stock Price: " + symbol);
-}
-
-void StockPriceChart::addPrice(double price, const QDateTime& timestamp) {
-    lineSeries->append(timestamp.toMSecsSinceEpoch(), price);
-
-    // Auto-adjust Y-axis range
-    qreal minY = axisY->min();
-    qreal maxY = axisY->max();
-    if (price < minY || lineSeries->count() == 1) axisY->setMin(price - 1.0);
-    if (price > maxY) axisY->setMax(price + 1.0);
-
-    // Limit X-axis to last 60 points
-    if (lineSeries->count() > 60) {
-        lineSeries->remove(0);
-    }
-    axisX->setRange(QDateTime::fromMSecsSinceEpoch(lineSeries->at(0).x()),
-                    QDateTime::fromMSecsSinceEpoch(lineSeries->at(lineSeries->count() - 1).x()));
 }
 
 void StockPriceChart::addBar(const Bar& bar) {
@@ -230,10 +208,6 @@ void StockPriceChart::updateChart() {
         set->setLow(currentOpenBar.getLow().toDouble());
         set->setClose(currentOpenBar.getClose().toDouble());
         candlestickSeries->append(set);
-
-        // Update the last price line
-        double closePrice = currentOpenBar.getClose().toDouble();
-        updateLastPriceLine(closePrice, closePrice >= currentOpenBar.getOpen().toDouble());
     }
 
     // Update time axis range only if this is the initial setup
