@@ -88,12 +88,6 @@ bool MarketDepthQuote::isValid() const {
         if (!bid.isValid()) {
             return false;
         }
-        // Additional validation for bids: price should be lower than asks
-        for (const auto& ask : asks) {
-            if (bid.getPrice().toDouble() >= ask.getPrice().toDouble()) {
-                return false;
-            }
-        }
     }
 
     // Validate all ask levels
@@ -104,6 +98,34 @@ bool MarketDepthQuote::isValid() const {
     }
 
     return true;
+}
+
+bool MarketDepthQuote::isLocked() const {
+    // If we don't have both bids and asks, it can't be locked
+    if (bids.isEmpty() || asks.isEmpty()) {
+        return false;
+    }
+
+    // Get best bid and ask prices
+    double bestBid = bids.first().getPrice().toDouble();
+    double bestAsk = asks.first().getPrice().toDouble();
+
+    // Market is locked when best bid equals best ask
+    return qFuzzyCompare(bestBid, bestAsk);
+}
+
+bool MarketDepthQuote::isCrossed() const {
+    // If we don't have both bids and asks, it can't be crossed
+    if (bids.isEmpty() || asks.isEmpty()) {
+        return false;
+    }
+
+    // Get best bid and ask prices
+    double bestBid = bids.first().getPrice().toDouble();
+    double bestAsk = asks.first().getPrice().toDouble();
+
+    // Market is crossed when best bid is higher than best ask
+    return bestBid > bestAsk;
 }
 
 QString MarketDepthQuote::toJsonString() const {

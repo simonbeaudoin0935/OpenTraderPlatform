@@ -52,6 +52,10 @@ public:
     // Helper methods
     bool isEmpty() const { return bids.isEmpty() && asks.isEmpty(); }
     bool isValid() const;
+    
+    // Market condition checks
+    bool isLocked() const;  // Returns true if best bid equals best ask
+    bool isCrossed() const; // Returns true if best bid is higher than best ask
 
     // Convert to JSON string for debugging/logging
     QString toJsonString() const;

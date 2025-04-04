@@ -11,7 +11,7 @@ public:
     Position() = default;
     
     // Constructor taking a QJsonObject
-    Position(const QJsonObject& jsonObj);
+    Position(const QJsonObject& jsonObj, bool isUpdate = false);
 
     // Getters
     QString getAccountID() const { return accountID; }
@@ -38,6 +38,7 @@ public:
     QString getUnrealizedProfitLoss() const { return unrealizedProfitLoss; }
     QString getUnrealizedProfitLossPercent() const { return unrealizedProfitLossPercent; }
     QString getUnrealizedProfitLossQty() const { return unrealizedProfitLossQty; }
+    bool isPositionUpdate() const { return isUpdate; }  // Returns whether this position is an update
 
     // Validation
     bool isValid() const;
@@ -70,6 +71,7 @@ private:
     QString unrealizedProfitLoss;         // Required
     QString unrealizedProfitLossPercent;  // Required
     QString unrealizedProfitLossQty;      // Required
+    bool isUpdate = false;                // Whether this position is an update
 };
 
 Q_DECLARE_METATYPE(Position) 

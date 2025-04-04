@@ -27,6 +27,7 @@ public slots:
     void onMarketDepthNotAvailable() override;
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
     void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote) override;
+    void onNewPositionReceived(QString account, Position position) override;
 
 private slots:
 

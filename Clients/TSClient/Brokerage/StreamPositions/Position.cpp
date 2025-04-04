@@ -1,7 +1,7 @@
 #include "Position.h"
 #include <QJsonDocument>
 
-Position::Position(const QJsonObject& jsonObj) {
+Position::Position(const QJsonObject& jsonObj, bool isUpdate_) : isUpdate(isUpdate_) {
     accountID = jsonObj["AccountID"].toString();
     assetType = jsonObj["AssetType"].toString();
     averagePrice = jsonObj["AveragePrice"].toString();
@@ -90,6 +90,7 @@ QString Position::toJsonString() const {
     jsonObj["UnrealizedProfitLoss"] = unrealizedProfitLoss;
     jsonObj["UnrealizedProfitLossPercent"] = unrealizedProfitLossPercent;
     jsonObj["UnrealizedProfitLossQty"] = unrealizedProfitLossQty;
+    jsonObj["IsUpdate"] = isUpdate;  // Include the update flag in JSON output
 
     QJsonDocument doc(jsonObj);
     return doc.toJson(QJsonDocument::Compact);

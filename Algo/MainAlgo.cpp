@@ -116,8 +116,3 @@ void MainAlgo::onReceivedNewPosition(QString account, Position position)
 {
 
 }
-
-void MainAlgo::onTradeStationAccountsReceived(QVector<Account> results)
-{
-
-}

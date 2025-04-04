@@ -26,7 +26,7 @@ public:
 signals:
     void currentHighlightedReceivedNewBar(QString symbol, Bar bar);
     void currentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote);
-    void receivedNewPosition(QString account, Position position);
+    void newPositionReceived(QString account, Position position);
 
 public slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
@@ -37,8 +37,6 @@ private slots:
     void onStockScreenerFinished();
     void onNewNewsFound(StockNewsResult newNews);
     void onReceivedNewPosition(QString account, Position position);
-    void onTradeStationAccountsReceived(QVector<Account> results);
-
 
 private:
     QThread thread;
