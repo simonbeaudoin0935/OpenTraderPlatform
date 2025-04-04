@@ -91,6 +91,7 @@ gui {
         GUI/StockPriceChart.cpp \
         GUI/MarketDepthTableView.cpp \
         GUI/MarketDepthTable.cpp \
+        GUI/PositionWindow.cpp \
         Clients/TSClient/Auth/AuthWindow.cpp
 
     HEADERS += \
@@ -98,6 +99,7 @@ gui {
         GUI/StockPriceChart.h \
         GUI/MarketDepthTableView.h \
         GUI/MarketDepthTable.h \
+        GUI/PositionWindow.h \
         Clients/TSClient/Auth/AuthWindow.h \
 
     FORMS += \

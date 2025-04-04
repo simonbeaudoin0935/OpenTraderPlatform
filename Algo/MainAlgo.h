@@ -26,7 +26,7 @@ public:
 signals:
     void currentHighlightedReceivedNewBar(QString symbol, Bar bar);
     void currentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote);
-    void newPositionReceived(QString account, Position position);
+    void receivedNewPosition(QString account, Position position);
 
 public slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);

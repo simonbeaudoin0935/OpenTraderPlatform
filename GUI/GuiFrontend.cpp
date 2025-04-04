@@ -138,9 +138,8 @@ void GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
     ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks());
 }
 
-void GuiFrontend::onNewPositionReceived(QString account, Position position)
-{
-#error to implement
+void GuiFrontend::onNewPositionReceived(QString account, Position position) {
+    ui->positionWindow->updatePosition(account, position);
 }
 
 void GuiFrontend::onQuoteShortReceived(const FMPClient::QuoteShortResult quoteResult)

@@ -87,16 +87,47 @@
      </widget>
     </item>
     <item>
-     <widget class="QTextEdit" name="logDisplay">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="readOnly">
-       <bool>true</bool>
-      </property>
+     <widget class="QWidget" name="bottomWidget" native="true">
+      <layout class="QHBoxLayout" name="bottomLayout">
+       <property name="spacing">
+        <number>6</number>
+       </property>
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QTextEdit" name="logDisplay">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
+           <horstretch>1</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="readOnly">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="PositionWindow" name="positionWindow" native="true">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Maximum">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </widget>
     </item>
    </layout>
@@ -123,6 +154,11 @@
    <class>MarketDepthTable</class>
    <extends>QWidget</extends>
    <header>GUI/MarketDepthTable.h</header>
+  </customwidget>
+  <customwidget>
+   <class>PositionWindow</class>
+   <extends>QWidget</extends>
+   <header>GUI/PositionWindow.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

@@ -77,6 +77,9 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
     QString accountNumber = accounts.at(1).getAccountId();
 
     connect(&positionReceiver, &PositionsReceiver::receivedNewPosition,
+            this, &MainAlgo::receivedNewPosition);
+
+    connect(&positionReceiver, &PositionsReceiver::receivedNewPosition,
             this, &MainAlgo::onReceivedNewPosition);
 
     positionReceiver.startStream(accountNumber);

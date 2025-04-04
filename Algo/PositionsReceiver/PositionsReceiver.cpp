@@ -32,7 +32,6 @@ void PositionsReceiver::startStream(const char *account)
 void PositionsReceiver::onReceivedNewPosition(QString account, Position position)
 {
     qCDebug(PositionsReceiverLog).noquote() << "New position for account (" << account << ") : " << position.toJsonString();
-
     emit receivedNewPosition(account, position);
 }
 
