@@ -18,6 +18,9 @@ public:
     void stopStream(QString &symbol);
     void stopStream(const char* symbol);
 
+    // Market analysis functions
+    double calculateBidAskImbalance(const MarketDepthQuote& quote, int levels = 0) const;
+
 signals:
     void currentHighlightedReceivedMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote);
 
