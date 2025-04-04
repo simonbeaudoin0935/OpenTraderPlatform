@@ -80,7 +80,9 @@ StockPriceChart::StockPriceChart(QWidget* parent)
 
     // Connect to the axis range changed signal
     connect(axisX, &QDateTimeAxis::rangeChanged, this, &StockPriceChart::updateAfterHoursBackground);
+    connect(axisX, &QDateTimeAxis::rangeChanged, this, &StockPriceChart::updateLastPriceLineIfNeeded);
     connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::updateAfterHoursBackground);
+    connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::updateLastPriceLineIfNeeded);
 }
 
 StockPriceChart::~StockPriceChart() {
@@ -394,11 +396,13 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
 }
 
 void StockPriceChart::updateLastPriceLineIfNeeded() {
-    if (!hasOpenBar) {
-        return;
+    // Update the price line regardless of whether there's an open bar
+    if (candlestickSeries->count() > 0) {
+        auto lastSet = candlestickSeries->sets().last();
+        double closePrice = lastSet->close();
+        double openPrice = lastSet->open();
+        updateLastPriceLine(closePrice, closePrice >= openPrice);
     }
-    updateLastPriceLine(currentOpenBar.getClose().toDouble(),
-                       currentOpenBar.getClose().toDouble() >= currentOpenBar.getOpen().toDouble());
 }
 
 void StockPriceChart::updatePriceLabelPosition() {
@@ -625,6 +629,68 @@ bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
     switch (event->type()) {
     case QEvent::MouseButtonPress: {
         QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        if (mouseEvent->button() == Qt::RightButton) {
+            // Handle right click - recenter view
+            if (candlestickSeries->count() > 0) {
+                QDateTime currentBarTime;
+                if (hasOpenBar) {
+                    currentBarTime = QDateTime::fromString(currentOpenBar.getTimeStamp(), Qt::ISODate);
+                } else {
+                    currentBarTime = QDateTime::fromString(completedBars.last().getTimeStamp(), Qt::ISODate);
+                }
+
+                // Round current time down to the nearest 5-minute mark
+                int currentMinute = currentBarTime.time().minute();
+                int baseMinute = (currentMinute / 5) * 5;
+                QDateTime baseTime = currentBarTime;
+                baseTime.setTime(QTime(currentBarTime.time().hour(), baseMinute, 0));
+
+                // Set start time to 30 minutes before the base time
+                QDateTime startTime = baseTime.addSecs(-30 * 60);
+                // Set end time to the next 5-minute mark after base time plus a small buffer
+                QDateTime endTime = baseTime.addSecs(5 * 60 + 60); // Next 5-min mark + 1 min buffer
+
+                // Reset the horizontal axis
+                axisX->setRange(startTime, endTime);
+
+                // Reset the vertical axis to fit visible bars
+                double minPrice = std::numeric_limits<double>::max();
+                double maxPrice = std::numeric_limits<double>::lowest();
+                double currentPrice = 0.0;
+                
+                // Find min/max prices for bars in the new time range
+                for (int i = 0; i < candlestickSeries->count(); ++i) {
+                    auto set = candlestickSeries->sets().at(i);
+                    QDateTime barTime = QDateTime::fromMSecsSinceEpoch(set->timestamp());
+                    
+                    if (barTime >= startTime && barTime <= endTime) {
+                        minPrice = qMin(minPrice, set->low());
+                        maxPrice = qMax(maxPrice, set->high());
+                        if (i == candlestickSeries->count() - 1) {
+                            currentPrice = set->close();
+                        }
+                    }
+                }
+                
+                // Set vertical range if we found any bars
+                if (minPrice != std::numeric_limits<double>::max()) {
+                    // Add padding
+                    double padding = currentPrice * 0.0002; // 0.02% padding
+                    // Ensure minimum range
+                    double minRange = currentPrice * 0.0005; // 0.05% of current price
+                    if (maxPrice - minPrice < minRange) {
+                        maxPrice = currentPrice + (minRange / 2);
+                        minPrice = currentPrice - (minRange / 2);
+                    }
+                    axisY->setRange(minPrice - padding, maxPrice + padding);
+                }
+                
+                updateAfterHoursBackground();
+                updateLastPriceLineIfNeeded();
+                return true;
+            }
+            return false;
+        }
         if (mouseEvent->button() != Qt::LeftButton) {
             return false;
         }
