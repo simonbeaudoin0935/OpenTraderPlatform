@@ -5,11 +5,163 @@
 #include <QLabel>
 #include <QHBoxLayout>
 #include <QMessageBox>
+#include <QPalette>
+#include <QApplication>
 
 GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     ui = new Ui::GuiFrontend();
     ui->setupUi(new QMainWindow());
-    static_cast<QMainWindow*>(ui->centralwidget->parent())->show();
+    
+    // Setup dark theme for the entire application
+    QMainWindow* mainWindow = static_cast<QMainWindow*>(ui->centralwidget->parent());
+    
+    // Define the dark theme palette
+    QPalette darkPalette;
+    darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
+    darkPalette.setColor(QPalette::WindowText, Qt::white);
+    darkPalette.setColor(QPalette::Base, QColor(25, 25, 25));
+    darkPalette.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
+    darkPalette.setColor(QPalette::ToolTipBase, QColor(53, 53, 53));
+    darkPalette.setColor(QPalette::ToolTipText, Qt::white);
+    darkPalette.setColor(QPalette::Text, Qt::white);
+    darkPalette.setColor(QPalette::Button, QColor(53, 53, 53));
+    darkPalette.setColor(QPalette::ButtonText, Qt::white);
+    darkPalette.setColor(QPalette::BrightText, Qt::red);
+    darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));
+    darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
+    darkPalette.setColor(QPalette::HighlightedText, Qt::black);
+    darkPalette.setColor(QPalette::Disabled, QPalette::Text, QColor(150, 150, 150));
+    darkPalette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(150, 150, 150));
+    
+    // Apply the dark palette to the application
+    mainWindow->setPalette(darkPalette);
+    qApp->setPalette(darkPalette);
+    
+    // Set stylesheet for specific widgets and components
+    QString styleSheet = R"(
+        QWidget {
+            background-color: #333333;
+            color: #FFFFFF;
+        }
+        QMenuBar {
+            background-color: #444444;
+        }
+        QMenuBar::item:selected {
+            background-color: #555555;
+        }
+        QMenu {
+            background-color: #444444;
+            border: 1px solid #555555;
+        }
+        QMenu::item:selected {
+            background-color: #555555;
+        }
+        QToolBar {
+            background-color: #444444;
+            border: none;
+        }
+        QToolButton {
+            background-color: #444444;
+            border: none;
+        }
+        QToolButton:hover {
+            background-color: #555555;
+        }
+        QStatusBar {
+            background-color: #333333;
+            color: #CCCCCC;
+        }
+        QTextEdit, QLineEdit {
+            background-color: #222222;
+            color: #FFFFFF;
+            border: 1px solid #555555;
+        }
+        QTabWidget::pane {
+            border: 1px solid #555555;
+        }
+        QTabBar::tab {
+            background-color: #333333;
+            color: #CCCCCC;
+            border: 1px solid #555555;
+            padding: 5px;
+        }
+        QTabBar::tab:selected {
+            background-color: #444444;
+            color: #FFFFFF;
+        }
+        QScrollBar:vertical {
+            background-color: #333333;
+            width: 10px;
+            margin: 0px;
+        }
+        QScrollBar::handle:vertical {
+            background-color: #666666;
+            min-height: 20px;
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            height: 0px;
+        }
+        QScrollBar:horizontal {
+            background-color: #333333;
+            height: 10px;
+            margin: 0px;
+        }
+        QScrollBar::handle:horizontal {
+            background-color: #666666;
+            min-width: 20px;
+        }
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+            width: 0px;
+        }
+        QHeaderView::section {
+            background-color: #444444;
+            color: #FFFFFF;
+            padding: 5px;
+            border: 1px solid #555555;
+        }
+        QTableView {
+            gridline-color: #555555;
+            background-color: #222222;
+            color: #FFFFFF;
+        }
+        QTableView::item:selected {
+            background-color: #3A6EA5;
+        }
+        QComboBox {
+            background-color: #444444;
+            color: #FFFFFF;
+            border: 1px solid #555555;
+            padding: 2px;
+        }
+        QComboBox::drop-down {
+            background-color: #555555;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #444444;
+            color: #FFFFFF;
+        }
+        QPushButton {
+            background-color: #444444;
+            color: #FFFFFF;
+            border: 1px solid #555555;
+            padding: 4px 8px;
+        }
+        QPushButton:hover {
+            background-color: #555555;
+        }
+        QPushButton:pressed {
+            background-color: #666666;
+        }
+        QCheckBox, QRadioButton {
+            color: #FFFFFF;
+        }
+        QLabel {
+            color: #FFFFFF;
+        }
+    )";
+    
+    qApp->setStyleSheet(styleSheet);
+    mainWindow->show();
 
     // Create and setup TradeStation login button
     tradeStationLoginButton = new QPushButton("Login to TradeStation", ui->statusbar);
@@ -49,10 +201,13 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
             this, &GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote,
             Qt::DirectConnection);
 
+    connect(this, &AppFrontend::onNewPositionReceived,
+            this, &GuiFrontend::onNewPositionReceived,
+            Qt::DirectConnection);
+
+
     // TODO disconnect this and pass through the frontend
     QObject::connect(FMPClient::getInstancePtr(), &FMPClient::quoteShortReceived, this, &GuiFrontend::onQuoteShortReceived);
-
-
 }
 
 GuiFrontend::~GuiFrontend() {

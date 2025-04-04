@@ -32,12 +32,23 @@ StockPriceChart::StockPriceChart(QWidget* parent)
 
     // Add margins to ensure price label is visible
     chart->setMargins(QMargins(5, 5, 50, 5));  // Left, Top, Right, Bottom
+    
+    // Apply dark theme to chart
+    chart->setBackgroundBrush(QBrush(QColor(53, 53, 53)));
+    chart->setBackgroundPen(QPen(QColor(25, 25, 25)));
+    chart->setTitleBrush(QBrush(QColor(255, 255, 255)));
+    chart->setTitleFont(QFont("Arial", 10, QFont::Bold));
+    chart->legend()->setLabelBrush(QBrush(QColor(255, 255, 255)));
+    chart->legend()->setBackgroundVisible(true);
+    chart->legend()->setAlignment(Qt::AlignBottom);
+    chart->legend()->setColor(QColor(53, 53, 53, 150));
 
     chartView = new QChartView(chart, this);
     chartView->setRenderHint(QPainter::Antialiasing);
     chartView->setRubberBand(QChartView::NoRubberBand);  // Disable default rubber band
     chartView->setMouseTracking(true);  // Enable mouse tracking
     chartView->viewport()->installEventFilter(this);  // Install event filter on the viewport
+    chartView->setBackgroundBrush(QBrush(QColor(33, 33, 33)));
 
     // Create price label as a child of the chart view's scene
     priceLabel = chartView->scene()->addText("");
@@ -55,6 +66,9 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     axisX->setGridLineVisible(true);
     axisX->setMinorGridLineVisible(false);
     axisX->setLabelsAngle(-45); // Angle the time labels for better readability
+    axisX->setGridLineColor(QColor(70, 70, 70));
+    axisX->setLabelsColor(QColor(220, 220, 220));
+    axisX->setTitleBrush(QBrush(QColor(220, 220, 220)));
 
     // Calculate number of ticks for 30-minute view
     // We want a tick every 5 minutes, so for 30 minutes we need 7 ticks (0,5,10,15,20,25,30)
@@ -68,6 +82,10 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     axisY = new QValueAxis();
     axisY->setLabelFormat("%.2f");
     axisY->setTitleText("Price");
+    axisY->setGridLineColor(QColor(70, 70, 70));
+    axisY->setLabelsColor(QColor(220, 220, 220));
+    axisY->setTitleBrush(QBrush(QColor(220, 220, 220)));
+    
     chart->addAxis(axisY, Qt::AlignLeft);
     lineSeries->attachAxis(axisY);
     candlestickSeries->attachAxis(axisY);
@@ -519,7 +537,7 @@ void StockPriceChart::updateAfterHoursBackground() {
                 QPointF sessionEnd = chart->mapToPosition(QPointF(
                     visibleEnd.toMSecsSinceEpoch(), axisY->max()));
                 
-                auto rect = createBackgroundRect(QColor(40, 40, 40, 100), -2);
+                auto rect = createBackgroundRect(QColor(40, 40, 50, 120), -2);
                 rect->setRect(sessionStart.x(), topLeft.y(),
                             sessionEnd.x() - sessionStart.x(),
                             bottomRight.y() - topLeft.y());
@@ -549,7 +567,7 @@ void StockPriceChart::updateAfterHoursBackground() {
             QDateTime visibleEnd = qMin(endTime, localHourEnd);
 
             if (MarketHours::isPreMarket(hourStart)) {
-                auto rect = createBackgroundRect(QColor(255, 200, 150, 100), -1);
+                auto rect = createBackgroundRect(QColor(90, 60, 30, 100), -1);
                 QPointF sessionStart = chart->mapToPosition(QPointF(
                     visibleStart.toMSecsSinceEpoch(), axisY->max()));
                 QPointF sessionEnd = chart->mapToPosition(QPointF(
@@ -561,7 +579,7 @@ void StockPriceChart::updateAfterHoursBackground() {
                 preMarketRects.append(rect);
             }
             else if (MarketHours::isAfterHours(hourStart)) {
-                auto rect = createBackgroundRect(QColor(230, 230, 255, 100), -1);
+                auto rect = createBackgroundRect(QColor(50, 50, 80, 100), -1);
                 QPointF sessionStart = chart->mapToPosition(QPointF(
                     visibleStart.toMSecsSinceEpoch(), axisY->max()));
                 QPointF sessionEnd = chart->mapToPosition(QPointF(
@@ -573,7 +591,7 @@ void StockPriceChart::updateAfterHoursBackground() {
                 afterHoursRects.append(rect);
             }
             else if (!MarketHours::isRegularHours(hourStart)) {
-                auto rect = createBackgroundRect(QColor(40, 40, 40, 100), -2);
+                auto rect = createBackgroundRect(QColor(40, 40, 50, 120), -2);
                 QPointF sessionStart = chart->mapToPosition(QPointF(
                     visibleStart.toMSecsSinceEpoch(), axisY->max()));
                 QPointF sessionEnd = chart->mapToPosition(QPointF(
