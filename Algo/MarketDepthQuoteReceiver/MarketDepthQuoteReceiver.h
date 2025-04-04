@@ -20,6 +20,7 @@ public:
 
     // Market analysis functions
     double calculateBidAskImbalance(const MarketDepthQuote& quote, int levels = 0) const;
+    double calculateDepthWeightedPrice(const QVector<MarketDepthLevel>& levels) const;
 
 signals:
     void currentHighlightedReceivedMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote);

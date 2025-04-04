@@ -204,10 +204,6 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     connect(this, &AppFrontend::onNewPositionReceived,
             this, &GuiFrontend::onNewPositionReceived,
             Qt::DirectConnection);
-
-
-    // TODO disconnect this and pass through the frontend
-    QObject::connect(FMPClient::getInstancePtr(), &FMPClient::quoteShortReceived, this, &GuiFrontend::onQuoteShortReceived);
 }
 
 GuiFrontend::~GuiFrontend() {

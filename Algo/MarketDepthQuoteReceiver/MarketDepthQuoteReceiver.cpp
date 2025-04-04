@@ -48,6 +48,29 @@ double MarketDepthQuoteReceiver::calculateBidAskImbalance(const MarketDepthQuote
     return (totalBidSize - totalAskSize) / totalSize;
 }
 
+// Calculate Depth-Weighted Price (DWP)
+double MarketDepthQuoteReceiver::calculateDepthWeightedPrice(const QVector<MarketDepthLevel>& levels) const {
+    if (levels.isEmpty()) {
+        return 0.0; // No data available
+    }
+
+    double totalVolume = 0.0;
+    double weightedPriceSum = 0.0;
+
+    for (const auto& level : levels) {
+        double price = level.getPrice().toDouble();
+        double size = level.getSize().toDouble();
+        totalVolume += size;
+        weightedPriceSum += price * size;
+    }
+
+    if (totalVolume <= 0.0) {
+        return 0.0; // Avoid division by zero
+    }
+
+    return weightedPriceSum / totalVolume;
+}
+
 void MarketDepthQuoteReceiver::startStream(QString &symbol)
 {
     qCDebug(MarketDepthQuoteReceiverLog) << Q_FUNC_INFO << "Starting Market Depth Quote stream for " << symbol;
@@ -95,9 +118,15 @@ void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, Mar
     double imbalance = calculateBidAskImbalance(marketDepthQuote);
     double imbalanceTopLevels = calculateBidAskImbalance(marketDepthQuote, 3); // Top 3 levels
     
-    qCDebug(MarketDepthQuoteReceiverLog) << "Bid-Ask Imbalance for" << symbol 
+    // Calculate Depth-Weighted Prices
+    double bidDWP = calculateDepthWeightedPrice(marketDepthQuote.getBids());
+    double askDWP = calculateDepthWeightedPrice(marketDepthQuote.getAsks());
+    
+    qInfo(MarketDepthQuoteReceiverLog) << "Bid-Ask Imbalance for" << symbol
                                         << "- All levels:" << imbalance
-                                        << "- Top 3 levels:" << imbalanceTopLevels;
+                                        << "- Top 3 levels:" << imbalanceTopLevels
+                                        << "- Bid DWP:" << bidDWP
+                                        << "- Ask DWP:" << askDWP;
 
     emit currentHighlightedReceivedMarketDepthQuote(symbol, marketDepthQuote);
 }
