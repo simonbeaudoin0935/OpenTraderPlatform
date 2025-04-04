@@ -20,6 +20,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     lastPriceLine->setPen(QPen(Qt::green, 1, Qt::DashLine)); // Start with green, dashed line
 
     candlestickSeries = new QCandlestickSeries();
+    candlestickSeries->setPen(QPen(QColor(Qt::black)));
     candlestickSeries->setIncreasingColor(QColor(Qt::green));
     candlestickSeries->setDecreasingColor(QColor(Qt::red));
     candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
@@ -32,21 +33,21 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     chart->setMargins(QMargins(5, 5, 50, 5));  // Left, Top, Right, Bottom
     
     // Apply dark theme to chart
-    chart->setBackgroundBrush(QBrush(QColor(53, 53, 53)));
+    chart->setBackgroundBrush(QBrush(QColor(65, 65, 70)));
     chart->setBackgroundPen(QPen(QColor(25, 25, 25)));
     chart->setTitleBrush(QBrush(QColor(255, 255, 255)));
     chart->setTitleFont(QFont("Arial", 10, QFont::Bold));
     chart->legend()->setLabelBrush(QBrush(QColor(255, 255, 255)));
     chart->legend()->setBackgroundVisible(true);
     chart->legend()->setAlignment(Qt::AlignBottom);
-    chart->legend()->setColor(QColor(53, 53, 53, 150));
+    chart->legend()->setColor(QColor(65, 65, 70, 150));
 
     chartView = new QChartView(chart, this);
     chartView->setRenderHint(QPainter::Antialiasing);
     chartView->setRubberBand(QChartView::NoRubberBand);  // Disable default rubber band
     chartView->setMouseTracking(true);  // Enable mouse tracking
     chartView->viewport()->installEventFilter(this);  // Install event filter on the viewport
-    chartView->setBackgroundBrush(QBrush(QColor(33, 33, 33)));
+    chartView->setBackgroundBrush(QBrush(QColor(45, 45, 50)));
 
     // Create price label as a child of the chart view's scene
     priceLabel = chartView->scene()->addText("");
