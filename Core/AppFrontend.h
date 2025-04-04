@@ -24,7 +24,7 @@ signals:
     void newPositionReceived(QString account, Position position);
 
     void currentHighlightedStockBarReceived(QString symbol, Bar bar);
-    void currentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote);
+    void currentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance);
 
 public slots:
 
@@ -38,5 +38,5 @@ public slots:
     virtual void onNewPositionReceived(QString account, Position position) = 0;
 
     virtual void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) = 0;
-    virtual void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote) = 0;;
+    virtual void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance) = 0;
 };

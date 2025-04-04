@@ -128,7 +128,7 @@ void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, Mar
                                         << "- Bid DWP:" << bidDWP
                                         << "- Ask DWP:" << askDWP;
 
-    emit currentHighlightedReceivedMarketDepthQuote(symbol, marketDepthQuote);
+    emit currentHighlightedReceivedMarketDepthQuote(symbol, marketDepthQuote, imbalance);
 }
 
 void MarketDepthQuoteReceiver::onStreamError(Stream::StreamError error, QString errorMessage)

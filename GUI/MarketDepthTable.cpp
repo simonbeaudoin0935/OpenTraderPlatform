@@ -16,6 +16,7 @@ MarketDepthTable::MarketDepthTable(QWidget* parent)
     , bidLabel(new QLabel("BID", this))
     , askLabel(new QLabel("ASK", this))
     , spreadLabel(new QLabel("SPREAD", this))
+    , bidAskImbalanceGauge(nullptr)
 {
     setupUI();
     setupStyles();
@@ -65,6 +66,19 @@ void MarketDepthTable::setupUI() {
     spreadLabel->setFixedHeight(24);
     spreadLayout->addWidget(spreadLabel);
 
+    // Create bid-ask imbalance gauge widget
+    bidAskImbalanceGauge = new QLabel(this);
+    bidAskImbalanceGauge->setAlignment(Qt::AlignCenter);
+    bidAskImbalanceGauge->setFixedHeight(24);
+    
+    // Create gauge widget with its own layout
+    QWidget* gaugeWidget = new QWidget(this);
+    gaugeWidget->setFixedWidth(totalWidth);
+    QHBoxLayout* gaugeLayout = new QHBoxLayout(gaugeWidget);
+    gaugeLayout->setSpacing(0);
+    gaugeLayout->setContentsMargins(0, 0, 0, 0);
+    gaugeLayout->addWidget(bidAskImbalanceGauge);
+
     // Set up columns: BID and ASK sides with their respective columns
     QStringList headers;
     headers << "Name" << "Orders" << "Size" << "Price"    // BID columns
@@ -100,23 +114,26 @@ void MarketDepthTable::setupUI() {
     // Add widgets to main layout with zero spacing
     mainLayout->addWidget(headerWidget, 0, Qt::AlignTop);
     mainLayout->addWidget(spreadWidget, 0, Qt::AlignTop);
+    mainLayout->addWidget(gaugeWidget, 0, Qt::AlignTop);
     mainLayout->addWidget(tableView, 1);
 
     // Ensure initial geometry is correct
-    QTimer::singleShot(0, this, [headerWidget, spreadWidget, this]() {
+    QTimer::singleShot(0, this, [headerWidget, spreadWidget, gaugeWidget, this]() {
         int width = tableView->viewport()->width() +
                    tableView->verticalHeader()->width();
         headerWidget->setGeometry(0, 0, width, 24);
         spreadWidget->setGeometry(0, 24, width, 24);
+        gaugeWidget->setGeometry(0, 48, width, 24);
     });
 
     // Set up a connection to handle header widget resizing
     connect(tableView->horizontalHeader(), &QHeaderView::geometriesChanged,
-            [headerWidget, spreadWidget, this]() {
+            [headerWidget, spreadWidget, gaugeWidget, this]() {
                 int width = tableView->viewport()->width() +
                            tableView->verticalHeader()->width();
                 headerWidget->setGeometry(0, 0, width, 24);
                 spreadWidget->setGeometry(0, 24, width, 24);
+                gaugeWidget->setGeometry(0, 48, width, 24);
             });
 }
 
@@ -246,7 +263,20 @@ void MarketDepthTable::setMarketDepthItem(QStandardItem* item, const MarketDepth
     }
 }
 
-void MarketDepthTable::updateData(const QVector<MarketDepthLevel>& bids, const QVector<MarketDepthLevel>& asks) {
+void MarketDepthTable::updateData(const QVector<MarketDepthLevel>& bids, const QVector<MarketDepthLevel>& asks, double bidAskImbalance) {
+    // Update the gauge for bid-ask imbalance
+    QString gaugeText = QString("Imbalance: %1").arg(bidAskImbalance, 0, 'f', 2);
+    bidAskImbalanceGauge->setText(gaugeText);
+    
+    // Set color based on imbalance value
+    if (bidAskImbalance > 0) {
+        bidAskImbalanceGauge->setStyleSheet("QLabel { background-color: green; color: white; }");
+    } else if (bidAskImbalance < 0) {
+        bidAskImbalanceGauge->setStyleSheet("QLabel { background-color: red; color: white; }");
+    } else {
+        bidAskImbalanceGauge->setStyleSheet("QLabel { background-color: gray; color: white; }");
+    }
+
     // Clear existing data
     model->removeRows(0, model->rowCount());
 

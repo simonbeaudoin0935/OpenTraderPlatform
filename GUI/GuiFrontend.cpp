@@ -284,9 +284,11 @@ void GuiFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
     ui->priceChart->addBar(bar);
 }
 
-void GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote)
+void GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance)
 {
-    ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks());
+    ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks(), bidAskImbalance);
+    
+    // Update the gauge for bid-ask imbalance
 }
 
 void GuiFrontend::onNewPositionReceived(QString account, Position position) {
