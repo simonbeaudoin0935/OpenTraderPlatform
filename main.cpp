@@ -1,5 +1,6 @@
 #ifdef GUI_ENABLED
 #include <QApplication>
+#include <QIcon>
 #include "GUI/GuiFrontend.h"
 #define FRONTEND GuiFrontend
 #define APPLICATION QApplication
@@ -19,7 +20,7 @@ int main(int argc, char *argv[])
 {
     APPLICATION app(argc, argv);
 
-    QCoreApplication::setApplicationName("TradeStation Algo");
+    QCoreApplication::setApplicationName("L2Trader");
     QCoreApplication::setApplicationVersion("1.0");
 
     parseArguments(app.arguments());
@@ -31,6 +32,10 @@ int main(int argc, char *argv[])
 
 #warning Fix this shit
     FMPClient::getInstance().setAPIKey(fmpToken);
+
+    // Set application icon
+    QIcon appIcon(":/Icons/L2T.png");
+    app.setWindowIcon(appIcon);
 
     MainApp mainApp(new FRONTEND());
 

@@ -1,5 +1,5 @@
 TEMPLATE = app
-TARGET = TradingAlgorithm
+TARGET = L2Trader
 QT += core network
 CONFIG += console c++11
 
@@ -105,5 +105,12 @@ gui {
         Clients/TSClient/Auth/AuthWindow.h \
 
     FORMS += \
-        GUI/guifrontend.ui
+        GUI/GUIFrontend.ui
 }
+
+RESOURCES += \
+    Resources/Resources.qrc
+
+# Platform specific icon files
+win32:RC_ICONS += Resources/icons/L2T.ico
+macx:ICON = Resources/icons/L2T.icns
