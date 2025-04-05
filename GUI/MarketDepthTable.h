@@ -26,5 +26,4 @@ private:
     QLabel* bidLabel;
     QLabel* askLabel;
     QLabel* spreadLabel;
-    QLabel* bidAskImbalanceGauge;
 }; 

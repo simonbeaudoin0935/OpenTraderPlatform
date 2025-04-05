@@ -87,6 +87,7 @@ gui {
     DEFINES += GUI_ENABLED  # For conditional compilation in code
 
     SOURCES += \
+        GUI/Gauge/Gauge.cpp \
         GUI/GuiFrontend.cpp \
         GUI/StockPriceChart.cpp \
         GUI/MarketDepthTableView.cpp \
@@ -95,6 +96,7 @@ gui {
         Clients/TSClient/Auth/AuthWindow.cpp
 
     HEADERS += \
+        GUI/Gauge/Gauge.h \
         GUI/GuiFrontend.h \
         GUI/StockPriceChart.h \
         GUI/MarketDepthTableView.h \

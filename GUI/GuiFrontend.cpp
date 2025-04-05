@@ -288,7 +288,8 @@ void GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
 {
     ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks(), bidAskImbalance);
     
-    // Update the gauge for bid-ask imbalance
+    // Update the RAI gauge with the bid-ask imbalance
+    ui->raiGauge->setValue(bidAskImbalance);
 }
 
 void GuiFrontend::onNewPositionReceived(QString account, Position position) {
