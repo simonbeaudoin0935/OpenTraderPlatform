@@ -587,7 +587,6 @@ QGraphicsRectItem* StockPriceChart::createBackgroundRect(const QColor& color, in
     rect->setBrush(color);
     rect->setPen(Qt::NoPen);
     rect->setZValue(zValue);
-    chartView->scene()->addItem(rect);
     return rect;
 }
 
