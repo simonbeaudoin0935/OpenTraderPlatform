@@ -1,6 +1,8 @@
 #include <QCommandLineParser>
 #include <QFileInfo>
 #include <QLoggingCategory>
+#include <QFile>
+#include <QTextStream>
 
 #include "ArgumentParser.h"
 #include "Settings.h"
@@ -31,9 +33,27 @@ void parseArguments(const QStringList &args) {
     {
         QFileInfo fileInfo(logFile);
         if (!fileInfo.exists() || !fileInfo.isFile()) {
-            qWarning() << "Warning: The specified logging configuration file does not exist or is not a file : " << logFile;
+            qFatal() << "Fatal: The specified logging configuration file does not exist or is not a file : " << logFile;
         } else {
-            QLoggingCategory::setFilterRules(logFile);
+            QFile file(logFile);
+            if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                qFatal() << "Fatal: Could not open logging configuration file:" << logFile;
+            }
+            
+            QString filterRules;
+            QTextStream in(&file);
+            while (!in.atEnd()) {
+                QString line = in.readLine().trimmed();
+                if (!line.isEmpty() && !line.startsWith('#')) {  // Skip empty lines and comments
+                    if (!filterRules.isEmpty()) {
+                        filterRules += '\n';
+                    }
+                    filterRules += line;
+                }
+            }
+            file.close();
+            
+            QLoggingCategory::setFilterRules(filterRules);
             qDebug() << "Using logging configuration from:" << logFile;
         }
     }

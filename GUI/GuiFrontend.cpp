@@ -201,7 +201,7 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
             this, &GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote,
             Qt::DirectConnection);
 
-    connect(this, &AppFrontend::onNewPositionReceived,
+    connect(this, &AppFrontend::newPositionReceived,
             this, &GuiFrontend::onNewPositionReceived,
             Qt::DirectConnection);
 }
@@ -284,10 +284,11 @@ void GuiFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
     ui->priceChart->addBar(bar);
 }
 
-void GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance)
+void GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP)
 {
     ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks(), bidAskImbalance);
-    
+    ui->marketDepthTable->updateDWP(bidDWP, askDWP);
+
     // Update the RAI gauge with the bid-ask imbalance
     ui->raiGauge->setValue(bidAskImbalance);
 }

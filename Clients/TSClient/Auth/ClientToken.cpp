@@ -23,8 +23,7 @@ QString ClientToken::toString() const
 {
     return QString("Client ID: %1\n"
                   "Client Secret: %2")
-        .arg(clientId)
-        .arg(clientSecret);
+        .arg(clientId, clientSecret);
 }
 
 ClientToken ClientToken::loadFromSettings()

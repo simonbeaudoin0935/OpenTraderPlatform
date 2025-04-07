@@ -16,9 +16,9 @@ bool StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
 
     if (quote.isValid()) {
         if (quote.isLocked()) {
-            qCWarning(StreamLog) << Q_FUNC_INFO << " Quote is locked";
+            qCDebug(StreamLog) << Q_FUNC_INFO << " Quote is locked";
         } else if (quote.isCrossed()) {
-            qCWarning(StreamLog) << Q_FUNC_INFO << " Quote is crossed";
+            qCDebug(StreamLog) << Q_FUNC_INFO << " Quote is crossed";
         }
         emit receivedNewMarketDepthQuote(symbol, quote);
         return true;

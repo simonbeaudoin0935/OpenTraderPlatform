@@ -36,10 +36,10 @@ MainApp::MainApp(AppFrontend* appFrontend) :
                      appFrontend, &AppFrontend::currentHighlightedStockBarReceived);
 
     QObject::connect(mainAlgo, &MainAlgo::currentHighlightedReceivedNewMarketDepthQuote,
-                     appFrontend, &AppFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote);
+                     appFrontend, &AppFrontend::currentHighlightedReceivedNewMarketDepthQuote);
 
     QObject::connect(mainAlgo, &MainAlgo::receivedNewPosition,
-                     appFrontend, &AppFrontend::onNewPositionReceived);
+                     appFrontend, &AppFrontend::newPositionReceived);
 
 }
 

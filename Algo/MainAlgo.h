@@ -25,7 +25,7 @@ public:
 
 signals:
     void currentHighlightedReceivedNewBar(QString symbol, Bar bar);
-    void currentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance);
+    void currentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP);
     void receivedNewPosition(QString account, Position position);
 
 public slots:

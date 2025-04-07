@@ -15,6 +15,7 @@ public:
 
     // Update the table with new market depth data
     void updateData(const QVector<MarketDepthLevel>& bids, const QVector<MarketDepthLevel>& asks, double bidAskImbalance);
+    void updateDWP(double bidDWP, double askDWP);
 
 private:
     void setupUI();
@@ -26,4 +27,7 @@ private:
     QLabel* bidLabel;
     QLabel* askLabel;
     QLabel* spreadLabel;
+    QLabel* dwpLabel;
+    QLabel* bidDWPLabel;
+    QLabel* askDWPLabel;
 }; 

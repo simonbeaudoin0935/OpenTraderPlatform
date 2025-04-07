@@ -122,13 +122,13 @@ void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, Mar
     double bidDWP = calculateDepthWeightedPrice(marketDepthQuote.getBids());
     double askDWP = calculateDepthWeightedPrice(marketDepthQuote.getAsks());
     
-    qInfo(MarketDepthQuoteReceiverLog) << "Bid-Ask Imbalance for" << symbol
-                                        << "- All levels:" << imbalance
-                                        << "- Top 3 levels:" << imbalanceTopLevels
-                                        << "- Bid DWP:" << bidDWP
-                                        << "- Ask DWP:" << askDWP;
+    qCDebug(MarketDepthQuoteReceiverLog) << "Bid-Ask Imbalance for" << symbol
+                                         << "- All levels:" << imbalance
+                                         << "- Top 3 levels:" << imbalanceTopLevels
+                                         << "- Bid DWP:" << bidDWP
+                                         << "- Ask DWP:" << askDWP;
 
-    emit currentHighlightedReceivedMarketDepthQuote(symbol, marketDepthQuote, imbalance);
+    emit currentHighlightedReceivedMarketDepthQuote(symbol, marketDepthQuote, imbalance, bidDWP, askDWP);
 }
 
 void MarketDepthQuoteReceiver::onStreamError(Stream::StreamError error, QString errorMessage)

@@ -22,6 +22,7 @@ int main(int argc, char *argv[])
 
     QCoreApplication::setApplicationName("L2Trader");
     QCoreApplication::setApplicationVersion("1.0");
+    app.setWindowIcon(QIcon(":/Icons/L2T.png"));
 
     parseArguments(app.arguments());
 
@@ -32,10 +33,6 @@ int main(int argc, char *argv[])
 
 #warning Fix this shit
     FMPClient::getInstance().setAPIKey(fmpToken);
-
-    // Set application icon
-    QIcon appIcon(":/Icons/L2T.png");
-    app.setWindowIcon(appIcon);
 
     MainApp mainApp(new FRONTEND());
 

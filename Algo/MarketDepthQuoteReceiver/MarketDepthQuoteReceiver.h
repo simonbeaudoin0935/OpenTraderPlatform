@@ -23,7 +23,7 @@ public:
     double calculateDepthWeightedPrice(const QVector<MarketDepthLevel>& levels) const;
 
 signals:
-    void currentHighlightedReceivedMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote, double bidAskImbalance);
+    void currentHighlightedReceivedMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote, double bidAskImbalance, double bidDWP, double askDWP);
 
 private slots:
     void onReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote);
