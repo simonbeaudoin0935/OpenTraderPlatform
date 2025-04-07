@@ -16,7 +16,7 @@ Gauge::Gauge(QWidget *parent)
     , m_maxValue(1.0)
     , m_label("BAI")
 {
-    setMinimumSize(100, 50);
+    setMinimumSize(100, 80);
 }
 
 Gauge::Gauge(const QString &label, QWidget *parent)
@@ -26,7 +26,7 @@ Gauge::Gauge(const QString &label, QWidget *parent)
     , m_maxValue(1.0)
     , m_label(label)
 {
-    setMinimumSize(100, 50);
+    setMinimumSize(100, 80);
 }
 
 void Gauge::setLabel(const QString &label) {
@@ -63,7 +63,27 @@ void Gauge::paintEvent(QPaintEvent *event) {
 }
 
 void Gauge::drawBackground(QPainter &painter) {
-    QRectF rect = QRectF(0, 0, width(), height()).adjusted(5, 5, -5, -5);
+    // Calculate the space needed for labels
+    double barHeight = height() * 0.25;
+    double tickLength = barHeight * 0.16;
+    double labelPadding = height() * 0.02;
+    
+    // Calculate font metrics for the largest possible label
+    QFont font = painter.font();
+    font.setPointSize(qMax(7, static_cast<int>(height() * 0.06)));
+    QFontMetrics fm(font);
+    int labelHeight = fm.height() + (labelPadding * 2);
+
+    // Calculate total vertical padding needed
+    double topPadding = height() * 0.25; // Space for title
+    double bottomPadding = tickLength + labelHeight + (height() * 0.08); // Added extra padding at bottom
+
+    // Create background rect with adjusted padding
+    QRectF rect = QRectF(0, 0, width(), height())
+                    .adjusted(5,                    // Left padding
+                             5,                     // Top padding
+                             -5,                    // Right padding
+                             -5);                   // Minimal bottom padding to extend background
 
     // Background with dark gradient
     QLinearGradient gradient(rect.topLeft(), rect.bottomRight());
@@ -125,22 +145,55 @@ void Gauge::drawTicks(QPainter &painter) {
     pen.setWidth(qMax(1, static_cast<int>(height() * 0.01))); // 1% of height
     painter.setPen(pen);
 
+    // First pass: determine the widest label
+    QFont font = painter.font();
+    font.setPointSize(qMax(7, static_cast<int>(height() * 0.06))); // 6% of height, minimum 7pt
+    QFontMetrics fm(font);
+    int maxWidth = 0;
+    int maxHeight = 0;
+    
+    for (int i = 0; i < majorTicks; ++i) {
+        double value = m_minValue + (m_maxValue - m_minValue) * i / (majorTicks - 1);
+        QString label = QString::number(value, 'f', 1);
+        maxWidth = qMax(maxWidth, fm.horizontalAdvance(label));
+        maxHeight = qMax(maxHeight, fm.height());
+    }
+
+    // Scale font if needed to fit all labels
+    if (maxWidth > width() * 0.12) { // Allow up to 12% of gauge width per label
+        double scaleFactor = (width() * 0.12) / maxWidth;
+        font.setPointSizeF(font.pointSizeF() * scaleFactor);
+        painter.setFont(font);
+        fm = QFontMetrics(font);
+        maxHeight = fm.height();
+    }
+    painter.setFont(font);
+
+    // Calculate tick and label dimensions
+    double tickLength = barHeight * 0.16; // 16% of bar height
+    double labelPadding = height() * 0.03; // Increased padding between tick and label
+    double totalLabelHeight = maxHeight + labelPadding * 2; // Add padding above and below text
+
+    // Second pass: draw ticks and labels
     for (int i = 0; i < majorTicks; ++i) {
         double x = rect.x() + i * step;
+        
         // Draw major tick
-        double tickLength = barHeight * 0.16; // 16% of bar height
         painter.drawLine(QPointF(x, rect.y() - tickLength), QPointF(x, rect.y()));
         painter.drawLine(QPointF(x, rect.y() + rect.height()), QPointF(x, rect.y() + rect.height() + tickLength));
 
-        // Draw label
+        // Draw label with adjusted rect
         double value = m_minValue + (m_maxValue - m_minValue) * i / (majorTicks - 1);
-        QRectF labelRect(x - width() * 0.05, rect.y() + rect.height() + tickLength, 
-                        width() * 0.1, height() * 0.1);
+        QString label = QString::number(value, 'f', 1);
+        
+        // Create a wider rectangle for the label with proper vertical positioning
+        QRectF labelRect(x - width() * 0.06,  // Horizontal position
+                        rect.y() + rect.height() + tickLength + labelPadding, // Vertical position
+                        width() * 0.12,        // Width
+                        totalLabelHeight);     // Height with padding
+        
         painter.setPen(Qt::white);
-        QFont font = painter.font();
-        font.setPointSize(qMax(8, static_cast<int>(height() * 0.06))); // 6% of height, minimum 8pt
-        painter.setFont(font);
-        painter.drawText(labelRect, Qt::AlignCenter, QString::number(value, 'f', 1));
+        painter.drawText(labelRect, Qt::AlignCenter, label);
     }
 }
 
@@ -217,15 +270,29 @@ void Gauge::drawCenterLogo(QPainter &painter) {
     QRectF rect = QRectF(padding, height() / 2 - barHeight / 2, 
                         width() - 2 * padding, barHeight);
     
-    QRectF logoRect(rect.center().x() - width() * 0.1, rect.y() - height() * 0.2,
-                   width() * 0.2, height() * 0.15);
+    // Create a larger rectangle for the label that extends above the bar
+    QRectF logoRect(rect.center().x() - width() * 0.2, rect.y() - height() * 0.28,
+                   width() * 0.4, height() * 0.15);
 
     painter.save();
     painter.setPen(Qt::white);
     QFont font = painter.font();
-    font.setPointSize(qMax(10, static_cast<int>(height() * 0.07))); // 7% of height, minimum 10pt
+    font.setPointSize(qMax(8, static_cast<int>(height() * 0.08))); // Slightly smaller font, minimum 8pt
     font.setBold(true);
     painter.setFont(font);
-    painter.drawText(logoRect, Qt::AlignCenter, m_label);
+
+    // Test if text fits in the current rect
+    QFontMetrics fm(font);
+    QString text = m_label;
+    int textWidth = fm.horizontalAdvance(text);
+    
+    // If text is too wide, scale down the font
+    if (textWidth > logoRect.width()) {
+        double scaleFactor = logoRect.width() / textWidth;
+        font.setPointSizeF(font.pointSizeF() * scaleFactor);
+        painter.setFont(font);
+    }
+    
+    painter.drawText(logoRect, Qt::AlignCenter, text);
     painter.restore();
 } 

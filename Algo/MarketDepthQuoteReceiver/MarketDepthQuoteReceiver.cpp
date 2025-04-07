@@ -24,18 +24,21 @@ double MarketDepthQuoteReceiver::calculateBidAskImbalance(const MarketDepthQuote
     const QVector<MarketDepthLevel>& bids = quote.getBids();
     const QVector<MarketDepthLevel>& asks = quote.getAsks();
     
+    // Use bidAskImbalanceLevel if no specific level is provided
+    unsigned int levelsToUse = levels > 0 ? static_cast<unsigned int>(levels) : bidAskImbalanceLevel;
+    
     // Determine how many levels to use
-    int bidLevels = levels > 0 ? qMin(levels, bids.size()) : bids.size();
-    int askLevels = levels > 0 ? qMin(levels, asks.size()) : asks.size();
+    unsigned int bidLevels = qMin(levelsToUse, static_cast<unsigned int>(bids.size()));
+    unsigned int askLevels = qMin(levelsToUse, static_cast<unsigned int>(asks.size()));
     
     // Calculate total sizes
     double totalBidSize = 0.0;
-    for (int i = 0; i < bidLevels; ++i) {
+    for (unsigned int i = 0; i < bidLevels; ++i) {
         totalBidSize += bids[i].getSize().toDouble();
     }
     
     double totalAskSize = 0.0;
-    for (int i = 0; i < askLevels; ++i) {
+    for (unsigned int i = 0; i < askLevels; ++i) {
         totalAskSize += asks[i].getSize().toDouble();
     }
     
@@ -57,9 +60,12 @@ double MarketDepthQuoteReceiver::calculateDepthWeightedPrice(const QVector<Marke
     double totalVolume = 0.0;
     double weightedPriceSum = 0.0;
 
-    for (const auto& level : levels) {
-        double price = level.getPrice().toDouble();
-        double size = level.getSize().toDouble();
+    // Only process up to depthWeightedPriceLevel levels
+    unsigned int levelsToProcess = qMin(depthWeightedPriceLevel, static_cast<unsigned int>(levels.size()));
+
+    for (unsigned int i = 0; i < levelsToProcess; ++i) {
+        double price = levels[i].getPrice().toDouble();
+        double size = levels[i].getSize().toDouble();
         totalVolume += size;
         weightedPriceSum += price * size;
     }

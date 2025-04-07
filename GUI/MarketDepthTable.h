@@ -13,8 +13,9 @@ public:
     explicit MarketDepthTable(QWidget* parent = nullptr);
     ~MarketDepthTable();
 
-    // Update the table with new market depth data
-    void updateData(const QVector<MarketDepthLevel>& bids, const QVector<MarketDepthLevel>& asks, double bidAskImbalance);
+    // Update methods
+    void updateData(const QVector<MarketDepthLevel>& bids, const QVector<MarketDepthLevel>& asks);
+    void updateBAI(double bidAskImbalance);
     void updateDWP(double bidDWP, double askDWP);
 
 private:

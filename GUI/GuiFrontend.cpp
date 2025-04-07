@@ -1,5 +1,3 @@
-#include "GuiFrontend.h"
-#include "ui_guifrontend.h"
 #include <QJsonDocument>
 #include <QHeaderView>
 #include <QLabel>
@@ -7,6 +5,9 @@
 #include <QMessageBox>
 #include <QPalette>
 #include <QApplication>
+
+#include "GuiFrontend.h"
+#include "ui_GUIFrontend.h"
 
 GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     ui = new Ui::GuiFrontend();
@@ -286,11 +287,11 @@ void GuiFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 
 void GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP)
 {
-    ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks(), bidAskImbalance);
+    ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks());
     ui->marketDepthTable->updateDWP(bidDWP, askDWP);
 
-    // Update the RAI gauge with the bid-ask imbalance
-    ui->raiGauge->setValue(bidAskImbalance);
+    // Update the BAI gauge with the bid-ask imbalance
+    ui->baiGauge->setValue(bidAskImbalance);
 }
 
 void GuiFrontend::onNewPositionReceived(QString account, Position position) {

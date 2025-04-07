@@ -1,10 +1,7 @@
-#ifndef GETACCOUNTS_H
-#define GETACCOUNTS_H
+#pragma once
 
 class GetAccounts
 {
 public:
     GetAccounts();
 };
-
-#endif // GETACCOUNTS_H

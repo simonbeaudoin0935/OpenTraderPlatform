@@ -1,0 +1,13 @@
+               <item row="0" column="0">
+                <widget class="Gauge" name="baiGauge" native="true">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                   <horstretch>1</horstretch>
+                   <verstretch>1</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="label">
+                  <string>BAI</string>
+                 </property>
+                </widget>
+               </item> 

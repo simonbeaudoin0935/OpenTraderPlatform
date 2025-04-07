@@ -341,7 +341,7 @@ void MarketDepthTable::setMarketDepthItem(QStandardItem* item, const MarketDepth
     }
 }
 
-void MarketDepthTable::updateData(const QVector<MarketDepthLevel>& bids, const QVector<MarketDepthLevel>& asks, double bidAskImbalance) {
+void MarketDepthTable::updateData(const QVector<MarketDepthLevel>& bids, const QVector<MarketDepthLevel>& asks) {
     // Clear existing data
     model->removeRows(0, model->rowCount());
 
@@ -417,6 +417,11 @@ void MarketDepthTable::updateData(const QVector<MarketDepthLevel>& bids, const Q
 
         model->appendRow(rowItems);
     }
+}
+
+void MarketDepthTable::updateBAI(double bidAskImbalance) {
+    // Update the BAI gauge with the bid-ask imbalance
+    // Note: This method is empty as the BAI gauge is updated directly in GuiFrontend
 }
 
 void MarketDepthTable::updateDWP(double bidDWP, double askDWP) {

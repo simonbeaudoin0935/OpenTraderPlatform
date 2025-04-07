@@ -5,6 +5,7 @@ CONFIG += console c++11
 
 SOURCES += \
     Algo/PositionsReceiver/PositionsReceiver.cpp \
+    Clients/TSClient/MarketData/GetQuoteSnapshots/QuoteSnapshot.cpp \
     main.cpp \
     Misc/Settings.cpp \
     Misc/ArgumentParser.cpp \
@@ -38,6 +39,7 @@ SOURCES += \
 
 HEADERS += \
     Algo/PositionsReceiver/PositionsReceiver.h \
+    Clients/TSClient/MarketData/GetQuoteSnapshots/QuoteSnapshot.h \
     Misc/Settings.h \
     Misc/ArgumentParser.h \
     Misc/MarketHours.h \
