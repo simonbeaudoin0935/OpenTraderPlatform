@@ -14,9 +14,14 @@
 
 #define BASE_URL_TS_API_SIMULATION         "https://sim-api.tradestation.com/v3/"
 
+#define ENDPOINT_GET_QUOTE_SNAPSHOTS       "marketdata/quotes/%1"
 #define ENDPOINT_STREAM_BARS               "marketdata/stream/barcharts"
 #define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes"
+
+#define ENDPOINT_GET_ACCOUNTS              "brokerage/accounts"
 #define ENDPOINT_STREAM_POSITIONS          "brokerage/stream/accounts/%1/positions"
+
+#define ENDPOINT_PLACE_ORDER               "orderexecution/orders"
 
 Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
 
@@ -38,7 +43,6 @@ TSClient* TSClient::getInstancePtr() {
     }
     return instance;
 }
-
 
 TSClient::TSClient() :
     RESTClient(QUrl(BASE_URL_TS_API_SIMULATION)),
@@ -190,7 +194,7 @@ QByteArray TSClient::buildRefreshTokenQuery(const QString &clientId,
 
 bool TSClient::fetchSyncAccounts(QVector<Account> &results)
 {
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "brokerage/accounts", "");
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_GET_ACCOUNTS);
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
     bool success = fetchSync(request, jsonDocumentFromReplyToDelete);
@@ -224,10 +228,56 @@ bool TSClient::fetchSyncAccounts(QVector<Account> &results)
 
 void TSClient::fetchAsyncAccounts()
 {
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "brokerage/accounts");
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_GET_ACCOUNTS);
     fetchAsync(request, static_cast<RequestTypeInt>(RequestType::Accounts));
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching accounts";
+}
+
+bool TSClient::fetchSyncQuoteSnapshots(QString &symbols, QVector<QuoteSnapshot> &quoteSnapshots)
+{
+    Q_ASSERT(!symbols.isEmpty());
+
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, QString(ENDPOINT_GET_QUOTE_SNAPSHOTS).arg(symbols));
+    QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
+
+    bool success = fetchSync(request, jsonDocumentFromReplyToDelete);
+
+    if (false == success) {
+        // Make sure that if fetchSync failed that this pointed has not been allocated
+        Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
+
+        return false;
+    }
+
+    // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
+    Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
+
+    // The API returns a single object with an "Accounts" array
+    QJsonObject responseObj = jsonDocumentFromReplyToDelete->object();
+    const QJsonArray quoteSnapshotsArray = responseObj["Quotes"].toArray();
+
+    // Resize the array in advance
+    quoteSnapshots.reserve(quoteSnapshotsArray.count());
+
+    for (const QJsonValue &json: quoteSnapshotsArray) {
+        quoteSnapshots.push_back(QuoteSnapshot(json.toObject()));
+    }
+
+    // This pointer to a JSON document was allocated in the fetchSync and needs to be deleted after use
+    TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
+
+    return true;
+}
+
+void TSClient::fetchAsyncQuoteSnapshots(QString &symbols)
+{
+    Q_ASSERT(!symbols.isEmpty());
+
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_GET_QUOTE_SNAPSHOTS);
+    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::QuoteSnapshots));
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching quotes for symbols : " << symbols;
 }
 
 void TSClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
@@ -441,14 +491,13 @@ void TSClient::processStreamFinished(QByteArray &rawData, void *arg)
 #warning REMOVE this is dead code
 }
 
-
 bool TSClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &result) {
 
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
     Q_ASSERT(order.isValid());
 
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, "orderexecution/orders");
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_PLACE_ORDER);
 
     QByteArray postData = QJsonDocument(order.toJson()).toJson(QJsonDocument::Compact);
 

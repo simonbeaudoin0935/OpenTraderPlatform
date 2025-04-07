@@ -1,5 +1,4 @@
-#ifndef ACCOUNTRESULT_H
-#define ACCOUNTRESULT_H
+#pragma once
 
 #include <QString>
 #include <QJsonObject>
@@ -49,5 +48,3 @@ private:
 // Necessary to be able to use a QSignalSpy and intercept the emition of a QVector<AccountsResult>
 Q_DECLARE_METATYPE(Account)
 Q_DECLARE_METATYPE(QVector<Account>)
-
-#endif // ACCOUNTRESULT_H 

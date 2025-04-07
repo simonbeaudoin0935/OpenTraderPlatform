@@ -10,6 +10,7 @@
 #include "Brokerage/GetAccounts/Account.h"
 #include "Brokerage/StreamPositions/StreamPositions.h"
 #include "OrderExecution/PlaceOrder/PlaceOrder.h"
+#include "MarketData/GetQuoteSnapshots/QuoteSnapshot.h"
 #include "MarketData/StreamBars/StreamBars.h"
 #include "MarketData/StreamMarketDepthQuote/StreamMarketDepthQuote.h"
 #ifdef GUI_ENABLED
@@ -36,6 +37,14 @@ public:
     void activateMockStreamCreation(bool activate) { activateMockStream = activate; };
 
                               // -------- Market data methods ----------
+    /*
+     * Get Quote Snapshots
+     *
+     * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/GetQuoteSnapshots
+     */
+    bool fetchSyncQuoteSnapshots(QString &symbols, QVector<QuoteSnapshot> &quoteSnapshots);
+    void fetchAsyncQuoteSnapshots(QString &symbols);
+
     /*
      * Creates a Bars Stream
      *
@@ -109,6 +118,7 @@ public slots:
 signals:
     void authStateChanged(bool isAuthenticated, QString reason);
     void accountsAsyncReceived(QVector<Account> results);
+    void quoteSnapshotsAsyncReceived(QVector<QuoteSnapshot> quoteSnapshots);
     void placeAsyncOrderReceived(const PlaceOrderResult &result);
 
     void marketDepthNotAvailable();
@@ -129,8 +139,8 @@ private:
     // Static helper methods for authentication
     static QNetworkRequest buildRefreshTokenRequest();
     static QByteArray buildRefreshTokenQuery(const QString &clientId,
-                                           const QString &clientSecret,
-                                           const QString &refreshToken);
+                                             const QString &clientSecret,
+                                             const QString &refreshToken);
                                            
     bool refreshSyncAccessToken(); // TODO remove or think about something because this causes a deadlocl when called within TSClient itself
     void refreshAsyncAccessToken();
@@ -138,6 +148,7 @@ private:
     enum class RequestType {
         None,
         Accounts,
+        QuoteSnapshots,
         RefreshAccessToken
     };
 

@@ -16,6 +16,9 @@ private slots:
     void testFetchSyncAccounts();
     void testFetchAsyncAccounts();
 
+    void testFetchSyncQuoteSnapshots();
+    void testFetchAsyncQuoteSnapshots();
+
     void testPlaceSyncOrder();
     void testPlaceAsyncOrder();
 

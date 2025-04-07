@@ -4,13 +4,12 @@ QT += core network
 CONFIG += console c++11
 
 SOURCES += \
-    Algo/PositionsReceiver/PositionsReceiver.cpp \
-    Clients/TSClient/MarketData/GetQuoteSnapshots/QuoteSnapshot.cpp \
     main.cpp \
     Misc/Settings.cpp \
     Misc/ArgumentParser.cpp \
     Misc/MarketHours.cpp \
     Algo/MainAlgo.cpp \
+    Algo/PositionsReceiver/PositionsReceiver.cpp \
     Algo/BreakingNewsFetcher/BreakingNewsFetcher.cpp \
     Algo/MarketDepthQuoteReceiver/MarketDepthQuoteReceiver.cpp \
     Algo/StockBarsReceiver/StockBarsReceiver.cpp \
@@ -26,6 +25,7 @@ SOURCES += \
     Clients/TSClient/Auth/AuthToken.cpp \
     Clients/TSClient/Auth/ClientToken.cpp \
     Clients/TSClient/Stream/Stream.cpp \
+    Clients/TSClient/MarketData/GetQuoteSnapshots/QuoteSnapshot.cpp \
     Clients/TSClient/MarketData/MockStream/MockStreamNetworkReply.cpp \
     Clients/TSClient/MarketData/StreamBars/Bar.cpp \
     Clients/TSClient/MarketData/StreamBars/StreamBars.cpp \
@@ -38,12 +38,11 @@ SOURCES += \
     Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.cpp
 
 HEADERS += \
-    Algo/PositionsReceiver/PositionsReceiver.h \
-    Clients/TSClient/MarketData/GetQuoteSnapshots/QuoteSnapshot.h \
     Misc/Settings.h \
     Misc/ArgumentParser.h \
     Misc/MarketHours.h \
     Algo/MainAlgo.h \
+    Algo/PositionsReceiver/PositionsReceiver.h \
     Algo/BreakingNewsFetcher/BreakingNewsFetcher.h \
     Algo/StockBarsReceiver/StockBarsReceiver.h \
     Algo/MarketDepthQuoteReceiver/MarketDepthQuoteReceiver.h \
@@ -59,6 +58,7 @@ HEADERS += \
     Clients/TSClient/Auth/AuthToken.h \
     Clients/TSClient/Auth/ClientToken.h \
     Clients/TSClient/Stream/Stream.h \
+    Clients/TSClient/MarketData/GetQuoteSnapshots/QuoteSnapshot.h \
     Clients/TSClient/MarketData/MockStream/MockStreamNetworkReply.h \
     Clients/TSClient/MarketData/StreamBars/Bar.h \
     Clients/TSClient/MarketData/StreamBars/StreamBars.h \

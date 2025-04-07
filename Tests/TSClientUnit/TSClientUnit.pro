@@ -17,6 +17,7 @@ SOURCES += \
     ../../Clients/TSClient/Brokerage/GetAccounts/Account.cpp \
     ../../Clients/TSClient/Brokerage/GetAccounts/GetAccounts.cpp \
     ../../Clients/TSClient/Stream/Stream.cpp \
+    ../../Clients/TSClient/MarketData/GetQuoteSnapshots/QuoteSnapshot.cpp \
     ../../Clients/TSClient/MarketData/MockStream/MockStreamNetworkReply.cpp \
     ../../Clients/TSClient/MarketData/StreamBars/Bar.cpp \
     ../../Clients/TSClient/MarketData/StreamBars/StreamBars.cpp \
@@ -36,6 +37,7 @@ HEADERS += \
     ../../Clients/TSClient/Brokerage/Accounts/Account.h \
     ../../Clients/TSClient/Brokerage/GetAccounts/GetAccounts.h \
     ../../Clients/TSClient/Stream/Stream.h \
+    ../../Clients/TSClient/MarketData/GetQuoteSnapshots/QuoteSnapshot.h \
     ../../Clients/TSClient/MarketData/MockStream/MockStreamNetworkReply.h \
     ../../Clients/TSClient/MarketData/StreamBars/Bar.h \
     ../../Clients/TSClient/MarketData/StreamBars/StreamBars.h \

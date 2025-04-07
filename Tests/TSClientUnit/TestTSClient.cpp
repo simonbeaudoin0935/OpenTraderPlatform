@@ -194,6 +194,43 @@ void TestTSClient::testFetchAsyncAccounts()
     QVERIFY(client->isCleanedUp());
 }
 
+void TestTSClient::testFetchSyncQuoteSnapshots()
+{
+    bool success;
+
+    QString symbol = "AAPL";
+
+    // Verify initial state
+    QVERIFY(client->isCleanedUp());
+    QVERIFY(client->isAuthenticated());
+
+    QVector<QuoteSnapshot> quoteResults;
+    success = client->fetchSyncQuoteSnapshots(symbol, quoteResults);
+
+    // Verify the results
+    QVERIFY(success);
+    QCOMPARE(quoteResults.size(), 1); // We asked for one symbol, there should be one quote
+    qDebug() << "Found" << quoteResults.size() << " quote snapshots";
+
+
+    // Verify each account has valid data
+    const QVector<QuoteSnapshot>& constResults = quoteResults;
+    for (const QuoteSnapshot& quote : constResults) {
+
+        QVERIFY(quote.isValid());
+
+        qDebug().noquote() << "Quote snapshot :\n" << quote.toJsonString();
+    }
+
+    // Verify no resources were leaked
+    QVERIFY(client->isCleanedUp());
+}
+
+void TestTSClient::testFetchAsyncQuoteSnapshots()
+{
+
+}
+
 #warning create test for concurrent sync requests, there might be a race with the wait-condition where its only one for everybody
 void TestTSClient::testPlaceSyncOrder()
 {
