@@ -41,22 +41,29 @@ void Stream::onReadyRead()
 
     emit receivedAmountOfData(bytesReceived);
 
-    // Split the data by \r\n and process each JSON object
-    QList<QByteArray> jsonObjects = rawData.split('\n');
-    for (const QByteArray& jsonStr : jsonObjects) {
-        if (jsonStr.trimmed().isEmpty()) continue;
+    accumulatedData.append(rawData);
+
+    while(true) {
+        int delimiterPos = accumulatedData.indexOf('\n');
+        if (delimiterPos == -1) {
+            // No complete object yet, wait for more data
+            break;
+        }
+
+        QByteArray jsonData = accumulatedData.left(delimiterPos + 1);
+        accumulatedData.remove(0, delimiterPos + 1); // Remove extracted data from buffer
 
         QJsonParseError parseError;
-        QJsonDocument doc = QJsonDocument::fromJson(jsonStr, &parseError);
-        
+        QJsonDocument doc = QJsonDocument::fromJson(jsonData, &parseError);
+
         if (parseError.error != QJsonParseError::NoError) {
             qCWarning(StreamLog) << Q_FUNC_INFO << "Failed to parse JSON:" << parseError.errorString();
-            qCWarning(StreamLog) << "Raw data : " << jsonStr;
+            qCWarning(StreamLog) << "Raw data : " << jsonData;
             continue;
         }
 
         QJsonObject jsonObj = doc.object();
-        
+
         if (jsonObj.contains("Heartbeat") && jsonObj.contains("Timestamp")) {
             heartbeatTimer->start(timeoutMS);
         }

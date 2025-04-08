@@ -57,5 +57,7 @@ private:
 
     QNetworkReply *reply = nullptr;
     unsigned int timeoutMS = 7000;
+
+    QByteArray accumulatedData;
 };
 
