@@ -52,6 +52,7 @@ void Gauge::setRange(double min, double max) {
 }
 
 void Gauge::paintEvent(QPaintEvent *event) {
+    Q_UNUSED(event);
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
@@ -63,20 +64,12 @@ void Gauge::paintEvent(QPaintEvent *event) {
 }
 
 void Gauge::drawBackground(QPainter &painter) {
-    // Calculate the space needed for labels
-    double barHeight = height() * 0.25;
-    double tickLength = barHeight * 0.16;
-    double labelPadding = height() * 0.02;
-    
     // Calculate font metrics for the largest possible label
     QFont font = painter.font();
     font.setPointSize(qMax(7, static_cast<int>(height() * 0.06)));
     QFontMetrics fm(font);
-    int labelHeight = fm.height() + (labelPadding * 2);
 
-    // Calculate total vertical padding needed
-    double topPadding = height() * 0.25; // Space for title
-    double bottomPadding = tickLength + labelHeight + (height() * 0.08); // Added extra padding at bottom
+
 
     // Create background rect with adjusted padding
     QRectF rect = QRectF(0, 0, width(), height())

@@ -1,5 +1,5 @@
 TEMPLATE = app
-TARGET = test_tradestationclient
+TARGET = test_barcache
 QT += core network testlib
 CONFIG += testlib
 
@@ -9,8 +9,8 @@ include($$PWD/../../Clients/Clients.pri)
 include($$PWD/../../Misc/Misc.pri)
 
 #test sources
-SOURCES += TestTSClient.cpp main.cpp
-HEADERS += TestTSClient.h
+SOURCES += TestBarCache.cpp main.cpp
+HEADERS += TestBarCache.h
 
 QMAKE_CXXFLAGS += -Og
 

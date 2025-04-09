@@ -34,7 +34,5 @@ private slots:
     //     for the next minute instead of having them fail
 
 private:
-    bool isMarketOpened();
-
     QString secondAccountId; // Store the second account's ID for use in place order test
 };

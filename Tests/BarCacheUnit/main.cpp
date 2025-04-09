@@ -2,13 +2,13 @@
 #include <QCommandLineParser>
 #include <QString>
 
-#include "TestTSClient.h"
+#include "TestBarCache.h"
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     QThread::currentThread()->setObjectName("MainThread");
 
-    TestTSClient test;
+    TestBarCache test;
     return QTest::qExec(&test, argc, argv);
 } 
