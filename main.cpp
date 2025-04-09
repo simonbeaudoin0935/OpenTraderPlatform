@@ -12,9 +12,7 @@
 #endif
 
 #include "Misc/ArgumentParser.h"
-#include "Misc/Settings.h"
 #include "Core/MainApp.h"
-#include "Clients/FMPClient/FMPClient.h"
 
 int main(int argc, char *argv[])
 {
@@ -25,14 +23,6 @@ int main(int argc, char *argv[])
     app.setWindowIcon(QIcon(":/Icons/L2T.png"));
 
     parseArguments(app.arguments());
-
-    QString fmpToken = tokensSettings->value("FMP/AccessToken").toString();
-    if (fmpToken.isEmpty()) {
-        qFatal() << "No FMP access token found in config.ini. Exiting...";
-    }
-
-#warning Fix this shit
-    FMPClient::getInstance().setAPIKey(fmpToken);
 
     MainApp mainApp(new FRONTEND());
 

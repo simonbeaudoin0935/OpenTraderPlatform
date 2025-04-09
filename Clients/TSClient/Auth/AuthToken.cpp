@@ -150,17 +150,17 @@ bool AuthToken::validateExpiresIn(int expiresIn)
 AuthToken AuthToken::loadFromSettings()
 {
     QSettings settings(QSettings::IniFormat, QSettings::UserScope,
-                      "TradeStationAuth", "Tokens");
+                      "L2Trader", "TradeStationTokens");
     settings.setFallbacksEnabled(false);
 
     AuthToken token;
     // Load all required fields
-    token.accessToken  = settings.value("access_token").toString();
-    token.refreshToken = settings.value("refresh_token").toString();
-    token.idToken      = settings.value("id_token").toString();
-    token.tokenType    = settings.value("token_type").toString();
-    token.scope        = settings.value("scope").toString();
-    token.expiresIn    = settings.value("expires_in").toInt();
+    token.accessToken  = settings.value("Tokens/access_token").toString();
+    token.refreshToken = settings.value("Tokens/refresh_token").toString();
+    token.idToken      = settings.value("Tokens/id_token").toString();
+    token.tokenType    = settings.value("Tokens/token_type").toString();
+    token.scope        = settings.value("Tokens/scope").toString();
+    token.expiresIn    = settings.value("Tokens/expires_in").toInt();
     token.receivedAt   = QDateTime::fromString(settings.value("received_at").toString(), Qt::ISODate);
 
     return token;
@@ -169,17 +169,17 @@ AuthToken AuthToken::loadFromSettings()
 bool AuthToken::storeToSettings(const AuthToken &token)
 {
     QSettings settings(QSettings::IniFormat, QSettings::UserScope,
-                      "TradeStationAuth", "Tokens");
+                      "L2Trader", "TradeStationTokens");
     settings.setFallbacksEnabled(false);
 
     // Store all fields
-    settings.setValue("access_token", token.accessToken);
-    settings.setValue("refresh_token", token.refreshToken);
-    settings.setValue("id_token", token.idToken);
-    settings.setValue("token_type", token.tokenType);
-    settings.setValue("scope", token.scope);
-    settings.setValue("expires_in", token.expiresIn);
-    settings.setValue("received_at", token.receivedAt.toString(Qt::ISODate));
+    settings.setValue("Tokens/access_token", token.accessToken);
+    settings.setValue("Tokens/refresh_token", token.refreshToken);
+    settings.setValue("Tokens/id_token", token.idToken);
+    settings.setValue("Tokens/token_type", token.tokenType);
+    settings.setValue("Tokens/scope", token.scope);
+    settings.setValue("Tokens/expires_in", token.expiresIn);
+    settings.setValue("Tokens/received_at", token.receivedAt.toString(Qt::ISODate));
 
     // Force an immediate write to disk
     settings.sync();

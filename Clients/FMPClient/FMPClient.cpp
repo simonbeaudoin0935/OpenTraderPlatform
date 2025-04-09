@@ -7,6 +7,7 @@
 #include <QMutexLocker>
 #include <QDebug>
 #include <QNetworkRequest>
+#include <QSettings>
 
 #include "FMPClient.h"
 
@@ -41,6 +42,17 @@ FMPClient* FMPClient::getInstancePtr() {
 FMPClient::FMPClient() :
     RESTClient(QUrl(BASE_URL_FMP_API))
 {
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                       "L2Trader", "FMPToken");
+    settings.setFallbacksEnabled(false);
+
+    QString fmpToken = settings.value("Tokens/AccessToken").toString();
+    if (fmpToken.isEmpty()) {
+        qFatal() << "No FMP access token found in config.ini. Exiting...";
+    }
+
+    setAPIKey(fmpToken);
+
     qCDebug(FMPClientLog) << Q_FUNC_INFO << ": FMPClient created using KEY=" << apiKey;
 
     thread->setObjectName("FPMClientThread");

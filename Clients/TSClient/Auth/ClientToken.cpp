@@ -29,7 +29,7 @@ QString ClientToken::toString() const
 ClientToken ClientToken::loadFromSettings()
 {
     QSettings settings(QSettings::IniFormat, QSettings::UserScope,
-                      "TradeStationAuth", "Credentials");
+                      "L2Trader", "TradeStationCredentials");
     settings.setFallbacksEnabled(false);
 
     ClientToken token;

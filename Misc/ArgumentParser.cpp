@@ -13,9 +13,6 @@ void parseArguments(const QStringList &args) {
     parser.addHelpOption();
     parser.addVersionOption();
 
-    QCommandLineOption configTokensOption("tokens", "Path to the tokens file (e.g., tokens.ini)", "file", "./tokens.ini");
-    parser.addOption(configTokensOption);
-
     QCommandLineOption configConfigOption("config", "Path to the config file (e.g., config.ini)", "file", "./config.ini");
     parser.addOption(configConfigOption);
 
@@ -57,15 +54,6 @@ void parseArguments(const QStringList &args) {
             qDebug() << "Using logging configuration from:" << logFile;
         }
     }
-
-    QString tokensFile = parser.value(configTokensOption);
-    {
-        QFileInfo fileInfo(tokensFile);
-        if (!fileInfo.exists() || !fileInfo.isFile()) {
-            qFatal() << "Error: The specified path does not exist or is not a file : " << tokensFile;
-        }
-    }
-    tokensSettings = new QSettings(tokensFile, QSettings::IniFormat);
 
     QString configFile = parser.value(configConfigOption);
     {

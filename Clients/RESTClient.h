@@ -34,9 +34,6 @@ public:
     // starts the inner thread
     void start();
 
-    // Must be called before the first getInstance() call otherwise an assert is triggered in the constructor
-    void setAPIKey(const QString &apiKey);
-
     // To monitor usage
     qsizetype getTotalDataReceivedBytes() const;
 
@@ -51,6 +48,9 @@ private slots:
     void onReplyFinished(QNetworkReply *reply);
 
 protected:
+    // Must be called before the first getInstance() call otherwise an assert is triggered in the constructor
+    void setAPIKey(const QString &apiKey);
+
     enum class RequestSynchronicity { Async, Sync, Stream };
     typedef int RequestTypeInt; // TODO explain why
     const int RequestTypeNone = 0;
