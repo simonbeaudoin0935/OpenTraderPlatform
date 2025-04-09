@@ -27,6 +27,8 @@ private slots:
     void testStreamBars();
     void testStreamMarketDepthQuote();
 
+
+
     //TODO should perhaps implement a max-per-minute limiter to queue the exceeding requests
     //     for the next minute instead of having them fail
 

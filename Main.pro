@@ -4,6 +4,7 @@ QT += core network
 CONFIG += console c++11
 
 SOURCES += \
+    Algo/StockRunUpDetector/StockRunUpDetector.cpp \
     main.cpp \
     Misc/Settings.cpp \
     Misc/ArgumentParser.cpp \
@@ -38,6 +39,7 @@ SOURCES += \
     Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.cpp
 
 HEADERS += \
+    Algo/StockRunUpDetector/StockRunUpDetector.h \
     Misc/Settings.h \
     Misc/ArgumentParser.h \
     Misc/MarketHours.h \

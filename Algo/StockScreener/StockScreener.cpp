@@ -108,6 +108,6 @@ void StockScreener::onSharesFloatReceived(struct FMPClient::SharesFloatResult re
 
         // IMPORTANT launch the fetching of the news, which will be the initial kick
         // to the loop of fetching
-        emit finished();
+        emit finished(symbolsScreenedByFloat);
     }
 }

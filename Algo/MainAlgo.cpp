@@ -52,7 +52,7 @@ void MainAlgo::start()
 void MainAlgo::onThreadStarted()
 {
     connect(&stockScreener, &StockScreener::finished, this, &MainAlgo::onStockScreenerFinished);
-    //stockScreener.start();
+    stockScreener.start();
 }
 
 void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
@@ -90,11 +90,13 @@ void MainAlgo::onStockScreenerFinished()
 {
     // disconnect?
 
-    connect(&breakingNewsFetcher, &BreakingNewsFetcher::foundNewNews, this, &MainAlgo::onNewNewsFound);
+    //connect(&breakingNewsFetcher, &BreakingNewsFetcher::foundNewNews, this, &MainAlgo::onNewNewsFound);
 
-    breakingNewsFetcher.start(stockScreener.getStockScreeningResult(),
-                              newsFetchDepthLimit,
-                              newsFetchingInterval);
+    //breakingNewsFetcher.start(stockScreener.getStockScreeningResult(),
+    //                          newsFetchDepthLimit,
+    //                          newsFetchingInterval);
+
+    stockRunUpDetector.start(stockScreener.getStockScreeningResult());
 }
 
 void MainAlgo::onNewNewsFound(StockNewsResult newNews)

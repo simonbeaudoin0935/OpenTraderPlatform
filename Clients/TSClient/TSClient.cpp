@@ -15,6 +15,7 @@
 #define BASE_URL_TS_API_SIMULATION         "https://sim-api.tradestation.com/v3/"
 
 #define ENDPOINT_GET_QUOTE_SNAPSHOTS       "marketdata/quotes/%1"
+#define ENDPOINT_GET_BARS                  "marketdata/barcharts/%1"
 #define ENDPOINT_STREAM_BARS               "marketdata/stream/barcharts"
 #define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes"
 
@@ -229,7 +230,7 @@ bool TSClient::fetchSyncAccounts(QVector<Account> &results)
 void TSClient::fetchAsyncAccounts()
 {
     QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_GET_ACCOUNTS);
-    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::Accounts));
+    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetAccounts));
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching accounts";
 }
@@ -274,8 +275,8 @@ void TSClient::fetchAsyncQuoteSnapshots(QString &symbols)
 {
     Q_ASSERT(!symbols.isEmpty());
 
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_GET_QUOTE_SNAPSHOTS);
-    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::QuoteSnapshots));
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, QString(ENDPOINT_GET_QUOTE_SNAPSHOTS).arg(symbols));
+    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetQuoteSnapshots));
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching quotes for symbols : " << symbols;
 }
@@ -440,7 +441,7 @@ void TSClient::refreshAsyncAccessToken()
 
         // Make the POST request
         fetchAsync(request,
-                   static_cast<RequestTypeInt>(RequestType::RefreshAccessToken),
+                   static_cast<RequestTypeInt>(RequestType::GetRefreshAccessToken),
                    HttpMethod::POST,
                    postData);
     }
@@ -457,7 +458,7 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) 
             Q_ASSERT_X(0,"","Should not be None anymore");
             break;
 
-        case RequestType::Accounts:
+        case RequestType::GetAccounts:
         {
             const QJsonArray accountsArray = obj["Accounts"].toArray();
             QVector<Account> results;
@@ -473,7 +474,15 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) 
             break;
         }
 
-        case RequestType::RefreshAccessToken:
+        case RequestType::GetBars:
+            Q_ASSERT(0); //TODO not yet implemented
+            break;
+
+        case RequestType::GetQuoteSnapshots:
+            Q_ASSERT(0); //TODO not yet implemented
+            break;
+
+        case RequestType::GetRefreshAccessToken:
             // No emit on purpose, this is calling a private function of this class
             onAsyncRefreshTokenFinished(AuthToken::receiveAuthToken(obj));
             break;
@@ -640,6 +649,18 @@ void TSClient::closeStreamBars(StreamBars *stream)
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamBars " << static_cast<void*>(stream);
 
     TSClient::closeStream(stream);
+}
+
+void TSClient::getBarsAsync(QString &symbol, unsigned int interval, StreamBarsUnit unit, unsigned int barsback, QDateTime firstDate, QDateTime lastDate)
+{
+
+
+    Q_ASSERT(!symbol.isEmpty());
+
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, QString(ENDPOINT_GET_BARS).arg(symbol));
+    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetQuoteSnapshots));
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching Bars for symbols : " << symbol;
 }
 
 StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, unsigned int depth)

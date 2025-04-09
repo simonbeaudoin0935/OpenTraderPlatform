@@ -19,7 +19,7 @@ public:
 
 signals:
 
-    void finished();
+    void finished(QVector<QString> watchlist);
 
 private slots:
     void onSharesFloatReceived(struct FMPClient::SharesFloatResult result);

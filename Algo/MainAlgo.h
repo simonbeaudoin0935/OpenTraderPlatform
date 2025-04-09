@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QFile>
 
+#include "StockRunUpDetector/StockRunUpDetector.h"
 #include "StockScreener/StockScreener.h"
 #include "BreakingNewsFetcher/BreakingNewsFetcher.h"
 #include "StockBarsReceiver/StockBarsReceiver.h"
@@ -43,6 +44,7 @@ private:
 
     QVector<Account> accounts;
 
+    StockRunUpDetector stockRunUpDetector;
     StockScreener stockScreener;
     BreakingNewsFetcher breakingNewsFetcher;
     StockBarsReceiver stockBarsReceiver;

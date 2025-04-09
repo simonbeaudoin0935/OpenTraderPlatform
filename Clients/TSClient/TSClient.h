@@ -63,6 +63,13 @@ public:
                                StreamBarsSessionTemplate sesstionTemplate = StreamBarsSessionTemplate::Default);
     void closeStreamBars(StreamBars* stream);
 
+    void getBarsAsync(QString &symbol,
+                      unsigned int interval = 1,
+                      StreamBarsUnit unit = StreamBarsUnit::Daily,
+                      unsigned int barsback = 1,
+                      QDateTime firstDate = QDateTime(),
+                      QDateTime lastDate = QDateTime());
+
     /*
      * Creates a MarketDepthQuote Stream
      *
@@ -147,9 +154,10 @@ private:
 
     enum class RequestType {
         None,
-        Accounts,
-        QuoteSnapshots,
-        RefreshAccessToken
+        GetAccounts,
+        GetBars,
+        GetQuoteSnapshots,
+        GetRefreshAccessToken
     };
 
     void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) override;
