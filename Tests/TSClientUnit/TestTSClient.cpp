@@ -265,7 +265,7 @@ void TestTSClient::testPlaceSyncOrder()
 
     // Place the order
     PlaceOrderResult result;
-    bool success = client->placeSyncOrder(order, result);
+    bool success = client->placeOrderSync(order, result);
     
     // Verify the order was placed successfully
     QVERIFY(success);

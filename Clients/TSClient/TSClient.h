@@ -123,8 +123,8 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/PlaceOrder
      */
-    bool placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &result);
-    void placeAsyncOrder(const PlaceOrderRequest &order);
+    bool placeOrderSync(const PlaceOrderRequest &order, PlaceOrderResult &result);
+    void placeOrderAsync(const PlaceOrderRequest &order);
 
 public slots:
     #ifdef GUI_ENABLED

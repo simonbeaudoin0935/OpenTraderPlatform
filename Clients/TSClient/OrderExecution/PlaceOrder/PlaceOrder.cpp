@@ -436,7 +436,7 @@ QString OrderResultItem::toJsonString() const {
 }
 
 
-bool TSClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &result) {
+bool TSClient::placeOrderSync(const PlaceOrderRequest &order, PlaceOrderResult &result) {
 
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
@@ -473,7 +473,7 @@ bool TSClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &
     return true;
 }
 
-void TSClient::placeAsyncOrder(const PlaceOrderRequest &order) {
+void TSClient::placeOrderAsync(const PlaceOrderRequest &order) {
     Q_UNUSED(order);
 
     Q_ASSERT_X(0, "placeAsyncOrder", "TODO implement");
