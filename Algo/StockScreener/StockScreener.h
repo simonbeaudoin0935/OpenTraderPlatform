@@ -3,7 +3,7 @@
 #include <QObject>
 #include <QLoggingCategory>
 
-#include "FMPClient.h"
+#include "../../Clients/FMPClient/FMPClient.h"
 
 Q_DECLARE_LOGGING_CATEGORY(StockScreenerLog)
 

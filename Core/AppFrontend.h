@@ -4,7 +4,7 @@
 #include <QJsonObject>
 #include "Clients/TSClient/Brokerage/GetAccounts/Account.h"
 #include "Clients/TSClient/Brokerage/StreamPositions/Position.h"
-#include "Clients/TSClient/MarketData/StreamBars/Bar.h"
+#include "Clients/TSClient/MarketData/Bars/Bar.h"
 #include "Clients/TSClient/MarketData/StreamMarketDepthQuote/MarketDepthQuote.h"
 
 class AppFrontend : public QObject {
@@ -16,7 +16,6 @@ public:
 signals:
     void tradeStationAuthStateChanged(bool isAuthenticated, QString reason);
     void tradeStationAccountsReceived(QVector<Account> results);
-    void marketDepthNotAvailable();
 
     void fmpDataUsageUpdated(qsizetype newDataUsage);
     void tradeStationDataUsageUpdated(qsizetype newDataUsage);
@@ -34,7 +33,6 @@ public slots:
     virtual void onMemoryUsageUpdate(qint64 newDataUsage) = 0;
 
     virtual void onTradeStationAccountsReceived(QVector<Account> results) = 0;
-    virtual void onMarketDepthNotAvailable() = 0;
     virtual void onNewPositionReceived(QString account, Position position) = 0;
 
     virtual void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) = 0;

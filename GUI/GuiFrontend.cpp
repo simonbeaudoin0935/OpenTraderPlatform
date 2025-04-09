@@ -190,10 +190,6 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
             this, &GuiFrontend::onTSClientDataUsageUpdate,
             Qt::DirectConnection);
 
-    connect(this, &AppFrontend::marketDepthNotAvailable,
-            this, &GuiFrontend::onMarketDepthNotAvailable,
-            Qt::DirectConnection);
-
     connect(this, &AppFrontend::currentHighlightedStockBarReceived,
             this, &GuiFrontend::onCurrentHighlightedStockBarReceived,
             Qt::DirectConnection);
@@ -266,17 +262,6 @@ void GuiFrontend::onMemoryUsageUpdate(qint64 newDataUsage)
     QString usageMemory = bytesToString(newDataUsage);
 
     ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
-}
-
-void GuiFrontend::onMarketDepthNotAvailable()
-{
-    QMessageBox::critical(ui->centralwidget, "Missing Level 2 data",
-                          "Received error 403 when accessing Level 2.\n"
-                          "This means Level 2 data is not activated on the account.\n"
-                          "You need to go to :\n"
-                          "https://clientcenter.tradestation.com/support/myaccount/change_data.aspx\n"
-                          "And subscribe to NASDAQ Real-Time Data Package #3.\n"
-                          "And by extention the Enhanced Market Depth package.");
 }
 
 void GuiFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)

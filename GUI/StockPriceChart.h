@@ -12,7 +12,8 @@
 #include <QGraphicsRectItem>
 #include <QMouseEvent>
 #include <QTimeZone>
-#include "../Clients/TSClient/MarketData/StreamBars/Bar.h"
+
+#include "../Clients/TSClient/MarketData/Bars/Bar.h"
 
 QT_USE_NAMESPACE
 

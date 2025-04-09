@@ -4,7 +4,7 @@
 #include <QLoggingCategory>
 #include <QMap>
 
-#include "Clients/TSClient/MarketData/StreamBars/StreamBars.h"
+#include "Clients/TSClient/MarketData/Bars/StreamBars.h"
 
 Q_DECLARE_LOGGING_CATEGORY(StockBarsReceiverLog)
 

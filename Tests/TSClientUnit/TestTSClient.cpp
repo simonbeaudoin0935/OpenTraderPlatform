@@ -329,9 +329,9 @@ void TestTSClient::testStreamBars()
 
     streamBars = client->openStreamBars(symbol,
                                         1,
-                                        TSClient::StreamBarsUnit::Minute,
+                                        Bar::BarUnit::Minute,
                                         10,
-                                        TSClient::StreamBarsSessionTemplate::USEQ24Hour);
+                                        Bar::BarSessionTemplate::USEQ24Hour);
     QVERIFY(streamBars != nullptr);
 
     QSignalSpy signalSpy(streamBars, &StreamBars::receivedNewBar);

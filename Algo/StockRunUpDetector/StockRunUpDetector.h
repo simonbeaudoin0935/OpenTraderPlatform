@@ -1,6 +1,6 @@
 #pragma once
 #include <QObject>
-#include "Clients/TSClient/MarketData/StreamBars/Bar.h"
+#include "Clients/TSClient/MarketData/Bars/Bar.h"
 
 class StockRunUpDetector : public QObject
 {

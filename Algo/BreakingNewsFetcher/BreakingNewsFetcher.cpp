@@ -1,4 +1,4 @@
-#include "FMPClient.h"
+#include "../../Clients/FMPClient/FMPClient.h"
 #include "BreakingNewsFetcher.h"
 
 Q_LOGGING_CATEGORY(BreakingNewsFetcherLog, "BreakingNewsFetcher")

@@ -30,8 +30,6 @@ public:
     };
 
 signals:
-#warning TODO // Move this from Stream to marketDepth*
-    void marketDepthNotAvailable();
     void streamErrorOccurred(StreamError error, QString errorMessage);
     void receivedAmountOfData(qsizetype bytes);
 

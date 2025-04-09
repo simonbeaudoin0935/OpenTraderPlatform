@@ -121,12 +121,7 @@ void Stream::onFinished()
         QString message = jsonObj["Message"].toString();
         int statusCode = jsonObj["StatusCode"].toInt();
 
-        if (message == "Missing required scope." && statusCode == 403) {
-            qWarning() << Q_FUNC_INFO << "Missing required scope error detected";
-
-            emit marketDepthNotAvailable();
-            return;
-        }
+        qWarning() << Q_FUNC_INFO << "Received message : " << message << " with status code : " << statusCode;
     }
 }
 
@@ -138,16 +133,6 @@ void Stream::onErrorOccurred(QNetworkReply::NetworkError code) {
 
     qCWarning(StreamLog) << Q_FUNC_INFO <<
         "The stream " << static_cast<void*>(this) << " received the error : " << code << " : " << reply->errorString();
-
-    if (code == QNetworkReply::ContentAccessDenied) {
-        qWarning() << Q_FUNC_INFO <<
-            "Level2 data is not activated on the account";
-
-        //if (!isMarketDepthNotAvailableAlreadyEmitted) { // This is a hack to avoid emitting the signal multiple times
-            emit marketDepthNotAvailable();
-        //    isMarketDepthNotAvailableAlreadyEmitted = true;
-        //}
-    }
 }
 
 void Stream::onHeartbeatTimerTimeout()

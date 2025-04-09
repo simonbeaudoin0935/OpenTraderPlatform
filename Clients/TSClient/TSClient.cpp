@@ -12,18 +12,6 @@
 #endif
 
 
-#define BASE_URL_TS_API_SIMULATION         "https://sim-api.tradestation.com/v3/"
-
-#define ENDPOINT_GET_QUOTE_SNAPSHOTS       "marketdata/quotes/%1"
-#define ENDPOINT_GET_BARS                  "marketdata/barcharts/%1"
-#define ENDPOINT_STREAM_BARS               "marketdata/stream/barcharts"
-#define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes"
-
-#define ENDPOINT_GET_ACCOUNTS              "brokerage/accounts"
-#define ENDPOINT_STREAM_POSITIONS          "brokerage/stream/accounts/%1/positions"
-
-#define ENDPOINT_PLACE_ORDER               "orderexecution/orders"
-
 Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
 
 // Initialize static member outside class
@@ -600,68 +588,8 @@ void TSClient::closeStream(Stream* const stream) {
 }
 
 
-StreamBars *TSClient::openStreamBars(QString &symbol, unsigned int interval, StreamBarsUnit unit, unsigned int barsback, StreamBarsSessionTemplate sessionTemplate)
-{
-    // Interval that each bar will consist of - for minute bars, the number of minutes aggregated in a single bar. For bar units other than minute, value must be 1.
-    if (unit == StreamBarsUnit::Minute) {Q_ASSERT(interval >= 1);}
-    else { Q_ASSERT(interval == 1);}
-    Q_ASSERT(barsback <= 57600);
-
-    const QString endpoint = ENDPOINT_STREAM_BARS;
-
-    QUrlQuery query;
-    query.addQueryItem("interval", QString::number(interval));
-    query.addQueryItem("unit", [unit]() -> QString {
-        switch (unit) {
-        case StreamBarsUnit::Minute: return "Minute";
-        case StreamBarsUnit::Daily: return "Daily";
-        case StreamBarsUnit::Weekly: return "Weekly";
-        case StreamBarsUnit::Monthly: return "Monthly";
-        default: Q_UNREACHABLE_RETURN("Unknown");
-        }
-    }());
-    query.addQueryItem("barsback", QString::number(barsback));
-    query.addQueryItem("sessiontemplate", [sessionTemplate]() -> QString {
-        switch (sessionTemplate) {
-        case StreamBarsSessionTemplate::USEQPre: return "USEQPre";
-        case StreamBarsSessionTemplate::USEQPost: return "USEQPost";
-        case StreamBarsSessionTemplate::USEPreAndPost: return "USEPreAndPost";
-        case StreamBarsSessionTemplate::USEQ24Hour: return "USEQ24Hour";
-        case StreamBarsSessionTemplate::Default: return "Default";
-        default: Q_UNREACHABLE_RETURN("Unknown");
-        }
-    }());
-
-    StreamBars * stream = new StreamBars(symbol);
-    stream->moveToThread(thread);
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamBars" << static_cast<void*>(stream);
-
-    TSClient::openStream(symbol, endpoint, query, stream);
-
-    return stream;
-}
-
-void TSClient::closeStreamBars(StreamBars *stream)
-{
-    Q_ASSERT(stream != nullptr);
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamBars " << static_cast<void*>(stream);
-
-    TSClient::closeStream(stream);
-}
-
-void TSClient::getBarsAsync(QString &symbol, unsigned int interval, StreamBarsUnit unit, unsigned int barsback, QDateTime firstDate, QDateTime lastDate)
-{
 
 
-    Q_ASSERT(!symbol.isEmpty());
-
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, QString(ENDPOINT_GET_BARS).arg(symbol));
-    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetQuoteSnapshots));
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching Bars for symbols : " << symbol;
-}
 
 StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, unsigned int depth)
 {
@@ -677,11 +605,6 @@ StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, un
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamMarketDepthQuote " << static_cast<void*>(stream);
 
     TSClient::openStream(symbol, endpoint, query, stream);
-
-    // Specially to StreakMarketDepth Quote/Aggregates, there is the possibility that the client account
-    // do not have access to level2 data.
-    connect(stream, &Stream::marketDepthNotAvailable,
-            this, &TSClient::marketDepthNotAvailable);
 
     return stream;
 }

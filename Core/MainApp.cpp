@@ -21,9 +21,6 @@ MainApp::MainApp(AppFrontend* appFrontend) :
     QObject::connect(tradeStationClient, &TSClient::accountsAsyncReceived,
                      appFrontend, &AppFrontend::tradeStationAccountsReceived);
 
-    QObject::connect(tradeStationClient, &TSClient::marketDepthNotAvailable,
-                     appFrontend, &AppFrontend::marketDepthNotAvailable);
-
     // Connect FMP data usage updates to frontend
     QObject::connect(fmpClient, &FMPClient::totalDataReceivedBytesIncreased,
                      appFrontend, &AppFrontend::fmpDataUsageUpdated);

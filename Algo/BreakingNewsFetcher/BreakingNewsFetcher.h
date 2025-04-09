@@ -4,7 +4,8 @@
 #include <QObject>
 #include <QLoggingCategory>
 
-#include "Filters/StockNewsFilter.h"
+#include "../../Clients/FMPClient/Filters/StockNewsFilter.h"
+
 
 Q_DECLARE_LOGGING_CATEGORY(BreakingNewsFetcherLog)
 

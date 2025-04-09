@@ -2,7 +2,7 @@
 
 #include <QObject>
 
-#include "../../Clients/TSClient/Stream/Stream.h"
+#include "../../Stream/Stream.h"
 #include "Bar.h"
 
 

@@ -1,20 +1,6 @@
 #include "StreamPositions.h"
 #include <QJsonDocument>
 
-StreamPositions::StreamPositionStatus::StreamPositionStatus(const QJsonObject& jsonObj) {
-    // Get the StreamStatus string
-    statusString = jsonObj["StreamStatus"].toString();
-
-    // Convert string to enum
-    if (statusString == "EndSnapshot") {
-        status = Status::EndSnapshot;
-    } else if (statusString == "GoAway") {
-        status = Status::GoAway;
-    } else {
-        status = Status::Unknown;
-    }
-}
-
 bool StreamPositions::StreamPositionStatus::isValid() const {
     // A status object is valid if it contains a non-empty status string
     return !statusString.isEmpty();
@@ -79,5 +65,20 @@ bool StreamPositions::processJsonObject(const QJsonObject &jsonObj)
             "Position update object invalid : " << jsonString <<
             "Malformed object to string : " << position.toJsonString();
         return false;
+    }
+}
+
+
+StreamPositions::StreamPositionStatus::StreamPositionStatus(const QJsonObject& jsonObj) {
+    // Get the StreamStatus string
+    statusString = jsonObj["StreamStatus"].toString();
+
+    // Convert string to enum
+    if (statusString == "EndSnapshot") {
+        status = Status::EndSnapshot;
+    } else if (statusString == "GoAway") {
+        status = Status::GoAway;
+    } else {
+        status = Status::Unknown;
     }
 }

@@ -11,13 +11,25 @@
 #include "Brokerage/StreamPositions/StreamPositions.h"
 #include "OrderExecution/PlaceOrder/PlaceOrder.h"
 #include "MarketData/GetQuoteSnapshots/QuoteSnapshot.h"
-#include "MarketData/StreamBars/StreamBars.h"
+#include "MarketData/Bars/StreamBars.h"
 #include "MarketData/StreamMarketDepthQuote/StreamMarketDepthQuote.h"
 #ifdef GUI_ENABLED
 #include "Auth/AuthWindow.h"
 #endif
 
 Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
+
+#define BASE_URL_TS_API_SIMULATION         "https://sim-api.tradestation.com/v3/"
+
+#define ENDPOINT_GET_QUOTE_SNAPSHOTS       "marketdata/quotes/%1"
+#define ENDPOINT_GET_BARS                  "marketdata/barcharts/%1"
+#define ENDPOINT_STREAM_BARS               "marketdata/stream/barcharts"
+#define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes"
+
+#define ENDPOINT_GET_ACCOUNTS              "brokerage/accounts"
+#define ENDPOINT_STREAM_POSITIONS          "brokerage/stream/accounts/%1/positions"
+
+#define ENDPOINT_PLACE_ORDER               "orderexecution/orders"
 
 // This is a singleton
 
@@ -53,22 +65,20 @@ public:
      *
      * @note : Returned pointer dynamically allocated. Delete with closeStreamBars
      */
-    enum class StreamBarsUnit { Minute, Daily, Weekly, Monthly };
-    enum class StreamBarsSessionTemplate { USEQPre, USEQPost, USEPreAndPost,USEQ24Hour, Default };
-
     StreamBars* openStreamBars(QString &symbol,
                                unsigned int interval = 1,
-                               StreamBarsUnit unit = StreamBarsUnit::Daily,
+                               Bar::BarUnit unit = Bar::BarUnit::Daily,
                                unsigned int barsback = 1,
-                               StreamBarsSessionTemplate sesstionTemplate = StreamBarsSessionTemplate::Default);
+                               Bar::BarSessionTemplate sesstionTemplate = Bar::BarSessionTemplate::Default);
     void closeStreamBars(StreamBars* stream);
 
     void getBarsAsync(QString &symbol,
                       unsigned int interval = 1,
-                      StreamBarsUnit unit = StreamBarsUnit::Daily,
+                      Bar::BarUnit unit = Bar::BarUnit::Daily,
                       unsigned int barsback = 1,
                       QDateTime firstDate = QDateTime(),
-                      QDateTime lastDate = QDateTime());
+                      QDateTime lastDate = QDateTime(),
+                      Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default);
 
     /*
      * Creates a MarketDepthQuote Stream
@@ -127,8 +137,6 @@ signals:
     void accountsAsyncReceived(QVector<Account> results);
     void quoteSnapshotsAsyncReceived(QVector<QuoteSnapshot> quoteSnapshots);
     void placeAsyncOrderReceived(const PlaceOrderResult &result);
-
-    void marketDepthNotAvailable();
 
 private slots:
     #ifdef GUI_ENABLED

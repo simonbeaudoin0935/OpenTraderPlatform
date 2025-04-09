@@ -8,6 +8,10 @@
 
 class Bar {
 public:
+
+    enum class BarUnit { Minute, Daily, Weekly, Monthly };
+    enum class BarSessionTemplate { USEQPre, USEQPost, USEPreAndPost,USEQ24Hour, Default };
+
     // Default constructor
     Bar() = default;
     
