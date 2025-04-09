@@ -394,17 +394,17 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 
     doc = QJsonDocument::fromJson(rawData, &parseError);
 
-    if (parseError.error != QJsonParseError::NoError) {
-        qCWarning(RESTClientLog) << Q_FUNC_INFO << "Failed to parse JSON:" << parseError.errorString();
-        qCWarning(RESTClientLog) << Q_FUNC_INFO << "Content of the bad data : " << rawData;
-        goto notify;
-    }
-
     if (reply->error() != QNetworkReply::NoError) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO <<
             " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString() << " : " << reply->error();
         qCWarning(RESTClientLog).noquote() << Q_FUNC_INFO <<
             " : Content of the reply : \n" << doc.toJson(QJsonDocument::Indented);
+        goto notify;
+    }
+
+    if (parseError.error != QJsonParseError::NoError) {
+        qCWarning(RESTClientLog) << Q_FUNC_INFO << "Failed to parse JSON:" << parseError.errorString();
+        qCWarning(RESTClientLog) << Q_FUNC_INFO << "Content of the bad data : " << rawData;
         goto notify;
     }
 

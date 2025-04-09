@@ -52,7 +52,7 @@ void MainAlgo::start()
 void MainAlgo::onThreadStarted()
 {
     connect(&stockScreener, &StockScreener::finished, this, &MainAlgo::onStockScreenerFinished);
-    stockScreener.start();
+    //stockScreener.start();
 }
 
 void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)

@@ -30,7 +30,7 @@ void parseArguments(const QStringList &args) {
     {
         QFileInfo fileInfo(logFile);
         if (!fileInfo.exists() || !fileInfo.isFile()) {
-            qFatal() << "Fatal: The specified logging configuration file does not exist or is not a file : " << logFile;
+            qWarning() << "Fatal: The specified logging configuration file does not exist or is not a file : " << logFile;
         } else {
             QFile file(logFile);
             if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
