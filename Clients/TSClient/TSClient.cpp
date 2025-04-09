@@ -394,13 +394,6 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) 
     }
 }
 
-void TSClient::processStreamFinished(QByteArray &rawData, void *arg)
-{
-    Q_ASSERT(arg != nullptr);
-    Q_UNUSED(rawData)
-#warning REMOVE this is dead code
-}
-
 void TSClient::openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Stream * const stream) {
     Q_ASSERT(!symbol.isEmpty());
     if (symbol != "NOSYMBOL") Q_ASSERT(symbol.length() >= 1 && symbol.length() <= 8);

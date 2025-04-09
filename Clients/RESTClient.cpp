@@ -343,22 +343,6 @@ void RESTClient::closeStream(void *arg)
     return;
 }
 
-void RESTClient::processStreamFinished(QByteArray &rawData, void *arg)
-{
-    // Default implementation when not TSClient
-    Q_UNUSED(rawData);
-    Q_UNUSED(arg);
-    Q_ASSERT(0);
-}
-
-void RESTClient::processStreamReadyRead(QByteArray &rawData, void *arg)
-{
-    // Default implementation when not TSClient
-    Q_UNUSED(rawData);
-    Q_UNUSED(arg);
-    Q_ASSERT(0);
-}
-
 void RESTClient::onReplyFinished(QNetworkReply *reply) {
     QJsonDocument doc;
     RequestInfo *requestInfo;
@@ -472,8 +456,6 @@ notify:
         // Here we left the request in the container. The caller will remove it in its thread
 
     } else if (requestInfo->synchronicity == RequestSynchronicity::Stream) {
-        processStreamFinished(rawData, requestInfo->optArg);
-
         qCDebug(RESTClientLog) << Q_FUNC_INFO << "Removing network reply " << static_cast<void*>(reply) << " for stream " << requestInfo->optArg;
 
         bool removed = pendingRequests.remove(reply);

@@ -170,8 +170,6 @@ private:
 
     void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) override;
 
-    void processStreamFinished(QByteArray &rawData, void *arg) override;
-
     // tokens
     AuthToken authToken;
     ClientToken clientToken;

@@ -90,9 +90,6 @@ protected:
 
     virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) = 0;
 
-    virtual void processStreamFinished(QByteArray &rawData, void* arg); // for stream
-    virtual void processStreamReadyRead(QByteArray &rawData, void* arg); // for stream
-
     qsizetype totalDataReceivedBytes = 0;
     QString apiKey;
     QThread *thread;
