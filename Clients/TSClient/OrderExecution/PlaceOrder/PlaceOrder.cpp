@@ -3,6 +3,8 @@
 #include <QDateTime>
 #include <QJsonArray>
 
+#include "../../TSClient.h"
+
 // TimeInForce implementation
 TimeInForce::TimeInForce(OrderDuration duration)
     : duration(duration)
@@ -427,4 +429,48 @@ QString OrderResultItem::toJsonString() const {
     
     QJsonDocument doc(jsonObj);
     return QString(doc.toJson(QJsonDocument::Indented));
+}
+
+
+bool TSClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &result) {
+
+    QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
+
+    Q_ASSERT(order.isValid());
+
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_PLACE_ORDER);
+
+    QByteArray postData = QJsonDocument(order.toJson()).toJson(QJsonDocument::Compact);
+
+    bool success = fetchSync(request,
+                             jsonDocumentFromReplyToDelete,
+                             HttpMethod::POST,
+                             postData);
+
+
+
+    if (!success) {
+        // Make sure that if fetchSync failed that this pointed has not been allocated
+        Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
+
+        return false;
+    }
+
+    // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
+    Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
+
+    result = PlaceOrderResult(jsonDocumentFromReplyToDelete->object());
+
+    qCDebug(TSClientLog).noquote() << Q_FUNC_INFO << "Received JSON : \n" << jsonDocumentFromReplyToDelete->toJson(QJsonDocument::Indented);
+
+    // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
+    TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
+
+    return true;
+}
+
+void TSClient::placeAsyncOrder(const PlaceOrderRequest &order) {
+    Q_UNUSED(order);
+
+    Q_ASSERT_X(0, "placeAsyncOrder", "TODO implement");
 }

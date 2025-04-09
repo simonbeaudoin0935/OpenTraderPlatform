@@ -58,7 +58,7 @@ void MainAlgo::onThreadStarted()
 void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
 {
     if (isAuthenticated) {
-        TSClient::getInstance().fetchSyncAccounts(accounts);
+        TSClient::getInstance().getAccountsSync(accounts);
     } else {
         Q_ASSERT_X(false, "FUCK", "FUCKKK");
     }

@@ -54,8 +54,8 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/GetQuoteSnapshots
      */
-    bool fetchSyncQuoteSnapshots(QString &symbols, QVector<QuoteSnapshot> &quoteSnapshots);
-    void fetchAsyncQuoteSnapshots(QString &symbols);
+    bool getQuoteSnapshotsSync(QString &symbols, QVector<QuoteSnapshot> &quoteSnapshots);
+    void getQuoteSnapshotsAsync(QString &symbols);
 
     /*
      * Creates a Bars Stream
@@ -100,8 +100,8 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
      */
-    bool fetchSyncAccounts(QVector<Account> &results);
-    void fetchAsyncAccounts();
+    bool getAccountsSync(QVector<Account> &results);
+    void getAccountsAsync();
 
     /*
      * Creates a StreamPositions Stream

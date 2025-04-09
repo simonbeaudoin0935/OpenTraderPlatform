@@ -1,11 +1,12 @@
 #include <QJsonArray>
 
-#include "GetAccounts.h"
 #include "../../TSClient.h"
 
-bool TSClient::getAccountsSync(QVector<Account> &results)
+bool TSClient::getQuoteSnapshotsSync(QString &symbols, QVector<QuoteSnapshot> &quoteSnapshots)
 {
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_GET_ACCOUNTS);
+    Q_ASSERT(!symbols.isEmpty());
+
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, QString(ENDPOINT_GET_QUOTE_SNAPSHOTS).arg(symbols));
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
 
     bool success = fetchSync(request, jsonDocumentFromReplyToDelete);
@@ -22,13 +23,13 @@ bool TSClient::getAccountsSync(QVector<Account> &results)
 
     // The API returns a single object with an "Accounts" array
     QJsonObject responseObj = jsonDocumentFromReplyToDelete->object();
-    const QJsonArray accountsArray = responseObj["Accounts"].toArray();
+    const QJsonArray quoteSnapshotsArray = responseObj["Quotes"].toArray();
 
     // Resize the array in advance
-    results.reserve(accountsArray.count());
+    quoteSnapshots.reserve(quoteSnapshotsArray.count());
 
-    for (const QJsonValue &json: accountsArray) {
-        results.push_back(Account(json.toObject()));
+    for (const QJsonValue &json: quoteSnapshotsArray) {
+        quoteSnapshots.push_back(QuoteSnapshot(json.toObject()));
     }
 
     // This pointer to a JSON document was allocated in the fetchSync and needs to be deleted after use
@@ -37,10 +38,12 @@ bool TSClient::getAccountsSync(QVector<Account> &results)
     return true;
 }
 
-void TSClient::getAccountsAsync()
+void TSClient::getQuoteSnapshotsAsync(QString &symbols)
 {
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_GET_ACCOUNTS);
-    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetAccounts));
+    Q_ASSERT(!symbols.isEmpty());
 
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching accounts";
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, QString(ENDPOINT_GET_QUOTE_SNAPSHOTS).arg(symbols));
+    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetQuoteSnapshots));
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching quotes for symbols : " << symbols;
 }

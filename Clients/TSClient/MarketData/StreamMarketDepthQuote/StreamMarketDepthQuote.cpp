@@ -1,4 +1,5 @@
 #include "StreamMarketDepthQuote.h"
+#include "../../TSClient.h"
 
 StreamMarketDepthQuote::StreamMarketDepthQuote(QString &symbol, QObject *parent) :
     Stream(parent),
@@ -34,4 +35,32 @@ bool StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
     }
 
     return false;
+}
+
+
+StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, unsigned int depth)
+{
+    Q_ASSERT(depth >= 1 && depth <= 20);
+
+    const QString endpoint = ENDPOINT_STREAM_MARKET_DEPTH_QUOTE;
+    QUrlQuery query;
+    query.addQueryItem("maxlevels", QString::number(depth));
+
+    StreamMarketDepthQuote * stream = new StreamMarketDepthQuote(symbol);
+    stream->moveToThread(thread);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamMarketDepthQuote " << static_cast<void*>(stream);
+
+    TSClient::openStream(symbol, endpoint, query, stream);
+
+    return stream;
+}
+
+void TSClient::closeStreamMarketDepthQuote(StreamMarketDepthQuote *stream)
+{
+    Q_ASSERT(stream != nullptr);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamMarketDepthQuote " << static_cast<void*>(stream);
+
+    TSClient::closeStream(stream);
 }

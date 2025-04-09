@@ -304,7 +304,7 @@ void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
         tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #E6FFE6; color: #4CAF50; padding: 2px 6px; border-radius: 3px; }");
         log += "TradeStation Client AUTHENTICATED : " + reason;
 
-        TSClient::getInstance().fetchAsyncAccounts();
+        TSClient::getInstance().getAccountsAsync();
     } else {
         if (isFirstTime) {
             // If its the first time we receive this signal and its negative state, it just

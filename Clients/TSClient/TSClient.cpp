@@ -1,4 +1,3 @@
-#include "TSClient.h"
 #include <QNetworkAccessManager>
 #include <QThread>
 #include <QNetworkReply>
@@ -11,6 +10,7 @@
 #include <QtTest>
 #endif
 
+#include "TSClient.h"
 
 Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
 
@@ -181,93 +181,6 @@ QByteArray TSClient::buildRefreshTokenQuery(const QString &clientId,
     return query.toString(QUrl::FullyEncoded).toUtf8();
 }
 
-bool TSClient::fetchSyncAccounts(QVector<Account> &results)
-{
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_GET_ACCOUNTS);
-    QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
-
-    bool success = fetchSync(request, jsonDocumentFromReplyToDelete);
-
-    if (false == success) {
-        // Make sure that if fetchSync failed that this pointed has not been allocated
-        Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
-
-        return false;
-    }
-
-    // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
-    Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
-
-    // The API returns a single object with an "Accounts" array
-    QJsonObject responseObj = jsonDocumentFromReplyToDelete->object();
-    const QJsonArray accountsArray = responseObj["Accounts"].toArray();
-
-    // Resize the array in advance
-    results.reserve(accountsArray.count());
-
-    for (const QJsonValue &json: accountsArray) {
-        results.push_back(Account(json.toObject()));
-    }
-
-    // This pointer to a JSON document was allocated in the fetchSync and needs to be deleted after use
-    TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
-
-    return true;
-}
-
-void TSClient::fetchAsyncAccounts()
-{
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_GET_ACCOUNTS);
-    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetAccounts));
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching accounts";
-}
-
-bool TSClient::fetchSyncQuoteSnapshots(QString &symbols, QVector<QuoteSnapshot> &quoteSnapshots)
-{
-    Q_ASSERT(!symbols.isEmpty());
-
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, QString(ENDPOINT_GET_QUOTE_SNAPSHOTS).arg(symbols));
-    QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
-
-    bool success = fetchSync(request, jsonDocumentFromReplyToDelete);
-
-    if (false == success) {
-        // Make sure that if fetchSync failed that this pointed has not been allocated
-        Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
-
-        return false;
-    }
-
-    // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
-    Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
-
-    // The API returns a single object with an "Accounts" array
-    QJsonObject responseObj = jsonDocumentFromReplyToDelete->object();
-    const QJsonArray quoteSnapshotsArray = responseObj["Quotes"].toArray();
-
-    // Resize the array in advance
-    quoteSnapshots.reserve(quoteSnapshotsArray.count());
-
-    for (const QJsonValue &json: quoteSnapshotsArray) {
-        quoteSnapshots.push_back(QuoteSnapshot(json.toObject()));
-    }
-
-    // This pointer to a JSON document was allocated in the fetchSync and needs to be deleted after use
-    TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
-
-    return true;
-}
-
-void TSClient::fetchAsyncQuoteSnapshots(QString &symbols)
-{
-    Q_ASSERT(!symbols.isEmpty());
-
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, QString(ENDPOINT_GET_QUOTE_SNAPSHOTS).arg(symbols));
-    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetQuoteSnapshots));
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching quotes for symbols : " << symbols;
-}
 
 void TSClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
 {
@@ -488,49 +401,6 @@ void TSClient::processStreamFinished(QByteArray &rawData, void *arg)
 #warning REMOVE this is dead code
 }
 
-bool TSClient::placeSyncOrder(const PlaceOrderRequest &order, PlaceOrderResult &result) {
-
-    QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;
-
-    Q_ASSERT(order.isValid());
-
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_PLACE_ORDER);
-
-    QByteArray postData = QJsonDocument(order.toJson()).toJson(QJsonDocument::Compact);
-
-    bool success = fetchSync(request,
-                             jsonDocumentFromReplyToDelete,
-                             HttpMethod::POST,
-                             postData);
-    
-    
-
-    if (!success) {
-        // Make sure that if fetchSync failed that this pointed has not been allocated
-        Q_ASSERT(jsonDocumentFromReplyToDelete == nullptr);
-
-        return false;
-    }
-
-    // The positive return value implies jsonDocumentFromReplyToDelete has been allocated to something
-    Q_ASSERT(jsonDocumentFromReplyToDelete != nullptr);
-
-    result = PlaceOrderResult(jsonDocumentFromReplyToDelete->object());
-
-    qCDebug(TSClientLog).noquote() << Q_FUNC_INFO << "Received JSON : \n" << jsonDocumentFromReplyToDelete->toJson(QJsonDocument::Indented);
-
-    // This pointer to a JSON array was allocated in the fetchSync and needs to be deleted after use
-    TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
-
-    return true;
-}
-
-void TSClient::placeAsyncOrder(const PlaceOrderRequest &order) {
-    Q_UNUSED(order);
-
-    Q_ASSERT_X(0, "placeAsyncOrder", "TODO implement");
-}
-
 void TSClient::openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Stream * const stream) {
     Q_ASSERT(!symbol.isEmpty());
     if (symbol != "NOSYMBOL") Q_ASSERT(symbol.length() >= 1 && symbol.length() <= 8);
@@ -585,64 +455,4 @@ void TSClient::closeStream(Stream* const stream) {
     Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread finishes executing this lambda
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Closed Stream " << static_cast<void*>(stream);
-}
-
-
-
-
-
-StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(QString &symbol, unsigned int depth)
-{
-    Q_ASSERT(depth >= 1 && depth <= 20);
-
-    const QString endpoint = ENDPOINT_STREAM_MARKET_DEPTH_QUOTE;
-    QUrlQuery query;
-    query.addQueryItem("maxlevels", QString::number(depth));
-
-    StreamMarketDepthQuote * stream = new StreamMarketDepthQuote(symbol);
-    stream->moveToThread(thread);
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamMarketDepthQuote " << static_cast<void*>(stream);
-
-    TSClient::openStream(symbol, endpoint, query, stream);
-
-    return stream;
-}
-
-void TSClient::closeStreamMarketDepthQuote(StreamMarketDepthQuote *stream)
-{
-    Q_ASSERT(stream != nullptr);
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamMarketDepthQuote " << static_cast<void*>(stream);
-
-    TSClient::closeStream(stream);
-}
-
-StreamPositions *TSClient::openStreamPositions(QString &account, bool changes)
-{
-    Q_ASSERT(account.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
-
-    const QString endpoint = QString(ENDPOINT_STREAM_POSITIONS).arg(account);
-
-    QUrlQuery query;
-    query.addQueryItem("changes", changes? "true":"false");
-
-    StreamPositions * stream = new StreamPositions(account);
-    stream->moveToThread(thread);
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamPositions " << static_cast<void*>(stream);
-
-    TSClient::openStream("NOSYMBOL", endpoint, query, stream);
-
-
-    return stream;
-}
-
-void TSClient::closeStreamPositions(StreamPositions *stream)
-{
-    Q_ASSERT(stream != nullptr);
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamPositions " << static_cast<void*>(stream);
-
-    TSClient::closeStream(stream);
 }

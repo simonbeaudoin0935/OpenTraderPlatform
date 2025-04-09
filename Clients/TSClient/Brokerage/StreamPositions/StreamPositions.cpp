@@ -1,5 +1,7 @@
-#include "StreamPositions.h"
 #include <QJsonDocument>
+
+#include "StreamPositions.h"
+#include "../../TSClient.h"
 
 bool StreamPositions::StreamPositionStatus::isValid() const {
     // A status object is valid if it contains a non-empty status string
@@ -81,4 +83,34 @@ StreamPositions::StreamPositionStatus::StreamPositionStatus(const QJsonObject& j
     } else {
         status = Status::Unknown;
     }
+}
+
+
+StreamPositions *TSClient::openStreamPositions(QString &account, bool changes)
+{
+    Q_ASSERT(account.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
+
+    const QString endpoint = QString(ENDPOINT_STREAM_POSITIONS).arg(account);
+
+    QUrlQuery query;
+    query.addQueryItem("changes", changes? "true":"false");
+
+    StreamPositions * stream = new StreamPositions(account);
+    stream->moveToThread(thread);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamPositions " << static_cast<void*>(stream);
+
+    TSClient::openStream("NOSYMBOL", endpoint, query, stream);
+
+
+    return stream;
+}
+
+void TSClient::closeStreamPositions(StreamPositions *stream)
+{
+    Q_ASSERT(stream != nullptr);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamPositions " << static_cast<void*>(stream);
+
+    TSClient::closeStream(stream);
 }

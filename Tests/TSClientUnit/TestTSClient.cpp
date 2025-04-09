@@ -131,7 +131,7 @@ void TestTSClient::testFetchSyncAccounts()
     QVERIFY(client->isAuthenticated());
 
     QVector<Account> results;
-    success = client->fetchSyncAccounts(results);
+    success = client->getAccountsSync(results);
 
     // Verify the results
     QVERIFY(success);
@@ -165,7 +165,7 @@ void TestTSClient::testFetchAsyncAccounts()
     // Intercept the accounts when they are received
     QSignalSpy fetchAsyncAccoutnsSpy(client, &TSClient::accountsAsyncReceived); // Create signal spies to monitor authentication signals
 
-    client->fetchAsyncAccounts();
+    client->getAccountsAsync();
 
     bool triggered = fetchAsyncAccoutnsSpy.wait(2000);
     QVERIFY(triggered);
@@ -205,7 +205,7 @@ void TestTSClient::testFetchSyncQuoteSnapshots()
     QVERIFY(client->isAuthenticated());
 
     QVector<QuoteSnapshot> quoteResults;
-    success = client->fetchSyncQuoteSnapshots(symbol, quoteResults);
+    success = client->getQuoteSnapshotsSync(symbol, quoteResults);
 
     // Verify the results
     QVERIFY(success);
