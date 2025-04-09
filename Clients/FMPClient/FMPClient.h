@@ -79,7 +79,7 @@ private:
         StockNews
     };
 
-    void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc);
+    void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, void* optArg = nullptr);
 
     // Singleton
     static FMPClient* instance;

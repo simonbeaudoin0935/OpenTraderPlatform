@@ -322,7 +322,68 @@ void TestTSClient::testFetchingMoreThanMaximumPerMinute()
 
 void TestTSClient::testGetBarsAsync()
 {
-    QFAIL("not implemented");
+    // Define 4:00 PM (16:00)
+    const QTime fourPM(16, 0, 0);
+    // Define 4:00 PM (16:00)
+    const QTime eightPM(20, 0, 0);
+
+    QString symbol = "AAPL";
+    unsigned int interval = 1;
+    Bar::BarUnit unit = Bar::BarUnit::Minute;
+    unsigned int barsback = 0;
+    Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::USEQPost;
+    QDateTime firstDate;
+    QDateTime lastDate;
+
+    {
+        QDateTime now = QDateTime::currentDateTime();
+
+        // Get the date for the previous day
+        QDate previousDay = now.date().addDays(-1);
+
+        // Create a QDateTime for previous day at 4:00 PM in New York time zone
+        QTimeZone newYorkTimeZone("America/New_York");
+
+        firstDate = QDateTime(previousDay, fourPM, newYorkTimeZone);
+        lastDate = QDateTime(previousDay, eightPM, newYorkTimeZone);
+    }
+
+    // Verify initial state
+    QVERIFY(client->isCleanedUp());
+    QVERIFY(client->isAuthenticated());
+    QVERIFY(!client->isAuthInProgress());
+
+    // Intercept the accounts when they are received
+    QSignalSpy getBarsAsyncSpy(client, &TSClient::getBarsAsyncReceived); // Create signal spies to monitor authentication signals
+
+    client->getBarsAsync(symbol, interval, unit, barsback, sessionTemplate, firstDate, lastDate);
+
+    bool triggered = getBarsAsyncSpy.wait(2000);
+    QVERIFY(triggered);
+
+    // Logically, only one signal must be emited
+    QCOMPARE(getBarsAsyncSpy.count(), 1);
+
+    // Extract the first emission's argument
+    QList<QVariant> firstSignal = getBarsAsyncSpy.first();
+    QVERIFY(firstSignal.size() == 2); // Two arguments, symbol and bar vector
+
+    // Convert first arg to QString
+    QVariant firstArg = firstSignal.at(0);
+    QVERIFY(firstArg.canConvert<QString>());
+
+    QVariant secondArg = firstSignal.at(1);
+    QVERIFY(secondArg.canConvert<QVector<Bar>>());
+
+    QCOMPARE(firstArg.value<QString>(), symbol);
+
+    QVector<Bar> receivedBars = secondArg.value<QVector<Bar>>();
+
+    int minutesDifference = fourPM.secsTo(eightPM) / 60;
+
+    QCOMPARE(receivedBars.count(), minutesDifference);
+
+    QVERIFY(client->isCleanedUp());
 }
 
 void TestTSClient::testStreamBars()

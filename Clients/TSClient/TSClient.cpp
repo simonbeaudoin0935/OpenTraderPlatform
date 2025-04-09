@@ -349,7 +349,7 @@ void TSClient::refreshAsyncAccessToken()
 }
 
 
-void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) {
+void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, void *optArg) {
     RequestType requestType = static_cast<RequestType>(type);
     QJsonObject obj = doc.object();
 
@@ -376,8 +376,29 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) 
         }
 
         case RequestType::GetBars:
-            Q_ASSERT(0); //TODO not yet implemented
+        {
+            Q_ASSERT(optArg != nullptr);
+            QString* symbol = static_cast<QString*>(optArg);
+
+            const QJsonArray barsArray = obj["Bars"].toArray();
+            QVector<Bar> results;
+
+
+
+            // Resize the array in advance
+            results.reserve(barsArray.count());
+
+            for (const QJsonValue &json: barsArray) {
+                results.push_back(Bar(json.toObject()));
+            }
+
+            emit getBarsAsyncReceived(*symbol, results);
+
+            // symbol was new'ed when the async function get was called
+            delete symbol;
+
             break;
+        }
 
         case RequestType::GetQuoteSnapshots:
             Q_ASSERT(0); //TODO not yet implemented

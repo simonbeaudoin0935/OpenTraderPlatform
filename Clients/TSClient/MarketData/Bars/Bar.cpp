@@ -32,8 +32,9 @@ QUrlQuery Bar::buildUrlQuery(unsigned int interval,
 
     if (firstDate != QDateTime() && lastDate != QDateTime()) {
         Q_ASSERT(barsback == 0);
-        query.addQueryItem("firstdate", firstDate.toString());
-        query.addQueryItem("lastdate", firstDate.toString());
+        Q_ASSERT(firstDate.secsTo(lastDate) >= 1);
+        query.addQueryItem("firstdate", firstDate.toUTC().toString("yyyy-MM-dd'T'hh:mm:ss'Z'"));
+        query.addQueryItem("lastdate", lastDate.toUTC().toString("yyyy-MM-dd'T'hh:mm:ss'Z'"));
     } else if (firstDate == QDateTime() && lastDate == QDateTime()) {
         // nothing to do, this is the case for a stream
         query.addQueryItem("barsback", QString::number(barsback));

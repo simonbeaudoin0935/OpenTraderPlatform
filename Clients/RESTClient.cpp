@@ -201,11 +201,11 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
     return true;
 }
 
-void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method, const QByteArray &postData) {
+void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method, const QByteArray &postData, void *optArg) {
 
     // Because this is a queud method invocation, the parameters have to be passed by value
     // TODO in the future, to avoid postData especialy, we could new it where it is build and deleted inside here
-    QMetaObject::invokeMethod(this, [this, request, type, method, postData]() {
+    QMetaObject::invokeMethod(this, [this, request, type, method, postData, optArg]() {
         QNetworkReply *reply = nullptr;
         
         switch (method) {
@@ -231,7 +231,8 @@ void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type,
             pendingRequests[reply] = { .synchronicity = RequestSynchronicity::Async,
                                        .type = type,
                                        .completed = false,
-                                       .jsonDocument = nullptr};
+                                       .jsonDocument = nullptr,
+                                       .optArg = optArg};
         }
         pendingRequestsRWLock.unlock();
     }, Qt::QueuedConnection);
@@ -436,10 +437,11 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 notify:
     if (requestInfo->synchronicity == RequestSynchronicity::Async) {
         if (requestInfo->completed == true) {
-            emitSignalDemuxer(requestInfo->type, doc);
+            emitSignalDemuxer(requestInfo->type, doc, requestInfo->optArg);
         } else {
             // If the request failed, do not emit the signal. This is a design choice I guess.
             // Time will tell if the app should still receive a signal, albeit with an error flag set.
+            #warning TODO in the case of get bars, the string opt arg was newed', deal with that
         }
 
         // Whether the request was successful or not, take it out of the map

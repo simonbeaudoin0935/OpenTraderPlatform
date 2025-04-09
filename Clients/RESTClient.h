@@ -83,12 +83,12 @@ protected:
 
 
     bool fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete, HttpMethod method = HttpMethod::GET, const QByteArray &postData = QByteArray());
-    void fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method = HttpMethod::GET, const QByteArray &postData =  QByteArray());
+    void fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method = HttpMethod::GET, const QByteArray &postData =  QByteArray(), void* optArg = nullptr);
 
     QNetworkReply *fetchStream(const QNetworkRequest &request, void *arg);
     void closeStream(void *arg);
 
-    virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) = 0;
+    virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, void* optArg = nullptr) = 0;
 
     qsizetype totalDataReceivedBytes = 0;
     QString apiKey;

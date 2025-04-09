@@ -137,6 +137,7 @@ signals:
     void accountsAsyncReceived(QVector<Account> results);
     void quoteSnapshotsAsyncReceived(QVector<QuoteSnapshot> quoteSnapshots);
     void placeAsyncOrderReceived(const PlaceOrderResult &result);
+    void getBarsAsyncReceived(QString symbol, QVector<Bar> bars);
 
 private slots:
     #ifdef GUI_ENABLED
@@ -168,7 +169,7 @@ private:
         GetRefreshAccessToken
     };
 
-    void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) override;
+    void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, void* optArg = nullptr) override;
 
     // tokens
     AuthToken authToken;

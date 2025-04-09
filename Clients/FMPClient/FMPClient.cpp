@@ -202,7 +202,8 @@ bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockN
 
 
 
-void FMPClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc) {
+void FMPClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, void *optArg) {
+    Q_UNUSED(optArg)
 
     QJsonObject obj = doc.array().first().toObject();
 
