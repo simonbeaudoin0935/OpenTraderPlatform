@@ -370,7 +370,6 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
     qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << totalDataReceivedBytes << " bytes";
 
     // lock for write for pretty much the rest of this function, since we modify a struct pointed in the contained
-#warning If we deadlock again, it might be due to side effect of holding this lock for too long (and calling the process* functions at the end of this block)
     pendingRequestsRWLock.lockForWrite();
 
     if (!pendingRequests.contains(reply)) {

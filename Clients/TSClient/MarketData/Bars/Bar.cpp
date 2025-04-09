@@ -1,6 +1,49 @@
 #include "Bar.h"
 #include <QJsonDocument>
 
+QUrlQuery Bar::buildUrlQuery(unsigned int interval,
+                             BarUnit unit,
+                             unsigned int barsback,
+                             BarSessionTemplate sessionTemplate,
+                             QDateTime firstDate,
+                             QDateTime lastDate)
+{
+    QUrlQuery query;
+    query.addQueryItem("interval", QString::number(interval));
+    query.addQueryItem("unit", [unit]() -> QString {
+        switch (unit) {
+        case Bar::BarUnit::Minute: return "Minute";
+        case Bar::BarUnit::Daily: return "Daily";
+        case Bar::BarUnit::Weekly: return "Weekly";
+        case Bar::BarUnit::Monthly: return "Monthly";
+        default: Q_UNREACHABLE_RETURN("Unknown");
+        }
+    }());
+    query.addQueryItem("sessiontemplate", [sessionTemplate]() -> QString {
+        switch (sessionTemplate) {
+        case Bar::BarSessionTemplate::USEQPre: return "USEQPre";
+        case Bar::BarSessionTemplate::USEQPost: return "USEQPost";
+        case Bar::BarSessionTemplate::USEPreAndPost: return "USEPreAndPost";
+        case Bar::BarSessionTemplate::USEQ24Hour: return "USEQ24Hour";
+        case Bar::BarSessionTemplate::Default: return "Default";
+        default: Q_UNREACHABLE_RETURN("Unknown");
+        }
+    }());
+
+    if (firstDate != QDateTime() && lastDate != QDateTime()) {
+        Q_ASSERT(barsback == 0);
+        query.addQueryItem("firstdate", firstDate.toString());
+        query.addQueryItem("lastdate", firstDate.toString());
+    } else if (firstDate == QDateTime() && lastDate == QDateTime()) {
+        // nothing to do, this is the case for a stream
+        query.addQueryItem("barsback", QString::number(barsback));
+    } else {
+        Q_ASSERT(0);
+    }
+
+    return query;
+}
+
 Bar::Bar(const QJsonObject& jsonObj) {
     high = jsonObj["High"].toString();
     low = jsonObj["Low"].toString();

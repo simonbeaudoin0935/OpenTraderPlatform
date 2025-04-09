@@ -122,7 +122,7 @@ void TestTSClient::testRefreshSyncAccessToken()
     QVERIFY(client->isCleanedUp());
 }
 
-void TestTSClient::testFetchSyncAccounts()
+void TestTSClient::testGetAccountsSync()
 {
     bool success;
     
@@ -155,7 +155,7 @@ void TestTSClient::testFetchSyncAccounts()
     QVERIFY(client->isCleanedUp());
 }
 
-void TestTSClient::testFetchAsyncAccounts()
+void TestTSClient::testGetAccountsAsync()
 {
     // Verify initial state
     QVERIFY(client->isCleanedUp());
@@ -194,7 +194,7 @@ void TestTSClient::testFetchAsyncAccounts()
     QVERIFY(client->isCleanedUp());
 }
 
-void TestTSClient::testFetchSyncQuoteSnapshots()
+void TestTSClient::testGetQuoteSnapshotsSync()
 {
     bool success;
 
@@ -226,9 +226,9 @@ void TestTSClient::testFetchSyncQuoteSnapshots()
     QVERIFY(client->isCleanedUp());
 }
 
-void TestTSClient::testFetchAsyncQuoteSnapshots()
+void TestTSClient::testGetQuoteSnapshotsAsync()
 {
-
+    QFAIL("not implemented");
 }
 
 #warning create test for concurrent sync requests, there might be a race with the wait-condition where its only one for everybody
@@ -318,6 +318,11 @@ void TestTSClient::testFetchingMoreThanMaximumPerMinute()
     }
 
     QVERIFY(client->isCleanedUp());
+}
+
+void TestTSClient::testGetBarsAsync()
+{
+    QFAIL("not implemented");
 }
 
 void TestTSClient::testStreamBars()

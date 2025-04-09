@@ -13,17 +13,18 @@ private slots:
     // Need to be first
     void testRefreshSyncAccessToken();
 
-    void testFetchSyncAccounts();
-    void testFetchAsyncAccounts();
+    void testGetAccountsSync();
+    void testGetAccountsAsync();
 
-    void testFetchSyncQuoteSnapshots();
-    void testFetchAsyncQuoteSnapshots();
+    void testGetQuoteSnapshotsSync();
+    void testGetQuoteSnapshotsAsync();
 
     void testPlaceSyncOrder();
     void testPlaceAsyncOrder();
 
     void testFetchingMoreThanMaximumPerMinute();
 
+    void testGetBarsAsync();
     void testStreamBars();
     void testStreamMarketDepthQuote();
 

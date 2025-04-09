@@ -76,9 +76,9 @@ public:
                       unsigned int interval = 1,
                       Bar::BarUnit unit = Bar::BarUnit::Daily,
                       unsigned int barsback = 1,
+                      Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default,
                       QDateTime firstDate = QDateTime(),
-                      QDateTime lastDate = QDateTime(),
-                      Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default);
+                      QDateTime lastDate = QDateTime());
 
     /*
      * Creates a MarketDepthQuote Stream

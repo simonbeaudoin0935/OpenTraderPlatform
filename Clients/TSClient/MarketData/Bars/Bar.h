@@ -5,12 +5,20 @@
 #include <QDateTime>
 #include <QJsonObject>
 #include <QMetaType>
+#include <QUrlQuery>
 
 class Bar {
 public:
-
     enum class BarUnit { Minute, Daily, Weekly, Monthly };
     enum class BarSessionTemplate { USEQPre, USEQPost, USEPreAndPost,USEQ24Hour, Default };
+
+    static QUrlQuery buildUrlQuery(unsigned int interval,
+                                   BarUnit unit,
+                                   unsigned int barsback,
+                                   BarSessionTemplate sessionTemplate,
+                                   QDateTime firstDate = QDateTime(),
+                                   QDateTime lastDate = QDateTime());
+
 
     // Default constructor
     Bar() = default;

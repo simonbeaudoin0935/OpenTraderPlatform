@@ -140,5 +140,4 @@ void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, Mar
 void MarketDepthQuoteReceiver::onStreamError(Stream::StreamError error, QString errorMessage)
 {
     qCCritical(MarketDepthQuoteReceiverLog) << "Stream fucked";
-#warning TODO complete this by retreiving the stream and close it
 }

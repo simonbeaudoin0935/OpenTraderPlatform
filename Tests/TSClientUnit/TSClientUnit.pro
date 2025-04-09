@@ -6,17 +6,11 @@ CONFIG += testlib
 CONFIG -= gui
 
 include($$PWD/../../Clients/Clients.pri)
+include($$PWD/../../Misc/Misc.pri)
 
 #test sources
 SOURCES += TestTSClient.cpp main.cpp
 HEADERS += TestTSClient.h
-
-#TradeStationClient sources
-SOURCES += \
-    ../../Misc/MarketHours.cpp
-
-HEADERS += \
-    ../../Misc/MarketHours.h
 
 QMAKE_CXXFLAGS += -Og
 

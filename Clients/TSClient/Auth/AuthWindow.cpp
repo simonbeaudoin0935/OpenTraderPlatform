@@ -17,7 +17,6 @@
 
 
 Q_LOGGING_CATEGORY(tsAuth, "tradestation.auth")
-#warning there are objects leaking. fix it
 
 AuthWindow::AuthWindow(QWidget *parent) : QDialog(parent)
 {

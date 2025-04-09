@@ -184,6 +184,10 @@ bool PlaceOrderRequest::isValid() const {
 
     // Validate order type specific requirements
     switch (orderType) {
+        case OrderType::Market:
+        // Nothing to validate for market
+        break;
+
         case OrderType::Limit:
             if (!limitPrice || *limitPrice <= 0) {
                 qWarning() << "Limit orders require a valid limit price";

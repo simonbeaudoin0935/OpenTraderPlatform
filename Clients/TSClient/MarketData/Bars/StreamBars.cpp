@@ -26,7 +26,11 @@ bool StreamBars::processJsonObject(const QJsonObject& jsonObj)
 }
 
 
-StreamBars *TSClient::openStreamBars(QString &symbol, unsigned int interval, Bar::BarUnit unit, unsigned int barsback, Bar::BarSessionTemplate sessionTemplate)
+StreamBars *TSClient::openStreamBars(QString &symbol,
+                                     unsigned int interval,
+                                     Bar::BarUnit unit,
+                                     unsigned int barsback,
+                                     Bar::BarSessionTemplate sessionTemplate)
 {
     // Interval that each bar will consist of - for minute bars, the number of minutes aggregated in a single bar. For bar units other than minute, value must be 1.
     if (unit == Bar::BarUnit::Minute) {Q_ASSERT(interval >= 1);}
@@ -35,28 +39,7 @@ StreamBars *TSClient::openStreamBars(QString &symbol, unsigned int interval, Bar
 
     const QString endpoint = ENDPOINT_STREAM_BARS;
 
-    QUrlQuery query;
-    query.addQueryItem("interval", QString::number(interval));
-    query.addQueryItem("unit", [unit]() -> QString {
-        switch (unit) {
-        case Bar::BarUnit::Minute: return "Minute";
-        case Bar::BarUnit::Daily: return "Daily";
-        case Bar::BarUnit::Weekly: return "Weekly";
-        case Bar::BarUnit::Monthly: return "Monthly";
-        default: Q_UNREACHABLE_RETURN("Unknown");
-        }
-    }());
-    query.addQueryItem("barsback", QString::number(barsback));
-    query.addQueryItem("sessiontemplate", [sessionTemplate]() -> QString {
-        switch (sessionTemplate) {
-        case Bar::BarSessionTemplate::USEQPre: return "USEQPre";
-        case Bar::BarSessionTemplate::USEQPost: return "USEQPost";
-        case Bar::BarSessionTemplate::USEPreAndPost: return "USEPreAndPost";
-        case Bar::BarSessionTemplate::USEQ24Hour: return "USEQ24Hour";
-        case Bar::BarSessionTemplate::Default: return "Default";
-        default: Q_UNREACHABLE_RETURN("Unknown");
-        }
-    }());
+    QUrlQuery query = Bar::buildUrlQuery(interval, unit, barsback, sessionTemplate);
 
     StreamBars * stream = new StreamBars(symbol);
     stream->moveToThread(thread);

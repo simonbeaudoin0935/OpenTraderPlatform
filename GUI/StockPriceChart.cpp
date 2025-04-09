@@ -335,6 +335,8 @@ void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
 }
 
 void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor) {
+    Q_UNUSED(event);
+
     QDateTime currentMin = axisX->min();
     QDateTime currentMax = axisX->max();
     qint64 timeRange = currentMax.toMSecsSinceEpoch() - currentMin.toMSecsSinceEpoch();
@@ -349,6 +351,8 @@ void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor)
 }
 
 void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
+    Q_UNUSED(event);
+
     qreal currentMin = axisY->min();
     qreal currentMax = axisY->max();
     qreal range = currentMax - currentMin;
@@ -363,6 +367,8 @@ void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
 }
 
 void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
+    Q_UNUSED(event);
+
     // Time axis zoom
     QDateTime currentMin = axisX->min();
     QDateTime currentMax = axisX->max();
