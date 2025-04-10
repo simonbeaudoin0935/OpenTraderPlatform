@@ -1,0 +1,7 @@
+
+defineReplace(findSubdirs) {
+    dir = $$1
+    subdirs = $$system("find $$dir -type d")
+    # Windows: subdirs = $$system("dir \"$$dir\" /AD /S /B")
+    return($$subdirs)
+}

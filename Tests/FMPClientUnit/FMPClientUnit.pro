@@ -5,7 +5,7 @@ CONFIG += testlib
 
 CONFIG -= gui
 
-include($$PWD/../../Clients/Clients.pri)
+include($$PWD/../../src/Clients/Clients.pri)
 
 #test sources
 SOURCES += TestFMPClient.cpp main.cpp

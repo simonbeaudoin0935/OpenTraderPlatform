@@ -1,3 +1,4 @@
 CONFIG += c++17
+include($$PWD/utils.prf)
 TEMPLATE = subdirs
-SUBDIRS = Main.pro Tests
+SUBDIRS = src/Main.pro Tests

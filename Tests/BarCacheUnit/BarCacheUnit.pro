@@ -5,8 +5,8 @@ CONFIG += testlib
 
 CONFIG -= gui
 
-include($$PWD/../../Clients/Clients.pri)
-include($$PWD/../../Misc/Misc.pri)
+include($$PWD/../../src/Clients/Clients.pri)
+include($$PWD/../../src/Core/Cache/Cache.pri)
 
 #test sources
 SOURCES += TestBarCache.cpp main.cpp

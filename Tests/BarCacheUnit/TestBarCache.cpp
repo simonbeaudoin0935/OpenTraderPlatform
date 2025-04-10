@@ -5,7 +5,8 @@
 #include <QDateTime>
 
 #include "TestBarCache.h"
-#include "../../Clients/TSClient/TSClient.h"
+#include "TSClient.h"
+#include "BarCache.h"
 
 static TSClient* client;
 
@@ -34,4 +35,9 @@ void TestBarCache::init()
 // Will be called after every test function.
 void TestBarCache::cleanup() {
 
+}
+
+void TestBarCache::test()
+{
+    BarCache TestBarCache("AAPL", false);
 }

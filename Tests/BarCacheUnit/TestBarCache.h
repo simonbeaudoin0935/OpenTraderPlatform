@@ -10,8 +10,7 @@ private slots:
     void init();
     void cleanup();
 
-    //TODO should perhaps implement a max-per-minute limiter to queue the exceeding requests
-    //     for the next minute instead of having them fail
+    void test();
 
 private:
 };
