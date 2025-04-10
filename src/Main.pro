@@ -3,6 +3,8 @@ TARGET = L2Trader
 QT += core network
 CONFIG += console c++11
 
+CONFIG += gui
+
 include($$PWD/Clients/Clients.pri)
 include($$PWD/Algo/Algo.pri)
 include($$PWD/GUI/GUI.pri)

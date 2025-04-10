@@ -1,4 +1,3 @@
-#include "AuthWindow.h"
 #include <QVBoxLayout>
 #include <QUrlQuery>
 #include <QDebug>
@@ -15,6 +14,7 @@
 #include <QMessageBox>
 #include <QDialogButtonBox>
 
+#include "AuthWindow.h"
 
 Q_LOGGING_CATEGORY(tsAuth, "tradestation.auth")
 

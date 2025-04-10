@@ -1,10 +1,12 @@
+#include <QTest>
 #include <QDebug>
-#include "TestFMPClient.h"
-#include "../../Clients/FMPClient/FMPClient.h"
-
-extern QString fmpKey;
-
 #include <QElapsedTimer>
+#include <QSignalSpy>
+
+#include "TestFMPClient.h"
+#include "FMPClient.h"
+
+
 
 // Unit test of the FMPClient singleton. Having it as a singleton is somewhat
 // handy for testing as the same object is used between tests, further confirming
@@ -15,9 +17,6 @@ void TestFMPClient::initTestCase() {
     QLoggingCategory::setFilterRules("FMPClient.debug=true");
 
     qInfo() << "Start of test suite";
-
-    FMPClient::getInstance().setAPIKey(fmpKey);
-
 }
 
 void TestFMPClient::init()

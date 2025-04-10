@@ -1,5 +1,5 @@
 #include "MarketDepthQuoteReceiver.h"
-#include "Clients/TSClient/TSClient.h"
+#include "TSClient.h"
 
 Q_LOGGING_CATEGORY(MarketDepthQuoteReceiverLog, "MarketDepthQuoteReceiver")
 
@@ -139,5 +139,7 @@ void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, Mar
 
 void MarketDepthQuoteReceiver::onStreamError(Stream::StreamError error, QString errorMessage)
 {
-    qCCritical(MarketDepthQuoteReceiverLog) << "Stream fucked";
+    Q_UNUSED(error);
+
+    qCFatal(MarketDepthQuoteReceiverLog) << "Market Depth Quote Receiver stream error : " << errorMessage;
 }

@@ -1,5 +1,5 @@
 #include "StreamMarketDepthQuote.h"
-#include "../../TSClient.h"
+#include "TSClient.h"
 
 StreamMarketDepthQuote::StreamMarketDepthQuote(QString &symbol, QObject *parent) :
     Stream(parent),

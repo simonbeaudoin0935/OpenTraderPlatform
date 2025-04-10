@@ -1,5 +1,5 @@
 #include "PositionsReceiver.h"
-#include "Clients/TSClient/TSClient.h"
+#include "TSClient.h"
 
 Q_LOGGING_CATEGORY(PositionsReceiverLog, "PositionsReceiver");
 
@@ -37,6 +37,9 @@ void PositionsReceiver::onReceivedNewPosition(QString account, Position position
 
 void PositionsReceiver::onStreamError(Stream::StreamError error, QString errorMessage)
 {
-    qCCritical(PositionsReceiverLog) << "Stream fucked";
-#warning TODO complete this by retreiving the stream and close it
+    Q_UNUSED(error);
+
+    qCCritical(PositionsReceiverLog) << "Stream fucked : " << errorMessage;
+
+    // FIXME complete this by retreiving the stream and close it
 }

@@ -1,5 +1,6 @@
-#include "CompanyScreenerFilter.h"
 #include <QJsonDocument>
+
+#include "CompanyScreenerFilter.h"
 
 CompanyScreenerFilter::CompanyScreenerFilter() {
     // Default constructor leaves all fields unset (std::nullopt)

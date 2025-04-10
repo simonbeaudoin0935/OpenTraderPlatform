@@ -1,5 +1,5 @@
 #include "StockBarsReceiver.h"
-#include "Clients/TSClient/TSClient.h"
+#include "TSClient.h"
 
 Q_LOGGING_CATEGORY(StockBarsReceiverLog, "StockBarsReceiver")
 
@@ -57,6 +57,10 @@ void StockBarsReceiver::onReceivedNewBar(QString symbol, Bar bar)
 
 void StockBarsReceiver::onStreamError(Stream::StreamError error, QString errorMessage)
 {
+    Q_UNUSED(error);
+    Q_UNUSED(errorMessage);
+
     qCCritical(StockBarsReceiverLog) << "Stream fucked";
-#warning TODO complete this by retreiving the stream and close it
+
+    // FIXME complete this by retreiving the stream and close it
 }

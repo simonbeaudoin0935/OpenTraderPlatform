@@ -120,16 +120,12 @@ TSClient::~TSClient() {
 
 #ifdef GUI_ENABLED
 // Launches a pop up. We will receive a signal when the process finishes
-void TSClient::launchAuthProcess(QWidget* parent) {
+void TSClient::launchAuthProcess() {
 
-    if (authInProgress) {
-        qCWarning(TSClientLog) << "Authentication process already in progress";
-        Q_ASSERT(0); // TODO check if necessary
-        return;
-    }
+    Q_ASSERT(!authInProgress);
 
     authInProgress = true;
-    authWindow = new AuthWindow(parent);
+    authWindow = new AuthWindow();
     connect(authWindow, &AuthWindow::authFinished, this, &TSClient::onAuthFinished);
     connect(authWindow, &QObject::destroyed, this, &TSClient::onAuthWindowDestroyed);
     authWindow->show();
@@ -423,7 +419,7 @@ void TSClient::openStream(const QString &symbol, const QString &endpoint, const 
     Q_ASSERT(stream != nullptr);
     Q_ASSERT(!endpoint.isEmpty());
 
-#warning fix this NOSYMBOL shit
+    // FIXME fix this NOSYMBOL shit
     QMetaObject::invokeMethod(this,
         [this, &symbol, &endpoint, &query, stream]()
         {

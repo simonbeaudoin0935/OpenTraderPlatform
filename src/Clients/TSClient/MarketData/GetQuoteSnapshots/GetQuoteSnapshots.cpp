@@ -1,6 +1,6 @@
 #include <QJsonArray>
 
-#include "../../TSClient.h"
+#include "TSClient.h"
 
 bool TSClient::getQuoteSnapshotsSync(QString &symbols, QVector<QuoteSnapshot> &quoteSnapshots)
 {

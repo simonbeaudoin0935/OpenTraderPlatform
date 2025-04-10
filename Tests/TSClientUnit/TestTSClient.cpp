@@ -5,8 +5,8 @@
 #include <QDateTime>
 
 #include "TestTSClient.h"
-#include "../../Clients/TSClient/TSClient.h"
-#include "../../Misc/MarketHours.h"
+#include "TSClient.h"
+#include "MarketHours.h"
 
 static TSClient* client;
 
@@ -232,7 +232,6 @@ void TestTSClient::testGetQuoteSnapshotsAsync()
     QSKIP("not implemented");
 }
 
-#warning create test for concurrent sync requests, there might be a race with the wait-condition where its only one for everybody
 void TestTSClient::testPlaceSyncOrder()
 {
     PlaceOrderRequest order;

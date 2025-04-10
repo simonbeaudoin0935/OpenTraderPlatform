@@ -5,8 +5,7 @@
 #include <QPushButton>
 
 #include "AppFrontend.h"
-#include "FMPClient.h"
-#include "TSClient.h"
+
 
 // Forward declare the generated UI class
 namespace Ui {
@@ -30,7 +29,6 @@ public slots:
 
 private slots:
 
-    void onQuoteShortReceived(const FMPClient::QuoteShortResult quoteResult);
     void onTradeStationLoginClicked();
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
 

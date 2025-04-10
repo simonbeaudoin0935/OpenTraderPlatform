@@ -1,7 +1,6 @@
-#ifndef TEST_FMPCLIENT_H
-#define TEST_FMPCLIENT_H
+#pragma once
 
-#include <QtTest/QtTest>
+#include <QObject>
 
 class TestFMPClient : public QObject {
     Q_OBJECT
@@ -30,5 +29,3 @@ private slots:
     //TODO should perhaps implement a max-per-minute limiter to queue the exceeding requests
     //     for the next minute instead of having them fail
 };
-
-#endif // TEST_FMPCLIENT_H

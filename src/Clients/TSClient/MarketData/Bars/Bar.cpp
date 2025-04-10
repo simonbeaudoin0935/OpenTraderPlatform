@@ -1,5 +1,6 @@
-#include "Bar.h"
 #include <QJsonDocument>
+
+#include "Bar.h"
 
 QUrlQuery Bar::buildUrlQuery(unsigned int interval,
                              BarUnit unit,

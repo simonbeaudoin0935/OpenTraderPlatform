@@ -109,6 +109,8 @@ void PositionWindow::updatePosition(const QString& account, const Position& posi
 }
 
 void PositionWindow::updatePositionRow(const QString& account, const Position& position) {
+    Q_UNUSED(account);
+
     int row = positionRowMap[position.getPositionID()];
     QList<QStandardItem*> items = createRowItems(position);
     

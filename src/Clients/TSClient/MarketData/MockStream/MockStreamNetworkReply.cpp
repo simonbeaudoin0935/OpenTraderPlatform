@@ -1,6 +1,6 @@
-#include "MockStreamNetworkReply.h"
-
 #include <QIODevice>
+
+#include "MockStreamNetworkReply.h"
 
 MockStreamNetworkReply::MockStreamNetworkReply(const QString &mockDataFile, QObject* parent)
     : QNetworkReply(parent) {
@@ -22,7 +22,7 @@ void MockStreamNetworkReply::setData(const QByteArray& data) {
 
     emit readyRead(); // Trigger reading of mock data
 
-#warning IMPLEMENT THE FINISHED AS WELL
+    // TODO IMPLEMENT THE FINISHED AS WELL
     //emit finished();
 }
 

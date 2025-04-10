@@ -3,7 +3,7 @@
 #include <QDateTime>
 #include <QJsonArray>
 
-#include "../../TSClient.h"
+#include "TSClient.h"
 
 // TimeInForce implementation
 TimeInForce::TimeInForce(OrderDuration duration)

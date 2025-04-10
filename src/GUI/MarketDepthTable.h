@@ -16,7 +16,6 @@ public:
 
     // Update methods
     void updateData(const QVector<MarketDepthLevel>& bids, const QVector<MarketDepthLevel>& asks);
-    void updateBAI(double bidAskImbalance);
     void updateDWP(double bidDWP, double askDWP);
 
 private:

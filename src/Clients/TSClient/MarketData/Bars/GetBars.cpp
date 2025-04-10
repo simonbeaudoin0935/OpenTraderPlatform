@@ -1,4 +1,4 @@
-#include "../../TSClient.h"
+#include "TSClient.h"
 
 void TSClient::getBarsAsync(QString &symbol,
                             unsigned int interval,

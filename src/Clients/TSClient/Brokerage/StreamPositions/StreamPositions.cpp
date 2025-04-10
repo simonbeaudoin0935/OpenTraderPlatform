@@ -1,7 +1,7 @@
 #include <QJsonDocument>
 
 #include "StreamPositions.h"
-#include "../../TSClient.h"
+#include "TSClient.h"
 
 bool StreamPositions::StreamPositionStatus::isValid() const {
     // A status object is valid if it contains a non-empty status string

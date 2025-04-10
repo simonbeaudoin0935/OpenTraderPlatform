@@ -129,7 +129,7 @@ public:
 public slots:
     #ifdef GUI_ENABLED
     // Authentication methods
-    void launchAuthProcess(QWidget* parent = nullptr);
+    void launchAuthProcess();
     #endif
 
 signals:

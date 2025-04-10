@@ -1,7 +1,6 @@
 #include <QJsonArray>
 
-#include "GetAccounts.h"
-#include "../../TSClient.h"
+#include "TSClient.h"
 
 bool TSClient::getAccountsSync(QVector<Account> &results)
 {

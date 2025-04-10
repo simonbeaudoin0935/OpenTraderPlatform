@@ -419,11 +419,6 @@ void MarketDepthTable::updateData(const QVector<MarketDepthLevel>& bids, const Q
     }
 }
 
-void MarketDepthTable::updateBAI(double bidAskImbalance) {
-    // Update the BAI gauge with the bid-ask imbalance
-    // Note: This method is empty as the BAI gauge is updated directly in GuiFrontend
-}
-
 void MarketDepthTable::updateDWP(double bidDWP, double askDWP) {
     bidDWPLabel->setText(QString::number(bidDWP, 'f', 2));
     askDWPLabel->setText(QString::number(askDWP, 'f', 2));

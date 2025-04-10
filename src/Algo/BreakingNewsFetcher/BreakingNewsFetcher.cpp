@@ -1,4 +1,4 @@
-#include "../../Clients/FMPClient/FMPClient.h"
+#include "FMPClient.h"
 #include "BreakingNewsFetcher.h"
 
 Q_LOGGING_CATEGORY(BreakingNewsFetcherLog, "BreakingNewsFetcher")
@@ -104,7 +104,7 @@ void BreakingNewsFetcher::processReceivedNews()
 
         qCDebug(BreakingNewsFetcherLog) << "Launching a timer to fetch the news again in " << fetchingInterval << " seconds" ;
 
-#warning ameliorate this. what if the timer is alread armed and we want to stop if from happening in the future
+        // WARNING ameliorate this. what if the timer is alread armed and we want to stop if from happening in the future
         if (!stopped) {
             QTimer::singleShot(1000 * fetchingInterval, this, [this]() {
                 fetchAsyncNewsStockScreenedByFloat();

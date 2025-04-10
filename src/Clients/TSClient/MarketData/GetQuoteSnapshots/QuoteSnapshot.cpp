@@ -1,8 +1,9 @@
-#include "QuoteSnapshot.h"
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QDateTime>
 #include <QJsonDocument>
+
+#include "QuoteSnapshot.h"
 
 QuoteSnapshot::QuoteSnapshot()
 {

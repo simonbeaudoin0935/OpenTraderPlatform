@@ -1,5 +1,4 @@
-#ifndef AUTHWINDOW_H
-#define AUTHWINDOW_H
+#pragma once
 
 #include <QDialog>
 #include <QWebEngineView>
@@ -69,5 +68,3 @@ private:
     // Credential management
     bool promptForCredentials();
 };
-
-#endif // AUTHWINDOW_H

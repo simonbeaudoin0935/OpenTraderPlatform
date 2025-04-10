@@ -1,5 +1,6 @@
-#include "Position.h"
 #include <QJsonDocument>
+
+#include "Position.h"
 
 Position::Position(const QJsonObject& jsonObj, bool isUpdate_) : isUpdate(isUpdate_) {
     accountID = jsonObj["AccountID"].toString();

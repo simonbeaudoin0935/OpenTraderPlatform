@@ -6,6 +6,7 @@
 #include <QPalette>
 #include <QApplication>
 
+#include "TSClient.h"
 #include "GuiFrontend.h"
 #include "ui_GUIFrontend.h"
 
@@ -272,6 +273,8 @@ void GuiFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 
 void GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP)
 {
+    Q_UNUSED(symbol);
+
     ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks());
     ui->marketDepthTable->updateDWP(bidDWP, askDWP);
 
@@ -283,16 +286,10 @@ void GuiFrontend::onNewPositionReceived(QString account, Position position) {
     ui->positionWindow->updatePosition(account, position);
 }
 
-void GuiFrontend::onQuoteShortReceived(const FMPClient::QuoteShortResult quoteResult)
-{
-    qCritical() << "UNUSED";
-}
-
 void GuiFrontend::onTradeStationLoginClicked() {
-#warning rework this, or at least better document that its this thread executing it. There is a race for sure with the TSClient internal flags
     // AuthWindow is modal, so it's impossible to click the button while authentication is in progress
     Q_ASSERT(!TSClient::getInstance().isAuthInProgress());
-    TSClient::getInstance().launchAuthProcess(static_cast<QMainWindow*>(ui->centralwidget->parent()));
+    TSClient::getInstance().launchAuthProcess();
 }
 
 void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason) {

@@ -4,13 +4,9 @@
 #include <QDir>
 
 #include "MainAlgo.h"
-#include "Clients/TSClient/TSClient.h"
+#include "TSClient.h"
 
 Q_LOGGING_CATEGORY(MainAlgoLog, "MainAlgo")
-
-//TODO should be parameters
-static const int newsFetchingInterval = 30;
-static const int newsFetchDepthLimit = 2;
 
 MainAlgo::MainAlgo()
 {
@@ -60,7 +56,7 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
     if (isAuthenticated) {
         TSClient::getInstance().getAccountsSync(accounts);
     } else {
-        Q_ASSERT_X(false, "FUCK", "FUCKKK");
+        qCFatal(MainAlgoLog) << "Tradestation lost authentication. Reason : " << reason;
     }
 
     connect(&stockBarsReceiver, &StockBarsReceiver::currentHighlightedReceivedNewBar,
@@ -73,7 +69,7 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
 
     marketDepthQuoteReceiver.startStream("AAPL");
 
-#warning hack, better this. This is just for sim
+    // FIXME warning hack, better this. This is just for sim
     QString accountNumber = accounts.at(1).getAccountId();
 
     connect(&positionReceiver, &PositionsReceiver::receivedNewPosition,
@@ -119,5 +115,8 @@ void MainAlgo::onNewNewsFound(StockNewsResult newNews)
 
 void MainAlgo::onReceivedNewPosition(QString account, Position position)
 {
+    Q_UNUSED(account);
+    Q_UNUSED(position);
 
+    // TODO
 }

@@ -1,6 +1,7 @@
-#include "MarketDepthQuote.h"
 #include <QJsonDocument>
 #include <QJsonArray>
+
+#include "MarketDepthQuote.h"
 
 // MarketDepthLevel implementation
 MarketDepthLevel::MarketDepthLevel(const QJsonObject& jsonObj) {

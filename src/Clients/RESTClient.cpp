@@ -8,7 +8,7 @@
 #endif
 
 #include "RESTClient.h"
-#include "TSClient/Stream/Stream.h" // TODO I dont like having to include this header here
+#include "Stream.h" // TODO I dont like having to include this header here
 
 Q_LOGGING_CATEGORY(RESTClientLog, "RESTClient");
 
@@ -145,7 +145,6 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
         " header : " << request.headers() <<
         " and data : " << postData;
 
-    //TODO find the right wait mechanism
     bool aquired = semaphore.tryAcquire(1,fetchSyncTimeoutMs);
 
     if (false == aquired) {
@@ -441,7 +440,7 @@ notify:
         } else {
             // If the request failed, do not emit the signal. This is a design choice I guess.
             // Time will tell if the app should still receive a signal, albeit with an error flag set.
-            #warning TODO in the case of get bars, the string opt arg was newed, deal with that
+            // TODO: in the case of get bars, the string opt arg was newed, deal with that
         }
 
         // Whether the request was successful or not, take it out of the map

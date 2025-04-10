@@ -1,5 +1,5 @@
 #include "StreamBars.h"
-#include "../../TSClient.h"
+#include "TSClient.h"
 
 StreamBars::StreamBars(QString &symbol, QObject *parent) :
     Stream(parent),
