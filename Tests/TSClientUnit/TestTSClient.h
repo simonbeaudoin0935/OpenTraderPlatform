@@ -25,6 +25,8 @@ private slots:
     void testFetchingMoreThanMaximumPerMinute();
 
     void testGetBarsAsync();
+    void testGetBarsSync();
+
     void testStreamBars();
     void testStreamMarketDepthQuote();
 

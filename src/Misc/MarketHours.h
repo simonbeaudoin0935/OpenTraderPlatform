@@ -30,7 +30,7 @@ public:
     // Static methods to check market status
     static Session getCurrentSession();
     static Session getSessionForDateTime(const QDateTime& localTime);
-    
+
     // Individual session checks
     static bool isPreMarket(const QDateTime& localTime = QDateTime::currentDateTime());
     static bool isRegularHours(const QDateTime& localTime = QDateTime::currentDateTime());
@@ -62,4 +62,4 @@ public:
 private:
     static const QTimeZone nyZone;
     static QDateTime toNewYorkTime(const QDateTime& localTime);
-}; 
+};

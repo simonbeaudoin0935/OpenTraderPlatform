@@ -62,12 +62,12 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
     connect(&stockBarsReceiver, &StockBarsReceiver::currentHighlightedReceivedNewBar,
             this, &MainAlgo::currentHighlightedReceivedNewBar);
 
-    stockBarsReceiver.startStream("AAPL");
+    stockBarsReceiver.startStream("NVDA");
 
     connect(&marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::currentHighlightedReceivedMarketDepthQuote,
             this, &MainAlgo::currentHighlightedReceivedNewMarketDepthQuote);
 
-    marketDepthQuoteReceiver.startStream("AAPL");
+    marketDepthQuoteReceiver.startStream("NVDA");
 
     // FIXME warning hack, better this. This is just for sim
     QString accountNumber = accounts.at(1).getAccountId();

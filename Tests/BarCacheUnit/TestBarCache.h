@@ -10,7 +10,7 @@ private slots:
     void init();
     void cleanup();
 
-    void test();
+    void testGetAfterHourBars();
 
 private:
 };

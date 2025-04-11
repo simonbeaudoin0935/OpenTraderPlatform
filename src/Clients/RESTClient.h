@@ -104,6 +104,7 @@ protected:
 private:
     friend class TestFMPClient;
     friend class TestTSClient;
+    friend class TestBarCache;
 
     const QUrl baseUrl;
     QLoggingCategory *loggingCategory;

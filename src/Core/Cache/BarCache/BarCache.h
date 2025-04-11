@@ -1,12 +1,14 @@
 #pragma once
 
+#include <QLoggingCategory>
 #include <QMap>
 #include <QObject>
 #include <QReadWriteLock>
 
-#include "../../Clients/TSClient/MarketData/Bars/Bar.h"
-#include "../../Clients/TSClient/MarketData/Bars/GetBars.h"
-#include "../../Clients/TSClient/MarketData/Bars/StreamBars.h"
+#include "Bar.h"
+#include "StreamBars.h"
+
+Q_DECLARE_LOGGING_CATEGORY(BarCacheLog)
 
 class BarCache : public QObject
 {
@@ -14,18 +16,27 @@ class BarCache : public QObject
 public:
     explicit BarCache(const QString &symbol, bool isStreaming = false, QObject *parent = nullptr);
 
-    const Bar* getBar(QDateTime dateTime) const;
+    const QVector<Bar> getBars(QDateTime first, QDateTime last);
+    quint64 getCacheHitCount() const { return cacheHitCount; }
+    quint64 getCacheMissCount() const { return cacheMissCount; }
+
 signals:
 
 protected:
     void fetchBars();
     void addBar(const Bar& bar);
 
+private slots:
+    void onGetBarsReceived(QString symbol, QVector<Bar> newBars);
+
 private:
     QString symbol;
+    bool isStreaming;
+    QMap<qint64, Bar> barCacheOneMinute;
     mutable QReadWriteLock rwLock;
-    QMap<QDateTime, Bar> barCache;
-
-    bool isStreaming = false;
+    void storeBarsInCache(const QVector<Bar>& bars);
+    QVector<Bar> getBarsFromCache(QDateTime start, QDateTime end) const;
     StreamBars* streamBar;
+    mutable quint64 cacheHitCount = 0;
+    mutable quint64 cacheMissCount = 0;
 };

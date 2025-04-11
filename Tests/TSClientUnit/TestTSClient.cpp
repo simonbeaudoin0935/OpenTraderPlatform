@@ -386,6 +386,48 @@ void TestTSClient::testGetBarsAsync()
     QVERIFY(client->isCleanedUp());
 }
 
+void TestTSClient::testGetBarsSync()
+{
+
+    // Define 4:00 PM (16:00)
+    const QTime fourPM(16, 0, 0);
+    // Define 4:04 PM (16:04)
+    const QTime fourPM4(16, 4, 0);
+
+    QString symbol = "AAPL";
+    unsigned int interval = 1;
+    Bar::BarUnit unit = Bar::BarUnit::Minute;
+    unsigned int barsback = 0;
+    Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::USEQPost;
+    QDateTime firstDate;
+    QDateTime lastDate;
+
+    {
+        QDateTime now = QDateTime::currentDateTime();
+
+        // Get the date for the previous day
+        QDate previousDay = now.date().addDays(-1);
+
+        // Create a QDateTime for previous day at 4:00 PM in New York time zone
+        QTimeZone newYorkTimeZone("America/New_York");
+
+        firstDate = QDateTime(previousDay, fourPM, newYorkTimeZone);
+        lastDate = QDateTime(previousDay, fourPM4, newYorkTimeZone);
+    }
+
+    // Verify initial state
+    QVERIFY(client->isCleanedUp());
+    QVERIFY(client->isAuthenticated());
+    QVERIFY(!client->isAuthInProgress());
+
+    QVector<Bar> results;
+
+    bool success = client->getBarsSync(results, symbol, interval, unit, barsback, sessionTemplate, firstDate, lastDate);
+    QVERIFY(success == true);
+
+    QCOMPARE(results.size(), 4);
+}
+
 void TestTSClient::testStreamBars()
 {
     QString symbol = "AAPL";

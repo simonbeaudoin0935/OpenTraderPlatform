@@ -72,6 +72,15 @@ public:
                                Bar::BarSessionTemplate sesstionTemplate = Bar::BarSessionTemplate::Default);
     void closeStreamBars(StreamBars* stream);
 
+    bool getBarsSync(QVector<Bar> &results,
+                     QString &symbol,
+                     unsigned int interval = 1,
+                     Bar::BarUnit unit = Bar::BarUnit::Daily,
+                     unsigned int barsback = 1,
+                     Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default,
+                     QDateTime firstDate = QDateTime(),
+                     QDateTime lastDate = QDateTime());
+
     void getBarsAsync(QString &symbol,
                       unsigned int interval = 1,
                       Bar::BarUnit unit = Bar::BarUnit::Daily,
@@ -192,7 +201,7 @@ private:
     bool activateMockStream = false;
 
     friend class TestTSClient; // For unit testing
-
+    friend class TestBarCache; // For unit testing
 
     void openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Stream * const stream);
     void closeStream(Stream* const stream);

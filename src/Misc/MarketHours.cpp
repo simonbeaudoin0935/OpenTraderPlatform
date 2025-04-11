@@ -2,6 +2,7 @@
 
 const QTimeZone MarketHours::nyZone = QTimeZone("America/New_York");
 
+
 QDateTime MarketHours::toNewYorkTime(const QDateTime& localTime) {
     return localTime.toTimeZone(nyZone);
 }
