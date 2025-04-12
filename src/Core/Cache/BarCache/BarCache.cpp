@@ -104,6 +104,12 @@ const QVector<Bar> BarCache::getBars(QDateTime first, QDateTime last) {
     if (success) {
         qCDebug(BarCacheLog) << "Successfully fetched" << fetchedBars.size() 
                             << "bars from API for" << symbol;
+
+        // Adjust the minute because I dont like the timestamp to be the closing minute
+        for(Bar& bar: fetchedBars) {
+            bar.ajustTimeStampToOpeningMinute();
+        }
+
         // Store in cache
         storeBarsInCache(fetchedBars);
         return fetchedBars;
@@ -117,17 +123,12 @@ const QVector<Bar> BarCache::getBars(QDateTime first, QDateTime last) {
 void BarCache::storeBarsInCache(const QVector<Bar>& bars) {
     QWriteLocker locker(&rwLock);
     for (const Bar& bar : bars) {
-        // Convert bar time to UTC for consistent storage
-        QDateTime barTime = QDateTime::fromMSecsSinceEpoch(bar.getEpoch());
-        barTime = barTime.toUTC();
-        qint64 epoch = barTime.toMSecsSinceEpoch() * 1000;  // Convert to milliseconds
-        
-        if (barCacheOneMinute.contains(epoch)) {
-            qCDebug(BarCacheLog) << "Bar already in cache for" << symbol 
-                                << "at epoch" << epoch 
-                                << "(" << QDateTime::fromMSecsSinceEpoch(epoch).toString() << ")";
+        QDateTime dateTime = QDateTime::fromString(bar.getTimeStamp(), Qt::ISODate);
+        if (barCacheOneMinute.contains(dateTime)) {
+            qCDebug(BarCacheLog) << "Bar already in cache for" << symbol
+                                << "at " << dateTime;
         }
-        barCacheOneMinute.insert(epoch, bar);
+        barCacheOneMinute.insert(dateTime, bar);
     }
 }
 
@@ -144,15 +145,15 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
                          << "to" << end.toString();
     
     // Find the first bar at or after start
-    auto it = barCacheOneMinute.lowerBound(start.toMSecsSinceEpoch() * 1000);  // Convert to milliseconds
+    auto it = barCacheOneMinute.lowerBound(start);
     
     // Check if we have a complete set of bars
     bool hasCompleteSet = true;
     QDateTime expectedTime = start;
     
-    while (expectedTime <= end) {
-        qint64 expectedEpoch = expectedTime.toMSecsSinceEpoch() * 1000;  // Convert to milliseconds
-        if (it == barCacheOneMinute.end() || it.key() != expectedEpoch) {
+    while (expectedTime < end) {
+
+        if (it == barCacheOneMinute.end() || it.key() != expectedTime) {
             hasCompleteSet = false;
             qCDebug(BarCacheLog) << "Cache MISS - missing bar at" << expectedTime.toString();
             break;
@@ -165,8 +166,8 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
         qCDebug(BarCacheLog) << "Cache HIT - found complete set of bars for" << symbol;
         cacheHitCount++;  // Increment cache hit counter
         // We have all the bars, return them
-        it = barCacheOneMinute.lowerBound(start.toMSecsSinceEpoch() * 1000);  // Convert to milliseconds
-        while (it != barCacheOneMinute.end() && it.key() <= end.toMSecsSinceEpoch() * 1000) {  // Convert to milliseconds
+        it = barCacheOneMinute.lowerBound(start);
+        while (it != barCacheOneMinute.end() && it.key() <= end) {  // Convert to milliseconds
             result.append(it.value());
             ++it;
         }
@@ -178,15 +179,6 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
     return result;
 }
 
-void BarCache::addBar(const Bar &bar)
-{
-    if (barCacheOneMinute.contains(bar.getEpoch())) {
-        qCWarning(BarCacheLog) << "Bar cache already contains a bar with epoch " << bar.getEpoch();
-    } else {
-        barCacheOneMinute[bar.getEpoch()] = bar;
-    }
-}
-
 void BarCache::onGetBarsReceived(QString symbol, QVector<Bar> newBars)
 {
     if (this->symbol != symbol) {
@@ -194,8 +186,9 @@ void BarCache::onGetBarsReceived(QString symbol, QVector<Bar> newBars)
         return;
     }
 
-    const QVector<Bar> &constNewBars = newBars;
-    for (const Bar &newBar: constNewBars) {
-        addBar(newBar);
+    for(Bar& bar: newBars) {
+        bar.ajustTimeStampToOpeningMinute();
     }
+
+    storeBarsInCache(newBars);
 }

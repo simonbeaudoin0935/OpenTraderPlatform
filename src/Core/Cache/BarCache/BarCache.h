@@ -24,7 +24,6 @@ signals:
 
 protected:
     void fetchBars();
-    void addBar(const Bar& bar);
 
 private slots:
     void onGetBarsReceived(QString symbol, QVector<Bar> newBars);
@@ -32,7 +31,7 @@ private slots:
 private:
     QString symbol;
     bool isStreaming;
-    QMap<qint64, Bar> barCacheOneMinute;
+    QMap<QDateTime, Bar> barCacheOneMinute;
     mutable QReadWriteLock rwLock;
     void storeBarsInCache(const QVector<Bar>& bars);
     QVector<Bar> getBarsFromCache(QDateTime start, QDateTime end) const;

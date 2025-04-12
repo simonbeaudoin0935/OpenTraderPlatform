@@ -120,3 +120,10 @@ QString Bar::toJsonString() const {
     QJsonDocument doc(jsonObj);
     return QString(doc.toJson(QJsonDocument::Indented));
 }
+
+void Bar::ajustTimeStampToOpeningMinute()
+{
+    QDateTime barTime = QDateTime::fromString(timeStamp, Qt::ISODate);
+    barTime = barTime.addSecs(-60);  // Subtract one minute
+    timeStamp = barTime.toString(Qt::ISODate);
+}

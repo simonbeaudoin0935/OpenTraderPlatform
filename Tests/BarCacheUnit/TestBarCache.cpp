@@ -115,6 +115,8 @@ void TestBarCache::testGetAfterHourBars()
 
     QVector<Bar> results;
 
+    qInfo() << "";
+    qInfo() << "Warm the cache with 4 bars";
     results = cache->getBars(firstDate, lastDate);
 
     QCOMPARE(cache->getCacheHitCount(), 0);
@@ -122,10 +124,15 @@ void TestBarCache::testGetAfterHourBars()
 
     QCOMPARE_GE(results.size(), 4);
 
+    qInfo() << "";
+    qInfo() << "Test asking for the same 4 bars hits the cache";
     results = cache->getBars(firstDate, lastDate);
 
     QCOMPARE(cache->getCacheHitCount(), 1);
     QCOMPARE(cache->getCacheMissCount(), 1);
+
+    qInfo() << "";
+    qInfo() << "Testing asking for 10 bars past triggers a miss";
 
     QDateTime secondLastDate = lastDate.addSecs(10);
 
