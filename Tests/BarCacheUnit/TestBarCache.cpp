@@ -91,13 +91,9 @@ void TestBarCache::cleanup() {
 
 void TestBarCache::testGetAfterHourBars()
 {
-    // Define 4:00 PM (16:00)
-    const QTime fourPM(16, 0, 0);
-    // Define 4:04 PM (16:04)
-    const QTime fourPM4(16, 4, 0);
-
-    QDateTime firstDate;
-    QDateTime lastDate;
+    QDateTime initDate;
+    QDateTime fromDate;
+    QDateTime toDate;
 
     {
         QDateTime now = QDateTime::currentDateTime();
@@ -108,48 +104,60 @@ void TestBarCache::testGetAfterHourBars()
         // Create a QDateTime for previous day at 4:00 PM in New York time zone
         QTimeZone newYorkTimeZone("America/New_York");
 
-        firstDate = QDateTime(previousDay, fourPM, newYorkTimeZone);
-        lastDate = QDateTime(previousDay, fourPM4, newYorkTimeZone);
+        // Define 4:00 PM (16:00)
+        const QTime noon(12, 0, 0);
+
+
+        initDate = QDateTime(previousDay, noon, newYorkTimeZone);
+        fromDate = initDate;
+        toDate = fromDate;
     }
 
 
     QVector<Bar> results;
 
+    int nbars;
+
     qInfo() << "";
     qInfo() << "Warm the cache with 4 bars";
     {
-        results = cache->getBars(firstDate, lastDate);
+        nbars = 4;
+        toDate = fromDate.addSecs(60 * (nbars-1));
+        results = cache->getBars(fromDate, toDate);
 
         QCOMPARE(cache->getLastHitType(), BarCache::HitType::Miss);
-        QCOMPARE(cache->getLastNumberFetchedBars(), 4);
-        QCOMPARE_GE(results.size(), 4);
+        QCOMPARE(cache->getLastNumberFetchedBars(), nbars);
+        QCOMPARE_GE(results.size(), nbars);
     }
 
     qInfo() << "";
     qInfo() << "Test asking for the same 4 bars hits the cache";
     {
-        results = cache->getBars(firstDate, lastDate);
+        results = cache->getBars(fromDate, toDate);
 
         QCOMPARE(cache->getLastHitType(), BarCache::HitType::Hit);
         QCOMPARE(cache->getLastNumberFetchedBars(), 0);
-        QCOMPARE_GE(results.size(), 4);
+        QCOMPARE_GE(results.size(), nbars);
     }
 
     qInfo() << "";
     qInfo() << "Testing asking for 10 bars past triggers a miss";
-    QDateTime secondLastDate = lastDate.addSecs(10*60);
     {
-        results = cache->getBars(lastDate, secondLastDate);
+        nbars = 10;
+        fromDate = toDate.addSecs(60);
+        toDate = fromDate.addSecs(60 * (nbars-1));
+
+        results = cache->getBars(fromDate, toDate);
 
         QCOMPARE(cache->getLastHitType(), BarCache::HitType::Miss);
-        QCOMPARE(cache->getLastNumberFetchedBars(), 10);
-        QCOMPARE_GE(results.size(), 10);
+        QCOMPARE(cache->getLastNumberFetchedBars(), nbars);
+        QCOMPARE_GE(results.size(), nbars);
     }
 
     qInfo() << "";
     qInfo() << "Testing asking for the 14 is a hit";
     {
-        results = cache->getBars(firstDate, secondLastDate);
+        results = cache->getBars(initDate, toDate);
 
         QCOMPARE(cache->getLastHitType(), BarCache::HitType::Hit);
         QCOMPARE(cache->getLastNumberFetchedBars(), 0);
@@ -159,12 +167,24 @@ void TestBarCache::testGetAfterHourBars()
     qInfo() << "";
     qInfo() << "Testing asking for the 1 bar past is a miss and only that one is fetched";
     {
-        results = cache->getBars(firstDate, secondLastDate.addSecs(60));
+        nbars = 1;
+        results = cache->getBars(initDate, toDate.addSecs(60 * nbars));
 
         QCOMPARE(cache->getLastHitType(), BarCache::HitType::PartialHit);
         QCOMPARE_GE(results.size(), 15);
-        QCOMPARE(cache->getLastNumberFetchedBars(), 1);
+        QCOMPARE(cache->getLastNumberFetchedBars(), nbars);
         QCOMPARE(cache->getDuplicateStoreCount(), 0);
     }
 
+    qInfo() << "";
+    qInfo() << "Testing asking for the 1 bar before is a miss and only that one is fetched";
+    {
+        nbars = 1;
+        results = cache->getBars(initDate.addSecs(-60 * nbars), toDate.addSecs(60 * nbars));
+
+        QCOMPARE(cache->getLastHitType(), BarCache::HitType::PartialHit);
+        QCOMPARE_GE(results.size(), 16);
+        QCOMPARE(cache->getLastNumberFetchedBars(), nbars);
+        QCOMPARE(cache->getDuplicateStoreCount(), 0);
+    }
 }

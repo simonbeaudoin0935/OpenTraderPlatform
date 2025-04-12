@@ -48,7 +48,6 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
 }
 
 const QVector<Bar> BarCache::getBars(QDateTime first, QDateTime last) {
-
     lastHitType = HitType::None;
     // Reset the counter of fetched bar for the last request
     lastNumberFetchedBars = 0;
@@ -56,7 +55,7 @@ const QVector<Bar> BarCache::getBars(QDateTime first, QDateTime last) {
     // Adjust for weekends
     QDateTime adjustedFirst = first;
     QDateTime adjustedLast = last;
-    
+
     // If first date is on a weekend, move it to the next Monday
     while (adjustedFirst.date().dayOfWeek() > 5) { // 6 = Saturday, 7 = Sunday
         adjustedFirst = adjustedFirst.addDays(1);
@@ -70,113 +69,125 @@ const QVector<Bar> BarCache::getBars(QDateTime first, QDateTime last) {
     // Check cache first
     QVector<Bar> cachedBars = getBarsFromCache(adjustedFirst, adjustedLast);
     
-    if (!cachedBars.isEmpty()) {
-        // If we have a complete set, return it
-        if (cachedBars.size() == (adjustedFirst.secsTo(adjustedLast) / 60)) {
-            lastHitType = HitType::Hit;
-            return cachedBars;
-        }
-        
-        // We have a partial hit, need to fetch missing bars
-        QDateTime firstMissing = adjustedFirst;
-        QDateTime lastMissing = adjustedLast;
-        
-        // Find the first missing bar
-        for (const Bar& bar : cachedBars) {
-            QDateTime barTime = QDateTime::fromString(bar.getTimeStamp(), Qt::ISODate);
-            if (barTime == firstMissing) {
-                firstMissing = firstMissing.addSecs(60);
-            } else {
-                break;
-            }
-        }
-        
-        // Find the last missing bar
-        for (int i = cachedBars.size() - 1; i >= 0; --i) {
-            QDateTime barTime = QDateTime::fromString(cachedBars[i].getTimeStamp(), Qt::ISODate);
-            if (barTime == lastMissing) {
-                lastMissing = lastMissing.addSecs(-60);
-            } else {
-                break;
-            }
-        }
-        
-        // Fetch missing bars
+    // complete MISS
+    if (cachedBars.isEmpty()) {
+
+        // If we get here, we have no bars in cache, fetch all requested bars
         QVector<Bar> fetchedBars;
-        bool success = TSClient::getInstance().getBarsSync(fetchedBars, symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour, firstMissing, lastMissing);
-        
-        lastNumberFetchedBars = fetchedBars.size();
+
+        QDateTime fetchFirst = adjustedFirst;
+        QDateTime fetchLast  = adjustedLast.addSecs(60); // Need to add a minute because the API to bound is excluding the last minute
+
+        bool success = TSClient::getInstance().getBarsSync(fetchedBars, symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour, fetchFirst, fetchLast);
+
+        if (!success) {
+          qCWarning(BarCacheLog) << "Failed to fetch bars from API for" << symbol;
+            return QVector<Bar>();
+        }
+
+        qCDebug(BarCacheLog) << "Successfully fetched" << fetchedBars.size()
+                             << "bars from API for" << symbol;
 
         // Important : adjust the timestamp of the returned bars to substract one minute
         for(Bar& bar: fetchedBars) bar.ajustTimeStampToOpeningMinute();
 
-        if (success) {
-            qCDebug(BarCacheLog) << "Successfully fetched" << fetchedBars.size() 
-                                << "missing bars from API for" << symbol;
-            
-            // Store the fetched bars in cache
-            storeBarsInCache(fetchedBars);
-            
-            // Combine cached and fetched bars
-            QVector<Bar> allBars;
-            allBars.reserve(cachedBars.size() + fetchedBars.size());
-            
-            // Add all bars in chronological order
-            QDateTime currentTime = adjustedFirst;
-            int cachedIndex = 0;
-            int fetchedIndex = 0;
-            
-            while (currentTime <= adjustedLast) {
-                if (cachedIndex < cachedBars.size()) {
-                    QDateTime cachedTime = QDateTime::fromString(cachedBars[cachedIndex].getTimeStamp(), Qt::ISODate);
-                    if (cachedTime == currentTime) {
-                        allBars.append(cachedBars[cachedIndex]);
-                        cachedIndex++;
-                        currentTime = currentTime.addSecs(60);
-                        continue;
-                    }
-                }
-                
-                if (fetchedIndex < fetchedBars.size()) {
-                    QDateTime fetchedTime = QDateTime::fromString(fetchedBars[fetchedIndex].getTimeStamp(), Qt::ISODate);
-                    if (fetchedTime == currentTime) {
-                        allBars.append(fetchedBars[fetchedIndex]);
-                        fetchedIndex++;
-                        currentTime = currentTime.addSecs(60);
-                        continue;
-                    }
-                }
-                
-                currentTime = currentTime.addSecs(60);
-            }
-            
-            lastHitType = HitType::PartialHit;
-            return allBars;
-        } else {
-            qCWarning(BarCacheLog) << "Failed to fetch missing bars from API for" << symbol;
-            return cachedBars; // Return what we have in cache
-        }
-    }
-    
-    // If we get here, we have no bars in cache, fetch all requested bars
-    QVector<Bar> fetchedBars;
-    bool success = TSClient::getInstance().getBarsSync(fetchedBars, symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour, adjustedFirst, adjustedLast);
-    
-    lastNumberFetchedBars = fetchedBars.size();
-
-    // Important : adjust the timestamp of the returned bars to substract one minute
-    for(Bar& bar: fetchedBars) bar.ajustTimeStampToOpeningMinute();
-
-    if (success) {
-        qCDebug(BarCacheLog) << "Successfully fetched" << fetchedBars.size() 
-                            << "bars from API for" << symbol;
         storeBarsInCache(fetchedBars);
+        lastNumberFetchedBars = fetchedBars.size();
         lastHitType = HitType::Miss;
+
+        qCDebug(BarCacheLog) << Q_FUNC_INFO << " : Returning MISS";
+
         return fetchedBars;
-    } else {
-        qCWarning(BarCacheLog) << "Failed to fetch bars from API for" << symbol;
-        return QVector<Bar>();
     }
+
+    // complete HIT : If we have a complete set, return it
+    if (cachedBars.size() == (adjustedFirst.secsTo(adjustedLast) / 60) + 1) {
+        lastHitType = HitType::Hit;
+
+        qCDebug(BarCacheLog) << Q_FUNC_INFO << " : Returning HIT";
+
+        return cachedBars;
+    }
+
+    // partial HIT
+
+    // Find gaps in the cached bars
+    // Fetch missing bars for each gap
+    QVector<Bar> allBars;
+    int totalFetched = 0;
+
+    QDateTime firstCachedBarTime = QDateTime::fromString(cachedBars.first().getTimeStamp(), Qt::ISODate);
+    if (firstCachedBarTime > adjustedFirst) {
+
+        qCDebug(BarCacheLog) << "Filling hole before";
+
+        QVector<Bar> fetchedBars;
+        bool success = TSClient::getInstance().getBarsSync(
+            fetchedBars,
+            symbol,
+            1,
+            Bar::BarUnit::Minute,
+            0,
+            Bar::BarSessionTemplate::USEQ24Hour,
+            adjustedFirst,
+            firstCachedBarTime);
+
+        if (!success) {
+            qCWarning(BarCacheLog) << "Failed to fetch missing bars from API for" << symbol
+                                   << "in range" << adjustedFirst
+                                   << "to" << firstCachedBarTime;
+        }
+
+        for(Bar& bar: fetchedBars) bar.ajustTimeStampToOpeningMinute();
+        storeBarsInCache(fetchedBars);
+
+        // Begin by adding those fetched pre-bars first
+        allBars.append(fetchedBars);
+        totalFetched += fetchedBars.size();
+    }
+
+    // Then, add the bars that were already cached
+    allBars.append(cachedBars);
+
+    QDateTime lastCachedBarTime = QDateTime::fromString(cachedBars.last().getTimeStamp(), Qt::ISODate);
+    if (adjustedLast > lastCachedBarTime) {
+
+        qCDebug(BarCacheLog) << "Filling hole after";
+
+        QDateTime fetchFirst = lastCachedBarTime.addSecs(60);
+        QDateTime fetchLast  = adjustedLast.addSecs(60); // Need to add a minute because the API to bound is excluding the last minute
+
+        QVector<Bar> fetchedBars;
+        bool success = TSClient::getInstance().getBarsSync(
+            fetchedBars,
+            symbol,
+            1,
+            Bar::BarUnit::Minute,
+            0,
+            Bar::BarSessionTemplate::USEQ24Hour,
+            fetchFirst,
+            fetchLast);
+
+        if (!success) {
+            qCWarning(BarCacheLog) << "Failed to fetch missing bars from API for" << symbol
+                                   << "in range" << lastCachedBarTime
+                                   << "to" << adjustedLast;
+        }
+
+        for(Bar& bar: fetchedBars) bar.ajustTimeStampToOpeningMinute();
+        storeBarsInCache(fetchedBars);
+
+        // Then finally add those post-bars last
+        allBars.append(fetchedBars);
+        totalFetched += fetchedBars.size();
+    }
+
+    lastNumberFetchedBars = totalFetched;
+    lastHitType = HitType::PartialHit;
+
+    qCDebug(BarCacheLog) << Q_FUNC_INFO << " : Returning PARTIAL HIT";
+
+    return allBars;
 }
 
 void BarCache::storeBarsInCache(const QVector<Bar>& bars) {
@@ -189,6 +200,9 @@ void BarCache::storeBarsInCache(const QVector<Bar>& bars) {
             duplicateStoreCount++;
         }
         barCacheOneMinute.insert(dateTime, bar);
+
+        qCDebug(BarCacheLog) << "Inserted bar in cache with timestamp :" << bar.getTimeStamp();
+
     }
 }
 
@@ -207,7 +221,7 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
     QDateTime expectedTime = start;
     bool hasCompleteSet = true;
     
-    while (expectedTime < end) {
+    while (expectedTime <= end) {
         if (it == barCacheOneMinute.end() || it.key() != expectedTime) {
             hasCompleteSet = false;
             missingTimes.append(expectedTime);
