@@ -117,27 +117,54 @@ void TestBarCache::testGetAfterHourBars()
 
     qInfo() << "";
     qInfo() << "Warm the cache with 4 bars";
-    results = cache->getBars(firstDate, lastDate);
+    {
+        results = cache->getBars(firstDate, lastDate);
 
-    QCOMPARE(cache->getCacheHitCount(), 0);
-    QCOMPARE(cache->getCacheMissCount(), 1);
-
-    QCOMPARE_GE(results.size(), 4);
+        QCOMPARE(cache->getLastHitType(), BarCache::HitType::Miss);
+        QCOMPARE(cache->getLastNumberFetchedBars(), 4);
+        QCOMPARE_GE(results.size(), 4);
+    }
 
     qInfo() << "";
     qInfo() << "Test asking for the same 4 bars hits the cache";
-    results = cache->getBars(firstDate, lastDate);
+    {
+        results = cache->getBars(firstDate, lastDate);
 
-    QCOMPARE(cache->getCacheHitCount(), 1);
-    QCOMPARE(cache->getCacheMissCount(), 1);
+        QCOMPARE(cache->getLastHitType(), BarCache::HitType::Hit);
+        QCOMPARE(cache->getLastNumberFetchedBars(), 0);
+        QCOMPARE_GE(results.size(), 4);
+    }
 
     qInfo() << "";
     qInfo() << "Testing asking for 10 bars past triggers a miss";
+    QDateTime secondLastDate = lastDate.addSecs(10*60);
+    {
+        results = cache->getBars(lastDate, secondLastDate);
 
-    QDateTime secondLastDate = lastDate.addSecs(10);
+        QCOMPARE(cache->getLastHitType(), BarCache::HitType::Miss);
+        QCOMPARE(cache->getLastNumberFetchedBars(), 10);
+        QCOMPARE_GE(results.size(), 10);
+    }
 
-    results = cache->getBars(lastDate, secondLastDate);
+    qInfo() << "";
+    qInfo() << "Testing asking for the 14 is a hit";
+    {
+        results = cache->getBars(firstDate, secondLastDate);
 
-    QCOMPARE(cache->getCacheHitCount(), 1);
-    QCOMPARE(cache->getCacheMissCount(), 2);
+        QCOMPARE(cache->getLastHitType(), BarCache::HitType::Hit);
+        QCOMPARE(cache->getLastNumberFetchedBars(), 0);
+        QCOMPARE_GE(results.size(), 14);
+    }
+
+    qInfo() << "";
+    qInfo() << "Testing asking for the 1 bar past is a miss and only that one is fetched";
+    {
+        results = cache->getBars(firstDate, secondLastDate.addSecs(60));
+
+        QCOMPARE(cache->getLastHitType(), BarCache::HitType::PartialHit);
+        QCOMPARE_GE(results.size(), 15);
+        QCOMPARE(cache->getLastNumberFetchedBars(), 1);
+        QCOMPARE(cache->getDuplicateStoreCount(), 0);
+    }
+
 }
