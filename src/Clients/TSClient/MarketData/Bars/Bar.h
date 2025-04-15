@@ -1,5 +1,4 @@
-#ifndef BAR_H
-#define BAR_H
+#pragma once
 
 #include <QString>
 #include <QDateTime>
@@ -23,6 +22,8 @@ public:
     // Default constructor
     Bar() = default;
     
+    static Bar nullBar(QDateTime dateTime);
+
     // Constructor taking a QJsonObject
     Bar(const QJsonObject& jsonObj);
 
@@ -77,5 +78,3 @@ private:
 };
 
 Q_DECLARE_METATYPE(Bar)
-
-#endif // BAR_H

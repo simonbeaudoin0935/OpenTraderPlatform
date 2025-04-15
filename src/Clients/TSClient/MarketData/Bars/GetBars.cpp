@@ -71,14 +71,22 @@ bool TSClient::getBarsSync(QVector<Bar> &results,
 
     // The API returns a single object with an "Bar" array
     QJsonObject responseObj = jsonDocumentFromReplyToDelete->object();
-    const QJsonArray barsArray = responseObj["Bars"].toArray();
 
-    // Resize the array in advance
-    results.reserve(barsArray.count());
+    if (responseObj.contains("Error") && responseObj["Error"] == "NotFound") {
+        results.reserve(0);
 
-    for (const QJsonValue &json: barsArray) {
-        results.push_back(Bar(json.toObject()));
+    } else { // Happy path with bars
+
+        const QJsonArray barsArray = responseObj["Bars"].toArray();
+
+        // Resize the array in advance
+        results.reserve(barsArray.count());
+
+        for (const QJsonValue &json: barsArray) {
+            results.push_back(Bar(json.toObject()));
+        }
     }
+
 
     TRACK_DELETED_JSON_ARRAY(delete jsonDocumentFromReplyToDelete);
     return true;

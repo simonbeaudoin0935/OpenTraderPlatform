@@ -15,8 +15,14 @@ class BarCache : public QObject
     Q_OBJECT
 public:
     explicit BarCache(const QString &symbol, bool isStreaming = false, QObject *parent = nullptr);
+    ~BarCache();
+
+    const QString& getSymbol() const { return symbol;};
+
+    unsigned int getNumberOfBars() const { return barCacheOneMinute.size();};
 
     const QVector<Bar> getBars(QDateTime first, QDateTime last);
+    const QVector<Bar> getPreviousDayAfterHourBars();
 
     enum class HitType{
         None,
@@ -36,16 +42,19 @@ protected:
     void fetchBars();
 
 private slots:
-    void onGetBarsReceived(QString symbol, QVector<Bar> newBars);
+    void onReceivedNewBar(QString symbol, Bar newBar);
 
 private:
     QString symbol;
     bool isStreaming;
     QMap<QDateTime, Bar> barCacheOneMinute;
     mutable QReadWriteLock rwLock;
+
+    void storeBarInCache(const Bar& bar);
     void storeBarsInCache(const QVector<Bar>& bars);
+
     QVector<Bar> getBarsFromCache(QDateTime start, QDateTime end) const;
-    StreamBars* streamBar;
+    StreamBars* streamBar = nullptr;
 
     HitType lastHitType = HitType::None;
 

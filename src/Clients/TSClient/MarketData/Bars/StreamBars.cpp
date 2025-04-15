@@ -1,7 +1,7 @@
 #include "StreamBars.h"
 #include "TSClient.h"
 
-StreamBars::StreamBars(QString &symbol, QObject *parent) :
+StreamBars::StreamBars(const QString &symbol, QObject *parent) :
     Stream(parent),
     symbol(symbol)
 {
@@ -26,7 +26,7 @@ bool StreamBars::processJsonObject(const QJsonObject& jsonObj)
 }
 
 
-StreamBars *TSClient::openStreamBars(QString &symbol,
+StreamBars *TSClient::openStreamBars(const QString &symbol,
                                      unsigned int interval,
                                      Bar::BarUnit unit,
                                      unsigned int barsback,

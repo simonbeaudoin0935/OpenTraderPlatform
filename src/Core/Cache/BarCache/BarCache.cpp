@@ -44,7 +44,24 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
     symbol(symbol),
     isStreaming(isStreaming)
 {
-    connect(TSClient::getInstancePtr(), &TSClient::getBarsAsyncReceived, this, &BarCache::onGetBarsReceived);
+    if (isStreaming) {
+        streamBar = TSClient::getInstance().openStreamBars(symbol,
+                                                           1,
+                                                           Bar::BarUnit::Minute,
+                                                           10,
+                                                           Bar::BarSessionTemplate::USEQ24Hour);
+        Q_ASSERT(streamBar != nullptr);
+
+        connect(streamBar, &StreamBars::receivedNewBar, this, &BarCache::onReceivedNewBar);
+    }
+
+}
+
+BarCache::~BarCache()
+{
+    if (streamBar != nullptr) {
+        TSClient::getInstance().closeStreamBars(streamBar);
+    }
 }
 
 const QVector<Bar> BarCache::getBars(QDateTime first, QDateTime last) {
@@ -91,13 +108,42 @@ const QVector<Bar> BarCache::getBars(QDateTime first, QDateTime last) {
         // Important : adjust the timestamp of the returned bars to substract one minute
         for(Bar& bar: fetchedBars) bar.ajustTimeStampToOpeningMinute();
 
-        storeBarsInCache(fetchedBars);
+        for(Bar& bar: fetchedBars) qCDebug(BarCacheLog) << bar.toJsonString();
+
+
+        // Account for bar holes where no activity happened
+        QVector<Bar> resultBars;
+        {
+            QDateTime expectedTime = first;
+            qsizetype i = 0;
+
+            while (expectedTime <= last) {
+
+                Bar bar;
+
+                if (i >= fetchedBars.size()) {
+                    bar = Bar::nullBar(expectedTime);
+                } else {
+                    if (expectedTime == QDateTime::fromString(fetchedBars[i].getTimeStamp(), Qt::ISODate)) {
+                        bar = fetchedBars[i];
+                        i++;
+                    } else {
+                        bar = Bar::nullBar(expectedTime);
+                    }
+                }
+
+                resultBars.append(bar);
+                expectedTime = expectedTime.addSecs(60);  // Add one minute
+            }
+        }
+
+        storeBarsInCache(resultBars);
         lastNumberFetchedBars = fetchedBars.size();
         lastHitType = HitType::Miss;
 
         qCDebug(BarCacheLog) << Q_FUNC_INFO << " : Returning MISS";
 
-        return fetchedBars;
+        return resultBars;
     }
 
     // complete HIT : If we have a complete set, return it
@@ -190,19 +236,49 @@ const QVector<Bar> BarCache::getBars(QDateTime first, QDateTime last) {
     return allBars;
 }
 
+const QVector<Bar> BarCache::getPreviousDayAfterHourBars()
+{
+    QDate previousDay = QDateTime::currentDateTime().date().addDays(-1);
+
+    while (previousDay.dayOfWeek() > 5) {
+        previousDay = previousDay.addDays(-1);
+    }
+
+    QTimeZone newYorkTimeZone("America/New_York");
+
+    const QTime _4PM(16, 0, 0);
+    const QTime _8PM(20, 0, 0);
+
+    QDateTime fromDate = QDateTime(previousDay, _4PM, newYorkTimeZone);
+    QDateTime toDate   = QDateTime(previousDay, _8PM, newYorkTimeZone);
+
+    return getBars(fromDate, toDate);
+}
+
+void BarCache::storeBarInCache(const Bar& bar) {
+    QDateTime dateTime = QDateTime::fromString(bar.getTimeStamp(), Qt::ISODate);
+
+    if (!bar.getIsRealtime()) {
+        if (barCacheOneMinute.contains(dateTime)) {
+            qCDebug(BarCacheLog) << "Bar already in cache for" << symbol
+                                 << "at " << dateTime;
+            duplicateStoreCount++;
+        }
+    } else {
+        if (bar.getBarStatus() == "Closed") {
+            qCDebug(BarCacheLog) << "Real time cache insertion; received the closing bar";
+        }
+    }
+
+    barCacheOneMinute.insert(dateTime, bar);
+
+    qCDebug(BarCacheLog) << "Inserted bar in cache with timestamp :" << bar.getTimeStamp();
+}
+
 void BarCache::storeBarsInCache(const QVector<Bar>& bars) {
     QWriteLocker locker(&rwLock);
     for (const Bar& bar : bars) {
-        QDateTime dateTime = QDateTime::fromString(bar.getTimeStamp(), Qt::ISODate);
-        if (barCacheOneMinute.contains(dateTime)) {
-            qCDebug(BarCacheLog) << "Bar already in cache for" << symbol
-                                << "at " << dateTime;
-            duplicateStoreCount++;
-        }
-        barCacheOneMinute.insert(dateTime, bar);
-
-        qCDebug(BarCacheLog) << "Inserted bar in cache with timestamp :" << bar.getTimeStamp();
-
+        storeBarInCache(bar);
     }
 }
 
@@ -247,16 +323,16 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
     return result;
 }
 
-void BarCache::onGetBarsReceived(QString symbol, QVector<Bar> newBars)
+void BarCache::onReceivedNewBar(QString symbol, Bar newBar)
 {
     if (this->symbol != symbol) {
-        qCWarning(BarCacheLog) << "Bars received for symbol " << symbol << " is not for this cache that is for " << this->symbol;
+        qFatal(BarCacheLog) << "Bars received for symbol " << symbol << " is not for this cache that is for " << this->symbol;
         return;
     }
 
-    for(Bar& bar: newBars) {
-        bar.ajustTimeStampToOpeningMinute();
-    }
+    newBar.ajustTimeStampToOpeningMinute();
 
-    storeBarsInCache(newBars);
+    storeBarInCache(newBar);
+
+    //qCDebug(BarCacheLog).noquote() << "Received stream bar : " << newBar.toJsonString();
 }

@@ -10,7 +10,10 @@ private slots:
     void init();
     void cleanup();
 
-    void testGetAfterHourBars();
+    void testGetBars();
+    void testGetBarsOnlyHoles();
+    void testGetBarsWithHoles();
 
+    void testBarStreaming();
 private:
 };

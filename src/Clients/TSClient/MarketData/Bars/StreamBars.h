@@ -10,7 +10,7 @@ class StreamBars : public Stream {
     Q_OBJECT
 
 public:
-    explicit StreamBars(QString &symbol, QObject *parent = nullptr);
+    explicit StreamBars(const QString &symbol, QObject *parent = nullptr);
     ~StreamBars();
     StreamBars(const StreamBars&) = delete;
     StreamBars& operator=(const StreamBars&) = delete;

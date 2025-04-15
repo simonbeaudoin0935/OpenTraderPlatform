@@ -65,7 +65,7 @@ public:
      *
      * @note : Returned pointer dynamically allocated. Delete with closeStreamBars
      */
-    StreamBars* openStreamBars(QString &symbol,
+    StreamBars* openStreamBars(const QString &symbol,
                                unsigned int interval = 1,
                                Bar::BarUnit unit = Bar::BarUnit::Daily,
                                unsigned int barsback = 1,

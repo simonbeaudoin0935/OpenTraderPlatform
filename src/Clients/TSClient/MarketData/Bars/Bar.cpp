@@ -46,6 +46,15 @@ QUrlQuery Bar::buildUrlQuery(unsigned int interval,
     return query;
 }
 
+Bar Bar::nullBar(QDateTime dateTime)
+{
+    Bar bar = Bar();
+    bar.barStatus = "void";
+    bar.timeStamp = dateTime.toUTC().toString("yyyy-MM-ddThh:mm:ssZ");
+
+    return bar;
+}
+
 Bar::Bar(const QJsonObject& jsonObj) {
     high = jsonObj["High"].toString();
     low = jsonObj["Low"].toString();

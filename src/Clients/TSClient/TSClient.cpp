@@ -232,7 +232,7 @@ void TSClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
         });
     }
 
-    QTimer::singleShot(100, this, [this]() {
+    QTimer::singleShot(1000, this, [this]() {
         // Based on observation, if we propagate the good new immediately and start
         // making calls, the remote server will send us back an error 401 (unauthenticated)
         // for the first API call. Almost as if the refresh did not properly propagade in their system

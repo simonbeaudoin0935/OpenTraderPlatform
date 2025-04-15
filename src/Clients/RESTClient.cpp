@@ -398,7 +398,13 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
             " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString() << " : " << reply->error();
         qCWarning(RESTClientLog).noquote() << Q_FUNC_INFO <<
             " : Content of the reply : \n" << doc.toJson(QJsonDocument::Indented);
-        goto notify;
+
+        if (reply->error() == QNetworkReply::ContentNotFoundError) {
+            // Its possible in the case of getBars for example to receive this, as its possible to ask for a range of bars
+            // in the after market for instance where there just isnt any bars
+        } else {
+            goto notify;
+        }
     }
 
     if (parseError.error != QJsonParseError::NoError) {
@@ -420,7 +426,8 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
     if (doc.isObject() && doc.object().isEmpty()) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO << " : Doc object is empty";
         // Continue, this is legal
-    }   
+    }
+
 
     // At this point, the reply is legit
     requestInfo->completed = true;

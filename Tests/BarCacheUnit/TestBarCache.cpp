@@ -9,12 +9,30 @@
 #include "BarCache.h"
 
 static TSClient* client;
-
-static BarCache *cache;
+static QVector<QString> companies;
 
 // will be called to create a global test data table.
 void TestBarCache::initTestCase_data()
 {
+    companies.push_back("AVTE");
+    companies.push_back("ELTX");
+    companies.push_back("GNLX");
+    companies.push_back("MAZE");
+    companies.push_back("FDMT");
+    companies.push_back("SEER");
+    companies.push_back("QNRX");
+    companies.push_back("ELAB");
+    companies.push_back("REVB");
+    companies.push_back("GLTO");
+    companies.push_back("ADTX");
+    companies.push_back("SXTP");
+    companies.push_back("CELZ");
+    companies.push_back("TCRT");
+    companies.push_back("HCWB");
+    companies.push_back("CYCN");
+    companies.push_back("BCDA");
+    companies.push_back("APLM");
+    companies.push_back("QLGN");
 }
 
 // will be called before the first test function is executed.
@@ -24,8 +42,6 @@ void TestBarCache::initTestCase() {
     QThread::currentThread()->setObjectName("UnitTestThread");
 
     client = TSClient::getInstancePtr(); // ***** First time to do a getInstance, this will call the constructor
-
-    cache = new BarCache("AAPL", false);
 
     bool triggered;
 
@@ -89,17 +105,19 @@ void TestBarCache::cleanup() {
 
 }
 
-void TestBarCache::testGetAfterHourBars()
+void TestBarCache::testGetBars()
 {
+    BarCache cache("AAPL");
+
     QDateTime initDate;
     QDateTime fromDate;
     QDateTime toDate;
 
     {
-        QDateTime now = QDateTime::currentDateTime();
+        //QDateTime now = QDateTime::currentDateTime();
 
         // Get the date for the previous day
-        QDate previousDay = now.date().addDays(-1);
+        QDate previousDay(2025, 4, 11);
 
         // Create a QDateTime for previous day at 4:00 PM in New York time zone
         QTimeZone newYorkTimeZone("America/New_York");
@@ -111,6 +129,8 @@ void TestBarCache::testGetAfterHourBars()
         initDate = QDateTime(previousDay, noon, newYorkTimeZone);
         fromDate = initDate;
         toDate = fromDate;
+
+        qInfo() << "Init Date : " << initDate;
     }
 
 
@@ -123,20 +143,20 @@ void TestBarCache::testGetAfterHourBars()
     {
         nbars = 4;
         toDate = fromDate.addSecs(60 * (nbars-1));
-        results = cache->getBars(fromDate, toDate);
+        results = cache.getBars(fromDate, toDate);
 
-        QCOMPARE(cache->getLastHitType(), BarCache::HitType::Miss);
-        QCOMPARE(cache->getLastNumberFetchedBars(), nbars);
+        QCOMPARE(cache.getLastHitType(), BarCache::HitType::Miss);
+        QCOMPARE(cache.getLastNumberFetchedBars(), nbars);
         QCOMPARE_GE(results.size(), nbars);
     }
 
     qInfo() << "";
     qInfo() << "Test asking for the same 4 bars hits the cache";
     {
-        results = cache->getBars(fromDate, toDate);
+        results = cache.getBars(fromDate, toDate);
 
-        QCOMPARE(cache->getLastHitType(), BarCache::HitType::Hit);
-        QCOMPARE(cache->getLastNumberFetchedBars(), 0);
+        QCOMPARE(cache.getLastHitType(), BarCache::HitType::Hit);
+        QCOMPARE(cache.getLastNumberFetchedBars(), 0);
         QCOMPARE_GE(results.size(), nbars);
     }
 
@@ -147,20 +167,20 @@ void TestBarCache::testGetAfterHourBars()
         fromDate = toDate.addSecs(60);
         toDate = fromDate.addSecs(60 * (nbars-1));
 
-        results = cache->getBars(fromDate, toDate);
+        results = cache.getBars(fromDate, toDate);
 
-        QCOMPARE(cache->getLastHitType(), BarCache::HitType::Miss);
-        QCOMPARE(cache->getLastNumberFetchedBars(), nbars);
+        QCOMPARE(cache.getLastHitType(), BarCache::HitType::Miss);
+        QCOMPARE(cache.getLastNumberFetchedBars(), nbars);
         QCOMPARE_GE(results.size(), nbars);
     }
 
     qInfo() << "";
     qInfo() << "Testing asking for the 14 is a hit";
     {
-        results = cache->getBars(initDate, toDate);
+        results = cache.getBars(initDate, toDate);
 
-        QCOMPARE(cache->getLastHitType(), BarCache::HitType::Hit);
-        QCOMPARE(cache->getLastNumberFetchedBars(), 0);
+        QCOMPARE(cache.getLastHitType(), BarCache::HitType::Hit);
+        QCOMPARE(cache.getLastNumberFetchedBars(), 0);
         QCOMPARE_GE(results.size(), 14);
     }
 
@@ -168,23 +188,121 @@ void TestBarCache::testGetAfterHourBars()
     qInfo() << "Testing asking for the 1 bar past is a miss and only that one is fetched";
     {
         nbars = 1;
-        results = cache->getBars(initDate, toDate.addSecs(60 * nbars));
+        results = cache.getBars(initDate, toDate.addSecs(60 * nbars));
 
-        QCOMPARE(cache->getLastHitType(), BarCache::HitType::PartialHit);
+        QCOMPARE(cache.getLastHitType(), BarCache::HitType::PartialHit);
         QCOMPARE_GE(results.size(), 15);
-        QCOMPARE(cache->getLastNumberFetchedBars(), nbars);
-        QCOMPARE(cache->getDuplicateStoreCount(), 0);
+        QCOMPARE(cache.getLastNumberFetchedBars(), nbars);
+        QCOMPARE(cache.getDuplicateStoreCount(), 0);
     }
 
     qInfo() << "";
     qInfo() << "Testing asking for the 1 bar before is a miss and only that one is fetched";
     {
         nbars = 1;
-        results = cache->getBars(initDate.addSecs(-60 * nbars), toDate.addSecs(60 * nbars));
+        results = cache.getBars(initDate.addSecs(-60 * nbars), toDate.addSecs(60 * nbars));
 
-        QCOMPARE(cache->getLastHitType(), BarCache::HitType::PartialHit);
+        QCOMPARE(cache.getLastHitType(), BarCache::HitType::PartialHit);
         QCOMPARE_GE(results.size(), 16);
-        QCOMPARE(cache->getLastNumberFetchedBars(), nbars);
-        QCOMPARE(cache->getDuplicateStoreCount(), 0);
+        QCOMPARE(cache.getLastNumberFetchedBars(), nbars);
+        QCOMPARE(cache.getDuplicateStoreCount(), 0);
+    }
+}
+
+void TestBarCache::testGetBarsOnlyHoles()
+{
+    BarCache cache("TIVC");
+
+    //  Test against wednesday April 2
+    QDate date(2025, 04, 02);
+
+    QTimeZone newYorkTimeZone("America/New_York");
+
+    const QTime _17PM10(17, 10, 0);
+    const QTime _17PM20(17, 19, 0);
+
+    QDateTime fromDate = QDateTime(date, _17PM10, newYorkTimeZone);
+    QDateTime toDate   = QDateTime(date, _17PM20, newYorkTimeZone);
+
+
+    qInfo() << "";
+    qInfo() << "Testing asking for 10 bars not existing in the API database correctly return 10 void bars";
+    {
+        QVector<Bar> result = cache.getBars(fromDate, toDate);
+
+        // We know that these 10 bars dont exist in the API database.
+        QCOMPARE(cache.getLastNumberFetchedBars(), 0);
+        QCOMPARE(cache.getLastHitType(), BarCache::HitType::Miss);
+        QCOMPARE(cache.getNumberOfBars(), 10);
+
+        for (auto &bar : result) {
+            QVERIFY(bar.getBarStatus() == "void");
+        }
+    }
+
+    qInfo() << "";
+    qInfo() << "Testing asking for the same 10 void bars return a HIT";
+    {
+        QVector<Bar> result = cache.getBars(fromDate, toDate);
+
+        // We know that these 10 bars dont exist in the API database.
+        QCOMPARE(cache.getLastNumberFetchedBars(), 0);
+        QCOMPARE(cache.getLastHitType(), BarCache::HitType::Hit);
+        QCOMPARE(cache.getNumberOfBars(), 10);
+
+        for (auto &bar : result) {
+            QVERIFY(bar.getBarStatus() == "void");
+        }
+    }
+}
+
+void TestBarCache::testGetBarsWithHoles()
+{
+    BarCache cache("TIVC");
+
+    //  Test against wednesday April 2
+    QDate date(2025, 04, 02);
+
+    QTimeZone newYorkTimeZone("America/New_York");
+
+    const QTime _4PM(16, 0, 0);
+    const QTime _8PM(19, 59, 0);
+
+    QDateTime fromDate = QDateTime(date, _4PM, newYorkTimeZone);
+    QDateTime toDate   = QDateTime(date, _8PM, newYorkTimeZone);
+
+
+    QVector<Bar> result = cache.getBars(fromDate, toDate);
+
+    // We know there are only 26 bars in the after hour session of that date
+    QCOMPARE(cache.getLastNumberFetchedBars(), 26);
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::Miss);
+
+    // We need to have received 4 hours of 60 bars each
+    QCOMPARE(result.size(), 4 * 60);
+
+
+}
+
+void TestBarCache::testBarStreaming()
+{
+    QSKIP("yo");
+
+    QVector<BarCache*> caches;
+    for (auto &company: companies){
+        caches.push_back(new BarCache(company, true));
+    }
+
+    //    BarCache cache("AAPL", true);
+
+    QTest::qWait(120000);
+
+    for (auto &cache: caches) {
+        qInfo() <<  "Number of bars for : " << cache->getSymbol() << " : " << cache->getNumberOfBars();
+    }
+
+
+    for (auto &cache: caches) {
+        delete cache;
     }
 }

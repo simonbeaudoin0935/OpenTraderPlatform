@@ -2,7 +2,14 @@
 
 #include <QObject>
 
-#include "Bar.h"
+#include "BarCache.h"
+
+struct stats {
+    double averageVolumePerBar = 0;
+    double averagePriceChangePerBar = 0;
+    double maxVolumeChange = 0;
+    double maxPriceChange = 0;
+};
 
 class StockRunUpDetector : public QObject
 {
@@ -10,13 +17,13 @@ class StockRunUpDetector : public QObject
 public:
     explicit StockRunUpDetector(QObject *parent = nullptr);
 
+    void computeStatsOnLastAfterMarket();
+
 public slots:
     void start(QVector<QString> &watchlist);
 signals:
 
 private:
-    QVector<QString> watchlist;
-
-    QMap<QString, QVector<Bar>> aftermarketBars;
-
+    QMap<QString, BarCache*> watchlistBarCache;
+    QMap<QString, struct stats> statsPerSymbol;
 };
