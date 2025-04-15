@@ -94,13 +94,8 @@ void MainAlgo::onStockScreenerFinished()
     //                          newsFetchDepthLimit,
     //                          newsFetchingInterval);
 
-    QVector<QString> watchlist;
-    watchlist.append("TIVC");
+    //stockRunUpDetector.start(stockScreener.getStockScreeningResult());
 
-
-    stockRunUpDetector.start(watchlist);
-
-    stockRunUpDetector.computeStatsOnLastAfterMarket();
     //stockRunUpDetector.start(stockScreener.getStockScreeningResult());
 }
 

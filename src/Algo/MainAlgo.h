@@ -44,7 +44,7 @@ private:
 
     QVector<Account> accounts;
 
-    StockRunUpDetector stockRunUpDetector;
+    //StockRunUpDetector stockRunUpDetector;
     StockScreener stockScreener;
     BreakingNewsFetcher breakingNewsFetcher;
     StockBarsReceiver stockBarsReceiver;

@@ -21,8 +21,10 @@ public:
 
     unsigned int getNumberOfBars() const { return barCacheOneMinute.size();};
 
-    const QVector<Bar> getBars(QDateTime first, QDateTime last);
-    const QVector<Bar> getPreviousDayAfterHourBars();
+    bool warmUpBars(QDateTime first, QDateTime last);
+
+    const QVector<Bar> getBars(const QDateTime &first, const QDateTime &last);
+    const QVector<Bar> getAfterHourBars(const QDate &date);
 
     enum class HitType{
         None,
@@ -33,13 +35,10 @@ public:
 
     HitType getLastHitType() const { return lastHitType; }
 
-    quint64 getDuplicateStoreCount() const { return duplicateStoreCount; }
-    quint64 getLastNumberFetchedBars() const { return lastNumberFetchedBars; }
+    qsizetype getDuplicateStoreCount() const { return duplicateStoreCount; }
+    qsizetype getLastNumberFetchedBars() const { return lastNumberFetchedBars; }
 
 signals:
-
-protected:
-    void fetchBars();
 
 private slots:
     void onReceivedNewBar(QString symbol, Bar newBar);

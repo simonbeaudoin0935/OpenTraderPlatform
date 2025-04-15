@@ -36,6 +36,7 @@ public:
 
     // To monitor usage
     qsizetype getTotalDataReceivedBytes() const;
+    bool isCleanedUp();
 
 signals:
     // Emited at basically every new message
@@ -111,7 +112,6 @@ private:
 
 #ifdef UNIT_TESTING
     bool simulate_reply_network_latency = false;
-    bool isCleanedUp();
     QSemaphore onReplyFinished_sem;
     unsigned long fetchSyncTimeoutMs = 5000;
 #else

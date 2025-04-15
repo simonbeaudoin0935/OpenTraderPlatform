@@ -1,0 +1,17 @@
+TEMPLATE = app
+TARGET = test_RunUpDetector
+QT += core network testlib
+CONFIG += testlib
+
+CONFIG -= gui
+
+include($$PWD/../../src/Clients/Clients.pri)
+include($$PWD/../../src/Core/Cache/Cache.pri)
+
+#test sources
+SOURCES += TestRunUpDetector.cpp main.cpp
+HEADERS += TestRunUpDetector.h
+
+QMAKE_CXXFLAGS += -Og
+
+DEFINES += UNIT_TESTING 

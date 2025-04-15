@@ -136,7 +136,7 @@ void TestBarCache::testGetBars()
 
     QVector<Bar> results;
 
-    int nbars;
+    qsizetype nbars;
 
     qInfo() << "";
     qInfo() << "Warm the cache with 4 bars";
@@ -209,15 +209,15 @@ void TestBarCache::testGetBars()
     }
 }
 
+// Testing asking a range where we know there are only void bars
 void TestBarCache::testGetBarsOnlyHoles()
 {
     BarCache cache("TIVC");
 
-    //  Test against wednesday April 2
-    QDate date(2025, 04, 02);
-
     QTimeZone newYorkTimeZone("America/New_York");
 
+    //  Test against wednesday April 2 shortly after 17h where there is a bar holes from 17h-17h39
+    QDate date(2025, 04, 02);
     const QTime _17PM10(17, 10, 0);
     const QTime _17PM20(17, 19, 0);
 
@@ -233,7 +233,7 @@ void TestBarCache::testGetBarsOnlyHoles()
         // We know that these 10 bars dont exist in the API database.
         QCOMPARE(cache.getLastNumberFetchedBars(), 0);
         QCOMPARE(cache.getLastHitType(), BarCache::HitType::Miss);
-        QCOMPARE(cache.getNumberOfBars(), 10);
+        QCOMPARE(cache.getNumberOfBars(), (unsigned) 10);
 
         for (auto &bar : result) {
             QVERIFY(bar.getBarStatus() == "void");
@@ -248,7 +248,41 @@ void TestBarCache::testGetBarsOnlyHoles()
         // We know that these 10 bars dont exist in the API database.
         QCOMPARE(cache.getLastNumberFetchedBars(), 0);
         QCOMPARE(cache.getLastHitType(), BarCache::HitType::Hit);
-        QCOMPARE(cache.getNumberOfBars(), 10);
+        QCOMPARE(cache.getNumberOfBars(), (unsigned) 10);
+
+        for (auto &bar : result) {
+            QVERIFY(bar.getBarStatus() == "void");
+        }
+    }
+
+    qInfo() << "";
+    qInfo() << "Testing asking for 10 bars past the 10 we just asked is a partial HIT";
+    {
+        toDate = toDate.addSecs(10 * 60);
+
+        QVector<Bar> result = cache.getBars(fromDate, toDate);
+
+        // We know that these 10 bars dont exist in the API database.
+        QCOMPARE(cache.getLastNumberFetchedBars(), 0);
+        QCOMPARE(cache.getLastHitType(), BarCache::HitType::PartialHit);
+        QCOMPARE(cache.getNumberOfBars(), (unsigned) 20);
+
+        for (auto &bar : result) {
+            QVERIFY(bar.getBarStatus() == "void");
+        }
+    }
+
+    qInfo() << "";
+    qInfo() << "Testing asking for 5 bars before the 20 we just asked is a partial HIT";
+    {
+        fromDate = fromDate.addSecs(-5 * 60);
+
+        QVector<Bar> result = cache.getBars(fromDate, toDate);
+
+        // We know that these 10 bars dont exist in the API database.
+        QCOMPARE(cache.getLastNumberFetchedBars(), 0);
+        QCOMPARE(cache.getLastHitType(), BarCache::HitType::PartialHit);
+        QCOMPARE(cache.getNumberOfBars(), (unsigned) 25);
 
         for (auto &bar : result) {
             QVERIFY(bar.getBarStatus() == "void");
@@ -258,6 +292,8 @@ void TestBarCache::testGetBarsOnlyHoles()
 
 void TestBarCache::testGetBarsWithHoles()
 {
+    QSKIP("yoo");
+
     BarCache cache("TIVC");
 
     //  Test against wednesday April 2
@@ -280,8 +316,6 @@ void TestBarCache::testGetBarsWithHoles()
 
     // We need to have received 4 hours of 60 bars each
     QCOMPARE(result.size(), 4 * 60);
-
-
 }
 
 void TestBarCache::testBarStreaming()

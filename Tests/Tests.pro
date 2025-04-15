@@ -3,7 +3,8 @@ TEMPLATE = subdirs
 SUBDIRS += \
     FMPClientUnit \
     TSClientUnit \
-    BarCacheUnit
+    BarCacheUnit \
+    RunUpDetectorUnit
 
 
 
