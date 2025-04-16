@@ -348,8 +348,19 @@ void GuiFrontend::onNewDisplayedStockSelection()
 {
     QString symbol = ui->stockSymbolInput->text();
 
+    if (symbol == currentlyDisplayedSymbol) {
+        qWarning() << "Symbol " << symbol << " is already the currently displayed symbol";
+        return;
+    }
+
+    currentlyDisplayedSymbol = symbol;
+
+    ui->priceChart->clear();
+
     QMetaObject::invokeMethod(mainAlgo,
-                              "selectDisplayedStock", // Method name as string
+                              "selectDisplayedStock",
                               Qt::QueuedConnection,
                               Q_ARG(QString, symbol)); // Pass the symbol parameter
+
+
 }

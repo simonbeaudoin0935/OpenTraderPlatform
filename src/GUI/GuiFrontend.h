@@ -34,6 +34,8 @@ private slots:
 
 private:
     MainAlgo *mainAlgo;
+    QString currentlyDisplayedSymbol;
+
     static QString bytesToString(qint64 bytes);
 
     Ui::GuiFrontend* ui;  // Pointer to the UI object

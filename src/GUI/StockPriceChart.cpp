@@ -753,3 +753,33 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
                           currentOpenBar.getClose() >= currentOpenBar.getOpen());
     }
 }
+
+void StockPriceChart::clear() {
+    // Clear the candlestick series
+    candlestickSeries->clear();
+    
+    // Clear the completed bars
+    completedBars.clear();
+    
+    // Reset the current open bar
+    hasOpenBar = false;
+    currentOpenBar = Bar();
+    
+    // Clear the last price line
+    lastPriceLine->clear();
+    lastPrice = 0.0;
+    
+    // Clear background rectangles
+    clearBackgroundRects();
+    
+    // Reset the price label
+    priceLabel->setPlainText("");
+    
+    // Reset the chart title
+    chart->setTitle("Stock Price: " + symbol);
+    
+    // Reset the axes ranges to default
+    QDateTime now = QDateTime::currentDateTime();
+    axisX->setRange(now.addSecs(-30 * 60), now.addSecs(5 * 60));
+    axisY->setRange(0, 100);
+}

@@ -27,6 +27,7 @@ public:
     ~StockPriceChart() override;
 
     void setSymbol(const QString& symbol);
+    void clear();
 
 public slots:
     void addBar(const Bar& bar);
