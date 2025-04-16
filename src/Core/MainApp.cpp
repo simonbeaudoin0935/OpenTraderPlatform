@@ -46,6 +46,11 @@ MainApp::MainApp() :
     QObject::connect(mainAlgo, &MainAlgo::receivedNewPosition,
                      appFrontend, &AppFrontend::newPositionReceived);
 
+    QObject::connect(appFrontend, &AppFrontend::requestMissingBars,
+                     mainAlgo,    &MainAlgo::onRequestMissingBarsDisplayedStock);
+
+    QObject::connect(mainAlgo,    &MainAlgo::requestedMissingBarsDisplayedStockReceived,
+                     appFrontend, &AppFrontend::onRequestedMissingBarsDisplayedStockReceived);
 }
 
 void MainApp::start()

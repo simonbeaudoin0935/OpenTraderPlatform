@@ -45,7 +45,7 @@ void MainAlgo::start()
     thread.start();
 }
 
-void MainAlgo::selectDisplayedStock(QString symbol)
+void MainAlgo::onSelectDisplayedStock(QString symbol)
 {
     // Make sure that this method gets Qt::InvokeMethod'ed if called from another thread
     Q_ASSERT(QThread::currentThread() == &thread);
@@ -77,6 +77,20 @@ void MainAlgo::selectDisplayedStock(QString symbol)
     connect(&currentDisplayedStock->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
             this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
 
+}
+
+void MainAlgo::onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime last)
+{
+    qDebug() << "Requested : " << first << " to " << last;
+
+    QVector<Bar> bars = currentDisplayedStock->barCache.getBars(first.toTimeZone(QTimeZone("America/New_York")), last);
+
+    qDebug() << "Bars retreived fom cache : ";
+    for(auto &bar : bars){
+        qDebug() << bar.toJsonString();
+    }
+
+    emit requestedMissingBarsDisplayedStockReceived(bars);
 }
 
 void MainAlgo::onThreadStarted()

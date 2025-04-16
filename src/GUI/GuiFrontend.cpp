@@ -206,6 +206,10 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
             this, &GuiFrontend::onNewPositionReceived,
             Qt::DirectConnection);
 
+    // Propagate up when the chart needs missing bars to display
+    connect(ui->priceChart, &StockPriceChart::requestMissingBars,
+            this, &AppFrontend::requestMissingBars);
+
     // Connect the stock symbol input to its slot
     connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GuiFrontend::onNewDisplayedStockSelection);
 
@@ -298,6 +302,11 @@ void GuiFrontend::onNewPositionReceived(QString account, Position position) {
     ui->positionWindow->updatePosition(account, position);
 }
 
+void GuiFrontend::onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars)
+{
+    ui->priceChart->onRequestedMissingBarsReceived(bars);
+}
+
 void GuiFrontend::onTradeStationLoginClicked() {
     // AuthWindow is modal, so it's impossible to click the button while authentication is in progress
     Q_ASSERT(!TSClient::getInstance().isAuthInProgress());
@@ -355,10 +364,10 @@ void GuiFrontend::onNewDisplayedStockSelection()
 
     currentlyDisplayedSymbol = symbol;
 
-    ui->priceChart->clear();
+    ui->priceChart->clearSymbol();
 
     QMetaObject::invokeMethod(mainAlgo,
-                              "selectDisplayedStock",
+                              "onSelectDisplayedStock",
                               Qt::QueuedConnection,
                               Q_ARG(QString, symbol)); // Pass the symbol parameter
 

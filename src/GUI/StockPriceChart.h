@@ -12,6 +12,7 @@
 #include <QGraphicsRectItem>
 #include <QMouseEvent>
 #include <QTimeZone>
+#include <QMap>
 
 #include "Bar.h"
 
@@ -27,10 +28,14 @@ public:
     ~StockPriceChart() override;
 
     void setSymbol(const QString& symbol);
-    void clear();
+    void clearSymbol();
+
+signals:
+    void requestMissingBars(QDateTime viewStartTimeRounded, QDateTime firstBarTime);
 
 public slots:
     void addBar(const Bar& bar);
+    void onRequestedMissingBarsReceived(const QVector<Bar> &bars);
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -55,6 +60,7 @@ private:
     void handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor);
     void updateLastPriceLineIfNeeded();
     void handlePanning(QMouseEvent* mouseEvent);
+    void checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime);
 
     QString symbol;
     QChart* chart;
@@ -73,8 +79,8 @@ private:
     bool hasOpenBar = false;
     double lastPrice = 0.0;
 
-    // Store completed bars
-    QVector<Bar> completedBars;
+    // Store completed bars in a map with timestamp as key
+    QMap<QDateTime, Bar> completedBars;
 
     // Mouse tracking for panning
     bool isPanning = false;
@@ -84,4 +90,6 @@ private:
     QGraphicsRectItem* createBackgroundRect(const QColor& color, int zValue);
     // Helper method to clear all background rectangles
     void clearBackgroundRects();
+
+    bool currentGetBarsRequestInProcess = false;
 };

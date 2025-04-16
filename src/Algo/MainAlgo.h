@@ -39,11 +39,14 @@ public:
 signals:
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
     void displayedStockReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP);
+    void requestedMissingBarsDisplayedStockReceived(QVector<Bar>);
+
     void receivedNewPosition(QString account, Position position);
 
 public slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
-    void selectDisplayedStock(QString symbol);
+    void onSelectDisplayedStock(QString symbol);
+    void onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime last);
 
 private slots:
     void onThreadStarted();

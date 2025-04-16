@@ -26,6 +26,9 @@ signals:
     void currentHighlightedStockBarReceived(QString symbol, Bar bar);
     void currentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP);
 
+    // Coming from the StockPriceChart
+    void requestMissingBars(QDateTime viewStartTimeRounded, QDateTime firstBarTime);
+
 public slots:
 
     // Usage uptade
@@ -38,4 +41,5 @@ public slots:
 
     virtual void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) = 0;
     virtual void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP) = 0;
+    virtual void onRequestedMissingBarsDisplayedStockReceived(QVector<Bar>) = 0;
 };

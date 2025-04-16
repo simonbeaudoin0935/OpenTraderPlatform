@@ -120,10 +120,43 @@ void StockPriceChart::addBar(const Bar& bar) {
     } else if (bar.getBarStatus() == Bar::BarStatus::Open) {
         handleOpenBar(bar);
     } else {
-        // TODO void bar
+        qCritical() << Q_FUNC_INFO << " : void bar";
     }
 
     updateChart();
+}
+
+void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
+    // If this flag isn't true, it means there is a logic bug somewhere
+    Q_ASSERT(currentGetBarsRequestInProcess == true);
+
+    // Important to reset to more  requests can be made in the future
+    currentGetBarsRequestInProcess = false;
+
+    Q_ASSERT(!bars.isEmpty());
+
+    // Insert all received bars into the map
+    for (const Bar& bar : bars) {
+        qDebug() << bar.toJsonString();
+        if (bar.getBarStatus() != Bar::BarStatus::Void) {
+            completedBars.insert(bar.getTimeStamp(), bar);
+        }
+    }
+
+    // Maintain the bar limit
+    maintainBarLimit();
+
+    // Update the chart to display the new bars
+    updateChart();
+
+    // Update the last price line if needed
+    if (!bars.isEmpty()) {
+        const Bar& lastBar = bars.last();
+        updateLastPriceLine(lastBar.getClose(), lastBar.getClose() >= lastBar.getOpen());
+    }
+
+    // Update the after-hours background
+    updateAfterHoursBackground();
 }
 
 void StockPriceChart::handleClosedBar(const Bar& bar) {
@@ -135,7 +168,7 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
     bool hadInitialView = currentMin != currentMax && currentMin.toMSecsSinceEpoch() != 0;
 
     if (!hasOpenBar) {
-        completedBars.append(bar);
+        completedBars.insert(bar.getTimeStamp(), bar);
         maintainBarLimit();
         return;
     }
@@ -144,11 +177,11 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
     QDateTime closedBarTime = bar.getTimeStamp();
 
     if (openBarTime != closedBarTime) {
-        completedBars.append(currentOpenBar);
+        completedBars.insert(openBarTime, currentOpenBar);
     }
     
     hasOpenBar = false;
-    completedBars.append(bar);
+    completedBars.insert(closedBarTime, bar);
     maintainBarLimit();
 
     // Restore view state if it was initialized
@@ -160,7 +193,8 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
 
 void StockPriceChart::maintainBarLimit() {
     while (completedBars.size() > MAX_BARS) {
-        completedBars.removeFirst();
+        // Remove the oldest bar (first key in the map)
+        completedBars.erase(completedBars.begin());
     }
 }
 
@@ -177,7 +211,7 @@ void StockPriceChart::handleOpenBar(const Bar& bar) {
 
     QDateTime currentBarTime = currentOpenBar.getTimeStamp();
     if (newBarTime != currentBarTime) {
-        completedBars.append(currentOpenBar);
+        completedBars.insert(currentBarTime, currentOpenBar);
     }
 
     currentOpenBar = bar;
@@ -190,8 +224,9 @@ void StockPriceChart::updateChart() {
     candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH); // Reset body width after clearing
 
     // Add completed bars
-    for (const Bar& bar : completedBars) {
-        QDateTime timestamp = bar.getTimeStamp();
+    for (auto it = completedBars.constBegin(); it != completedBars.constEnd(); ++it) {
+        const QDateTime& timestamp = it.key();
+        const Bar& bar = it.value();
         auto set = new QCandlestickSet();
         set->setTimestamp(timestamp.toMSecsSinceEpoch());
         set->setOpen(bar.getOpen());
@@ -219,7 +254,7 @@ void StockPriceChart::updateChart() {
         if (hasOpenBar) {
             currentBarTime = currentOpenBar.getTimeStamp();
         } else {
-            currentBarTime = completedBars.last().getTimeStamp();
+            currentBarTime = completedBars.lastKey();
         }
 
         // Round current time down to the nearest 5-minute mark
@@ -250,17 +285,14 @@ void StockPriceChart::updateChart() {
     QDateTime visibleStart = axisX->min();
     QDateTime visibleEnd = axisX->max();
     
-    for (int i = 0; i < candlestickSeries->count(); ++i) {
-        auto set = candlestickSeries->sets().at(i);
-        QDateTime barTime = QDateTime::fromMSecsSinceEpoch(set->timestamp());
-        
-        // Only consider bars within the visible range
-        if (barTime >= visibleStart && barTime <= visibleEnd) {
-            minPrice = qMin(minPrice, set->low());
-            maxPrice = qMax(maxPrice, set->high());
-            if (i == candlestickSeries->count() - 1) {
-                currentPrice = set->close();
-            }
+    for (auto it = completedBars.lowerBound(visibleStart); 
+         it != completedBars.end() && it.key() <= visibleEnd; 
+         ++it) {
+        const Bar& bar = it.value();
+        minPrice = qMin(minPrice, bar.getLow());
+        maxPrice = qMax(maxPrice, bar.getHigh());
+        if (it == --completedBars.end()) {
+            currentPrice = bar.getClose();
         }
     }
 
@@ -393,6 +425,10 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
 
     axisX->setRange(newMinTime, newMaxTime);
     axisY->setRange(newMinPrice, newMaxPrice);
+
+    // Check if we need more bars
+    checkForMissingBars(newMinTime, newMaxTime);
+
     updateLastPriceLineIfNeeded();
 }
 
@@ -636,7 +672,7 @@ bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
                 if (hasOpenBar) {
                     currentBarTime = currentOpenBar.getTimeStamp();
                 } else {
-                    currentBarTime = completedBars.last().getTimeStamp();
+                    currentBarTime = completedBars.lastKey();
                 }
 
                 // Round current time down to the nearest 5-minute mark
@@ -659,16 +695,14 @@ bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
                 double currentPrice = 0.0;
                 
                 // Find min/max prices for bars in the new time range
-                for (int i = 0; i < candlestickSeries->count(); ++i) {
-                    auto set = candlestickSeries->sets().at(i);
-                    QDateTime barTime = QDateTime::fromMSecsSinceEpoch(set->timestamp());
-                    
-                    if (barTime >= startTime && barTime <= endTime) {
-                        minPrice = qMin(minPrice, set->low());
-                        maxPrice = qMax(maxPrice, set->high());
-                        if (i == candlestickSeries->count() - 1) {
-                            currentPrice = set->close();
-                        }
+                for (auto it = completedBars.lowerBound(startTime); 
+                     it != completedBars.end() && it.key() <= endTime; 
+                     ++it) {
+                    const Bar& bar = it.value();
+                    minPrice = qMin(minPrice, bar.getLow());
+                    maxPrice = qMax(maxPrice, bar.getHigh());
+                    if (it == --completedBars.end()) {
+                        currentPrice = bar.getClose();
                     }
                 }
                 
@@ -746,6 +780,9 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
     axisX->setRange(newMinTime, newMaxTime);
     axisY->setRange(axisY->min() + priceOffset, axisY->max() + priceOffset);
 
+    // Check if we need more bars
+    checkForMissingBars(newMinTime, newMaxTime);
+
     // Update the price label position and last price line
     updatePriceLabelPosition();
     if (hasOpenBar) {
@@ -754,7 +791,38 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
     }
 }
 
-void StockPriceChart::clear() {
+void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime) {
+    Q_UNUSED(viewEndTime);
+
+    QDateTime viewStartTimeRounded = viewStartTime.addSecs(-viewStartTime.time().second());
+    viewStartTimeRounded = viewStartTimeRounded.addMSecs(-viewStartTime.time().msec());
+    QDateTime firstBarTime;
+
+    if (completedBars.isEmpty()) {
+        firstBarTime = QDateTime::currentDateTime();
+    } else {
+        firstBarTime = completedBars.firstKey();
+    }
+        
+    if (viewStartTimeRounded < firstBarTime) {
+        qDebug() << "Chart view extends beyond available bars:";
+        qDebug() << "  Last :" << firstBarTime.toString("yyyy-MM-dd hh:mm:ss");
+        qDebug() << "  First:" << viewStartTimeRounded.toString("yyyy-MM-dd hh:mm:ss");
+    } else {
+        return;
+    }
+
+    // If there is already a getBars request to the bar cache, suck it up and wait to receive the data
+    if (currentGetBarsRequestInProcess) {
+        return;
+    } else {
+        currentGetBarsRequestInProcess = true;
+
+        emit requestMissingBars(viewStartTimeRounded, firstBarTime);
+    }
+}
+
+void StockPriceChart::clearSymbol() {
     // Clear the candlestick series
     candlestickSeries->clear();
     
