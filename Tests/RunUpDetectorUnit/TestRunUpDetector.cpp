@@ -83,7 +83,8 @@ void TestRunUpDetector::initTestCase() {
 // Will be called before each test function is executed.
 void TestRunUpDetector::init()
 {
-
+    QLoggingCategory::setFilterRules("TSClient.debug=true");
+    QLoggingCategory::setFilterRules("BarCache.debug=false");
 }
 
 // Will be called after every test function.
@@ -93,8 +94,11 @@ void TestRunUpDetector::cleanup() {
 
 void TestRunUpDetector::testPriorDayAfterMarket()
 {
-    detector->start(date);
+    detector->start(date,30);
 
+    for(size_t i = 0; i != 200; i++) {
+        detector->computeNextCandle();
+    }
 
     QTest::qWait(5000);
 }

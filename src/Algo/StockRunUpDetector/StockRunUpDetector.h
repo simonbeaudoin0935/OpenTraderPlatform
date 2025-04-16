@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QDate>
 #include <QQueue>
+#include <QTimeZone>
 #include "BarCache.h"
 
 struct stats {
@@ -29,6 +30,8 @@ public slots:
 signals:
 
 private:
+    const QTimeZone NYTZ;
+
     BarCache barCache;
     QQueue<Bar> deque;
     struct stats afterMarketStats;
@@ -36,5 +39,10 @@ private:
     QDate yesterday;
     qsizetype runUpWindowWidth;
 
-    QTime timeLastBarEnqued;
+    QDateTime timestampLastBarEnqued;
+
+    void detectRunUp();
+    double calculateRSI(int period);
+
+    QVector<QDateTime> runUps;
 };
