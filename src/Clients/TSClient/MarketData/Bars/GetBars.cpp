@@ -2,7 +2,7 @@
 
 #include "TSClient.h"
 
-void TSClient::getBarsAsync(QString &symbol,
+void TSClient::getBarsAsync(const QString &symbol,
                             unsigned int interval,
                             Bar::BarUnit unit,
                             unsigned int barsback,
@@ -33,7 +33,7 @@ void TSClient::getBarsAsync(QString &symbol,
 }
 
 bool TSClient::getBarsSync(QVector<Bar> &results,
-                           QString &symbol,
+                           const QString &symbol,
                            unsigned int interval,
                            Bar::BarUnit unit,
                            unsigned int barsback,

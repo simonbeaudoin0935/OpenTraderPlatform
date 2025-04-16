@@ -73,7 +73,7 @@ public:
     void closeStreamBars(StreamBars* stream);
 
     bool getBarsSync(QVector<Bar> &results,
-                     QString &symbol,
+                     const QString &symbol,
                      unsigned int interval = 1,
                      Bar::BarUnit unit = Bar::BarUnit::Daily,
                      unsigned int barsback = 1,
@@ -81,7 +81,7 @@ public:
                      QDateTime firstDate = QDateTime(),
                      QDateTime lastDate = QDateTime());
 
-    void getBarsAsync(QString &symbol,
+    void getBarsAsync(const QString &symbol,
                       unsigned int interval = 1,
                       Bar::BarUnit unit = Bar::BarUnit::Daily,
                       unsigned int barsback = 1,
@@ -99,7 +99,7 @@ public:
      *         in the thread of the client and shares the same network access manager. Later
      *         calling closeStreamMarketDepthQuote will delete it. Do not delete outside.
      */
-    StreamMarketDepthQuote* openStreamMarketDepthQuote(QString &symbol, unsigned int depth = 20);
+    StreamMarketDepthQuote* openStreamMarketDepthQuote(const QString &symbol, unsigned int depth = 20);
     void closeStreamMarketDepthQuote(StreamMarketDepthQuote* stream);
 
                               // -------- Brokerage methods -------------

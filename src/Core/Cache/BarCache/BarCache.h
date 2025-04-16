@@ -39,6 +39,7 @@ public:
     qsizetype getLastNumberFetchedBars() const { return lastNumberFetchedBars; }
 
 signals:
+    void receivedNewBar(QString symbol, Bar newBar);
 
 private slots:
     void onReceivedNewBar(QString symbol, Bar newBar);

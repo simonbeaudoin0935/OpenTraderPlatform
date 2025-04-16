@@ -31,7 +31,7 @@ public slots:
     // Usage uptade
     virtual void onFMPClientDataUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onTSClientDataUsageUpdate(qsizetype newDataUsage) = 0;
-    virtual void onMemoryUsageUpdate(qint64 newDataUsage) = 0;
+    virtual void onMemoryUsageUpdate(qsizetype newDataUsage) = 0;
 
     virtual void onTradeStationAccountsReceived(QVector<Account> results) = 0;
     virtual void onNewPositionReceived(QString account, Position position) = 0;

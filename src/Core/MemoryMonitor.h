@@ -13,7 +13,7 @@ public:
     void stopMonitoring();
 
 signals:
-    void memoryUsageUpdated(qint64 memoryUsedBytes); // Signal emitted with memory usage
+    void memoryUsageUpdated(qsizetype memoryUsedBytes); // Signal emitted with memory usage
 
 private slots:
     void updateMemoryUsage(); // Slot to query and emit memory usage

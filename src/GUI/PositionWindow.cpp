@@ -41,6 +41,9 @@ void PositionWindow::setupUI() {
     tableView->setAlternatingRowColors(true);
     tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
+    // Connect click signal
+    connect(tableView, &QTableView::clicked, this, &PositionWindow::onSymbolClicked);
+
     // Set column widths
     tableView->setColumnWidth(0, 70);  // Symbol
     tableView->setColumnWidth(1, 70);  // Quantity
@@ -162,4 +165,11 @@ QList<QStandardItem*> PositionWindow::createRowItems(const Position& position) {
     items << marketValueItem;
 
     return items;
+}
+
+void PositionWindow::onSymbolClicked(const QModelIndex& index) {
+    if (index.column() == 0) {  // Only handle clicks on the Symbol column
+        QString symbol = model->item(index.row(), 0)->text();
+        emit symbolClicked(symbol);
+    }
 } 

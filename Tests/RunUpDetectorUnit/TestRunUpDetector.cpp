@@ -9,6 +9,7 @@
 #include "RunUpDetector.h"
 
 static TSClient* client;
+static BarCache *barCache;
 static RunUpDetector* detector;
 
 static const QString symbol = "TIVC";
@@ -77,7 +78,8 @@ void TestRunUpDetector::initTestCase() {
     // Verify no resources were leaked
     QVERIFY(client->isCleanedUp());
 
-    detector = new RunUpDetector(symbol);
+    barCache = new BarCache(symbol);
+    detector = new RunUpDetector(barCache);
 }
 
 // Will be called before each test function is executed.

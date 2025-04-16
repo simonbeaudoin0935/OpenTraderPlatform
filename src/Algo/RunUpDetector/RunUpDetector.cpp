@@ -2,12 +2,13 @@
 
 Q_LOGGING_CATEGORY(RunUpDetectorLog, "RunUpDetector")
 
-RunUpDetector::RunUpDetector(const QString &symbol, QObject *parent) :
+RunUpDetector::RunUpDetector(BarCache *barCache, QObject *parent) :
     QObject(parent),
     NYTZ("America/New_York"),
-    barCache(symbol)
+    barCache(barCache)
+{
 
-{}
+}
 
 void RunUpDetector::start(QDate startDate, qsizetype runUpWindowWidth)
 {
@@ -24,11 +25,11 @@ void RunUpDetector::start(QDate startDate, qsizetype runUpWindowWidth)
     QDateTime fromDate = QDateTime(startDate, _6AM,   NYTZ);
     QDateTime fromDateWarm = QDateTime(startDate, _10AM,   NYTZ);
 
-    QVector<Bar> bars = barCache.getBars(fromDate, fromDateWarm);
+    QVector<Bar> bars = barCache->getBars(fromDate, fromDateWarm);
 
     QDateTime toDate   = QDateTime(startDate, toTime, NYTZ);
 
-    bars = barCache.getBars(fromDate, toDate);
+    bars = barCache->getBars(fromDate, toDate);
 
     Q_ASSERT(bars.size() == runUpWindowWidth);
 
@@ -50,7 +51,7 @@ void RunUpDetector::computeStatsOnLastAfterMarket()
 
     while (yesterday.dayOfWeek() > 5) yesterday = yesterday.addDays(-1);
 
-    QVector<Bar> bars = barCache.getAfterHourBars(yesterday);
+    QVector<Bar> bars = barCache->getAfterHourBars(yesterday);
 
     struct stats st;
 
@@ -68,7 +69,7 @@ void RunUpDetector::computeStatsOnLastAfterMarket()
 
     afterMarketStats = st;
 
-    qInfo().noquote() << "Symbol : " << barCache.getSymbol() <<
+    qInfo().noquote() << "Symbol : " << barCache->getSymbol() <<
         "\n  avgPriceChangePerBar : " << st.averagePriceChangePerBar <<
         "\n  avgVolumePerBar      : " << st.averageVolumePerBar <<
         "\n  maxPriceChange       : " << st.maxPriceChange <<
@@ -81,7 +82,7 @@ void RunUpDetector::computeNextCandle()
     QDateTime fromDate = timestampLastBarEnqued.addSecs(60);
     QDateTime toDate   = fromDate;
 
-    QVector<Bar> bars = barCache.getBars(fromDate, toDate);
+    QVector<Bar> bars = barCache->getBars(fromDate, toDate);
 
     Q_ASSERT(bars.size() == 1);
 

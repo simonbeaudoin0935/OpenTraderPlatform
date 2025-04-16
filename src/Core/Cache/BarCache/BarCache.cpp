@@ -283,13 +283,15 @@ void BarCache::storeBarInCache(const Bar& bar) {
         }
     }
 
-    barCacheOneMinute.insert(dateTime, bar);
+    {
+        QWriteLocker locker(&rwLock);
+        barCacheOneMinute.insert(dateTime, bar);
+    }
 
     qCDebug(BarCacheLog) << "Inserted bar in cache with timestamp :" << bar.getTimeStamp();
 }
 
 void BarCache::storeBarsInCache(const QVector<Bar>& bars) {
-    QWriteLocker locker(&rwLock);
     for (const Bar& bar : bars) {
         storeBarInCache(bar);
     }
@@ -298,28 +300,30 @@ void BarCache::storeBarsInCache(const QVector<Bar>& bars) {
 QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
     QVector<Bar> result;
     QVector<QDateTime> missingTimes;
-    
+    bool hasCompleteSet = true;
     qCDebug(BarCacheLog) << "Checking cache for" << symbol 
                          << "from" << start.toString() 
                          << "to" << end.toString();
     
-    // Find the first bar at or after start
-    auto it = barCacheOneMinute.lowerBound(start);
-    
+
+
     // Check for complete set and identify missing bars
-    QDateTime expectedTime = start;
-    bool hasCompleteSet = true;
-    
-    while (expectedTime <= end) {
-        if (it == barCacheOneMinute.end() || it.key() != expectedTime) {
-            hasCompleteSet = false;
-            missingTimes.append(expectedTime);
-            qCDebug(BarCacheLog) << "Cache MISS - missing bar at" << expectedTime;
-        } else {
-            result.append(it.value());
-            ++it;
+    {
+        QReadLocker locker(&rwLock);
+
+        // Find the first bar at or after start
+        auto it = barCacheOneMinute.lowerBound(start);
+
+        for (QDateTime expectedTime = start; expectedTime <= end; expectedTime = expectedTime.addSecs(60)) {
+            if (it == barCacheOneMinute.end() || it.key() != expectedTime) {
+                hasCompleteSet = false;
+                missingTimes.append(expectedTime);
+                qCDebug(BarCacheLog) << "Cache MISS - missing bar at" << expectedTime;
+            } else {
+                result.append(it.value());
+                ++it;
+            }
         }
-        expectedTime = expectedTime.addSecs(60);  // Add one minute
     }
     
     if (hasCompleteSet) {
@@ -338,14 +342,11 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
 
 void BarCache::onReceivedNewBar(QString symbol, Bar newBar)
 {
-    if (this->symbol != symbol) {
-        qFatal(BarCacheLog) << "Bars received for symbol " << symbol << " is not for this cache that is for " << this->symbol;
-        return;
-    }
+    Q_ASSERT(this->symbol == symbol);
 
     newBar.ajustTimeStampToOpeningMinute();
 
     storeBarInCache(newBar);
 
-    //qCDebug(BarCacheLog).noquote() << "Received stream bar : " << newBar.toJsonString();
+    emit receivedNewBar(symbol, newBar);
 }

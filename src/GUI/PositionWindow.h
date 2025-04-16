@@ -18,11 +18,15 @@ public:
 public slots:
     void updatePosition(const QString& account, const Position& position);
 
+signals:
+    void symbolClicked(const QString& symbol);
+
 private:
     void setupUI();
     void setupStyles();
     void updatePositionRow(const QString& account, const Position& position);
     QList<QStandardItem*> createRowItems(const Position& position);
+    void onSymbolClicked(const QModelIndex& index);
 
     QTableView* tableView;
     QStandardItemModel* model;

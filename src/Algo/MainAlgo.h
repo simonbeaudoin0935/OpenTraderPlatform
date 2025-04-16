@@ -2,19 +2,31 @@
 #include <QLoggingCategory>
 #include <QObject>
 #include <QFile>
+#include <QThread>
+#include <QMap>
 
 #include "RunUpDetector.h"
 #include "StockScreener.h"
 #include "BreakingNewsFetcher.h"
-#include "StockBarsReceiver.h"
 #include "MarketDepthQuoteReceiver.h"
 #include "PositionsReceiver.h"
 #include "Account.h"
+#include "BarCache.h"
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
 
-class QThread;
+class StockInstruments : public QObject{
+
+public:
+    explicit StockInstruments(const QString &symbol);
+    ~StockInstruments();
+
+    QString symbol;
+    BarCache barCache;
+    RunUpDetector runUpDetector;
+    MarketDepthQuoteReceiver marketDepthQuoteReceiver;
+};
 
 class MainAlgo : public QObject
 {
@@ -25,12 +37,13 @@ public:
     void start();
 
 signals:
-    void currentHighlightedReceivedNewBar(QString symbol, Bar bar);
-    void currentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP);
+    void displayedStockReceivedNewBar(QString symbol, Bar bar);
+    void displayedStockReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP);
     void receivedNewPosition(QString account, Position position);
 
 public slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
+    void selectDisplayedStock(QString symbol);
 
 private slots:
     void onThreadStarted();
@@ -43,12 +56,13 @@ private:
     QThread thread;
 
     QVector<Account> accounts;
+    QMap<QString, StockInstruments*> stockInstruments;
+    StockInstruments* currentDisplayedStock = nullptr;
 
-    //StockRunUpDetector stockRunUpDetector;
     StockScreener stockScreener;
     BreakingNewsFetcher breakingNewsFetcher;
-    StockBarsReceiver stockBarsReceiver;
-    MarketDepthQuoteReceiver marketDepthQuoteReceiver;
+
+
     PositionsReceiver positionReceiver;
 
     QTextStream *algoLogFile;

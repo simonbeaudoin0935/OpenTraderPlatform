@@ -9,7 +9,7 @@ class StreamMarketDepthQuote : public Stream {
     Q_OBJECT
 
 public:
-    explicit StreamMarketDepthQuote(QString &symbol, QObject *parent = nullptr);
+    explicit StreamMarketDepthQuote(const QString &symbol, QObject *parent = nullptr);
     ~StreamMarketDepthQuote();
     StreamMarketDepthQuote(const StreamMarketDepthQuote&) = delete;
     StreamMarketDepthQuote& operator=(const StreamMarketDepthQuote&) = delete;

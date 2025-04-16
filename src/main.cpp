@@ -1,21 +1,21 @@
 #ifdef GUI_ENABLED
 #include <QApplication>
 #include <QIcon>
-#include "GUI/GuiFrontend.h"
-#define FRONTEND GuiFrontend
 #define APPLICATION QApplication
 #else
 #include <QCoreApplication>
-#include "Core/TerminalFrontend.h"
-#define FRONTEND TerminalFrontend
 #define APPLICATION QCoreApplication
 #endif
 
 #include "Misc/ArgumentParser.h"
 #include "Core/MainApp.h"
 
+#include <QtGlobal>
+
 int main(int argc, char *argv[])
 {
+    qDebug() << "Qt version:" << QT_VERSION_STR;
+
     APPLICATION app(argc, argv);
 
     QCoreApplication::setApplicationName("L2Trader");
@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
 
     parseArguments(app.arguments());
 
-    MainApp mainApp(new FRONTEND());
+    MainApp mainApp;
 
     mainApp.start();
 

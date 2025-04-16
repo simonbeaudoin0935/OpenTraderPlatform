@@ -3,10 +3,20 @@
 
 Q_LOGGING_CATEGORY(MarketDepthQuoteReceiverLog, "MarketDepthQuoteReceiver")
 
-MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(QObject *parent) :
-    QObject{parent}
+MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(const QString &symbol, QObject *parent) :
+    QObject(parent),
+    symbol(symbol)
 {
+    qCDebug(MarketDepthQuoteReceiverLog) << Q_FUNC_INFO << "Starting Market Depth Quote stream for " << symbol;
 
+    StreamMarketDepthQuote *stream = TSClient::getInstance().openStreamMarketDepthQuote(symbol, 10);
+
+    connect(stream, &StreamMarketDepthQuote::receivedNewMarketDepthQuote, this, &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote);
+    connect(stream, &Stream::streamErrorOccurred, this, &MarketDepthQuoteReceiver::onStreamError);
+}
+
+MarketDepthQuoteReceiver::~MarketDepthQuoteReceiver() {
+    stopStream();
 }
 
 // Calculate Bid-Ask Imbalance (BAI)
@@ -77,43 +87,16 @@ double MarketDepthQuoteReceiver::calculateDepthWeightedPrice(const QVector<Marke
     return weightedPriceSum / totalVolume;
 }
 
-void MarketDepthQuoteReceiver::startStream(QString &symbol)
-{
-    qCDebug(MarketDepthQuoteReceiverLog) << Q_FUNC_INFO << "Starting Market Depth Quote stream for " << symbol;
 
-    StreamMarketDepthQuote *stream = TSClient::getInstance().openStreamMarketDepthQuote(symbol, 10);
-
-    void receivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote);
-
-    connect(stream, &StreamMarketDepthQuote::receivedNewMarketDepthQuote, this, &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote);
-    connect(stream, &Stream::streamErrorOccurred, this, &MarketDepthQuoteReceiver::onStreamError);
-
-    streams.insert(symbol, stream);
-}
-
-void MarketDepthQuoteReceiver::startStream(const char *symbol)
-{
-    QString symbolStr(symbol);
-    startStream(symbolStr);
-}
-
-void MarketDepthQuoteReceiver::stopStream(QString &symbol)
+void MarketDepthQuoteReceiver::stopStream()
 {
     qCDebug(MarketDepthQuoteReceiverLog) << Q_FUNC_INFO << "Stopping MarketDepthQuote stream for " << symbol;
 
-    Q_ASSERT(streams.contains(symbol));
+    Q_ASSERT(stream != nullptr);
 
-    disconnect(streams[symbol]);
+    disconnect(stream);
 
-    TSClient::getInstance().closeStreamMarketDepthQuote(streams[symbol]);
-
-    bool removed = streams.remove(symbol);
-    Q_ASSERT(removed);
-}
-
-void MarketDepthQuoteReceiver::stopStream(const char* symbol) {
-    QString symbolStr(symbol);
-    stopStream(symbolStr);
+    TSClient::getInstance().closeStreamMarketDepthQuote(stream);
 }
 
 void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote)
@@ -134,7 +117,7 @@ void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, Mar
                                          << "- Bid DWP:" << bidDWP
                                          << "- Ask DWP:" << askDWP;
 
-    emit currentHighlightedReceivedMarketDepthQuote(symbol, marketDepthQuote, imbalance, bidDWP, askDWP);
+    emit receivedNewMarketDepthQuote(symbol, marketDepthQuote, imbalance, bidDWP, askDWP);
 }
 
 void MarketDepthQuoteReceiver::onStreamError(Stream::StreamError error, QString errorMessage)

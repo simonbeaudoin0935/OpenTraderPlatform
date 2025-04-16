@@ -9,14 +9,14 @@
 class MainApp
 {
 public:
-    MainApp(AppFrontend* appFrontend);
+    MainApp();
 
     void start();
 
 private:
-    AppFrontend* appFrontend;
     FMPClient*   fmpClient;
     TSClient* tradeStationClient;
     MainAlgo*    mainAlgo;
+    AppFrontend* appFrontend;
     MemoryMonitor memoryMonitor;
 };

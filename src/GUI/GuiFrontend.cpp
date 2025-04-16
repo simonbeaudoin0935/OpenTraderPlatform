@@ -10,7 +10,10 @@
 #include "GuiFrontend.h"
 #include "ui_GUIFrontend.h"
 
-GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
+GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
+    AppFrontend(parent),
+    mainAlgo(mainAlgo)
+{
     ui = new Ui::GuiFrontend();
     ui->setupUi(new QMainWindow());
     
@@ -202,6 +205,15 @@ GuiFrontend::GuiFrontend(QObject* parent) : AppFrontend(parent) {
     connect(this, &AppFrontend::newPositionReceived,
             this, &GuiFrontend::onNewPositionReceived,
             Qt::DirectConnection);
+
+    // Connect the stock symbol input to its slot
+    connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GuiFrontend::onNewDisplayedStockSelection);
+
+    // Connect position window symbol click
+    connect(ui->positionWindow, &PositionWindow::symbolClicked, this, [this](const QString& symbol) {
+        ui->stockSymbolInput->setText(symbol);
+        ui->stockSymbolInput->returnPressed();  // Simulate Enter key press
+    });
 }
 
 GuiFrontend::~GuiFrontend() {
@@ -254,7 +266,7 @@ void GuiFrontend::onTradeStationAccountsReceived(QVector<Account> results)
     }
 }
 
-void GuiFrontend::onMemoryUsageUpdate(qint64 newDataUsage)
+void GuiFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
 {
     memoryUsage = newDataUsage;
 
@@ -330,4 +342,14 @@ QString GuiFrontend::bytesToString(qint64 bytes) {
     } else {
         return QString("%1 bytes").arg(bytes);
     }
+}
+
+void GuiFrontend::onNewDisplayedStockSelection()
+{
+    QString symbol = ui->stockSymbolInput->text();
+
+    QMetaObject::invokeMethod(mainAlgo,
+                              "selectDisplayedStock", // Method name as string
+                              Qt::QueuedConnection,
+                              Q_ARG(QString, symbol)); // Pass the symbol parameter
 }

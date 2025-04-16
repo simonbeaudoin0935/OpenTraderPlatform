@@ -1,11 +1,18 @@
 #include "MainApp.h"
+#ifdef GUI_ENABLED
+#include "GUI/GuiFrontend.h"
+#else
+#include "TerminalFrontend.h"
+#endif
 
-MainApp::MainApp(AppFrontend* appFrontend) :
-    appFrontend(appFrontend),
+MainApp::MainApp() :
     fmpClient(FMPClient::getInstancePtr()),
     tradeStationClient(TSClient::getInstancePtr()),
     mainAlgo(new MainAlgo())
 {
+#ifdef GUI_ENABLED
+    appFrontend = new GuiFrontend(mainAlgo);
+#endif
     // Connect memory usage updates to frontend
     QObject::connect(&memoryMonitor, &MemoryMonitor::memoryUsageUpdated, appFrontend, &AppFrontend::onMemoryUsageUpdate);
 
@@ -29,11 +36,12 @@ MainApp::MainApp(AppFrontend* appFrontend) :
     QObject::connect(tradeStationClient, &TSClient::totalDataReceivedBytesIncreased,
                      appFrontend, &AppFrontend::tradeStationDataUsageUpdated);
 
-    QObject::connect(mainAlgo, &MainAlgo::currentHighlightedReceivedNewBar,
+    QObject::connect(mainAlgo, &MainAlgo::displayedStockReceivedNewBar,
                      appFrontend, &AppFrontend::currentHighlightedStockBarReceived);
 
-    QObject::connect(mainAlgo, &MainAlgo::currentHighlightedReceivedNewMarketDepthQuote,
+    QObject::connect(mainAlgo, &MainAlgo::displayedStockReceivedNewMarketDepthQuote,
                      appFrontend, &AppFrontend::currentHighlightedReceivedNewMarketDepthQuote);
+
 
     QObject::connect(mainAlgo, &MainAlgo::receivedNewPosition,
                      appFrontend, &AppFrontend::newPositionReceived);

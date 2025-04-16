@@ -45,10 +45,44 @@ void MainAlgo::start()
     thread.start();
 }
 
+void MainAlgo::selectDisplayedStock(QString symbol)
+{
+    // Make sure that this method gets Qt::InvokeMethod'ed if called from another thread
+    Q_ASSERT(QThread::currentThread() == &thread);
+
+    // If there is a current selected stock for display, disconnect its receivedNew* signals from the main algo emition
+    if (currentDisplayedStock != nullptr) {
+        disconnect(&currentDisplayedStock->barCache, &BarCache::receivedNewBar,
+                   this, &MainAlgo::displayedStockReceivedNewBar);
+
+        disconnect(&currentDisplayedStock->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+                   this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
+    }
+
+    // Change the stock selected pointer to the new selected stock
+    if (stockInstruments.contains(symbol)) {
+        currentDisplayedStock = stockInstruments[symbol];
+
+    } else {
+        currentDisplayedStock = new StockInstruments(symbol);
+        Q_CHECK_PTR(currentDisplayedStock);
+
+        stockInstruments.insert(symbol, currentDisplayedStock);
+    }
+
+    // Redoo the plumbing we disconnected at the top of this function
+    connect(&currentDisplayedStock->barCache, &BarCache::receivedNewBar,
+            this, &MainAlgo::displayedStockReceivedNewBar);
+
+    connect(&currentDisplayedStock->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+            this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
+
+}
+
 void MainAlgo::onThreadStarted()
 {
     connect(&stockScreener, &StockScreener::finished, this, &MainAlgo::onStockScreenerFinished);
-    stockScreener.start();
+    //stockScreener.start();
 }
 
 void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
@@ -58,16 +92,6 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
     } else {
         qCFatal(MainAlgoLog) << "Tradestation lost authentication. Reason : " << reason;
     }
-
-    connect(&stockBarsReceiver, &StockBarsReceiver::currentHighlightedReceivedNewBar,
-            this, &MainAlgo::currentHighlightedReceivedNewBar);
-
-    stockBarsReceiver.startStream("NVDA");
-
-    connect(&marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::currentHighlightedReceivedMarketDepthQuote,
-            this, &MainAlgo::currentHighlightedReceivedNewMarketDepthQuote);
-
-    marketDepthQuoteReceiver.startStream("NVDA");
 
     // FIXME warning hack, better this. This is just for sim
     QString accountNumber = accounts.at(1).getAccountId();
@@ -123,4 +147,18 @@ void MainAlgo::onReceivedNewPosition(QString account, Position position)
     Q_UNUSED(position);
 
     // TODO
+}
+
+StockInstruments::StockInstruments(const QString &symbol) :
+    symbol(symbol),
+    barCache(symbol, true, this),
+    runUpDetector(&barCache, this),
+    marketDepthQuoteReceiver(symbol, this)
+{
+    qDebug() << Q_FUNC_INFO;
+}
+
+StockInstruments::~StockInstruments()
+{
+    qDebug() << Q_FUNC_INFO;
 }

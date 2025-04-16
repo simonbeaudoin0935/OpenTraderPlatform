@@ -19,7 +19,7 @@ class RunUpDetector : public QObject
 {
     Q_OBJECT
 public:
-    explicit RunUpDetector(const QString &symbol, QObject *parent = nullptr);
+    explicit RunUpDetector(BarCache *barCache, QObject *parent = nullptr);
 
     void computeStatsOnLastAfterMarket();
 
@@ -32,7 +32,7 @@ signals:
 private:
     const QTimeZone NYTZ;
 
-    BarCache barCache;
+    BarCache *barCache;
     QQueue<Bar> deque;
     struct stats afterMarketStats;
     QDate startDate;

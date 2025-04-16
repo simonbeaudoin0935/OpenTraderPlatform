@@ -4,6 +4,7 @@ QT += core network
 CONFIG += console c++11
 
 CONFIG += gui
+CONFIG += c++17
 
 include($$PWD/Clients/Clients.pri)
 include($$PWD/Algo/Algo.pri)
