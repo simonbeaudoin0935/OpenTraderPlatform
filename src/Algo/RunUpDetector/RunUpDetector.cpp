@@ -1,14 +1,15 @@
-#include "StockRunUpDetector.h"
-#include <QTimeZone>
+#include "RunUpDetector.h"
 
-StockRunUpDetector::StockRunUpDetector(const QString &symbol, QObject *parent) :
+Q_LOGGING_CATEGORY(RunUpDetectorLog, "RunUpDetector")
+
+RunUpDetector::RunUpDetector(const QString &symbol, QObject *parent) :
     QObject(parent),
     NYTZ("America/New_York"),
     barCache(symbol)
 
 {}
 
-void StockRunUpDetector::start(QDate startDate, qsizetype runUpWindowWidth)
+void RunUpDetector::start(QDate startDate, qsizetype runUpWindowWidth)
 {
     Q_ASSERT(startDate.dayOfWeek() <= 5);
 
@@ -43,7 +44,7 @@ void StockRunUpDetector::start(QDate startDate, qsizetype runUpWindowWidth)
 
 
 
-void StockRunUpDetector::computeStatsOnLastAfterMarket()
+void RunUpDetector::computeStatsOnLastAfterMarket()
 {
     yesterday = startDate.addDays(-1);
 
@@ -75,7 +76,7 @@ void StockRunUpDetector::computeStatsOnLastAfterMarket()
         "\n  ratio of void bars   : " << st.voidBarsRatio;
 }
 
-void StockRunUpDetector::computeNextCandle()
+void RunUpDetector::computeNextCandle()
 {
     QDateTime fromDate = timestampLastBarEnqued.addSecs(60);
     QDateTime toDate   = fromDate;
@@ -85,9 +86,6 @@ void StockRunUpDetector::computeNextCandle()
     Q_ASSERT(bars.size() == 1);
 
     Bar bar = bars.first();
-
-//    qDebug().noquote() << bar.toJsonString();
-
 
     deque.enqueue(bars.first());
 
@@ -100,7 +98,7 @@ void StockRunUpDetector::computeNextCandle()
     detectRunUp();
 }
 
-void StockRunUpDetector::detectRunUp()
+void RunUpDetector::detectRunUp()
 {
     const int windowBars = 5; // Lookback for price surge
     const double minPriceGainPct = 5.0; // Minimum % gain
@@ -168,7 +166,7 @@ void StockRunUpDetector::detectRunUp()
     }
 }
 
-double StockRunUpDetector::calculateRSI(int period) {
+double RunUpDetector::calculateRSI(int period) {
     QList<Bar> barList = deque.toList();
     if (barList.size() < period + 1) {
         return 0.0;

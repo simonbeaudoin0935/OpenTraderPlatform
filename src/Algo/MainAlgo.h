@@ -3,7 +3,7 @@
 #include <QObject>
 #include <QFile>
 
-#include "StockRunUpDetector.h"
+#include "RunUpDetector.h"
 #include "StockScreener.h"
 #include "BreakingNewsFetcher.h"
 #include "StockBarsReceiver.h"

@@ -7,7 +7,7 @@ CONFIG -= gui
 
 include($$PWD/../../src/Clients/Clients.pri)
 include($$PWD/../../src/Core/Cache/Cache.pri)
-include($$PWD/../../src/Algo/StockRunUpDetector/StockRunUpDetector.pri)
+include($$PWD/../../src/Algo/RunUpDetector/RunUpDetector.pri)
 
 
 #test sources

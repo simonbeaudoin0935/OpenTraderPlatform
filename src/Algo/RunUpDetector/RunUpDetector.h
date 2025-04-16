@@ -15,11 +15,11 @@ struct stats {
     qsizetype nonVoidBars = 0;
 };
 
-class StockRunUpDetector : public QObject
+class RunUpDetector : public QObject
 {
     Q_OBJECT
 public:
-    explicit StockRunUpDetector(const QString &symbol, QObject *parent = nullptr);
+    explicit RunUpDetector(const QString &symbol, QObject *parent = nullptr);
 
     void computeStatsOnLastAfterMarket();
 
