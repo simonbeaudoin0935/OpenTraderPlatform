@@ -14,7 +14,7 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
         streamBar = TSClient::getInstance().openStreamBars(symbol,
                                                            1,
                                                            Bar::BarUnit::Minute,
-                                                           10,
+                                                           2,
                                                            Bar::BarSessionTemplate::USEQ24Hour);
         Q_ASSERT(streamBar != nullptr);
 
@@ -90,24 +90,18 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
 
             while (expectedTime <= last) {
 
-                qDebug() << "expectedTime     : " << expectedTime;
-                qDebug() << "i                : " << i;
-                qDebug() << "fetchedBars.size : " << fetchedBars.size();
-
                 Bar bar;
 
                 if (i >= fetchedBars.size()) {
                     bar = Bar::nullBar(expectedTime);
-                    qCDebug(BarCacheLog) << "Had to insert a null bar in if : " << bar.toJsonString();
+
                 } else {
 
-                    qDebug() << "fetchedbartime   : " << fetchedBars[i].getTimeStamp();
                     if (expectedTime == fetchedBars[i].getTimeStamp()) {
                         bar = fetchedBars[i];
                         i++;
                     } else {
                         bar = Bar::nullBar(expectedTime);
-                        qCDebug(BarCacheLog) << "Had to insert a null bar : " << bar.toJsonString();
                     }
                 }
 
@@ -122,7 +116,6 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
 
         qCDebug(BarCacheLog) << Q_FUNC_INFO << " : Returning MISS";
 
-        qCDebug(BarCacheLog) << Q_FUNC_INFO << " : Nummber of bars returned : " << resultBars.size();
         return resultBars;
     }
 

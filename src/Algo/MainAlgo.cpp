@@ -85,11 +85,6 @@ void MainAlgo::onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime las
 
     QVector<Bar> bars = currentDisplayedStock->barCache.getBars(first.toTimeZone(QTimeZone("America/New_York")), last);
 
-    qDebug() << "Bars retreived fom cache : ";
-    for(auto &bar : bars){
-        qDebug() << bar.toJsonString();
-    }
-
     emit requestedMissingBarsDisplayedStockReceived(bars);
 }
 

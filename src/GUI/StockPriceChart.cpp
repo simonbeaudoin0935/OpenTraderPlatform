@@ -25,9 +25,17 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     candlestickSeries->setDecreasingColor(QColor(Qt::red));
     candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
 
+    voidBarSeries = new QScatterSeries();
+    voidBarSeries->setName("Void Bars");
+    voidBarSeries->setMarkerShape(QScatterSeries::MarkerShapeRectangle);
+    voidBarSeries->setMarkerSize(10.0);  // Size of the X marker
+    voidBarSeries->setPen(QPen(QColor(Qt::red), 2));  // Red X with thicker lines
+    voidBarSeries->setBrush(Qt::NoBrush);  // No fill, just the X outline
+
     chart = new QChart();
     chart->addSeries(candlestickSeries);
     chart->addSeries(lastPriceLine);
+    chart->addSeries(voidBarSeries);  // Add the void bar series to the chart
 
     // Add margins to ensure price label is visible
     chart->setMargins(QMargins(5, 5, 50, 5));  // Left, Top, Right, Bottom
@@ -76,6 +84,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     chart->addAxis(axisX, Qt::AlignBottom);
     candlestickSeries->attachAxis(axisX);
     lastPriceLine->attachAxis(axisX);
+    voidBarSeries->attachAxis(axisX);  // Attach void bar series to X axis
 
     axisY = new QValueAxis();
     axisY->setLabelFormat("%.2f");
@@ -87,6 +96,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     chart->addAxis(axisY, Qt::AlignLeft);
     candlestickSeries->attachAxis(axisY);
     lastPriceLine->attachAxis(axisY);
+    voidBarSeries->attachAxis(axisY);  // Attach void bar series to Y axis
 
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);  // Remove widget margins
@@ -130,16 +140,24 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     // If this flag isn't true, it means there is a logic bug somewhere
     Q_ASSERT(currentGetBarsRequestInProcess == true);
 
-    // Important to reset to more  requests can be made in the future
+    // Important to reset so more requests can be made in the future
     currentGetBarsRequestInProcess = false;
 
     Q_ASSERT(!bars.isEmpty());
 
+    if (lastValidClosePrice == 0.0) {
+        lastValidClosePrice = completedBars.first().getOpen();
+    }
+
     // Insert all received bars into the map
     for (const Bar& bar : bars) {
-        qDebug() << bar.toJsonString();
         if (bar.getBarStatus() != Bar::BarStatus::Void) {
             completedBars.insert(bar.getTimeStamp(), bar);
+            // Update the last valid close price
+            lastValidClosePrice = bar.getClose();
+        } else {
+            // Add void bar to the scatter series
+            voidBarSeries->append(bar.getTimeStamp().toMSecsSinceEpoch(), lastValidClosePrice);
         }
     }
 
@@ -219,9 +237,20 @@ void StockPriceChart::handleOpenBar(const Bar& bar) {
 }
 
 void StockPriceChart::updateChart() {
+    // Store current view state
+    QDateTime currentMin = axisX->min();
+    QDateTime currentMax = axisX->max();
+    qreal currentYMin = axisY->min();
+    qreal currentYMax = axisY->max();
+    bool hadInitialView = currentMin != currentMax && currentMin.toMSecsSinceEpoch() != 0;
+
     // Clear existing candlesticks
     candlestickSeries->clear();
     candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH); // Reset body width after clearing
+
+    // Calculate marker size based on candlestick width
+    qreal markerSize = CANDLESTICK_BODY_WIDTH * 0.8; // Make it slightly smaller than candlestick width
+    voidBarSeries->setMarkerSize(markerSize);
 
     // Add completed bars
     for (auto it = completedBars.constBegin(); it != completedBars.constEnd(); ++it) {
@@ -248,8 +277,8 @@ void StockPriceChart::updateChart() {
         candlestickSeries->append(set);
     }
 
-    // Update time axis range only if this is the initial setup
-    if (candlestickSeries->count() > 0 && (axisX->min() == axisX->max() || axisX->min().toMSecsSinceEpoch() == 0)) {
+    // Only update time axis range if this is the initial setup
+    if (!hadInitialView && candlestickSeries->count() > 0) {
         QDateTime currentBarTime;
         if (hasOpenBar) {
             currentBarTime = currentOpenBar.getTimeStamp();
@@ -269,14 +298,13 @@ void StockPriceChart::updateChart() {
         QDateTime endTime = baseTime.addSecs(5 * 60 + 60); // Next 5-min mark + 1 min buffer
 
         axisX->setRange(startTime, endTime);
+    } else {
+        // Restore the previous view
+        axisX->setRange(currentMin, currentMax);
+        axisY->setRange(currentYMin, currentYMax);
     }
 
     // Calculate current visible price range
-    double currentMin = axisY->min();
-    double currentMax = axisY->max();
-    bool needsYRangeUpdate = false;
-
-    // Find min/max prices of visible bars
     double minPrice = std::numeric_limits<double>::max();
     double maxPrice = std::numeric_limits<double>::lowest();
     double currentPrice = 0.0;
@@ -296,13 +324,8 @@ void StockPriceChart::updateChart() {
         }
     }
 
-    // Check if prices are outside current range
-    if (minPrice < currentMin || maxPrice > currentMax || currentMin == currentMax) {
-        needsYRangeUpdate = true;
-    }
-
-    // Only update Y axis range if necessary
-    if (needsYRangeUpdate && minPrice != std::numeric_limits<double>::max()) {
+    // Only update Y axis range if necessary and if we're not preserving the view
+    if (!hadInitialView && (minPrice < currentYMin || maxPrice > currentYMax || currentYMin == currentYMax)) {
         // Add padding
         double padding = currentPrice * 0.0002; // 0.02% padding
         // Ensure minimum range

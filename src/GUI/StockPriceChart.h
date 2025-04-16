@@ -5,6 +5,7 @@
 #include <QtCharts/QLineSeries>
 #include <QtCharts/QCandlestickSeries>
 #include <QtCharts/QCandlestickSet>
+#include <QtCharts/QScatterSeries>
 #include <QDateTimeAxis>
 #include <QValueAxis>
 #include <QDateTime>
@@ -66,6 +67,7 @@ private:
     QChart* chart;
     QLineSeries* lastPriceLine;
     QCandlestickSeries* candlestickSeries;
+    QScatterSeries* voidBarSeries;
     QChartView* chartView;
     QDateTimeAxis* axisX;
     QValueAxis* axisY;
@@ -78,6 +80,7 @@ private:
     Bar currentOpenBar;
     bool hasOpenBar = false;
     double lastPrice = 0.0;
+    double lastValidClosePrice = 0.0;  // Track the last valid close price for void bar positioning
 
     // Store completed bars in a map with timestamp as key
     QMap<QDateTime, Bar> completedBars;
