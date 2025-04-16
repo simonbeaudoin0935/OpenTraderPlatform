@@ -115,10 +115,12 @@ void StockPriceChart::addBar(const Bar& bar) {
         return;
     }
 
-    if (bar.getBarStatus() == "Closed") {
+    if (bar.getBarStatus() == Bar::BarStatus::Closed) {
         handleClosedBar(bar);
-    } else if (bar.getBarStatus() == "Open") {
+    } else if (bar.getBarStatus() == Bar::BarStatus::Open) {
         handleOpenBar(bar);
+    } else {
+        // TODO void bar
     }
 
     updateChart();
@@ -138,8 +140,8 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
         return;
     }
 
-    QDateTime openBarTime = QDateTime::fromString(currentOpenBar.getTimeStamp(), Qt::ISODate);
-    QDateTime closedBarTime = QDateTime::fromString(bar.getTimeStamp(), Qt::ISODate);
+    QDateTime openBarTime = currentOpenBar.getTimeStamp();
+    QDateTime closedBarTime = bar.getTimeStamp();
 
     if (openBarTime != closedBarTime) {
         completedBars.append(currentOpenBar);
@@ -163,8 +165,8 @@ void StockPriceChart::maintainBarLimit() {
 }
 
 void StockPriceChart::handleOpenBar(const Bar& bar) {
-    QDateTime newBarTime = QDateTime::fromString(bar.getTimeStamp(), Qt::ISODate);
-    double newPrice = bar.getClose().toDouble();
+    QDateTime newBarTime = bar.getTimeStamp();
+    double newPrice = bar.getClose();
 
     if (!hasOpenBar) {
         currentOpenBar = bar;
@@ -173,13 +175,13 @@ void StockPriceChart::handleOpenBar(const Bar& bar) {
         return;
     }
 
-    QDateTime currentBarTime = QDateTime::fromString(currentOpenBar.getTimeStamp(), Qt::ISODate);
+    QDateTime currentBarTime = currentOpenBar.getTimeStamp();
     if (newBarTime != currentBarTime) {
         completedBars.append(currentOpenBar);
     }
 
     currentOpenBar = bar;
-    updateLastPriceLine(newPrice, newPrice >= currentOpenBar.getOpen().toDouble());
+    updateLastPriceLine(newPrice, newPrice >= currentOpenBar.getOpen());
 }
 
 void StockPriceChart::updateChart() {
@@ -189,25 +191,25 @@ void StockPriceChart::updateChart() {
 
     // Add completed bars
     for (const Bar& bar : completedBars) {
-        QDateTime timestamp = QDateTime::fromString(bar.getTimeStamp(), Qt::ISODate);
+        QDateTime timestamp = bar.getTimeStamp();
         auto set = new QCandlestickSet();
         set->setTimestamp(timestamp.toMSecsSinceEpoch());
-        set->setOpen(bar.getOpen().toDouble());
-        set->setHigh(bar.getHigh().toDouble());
-        set->setLow(bar.getLow().toDouble());
-        set->setClose(bar.getClose().toDouble());
+        set->setOpen(bar.getOpen());
+        set->setHigh(bar.getHigh());
+        set->setLow(bar.getLow());
+        set->setClose(bar.getClose());
         candlestickSeries->append(set);
     }
 
     // Add current open bar if it exists
     if (hasOpenBar) {
-        QDateTime timestamp = QDateTime::fromString(currentOpenBar.getTimeStamp(), Qt::ISODate);
+        QDateTime timestamp = currentOpenBar.getTimeStamp();
         auto set = new QCandlestickSet();
         set->setTimestamp(timestamp.toMSecsSinceEpoch());
-        set->setOpen(currentOpenBar.getOpen().toDouble());
-        set->setHigh(currentOpenBar.getHigh().toDouble());
-        set->setLow(currentOpenBar.getLow().toDouble());
-        set->setClose(currentOpenBar.getClose().toDouble());
+        set->setOpen(currentOpenBar.getOpen());
+        set->setHigh(currentOpenBar.getHigh());
+        set->setLow(currentOpenBar.getLow());
+        set->setClose(currentOpenBar.getClose());
         candlestickSeries->append(set);
     }
 
@@ -215,9 +217,9 @@ void StockPriceChart::updateChart() {
     if (candlestickSeries->count() > 0 && (axisX->min() == axisX->max() || axisX->min().toMSecsSinceEpoch() == 0)) {
         QDateTime currentBarTime;
         if (hasOpenBar) {
-            currentBarTime = QDateTime::fromString(currentOpenBar.getTimeStamp(), Qt::ISODate);
+            currentBarTime = currentOpenBar.getTimeStamp();
         } else {
-            currentBarTime = QDateTime::fromString(completedBars.last().getTimeStamp(), Qt::ISODate);
+            currentBarTime = completedBars.last().getTimeStamp();
         }
 
         // Round current time down to the nearest 5-minute mark
@@ -632,9 +634,9 @@ bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
             if (candlestickSeries->count() > 0) {
                 QDateTime currentBarTime;
                 if (hasOpenBar) {
-                    currentBarTime = QDateTime::fromString(currentOpenBar.getTimeStamp(), Qt::ISODate);
+                    currentBarTime = currentOpenBar.getTimeStamp();
                 } else {
-                    currentBarTime = QDateTime::fromString(completedBars.last().getTimeStamp(), Qt::ISODate);
+                    currentBarTime = completedBars.last().getTimeStamp();
                 }
 
                 // Round current time down to the nearest 5-minute mark
@@ -706,8 +708,8 @@ bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
         isPanning = false;
         chartView->setCursor(Qt::ArrowCursor);
         if (hasOpenBar) {
-            updateLastPriceLine(currentOpenBar.getClose().toDouble(),
-                              currentOpenBar.getClose().toDouble() >= currentOpenBar.getOpen().toDouble());
+            updateLastPriceLine(currentOpenBar.getClose(),
+                              currentOpenBar.getClose() >= currentOpenBar.getOpen());
         }
         return true;
     }
@@ -747,7 +749,7 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
     // Update the price label position and last price line
     updatePriceLabelPosition();
     if (hasOpenBar) {
-        updateLastPriceLine(currentOpenBar.getClose().toDouble(),
-                          currentOpenBar.getClose().toDouble() >= currentOpenBar.getOpen().toDouble());
+        updateLastPriceLine(currentOpenBar.getClose(),
+                          currentOpenBar.getClose() >= currentOpenBar.getOpen());
     }
 }

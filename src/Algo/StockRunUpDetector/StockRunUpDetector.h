@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QDate>
+#include <QQueue>
 #include "BarCache.h"
 
 struct stats {
@@ -21,13 +22,19 @@ public:
 
     void computeStatsOnLastAfterMarket();
 
+    void computeNextCandle();
+
 public slots:
-    void start(QDate startDate);
+    void start(QDate startDate, qsizetype runUpWindowWidth = 20);
 signals:
 
 private:
     BarCache barCache;
+    QQueue<Bar> deque;
     struct stats afterMarketStats;
     QDate startDate;
     QDate yesterday;
+    qsizetype runUpWindowWidth;
+
+    QTime timeLastBarEnqued;
 };

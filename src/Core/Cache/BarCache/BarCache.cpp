@@ -42,7 +42,7 @@ bool BarCache::warmUpBars(QDateTime first, QDateTime last)
 const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &last) {
     Q_ASSERT(first.date().dayOfWeek() >= 1 && first.date().dayOfWeek() <= 5);
     Q_ASSERT(first.date() == last.date());
-    Q_ASSERT(first.toTimeZone(QTimeZone("America/New_York")).time() >= QTime(4,0,0));
+    Q_ASSERT(first.toTimeZone(QTimeZone("America/New_York")).time() >= QTime(6,0,0)); // Tradestation bars start at 6
     Q_ASSERT(last.toTimeZone(QTimeZone("America/New_York")).time() <= QTime(20,0,0));
 
     lastHitType = HitType::None;
@@ -95,7 +95,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
                 if (i >= fetchedBars.size()) {
                     bar = Bar::nullBar(expectedTime);
                 } else {
-                    if (expectedTime == QDateTime::fromString(fetchedBars[i].getTimeStamp(), Qt::ISODate)) {
+                    if (expectedTime == fetchedBars[i].getTimeStamp()) {
                         bar = fetchedBars[i];
                         i++;
                     } else {
@@ -126,7 +126,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     QVector<Bar> allBars;
     int totalFetched = 0;
 
-    QDateTime firstCachedBarTime = QDateTime::fromString(cachedBars.first().getTimeStamp(), Qt::ISODate);
+    QDateTime firstCachedBarTime = cachedBars.first().getTimeStamp();
     if (firstCachedBarTime > first) {
 
         qCDebug(BarCacheLog) << "Filling hole before";
@@ -162,7 +162,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
                 if (i >= fetchedBars.size()) {
                     bar = Bar::nullBar(expectedTime);
                 } else {
-                    if (expectedTime == QDateTime::fromString(fetchedBars[i].getTimeStamp(), Qt::ISODate)) {
+                    if (expectedTime == fetchedBars[i].getTimeStamp()) {
                         bar = fetchedBars[i];
                         i++;
                     } else {
@@ -185,7 +185,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     // Then, add the bars that were already cached
     allBars.append(cachedBars);
 
-    QDateTime lastCachedBarTime = QDateTime::fromString(cachedBars.last().getTimeStamp(), Qt::ISODate);
+    QDateTime lastCachedBarTime = cachedBars.last().getTimeStamp();
     if (last > lastCachedBarTime) {
 
         qCDebug(BarCacheLog) << "Filling hole after";
@@ -224,7 +224,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
                 if (i >= fetchedBars.size()) {
                     bar = Bar::nullBar(expectedTime);
                 } else {
-                    if (expectedTime == QDateTime::fromString(fetchedBars[i].getTimeStamp(), Qt::ISODate)) {
+                    if (expectedTime == fetchedBars[i].getTimeStamp()) {
                         bar = fetchedBars[i];
                         i++;
                     } else {
@@ -269,7 +269,7 @@ const QVector<Bar> BarCache::getAfterHourBars(const QDate &date)
 }
 
 void BarCache::storeBarInCache(const Bar& bar) {
-    QDateTime dateTime = QDateTime::fromString(bar.getTimeStamp(), Qt::ISODate);
+    QDateTime dateTime = bar.getTimeStamp();
 
     if (!bar.getIsRealtime()) {
         if (barCacheOneMinute.contains(dateTime)) {
@@ -278,7 +278,7 @@ void BarCache::storeBarInCache(const Bar& bar) {
             duplicateStoreCount++;
         }
     } else {
-        if (bar.getBarStatus() == "Closed") {
+        if (bar.getBarStatus() == Bar::BarStatus::Closed) {
             qCDebug(BarCacheLog) << "Real time cache insertion; received the closing bar";
         }
     }
@@ -314,7 +314,7 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
         if (it == barCacheOneMinute.end() || it.key() != expectedTime) {
             hasCompleteSet = false;
             missingTimes.append(expectedTime);
-            qCDebug(BarCacheLog) << "Cache MISS - missing bar at" << expectedTime.toString();
+            qCDebug(BarCacheLog) << "Cache MISS - missing bar at" << expectedTime;
         } else {
             result.append(it.value());
             ++it;

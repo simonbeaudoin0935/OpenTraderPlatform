@@ -7,14 +7,35 @@ StockRunUpDetector::StockRunUpDetector(const QString &symbol, QObject *parent) :
 
 {}
 
-void StockRunUpDetector::start(QDate startDate)
+void StockRunUpDetector::start(QDate startDate, qsizetype runUpWindowWidth)
 {
     Q_ASSERT(startDate.dayOfWeek() <= 5);
 
     this->startDate = startDate;
+    this->runUpWindowWidth = runUpWindowWidth;;
 
-    computeStatsOnLastAfterMarket();
+    QTimeZone newYorkTimeZone("America/New_York");
+
+    QTime _6AM(6,0);
+    QTime toTime = _6AM.addSecs(60 * (runUpWindowWidth - 1));
+
+    QDateTime fromDate = QDateTime(startDate, _6AM,   newYorkTimeZone);
+    QDateTime toDate   = QDateTime(startDate, toTime, newYorkTimeZone);
+
+    QVector<Bar> bars = barCache.getBars(fromDate, toDate);
+
+    Q_ASSERT(bars.size() == runUpWindowWidth);
+
+    for(auto &bar : bars) {
+        deque.enqueue(bar);
+        qDebug().noquote() << bar.toJsonString();
+    }
+
+    timeLastBarEnqued = bars.last().getTimeStamp().toTimeZone(newYorkTimeZone).time();
+
+    //computeStatsOnLastAfterMarket();
 }
+
 
 void StockRunUpDetector::computeStatsOnLastAfterMarket()
 {
@@ -27,13 +48,13 @@ void StockRunUpDetector::computeStatsOnLastAfterMarket()
     struct stats st;
 
     for (const Bar& bar: bars) {
-        if (bar.getBarStatus() == "void") continue; // A bar where there has been zero activity
+        if (bar.getBarStatus() == Bar::BarStatus::Void) continue; // A bar where there has been zero activity
 
         st.nonVoidBars++;
-        st.averagePriceChangePerBar += (qAbs<double>(bar.getClose().toDouble() - bar.getOpen().toDouble()) / bars.size());
-        st.averageVolumePerBar      += (qAbs<double>(bar.getTotalVolume().toDouble()) / bars.size());
-        st.maxPriceChange = (qMax(st.maxPriceChange, qAbs<double>(bar.getOpen().toDouble() - bar.getClose().toDouble())));
-        st.maxVolumeChange = (qMax(st.maxVolumeChange, qAbs<double>(bar.getTotalVolume().toDouble())));
+        st.averagePriceChangePerBar += (qAbs<double>(bar.getClose() - bar.getOpen()) / bars.size());
+        st.averageVolumePerBar      += (double)(bar.getTotalVolume()) / bars.size();
+        st.maxPriceChange = qMax(st.maxPriceChange, qAbs<double>(bar.getOpen() - bar.getClose()));
+        st.maxVolumeChange = qMax(st.maxVolumeChange, (double) bar.getTotalVolume() );
     }
 
     st.voidBarsRatio = (((double)st.nonVoidBars) / ((double) bars.size()));
@@ -46,4 +67,9 @@ void StockRunUpDetector::computeStatsOnLastAfterMarket()
         "\n  maxPriceChange       : " << st.maxPriceChange <<
         "\n  maxVolumeChange      : " << st.maxVolumeChange <<
         "\n  ratio of void bars   : " << st.voidBarsRatio;
+}
+
+void StockRunUpDetector::computeNextCandle()
+{
+
 }

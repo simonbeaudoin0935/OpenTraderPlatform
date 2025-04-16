@@ -236,7 +236,7 @@ void TestBarCache::testGetBarsOnlyHoles()
         QCOMPARE(cache.getNumberOfBars(), (unsigned) 10);
 
         for (auto &bar : result) {
-            QVERIFY(bar.getBarStatus() == "void");
+            QVERIFY(bar.getBarStatus() == Bar::BarStatus::Void);
         }
     }
 
@@ -251,7 +251,7 @@ void TestBarCache::testGetBarsOnlyHoles()
         QCOMPARE(cache.getNumberOfBars(), (unsigned) 10);
 
         for (auto &bar : result) {
-            QVERIFY(bar.getBarStatus() == "void");
+            QVERIFY(bar.getBarStatus() == Bar::BarStatus::Void);
         }
     }
 
@@ -268,7 +268,7 @@ void TestBarCache::testGetBarsOnlyHoles()
         QCOMPARE(cache.getNumberOfBars(), (unsigned) 20);
 
         for (auto &bar : result) {
-            QVERIFY(bar.getBarStatus() == "void");
+            QVERIFY(bar.getBarStatus() == Bar::BarStatus::Void);
         }
     }
 
@@ -285,7 +285,7 @@ void TestBarCache::testGetBarsOnlyHoles()
         QCOMPARE(cache.getNumberOfBars(), (unsigned) 25);
 
         for (auto &bar : result) {
-            QVERIFY(bar.getBarStatus() == "void");
+            QVERIFY(bar.getBarStatus() == Bar::BarStatus::Void);
         }
     }
 }

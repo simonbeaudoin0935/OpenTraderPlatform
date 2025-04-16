@@ -6,10 +6,13 @@
 
 #include "TestRunUpDetector.h"
 #include "TSClient.h"
-#include "BarCache.h"
+#include "StockRunUpDetector.h"
 
 static TSClient* client;
+static StockRunUpDetector* detector;
 
+static const QString symbol = "TIVC";
+static const QDate   date(2025, 4, 3); // Wednesday April 3rd
 
 // will be called to create a global test data table.
 void TestRunUpDetector::initTestCase_data()
@@ -73,6 +76,8 @@ void TestRunUpDetector::initTestCase() {
 
     // Verify no resources were leaked
     QVERIFY(client->isCleanedUp());
+
+    detector = new StockRunUpDetector(symbol);
 }
 
 // Will be called before each test function is executed.
@@ -88,6 +93,9 @@ void TestRunUpDetector::cleanup() {
 
 void TestRunUpDetector::testPriorDayAfterMarket()
 {
+    detector->start(date);
 
+
+    QTest::qWait(5000);
 }
 

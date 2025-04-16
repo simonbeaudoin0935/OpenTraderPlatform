@@ -8,8 +8,12 @@
 
 class Bar {
 public:
+    enum class BarStatus { Open, Closed, Void};
     enum class BarUnit { Minute, Daily, Weekly, Monthly };
     enum class BarSessionTemplate { USEQPre, USEQPost, USEPreAndPost,USEQ24Hour, Default };
+
+    static BarStatus barStatusFromString(const QString & barStatus);
+    static QString barStatusToString(BarStatus barStatus);
 
     static QUrlQuery buildUrlQuery(unsigned int interval,
                                    BarUnit unit,
@@ -28,24 +32,24 @@ public:
     Bar(const QJsonObject& jsonObj);
 
     // Getters
-    QString getHigh() const { return high; }
-    QString getLow() const { return low; }
-    QString getOpen() const { return open; }
-    QString getClose() const { return close; }
-    QString getTimeStamp() const { return timeStamp; }
-    QString getTotalVolume() const { return totalVolume; }
-    int getDownTicks() const { return downTicks; }
-    int getDownVolume() const { return downVolume; }
-    QString getOpenInterest() const { return openInterest; }
+    double getHigh() const { return high; }
+    double getLow() const { return low; }
+    double getOpen() const { return open; }
+    double getClose() const { return close; }
+    QDateTime getTimeStamp() const { return timeStamp; }
+    quint64 getTotalVolume() const { return totalVolume; }
+    quint64 getDownTicks() const { return downTicks; }
+    quint64 getDownVolume() const { return downVolume; }
+    double getOpenInterest() const { return openInterest; }
     bool getIsRealtime() const { return isRealtime; }
     bool getIsEndOfHistory() const { return isEndOfHistory; }
-    int getTotalTicks() const { return totalTicks; }
-    int getUnchangedTicks() const { return unchangedTicks; }
-    int getUnchangedVolume() const { return unchangedVolume; }
-    int getUpTicks() const { return upTicks; }
-    int getUpVolume() const { return upVolume; }
+    quint64 getTotalTicks() const { return totalTicks; }
+    quint64 getUnchangedTicks() const { return unchangedTicks; }
+    quint64 getUnchangedVolume() const { return unchangedVolume; }
+    quint64 getUpTicks() const { return upTicks; }
+    quint64 getUpVolume() const { return upVolume; }
     qint64 getEpoch() const { return epoch; }
-    QString getBarStatus() const { return barStatus; }
+    BarStatus getBarStatus() const { return barStatus; }
 
     // Validation
     bool isValid() const;
@@ -57,24 +61,24 @@ public:
 
 
 private:
-    QString high;           // Required
-    QString low;            // Required
-    QString open;           // Required
-    QString close;          // Required
-    QString timeStamp;      // Required, ISO 8601 format
-    QString totalVolume;    // Required
-    int downTicks;         // Required
-    int downVolume;        // Required
-    QString openInterest;   // Required
-    bool isRealtime;       // Required
-    bool isEndOfHistory;   // Required
-    int totalTicks;        // Required
-    int unchangedTicks;    // Required
-    int unchangedVolume;   // Required
-    int upTicks;          // Required
-    int upVolume;         // Required
-    qint64 epoch;         // Required
-    QString barStatus;     // Required
+    double    high;
+    double    low;
+    double    open;
+    double    close;
+    QDateTime timeStamp;
+    quint64   totalVolume;
+    quint64   downTicks;
+    quint64   downVolume;
+    double    openInterest;
+    bool      isRealtime;
+    bool      isEndOfHistory;
+    quint64   totalTicks;
+    quint64   unchangedTicks;
+    quint64   unchangedVolume;
+    quint64   upTicks;
+    quint64   upVolume;
+    qint64    epoch;
+    BarStatus barStatus;
 };
 
 Q_DECLARE_METATYPE(Bar)

@@ -7,6 +7,8 @@ CONFIG -= gui
 
 include($$PWD/../../src/Clients/Clients.pri)
 include($$PWD/../../src/Core/Cache/Cache.pri)
+include($$PWD/../../src/Algo/StockRunUpDetector/StockRunUpDetector.pri)
+
 
 #test sources
 SOURCES += TestRunUpDetector.cpp main.cpp
