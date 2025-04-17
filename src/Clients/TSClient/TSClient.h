@@ -10,9 +10,12 @@
 #include "Account.h"
 #include "StreamPositions.h"
 #include "PlaceOrder.h"
+#include "CancelOrder.h"
 #include "QuoteSnapshot.h"
 #include "StreamBars.h"
 #include "StreamMarketDepthQuote.h"
+#include "Balance.h"
+
 #ifdef GUI_ENABLED
 #include "AuthWindow.h"
 #endif
@@ -27,9 +30,12 @@ Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 #define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes"
 
 #define ENDPOINT_GET_ACCOUNTS              "brokerage/accounts"
+#define ENDPOINT_GET_BALANCES              "brokerage/accounts/%1/balances"
 #define ENDPOINT_STREAM_POSITIONS          "brokerage/stream/accounts/%1/positions"
 
 #define ENDPOINT_PLACE_ORDER               "orderexecution/orders"
+#define ENDPOINT_CANCEL_ORDER              "orderexecution/orders/%1"
+
 
 // This is a singleton
 
@@ -113,6 +119,14 @@ public:
     void getAccountsAsync();
 
     /*
+     * Get Balances
+     *
+     * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetBalances
+     */
+    bool getBalancesSync(const QString accounts, QVector<Balance> &results);
+    void getBalancesAsync(const QString accounts);
+
+    /*
      * Creates a StreamPositions Stream
      *
      * @return : nullptr if the stream could not be created
@@ -134,6 +148,14 @@ public:
      */
     bool placeOrderSync(const PlaceOrderRequest &order, PlaceOrderResult &result);
     void placeOrderAsync(const PlaceOrderRequest &order);
+
+    /*
+     * Cancel order
+     *
+     * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/CancelOrder
+     */
+    bool cancelOrderSync(const QString &orderID, CancelOrderResult &result);
+    void cancelOrderAsync(const QString &orderID);
 
 public slots:
     #ifdef GUI_ENABLED

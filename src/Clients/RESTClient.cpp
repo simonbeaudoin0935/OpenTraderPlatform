@@ -116,6 +116,15 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
                 // Use the provided postData if available, otherwise send empty data
                 reply = manager->post(request, postData);
                 break;
+            case HttpMethod::PUT:
+                Q_ASSERT_X(0, "fuck", "fuckkk");
+                break;
+            case HttpMethod::DELETE:
+                reply = manager->deleteResource(request);
+                break;
+            default:
+                Q_UNREACHABLE();
+                break;
         }
 
         Q_CHECK_PTR(reply);
@@ -214,6 +223,15 @@ void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type,
             case HttpMethod::POST:
                 // Use the provided postData if available, otherwise send empty data
                 reply = manager->post(request, postData);
+                break;
+            case HttpMethod::PUT:
+                Q_ASSERT_X(0, "fuck", "fuckkk");
+                break;
+            case HttpMethod::DELETE:
+                reply = manager->deleteResource(request);
+                break;
+            default:
+                Q_UNREACHABLE();
                 break;
         }
 

@@ -478,3 +478,4 @@ void TSClient::placeOrderAsync(const PlaceOrderRequest &order) {
 
     Q_ASSERT_X(0, "placeAsyncOrder", "TODO implement");
 }
+

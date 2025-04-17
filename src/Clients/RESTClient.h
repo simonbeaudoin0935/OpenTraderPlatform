@@ -70,7 +70,9 @@ protected:
 
     enum class HttpMethod {
         GET,
-        POST
+        POST,
+        PUT,
+        DELETE
     };
 
     // Static method to build refresh token request
