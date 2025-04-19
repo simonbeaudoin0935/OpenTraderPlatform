@@ -8,6 +8,7 @@
 #include "AuthToken.h"
 #include "ClientToken.h"
 #include "Account.h"
+#include "StreamOrders.h"
 #include "StreamPositions.h"
 #include "PlaceOrder.h"
 #include "CancelOrder.h"
@@ -31,6 +32,7 @@ Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 
 #define ENDPOINT_GET_ACCOUNTS              "brokerage/accounts"
 #define ENDPOINT_GET_BALANCES              "brokerage/accounts/%1/balances"
+#define ENDPOINT_STREAM_ORDERS             "brokerage/stream/accounts/%1/orders"
 #define ENDPOINT_STREAM_POSITIONS          "brokerage/stream/accounts/%1/positions"
 
 #define ENDPOINT_PLACE_ORDER               "orderexecution/orders"
@@ -127,6 +129,15 @@ public:
     void getBalancesAsync(const QString accounts);
 
     /*
+     * Creates a StreaOrders Stream
+     *
+     * @return : nullptr if the stream could not be created
+     * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/StreamOrders
+     */
+    StreamOrders* openStreamOrders(QString &account);
+    void closeStreamOrders(StreamOrders* stream);
+
+    /*
      * Creates a StreamPositions Stream
      *
      * @return : nullptr if the stream could not be created
@@ -165,9 +176,11 @@ public slots:
 
 signals:
     void authStateChanged(bool isAuthenticated, QString reason);
-    void accountsAsyncReceived(QVector<Account> results);
-    void quoteSnapshotsAsyncReceived(QVector<QuoteSnapshot> quoteSnapshots);
-    void placeAsyncOrderReceived(const PlaceOrderResult &result);
+    void getAccountsAsyncReceived(QVector<Account> results);
+    void getBalancesAsyncReceived(QVector<Balance> results);
+    void getQuoteSnapshotsAsyncReceived(QVector<QuoteSnapshot> quoteSnapshots);
+    void placeOrderAsyncReceived(PlaceOrderResult result);
+    void cancelOrderAsyncReceived(CancelOrderResult result);
     void getBarsAsyncReceived(QString symbol, QVector<Bar> bars);
 
 private slots:
@@ -195,9 +208,12 @@ private:
     enum class RequestType {
         None,
         GetAccounts,
+        GetBalances,
         GetBars,
         GetQuoteSnapshots,
-        GetRefreshAccessToken
+        GetRefreshAccessToken,
+        PlaceOrder,
+        CancelOrder
     };
 
     void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, void* optArg = nullptr) override;
@@ -221,9 +237,6 @@ private:
     static constexpr ApiKeyPlacement API_KEY_PLACEMENT = ApiKeyPlacement::InHeader;
 
     bool activateMockStream = false;
-
-    friend class TestTSClient; // For unit testing
-    friend class TestBarCache; // For unit testing
 
     void openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Stream * const stream);
     void closeStream(Stream* const stream);

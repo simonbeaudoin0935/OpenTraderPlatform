@@ -1,13 +1,15 @@
 #pragma once
 
-#include "Stream.h"
-#include "Position.h"
+#pragma once
 
-class StreamPositions : public Stream
+#include "Stream.h"
+#include "Order.h"
+
+class StreamOrders : public Stream
 {
     Q_OBJECT
 public:
-    class StreamPositionStatus {
+    class StreamOrdersStatus {
     public:
         enum class Status {
             EndSnapshot,  // Initial snapshot is complete
@@ -16,10 +18,10 @@ public:
         };
 
         // Default constructor
-        StreamPositionStatus() = default;
-        
+        StreamOrdersStatus() = default;
+
         // Constructor taking a QJsonObject
-        StreamPositionStatus(const QJsonObject& jsonObj);
+        StreamOrdersStatus(const QJsonObject& jsonObj);
 
         // Getters
         Status getStatus() const { return status; }
@@ -38,14 +40,14 @@ public:
     };
 
     // TODO make it multiple accounts
-    explicit StreamPositions(QString &accountID, QObject *parent = nullptr);
+    explicit StreamOrders(QString &account, QObject *parent = nullptr);
 
-    ~StreamPositions();
-    StreamPositions(const StreamPositions&) = delete;
-    StreamPositions& operator=(const StreamPositions&) = delete;
+    ~StreamOrders();
+    StreamOrders(const StreamOrders&) = delete;
+    StreamOrders& operator=(const StreamOrders&) = delete;
 
 signals:
-    void receivedNewPosition(QString accountID, Position position);
+    void receivedNewPosition(QString account, Order order);
 
 private:
     QString accountID;

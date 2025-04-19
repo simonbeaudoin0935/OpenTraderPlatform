@@ -367,7 +367,23 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, 
                 results.push_back(Account(json.toObject()));
             }
 
-            emit accountsAsyncReceived(results);
+            emit getAccountsAsyncReceived(results);
+            break;
+        }
+
+        case RequestType::GetBalances:
+        {
+            const QJsonArray balancesArray = obj["Balances"].toArray();
+            QVector<Balance> results;
+
+            // Resize the array in advance
+            results.reserve(balancesArray.count());
+
+            for (const QJsonValue &json: balancesArray) {
+                results.push_back(Balance(json.toObject()));
+            }
+
+            emit getBalancesAsyncReceived(results);
             break;
         }
 
@@ -398,6 +414,16 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, 
 
         case RequestType::GetQuoteSnapshots:
             Q_ASSERT(0); //TODO not yet implemented
+            break;
+
+        case RequestType::PlaceOrder:
+            Q_ASSERT(0); //TODO not yet implemented
+
+            break;
+
+        case RequestType::CancelOrder:
+            Q_ASSERT(0); //TODO not yet implemented
+
             break;
 
         case RequestType::GetRefreshAccessToken:

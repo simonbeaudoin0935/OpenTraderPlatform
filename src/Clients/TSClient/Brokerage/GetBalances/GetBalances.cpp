@@ -36,5 +36,8 @@ bool TSClient::getBalancesSync(const QString accounts, QVector<Balance> &results
 }
 
 void TSClient::getBalancesAsync(const QString accounts) {
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, QString(ENDPOINT_GET_BALANCES).arg(accounts));
+    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetBalances));
 
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching Balances";
 }

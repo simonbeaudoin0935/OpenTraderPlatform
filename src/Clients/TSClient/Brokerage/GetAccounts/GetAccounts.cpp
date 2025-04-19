@@ -41,5 +41,5 @@ void TSClient::getAccountsAsync()
     QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_GET_ACCOUNTS);
     fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetAccounts));
 
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching accounts";
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching accounts async";
 }

@@ -25,7 +25,7 @@ MainApp::MainApp() :
     QObject::connect(tradeStationClient, &TSClient::authStateChanged,
                      mainAlgo, &MainAlgo::onTradeStationAuthStateChanged);
 
-    QObject::connect(tradeStationClient, &TSClient::accountsAsyncReceived,
+    QObject::connect(tradeStationClient, &TSClient::getAccountsAsyncReceived,
                      appFrontend, &AppFrontend::tradeStationAccountsReceived);
 
     // Connect FMP data usage updates to frontend

@@ -164,7 +164,7 @@ void TestTSClient::testGetAccountsAsync()
     QVERIFY(!client->isAuthInProgress());
 
     // Intercept the accounts when they are received
-    QSignalSpy fetchAsyncAccoutnsSpy(client, &TSClient::accountsAsyncReceived); // Create signal spies to monitor authentication signals
+    QSignalSpy fetchAsyncAccoutnsSpy(client, &TSClient::getAccountsAsyncReceived); // Create signal spies to monitor authentication signals
 
     client->getAccountsAsync();
 

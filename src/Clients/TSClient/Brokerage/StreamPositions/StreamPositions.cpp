@@ -21,9 +21,9 @@ QString StreamPositions::StreamPositionStatus::toJsonString() const {
     return QString(doc.toJson(QJsonDocument::Compact));
 }
 
-StreamPositions::StreamPositions(QString &account, QObject *parent) :
+StreamPositions::StreamPositions(QString &accountID, QObject *parent) :
     Stream(parent),
-    account(account),
+    accountID(accountID),
     receivedEndSnapshot(false)
 {}
 
@@ -41,9 +41,9 @@ bool StreamPositions::processJsonObject(const QJsonObject &jsonObj)
             // Update the EndSnapshot flag if we receive that status
             if (status.getStatus() == StreamPositionStatus::Status::EndSnapshot) {
                 receivedEndSnapshot = true;
-                qCDebug(StreamLog) << Q_FUNC_INFO << "Received EndSnapshot status for account" << account;
+                qCDebug(StreamLog) << Q_FUNC_INFO << "Received EndSnapshot status for account" << accountID;
             } else if (status.getStatus() == StreamPositionStatus::Status::GoAway) {
-                qCWarning(StreamLog) << Q_FUNC_INFO << "Received GoAway status for account" << account;
+                qCWarning(StreamLog) << Q_FUNC_INFO << "Received GoAway status for account" << accountID;
             }
             return true;
         } else {
@@ -58,7 +58,7 @@ bool StreamPositions::processJsonObject(const QJsonObject &jsonObj)
     // If not a status message, try to process as a position update
     Position position(jsonObj, receivedEndSnapshot);  // Pass the update flag based on EndSnapshot status
     if (position.isValid()) {
-        emit receivedNewPosition(account, position);
+        emit receivedNewPosition(accountID, position);
         return true;
     } else {
         QJsonDocument doc(jsonObj);
@@ -86,16 +86,16 @@ StreamPositions::StreamPositionStatus::StreamPositionStatus(const QJsonObject& j
 }
 
 
-StreamPositions *TSClient::openStreamPositions(QString &account, bool changes)
+StreamPositions *TSClient::openStreamPositions(QString &accountID, bool changes)
 {
-    Q_ASSERT(account.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
+    Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
 
-    const QString endpoint = QString(ENDPOINT_STREAM_POSITIONS).arg(account);
+    const QString endpoint = QString(ENDPOINT_STREAM_POSITIONS).arg(accountID);
 
     QUrlQuery query;
     query.addQueryItem("changes", changes? "true":"false");
 
-    StreamPositions * stream = new StreamPositions(account);
+    StreamPositions * stream = new StreamPositions(accountID);
     stream->moveToThread(thread);
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamPositions " << static_cast<void*>(stream);
