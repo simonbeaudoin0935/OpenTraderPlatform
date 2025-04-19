@@ -4,6 +4,44 @@
 #include <QJsonObject>
 #include <optional>
 
+
+class AccountType {
+
+public:
+    enum class Type {
+        Cash,
+        Margin,
+        Futures,
+        DVP
+    };
+
+    AccountType() {};
+
+    AccountType(const QString &type) : type(stringToAccountType(type)) {}
+
+    static QString accountTypeToString(Type type) {
+        switch (type) {
+        case Type::Cash: return "Cash";
+        case Type::Margin: return "Margin";
+        case Type::Futures: return "Futures";
+        case Type::DVP: return "DVP";
+        default: Q_UNREACHABLE_RETURN("");
+        }
+    }
+
+    static Type stringToAccountType(const QString &str) {
+        if (str == "Cash") return Type::Cash;
+        else if (str == "Margin") return Type::Margin;
+        else if (str == "Futures") return Type::Futures;
+        else if (str == "DVP") return Type::DVP;
+        else Q_ASSERT(0);
+    }
+
+    Type type;
+};
+
+
+
 struct AccountDetail {
     AccountDetail() = default;
     AccountDetail(const QJsonObject& jsonObj) {
@@ -29,7 +67,7 @@ struct Account {
 
     // Getters for each member
     QString getAccountId() const { return accountId; }
-    QString getAccountType() const { return accountType; }
+    AccountType getAccountType() const { return accountType; }
     QString getStatus() const { return status; }
     QString getCurrency() const { return currency; }
     const std::optional<AccountDetail>& getAccountDetail() const { return accountDetail; }
@@ -39,7 +77,7 @@ struct Account {
 
 private:
     QString accountId;
-    QString accountType;
+    AccountType accountType;
     QString status;
     QString currency;
     std::optional<AccountDetail> accountDetail;

@@ -250,7 +250,7 @@ void GuiFrontend::onTradeStationAccountsReceived(QVector<Account> results)
 {
     for (const Account& account : results) {
         ui->logDisplay->append("  ID:" + account.getAccountId());
-        ui->logDisplay->append("  Type:" + account.getAccountType());
+        ui->logDisplay->append("  Type:" + AccountType::accountTypeToString(account.getAccountType().type));
         ui->logDisplay->append("  Status:" + account.getStatus());
         ui->logDisplay->append("  Currency:" + account.getCurrency());
 

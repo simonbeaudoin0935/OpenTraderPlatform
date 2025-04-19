@@ -4,7 +4,7 @@
 
 Account::Account(const QJsonObject& jsonObj) {
     accountId = jsonObj["AccountID"].toString();
-    accountType = jsonObj["AccountType"].toString();
+    accountType = AccountType(jsonObj["AccountType"].toString());
     status = jsonObj["Status"].toString();
     currency = jsonObj["Currency"].toString();
     
@@ -17,7 +17,7 @@ Account::Account(const QJsonObject& jsonObj) {
 QString Account::toJsonString() const {
     QJsonObject jsonObj;
     jsonObj["AccountID"] = accountId;
-    jsonObj["AccountType"] = accountType;
+    jsonObj["AccountType"] = AccountType::accountTypeToString(accountType.type);
     jsonObj["Status"] = status;
     jsonObj["Currency"] = currency;
     
@@ -54,10 +54,12 @@ bool Account::isValid() const {
         return false;
     }
 
+/*
     if (accountType.isEmpty()) {
         qWarning() << "AccountType is required but not set";
         return false;
     }
+*/
 
     if (status.isEmpty()) {
         qWarning() << "Status is required but not set";
@@ -75,11 +77,13 @@ bool Account::isValid() const {
         return false;
     }
 
+/*
     // Validate account type values
     if (accountType != "Cash" && accountType != "Margin" && accountType != "Futures" && accountType != "DVP") {
         qWarning() << "Invalid account type:" << accountType;
         return false;
     }
+*/
 
     // Validate currency format (should be 3-letter code)
     if (currency.length() != 3) {
