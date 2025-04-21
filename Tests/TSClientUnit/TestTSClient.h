@@ -10,25 +10,33 @@ private slots:
     void init();
     void cleanup();
 
-    // Need to be first
+    // Needs to be first
     void testRefreshSyncAccessToken();
 
     void testGetAccountsSync();
     void testGetAccountsAsync();
 
+    void testGetBalancesSync();
+    void testGetBalancesAsync();
+
     void testGetQuoteSnapshotsSync();
     void testGetQuoteSnapshotsAsync();
 
-    void testPlaceSyncOrder();
-    void testPlaceAsyncOrder();
+    void testPlaceOrderSync();
+    void testPlaceOrderAsync();
+
+    void testCancelOrderSync();
+    void testCancelOrderAsync();
 
     void testFetchingMoreThanMaximumPerMinute();
 
-    void testGetBarsAsync();
     void testGetBarsSync();
+    void testGetBarsAsync();
 
     void testStreamBars();
     void testStreamMarketDepthQuote();
+    void testStreamOrders();
+    void testStreamPositions();
 
 
 

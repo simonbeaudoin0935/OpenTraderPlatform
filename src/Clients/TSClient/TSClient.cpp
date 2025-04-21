@@ -235,11 +235,11 @@ void TSClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
     QTimer::singleShot(1000, this, [this]() {
         // Based on observation, if we propagate the good new immediately and start
         // making calls, the remote server will send us back an error 401 (unauthenticated)
-        // for the first API call. Almost as if the refresh did not properly propagade in their system
+        // for the first API call. Almost as if the refresh did not properly propagade in their system.
+        // Wait a second on our end before propagating the successful authentification as to delay
+        // making the first API call.
         emit authStateChanged(true, "Auth token refresh successful");
     });
-
-    // TODO kick a watchdog timer
 }
 
 bool TSClient::refreshSyncAccessToken()
@@ -417,9 +417,15 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, 
             break;
 
         case RequestType::PlaceOrder:
-            Q_ASSERT(0); //TODO not yet implemented
+        {
+            PlaceOrderResult result;
+
+            result = PlaceOrderResult(doc.object());
+
+            emit placeOrderAsyncReceived(result);
 
             break;
+        }
 
         case RequestType::CancelOrder:
             Q_ASSERT(0); //TODO not yet implemented

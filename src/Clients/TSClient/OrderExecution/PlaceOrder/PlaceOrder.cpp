@@ -474,8 +474,18 @@ bool TSClient::placeOrderSync(const PlaceOrderRequest &order, PlaceOrderResult &
 }
 
 void TSClient::placeOrderAsync(const PlaceOrderRequest &order) {
-    Q_UNUSED(order);
+    Q_ASSERT(order.isValid());
 
-    Q_ASSERT_X(0, "placeAsyncOrder", "TODO implement");
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, ENDPOINT_PLACE_ORDER);
+
+    QByteArray postData = QJsonDocument(order.toJson()).toJson(QJsonDocument::Compact);
+
+    fetchAsync(request,
+               static_cast<RequestTypeInt>(RequestType::PlaceOrder),
+               HttpMethod::POST,
+               postData);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Placing order async";
+
 }
 
