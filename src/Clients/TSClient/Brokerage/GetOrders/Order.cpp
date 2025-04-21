@@ -25,3 +25,21 @@ AdvancedOptions::AdvancedOptions(const QString &str)
         type = Type::PSO;
     }
 }
+
+Order::Order(const QJsonObject &jsonObj, bool isUpdate) :
+    isUpdate(isUpdate)
+{
+    accountID = jsonObj["AccountID"].toString();
+
+    if (jsonObj.contains("AdvancedOptions")) {
+        //TODO
+    }
+
+
+}
+
+bool Order::isValid()
+{
+    //TODO actually perform some checks
+    return true;
+}

@@ -43,6 +43,10 @@ struct Leg {
 
 class Order {
 
+public:
+    Order(const QJsonObject& jsonObj, bool isUpdate = false);
+    bool isValid();
+
     QString accountID;
     std::optional<AdvancedOptions> advancedOptions;
     QDateTime closedDateTime;
@@ -74,6 +78,10 @@ class Order {
     double stopPrice;
     TrailingStop trailingStop;
     double unbundledRouteFee;
+
+
+    bool isUpdate = false;                // Whether this position is an update
+
 };
 
 Q_DECLARE_METATYPE(Order)

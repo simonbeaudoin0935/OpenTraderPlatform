@@ -39,6 +39,7 @@ void TestTSClient::initTestCase_data()
         qInfo() << "Token is expired, no need to set it to expired";
     }
 
+    secondAccountId = "SIM2956555M";
 }
 
 // will be called before the first test function is executed.
@@ -50,6 +51,8 @@ void TestTSClient::initTestCase() {
     QThread::currentThread()->setObjectName("UnitTestThread");
 
     client = TSClient::getInstancePtr(); // ***** First time to do a getInstance, this will call the constructor
+
+    testRefreshSyncAccessToken();
 }
 
 // Will be called before each test function is executed.
@@ -444,7 +447,7 @@ void TestTSClient::testCancelOrderSync()
         orderRequest.setLimitPrice(lastAsk / 2); // set ridiculous low price
 
         // Set up time in force
-        TimeInForce timeInForce(OrderDuration::Day);
+        TimeInForce timeInForce(OrderDuration::DayPlus);
         orderRequest.setTimeInForce(timeInForce);
 
         QVERIFY(orderRequest.isValid());
@@ -479,6 +482,8 @@ void TestTSClient::testCancelOrderSync()
         QVERIFY(result.isError() == false);
 
         qDebug() << "Cancel order message : " << result.getMessage();
+
+        QVERIFY(result.getOrderID() == orderID);
     }
 }
 
@@ -512,7 +517,7 @@ void TestTSClient::testCancelOrderAsync()
         orderRequest.setLimitPrice(lastAsk / 2); // set ridiculous low price
 
         // Set up time in force
-        TimeInForce timeInForce(OrderDuration::Day);
+        TimeInForce timeInForce(OrderDuration::DayPlus);
         orderRequest.setTimeInForce(timeInForce);
 
         QVERIFY(orderRequest.isValid());
@@ -565,6 +570,8 @@ void TestTSClient::testCancelOrderAsync()
         QVERIFY(result.isError() == false);
 
         qDebug() << "Cancel order message : " << result.getMessage();
+
+        QVERIFY(result.getOrderID() == orderID);
     }
 }
 
@@ -815,7 +822,7 @@ void TestTSClient::testStreamMarketDepthQuote()
             QVERIFY(firstArgOfSignal.canConvert<QString>());
             QVERIFY(secondArgOfSignal.canConvert<MarketDepthQuote>());
 
-            QString stock =firstArgOfSignal.value<QString>();
+            QString stock = firstArgOfSignal.value<QString>();
             MarketDepthQuote quote = secondArgOfSignal.value<MarketDepthQuote>();
 
             QVERIFY(stock == symbol);
@@ -837,7 +844,78 @@ void TestTSClient::testStreamMarketDepthQuote()
 
 void TestTSClient::testStreamOrders()
 {
-    QSKIP("Not implemented");
+    QString symbol = "AAPL";
+    StreamOrders* stream;
+
+    QVERIFY(client->isCleanedUp());
+
+    stream = client->openStreamOrders(secondAccountId);
+    QVERIFY(stream != nullptr);
+
+    QSignalSpy spy(stream, &StreamOrders::receivedNewOrder);
+
+    QTest::qWait(3000);
+
+    qDebug() << "Recieved " << spy.size() << "Order signals";
+
+    double lastAsk;
+
+    {
+        QVector<QuoteSnapshot> quoteResults;
+        bool success = client->getQuoteSnapshotsSync(symbol, quoteResults);
+        QVERIFY(success);
+
+        lastAsk = quoteResults.first().getAsk();
+    }
+
+    // Startin by placing a limit order way high so that we can rest assured
+    // it doesnt fill while we do out test
+    PlaceOrderRequest orderRequest;
+
+
+    // Populate the order
+    {
+        orderRequest.setAccountID(secondAccountId); // Use the saved second account ID
+        orderRequest.setOrderType(OrderType::Type::Limit);
+        orderRequest.setQuantity(100);
+        orderRequest.setSymbol("AAPL");
+        orderRequest.setTradeAction(TradeAction::Buy);
+        orderRequest.setRoute("Intelligent");
+        orderRequest.setLimitPrice(lastAsk-0.05); // set ridiculous low price
+
+        // Set up time in force
+        TimeInForce timeInForce(OrderDuration::DayPlus);
+        orderRequest.setTimeInForce(timeInForce);
+
+        QVERIFY(orderRequest.isValid());
+        qDebug().noquote() << "Content of the request :\n" << orderRequest.toJsonString();
+    }
+
+    QString orderID;
+
+    // Place the order
+    {
+        PlaceOrderResult orderResult;
+        bool success = client->placeOrderSync(orderRequest, orderResult);
+        QVERIFY(success);
+
+        qDebug().noquote() << "Received result :\n" << orderResult.toJsonString();
+
+        QVERIFY(orderResult.isAllSuccessful());
+
+        QCOMPARE(orderResult.getOrders().size(), 1);
+
+        orderID = orderResult.getOrders().first().getOrderID();
+
+        QVERIFY(!orderID.isEmpty());
+
+        qDebug().noquote() << "Order placed : " << orderResult.toJsonString();
+    }
+
+
+    QTest::qWait(50000);
+    QVERIFY(client->isCleanedUp());
+
 }
 
 void TestTSClient::testStreamPositions()

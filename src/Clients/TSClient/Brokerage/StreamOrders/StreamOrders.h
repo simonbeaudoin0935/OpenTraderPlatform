@@ -47,7 +47,7 @@ public:
     StreamOrders& operator=(const StreamOrders&) = delete;
 
 signals:
-    void receivedNewPosition(QString account, Order order);
+    void receivedNewOrder(QString account, Order order);
 
 private:
     QString accountID;

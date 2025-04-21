@@ -10,8 +10,7 @@ private slots:
     void init();
     void cleanup();
 
-    // Needs to be first
-    void testRefreshSyncAccessToken();
+
 
     void testGetAccountsSync();
     void testGetAccountsAsync();
@@ -44,5 +43,8 @@ private slots:
     //     for the next minute instead of having them fail
 
 private:
+    // Needs to be first
+    void testRefreshSyncAccessToken();
+
     QString secondAccountId; // Store the second account's ID for use in place order test
 };
