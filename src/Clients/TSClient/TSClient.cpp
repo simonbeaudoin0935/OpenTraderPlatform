@@ -428,9 +428,15 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, 
         }
 
         case RequestType::CancelOrder:
-            Q_ASSERT(0); //TODO not yet implemented
+        {
+            CancelOrderResult result;
+
+            result = CancelOrderResult(doc.object());
+
+            emit cancelOrderAsyncReceived(result);
 
             break;
+        }
 
         case RequestType::GetRefreshAccessToken:
             // No emit on purpose, this is calling a private function of this class

@@ -233,13 +233,13 @@ public:
     void setTradeAction(TradeAction value);
 
     // Setters for optional fields
-    void setAdvancedOptions(const std::optional<AdvancedOptions>& value) { advancedOptions = value; }
-    void setLimitPrice(const std::optional<double>& value);
-    void setOrderConfirmID(const std::optional<QString>& value);
-    void setRoute(const std::optional<QString>& value);
-    void setStopPrice(const std::optional<double>& value);
-    void setOcaGroupName(const std::optional<QString>& value);
-    void setOcaGroupType(const std::optional<QString>& value);
+    void setAdvancedOptions(const AdvancedOptions& value) { advancedOptions = value; }
+    void setLimitPrice(const double& value);
+    void setOrderConfirmID(const QString& value);
+    void setRoute(const QString& value);
+    void setStopPrice(const double& value);
+    void setOcaGroupName(const QString& value);
+    void setOcaGroupType(const QString& value);
 
     // Getters for all fields
     QString getAccountID() const;

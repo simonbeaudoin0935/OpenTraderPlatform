@@ -79,26 +79,25 @@ void PlaceOrderRequest::setQuantity(int value) { quantity = value; }
 void PlaceOrderRequest::setSymbol(const QString& value) { symbol = value; }
 void PlaceOrderRequest::setTimeInForce(const TimeInForce& value) { timeInForce = value; }
 void PlaceOrderRequest::setTradeAction(TradeAction value) { tradeAction = value; }
-void PlaceOrderRequest::setLimitPrice(const std::optional<double>& value) { limitPrice = value; }
-void PlaceOrderRequest::setOrderConfirmID(const std::optional<QString>& value) { 
-    if (value) {
-        // Check length is between 1 and 22 characters
-        Q_ASSERT(value->length() >= 1 && value->length() <= 22);
+void PlaceOrderRequest::setLimitPrice(const double& value) { limitPrice = value; }
+void PlaceOrderRequest::setOrderConfirmID(const QString& value) {
+    // Check length is between 1 and 22 characters
+    Q_ASSERT(value.length() >= 1 && value.length() <= 22);
         
-        // Check that all characters are digits
-        bool allDigits = true;
-        for (const QChar& c : *value) {
-            if (!c.isDigit()) {
-                allDigits = false;
-                break;
-            }
+    // Check that all characters are digits
+    bool allDigits = true;
+    for (const QChar& c : value) {
+        if (!c.isDigit()) {
+            allDigits = false;
+            break;
         }
-        Q_ASSERT(allDigits);
     }
+    Q_ASSERT(allDigits);
+
     orderConfirmID = value; 
 }
-void PlaceOrderRequest::setRoute(const std::optional<QString>& value) { route = value; }
-void PlaceOrderRequest::setStopPrice(const std::optional<double>& value) { stopPrice = value; }
+void PlaceOrderRequest::setRoute(const QString& value) { route = value; }
+void PlaceOrderRequest::setStopPrice(const double& value) { stopPrice = value; }
 
 // Getters
 QString PlaceOrderRequest::getAccountID() const { return accountID; }
@@ -147,8 +146,8 @@ QJsonObject PlaceOrderRequest::toJson() const {
     json["TimeInForce"] = timeInForce.toJson();
     
     // Optional fields
-    if (limitPrice) json["LimitPrice"] = QString::number(*limitPrice);
-    if (stopPrice) json["StopPrice"] = QString::number(*stopPrice);
+    if (limitPrice) json["LimitPrice"] = QString::number(*limitPrice, 'f', 2);
+    if (stopPrice) json["StopPrice"] = QString::number(*stopPrice, 'f', 2);
 
     if (route) json["Route"] = *route;
     if (orderConfirmID) json["OrderConfirmID"] = *orderConfirmID;
@@ -486,6 +485,5 @@ void TSClient::placeOrderAsync(const PlaceOrderRequest &order) {
                postData);
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Placing order async";
-
 }
 

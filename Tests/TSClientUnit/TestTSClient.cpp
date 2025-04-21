@@ -484,7 +484,88 @@ void TestTSClient::testCancelOrderSync()
 
 void TestTSClient::testCancelOrderAsync()
 {
-    QSKIP("Not implemented");
+    QString symbol = "AAPL";
+    double lastAsk;
+
+    {
+        QVector<QuoteSnapshot> quoteResults;
+        bool success = client->getQuoteSnapshotsSync(symbol, quoteResults);
+        QVERIFY(success);
+
+        lastAsk = quoteResults.first().getAsk();
+    }
+
+    // Startin by placing a limit order way high so that we can rest assured
+    // it doesnt fill while we do out test
+    PlaceOrderRequest orderRequest;
+
+    QVERIFY(client->isCleanedUp());
+
+    // Populate the order
+    {
+        orderRequest.setAccountID(secondAccountId); // Use the saved second account ID
+        orderRequest.setOrderType(OrderType::Limit);
+        orderRequest.setQuantity(100);
+        orderRequest.setSymbol("AAPL");
+        orderRequest.setTradeAction(TradeAction::Buy);
+        orderRequest.setRoute("Intelligent");
+        orderRequest.setLimitPrice(lastAsk / 2); // set ridiculous low price
+
+        // Set up time in force
+        TimeInForce timeInForce(OrderDuration::Day);
+        orderRequest.setTimeInForce(timeInForce);
+
+        QVERIFY(orderRequest.isValid());
+        qDebug().noquote() << "Content of the request :\n" << orderRequest.toJsonString();
+    }
+
+    QString orderID;
+
+    // Place the order
+    {
+        PlaceOrderResult orderResult;
+        bool success = client->placeOrderSync(orderRequest, orderResult);
+        QVERIFY(success);
+
+        qDebug().noquote() << "Received result :\n" << orderResult.toJsonString();
+
+        QVERIFY(orderResult.isAllSuccessful());
+
+        QCOMPARE(orderResult.getOrders().size(), 1);
+
+        orderID = orderResult.getOrders().first().getOrderID();
+
+        QVERIFY(!orderID.isEmpty());
+    }
+
+    // Now spit on that thang
+    {
+        QSignalSpy spy(client, &TSClient::cancelOrderAsyncReceived);
+
+        client->cancelOrderAsync(orderID);
+
+        bool triggered = spy.wait(2000);
+        QVERIFY(triggered);
+
+
+        // Logically, only one signal must be emited
+        QCOMPARE(spy.count(), 1);
+
+        // Extract the first emission's argument
+        QList<QVariant> firstSignal = spy.first();
+        QVERIFY(firstSignal.size() == 1); // One argument
+
+        // Convert QVariant to QVector<Balance>
+        QVariant arg = firstSignal.at(0);
+        QVERIFY(arg.canConvert<CancelOrderResult>());
+
+
+        const CancelOrderResult result = arg.value<CancelOrderResult>();
+
+        QVERIFY(result.isError() == false);
+
+        qDebug() << "Cancel order message : " << result.getMessage();
+    }
 }
 
 void TestTSClient::testFetchingMoreThanMaximumPerMinute()
@@ -536,6 +617,8 @@ void TestTSClient::testGetBarsSync()
         // Get the date for the previous day
         QDate previousDay = now.date().addDays(-1);
 
+        while(previousDay.dayOfWeek() > 4) previousDay = previousDay.addDays(-1);
+
         // Create a QDateTime for previous day at 4:00 PM in New York time zone
         QTimeZone newYorkTimeZone("America/New_York");
 
@@ -576,6 +659,8 @@ void TestTSClient::testGetBarsAsync()
 
         // Get the date for the previous day
         QDate previousDay = now.date().addDays(-1);
+
+        while(previousDay.dayOfWeek() > 4) previousDay = previousDay.addDays(-1);
 
         // Create a QDateTime for previous day at 4:00 PM in New York time zone
         QTimeZone newYorkTimeZone("America/New_York");

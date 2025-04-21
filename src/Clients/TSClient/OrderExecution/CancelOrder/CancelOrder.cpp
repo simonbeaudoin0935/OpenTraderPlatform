@@ -64,7 +64,16 @@ bool TSClient::cancelOrderSync(const QString &orderID, CancelOrderResult &result
 
 void TSClient::cancelOrderAsync(const QString &orderID)
 {
-    Q_UNUSED(orderID);
+    Q_ASSERT(!orderID.isEmpty());
+    Q_ASSERT(QRegularExpression("^[0-9]+$").match(orderID).hasMatch());
 
-    Q_ASSERT_X(0, "cancelOrderAsync", "TODO implement");
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT,
+                                           QString(ENDPOINT_CANCEL_ORDER).arg(orderID));
+
+    fetchAsync(request,
+               static_cast<RequestTypeInt>(RequestType::CancelOrder),
+               HttpMethod::DELETE);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Cancel order async";
+
 }
