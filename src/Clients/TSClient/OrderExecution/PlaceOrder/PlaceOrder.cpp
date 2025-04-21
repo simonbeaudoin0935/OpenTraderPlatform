@@ -5,6 +5,30 @@
 
 #include "TSClient.h"
 
+QString OrderType::toString(OrderType::Type type)
+{
+    switch (type) {
+    case Type::Market: return "Market";
+    case Type::Limit: return "Limit";
+    case Type::StopMarket: return "StopMarket";
+    case Type::StopLimit: return "StopLimit";
+    default: Q_ASSERT(0);
+    }
+}
+
+OrderType OrderType::fromString(const QString &str)
+{
+    OrderType orderType;
+
+    if (str == "Market") orderType.type = Type::Market;
+    else if (str == "Limit") orderType.type = Type::Limit;
+    else if (str == "StopMarket") orderType.type = Type::StopMarket;
+    else if (str == "StopLimit") orderType.type = Type::StopLimit;
+    else Q_ASSERT(0);
+
+    return orderType;
+}
+
 // TimeInForce implementation
 TimeInForce::TimeInForce(OrderDuration duration)
     : duration(duration)
@@ -65,16 +89,17 @@ bool TimeInForce::isValidExpiration(const QString& expiration) {
 
 // PlaceOrderRequest implementation
 PlaceOrderRequest::PlaceOrderRequest()
-    : orderType(OrderType::Market)
+    : orderType()
     , quantity(0)
     , timeInForce(OrderDuration::Day)
     , tradeAction(TradeAction::Buy)
 {
+    orderType.type = OrderType::Type::Market;
 }
 
 // Setters
 void PlaceOrderRequest::setAccountID(const QString& value) { accountID = value; }
-void PlaceOrderRequest::setOrderType(OrderType value) { orderType = value; }
+void PlaceOrderRequest::setOrderType(OrderType::Type value) { orderType.type = value; }
 void PlaceOrderRequest::setQuantity(int value) { quantity = value; }
 void PlaceOrderRequest::setSymbol(const QString& value) { symbol = value; }
 void PlaceOrderRequest::setTimeInForce(const TimeInForce& value) { timeInForce = value; }
@@ -118,15 +143,8 @@ QJsonObject PlaceOrderRequest::toJson() const {
     json["AccountID"] = accountID;
     json["Symbol"] = symbol;
     
-    // Convert enums to strings
-    QString orderTypeStr;
-    switch (orderType) {
-        case OrderType::Market: orderTypeStr = "Market"; break;
-        case OrderType::Limit: orderTypeStr = "Limit"; break;
-        case OrderType::StopMarket: orderTypeStr = "StopMarket"; break;
-        case OrderType::StopLimit: orderTypeStr = "StopLimit"; break;
-    }
-    json["OrderType"] = orderTypeStr;
+
+    json["OrderType"] = OrderType::toString(orderType.type);
     
     // Convert trade action to string
     QString tradeActionStr;
@@ -182,25 +200,25 @@ bool PlaceOrderRequest::isValid() const {
     }
 
     // Validate order type specific requirements
-    switch (orderType) {
-        case OrderType::Market:
+    switch (orderType.type) {
+    case OrderType::Type::Market:
         // Nothing to validate for market
         break;
 
-        case OrderType::Limit:
+    case OrderType::Type::Limit:
             if (!limitPrice || *limitPrice <= 0) {
                 qWarning() << "Limit orders require a valid limit price";
                 return false;
             }
             break;
 
-        case OrderType::StopMarket:
-        case OrderType::StopLimit:
+    case OrderType::Type::StopMarket:
+    case OrderType::Type::StopLimit:
             if (!stopPrice || *stopPrice <= 0) {
                 qWarning() << "Stop orders require a valid stop price";
                 return false;
             }
-            if (orderType == OrderType::StopLimit && (!limitPrice || *limitPrice <= 0)) {
+            if (orderType.type == OrderType::Type::StopLimit && (!limitPrice || *limitPrice <= 0)) {
                 qWarning() << "Stop limit orders require both a valid stop price and limit price";
                 return false;
             }
@@ -370,7 +388,7 @@ QJsonObject TrailingStop::toJson() const {
 }
 
 // AdvancedOptions implementation
-QJsonObject AdvancedOptions::toJson() const {
+QJsonObject AdvancedOptionsRequest::toJson() const {
     QJsonObject json;
     
     if (addLiquidity) json["AddLiquidity"] = *addLiquidity;
@@ -486,4 +504,6 @@ void TSClient::placeOrderAsync(const PlaceOrderRequest &order) {
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Placing order async";
 }
+
+
 

@@ -304,7 +304,7 @@ void TestTSClient::testPlaceOrderSync()
     // Populate the order
     {
         order.setAccountID(secondAccountId); // Use the saved second account ID
-        order.setOrderType(OrderType::Market);
+        order.setOrderType(OrderType::Type::Market);
         order.setQuantity(100);
         order.setSymbol("AAPL");
         order.setTradeAction(TradeAction::Buy);
@@ -357,7 +357,7 @@ void TestTSClient::testPlaceOrderAsync()
     // Populate the order
     {
         order.setAccountID(secondAccountId); // Use the saved second account ID
-        order.setOrderType(OrderType::Market);
+        order.setOrderType(OrderType::Type::Market);
         order.setQuantity(100);
         order.setSymbol("MSFT");
         order.setTradeAction(TradeAction::Buy);
@@ -436,7 +436,7 @@ void TestTSClient::testCancelOrderSync()
     // Populate the order
     {
         orderRequest.setAccountID(secondAccountId); // Use the saved second account ID
-        orderRequest.setOrderType(OrderType::Limit);
+        orderRequest.setOrderType(OrderType::Type::Limit);
         orderRequest.setQuantity(100);
         orderRequest.setSymbol("AAPL");
         orderRequest.setTradeAction(TradeAction::Buy);
@@ -504,7 +504,7 @@ void TestTSClient::testCancelOrderAsync()
     // Populate the order
     {
         orderRequest.setAccountID(secondAccountId); // Use the saved second account ID
-        orderRequest.setOrderType(OrderType::Limit);
+        orderRequest.setOrderType(OrderType::Type::Limit);
         orderRequest.setQuantity(100);
         orderRequest.setSymbol("AAPL");
         orderRequest.setTradeAction(TradeAction::Buy);

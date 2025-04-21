@@ -8,12 +8,23 @@
 #include <QMetaType>
 
 // Enum for order types
-enum class OrderType {
-    Market,
-    Limit,
-    StopMarket,
-    StopLimit
+class OrderType {
+public:
+    enum class Type {
+        Market,
+        Limit,
+        StopMarket,
+        StopLimit
+    };
+
+    static QString toString(OrderType::Type type);
+    static OrderType fromString(const QString &str);
+
+    Type type;
 };
+
+QString orderTypeToString(OrderType type);
+OrderType stringToOrderType(const QString &str);
 
 // Enum for trade actions
 enum class TradeAction {
@@ -175,7 +186,7 @@ private:
     std::optional<QString> percent;   // Percentage offset
 };
 
-class AdvancedOptions {
+class AdvancedOptionsRequest {
 public:
     // Setters
     void setAddLiquidity(const std::optional<bool>& value) { addLiquidity = value; }
@@ -226,14 +237,14 @@ public:
 
     // Setters for required fields
     void setAccountID(const QString& value);
-    void setOrderType(OrderType value);
+    void setOrderType(OrderType::Type value);
     void setQuantity(int value);
     void setSymbol(const QString& value);
     void setTimeInForce(const TimeInForce& value);
     void setTradeAction(TradeAction value);
 
     // Setters for optional fields
-    void setAdvancedOptions(const AdvancedOptions& value) { advancedOptions = value; }
+    void setAdvancedOptions(const AdvancedOptionsRequest& value) { advancedOptions = value; }
     void setLimitPrice(const double& value);
     void setOrderConfirmID(const QString& value);
     void setRoute(const QString& value);
@@ -248,7 +259,7 @@ public:
     QString getSymbol() const;
     TimeInForce getTimeInForce() const;
     TradeAction getTradeAction() const;
-    std::optional<AdvancedOptions> getAdvancedOptions() const { return advancedOptions; }
+    std::optional<AdvancedOptionsRequest> getAdvancedOptions() const { return advancedOptions; }
     std::optional<double> getLimitPrice() const;
     std::optional<QString> getOrderConfirmID() const;
     std::optional<QString> getRoute() const;
@@ -275,7 +286,7 @@ private:
     TradeAction tradeAction;
 
     // Optional fields
-    std::optional<AdvancedOptions> advancedOptions;
+    std::optional<AdvancedOptionsRequest> advancedOptions;
     // TODO Add buying power warning here
     // TODO Add legs here
     std::optional<double> limitPrice;
