@@ -15,7 +15,7 @@ public:
 
     void start();
 
-    QVector<QString>& getStockScreeningResult() {return symbolsScreenedByFloat;};
+    QVector<CompanyScreenerResult>& getStockScreeningResult() {return biotechScreeningResults;};
 
 signals:
 
@@ -35,7 +35,9 @@ private:
     double RelativeVolume;
     double GapPercentage;
 
-    QVector<CompanyScreenerResult> initialScreeningResults;
+    QVector<CompanyScreenerResult> biotechScreeningResults;
+    QVector<CompanyScreenerResult> healthtechnologyScreeningResults;
+
     QVector<QString> symbolsScreenedByFloat;
 
 };

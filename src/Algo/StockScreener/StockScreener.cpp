@@ -1,3 +1,5 @@
+#include <QFile>
+
 #include "StockScreener.h"
 #include "Settings.h"
 
@@ -17,6 +19,7 @@ void StockScreener::start()
 
     loadCriterias();
 
+
     CompanyScreenerFilter filter;
 
     // Set criterias
@@ -32,25 +35,65 @@ void StockScreener::start()
         filter.setVolumeMoreThan(10000); // TODO shiznit
     }
 
+    QString fileName = QString("Biotechnology_screener_results_%1.dat").arg(QDate::currentDate().toString("yyyyMMdd"));
 
-    // Execute the screener SYNChronously
-    {
-        bool success = client.fetchSyncCompanyScreener(filter, initialScreeningResults);
-        qCDebug(StockScreenerLog) << "Fetched " << initialScreeningResults.size() << " stocks with company screener";
-        Q_ASSERT(success);
+    // Check if cache file exists
+    if (QFile::exists(fileName) && CompanyScreenerResult::loadScreenerResults(biotechScreeningResults, fileName)) {
+        qDebug() << "Successfully loaded cached data";
+    } else {
+        qDebug() << "No cache file found for" << fileName << ", fetching fresh data";
+
+        // Execute the screener SYNChronously
+        {
+            bool success = client.fetchSyncCompanyScreener(filter, biotechScreeningResults);
+            qCDebug(StockScreenerLog) << "Fetched " << biotechScreeningResults.size() << " stocks with company screener";
+            Q_ASSERT(success);
+        }
+
+        CompanyScreenerResult::saveScreenerResults(biotechScreeningResults, fileName);
     }
 
     qCDebug(StockScreenerLog) << "Results of the screening :";
 
-    for (CompanyScreenerResult &result : initialScreeningResults) {
+    for (CompanyScreenerResult &result : biotechScreeningResults) {
         qCDebug(StockScreenerLog) << result.toJsonString();
     }
 
+    fileName = QString("HealthTechnology_screener_results_%1.dat").arg(QDate::currentDate().toString("yyyyMMdd"));
+
+
+    filter.setIndustry("Health Technology");
+
+
+    // Check if cache file exists
+    if (QFile::exists(fileName) && CompanyScreenerResult::loadScreenerResults(healthtechnologyScreeningResults, fileName)) {
+        qDebug() << "Successfully loaded cached data";
+    } else {
+        qDebug() << "No cache file found for" << fileName << ", fetching fresh data";
+
+        // Execute the screener SYNChronously
+        {
+            bool success = client.fetchSyncCompanyScreener(filter, healthtechnologyScreeningResults);
+            qCDebug(StockScreenerLog) << "Fetched " << healthtechnologyScreeningResults.size() << " stocks with company screener";
+            Q_ASSERT(success);
+        }
+
+        CompanyScreenerResult::saveScreenerResults(healthtechnologyScreeningResults, fileName);
+    }
+
+    qCDebug(StockScreenerLog) << "Results of the screening :";
+
+    for (CompanyScreenerResult &result : healthtechnologyScreeningResults) {
+        qCDebug(StockScreenerLog) << result.toJsonString();
+    }
+
+/*
     qCDebug(StockScreenerLog) << "Fetching the float for all of them. Waiting for all the float values to be received ";
 
     for (CompanyScreenerResult &result : initialScreeningResults) {
         client.fetchAsyncSharesFloat(result.getSymbol());
     }
+*/
 }
 
 void StockScreener::loadCriterias()
@@ -100,8 +143,8 @@ void StockScreener::onSharesFloatReceived(struct FMPClient::SharesFloatResult re
         symbolsScreenedByFloat.append(result.symbol);
     }
 
-    if (numFloatReceived == (unsigned) initialScreeningResults.size()) {
-        qCDebug(StockScreenerLog) << "Received the float for all " << initialScreeningResults.size() << " companies. Proceeding";
+    if (numFloatReceived == (unsigned) biotechScreeningResults.size()) {
+        qCDebug(StockScreenerLog) << "Received the float for all " << biotechScreeningResults.size() << " companies. Proceeding";
         qCDebug(StockScreenerLog) << "Added " << symbolsScreenedByFloat.size() << " symbols to symbolsScreenedByFloat. Proceeding";
 
         numFloatReceived = 0; // Reset for future use

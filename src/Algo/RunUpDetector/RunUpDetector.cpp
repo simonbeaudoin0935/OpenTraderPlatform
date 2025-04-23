@@ -17,19 +17,16 @@ void RunUpDetector::start(QDate startDate, qsizetype runUpWindowWidth)
     this->startDate = startDate;
     this->runUpWindowWidth = runUpWindowWidth;;
 
-    QTime _6AM(6,0);
-    QTime _10AM(10,0);
+    barCache->warmUpBarsOfDayUntilNow(startDate);
 
+    QTime _6AM(6,0);
     QTime toTime = _6AM.addSecs(60 * (runUpWindowWidth - 1));
 
+
     QDateTime fromDate = QDateTime(startDate, _6AM,   NYTZ);
-    QDateTime fromDateWarm = QDateTime(startDate, _10AM,   NYTZ);
-
-    QVector<Bar> bars = barCache->getBars(fromDate, fromDateWarm);
-
     QDateTime toDate   = QDateTime(startDate, toTime, NYTZ);
 
-    bars = barCache->getBars(fromDate, toDate);
+    QVector<Bar> bars = barCache->getBars(fromDate, toDate);
 
     Q_ASSERT(bars.size() == runUpWindowWidth);
 

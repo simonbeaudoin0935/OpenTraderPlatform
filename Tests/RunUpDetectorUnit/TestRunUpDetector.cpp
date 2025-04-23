@@ -12,8 +12,11 @@ static TSClient* client;
 static BarCache *barCache;
 static RunUpDetector* detector;
 
-static const QString symbol = "TIVC";
-static const QDate   date(2025, 4, 3); // Wednesday April 3rd
+//static const QString symbol = "TIVC";
+//static const QDate   date(2025, 4, 3); // Wednesday April 3rd
+
+static const QString symbol = "UPXI";
+static const QDate   date(2025, 4, 21); // Wednesday April 3rd
 
 // will be called to create a global test data table.
 void TestRunUpDetector::initTestCase_data()
@@ -52,7 +55,7 @@ void TestRunUpDetector::initTestCase() {
     // When debugging, 2 seconds wasnt enough. Bumbed it to 4.
     // This is because the start of the suite is slow as the debugger sets up
     // the maaaany runtime thangs the app links to
-    triggered = authStateSpy.wait(4000);
+    triggered = authStateSpy.wait(8000);
 
     QVERIFY(triggered);
 
@@ -86,7 +89,7 @@ void TestRunUpDetector::initTestCase() {
 void TestRunUpDetector::init()
 {
     QLoggingCategory::setFilterRules("TSClient.debug=true");
-    QLoggingCategory::setFilterRules("BarCache.debug=false");
+    QLoggingCategory::setFilterRules("BarCache.debug=true");
 }
 
 // Will be called after every test function.

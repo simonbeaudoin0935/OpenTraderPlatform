@@ -119,7 +119,21 @@ void MainAlgo::onStockScreenerFinished()
 {
     // disconnect?
 
-    qDebug() << "YOOOOOOOOO";
+    for (const auto &screeningResult:  stockScreener.getStockScreeningResult()) {
+
+        QString symbol = screeningResult.getSymbol();
+
+        // Change the stock selected pointer to the new selected stock
+        if (!stockInstruments.contains(symbol)) {
+
+            StockInstruments *stock = new StockInstruments(symbol);
+
+
+            stockInstruments.insert(symbol, stock);
+        }
+    }
+
+    qDebug() << "Added " << stockScreener.getStockScreeningResult().size() << " biotech stocks to the stock instruments list";
 
     //connect(&breakingNewsFetcher, &BreakingNewsFetcher::foundNewNews, this, &MainAlgo::onNewNewsFound);
 
@@ -130,6 +144,8 @@ void MainAlgo::onStockScreenerFinished()
     //stockRunUpDetector.start(stockScreener.getStockScreeningResult());
 
     //stockRunUpDetector.start(stockScreener.getStockScreeningResult());
+
+
 }
 
 void MainAlgo::onNewNewsFound(StockNewsResult newNews)
