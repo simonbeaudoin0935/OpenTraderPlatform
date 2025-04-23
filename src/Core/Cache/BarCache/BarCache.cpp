@@ -30,13 +30,24 @@ BarCache::~BarCache()
     }
 }
 
-
-bool BarCache::warmUpBars(QDateTime first, QDateTime last)
+bool BarCache::warmUpBarsOfDayUntilNow(QDate date)
 {
-    Q_UNUSED(first);
-    Q_UNUSED(last);
+    QDateTime _6AM = QDateTime(date, QTime(6,0), QTimeZone("America/New_York"));
+    QDateTime _4PM = QDateTime(date, QTime(15,59), QTimeZone("America/New_York"));
 
-    return false;
+    QDateTime now = QDateTime::currentDateTime();
+
+
+    if (now.date() == date) {
+        qCDebug(BarCacheLog) << "Warming up cache with all bars from 6AM to now";
+
+        getBars(_6AM, now);
+    } else {
+        qCDebug(BarCacheLog) << "Warming up cache with all bars from " << date;
+        getBars(_6AM, _4PM);
+    }
+
+    return true;
 }
 
 const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &last) {

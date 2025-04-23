@@ -21,7 +21,7 @@ public:
 
     unsigned int getNumberOfBars() const { return barCacheOneMinute.size();};
 
-    bool warmUpBars(QDateTime first, QDateTime last);
+    bool warmUpBarsOfDayUntilNow(QDate date = QDateTime::currentDateTime().date());
 
     const QVector<Bar> getBars(const QDateTime &first, const QDateTime &last);
     const QVector<Bar> getAfterHourBars(const QDate &date);
