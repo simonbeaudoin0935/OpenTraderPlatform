@@ -7,7 +7,7 @@ Balance::Balance(const QJsonObject &jsonObj)
     accountID = jsonObj["AccountID"].toString();
     accountType = AccountType(jsonObj["AccountType"].toString());
     buyingPower = jsonObj["BuyingPower"].toString().toDouble();
-    cashBalance = jsonObj["cashBalance"].toString().toDouble();
+    cashBalance = jsonObj["CashBalance"].toString().toDouble();
     comission = jsonObj["Comission"].toString().toDouble();
     equity = jsonObj["Equity"].toString().toDouble();
     marketValue = jsonObj["MarketValue"].toString().toDouble();
