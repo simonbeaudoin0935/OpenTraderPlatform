@@ -1,4 +1,5 @@
 #include <QJsonDocument>
+#include <QFile>
 
 #include "CompanyScreenerFilter.h"
 
@@ -133,4 +134,52 @@ QString CompanyScreenerResult::toJsonString() const {
     // Convert to formatted JSON string
     QJsonDocument doc(jsonObj);
     return QString(doc.toJson(QJsonDocument::Indented)); // Indented for readability
+}
+
+bool CompanyScreenerResult::saveScreenerResults(const QVector<CompanyScreenerResult>& results, const QString& fileName) {
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly)) {
+        qWarning("Could not open file for writing");
+        return false;
+    }
+
+    QDataStream out(&file);
+    out.setVersion(QDataStream::Qt_6_0); // Consistent versioning
+    out << results; // QList serialization is built-in
+    file.close();
+    return true;
+}
+
+bool CompanyScreenerResult::loadScreenerResults(QVector<CompanyScreenerResult>& results, const QString& fileName) {
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qWarning("Could not open file for reading");
+        return false;
+    }
+
+    QDataStream in(&file);
+    in.setVersion(QDataStream::Qt_6_0); // Match save version
+    in >> results; // Deserialize directly into the QList
+    file.close();
+    return true;
+}
+
+// Serialization operator
+QDataStream& operator<<(QDataStream& out, const CompanyScreenerResult& result) {
+    out << result.symbol << result.companyName << result.marketCap
+        << result.sector << result.industry << result.beta
+        << result.price << result.lastAnnualDividend << result.volume
+        << result.exchange << result.exchangeShortName << result.country
+        << result.isEtf << result.isFund << result.isActivelyTrading;
+    return out;
+}
+
+// Deserialization operator
+QDataStream& operator>>(QDataStream& in, CompanyScreenerResult& result) {
+    in >> result.symbol >> result.companyName >> result.marketCap
+        >> result.sector >> result.industry >> result.beta
+        >> result.price >> result.lastAnnualDividend >> result.volume
+        >> result.exchange >> result.exchangeShortName >> result.country
+        >> result.isEtf >> result.isFund >> result.isActivelyTrading;
+    return in;
 }

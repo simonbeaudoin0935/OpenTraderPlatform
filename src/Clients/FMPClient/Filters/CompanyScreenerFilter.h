@@ -1,5 +1,4 @@
-#ifndef COMPANY_SCREENER_FILTER_H
-#define COMPANY_SCREENER_FILTER_H
+#pragma once
 
 #include <string>
 #include <optional>
@@ -86,6 +85,8 @@ private:
 // New class for API result
 class CompanyScreenerResult {
 public:
+    CompanyScreenerResult() = default;
+
     // Constructor taking a QJsonObject
     CompanyScreenerResult(const QJsonObject& jsonObj);
 
@@ -107,6 +108,10 @@ public:
     bool getIsActivelyTrading() const;
 
     QString toJsonString() const;
+
+    static bool saveScreenerResults(const QVector<CompanyScreenerResult>& results, const QString& fileName);
+    static bool loadScreenerResults(QVector<CompanyScreenerResult>& results, const QString& fileName);
+
 private:
     // Member variables corresponding to JSON fields
     QString symbol;
@@ -124,6 +129,17 @@ private:
     bool isEtf;
     bool isFund;
     bool isActivelyTrading;
+
+    // Friend declarations for serialization
+    friend QDataStream& operator<<(QDataStream& out, const CompanyScreenerResult& result);
+    friend QDataStream& operator>>(QDataStream& in, CompanyScreenerResult& result);
+
 };
 
-#endif // COMPANY_SCREENER_FILTER_H
+// Serialization operator
+QDataStream& operator<<(QDataStream& out, const CompanyScreenerResult& result);
+
+// Deserialization operator
+QDataStream& operator>>(QDataStream& in, CompanyScreenerResult& result);
+
+Q_DECLARE_METATYPE(CompanyScreenerResult)
