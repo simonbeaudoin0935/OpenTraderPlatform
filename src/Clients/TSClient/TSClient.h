@@ -77,7 +77,8 @@ public:
                                unsigned int interval = 1,
                                Bar::BarUnit unit = Bar::BarUnit::Daily,
                                unsigned int barsback = 1,
-                               Bar::BarSessionTemplate sesstionTemplate = Bar::BarSessionTemplate::Default);
+                               Bar::BarSessionTemplate sesstionTemplate = Bar::BarSessionTemplate::Default,
+                               bool mock = false);
     void closeStreamBars(StreamBars* stream);
 
     bool getBarsSync(QVector<Bar> &results,

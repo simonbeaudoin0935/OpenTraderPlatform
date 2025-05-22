@@ -12,6 +12,11 @@ StreamBars::~StreamBars()
 {
 }
 
+void StreamBars::startRecording(const QString &dir)
+{
+    Stream::startRecording(dir, "Bar_" + symbol);
+}
+
 bool StreamBars::processJsonObject(const QJsonObject& jsonObj)
 {
     Bar bar(jsonObj);
@@ -30,7 +35,8 @@ StreamBars *TSClient::openStreamBars(const QString &symbol,
                                      unsigned int interval,
                                      Bar::BarUnit unit,
                                      unsigned int barsback,
-                                     Bar::BarSessionTemplate sessionTemplate)
+                                     Bar::BarSessionTemplate sessionTemplate,
+                                     bool mock)
 {
     // Interval that each bar will consist of - for minute bars, the number of minutes aggregated in a single bar. For bar units other than minute, value must be 1.
     if (unit == Bar::BarUnit::Minute) {Q_ASSERT(interval >= 1);}

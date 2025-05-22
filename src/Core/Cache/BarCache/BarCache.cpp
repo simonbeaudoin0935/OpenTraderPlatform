@@ -52,7 +52,7 @@ bool BarCache::warmUpBarsOfDayUntilNow(QDate date)
 
 const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &last) {
     Q_ASSERT(first.date().dayOfWeek() >= 1 && first.date().dayOfWeek() <= 5);
-    Q_ASSERT(first.date() == last.date());
+    Q_ASSERT(first.date() == last.date()); // TODO crashes whenever the zoom of the stock chart goes too far out and the chart asks for bars that are from the previous day, spanning accross the night
     Q_ASSERT(first.toTimeZone(QTimeZone("America/New_York")).time() >= QTime(6,0,0)); // Tradestation bars start at 6
     Q_ASSERT(last.toTimeZone(QTimeZone("America/New_York")).time() <= QTime(20,0,0));
 

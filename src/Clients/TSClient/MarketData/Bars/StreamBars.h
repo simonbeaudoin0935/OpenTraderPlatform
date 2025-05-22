@@ -15,6 +15,9 @@ public:
     StreamBars(const StreamBars&) = delete;
     StreamBars& operator=(const StreamBars&) = delete;
 
+    void startRecording(const QString &dir);
+
+
 signals:
     void receivedNewBar(QString symbol, Bar bar);
 

@@ -33,11 +33,13 @@ private slots:
     void testGetBarsAsync();
 
     void testStreamBars();
+    void testStreamBarsRecording();
+
     void testStreamMarketDepthQuote();
     void testStreamOrders();
     void testStreamPositions();
 
-
+    void testMockStreamBars();
 
     //TODO should perhaps implement a max-per-minute limiter to queue the exceeding requests
     //     for the next minute instead of having them fail

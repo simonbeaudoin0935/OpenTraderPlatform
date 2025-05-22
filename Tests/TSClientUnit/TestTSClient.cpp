@@ -714,27 +714,36 @@ void TestTSClient::testGetBarsAsync()
     QVERIFY(client->isCleanedUp());
 }
 
-
 void TestTSClient::testStreamBars()
+{
+
+}
+
+void TestTSClient::testStreamBarsRecording()
 {
     QString symbol = "AAPL";
     StreamBars* streamBars;
+    const size_t countdown = 30;
 
     QVERIFY(client->isCleanedUp());
 
     streamBars = client->openStreamBars(symbol,
                                         1,
                                         Bar::BarUnit::Minute,
-                                        10,
+                                        0,
                                         Bar::BarSessionTemplate::USEQ24Hour);
     QVERIFY(streamBars != nullptr);
+
+    QString dir = QString("/home/simon/Documents/L2T/Stream-Recordings");
+
+    streamBars->startRecording(dir);
 
     QSignalSpy signalSpy(streamBars, &StreamBars::receivedNewBar);
 
     qDebug() << "Waiting 5 seconds to let Stream Bars data pile up...";
 
     // Let this thread's event loop run a bit to receive some market depth quotes
-    for (size_t i = 5; i != 0; i--) {
+    for (size_t i = countdown; i != 0; i--) {
         qDebug() << "Countdown : " << i << " seconds";
 
         QTest::qWait(1000);
@@ -921,4 +930,9 @@ void TestTSClient::testStreamOrders()
 void TestTSClient::testStreamPositions()
 {
     QSKIP("Not implemented");
+}
+
+void TestTSClient::testMockStreamBars()
+{
+
 }

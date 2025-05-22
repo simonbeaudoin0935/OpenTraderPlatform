@@ -61,12 +61,14 @@ QUrlQuery Bar::buildUrlQuery(unsigned int interval,
         query.addQueryItem("lastdate", lastDate.toString(Qt::ISODate));
     } else if (firstDate == QDateTime() && lastDate == QDateTime()) {
         // nothing to do, this is the case for a stream
-        query.addQueryItem("barsback", QString::number(barsback));
-    } else {
-        Q_ASSERT(0);
-    }
+        if (barsback > 0) {
+            query.addQueryItem("barsback", QString::number(barsback));
+        }
+} else {
+    Q_ASSERT(0);
+}
 
-    return query;
+return query;
 }
 
 Bar Bar::nullBar(QDateTime dateTime)
