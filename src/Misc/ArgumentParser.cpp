@@ -7,7 +7,9 @@
 #include "ArgumentParser.h"
 #include "Settings.h"
 
+
 void parseArguments(const QStringList &args) {
+
     QCommandLineParser parser;
     parser.setApplicationDescription("TradeStation Trading Algorithm");
     parser.addHelpOption();
@@ -51,15 +53,17 @@ void parseArguments(const QStringList &args) {
             file.close();
             
             QLoggingCategory::setFilterRules(filterRules);
-            qDebug() << "Using logging configuration from:" << logFile;
+            qInfo() << "Using logging configuration from:" << logFile;
         }
     }
+
+
 
     QString configFile = parser.value(configConfigOption);
     {
         QFileInfo fileInfo(configFile);
         if (!fileInfo.exists() || !fileInfo.isFile()) {
-            qCritical() << "Error: The specified path does not exist or is not a file : " << configFile;
+            qWarning() << "IGNORE: The specified path does not exist or is not a file : " << configFile;
             // TODO tackle
         }
     }
