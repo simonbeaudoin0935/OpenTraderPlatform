@@ -38,25 +38,30 @@ TSClient::TSClient() :
     authenticated(false),
     authInProgress(false)
 {
+    thread->setObjectName("TSClientThread");
+
     authToken = AuthToken::loadFromSettings();
     clientToken = ClientToken::loadFromSettings();
 
     // If the token is invalid/absent, we need to perform an authentification with the popup
     if (!authToken.isValid() || !clientToken.isValid()) {
-        qCDebug(TSClientLog) << Q_FUNC_INFO <<
+        qCWarning(TSClientLog) << Q_FUNC_INFO <<
             "Auth token or Client token is invalid/absent, will need an authentification process";
 
         // Schedule an emition for when the event loop is started
-        QTimer::singleShot(0, this, [this]() {
-            emit authStateChanged(false, "authentification token invalid or absent at startup");
-        });
+        // TODO I have removed this because it crashed the main algo thread. I think an emit of stat
+        // change of false should not be done at startup because we are of course not authenticated at
+        // first, and the main algo (for now) is written to fatal it happens.
+        //QTimer::singleShot(0, this, [this]() {
+        //    emit authStateChanged(false, "authentification token invalid or absent at startup");
+        //});
     }
 
     // If the token is valid but expired, we don't need to perform an authentification, we can
     // just perform a refresh
     else if (authToken.isValid() && authToken.isExpired()) {
 
-        qCDebug(TSClientLog) << Q_FUNC_INFO <<
+        qCInfo(TSClientLog) << Q_FUNC_INFO <<
             "Auth token is valid but expired, perform a refresh now.";
 
         // Schedule a refresh for when the thread starts
@@ -82,7 +87,7 @@ TSClient::TSClient() :
         // Compare against 4 just in case we are at 5 seconds left
         Q_ASSERT(secsUntilExpiration > 4);
 
-        qCDebug(TSClientLog) << Q_FUNC_INFO <<
+        qCInfo(TSClientLog) << Q_FUNC_INFO <<
             "Auth token is valid and already not expired, still has " <<
             secsUntilExpiration  << "second left to it";
 
@@ -107,15 +112,13 @@ TSClient::TSClient() :
     } else {
         Q_UNREACHABLE();
     }
-
-    thread->setObjectName("TSClientThread");
 }
 
 TSClient::~TSClient() {
-    qCDebug(TSClientLog) << "Singleton instance destroyed";
-
     thread->quit();
     thread->wait();
+
+    qCDebug(TSClientLog) << "Singleton instance destroyed";
 }
 
 #ifdef GUI_ENABLED
@@ -188,8 +191,10 @@ void TSClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
     if (false == success) {
         emit authStateChanged(false, "Failed to refresh access token");
 
-        qCDebug(TSClientLog) << Q_FUNC_INFO <<
+        qCCritical(TSClientLog) << Q_FUNC_INFO <<
             "Unsuccessful auth token refresh";
+
+        //TODO retry
 
         return;
     }
@@ -310,14 +315,11 @@ bool TSClient::refreshSyncAccessToken()
 
 void TSClient::refreshAsyncAccessToken()
 {
-    Q_ASSERT_X(authInProgress == false,
-               Q_FUNC_INFO,
-               "A refresh token is already in progress");
+    Q_ASSERT_X(authInProgress == false, Q_FUNC_INFO, "A refresh token is already in progress");
 
     authInProgress = true;
 
-    qCDebug(TSClientLog) << Q_FUNC_INFO <<
-        "Starting an ASYNC token refresh request";
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Starting an ASYNC token refresh request";
 
     // Make sure we are good to go
     {
@@ -457,6 +459,10 @@ void TSClient::openStream(const QString &symbol, const QString &endpoint, const 
     Q_ASSERT(stream != nullptr);
     Q_ASSERT(!endpoint.isEmpty());
 
+    // Only external callers to TSClient thread should get here. Calling a fetch sync from within the TSClient's
+    // thread would cause a deadlock to itself
+    Q_ASSERT_X(QThread::currentThread() != thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
+
     // FIXME fix this NOSYMBOL shit
     QMetaObject::invokeMethod(this,
         [this, &symbol, &endpoint, &query, stream]()
@@ -468,7 +474,7 @@ void TSClient::openStream(const QString &symbol, const QString &endpoint, const 
             request.setRawHeader("Authorization", QString("Bearer %1").arg(authToken.getAccessToken()).toUtf8());
 
             // The stream was new'ed in the caller's thread
-            stream->setParent(this);
+            stream->setParent(this); //TODO is this the right thing?
             streams.push_back(stream);
 
             QNetworkReply *reply = fetchStream(request, static_cast<void*>(stream));
@@ -489,6 +495,7 @@ void TSClient::openStream(const QString &symbol, const QString &endpoint, const 
 
 void TSClient::closeStream(Stream* const stream) {
     Q_ASSERT(stream != nullptr);
+    Q_ASSERT_X(QThread::currentThread() != thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
 
     QMetaObject::invokeMethod(this,
         [this, &stream]()

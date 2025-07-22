@@ -18,7 +18,6 @@ RESTClient::RESTClient(const QUrl &baseUrl, QObject *parent)
     manager(new QNetworkAccessManager(this)),
     baseUrl(baseUrl)
 {
-
     this->moveToThread(thread);
 
     connect(manager, &QNetworkAccessManager::finished, this, &RESTClient::onReplyFinished);
@@ -412,9 +411,9 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
     doc = QJsonDocument::fromJson(rawData, &parseError);
 
     if (reply->error() != QNetworkReply::NoError) {
-        qCWarning(RESTClientLog) << Q_FUNC_INFO <<
+        qCCritical(RESTClientLog) << Q_FUNC_INFO <<
             " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString() << " : " << reply->error();
-        qCWarning(RESTClientLog).noquote() << Q_FUNC_INFO <<
+        qCCritical(RESTClientLog).noquote() << Q_FUNC_INFO <<
             " : Content of the reply : \n" << doc.toJson(QJsonDocument::Indented);
 
         if (reply->error() == QNetworkReply::ContentNotFoundError) {
