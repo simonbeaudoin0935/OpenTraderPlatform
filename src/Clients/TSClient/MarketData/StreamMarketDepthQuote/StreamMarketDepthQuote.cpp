@@ -5,6 +5,8 @@ StreamMarketDepthQuote::StreamMarketDepthQuote(const QString &symbol, QObject *p
     Stream(parent),
     symbol(symbol)
 {
+
+    this->setObjectName("Stream::MarketDepthQuote::" + symbol);
 }
 
 StreamMarketDepthQuote::~StreamMarketDepthQuote()
@@ -36,7 +38,6 @@ bool StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
 
     return false;
 }
-
 
 StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(const QString &symbol, unsigned int depth)
 {

@@ -5,7 +5,7 @@ StreamBars::StreamBars(const QString &symbol, QObject *parent) :
     Stream(parent),
     symbol(symbol)
 {
-
+    this->setObjectName("Stream::Bars::" + symbol);
 }
 
 StreamBars::~StreamBars()

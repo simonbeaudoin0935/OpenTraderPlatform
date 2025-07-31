@@ -188,8 +188,16 @@ void Stream::onHeartbeatTimerTimeout()
 {
     streamIsInError = true;
 
+    QString streamName;
+
+    if (this->objectName().isEmpty()) {
+        streamName = QString::asprintf("Name not set, ptr = %p", this);
+    } else {
+        streamName = this->objectName();
+    }
+
     qCCritical(StreamLog) << Q_FUNC_INFO <<
-        "The stream " << static_cast<void*>(this) << " did not receive data nor heartbeat in : " << timeoutMS  << "ms";
+        "The stream <" << streamName << "> did not receive data nor heartbeat in : " << timeoutMS  << "ms";
 
     emit streamErrorOccurred(StreamError::Timeout, QString("Stream did not receive data nor heartbeat"));
 }

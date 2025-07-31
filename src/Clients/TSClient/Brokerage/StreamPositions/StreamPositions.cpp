@@ -25,7 +25,9 @@ StreamPositions::StreamPositions(QString &accountID, QObject *parent) :
     Stream(parent),
     accountID(accountID),
     receivedEndSnapshot(false)
-{}
+{
+    this->setObjectName("Stream::Positions::" + accountID);
+}
 
 StreamPositions::~StreamPositions()
 {

@@ -31,7 +31,7 @@ StreamOrders::StreamOrders(QString &accountID, QObject *parent) :
     Stream(parent),
     accountID(accountID)
 {
-
+    this->setObjectName("Stream::Orders::" + accountID);
 }
 
 StreamOrders::~StreamOrders()
