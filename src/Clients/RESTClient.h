@@ -91,7 +91,7 @@ protected:
     QNetworkReply *fetchStream(const QNetworkRequest &request, void *arg);
     void closeStream(void *arg);
 
-    virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, void* optArg = nullptr) = 0;
+    virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, bool completed, void* optArg = nullptr) = 0;
 
     qsizetype totalDataReceivedBytes = 0;
     QString apiKey;

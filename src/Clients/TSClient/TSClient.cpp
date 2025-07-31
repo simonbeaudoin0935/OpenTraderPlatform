@@ -181,9 +181,9 @@ QByteArray TSClient::buildRefreshTokenQuery(const QString &clientId,
 }
 
 
-void TSClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
+void TSClient::onAsyncRefreshTokenFinished(bool completed, const AuthToken &newToken)
 {
-    bool success = newToken.isValidRefreshedToken() && !newToken.isExpired();
+    bool success = completed && newToken.isValidRefreshedToken() && !newToken.isExpired();
 
     authInProgress = false;
     authenticated  = success;
@@ -191,8 +191,7 @@ void TSClient::onAsyncRefreshTokenFinished(const AuthToken &newToken)
     if (false == success) {
         emit authStateChanged(false, "Failed to refresh access token");
 
-        qCCritical(TSClientLog) << Q_FUNC_INFO <<
-            "Unsuccessful auth token refresh";
+        qCCritical(TSClientLog) << Q_FUNC_INFO << "Unsuccessful auth token refresh";
 
         //TODO retry
 
@@ -347,9 +346,13 @@ void TSClient::refreshAsyncAccessToken()
 }
 
 
-void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, void *optArg) {
+void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, bool completed, void *optArg) {
     RequestType requestType = static_cast<RequestType>(type);
     QJsonObject obj = doc.object();
+
+    if (!completed) {
+        qCCritical(TSClientLog) << Q_FUNC_INFO << "Async operation not completed";
+    }
 
     switch(requestType) {
 
@@ -442,7 +445,7 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, 
 
         case RequestType::GetRefreshAccessToken:
             // No emit on purpose, this is calling a private function of this class
-            onAsyncRefreshTokenFinished(AuthToken::receiveAuthToken(obj));
+            onAsyncRefreshTokenFinished(completed, AuthToken::receiveAuthToken(obj));
             break;
 
     default:

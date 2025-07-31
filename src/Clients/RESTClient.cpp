@@ -116,7 +116,7 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
                 reply = manager->post(request, postData);
                 break;
             case HttpMethod::PUT:
-                Q_ASSERT_X(0, "fuck", "fuckkk");
+                Q_ASSERT_X(0, Q_FUNC_INFO, "fuckkk");
                 break;
             case HttpMethod::DELETE:
                 reply = manager->deleteResource(request);
@@ -153,7 +153,7 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
         " header : " << request.headers() <<
         " and data : " << postData;
 
-    bool aquired = semaphore.tryAcquire(1,fetchSyncTimeoutMs);
+    bool aquired = semaphore.tryAcquire(1, fetchSyncTimeoutMs);
 
     if (false == aquired) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO <<
@@ -300,8 +300,8 @@ void RESTClient::closeStream(void *arg)
 
     Q_ASSERT(arg != nullptr);
 
-    // Closing the stream is only meant to be called from TSClient's
-    Q_ASSERT(QThread::currentThread() == this->thread);
+    Q_ASSERT_X(QThread::currentThread() == thread, Q_FUNC_INFO, "Closing the stream is only meant to be called from RESTClient thread");
+
 
     qCDebug(RESTClientLog) << Q_FUNC_INFO << "Going through all pending replies";
 
@@ -459,13 +459,8 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 
 notify:
     if (requestInfo->synchronicity == RequestSynchronicity::Async) {
-        if (requestInfo->completed == true) {
-            emitSignalDemuxer(requestInfo->type, doc, requestInfo->optArg);
-        } else {
-            // If the request failed, do not emit the signal. This is a design choice I guess.
-            // Time will tell if the app should still receive a signal, albeit with an error flag set.
-            // TODO: in the case of get bars, the string opt arg was newed, deal with that
-        }
+        // The request might have failed, this info is passed along
+        emitSignalDemuxer(requestInfo->type, doc, requestInfo->completed, requestInfo->optArg);
 
         // Whether the request was successful or not, take it out of the map
         bool removed = pendingRequests.remove(reply);

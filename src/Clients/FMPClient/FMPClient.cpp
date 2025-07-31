@@ -202,8 +202,14 @@ bool FMPClient::fetchSyncStockNews(const StockNewsFilter &filter, QVector<StockN
 
 
 
-void FMPClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, void *optArg) {
+void FMPClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, bool completed, void *optArg) {
     Q_UNUSED(optArg)
+
+    if (!completed) {
+        qCCritical(FMPClientLog) << Q_FUNC_INFO << "Async operation not completed";
+    }
+
+    //TODO critical : handle the completed argument
 
     QJsonObject obj = doc.array().first().toObject();
 

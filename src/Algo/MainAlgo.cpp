@@ -99,7 +99,8 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
     if (isAuthenticated) {
         TSClient::getInstance().getAccountsSync(accounts);
     } else {
-        qCFatal(MainAlgoLog) << "Tradestation lost authentication. Reason : " << reason;
+        qCCritical(MainAlgoLog) << "Tradestation lost authentication. Reason : " << reason;
+        return; //
     }
 
     // FIXME warning hack, better this. This is just for sim

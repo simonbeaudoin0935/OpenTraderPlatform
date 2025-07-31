@@ -189,7 +189,7 @@ private slots:
     void onAuthFinished(bool success, AuthToken token, QString reason);
     void onAuthWindowDestroyed();
     #endif
-    void onAsyncRefreshTokenFinished(const AuthToken &newToken);
+    void onAsyncRefreshTokenFinished(bool completed, const AuthToken &newToken);
 
 private:
     // Singleton : private constructor
@@ -217,7 +217,7 @@ private:
         CancelOrder
     };
 
-    void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, void* optArg = nullptr) override;
+    void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, bool completed, void* optArg = nullptr) override;
 
     // tokens
     AuthToken authToken;
