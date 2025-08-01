@@ -63,7 +63,7 @@ private:
     bool streamIsFinished = false;
 
     QNetworkReply *reply = nullptr;
-    unsigned int timeoutMS = 7000;
+    unsigned int timeoutMS = 10000;
 
     QByteArray accumulatedData;
 

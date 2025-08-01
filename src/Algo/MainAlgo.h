@@ -60,7 +60,7 @@ private:
 
     QVector<Account> accounts;
     QMap<QString, StockInstruments*> stockInstruments;
-    StockInstruments* currentDisplayedStock = nullptr;
+    StockInstruments* currentDisplayedStockInstrument = nullptr;
 
     StockScreener stockScreener;
     BreakingNewsFetcher breakingNewsFetcher;

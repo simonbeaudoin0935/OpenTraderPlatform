@@ -14,10 +14,11 @@
 #include <QMouseEvent>
 #include <QTimeZone>
 #include <QMap>
+#include <QLoggingCategory>
 
 #include "Bar.h"
 
-QT_USE_NAMESPACE
+Q_DECLARE_LOGGING_CATEGORY(ChartLog)
 
 class QGraphicsRectItem;
 

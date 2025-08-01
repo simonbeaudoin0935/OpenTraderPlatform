@@ -10,6 +10,8 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
     symbol(symbol),
     isStreaming(isStreaming)
 {
+    this->setObjectName("BarCache::" + symbol);
+
     if (isStreaming) {
         streamBar = TSClient::getInstance().openStreamBars(symbol,
                                                            1,
@@ -51,10 +53,20 @@ bool BarCache::warmUpBarsOfDayUntilNow(QDate date)
 }
 
 const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &last) {
-    Q_ASSERT(first.date().dayOfWeek() >= 1 && first.date().dayOfWeek() <= 5);
-    Q_ASSERT(first.date() == last.date()); // TODO crashes whenever the zoom of the stock chart goes too far out and the chart asks for bars that are from the previous day, spanning accross the night
-    Q_ASSERT(first.toTimeZone(QTimeZone("America/New_York")).time() >= QTime(6,0,0)); // Tradestation bars start at 6
-    Q_ASSERT(last.toTimeZone(QTimeZone("America/New_York")).time() <= QTime(20,0,0));
+    QString cacheName = this->objectName();
+
+    Q_ASSERT_X(first.date().dayOfWeek() >= 1 && first.date().dayOfWeek() <= 5,
+               qPrintable(cacheName),
+               "getBars() called not strictly in between monday to friday");
+    Q_ASSERT_X(first.date() == last.date(),
+               qPrintable(cacheName),
+               "Not sure yet what this is"); // TODO crashes whenever the zoom of the stock chart goes too far out and the chart asks for bars that are from the previous day, spanning accross the night
+    Q_ASSERT_X(first.toTimeZone(QTimeZone("America/New_York")).time() >= QTime(6,0,0),
+               qPrintable(cacheName),
+               "Fetching bars before 6am"); // Tradestation bars start at 6
+    Q_ASSERT_X(last.toTimeZone(QTimeZone("America/New_York")).time() <= QTime(20,0,0),
+               qPrintable(cacheName),
+               "Fetching bars after 8pm");
 
     lastHitType = HitType::None;
     // Reset the counter of fetched bar for the last request
@@ -67,7 +79,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     if (cachedBars.size() == (first.secsTo(last) / 60) + 1) {
         lastHitType = HitType::Hit;
 
-        qCDebug(BarCacheLog) << Q_FUNC_INFO << " : Returning HIT";
+        qCDebug(BarCacheLog) << cacheName << " : Returning HIT";
 
         return cachedBars;
     }
@@ -83,11 +95,11 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
         bool success = TSClient::getInstance().getBarsSync(fetchedBars, symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour, first, fetchLast);
 
         if (!success) {
-          qCWarning(BarCacheLog) << "Failed to fetch bars from API for" << symbol;
+          qCCritical(BarCacheLog) << cacheName << "Failed to fetch bars from API for" << symbol;
             return QVector<Bar>();
         }
 
-        qCDebug(BarCacheLog) << "Successfully fetched" << fetchedBars.size()
+        qCDebug(BarCacheLog) << cacheName << "Successfully fetched" << fetchedBars.size()
                              << "bars from API for" << symbol;
 
         // Important : adjust the timestamp of the returned bars to substract one minute
@@ -125,12 +137,10 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
         lastNumberFetchedBars = fetchedBars.size();
         lastHitType = HitType::Miss;
 
-        qCDebug(BarCacheLog) << Q_FUNC_INFO << " : Returning MISS";
+        qCDebug(BarCacheLog) << cacheName << " : Returning MISS";
 
         return resultBars;
     }
-
-
 
     // partial HIT
 
@@ -261,7 +271,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     lastNumberFetchedBars = totalFetched;
     lastHitType = HitType::PartialHit;
 
-    qCDebug(BarCacheLog) << Q_FUNC_INFO << " : Returning PARTIAL HIT";
+    qCDebug(BarCacheLog) << cacheName << " : Returning PARTIAL HIT";
 
     return allBars;
 }

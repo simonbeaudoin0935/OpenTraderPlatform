@@ -51,39 +51,45 @@ void MainAlgo::onSelectDisplayedStock(QString symbol)
     Q_ASSERT(QThread::currentThread() == &thread);
 
     // If there is a current selected stock for display, disconnect its receivedNew* signals from the main algo emition
-    if (currentDisplayedStock != nullptr) {
-        disconnect(&currentDisplayedStock->barCache, &BarCache::receivedNewBar,
+    if (currentDisplayedStockInstrument != nullptr) {
+        disconnect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
                    this, &MainAlgo::displayedStockReceivedNewBar);
 
-        disconnect(&currentDisplayedStock->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+        disconnect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
                    this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
     }
 
     // Change the stock selected pointer to the new selected stock
     if (stockInstruments.contains(symbol)) {
-        currentDisplayedStock = stockInstruments[symbol];
+        currentDisplayedStockInstrument = stockInstruments[symbol];
 
     } else {
-        currentDisplayedStock = new StockInstruments(symbol);
-        Q_CHECK_PTR(currentDisplayedStock);
+        currentDisplayedStockInstrument = new StockInstruments(symbol);
+        Q_CHECK_PTR(currentDisplayedStockInstrument);
 
-        stockInstruments.insert(symbol, currentDisplayedStock);
+        stockInstruments.insert(symbol, currentDisplayedStockInstrument);
     }
 
     // Redoo the plumbing we disconnected at the top of this function
-    connect(&currentDisplayedStock->barCache, &BarCache::receivedNewBar,
+    connect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
             this, &MainAlgo::displayedStockReceivedNewBar);
 
-    connect(&currentDisplayedStock->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+    connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
             this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
 
 }
 
 void MainAlgo::onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime last)
 {
-    qDebug() << "Requested : " << first << " to " << last;
+    qCDebug(MainAlgoLog) << "Requested bars from current displayed stock cache: " << first << " to " << last;
 
-    QVector<Bar> bars = currentDisplayedStock->barCache.getBars(first.toTimeZone(QTimeZone("America/New_York")), last);
+    QVector<Bar> bars;
+
+    if (currentDisplayedStockInstrument != nullptr) {
+        bars = currentDisplayedStockInstrument->barCache.getBars(first.toTimeZone(QTimeZone("America/New_York")), last);
+    } else {
+        qCWarning(MainAlgoLog) << "No current displayed stock selected";
+    }
 
     emit requestedMissingBarsDisplayedStockReceived(bars);
 }
@@ -181,10 +187,12 @@ StockInstruments::StockInstruments(const QString &symbol) :
     runUpDetector(&barCache, this),
     marketDepthQuoteReceiver(symbol, this)
 {
-    qDebug() << Q_FUNC_INFO;
+    this->setObjectName("StockInstrument::" + symbol);
+
+    qDebug() << this->objectName() << "New instance";
 }
 
 StockInstruments::~StockInstruments()
 {
-    qDebug() << Q_FUNC_INFO;
+    qDebug() << this->objectName() << "Deleted instance";
 }

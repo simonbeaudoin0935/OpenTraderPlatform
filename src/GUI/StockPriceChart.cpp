@@ -1,4 +1,3 @@
-#include "StockPriceChart.h"
 #include <QtCharts/QChart>
 #include <QtCharts/QDateTimeAxis>
 #include <QtCharts/QValueAxis>
@@ -10,9 +9,13 @@
 #include <QFont>
 #include <QDebug>
 #include <QTimeZone>
+
+#include "StockPriceChart.h"
 #include "../Misc/MarketHours.h"
 
 #define CANDLESTICK_BODY_WIDTH 0.9 // 90% of available space
+
+Q_LOGGING_CATEGORY(ChartLog, "Chart");
 
 StockPriceChart::StockPriceChart(QWidget* parent)
     : QWidget(parent) {
@@ -143,7 +146,11 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     // Important to reset so more requests can be made in the future
     currentGetBarsRequestInProcess = false;
 
-    Q_ASSERT(!bars.isEmpty());
+    if (bars.isEmpty()) {
+        qCCritical(ChartLog) << "Requested missing bars empty";
+        return;
+    }
+    //Q_ASSERT(!bars.isEmpty());
 
     if (lastValidClosePrice == 0.0) {
         lastValidClosePrice = completedBars.first().getOpen();
@@ -828,15 +835,16 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     }
         
     if (viewStartTimeRounded < firstBarTime) {
-        qDebug() << "Chart view extends beyond available bars:";
-        qDebug() << "  Last :" << firstBarTime.toString("yyyy-MM-dd hh:mm:ss");
-        qDebug() << "  First:" << viewStartTimeRounded.toString("yyyy-MM-dd hh:mm:ss");
+        qCDebug(ChartLog) << "Chart view extends beyond available bars:";
+        qCDebug(ChartLog) << "  Last :" << firstBarTime;
+        qCDebug(ChartLog) << "  First:" << viewStartTimeRounded;
     } else {
         return;
     }
 
     // If there is already a getBars request to the bar cache, suck it up and wait to receive the data
     if (currentGetBarsRequestInProcess) {
+        qCDebug(ChartLog) << "current get bars request already in progress";
         return;
     } else {
         currentGetBarsRequestInProcess = true;
