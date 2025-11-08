@@ -27,13 +27,19 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
 
 BarCache::~BarCache()
 {
+    QString cacheName = this->objectName();
+
     if (streamBar != nullptr) {
         TSClient::getInstance().closeStreamBars(streamBar);
     }
+
+    qCDebug(BarCacheLog) << cacheName << "Destroyed";
 }
 
 bool BarCache::warmUpBarsOfDayUntilNow(QDate date)
 {
+    QString cacheName = this->objectName();
+
     QDateTime _6AM = QDateTime(date, QTime(6,0), QTimeZone("America/New_York"));
     QDateTime _4PM = QDateTime(date, QTime(15,59), QTimeZone("America/New_York"));
 
@@ -41,11 +47,11 @@ bool BarCache::warmUpBarsOfDayUntilNow(QDate date)
 
 
     if (now.date() == date) {
-        qCDebug(BarCacheLog) << "Warming up cache with all bars from 6AM to now";
+        qCDebug(BarCacheLog) << cacheName << "Warming up cache with all bars from 6AM to now";
 
         getBars(_6AM, now);
     } else {
-        qCDebug(BarCacheLog) << "Warming up cache with all bars from " << date;
+        qCDebug(BarCacheLog) << cacheName << "Warming up cache with all bars from " << date;
         getBars(_6AM, _4PM);
     }
 
@@ -152,7 +158,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     QDateTime firstCachedBarTime = cachedBars.first().getTimeStamp();
     if (firstCachedBarTime > first) {
 
-        qCDebug(BarCacheLog) << "Filling hole before";
+        qCDebug(BarCacheLog) << cacheName << "Filling hole before";
 
         QVector<Bar> fetchedBars;
         bool success = TSClient::getInstance().getBarsSync(
@@ -166,7 +172,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
             firstCachedBarTime);
 
         if (!success) {
-            qCWarning(BarCacheLog) << "Failed to fetch missing bars from API for" << symbol
+            qCWarning(BarCacheLog) << cacheName << "Failed to fetch missing bars from API for" << symbol
                                    << "in range" << first
                                    << "to" << firstCachedBarTime;
         }
@@ -211,7 +217,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     QDateTime lastCachedBarTime = cachedBars.last().getTimeStamp();
     if (last > lastCachedBarTime) {
 
-        qCDebug(BarCacheLog) << "Filling hole after";
+        qCDebug(BarCacheLog) << cacheName << "Filling hole after";
 
         QDateTime fetchFirst = lastCachedBarTime.addSecs(60);
         QDateTime fetchLast  = last.addSecs(60); // Need to add a minute because the API to bound is excluding the last minute
@@ -228,7 +234,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
             fetchLast);
 
         if (!success) {
-            qCWarning(BarCacheLog) << "Failed to fetch missing bars from API for" << symbol
+            qCCritical(BarCacheLog) << cacheName << "Failed to fetch missing bars from API for" << symbol
                                    << "in range" << lastCachedBarTime
                                    << "to" << last;
         }
@@ -278,7 +284,9 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
 
 const QVector<Bar> BarCache::getAfterHourBars(const QDate &date)
 {
-    Q_ASSERT(date.dayOfWeek() >= 1 && date.dayOfWeek() <= 5);
+    QString cacheName = this->objectName();
+
+    Q_ASSERT_X(date.dayOfWeek() >= 1 && date.dayOfWeek() <= 5, qPrintable(cacheName), "Not monday to friday");
 
     QTimeZone newYorkTimeZone("America/New_York");
 
@@ -292,17 +300,19 @@ const QVector<Bar> BarCache::getAfterHourBars(const QDate &date)
 }
 
 void BarCache::storeBarInCache(const Bar& bar) {
+    QString cacheName = this->objectName();
+
     QDateTime dateTime = bar.getTimeStamp();
 
     if (!bar.getIsRealtime()) {
         if (barCacheOneMinute.contains(dateTime)) {
-            qCDebug(BarCacheLog) << "Bar already in cache for" << symbol
+            qCWarning(BarCacheLog) << cacheName << "Bar already in cache for" << symbol
                                  << "at " << dateTime;
             duplicateStoreCount++;
         }
     } else {
         if (bar.getBarStatus() == Bar::BarStatus::Closed) {
-            qCDebug(BarCacheLog) << "Real time cache insertion; received the closing bar";
+            qCDebug(BarCacheLog) << cacheName << "Real time cache insertion; received the closing bar";
         }
     }
 
@@ -311,7 +321,7 @@ void BarCache::storeBarInCache(const Bar& bar) {
         barCacheOneMinute.insert(dateTime, bar);
     }
 
-    qCDebug(BarCacheLog) << "Inserted bar in cache with timestamp :" << bar.getTimeStamp();
+    qCDebug(BarCacheLog) << cacheName << "Inserted bar in cache with timestamp :" << bar.getTimeStamp();
 }
 
 void BarCache::storeBarsInCache(const QVector<Bar>& bars) {
@@ -321,10 +331,12 @@ void BarCache::storeBarsInCache(const QVector<Bar>& bars) {
 }
 
 QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
+    QString cacheName = this->objectName();
+
     QVector<Bar> result;
     QVector<QDateTime> missingTimes;
     bool hasCompleteSet = true;
-    qCDebug(BarCacheLog) << "Checking cache for" << symbol 
+    qCDebug(BarCacheLog) << cacheName << "Checking cache for" << symbol
                          << "from" << start.toString() 
                          << "to" << end.toString();
     
@@ -341,7 +353,7 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
             if (it == barCacheOneMinute.end() || it.key() != expectedTime) {
                 hasCompleteSet = false;
                 missingTimes.append(expectedTime);
-                qCDebug(BarCacheLog) << "Cache MISS - missing bar at" << expectedTime;
+                qCDebug(BarCacheLog) << cacheName << "Cache MISS - missing bar at" << expectedTime;
             } else {
                 result.append(it.value());
                 ++it;
@@ -350,14 +362,14 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
     }
     
     if (hasCompleteSet) {
-        qCDebug(BarCacheLog) << "Cache HIT - found complete set of bars for" << symbol;
+        qCDebug(BarCacheLog) << cacheName << "Cache HIT - found complete set of bars for" << symbol;
     } else if (!result.isEmpty()) {
-        qCDebug(BarCacheLog) << "Cache PARTIAL HIT - found" << result.size() 
+        qCDebug(BarCacheLog) << cacheName << "Cache PARTIAL HIT - found" << result.size()
                             << "bars, missing" << missingTimes.size() << "bars";
         // We have a partial hit, return what we have and let the caller handle the missing bars
         return result;
     } else {
-        qCDebug(BarCacheLog) << "Cache MISS - no bars found for" << symbol;
+        qCDebug(BarCacheLog) << cacheName << "Cache MISS - no bars found for" << symbol;
     }
     
     return result;
@@ -365,7 +377,9 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
 
 void BarCache::onReceivedNewBar(QString symbol, Bar newBar)
 {
-    Q_ASSERT(this->symbol == symbol);
+    QString cacheName = this->objectName();
+
+    Q_ASSERT_X(this->symbol == symbol, qPrintable(cacheName), "Mismatch in symbol");
 
     newBar.ajustTimeStampToOpeningMinute();
 
