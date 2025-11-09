@@ -18,8 +18,9 @@ def scan_src(src_dir):
     return sorted(categories)
 
 if __name__ == '__main__':
-    # Script is in src/Misc/, src/ is ../
-    src_dir = '../'
+    # Script directory is src/Misc/, src/ is ..
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    src_dir = os.path.join(script_dir, '..')
     cats = scan_src(src_dir)
     print('#pragma once')
     print('static const char* logging_categories[] = {')

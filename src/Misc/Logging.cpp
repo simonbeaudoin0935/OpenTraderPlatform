@@ -87,4 +87,10 @@ void initLogging()
 
     // Install custom colored message handler
     qInstallMessageHandler(coloredMessageOutput);
+
+    // Initial info: list categories (adjust to match generated symbol names)
+    qInfo() << "Logging categories:";
+    for (int i = 0; i < logging_categories_count; ++i) {
+        qInfo().noquote() << "  -" << QString::fromUtf8(logging_categories[i]);
+    }
 }
