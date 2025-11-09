@@ -36,6 +36,8 @@ ClientToken ClientToken::loadFromSettings()
     token.clientId = settings.value("credentials/client_id").toString();
     token.clientSecret = settings.value("credentials/client_secret").toString();
 
+    qCDebug(tsClientToken) << "Credentials loaded successfully";
+
     return token;
 }
 
