@@ -37,7 +37,12 @@ bool LoggingConfig::isCategoryEnabled(const QString& category) const {
 
 void LoggingConfig::setCategoryEnabled(const QString& category, bool enabled) {
     m_categoryEnabled[category] = enabled;
-    m_settings.setValue(QString("Categories/%1").arg(category), enabled);
+    
+    // Write all current category states to settings
+    for (auto it = m_categoryEnabled.begin(); it != m_categoryEnabled.end(); ++it) {
+        m_settings.setValue(QString("Categories/%1").arg(it.key()), it.value());
+    }
+    
     m_settings.sync();
 }
 
