@@ -7,8 +7,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/src/L2Trader",
             "args": [
-                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini",
-                "--logging=${workspaceFolder}/Example_Config/logging.ini"
+                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
