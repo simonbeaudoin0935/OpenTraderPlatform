@@ -15,7 +15,7 @@
 #include "AuthToken.h"
 #include "ClientToken.h"
 
-Q_DECLARE_LOGGING_CATEGORY(tsAuth)
+Q_DECLARE_LOGGING_CATEGORY(TSAuthWindowLog)
 
 class AuthWindow : public QDialog
 {

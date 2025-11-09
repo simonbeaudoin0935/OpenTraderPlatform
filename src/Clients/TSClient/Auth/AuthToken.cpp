@@ -1,7 +1,13 @@
 #include <QJsonDocument>
 #include <QDebug>
+#include <QEventLoop>
+#include <QTimer>
+#include <QObject>
 
 #include "AuthToken.h"
+#include "SecureStorage.h"
+
+Q_LOGGING_CATEGORY(TSAuthTokenLog, "TSClient.token.auth")
 
 // Initialize static constants
 const QString AuthToken::EXPECTED_TOKEN_TYPE = "Bearer";
@@ -149,64 +155,98 @@ bool AuthToken::validateExpiresIn(int expiresIn)
 
 AuthToken AuthToken::loadFromSettings()
 {
+    AuthToken token;
+    SecureStorage* storage = new SecureStorage();
+
+    // Load metadata from regular QSettings
     QSettings settings(QSettings::IniFormat, QSettings::UserScope,
                       "L2Trader", "TradeStationTokens");
     settings.setFallbacksEnabled(false);
 
-    AuthToken token;
-    // Load all required fields
-    token.accessToken  = settings.value("Tokens/access_token").toString();
-    token.refreshToken = settings.value("Tokens/refresh_token").toString();
-    token.idToken      = settings.value("Tokens/id_token").toString();
-    token.tokenType    = settings.value("Tokens/token_type").toString();
-    token.scope        = settings.value("Tokens/scope").toString();
-    token.expiresIn    = settings.value("Tokens/expires_in").toInt();
-    token.receivedAt   = QDateTime::fromString(settings.value("received_at").toString(), Qt::ISODate);
+    token.tokenType = settings.value("Tokens/token_type").toString();
+    token.scope = settings.value("Tokens/scope").toString();
+    token.expiresIn = settings.value("Tokens/expires_in").toInt();
+    token.receivedAt = QDateTime::fromString(settings.value("Tokens/received_at").toString(), Qt::ISODate);
+
+    // Load sensitive tokens from SecureStorage synchronously
+    QMap<QString, QString> secureTokens = storage->retrieveValuesSync("TradeStation", {"access_token", "refresh_token", "id_token"});
+
+    token.accessToken = secureTokens.value("access_token");
+    token.refreshToken = secureTokens.value("refresh_token");
+    token.idToken = secureTokens.value("id_token");
+
+    storage->deleteLater();
+
+    if (token.isValid()) {
+        qCInfo(TSAuthTokenLog) << "Credentials loaded successfully from secure storage";
+    } else {
+        qCWarning(TSAuthTokenLog) << "No credentials found in secure storage";
+    }
 
     return token;
 }
 
 bool AuthToken::storeToSettings(const AuthToken &token)
 {
+    SecureStorage* storage = new SecureStorage();
+
+    // Store metadata in regular QSettings
     QSettings settings(QSettings::IniFormat, QSettings::UserScope,
                       "L2Trader", "TradeStationTokens");
     settings.setFallbacksEnabled(false);
 
-    // Store all fields
-    settings.setValue("Tokens/access_token", token.accessToken);
-    settings.setValue("Tokens/refresh_token", token.refreshToken);
-    settings.setValue("Tokens/id_token", token.idToken);
     settings.setValue("Tokens/token_type", token.tokenType);
     settings.setValue("Tokens/scope", token.scope);
     settings.setValue("Tokens/expires_in", token.expiresIn);
     settings.setValue("Tokens/received_at", token.receivedAt.toString(Qt::ISODate));
 
-    // Force an immediate write to disk
+    // Store sensitive tokens in SecureStorage synchronously
+    QMap<QString, QString> secureTokens;
+    secureTokens["access_token"] = token.accessToken;
+    secureTokens["refresh_token"] = token.refreshToken;
+    secureTokens["id_token"] = token.idToken;
+
+    bool success = storage->storeValuesSync("TradeStation", secureTokens);
+
+    // Force an immediate write to disk for QSettings
     settings.sync();
-    
+
     if (settings.status() != QSettings::NoError) {
-        qWarning() << "Failed to store token: settings error" << settings.status();
-        return false;
+        qWarning() << "Failed to store token metadata: settings error" << settings.status();
+        success = false;
     }
 
-    return true;
+    if (success) {
+        qDebug() << "Auth token stored successfully (secure tokens in SecureStorage, metadata in QSettings)";
+    } else {
+        qWarning() << "Failed to store auth token";
+    }
+
+    storage->deleteLater();
+    return success;
 }
 
 void AuthToken::clearSettings()
 {
+    SecureStorage* storage = new SecureStorage();
+
+    // Clear metadata from regular QSettings
     QSettings settings(QSettings::IniFormat, QSettings::UserScope,
-                      "TradeStationAuth", "Tokens");
+                      "L2Trader", "TradeStationTokens");
     settings.setFallbacksEnabled(false);
 
-    // Remove all token-related settings
-    settings.remove("access_token");
-    settings.remove("refresh_token");
-    settings.remove("id_token");
-    settings.remove("token_type");
-    settings.remove("scope");
-    settings.remove("expires_in");
-    settings.remove("received_at");
+    settings.remove("Tokens/token_type");
+    settings.remove("Tokens/scope");
+    settings.remove("Tokens/expires_in");
+    settings.remove("Tokens/received_at");
 
-    // Force an immediate write to disk
+    // Clear sensitive tokens from SecureStorage synchronously
+    storage->deleteValuesSync("TradeStation", {"access_token", "refresh_token", "id_token"});
+
+    // Force an immediate write to disk for QSettings
     settings.sync();
+
+    qDebug() << "Auth token settings cleared (secure tokens from SecureStorage, metadata from QSettings)";
+
+    storage->deleteLater();
 } 

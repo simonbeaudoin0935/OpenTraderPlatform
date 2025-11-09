@@ -5,6 +5,8 @@
 #include <QSettings>
 #include <QLoggingCategory>
 
+#include "SecureStorage.h"
+
 Q_DECLARE_LOGGING_CATEGORY(tsClientToken)
 
 class ClientToken {

@@ -40,11 +40,12 @@ TSClient::TSClient() :
 {
     thread->setObjectName("TSClientThread");
 
-    authToken = AuthToken::loadFromSettings();
     clientToken = ClientToken::loadFromSettings();
+    authToken = AuthToken::loadFromSettings();
+    
 
     // If the token is invalid/absent, we need to perform an authentification with the popup
-    if (!authToken.isValid() || !clientToken.isValid()) {
+    if (!clientToken.isValid() || !authToken.isValid()) {
         qCWarning(TSClientLog) << Q_FUNC_INFO <<
             "Auth token or Client token is invalid/absent, will need an authentification process";
 

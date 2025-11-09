@@ -8,8 +8,11 @@
 #include <QDebug>
 #include <QNetworkRequest>
 #include <QSettings>
+#include <QEventLoop>
+#include <QTimer>
 
 #include "FMPClient.h"
+#include "SecureStorage.h"
 
 #define BASE_URL_FMP_API "https://financialmodelingprep.com/stable/"
 
@@ -42,22 +45,30 @@ FMPClient* FMPClient::getInstancePtr() {
 FMPClient::FMPClient() :
     RESTClient(QUrl(BASE_URL_FMP_API))
 {
-    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
-                       "L2Trader", "FMPToken");
-    settings.setFallbacksEnabled(false);
-
-    QString fmpToken = settings.value("Tokens/AccessToken").toString();
-    if (fmpToken.isEmpty()) {
-        qFatal() << "No FMP access token found in config.ini. Exiting...";
-    }
-
-    setAPIKey(fmpToken);
-
-    qCDebug(FMPClientLog) << Q_FUNC_INFO << ": FMPClient created using KEY=" << apiKey;
+    // Load FMP API key from secure storage
+    loadApiKey();
 
     thread->setObjectName("FPMClientThread");
 
     thread->start();
+}
+
+void FMPClient::loadApiKey()
+{
+    SecureStorage* storage = new SecureStorage(this);
+    
+    QMap<QString, QString> values = storage->retrieveValuesSync("FMP_API", {"access_token"}, 5000);
+    
+    QString apiKey = values.value("access_token");
+    
+    if (apiKey.isEmpty()) {
+        qCCritical(FMPClientLog) << "No FMP access token found. Please configure your API key.";
+    }
+
+    setAPIKey(apiKey);
+    qCDebug(FMPClientLog) << Q_FUNC_INFO << ": FMPClient created using secure key storage";
+
+    storage->deleteLater();
 }
 
 FMPClient::~FMPClient() {

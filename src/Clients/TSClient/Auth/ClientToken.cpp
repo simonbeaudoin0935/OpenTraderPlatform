@@ -1,8 +1,12 @@
 #include <QDebug>
+#include <QEventLoop>
+#include <QTimer>
+#include <QObject>
 
 #include "ClientToken.h"
+#include "SecureStorage.h"
 
-Q_LOGGING_CATEGORY(tsClientToken, "tradestation.clienttoken")
+Q_LOGGING_CATEGORY(tsClientToken, "TSClient.token.client")
 
 ClientToken::ClientToken(const QString &clientId,
                        const QString &clientSecret)
@@ -28,55 +32,57 @@ QString ClientToken::toString() const
 
 ClientToken ClientToken::loadFromSettings()
 {
-    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
-                      "L2Trader", "TradeStationCredentials");
-    settings.setFallbacksEnabled(false);
-
     ClientToken token;
-    token.clientId = settings.value("credentials/client_id").toString();
-    token.clientSecret = settings.value("credentials/client_secret").toString();
+    SecureStorage* storage = new SecureStorage();
 
-    qCDebug(tsClientToken) << "Credentials loaded successfully";
+    // Load client credentials from SecureStorage synchronously
+    QMap<QString, QString> credentials = storage->retrieveValuesSync("TradeStation", {"client_id", "client_secret"});
+
+    token.clientId = credentials.value("client_id");
+    token.clientSecret = credentials.value("client_secret");
+
+    storage->deleteLater();
+
+    if (token.clientId.isEmpty() || token.clientSecret.isEmpty()) {
+        qCWarning(tsClientToken) << "No credentials found in secure storage";
+    } else {
+        qCInfo(tsClientToken) << "Credentials loaded successfully from secure storage";
+    }
 
     return token;
 }
 
 bool ClientToken::storeToSettings(const ClientToken &token)
 {
-    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
-                      "TradeStationAuth", "Credentials");
-    settings.setFallbacksEnabled(false);
+    SecureStorage* storage = new SecureStorage();
 
-    // Store all fields
-    settings.setValue("credentials/client_id", token.clientId);
-    settings.setValue("credentials/client_secret", token.clientSecret);
+    // Store client credentials in SecureStorage synchronously
+    QMap<QString, QString> credentials;
+    credentials["client_id"] = token.clientId;
+    credentials["client_secret"] = token.clientSecret;
 
-    // Force an immediate write to disk
-    settings.sync();
-    
-    if (settings.status() != QSettings::NoError) {
-        qCWarning(tsClientToken) << "Failed to store credentials: settings error" << settings.status();
-        return false;
+    bool success = storage->storeValuesSync("TradeStation", credentials);
+
+    if (success) {
+        qCDebug(tsClientToken) << "Credentials stored successfully in secure storage";
+    } else {
+        qCWarning(tsClientToken) << "Failed to store credentials in secure storage";
     }
 
-    qCDebug(tsClientToken) << "Credentials stored successfully";
-    return true;
+    storage->deleteLater();
+    return success;
 }
 
 void ClientToken::clearSettings()
 {
-    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
-                      "TradeStationAuth", "Credentials");
-    settings.setFallbacksEnabled(false);
+    SecureStorage* storage = new SecureStorage();
 
-    // Remove all credential-related settings
-    settings.remove("credentials/client_id");
-    settings.remove("credentials/client_secret");
+    // Clear client credentials from SecureStorage synchronously
+    storage->deleteValuesSync("TradeStation", {"client_id", "client_secret"});
 
-    // Force an immediate write to disk
-    settings.sync();
-    
-    qCDebug(tsClientToken) << "Credential settings cleared";
+    qCDebug(tsClientToken) << "Credential settings cleared from secure storage";
+
+    storage->deleteLater();
 }
 
 bool ClientToken::validateClientId(const QString &clientId)

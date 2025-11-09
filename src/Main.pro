@@ -6,6 +6,10 @@ CONFIG += console c++11
 CONFIG += gui
 CONFIG += c++17
 
+# QKeychain temporarily disabled due to version mismatch
+# DEFINES += QT_KEYCHAIN_LIB
+# LIBS += -lqt6keychain
+
 include($$PWD/Clients/Clients.pri)
 include($$PWD/Algo/Algo.pri)
 include($$PWD/GUI/GUI.pri)
