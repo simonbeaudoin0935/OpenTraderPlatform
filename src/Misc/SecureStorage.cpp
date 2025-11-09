@@ -104,36 +104,65 @@ bool SecureStorage::storeValuesSync(const QString& service, const QMap<QString, 
         return true;
     }
 
-    QEventLoop loop;
-    bool success = true;
-    int completedOperations = 0;
-    const int totalOperations = keyValues.size();
+#ifdef QT_KEYCHAIN_LIB
+    if (isSecureStorageAvailable()) {
+        // Use async approach with event loop for QKeychain
+        QEventLoop loop;
+        bool success = true;
+        int completedOperations = 0;
+        const int totalOperations = keyValues.size();
 
-    auto checkCompletion = [&]() {
-        completedOperations++;
-        if (completedOperations >= totalOperations) {
-            loop.quit();
+        auto checkCompletion = [&]() {
+            completedOperations++;
+            if (completedOperations >= totalOperations) {
+                loop.quit();
+            }
+        };
+
+        // Start all store operations
+        for (auto it = keyValues.constBegin(); it != keyValues.constEnd(); ++it) {
+            storeValue(service, it.key(), it.value(), [&](bool result) {
+                if (!result) success = false;
+                checkCompletion();
+            });
         }
-    };
 
-    // Start all store operations
+        // Wait for all operations to complete (with timeout)
+        QTimer timer;
+        timer.setSingleShot(true);
+        timer.start(timeoutMs);
+
+        QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+        loop.exec();
+
+        return success && (completedOperations >= totalOperations);
+    }
+#endif
+
+    // Fallback to synchronous QSettings operations
+    bool success = true;
     for (auto it = keyValues.constBegin(); it != keyValues.constEnd(); ++it) {
-        storeValue(service, it.key(), it.value(), [&](bool result) {
-            if (!result) success = false;
-            checkCompletion();
-        });
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                          "L2Trader", "SecureStorage");
+        settings.setFallbacksEnabled(false);
+
+        QString fullKey = QString("%1/%2").arg(service, it.key());
+        QString obfuscatedValue = obfuscateValue(it.value());
+        settings.setValue(fullKey, obfuscatedValue);
+        settings.sync();
+
+        if (settings.status() != QSettings::NoError) {
+            qCWarning(secureStorage) << "Failed to store value in fallback storage:" << settings.status();
+            success = false;
+        }
     }
 
-    // Wait for all operations to complete (with timeout)
-    QTimer timer;
-    timer.setSingleShot(true);
-    timer.start(timeoutMs);
+    if (success) {
+        qCWarning(secureStorage) << "Values stored using obfuscated fallback storage (upgrade to QKeychain recommended)";
+    }
 
-    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    loop.exec();
-
-    return success && (completedOperations >= totalOperations);
+    return success;
 }
 
 QMap<QString, QString> SecureStorage::retrieveValuesSync(const QString& service, const QStringList& keys, int timeoutMs)
@@ -143,34 +172,55 @@ QMap<QString, QString> SecureStorage::retrieveValuesSync(const QString& service,
         return results;
     }
 
-    QEventLoop loop;
-    int completedOperations = 0;
-    const int totalOperations = keys.size();
+#ifdef QT_KEYCHAIN_LIB
+    if (isSecureStorageAvailable()) {
+        // Use async approach with event loop for QKeychain
+        QEventLoop loop;
+        int completedOperations = 0;
+        const int totalOperations = keys.size();
 
-    auto checkCompletion = [&]() {
-        completedOperations++;
-        if (completedOperations >= totalOperations) {
-            loop.quit();
+        auto checkCompletion = [&]() {
+            completedOperations++;
+            if (completedOperations >= totalOperations) {
+                loop.quit();
+            }
+        };
+
+        // Start all retrieve operations
+        for (const QString& key : keys) {
+            retrieveValue(service, key, [&](const QString& value) {
+                results[key] = value;
+                checkCompletion();
+            });
         }
-    };
 
-    // Start all retrieve operations
+        // Wait for all operations to complete (with timeout)
+        QTimer timer;
+        timer.setSingleShot(true);
+        timer.start(timeoutMs);
+
+        QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+        loop.exec();
+
+        return results;
+    }
+#endif
+
+    // Fallback to synchronous QSettings operations
     for (const QString& key : keys) {
-        retrieveValue(service, key, [&](const QString& value) {
-            results[key] = value;
-            checkCompletion();
-        });
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                          "L2Trader", "SecureStorage");
+        settings.setFallbacksEnabled(false);
+
+        QString fullKey = QString("%1/%2").arg(service, key);
+        QString obfuscatedValue = settings.value(fullKey).toString();
+        QString value = deobfuscateValue(obfuscatedValue);
+
+        results[key] = value;
     }
 
-    // Wait for all operations to complete (with timeout)
-    QTimer timer;
-    timer.setSingleShot(true);
-    timer.start(timeoutMs);
-
-    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    loop.exec();
-
+    qCDebug(secureStorage) << "Retrieved values from fallback storage for service:" << service;
     return results;
 }
 
@@ -180,36 +230,60 @@ bool SecureStorage::deleteValuesSync(const QString& service, const QStringList& 
         return true;
     }
 
-    QEventLoop loop;
-    bool success = true;
-    int completedOperations = 0;
-    const int totalOperations = keys.size();
+#ifdef QT_KEYCHAIN_LIB
+    if (isSecureStorageAvailable()) {
+        // Use async approach with event loop for QKeychain
+        QEventLoop loop;
+        bool success = true;
+        int completedOperations = 0;
+        const int totalOperations = keys.size();
 
-    auto checkCompletion = [&]() {
-        completedOperations++;
-        if (completedOperations >= totalOperations) {
-            loop.quit();
+        auto checkCompletion = [&]() {
+            completedOperations++;
+            if (completedOperations >= totalOperations) {
+                loop.quit();
+            }
+        };
+
+        // Start all delete operations
+        for (const QString& key : keys) {
+            deleteValue(service, key, [&](bool result) {
+                if (!result) success = false;
+                checkCompletion();
+            });
         }
-    };
 
-    // Start all delete operations
+        // Wait for all operations to complete (with timeout)
+        QTimer timer;
+        timer.setSingleShot(true);
+        timer.start(timeoutMs);
+
+        QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+        loop.exec();
+
+        return success && (completedOperations >= totalOperations);
+    }
+#endif
+
+    // Fallback to synchronous QSettings operations
+    bool success = true;
     for (const QString& key : keys) {
-        deleteValue(service, key, [&](bool result) {
-            if (!result) success = false;
-            checkCompletion();
-        });
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                          "L2Trader", "SecureStorage");
+        settings.setFallbacksEnabled(false);
+
+        QString fullKey = QString("%1/%2").arg(service, key);
+        settings.remove(fullKey);
+        settings.sync();
+
+        if (settings.status() != QSettings::NoError) {
+            qCWarning(secureStorage) << "Failed to delete value from fallback storage:" << settings.status();
+            success = false;
+        }
     }
 
-    // Wait for all operations to complete (with timeout)
-    QTimer timer;
-    timer.setSingleShot(true);
-    timer.start(timeoutMs);
-
-    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    loop.exec();
-
-    return success && (completedOperations >= totalOperations);
+    return success;
 }
 
 #ifdef QT_KEYCHAIN_LIB
@@ -303,6 +377,9 @@ void SecureStorage::retrieveValueFallback(const QString& service, const QString&
     QString fullKey = QString("%1/%2").arg(service, key);
     QString obfuscatedValue = settings.value(fullKey).toString();
     QString value = deobfuscateValue(obfuscatedValue);
+
+    qCDebug(secureStorage) << "Retrieved value from fallback storage:" << fullKey;
+    qCDebug(secureStorage) << "Obfuscated value:" << obfuscatedValue;
 
     if (callback) {
         callback(value);
