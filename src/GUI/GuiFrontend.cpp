@@ -174,6 +174,10 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
     QShortcut *quitShortcut = new QShortcut(QKeySequence("Ctrl+Q"), mainWindow);
     connect(quitShortcut, &QShortcut::activated, qApp, &QApplication::quit);
 
+    // Add "i" shortcut to focus the stock symbol input box
+    QShortcut *focusShortcut = new QShortcut(QKeySequence("i"), mainWindow);
+    connect(focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); });
+
     // Create and setup TradeStation login button
     tradeStationLoginButton = new QPushButton("Login to TradeStation", ui->statusbar);
     tradeStationLoginButton->setFlat(true);  // Make it look like a status bar item
@@ -218,6 +222,18 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
 
     // Connect the stock symbol input to its slot
     connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GuiFrontend::onNewDisplayedStockSelection);
+
+    // Make the stock symbol input convert text to uppercase
+    connect(ui->stockSymbolInput, &QLineEdit::textChanged, [this](const QString &text) {
+        QString upper = text.toUpper();
+        if (upper != text) {
+            int pos = ui->stockSymbolInput->cursorPosition();
+            ui->stockSymbolInput->blockSignals(true);
+            ui->stockSymbolInput->setText(upper);
+            ui->stockSymbolInput->setCursorPosition(pos);
+            ui->stockSymbolInput->blockSignals(false);
+        }
+    });
 
     // Connect position window symbol click
     connect(ui->positionWindow, &PositionWindow::symbolClicked, this, [this](const QString& symbol) {
@@ -384,5 +400,6 @@ void GuiFrontend::onNewDisplayedStockSelection()
                               Qt::QueuedConnection,
                               Q_ARG(QString, symbol)); // Pass the symbol parameter
 
-
+    // Clear focus from the input box after processing
+    ui->stockSymbolInput->clearFocus();
 }
