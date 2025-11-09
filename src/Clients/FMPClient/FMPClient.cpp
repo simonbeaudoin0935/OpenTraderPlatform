@@ -56,27 +56,11 @@ FMPClient::FMPClient() :
 void FMPClient::loadApiKey()
 {
     SecureStorage* storage = new SecureStorage(this);
-
-    // Use event loop to make the async operation synchronous during initialization
-    QEventLoop loop;
-    QString apiKey;
-
-    storage->retrieveValue("FMP_API", "access_token", [&](const QString& value) {
-        apiKey = value;
-        loop.quit();
-    });
-
-    // Wait for the async operation to complete (with timeout)
-    QTimer timer;
-    timer.setSingleShot(true);
-    timer.start(5000); // 5 second timeout
-
-    connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    qCDebug(FMPClientLog) << Q_FUNC_INFO << ": Waiting for API key retrieval...";
     
-    loop.exec();
-
+    QMap<QString, QString> values = storage->retrieveValuesSync("FMP_API", {"access_token"}, 5000);
+    
+    QString apiKey = values.value("access_token");
+    
     if (apiKey.isEmpty()) {
         qCCritical(FMPClientLog) << "No FMP access token found. Please configure your API key.";
     }
