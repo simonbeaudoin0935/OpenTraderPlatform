@@ -1,6 +1,6 @@
 TEMPLATE = app
 TARGET = L2Trader
-QT += core network
+QT += core network sql
 CONFIG += console c++11
 
 CONFIG += gui

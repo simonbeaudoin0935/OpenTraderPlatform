@@ -4,6 +4,7 @@
 #include <QMap>
 #include <QObject>
 #include <QReadWriteLock>
+#include <QSqlDatabase>
 
 #include "Bar.h"
 #include "StreamBars.h"
@@ -50,10 +51,15 @@ private:
     QMap<QDateTime, Bar> barCacheOneMinute;
     mutable QReadWriteLock rwLock;
 
+    QSqlDatabase db;
+
     void storeBarInCache(const Bar& bar);
     void storeBarsInCache(const QVector<Bar>& bars);
 
     QVector<Bar> getBarsFromCache(QDateTime start, QDateTime end) const;
+    QVector<Bar> getBarsFromDatabase(QDateTime start, QDateTime end) const;
+    void storeBarsInDatabase(const QVector<Bar>& bars);
+
     StreamBars* streamBar = nullptr;
 
     HitType lastHitType = HitType::None;

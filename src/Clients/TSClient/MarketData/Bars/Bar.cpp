@@ -80,6 +80,27 @@ Bar Bar::nullBar(QDateTime dateTime)
     return bar;
 }
 
+Bar::Bar(QDateTime ts, double o, double h, double l, double c, qint64 vol) {
+    timeStamp = ts;
+    open = o;
+    high = h;
+    low = l;
+    close = c;
+    totalVolume = vol;
+    downTicks = 0;
+    downVolume = 0;
+    openInterest = 0;
+    isRealtime = false;
+    isEndOfHistory = false;
+    totalTicks = 0;
+    unchangedTicks = 0;
+    unchangedVolume = 0;
+    upTicks = 0;
+    upVolume = 0;
+    epoch = ts.toSecsSinceEpoch();
+    barStatus = BarStatus::Closed;
+}
+
 Bar::Bar(const QJsonObject& jsonObj) {
     high = jsonObj["High"].toString().toDouble();
     low = jsonObj["Low"].toString().toDouble();
