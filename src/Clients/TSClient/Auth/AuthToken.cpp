@@ -178,9 +178,9 @@ AuthToken AuthToken::loadFromSettings()
     storage->deleteLater();
 
     if (token.isValid()) {
-        qCDebug(TSAuthTokenLog) << Q_FUNC_INFO << ": Auth token loaded successfully (secure tokens from SecureStorage, metadata from QSettings)";
+        qCInfo(TSAuthTokenLog) << "Credentials loaded successfully from secure storage";
     } else {
-        qCWarning(TSAuthTokenLog) << Q_FUNC_INFO << ": Failed to load valid auth token from settings";
+        qCWarning(TSAuthTokenLog) << "No credentials found in secure storage";
     }
 
     return token;
