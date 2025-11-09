@@ -72,7 +72,7 @@ ClientToken ClientToken::loadFromSettings()
     storage->deleteLater();
 
     if (token.clientId.isEmpty() || token.clientSecret.isEmpty()) {
-        qCDebug(tsClientToken) << "No credentials found in secure storage";
+        qCWarning(tsClientToken) << "No credentials found in secure storage";
     } else {
         qCInfo(tsClientToken) << "Credentials loaded successfully from secure storage";
     }
