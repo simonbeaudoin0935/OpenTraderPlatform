@@ -5,6 +5,7 @@
 #include <QMessageBox>
 #include <QPalette>
 #include <QApplication>
+#include <QShortcut>
 
 #include "TSClient.h"
 #include "GuiFrontend.h"
@@ -168,6 +169,10 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
     
     qApp->setStyleSheet(styleSheet);
     mainWindow->show();
+
+    // Add Ctrl+Q shortcut to quit the application
+    QShortcut *quitShortcut = new QShortcut(QKeySequence("Ctrl+Q"), mainWindow);
+    connect(quitShortcut, &QShortcut::activated, qApp, &QApplication::quit);
 
     // Create and setup TradeStation login button
     tradeStationLoginButton = new QPushButton("Login to TradeStation", ui->statusbar);
