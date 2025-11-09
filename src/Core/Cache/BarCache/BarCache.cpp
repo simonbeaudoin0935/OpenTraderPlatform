@@ -1,4 +1,7 @@
 #include <QTimeZone>
+#include <QSqlQuery>
+#include <QSqlError>
+#include <QStandardPaths>
 
 #include "BarCache.h"
 #include "TSClient.h"
@@ -11,6 +14,28 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
     isStreaming(isStreaming)
 {
     this->setObjectName("BarCache::" + symbol);
+
+    // Set up database
+    QString dbPath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/bars_cache.db";
+    db = QSqlDatabase::addDatabase("QSQLITE", "BarCache_" + symbol);
+    db.setDatabaseName(dbPath);
+    if (!db.open()) {
+        qFatal("Failed to open database for %s: %s", qPrintable(symbol), qPrintable(db.lastError().text()));
+    } else {
+        // Create table if not exists
+        QSqlQuery query(db);
+        query.exec("CREATE TABLE IF NOT EXISTS bars ("
+                   "symbol TEXT, "
+                   "timestamp INTEGER PRIMARY KEY, "
+                   "open REAL, "
+                   "high REAL, "
+                   "low REAL, "
+                   "close REAL, "
+                   "volume INTEGER)");
+        if (query.lastError().isValid()) {
+            qWarning() << "Failed to create table:" << query.lastError().text();
+        }
+    }
 
     if (isStreaming) {
         streamBar = TSClient::getInstance().openStreamBars(symbol,
@@ -77,6 +102,12 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     lastHitType = HitType::None;
     // Reset the counter of fetched bar for the last request
     lastNumberFetchedBars = 0;
+    
+    // Check database first and load into memory cache
+    QVector<Bar> dbBars = getBarsFromDatabase(first, last);
+    if (!dbBars.isEmpty()) {
+        storeBarsInCache(dbBars);
+    }
     
     // Check cache first
     QVector<Bar> cachedBars = getBarsFromCache(first, last);
@@ -328,6 +359,7 @@ void BarCache::storeBarsInCache(const QVector<Bar>& bars) {
     for (const Bar& bar : bars) {
         storeBarInCache(bar);
     }
+    storeBarsInDatabase(bars);
 }
 
 QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
@@ -386,4 +418,50 @@ void BarCache::onReceivedNewBar(QString symbol, Bar newBar)
     storeBarInCache(newBar);
 
     emit receivedNewBar(symbol, newBar);
+}
+
+QVector<Bar> BarCache::getBarsFromDatabase(QDateTime start, QDateTime end) const {
+    QVector<Bar> bars;
+    if (!db.isOpen()) return bars;
+
+    QSqlQuery query(db);
+    query.prepare("SELECT timestamp, open, high, low, close, volume FROM bars WHERE symbol = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp");
+    query.addBindValue(symbol);
+    query.addBindValue(start.toSecsSinceEpoch());
+    query.addBindValue(end.toSecsSinceEpoch());
+
+    if (query.exec()) {
+        while (query.next()) {
+            QDateTime ts = QDateTime::fromSecsSinceEpoch(query.value(0).toLongLong());
+            double open = query.value(1).toDouble();
+            double high = query.value(2).toDouble();
+            double low = query.value(3).toDouble();
+            double close = query.value(4).toDouble();
+            qint64 volume = query.value(5).toLongLong();
+            bars.append(Bar(ts, open, high, low, close, volume));
+        }
+    } else {
+        qWarning() << "Database query failed:" << query.lastError().text();
+    }
+    return bars;
+}
+
+void BarCache::storeBarsInDatabase(const QVector<Bar>& bars) {
+    if (!db.isOpen() || bars.isEmpty()) return;
+
+    QSqlQuery query(db);
+    query.prepare("INSERT OR REPLACE INTO bars (symbol, timestamp, open, high, low, close, volume) VALUES (?, ?, ?, ?, ?, ?, ?)");
+
+    for (const Bar& bar : bars) {
+        query.addBindValue(symbol);
+        query.addBindValue(bar.getTimeStamp().toSecsSinceEpoch());
+        query.addBindValue(bar.getOpen());
+        query.addBindValue(bar.getHigh());
+        query.addBindValue(bar.getLow());
+        query.addBindValue(bar.getClose());
+        query.addBindValue(bar.getTotalVolume());
+        if (!query.exec()) {
+            qWarning() << "Failed to store bar in database:" << query.lastError().text();
+        }
+    }
 }

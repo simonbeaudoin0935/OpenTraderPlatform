@@ -28,6 +28,9 @@ public:
     
     static Bar nullBar(QDateTime dateTime);
 
+    // Constructor for database
+    Bar(QDateTime ts, double o, double h, double l, double c, qint64 vol);
+
     // Constructor taking a QJsonObject
     Bar(const QJsonObject& jsonObj);
 
