@@ -17,7 +17,8 @@
                 "QT_GUI_LIB",
                 "QT_WIDGETS_LIB",
                 "QT_NETWORK_LIB",
-                "QT_WEBENGINEWIDGETS_LIB"
+                "QT_WEBENGINEWIDGETS_LIB",
+                "GUI_ENABLED"
             ],
             "compilerPath": "/usr/bin/g++",
             "cStandard": "c17",
