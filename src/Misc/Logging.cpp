@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <QSettings>
+#include <QDir>
 
 #include <iostream>
 
@@ -118,8 +119,14 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
 
 void initLogging()
 {
-    // Generate timestamped log file name
-    QString logFileName = QString("L2Trader_%1.log").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss"));
+    // Create logs directory if it doesn't exist
+    QDir logsDir("logs");
+    if (!logsDir.exists()) {
+        logsDir.mkpath(".");
+    }
+
+    // Generate timestamped log file name in logs directory
+    QString logFileName = QString("logs/L2Trader_%1.log").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss"));
     logFile.setFileName(logFileName);
 
     // Open log file

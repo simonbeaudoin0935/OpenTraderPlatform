@@ -3,5 +3,5 @@ build/
 *.pro.user
 .qmake.stash
 Makefile
-*.log
+logs/
 src/Misc/Logging_generated.h
