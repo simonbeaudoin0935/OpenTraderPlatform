@@ -34,6 +34,7 @@ private slots:
     void onNewDisplayedStockSelection();
 
 private:
+    void setupDarkTheme(QMainWindow* mainWindow);
     MainAlgo *mainAlgo;
     QString currentlyDisplayedSymbol;
 

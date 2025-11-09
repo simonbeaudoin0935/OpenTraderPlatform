@@ -19,9 +19,93 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
     ui = new Ui::GuiFrontend();
     ui->setupUi(new QMainWindow());
     
-    // Setup dark theme for the entire application
     QMainWindow* mainWindow = static_cast<QMainWindow*>(ui->centralwidget->parent());
     
+    setupDarkTheme(mainWindow);
+    
+    mainWindow->show();
+
+    // Add Ctrl+Q shortcut to quit the application
+    QShortcut *quitShortcut = new QShortcut(QKeySequence("Ctrl+Q"), mainWindow);
+    connect(quitShortcut, &QShortcut::activated, qApp, &QApplication::quit);
+
+    // Add "i" shortcut to focus the stock symbol input box
+    QShortcut *focusShortcut = new QShortcut(QKeySequence("i"), mainWindow);
+    connect(focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); });
+
+    // Create and setup TradeStation login button
+    tradeStationLoginButton = new QPushButton("Login to TradeStation", ui->statusbar);
+    tradeStationLoginButton->setFlat(true);  // Make it look like a status bar item
+    tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
+    ui->statusbar->addPermanentWidget(tradeStationLoginButton);
+
+    // Connect TradeStation signals and slots
+    connect(tradeStationLoginButton, &QPushButton::clicked, this, &GuiFrontend::onTradeStationLoginClicked);
+
+    // Connect app frontend signals and slots
+    connect(this, &AppFrontend::tradeStationAuthStateChanged,
+            this, &GuiFrontend::onTradeStationAuthStateChanged,
+            Qt::DirectConnection);
+
+    connect(this, &AppFrontend::tradeStationAccountsReceived,
+            this, &GuiFrontend::onTradeStationAccountsReceived,
+            Qt::DirectConnection);
+
+    connect(this, &AppFrontend::fmpDataUsageUpdated,
+            this, &GuiFrontend::onFMPClientDataUsageUpdate,
+            Qt::DirectConnection);
+
+    connect(this, &AppFrontend::tradeStationDataUsageUpdated,
+            this, &GuiFrontend::onTSClientDataUsageUpdate,
+            Qt::DirectConnection);
+
+    connect(this, &AppFrontend::currentHighlightedStockBarReceived,
+            this, &GuiFrontend::onCurrentHighlightedStockBarReceived,
+            Qt::DirectConnection);
+
+    connect(this, &AppFrontend::currentHighlightedReceivedNewMarketDepthQuote,
+            this, &GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote,
+            Qt::DirectConnection);
+
+    connect(this, &AppFrontend::newPositionReceived,
+            this, &GuiFrontend::onNewPositionReceived,
+            Qt::DirectConnection);
+
+    // Propagate up when the chart needs missing bars to display
+    connect(ui->priceChart, &StockPriceChart::requestMissingBars,
+            this, &AppFrontend::requestMissingBars);
+
+    // Connect the stock symbol input to its slot
+    connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GuiFrontend::onNewDisplayedStockSelection);
+
+    // Make the stock symbol input convert text to uppercase
+    connect(ui->stockSymbolInput, &QLineEdit::textChanged, [this](const QString &text) {
+        QString upper = text.toUpper();
+        if (upper != text) {
+            int pos = ui->stockSymbolInput->cursorPosition();
+            ui->stockSymbolInput->blockSignals(true);
+            ui->stockSymbolInput->setText(upper);
+            ui->stockSymbolInput->setCursorPosition(pos);
+            ui->stockSymbolInput->blockSignals(false);
+        }
+    });
+
+    // Connect position window symbol click
+    connect(ui->positionWindow, &PositionWindow::symbolClicked, this, [this](const QString& symbol) {
+        ui->stockSymbolInput->setText(symbol);
+        ui->stockSymbolInput->returnPressed();  // Simulate Enter key press
+    });
+
+    // Set up the logging tab
+    LoggingTab* loggingTab = new LoggingTab();
+    ui->tabWidget->addTab(loggingTab, "Logging");
+}
+
+GuiFrontend::~GuiFrontend() {
+    delete ui;
+}
+
+void GuiFrontend::setupDarkTheme(QMainWindow* mainWindow) {
     // Define the dark theme palette
     QPalette darkPalette;
     darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
@@ -168,86 +252,6 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
     )";
     
     qApp->setStyleSheet(styleSheet);
-    mainWindow->show();
-
-    // Add Ctrl+Q shortcut to quit the application
-    QShortcut *quitShortcut = new QShortcut(QKeySequence("Ctrl+Q"), mainWindow);
-    connect(quitShortcut, &QShortcut::activated, qApp, &QApplication::quit);
-
-    // Add "i" shortcut to focus the stock symbol input box
-    QShortcut *focusShortcut = new QShortcut(QKeySequence("i"), mainWindow);
-    connect(focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); });
-
-    // Create and setup TradeStation login button
-    tradeStationLoginButton = new QPushButton("Login to TradeStation", ui->statusbar);
-    tradeStationLoginButton->setFlat(true);  // Make it look like a status bar item
-    tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
-    ui->statusbar->addPermanentWidget(tradeStationLoginButton);
-
-    // Connect TradeStation signals and slots
-    connect(tradeStationLoginButton, &QPushButton::clicked, this, &GuiFrontend::onTradeStationLoginClicked);
-
-    // Connect app frontend signals and slots
-    connect(this, &AppFrontend::tradeStationAuthStateChanged,
-            this, &GuiFrontend::onTradeStationAuthStateChanged,
-            Qt::DirectConnection);
-
-    connect(this, &AppFrontend::tradeStationAccountsReceived,
-            this, &GuiFrontend::onTradeStationAccountsReceived,
-            Qt::DirectConnection);
-
-    connect(this, &AppFrontend::fmpDataUsageUpdated,
-            this, &GuiFrontend::onFMPClientDataUsageUpdate,
-            Qt::DirectConnection);
-
-    connect(this, &AppFrontend::tradeStationDataUsageUpdated,
-            this, &GuiFrontend::onTSClientDataUsageUpdate,
-            Qt::DirectConnection);
-
-    connect(this, &AppFrontend::currentHighlightedStockBarReceived,
-            this, &GuiFrontend::onCurrentHighlightedStockBarReceived,
-            Qt::DirectConnection);
-
-    connect(this, &AppFrontend::currentHighlightedReceivedNewMarketDepthQuote,
-            this, &GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote,
-            Qt::DirectConnection);
-
-    connect(this, &AppFrontend::newPositionReceived,
-            this, &GuiFrontend::onNewPositionReceived,
-            Qt::DirectConnection);
-
-    // Propagate up when the chart needs missing bars to display
-    connect(ui->priceChart, &StockPriceChart::requestMissingBars,
-            this, &AppFrontend::requestMissingBars);
-
-    // Connect the stock symbol input to its slot
-    connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GuiFrontend::onNewDisplayedStockSelection);
-
-    // Make the stock symbol input convert text to uppercase
-    connect(ui->stockSymbolInput, &QLineEdit::textChanged, [this](const QString &text) {
-        QString upper = text.toUpper();
-        if (upper != text) {
-            int pos = ui->stockSymbolInput->cursorPosition();
-            ui->stockSymbolInput->blockSignals(true);
-            ui->stockSymbolInput->setText(upper);
-            ui->stockSymbolInput->setCursorPosition(pos);
-            ui->stockSymbolInput->blockSignals(false);
-        }
-    });
-
-    // Connect position window symbol click
-    connect(ui->positionWindow, &PositionWindow::symbolClicked, this, [this](const QString& symbol) {
-        ui->stockSymbolInput->setText(symbol);
-        ui->stockSymbolInput->returnPressed();  // Simulate Enter key press
-    });
-
-    // Set up the logging tab
-    LoggingTab* loggingTab = new LoggingTab();
-    ui->tabWidget->addTab(loggingTab, "Logging");
-}
-
-GuiFrontend::~GuiFrontend() {
-    delete ui;
 }
 
 void GuiFrontend::onFMPClientDataUsageUpdate(qsizetype newDataUsage)
