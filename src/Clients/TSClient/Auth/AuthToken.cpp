@@ -7,6 +7,8 @@
 #include "AuthToken.h"
 #include "SecureStorage.h"
 
+Q_LOGGING_CATEGORY(TSAuthTokenLog, "TSClient.token.auth")
+
 // Initialize static constants
 const QString AuthToken::EXPECTED_TOKEN_TYPE = "Bearer";
 const QStringList AuthToken::EXPECTED_SCOPES = {
@@ -201,6 +203,8 @@ AuthToken AuthToken::loadFromSettings()
 
     QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
 
+    qCDebug(TSAuthTokenLog) << Q_FUNC_INFO << ": Waiting for credentials retrieval...";
+
     loop.exec();
 
     token.accessToken = accessToken;
@@ -209,6 +213,12 @@ AuthToken AuthToken::loadFromSettings()
 
     storage->deleteLater();
 
+    if (token.isValid()) {
+        qCDebug(TSAuthTokenLog) << Q_FUNC_INFO << ": Auth token loaded successfully (secure tokens from SecureStorage, metadata from QSettings)";
+    } else {
+        qCWarning(TSAuthTokenLog) << Q_FUNC_INFO << ": Failed to load valid auth token from settings";
+    }
+    
     return token;
 }
 

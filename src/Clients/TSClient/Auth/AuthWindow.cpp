@@ -16,12 +16,12 @@
 
 #include "AuthWindow.h"
 
-Q_LOGGING_CATEGORY(tsAuth, "tradestation.auth")
+Q_LOGGING_CATEGORY(TSAuthWindowLog, "TSClient.authwindow")
 
 AuthWindow::AuthWindow(QWidget *parent) : QDialog(parent)
 {
-    qCDebug(tsAuth) << "Initializing TradeStation Auth Window";
-    
+    qCDebug(TSAuthWindowLog) << "Initializing TradeStation Auth Window";
+
     // Set dialog properties
     setWindowTitle("TradeStation Authentication");
     setModal(true);
@@ -34,7 +34,7 @@ AuthWindow::AuthWindow(QWidget *parent) : QDialog(parent)
     
     // Generate random state for CSRF protection
     expectedState = generateRandomState();
-    qCDebug(tsAuth) << "Generated expected state:" << expectedState;
+    qCDebug(TSAuthWindowLog) << "Generated expected state:" << expectedState;
     
     // Load credentials first
     clientToken = ClientToken::loadFromSettings();
@@ -44,7 +44,7 @@ AuthWindow::AuthWindow(QWidget *parent) : QDialog(parent)
         bool success = promptForCredentials();
 
         if (!success) {
-            qCDebug(tsAuth) << "Failed to load or obtain valid credentials";
+            qCDebug(TSAuthWindowLog) << "Failed to load or obtain valid credentials";
             QMessageBox::critical(this, "Error",
                                 "Unable to obtain valid TradeStation API credentials. "
                                 "The authentication will be cancelled.");
@@ -91,7 +91,7 @@ void AuthWindow::setupUi()
 
 void AuthWindow::startHttpServer()
 {
-    qCDebug(tsAuth) << "Starting HTTP server...";
+    qCDebug(TSAuthWindowLog) << "Starting HTTP server...";
     
     // Create server if not exists
     if (!httpServer) {
@@ -100,7 +100,7 @@ void AuthWindow::startHttpServer()
 
     // Check if server is already listening
     if (httpServer->isListening()) {
-        qCDebug(tsAuth) << "HTTP server is already running on port" << httpServer->serverPort();
+        qCDebug(TSAuthWindowLog) << "HTTP server is already running on port" << httpServer->serverPort();
         return;
     }
 
@@ -110,28 +110,28 @@ void AuthWindow::startHttpServer()
 
     for (quint16 portAttempt = 0; portAttempt < MAX_PORT_ATTEMPTS && !serverStarted; ++portAttempt) {
         quint16 portToTry = currentPort + portAttempt;
-        qCDebug(tsAuth) << "Attempting to start server on port" << portToTry;
+        qCDebug(TSAuthWindowLog) << "Attempting to start server on port" << portToTry;
         
         if (tryBindPort(portToTry)) {
             currentPort = portToTry;
             serverStarted = true;
             updateRedirectUri(currentPort);
-            qCDebug(tsAuth) << "Successfully bound to port" << currentPort;
+            qCDebug(TSAuthWindowLog) << "Successfully bound to port" << currentPort;
             break;
         }
         
-        qCDebug(tsAuth) << "Failed to bind to port" << portToTry << ", trying next port";
+        qCDebug(TSAuthWindowLog) << "Failed to bind to port" << portToTry << ", trying next port";
     }
 
     if (!serverStarted) {
         QString errorMsg = QString("Failed to find available port after %1 attempts").arg(MAX_PORT_ATTEMPTS);
-        qCDebug(tsAuth) << errorMsg;
+        qCDebug(TSAuthWindowLog) << errorMsg;
         QMessageBox::warning(this, "Server Error", errorMsg);
         return;
     }
 
     connect(httpServer, &QTcpServer::newConnection, this, &AuthWindow::handleNewConnection);
-    qCDebug(tsAuth) << "HTTP server successfully started on" 
+    qCDebug(TSAuthWindowLog) << "HTTP server successfully started on" 
                     << httpServer->serverAddress().toString() 
                     << "port" << httpServer->serverPort();
 }
@@ -162,7 +162,7 @@ bool AuthWindow::tryBindPort(quint16 port)
                         .arg(httpServer->errorString());
     }
     
-    qCDebug(tsAuth) << "Port" << port << "binding failed:" << errorMsg;
+    qCDebug(TSAuthWindowLog) << "Port" << port << "binding failed:" << errorMsg;
     return false;
 }
 
@@ -170,12 +170,12 @@ void AuthWindow::updateRedirectUri(quint16 port)
 {
     // Update the redirect URI with the new port
     redirectUri = QString("http://localhost:%1/callback").arg(port);
-    qCDebug(tsAuth) << "Updated redirect URI:" << redirectUri;
+    qCDebug(TSAuthWindowLog) << "Updated redirect URI:" << redirectUri;
 }
 
 void AuthWindow::startAuthorization()
 {
-    qCDebug(tsAuth) << "Starting authorization process...";
+    qCDebug(TSAuthWindowLog) << "Starting authorization process...";
     // Construct the TradeStation authorization URL
     QString authUrl = QString("https://signin.tradestation.com/authorize?"
                               "response_type=code&client_id=%1&redirect_uri=%2&"
@@ -183,8 +183,8 @@ void AuthWindow::startAuthorization()
                               "scope=openid%20offline_access%20profile%20MarketData%20Matrix%20ReadAccount%20Trade")
                           .arg(clientToken.getClientId(), redirectUri, expectedState);
 
-    qCDebug(tsAuth) << "Authorization URL:" << authUrl;
-    qCDebug(tsAuth) << "Loading URL in web view...";
+    qCDebug(TSAuthWindowLog) << "Authorization URL:" << authUrl;
+    qCDebug(TSAuthWindowLog) << "Loading URL in web view...";
 
     // Load the URL in the web view
     webView->load(QUrl(authUrl));
@@ -192,21 +192,21 @@ void AuthWindow::startAuthorization()
 
 void AuthWindow::handleNewConnection()
 {
-    qCDebug(tsAuth) << "New connection received on HTTP server";
+    qCDebug(TSAuthWindowLog) << "New connection received on HTTP server";
     QTcpSocket *socket = httpServer->nextPendingConnection();
     
     if (!socket) {
-        qCDebug(tsAuth) << "Error: null socket received from nextPendingConnection";
+        qCDebug(TSAuthWindowLog) << "Error: null socket received from nextPendingConnection";
         return;
     }
     
-    qCDebug(tsAuth) << "Connection accepted:";
-    qCDebug(tsAuth) << "  Peer Address:" << socket->peerAddress().toString();
-    qCDebug(tsAuth) << "  Peer Port:" << socket->peerPort();
+    qCDebug(TSAuthWindowLog) << "Connection accepted:";
+    qCDebug(TSAuthWindowLog) << "  Peer Address:" << socket->peerAddress().toString();
+    qCDebug(TSAuthWindowLog) << "  Peer Port:" << socket->peerPort();
 
     connect(socket, &QTcpSocket::readyRead, this, &AuthWindow::handleSocketReadyRead);
     connect(socket, &QTcpSocket::disconnected, this, [socket]() {
-        qCDebug(tsAuth) << "Connection closed";
+        qCDebug(TSAuthWindowLog) << "Connection closed";
         socket->deleteLater();
     });
     connect(socket, &QTcpSocket::errorOccurred, this, &AuthWindow::handleSocketError);
@@ -217,18 +217,18 @@ void AuthWindow::handleSocketReadyRead()
 {
     QTcpSocket *socket = qobject_cast<QTcpSocket*>(sender());
     if (!socket) {
-        qCDebug(tsAuth) << "Error: Invalid socket in handleSocketReadyRead";
+        qCDebug(TSAuthWindowLog) << "Error: Invalid socket in handleSocketReadyRead";
         return;
     }
 
     QByteArray request = socket->readAll();
     QString requestStr(request);
-    qCDebug(tsAuth) << "Received HTTP request:" << requestStr;
+    qCDebug(TSAuthWindowLog) << "Received HTTP request:" << requestStr;
 
     // Parse the HTTP request
     QStringList requestLines = requestStr.split("\r\n");
     if (requestLines.isEmpty()) {
-        qCDebug(tsAuth) << "Error: Empty HTTP request";
+        qCDebug(TSAuthWindowLog) << "Error: Empty HTTP request";
         socket->write("HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nInvalid request");
         socket->disconnectFromHost();
         return;
@@ -237,7 +237,7 @@ void AuthWindow::handleSocketReadyRead()
     // Parse the request line (e.g., "GET /callback?code=xyz&state=abc HTTP/1.1")
     QStringList requestParts = requestLines[0].split(" ");
     if (requestParts.size() < 3) {
-        qCDebug(tsAuth) << "Error: Invalid HTTP request line";
+        qCDebug(TSAuthWindowLog) << "Error: Invalid HTTP request line";
         socket->write("HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nInvalid request format");
         socket->disconnectFromHost();
         return;
@@ -246,12 +246,12 @@ void AuthWindow::handleSocketReadyRead()
     QString method = requestParts[0];
     QString path = requestParts[1];
     
-    qCDebug(tsAuth) << "HTTP Method:" << method;
-    qCDebug(tsAuth) << "Request Path:" << path;
+    qCDebug(TSAuthWindowLog) << "HTTP Method:" << method;
+    qCDebug(TSAuthWindowLog) << "Request Path:" << path;
 
     // Only handle GET requests to /callback
     if (method != "GET" || !path.startsWith("/callback")) {
-        qCDebug(tsAuth) << "Error: Invalid method or path";
+        qCDebug(TSAuthWindowLog) << "Error: Invalid method or path";
         socket->write("HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\r\nNot Found");
         socket->disconnectFromHost();
         return;
@@ -264,21 +264,21 @@ void AuthWindow::handleSocketReadyRead()
     QString code = query.queryItemValue("code");
     QString state = query.queryItemValue("state");
 
-    qCDebug(tsAuth) << "Parsed parameters:";
-    qCDebug(tsAuth) << "  Path:" << url.path();
-    qCDebug(tsAuth) << "  Code:" << code;
-    qCDebug(tsAuth) << "  State:" << state;
-    qCDebug(tsAuth) << "  Expected State:" << expectedState;
+    qCDebug(TSAuthWindowLog) << "Parsed parameters:";
+    qCDebug(TSAuthWindowLog) << "  Path:" << url.path();
+    qCDebug(TSAuthWindowLog) << "  Code:" << code;
+    qCDebug(TSAuthWindowLog) << "  State:" << state;
+    qCDebug(TSAuthWindowLog) << "  Expected State:" << expectedState;
 
     if (code.isEmpty() || state.isEmpty()) {
-        qCDebug(tsAuth) << "Error: Missing code or state parameter";
+        qCDebug(TSAuthWindowLog) << "Error: Missing code or state parameter";
         socket->write("HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nMissing required parameters");
         socket->disconnectFromHost();
         return;
     }
 
     if (state == expectedState) {
-        qCDebug(tsAuth) << "State validation successful";
+        qCDebug(TSAuthWindowLog) << "State validation successful";
         handleCodeReceived(code);
         // Send a nice HTML response
         QString htmlResponse = 
@@ -301,7 +301,7 @@ void AuthWindow::handleSocketReadyRead()
             "</html>";
         socket->write(htmlResponse.toUtf8());
     } else {
-        qCDebug(tsAuth) << "State validation failed - possible security issue";
+        qCDebug(TSAuthWindowLog) << "State validation failed - possible security issue";
         socket->write("HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\nState mismatch - possible security issue");
     }
 
@@ -310,14 +310,14 @@ void AuthWindow::handleSocketReadyRead()
 
 void AuthWindow::handleCodeReceived(const QString& code)
 {
-    qCDebug(tsAuth) << "Authorization code received, initiating token exchange";
+    qCDebug(TSAuthWindowLog) << "Authorization code received, initiating token exchange";
     exchangeCodeForTokens(code);
     webView->hide();
 }
 
 void AuthWindow::exchangeCodeForTokens(const QString& code)
 {
-    qCDebug(tsAuth) << "Exchanging authorization code for tokens...";
+    qCDebug(TSAuthWindowLog) << "Exchanging authorization code for tokens...";
     
     // Construct the token URL
     QUrl tokenUrl("https://signin.tradestation.com/oauth/token");
@@ -335,18 +335,18 @@ void AuthWindow::exchangeCodeForTokens(const QString& code)
     query.addQueryItem("redirect_uri", redirectUri);
 
     QString requestData = query.toString(QUrl::FullyEncoded);
-    qCDebug(tsAuth) << "Token exchange request data:" << requestData;
+    qCDebug(TSAuthWindowLog) << "Token exchange request data:" << requestData;
 
     QNetworkReply *reply = networkManager->post(request, requestData.toUtf8());
     
     connect(reply, &QNetworkReply::finished, [this, reply]() {
         if (reply->error() == QNetworkReply::NoError) {
             QByteArray responseData = reply->readAll();
-            qCDebug(tsAuth) << "Token exchange response:" << responseData;
+            qCDebug(TSAuthWindowLog) << "Token exchange response:" << responseData;
             QJsonDocument doc = QJsonDocument::fromJson(responseData);
             handleTokenResponse(doc.object());
         } else {
-            qCDebug(tsAuth) << "Token exchange failed:" << reply->errorString();
+            qCDebug(TSAuthWindowLog) << "Token exchange failed:" << reply->errorString();
             handleTokenError(reply->errorString());
         }
         reply->deleteLater();
@@ -364,24 +364,24 @@ void AuthWindow::handleTokenResponse(const QJsonObject& response)
 
 void AuthWindow::handleTokenError(const QString& error)
 {
-    qCWarning(tsAuth) << "Token error:" << error;
+    qCWarning(TSAuthWindowLog) << "Token error:" << error;
     QMessageBox::warning(this, "Authentication Error", "Authentication failed: " + error);
     reject(); // Close dialog on error
 }
 
 bool AuthWindow::parseTokenResponse(const QJsonObject& response)
 {
-    qCDebug(tsAuth) << "Parsing token response...";
+    qCDebug(TSAuthWindowLog) << "Parsing token response...";
     
     // Create new AuthToken from response
     authToken = AuthToken::receiveAuthToken(response);
     
     if (!authToken.isValid()) {
-        qCWarning(tsAuth) << "Invalid token response";
+        qCWarning(TSAuthWindowLog) << "Invalid token response";
         return false;
     }
     
-    qCDebug(tsAuth) << "Token details:" << authToken.toString();
+    qCDebug(TSAuthWindowLog) << "Token details:" << authToken.toString();
 
     return true;
 }
@@ -390,7 +390,7 @@ bool AuthWindow::parseTokenResponse(const QJsonObject& response)
 
 QString AuthWindow::generateRandomState()
 {
-    qCDebug(tsAuth) << "Generating random state for CSRF protection...";
+    qCDebug(TSAuthWindowLog) << "Generating random state for CSRF protection...";
     // Generate a random 32-character string using alphanumeric characters
     const QString chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     QString state;
@@ -401,7 +401,7 @@ QString AuthWindow::generateRandomState()
         state.append(chars[randomIndex]);
     }
     
-    qCDebug(tsAuth) << "Generated random state:" << state;
+    qCDebug(TSAuthWindowLog) << "Generated random state:" << state;
     return state;
 }
 
@@ -410,11 +410,11 @@ void AuthWindow::handleSocketError(QAbstractSocket::SocketError socketError)
     QTcpSocket *socket = qobject_cast<QTcpSocket*>(sender());
     if (!socket) return;
     
-    qCDebug(tsAuth) << "Socket error occurred:";
-    qCDebug(tsAuth) << "  Error:" << socketError;
-    qCDebug(tsAuth) << "  Error String:" << socket->errorString();
-    qCDebug(tsAuth) << "  Peer Address:" << socket->peerAddress().toString();
-    qCDebug(tsAuth) << "  Peer Port:" << socket->peerPort();
+    qCDebug(TSAuthWindowLog) << "Socket error occurred:";
+    qCDebug(TSAuthWindowLog) << "  Error:" << socketError;
+    qCDebug(TSAuthWindowLog) << "  Error String:" << socket->errorString();
+    qCDebug(TSAuthWindowLog) << "  Peer Address:" << socket->peerAddress().toString();
+    qCDebug(TSAuthWindowLog) << "  Peer Port:" << socket->peerPort();
 }
 
 void AuthWindow::handleSocketStateChanged(QAbstractSocket::SocketState socketState)
@@ -422,10 +422,10 @@ void AuthWindow::handleSocketStateChanged(QAbstractSocket::SocketState socketSta
     QTcpSocket *socket = qobject_cast<QTcpSocket*>(sender());
     if (!socket) return;
 
-    qCDebug(tsAuth) << "Socket state changed:";
-    qCDebug(tsAuth) << "  New State:" << socketState;
-    qCDebug(tsAuth) << "  Peer Address:" << socket->peerAddress().toString();
-    qCDebug(tsAuth) << "  Peer Port:" << socket->peerPort();
+    qCDebug(TSAuthWindowLog) << "Socket state changed:";
+    qCDebug(TSAuthWindowLog) << "  New State:" << socketState;
+    qCDebug(TSAuthWindowLog) << "  Peer Address:" << socket->peerAddress().toString();
+    qCDebug(TSAuthWindowLog) << "  Peer Port:" << socket->peerPort();
 }
 
 bool AuthWindow::promptForCredentials()
@@ -440,7 +440,7 @@ bool AuthWindow::promptForCredentials()
     QString newClientId = dialog.textValue();
 
     if (!ok || newClientId.isEmpty()) {
-        qCDebug(tsAuth) << "User cancelled Client ID input";
+        qCDebug(TSAuthWindowLog) << "User cancelled Client ID input";
         return false;
     }
 
@@ -451,7 +451,7 @@ bool AuthWindow::promptForCredentials()
     QString newClientSecret = dialog.textValue();
 
     if (!ok || newClientSecret.isEmpty()) {
-        qCDebug(tsAuth) << "User cancelled Client Secret input";
+        qCDebug(TSAuthWindowLog) << "User cancelled Client Secret input";
         return false;
     }
 
@@ -471,11 +471,11 @@ bool AuthWindow::promptForCredentials()
 
         if (saveChoice == QMessageBox::Yes) {
             if (ClientToken::storeToSettings(clientToken)) {
-                qCDebug(tsAuth) << "Credentials saved successfully";
+                qCDebug(TSAuthWindowLog) << "Credentials saved successfully";
                 return true;
             }
         } else {
-            qCDebug(tsAuth) << "User chose not to save credentials";
+            qCDebug(TSAuthWindowLog) << "User chose not to save credentials";
             ClientToken::clearSettings();  // Clear any existing credentials
             return true;
         }

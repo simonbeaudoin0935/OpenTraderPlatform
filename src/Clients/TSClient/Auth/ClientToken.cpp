@@ -6,7 +6,7 @@
 #include "ClientToken.h"
 #include "SecureStorage.h"
 
-Q_LOGGING_CATEGORY(tsClientToken, "tradestation.clienttoken")
+Q_LOGGING_CATEGORY(tsClientToken, "TSClient.token.client")
 
 ClientToken::ClientToken(const QString &clientId,
                        const QString &clientSecret)

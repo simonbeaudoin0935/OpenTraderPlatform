@@ -5,6 +5,9 @@
 #include <QDateTime>
 #include <QJsonObject>
 #include <QSettings>
+#include <QLoggingCategory>
+
+Q_DECLARE_LOGGING_CATEGORY(TSAuthTokenLog);
 
 class AuthToken {
 public:
