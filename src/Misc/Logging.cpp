@@ -87,11 +87,6 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
     QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
     QString category = context.category ? QString(context.category) : "default";
 
-    // Filter messages based on category enabled state
-    if (!LoggingConfig::instance().isCategoryEnabled(category)) {
-        return;
-    }
-
     QString formattedMsg = QString("%1[%2] %3 %4:%5 %6%7")
                                .arg(colorCode)
                                .arg(timestamp)
@@ -101,14 +96,19 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
                                .arg(msg)
                                .arg(RESET_COLOR);
 
-    std::cout << formattedMsg.toStdString() << std::endl;
-    std::cout.flush();
-
-    // Also write to log file (without ANSI colors)
+    // Always write to log file (without ANSI colors)
     if (logStream) {
         *logStream << formattedMsg << "\n";
         logStream->flush();
     }
+
+    // Filter console output based on category enabled state
+    if (!LoggingConfig::instance().isCategoryEnabled(category)) {
+        return;
+    }
+
+    std::cout << formattedMsg.toStdString() << std::endl;
+    std::cout.flush();
 }
 
 void initLogging()
