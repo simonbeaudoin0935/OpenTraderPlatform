@@ -360,7 +360,10 @@ QString GuiFrontend::bytesToString(qint64 bytes) {
 
 void GuiFrontend::onNewDisplayedStockSelection()
 {
-    QString symbol = ui->stockSymbolInput->text();
+    QString symbol = ui->stockSymbolInput->text().toUpper();
+
+    // Update the input field to show the uppercase symbol
+    ui->stockSymbolInput->setText(symbol);
 
     if (symbol == currentlyDisplayedSymbol) {
         qWarning() << "Symbol " << symbol << " is already the currently displayed symbol";
