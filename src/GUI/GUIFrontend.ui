@@ -51,7 +51,7 @@
        </property>
        <widget class="QWidget" name="tab">
         <attribute name="title">
-         <string>Tab 1</string>
+         <string>Trade</string>
         </attribute>
         <layout class="QHBoxLayout" name="horizontalLayout">
          <item>
@@ -169,7 +169,7 @@
        </widget>
        <widget class="QWidget" name="tab_2">
         <attribute name="title">
-         <string>Tab 2</string>
+         <string>Settings</string>
         </attribute>
         <widget class="QTableView" name="tableView">
          <property name="geometry">
