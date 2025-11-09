@@ -1,7 +1,11 @@
 #include <QJsonDocument>
 #include <QDebug>
+#include <QEventLoop>
+#include <QTimer>
+#include <QObject>
 
 #include "AuthToken.h"
+#include "SecureStorage.h"
 
 // Initialize static constants
 const QString AuthToken::EXPECTED_TOKEN_TYPE = "Bearer";
@@ -149,64 +153,185 @@ bool AuthToken::validateExpiresIn(int expiresIn)
 
 AuthToken AuthToken::loadFromSettings()
 {
+    AuthToken token;
+    SecureStorage* storage = new SecureStorage();
+
+    // Load metadata from regular QSettings
     QSettings settings(QSettings::IniFormat, QSettings::UserScope,
                       "L2Trader", "TradeStationTokens");
     settings.setFallbacksEnabled(false);
 
-    AuthToken token;
-    // Load all required fields
-    token.accessToken  = settings.value("Tokens/access_token").toString();
-    token.refreshToken = settings.value("Tokens/refresh_token").toString();
-    token.idToken      = settings.value("Tokens/id_token").toString();
-    token.tokenType    = settings.value("Tokens/token_type").toString();
-    token.scope        = settings.value("Tokens/scope").toString();
-    token.expiresIn    = settings.value("Tokens/expires_in").toInt();
-    token.receivedAt   = QDateTime::fromString(settings.value("received_at").toString(), Qt::ISODate);
+    token.tokenType = settings.value("Tokens/token_type").toString();
+    token.scope = settings.value("Tokens/scope").toString();
+    token.expiresIn = settings.value("Tokens/expires_in").toInt();
+    token.receivedAt = QDateTime::fromString(settings.value("Tokens/received_at").toString(), Qt::ISODate);
+
+    // Use event loop to make the async SecureStorage operations synchronous
+    QEventLoop loop;
+    QString accessToken, refreshToken, idToken;
+    int completedOperations = 0;
+
+    auto checkCompletion = [&]() {
+        completedOperations++;
+        if (completedOperations >= 3) {
+            loop.quit();
+        }
+    };
+
+    // Load sensitive tokens from SecureStorage
+    storage->retrieveValue("TradeStation", "access_token", [&](const QString& value) {
+        accessToken = value;
+        checkCompletion();
+    });
+
+    storage->retrieveValue("TradeStation", "refresh_token", [&](const QString& value) {
+        refreshToken = value;
+        checkCompletion();
+    });
+
+    storage->retrieveValue("TradeStation", "id_token", [&](const QString& value) {
+        idToken = value;
+        checkCompletion();
+    });
+
+    // Wait for all operations to complete (with timeout)
+    QTimer timer;
+    timer.setSingleShot(true);
+    timer.start(5000); // 5 second timeout
+
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    loop.exec();
+
+    token.accessToken = accessToken;
+    token.refreshToken = refreshToken;
+    token.idToken = idToken;
+
+    storage->deleteLater();
 
     return token;
 }
 
 bool AuthToken::storeToSettings(const AuthToken &token)
 {
+    SecureStorage* storage = new SecureStorage();
+
+    // Store metadata in regular QSettings
     QSettings settings(QSettings::IniFormat, QSettings::UserScope,
                       "L2Trader", "TradeStationTokens");
     settings.setFallbacksEnabled(false);
 
-    // Store all fields
-    settings.setValue("Tokens/access_token", token.accessToken);
-    settings.setValue("Tokens/refresh_token", token.refreshToken);
-    settings.setValue("Tokens/id_token", token.idToken);
     settings.setValue("Tokens/token_type", token.tokenType);
     settings.setValue("Tokens/scope", token.scope);
     settings.setValue("Tokens/expires_in", token.expiresIn);
     settings.setValue("Tokens/received_at", token.receivedAt.toString(Qt::ISODate));
 
-    // Force an immediate write to disk
+    // Use event loop to make the async SecureStorage operations synchronous
+    QEventLoop loop;
+    bool success = true;
+    int completedOperations = 0;
+
+    auto checkCompletion = [&]() {
+        completedOperations++;
+        if (completedOperations >= 3) {
+            loop.quit();
+        }
+    };
+
+    // Store sensitive tokens in SecureStorage
+    storage->storeValue("TradeStation", "access_token", token.accessToken, [&](bool result) {
+        if (!result) success = false;
+        checkCompletion();
+    });
+
+    storage->storeValue("TradeStation", "refresh_token", token.refreshToken, [&](bool result) {
+        if (!result) success = false;
+        checkCompletion();
+    });
+
+    storage->storeValue("TradeStation", "id_token", token.idToken, [&](bool result) {
+        if (!result) success = false;
+        checkCompletion();
+    });
+
+    // Wait for all operations to complete (with timeout)
+    QTimer timer;
+    timer.setSingleShot(true);
+    timer.start(5000); // 5 second timeout
+
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    loop.exec();
+
+    // Force an immediate write to disk for QSettings
     settings.sync();
-    
+
     if (settings.status() != QSettings::NoError) {
-        qWarning() << "Failed to store token: settings error" << settings.status();
-        return false;
+        qWarning() << "Failed to store token metadata: settings error" << settings.status();
+        success = false;
     }
 
-    return true;
+    if (success) {
+        qDebug() << "Auth token stored successfully (secure tokens in SecureStorage, metadata in QSettings)";
+    } else {
+        qWarning() << "Failed to store auth token";
+    }
+
+    storage->deleteLater();
+    return success;
 }
 
 void AuthToken::clearSettings()
 {
+    SecureStorage* storage = new SecureStorage();
+
+    // Clear metadata from regular QSettings
     QSettings settings(QSettings::IniFormat, QSettings::UserScope,
-                      "TradeStationAuth", "Tokens");
+                      "L2Trader", "TradeStationTokens");
     settings.setFallbacksEnabled(false);
 
-    // Remove all token-related settings
-    settings.remove("access_token");
-    settings.remove("refresh_token");
-    settings.remove("id_token");
-    settings.remove("token_type");
-    settings.remove("scope");
-    settings.remove("expires_in");
-    settings.remove("received_at");
+    settings.remove("Tokens/token_type");
+    settings.remove("Tokens/scope");
+    settings.remove("Tokens/expires_in");
+    settings.remove("Tokens/received_at");
 
-    // Force an immediate write to disk
+    // Use event loop to make the async SecureStorage operations synchronous
+    QEventLoop loop;
+    int completedOperations = 0;
+
+    auto checkCompletion = [&]() {
+        completedOperations++;
+        if (completedOperations >= 3) {
+            loop.quit();
+        }
+    };
+
+    // Clear sensitive tokens from SecureStorage
+    storage->deleteValue("TradeStation", "access_token", [&](bool /*result*/) {
+        checkCompletion();
+    });
+
+    storage->deleteValue("TradeStation", "refresh_token", [&](bool /*result*/) {
+        checkCompletion();
+    });
+
+    storage->deleteValue("TradeStation", "id_token", [&](bool /*result*/) {
+        checkCompletion();
+    });
+
+    // Wait for all operations to complete (with timeout)
+    QTimer timer;
+    timer.setSingleShot(true);
+    timer.start(5000); // 5 second timeout
+
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    loop.exec();
+
+    // Force an immediate write to disk for QSettings
     settings.sync();
+
+    qDebug() << "Auth token settings cleared (secure tokens from SecureStorage, metadata from QSettings)";
+
+    storage->deleteLater();
 } 
