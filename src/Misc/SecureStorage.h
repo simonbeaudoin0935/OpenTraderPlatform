@@ -3,6 +3,8 @@
 #include <QObject>
 #include <QString>
 #include <QVariant>
+#include <QMap>
+#include <QStringList>
 #include <functional>
 
 #ifdef QT_KEYCHAIN_LIB
@@ -24,7 +26,7 @@ public:
     ~SecureStorage();
 
     /**
-     * @brief Store a value securely
+     * @brief Store a value securely (async)
      * @param service The service name (e.g., "FMP_API")
      * @param key The key name (e.g., "access_token")
      * @param value The value to store
@@ -34,7 +36,7 @@ public:
                    std::function<void(bool)> callback = nullptr);
 
     /**
-     * @brief Retrieve a value securely
+     * @brief Retrieve a value securely (async)
      * @param service The service name
      * @param key The key name
      * @param callback Callback function called with the retrieved value (empty if not found)
@@ -43,13 +45,40 @@ public:
                       std::function<void(const QString&)> callback);
 
     /**
-     * @brief Delete a stored value
+     * @brief Delete a stored value (async)
      * @param service The service name
      * @param key The key name
      * @param callback Callback function called with success status
      */
     void deleteValue(const QString& service, const QString& key,
                     std::function<void(bool)> callback = nullptr);
+
+    /**
+     * @brief Store multiple values securely (synchronous)
+     * @param service The service name
+     * @param keyValues Map of key-value pairs to store
+     * @param timeoutMs Timeout in milliseconds (default 5000)
+     * @return true if all operations succeeded
+     */
+    bool storeValuesSync(const QString& service, const QMap<QString, QString>& keyValues, int timeoutMs = 5000);
+
+    /**
+     * @brief Retrieve multiple values securely (synchronous)
+     * @param service The service name
+     * @param keys List of keys to retrieve
+     * @param timeoutMs Timeout in milliseconds (default 5000)
+     * @return Map of key-value pairs (values are empty if not found)
+     */
+    QMap<QString, QString> retrieveValuesSync(const QString& service, const QStringList& keys, int timeoutMs = 5000);
+
+    /**
+     * @brief Delete multiple values securely (synchronous)
+     * @param service The service name
+     * @param keys List of keys to delete
+     * @param timeoutMs Timeout in milliseconds (default 5000)
+     * @return true if all operations succeeded
+     */
+    bool deleteValuesSync(const QString& service, const QStringList& keys, int timeoutMs = 5000);
 
     /**
      * @brief Check if secure storage is available

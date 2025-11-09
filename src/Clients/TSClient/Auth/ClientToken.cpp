@@ -35,39 +35,11 @@ ClientToken ClientToken::loadFromSettings()
     ClientToken token;
     SecureStorage* storage = new SecureStorage();
 
-    // Use event loop to make the async operation synchronous
-    QEventLoop loop;
-    QString clientId, clientSecret;
+    // Load client credentials from SecureStorage synchronously
+    QMap<QString, QString> credentials = storage->retrieveValuesSync("TradeStation", {"client_id", "client_secret"});
 
-    // Load client ID
-    storage->retrieveValue("TradeStation", "client_id", [&](const QString& value) {
-        clientId = value;
-        if (!clientSecret.isEmpty() || value.isEmpty()) {
-            loop.quit();
-        }
-    });
-
-    // Load client secret
-    storage->retrieveValue("TradeStation", "client_secret", [&](const QString& value) {
-        clientSecret = value;
-        if (!clientId.isEmpty() || value.isEmpty()) {
-            loop.quit();
-        }
-    });
-
-    // Wait for both values to be loaded (with timeout)
-    QTimer timer;
-    timer.setSingleShot(true);
-    timer.start(5000); // 5 second timeout
-
-    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    qCDebug(tsClientToken) << Q_FUNC_INFO << ": Waiting for credentials retrieval...";
-
-    loop.exec();
-
-    token.clientId = clientId;
-    token.clientSecret = clientSecret;
+    token.clientId = credentials.value("client_id");
+    token.clientSecret = credentials.value("client_secret");
 
     storage->deleteLater();
 
@@ -84,38 +56,12 @@ bool ClientToken::storeToSettings(const ClientToken &token)
 {
     SecureStorage* storage = new SecureStorage();
 
-    // Use event loop to make the async operations synchronous
-    QEventLoop loop;
-    bool success = true;
-    int completedOperations = 0;
+    // Store client credentials in SecureStorage synchronously
+    QMap<QString, QString> credentials;
+    credentials["client_id"] = token.clientId;
+    credentials["client_secret"] = token.clientSecret;
 
-    auto checkCompletion = [&]() {
-        completedOperations++;
-        if (completedOperations >= 2) {
-            loop.quit();
-        }
-    };
-
-    // Store client ID
-    storage->storeValue("TradeStation", "client_id", token.clientId, [&](bool result) {
-        if (!result) success = false;
-        checkCompletion();
-    });
-
-    // Store client secret
-    storage->storeValue("TradeStation", "client_secret", token.clientSecret, [&](bool result) {
-        if (!result) success = false;
-        checkCompletion();
-    });
-
-    // Wait for both operations to complete (with timeout)
-    QTimer timer;
-    timer.setSingleShot(true);
-    timer.start(5000); // 5 second timeout
-
-    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    loop.exec();
+    bool success = storage->storeValuesSync("TradeStation", credentials);
 
     if (success) {
         qCDebug(tsClientToken) << "Credentials stored successfully in secure storage";
@@ -131,35 +77,8 @@ void ClientToken::clearSettings()
 {
     SecureStorage* storage = new SecureStorage();
 
-    // Use event loop to make the async operations synchronous
-    QEventLoop loop;
-    int completedOperations = 0;
-
-    auto checkCompletion = [&]() {
-        completedOperations++;
-        if (completedOperations >= 2) {
-            loop.quit();
-        }
-    };
-
-    // Delete client ID
-    storage->deleteValue("TradeStation", "client_id", [&](bool /*result*/) {
-        checkCompletion();
-    });
-
-    // Delete client secret
-    storage->deleteValue("TradeStation", "client_secret", [&](bool /*result*/) {
-        checkCompletion();
-    });
-
-    // Wait for both operations to complete (with timeout)
-    QTimer timer;
-    timer.setSingleShot(true);
-    timer.start(5000); // 5 second timeout
-
-    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    loop.exec();
+    // Clear client credentials from SecureStorage synchronously
+    storage->deleteValuesSync("TradeStation", {"client_id", "client_secret"});
 
     qCDebug(tsClientToken) << "Credential settings cleared from secure storage";
 

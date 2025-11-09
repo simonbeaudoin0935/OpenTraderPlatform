@@ -168,48 +168,12 @@ AuthToken AuthToken::loadFromSettings()
     token.expiresIn = settings.value("Tokens/expires_in").toInt();
     token.receivedAt = QDateTime::fromString(settings.value("Tokens/received_at").toString(), Qt::ISODate);
 
-    // Use event loop to make the async SecureStorage operations synchronous
-    QEventLoop loop;
-    QString accessToken, refreshToken, idToken;
-    int completedOperations = 0;
+    // Load sensitive tokens from SecureStorage synchronously
+    QMap<QString, QString> secureTokens = storage->retrieveValuesSync("TradeStation", {"access_token", "refresh_token", "id_token"});
 
-    auto checkCompletion = [&]() {
-        completedOperations++;
-        if (completedOperations >= 3) {
-            loop.quit();
-        }
-    };
-
-    // Load sensitive tokens from SecureStorage
-    storage->retrieveValue("TradeStation", "access_token", [&](const QString& value) {
-        accessToken = value;
-        checkCompletion();
-    });
-
-    storage->retrieveValue("TradeStation", "refresh_token", [&](const QString& value) {
-        refreshToken = value;
-        checkCompletion();
-    });
-
-    storage->retrieveValue("TradeStation", "id_token", [&](const QString& value) {
-        idToken = value;
-        checkCompletion();
-    });
-
-    // Wait for all operations to complete (with timeout)
-    QTimer timer;
-    timer.setSingleShot(true);
-    timer.start(5000); // 5 second timeout
-
-    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    qCDebug(TSAuthTokenLog) << Q_FUNC_INFO << ": Waiting for credentials retrieval...";
-
-    loop.exec();
-
-    token.accessToken = accessToken;
-    token.refreshToken = refreshToken;
-    token.idToken = idToken;
+    token.accessToken = secureTokens.value("access_token");
+    token.refreshToken = secureTokens.value("refresh_token");
+    token.idToken = secureTokens.value("id_token");
 
     storage->deleteLater();
 
@@ -218,7 +182,7 @@ AuthToken AuthToken::loadFromSettings()
     } else {
         qCWarning(TSAuthTokenLog) << Q_FUNC_INFO << ": Failed to load valid auth token from settings";
     }
-    
+
     return token;
 }
 
@@ -236,42 +200,13 @@ bool AuthToken::storeToSettings(const AuthToken &token)
     settings.setValue("Tokens/expires_in", token.expiresIn);
     settings.setValue("Tokens/received_at", token.receivedAt.toString(Qt::ISODate));
 
-    // Use event loop to make the async SecureStorage operations synchronous
-    QEventLoop loop;
-    bool success = true;
-    int completedOperations = 0;
+    // Store sensitive tokens in SecureStorage synchronously
+    QMap<QString, QString> secureTokens;
+    secureTokens["access_token"] = token.accessToken;
+    secureTokens["refresh_token"] = token.refreshToken;
+    secureTokens["id_token"] = token.idToken;
 
-    auto checkCompletion = [&]() {
-        completedOperations++;
-        if (completedOperations >= 3) {
-            loop.quit();
-        }
-    };
-
-    // Store sensitive tokens in SecureStorage
-    storage->storeValue("TradeStation", "access_token", token.accessToken, [&](bool result) {
-        if (!result) success = false;
-        checkCompletion();
-    });
-
-    storage->storeValue("TradeStation", "refresh_token", token.refreshToken, [&](bool result) {
-        if (!result) success = false;
-        checkCompletion();
-    });
-
-    storage->storeValue("TradeStation", "id_token", token.idToken, [&](bool result) {
-        if (!result) success = false;
-        checkCompletion();
-    });
-
-    // Wait for all operations to complete (with timeout)
-    QTimer timer;
-    timer.setSingleShot(true);
-    timer.start(5000); // 5 second timeout
-
-    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    loop.exec();
+    bool success = storage->storeValuesSync("TradeStation", secureTokens);
 
     // Force an immediate write to disk for QSettings
     settings.sync();
@@ -305,38 +240,8 @@ void AuthToken::clearSettings()
     settings.remove("Tokens/expires_in");
     settings.remove("Tokens/received_at");
 
-    // Use event loop to make the async SecureStorage operations synchronous
-    QEventLoop loop;
-    int completedOperations = 0;
-
-    auto checkCompletion = [&]() {
-        completedOperations++;
-        if (completedOperations >= 3) {
-            loop.quit();
-        }
-    };
-
-    // Clear sensitive tokens from SecureStorage
-    storage->deleteValue("TradeStation", "access_token", [&](bool /*result*/) {
-        checkCompletion();
-    });
-
-    storage->deleteValue("TradeStation", "refresh_token", [&](bool /*result*/) {
-        checkCompletion();
-    });
-
-    storage->deleteValue("TradeStation", "id_token", [&](bool /*result*/) {
-        checkCompletion();
-    });
-
-    // Wait for all operations to complete (with timeout)
-    QTimer timer;
-    timer.setSingleShot(true);
-    timer.start(5000); // 5 second timeout
-
-    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    loop.exec();
+    // Clear sensitive tokens from SecureStorage synchronously
+    storage->deleteValuesSync("TradeStation", {"access_token", "refresh_token", "id_token"});
 
     // Force an immediate write to disk for QSettings
     settings.sync();

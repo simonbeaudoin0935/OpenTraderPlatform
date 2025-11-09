@@ -7,6 +7,7 @@
 #include <QLoggingCategory>
 #include <QCryptographicHash>
 #include <QRandomGenerator>
+#include <QTimer>
 
 Q_LOGGING_CATEGORY(secureStorage, "SecureStorage")
 
@@ -95,6 +96,120 @@ bool SecureStorage::isSecureStorageAvailable()
     qCWarning(secureStorage) << "QKeychain not available, using encrypted QSettings fallback";
     return false;
 #endif
+}
+
+bool SecureStorage::storeValuesSync(const QString& service, const QMap<QString, QString>& keyValues, int timeoutMs)
+{
+    if (keyValues.isEmpty()) {
+        return true;
+    }
+
+    QEventLoop loop;
+    bool success = true;
+    int completedOperations = 0;
+    const int totalOperations = keyValues.size();
+
+    auto checkCompletion = [&]() {
+        completedOperations++;
+        if (completedOperations >= totalOperations) {
+            loop.quit();
+        }
+    };
+
+    // Start all store operations
+    for (auto it = keyValues.constBegin(); it != keyValues.constEnd(); ++it) {
+        storeValue(service, it.key(), it.value(), [&](bool result) {
+            if (!result) success = false;
+            checkCompletion();
+        });
+    }
+
+    // Wait for all operations to complete (with timeout)
+    QTimer timer;
+    timer.setSingleShot(true);
+    timer.start(timeoutMs);
+
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    loop.exec();
+
+    return success && (completedOperations >= totalOperations);
+}
+
+QMap<QString, QString> SecureStorage::retrieveValuesSync(const QString& service, const QStringList& keys, int timeoutMs)
+{
+    QMap<QString, QString> results;
+    if (keys.isEmpty()) {
+        return results;
+    }
+
+    QEventLoop loop;
+    int completedOperations = 0;
+    const int totalOperations = keys.size();
+
+    auto checkCompletion = [&]() {
+        completedOperations++;
+        if (completedOperations >= totalOperations) {
+            loop.quit();
+        }
+    };
+
+    // Start all retrieve operations
+    for (const QString& key : keys) {
+        retrieveValue(service, key, [&](const QString& value) {
+            results[key] = value;
+            checkCompletion();
+        });
+    }
+
+    // Wait for all operations to complete (with timeout)
+    QTimer timer;
+    timer.setSingleShot(true);
+    timer.start(timeoutMs);
+
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    loop.exec();
+
+    return results;
+}
+
+bool SecureStorage::deleteValuesSync(const QString& service, const QStringList& keys, int timeoutMs)
+{
+    if (keys.isEmpty()) {
+        return true;
+    }
+
+    QEventLoop loop;
+    bool success = true;
+    int completedOperations = 0;
+    const int totalOperations = keys.size();
+
+    auto checkCompletion = [&]() {
+        completedOperations++;
+        if (completedOperations >= totalOperations) {
+            loop.quit();
+        }
+    };
+
+    // Start all delete operations
+    for (const QString& key : keys) {
+        deleteValue(service, key, [&](bool result) {
+            if (!result) success = false;
+            checkCompletion();
+        });
+    }
+
+    // Wait for all operations to complete (with timeout)
+    QTimer timer;
+    timer.setSingleShot(true);
+    timer.start(timeoutMs);
+
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    loop.exec();
+
+    return success && (completedOperations >= totalOperations);
 }
 
 #ifdef QT_KEYCHAIN_LIB
