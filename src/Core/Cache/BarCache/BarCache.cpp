@@ -2,6 +2,7 @@
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QStandardPaths>
+#include <QFileInfo>
 
 #include "BarCache.h"
 #include "TSClient.h"
@@ -15,17 +16,24 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
 {
     this->setObjectName("BarCache::" + symbol);
 
-    // Set up database
-    QString dbPath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/bars_cache.db";
+    // Set up database - one database file per symbol
+    QString dbPath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/bars_cache_" + symbol + ".db";
+    bool dbFileExisted = QFileInfo::exists(dbPath);
+    
     db = QSqlDatabase::addDatabase("QSQLITE", "BarCache_" + symbol);
     db.setDatabaseName(dbPath);
     if (!db.open()) {
         qFatal("Failed to open database for %s: %s", qPrintable(symbol), qPrintable(db.lastError().text()));
     } else {
+        if (dbFileExisted) {
+            qCInfo(BarCacheLog) << "Opened existing database for symbol" << symbol << "at" << dbPath;
+        } else {
+            qCInfo(BarCacheLog) << "Created new database for symbol" << symbol << "at" << dbPath;
+        }
+        
         // Create table if not exists
         QSqlQuery query(db);
         query.exec("CREATE TABLE IF NOT EXISTS bars ("
-                   "symbol TEXT, "
                    "timestamp INTEGER PRIMARY KEY, "
                    "open REAL, "
                    "high REAL, "
@@ -425,8 +433,7 @@ QVector<Bar> BarCache::getBarsFromDatabase(QDateTime start, QDateTime end) const
     if (!db.isOpen()) return bars;
 
     QSqlQuery query(db);
-    query.prepare("SELECT timestamp, open, high, low, close, volume FROM bars WHERE symbol = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp");
-    query.addBindValue(symbol);
+    query.prepare("SELECT timestamp, open, high, low, close, volume FROM bars WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp");
     query.addBindValue(start.toSecsSinceEpoch());
     query.addBindValue(end.toSecsSinceEpoch());
 
@@ -450,10 +457,9 @@ void BarCache::storeBarsInDatabase(const QVector<Bar>& bars) {
     if (!db.isOpen() || bars.isEmpty()) return;
 
     QSqlQuery query(db);
-    query.prepare("INSERT OR REPLACE INTO bars (symbol, timestamp, open, high, low, close, volume) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    query.prepare("INSERT OR REPLACE INTO bars (timestamp, open, high, low, close, volume) VALUES (?, ?, ?, ?, ?, ?)");
 
     for (const Bar& bar : bars) {
-        query.addBindValue(symbol);
         query.addBindValue(bar.getTimeStamp().toSecsSinceEpoch());
         query.addBindValue(bar.getOpen());
         query.addBindValue(bar.getHigh());
