@@ -11,6 +11,7 @@
 #include "GuiFrontend.h"
 #include "ui_GUIFrontend.h"
 #include "LoggingTab.h"
+#include "CacheTab.h"
 
 GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
     AppFrontend(parent),
@@ -99,6 +100,10 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
     // Set up the logging tab
     LoggingTab* loggingTab = new LoggingTab();
     ui->tabWidget->addTab(loggingTab, "Logging");
+
+    // Set up the cache tab
+    CacheTab* cacheTab = new CacheTab();
+    ui->tabWidget->addTab(cacheTab, "Cache");
 }
 
 GuiFrontend::~GuiFrontend() {
