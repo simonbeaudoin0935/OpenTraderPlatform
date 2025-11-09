@@ -1,0 +1,29 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/simon/Qt/6.8.3/gcc_64/include",
+                "/home/simon/Qt/6.8.3/gcc_64/include/QtCore",
+                "/home/simon/Qt/6.8.3/gcc_64/include/QtGui",
+                "/home/simon/Qt/6.8.3/gcc_64/include/QtWidgets",
+                "/home/simon/Qt/6.8.3/gcc_64/include/QtNetwork",
+                "/home/simon/Qt/6.8.3/gcc_64/include/QtWebEngineWidgets",
+                "/home/simon/Qt/6.8.3/gcc_64/include/QtTest"
+            ],
+            "defines": [
+                "QT_CORE_LIB",
+                "QT_GUI_LIB",
+                "QT_WIDGETS_LIB",
+                "QT_NETWORK_LIB",
+                "QT_WEBENGINEWIDGETS_LIB"
+            ],
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}

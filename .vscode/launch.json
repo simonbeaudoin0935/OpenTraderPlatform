@@ -1,0 +1,29 @@
+{
+    "version": "0.2.1",
+    "configurations": [
+        {
+            "name": "Debug L2Trader",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/src/L2Trader",
+            "args": [
+                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini",
+                "--logging=${workspaceFolder}/Example_Config/logging.ini"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build",
+            "miDebuggerPath": "/usr/bin/gdb"
+        }
+    ]
+}
