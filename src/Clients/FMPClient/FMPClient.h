@@ -9,6 +9,7 @@
 #include "RESTClient.h"
 #include "CompanyScreenerFilter.h"
 #include "StockNewsFilter.h"
+#include "SecureStorage.h"
 
 Q_DECLARE_LOGGING_CATEGORY(FMPClientLog)
 
@@ -86,6 +87,9 @@ private:
 
     // API key placement configuration
     static constexpr ApiKeyPlacement API_KEY_PLACEMENT = ApiKeyPlacement::InUrl;
+
+    // Secure storage for API key
+    void loadApiKey();
 
     friend class TestFMPClient;
 };

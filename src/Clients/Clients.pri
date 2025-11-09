@@ -18,3 +18,8 @@ for(dir, CLIENT_SUBDIRS) {
 INCLUDEPATH += $$PWD
 DEPENDPATH += $$PWD
 QMAKE_CXXFLAGS += -I$$PWD
+
+# Add Misc directory to include path for SecureStorage
+INCLUDEPATH += $$PWD/../Misc
+DEPENDPATH += $$PWD/../Misc
+QMAKE_CXXFLAGS += -I$$PWD/../Misc

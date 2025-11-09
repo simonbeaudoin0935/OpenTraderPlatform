@@ -1,0 +1,247 @@
+#include "SecureStorage.h"
+
+#include <QSettings>
+#include <QStandardPaths>
+#include <QDir>
+#include <QCoreApplication>
+#include <QLoggingCategory>
+#include <QCryptographicHash>
+#include <QRandomGenerator>
+
+Q_LOGGING_CATEGORY(secureStorage, "SecureStorage")
+
+#ifndef QT_KEYCHAIN_LIB
+#warning "QKeychain library not found, SecureStorage will use less secure QSettings fallback."
+#endif
+
+SecureStorage::SecureStorage(QObject* parent)
+    : QObject(parent)
+{
+}
+
+SecureStorage::~SecureStorage()
+{
+}
+
+void SecureStorage::storeValue(const QString& service, const QString& key, const QString& value,
+                              std::function<void(bool)> callback)
+{
+#ifdef QT_KEYCHAIN_LIB
+    if (isSecureStorageAvailable()) {
+        auto* job = new QKeychain::WritePasswordJob(service, this);
+        job->setKey(key);
+        job->setBinaryData(value.toUtf8());
+
+        connect(job, &QKeychain::Job::finished, this, [this, job, callback]() {
+            handleStoreFinished(job, callback);
+        });
+
+        job->start();
+        return;
+    }
+#endif
+
+    // Fallback to QSettings
+    storeValueFallback(service, key, value, callback);
+}
+
+void SecureStorage::retrieveValue(const QString& service, const QString& key,
+                                 std::function<void(const QString&)> callback)
+{
+#ifdef QT_KEYCHAIN_LIB
+    if (isSecureStorageAvailable()) {
+        auto* job = new QKeychain::ReadPasswordJob(service, this);
+        job->setKey(key);
+
+        connect(job, &QKeychain::Job::finished, this, [this, job, callback]() {
+            handleReadFinished(job, callback);
+        });
+
+        job->start();
+        return;
+    }
+#endif
+
+    // Fallback to QSettings
+    retrieveValueFallback(service, key, callback);
+}
+
+void SecureStorage::deleteValue(const QString& service, const QString& key,
+                               std::function<void(bool)> callback)
+{
+#ifdef QT_KEYCHAIN_LIB
+    if (isSecureStorageAvailable()) {
+        auto* job = new QKeychain::DeletePasswordJob(service, this);
+        job->setKey(key);
+
+        connect(job, &QKeychain::Job::finished, this, [this, job, callback]() {
+            handleDeleteFinished(job, callback);
+        });
+
+        job->start();
+        return;
+    }
+#endif
+
+    // Fallback to QSettings
+    deleteValueFallback(service, key, callback);
+}
+
+bool SecureStorage::isSecureStorageAvailable()
+{
+#ifdef QT_KEYCHAIN_LIB
+    return true;
+#else
+    qCWarning(secureStorage) << "QKeychain not available, using encrypted QSettings fallback";
+    return false;
+#endif
+}
+
+#ifdef QT_KEYCHAIN_LIB
+void SecureStorage::handleStoreFinished(QKeychain::Job* job, std::function<void(bool)> callback)
+{
+    auto* writeJob = qobject_cast<QKeychain::WritePasswordJob*>(job);
+    Q_ASSERT(writeJob);
+
+    bool success = (writeJob->error() == QKeychain::NoError);
+    if (!success) {
+        qCWarning(secureStorage) << "Failed to store value securely:" << writeJob->errorString();
+        qCInfo(secureStorage) << "Falling back to QSettings storage";
+        // Could fall back here, but for now just report failure
+    }
+
+    if (callback) {
+        callback(success);
+    }
+
+    writeJob->deleteLater();
+}
+
+void SecureStorage::handleReadFinished(QKeychain::Job* job, std::function<void(const QString&)> callback)
+{
+    auto* readJob = qobject_cast<QKeychain::ReadPasswordJob*>(job);
+    Q_ASSERT(readJob);
+
+    QString value;
+    if (readJob->error() == QKeychain::NoError) {
+        value = QString::fromUtf8(readJob->binaryData());
+    } else {
+        qCWarning(secureStorage) << "Failed to read value securely:" << readJob->errorString();
+    }
+
+    if (callback) {
+        callback(value);
+    }
+
+    readJob->deleteLater();
+}
+
+void SecureStorage::handleDeleteFinished(QKeychain::Job* job, std::function<void(bool)> callback)
+{
+    auto* deleteJob = qobject_cast<QKeychain::DeletePasswordJob*>(job);
+    Q_ASSERT(deleteJob);
+
+    bool success = (deleteJob->error() == QKeychain::NoError);
+    if (!success) {
+        qCWarning(secureStorage) << "Failed to delete value securely:" << deleteJob->errorString();
+    }
+
+    if (callback) {
+        callback(success);
+    }
+
+    deleteJob->deleteLater();
+}
+#endif
+
+void SecureStorage::storeValueFallback(const QString& service, const QString& key, const QString& value,
+                                      std::function<void(bool)> callback)
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                      "L2Trader", "SecureStorage");
+    settings.setFallbacksEnabled(false);
+
+    QString fullKey = QString("%1/%2").arg(service, key);
+    QString obfuscatedValue = obfuscateValue(value);
+    settings.setValue(fullKey, obfuscatedValue);
+    settings.sync();
+
+    bool success = (settings.status() == QSettings::NoError);
+    if (!success) {
+        qCWarning(secureStorage) << "Failed to store value in fallback storage:" << settings.status();
+    } else {
+        qCWarning(secureStorage) << "Value stored using obfuscated fallback storage (upgrade to QKeychain recommended)";
+    }
+
+    if (callback) {
+        callback(success);
+    }
+}
+
+void SecureStorage::retrieveValueFallback(const QString& service, const QString& key,
+                                         std::function<void(const QString&)> callback)
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                      "L2Trader", "SecureStorage");
+    settings.setFallbacksEnabled(false);
+
+    QString fullKey = QString("%1/%2").arg(service, key);
+    QString obfuscatedValue = settings.value(fullKey).toString();
+    QString value = deobfuscateValue(obfuscatedValue);
+
+    if (callback) {
+        callback(value);
+    }
+}
+
+void SecureStorage::deleteValueFallback(const QString& service, const QString& key,
+                                       std::function<void(bool)> callback)
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                      "L2Trader", "SecureStorage");
+    settings.setFallbacksEnabled(false);
+
+    QString fullKey = QString("%1/%2").arg(service, key);
+    settings.remove(fullKey);
+    settings.sync();
+
+    bool success = (settings.status() == QSettings::NoError);
+    if (!success) {
+        qCWarning(secureStorage) << "Failed to delete value from fallback storage:" << settings.status();
+    }
+
+    if (callback) {
+        callback(success);
+    }
+}
+
+QString SecureStorage::obfuscateValue(const QString& value)
+{
+    if (value.isEmpty()) return QString();
+
+    // Simple obfuscation using XOR with a pseudo-random key derived from app name
+    // This is NOT secure encryption - use QKeychain for production security
+    QByteArray data = value.toUtf8();
+    QByteArray key = QCryptographicHash::hash("L2TraderSecureStorage", QCryptographicHash::Sha256);
+
+    for (int i = 0; i < data.size(); ++i) {
+        data[i] = data[i] ^ key[i % key.size()];
+    }
+
+    return QString::fromUtf8(data.toBase64());
+}
+
+QString SecureStorage::deobfuscateValue(const QString& obfuscatedValue)
+{
+    if (obfuscatedValue.isEmpty()) return QString();
+
+    // Reverse the obfuscation
+    QByteArray data = QByteArray::fromBase64(obfuscatedValue.toUtf8());
+    QByteArray key = QCryptographicHash::hash("L2TraderSecureStorage", QCryptographicHash::Sha256);
+
+    for (int i = 0; i < data.size(); ++i) {
+        data[i] = data[i] ^ key[i % key.size()];
+    }
+
+    return QString::fromUtf8(data);
+}

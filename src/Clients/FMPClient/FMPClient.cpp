@@ -8,8 +8,11 @@
 #include <QDebug>
 #include <QNetworkRequest>
 #include <QSettings>
+#include <QEventLoop>
+#include <QTimer>
 
 #include "FMPClient.h"
+#include "SecureStorage.h"
 
 #define BASE_URL_FMP_API "https://financialmodelingprep.com/stable/"
 
@@ -42,22 +45,46 @@ FMPClient* FMPClient::getInstancePtr() {
 FMPClient::FMPClient() :
     RESTClient(QUrl(BASE_URL_FMP_API))
 {
-    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
-                       "L2Trader", "FMPToken");
-    settings.setFallbacksEnabled(false);
-
-    QString fmpToken = settings.value("Tokens/AccessToken").toString();
-    if (fmpToken.isEmpty()) {
-        qFatal() << "No FMP access token found in config.ini. Exiting...";
-    }
-
-    setAPIKey(fmpToken);
-
-    qCDebug(FMPClientLog) << Q_FUNC_INFO << ": FMPClient created using KEY=" << apiKey;
+    // Load FMP API key from secure storage
+    loadApiKey();
 
     thread->setObjectName("FPMClientThread");
 
     thread->start();
+}
+
+void FMPClient::loadApiKey()
+{
+    SecureStorage* storage = new SecureStorage(this);
+
+    // Use event loop to make the async operation synchronous during initialization
+    QEventLoop loop;
+    QString apiKey;
+
+    storage->retrieveValue("FMP_API", "access_token", [&](const QString& value) {
+        apiKey = value;
+        loop.quit();
+    });
+
+    // Wait for the async operation to complete (with timeout)
+    QTimer timer;
+    timer.setSingleShot(true);
+    timer.start(5000); // 5 second timeout
+
+    connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    qCDebug(FMPClientLog) << Q_FUNC_INFO << ": Waiting for API key retrieval...";
+    
+    loop.exec();
+
+    if (apiKey.isEmpty()) {
+        qCCritical(FMPClientLog) << "No FMP access token found. Please configure your API key.";
+    }
+
+    setAPIKey(apiKey);
+    qCDebug(FMPClientLog) << Q_FUNC_INFO << ": FMPClient created using secure key storage";
+
+    storage->deleteLater();
 }
 
 FMPClient::~FMPClient() {
