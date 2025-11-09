@@ -9,6 +9,7 @@
 #include "TSClient.h"
 #include "GuiFrontend.h"
 #include "ui_GUIFrontend.h"
+#include "LoggingTab.h"
 
 GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
     AppFrontend(parent),
@@ -218,6 +219,10 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
         ui->stockSymbolInput->setText(symbol);
         ui->stockSymbolInput->returnPressed();  // Simulate Enter key press
     });
+
+    // Set up the logging tab
+    LoggingTab* loggingTab = new LoggingTab();
+    ui->tabWidget->addTab(loggingTab, "Logging");
 }
 
 GuiFrontend::~GuiFrontend() {
