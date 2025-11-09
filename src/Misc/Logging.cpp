@@ -6,6 +6,8 @@
 #include <QTextStream>
 #include <QSettings>
 #include <QDir>
+#include <QStandardPaths>
+#include <QProcessEnvironment>
 
 #include <iostream>
 
@@ -119,19 +121,36 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
 
 void initLogging()
 {
-    // Create logs directory if it doesn't exist
-    QDir logsDir("logs");
+    // Get XDG-compliant state directory for logs
+    // XDG_STATE_HOME defines where user-specific state files should be stored
+    // Defaults to ~/.local/state if not set
+    QString xdgStateHome = QProcessEnvironment::systemEnvironment().value("XDG_STATE_HOME");
+    if (xdgStateHome.isEmpty()) {
+        xdgStateHome = QDir::homePath() + "/.local/state";
+    }
+    
+    // Create application-specific state directory
+    QString appStateDir = xdgStateHome + "/L2Trader";
+    QDir stateDir(appStateDir);
+    if (!stateDir.exists()) {
+        stateDir.mkpath(".");
+    }
+    
+    // Create logs subdirectory within state directory
+    QString logsDirPath = appStateDir + "/logs";
+    QDir logsDir(logsDirPath);
     if (!logsDir.exists()) {
         logsDir.mkpath(".");
     }
 
-    // Generate timestamped log file name in logs directory
-    QString logFileName = QString("logs/L2Trader_%1.log").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss"));
+    // Generate timestamped log file name in XDG state directory
+    QString logFileName = QString("%1/L2Trader_%2.log").arg(logsDirPath, QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss"));
     logFile.setFileName(logFileName);
 
     // Open log file
     if (logFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         logStream = new QTextStream(&logFile);
+        qInfo() << "Logging initialized. Log file:" << logFileName;
     } else {
         qFatal("Could not open log file: %s", logFileName.toUtf8().constData());
     }
