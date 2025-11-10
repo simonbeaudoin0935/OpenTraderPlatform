@@ -46,3 +46,11 @@ jobs:
 
     - name: Run make for tests
       run: make -j$(nproc) -C build/Tests
+
+  run-barcache-test:
+    runs-on: [self-hosted, Linux, X64]
+    needs: build-tests
+
+    steps:
+    - name: Run BarCache unit test
+      run: ./build/Tests/Tests/BarCacheUnit/test_barcache
