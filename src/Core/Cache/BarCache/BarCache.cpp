@@ -174,6 +174,10 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
         }
     }
 
+    // At this point, we have loaded everything we could from memory + database
+    // Track whether we had any bars before API call
+    bool hadBarsBeforeApi = !cachedBars.isEmpty();
+
     // If we still don't have a complete set after database loading, fetch from API
     if (cachedBars.size() != (first.secsTo(last) / 60) + 1) {
         // Identify remaining missing ranges
@@ -239,9 +243,10 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
         
         // Rebuild complete result
         cachedBars = getBarsFromCache(first, last);
-        lastHitType = HitType::PartialHit;
+        lastHitType = hadBarsBeforeApi ? HitType::PartialHit : HitType::Miss;
         
-        qCDebug(BarCacheLog) << cacheName << " : Returning PARTIAL HIT";
+        qCDebug(BarCacheLog) << cacheName << " : Returning" 
+                            << (hadBarsBeforeApi ? "PARTIAL HIT" : "MISS");
         
         return cachedBars;
     }
