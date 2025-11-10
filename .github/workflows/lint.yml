@@ -14,9 +14,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install cppcheck
-      run: sudo apt-get update && sudo apt-get install -y cppcheck clang-tidy
-
     - name: Run cppcheck
       run: cppcheck --enable=all --std=c++17 --language=c++ --platform=unix64 --suppress=missingIncludeSystem --suppress=unusedFunction src/
 
