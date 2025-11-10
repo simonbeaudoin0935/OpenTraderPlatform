@@ -93,7 +93,7 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
     }
 
     QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
-    QString category = context.category ? QString(context.category) : "default";
+    QString category = context.category ? QString(context.category) : " ";
 
     QString formattedMsg = QString("%1[%2] %3 %4:%5 %6%7")
                                .arg(colorCode)

@@ -79,9 +79,6 @@ TSClient::TSClient() :
 
         RESTClient::setAPIKey(authToken.getAccessToken());
 
-        qCDebug(TSClientLog) << Q_FUNC_INFO <<
-            ": TSClient created using KEY=" << authToken.getAccessToken();
-
         int secsUntilExpiration = authToken.secondsUntilExpiration();
 
         // Logically if we got here, there HAS to be at least 5 seconds left.

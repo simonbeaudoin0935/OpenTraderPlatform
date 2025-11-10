@@ -82,6 +82,63 @@
                 "panel": "shared"
             },
             "dependsOn": ["build"]
+        },
+        {
+            "label": "qmake-barcache-test",
+            "type": "shell",
+            "command": "/home/simon/Qt/6.8.3/gcc_64/bin/qmake",
+            "args": [
+                "${workspaceFolder}/Tests/BarCacheUnit/BarCacheUnit.pro",
+                "-o",
+                "${workspaceFolder}/build/Tests/BarCacheUnit/Makefile",
+                "-spec",
+                "linux-g++",
+                "CONFIG+=debug",
+                "CONFIG+=qml_debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "make-barcache-test",
+            "type": "shell",
+            "command": "make -j$(nproc)",
+            "options": {
+                "cwd": "${workspaceFolder}/build/Tests/BarCacheUnit"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": ["qmake-barcache-test"]
+        },
+        {
+            "label": "build-barcache-test",
+            "dependsOn": ["make-barcache-test"],
+            "group": "build"
+        },
+        {
+            "label": "run-barcache-test",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/Tests/BarCacheUnit/test_barcache",
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-barcache-test"]
         }
     ]
 }

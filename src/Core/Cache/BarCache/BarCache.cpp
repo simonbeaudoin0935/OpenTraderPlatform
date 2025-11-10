@@ -3,6 +3,7 @@
 #include <QSqlError>
 #include <QStandardPaths>
 #include <QFileInfo>
+#include <QDir>
 
 #include "BarCache.h"
 #include "TSClient.h"
@@ -19,7 +20,28 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
     // Set up database - one database file per symbol
     QString dbPath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/bars_cache_" + symbol + ".db";
     bool dbFileExisted = QFileInfo::exists(dbPath);
-    
+    {
+        QString cacheLocation = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+        qCInfo(BarCacheLog) << "Cache location:" << cacheLocation;
+        qCInfo(BarCacheLog) << "Using database file:" << dbPath;
+        qCInfo(BarCacheLog) << "Database file existed:" << dbFileExisted;
+
+        QFileInfo dbInfo(dbPath);
+        qCInfo(BarCacheLog) << "Database directory:" << dbInfo.absolutePath()
+                           << "Dir exists:" << dbInfo.dir().exists()
+                           << "File readable:" << dbInfo.isReadable()
+                           << "File writable:" << dbInfo.isWritable();
+
+        // Create the directory if it doesn't exist
+        if (!dbInfo.dir().exists()) {
+            if (!dbInfo.dir().mkpath(".")) {
+                qFatal("Failed to create cache directory: %s", qPrintable(dbInfo.absolutePath()));
+            }
+            qCInfo(BarCacheLog) << "Created cache directory:" << dbInfo.absolutePath();
+        }
+
+        qCInfo(BarCacheLog) << "SQLite connection name to be used:" << ("BarCache_" + symbol);
+    }
     db = QSqlDatabase::addDatabase("QSQLITE", "BarCache_" + symbol);
     db.setDatabaseName(dbPath);
     if (!db.open()) {
