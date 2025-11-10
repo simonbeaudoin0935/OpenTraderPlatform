@@ -10,6 +10,130 @@
 #include <QProcessEnvironment>
 
 #include <iostream>
+#include <csignal>
+#include <execinfo.h>
+#include <cxxabi.h>
+#include <dlfcn.h>
+#include <unistd.h>
+#include <cstdio>
+#include <cstring>
+
+// Function to demangle a single symbol
+std::string demangleSymbol(const char* mangledName) {
+    int status;
+    char* demangled = abi::__cxa_demangle(mangledName, nullptr, nullptr, &status);
+    if (status == 0 && demangled) {
+        std::string result = demangled;
+        free(demangled);
+        return result;
+    }
+    return mangledName;
+}
+
+// Function to print stack trace with better symbol resolution
+void printStackTrace()
+{
+    const int maxFrames = 64;
+    void* frames[maxFrames];
+    int numFrames = backtrace(frames, maxFrames);
+    char** symbols = backtrace_symbols(frames, numFrames);
+
+    std::cerr << "\nStack trace (" << numFrames << " frames):" << std::endl;
+
+    if (symbols) {
+        // Get executable path for addr2line
+        char exePath[1024];
+        ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+        if (len != -1) {
+            exePath[len] = '\0';
+        } else {
+            exePath[0] = '\0';
+        }
+
+        for (int i = 0; i < numFrames; ++i) {
+            std::cerr << "  #" << i << " ";
+
+            // Parse the backtrace_symbols output
+            // Format: "binary_path(+offset) [address]" or "binary_path(mangled_func+offset) [address]"
+            char* symbol = symbols[i];
+            char* leftParen = strchr(symbol, '(');
+            char* plus = leftParen ? strchr(leftParen, '+') : nullptr;
+            char* rightParen = plus ? strchr(plus, ')') : nullptr;
+
+            if (leftParen && plus && rightParen) {
+                // Extract binary path, function name, and offset
+                *leftParen = '\0';
+                *plus = '\0';
+                *rightParen = '\0';
+
+                const char* binaryPath = symbol;
+                const char* mangledFunc = leftParen + 1;
+                const char* offset = plus + 1;
+
+                // Check if this is our executable and function name is missing
+                if (strcmp(binaryPath, "./test_stacktrace") == 0 || strstr(binaryPath, "L2Trader")) {
+                    if (strlen(mangledFunc) == 0 && exePath[0] != '\0') {
+                        // Use addr2line to resolve the address
+                        char addr2lineCmd[2048];
+                        snprintf(addr2lineCmd, sizeof(addr2lineCmd),
+                                "addr2line -f -C -e %s %p 2>/dev/null", exePath, frames[i]);
+
+                        FILE* fp = popen(addr2lineCmd, "r");
+                        if (fp) {
+                            char function[256] = {0};
+                            char file[256] = {0};
+
+                            if (fgets(function, sizeof(function), fp)) {
+                                function[strcspn(function, "\n")] = 0; // Remove newline
+                                if (fgets(file, sizeof(file), fp)) {
+                                    file[strcspn(file, "\n")] = 0; // Remove newline
+
+                                    std::string funcName = demangleSymbol(function);
+                                    std::cerr << funcName << " in " << file;
+                                    if (strlen(offset) > 0) {
+                                        std::cerr << " +" << offset;
+                                    }
+                                } else {
+                                    std::string funcName = demangleSymbol(function);
+                                    std::cerr << funcName;
+                                }
+                            } else {
+                                std::cerr << binaryPath << " +" << offset;
+                            }
+                            pclose(fp);
+                        } else {
+                            std::cerr << binaryPath << " +" << offset;
+                        }
+                    } else {
+                        // Function name is available, demangle it
+                        std::string funcName = demangleSymbol(mangledFunc);
+                        std::cerr << funcName << " in " << binaryPath;
+                        if (strlen(offset) > 0) {
+                            std::cerr << " +" << offset;
+                        }
+                    }
+                } else {
+                    // Not our executable, use normal parsing
+                    std::string funcName = demangleSymbol(mangledFunc);
+                    std::cerr << funcName << " in " << binaryPath;
+                    if (strlen(offset) > 0) {
+                        std::cerr << " +" << offset;
+                    }
+                }
+            } else {
+                // Fallback for unparseable symbols
+                std::cerr << symbols[i];
+            }
+
+            std::cerr << std::endl;
+        }
+        free(symbols);
+    }
+
+    std::cerr << "\nNote: If function names appear as '\?\?', the executable may need debug symbols." << std::endl;
+    std::cerr << "Ensure CONFIG += debug is set in your .pro file and rebuild." << std::endl;
+    std::cerr << std::endl;
+}
 
 // Global log file stream
 static QTextStream *logStream = nullptr;
@@ -117,6 +241,11 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
 
     std::cout << formattedMsg.toStdString() << std::endl;
     std::cout.flush();
+
+    // Print stack trace for fatal messages
+    if (type == QtFatalMsg) {
+        printStackTrace();
+    }
 }
 
 void initLogging()

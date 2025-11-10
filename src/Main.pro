@@ -6,6 +6,9 @@ CONFIG += console c++11
 CONFIG += gui
 CONFIG += c++17
 
+# Enable stack trace symbol resolution
+QMAKE_LFLAGS += -rdynamic
+
 # QKeychain temporarily disabled due to version mismatch
 # DEFINES += QT_KEYCHAIN_LIB
 # LIBS += -lqt6keychain
