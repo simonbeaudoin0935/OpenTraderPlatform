@@ -25,12 +25,14 @@ classDiagram
         +HitType getLastHitType() const
         +qsizetype getDuplicateStoreCount() const
         +qsizetype getLastNumberFetchedBars() const
+        +void clearDatabase()
 
         -void storeBarInCache(const Bar& bar)
         -void storeBarsInCache(const QVector<Bar>& bars)
         -QVector<Bar> getBarsFromCache(QDateTime start, QDateTime end) const
         -QVector<Bar> getBarsFromDatabase(QDateTime start, QDateTime end) const
         -void storeBarsInDatabase(const QVector<Bar>& bars)
+        -QVector<QPair<QDateTime, QDateTime>> identifyMissingRanges(QDateTime start, QDateTime end, const QVector<Bar>& cachedBars) const
         -void onReceivedNewBar(QString symbol, Bar newBar)
 
         #signals
@@ -40,9 +42,9 @@ classDiagram
     class HitType {
         <<enumeration>>
         None
-        Hit
-        Miss
-        PartialHit
+        Hit        // Complete hit: all bars found in memory or database (no API call needed)
+        Miss       // Complete miss: all bars fetched from API (none in memory or database)
+        PartialHit // Partial hit: some bars in memory or database, rest fetched from API
     }
 
     class Bar {
@@ -107,41 +109,38 @@ erDiagram
 sequenceDiagram
     participant Client
     participant BarCache
-    participant Database
     participant MemoryCache
+    participant Database
     participant TSClient
 
     Client->>BarCache: getBars(first, last)
-    BarCache->>Database: getBarsFromDatabase(first, last)
-    Database-->>BarCache: dbBars[]
-    BarCache->>MemoryCache: storeBarsInCache(dbBars)
-
+    
     BarCache->>MemoryCache: getBarsFromCache(first, last)
     MemoryCache-->>BarCache: cachedBars[]
-
-    alt Complete HIT
+    
+    alt Complete HIT from Memory
         BarCache->>BarCache: cachedBars.size() == expected
         BarCache-->>Client: cachedBars (HIT)
-    else Complete MISS
-        BarCache->>TSClient: getBarsSync(symbol, first, last)
-        TSClient-->>BarCache: fetchedBars[]
-        BarCache->>BarCache: process fetchedBars (fill holes)
-        BarCache->>MemoryCache: storeBarsInCache(resultBars)
-        BarCache-->>Client: resultBars (MISS)
-    else Partial HIT
-        BarCache->>BarCache: identify gaps
-        BarCache->>TSClient: fetch missing bars (before gap)
-        TSClient-->>BarCache: preBars[]
-        BarCache->>BarCache: process preBars
-        BarCache->>MemoryCache: storeBarsInCache(preBars)
-
-        BarCache->>TSClient: fetch missing bars (after gap)
-        TSClient-->>BarCache: postBars[]
-        BarCache->>BarCache: process postBars
-        BarCache->>MemoryCache: storeBarsInCache(postBars)
-
-        BarCache->>BarCache: combine all bars
-        BarCache-->>Client: allBars (PARTIAL HIT)
+    else Check Database for Gaps
+        BarCache->>BarCache: identifyMissingRanges()
+        BarCache->>Database: getBarsFromDatabase(missing ranges)
+        Database-->>BarCache: dbBars[]
+        BarCache->>MemoryCache: storeBarsInCache(dbBars)
+        
+        BarCache->>MemoryCache: getBarsFromCache(first, last)
+        MemoryCache-->>BarCache: updatedCachedBars[]
+        
+        alt Complete HIT after DB load
+            BarCache->>BarCache: updatedCachedBars.size() == expected
+            BarCache-->>Client: updatedCachedBars (HIT)
+        else Fetch from API
+            BarCache->>BarCache: identifyMissingRanges()
+            BarCache->>TSClient: getBarsSync(missing ranges)
+            TSClient-->>BarCache: fetchedBars[]
+            BarCache->>BarCache: process fetchedBars (fill holes)
+            BarCache->>MemoryCache: storeBarsInCache(resultBars)
+            BarCache-->>Client: resultBars (MISS or PARTIAL HIT)
+        end
     end
 ```
 
@@ -149,27 +148,31 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    START(["getBars(first, last)"]) --> LOAD_DB["Load from Database"]
-    LOAD_DB --> CHECK_CACHE["Check Memory Cache"]
-    CHECK_CACHE --> COMPLETE{"Complete Set?"}
+    START(["getBars(first, last)"]) --> CHECK_MEMORY["Check Memory Cache"]
+    CHECK_MEMORY --> COMPLETE_MEMORY{"Complete Set?"}
 
-    COMPLETE -->|"Yes"| HIT["Return HIT"]
-    COMPLETE -->|"No"| ANY_CACHED{"Any Cached Bars?"}
+    COMPLETE_MEMORY -->|"Yes"| HIT["Return HIT"]
+    COMPLETE_MEMORY -->|"No"| IDENTIFY_GAPS["Identify Missing Ranges"]
+    IDENTIFY_GAPS --> LOAD_DB["Load Missing Ranges from Database"]
+    LOAD_DB --> CHECK_MEMORY_AGAIN["Check Memory Cache Again"]
+    CHECK_MEMORY_AGAIN --> COMPLETE_AFTER_DB{"Complete Set?"}
 
-    ANY_CACHED -->|"No"| FETCH_ALL["Fetch All from API"]
-    ANY_CACHED -->|"Yes"| IDENTIFY_GAPS["Identify Gaps"]
+    COMPLETE_AFTER_DB -->|"Yes"| HIT_DB["Return HIT"]
+    COMPLETE_AFTER_DB -->|"No"| HAD_BARS_BEFORE_API{"Had Any Bars Before API?"}
 
-    FETCH_ALL --> PROCESS_API["Process API Response"]
+    HAD_BARS_BEFORE_API -->|"No"| FETCH_ALL["Fetch All Missing Ranges from API"]
+    HAD_BARS_BEFORE_API -->|"Yes"| FETCH_GAPS["Fetch Missing Ranges from API"]
+
+    FETCH_ALL --> PROCESS_API["Process API Response (fill holes)"]
+    FETCH_GAPS --> PROCESS_API
+
     PROCESS_API --> STORE_CACHE["Store in Cache + DB"]
-    STORE_CACHE --> MISS["Return MISS"]
-
-    IDENTIFY_GAPS --> FETCH_BEFORE["Fetch Missing Before"]
-    FETCH_BEFORE --> FETCH_AFTER["Fetch Missing After"]
-    FETCH_AFTER --> PROCESS_RESPONSES["Process All Responses"]
-    PROCESS_RESPONSES --> STORE_ALL["Store in Cache + DB"]
-    STORE_ALL --> PARTIAL["Return PARTIAL HIT"]
+    STORE_CACHE --> RESULT_TYPE{"Had Bars Before API?"}
+    RESULT_TYPE -->|"No"| MISS["Return MISS"]
+    RESULT_TYPE -->|"Yes"| PARTIAL["Return PARTIAL HIT"]
 
     HIT --> END(["End"])
+    HIT_DB --> END
     MISS --> END
     PARTIAL --> END
 ```
@@ -226,8 +229,10 @@ graph TB
     SB --> TSC
     TSC --> API
 
-    BC -.->|"Fetches bars"| TSC
-    BC -.->|"Stores bars"| DB
-    BC -.->|"Caches bars"| MC
-    SB -.->|"Streams bars"| BC
+    BC -.->|"1. Check Memory Cache"| MC
+    BC -.->|"2. Load gaps from DB"| DB
+    BC -.->|"3. Fetch missing from API"| TSC
+    BC -.->|"Store bars"| DB
+    BC -.->|"Cache bars"| MC
+    SB -.->|"Stream bars"| BC
 ```

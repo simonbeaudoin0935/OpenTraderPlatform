@@ -383,7 +383,16 @@ QVector<Bar> BarCache::getBarsFromDatabase(QDateTime start, QDateTime end) const
             double low = query.value(3).toDouble();
             double close = query.value(4).toDouble();
             qint64 volume = query.value(5).toLongLong();
-            bars.append(Bar(ts, open, high, low, close, volume));
+            
+            Bar bar;
+            // Check if this is a null/void bar (all OHLC values and volume are 0)
+            if (open == 0.0 && high == 0.0 && low == 0.0 && close == 0.0 && volume == 0) {
+                bar = Bar::nullBar(ts);
+            } else {
+                bar = Bar(ts, open, high, low, close, volume);
+            }
+            
+            bars.append(bar);
         }
         qCInfo(BarCacheLog) << "Loaded" << bars.size() << "bars from database for" << symbol;
     } else {
