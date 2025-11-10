@@ -26,7 +26,7 @@ jobs:
       run: mkdir -p build
 
     - name: Run qmake
-      run: qmake TradingAlgorithm.pro -o build/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
+      run: /home/simon/Qt/6.8.3/gcc_64/bin/qmake TradingAlgorithm.pro -o build/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
 
     - name: Run make
       run: make -j$(nproc) -C build
@@ -41,7 +41,7 @@ jobs:
       run: mkdir -p build/Tests
 
     - name: Run qmake for tests
-      run: qmake Tests.pro -o build/Tests/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
+      run: /home/simon/Qt/6.8.3/gcc_64/bin/qmake Tests.pro -o build/Tests/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
 
     - name: Run make for tests
       run: make -j$(nproc) -C build/Tests
