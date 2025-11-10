@@ -145,6 +145,7 @@ void TestBarCache::cleanup() {
 void TestBarCache::testGetBars()
 {
     BarCache cache("AAPL");
+    cache.clearDatabase();
 
     QDateTime initDate;
     QDateTime fromDate;
@@ -250,6 +251,7 @@ void TestBarCache::testGetBars()
 void TestBarCache::testGetBarsOnlyHoles()
 {
     BarCache cache("TIVC");
+    cache.clearDatabase();
 
     QTimeZone newYorkTimeZone("America/New_York");
 
@@ -361,7 +363,9 @@ void TestBarCache::testBarStreaming()
 
     QVector<BarCache*> caches;
     for (auto &company: companies){
-        caches.push_back(new BarCache(company, true));
+        BarCache* cache = new BarCache(company, true);
+        cache->clearDatabase();
+        caches.push_back(cache);
     }
 
     //    BarCache cache("AAPL", true);

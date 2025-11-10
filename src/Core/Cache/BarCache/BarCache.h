@@ -27,6 +27,8 @@ public:
     const QVector<Bar> getBars(const QDateTime &first, const QDateTime &last);
     const QVector<Bar> getAfterHourBars(const QDate &date);
 
+    void clearDatabase();
+
     enum class HitType{
         None,
         Hit,

@@ -136,6 +136,8 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     // Check database first and load into memory cache
     QVector<Bar> dbBars = getBarsFromDatabase(first, last);
     if (!dbBars.isEmpty()) {
+        qCInfo(BarCacheLog) << cacheName << "Loaded" << dbBars.size() 
+                           << "bars from database into memory cache for" << symbol;
         storeBarsInCache(dbBars);
     }
     
@@ -452,7 +454,10 @@ void BarCache::onReceivedNewBar(QString symbol, Bar newBar)
 
 QVector<Bar> BarCache::getBarsFromDatabase(QDateTime start, QDateTime end) const {
     QVector<Bar> bars;
-    if (!db.isOpen()) return bars;
+    Q_ASSERT_X(db.isOpen(), qPrintable(objectName()), "Database must be open for reading bars");
+
+    qCDebug(BarCacheLog) << "Reading bars from database for" << symbol
+                         << "from" << start.toString() << "to" << end.toString();
 
     QSqlQuery query(db);
     query.prepare("SELECT timestamp, open, high, low, close, volume FROM bars WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp");
@@ -469,18 +474,26 @@ QVector<Bar> BarCache::getBarsFromDatabase(QDateTime start, QDateTime end) const
             qint64 volume = query.value(5).toLongLong();
             bars.append(Bar(ts, open, high, low, close, volume));
         }
+        qCInfo(BarCacheLog) << "Loaded" << bars.size() << "bars from database for" << symbol;
     } else {
-        qWarning() << "Database query failed:" << query.lastError().text();
+        qCWarning(BarCacheLog) << "Database query failed for" << symbol << ":" << query.lastError().text();
     }
     return bars;
 }
 
 void BarCache::storeBarsInDatabase(const QVector<Bar>& bars) {
-    if (!db.isOpen() || bars.isEmpty()) return;
+    Q_ASSERT_X(db.isOpen(), qPrintable(objectName()), "Database must be open for storing bars");
+    if (bars.isEmpty()) {
+        qCDebug(BarCacheLog) << "No bars to store in database for" << symbol;
+        return;
+    }
+
+    qCInfo(BarCacheLog) << "Storing" << bars.size() << "bars in database for" << symbol;
 
     QSqlQuery query(db);
     query.prepare("INSERT OR REPLACE INTO bars (timestamp, open, high, low, close, volume) VALUES (?, ?, ?, ?, ?, ?)");
 
+    int storedCount = 0;
     for (const Bar& bar : bars) {
         query.addBindValue(bar.getTimeStamp().toSecsSinceEpoch());
         query.addBindValue(bar.getOpen());
@@ -488,8 +501,27 @@ void BarCache::storeBarsInDatabase(const QVector<Bar>& bars) {
         query.addBindValue(bar.getLow());
         query.addBindValue(bar.getClose());
         query.addBindValue(bar.getTotalVolume());
-        if (!query.exec()) {
-            qWarning() << "Failed to store bar in database:" << query.lastError().text();
+        if (query.exec()) {
+            storedCount++;
+        } else {
+            qCWarning(BarCacheLog) << "Failed to store bar in database for" << symbol
+                                   << "at" << bar.getTimeStamp().toString() << ":"
+                                   << query.lastError().text();
         }
+    }
+
+    qCInfo(BarCacheLog) << "Successfully stored" << storedCount << "bars in database for" << symbol;
+}
+
+void BarCache::clearDatabase() {
+    Q_ASSERT_X(db.isOpen(), qPrintable(objectName()), "Database must be open for clearing");
+    
+    qCInfo(BarCacheLog) << "Clearing all bars from database for" << symbol;
+    
+    QSqlQuery query(db);
+    if (query.exec("DELETE FROM bars")) {
+        qCInfo(BarCacheLog) << "Successfully cleared database for" << symbol;
+    } else {
+        qCWarning(BarCacheLog) << "Failed to clear database for" << symbol << ":" << query.lastError().text();
     }
 }
