@@ -19,14 +19,17 @@
 #include <cstring>
 #include <mutex>
 
-// Mutex for thread-safe logging
-static std::mutex loggingMutex;
+// Mutex to protect log file and stdout access
+static std::recursive_mutex loggingMutex;
 
 // Forward declaration
 void printStackTrace();
 
 // Signal handler for crashes
 void crashHandler(int sig) {
+    // Lock the logging mutex to prevent interleaved output
+    std::lock_guard<std::recursive_mutex> lock(loggingMutex);
+    
     std::cerr << "\nReceived signal " << sig << " - ";
     switch (sig) {
         case SIGSEGV: std::cerr << "Segmentation fault"; break;
@@ -59,7 +62,7 @@ std::string demangleSymbol(const char* mangledName) {
 // Function to print stack trace with better symbol resolution
 void printStackTrace()
 {
-    std::lock_guard<std::mutex> lock(loggingMutex);
+    std::lock_guard<std::recursive_mutex> lock(loggingMutex);
     
     const int maxFrames = 64;
     void* frames[maxFrames];
@@ -218,7 +221,7 @@ QStringList LoggingConfig::getCategories() const {
 
 void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
-    std::lock_guard<std::mutex> lock(loggingMutex);
+    std::lock_guard<std::recursive_mutex> lock(loggingMutex);
     
     QString colorCode;
     QString typeText;
