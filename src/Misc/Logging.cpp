@@ -22,6 +22,10 @@
 // Mutex to protect log file and stdout access
 static std::recursive_mutex loggingMutex;
 
+// Global log file stream
+static QTextStream *logStream = nullptr;
+static QFile logFile;
+
 // Forward declaration
 void printStackTrace();
 
@@ -30,15 +34,22 @@ void crashHandler(int sig) {
     // Lock the logging mutex to prevent interleaved output
     std::lock_guard<std::recursive_mutex> lock(loggingMutex);
     
-    std::cerr << "\nReceived signal " << sig << " - ";
+    std::string signalMsg = "\nReceived signal " + std::to_string(sig) + " - ";
     switch (sig) {
-        case SIGSEGV: std::cerr << "Segmentation fault"; break;
-        case SIGABRT: std::cerr << "Abort signal"; break;
-        case SIGFPE: std::cerr << "Floating point exception"; break;
-        case SIGILL: std::cerr << "Illegal instruction"; break;
-        default: std::cerr << "Unknown signal"; break;
+        case SIGSEGV: signalMsg += "Segmentation fault"; break;
+        case SIGABRT: signalMsg += "Abort signal"; break;
+        case SIGFPE: signalMsg += "Floating point exception"; break;
+        case SIGILL: signalMsg += "Illegal instruction"; break;
+        default: signalMsg += "Unknown signal"; break;
     }
-    std::cerr << std::endl;
+    signalMsg += "\n";
+    
+    // Write signal message to both log file and stderr
+    if (logStream) {
+        *logStream << QString::fromStdString(signalMsg);
+        logStream->flush();
+    }
+    std::cerr << signalMsg;
     
     printStackTrace();
     
@@ -69,7 +80,7 @@ void printStackTrace()
     int numFrames = backtrace(frames, maxFrames);
     char** symbols = backtrace_symbols(frames, maxFrames);
 
-    std::cerr << "\nStack trace (" << numFrames << " frames):" << std::endl;
+    std::string stackTraceMsg = "\nStack trace (" + std::to_string(numFrames) + " frames):";
 
     if (symbols) {
         // Get executable path for addr2line
@@ -82,7 +93,7 @@ void printStackTrace()
         }
 
         for (int i = 0; i < numFrames; ++i) {
-            std::cerr << "  #" << i << " ";
+            std::string frameMsg = "  #" + std::to_string(i) + " ";
 
             // Always try addr2line first for better resolution
             if (exePath[0] != '\0') {
@@ -103,9 +114,9 @@ void printStackTrace()
                             // Check if we got valid information
                             if (strcmp(function, "??") != 0 && strcmp(fileInfo, "??:0") != 0) {
                                 std::string funcName = demangleSymbol(function);
-                                std::cerr << funcName << " at " << fileInfo;
+                                frameMsg += funcName + " at " + fileInfo;
                                 pclose(fp);
-                                std::cerr << std::endl;
+                                stackTraceMsg += "\n" + frameMsg;
                                 continue;
                             }
                         }
@@ -136,39 +147,41 @@ void printStackTrace()
                 if (strstr(binaryPath, "L2Trader") || strstr(binaryPath, "test_barcache")) {
                     if (strlen(mangledFunc) > 0) {
                         std::string funcName = demangleSymbol(mangledFunc);
-                        std::cerr << funcName << " in " << binaryPath;
+                        frameMsg += funcName + " in " + binaryPath;
                         if (strlen(offset) > 0) {
-                            std::cerr << " +" << offset;
+                            frameMsg += " +" + std::string(offset);
                         }
                     } else {
-                        std::cerr << binaryPath << " +" << offset;
+                        frameMsg += std::string(binaryPath) + " +" + std::string(offset);
                     }
                 } else {
                     // Not our executable, use normal parsing
                     std::string funcName = demangleSymbol(mangledFunc);
-                    std::cerr << funcName << " in " << binaryPath;
+                    frameMsg += funcName + " in " + binaryPath;
                     if (strlen(offset) > 0) {
-                        std::cerr << " +" << offset;
+                        frameMsg += " +" + std::string(offset);
                     }
                 }
             } else {
                 // Fallback for unparseable symbols
-                std::cerr << symbols[i];
+                frameMsg += symbols[i];
             }
 
-            std::cerr << std::endl;
+            stackTraceMsg += "\n" + frameMsg;
         }
         free(symbols);
     }
 
-    std::cerr << "\nNote: If function names appear as '\?\?' or line numbers are missing, the executable may need debug symbols." << std::endl;
-    std::cerr << "Ensure CONFIG += debug is set in your .pro file and rebuild with -rdynamic flag." << std::endl;
-    std::cerr << std::endl;
-}
+    stackTraceMsg += "\n\nNote: If function names appear as '\?\?' or line numbers are missing, the executable may need debug symbols.";
+    stackTraceMsg += "\nEnsure CONFIG += debug is set in your .pro file and rebuild with -rdynamic flag.\n";
 
-// Global log file stream
-static QTextStream *logStream = nullptr;
-static QFile logFile;
+    // Write to both log file and stderr
+    if (logStream) {
+        *logStream << QString::fromStdString(stackTraceMsg);
+        logStream->flush();
+    }
+    std::cerr << stackTraceMsg << std::endl;
+}
 
 // LoggingConfig implementation
 LoggingConfig::LoggingConfig()
