@@ -1,0 +1,24 @@
+name: Lint and Static Analysis
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: [self-hosted, Linux, X64]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install cppcheck
+      run: sudo apt-get update && sudo apt-get install -y cppcheck clang-tidy
+
+    - name: Run cppcheck
+      run: cppcheck --enable=all --std=c++17 --language=c++ --platform=unix64 --suppress=missingIncludeSystem --suppress=unusedFunction src/
+
+    - name: Run clang-tidy
+      run: find src/ -name "*.cpp" -o -name "*.h" | xargs clang-tidy --checks=-*,clang-analyzer-*,bugprone-*,performance-*,readability-* --warnings-as-errors=-* || true
