@@ -149,29 +149,29 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[getBars(first, last)] --> B[Load from Database]
-    B --> C[Check Memory Cache]
-    C --> D{Complete Set?}
+    START(["getBars(first, last)"]) --> LOAD_DB["Load from Database"]
+    LOAD_DB --> CHECK_CACHE["Check Memory Cache"]
+    CHECK_CACHE --> COMPLETE{"Complete Set?"}
 
-    D -->|Yes| E[Return HIT]
-    D -->|No| F{Any Cached Bars?}
+    COMPLETE -->|"Yes"| HIT["Return HIT"]
+    COMPLETE -->|"No"| ANY_CACHED{"Any Cached Bars?"}
 
-    F -->|No| G[Fetch All from API]
-    F -->|Yes| H[Identify Gaps]
+    ANY_CACHED -->|"No"| FETCH_ALL["Fetch All from API"]
+    ANY_CACHED -->|"Yes"| IDENTIFY_GAPS["Identify Gaps"]
 
-    G --> I[Process API Response]
-    I --> J[Store in Cache + DB]
-    J --> K[Return MISS]
+    FETCH_ALL --> PROCESS_API["Process API Response"]
+    PROCESS_API --> STORE_CACHE["Store in Cache + DB"]
+    STORE_CACHE --> MISS["Return MISS"]
 
-    H --> L[Fetch Missing Before]
-    L --> M[Fetch Missing After]
-    M --> N[Process All Responses]
-    N --> O[Store in Cache + DB]
-    O --> P[Return PARTIAL HIT]
+    IDENTIFY_GAPS --> FETCH_BEFORE["Fetch Missing Before"]
+    FETCH_BEFORE --> FETCH_AFTER["Fetch Missing After"]
+    FETCH_AFTER --> PROCESS_RESPONSES["Process All Responses"]
+    PROCESS_RESPONSES --> STORE_ALL["Store in Cache + DB"]
+    STORE_ALL --> PARTIAL["Return PARTIAL HIT"]
 
-    E --> Q[End]
-    K --> Q
-    P --> Q
+    HIT --> END(["End"])
+    MISS --> END
+    PARTIAL --> END
 ```
 
 ## State Diagram - BarCache Lifecycle
@@ -210,14 +210,14 @@ stateDiagram-v2
 graph TB
     subgraph "BarCache System"
         BC[BarCache]
-        MC[Memory Cache<br/>QMap<QDateTime, Bar>]
-        DB[(SQLite Database<br/>bars_cache_{symbol}.db)]
+        MC["Memory Cache (QMap<QDateTime, Bar>)"]
+        DB[("SQLite Database (bars_cache_{symbol}.db)")]
         SB[StreamBars]
     end
 
     subgraph "External Dependencies"
         TSC[TSClient]
-        API[TradeStation API]
+        API["TradeStation API"]
     end
 
     BC --> MC
@@ -226,8 +226,8 @@ graph TB
     SB --> TSC
     TSC --> API
 
-    BC -.->|Fetches bars| TSC
-    BC -.->|Stores bars| DB
-    BC -.->|Caches bars| MC
-    SB -.->|Streams bars| BC
+    BC -.->|"Fetches bars"| TSC
+    BC -.->|"Stores bars"| DB
+    BC -.->|"Caches bars"| MC
+    SB -.->|"Streams bars"| BC
 ```
