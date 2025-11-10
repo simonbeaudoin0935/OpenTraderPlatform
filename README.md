@@ -1,4 +1,4 @@
-# TradingAlgorithm
+# L2Trader
 
 when launching, supply this crap :
 
