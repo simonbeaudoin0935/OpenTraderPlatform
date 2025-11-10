@@ -150,7 +150,7 @@ bool RESTClient::fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonD
         " : Thread [" << QThread::currentThread()->objectName() <<
         "] invoked the queued method to" << (method == HttpMethod::GET ? "GET" : "POST") <<
         " with URL " << request.url().toString() <<
-        " header : " << request.headers() <<
+        " header : " << "<clipped>" << //request.headers() <<
         " and data : " << postData;
 
     bool aquired = semaphore.tryAcquire(1, fetchSyncTimeoutMs);
