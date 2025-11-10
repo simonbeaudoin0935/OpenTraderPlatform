@@ -139,6 +139,48 @@
                 "panel": "shared"
             },
             "dependsOn": ["build-barcache-test"]
+        },
+        {
+            "label": "qmake-tests",
+            "type": "shell",
+            "command": "/home/simon/Qt/6.8.3/gcc_64/bin/qmake",
+            "args": [
+                "${workspaceFolder}/Tests.pro",
+                "-o",
+                "${workspaceFolder}/build/Tests/Makefile",
+                "-spec",
+                "linux-g++",
+                "CONFIG+=debug",
+                "CONFIG+=qml_debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "make-tests",
+            "type": "shell",
+            "command": "make -j$(nproc)",
+            "options": {
+                "cwd": "${workspaceFolder}/build/Tests"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": ["qmake-tests"]
+        },
+        {
+            "label": "build-tests",
+            "dependsOn": ["make-tests"],
+            "group": "build"
         }
-    ]
-}
