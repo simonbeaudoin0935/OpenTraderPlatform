@@ -33,6 +33,7 @@ jobs:
 
   build-tests:
     runs-on: [self-hosted, Linux, X64]
+    needs: build
 
     steps:
     - uses: actions/checkout@v4
