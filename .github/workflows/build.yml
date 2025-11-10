@@ -1,0 +1,47 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: [self-hosted, Linux, X64]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # - name: Install Qt
+    #   uses: jurplel/install-qt-action@v3
+    #   with:
+    #     version: '6.8.3'
+    #     host: 'linux'
+    #     target: 'desktop'
+    #     arch: 'gcc_64'
+
+    - name: Create build directory
+      run: mkdir -p build
+
+    - name: Run qmake
+      run: qmake TradingAlgorithm.pro -o build/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
+
+    - name: Run make
+      run: make -j$(nproc) -C build
+
+  build-tests:
+    runs-on: [self-hosted, Linux, X64]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Create build directory for tests
+      run: mkdir -p build/Tests
+
+    - name: Run qmake for tests
+      run: qmake Tests.pro -o build/Tests/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
+
+    - name: Run make for tests
+      run: make -j$(nproc) -C build/Tests
