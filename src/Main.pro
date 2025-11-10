@@ -1,7 +1,7 @@
 TEMPLATE = app
 TARGET = L2Trader
 QT += core network sql
-CONFIG += console c++11
+CONFIG += console c++17 debug
 
 CONFIG += gui
 CONFIG += c++17

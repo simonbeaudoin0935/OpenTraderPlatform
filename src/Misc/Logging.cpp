@@ -18,6 +18,28 @@
 #include <cstdio>
 #include <cstring>
 
+// Forward declaration
+void printStackTrace();
+
+// Signal handler for crashes
+void crashHandler(int sig) {
+    std::cerr << "\nReceived signal " << sig << " - ";
+    switch (sig) {
+        case SIGSEGV: std::cerr << "Segmentation fault"; break;
+        case SIGABRT: std::cerr << "Abort signal"; break;
+        case SIGFPE: std::cerr << "Floating point exception"; break;
+        case SIGILL: std::cerr << "Illegal instruction"; break;
+        default: std::cerr << "Unknown signal"; break;
+    }
+    std::cerr << std::endl;
+    
+    printStackTrace();
+    
+    // Re-raise the signal to get default behavior (core dump, etc.)
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
 // Function to demangle a single symbol
 std::string demangleSymbol(const char* mangledName) {
     int status;
@@ -53,6 +75,37 @@ void printStackTrace()
         for (int i = 0; i < numFrames; ++i) {
             std::cerr << "  #" << i << " ";
 
+            // Always try addr2line first for better resolution
+            if (exePath[0] != '\0') {
+                char addr2lineCmd[2048];
+                snprintf(addr2lineCmd, sizeof(addr2lineCmd),
+                        "addr2line -f -C -i -e %s %p 2>/dev/null", exePath, frames[i]);
+
+                FILE* fp = popen(addr2lineCmd, "r");
+                if (fp) {
+                    char function[256] = {0};
+                    char fileInfo[256] = {0};
+
+                    if (fgets(function, sizeof(function), fp)) {
+                        function[strcspn(function, "\n")] = 0; // Remove newline
+                        if (fgets(fileInfo, sizeof(fileInfo), fp)) {
+                            fileInfo[strcspn(fileInfo, "\n")] = 0; // Remove newline
+
+                            // Check if we got valid information
+                            if (strcmp(function, "??") != 0 && strcmp(fileInfo, "??:0") != 0) {
+                                std::string funcName = demangleSymbol(function);
+                                std::cerr << funcName << " at " << fileInfo;
+                                pclose(fp);
+                                std::cerr << std::endl;
+                                continue;
+                            }
+                        }
+                    }
+                    pclose(fp);
+                }
+            }
+
+            // Fallback to backtrace_symbols parsing
             // Parse the backtrace_symbols output
             // Format: "binary_path(+offset) [address]" or "binary_path(mangled_func+offset) [address]"
             char* symbol = symbols[i];
@@ -70,47 +123,16 @@ void printStackTrace()
                 const char* mangledFunc = leftParen + 1;
                 const char* offset = plus + 1;
 
-                // Check if this is our executable and function name is missing
-                if (strcmp(binaryPath, "./test_stacktrace") == 0 || strstr(binaryPath, "L2Trader")) {
-                    if (strlen(mangledFunc) == 0 && exePath[0] != '\0') {
-                        // Use addr2line to resolve the address
-                        char addr2lineCmd[2048];
-                        snprintf(addr2lineCmd, sizeof(addr2lineCmd),
-                                "addr2line -f -C -e %s %p 2>/dev/null", exePath, frames[i]);
-
-                        FILE* fp = popen(addr2lineCmd, "r");
-                        if (fp) {
-                            char function[256] = {0};
-                            char file[256] = {0};
-
-                            if (fgets(function, sizeof(function), fp)) {
-                                function[strcspn(function, "\n")] = 0; // Remove newline
-                                if (fgets(file, sizeof(file), fp)) {
-                                    file[strcspn(file, "\n")] = 0; // Remove newline
-
-                                    std::string funcName = demangleSymbol(function);
-                                    std::cerr << funcName << " in " << file;
-                                    if (strlen(offset) > 0) {
-                                        std::cerr << " +" << offset;
-                                    }
-                                } else {
-                                    std::string funcName = demangleSymbol(function);
-                                    std::cerr << funcName;
-                                }
-                            } else {
-                                std::cerr << binaryPath << " +" << offset;
-                            }
-                            pclose(fp);
-                        } else {
-                            std::cerr << binaryPath << " +" << offset;
-                        }
-                    } else {
-                        // Function name is available, demangle it
+                // Check if this is our executable
+                if (strstr(binaryPath, "L2Trader") || strstr(binaryPath, "test_barcache")) {
+                    if (strlen(mangledFunc) > 0) {
                         std::string funcName = demangleSymbol(mangledFunc);
                         std::cerr << funcName << " in " << binaryPath;
                         if (strlen(offset) > 0) {
                             std::cerr << " +" << offset;
                         }
+                    } else {
+                        std::cerr << binaryPath << " +" << offset;
                     }
                 } else {
                     // Not our executable, use normal parsing
@@ -130,8 +152,8 @@ void printStackTrace()
         free(symbols);
     }
 
-    std::cerr << "\nNote: If function names appear as '\?\?', the executable may need debug symbols." << std::endl;
-    std::cerr << "Ensure CONFIG += debug is set in your .pro file and rebuild." << std::endl;
+    std::cerr << "\nNote: If function names appear as '\?\?' or line numbers are missing, the executable may need debug symbols." << std::endl;
+    std::cerr << "Ensure CONFIG += debug is set in your .pro file and rebuild with -rdynamic flag." << std::endl;
     std::cerr << std::endl;
 }
 
@@ -250,6 +272,12 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
 
 void initLogging()
 {
+    // Install signal handlers for crash reporting
+    signal(SIGSEGV, crashHandler);
+    signal(SIGABRT, crashHandler);
+    signal(SIGFPE, crashHandler);
+    signal(SIGILL, crashHandler);
+
     // Get XDG-compliant state directory for logs
     // XDG_STATE_HOME defines where user-specific state files should be stored
     // Defaults to ~/.local/state if not set

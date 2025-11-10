@@ -1,7 +1,7 @@
 TEMPLATE = app
 TARGET = test_barcache
 QT += core network sql testlib
-CONFIG += testlib
+CONFIG += testlib debug
 
 CONFIG -= gui
 
