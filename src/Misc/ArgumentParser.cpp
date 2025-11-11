@@ -30,7 +30,7 @@ void parseArguments(const QStringList &args) {
     {
         QFileInfo fileInfo(criteriaFile);
         if (!fileInfo.exists() || !fileInfo.isFile()) {
-            qFatal() << "Error: The specified path does not exist or is not a file : " << criteriaFile;
+            qWarning() << "Error: The specified path does not exist or is not a file : " << criteriaFile;
         }
     }
     criteriaSettings = new QSettings(criteriaFile, QSettings::IniFormat);
