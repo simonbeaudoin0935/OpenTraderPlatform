@@ -1,7 +1,7 @@
 Source: l2trader
 Section: misc
 Priority: optional
-Maintainer: L2Trader Development Team <dev@l2trader.local>
+Maintainer: Simon Beaudoin <29244395+simonbeaudoin0935@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13),
                qt6-base-dev,
                qt6-charts-dev,

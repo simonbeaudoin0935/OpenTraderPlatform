@@ -1,10 +1,10 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: L2Trader
-Upstream-Contact: L2Trader Development Team <dev@l2trader.local>
+Upstream-Contact: Simon Beaudoin <29244395+simonbeaudoin0935@users.noreply.github.com>
 Source: https://github.com/simonbeaudoin0935/L2Trader
 
 Files: *
-Copyright: 2024 L2Trader Development Team
+Copyright: 2024 Simon Beaudoin
 License: MIT
 
 License: MIT
