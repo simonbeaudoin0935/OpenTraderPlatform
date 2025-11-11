@@ -20,7 +20,10 @@ int main(int argc, char *argv[])
     QCoreApplication app(argc, argv);
 
     QCoreApplication::setApplicationName("Recorder");
-    QCoreApplication::setApplicationVersion("1.0");
+    QString version = QString("%1 ~ %2@%3").arg(GIT_TAG, GIT_BRANCH, GIT_HASH);
+    QCoreApplication::setApplicationVersion(version);
+
+    qInfo() << "Version:" << version;
 
     parseArguments(app.arguments());
 

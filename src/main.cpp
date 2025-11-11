@@ -27,7 +27,11 @@ int main(int argc, char *argv[])
     APPLICATION app(argc, argv);
 
     QCoreApplication::setApplicationName("L2Trader");
-    QCoreApplication::setApplicationVersion("1.0");
+    QString version = QString("%1 ~ %2@%3").arg(GIT_TAG, GIT_BRANCH, GIT_HASH);
+    QCoreApplication::setApplicationVersion(version);
+
+    qInfo() << "Version:" << version;
+
 #ifdef GUI_ENABLED
     app.setWindowIcon(QIcon(":/Icons/L2T.png"));
 #endif
