@@ -132,7 +132,8 @@
             "type": "shell",
             "command": "${workspaceFolder}/build/Tests/BarCacheUnit/test_barcache",
             "args": [
-                "--cache-root-dir=/tmp/l2trader_test_cache"
+                "--cache-root-dir=/tmp/l2trader_test_cache",
+                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
             ],
             "group": "test",
             "presentation": {
@@ -142,6 +143,54 @@
                 "panel": "shared"
             },
             "dependsOn": ["build-barcache-test"]
+        },
+        {
+            "label": "run-fmpclient-test",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/Tests/FMPClientUnit/test_fmpclient",
+            "args": [
+                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-tests"]
+        },
+        {
+            "label": "run-tsclient-test",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/Tests/TSClientUnit/test_tradestationclient",
+            "args": [
+                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-tests"]
+        },
+        {
+            "label": "run-runupdetector-test",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/Tests/RunUpDetectorUnit/test_RunUpDetector",
+            "args": [
+                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-tests"]
         },
         {
             "label": "qmake-tests",
