@@ -25,7 +25,7 @@ jobs:
 
     - name: Set Qt path
       run: |
-        if [ "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' || github.event_name != 'workflow_dispatch' }}" = "true" ]; then
+        if [ "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' || github.event_name != 'workflow_dispatch' }}" = "false" ]; then
           echo "QMAKE=/home/simon/Qt/6.4.2/gcc_64/bin/qmake" >> $GITHUB_ENV
           echo "MAKE_JOBS=-j1" >> $GITHUB_ENV
         else
