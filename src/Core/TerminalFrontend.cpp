@@ -20,7 +20,7 @@ void TerminalFrontend::onMemoryUsageUpdate(qint64 newDataUsage)
     Q_UNUSED(newDataUsage);
 }
 
-void TerminalFrontend::onTradeStationAccountsReceived(QVector<AccountsResult> results)
+void TerminalFrontend::onTradeStationAccountsReceived(QVector<Account> results)
 {
     Q_UNUSED(results);
 }

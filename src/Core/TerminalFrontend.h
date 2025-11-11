@@ -14,7 +14,7 @@ public slots:
     void onTSClientDataUsageUpdate(qsizetype newDataUsage);
     void onMemoryUsageUpdate(qint64 newDataUsage);
 
-    void onTradeStationAccountsReceived(QVector<AccountsResult> results);
+    void onTradeStationAccountsReceived(QVector<Account> results);
     void onMarketDepthNotAvailable();
 
 };
