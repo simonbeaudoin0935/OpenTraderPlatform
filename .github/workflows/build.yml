@@ -6,10 +6,19 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      target:
+        description: 'Build target'
+        required: true
+        default: 'raspberrypi'
+        type: choice
+        options:
+        - laptop
+        - raspberrypi
 
 jobs:
   build:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'laptop' && 'X64' || 'ARM64' }}"]
 
     steps:
     - uses: actions/checkout@v4
@@ -32,7 +41,7 @@ jobs:
       run: make -j$(nproc) -C build
 
   build-tests:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'laptop' && 'X64' || 'ARM64' }}"]
     needs: build
 
     steps:
@@ -48,7 +57,7 @@ jobs:
       run: make -j$(nproc) -C build/Tests
 
   run-barcache-test:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'laptop' && 'X64' || 'ARM64' }}"]
     needs: build-tests
 
     steps:
