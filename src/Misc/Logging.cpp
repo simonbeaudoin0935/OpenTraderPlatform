@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QProcessEnvironment>
+#include <QCoreApplication>
 
 #include <iostream>
 #include <csignal>
@@ -144,7 +145,7 @@ void printStackTrace()
                 const char* offset = plus + 1;
 
                 // Check if this is our executable
-                if (strstr(binaryPath, "L2Trader") || strstr(binaryPath, "test_barcache")) {
+                if (strstr(binaryPath, QCoreApplication::applicationName().toUtf8().constData()) || strstr(binaryPath, "test_barcache")) {
                     if (strlen(mangledFunc) > 0) {
                         std::string funcName = demangleSymbol(mangledFunc);
                         frameMsg += funcName + " in " + binaryPath;
@@ -185,7 +186,7 @@ void printStackTrace()
 
 // LoggingConfig implementation
 LoggingConfig::LoggingConfig()
-    : m_settings(QSettings::IniFormat, QSettings::UserScope, "L2Trader", "Logging")
+    : m_settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::applicationName(), "Logging")
 {
     m_settings.setFallbacksEnabled(false);
     // Populate categories list and load enabled state for all known categories
@@ -311,7 +312,7 @@ void initLogging()
     }
     
     // Create application-specific state directory
-    QString appStateDir = xdgStateHome + "/L2Trader";
+    QString appStateDir = xdgStateHome + "/" + QCoreApplication::applicationName();
     QDir stateDir(appStateDir);
     if (!stateDir.exists()) {
         stateDir.mkpath(".");
@@ -325,7 +326,7 @@ void initLogging()
     }
 
     // Generate timestamped log file name in XDG state directory
-    QString logFileName = QString("%1/L2Trader_%2.log").arg(logsDirPath, QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss"));
+    QString logFileName = QString("%1/%2_%3.log").arg(logsDirPath, QCoreApplication::applicationName(), QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss"));
     logFile.setFileName(logFileName);
 
     // Open log file

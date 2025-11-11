@@ -234,7 +234,7 @@
         {
             "label": "run-recorder",
             "type": "shell",
-            "command": "${workspaceFolder}/build/src/Recorder",
+            "command": "${workspaceFolder}/build/Recorder/src/Recorder",
             "args": [
                 "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini",
                 "--cache-root-dir=/tmp/l2trader_recorder_cache"
