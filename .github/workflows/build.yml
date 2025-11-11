@@ -108,7 +108,7 @@ jobs:
 
     steps:
     - name: Run FMPClient unit test
-      run: ./build/Tests/Tests/FMPClientUnit/test_fmpclient --stock-csv=Example_Config/nasdaq_screener.csv
+      run: ./build/Tests/Tests/FMPClientUnit/test_fmpclient
 
   run-tsclient-test:
     runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
@@ -116,7 +116,7 @@ jobs:
 
     steps:
     - name: Run TSClient unit test
-      run: ./build/Tests/Tests/TSClientUnit/test_tradestationclient --stock-csv=Example_Config/nasdaq_screener.csv
+      run: ./build/Tests/Tests/TSClientUnit/test_tradestationclient
 
   run-runupdetector-test:
     runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
@@ -124,4 +124,4 @@ jobs:
 
     steps:
     - name: Run RunUpDetector unit test
-      run: ./build/Tests/Tests/RunUpDetectorUnit/test_RunUpDetector --stock-csv=Example_Config/nasdaq_screener.csv
+      run: ./build/Tests/Tests/RunUpDetectorUnit/test_RunUpDetector
