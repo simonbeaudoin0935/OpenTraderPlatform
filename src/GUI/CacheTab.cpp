@@ -3,6 +3,7 @@
 #include <QMessageBox>
 #include <QDirIterator>
 #include <QStandardPaths>
+#include "Misc/Settings.h"
 
 CacheTab::CacheTab(QWidget* parent)
     : QWidget(parent),
@@ -86,7 +87,7 @@ void CacheTab::refreshCacheInfo() {
 void CacheTab::populateCacheTable() {
     cacheTable->setRowCount(0);
 
-    QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    QString cacheDir = getCacheLocation();
     QDir dir(cacheDir);
 
     if (!dir.exists()) {
@@ -211,7 +212,7 @@ void CacheTab::clearSelectedCache() {
 }
 
 void CacheTab::clearAllCache() {
-    QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    QString cacheDir = getCacheLocation();
     QDir dir(cacheDir);
 
     if (!dir.exists()) {

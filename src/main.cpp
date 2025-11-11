@@ -9,6 +9,7 @@
 
 #include "Misc/ArgumentParser.h"
 #include "Misc/Logging.h"
+#include "Misc/Settings.h"
 #include "Core/MainApp.h"
 
 #include <QtGlobal>
@@ -32,6 +33,8 @@ int main(int argc, char *argv[])
 #endif
 
     parseArguments(app.arguments());
+
+    qInfo() << "Cache root directory:" << getCacheLocation();
 
     MainApp mainApp;
 

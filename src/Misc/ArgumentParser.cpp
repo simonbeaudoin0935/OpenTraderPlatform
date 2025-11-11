@@ -15,6 +15,9 @@ void parseArguments(const QStringList &args) {
     QCommandLineOption configCriteriaOption("criterias", "Path to the criterias file (e.g., criterias.ini)", "file", "./criterias.ini");
     parser.addOption(configCriteriaOption);
 
+    QCommandLineOption cacheRootDirOption("cache-root-dir", "Root directory for cache files", "dir");
+    parser.addOption(cacheRootDirOption);
+
     // Process command-line arguments
     parser.process(args);
 
@@ -28,4 +31,9 @@ void parseArguments(const QStringList &args) {
         }
     }
     criteriaSettings = new QSettings(criteriaFile, QSettings::IniFormat);
+
+    QString cacheDir = parser.value(cacheRootDirOption);
+    if (!cacheDir.isEmpty()) {
+        cacheRootDir = cacheDir;
+    }
 }

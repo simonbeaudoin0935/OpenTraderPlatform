@@ -7,6 +7,7 @@
 
 #include "BarCache.h"
 #include "TSClient.h"
+#include "Misc/Settings.h"
 
 Q_LOGGING_CATEGORY(BarCacheLog, "BarCache")
 
@@ -18,10 +19,10 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
     this->setObjectName("BarCache::" + symbol);
 
     // Set up database - one database file per symbol
-    QString dbPath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/bars_cache_" + symbol + ".db";
+    QString cacheLocation = getCacheLocation();
+    QString dbPath = cacheLocation + "/bars_cache_" + symbol + ".db";
     bool dbFileExisted = QFileInfo::exists(dbPath);
     {
-        QString cacheLocation = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
         qCInfo(BarCacheLog) << "Cache location:" << cacheLocation;
         qCInfo(BarCacheLog) << "Using database file:" << dbPath;
         qCInfo(BarCacheLog) << "Database file existed:" << dbFileExisted;

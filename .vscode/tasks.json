@@ -6,7 +6,7 @@
             "type": "shell",
             "command": "/home/simon/Qt/6.8.3/gcc_64/bin/qmake",
             "args": [
-                "${workspaceFolder}/TradingAlgorithm.pro",
+                "${workspaceFolder}/L2Trader.pro",
                 "-o",
                 "${workspaceFolder}/build/Makefile",
                 "-spec",
