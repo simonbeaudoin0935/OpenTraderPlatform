@@ -131,6 +131,9 @@
             "label": "run-barcache-test",
             "type": "shell",
             "command": "${workspaceFolder}/build/Tests/BarCacheUnit/test_barcache",
+            "args": [
+                "--cache-root-dir=/tmp/l2trader_test_cache"
+            ],
             "group": "test",
             "presentation": {
                 "echo": true,
@@ -233,7 +236,8 @@
             "type": "shell",
             "command": "${workspaceFolder}/build/src/Recorder",
             "args": [
-                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
+                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini",
+                "--cache-root-dir=/tmp/l2trader_recorder_cache"
             ],
             "group": "test",
             "presentation": {
