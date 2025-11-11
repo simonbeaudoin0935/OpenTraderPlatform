@@ -1,10 +1,7 @@
 TEMPLATE = app
-TARGET = L2Trader
+TARGET = Recorder
 QT += core network sql
 CONFIG += console c++17 debug
-
-CONFIG += gui
-CONFIG += c++17
 
 # Enable stack trace symbol resolution
 QMAKE_LFLAGS += -rdynamic
@@ -23,10 +20,9 @@ DEFINES += GIT_BRANCH=\\\"$${BRANCH}\\\"
 
 include($$PWD/Clients/Clients.pri)
 include($$PWD/Algo/Algo.pri)
-include($$PWD/GUI/GUI.pri)
 include($$PWD/Misc/Misc.pri)
 include($$PWD/Core/Core.pri)
 
-SOURCES += main.cpp
+SOURCES += recorder_main.cpp
 
 RESOURCES += ../Resources/Resources.qrc

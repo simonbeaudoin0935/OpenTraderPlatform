@@ -7,7 +7,7 @@
 
 #include "BarCache.h"
 #include "TSClient.h"
-#include "Misc/Settings.h"
+#include "Settings.h"
 
 Q_LOGGING_CATEGORY(BarCacheLog, "BarCache")
 

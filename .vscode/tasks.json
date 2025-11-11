@@ -183,4 +183,66 @@
             "label": "build-tests",
             "dependsOn": ["make-tests"],
             "group": "build"
+        },
+        {
+            "label": "qmake-recorder",
+            "type": "shell",
+            "command": "/home/simon/Qt/6.8.3/gcc_64/bin/qmake",
+            "args": [
+                "${workspaceFolder}/Recorder.pro",
+                "-o",
+                "${workspaceFolder}/build/Recorder/Makefile",
+                "-spec",
+                "linux-g++",
+                "CONFIG+=debug",
+                "CONFIG+=qml_debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "make-recorder",
+            "type": "shell",
+            "command": "make -j$(nproc)",
+            "options": {
+                "cwd": "${workspaceFolder}/build/Recorder"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": ["qmake-recorder"]
+        },
+        {
+            "label": "build-recorder",
+            "dependsOn": ["make-recorder"],
+            "group": "build"
+        },
+        {
+            "label": "run-recorder",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/src/Recorder",
+            "args": [
+                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-recorder"]
         }
+    ]
+}

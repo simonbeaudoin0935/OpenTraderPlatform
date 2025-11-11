@@ -1,19 +1,12 @@
-#ifdef GUI_ENABLED
-#include <QApplication>
-#include <QIcon>
-#define APPLICATION QApplication
-#else
 #include <QCoreApplication>
-#define APPLICATION QCoreApplication
-#endif
+#include <QLoggingCategory>
+#include <QDateTime>
 
 #include "Misc/ArgumentParser.h"
 #include "Misc/Logging.h"
 #include "Settings.h"
-#include "Core/MainApp.h"
 
 #include <QtGlobal>
-#include <QDateTime>
 
 #include <iostream>
 
@@ -24,25 +17,20 @@ int main(int argc, char *argv[])
 
     qInfo() << "Qt version:" << QT_VERSION_STR;
 
-    APPLICATION app(argc, argv);
+    QCoreApplication app(argc, argv);
 
-    QCoreApplication::setApplicationName("L2Trader");
+    QCoreApplication::setApplicationName("Recorder");
     QString version = QString("%1 ~ %2@%3").arg(GIT_TAG, GIT_BRANCH, GIT_HASH);
     QCoreApplication::setApplicationVersion(version);
 
     qInfo() << "Version:" << version;
 
-#ifdef GUI_ENABLED
-    app.setWindowIcon(QIcon(":/Icons/L2T.png"));
-#endif
-
     parseArguments(app.arguments());
 
     qInfo() << "Cache root directory:" << getCacheLocation();
 
-    MainApp mainApp;
-
-    mainApp.start();
+    // TODO: Implement recording logic here
+    qInfo() << "Recorder started - recording market data...";
 
     return app.exec();
 }
