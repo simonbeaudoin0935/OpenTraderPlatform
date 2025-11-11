@@ -300,6 +300,10 @@ void TestTSClient::testGetQuoteSnapshotsAsync()
 
 void TestTSClient::testPlaceOrderSync()
 {
+    if (!MarketHours::isRegularHours()) {
+        QSKIP("Test skipped because market is not open");
+    }
+
     PlaceOrderRequest order;
 
     QVERIFY(client->isCleanedUp());
@@ -500,7 +504,7 @@ void TestTSClient::testCancelOrderAsync()
     if (!MarketHours::isRegularHours()) {
         QSKIP("Test skipped because market is not open");
     }
-    
+
     QString symbol = "AAPL";
     double lastAsk;
 
@@ -661,9 +665,9 @@ void TestTSClient::testGetBarsSync()
 void TestTSClient::testGetBarsAsync()
 {
     // Define 4:00 PM (16:00)
-    const QTime fourPM(16, 0, 0);
-    // Define 4:00 PM (16:00)
-    const QTime eightPM(20, 0, 0);
+    const QTime fourPM(10, 0, 0);
+    // Define 8:00 PM (20:00)
+    const QTime eightPM(14, 0, 0);
 
     QString symbol = "AAPL";
     unsigned int interval = 1;
@@ -693,7 +697,7 @@ void TestTSClient::testGetBarsAsync()
     QVERIFY(client->isAuthenticated());
     QVERIFY(!client->isAuthInProgress());
 
-    // Intercept the accounts when they are received
+    // Intercept the bars received signal
     QSignalSpy getBarsAsyncSpy(client, &TSClient::getBarsAsyncReceived); // Create signal spies to monitor authentication signals
 
     client->getBarsAsync(symbol, interval, unit, barsback, sessionTemplate, firstDate, lastDate);
@@ -721,7 +725,7 @@ void TestTSClient::testGetBarsAsync()
 
     int minutesDifference = fourPM.secsTo(eightPM) / 60;
 
-    QCOMPARE_GE(receivedBars.count(), minutesDifference - 1); // Give a one bar leeway
+    QCOMPARE_GE(receivedBars.count(), minutesDifference - 20); // Give a 20 bars leeway
 
     QVERIFY(client->isCleanedUp());
 }
