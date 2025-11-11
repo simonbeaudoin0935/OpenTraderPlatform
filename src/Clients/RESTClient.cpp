@@ -258,7 +258,7 @@ void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type,
         " : Thread [" << QThread::currentThread()->objectName() <<
         "] invoked the queued method to" << (method == HttpMethod::GET ? "GET" : "POST") <<
         " with URL " << request.url().toString() <<
-        " header : " << request.headers() <<
+        " header : " << /*request.headers() << */
         " and data : " << postData;
 }
 
@@ -278,8 +278,7 @@ QNetworkReply* RESTClient::fetchStream(const QNetworkRequest &request, void* arg
     qCDebug(RESTClientLog) << Q_FUNC_INFO <<
         "GET network reply = " << static_cast<void*>(reply) <<
         " with URL : " << request.url() <<
-        " and header : " << request.headers();
-
+        " and header : "; /* << request.headers() << */
 
     pendingRequestsRWLock.lockForWrite();
     {
