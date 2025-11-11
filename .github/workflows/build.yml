@@ -10,7 +10,7 @@ on:
       target:
         description: 'Build target'
         required: true
-        default: 'raspberrypi'
+        default: 'laptop'
         type: choice
         options:
         - laptop
