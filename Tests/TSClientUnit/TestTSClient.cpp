@@ -353,6 +353,10 @@ void TestTSClient::testPlaceOrderSync()
 
 void TestTSClient::testPlaceOrderAsync()
 {
+    if (!MarketHours::isRegularHours()) {
+        QSKIP("Test skipped because market is not open");
+    }
+
     PlaceOrderRequest order;
 
     QVERIFY(client->isCleanedUp());
@@ -419,6 +423,10 @@ void TestTSClient::testPlaceOrderAsync()
 
 void TestTSClient::testCancelOrderSync()
 {
+    if (!MarketHours::isRegularHours()) {
+        QSKIP("Test skipped because market is not open");
+    }
+
     QString symbol = "AAPL";
     double lastAsk;
 
@@ -489,6 +497,10 @@ void TestTSClient::testCancelOrderSync()
 
 void TestTSClient::testCancelOrderAsync()
 {
+    if (!MarketHours::isRegularHours()) {
+        QSKIP("Test skipped because market is not open");
+    }
+    
     QString symbol = "AAPL";
     double lastAsk;
 
@@ -853,6 +865,10 @@ void TestTSClient::testStreamMarketDepthQuote()
 
 void TestTSClient::testStreamOrders()
 {
+    if (!MarketHours::isRegularHours()) {
+        QSKIP("Test skipped because market is not open");
+    }
+
     QString symbol = "AAPL";
     StreamOrders* stream;
 

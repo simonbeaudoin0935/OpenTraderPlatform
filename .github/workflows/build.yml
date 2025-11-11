@@ -103,6 +103,8 @@ jobs:
       run: ./build/Tests/Tests/BarCacheUnit/test_barcache --stock-csv=Example_Config/nasdaq_screener.csv
 
   run-fmpclient-test:
+    #We are going to dump FMP in the future
+    if: false
     runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
     needs: build-tests
 

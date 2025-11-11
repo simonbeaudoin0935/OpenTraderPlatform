@@ -163,7 +163,7 @@
         {
             "label": "run-tsclient-test",
             "type": "shell",
-            "command": "${workspaceFolder}/build/Tests/TSClientUnit/test_tradestationclient",
+            "command": "${workspaceFolder}/build/Tests/Tests/TSClientUnit/test_tradestationclient",
             "args": [
                 "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
             ],
