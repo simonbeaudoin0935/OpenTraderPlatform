@@ -3,7 +3,7 @@
 #include <QMessageBox>
 #include <QDirIterator>
 #include <QStandardPaths>
-#include "Misc/Settings.h"
+#include "Settings.h"
 
 CacheTab::CacheTab(QWidget* parent)
     : QWidget(parent),

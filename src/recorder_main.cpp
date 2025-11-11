@@ -4,7 +4,7 @@
 
 #include "Misc/ArgumentParser.h"
 #include "Misc/Logging.h"
-#include "Misc/Settings.h"
+#include "Settings.h"
 
 #include <QtGlobal>
 
