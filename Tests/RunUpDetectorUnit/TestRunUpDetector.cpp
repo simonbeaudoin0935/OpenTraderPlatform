@@ -25,6 +25,38 @@ void TestRunUpDetector::initTestCase_data()
 
 // will be called before the first test function is executed.
 void TestRunUpDetector::initTestCase() {
+
+        // manually expire the token to force a refresh on startup
+    {
+        AuthToken savedAuthToken = AuthToken::loadFromSettings();
+
+        QString tokenStr = savedAuthToken.toString();
+        QString obfuscated = tokenStr.size() > 10 ? tokenStr.left(10) + "***" : tokenStr + "***";
+        qDebug() << "Token details:" << obfuscated;
+
+        // This test suite neet a valid token to be present in the settings.
+        QVERIFY(savedAuthToken.isValid());
+
+        // The first thing we are going to test is that the client is able to
+        // start with an expired token and refresh it.
+        // If the present token is not expired, we will artificially set it to expired
+        if(!savedAuthToken.isExpired()) {
+            qInfo() << "Token is not expired, setting it to expired";
+
+            AuthToken expiredToken = AuthToken(savedAuthToken.getAccessToken(),
+                                            savedAuthToken.getRefreshToken(),
+                                            savedAuthToken.getIdToken(),
+                                            savedAuthToken.getTokenType(),
+                                            savedAuthToken.getScope(),
+                                            savedAuthToken.getExpiresIn(),
+                                            QDateTime::currentDateTime().addSecs(-3600));
+
+            QVERIFY(AuthToken::storeToSettings(expiredToken));
+        } else {
+            qInfo() << "Token is expired, no need to set it to expired";
+        }
+    }
+    
     qInfo() << "Start of test suite";
 
     QThread::currentThread()->setObjectName("UnitTestThread");

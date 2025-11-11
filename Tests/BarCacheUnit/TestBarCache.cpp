@@ -39,8 +39,6 @@ void TestBarCache::initTestCase_data()
 // will be called before the first test function is executed.
 void TestBarCache::initTestCase() {
 
-    initLogging();
-
     qInfo() << "Start of test suite";
 
     QThread::currentThread()->setObjectName("UnitTestThread");

@@ -179,7 +179,7 @@
         {
             "label": "run-runupdetector-test",
             "type": "shell",
-            "command": "${workspaceFolder}/build/Tests/RunUpDetectorUnit/test_RunUpDetector",
+            "command": "${workspaceFolder}/build/Tests/Tests/RunUpDetectorUnit/test_RunUpDetector",
             "args": [
                 "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
             ],
