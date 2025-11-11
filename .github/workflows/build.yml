@@ -23,20 +23,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Qt
-      if: ${{ github.event_name != 'workflow_dispatch' || inputs.target != 'laptop' }}
-      uses: jurplel/install-qt-action@v3
-      with:
-        version: '6.8.3'
-        host: 'linux'
-        target: 'desktop'
-        arch: 'gcc_64'
+    - name: Set Qt path
+      run: |
+        if [ "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' || github.event_name != 'workflow_dispatch' }}" = "true" ]; then
+          echo "QMAKE=/home/simon/Qt/6.4.2/gcc_64/bin/qmake" >> $GITHUB_ENV
+        else
+          echo "QMAKE=/home/simon/Qt/6.8.3/gcc_64/bin/qmake" >> $GITHUB_ENV
+        fi
 
     - name: Create build directory
       run: mkdir -p build
 
     - name: Run qmake
-      run: /home/simon/Qt/6.8.3/gcc_64/bin/qmake L2Trader.pro -o build/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
+      run: $QMAKE L2Trader.pro -o build/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
 
     - name: Run make
       run: make -j$(nproc) -C build
@@ -48,11 +47,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Set Qt path
+      run: |
+        if [ "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' || github.event_name != 'workflow_dispatch' }}" = "true" ]; then
+          echo "QMAKE=qmake" >> $GITHUB_ENV
+        else
+          echo "QMAKE=/home/simon/Qt/6.8.3/gcc_64/bin/qmake" >> $GITHUB_ENV
+        fi
+
     - name: Create build directory for tests
       run: mkdir -p build/Tests
 
     - name: Run qmake for tests
-      run: /home/simon/Qt/6.8.3/gcc_64/bin/qmake Tests.pro -o build/Tests/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
+      run: $QMAKE Tests.pro -o build/Tests/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
 
     - name: Run make for tests
       run: make -j$(nproc) -C build/Tests
