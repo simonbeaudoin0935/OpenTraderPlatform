@@ -43,7 +43,7 @@ jobs:
       run: make $MAKE_JOBS -C build
 
   build-tests:
-    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'laptop' && 'X64' || 'ARM64' }}"]
+    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
     needs: build
 
     steps:
@@ -51,7 +51,7 @@ jobs:
 
     - name: Set Qt path
       run: |
-        if [ "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' || github.event_name != 'workflow_dispatch' }}" = "true" ]; then
+        if [ "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' || github.event_name != 'workflow_dispatch' }}" = "false" ]; then
           echo "QMAKE=qmake" >> $GITHUB_ENV
           echo "MAKE_JOBS=-j1" >> $GITHUB_ENV
         else
