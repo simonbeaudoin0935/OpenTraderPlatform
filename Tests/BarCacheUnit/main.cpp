@@ -4,14 +4,13 @@
 
 #include "TestBarCache.h"
 #include "ArgumentParser.h"
-#include "Logging.h"
-
 #include "Settings.h"
+#include "Logging.h"
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
-    QCoreApplication::setApplicationName("Recorder");
+    QCoreApplication::setApplicationName("BarCacheUnit");
     QString version = QString("%1 ~ %2@%3").arg(GIT_TAG, GIT_BRANCH, GIT_HASH);
     QCoreApplication::setApplicationVersion(version);
 

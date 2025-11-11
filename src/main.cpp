@@ -7,8 +7,8 @@
 #define APPLICATION QCoreApplication
 #endif
 
-#include "Misc/ArgumentParser.h"
-#include "Misc/Logging.h"
+#include "ArgumentParser.h"
+#include "Logging.h"
 #include "Settings.h"
 #include "Core/MainApp.h"
 
