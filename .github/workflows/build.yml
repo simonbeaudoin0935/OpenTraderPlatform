@@ -17,7 +17,7 @@ on:
         - raspberrypi
 
 jobs:
-  build:
+  build-main:
     runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
 
     steps:
@@ -42,9 +42,35 @@ jobs:
     - name: Run make
       run: make $MAKE_JOBS -C build
 
+  build-recorder:
+    needs: build-main
+    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set Qt path
+      run: |
+        if [ "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' || github.event_name != 'workflow_dispatch' }}" = "false" ]; then
+          echo "QMAKE=/home/simon/Qt/6.4.2/gcc_64/bin/qmake" >> $GITHUB_ENV
+          echo "MAKE_JOBS=-j1" >> $GITHUB_ENV
+        else
+          echo "QMAKE=/home/simon/Qt/6.8.3/gcc_64/bin/qmake" >> $GITHUB_ENV
+          echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
+        fi
+
+    - name: Create build directory
+      run: mkdir -p build
+
+    - name: Run qmake
+      run: $QMAKE Recorder.pro -o build/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
+
+    - name: Run make
+      run: make $MAKE_JOBS -C build
+
   build-tests:
     runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
-    needs: build
+    needs: build-recorder
 
     steps:
     - uses: actions/checkout@v4
