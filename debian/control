@@ -1,0 +1,45 @@
+Source: l2trader
+Section: misc
+Priority: optional
+Maintainer: L2Trader Development Team <dev@l2trader.local>
+Build-Depends: debhelper-compat (= 13),
+               qt6-base-dev,
+               qt6-charts-dev,
+               libqt6sql6-sqlite,
+               qtkeychain-qt6-dev,
+               libsecret-1-dev
+Standards-Version: 4.6.0
+Homepage: https://github.com/simonbeaudoin0935/L2Trader
+
+Package: l2trader
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+         qt6-base-dev,
+         qt6-charts-dev,
+         libqt6sql6-sqlite,
+         qtkeychain-qt6,
+         libsecret-1-0
+Description: Real-time algorithmic trading application
+ L2Trader is a sophisticated trading platform built with Qt6 that connects
+ to TradeStation and Financial Modeling Prep (FMP) APIs to provide real-time
+ market data analysis, Level 2 market depth visualization, automated stock
+ screening, and breaking news monitoring.
+ .
+ Key Features:
+  * Real-Time Market Data with Level 2 quotes
+  * Automated Stock Screening
+  * Breaking News Monitoring
+  * Interactive Price Charts
+  * Position Tracking
+  * Algorithmic Trading capabilities
+
+Package: l2trader-tests
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+         l2trader (= ${binary:Version})
+Description: Unit tests for L2Trader
+ This package contains unit tests for the L2Trader application:
+  * BarCache unit tests
+  * FMPClient unit tests
+  * RunUpDetector unit tests
+  * TSClient unit tests

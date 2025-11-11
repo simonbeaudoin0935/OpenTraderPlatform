@@ -1,0 +1,63 @@
+#!/usr/bin/make -f
+
+# Enable hardening
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# Get Qt6 qmake path
+QT6_QMAKE = $(shell which qmake6 || which qmake)
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	# Configure main application
+	mkdir -p build-main
+	cd build-main && $(QT6_QMAKE) ../L2Trader.pro CONFIG+=release DEFINES+=QT_KEYCHAIN_LIB LIBS+=-lqt6keychain
+	
+	# Configure Recorder application
+	mkdir -p build-recorder
+	cd build-recorder && $(QT6_QMAKE) ../Recorder.pro CONFIG+=release DEFINES+=QT_KEYCHAIN_LIB LIBS+=-lqt6keychain
+	
+	# Configure tests
+	mkdir -p build-tests
+	cd build-tests && $(QT6_QMAKE) ../Tests.pro CONFIG+=release DEFINES+=QT_KEYCHAIN_LIB LIBS+=-lqt6keychain
+
+override_dh_auto_build:
+	# Build main application
+	$(MAKE) -C build-main
+	
+	# Build recorder application
+	$(MAKE) -C build-recorder
+	
+	# Build tests
+	$(MAKE) -C build-tests
+
+override_dh_auto_install:
+	# Install main application binary
+	install -D -m 0755 build-main/src/L2Trader debian/l2trader/usr/bin/l2trader
+	
+	# Install recorder application binary
+	install -D -m 0755 build-recorder/src/Recorder debian/l2trader/usr/bin/l2trader-recorder
+	
+	# Install application icon
+	install -D -m 0644 Resources/Icons/L2T.png debian/l2trader/usr/share/pixmaps/l2trader.png
+	
+	# Install desktop file
+	install -D -m 0644 debian/l2trader.desktop debian/l2trader/usr/share/applications/l2trader.desktop
+	
+	# Install example configuration files
+	install -d debian/l2trader/usr/share/doc/l2trader/examples
+	install -m 0644 Example_Config/*.ini debian/l2trader/usr/share/doc/l2trader/examples/ || true
+	install -m 0644 Example_Config/*.csv debian/l2trader/usr/share/doc/l2trader/examples/ || true
+	
+	# Install tests binaries
+	install -d debian/l2trader-tests/usr/lib/l2trader/tests
+	install -D -m 0755 build-tests/Tests/BarCacheUnit/test_barcache debian/l2trader-tests/usr/lib/l2trader/tests/test_barcache
+	install -D -m 0755 build-tests/Tests/RunUpDetectorUnit/test_RunUpDetector debian/l2trader-tests/usr/lib/l2trader/tests/test_runupdetector
+	install -D -m 0755 build-tests/Tests/TSClientUnit/test_tradestationclient debian/l2trader-tests/usr/lib/l2trader/tests/test_tradestationclient
+	# FMPClient test is disabled as per build.yml
+	# install -D -m 0755 build-tests/Tests/FMPClientUnit/test_fmpclient debian/l2trader-tests/usr/lib/l2trader/tests/test_fmpclient
+
+override_dh_auto_clean:
+	rm -rf build-main build-recorder build-tests
+	dh_auto_clean
