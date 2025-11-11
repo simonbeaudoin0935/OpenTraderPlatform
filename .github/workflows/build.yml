@@ -18,7 +18,7 @@ on:
 
 jobs:
   build:
-    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'laptop' && 'X64' || 'ARM64' }}"]
+    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
 
     steps:
     - uses: actions/checkout@v4
