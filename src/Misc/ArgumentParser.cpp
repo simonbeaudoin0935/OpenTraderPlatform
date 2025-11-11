@@ -18,6 +18,9 @@ void parseArguments(const QStringList &args) {
     QCommandLineOption cacheRootDirOption("cache-root-dir", "Root directory for cache files", "dir");
     parser.addOption(cacheRootDirOption);
 
+    QCommandLineOption stockCsvOption("stock-csv", "Path to CSV file containing stock tickers (first column)", "file");
+    parser.addOption(stockCsvOption);
+
     // Process command-line arguments
     parser.process(args);
 
@@ -35,5 +38,14 @@ void parseArguments(const QStringList &args) {
     QString cacheDir = parser.value(cacheRootDirOption);
     if (!cacheDir.isEmpty()) {
         cacheRootDir = cacheDir;
+    }
+
+    QString stockCsv = parser.value(stockCsvOption);
+    if (!stockCsv.isEmpty()) {
+        QFileInfo fileInfo(stockCsv);
+        if (!fileInfo.exists() || !fileInfo.isFile()) {
+            qFatal() << "Error: The specified stock CSV file does not exist or is not a file:" << stockCsv;
+        }
+        stockCsvFile = stockCsv;
     }
 }

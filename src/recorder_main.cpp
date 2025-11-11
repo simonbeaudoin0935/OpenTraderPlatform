@@ -5,6 +5,8 @@
 #include "Misc/ArgumentParser.h"
 #include "Misc/Logging.h"
 #include "Settings.h"
+#include "BarCache.h"
+#include "TSClient.h"
 
 #include <QtGlobal>
 
@@ -28,9 +30,21 @@ int main(int argc, char *argv[])
     parseArguments(app.arguments());
 
     qInfo() << "Cache root directory:" << getCacheLocation();
+    if (stockCsvFile.isEmpty()) {
+        qFatal() << "Stock CSV file empty";
+    } else {
+        qInfo() << "Stock CSV file:" << stockCsvFile;
+    }
 
     // TODO: Implement recording logic here
     qInfo() << "Recorder started - recording market data...";
+
+
+    TSClient* tradeStationClient = TSClient::getInstancePtr();
+
+    tradeStationClient->start();
+
+    BarCache barCache("AAPL", true);
 
     return app.exec();
 }
