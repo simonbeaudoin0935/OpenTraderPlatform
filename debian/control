@@ -5,6 +5,7 @@ Maintainer: L2Trader Development Team <dev@l2trader.local>
 Build-Depends: debhelper-compat (= 13),
                qt6-base-dev,
                qt6-charts-dev,
+               qt6-webengine-dev,
                libqt6sql6-sqlite,
                qtkeychain-qt6-dev,
                libsecret-1-dev
@@ -14,10 +15,16 @@ Homepage: https://github.com/simonbeaudoin0935/L2Trader
 Package: l2trader
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
-         qt6-base-dev,
-         qt6-charts-dev,
+         libqt6core6t64,
+         libqt6gui6t64,
+         libqt6widgets6t64,
+         libqt6network6t64,
+         libqt6sql6,
          libqt6sql6-sqlite,
-         qtkeychain-qt6,
+         libqt6charts6,
+         libqt6webenginecore6,
+         libqt6webenginewidgets6,
+         libqt6keychain1,
          libsecret-1-0
 Description: Real-time algorithmic trading application
  L2Trader is a sophisticated trading platform built with Qt6 that connects

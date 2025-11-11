@@ -12,15 +12,15 @@ QT6_QMAKE = $(shell which qmake6 || which qmake)
 override_dh_auto_configure:
 	# Configure main application
 	mkdir -p build-main
-	cd build-main && $(QT6_QMAKE) ../L2Trader.pro CONFIG+=release DEFINES+=QT_KEYCHAIN_LIB LIBS+=-lqt6keychain
+	cd build-main && $(QT6_QMAKE) ../L2Trader.pro CONFIG+=release "DEFINES+=QT_KEYCHAIN_LIB" "LIBS+=-lqt6keychain"
 	
 	# Configure Recorder application
 	mkdir -p build-recorder
-	cd build-recorder && $(QT6_QMAKE) ../Recorder.pro CONFIG+=release DEFINES+=QT_KEYCHAIN_LIB LIBS+=-lqt6keychain
+	cd build-recorder && $(QT6_QMAKE) ../Recorder.pro CONFIG+=release "DEFINES+=QT_KEYCHAIN_LIB" "LIBS+=-lqt6keychain"
 	
 	# Configure tests
 	mkdir -p build-tests
-	cd build-tests && $(QT6_QMAKE) ../Tests.pro CONFIG+=release DEFINES+=QT_KEYCHAIN_LIB LIBS+=-lqt6keychain
+	cd build-tests && $(QT6_QMAKE) ../Tests.pro CONFIG+=release "DEFINES+=QT_KEYCHAIN_LIB" "LIBS+=-lqt6keychain"
 
 override_dh_auto_build:
 	# Build main application
