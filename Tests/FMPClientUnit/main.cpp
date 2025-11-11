@@ -15,14 +15,14 @@ int main(int argc, char *argv[]) {
     QString version = QString("%1 ~ %2@%3").arg(GIT_TAG, GIT_BRANCH, GIT_HASH);
     QCoreApplication::setApplicationVersion(version);
 
+    parseArguments(app.arguments());
+
     // Initialize logging (opens file and installs handler)
     initLogging();
 
     qInfo() << "Qt version:" << QT_VERSION_STR;
 
     qInfo() << "Version:" << version;
-
-    parseArguments(app.arguments());
 
     qInfo() << "Cache root directory:" << getCacheLocation();
 
@@ -33,5 +33,5 @@ int main(int argc, char *argv[]) {
     parser.addHelpOption();
 
     TestFMPClient test;
-    return QTest::qExec(&test, argc, argv);
+    return QTest::qExec(&test, argc=0, argv); //FIXME need to put 0 here to avoid passing our arguments to qtest
 }

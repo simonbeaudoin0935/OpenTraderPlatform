@@ -29,15 +29,18 @@ void parseArguments(const QStringList &args) {
     QString criteriaFile = parser.value(configCriteriaOption);
     {
         QFileInfo fileInfo(criteriaFile);
-        if (!fileInfo.exists() || !fileInfo.isFile()) {
-            qWarning() << "The specified path does not exist or is not a file : " << criteriaFile;
+        if (fileInfo.exists() && fileInfo.isFile()) {
+            criteriaSettings = new QSettings(criteriaFile, QSettings::IniFormat);
+        } else {
+            // For unit tests or when criteria file is not needed, create empty settings
+            criteriaSettings = new QSettings();
         }
     }
-    criteriaSettings = new QSettings(criteriaFile, QSettings::IniFormat);
 
     QString cacheDir = parser.value(cacheRootDirOption);
     if (!cacheDir.isEmpty()) {
         cacheRootDir = cacheDir;
+        qInfo() << "Cache root directory set to:" << cacheRootDir;
     }
 
     QString stockCsv = parser.value(stockCsvOption);

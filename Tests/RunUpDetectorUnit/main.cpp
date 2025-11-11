@@ -14,6 +14,8 @@ int main(int argc, char *argv[]) {
     QString version = QString("%1 ~ %2@%3").arg(GIT_TAG, GIT_BRANCH, GIT_HASH);
     QCoreApplication::setApplicationVersion(version);
 
+    parseArguments(app.arguments());
+
     // Initialize logging (opens file and installs handler)
     initLogging();
 
@@ -21,12 +23,10 @@ int main(int argc, char *argv[]) {
 
     qInfo() << "Version:" << version;
 
-    parseArguments(app.arguments());
-
     qInfo() << "Cache root directory:" << getCacheLocation();
 
     QThread::currentThread()->setObjectName("MainThread");
 
     TestRunUpDetector test;
-    return QTest::qExec(&test, argc, argv);
+    return QTest::qExec(&test, argc=0, argv); //FIXME need to put 0 here to avoid passing our arguments to qtest
 } 
