@@ -23,3 +23,11 @@ HEADERS += TestBarCache.h
 QMAKE_CXXFLAGS += -Og
 
 DEFINES += UNIT_TESTING 
+
+# Version from git
+TAG = $$system(git describe --tags --abbrev=0)
+HASH = $$system(git rev-parse --short HEAD)
+BRANCH = $$system(git rev-parse --abbrev-ref HEAD)
+DEFINES += GIT_TAG=\\\"$${TAG}\\\"
+DEFINES += GIT_HASH=\\\"$${HASH}\\\"
+DEFINES += GIT_BRANCH=\\\"$${BRANCH}\\\"

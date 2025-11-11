@@ -4,10 +4,23 @@
 
 #include "TestBarCache.h"
 #include "ArgumentParser.h"
+#include "Logging.h"
+
 #include "Settings.h"
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
+
+    QCoreApplication::setApplicationName("Recorder");
+    QString version = QString("%1 ~ %2@%3").arg(GIT_TAG, GIT_BRANCH, GIT_HASH);
+    QCoreApplication::setApplicationVersion(version);
+
+    // Initialize logging (opens file and installs handler)
+    initLogging();
+
+    qInfo() << "Qt version:" << QT_VERSION_STR;
+
+    qInfo() << "Version:" << version;
 
     parseArguments(app.arguments());
 

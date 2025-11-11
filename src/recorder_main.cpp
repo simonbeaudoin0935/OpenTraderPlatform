@@ -2,8 +2,8 @@
 #include <QLoggingCategory>
 #include <QDateTime>
 
-#include "Misc/ArgumentParser.h"
-#include "Misc/Logging.h"
+#include "ArgumentParser.h"
+#include "Logging.h"
 #include "Settings.h"
 #include "BarCache.h"
 #include "TSClient.h"
