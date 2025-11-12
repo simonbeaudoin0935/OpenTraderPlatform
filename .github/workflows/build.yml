@@ -34,8 +34,8 @@ jobs:
         RASPBERRYPI_QMAKE="/home/simon/Qt/6.4.2/gcc_64/bin/qmake"
         LAPTOP_QMAKE="/home/simon/Qt/6.8.3/gcc_64/bin/qmake"
 
-        ARCH=$RASPBERRYPI_ARCH
-        QMAKE_COMMAND=$RASPBERRYPI_QMAKE
+        ARCH=$LAPTOP_ARCH
+        QMAKE_COMMAND=$LAPTOP_QMAKE
         
         # Check if triggered by workflow_dispatch
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
