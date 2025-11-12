@@ -32,15 +32,13 @@ QString ClientToken::toString() const
 ClientToken ClientToken::loadFromSettings()
 {
     ClientToken token;
-    SecureStorage* storage = new SecureStorage();
+    SecureStorage storage;
 
     // Load client credentials from SecureStorage synchronously
-    QMap<QString, QString> credentials = storage->retrieveValuesSync("TradeStation", {"client_id", "client_secret"});
+    QMap<QString, QString> credentials = storage.retrieveValuesSync("TradeStation", {"client_id", "client_secret"});
 
     token.clientId = credentials.value("client_id");
     token.clientSecret = credentials.value("client_secret");
-
-    storage->deleteLater();
 
     if (token.clientId.isEmpty() || token.clientSecret.isEmpty()) {
         qCWarning(tsClientToken) << "No credentials found in secure storage";
@@ -53,14 +51,14 @@ ClientToken ClientToken::loadFromSettings()
 
 bool ClientToken::storeToSettings(const ClientToken &token)
 {
-    SecureStorage* storage = new SecureStorage();
+    SecureStorage storage;
 
     // Store client credentials in SecureStorage synchronously
     QMap<QString, QString> credentials;
     credentials["client_id"] = token.clientId;
     credentials["client_secret"] = token.clientSecret;
 
-    bool success = storage->storeValuesSync("TradeStation", credentials);
+    bool success = storage.storeValuesSync("TradeStation", credentials);
 
     if (success) {
         qCDebug(tsClientToken) << "Credentials stored successfully in secure storage";
@@ -68,20 +66,17 @@ bool ClientToken::storeToSettings(const ClientToken &token)
         qCWarning(tsClientToken) << "Failed to store credentials in secure storage";
     }
 
-    storage->deleteLater();
     return success;
 }
 
 void ClientToken::clearSettings()
 {
-    SecureStorage* storage = new SecureStorage();
+    SecureStorage storage;
 
     // Clear client credentials from SecureStorage synchronously
-    storage->deleteValuesSync("TradeStation", {"client_id", "client_secret"});
+    storage.deleteValuesSync("TradeStation", {"client_id", "client_secret"});
 
     qCDebug(tsClientToken) << "Credential settings cleared from secure storage";
-
-    storage->deleteLater();
 }
 
 bool ClientToken::validateClientId(const QString &clientId)

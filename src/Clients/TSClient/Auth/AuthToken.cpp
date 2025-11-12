@@ -153,7 +153,7 @@ bool AuthToken::validateExpiresIn(int expiresIn)
 AuthToken AuthToken::loadFromSettings()
 {
     AuthToken token;
-    SecureStorage* storage = new SecureStorage();
+    SecureStorage storage;
 
     // Load metadata from regular QSettings
     QSettings settings(QSettings::IniFormat, QSettings::UserScope,
@@ -166,13 +166,11 @@ AuthToken AuthToken::loadFromSettings()
     token.receivedAt = QDateTime::fromString(settings.value("Tokens/received_at").toString(), Qt::ISODate);
 
     // Load sensitive tokens from SecureStorage synchronously
-    QMap<QString, QString> secureTokens = storage->retrieveValuesSync("TradeStation", {"access_token", "refresh_token", "id_token"});
+    QMap<QString, QString> secureTokens = storage.retrieveValuesSync("TradeStation", {"access_token", "refresh_token", "id_token"});
 
     token.accessToken = secureTokens.value("access_token");
     token.refreshToken = secureTokens.value("refresh_token");
     token.idToken = secureTokens.value("id_token");
-
-    storage->deleteLater();
 
     if (token.isValid()) {
         qCInfo(TSAuthTokenLog) << "Credentials loaded successfully from secure storage";
@@ -185,7 +183,7 @@ AuthToken AuthToken::loadFromSettings()
 
 bool AuthToken::storeToSettings(const AuthToken &token)
 {
-    SecureStorage* storage = new SecureStorage();
+    SecureStorage storage;
 
     // Store metadata in regular QSettings
     QSettings settings(QSettings::IniFormat, QSettings::UserScope,
@@ -203,7 +201,7 @@ bool AuthToken::storeToSettings(const AuthToken &token)
     secureTokens["refresh_token"] = token.refreshToken;
     secureTokens["id_token"] = token.idToken;
 
-    bool success = storage->storeValuesSync("TradeStation", secureTokens);
+    bool success = storage.storeValuesSync("TradeStation", secureTokens);
 
     // Force an immediate write to disk for QSettings
     settings.sync();
@@ -219,13 +217,12 @@ bool AuthToken::storeToSettings(const AuthToken &token)
         qWarning() << "Failed to store auth token";
     }
 
-    storage->deleteLater();
     return success;
 }
 
 void AuthToken::clearSettings()
 {
-    SecureStorage* storage = new SecureStorage();
+    SecureStorage storage;
 
     // Clear metadata from regular QSettings
     QSettings settings(QSettings::IniFormat, QSettings::UserScope,
@@ -238,12 +235,10 @@ void AuthToken::clearSettings()
     settings.remove("Tokens/received_at");
 
     // Clear sensitive tokens from SecureStorage synchronously
-    storage->deleteValuesSync("TradeStation", {"access_token", "refresh_token", "id_token"});
+    storage.deleteValuesSync("TradeStation", {"access_token", "refresh_token", "id_token"});
 
     // Force an immediate write to disk for QSettings
     settings.sync();
 
     qDebug() << "Auth token settings cleared (secure tokens from SecureStorage, metadata from QSettings)";
-
-    storage->deleteLater();
 } 
