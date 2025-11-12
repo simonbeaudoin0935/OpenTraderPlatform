@@ -28,14 +28,23 @@ jobs:
       id: set-outputs
       run: |
         # Default values
-        ARCH="X64"
-        QMAKE_COMMAND="/home/simon/Qt/6.8.3/gcc_64/bin/qmake"
+        RASPBERRYPI_ARCH="ARM64"
+        LAPTOP_ARCH="X64"
+
+        RASPBERRYPI_QMAKE="/home/simon/Qt/6.4.2/gcc_64/bin/qmake"
+        LAPTOP_QMAKE="/home/simon/Qt/6.8.3/gcc_64/bin/qmake"
+
+        ARCH=$RASPBERRYPI_ARCH
+        QMAKE_COMMAND=$RASPBERRYPI_QMAKE
         
         # Check if triggered by workflow_dispatch
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           if [ "${{ github.event.inputs.target }}" = "raspberrypi" ]; then
-            ARCH="ARM64"
-            QMAKE_COMMAND="/home/simon/Qt/6.4.2/gcc_64/bin/qmake"
+            ARCH=$RASPBERRYPI_ARCH
+            QMAKE_COMMAND=$RASPBERRYPI_QMAKE
+          else
+            ARCH=$LAPTOP_ARCH
+            QMAKE_COMMAND=$LAPTOP_QMAKE
           fi
         fi
         

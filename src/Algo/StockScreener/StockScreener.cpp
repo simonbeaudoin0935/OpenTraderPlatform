@@ -100,32 +100,32 @@ void StockScreener::loadCriterias()
 {
     PriceRangeLow = criteriaSettings->value("Criterias/PriceRangeLow",0.0).toDouble();
     if (PriceRangeLow <= 0.0) {
-        qFatal() << "Criterias/PriceRangeLow";
+        qFatal("Invalid or missing Criterias/PriceRangeLow configuration");
     }
 
     PriceRangeHigh = criteriaSettings->value("Criterias/PriceRangeHigh",0.0).toDouble();
     if (PriceRangeHigh <= 0.0) {
-        qFatal() << "Criterias/PriceRangeHigh";
+        qFatal("Invalid or missing Criterias/PriceRangeHigh configuration");
     }
 
     PreferedFloat = criteriaSettings->value("Criterias/PreferedFloat",0).toULongLong();
     if (PreferedFloat == 0) {
-        qFatal() << "Criterias/PreferedFloat";
+        qFatal("Invalid or missing Criterias/PreferedFloat configuration");
     }
 
     MaxFloat = criteriaSettings->value("Criterias/MaxFloat",0).toULongLong();
     if (MaxFloat == 0) {
-        qFatal() << "Criterias/MaxFloat";
+        qFatal("Invalid or missing Criterias/MaxFloat configuration");
     }
 
     RelativeVolume = criteriaSettings->value("Criterias/RelativeVolume",0.0).toDouble();
     if (RelativeVolume <= 0.0) {
-        qFatal() << "Criterias/RelativeVolume";
+        qFatal("Invalid or missing Criterias/RelativeVolume configuration");
     }
 
     GapPercentage = criteriaSettings->value("Criterias/GapPercentage",0.0).toDouble();
     if (GapPercentage <= 0.0) {
-        qFatal() << "Criterias/GapPercentage";
+        qFatal("Invalid or missing Criterias/GapPercentage configuration");
     }
 }
 

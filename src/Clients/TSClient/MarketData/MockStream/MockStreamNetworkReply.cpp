@@ -10,7 +10,7 @@ MockStreamNetworkReply::MockStreamNetworkReply(const QString &mockDataFile, QObj
     file.setFileName(mockDataFile);
 
     if (!file.open(QIODevice::ReadOnly)) {
-        qFatal() << "Error: Could not open file" << file.fileName() << ":" << file.errorString();
+        qFatal("Error: Could not open file %s: %s", qUtf8Printable(file.fileName()), qUtf8Printable(file.errorString()));
     }
 
     textSteam.setDevice(&file);
@@ -50,7 +50,7 @@ qint64 MockStreamNetworkReply::readData(char* data, qint64 maxSize) {
     qint64 size = array->size();
 
     if(size > maxSize){
-        qFatal() << "fuck";
+        qFatal("MockStreamNetworkReply: Data size %lld exceeds maxSize %lld", size, maxSize);
     }
 
     memcpy(data, array->constData(), array->size());

@@ -47,7 +47,7 @@ void parseArguments(const QStringList &args) {
     if (!stockCsv.isEmpty()) {
         QFileInfo fileInfo(stockCsv);
         if (!fileInfo.exists() || !fileInfo.isFile()) {
-            qFatal() << "Error: The specified stock CSV file does not exist or is not a file:" << stockCsv;
+            qFatal("Error: The specified stock CSV file does not exist or is not a file: %s", qUtf8Printable(stockCsv));
         }
         stockCsvFile = stockCsv;
     }

@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
 
     qInfo() << "Cache root directory:" << getCacheLocation();
     if (stockCsvFile.isEmpty()) {
-        qFatal() << "Stock CSV file empty";
+        qFatal("Stock CSV file not specified");
     } else {
         qInfo() << "Stock CSV file:" << stockCsvFile;
     }

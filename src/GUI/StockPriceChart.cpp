@@ -133,7 +133,7 @@ void StockPriceChart::addBar(const Bar& bar) {
     } else if (bar.getBarStatus() == Bar::BarStatus::Open) {
         handleOpenBar(bar);
     } else {
-        qCritical() << Q_FUNC_INFO << " : void bar";
+        qCritical("StockPriceChart: Received bar with unknown status");
     }
 
     updateChart();
