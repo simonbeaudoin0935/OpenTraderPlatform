@@ -17,22 +17,50 @@ on:
         - raspberrypi
 
 jobs:
+  setup-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      arch: ${{ steps.set-outputs.outputs.arch }}
+      qmake_command: ${{ steps.set-outputs.outputs.qmake_command }}
+    
+    steps:
+    - name: Normalize architecture and qmake command
+      id: set-outputs
+      run: |
+        # Default values
+        ARCH="X64"
+        QMAKE_COMMAND="/home/simon/Qt/6.8.3/gcc_64/bin/qmake"
+        
+        # Check if triggered by workflow_dispatch
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event.inputs.target }}" = "raspberrypi" ]; then
+            ARCH="ARM64"
+            QMAKE_COMMAND="/home/simon/Qt/6.4.2/gcc_64/bin/qmake"
+          fi
+        fi
+        
+        echo "arch=$ARCH" >> $GITHUB_OUTPUT
+        echo "qmake_command=$QMAKE_COMMAND" >> $GITHUB_OUTPUT
+
   build-main:
-    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
+    needs: setup-environment
+    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Set Qt path
       run: |
-        if [ "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' || github.event_name != 'workflow_dispatch' }}" = "false" ]; then
-          echo "QMAKE=/home/simon/Qt/6.4.2/gcc_64/bin/qmake" >> $GITHUB_ENV
+        echo "QMAKE=${{ needs.setup-environment.outputs.qmake_command }}" >> $GITHUB_ENV
+        if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
           echo "MAKE_JOBS=-j1" >> $GITHUB_ENV
         else
-          echo "QMAKE=/home/simon/Qt/6.8.3/gcc_64/bin/qmake" >> $GITHUB_ENV
           echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
         fi
 
+    - name: Show Qt version
+      run: $QMAKE --version
+    
     - name: Create build directory
       run: mkdir -p build
 
@@ -43,19 +71,18 @@ jobs:
       run: make $MAKE_JOBS -C build
 
   build-recorder:
-    needs: build-main
-    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
+    needs: [build-main, setup-environment]
+    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Set Qt path
       run: |
-        if [ "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' || github.event_name != 'workflow_dispatch' }}" = "false" ]; then
-          echo "QMAKE=/home/simon/Qt/6.4.2/gcc_64/bin/qmake" >> $GITHUB_ENV
+        echo "QMAKE=${{ needs.setup-environment.outputs.qmake_command }}" >> $GITHUB_ENV
+        if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
           echo "MAKE_JOBS=-j1" >> $GITHUB_ENV
         else
-          echo "QMAKE=/home/simon/Qt/6.8.3/gcc_64/bin/qmake" >> $GITHUB_ENV
           echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
         fi
 
@@ -69,19 +96,18 @@ jobs:
       run: make $MAKE_JOBS -C build
 
   build-tests:
-    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
-    needs: build-recorder
+    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
+    needs: [build-recorder, setup-environment]
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Set Qt path
       run: |
-        if [ "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' || github.event_name != 'workflow_dispatch' }}" = "false" ]; then
-          echo "QMAKE=qmake" >> $GITHUB_ENV
+        echo "QMAKE=${{ needs.setup-environment.outputs.qmake_command }}" >> $GITHUB_ENV
+        if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
           echo "MAKE_JOBS=-j1" >> $GITHUB_ENV
         else
-          echo "QMAKE=/home/simon/Qt/6.8.3/gcc_64/bin/qmake" >> $GITHUB_ENV
           echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
         fi
 
@@ -95,8 +121,8 @@ jobs:
       run: make $MAKE_JOBS -C build/Tests
 
   run-barcache-test:
-    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
-    needs: build-tests
+    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
+    needs: [build-tests, setup-environment]
 
     steps:
     - name: Run BarCache unit test
@@ -105,24 +131,24 @@ jobs:
   run-fmpclient-test:
     #We are going to dump FMP in the future
     if: false
-    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
-    needs: build-tests
+    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
+    needs: [build-tests, setup-environment]
 
     steps:
     - name: Run FMPClient unit test
       run: ./build/Tests/Tests/FMPClientUnit/test_fmpclient
 
   run-tsclient-test:
-    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
-    needs: build-tests
+    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
+    needs: [build-tests, setup-environment]
 
     steps:
     - name: Run TSClient unit test
       run: ./build/Tests/Tests/TSClientUnit/test_tradestationclient
 
   run-runupdetector-test:
-    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
-    needs: build-tests
+    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
+    needs: [build-tests, setup-environment]
 
     steps:
     - name: Run RunUpDetector unit test
