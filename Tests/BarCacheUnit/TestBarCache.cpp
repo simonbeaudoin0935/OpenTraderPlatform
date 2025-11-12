@@ -252,7 +252,7 @@ void TestBarCache::testGetBarsOnlyHoles()
     BarCache cache("TIVC");
     cache.clearDatabase();
 
-    QTimeZone newYorkTimeZone(QByteArray("America/New_York"));
+    QTimeZone newYorkTimeZone = QTimeZone::fromName("America/New_York");
 
     //  Test against wednesday April 2 shortly after 17h where there is a bar holes from 17h-17h39
     QDate date(2025, 04, 02);
@@ -337,7 +337,7 @@ void TestBarCache::testGetBarsWithHoles()
     //  Test against wednesday April 2
     QDate date(2025, 04, 02);
 
-    QTimeZone newYorkTimeZone(QByteArray("America/New_York"));
+    QTimeZone newYorkTimeZone = QTimeZone::fromName("America/New_York");
 
     const QTime _4PM(16, 0, 0);
     const QTime _8PM(19, 59, 0);
