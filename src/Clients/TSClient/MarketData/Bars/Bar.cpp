@@ -21,7 +21,7 @@ QString Bar::barStatusToString(BarStatus barStatus)
         case BarStatus::Open: return "Open";
         case BarStatus::Closed: return "Closed";
         case BarStatus::Void: return "Void";
-        default: Q_UNREACHABLE_RETURN("");
+        default: Q_UNREACHABLE();
     }
 }
 
@@ -40,7 +40,7 @@ QUrlQuery Bar::buildUrlQuery(unsigned int interval,
         case Bar::BarUnit::Daily: return "Daily";
         case Bar::BarUnit::Weekly: return "Weekly";
         case Bar::BarUnit::Monthly: return "Monthly";
-        default: Q_UNREACHABLE_RETURN("Unknown");
+        default: Q_UNREACHABLE();
         }
     }());
     query.addQueryItem("sessiontemplate", [sessionTemplate]() -> QString {
@@ -50,7 +50,7 @@ QUrlQuery Bar::buildUrlQuery(unsigned int interval,
         case Bar::BarSessionTemplate::USEPreAndPost: return "USEPreAndPost";
         case Bar::BarSessionTemplate::USEQ24Hour: return "USEQ24Hour";
         case Bar::BarSessionTemplate::Default: return "Default";
-        default: Q_UNREACHABLE_RETURN("Unknown");
+        default: Q_UNREACHABLE();
         }
     }());
 

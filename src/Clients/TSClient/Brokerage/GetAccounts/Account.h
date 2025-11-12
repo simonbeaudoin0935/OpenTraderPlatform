@@ -25,7 +25,7 @@ public:
         case Type::Margin: return "Margin";
         case Type::Futures: return "Futures";
         case Type::DVP: return "DVP";
-        default: Q_UNREACHABLE_RETURN("");
+        default: Q_UNREACHABLE();
         }
     }
 
