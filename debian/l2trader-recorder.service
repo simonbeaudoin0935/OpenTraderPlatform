@@ -9,7 +9,6 @@ Type=simple
 User=l2trader
 Group=l2trader
 WorkingDirectory=/var/lib/l2trader
-Environment=LD_LIBRARY_PATH=/home/simon/Qt/6.8.3/gcc_64/lib:$LD_LIBRARY_PATH
 ExecStart=/usr/bin/l2trader-recorder --stock-csv=/usr/share/doc/l2trader/examples/nasdaq_screener.csv
 ExecStopPost=/usr/lib/l2trader/recorder-post-stop.sh
 Restart=no

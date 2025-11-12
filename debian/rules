@@ -34,13 +34,10 @@ override_dh_auto_build:
 
 override_dh_auto_install:
 	# Install main application binary
-	install -D -m 0755 build-main/src/L2Trader debian/l2trader/usr/lib/l2trader/l2trader-bin
+	install -D -m 0755 build-main/src/L2Trader debian/l2trader/usr/bin/l2trader
 	
 	# Install recorder application binary
 	install -D -m 0755 build-recorder/src/Recorder debian/l2trader/usr/bin/l2trader-recorder
-	
-	# Install wrapper script for main application
-	install -D -m 0755 debian/l2trader-wrapper debian/l2trader/usr/bin/l2trader
 	
 	# Install application icon
 	install -D -m 0644 Resources/Icons/L2T.png debian/l2trader/usr/share/pixmaps/l2trader.png

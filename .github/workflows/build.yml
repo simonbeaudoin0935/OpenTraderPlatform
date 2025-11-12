@@ -164,7 +164,7 @@ jobs:
       run: ./build/Tests/Tests/RunUpDetectorUnit/test_RunUpDetector
 
   build-debian-package:
-    runs-on: ubuntu:24.04
+    runs-on: ubuntu-24.04
     needs: setup-environment
     permissions:
       contents: read
@@ -192,7 +192,7 @@ jobs:
         cp ../*.deb artifacts/
 
     - name: List generated packages
-      run: ls -lh artifacts/*.deb
+      run: ls -lh ../*.deb
 
     - name: Upload Debian packages as artifacts
       uses: actions/upload-artifact@v4
