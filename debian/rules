@@ -4,7 +4,7 @@
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 # Get Qt6 qmake path
-QT6_QMAKE = $(shell which qmake6 || which qmake)
+QT6_QMAKE = $(shell which qmake6)
 
 %:
 	dh $@
