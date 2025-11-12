@@ -1,0 +1,7 @@
+[Unit]
+Description=Stop L2Trader Recorder Service
+Documentation=https://github.com/simonbeaudoin0935/L2Trader
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl stop l2trader-recorder.service

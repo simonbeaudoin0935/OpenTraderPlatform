@@ -1,0 +1,9 @@
+l2trader (1.0.0) unstable; urgency=medium
+
+  * Initial Debian package release
+  * Real-time algorithmic trading application
+  * Qt6-based GUI with Level 2 market data visualization
+  * Automated stock screening and breaking news monitoring
+  * Secure credential storage with QtKeychain support
+
+ -- Simon Beaudoin <29244395+simonbeaudoin0935@users.noreply.github.com>  Mon, 11 Nov 2024 18:00:00 +0000

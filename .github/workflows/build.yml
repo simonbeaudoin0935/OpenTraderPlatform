@@ -162,3 +162,36 @@ jobs:
     steps:
     - name: Run RunUpDetector unit test
       run: ./build/Tests/Tests/RunUpDetectorUnit/test_RunUpDetector
+
+  build-debian-package:
+    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
+    needs: setup-environment
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set Qt path for dpkg-buildpackage
+      run: |
+        echo "export PATH=$(dirname ${{ needs.setup-environment.outputs.qmake_command }}):\$PATH" > /tmp/qt_env.sh
+
+    - name: Build Debian package
+      run: |
+        source /tmp/qt_env.sh
+        dpkg-buildpackage -us -uc -b
+
+    - name: Prepare artifacts directory
+      run: |
+        mkdir -p artifacts
+        cp ../*.deb artifacts/
+
+    - name: List generated packages
+      run: ls -lh artifacts/*.deb
+
+    - name: Upload Debian packages as artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: debian-packages-${{ needs.setup-environment.outputs.arch }}
+        path: artifacts/*.deb
