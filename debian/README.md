@@ -107,8 +107,7 @@ The built packages are uploaded as GitHub Actions artifacts.
 ## Files
 
 - `changelog` - Package version history
-- `compat` - Debhelper compatibility level (13)
-- `control` - Package metadata and dependencies
+- `control` - Package metadata and dependencies (includes debhelper-compat level)
 - `copyright` - License information (MIT)
 - `rules` - Build instructions (Makefile)
 - `l2trader.desktop` - Desktop entry for application menu
