@@ -76,4 +76,4 @@ jobs:
         if: ${{ github.event_name != 'pull_request_target' }}
         run: |
           echo ${{ secrets.TOKEN_GHCR }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker push ghcr.io/l2trader-builder:noble
+          docker push ghcr.io/simonbeaudoin0935/l2trader-builder:noble
