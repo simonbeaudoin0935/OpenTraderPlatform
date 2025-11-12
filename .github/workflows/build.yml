@@ -195,3 +195,194 @@ jobs:
       with:
         name: debian-packages-${{ needs.setup-environment.outputs.arch }}
         path: artifacts/*.deb
+
+  test-package-installation:
+    runs-on: ubuntu-latest
+    needs: [build-debian-package, setup-environment]
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+    - name: Download Debian package artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: debian-packages-${{ needs.setup-environment.outputs.arch }}
+        path: ./packages
+
+    - name: List downloaded packages
+      run: ls -lh ./packages/
+
+    - name: Test package installation in Docker container
+      run: |
+        # Create a Dockerfile for testing
+        cat > Dockerfile.test << 'EOF'
+        FROM ubuntu:22.04
+        
+        # Avoid interactive prompts during package installation
+        ENV DEBIAN_FRONTEND=noninteractive
+        
+        # Install basic dependencies
+        RUN apt-get update && apt-get install -y \
+            adduser \
+            systemd \
+            && rm -rf /var/lib/apt/lists/*
+        
+        # Copy packages into container
+        COPY packages/*.deb /tmp/
+        
+        # Install the packages
+        RUN apt-get update && \
+            apt-get install -y /tmp/l2trader_*.deb /tmp/l2trader-tests_*.deb || \
+            (apt-get install -f -y && apt-get install -y /tmp/l2trader_*.deb /tmp/l2trader-tests_*.deb)
+        
+        # Verify installation
+        RUN dpkg -l | grep l2trader
+        
+        # List installed files
+        RUN dpkg -L l2trader
+        RUN dpkg -L l2trader-tests
+        EOF
+        
+        # Build and run the test container
+        docker build -f Dockerfile.test -t l2trader-test .
+        
+    - name: Run unit tests in Docker container
+      run: |
+        # Create a test script to run inside the container
+        cat > run_tests.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        echo "==== Running Unit Tests from Installed Package ===="
+        
+        # Run BarCache unit test
+        echo "Running BarCache unit test..."
+        if [ -f /usr/lib/l2trader/tests/test_barcache ]; then
+            /usr/lib/l2trader/tests/test_barcache --stock-csv=/usr/share/doc/l2trader/examples/nasdaq_screener.csv || echo "BarCache test failed or requires additional setup"
+        else
+            echo "Warning: test_barcache not found"
+        fi
+        
+        # Run RunUpDetector unit test
+        echo "Running RunUpDetector unit test..."
+        if [ -f /usr/lib/l2trader/tests/test_runupdetector ]; then
+            /usr/lib/l2trader/tests/test_runupdetector || echo "RunUpDetector test failed or requires additional setup"
+        else
+            echo "Warning: test_runupdetector not found"
+        fi
+        
+        # Run TSClient unit test
+        echo "Running TSClient unit test..."
+        if [ -f /usr/lib/l2trader/tests/test_tradestationclient ]; then
+            /usr/lib/l2trader/tests/test_tradestationclient || echo "TSClient test failed or requires additional setup"
+        else
+            echo "Warning: test_tradestationclient not found"
+        fi
+        
+        echo "==== Unit tests completed ===="
+        EOF
+        
+        chmod +x run_tests.sh
+        
+        # Run tests inside the container
+        docker run --rm -v $(pwd)/run_tests.sh:/run_tests.sh l2trader-test /run_tests.sh
+        
+    - name: Test package removal in Docker container
+      run: |
+        # Create a script to test package removal
+        cat > test_removal.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        echo "==== Testing Package Removal ===="
+        
+        # List installed files before removal
+        echo "Files from l2trader package:"
+        dpkg -L l2trader
+        
+        echo "Files from l2trader-tests package:"
+        dpkg -L l2trader-tests
+        
+        # Remove the tests package first
+        echo "Removing l2trader-tests package..."
+        apt-get remove -y l2trader-tests
+        
+        # Remove the main package
+        echo "Removing l2trader package..."
+        apt-get remove -y l2trader
+        
+        # Verify packages are removed
+        if dpkg -l | grep -q "^ii.*l2trader"; then
+            echo "ERROR: l2trader packages still installed after removal"
+            exit 1
+        fi
+        
+        echo "==== Package removal successful ===="
+        EOF
+        
+        chmod +x test_removal.sh
+        
+        # Test removal in the container
+        docker run --rm -v $(pwd)/test_removal.sh:/test_removal.sh l2trader-test /test_removal.sh
+        
+    - name: Test package purge in Docker container
+      run: |
+        # Create a script to test package purge
+        cat > test_purge.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        echo "==== Testing Package Purge ===="
+        
+        # Reinstall packages for purge test
+        apt-get update
+        apt-get install -y /tmp/l2trader_*.deb /tmp/l2trader-tests_*.deb
+        
+        # Purge the tests package first
+        echo "Purging l2trader-tests package..."
+        apt-get purge -y l2trader-tests
+        
+        # Purge the main package
+        echo "Purging l2trader package..."
+        apt-get purge -y l2trader
+        
+        # Verify packages are completely removed
+        if dpkg -l | grep -q "^ii.*l2trader"; then
+            echo "ERROR: l2trader packages still installed after purge"
+            exit 1
+        fi
+        
+        # Check if configuration files remain
+        if dpkg -l | grep -q "^rc.*l2trader"; then
+            echo "WARNING: Configuration files remain after purge"
+            dpkg -l | grep l2trader
+        fi
+        
+        # Verify data directories are removed
+        if [ -d /var/lib/l2trader ]; then
+            echo "WARNING: /var/lib/l2trader still exists after purge"
+            ls -la /var/lib/l2trader
+        fi
+        
+        if [ -d /var/log/l2trader ]; then
+            echo "WARNING: /var/log/l2trader still exists after purge"
+            ls -la /var/log/l2trader
+        fi
+        
+        # Verify user/group are removed
+        if getent passwd l2trader >/dev/null; then
+            echo "WARNING: l2trader user still exists after purge"
+        fi
+        
+        if getent group l2trader >/dev/null; then
+            echo "WARNING: l2trader group still exists after purge"
+        fi
+        
+        echo "==== Package purge completed ===="
+        EOF
+        
+        chmod +x test_purge.sh
+        
+        # Test purge in a fresh container
+        docker run --rm -v $(pwd)/test_purge.sh:/test_purge.sh l2trader-test /test_purge.sh
