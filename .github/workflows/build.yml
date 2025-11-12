@@ -173,13 +173,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set Qt path for dpkg-buildpackage
-      run: |
-        echo "export PATH=$(dirname ${{ needs.setup-environment.outputs.qmake_command }}):\$PATH" > /tmp/qt_env.sh
-
     - name: Build Debian package
       run: |
-        source /tmp/qt_env.sh
+        export QMAKE="${{ needs.setup-environment.outputs.qmake_command }}"
         dpkg-buildpackage -us -uc -b
 
     - name: Prepare artifacts directory

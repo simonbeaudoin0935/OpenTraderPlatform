@@ -3,8 +3,8 @@
 # Enable hardening
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
-# Get Qt6 qmake path
-QT6_QMAKE = $(shell which qmake6 || which qmake)
+# Get Qt6 qmake path - use QMAKE env var if set, otherwise detect system qmake
+QT6_QMAKE ?= $(shell which qmake6 || which qmake)
 
 %:
 	dh $@
