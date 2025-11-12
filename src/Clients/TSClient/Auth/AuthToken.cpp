@@ -112,16 +112,13 @@ QJsonObject AuthToken::toJson() const
 QString AuthToken::toString() const
 {
     return QString("\n"
-                  "  Access Token: %1\n"
-                  "  Refresh Token: %2\n"
-                  "  ID Token: %3\n"
-                  "  Token Type: %4\n"
-                  "  Scope: %5\n"
-                  "  Received at: %6\n"
-                  "  Expires in: %7 seconds")
-        .arg(accessToken)
-        .arg(refreshToken)
-        .arg(idToken)
+                  "  Access Token: [REDACTED]\n"
+                  "  Refresh Token: [REDACTED]\n"
+                  "  ID Token: [REDACTED]\n"
+                  "  Token Type: %1\n"
+                  "  Scope: %2\n"
+                  "  Received at: %3\n"
+                  "  Expires in: %4 seconds")
         .arg(tokenType)
         .arg(scope)
         .arg(receivedAt.toString(Qt::ISODate))

@@ -15,7 +15,7 @@ void TestTSClient::initTestCase_data()
 {
     AuthToken savedAuthToken = AuthToken::loadFromSettings();
 
-    qDebug() << "Token details:" << savedAuthToken.toString();
+    qDebug() << "Token validation status:" << (savedAuthToken.isValid() ? "valid" : "invalid");
 
     // This test suite neet a valid token to be present in the settings.
     QVERIFY(savedAuthToken.isValid());
