@@ -182,11 +182,16 @@ jobs:
         source /tmp/qt_env.sh
         dpkg-buildpackage -us -uc -b
 
+    - name: Prepare artifacts directory
+      run: |
+        mkdir -p artifacts
+        cp ../*.deb artifacts/
+
     - name: List generated packages
-      run: ls -lh ../*.deb
+      run: ls -lh artifacts/*.deb
 
     - name: Upload Debian packages as artifacts
       uses: actions/upload-artifact@v4
       with:
         name: debian-packages-${{ needs.setup-environment.outputs.arch }}
-        path: ../*.deb
+        path: artifacts/*.deb

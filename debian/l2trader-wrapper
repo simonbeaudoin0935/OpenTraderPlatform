@@ -1,0 +1,8 @@
+#!/bin/bash
+# L2Trader wrapper script to set Qt library path
+
+# Set Qt library path for custom Qt installation
+export LD_LIBRARY_PATH="/home/simon/Qt/6.8.3/gcc_64/lib:$LD_LIBRARY_PATH"
+
+# Execute the actual L2Trader binary with all passed arguments
+exec /usr/lib/l2trader/l2trader-bin "$@"
