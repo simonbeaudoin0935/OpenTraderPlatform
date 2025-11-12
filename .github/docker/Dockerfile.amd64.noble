@@ -11,7 +11,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Update package list and install dependencies
 RUN apt-get update && apt-get install -y \
     git \
-    debhelper-compat qt6-base-dev qt6-charts-dev \
+    debhelper-compat \
+    qt6-base-private-dev \
+    qt6-base-dev qt6-charts-dev \
     qt6-webengine-dev libqt6sql6-sqlite \
     qtkeychain-qt6-dev libsecret-1-dev \
     && apt-get clean \
