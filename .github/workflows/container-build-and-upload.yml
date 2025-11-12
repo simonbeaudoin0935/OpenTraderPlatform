@@ -69,11 +69,11 @@ jobs:
 
       - name: build image
         run: |
-          docker build -f .github/docker/Dockerfile.amd64.noble -t l2trader-builder:noble .
+          docker build -f .github/docker/Dockerfile.amd64.noble -t ghcr.io/l2trader-builder:noble .
 
       # Don't push to GHCR if build was triggered by a PR
       - name: Push to GHCR
         if: ${{ github.event_name != 'pull_request_target' }}
         run: |
           echo ${{ secrets.TOKEN_GHCR }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker push l2trader-builder:noble
+          docker push ghcr.io/l2trader-builder:noble
