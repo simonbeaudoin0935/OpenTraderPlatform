@@ -45,6 +45,20 @@ override_dh_auto_install:
 	# Install desktop file
 	install -D -m 0644 debian/l2trader.desktop debian/l2trader/usr/share/applications/l2trader.desktop
 	
+	# Install systemd service and timer files for recorder
+	install -D -m 0644 debian/l2trader-recorder.service debian/l2trader/lib/systemd/system/l2trader-recorder.service
+	install -D -m 0644 debian/l2trader-recorder-start.service debian/l2trader/lib/systemd/system/l2trader-recorder-start.service
+	install -D -m 0644 debian/l2trader-recorder-start.timer debian/l2trader/lib/systemd/system/l2trader-recorder-start.timer
+	install -D -m 0644 debian/l2trader-recorder-stop.service debian/l2trader/lib/systemd/system/l2trader-recorder-stop.service
+	install -D -m 0644 debian/l2trader-recorder-stop.timer debian/l2trader/lib/systemd/system/l2trader-recorder-stop.timer
+	
+	# Install post-stop script
+	install -D -m 0755 debian/recorder-post-stop.sh debian/l2trader/usr/lib/l2trader/recorder-post-stop.sh
+	
+	# Create directories for recorder runtime data
+	install -d debian/l2trader/var/lib/l2trader
+	install -d debian/l2trader/var/log/l2trader
+	
 	# Install example configuration files
 	install -d debian/l2trader/usr/share/doc/l2trader/examples
 	install -m 0644 Example_Config/*.ini debian/l2trader/usr/share/doc/l2trader/examples/ || true

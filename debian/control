@@ -25,12 +25,17 @@ Depends: ${shlibs:Depends}, ${misc:Depends},
          libqt6webenginecore6,
          libqt6webenginewidgets6,
          libqt6keychain1,
-         libsecret-1-0
+         libsecret-1-0,
+         systemd,
+         adduser
 Description: Real-time algorithmic trading application
  L2Trader is a sophisticated trading platform built with Qt6 that connects
  to TradeStation and Financial Modeling Prep (FMP) APIs to provide real-time
  market data analysis, Level 2 market depth visualization, automated stock
  screening, and breaking news monitoring.
+ .
+ The package includes a systemd-managed Recorder service that can be scheduled
+ to run daily during market hours (7 AM - 8 PM ET) using the included timers.
  .
  Key Features:
   * Real-Time Market Data with Level 2 quotes
@@ -39,6 +44,7 @@ Description: Real-time algorithmic trading application
   * Interactive Price Charts
   * Position Tracking
   * Algorithmic Trading capabilities
+  * Automated market data recording with systemd integration
 
 Package: l2trader-tests
 Architecture: any

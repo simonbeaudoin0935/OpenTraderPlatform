@@ -43,6 +43,11 @@ The main application package that includes:
   - `/usr/share/pixmaps/l2trader.png` - Application icon
 - **Documentation:**
   - `/usr/share/doc/l2trader/examples/` - Example configuration files
+- **Systemd Integration:**
+  - `/lib/systemd/system/l2trader-recorder.service` - Recorder service
+  - `/lib/systemd/system/l2trader-recorder-start.timer` - Timer to start at 7 AM ET
+  - `/lib/systemd/system/l2trader-recorder-stop.timer` - Timer to stop at 8 PM ET
+  - `/usr/lib/l2trader/recorder-post-stop.sh` - Post-stop script
 
 ### l2trader-tests
 
@@ -139,3 +144,88 @@ To update the package version:
 - The package uses `${shlibs:Depends}` in the control file to automatically detect shared library dependencies
 - Build artifacts are excluded from git via `.gitignore`
 - The FMPClient test is intentionally excluded as it's disabled in the CI workflow
+
+## Systemd Service for Recorder
+
+The package includes a systemd-managed service for the Recorder application that can automatically run during market hours.
+
+### Service Components
+
+- **Main Service**: `l2trader-recorder.service` - Runs the recorder application
+- **Start Timer**: `l2trader-recorder-start.timer` - Starts the service daily at 7 AM ET (New York time)
+- **Stop Timer**: `l2trader-recorder-stop.timer` - Stops the service daily at 8 PM ET (New York time)
+- **Post-Stop Script**: `/usr/lib/l2trader/recorder-post-stop.sh` - Executed after service stops (normally or by crash)
+
+### Service Management
+
+Enable and start the timers (done automatically on install):
+
+```bash
+# Enable timers to start at boot
+sudo systemctl enable l2trader-recorder-start.timer
+sudo systemctl enable l2trader-recorder-stop.timer
+
+# Start timers immediately
+sudo systemctl start l2trader-recorder-start.timer
+sudo systemctl start l2trader-recorder-stop.timer
+
+# Check timer status
+sudo systemctl status l2trader-recorder-start.timer
+sudo systemctl status l2trader-recorder-stop.timer
+sudo systemctl list-timers l2trader-recorder-*
+```
+
+Manually control the recorder service:
+
+```bash
+# Start the recorder service immediately
+sudo systemctl start l2trader-recorder.service
+
+# Stop the recorder service
+sudo systemctl stop l2trader-recorder.service
+
+# Check service status
+sudo systemctl status l2trader-recorder.service
+
+# View service logs
+sudo journalctl -u l2trader-recorder.service -f
+```
+
+### Service Configuration
+
+The service runs as a dedicated `l2trader` system user with restricted permissions for security. Data is stored in:
+- `/var/lib/l2trader` - Runtime data and cache
+- `/var/log/l2trader` - Log files
+
+### Post-Stop Hook
+
+The post-stop script (`/usr/lib/l2trader/recorder-post-stop.sh`) is executed whenever the service stops, either:
+- Normally at 8 PM ET via the stop timer
+- By manual stop command
+- By service crash or failure
+
+To customize the post-stop behavior, edit the script at `/usr/lib/l2trader/recorder-post-stop.sh`.
+
+### Time Zone Configuration
+
+The timers use `America/New_York` timezone. To verify the schedule:
+
+```bash
+# Show when the timers will next trigger
+systemctl list-timers l2trader-recorder-*
+
+# View timer details
+systemctl cat l2trader-recorder-start.timer
+systemctl cat l2trader-recorder-stop.timer
+```
+
+### Security
+
+The service is hardened with systemd security features:
+- Runs as unprivileged `l2trader` user
+- Private `/tmp` directory
+- Read-only root filesystem (except allowed paths)
+- No new privileges
+- Protected kernel tunables and modules
+- Restricted namespaces and realtime capabilities
+

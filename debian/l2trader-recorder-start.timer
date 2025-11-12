@@ -1,0 +1,10 @@
+[Unit]
+Description=Start L2Trader Recorder at 7 AM ET
+Documentation=https://github.com/simonbeaudoin0935/L2Trader
+
+[Timer]
+OnCalendar=America/New_York *-*-* 07:00:00
+Persistent=false
+
+[Install]
+WantedBy=timers.target
