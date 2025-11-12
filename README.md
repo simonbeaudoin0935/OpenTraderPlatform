@@ -28,9 +28,10 @@ L2Trader follows a modular Model-View-Controller architecture with Qt's signal/s
 - **Data Management**: Bar cache, position receiver, and market depth quote handler
 
 For detailed architecture diagrams, see:
-- [Application Architecture Diagram](Application_Architecture_Diagram.md)
-- [Stock Price Chart Diagram](StockPriceChart_Diagram.md)
-- [Program Sequence](ProgramSequence.md)
+- [Application Architecture Diagram](Doc/Application_Architecture_Diagram.md)
+- [Stock Price Chart Diagram](Doc/StockPriceChart_Diagram.md)
+- [Program Sequence](Doc/ProgramSequence.md)
+- [OAuth Authentication Process](Doc/OAuth_Authentication_Process.md)
 
 ## Prerequisites
 
