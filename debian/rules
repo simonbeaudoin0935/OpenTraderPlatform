@@ -24,13 +24,13 @@ override_dh_auto_configure:
 
 override_dh_auto_build:
 	# Build main application
-	$(MAKE) -C build-main
+	$(MAKE) -C build-main -j$(shell nproc)
 	
 	# Build recorder application
-	$(MAKE) -C build-recorder
+	$(MAKE) -C build-recorder -j$(shell nproc)
 	
 	# Build tests
-	$(MAKE) -C build-tests
+	$(MAKE) -C build-tests -j$(shell nproc)
 
 override_dh_auto_install:
 	# Install main application binary
