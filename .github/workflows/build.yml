@@ -164,23 +164,27 @@ jobs:
       run: ./build/Tests/Tests/RunUpDetectorUnit/test_RunUpDetector
 
   build-debian-package:
-    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
+    runs-on: ubuntu:24.04
     needs: setup-environment
     permissions:
       contents: read
       actions: read
 
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/simonbeaudoin0935/l2trader-builder:noble
+      credentials:
+        username: simonbeaudoin0935
+        password: ${{secrets.TOKEN_GHCR}}
+
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set Qt path for dpkg-buildpackage
-      run: |
-        echo "export PATH=$(dirname ${{ needs.setup-environment.outputs.qmake_command }}):\$PATH" > /tmp/qt_env.sh
-
     - name: Build Debian package
-      run: |
-        source /tmp/qt_env.sh
-        dpkg-buildpackage -us -uc -b
+      run: dpkg-buildpackage -us -uc -b
 
     - name: Prepare artifacts directory
       run: |
@@ -197,11 +201,17 @@ jobs:
         path: artifacts/*.deb
 
   test-package-installation:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [build-debian-package, setup-environment]
     permissions:
       contents: read
       actions: read
+
+    container:
+      image: ghcr.io/simonbeaudoin0935/l2trader-builder:noble
+      credentials:
+        username: simonbeaudoin0935
+        password: ${{secrets.TOKEN_GHCR}}
 
     steps:
     - name: Download Debian package artifacts
