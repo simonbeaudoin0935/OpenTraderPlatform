@@ -185,6 +185,7 @@ jobs:
 
     - name: Build Debian package
       run: |
+        qmake --version
         git config --global --add safe.directory /__w/L2Trader/L2Trader
         dpkg-buildpackage -us -uc -b
 

@@ -3,6 +3,7 @@
 #include <QTest>
 #include <QSettings>
 #include <QDateTime>
+#include <QTimeZone>
 
 #include "TestBarCache.h"
 #include "TSClient.h"
@@ -156,7 +157,7 @@ void TestBarCache::testGetBars()
         QDate previousDay(2025, 4, 11);
 
         // Create a QDateTime for previous day at 4:00 PM in New York time zone
-        QTimeZone newYorkTimeZone("America/New_York");
+        QTimeZone newYorkTimeZone = QTimeZone::fromName("America/New_York");
 
         // Define 4:00 PM (16:00)
         const QTime noon(12, 0, 0);
@@ -251,7 +252,7 @@ void TestBarCache::testGetBarsOnlyHoles()
     BarCache cache("TIVC");
     cache.clearDatabase();
 
-    QTimeZone newYorkTimeZone("America/New_York");
+    QTimeZone newYorkTimeZone(QByteArray("America/New_York"));
 
     //  Test against wednesday April 2 shortly after 17h where there is a bar holes from 17h-17h39
     QDate date(2025, 04, 02);
@@ -336,7 +337,7 @@ void TestBarCache::testGetBarsWithHoles()
     //  Test against wednesday April 2
     QDate date(2025, 04, 02);
 
-    QTimeZone newYorkTimeZone("America/New_York");
+    QTimeZone newYorkTimeZone(QByteArray("America/New_York"));
 
     const QTime _4PM(16, 0, 0);
     const QTime _8PM(19, 59, 0);
