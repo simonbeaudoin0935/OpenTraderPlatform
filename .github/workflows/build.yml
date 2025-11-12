@@ -217,12 +217,12 @@ jobs:
       run: |
         # Create a Dockerfile for testing
         cat > Dockerfile.test << 'EOF'
-        FROM ubuntu:22.04
+        FROM ubuntu:24.04
         
         # Avoid interactive prompts during package installation
         ENV DEBIAN_FRONTEND=noninteractive
         
-        # Install basic dependencies
+        # Install basic dependencies and Qt6 runtime libraries
         RUN apt-get update && apt-get install -y \
             adduser \
             systemd \
@@ -231,7 +231,7 @@ jobs:
         # Copy packages into container
         COPY packages/*.deb /tmp/
         
-        # Install the packages
+        # Install the packages with dependencies
         RUN apt-get update && \
             apt-get install -y /tmp/l2trader_*.deb /tmp/l2trader-tests_*.deb || \
             (apt-get install -f -y && apt-get install -y /tmp/l2trader_*.deb /tmp/l2trader-tests_*.deb)
