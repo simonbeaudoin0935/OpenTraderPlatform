@@ -25,9 +25,8 @@ bool ClientToken::isValid() const
 
 QString ClientToken::toString() const
 {
-    return QString("Client ID: %1\n"
-                  "Client Secret: %2")
-        .arg(clientId, clientSecret);
+    return QString("Client ID: [REDACTED]\n"
+                  "Client Secret: [REDACTED]");
 }
 
 ClientToken ClientToken::loadFromSettings()

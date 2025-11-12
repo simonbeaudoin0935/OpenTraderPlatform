@@ -266,7 +266,7 @@ void AuthWindow::handleSocketReadyRead()
 
     qCDebug(TSAuthWindowLog) << "Parsed parameters:";
     qCDebug(TSAuthWindowLog) << "  Path:" << url.path();
-    qCDebug(TSAuthWindowLog) << "  Code:" << code;
+    qCDebug(TSAuthWindowLog) << "  Code: [REDACTED]";
     qCDebug(TSAuthWindowLog) << "  State:" << state;
     qCDebug(TSAuthWindowLog) << "  Expected State:" << expectedState;
 
@@ -335,14 +335,14 @@ void AuthWindow::exchangeCodeForTokens(const QString& code)
     query.addQueryItem("redirect_uri", redirectUri);
 
     QString requestData = query.toString(QUrl::FullyEncoded);
-    qCDebug(TSAuthWindowLog) << "Token exchange request data:" << requestData;
+    qCDebug(TSAuthWindowLog) << "Initiating token exchange request";
 
     QNetworkReply *reply = networkManager->post(request, requestData.toUtf8());
     
     connect(reply, &QNetworkReply::finished, [this, reply]() {
         if (reply->error() == QNetworkReply::NoError) {
             QByteArray responseData = reply->readAll();
-            qCDebug(TSAuthWindowLog) << "Token exchange response:" << responseData;
+            qCDebug(TSAuthWindowLog) << "Token exchange successful";
             QJsonDocument doc = QJsonDocument::fromJson(responseData);
             handleTokenResponse(doc.object());
         } else {
@@ -381,7 +381,7 @@ bool AuthWindow::parseTokenResponse(const QJsonObject& response)
         return false;
     }
     
-    qCDebug(TSAuthWindowLog) << "Token details:" << authToken.toString();
+    qCDebug(TSAuthWindowLog) << "Token received and validated successfully";
 
     return true;
 }
