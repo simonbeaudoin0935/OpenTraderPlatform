@@ -164,8 +164,8 @@ jobs:
       run: ./build/Tests/Tests/RunUpDetectorUnit/test_RunUpDetector
 
   build-debian-package:
-    runs-on: [self-hosted, Linux, "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' && 'ARM64' || 'X64' }}"]
-    needs: [run-barcache-test, run-tsclient-test, run-runupdetector-test]
+    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
+    needs: setup-environment
     permissions:
       contents: read
       actions: read
@@ -173,16 +173,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Debian packaging tools
-      run: sudo apt-get update && sudo apt-get install -y debhelper devscripts
-
     - name: Set Qt path for dpkg-buildpackage
       run: |
-        if [ "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'raspberrypi' || github.event_name != 'workflow_dispatch' }}" = "false" ]; then
-          echo "export PATH=/home/simon/Qt/6.4.2/gcc_64/bin:\$PATH" > /tmp/qt_env.sh
-        else
-          echo "export PATH=/home/simon/Qt/6.8.3/gcc_64/bin:\$PATH" > /tmp/qt_env.sh
-        fi
+        echo "export PATH=$(dirname ${{ needs.setup-environment.outputs.qmake_command }}):\$PATH" > /tmp/qt_env.sh
 
     - name: Build Debian package
       run: |
@@ -195,5 +188,5 @@ jobs:
     - name: Upload Debian packages as artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: debian-packages-${{ github.event_name == 'workflow_dispatch' && inputs.target || 'x64' }}
+        name: debian-packages-${{ needs.setup-environment.outputs.arch }}
         path: ../*.deb
