@@ -62,7 +62,7 @@ jobs:
       run: |
         echo "QMAKE=${{ needs.setup-environment.outputs.qmake_command }}" >> $GITHUB_ENV
         if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
-          echo "MAKE_JOBS=-j1" >> $GITHUB_ENV
+          echo "MAKE_JOBS=-j2" >> $GITHUB_ENV
         else
           echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
         fi
@@ -90,7 +90,7 @@ jobs:
       run: |
         echo "QMAKE=${{ needs.setup-environment.outputs.qmake_command }}" >> $GITHUB_ENV
         if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
-          echo "MAKE_JOBS=-j1" >> $GITHUB_ENV
+          echo "MAKE_JOBS=-j2" >> $GITHUB_ENV
         else
           echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
         fi
@@ -115,7 +115,7 @@ jobs:
       run: |
         echo "QMAKE=${{ needs.setup-environment.outputs.qmake_command }}" >> $GITHUB_ENV
         if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
-          echo "MAKE_JOBS=-j1" >> $GITHUB_ENV
+          echo "MAKE_JOBS=-j2" >> $GITHUB_ENV
         else
           echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
         fi
