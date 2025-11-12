@@ -73,7 +73,7 @@ jobs:
 
       # Don't push to GHCR if build was triggered by a PR
       - name: Push to GHCR
-        if: ${{ github.event_name != 'pull_request_target' }}
+        if: ${{ github.event_name != 'pull_request' }}
         run: |
           echo ${{ secrets.TOKEN_GHCR }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker push ghcr.io/simonbeaudoin0935/l2trader-builder:noble
