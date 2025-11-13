@@ -71,15 +71,16 @@ if(ENABLE_GUI)
     add_compile_definitions(GUI_ENABLED)
 endif()
 
+# Option to build tests
+option(BUILD_TESTS "Build tests" ON)
+
+# Option to build recorder
+option(BUILD_RECORDER "Build recorder application" ON)
+
 # Add subdirectories
 add_subdirectory(src)
 
-# Option to build tests
-option(BUILD_TESTS "Build tests" ON)
 if(BUILD_TESTS)
     enable_testing()
     add_subdirectory(Tests)
 endif()
-
-# Option to build recorder
-option(BUILD_RECORDER "Build recorder application" ON)

@@ -7,14 +7,6 @@ on:
     branches: [ main ]
   workflow_dispatch:
     inputs:
-      target:
-        description: 'Build target'
-        required: true
-        default: 'laptop'
-        type: choice
-        options:
-        - laptop
-        - raspberrypi
       rpi-tests:
         description: 'Run RPI tests on self-hosted ARM64 runner'
         required: false
