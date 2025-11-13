@@ -3,6 +3,10 @@
 # Enable hardening
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
+# Get the host architecture for cross-compilation support
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+DEB_HOST_GNU_TYPE ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
+
 %:
 	dh $@
 
@@ -21,10 +25,10 @@ override_dh_auto_test:
 
 override_dh_auto_install:
 	# Install main application binary
-	install -D -m 0755 obj-x86_64-linux-gnu/src/L2Trader debian/l2trader/usr/bin/l2trader
+	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/src/L2Trader debian/l2trader/usr/bin/l2trader
 	
 	# Install recorder application binary
-	install -D -m 0755 obj-x86_64-linux-gnu/src/Recorder debian/l2trader/usr/bin/l2trader-recorder
+	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/src/Recorder debian/l2trader/usr/bin/l2trader-recorder
 	
 	# Install application icon
 	install -D -m 0644 Resources/Icons/L2T.png debian/l2trader/usr/share/pixmaps/l2trader.png
@@ -53,11 +57,11 @@ override_dh_auto_install:
 	
 	# Install tests binaries
 	install -d debian/l2trader-tests/usr/lib/l2trader/tests
-	install -D -m 0755 obj-x86_64-linux-gnu/Tests/test_barcache debian/l2trader-tests/usr/lib/l2trader/tests/test_barcache
-	install -D -m 0755 obj-x86_64-linux-gnu/Tests/test_RunUpDetector debian/l2trader-tests/usr/lib/l2trader/tests/test_runupdetector
-	install -D -m 0755 obj-x86_64-linux-gnu/Tests/test_tradestationclient debian/l2trader-tests/usr/lib/l2trader/tests/test_tradestationclient
+	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Tests/test_barcache debian/l2trader-tests/usr/lib/l2trader/tests/test_barcache
+	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Tests/test_RunUpDetector debian/l2trader-tests/usr/lib/l2trader/tests/test_runupdetector
+	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Tests/test_tradestationclient debian/l2trader-tests/usr/lib/l2trader/tests/test_tradestationclient
 	# FMPClient test is disabled as per build.yml
-	# install -D -m 0755 obj-x86_64-linux-gnu/Tests/test_fmpclient debian/l2trader-tests/usr/lib/l2trader/tests/test_fmpclient
+	# install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Tests/test_fmpclient debian/l2trader-tests/usr/lib/l2trader/tests/test_fmpclient
 
 override_dh_auto_clean:
 	dh_auto_clean

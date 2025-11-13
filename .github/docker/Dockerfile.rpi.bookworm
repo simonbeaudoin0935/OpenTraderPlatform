@@ -16,6 +16,7 @@ RUN dpkg --add-architecture arm64
 RUN apt-get update && apt-get install -y \
     git \
     cmake \
+    make \
     build-essential \
     debhelper-compat \
     crossbuild-essential-arm64 \
@@ -31,7 +32,6 @@ RUN apt-get update && apt-get install -y \
 
 # Set up environment for cross-compilation
 ENV PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
-ENV CMAKE_TOOLCHAIN_FILE=/workspace/toolchain-arm64.cmake
 
 # Set working directory
 WORKDIR /workspace
