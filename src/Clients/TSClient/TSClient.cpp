@@ -485,6 +485,9 @@ void TSClient::openStream(const QString &symbol, const QString &endpoint, const 
             stream->setNetworkReply(reply);
 
             connect(stream, &Stream::receivedAmountOfData, this, &TSClient::onReceivedNewAmountOfData);
+            
+            // Emit signal that stream count has changed
+            emit streamCountChanged(streams.size());
         },
     Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
                                    // finishes executing this lambda so that a valid pointer is returned
@@ -507,6 +510,9 @@ void TSClient::closeStream(Stream* const stream) {
             RESTClient::closeStream(static_cast<void*>(stream));
 
             delete stream;
+            
+            // Emit signal that stream count has changed
+            emit streamCountChanged(streams.size());
         },
     Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread finishes executing this lambda
 

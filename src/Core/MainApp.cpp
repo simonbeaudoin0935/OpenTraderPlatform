@@ -36,6 +36,10 @@ MainApp::MainApp() :
     QObject::connect(tradeStationClient, &TSClient::totalDataReceivedBytesIncreased,
                      appFrontend, &AppFrontend::tradeStationDataUsageUpdated);
 
+    // Connect TradeStation stream count updates to frontend
+    QObject::connect(tradeStationClient, &TSClient::streamCountChanged,
+                     appFrontend, &AppFrontend::streamCountUpdated);
+
     QObject::connect(mainAlgo, &MainAlgo::displayedStockReceivedNewBar,
                      appFrontend, &AppFrontend::currentHighlightedStockBarReceived);
 

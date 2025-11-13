@@ -20,6 +20,7 @@ signals:
 
     void fmpDataUsageUpdated(qsizetype newDataUsage);
     void tradeStationDataUsageUpdated(qsizetype newDataUsage);
+    void streamCountUpdated(int count);
 
     void newPositionReceived(QString account, Position position);
 
@@ -35,6 +36,7 @@ public slots:
     virtual void onFMPClientDataUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onTSClientDataUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onMemoryUsageUpdate(qsizetype newDataUsage) = 0;
+    virtual void onStreamCountUpdate(int count) = 0;
 
     virtual void onTradeStationAccountsReceived(QVector<Account> results) = 0;
     virtual void onNewPositionReceived(QString account, Position position) = 0;

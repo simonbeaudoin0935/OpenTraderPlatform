@@ -56,6 +56,9 @@ public:
 
     void activateMockStreamCreation(bool activate) { activateMockStream = activate; };
 
+    // Stream count getter
+    int getStreamCount() const { return streams.size(); }
+
                               // -------- Market data methods ----------
     /*
      * Get Quote Snapshots
@@ -183,6 +186,7 @@ signals:
     void placeOrderAsyncReceived(PlaceOrderResult result);
     void cancelOrderAsyncReceived(CancelOrderResult result);
     void getBarsAsyncReceived(QString symbol, QVector<Bar> bars);
+    void streamCountChanged(int count);
 
 private slots:
     #ifdef GUI_ENABLED
