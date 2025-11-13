@@ -370,3 +370,6 @@ void initLogging()
     // LoggingConfig handles loading and saving category states
 }
 
+// Include the moc file for LogBroadcaster (QObject defined in this .cpp file)
+#include "Logging.moc"
+
