@@ -15,6 +15,11 @@ on:
         options:
         - laptop
         - raspberrypi
+      rpi-tests:
+        description: 'Run RPI tests on self-hosted ARM64 runner'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build-main:
@@ -109,6 +114,45 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: debian-packages-X64
+        path: artifacts/*.deb
+
+  build-debian-package-rpi:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ github.actor }}/l2trader-builder:rpi-bookworm
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build Debian package for RPI
+      run: |
+        cmake --version
+        git config --global --add safe.directory /__w/L2Trader/L2Trader
+        dpkg-buildpackage -us -uc -b
+
+    - name: Prepare artifacts directory
+      run: |
+        mkdir -p artifacts
+        cp ../*.deb artifacts/
+
+    - name: List generated packages
+      run: ls -lh ../*.deb
+
+    - name: Upload Debian packages as artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: debian-packages-RPI
         path: artifacts/*.deb
 
   run-barcache-test-debian:
@@ -391,3 +435,72 @@ jobs:
         
         # Test purge in a fresh container
         docker run --rm -v $(pwd)/test_purge.sh:/test_purge.sh l2trader-test /test_purge.sh
+
+  run-barcache-test-rpi:
+    runs-on: [self-hosted, Linux, ARM64]
+    needs: build-debian-package-rpi
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true'
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+    - name: Download Debian package artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: debian-packages-RPI
+        path: ./packages
+
+    - name: Install packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ./packages/l2trader_*.deb ./packages/l2trader-tests_*.deb
+
+    - name: Run BarCache unit test
+      run: /usr/lib/l2trader/tests/test_barcache --stock-csv=/usr/share/doc/l2trader/examples/nasdaq_screener.csv
+
+  run-tsclient-test-rpi:
+    runs-on: [self-hosted, Linux, ARM64]
+    needs: build-debian-package-rpi
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true'
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+    - name: Download Debian package artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: debian-packages-RPI
+        path: ./packages
+
+    - name: Install packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ./packages/l2trader_*.deb ./packages/l2trader-tests_*.deb
+
+    - name: Run TSClient unit test
+      run: /usr/lib/l2trader/tests/test_tradestationclient
+
+  run-runupdetector-test-rpi:
+    runs-on: [self-hosted, Linux, ARM64]
+    needs: build-debian-package-rpi
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true'
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+    - name: Download Debian package artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: debian-packages-RPI
+        path: ./packages
+
+    - name: Install packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ./packages/l2trader_*.deb ./packages/l2trader-tests_*.deb
+
+    - name: Run RunUpDetector unit test
+      run: /usr/lib/l2trader/tests/test_runupdetector

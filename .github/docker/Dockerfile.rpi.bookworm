@@ -1,0 +1,31 @@
+
+# This dockerfile is assumed to be built by an amd64 machine (ubuntu-latest GitHub runner) 
+# FOR a Raspberry Pi 4 running Debian Bookworm (aarch64/arm64).
+
+# Use Debian Bookworm as base image for arm64 architecture
+FROM arm64v8/debian:bookworm
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Update package list and install dependencies for Qt6 development
+RUN apt-get update && apt-get install -y \
+    git \
+    cmake \
+    build-essential \
+    debhelper-compat \
+    qt6-base-dev \
+    qt6-base-private-dev \
+    qt6-charts-dev \
+    qt6-webengine-dev \
+    libqt6sql6-sqlite \
+    qtkeychain-qt6-dev \
+    libsecret-1-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command
+CMD [ "bash" ]
