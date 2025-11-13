@@ -78,29 +78,9 @@ jobs:
     - name: Build all targets
       run: cmake --build build $PARALLEL_JOBS
 
-  build-recorder:
-    needs: [build-main, setup-environment]
-    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Build already complete
-      run: echo "Recorder built in build-main step with CMake"
-
-  build-tests:
-    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-recorder, setup-environment]
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Tests already built
-      run: echo "Tests built in build-main step with CMake"
-
   run-barcache-test:
     runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-tests, setup-environment]
+    needs: [build-main, setup-environment]
 
     steps:
     - name: Run BarCache unit test
@@ -110,7 +90,7 @@ jobs:
     #We are going to dump FMP in the future
     if: false
     runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-tests, setup-environment]
+    needs: [build-main, setup-environment]
 
     steps:
     - name: Run FMPClient unit test
@@ -118,7 +98,7 @@ jobs:
 
   run-tsclient-test:
     runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-tests, setup-environment]
+    needs: [build-main, setup-environment]
 
     steps:
     - name: Run TSClient unit test
@@ -126,7 +106,7 @@ jobs:
 
   run-runupdetector-test:
     runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-tests, setup-environment]
+    needs: [build-main, setup-environment]
 
     steps:
     - name: Run RunUpDetector unit test
