@@ -15,15 +15,7 @@ Homepage: https://github.com/simonbeaudoin0935/L2Trader
 Package: l2trader
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
-         libqt6core6t64,
-         libqt6gui6t64,
-         libqt6widgets6t64,
-         libqt6network6t64,
-         libqt6sql6,
          libqt6sql6-sqlite,
-         libqt6charts6,
-         libqt6webenginecore6,
-         libqt6webenginewidgets6,
          libqt6keychain1,
          libsecret-1-0,
          systemd,
