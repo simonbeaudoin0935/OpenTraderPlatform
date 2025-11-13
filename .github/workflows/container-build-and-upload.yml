@@ -83,14 +83,14 @@ jobs:
 
       - name: build image
         run: |
-          docker build -f .github/docker/Dockerfile.amd64.noble -t ghcr.io/${{ github.actor }}/l2trader-builder:noble .
+          docker build -f .github/docker/Dockerfile.amd64.noble -t ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble .
 
       # Don't push to GHCR if build was triggered by a PR
       - name: Push to GHCR
         if: ${{ github.event_name != 'pull_request' }}
         run: |
-          echo ${{ secrets.TOKEN_GHCR }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker push ghcr.io/${{ github.actor }}/l2trader-builder:noble
+          echo ${{ secrets.TOKEN_GHCR }} | docker login ghcr.io -u ${{ vars.USERNAME }} --password-stdin
+          docker push ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
 
   # Build the arm64 (RPI) image on ubuntu-latest using QEMU for cross-platform build
   build-image-rpi-bookworm:
@@ -110,11 +110,11 @@ jobs:
 
       - name: Build image
         run: |
-          docker buildx build --platform linux/arm64 -f .github/docker/Dockerfile.rpi.bookworm -t ghcr.io/${{ github.actor }}/l2trader-builder:rpi-bookworm --load .
+          docker buildx build --platform linux/arm64 -f .github/docker/Dockerfile.rpi.bookworm -t ghcr.io/${{ vars.USERNAME }}/l2trader-builder:rpi-bookworm --load .
 
       # Don't push to GHCR if build was triggered by a PR
       - name: Push to GHCR
         if: ${{ github.event_name != 'pull_request' }}
         run: |
-          echo ${{ secrets.TOKEN_GHCR }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker push ghcr.io/${{ github.actor }}/l2trader-builder:rpi-bookworm
+          echo ${{ secrets.TOKEN_GHCR }} | docker login ghcr.io -u ${{ vars.USERNAME }} --password-stdin
+          docker push ghcr.io/${{ vars.USERNAME }}/l2trader-builder:rpi-bookworm
