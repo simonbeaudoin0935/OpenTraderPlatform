@@ -52,8 +52,12 @@ override_dh_auto_install:
 	
 	# Install example configuration files
 	install -d debian/l2trader/usr/share/doc/l2trader/examples
-	install -m 0644 Example_Config/*.ini debian/l2trader/usr/share/doc/l2trader/examples/ || true
-	install -m 0644 Example_Config/*.csv debian/l2trader/usr/share/doc/l2trader/examples/ || true
+	for f in Example_Config/*.ini; do \
+		[ -e "$$f" ] && install -m 0644 "$$f" debian/l2trader/usr/share/doc/l2trader/examples/ || true; \
+	done
+	for f in Example_Config/*.csv; do \
+		[ -e "$$f" ] && install -m 0644 "$$f" debian/l2trader/usr/share/doc/l2trader/examples/ || true; \
+	done
 	
 	# Install tests binaries
 	install -d debian/l2trader-tests/usr/lib/l2trader/tests
