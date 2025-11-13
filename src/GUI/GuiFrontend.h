@@ -23,6 +23,7 @@ public slots:
     void onTSClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onTradeStationAccountsReceived(QVector<Account> results) override;
     void onMemoryUsageUpdate(qsizetype newDataUsage) override;
+    void onStreamCountUpdate(int count) override;
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
     void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP) override;
     void onNewPositionReceived(QString account, Position position) override;
@@ -47,6 +48,7 @@ private:
     qsizetype FMPClientDataUsage = 0;
     qsizetype TSClientDataUsage = 0;
     qint64 memoryUsage = 0;
+    int streamCount = 0;
     
     int maxLiveLogLines = 1000;  // Maximum lines in live log display
 };

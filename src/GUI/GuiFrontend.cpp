@@ -63,6 +63,10 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
             this, &GuiFrontend::onTSClientDataUsageUpdate,
             Qt::DirectConnection);
 
+    connect(this, &AppFrontend::streamCountUpdated,
+            this, &GuiFrontend::onStreamCountUpdate,
+            Qt::DirectConnection);
+
     connect(this, &AppFrontend::currentHighlightedStockBarReceived,
             this, &GuiFrontend::onCurrentHighlightedStockBarReceived,
             Qt::DirectConnection);
@@ -281,7 +285,7 @@ void GuiFrontend::onFMPClientDataUsageUpdate(qsizetype newDataUsage)
     QString usageTS  = bytesToString(TSClientDataUsage);
     QString usageMemory = bytesToString(memoryUsage);
 
-    ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
+    ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(streamCount));
 }
 
 void GuiFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
@@ -292,7 +296,7 @@ void GuiFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
     QString usageTS  = bytesToString(newDataUsage);
     QString usageMemory = bytesToString(memoryUsage);
 
-    ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
+    ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(streamCount));
 }
 
 void GuiFrontend::onTradeStationAccountsReceived(QVector<Account> results)
@@ -327,7 +331,18 @@ void GuiFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
     QString usageTS  = bytesToString(TSClientDataUsage);
     QString usageMemory = bytesToString(newDataUsage);
 
-    ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory);
+    ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(streamCount));
+}
+
+void GuiFrontend::onStreamCountUpdate(int count)
+{
+    streamCount = count;
+
+    QString usageFMP = bytesToString(FMPClientDataUsage);
+    QString usageTS  = bytesToString(TSClientDataUsage);
+    QString usageMemory = bytesToString(memoryUsage);
+
+    ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(count));
 }
 
 void GuiFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
