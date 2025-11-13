@@ -1,10 +1,6 @@
-access_tokens.ini
 build/
 build-*/
-*.pro.user
-.qmake.stash
 Makefile
-logs/
 src/Misc/Logging_generated.h
 
 # Debian packaging artifacts
