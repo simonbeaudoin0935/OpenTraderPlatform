@@ -18,18 +18,4 @@ chown l2trader:l2trader /var/log/l2trader
 
 #DEBHELPER#
 
-case "$1" in
-    configure)
-        # Reload systemd daemon to pick up new service files
-        if [ -d /run/systemd/system ]; then
-            systemctl daemon-reload >/dev/null || true
-            
-            # Enable the timers but don't start them immediately
-            # The admin can start them manually if desired
-            deb-systemd-helper enable l2trader-recorder-start.timer >/dev/null || true
-            deb-systemd-helper enable l2trader-recorder-stop.timer >/dev/null || true
-        fi
-        ;;
-esac
-
 exit 0

@@ -157,14 +157,10 @@ The package includes a systemd-managed service for the Recorder application that
 
 ### Service Management
 
-Enable and start the timers (done automatically on install):
+The timers are enabled on installation but not started automatically. To activate the recorder service, you need to manually start the timers:
 
 ```bash
-# Enable timers to start at boot
-sudo systemctl enable l2trader-recorder-start.timer
-sudo systemctl enable l2trader-recorder-stop.timer
-
-# Start timers immediately
+# Start timers to activate automatic scheduling
 sudo systemctl start l2trader-recorder-start.timer
 sudo systemctl start l2trader-recorder-stop.timer
 
@@ -172,6 +168,16 @@ sudo systemctl start l2trader-recorder-stop.timer
 sudo systemctl status l2trader-recorder-start.timer
 sudo systemctl status l2trader-recorder-stop.timer
 sudo systemctl list-timers l2trader-recorder-*
+```
+
+To disable automatic scheduling:
+
+```bash
+# Stop and disable timers
+sudo systemctl stop l2trader-recorder-start.timer
+sudo systemctl stop l2trader-recorder-stop.timer
+sudo systemctl disable l2trader-recorder-start.timer
+sudo systemctl disable l2trader-recorder-stop.timer
 ```
 
 Manually control the recorder service:
