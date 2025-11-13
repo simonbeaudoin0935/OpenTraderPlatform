@@ -956,3 +956,57 @@ void TestTSClient::testMockStreamBars()
 {
 
 }
+
+void TestTSClient::testStreamCount()
+{
+    QString symbol1 = "AAPL";
+    QString symbol2 = "MSFT";
+    
+    QVERIFY(client->isCleanedUp());
+    
+    // Initial stream count should be 0
+    QCOMPARE(client->getStreamCount(), 0);
+    
+    qDebug() << "Initial stream count:" << client->getStreamCount();
+    
+    // Open first stream
+    StreamBars* stream1 = client->openStreamBars(symbol1, 1, Bar::BarUnit::Minute, 0);
+    QVERIFY(stream1 != nullptr);
+    QCOMPARE(client->getStreamCount(), 1);
+    
+    qDebug() << "Stream count after opening first BarStream:" << client->getStreamCount();
+    
+    // Open second stream
+    StreamMarketDepthQuote* stream2 = client->openStreamMarketDepthQuote(symbol2);
+    QVERIFY(stream2 != nullptr);
+    QCOMPARE(client->getStreamCount(), 2);
+    
+    qDebug() << "Stream count after opening MarketDepthQuote stream:" << client->getStreamCount();
+    
+    // Open third stream
+    StreamBars* stream3 = client->openStreamBars(symbol2, 1, Bar::BarUnit::Minute, 0);
+    QVERIFY(stream3 != nullptr);
+    QCOMPARE(client->getStreamCount(), 3);
+    
+    qDebug() << "Stream count after opening third stream:" << client->getStreamCount();
+    
+    // Close first stream
+    client->closeStreamBars(stream1);
+    QCOMPARE(client->getStreamCount(), 2);
+    
+    qDebug() << "Stream count after closing first stream:" << client->getStreamCount();
+    
+    // Close second stream
+    client->closeStreamMarketDepthQuote(stream2);
+    QCOMPARE(client->getStreamCount(), 1);
+    
+    qDebug() << "Stream count after closing second stream:" << client->getStreamCount();
+    
+    // Close third stream
+    client->closeStreamBars(stream3);
+    QCOMPARE(client->getStreamCount(), 0);
+    
+    qDebug() << "Final stream count:" << client->getStreamCount();
+    
+    QVERIFY(client->isCleanedUp());
+}
