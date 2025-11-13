@@ -2,17 +2,17 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "qmake",
+            "label": "configure",
             "type": "shell",
-            "command": "/home/simon/Qt/6.8.3/gcc_64/bin/qmake",
+            "command": "cmake",
             "args": [
-                "${workspaceFolder}/L2Trader.pro",
-                "-o",
-                "${workspaceFolder}/build/Makefile",
-                "-spec",
-                "linux-g++",
-                "CONFIG+=debug",
-                "CONFIG+=qml_debug"
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DENABLE_GUI=ON",
+                "-DBUILD_TESTS=ON"
             ],
             "group": "build",
             "presentation": {
@@ -24,12 +24,14 @@
             "problemMatcher": "$gcc"
         },
         {
-            "label": "make",
+            "label": "build",
             "type": "shell",
-            "command": "make -j$(nproc)",
-            "options": {
-                "cwd": "${workspaceFolder}/build"
-            },
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build",
+                "--parallel"
+            ],
             "group": {
                 "kind": "build",
                 "isDefault": true
@@ -41,24 +43,18 @@
                 "panel": "shared"
             },
             "problemMatcher": "$gcc",
-            "dependsOn": ["qmake"]
-        },
-        {
-            "label": "build",
-            "dependsOn": ["make"],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            }
+            "dependsOn": ["configure"]
         },
         {
             "label": "clean",
             "type": "shell",
-            "command": "make",
-            "args": ["clean"],
-            "options": {
-                "cwd": "${workspaceFolder}/build"
-            },
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build",
+                "--target",
+                "clean"
+            ],
             "group": "build",
             "presentation": {
                 "echo": true,
@@ -84,53 +80,9 @@
             "dependsOn": ["build"]
         },
         {
-            "label": "qmake-barcache-test",
-            "type": "shell",
-            "command": "/home/simon/Qt/6.8.3/gcc_64/bin/qmake",
-            "args": [
-                "${workspaceFolder}/Tests/BarCacheUnit/BarCacheUnit.pro",
-                "-o",
-                "${workspaceFolder}/build/Tests/BarCacheUnit/Makefile",
-                "-spec",
-                "linux-g++",
-                "CONFIG+=debug",
-                "CONFIG+=qml_debug"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "silent",
-                "focus": false,
-                "panel": "shared"
-            },
-            "problemMatcher": "$gcc"
-        },
-        {
-            "label": "make-barcache-test",
-            "type": "shell",
-            "command": "make -j$(nproc)",
-            "options": {
-                "cwd": "${workspaceFolder}/build/Tests/BarCacheUnit"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "silent",
-                "focus": false,
-                "panel": "shared"
-            },
-            "problemMatcher": "$gcc",
-            "dependsOn": ["qmake-barcache-test"]
-        },
-        {
-            "label": "build-barcache-test",
-            "dependsOn": ["make-barcache-test"],
-            "group": "build"
-        },
-        {
             "label": "run-barcache-test",
             "type": "shell",
-            "command": "${workspaceFolder}/build/Tests/BarCacheUnit/test_barcache",
+            "command": "${workspaceFolder}/build/Tests/test_barcache",
             "args": [
                 "--cache-root-dir=/tmp/l2trader_test_cache",
                 "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
@@ -142,12 +94,12 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-barcache-test"]
+            "dependsOn": ["build"]
         },
         {
             "label": "run-fmpclient-test",
             "type": "shell",
-            "command": "${workspaceFolder}/build/Tests/FMPClientUnit/test_fmpclient",
+            "command": "${workspaceFolder}/build/Tests/test_fmpclient",
             "args": [
                 "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
             ],
@@ -158,12 +110,12 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-tests"]
+            "dependsOn": ["build"]
         },
         {
             "label": "run-tsclient-test",
             "type": "shell",
-            "command": "${workspaceFolder}/build/Tests/Tests/TSClientUnit/test_tradestationclient",
+            "command": "${workspaceFolder}/build/Tests/test_tradestationclient",
             "args": [
                 "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
             ],
@@ -174,12 +126,12 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-tests"]
+            "dependsOn": ["build"]
         },
         {
             "label": "run-runupdetector-test",
             "type": "shell",
-            "command": "${workspaceFolder}/build/Tests/Tests/RunUpDetectorUnit/test_RunUpDetector",
+            "command": "${workspaceFolder}/build/Tests/test_RunUpDetector",
             "args": [
                 "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
             ],
@@ -190,100 +142,12 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-tests"]
-        },
-        {
-            "label": "qmake-tests",
-            "type": "shell",
-            "command": "/home/simon/Qt/6.8.3/gcc_64/bin/qmake",
-            "args": [
-                "${workspaceFolder}/Tests.pro",
-                "-o",
-                "${workspaceFolder}/build/Tests/Makefile",
-                "-spec",
-                "linux-g++",
-                "CONFIG+=debug",
-                "CONFIG+=qml_debug"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "silent",
-                "focus": false,
-                "panel": "shared"
-            },
-            "problemMatcher": "$gcc"
-        },
-        {
-            "label": "make-tests",
-            "type": "shell",
-            "command": "make -j$(nproc)",
-            "options": {
-                "cwd": "${workspaceFolder}/build/Tests"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "silent",
-                "focus": false,
-                "panel": "shared"
-            },
-            "problemMatcher": "$gcc",
-            "dependsOn": ["qmake-tests"]
-        },
-        {
-            "label": "build-tests",
-            "dependsOn": ["make-tests"],
-            "group": "build"
-        },
-        {
-            "label": "qmake-recorder",
-            "type": "shell",
-            "command": "/home/simon/Qt/6.8.3/gcc_64/bin/qmake",
-            "args": [
-                "${workspaceFolder}/Recorder.pro",
-                "-o",
-                "${workspaceFolder}/build/Recorder/Makefile",
-                "-spec",
-                "linux-g++",
-                "CONFIG+=debug",
-                "CONFIG+=qml_debug"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "silent",
-                "focus": false,
-                "panel": "shared"
-            },
-            "problemMatcher": "$gcc"
-        },
-        {
-            "label": "make-recorder",
-            "type": "shell",
-            "command": "make -j$(nproc)",
-            "options": {
-                "cwd": "${workspaceFolder}/build/Recorder"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "silent",
-                "focus": false,
-                "panel": "shared"
-            },
-            "problemMatcher": "$gcc",
-            "dependsOn": ["qmake-recorder"]
-        },
-        {
-            "label": "build-recorder",
-            "dependsOn": ["make-recorder"],
-            "group": "build"
+            "dependsOn": ["build"]
         },
         {
             "label": "run-recorder",
             "type": "shell",
-            "command": "${workspaceFolder}/build/Recorder/src/Recorder",
+            "command": "${workspaceFolder}/build/src/Recorder",
             "args": [
                 "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini",
                 "--cache-root-dir=/tmp/l2trader_recorder_cache",
@@ -296,7 +160,7 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-recorder"]
+            "dependsOn": ["build"]
         }
     ]
 }

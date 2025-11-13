@@ -17,54 +17,14 @@ on:
         - raspberrypi
 
 jobs:
-  setup-environment:
-    runs-on: ubuntu-latest
-    outputs:
-      arch: ${{ steps.set-outputs.outputs.arch }}
-      qmake_command: ${{ steps.set-outputs.outputs.qmake_command }}
-    
-    steps:
-    - name: Normalize architecture and qmake command
-      id: set-outputs
-      run: |
-        # Default values
-        RASPBERRYPI_ARCH="ARM64"
-        LAPTOP_ARCH="X64"
-
-        RASPBERRYPI_QMAKE="/home/simon/Qt/6.4.2/gcc_64/bin/qmake"
-        LAPTOP_QMAKE="/home/simon/Qt/6.8.3/gcc_64/bin/qmake"
-
-        ARCH=$LAPTOP_ARCH
-        QMAKE_COMMAND=$LAPTOP_QMAKE
-        
-        # Check if triggered by workflow_dispatch
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          if [ "${{ github.event.inputs.target }}" = "raspberrypi" ]; then
-            ARCH=$RASPBERRYPI_ARCH
-            QMAKE_COMMAND=$RASPBERRYPI_QMAKE
-          else
-            ARCH=$LAPTOP_ARCH
-            QMAKE_COMMAND=$LAPTOP_QMAKE
-          fi
-        fi
-        
-        echo "arch=$ARCH" >> $GITHUB_OUTPUT
-        echo "qmake_command=$QMAKE_COMMAND" >> $GITHUB_OUTPUT
-
   build-main:
-    needs: setup-environment
-    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
+    runs-on: [self-hosted, Linux, X64]
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Set number of parallel jobs
-      run: |
-        if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
-          echo "PARALLEL_JOBS=-j2" >> $GITHUB_ENV
-        else
-          echo "PARALLEL_JOBS=-j$(nproc)" >> $GITHUB_ENV
-        fi
+      run: echo "PARALLEL_JOBS=-j$(nproc)" >> $GITHUB_ENV
 
     - name: Show CMake version
       run: cmake --version
@@ -79,8 +39,8 @@ jobs:
       run: cmake --build build $PARALLEL_JOBS
 
   run-barcache-test:
-    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-main, setup-environment]
+    runs-on: [self-hosted, Linux, X64]
+    needs: [build-main]
 
     steps:
     - name: Run BarCache unit test
@@ -89,24 +49,24 @@ jobs:
   run-fmpclient-test:
     #We are going to dump FMP in the future
     if: false
-    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-main, setup-environment]
+    runs-on: [self-hosted, Linux, X64]
+    needs: [build-main]
 
     steps:
     - name: Run FMPClient unit test
       run: ./build/Tests/Tests/FMPClientUnit/test_fmpclient
 
   run-tsclient-test:
-    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-main, setup-environment]
+    runs-on: [self-hosted, Linux, X64]
+    needs: [build-main]
 
     steps:
     - name: Run TSClient unit test
       run: ./build/Tests/test_tradestationclient
 
   run-runupdetector-test:
-    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-main, setup-environment]
+    runs-on: [self-hosted, Linux, X64]
+    needs: [build-main]
 
     steps:
     - name: Run RunUpDetector unit test
@@ -114,7 +74,6 @@ jobs:
 
   build-debian-package:
     runs-on: ubuntu-24.04
-    needs: setup-environment
     permissions:
       contents: read
       actions: read
@@ -149,7 +108,7 @@ jobs:
     - name: Upload Debian packages as artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: debian-packages-${{ needs.setup-environment.outputs.arch }}
+        name: debian-packages-X64
         path: artifacts/*.deb
 
   run-barcache-test-debian:
