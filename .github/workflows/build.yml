@@ -471,7 +471,8 @@ jobs:
     needs: build-debian-package-rpi
     if: |
       (github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true') ||
-      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      github.event_name == 'push'
     permissions:
       contents: read
       actions: read
@@ -496,7 +497,8 @@ jobs:
     needs: build-debian-package-rpi
     if: |
       (github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true') ||
-      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      github.event_name == 'push'
     permissions:
       contents: read
       actions: read
@@ -538,7 +540,8 @@ jobs:
     needs: build-debian-package-rpi
     if: |
       (github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true') ||
-      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      github.event_name == 'push'
     permissions:
       contents: read
       actions: read
