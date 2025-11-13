@@ -14,6 +14,10 @@ override_dh_auto_build:
 	# Build with CMake
 	dh_auto_build
 
+override_dh_auto_test:
+	# Run tests but exclude FMPClient test (no API key available)
+	cd obj-x86_64-linux-gnu && ctest --exclude-regex FMPClientTest --output-on-failure
+
 override_dh_auto_install:
 	# Install main application binary
 	install -D -m 0755 obj-x86_64-linux-gnu/src/L2Trader debian/l2trader/usr/bin/l2trader
