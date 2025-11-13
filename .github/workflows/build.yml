@@ -58,90 +58,39 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set Qt path
+    - name: Set number of parallel jobs
       run: |
-        echo "QMAKE=${{ needs.setup-environment.outputs.qmake_command }}" >> $GITHUB_ENV
         if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
-          echo "MAKE_JOBS=-j2" >> $GITHUB_ENV
+          echo "PARALLEL_JOBS=-j2" >> $GITHUB_ENV
         else
-          echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
+          echo "PARALLEL_JOBS=-j$(nproc)" >> $GITHUB_ENV
         fi
 
-    - name: Show Qt version
-      run: $QMAKE --version
+    - name: Show CMake version
+      run: cmake --version
     
     - name: Create build directory
       run: mkdir -p build
 
-    - name: Run qmake
-      run: $QMAKE L2Trader.pro -o build/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
+    - name: Configure with CMake
+      run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=ON
 
-    - name: Run make
-      run: make $MAKE_JOBS -C build
-
-  build-recorder:
-    needs: [build-main, setup-environment]
-    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set Qt path
-      run: |
-        echo "QMAKE=${{ needs.setup-environment.outputs.qmake_command }}" >> $GITHUB_ENV
-        if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
-          echo "MAKE_JOBS=-j2" >> $GITHUB_ENV
-        else
-          echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
-        fi
-
-    - name: Create build directory
-      run: mkdir -p build
-
-    - name: Run qmake
-      run: $QMAKE Recorder.pro -o build/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
-
-    - name: Run make
-      run: make $MAKE_JOBS -C build
-
-  build-tests:
-    runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-recorder, setup-environment]
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set Qt path
-      run: |
-        echo "QMAKE=${{ needs.setup-environment.outputs.qmake_command }}" >> $GITHUB_ENV
-        if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
-          echo "MAKE_JOBS=-j2" >> $GITHUB_ENV
-        else
-          echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
-        fi
-
-    - name: Create build directory for tests
-      run: mkdir -p build/Tests
-
-    - name: Run qmake for tests
-      run: $QMAKE Tests.pro -o build/Tests/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
-
-    - name: Run make for tests
-      run: make $MAKE_JOBS -C build/Tests
+    - name: Build all targets
+      run: cmake --build build $PARALLEL_JOBS
 
   run-barcache-test:
     runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-tests, setup-environment]
+    needs: [build-main, setup-environment]
 
     steps:
     - name: Run BarCache unit test
-      run: ./build/Tests/Tests/BarCacheUnit/test_barcache --stock-csv=Example_Config/nasdaq_screener.csv
+      run: ./build/Tests/test_barcache --stock-csv=Example_Config/nasdaq_screener.csv
 
   run-fmpclient-test:
     #We are going to dump FMP in the future
     if: false
     runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-tests, setup-environment]
+    needs: [build-main, setup-environment]
 
     steps:
     - name: Run FMPClient unit test
@@ -149,19 +98,19 @@ jobs:
 
   run-tsclient-test:
     runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-tests, setup-environment]
+    needs: [build-main, setup-environment]
 
     steps:
     - name: Run TSClient unit test
-      run: ./build/Tests/Tests/TSClientUnit/test_tradestationclient
+      run: ./build/Tests/test_tradestationclient
 
   run-runupdetector-test:
     runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
-    needs: [build-tests, setup-environment]
+    needs: [build-main, setup-environment]
 
     steps:
     - name: Run RunUpDetector unit test
-      run: ./build/Tests/Tests/RunUpDetectorUnit/test_RunUpDetector
+      run: ./build/Tests/test_RunUpDetector
 
   build-debian-package:
     runs-on: ubuntu-24.04
@@ -185,7 +134,7 @@ jobs:
 
     - name: Build Debian package
       run: |
-        qmake6 --version
+        cmake --version
         git config --global --add safe.directory /__w/L2Trader/L2Trader
         dpkg-buildpackage -us -uc -b
 
@@ -205,7 +154,7 @@ jobs:
 
   test-package-installation:
     runs-on: ubuntu-24.04
-    needs: [build-debian-package, setup-environment]
+    needs: build-debian-package
     permissions:
       contents: read
       actions: read
@@ -220,7 +169,7 @@ jobs:
     - name: Download Debian package artifacts
       uses: actions/download-artifact@v4
       with:
-        name: debian-packages-${{ needs.setup-environment.outputs.arch }}
+        name: debian-packages-X64
         path: ./packages
 
     - name: List downloaded packages

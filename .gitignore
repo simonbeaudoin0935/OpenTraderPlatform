@@ -1,5 +1,6 @@
 access_tokens.ini
 build/
+build-*/
 *.pro.user
 .qmake.stash
 Makefile

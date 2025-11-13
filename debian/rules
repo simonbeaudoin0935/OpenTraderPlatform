@@ -3,41 +3,27 @@
 # Enable hardening
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
-# Get Qt6 qmake path
-QT6_QMAKE = $(shell which qmake6)
-
 %:
 	dh $@
 
 override_dh_auto_configure:
-	# Configure main application
-	mkdir -p build-main
-	cd build-main && $(QT6_QMAKE) ../L2Trader.pro CONFIG+=release "DEFINES+=QT_KEYCHAIN_LIB" "LIBS+=-lqt6keychain"
-	
-	# Configure Recorder application
-	mkdir -p build-recorder
-	cd build-recorder && $(QT6_QMAKE) ../Recorder.pro CONFIG+=release "DEFINES+=QT_KEYCHAIN_LIB" "LIBS+=-lqt6keychain"
-	
-	# Configure tests
-	mkdir -p build-tests
-	cd build-tests && $(QT6_QMAKE) ../Tests.pro CONFIG+=release "DEFINES+=QT_KEYCHAIN_LIB" "LIBS+=-lqt6keychain"
+	# Configure with CMake
+	dh_auto_configure -- -DCMAKE_BUILD_TYPE=Release -DENABLE_GUI=ON -DBUILD_TESTS=ON
 
 override_dh_auto_build:
-	# Build main application
-	$(MAKE) -C build-main -j$(shell nproc)
-	
-	# Build recorder application
-	$(MAKE) -C build-recorder -j$(shell nproc)
-	
-	# Build tests
-	$(MAKE) -C build-tests -j$(shell nproc)
+	# Build with CMake
+	dh_auto_build
+
+override_dh_auto_test:
+	# Run tests but exclude FMPClient test (no API key available)
+	cd obj-x86_64-linux-gnu && ctest --exclude-regex FMPClientTest --output-on-failure
 
 override_dh_auto_install:
 	# Install main application binary
-	install -D -m 0755 build-main/src/L2Trader debian/l2trader/usr/bin/l2trader
+	install -D -m 0755 obj-x86_64-linux-gnu/src/L2Trader debian/l2trader/usr/bin/l2trader
 	
 	# Install recorder application binary
-	install -D -m 0755 build-recorder/src/Recorder debian/l2trader/usr/bin/l2trader-recorder
+	install -D -m 0755 obj-x86_64-linux-gnu/src/Recorder debian/l2trader/usr/bin/l2trader-recorder
 	
 	# Install application icon
 	install -D -m 0644 Resources/Icons/L2T.png debian/l2trader/usr/share/pixmaps/l2trader.png
@@ -66,14 +52,13 @@ override_dh_auto_install:
 	
 	# Install tests binaries
 	install -d debian/l2trader-tests/usr/lib/l2trader/tests
-	install -D -m 0755 build-tests/Tests/BarCacheUnit/test_barcache debian/l2trader-tests/usr/lib/l2trader/tests/test_barcache
-	install -D -m 0755 build-tests/Tests/RunUpDetectorUnit/test_RunUpDetector debian/l2trader-tests/usr/lib/l2trader/tests/test_runupdetector
-	install -D -m 0755 build-tests/Tests/TSClientUnit/test_tradestationclient debian/l2trader-tests/usr/lib/l2trader/tests/test_tradestationclient
+	install -D -m 0755 obj-x86_64-linux-gnu/Tests/test_barcache debian/l2trader-tests/usr/lib/l2trader/tests/test_barcache
+	install -D -m 0755 obj-x86_64-linux-gnu/Tests/test_RunUpDetector debian/l2trader-tests/usr/lib/l2trader/tests/test_runupdetector
+	install -D -m 0755 obj-x86_64-linux-gnu/Tests/test_tradestationclient debian/l2trader-tests/usr/lib/l2trader/tests/test_tradestationclient
 	# FMPClient test is disabled as per build.yml
-	# install -D -m 0755 build-tests/Tests/FMPClientUnit/test_fmpclient debian/l2trader-tests/usr/lib/l2trader/tests/test_fmpclient
+	# install -D -m 0755 obj-x86_64-linux-gnu/Tests/test_fmpclient debian/l2trader-tests/usr/lib/l2trader/tests/test_fmpclient
 
 override_dh_auto_clean:
-	rm -rf build-main build-recorder build-tests
 	dh_auto_clean
 
 override_dh_shlibdeps:
