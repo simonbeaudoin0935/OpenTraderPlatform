@@ -176,8 +176,23 @@ jobs:
         apt-get update
         apt-get install -y ./packages/l2trader_*.deb ./packages/l2trader-tests_*.deb
 
+    - name: Setup test credentials
+      env:
+        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+        CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        ID_TOKEN: ${{ secrets.ID_TOKEN }}
+        REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+        EXPIRES_IN: ${{ vars.EXPIRES_IN }}
+        RECEIVED_AT: ${{ vars.RECEIVED_AT }}
+        SCOPE: ${{ vars.SCOPE }}
+        TOKEN_TYPE: ${{ vars.TOKEN_TYPE }}
+      run: |
+        chmod +x .github/scripts/setup-test-credentials.sh
+        .github/scripts/setup-test-credentials.sh
+
     - name: Run BarCache unit test
-      run: /usr/lib/l2trader/tests/test_barcache --stock-csv=/usr/share/doc/l2trader/examples/nasdaq_screener.csv
+      run: /usr/lib/l2trader/tests/test_barcache
 
   run-tsclient-test-debian:
     runs-on: ubuntu-24.04
@@ -490,7 +505,7 @@ jobs:
         sudo apt-get install -y ./packages/l2trader_*.deb ./packages/l2trader-tests_*.deb
 
     - name: Run BarCache unit test
-      run: /usr/lib/l2trader/tests/test_barcache --stock-csv=/usr/share/doc/l2trader/examples/nasdaq_screener.csv
+      run: /usr/lib/l2trader/tests/test_barcache
 
   run-tsclient-test-rpi:
     runs-on: [self-hosted, Linux, ARM64]

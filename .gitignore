@@ -8,6 +8,7 @@ debian/.debhelper/
 debian/l2trader/
 debian/l2trader-tests/
 debian/files
-debian/*.debhelper.log
+debian/*.debhelper*
 debian/*.substvars
 debian/debhelper-build-stamp
+obj-*/
