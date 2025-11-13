@@ -70,21 +70,6 @@ jobs:
     needs: [build-main]
 
     steps:
-    - name: Setup test credentials
-      env:
-        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-        CLIENT_ID: ${{ secrets.CLIENT_ID }}
-        CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-        ID_TOKEN: ${{ secrets.ID_TOKEN }}
-        REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
-        EXPIRES_IN: ${{ vars.EXPIRES_IN }}
-        RECEIVED_AT: ${{ vars.RECEIVED_AT }}
-        SCOPE: ${{ vars.SCOPE }}
-        TOKEN_TYPE: ${{ vars.TOKEN_TYPE }}
-      run: |
-        chmod +x .github/scripts/setup-test-credentials.sh
-        .github/scripts/setup-test-credentials.sh
-
     - name: Run TSClient unit test
       run: ./build/Tests/test_tradestationclient
 
@@ -93,21 +78,6 @@ jobs:
     needs: [build-main]
 
     steps:
-    - name: Setup test credentials
-      env:
-        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-        CLIENT_ID: ${{ secrets.CLIENT_ID }}
-        CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-        ID_TOKEN: ${{ secrets.ID_TOKEN }}
-        REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
-        EXPIRES_IN: ${{ vars.EXPIRES_IN }}
-        RECEIVED_AT: ${{ vars.RECEIVED_AT }}
-        SCOPE: ${{ vars.SCOPE }}
-        TOKEN_TYPE: ${{ vars.TOKEN_TYPE }}
-      run: |
-        chmod +x .github/scripts/setup-test-credentials.sh
-        .github/scripts/setup-test-credentials.sh
-
     - name: Run RunUpDetector unit test
       run: ./build/Tests/test_RunUpDetector
 
