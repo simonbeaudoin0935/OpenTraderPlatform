@@ -1,9 +1,3 @@
-# Collect all source files from subdirectories
-file(GLOB_RECURSE MISC_SOURCES 
-    "${CMAKE_CURRENT_SOURCE_DIR}/Misc/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Misc/*.h"
-)
-
 # Generate logging categories
 set(LOGGING_GENERATED_H "${CMAKE_CURRENT_SOURCE_DIR}/Misc/Logging_generated.h")
 add_custom_command(
@@ -14,6 +8,12 @@ add_custom_command(
     COMMENT "Generating logging categories"
 )
 add_custom_target(generate_logging DEPENDS ${LOGGING_GENERATED_H})
+
+# Collect all source files from subdirectories
+file(GLOB_RECURSE MISC_SOURCES 
+    "${CMAKE_CURRENT_SOURCE_DIR}/Misc/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Misc/*.h"
+)
 
 file(GLOB_RECURSE CLIENTS_SOURCES 
     "${CMAKE_CURRENT_SOURCE_DIR}/Clients/*.cpp"
