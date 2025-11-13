@@ -30,7 +30,8 @@
             "args": [
                 "--build",
                 "${workspaceFolder}/build",
-                "--parallel"
+                "--parallel",
+                "3"
             ],
             "group": {
                 "kind": "build",
