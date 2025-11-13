@@ -1,17 +1,13 @@
 #include "LoggingTab.h"
 #include <QGroupBox>
 #include <QScrollArea>
-#include <QHBoxLayout>
 #include <QVBoxLayout>
-#include <QLabel>
-#include <QFont>
 
 #include "Misc/Logging.h"
 
 LoggingTab::LoggingTab(QWidget* parent)
     : QWidget(parent),
-      categoryCheckBoxLayout(nullptr),
-      liveLogDisplay(nullptr)
+      categoryCheckBoxLayout(nullptr)
 {
     setupUI();
     populateCategoryCheckboxes();
@@ -34,23 +30,8 @@ void LoggingTab::setupUI() {
     categoryScrollArea->setWidget(categoryScrollWidget);
     categoryLayout->addWidget(categoryScrollArea);
 
-    // Live log display section
-    QGroupBox* logDisplayGroupBox = new QGroupBox("Live Log Output");
-    QVBoxLayout* logDisplayLayout = new QVBoxLayout(logDisplayGroupBox);
-
-    liveLogDisplay = new QTextEdit();
-    liveLogDisplay->setReadOnly(true);
-
-    // Set monospace font for log display
-    QFont font("Monospace");
-    font.setPointSize(9);
-    liveLogDisplay->setFont(font);
-
-    logDisplayLayout->addWidget(liveLogDisplay);
-
-    // Add both sections to main layout
+    // Add category section to main layout
     mainLayout->addWidget(categoryGroupBox);
-    mainLayout->addWidget(logDisplayGroupBox);
 }
 
 void LoggingTab::populateCategoryCheckboxes() {
@@ -88,16 +69,6 @@ void LoggingTab::onCategoryCheckBoxToggled(bool checked) {
         LoggingConfig::instance().setCategoryEnabled(category, checked);
 
         QString status = checked ? "enabled" : "disabled";
-        updateLiveLogDisplay(QString("Category '%1' %2").arg(category, status));
-    }
-}
-
-void LoggingTab::updateLiveLogDisplay(const QString& message) {
-    if (liveLogDisplay) {
-        liveLogDisplay->append(message);
-        // Auto-scroll to bottom
-        QTextCursor cursor = liveLogDisplay->textCursor();
-        cursor.movePosition(QTextCursor::End);
-        liveLogDisplay->setTextCursor(cursor);
+        qInfo() << "Category" << category << status;
     }
 }

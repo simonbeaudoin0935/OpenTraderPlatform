@@ -72,7 +72,7 @@ You will need API credentials for:
    mkdir build
    cd build
    cmake ..
-   make -j$(nproc)
+   cmake --build . --parallel
    ```
 
 4. **Run the application**:
@@ -87,7 +87,7 @@ For terminal-only mode, build without GUI support:
 mkdir build
 cd build
 cmake .. -DENABLE_GUI=OFF
-make -j$(nproc)
+cmake --build . --parallel
 ```
 
 ## Configuration
@@ -183,7 +183,7 @@ Build and run the test suite:
 mkdir build
 cd build
 cmake .. -DBUILD_TESTS=ON
-make -j$(nproc)
+cmake --build . --parallel
 ctest
 # Or run individual tests:
 ./Tests/test_barcache
