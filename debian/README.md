@@ -95,6 +95,29 @@ sudo apt remove l2trader
 sudo apt purge l2trader
 ```
 
+### Credential Management
+
+The application stores sensitive credentials in the system keyring using QtKeychain/libsecret:
+
+**Stored credentials:**
+- TradeStation API client ID and secret
+- Access tokens, refresh tokens, and ID tokens
+
+**Removing credentials:**
+
+When the package is purged, configuration files are automatically removed, and the script attempts to clear keyring credentials for all users. However, if the automatic cleanup fails (e.g., keyring is locked), users can manually clear credentials:
+
+```bash
+# Clear all TradeStation credentials from keyring
+secret-tool clear service TradeStation
+
+# Or use a keyring management tool:
+# - GNOME: Seahorse (Passwords and Keys)
+# - KDE: KWalletManager
+```
+
+**Note:** The purge operation attempts automatic cleanup and displays a message about the cleanup status.
+
 ## CI/CD Integration
 
 The `.github/workflows/build.yml` workflow automatically builds the Debian package on:
