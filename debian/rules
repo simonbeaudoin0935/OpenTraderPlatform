@@ -15,8 +15,9 @@ override_dh_auto_build:
 	dh_auto_build
 
 override_dh_auto_test:
-	# Run tests but exclude FMPClient test (no API key available)
-	cd obj-x86_64-linux-gnu && ctest --exclude-regex FMPClientTest --output-on-failure
+	# Skip running tests during package build
+	# Tests will be run in separate CI jobs after package installation
+	@echo "Skipping tests during package build"
 
 override_dh_auto_install:
 	# Install main application binary
