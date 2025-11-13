@@ -24,6 +24,10 @@ on:
 jobs:
   build-main:
     runs-on: [self-hosted, Linux, X64]
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
 
     steps:
     - uses: actions/checkout@v4
@@ -88,9 +92,9 @@ jobs:
         shell: bash
 
     container:
-      image: ghcr.io/${{ github.actor }}/l2trader-builder:noble
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
       credentials:
-        username: ${{ github.actor }}
+        username: ${{ vars.USERNAME }}
         password: ${{secrets.TOKEN_GHCR}}
 
     steps:
@@ -127,9 +131,9 @@ jobs:
         shell: bash
 
     container:
-      image: ghcr.io/${{ github.actor }}/l2trader-builder:rpi-bookworm
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:rpi-bookworm
       credentials:
-        username: ${{ github.actor }}
+        username: ${{ vars.USERNAME }}
         password: ${{secrets.TOKEN_GHCR}}
 
     steps:
@@ -139,7 +143,7 @@ jobs:
       run: |
         cmake --version
         git config --global --add safe.directory /__w/L2Trader/L2Trader
-        dpkg-buildpackage -us -uc -b
+        dpkg-buildpackage -us -uc -b -aarm64 -Pcross
 
     - name: Prepare artifacts directory
       run: |
@@ -163,9 +167,9 @@ jobs:
       actions: read
 
     container:
-      image: ghcr.io/${{ github.actor }}/l2trader-builder:noble
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
       credentials:
-        username: ${{ github.actor }}
+        username: ${{ vars.USERNAME }}
         password: ${{secrets.TOKEN_GHCR}}
 
     steps:
@@ -191,9 +195,9 @@ jobs:
       actions: read
 
     container:
-      image: ghcr.io/${{ github.actor }}/l2trader-builder:noble
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
       credentials:
-        username: ${{ github.actor }}
+        username: ${{ vars.USERNAME }}
         password: ${{secrets.TOKEN_GHCR}}
 
     steps:
@@ -219,9 +223,9 @@ jobs:
       actions: read
 
     container:
-      image: ghcr.io/${{ github.actor }}/l2trader-builder:noble
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
       credentials:
-        username: ${{ github.actor }}
+        username: ${{ vars.USERNAME }}
         password: ${{secrets.TOKEN_GHCR}}
 
     steps:
@@ -247,9 +251,9 @@ jobs:
       actions: read
 
     container:
-      image: ghcr.io/${{ github.actor }}/l2trader-builder:noble
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
       credentials:
-        username: ${{ github.actor }}
+        username: ${{ vars.USERNAME }}
         password: ${{secrets.TOKEN_GHCR}}
 
     steps:
@@ -439,7 +443,9 @@ jobs:
   run-barcache-test-rpi:
     runs-on: [self-hosted, Linux, ARM64]
     needs: build-debian-package-rpi
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true'
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
     permissions:
       contents: read
       actions: read
@@ -462,7 +468,9 @@ jobs:
   run-tsclient-test-rpi:
     runs-on: [self-hosted, Linux, ARM64]
     needs: build-debian-package-rpi
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true'
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
     permissions:
       contents: read
       actions: read
@@ -485,7 +493,9 @@ jobs:
   run-runupdetector-test-rpi:
     runs-on: [self-hosted, Linux, ARM64]
     needs: build-debian-package-rpi
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true'
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
     permissions:
       contents: read
       actions: read
