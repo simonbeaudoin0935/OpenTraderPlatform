@@ -80,3 +80,6 @@ if(BUILD_TESTS)
     enable_testing()
     add_subdirectory(Tests)
 endif()
+
+# Option to build recorder
+option(BUILD_RECORDER "Build recorder application" ON)

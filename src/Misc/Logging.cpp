@@ -344,7 +344,7 @@ void initLogging()
     }
 
     // Generate timestamped log file name in XDG state directory
-    QString logFileName = QString("%1/%2_%3.log").arg(logsDirPath, QCoreApplication::applicationName(), QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss"));
+    QString logFileName = QString("%1/%2_%3.log.ansi").arg(logsDirPath, QCoreApplication::applicationName(), QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss"));
     logFile.setFileName(logFileName);
 
     // Open log file

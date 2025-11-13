@@ -2,7 +2,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "configure",
+            "label": "configure-main-only",
             "type": "shell",
             "command": "cmake",
             "args": [
@@ -12,7 +12,8 @@
                 "${workspaceFolder}/build",
                 "-DCMAKE_BUILD_TYPE=Debug",
                 "-DENABLE_GUI=ON",
-                "-DBUILD_TESTS=ON"
+                "-DBUILD_TESTS=OFF",
+                "-DBUILD_RECORDER=OFF"
             ],
             "group": "build",
             "presentation": {
@@ -24,7 +25,7 @@
             "problemMatcher": "$gcc"
         },
         {
-            "label": "build",
+            "label": "build-main-only",
             "type": "shell",
             "command": "cmake",
             "args": [
@@ -33,10 +34,7 @@
                 "--parallel",
                 "3"
             ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
+            "group": "build",
             "presentation": {
                 "echo": true,
                 "reveal": "silent",
@@ -44,7 +42,7 @@
                 "panel": "shared"
             },
             "problemMatcher": "$gcc",
-            "dependsOn": ["configure"]
+            "dependsOn": ["configure-main-only"]
         },
         {
             "label": "clean",
