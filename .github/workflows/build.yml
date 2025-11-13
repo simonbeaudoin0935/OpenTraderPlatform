@@ -24,6 +24,10 @@ on:
 jobs:
   build-main:
     runs-on: [self-hosted, Linux, X64]
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
 
     steps:
     - uses: actions/checkout@v4
@@ -439,7 +443,9 @@ jobs:
   run-barcache-test-rpi:
     runs-on: [self-hosted, Linux, ARM64]
     needs: build-debian-package-rpi
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true'
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
     permissions:
       contents: read
       actions: read
@@ -462,7 +468,9 @@ jobs:
   run-tsclient-test-rpi:
     runs-on: [self-hosted, Linux, ARM64]
     needs: build-debian-package-rpi
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true'
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
     permissions:
       contents: read
       actions: read
@@ -485,7 +493,9 @@ jobs:
   run-runupdetector-test-rpi:
     runs-on: [self-hosted, Linux, ARM64]
     needs: build-debian-package-rpi
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true'
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
     permissions:
       contents: read
       actions: read
