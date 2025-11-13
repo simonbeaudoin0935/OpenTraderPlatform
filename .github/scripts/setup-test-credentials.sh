@@ -14,26 +14,6 @@ if [ -z "$ACCESS_TOKEN" ] || [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || \
     exit 1
 fi
 
-# Function to obfuscate values (matching SecureStorage::obfuscateValue)
-obfuscate_value() {
-    local value="$1"
-    # Use Python to perform the same XOR obfuscation as the C++ code
-    python3 << EOF
-import hashlib
-import base64
-
-value = "$value"
-key_hash = hashlib.sha256(b"L2TraderSecureStorage").digest()
-data = value.encode('utf-8')
-obfuscated = bytearray()
-
-for i in range(len(data)):
-    obfuscated.append(data[i] ^ key_hash[i % len(key_hash)])
-
-print(base64.b64encode(bytes(obfuscated)).decode('utf-8'))
-EOF
-}
-
 # Determine config directory
 CONFIG_DIR="${HOME}/.config/L2Trader"
 mkdir -p "$CONFIG_DIR"
@@ -51,22 +31,15 @@ EOF
 
 echo "Created TradeStationTokens.ini"
 
-# Create SecureStorage.ini (obfuscated sensitive tokens)
-# The format is: TradeStation/key=obfuscated_value
-
-ACCESS_TOKEN_OBF=$(obfuscate_value "$ACCESS_TOKEN")
-REFRESH_TOKEN_OBF=$(obfuscate_value "$REFRESH_TOKEN")
-ID_TOKEN_OBF=$(obfuscate_value "$ID_TOKEN")
-CLIENT_ID_OBF=$(obfuscate_value "$CLIENT_ID")
-CLIENT_SECRET_OBF=$(obfuscate_value "$CLIENT_SECRET")
-
+# Create SecureStorage.ini (pre-obfuscated sensitive tokens)
+# Note: The secret values are already obfuscated, so we write them directly
 cat > "$CONFIG_DIR/SecureStorage.ini" << EOF
 [TradeStation]
-access_token=$ACCESS_TOKEN_OBF
-client_id=$CLIENT_ID_OBF
-client_secret=$CLIENT_SECRET_OBF
-id_token=$ID_TOKEN_OBF
-refresh_token=$REFRESH_TOKEN_OBF
+access_token=$ACCESS_TOKEN
+client_id=$CLIENT_ID
+client_secret=$CLIENT_SECRET
+id_token=$ID_TOKEN
+refresh_token=$REFRESH_TOKEN
 EOF
 
 echo "Created SecureStorage.ini"
