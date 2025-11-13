@@ -5,6 +5,7 @@
 #include <QCheckBox>
 #include <QTextEdit>
 #include <QMap>
+#include <QSpinBox>
 
 class LoggingTab : public QWidget {
     Q_OBJECT
@@ -18,12 +19,16 @@ public slots:
 
 private slots:
     void onCategoryCheckBoxToggled(bool checked);
+    void onMaxLogLinesChanged(int value);
 
 private:
     void setupUI();
     void populateCategoryCheckboxes();
+    void enforceMaxLogLines();
 
     QVBoxLayout* categoryCheckBoxLayout;
     QTextEdit* liveLogDisplay;
+    QSpinBox* maxLogLinesSpinBox;
     QMap<QString, QCheckBox*> categoryCheckBoxes;
+    int maxLogLines;
 };

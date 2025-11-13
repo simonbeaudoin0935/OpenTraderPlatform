@@ -32,6 +32,7 @@ private slots:
     void onTradeStationLoginClicked();
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
     void onNewDisplayedStockSelection();
+    void updateLiveLogDisplay(const QString& message);
 
 private:
     void setupDarkTheme(QMainWindow* mainWindow);
@@ -46,5 +47,7 @@ private:
     qsizetype FMPClientDataUsage = 0;
     qsizetype TSClientDataUsage = 0;
     qint64 memoryUsage = 0;
+    
+    int maxLiveLogLines = 1000;  // Maximum lines in live log display
 };
 

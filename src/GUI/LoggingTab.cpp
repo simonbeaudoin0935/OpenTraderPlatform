@@ -11,10 +11,16 @@
 LoggingTab::LoggingTab(QWidget* parent)
     : QWidget(parent),
       categoryCheckBoxLayout(nullptr),
-      liveLogDisplay(nullptr)
+      liveLogDisplay(nullptr),
+      maxLogLinesSpinBox(nullptr),
+      maxLogLines(1000)
 {
     setupUI();
     populateCategoryCheckboxes();
+
+    // Connect to the log broadcaster
+    connect(&LogBroadcaster::instance(), &LogBroadcaster::logMessageReceived,
+            this, &LoggingTab::updateLiveLogDisplay, Qt::QueuedConnection);
 }
 
 void LoggingTab::setupUI() {
@@ -38,6 +44,23 @@ void LoggingTab::setupUI() {
     QGroupBox* logDisplayGroupBox = new QGroupBox("Live Log Output");
     QVBoxLayout* logDisplayLayout = new QVBoxLayout(logDisplayGroupBox);
 
+    // Add max log lines setting
+    QHBoxLayout* settingsLayout = new QHBoxLayout();
+    QLabel* maxLinesLabel = new QLabel("Max Log Lines:");
+    maxLogLinesSpinBox = new QSpinBox();
+    maxLogLinesSpinBox->setMinimum(100);
+    maxLogLinesSpinBox->setMaximum(10000);
+    maxLogLinesSpinBox->setValue(maxLogLines);
+    maxLogLinesSpinBox->setSingleStep(100);
+    maxLogLinesSpinBox->setToolTip("Maximum number of log lines to keep in the display buffer");
+    
+    connect(maxLogLinesSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &LoggingTab::onMaxLogLinesChanged);
+
+    settingsLayout->addWidget(maxLinesLabel);
+    settingsLayout->addWidget(maxLogLinesSpinBox);
+    settingsLayout->addStretch();
+
     liveLogDisplay = new QTextEdit();
     liveLogDisplay->setReadOnly(true);
 
@@ -46,6 +69,7 @@ void LoggingTab::setupUI() {
     font.setPointSize(9);
     liveLogDisplay->setFont(font);
 
+    logDisplayLayout->addLayout(settingsLayout);
     logDisplayLayout->addWidget(liveLogDisplay);
 
     // Add both sections to main layout
@@ -92,9 +116,44 @@ void LoggingTab::onCategoryCheckBoxToggled(bool checked) {
     }
 }
 
+void LoggingTab::onMaxLogLinesChanged(int value) {
+    maxLogLines = value;
+    enforceMaxLogLines();
+}
+
+void LoggingTab::enforceMaxLogLines() {
+    if (!liveLogDisplay) {
+        return;
+    }
+
+    // Get current document
+    QTextDocument* doc = liveLogDisplay->document();
+    int lineCount = doc->lineCount();
+
+    // If we exceed max lines, remove from the top
+    if (lineCount > maxLogLines) {
+        QTextCursor cursor(doc);
+        cursor.movePosition(QTextCursor::Start);
+        
+        // Calculate how many lines to remove
+        int linesToRemove = lineCount - maxLogLines;
+        
+        // Select and delete the excess lines
+        for (int i = 0; i < linesToRemove; ++i) {
+            cursor.select(QTextCursor::LineUnderCursor);
+            cursor.removeSelectedText();
+            cursor.deleteChar(); // Remove the newline
+        }
+    }
+}
+
 void LoggingTab::updateLiveLogDisplay(const QString& message) {
     if (liveLogDisplay) {
         liveLogDisplay->append(message);
+        
+        // Enforce max log lines
+        enforceMaxLogLines();
+        
         // Auto-scroll to bottom
         QTextCursor cursor = liveLogDisplay->textCursor();
         cursor.movePosition(QTextCursor::End);

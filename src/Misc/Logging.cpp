@@ -184,6 +184,16 @@ void printStackTrace()
     std::cerr << stackTraceMsg << std::endl;
 }
 
+// LogBroadcaster implementation
+LogBroadcaster& LogBroadcaster::instance() {
+    static LogBroadcaster instance;
+    return instance;
+}
+
+void LogBroadcaster::broadcastLogMessage(const QString& message) {
+    emit logMessageReceived(message);
+}
+
 // LoggingConfig implementation
 LoggingConfig::LoggingConfig()
     : m_settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::applicationName(), "Logging")
@@ -288,6 +298,14 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
 
     std::cout << formattedMsg.toStdString() << std::endl;
     std::cout.flush();
+
+    // Broadcast to GUI (without ANSI color codes for display)
+    QString plainMsg = QString("[%1] %2 %3: %4")
+                          .arg(timestamp)
+                          .arg(typeText)
+                          .arg(category)
+                          .arg(msg);
+    LogBroadcaster::instance().broadcastLogMessage(plainMsg);
 
     // Print stack trace for fatal messages
     if (type == QtFatalMsg) {

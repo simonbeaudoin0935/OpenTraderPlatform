@@ -6,12 +6,15 @@
 #include <QPalette>
 #include <QApplication>
 #include <QShortcut>
+#include <QFont>
+#include <QTextCursor>
 
 #include "TSClient.h"
 #include "GuiFrontend.h"
 #include "ui_GUIFrontend.h"
 #include "LoggingTab.h"
 #include "CacheTab.h"
+#include "Misc/Logging.h"
 
 GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
     AppFrontend(parent),
@@ -104,6 +107,17 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
     // Set up the cache tab
     CacheTab* cacheTab = new CacheTab();
     ui->tabWidget->addTab(cacheTab, "Cache");
+
+    // Set up the live log display at the bottom
+    if (ui->liveLogDisplay) {
+        QFont font("Monospace");
+        font.setPointSize(9);
+        ui->liveLogDisplay->setFont(font);
+        
+        // Connect to the log broadcaster
+        connect(&LogBroadcaster::instance(), &LogBroadcaster::logMessageReceived,
+                this, &GuiFrontend::updateLiveLogDisplay, Qt::QueuedConnection);
+    }
 }
 
 GuiFrontend::~GuiFrontend() {
@@ -411,4 +425,36 @@ void GuiFrontend::onNewDisplayedStockSelection()
 
     // Clear focus from the input box after processing
     ui->stockSymbolInput->clearFocus();
+}
+
+void GuiFrontend::updateLiveLogDisplay(const QString& message) {
+    if (!ui->liveLogDisplay) {
+        return;
+    }
+
+    ui->liveLogDisplay->append(message);
+
+    // Enforce max log lines
+    QTextDocument* doc = ui->liveLogDisplay->document();
+    int lineCount = doc->lineCount();
+
+    if (lineCount > maxLiveLogLines) {
+        QTextCursor cursor(doc);
+        cursor.movePosition(QTextCursor::Start);
+        
+        // Calculate how many lines to remove
+        int linesToRemove = lineCount - maxLiveLogLines;
+        
+        // Select and delete the excess lines
+        for (int i = 0; i < linesToRemove; ++i) {
+            cursor.select(QTextCursor::LineUnderCursor);
+            cursor.removeSelectedText();
+            cursor.deleteChar(); // Remove the newline
+        }
+    }
+
+    // Auto-scroll to bottom
+    QTextCursor cursor = ui->liveLogDisplay->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    ui->liveLogDisplay->setTextCursor(cursor);
 }
