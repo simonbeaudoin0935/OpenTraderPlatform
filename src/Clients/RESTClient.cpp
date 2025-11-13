@@ -259,7 +259,7 @@ void RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type,
         "] invoked the queued method to" << (method == HttpMethod::GET ? "GET" : "POST") <<
         " with URL " << request.url().toString() <<
         " header : " << /*request.headers() << */
-        " and data : " << postData;
+        " and data : " << (method == HttpMethod::POST ? "<redacted for security>" : postData);
 }
 
 // This is all a bit hacky for now...
