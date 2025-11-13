@@ -76,7 +76,7 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build"]
+            "dependsOn": ["build-main-only"]
         },
         {
             "label": "run-barcache-test",
