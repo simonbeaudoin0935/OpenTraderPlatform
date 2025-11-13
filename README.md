@@ -37,9 +37,9 @@ For detailed architecture diagrams, see:
 
 ### Required Dependencies
 
-- **Qt 6.x**: Core, Network, SQL, Widgets, Charts
+- **Qt 6.x**: Core, Network, SQL, Widgets, Charts, WebEngineWidgets
 - **C++17 compliant compiler**: GCC 7+ or Clang 5+
-- **CMake or qmake**: Build system
+- **CMake 3.16+**: Build system
 - **SQLite**: Database support (included with Qt SQL)
 
 ### API Keys
@@ -61,28 +61,32 @@ You will need API credentials for:
 2. **Install Qt dependencies**:
    ```bash
    # On Ubuntu/Debian
-   sudo apt-get install qt6-base-dev qt6-charts-dev libqt6sql6-sqlite
+   sudo apt-get install qt6-base-dev qt6-charts-dev qt6-webengine-dev libqt6sql6-sqlite cmake
 
    # On macOS with Homebrew
-   brew install qt@6
+   brew install qt@6 cmake
    ```
 
 3. **Build the application**:
    ```bash
-   qmake L2Trader.pro
+   mkdir build
+   cd build
+   cmake ..
    make -j$(nproc)
    ```
 
 4. **Run the application**:
    ```bash
-   ./L2Trader
+   ./src/L2Trader
    ```
 
 ### Building with GUI Disabled
 
 For terminal-only mode, build without GUI support:
 ```bash
-qmake L2Trader.pro CONFIG-=gui
+mkdir build
+cd build
+cmake .. -DENABLE_GUI=OFF
 make -j$(nproc)
 ```
 
@@ -176,22 +180,25 @@ L2Trader/
 Build and run the test suite:
 
 ```bash
-cd Tests
-qmake Tests.pro
+mkdir build
+cd build
+cmake .. -DBUILD_TESTS=ON
 make -j$(nproc)
-./BarCacheUnit/BarCacheUnit
-./FMPClientUnit/FMPClientUnit
-./RunUpDetectorUnit/RunUpDetectorUnit
-./TSClientUnit/TSClientUnit
+ctest
+# Or run individual tests:
+./Tests/test_barcache
+./Tests/test_fmpclient
+./Tests/test_RunUpDetector
+./Tests/test_tradestationclient
 ```
 
 ### IDE Setup
 
 The project includes VSCode configuration in `.vscode/`. For Qt Creator:
 
-1. Open `L2Trader.pro`
+1. Open `CMakeLists.txt`
 2. Configure build settings for your kit
-3. Select run configuration "Main"
+3. Select run configuration "L2Trader"
 4. Build and run
 
 ### Code Style

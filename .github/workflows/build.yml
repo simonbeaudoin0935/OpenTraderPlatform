@@ -58,26 +58,25 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set Qt path
+    - name: Set build jobs
       run: |
-        echo "QMAKE=${{ needs.setup-environment.outputs.qmake_command }}" >> $GITHUB_ENV
         if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
           echo "MAKE_JOBS=-j2" >> $GITHUB_ENV
         else
           echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
         fi
 
-    - name: Show Qt version
-      run: $QMAKE --version
+    - name: Show CMake version
+      run: cmake --version
     
     - name: Create build directory
       run: mkdir -p build
 
-    - name: Run qmake
-      run: $QMAKE L2Trader.pro -o build/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
+    - name: Configure with CMake
+      run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=ON
 
-    - name: Run make
-      run: make $MAKE_JOBS -C build
+    - name: Build all targets
+      run: cmake --build build $MAKE_JOBS
 
   build-recorder:
     needs: [build-main, setup-environment]
@@ -86,23 +85,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set Qt path
-      run: |
-        echo "QMAKE=${{ needs.setup-environment.outputs.qmake_command }}" >> $GITHUB_ENV
-        if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
-          echo "MAKE_JOBS=-j2" >> $GITHUB_ENV
-        else
-          echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
-        fi
-
-    - name: Create build directory
-      run: mkdir -p build
-
-    - name: Run qmake
-      run: $QMAKE Recorder.pro -o build/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
-
-    - name: Run make
-      run: make $MAKE_JOBS -C build
+    - name: Build already complete
+      run: echo "Recorder built in build-main step with CMake"
 
   build-tests:
     runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
@@ -111,23 +95,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set Qt path
-      run: |
-        echo "QMAKE=${{ needs.setup-environment.outputs.qmake_command }}" >> $GITHUB_ENV
-        if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
-          echo "MAKE_JOBS=-j2" >> $GITHUB_ENV
-        else
-          echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
-        fi
-
-    - name: Create build directory for tests
-      run: mkdir -p build/Tests
-
-    - name: Run qmake for tests
-      run: $QMAKE Tests.pro -o build/Tests/Makefile -spec linux-g++ CONFIG+=debug CONFIG+=qml_debug
-
-    - name: Run make for tests
-      run: make $MAKE_JOBS -C build/Tests
+    - name: Tests already built
+      run: echo "Tests built in build-main step with CMake"
 
   run-barcache-test:
     runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
@@ -135,7 +104,7 @@ jobs:
 
     steps:
     - name: Run BarCache unit test
-      run: ./build/Tests/Tests/BarCacheUnit/test_barcache --stock-csv=Example_Config/nasdaq_screener.csv
+      run: ./build/Tests/test_barcache --stock-csv=Example_Config/nasdaq_screener.csv
 
   run-fmpclient-test:
     #We are going to dump FMP in the future
@@ -153,7 +122,7 @@ jobs:
 
     steps:
     - name: Run TSClient unit test
-      run: ./build/Tests/Tests/TSClientUnit/test_tradestationclient
+      run: ./build/Tests/test_tradestationclient
 
   run-runupdetector-test:
     runs-on: [self-hosted, Linux, "${{ needs.setup-environment.outputs.arch }}"]
@@ -161,7 +130,7 @@ jobs:
 
     steps:
     - name: Run RunUpDetector unit test
-      run: ./build/Tests/Tests/RunUpDetectorUnit/test_RunUpDetector
+      run: ./build/Tests/test_RunUpDetector
 
   build-debian-package:
     runs-on: ubuntu-24.04
@@ -185,7 +154,7 @@ jobs:
 
     - name: Build Debian package
       run: |
-        qmake6 --version
+        cmake --version
         git config --global --add safe.directory /__w/L2Trader/L2Trader
         dpkg-buildpackage -us -uc -b
 
