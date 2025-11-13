@@ -58,12 +58,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set build jobs
+    - name: Set number of parallel jobs
       run: |
         if [ "${{ needs.setup-environment.outputs.arch }}" = "ARM64" ]; then
-          echo "MAKE_JOBS=-j2" >> $GITHUB_ENV
+          echo "PARALLEL_JOBS=-j2" >> $GITHUB_ENV
         else
-          echo "MAKE_JOBS=-j$(nproc)" >> $GITHUB_ENV
+          echo "PARALLEL_JOBS=-j$(nproc)" >> $GITHUB_ENV
         fi
 
     - name: Show CMake version
@@ -76,7 +76,7 @@ jobs:
       run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=ON
 
     - name: Build all targets
-      run: cmake --build build $MAKE_JOBS
+      run: cmake --build build $PARALLEL_JOBS
 
   build-recorder:
     needs: [build-main, setup-environment]
