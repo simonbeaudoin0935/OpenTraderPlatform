@@ -154,7 +154,7 @@ jobs:
 
   test-package-installation:
     runs-on: ubuntu-24.04
-    needs: [build-debian-package, setup-environment]
+    needs: build-debian-package
     permissions:
       contents: read
       actions: read
@@ -169,7 +169,7 @@ jobs:
     - name: Download Debian package artifacts
       uses: actions/download-artifact@v4
       with:
-        name: debian-packages-${{ needs.setup-environment.outputs.arch }}
+        name: debian-packages-X64
         path: ./packages
 
     - name: List downloaded packages
