@@ -11,6 +11,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Find Qt6 packages
 find_package(Qt6 REQUIRED COMPONENTS Core Network Sql Widgets Charts WebEngineWidgets Test)
 
+# Configure ccache for faster rebuilds
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+endif()
+
 # Enable automatic handling of Qt features
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
