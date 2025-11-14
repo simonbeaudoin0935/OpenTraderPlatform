@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y \
     libqt6sql6-sqlite:arm64 \
     qtkeychain-qt6-dev:arm64 \
     libsecret-1-dev:arm64 \
+    ccache \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

@@ -27,7 +27,7 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
     
     setupDarkTheme(mainWindow);
     
-    mainWindow->show();
+    mainWindow->showMaximized();
 
     // Add Ctrl+Q shortcut to quit the application
     QShortcut *quitShortcut = new QShortcut(QKeySequence("Ctrl+Q"), mainWindow);

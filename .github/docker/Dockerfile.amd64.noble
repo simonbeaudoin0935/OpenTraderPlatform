@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
     qt6-base-dev qt6-charts-dev \
     qt6-webengine-dev libqt6sql6-sqlite \
     qtkeychain-qt6-dev libsecret-1-dev \
+    ccache \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

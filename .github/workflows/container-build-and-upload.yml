@@ -72,7 +72,7 @@ jobs:
           fi
 
   # Build the amd64 natively on ubuntu-latest which is an x86_64 host
-  build-image-amd64:
+  build-image-amd64-noble:
     needs: check-if-build-needed
     if: needs.check-if-build-needed.outputs.build-needed == 'true'
     runs-on: ubuntu-24.04
