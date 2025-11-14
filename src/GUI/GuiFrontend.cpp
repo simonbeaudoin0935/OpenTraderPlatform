@@ -108,6 +108,12 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
     LoggingTab* loggingTab = new LoggingTab();
     ui->tabWidget->addTab(loggingTab, "Logging");
 
+    // Connect logging tab signals
+    connect(loggingTab, &LoggingTab::loggerVisibilityChanged,
+            this, &GuiFrontend::onLoggerVisibilityChanged);
+    connect(loggingTab, &LoggingTab::logDepthChanged,
+            this, &GuiFrontend::onLogDepthChanged);
+
     // Set up the cache tab
     CacheTab* cacheTab = new CacheTab();
     ui->tabWidget->addTab(cacheTab, "Cache");
@@ -472,4 +478,33 @@ void GuiFrontend::updateLiveLogDisplay(const QString& message) {
     QTextCursor cursor = ui->liveLogDisplay->textCursor();
     cursor.movePosition(QTextCursor::End);
     ui->liveLogDisplay->setTextCursor(cursor);
+}
+
+void GuiFrontend::onLoggerVisibilityChanged(bool visible) {
+    if (ui->liveLogDisplay) {
+        ui->liveLogDisplay->setVisible(visible);
+    }
+}
+
+void GuiFrontend::onLogDepthChanged(int maxLines) {
+    maxLiveLogLines = maxLines;
+    
+    // Trim current log display if needed
+    if (ui->liveLogDisplay) {
+        QTextDocument* doc = ui->liveLogDisplay->document();
+        int lineCount = doc->lineCount();
+        
+        if (lineCount > maxLiveLogLines) {
+            QTextCursor cursor(doc);
+            cursor.movePosition(QTextCursor::Start);
+            
+            int linesToRemove = lineCount - maxLiveLogLines;
+            
+            for (int i = 0; i < linesToRemove; ++i) {
+                cursor.select(QTextCursor::LineUnderCursor);
+                cursor.removeSelectedText();
+                cursor.deleteChar();
+            }
+        }
+    }
 }

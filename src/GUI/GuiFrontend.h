@@ -34,6 +34,8 @@ private slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
     void onNewDisplayedStockSelection();
     void updateLiveLogDisplay(const QString& message);
+    void onLoggerVisibilityChanged(bool visible);
+    void onLogDepthChanged(int maxLines);
 
 private:
     void setupDarkTheme(QMainWindow* mainWindow);
