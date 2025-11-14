@@ -30,6 +30,7 @@ L2Trader follows a modular Model-View-Controller architecture with Qt's signal/s
 For detailed architecture diagrams, see:
 - [Application Architecture Diagram](Doc/Application_Architecture_Diagram.md)
 - [Stock Price Chart Diagram](Doc/StockPriceChart_Diagram.md)
+- [Stock Price Chart Architecture (Comprehensive)](Doc/StockPriceChart_Architecture.md) - Detailed documentation with crash analysis
 - [Program Sequence](Doc/ProgramSequence.md)
 - [OAuth Authentication Process](Doc/OAuth_Authentication_Process.md)
 
