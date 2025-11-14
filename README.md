@@ -1,3 +1,5 @@
+[![Build](https://github.com/simonbeaudoin0935/L2Trader/actions/workflows/build.yml/badge.svg?branch=main&event=push)](https://github.com/simonbeaudoin0935/L2Trader/actions/workflows/build.yml)
+
 # L2Trader
 
 A real-time algorithmic trading application built with Qt6 that monitors stock market data, executes trading strategies, and provides comprehensive market analysis tools.
