@@ -2,12 +2,16 @@
 #include <QGroupBox>
 #include <QScrollArea>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
 
 #include "Misc/Logging.h"
 
 LoggingTab::LoggingTab(QWidget* parent)
     : QWidget(parent),
-      categoryCheckBoxLayout(nullptr)
+      categoryCheckBoxLayout(nullptr),
+      loggerVisibilityCheckBox(nullptr),
+      logDepthSpinBox(nullptr)
 {
     setupUI();
     populateCategoryCheckboxes();
@@ -15,6 +19,32 @@ LoggingTab::LoggingTab(QWidget* parent)
 
 void LoggingTab::setupUI() {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
+
+    // Logger Widget Controls section
+    QGroupBox* loggerControlsGroupBox = new QGroupBox("Logger Widget Controls");
+    QVBoxLayout* loggerControlsLayout = new QVBoxLayout(loggerControlsGroupBox);
+
+    // Visibility checkbox
+    loggerVisibilityCheckBox = new QCheckBox("Show Logger Widget");
+    loggerVisibilityCheckBox->setChecked(true);  // Default to visible
+    connect(loggerVisibilityCheckBox, &QCheckBox::toggled, this, &LoggingTab::onLoggerVisibilityToggled);
+    loggerControlsLayout->addWidget(loggerVisibilityCheckBox);
+
+    // Log depth control
+    QHBoxLayout* logDepthLayout = new QHBoxLayout();
+    QLabel* logDepthLabel = new QLabel("Maximum Log Lines:");
+    logDepthSpinBox = new QSpinBox();
+    logDepthSpinBox->setMinimum(100);
+    logDepthSpinBox->setMaximum(10000);
+    logDepthSpinBox->setValue(1000);  // Default value
+    logDepthSpinBox->setSingleStep(100);
+    connect(logDepthSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &LoggingTab::onLogDepthValueChanged);
+    logDepthLayout->addWidget(logDepthLabel);
+    logDepthLayout->addWidget(logDepthSpinBox);
+    logDepthLayout->addStretch();
+    loggerControlsLayout->addLayout(logDepthLayout);
+
+    mainLayout->addWidget(loggerControlsGroupBox);
 
     // Category management section
     QGroupBox* categoryGroupBox = new QGroupBox("Logging Categories");
@@ -71,4 +101,12 @@ void LoggingTab::onCategoryCheckBoxToggled(bool checked) {
         QString status = checked ? "enabled" : "disabled";
         qInfo() << "Category" << category << status;
     }
+}
+
+void LoggingTab::onLoggerVisibilityToggled(bool checked) {
+    emit loggerVisibilityChanged(checked);
+}
+
+void LoggingTab::onLogDepthValueChanged(int value) {
+    emit logDepthChanged(value);
 }

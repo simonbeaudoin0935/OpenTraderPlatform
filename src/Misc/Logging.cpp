@@ -299,13 +299,33 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
     std::cout << formattedMsg.toStdString() << std::endl;
     std::cout.flush();
 
-    // Broadcast to GUI (without ANSI color codes for display)
-    QString plainMsg = QString("[%1] %2 %3: %4")
+    // Broadcast to GUI with HTML color formatting
+    QString htmlColorCode;
+    switch (type) {
+    case QtDebugMsg:
+        htmlColorCode = "#00CED1"; // Cyan
+        break;
+    case QtInfoMsg:
+        htmlColorCode = "#32CD32"; // Green
+        break;
+    case QtWarningMsg:
+        htmlColorCode = "#FFD700"; // Yellow
+        break;
+    case QtCriticalMsg:
+        htmlColorCode = "#FF4500"; // Red
+        break;
+    case QtFatalMsg:
+        htmlColorCode = "#FF00FF"; // Magenta
+        break;
+    }
+    
+    QString htmlMsg = QString("<span style='color:%1'>[%2] %3 %4:</span> %5")
+                          .arg(htmlColorCode)
                           .arg(timestamp)
                           .arg(typeText)
                           .arg(category)
                           .arg(msg);
-    LogBroadcaster::instance().broadcastLogMessage(plainMsg);
+    LogBroadcaster::instance().broadcastLogMessage(htmlMsg);
 
     // Print stack trace for fatal messages
     if (type == QtFatalMsg) {
