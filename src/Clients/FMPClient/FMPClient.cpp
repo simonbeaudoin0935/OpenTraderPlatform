@@ -55,7 +55,9 @@ FMPClient::FMPClient() :
 
 void FMPClient::loadApiKey()
 {
-    SecureStorage* storage = new SecureStorage(this);
+    // Pass nullptr as parent instead of 'this' to avoid Qt warning about creating children
+    // for a parent in a different thread (FMPClient will be moved to its own thread)
+    SecureStorage* storage = new SecureStorage(nullptr);
     
     QMap<QString, QString> values = storage->retrieveValuesSync("FMP_API", {"access_token"}, 5000);
     
