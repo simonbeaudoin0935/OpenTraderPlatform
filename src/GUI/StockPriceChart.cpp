@@ -118,11 +118,6 @@ StockPriceChart::~StockPriceChart() {
 }
 
 void StockPriceChart::setSymbol(const QString& symbol) {
-    // If the symbol is actually changing, mark that we need to auto-focus on first bar
-    if (this->symbol != symbol) {
-        isFirstBarBatchForSymbol = true;
-    }
-    
     this->symbol = symbol;
     candlestickSeries->setName(symbol + " (Bars)");
     chart->setTitle("Stock Price: " + symbol);
