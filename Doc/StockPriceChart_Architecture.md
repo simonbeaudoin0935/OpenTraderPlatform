@@ -462,7 +462,7 @@ graph TD
     AddBar[Add New Bar to completedBars] --> CheckSize{completedBars.size > MAX_BARS?}
     CheckSize -->|No| Done[Done]
     CheckSize -->|Yes| RemoveLoop[maintainBarLimit loop]
-    RemoveLoop --> Remove[Remove oldest bar<br/>completedBars.erase(begin)]
+    RemoveLoop --> Remove["Remove oldest bar<br/>completedBars.erase(begin)"]
     Remove --> CheckSize2{size still > MAX_BARS?}
     CheckSize2 -->|Yes| Remove
     CheckSize2 -->|No| Done
