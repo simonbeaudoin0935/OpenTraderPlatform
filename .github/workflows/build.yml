@@ -47,15 +47,15 @@ jobs:
     - name: Run BarCache unit test
       run: ./build/Tests/test_barcache --stock-csv=Example_Config/nasdaq_screener.csv
 
-  run-fmpclient-test:
+#  run-fmpclient-test:
     #We are going to dump FMP in the future
-    if: false
-    runs-on: [self-hosted, Linux, X64]
-    needs: [build-main]
+#    if: false
+#    runs-on: [self-hosted, Linux, X64]
+#    needs: [build-main]
 
-    steps:
-    - name: Run FMPClient unit test
-      run: ./build/Tests/Tests/FMPClientUnit/test_fmpclient
+#    steps:
+#    - name: Run FMPClient unit test
+#      run: ./build/Tests/Tests/FMPClientUnit/test_fmpclient
 
   run-tsclient-test:
     runs-on: [self-hosted, Linux, X64]
