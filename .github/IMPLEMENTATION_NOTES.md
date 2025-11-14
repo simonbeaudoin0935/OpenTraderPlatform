@@ -1,10 +1,10 @@
 # ccache Implementation Summary for GitHub Actions
 
-This document summarizes the implementation of ccache for ephemeral GitHub Actions runners and answers the key question: "How would I go about publishing this ~/.ccache result at the end of a build, so that it can be downloaded again in another run?"
+This document summarizes the implementation of ccache for ephemeral GitHub Actions runners and answers the key question: "How would I go about publishing this ~/.cache/ccache result at the end of a build, so that it can be downloaded again in another run?"
 
 ## Answer: Use GitHub Actions Cache
 
-The solution uses the `actions/cache@v4` action to automatically save and restore the `~/.ccache` directory between workflow runs. This is the standard approach for persisting data on ephemeral runners.
+The solution uses the `actions/cache@v4` action to automatically save and restore the `~/.cache/ccache` directory between workflow runs. This is the standard approach for persisting data on ephemeral runners.
 
 ## Implementation Steps
 
@@ -20,7 +20,7 @@ Added these steps to each build job:
 - name: Set up ccache
   run: |
     ccache --version
-    mkdir -p ~/.ccache
+    mkdir -p ~/.cache/ccache
     ccache --set-config=max_size=500M
     ccache --set-config=compression=true
     ccache --set-config=compression_level=6
@@ -29,7 +29,7 @@ Added these steps to each build job:
 - name: Cache ccache directory
   uses: actions/cache@v4
   with:
-    path: ~/.ccache
+    path: ~/.cache/ccache
     key: ccache-debian-noble-${{ github.sha }}
     restore-keys: |
       ccache-debian-noble-
@@ -67,7 +67,7 @@ Added these steps to each build job:
 - Still allows reuse via restore-keys fallback
 
 ### 2. Cache Location
-- Default: `~/.ccache` (ccache v4+)
+- Default: `~/.cache/ccache` (ccache v4+)
 - Works correctly in GitHub Actions containers
 - Persists between steps in same job
 - Lost between jobs (that's why we cache it)
@@ -154,7 +154,7 @@ ccache --show-stats output:
 
 **"Path(s) specified in the action for caching do(es) not exist" error?**
 1. This happens when the cache directory doesn't exist when GitHub Actions tries to save it
-2. Solution: Add `mkdir -p ~/.ccache` before the cache step to ensure directory exists
+2. Solution: Add `mkdir -p ~/.cache/ccache` before the cache step to ensure directory exists
 3. This is now included in the workflow setup step
 
 **Cache not being used?**

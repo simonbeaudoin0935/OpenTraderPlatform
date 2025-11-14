@@ -12,7 +12,7 @@ ccache is a compiler cache that stores the results of compilation and reuses the
 2. **Docker Images**: ccache is installed in both build container images:
    - `Dockerfile.amd64.noble` - for X86_64 builds
    - `Dockerfile.rpi.bookworm` - for ARM64 cross-compilation builds
-3. **GitHub Actions Cache**: The `~/.ccache` directory is cached between workflow runs using `actions/cache@v4`
+3. **GitHub Actions Cache**: The `~/.cache/ccache` directory is cached between workflow runs using `actions/cache@v4`
 
 ## Configuration
 
@@ -21,13 +21,13 @@ ccache is a compiler cache that stores the results of compilation and reuses the
 The following ccache settings are applied in each build job:
 
 ```bash
-mkdir -p ~/.ccache                           # Ensure cache directory exists
+mkdir -p ~/.cache/ccache                      # Ensure cache directory exists
 ccache --set-config=max_size=500M          # Limit cache to 500MB per job
 ccache --set-config=compression=true       # Enable compression
 ccache --set-config=compression_level=6    # Good balance of speed/size
 ```
 
-Note: The `mkdir -p ~/.ccache` command is essential to ensure the cache directory exists before GitHub Actions tries to cache it.
+Note: The `mkdir -p ~/.cache/ccache` command is essential to ensure the cache directory exists before GitHub Actions tries to cache it. The default cache directory for ccache v4+ is `~/.cache/ccache`.
 
 ### Cache Keys
 
@@ -49,7 +49,7 @@ The restore fallback allows using cache from previous commits when an exact matc
 
 ### First Build (Cache Miss)
 - Compilation happens normally
-- Results are stored in `~/.ccache`
+- Results are stored in `~/.cache/ccache`
 - Cache is uploaded at job completion
 - Build time: ~2-5 minutes (normal)
 
