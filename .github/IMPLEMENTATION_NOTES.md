@@ -20,6 +20,7 @@ Added these steps to each build job:
 - name: Set up ccache
   run: |
     ccache --version
+    mkdir -p ~/.ccache
     ccache --set-config=max_size=500M
     ccache --set-config=compression=true
     ccache --set-config=compression_level=6
@@ -150,6 +151,11 @@ ccache --show-stats output:
 **Bad**: <50% hit rate (investigate why)
 
 ### 9. Troubleshooting
+
+**"Path(s) specified in the action for caching do(es) not exist" error?**
+1. This happens when the cache directory doesn't exist when GitHub Actions tries to save it
+2. Solution: Add `mkdir -p ~/.ccache` before the cache step to ensure directory exists
+3. This is now included in the workflow setup step
 
 **Cache not being used?**
 1. Check if ccache installed: `ccache --version`

@@ -21,10 +21,13 @@ ccache is a compiler cache that stores the results of compilation and reuses the
 The following ccache settings are applied in each build job:
 
 ```bash
+mkdir -p ~/.ccache                           # Ensure cache directory exists
 ccache --set-config=max_size=500M          # Limit cache to 500MB per job
 ccache --set-config=compression=true       # Enable compression
 ccache --set-config=compression_level=6    # Good balance of speed/size
 ```
+
+Note: The `mkdir -p ~/.ccache` command is essential to ensure the cache directory exists before GitHub Actions tries to cache it.
 
 ### Cache Keys
 
