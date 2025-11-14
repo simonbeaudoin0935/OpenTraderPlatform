@@ -406,50 +406,53 @@ sequenceDiagram
 stateDiagram-v2
     [*] --> Empty: New Chart
     
-    state "Chart States" as ChartStates {
-        Empty --> HasClosedBars: addBar(Closed)
-        HasClosedBars --> HasOpenBar: addBar(Open)
-        HasOpenBar --> HasOpenBar: addBar(Open) - Update
-        HasOpenBar --> HasClosedBars: addBar(Closed)
-        HasClosedBars --> HasClosedBars: addBar(Closed)
-        Empty --> HasOpenBar: addBar(Open)
-    }
+    Empty --> HasClosedBars: addBar(Closed)
+    Empty --> HasOpenBar: addBar(Open)
+    HasClosedBars --> HasOpenBar: addBar(Open)
+    HasClosedBars --> HasClosedBars: addBar(Closed)
+    HasOpenBar --> HasOpenBar: addBar(Open) - Update
+    HasOpenBar --> HasClosedBars: addBar(Closed)
     
-    state Empty {
+    note right of Empty
         completedBars: Empty Map
         hasOpenBar: false
         currentOpenBar: Invalid
         lastPrice: 0.0
-    }
+    end note
     
-    state HasClosedBars {
+    note right of HasClosedBars
         completedBars: Contains bars
         hasOpenBar: false
         lastPrice: Last close price
-    }
+    end note
     
-    state HasOpenBar {
+    note right of HasOpenBar
         completedBars: Contains bars
         hasOpenBar: true
         currentOpenBar: Valid Bar
         lastPrice: Current price
-    }
+    end note
+```
+
+**View States:**
+
+```mermaid
+stateDiagram-v2
+    [*] --> DefaultView: Initial
     
-    state "View States" as ViewStates {
-        DefaultView --> UserModifiedView: Zoom/Pan
-        UserModifiedView --> UserModifiedView: Zoom/Pan
-        UserModifiedView --> DefaultView: Right Click
-    }
+    DefaultView --> UserModifiedView: Zoom/Pan
+    UserModifiedView --> UserModifiedView: Zoom/Pan
+    UserModifiedView --> DefaultView: Right Click
     
-    state DefaultView {
+    note right of DefaultView
         axisX: Last 30 minutes
         axisY: Auto-fit to bars
-    }
+    end note
     
-    state UserModifiedView {
+    note right of UserModifiedView
         axisX: User-defined range
         axisY: User-defined range
-    }
+    end note
 ```
 
 ### Bar Limit Management
