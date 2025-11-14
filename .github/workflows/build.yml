@@ -92,11 +92,31 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Set up ccache
+      run: |
+        ccache --version
+        mkdir -p ~/.cache/ccache
+        ccache --set-config=max_size=500M
+        ccache --set-config=compression=true
+        ccache --set-config=compression_level=6
+        ccache --zero-stats
+
+    - name: Cache ccache directory
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ccache-debian-noble-${{ github.sha }}
+        restore-keys: |
+          ccache-debian-noble-
+
     - name: Build Debian package
       run: |
         cmake --version
         git config --global --add safe.directory /__w/L2Trader/L2Trader
         dpkg-buildpackage -us -uc -b
+
+    - name: Show ccache statistics
+      run: ccache --show-stats
 
     - name: Prepare artifacts directory
       run: |
@@ -131,11 +151,31 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Set up ccache
+      run: |
+        ccache --version
+        mkdir -p ~/.cache/ccache
+        ccache --set-config=max_size=500M
+        ccache --set-config=compression=true
+        ccache --set-config=compression_level=6
+        ccache --zero-stats
+
+    - name: Cache ccache directory
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ccache-debian-bookworm-arm64-${{ github.sha }}
+        restore-keys: |
+          ccache-debian-bookworm-arm64-
+
     - name: Build Debian package for RPI
       run: |
         cmake --version
         git config --global --add safe.directory /__w/L2Trader/L2Trader
         dpkg-buildpackage -us -uc -b -aarm64 -Pcross
+
+    - name: Show ccache statistics
+      run: ccache --show-stats
 
     - name: Prepare artifacts directory
       run: |
