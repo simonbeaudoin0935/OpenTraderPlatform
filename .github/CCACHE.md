@@ -33,17 +33,24 @@ Note: The `mkdir -p ~/.cache/ccache` command is essential to ensure the cache di
 
 Different cache keys are used for each build type to prevent cross-contamination:
 
-- **X86_64 builds**: `ccache-debian-noble-${COMMIT_SHA}`
-  - Restore fallback: `ccache-debian-noble-`
-- **ARM64 builds**: `ccache-debian-bookworm-arm64-${COMMIT_SHA}`
-  - Restore fallback: `ccache-debian-bookworm-arm64-`
+- **X86_64 builds**:
+  - Main branch (push): `ccache-debian-noble-main`
+  - PR builds: `ccache-debian-noble-${COMMIT_SHA}`
+  - Restore fallback: `ccache-debian-noble-main`, then `ccache-debian-noble-`
+- **ARM64 builds**:
+  - Main branch (push): `ccache-debian-bookworm-arm64-main`
+  - PR builds: `ccache-debian-bookworm-arm64-${COMMIT_SHA}`
+  - Restore fallback: `ccache-debian-bookworm-arm64-main`, then `ccache-debian-bookworm-arm64-`
 
 The cache key includes:
 - OS/distribution (noble/bookworm)
 - Architecture (implicit for noble, explicit for arm64)
-- Commit SHA for the exact key
+- Branch indicator (`main`) for main branch builds, or commit SHA for PR builds
 
-The restore fallback allows using cache from previous commits when an exact match isn't found.
+The cache strategy ensures that:
+1. Main branch builds always save their cache with the `-main` suffix
+2. PR builds restore from the latest main branch cache first, then fall back to any previous cache
+3. PR builds save with their commit SHA to avoid polluting the main cache
 
 ## Benefits
 
@@ -91,9 +98,11 @@ Look for these metrics to understand cache effectiveness.
 ### Cache Invalidation
 
 Caches are automatically invalidated when:
-- Cache key doesn't match (different commit SHA)
+- Main branch cache is updated by a newer push to main (old `-main` cache is replaced)
 - Compiler version changes (new Docker image)
 - CMake configuration changes significantly
+
+PR builds always restore from the latest main branch cache, ensuring consistent starting points while allowing incremental builds through PR-specific cache keys.
 
 ### Best Practices
 
