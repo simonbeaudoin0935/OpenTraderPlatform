@@ -96,4 +96,5 @@ private:
     void clearBackgroundRects();
 
     bool currentGetBarsRequestInProcess = false;
+    bool isFirstBarBatchForSymbol = false;
 };

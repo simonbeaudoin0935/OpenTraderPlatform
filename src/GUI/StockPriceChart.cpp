@@ -251,6 +251,9 @@ void StockPriceChart::updateChart() {
     qreal currentYMax = axisY->max();
     bool hadInitialView = currentMin != currentMax && currentMin.toMSecsSinceEpoch() != 0;
 
+    // Check if we should perform initial auto-focus for a newly selected symbol
+    bool shouldAutoFocus = isFirstBarBatchForSymbol;
+
     // Clear existing candlesticks
     candlestickSeries->clear();
     candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH); // Reset body width after clearing
@@ -284,8 +287,8 @@ void StockPriceChart::updateChart() {
         candlestickSeries->append(set);
     }
 
-    // Only update time axis range if this is the initial setup
-    if (!hadInitialView && candlestickSeries->count() > 0) {
+    // Only update time axis range if this is the initial setup or first batch for a new symbol
+    if ((!hadInitialView || shouldAutoFocus) && candlestickSeries->count() > 0) {
         QDateTime currentBarTime;
         if (hasOpenBar) {
             currentBarTime = currentOpenBar.getTimeStamp();
@@ -305,6 +308,11 @@ void StockPriceChart::updateChart() {
         QDateTime endTime = baseTime.addSecs(5 * 60 + 60); // Next 5-min mark + 1 min buffer
 
         axisX->setRange(startTime, endTime);
+        
+        // Mark that we've performed the initial auto-focus
+        if (shouldAutoFocus) {
+            isFirstBarBatchForSymbol = false;
+        }
     } else {
         // Restore the previous view
         axisX->setRange(currentMin, currentMax);
@@ -332,7 +340,7 @@ void StockPriceChart::updateChart() {
     }
 
     // Only update Y axis range if necessary and if we're not preserving the view
-    if (!hadInitialView && (minPrice < currentYMin || maxPrice > currentYMax || currentYMin == currentYMax)) {
+    if ((!hadInitialView || shouldAutoFocus) && (minPrice < currentYMin || maxPrice > currentYMax || currentYMin == currentYMax)) {
         // Add padding
         double padding = currentPrice * 0.0002; // 0.02% padding
         // Ensure minimum range
@@ -881,4 +889,7 @@ void StockPriceChart::clearSymbol() {
     QDateTime now = QDateTime::currentDateTime();
     axisX->setRange(now.addSecs(-30 * 60), now.addSecs(5 * 60));
     axisY->setRange(0, 100);
+    
+    // Mark that we need to auto-focus when the first bar arrives
+    isFirstBarBatchForSymbol = true;
 }
