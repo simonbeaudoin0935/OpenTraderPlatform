@@ -96,4 +96,5 @@ private:
     void clearBackgroundRects();
 
     bool currentGetBarsRequestInProcess = false;
+    bool needsInitialPriceFocus = false;  // Track if we need to focus on price after first bars arrive
 };

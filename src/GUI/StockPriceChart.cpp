@@ -308,7 +308,10 @@ void StockPriceChart::updateChart() {
     } else {
         // Restore the previous view
         axisX->setRange(currentMin, currentMax);
-        axisY->setRange(currentYMin, currentYMax);
+        // Only restore Y axis if we don't need initial price focus
+        if (!needsInitialPriceFocus) {
+            axisY->setRange(currentYMin, currentYMax);
+        }
     }
 
     // Calculate current visible price range
@@ -331,8 +334,11 @@ void StockPriceChart::updateChart() {
         }
     }
 
-    // Only update Y axis range if necessary and if we're not preserving the view
-    if (!hadInitialView && (minPrice < currentYMin || maxPrice > currentYMax || currentYMin == currentYMax)) {
+    // Update Y axis range if this is initial focus or if necessary and we're not preserving the view
+    bool shouldUpdateYAxis = needsInitialPriceFocus || 
+                            (!hadInitialView && (minPrice < currentYMin || maxPrice > currentYMax || currentYMin == currentYMax));
+    
+    if (shouldUpdateYAxis && minPrice != std::numeric_limits<double>::max()) {
         // Add padding
         double padding = currentPrice * 0.0002; // 0.02% padding
         // Ensure minimum range
@@ -342,6 +348,11 @@ void StockPriceChart::updateChart() {
             minPrice = currentPrice - (minRange / 2);
         }
         axisY->setRange(minPrice - padding, maxPrice + padding);
+        
+        // Clear the flag after initial focus is done
+        if (needsInitialPriceFocus) {
+            needsInitialPriceFocus = false;
+        }
     }
 }
 
@@ -881,4 +892,7 @@ void StockPriceChart::clearSymbol() {
     QDateTime now = QDateTime::currentDateTime();
     axisX->setRange(now.addSecs(-30 * 60), now.addSecs(5 * 60));
     axisY->setRange(0, 100);
+    
+    // Flag that we need to focus on price when first bars arrive
+    needsInitialPriceFocus = true;
 }
