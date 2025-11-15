@@ -15,6 +15,7 @@ RUN dpkg --add-architecture arm64
 # Update package list and install cross-compilation tools and dependencies
 RUN apt-get update && apt-get install -y \
     git \
+    tree \
     cmake \
     make \
     build-essential \

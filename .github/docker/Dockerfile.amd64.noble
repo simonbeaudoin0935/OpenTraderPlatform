@@ -11,6 +11,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Update package list and install dependencies
 RUN apt-get update && apt-get install -y \
     git \
+    tree \
     cmake \
     debhelper-compat \
     qt6-base-private-dev \
