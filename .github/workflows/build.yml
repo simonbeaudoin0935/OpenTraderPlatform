@@ -94,8 +94,10 @@ jobs:
 
     - name: Set up ccache
       run: |
+        export CCACHE_DIR=$HOME/.cache/ccache
+        echo "CCACHE_DIR=$HOME/.cache/ccache" >> $GITHUB_ENV
         ccache --version
-        mkdir -p ~/.cache/ccache
+        mkdir -p $CCACHE_DIR
         ccache --set-config=max_size=500M
         ccache --set-config=compression=true
         ccache --set-config=compression_level=6
@@ -154,8 +156,10 @@ jobs:
 
     - name: Set up ccache
       run: |
+        export CCACHE_DIR=$HOME/.cache/ccache
+        echo "CCACHE_DIR=$HOME/.cache/ccache" >> $GITHUB_ENV
         ccache --version
-        mkdir -p ~/.cache/ccache
+        mkdir -p $CCACHE_DIR
         ccache --set-config=max_size=500M
         ccache --set-config=compression=true
         ccache --set-config=compression_level=6
