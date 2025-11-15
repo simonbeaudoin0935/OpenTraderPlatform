@@ -118,6 +118,11 @@ jobs:
 
     - name: Show ccache statistics
       run: ccache --show-stats
+        
+    - name: tree command on ccache
+      run: |
+        apt-get install -y tree
+        tree ~/.cache/ccache
 
     - name: Prepare artifacts directory
       run: |
@@ -165,10 +170,10 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.cache/ccache
-        key: ccache-debian-bookworm-arm64-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' || github.sha }}
+        key: ccache-debian-bookworm-arm64-${{ github.ref }}-${{ github.sha }}
         restore-keys: |
-          ccache-debian-bookworm-arm64-main
-          ccache-debian-bookworm-arm64-
+          ccache-debian-bookworm-arm64-${{ github.ref }}
+          ccache-debian-bookworm-arm64
 
     - name: Build Debian package for RPI
       run: |
