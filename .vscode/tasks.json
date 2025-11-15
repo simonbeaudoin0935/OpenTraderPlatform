@@ -54,7 +54,7 @@
                 "-S",
                 "${workspaceFolder}",
                 "-B",
-                "${workspaceFolder}/build/Recorder",
+                "${workspaceFolder}/build/L2Trader_Recorder",
                 "-DCMAKE_BUILD_TYPE=Debug",
                 "-DENABLE_GUI=OFF",
                 "-DBUILD_TESTS=OFF",
@@ -98,7 +98,7 @@
             "command": "cmake",
             "args": [
                 "--build",
-                "${workspaceFolder}/build/Recorder",
+                "${workspaceFolder}/build/L2Trader_Recorder",
                 "--parallel",
                 "3"
             ],
@@ -135,7 +135,7 @@
         {
             "label": "run-recorder",
             "type": "shell",
-            "command": "${workspaceFolder}/build/src/Recorder/src/L2Trader_Recorder",
+            "command": "${workspaceFolder}/build/L2Trader_Recorder/src/L2Trader_Recorder",
             "args": [
                 "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini",
                 "--cache-root-dir=/tmp/l2trader_recorder_cache",
