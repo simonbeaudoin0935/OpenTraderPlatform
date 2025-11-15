@@ -110,6 +110,11 @@ jobs:
           ccache-debian-noble-${{ github.ref }}
           ccache-debian-noble
 
+    - name: tree command on ccache
+      run: |
+        apt-get install -y tree
+        tree ~/.cache/ccache
+
     - name: Build Debian package
       run: |
         cmake --version
@@ -121,7 +126,6 @@ jobs:
         
     - name: tree command on ccache
       run: |
-        apt-get install -y tree
         tree ~/.cache/ccache
 
     - name: Prepare artifacts directory
