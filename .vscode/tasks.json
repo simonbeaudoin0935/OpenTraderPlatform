@@ -1,49 +1,7 @@
 {
     "version": "2.0.0",
     "tasks": [
-        {
-            "label": "configure-main-only",
-            "type": "shell",
-            "command": "cmake",
-            "args": [
-                "-S",
-                "${workspaceFolder}",
-                "-B",
-                "${workspaceFolder}/build",
-                "-DCMAKE_BUILD_TYPE=Debug",
-                "-DENABLE_GUI=ON",
-                "-DBUILD_TESTS=OFF",
-                "-DBUILD_RECORDER=OFF"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "silent",
-                "focus": false,
-                "panel": "shared"
-            },
-            "problemMatcher": "$gcc"
-        },
-        {
-            "label": "build-main-only",
-            "type": "shell",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "${workspaceFolder}/build",
-                "--parallel",
-                "3"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "silent",
-                "focus": false,
-                "panel": "shared"
-            },
-            "problemMatcher": "$gcc",
-            "dependsOn": ["configure-main-only"]
-        },
+
         {
             "label": "clean",
             "type": "shell",
@@ -62,10 +20,106 @@
                 "panel": "shared"
             }
         },
+
+
+
         {
-            "label": "run",
+            "label": "configure-main-only",
             "type": "shell",
-            "command": "${workspaceFolder}/build/src/L2Trader",
+            "command": "cmake",
+            "args": [
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build/L2Trader",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DENABLE_GUI=ON",
+                "-DBUILD_TESTS=OFF",
+                "-DBUILD_RECORDER=OFF"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },        
+        {
+            "label": "configure-recorder-only",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build/Recorder",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DENABLE_GUI=OFF",
+                "-DBUILD_TESTS=OFF",
+                "-DBUILD_RECORDER=ON"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+
+
+        
+        {
+            "label": "build-main-only",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/L2Trader",
+                "--parallel",
+                "3"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": ["configure-main-only"]
+        },
+        {
+            "label": "build-recorder-only",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/Recorder",
+                "--parallel",
+                "3"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": ["configure-recorder-only"]
+        },
+        
+
+
+
+        {
+            "label": "run-main",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/L2Trader/src/L2Trader",
             "args": [
                 "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
             ],
@@ -79,6 +133,26 @@
             "dependsOn": ["build-main-only"]
         },
         {
+            "label": "run-recorder",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/src/Recorder/src/L2Trader_Recorder",
+            "args": [
+                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini",
+                "--cache-root-dir=/tmp/l2trader_recorder_cache",
+                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-recorder-only"]
+        },
+
+
+       {
             "label": "run-barcache-test",
             "type": "shell",
             "command": "${workspaceFolder}/build/Tests/test_barcache",
@@ -132,24 +206,6 @@
             "type": "shell",
             "command": "${workspaceFolder}/build/Tests/test_RunUpDetector",
             "args": [
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "dependsOn": ["build"]
-        },
-        {
-            "label": "run-recorder",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/src/Recorder",
-            "args": [
-                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini",
-                "--cache-root-dir=/tmp/l2trader_recorder_cache",
                 "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
             ],
             "group": "test",

@@ -127,9 +127,9 @@ target_link_libraries(L2Trader PRIVATE L2TraderCommon)
 
 # Recorder executable (optional)
 if(BUILD_RECORDER)
-    add_executable(Recorder
+    add_executable(L2Trader_Recorder
         recorder_main.cpp
     )
 
-    target_link_libraries(Recorder PRIVATE L2TraderCommon)
+    target_link_libraries(L2Trader_Recorder PRIVATE L2TraderCommon)
 endif()
