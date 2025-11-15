@@ -12,8 +12,30 @@
 
 #include <iostream>
 
-int main(int argc, char *argv[])
-{
+#include <QFile>
+#include <QTextStream>
+#include <QStringList>
+
+QStringList loadStockTickers(const QString& csvFilePath) {
+    QStringList stockTickers;
+    QFile file(csvFilePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qFatal("Cannot open stock CSV file: %s", qUtf8Printable(csvFilePath));
+    }
+    QTextStream in(&file);
+    QString header = in.readLine(); // Skip header line
+    while (!in.atEnd()) {
+        QString line = in.readLine();
+        QStringList fields = line.split(',');
+        if (!fields.isEmpty() && !fields[0].isEmpty()) {
+            stockTickers.append(fields[0]);
+        }
+    }
+    file.close();
+    return stockTickers;
+}
+
+int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     QCoreApplication::setApplicationName("Recorder");
@@ -35,6 +57,9 @@ int main(int argc, char *argv[])
     } else {
         qInfo() << "Stock CSV file:" << stockCsvFile;
     }
+
+    QStringList stockTickers = loadStockTickers(stockCsvFile);
+    qInfo() << "Loaded" << stockTickers.size() << "stock tickers from CSV.";
 
     // TODO: Implement recording logic here
     qInfo() << "Recorder started - recording market data...";
