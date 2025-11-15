@@ -29,6 +29,18 @@ ccache --set-config=compression_level=6    # Good balance of speed/size
 
 Note: The `mkdir -p ~/.cache/ccache` command is essential to ensure the cache directory exists before GitHub Actions tries to cache it. The default cache directory for ccache v4+ is `~/.cache/ccache`.
 
+### Critical: save-always Configuration
+
+**IMPORTANT**: The `actions/cache@v4` configuration includes `save-always: true`, which is critical for ccache to work properly. Without this setting:
+- The cache is only saved on cache misses (when no cache was restored)
+- On cache hits, the updated cache with new build artifacts is NOT saved
+- This results in the cache containing only stats files without actual compiled objects
+
+With `save-always: true`:
+- The cache is saved after every build, regardless of whether it was a cache hit or miss
+- New build artifacts accumulate in the cache across workflow runs
+- Cache effectiveness improves over time as more files are cached
+
 ### Cache Keys
 
 Different cache keys are used for each build type to prevent cross-contamination:
