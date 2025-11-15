@@ -126,6 +126,7 @@ jobs:
         
     - name: tree command on ccache
       run: |
+        du -sh ~/.cache/ccache
         tree ~/.cache/ccache
 
     - name: Prepare artifacts directory
