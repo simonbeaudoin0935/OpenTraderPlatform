@@ -21,25 +21,22 @@ ccache is a compiler cache that stores the results of compilation and reuses the
 The following ccache settings are applied in each build job:
 
 ```bash
-mkdir -p ~/.cache/ccache                      # Ensure cache directory exists
-ccache --set-config=max_size=500M          # Limit cache to 500MB per job
-ccache --set-config=compression=true       # Enable compression
-ccache --set-config=compression_level=6    # Good balance of speed/size
+export CCACHE_DIR=$HOME/.cache/ccache         # Explicitly set cache directory
+echo "CCACHE_DIR=$HOME/.cache/ccache" >> $GITHUB_ENV  # Make available to subsequent steps
+ccache --version                               # Show ccache version
+mkdir -p $CCACHE_DIR                          # Ensure cache directory exists
+ccache --set-config=max_size=500M             # Limit cache to 500MB per job
+ccache --set-config=compression=true          # Enable compression
+ccache --set-config=compression_level=6       # Good balance of speed/size
+ccache --zero-stats                           # Reset statistics
 ```
 
-Note: The `mkdir -p ~/.cache/ccache` command is essential to ensure the cache directory exists before GitHub Actions tries to cache it. The default cache directory for ccache v4+ is `~/.cache/ccache`.
+**CRITICAL**: The `CCACHE_DIR` environment variable must be explicitly set and exported to `$GITHUB_ENV` to ensure:
+1. ccache uses the correct cache directory that GitHub Actions is caching
+2. The directory is consistent across all steps in the job
+3. CMake's compiler launcher (CMAKE_CXX_COMPILER_LAUNCHER) uses the same cache directory
 
-### Critical: save-always Configuration
-
-**IMPORTANT**: The `actions/cache@v4` configuration includes `save-always: true`, which is critical for ccache to work properly. Without this setting:
-- The cache is only saved on cache misses (when no cache was restored)
-- On cache hits, the updated cache with new build artifacts is NOT saved
-- This results in the cache containing only stats files without actual compiled objects
-
-With `save-always: true`:
-- The cache is saved after every build, regardless of whether it was a cache hit or miss
-- New build artifacts accumulate in the cache across workflow runs
-- Cache effectiveness improves over time as more files are cached
+Without explicitly setting `CCACHE_DIR`, ccache may use a different default directory or not write artifacts at all, resulting in only stats files being cached.
 
 ### Cache Keys
 
