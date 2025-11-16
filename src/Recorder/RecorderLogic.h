@@ -2,7 +2,8 @@
 
 #include <QString>
 #include <QStringList>
+#include "LiveBarsDB.h"
 
 QStringList loadStockTickers(const QString& csvFilePath);
 QString createRecordingFolders(const QString& cacheLocation);
-void initializeBarsDatabase(const QString& barsPath);
+LiveBarsDB* initializeBarsDatabase(const QString& barsPath);

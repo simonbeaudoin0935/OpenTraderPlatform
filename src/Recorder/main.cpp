@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
     qInfo() << "Recorded data folder:" << recordedDataPath;
 
     QString barsPath = recordedDataPath + "/Bars";
-    initializeBarsDatabase(barsPath);
+    LiveBarsDB* liveBarsDB = initializeBarsDatabase(barsPath);
 
     // TODO: Implement recording logic here
     qInfo() << "Recorder started - recording market data...";

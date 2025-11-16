@@ -56,26 +56,8 @@ QString createRecordingFolders(const QString& cacheLocation) {
     return recordedDataPath;
 }
 
-void initializeBarsDatabase(const QString& barsPath) {
+LiveBarsDB* initializeBarsDatabase(const QString& barsPath) {
     QString dateStr = QDate::currentDate().toString("yyyy-MM-dd");
     QString dbPath = barsPath + "/RecordedLiveBars_" + dateStr + ".db";
-    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "RecorderBars");
-    db.setDatabaseName(dbPath);
-    if (!db.open()) {
-        qFatal("Failed to open bars database: %s", qPrintable(db.lastError().text()));
-    }
-    QSqlQuery query(db);
-    query.exec("CREATE TABLE IF NOT EXISTS bars ("
-               "timestamp INTEGER, "
-               "stock TEXT, "
-               "open REAL, "
-               "high REAL, "
-               "low REAL, "
-               "close REAL, "
-               "volume INTEGER, "
-               "PRIMARY KEY (timestamp, stock))");
-    if (query.lastError().isValid()) {
-        qWarning() << "Failed to create bars table:" << query.lastError().text();
-    }
-    qInfo() << "Initialized bars database at" << dbPath;
+    return new LiveBarsDB(dbPath);
 }
