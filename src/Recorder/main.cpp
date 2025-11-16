@@ -7,33 +7,11 @@
 #include "Settings.h"
 #include "BarCache.h"
 #include "TSClient.h"
+#include "RecorderLogic.h"
 
 #include <QtGlobal>
 
 #include <iostream>
-
-#include <QFile>
-#include <QTextStream>
-#include <QStringList>
-
-QStringList loadStockTickers(const QString& csvFilePath) {
-    QStringList stockTickers;
-    QFile file(csvFilePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qFatal("Cannot open stock CSV file: %s", qUtf8Printable(csvFilePath));
-    }
-    QTextStream in(&file);
-    QString header = in.readLine(); // Skip header line
-    while (!in.atEnd()) {
-        QString line = in.readLine();
-        QStringList fields = line.split(',');
-        if (!fields.isEmpty() && !fields[0].isEmpty()) {
-            stockTickers.append(fields[0]);
-        }
-    }
-    file.close();
-    return stockTickers;
-}
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
@@ -60,6 +38,12 @@ int main(int argc, char *argv[]) {
 
     QStringList stockTickers = loadStockTickers(stockCsvFile);
     qInfo() << "Loaded" << stockTickers.size() << "stock tickers from CSV.";
+
+    QString recordedDataPath = createRecordingFolders(getCacheLocation());
+    qInfo() << "Recorded data folder:" << recordedDataPath;
+
+    QString barsPath = recordedDataPath + "/Bars";
+    initializeBarsDatabase(barsPath);
 
     // TODO: Implement recording logic here
     qInfo() << "Recorder started - recording market data...";

@@ -100,6 +100,7 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache/BarCache
     ${CMAKE_CURRENT_SOURCE_DIR}/GUI
     ${CMAKE_CURRENT_SOURCE_DIR}/GUI/Gauge
+    ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
 )
 
 # Link Qt libraries to the common library
@@ -128,7 +129,8 @@ target_link_libraries(L2Trader PRIVATE L2TraderCommon)
 # Recorder executable (optional)
 if(BUILD_RECORDER)
     add_executable(L2Trader_Recorder
-        recorder_main.cpp
+        Recorder/main.cpp
+        Recorder/RecorderLogic.cpp
     )
 
     target_link_libraries(L2Trader_Recorder PRIVATE L2TraderCommon)
