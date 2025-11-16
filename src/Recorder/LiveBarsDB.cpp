@@ -33,7 +33,7 @@ bool LiveBarsDB::isOpen() const {
     return db.isOpen();
 }
 
-bool LiveBarsDB::storeBarJson(const QString& stock, qint64 timestamp, const QString& jsonData) {
+bool LiveBarsDB::storeBarRawData(const QString& stock, qint64 timestamp, const QByteArray& rawData) {
     int stockSeq = stockSequences.value(stock, 0) + 1;
     stockSequences[stock] = stockSeq;
 
@@ -42,8 +42,7 @@ bool LiveBarsDB::storeBarJson(const QString& stock, qint64 timestamp, const QStr
     query.addBindValue(stock);
     query.addBindValue(stockSeq);
     query.addBindValue(timestamp);
-    query.addBindValue(jsonData);
-
+    query.addBindValue(rawData);
     if (!query.exec()) {
         qWarning() << "Failed to store bar for" << stock << ":" << query.lastError().text();
         
@@ -65,19 +64,17 @@ void LiveBarsDB::startRecording() {
                                                                        Bar::BarSessionTemplate::USEQ24Hour);
         Q_ASSERT(streamBar != nullptr);
 
-        QObject::connect(streamBar, &StreamBars::receivedNewJson, this, &LiveBarsDB::onReceivedNewJson);
+        QObject::connect(streamBar, &StreamBars::receivedNewRawData, this, &LiveBarsDB::onReceivedNewRawDataForStock);
 
         this->streamBars[symbol] = streamBar;
     }
 }
 
-void LiveBarsDB::onReceivedNewJson(QString symbol, const QJsonObject& jsonObj) {
-    QJsonDocument doc(jsonObj);
-    QString jsonString = QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
+void LiveBarsDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData) {
 
-    qint64 timestamp = jsonObj.value("timestamp").toVariant().toLongLong();
+    qint64 epochMs = QDateTime::currentMSecsSinceEpoch();
 
-    qInfo() << "Received new bar JSON for" << symbol << "at timestamp" << timestamp;
+    qInfo() << "Received new bar JSON for" << symbol << "at timestamp" << epochMs;
     
-    this->storeBarJson(symbol, timestamp, jsonString);
+    this->storeBarRawData(symbol, epochMs, rawData);
 }

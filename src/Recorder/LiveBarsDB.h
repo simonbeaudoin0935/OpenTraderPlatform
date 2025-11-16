@@ -15,14 +15,15 @@ public:
     ~LiveBarsDB();
 
     bool isOpen() const;
-    bool storeBarJson(const QString& stock, qint64 timestamp, const QString& jsonData);
 
     void startRecording();
     
 private slots:
-    void onReceivedNewJson(QString symbol, const QJsonObject& jsonObj);
+    void onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData);
 
 private:
+    bool storeBarRawData(const QString& stock, qint64 epochMs, const QByteArray& rawData);
+    
     QStringList stockTickers;
     QSqlDatabase db;
     QMap<QString, int> stockSequences;
