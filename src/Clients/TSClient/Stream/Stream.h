@@ -45,8 +45,6 @@ private slots:
 
 protected:
 
-    virtual void startRecording(const QString &dir, const QString &name);
-
     explicit Stream(QObject *parent = nullptr);
 
     Stream(const Stream&) = delete;

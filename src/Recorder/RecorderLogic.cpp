@@ -1,4 +1,5 @@
 #include "RecorderLogic.h"
+#include "Settings.h"
 
 #include <QFile>
 #include <QTextStream>
@@ -59,5 +60,8 @@ QString createRecordingFolders(const QString& cacheLocation) {
 LiveBarsDB* initializeBarsDatabase(const QString& barsPath) {
     QString dateStr = QDate::currentDate().toString("yyyy-MM-dd");
     QString dbPath = barsPath + "/RecordedLiveBars_" + dateStr + ".db";
-    return new LiveBarsDB(dbPath);
+    
+    QStringList stockTickers = loadStockTickers(stockCsvFile);
+    
+    return new LiveBarsDB(dbPath, stockTickers);
 }

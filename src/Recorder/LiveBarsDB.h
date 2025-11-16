@@ -7,7 +7,9 @@
 
 #include "StreamBars.h"
 
-class LiveBarsDB {
+class LiveBarsDB : public QObject {
+    Q_OBJECT
+    
 public:
     LiveBarsDB(const QString& dbPath, QStringList& stockTickers);
     ~LiveBarsDB();

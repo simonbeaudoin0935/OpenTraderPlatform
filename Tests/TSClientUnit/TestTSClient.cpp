@@ -752,8 +752,6 @@ void TestTSClient::testStreamBarsRecording()
 
     QString dir = QString("/home/simon/Documents/L2T/Stream-Recordings");
 
-    streamBars->startRecording(dir);
-
     QSignalSpy signalSpy(streamBars, &StreamBars::receivedNewBar);
 
     qDebug() << "Waiting 5 seconds to let Stream Bars data pile up...";

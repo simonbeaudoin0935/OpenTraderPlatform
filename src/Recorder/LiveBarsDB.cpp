@@ -64,7 +64,8 @@ void LiveBarsDB::startRecording() {
                                                                        2,
                                                                        Bar::BarSessionTemplate::USEQ24Hour);
         Q_ASSERT(streamBar != nullptr);
-        connect(streamBar, &StreamBars::receivedNewJson, this, &LiveBarsDB::onReceivedNewJson);
+        
+        QObject::connect(streamBar, &StreamBars::receivedNewJson, this, &LiveBarsDB::onReceivedNewJson);
 
         this->streamBars[symbol] = streamBar;
     }

@@ -16,12 +16,6 @@ Stream::Stream(QObject *parent) :
 
 Stream::~Stream()
 {
-    // Clean up recording resources
-    if (isRecording) {
-        recordingFile.close();
-        delete recordingStream;
-    }
-
     if (heartbeatTimer) {
         delete heartbeatTimer;
     }
