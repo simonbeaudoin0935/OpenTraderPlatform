@@ -10,7 +10,7 @@ public:
     ~LiveBarsDB();
 
     bool isOpen() const;
-    bool storeBar(const QString& stock, qint64 timestamp, double open, double high, double low, double close, qint64 volume);
+    bool storeBarJson(const QString& stock, qint64 timestamp, const QString& jsonData);
 
 private:
     QSqlDatabase db;

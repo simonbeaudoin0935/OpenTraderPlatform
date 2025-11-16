@@ -1,4 +1,5 @@
 #include "LiveBarsDB.h"
+#include "SqlQueries.h"
 
 #include <QtSql/QSqlQuery>
 #include <QtSql/QSqlError>
@@ -12,16 +13,7 @@ LiveBarsDB::LiveBarsDB(const QString& dbPath) {
     }
 
     QSqlQuery query(db);
-    query.exec("CREATE TABLE IF NOT EXISTS bars ("
-               "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-               "stock TEXT, "
-               "timestamp INTEGER, "
-               "open REAL, "
-               "high REAL, "
-               "low REAL, "
-               "close REAL, "
-               "volume INTEGER, "
-               "stock_sequence INTEGER)");
+    query.exec(SqlQueries::CREATE_BARS_TABLE);
     if (query.lastError().isValid()) {
         qWarning() << "Failed to create bars table:" << query.lastError().text();
     }
@@ -38,21 +30,16 @@ bool LiveBarsDB::isOpen() const {
     return db.isOpen();
 }
 
-bool LiveBarsDB::storeBar(const QString& stock, qint64 timestamp, double open, double high, double low, double close, qint64 volume) {
+bool LiveBarsDB::storeBarJson(const QString& stock, qint64 timestamp, const QString& jsonData) {
     int stockSeq = stockSequences.value(stock, 0) + 1;
     stockSequences[stock] = stockSeq;
 
     QSqlQuery query(db);
-    query.prepare("INSERT INTO bars (stock, timestamp, open, high, low, close, volume, stock_sequence) "
-                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    query.prepare(SqlQueries::INSERT_BAR);
     query.addBindValue(stock);
-    query.addBindValue(timestamp);
-    query.addBindValue(open);
-    query.addBindValue(high);
-    query.addBindValue(low);
-    query.addBindValue(close);
-    query.addBindValue(volume);
     query.addBindValue(stockSeq);
+    query.addBindValue(timestamp);
+    query.addBindValue(jsonData);
 
     if (!query.exec()) {
         qWarning() << "Failed to store bar for" << stock << ":" << query.lastError().text();
