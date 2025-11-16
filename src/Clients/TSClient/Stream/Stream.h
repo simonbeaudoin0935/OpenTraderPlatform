@@ -54,9 +54,6 @@ protected:
 
     virtual bool processJsonObject(const QJsonObject& doc) = 0;
 
-    // Helper function to write to recording file
-    void writeToRecordingFile(const QJsonDocument& doc);
-
 private:
     QTimer *heartbeatTimer = nullptr;
     bool streamIsInError = false;
@@ -66,9 +63,5 @@ private:
     unsigned int timeoutMS = 10000;
 
     QByteArray accumulatedData;
-
-    QFile recordingFile;
-    QTextStream* recordingStream = nullptr;
-    bool isRecording = false;
 };
 

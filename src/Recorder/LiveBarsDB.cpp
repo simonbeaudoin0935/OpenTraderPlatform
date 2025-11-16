@@ -1,11 +1,12 @@
-#include "LiveBarsDB.h"
-#include "SqlQueries.h"
-
 #include <QtSql/QSqlQuery>
 #include <QtSql/QSqlError>
 #include <QDebug>
 
-LiveBarsDB::LiveBarsDB(const QString& dbPath) {
+#include "LiveBarsDB.h"
+#include "SqlQueries.h"
+#include "TSClient.h"
+
+LiveBarsDB::LiveBarsDB(const QString& dbPath, QStringList& stockTickers) {
     db = QSqlDatabase::addDatabase("QSQLITE", "LiveBarsDB");
     db.setDatabaseName(dbPath);
     if (!db.open()) {
@@ -18,6 +19,8 @@ LiveBarsDB::LiveBarsDB(const QString& dbPath) {
         qWarning() << "Failed to create bars table:" << query.lastError().text();
     }
     qInfo() << "Live bars database opened at" << dbPath;
+
+    this->stockTickers = stockTickers;
 }
 
 LiveBarsDB::~LiveBarsDB() {
@@ -50,4 +53,28 @@ bool LiveBarsDB::storeBarJson(const QString& stock, qint64 timestamp, const QStr
         return false;
     }
     return true;
+}
+
+void LiveBarsDB::startRecording() {
+
+    for (const QString& symbol : this->stockTickers) {
+        StreamBars* streamBar = TSClient::getInstance().openStreamBars(symbol,
+                                                                       1,
+                                                                       Bar::BarUnit::Minute,
+                                                                       2,
+                                                                       Bar::BarSessionTemplate::USEQ24Hour);
+        Q_ASSERT(streamBar != nullptr);
+        connect(streamBar, &StreamBars::receivedNewJson, this, &LiveBarsDB::onReceivedNewJson);
+
+        this->streamBars[symbol] = streamBar;
+    }
+}
+
+void LiveBarsDB::onReceivedNewJson(QString symbol, const QJsonObject& jsonObj) {
+    QJsonDocument doc(jsonObj);
+    QString jsonString = QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
+
+    qint64 timestamp = jsonObj.value("timestamp").toVariant().toLongLong();
+
+    this->storeBarJson(symbol, timestamp, jsonString);
 }

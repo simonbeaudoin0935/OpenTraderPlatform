@@ -12,13 +12,11 @@ StreamBars::~StreamBars()
 {
 }
 
-void StreamBars::startRecording(const QString &dir)
-{
-    Stream::startRecording(dir, "Bar_" + symbol);
-}
-
 bool StreamBars::processJsonObject(const QJsonObject& jsonObj)
 {
+    // Start by emitting the raw json for recording purposes if anyone binds to this signal
+    emit receivedNewJson(symbol, jsonObj);
+
     Bar bar(jsonObj);
 
     if (bar.isValid()) {
@@ -29,7 +27,6 @@ bool StreamBars::processJsonObject(const QJsonObject& jsonObj)
         return false;
     }
 }
-
 
 StreamBars *TSClient::openStreamBars(const QString &symbol,
                                      unsigned int interval,

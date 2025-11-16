@@ -43,39 +43,6 @@ void Stream::setNetworkReply(QNetworkReply *networkReply)
     connect(heartbeatTimer, &QTimer::timeout, this, &Stream::onHeartbeatTimerTimeout);
 }
 
-void Stream::startRecording(const QString &dir, const QString &name)
-{
-    // Close any existing recording
-    if (isRecording) {
-        Q_ASSERT(false); // I think its a bug if we call startRecording more than once
-
-        recordingFile.close();
-        delete recordingStream;
-        recordingStream = nullptr;
-        isRecording = false;
-    }
-
-    QString fileName = QString("%1/Stream_%2_%3").arg(dir, name, QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss"));
-
-    // Open the file in WriteOnly mode, which will create the file if it doesn't exist
-    // or truncate it if it does exist
-    recordingFile.setFileName(fileName);
-    if (!recordingFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qCWarning(StreamLog) << Q_FUNC_INFO << "Failed to open file for recording:" << recordingFile.fileName();
-        return;
-    }
-
-    // Create a new text stream for the file
-    recordingStream = new QTextStream(&recordingFile);
-    Q_CHECK_PTR(recordingStream);
-
-    // Set UTF-8 encoding
-    recordingStream->setEncoding(QStringConverter::Utf8);
-
-    isRecording = true;
-    qCDebug(StreamLog) << Q_FUNC_INFO << "Started recording to file:" << recordingFile.fileName();
-}
-
 void Stream::onReadyRead()
 {
     Q_ASSERT(reply != nullptr);
@@ -105,9 +72,6 @@ void Stream::onReadyRead()
         QJsonDocument doc = QJsonDocument::fromJson(jsonData, &parseError);
 
         // Write raw data to recording file if recording is active
-        if (isRecording) {
-            writeToRecordingFile(doc);
-        }
 
         if (parseError.error != QJsonParseError::NoError) {
             qCCritical(StreamLog) << streamName << "Failed to parse JSON:" << parseError.errorString();
@@ -209,14 +173,4 @@ void Stream::onHeartbeatTimerTimeout()
                           << Q_FUNC_INFO;
 
     emit streamErrorOccurred(StreamError::Timeout, QString("Stream did not receive data nor heartbeat"));
-}
-
-void Stream::writeToRecordingFile(const QJsonDocument &doc) {
-
-    Q_ASSERT(recordingStream != nullptr);
-
-    QDateTime now = QDateTime::currentDateTime();
-
-    *recordingStream << now.toMSecsSinceEpoch() << ":" << doc.toJson(QJsonDocument::Compact) << "\n";
-    recordingStream->flush();
 }
