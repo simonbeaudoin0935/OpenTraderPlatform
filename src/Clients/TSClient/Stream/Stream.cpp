@@ -9,16 +9,15 @@
 Q_LOGGING_CATEGORY(StreamLog, "Stream")
 
 
-Stream::Stream(QObject *parent) :
-    QObject(parent)
+Stream::Stream(QString symbol, QObject *parent) :
+    QObject(parent),
+    symbol(symbol)
 {
 }
 
 Stream::~Stream()
 {
-    if (heartbeatTimer) {
-        delete heartbeatTimer;
-    }
+    qCDebug(StreamLog) << "Destroying Stream " << this->objectName() << " for symbol " << symbol;
 }
 
 void Stream::setNetworkReply(QNetworkReply *networkReply)
@@ -31,10 +30,7 @@ void Stream::setNetworkReply(QNetworkReply *networkReply)
     connect(reply, &QNetworkReply::errorOccurred, this, &Stream::onErrorOccurred);
     connect(reply, &QNetworkReply::finished, this, &Stream::onFinished);
 
-    heartbeatTimer = new QTimer(this);
-    Q_CHECK_PTR(heartbeatTimer);
-
-    connect(heartbeatTimer, &QTimer::timeout, this, &Stream::onHeartbeatTimerTimeout);
+    connect(&heartbeatTimer, &QTimer::timeout, this, &Stream::onHeartbeatTimerTimeout);
 }
 
 void Stream::onReadyRead()
@@ -47,6 +43,12 @@ void Stream::onReadyRead()
     qsizetype bytesReceived = rawData.size();
 
     emit receivedAmountOfData(bytesReceived);
+
+    // Start by emitting the raw json for recording purposes if anyone binds to this signal
+
+    // TODO tomorrow: bring the symbol in this stream class instead of children classes so 
+    // that we can emit the raw json here
+    emit receivedNewRawData(symbol, rawData);
 
     accumulatedData.append(rawData);
 
@@ -76,7 +78,7 @@ void Stream::onReadyRead()
         QJsonObject jsonObj = doc.object();
 
         if (jsonObj.contains("Heartbeat") && jsonObj.contains("Timestamp")) {
-            heartbeatTimer->start(timeoutMS);
+            heartbeatTimer.start(timeoutMS);
             qCInfo(StreamLog) << streamName << "received heartbeat";
         }
         else if (jsonObj.contains("Error") && jsonObj.contains("Message")) {
@@ -102,7 +104,7 @@ void Stream::onReadyRead()
         }
         else {
             if (processJsonObject(jsonObj)) {
-                heartbeatTimer->start(timeoutMS);
+                heartbeatTimer.start(timeoutMS);
             } else {
                 qCCritical(StreamLog) << "The stream " << streamName << " failed to process Json object";
             }

@@ -64,7 +64,7 @@ void LiveBarsDB::startRecording() {
                                                                        2,
                                                                        Bar::BarSessionTemplate::USEQ24Hour);
         Q_ASSERT(streamBar != nullptr);
-        
+
         QObject::connect(streamBar, &StreamBars::receivedNewJson, this, &LiveBarsDB::onReceivedNewJson);
 
         this->streamBars[symbol] = streamBar;
@@ -77,5 +77,7 @@ void LiveBarsDB::onReceivedNewJson(QString symbol, const QJsonObject& jsonObj) {
 
     qint64 timestamp = jsonObj.value("timestamp").toVariant().toLongLong();
 
+    qInfo() << "Received new bar JSON for" << symbol << "at timestamp" << timestamp;
+    
     this->storeBarJson(symbol, timestamp, jsonString);
 }

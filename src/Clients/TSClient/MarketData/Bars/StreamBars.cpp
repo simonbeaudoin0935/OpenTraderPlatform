@@ -2,8 +2,7 @@
 #include "TSClient.h"
 
 StreamBars::StreamBars(const QString &symbol, QObject *parent) :
-    Stream(parent),
-    symbol(symbol)
+    Stream(symbol, parent)
 {
     this->setObjectName("Stream::Bars::" + symbol);
 }
@@ -14,9 +13,6 @@ StreamBars::~StreamBars()
 
 bool StreamBars::processJsonObject(const QJsonObject& jsonObj)
 {
-    // Start by emitting the raw json for recording purposes if anyone binds to this signal
-    emit receivedNewJson(symbol, jsonObj);
-
     Bar bar(jsonObj);
 
     if (bar.isValid()) {

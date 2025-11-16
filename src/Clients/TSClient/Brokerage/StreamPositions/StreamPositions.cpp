@@ -22,7 +22,7 @@ QString StreamPositions::StreamPositionStatus::toJsonString() const {
 }
 
 StreamPositions::StreamPositions(QString &accountID, QObject *parent) :
-    Stream(parent),
+    Stream("Positions " + accountID, parent),
     accountID(accountID),
     receivedEndSnapshot(false)
 {

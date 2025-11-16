@@ -42,18 +42,13 @@ int main(int argc, char *argv[]) {
     QString recordedDataPath = createRecordingFolders(getCacheLocation());
     qInfo() << "Recorded data folder:" << recordedDataPath;
 
+    TSClient::getInstancePtr()->start();
+
     QString barsPath = recordedDataPath + "/Bars";
     LiveBarsDB* liveBarsDB = initializeBarsDatabase(barsPath);
 
     // TODO: Implement recording logic here
     qInfo() << "Recorder started - recording market data...";
-
-
-    TSClient* tradeStationClient = TSClient::getInstancePtr();
-
-    tradeStationClient->start();
-
-    BarCache barCache("AAPL", true);
 
     return app.exec();
 }

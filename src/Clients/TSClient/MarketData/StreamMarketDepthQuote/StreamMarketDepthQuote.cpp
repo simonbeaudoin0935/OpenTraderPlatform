@@ -2,10 +2,8 @@
 #include "TSClient.h"
 
 StreamMarketDepthQuote::StreamMarketDepthQuote(const QString &symbol, QObject *parent) :
-    Stream(parent),
-    symbol(symbol)
+    Stream(symbol, parent)
 {
-
     this->setObjectName("Stream::MarketDepthQuote::" + symbol);
 }
 
