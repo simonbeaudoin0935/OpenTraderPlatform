@@ -81,6 +81,17 @@ jobs:
     - name: Run Recorder integration test
       run: ./build/Tests/test_recorder_integration
 
+    - name: Display Recorder log
+      if: always()
+      run: |
+        LOG_FILE=$(ls -t $HOME/.local/state/Recorder/logs/Recorder_*.log.ansi | head -1)
+        if [ -f "$LOG_FILE" ]; then
+          echo "=== Recorder Log ==="
+          cat "$LOG_FILE"
+        else
+          echo "No log file found"
+        fi
+
   build-debian-package:
     runs-on: ubuntu-24.04
     permissions:
@@ -385,6 +396,17 @@ jobs:
     - name: Run Recorder integration test
       run: /usr/lib/l2trader/tests/test_recorder_integration
 
+    - name: Display Recorder log
+      if: always()
+      run: |
+        LOG_FILE=$(ls -t /root/.local/state/Recorder/logs/Recorder_*.log.ansi | head -1)
+        if [ -f "$LOG_FILE" ]; then
+          echo "=== Recorder Log ==="
+          cat "$LOG_FILE"
+        else
+          echo "No log file found"
+        fi
+
   run-barcache-test-rpi:
     runs-on: [self-hosted, Linux, ARM64]
     needs: build-debian-package-rpi
@@ -539,3 +561,14 @@ jobs:
 
     - name: Run Recorder integration test
       run: /usr/lib/l2trader/tests/test_recorder_integration
+
+    - name: Display Recorder log
+      if: always()
+      run: |
+        LOG_FILE=$(ls -t $HOME/.local/state/Recorder/logs/Recorder_*.log.ansi | head -1)
+        if [ -f "$LOG_FILE" ]; then
+          echo "=== Recorder Log ==="
+          cat "$LOG_FILE"
+        else
+          echo "No log file found"
+        fi
