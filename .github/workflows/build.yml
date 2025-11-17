@@ -79,7 +79,9 @@ jobs:
 
     steps:
     - name: Run Recorder integration test
-      run: ./build/Tests/test_recorder_integration
+      run: |
+        rm $HOME/.local/state/Recorder/logs/Recorder_*.log.ansi
+        ./build/Tests/test_recorder_integration
 
     - name: Display Recorder log
       if: always()
