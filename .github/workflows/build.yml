@@ -73,6 +73,14 @@ jobs:
     - name: Run RunUpDetector unit test
       run: ./build/Tests/test_RunUpDetector
 
+  run-recorder-integration-test:
+    runs-on: [self-hosted, Linux, X64]
+    needs: [build-main]
+
+    steps:
+    - name: Run Recorder integration test
+      run: ./build/Tests/test_recorder_integration
+
   build-debian-package:
     runs-on: ubuntu-24.04
     permissions:
@@ -332,6 +340,51 @@ jobs:
     - name: Run RunUpDetector unit test
       run: /usr/lib/l2trader/tests/test_runupdetector
 
+  run-recorder-integration-test-debian:
+    runs-on: ubuntu-24.04
+    needs: build-debian-package
+    permissions:
+      contents: read
+      actions: read
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download Debian package artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: debian-packages-X64
+        path: ./packages
+
+    - name: Install packages
+      run: |
+        apt-get update
+        apt-get install -y ./packages/l2trader_*.deb ./packages/l2trader-tests_*.deb
+
+    - name: Setup test credentials
+      env:
+        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+        CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        ID_TOKEN: ${{ secrets.ID_TOKEN }}
+        REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+        EXPIRES_IN: ${{ vars.EXPIRES_IN }}
+        RECEIVED_AT: ${{ vars.RECEIVED_AT }}
+        SCOPE: ${{ vars.SCOPE }}
+        TOKEN_TYPE: ${{ vars.TOKEN_TYPE }}
+      run: |
+        chmod +x .github/scripts/setup-test-credentials.sh
+        .github/scripts/setup-test-credentials.sh
+
+    - name: Run Recorder integration test
+      run: /usr/lib/l2trader/tests/test_recorder_integration
+
   run-barcache-test-rpi:
     runs-on: [self-hosted, Linux, ARM64]
     needs: build-debian-package-rpi
@@ -443,3 +496,46 @@ jobs:
 
     - name: Run RunUpDetector unit test
       run: /usr/lib/l2trader/tests/test_runupdetector
+
+  run-recorder-integration-test-rpi:
+    runs-on: [self-hosted, Linux, ARM64]
+    needs: build-debian-package-rpi
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      github.event_name == 'push'
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download Debian package artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: debian-packages-RPI
+        path: ./packages
+
+    - name: Install packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ./packages/l2trader_*.deb ./packages/l2trader-tests_*.deb
+
+    - name: Setup test credentials
+      env:
+        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+        CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        ID_TOKEN: ${{ secrets.ID_TOKEN }}
+        REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+        EXPIRES_IN: ${{ vars.EXPIRES_IN }}
+        RECEIVED_AT: ${{ vars.RECEIVED_AT }}
+        SCOPE: ${{ vars.SCOPE }}
+        TOKEN_TYPE: ${{ vars.TOKEN_TYPE }}
+      run: |
+        chmod +x .github/scripts/setup-test-credentials.sh
+        .github/scripts/setup-test-credentials.sh
+
+    - name: Run Recorder integration test
+      run: /usr/lib/l2trader/tests/test_recorder_integration

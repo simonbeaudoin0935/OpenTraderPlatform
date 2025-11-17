@@ -18,8 +18,13 @@ private slots:
 
 void TestRecorderIntegration::testRecorderNoCriticalLogs()
 {
-    // Path to the recorder binary (built version)
-    QString recorderPath = QCoreApplication::applicationDirPath() + "/../../L2Trader_Recorder/src/L2Trader_Recorder";
+    // Path to the recorder binary
+    QString recorderPath;
+    if (QFile::exists("/usr/bin/l2trader-recorder")) {
+        recorderPath = "/usr/bin/l2trader-recorder";
+    } else {
+        recorderPath = QCoreApplication::applicationDirPath() + "/../../L2Trader_Recorder/src/L2Trader_Recorder";
+    }
 
     // Args
     QStringList args;
