@@ -85,6 +85,7 @@ jobs:
       if: always()
       run: |
         LOG_FILE=$(ls -t $HOME/.local/state/Recorder/logs/Recorder_*.log.ansi | head -1)
+        echo "Log file: $LOG_FILE"
         if [ -f "$LOG_FILE" ]; then
           echo "=== Recorder Log ==="
           cat "$LOG_FILE"
