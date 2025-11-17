@@ -179,7 +179,6 @@
             "command": "${workspaceFolder}/build/L2Trader_Recorder/src/L2Trader_Recorder",
             "args": [
                 "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini",
-                "--cache-root-dir=/tmp/l2trader_recorder_cache",
                 "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener_mini.csv"
             ],
             "group": "test",
