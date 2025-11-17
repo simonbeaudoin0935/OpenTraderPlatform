@@ -31,7 +31,12 @@ QStringList loadStockTickers(const QString& csvFilePath) {
 QString createRecordingFolders(const QString& cacheLocation) {
     QDir cacheDir(cacheLocation);
 
-    Q_ASSERT_X(cacheDir.exists(), "createRecordingFolders", "Cache directory does not exist");
+    qDebug() << "Cache location:" << cacheLocation;
+    if (!cacheDir.exists()) {
+        if (!cacheDir.mkpath(".")) {
+            qFatal("Cannot create cache directory: %s", qUtf8Printable(cacheLocation));
+        }
+    }
 
     QString recordedDataPath = cacheLocation + "/RecordedLiveData";
     QDir recordedDir(recordedDataPath);

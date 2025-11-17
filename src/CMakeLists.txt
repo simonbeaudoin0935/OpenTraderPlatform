@@ -132,6 +132,7 @@ if(BUILD_RECORDER)
         Recorder/main.cpp
         Recorder/RecorderLogic.cpp
         Recorder/LiveBarsDB.cpp
+        Recorder/LiveMarketDepthQuoteDB.cpp
     )
 
     target_link_libraries(L2Trader_Recorder PRIVATE L2TraderCommon)
