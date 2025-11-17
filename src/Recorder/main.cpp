@@ -30,6 +30,7 @@ int main(int argc, char *argv[]) {
     parseArguments(app.arguments());
 
     qInfo() << "Cache root directory:" << getCacheLocation();
+    
     if (stockCsvFile.isEmpty()) {
         qFatal("Stock CSV file not specified");
     } else {
@@ -49,7 +50,14 @@ int main(int argc, char *argv[]) {
 
     liveBarsDB->startRecording();
 
-    qInfo() << "Recorder started - recording market data...";
+    qInfo() << "------ Recorder for Bars started - recording market data...";
+
+    LiveMarketDepthQuoteDB* liveMarketDepthQuoteDB = initializeMarketDepthQuoteDatabase(recordedDataPath + "/MarketDepthQuotes", stockTickers);
+
+
+    liveMarketDepthQuoteDB->startRecording();
+
+    qInfo() << "------ Recorder for Market Depth Quotes started - recording market data...";
 
     return app.exec();
 }

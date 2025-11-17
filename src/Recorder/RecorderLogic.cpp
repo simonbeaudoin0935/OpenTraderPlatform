@@ -47,11 +47,11 @@ QString createRecordingFolders(const QString& cacheLocation) {
             qFatal("Cannot create Bars directory: %s", qUtf8Printable(barsPath));
         }
     }
-    QString marketDepthPath = recordedDataPath + "/MarketDepth";
+    QString marketDepthPath = recordedDataPath + "/MarketDepthQuotes";
     QDir mdDir(marketDepthPath);
     if (!mdDir.exists()) {
         if (!mdDir.mkpath(".")) {
-            qFatal("Cannot create MarketDepth directory: %s", qUtf8Printable(marketDepthPath));
+            qFatal("Cannot create MarketDepthQuotes directory: %s", qUtf8Printable(marketDepthPath));
         }
     }
     return recordedDataPath;
@@ -64,4 +64,11 @@ LiveBarsDB* initializeBarsDatabase(const QString& barsPath) {
     QStringList stockTickers = loadStockTickers(stockCsvFile);
     
     return new LiveBarsDB(dbPath, stockTickers);
+}
+
+LiveMarketDepthQuoteDB* initializeMarketDepthQuoteDatabase(const QString& marketDepthQuotesPath, QStringList& stockTickers) {
+    QString dateStr = QDate::currentDate().toString("yyyy-MM-dd");
+    QString dbPath = marketDepthQuotesPath + "/RecordedLiveMarketDepthQuotes_" + dateStr + ".db";
+    
+    return new LiveMarketDepthQuoteDB(dbPath, stockTickers);
 }
