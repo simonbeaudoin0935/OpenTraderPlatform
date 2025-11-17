@@ -180,7 +180,7 @@
             "args": [
                 "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini",
                 "--cache-root-dir=/tmp/l2trader_recorder_cache",
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
+                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener_mini.csv"
             ],
             "group": "test",
             "presentation": {

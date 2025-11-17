@@ -47,7 +47,8 @@ int main(int argc, char *argv[]) {
     QString barsPath = recordedDataPath + "/Bars";
     LiveBarsDB* liveBarsDB = initializeBarsDatabase(barsPath);
 
-    // TODO: Implement recording logic here
+    liveBarsDB->startRecording();
+
     qInfo() << "Recorder started - recording market data...";
 
     return app.exec();

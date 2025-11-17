@@ -74,7 +74,7 @@ void LiveBarsDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray& 
 
     qint64 epochMs = QDateTime::currentMSecsSinceEpoch();
 
-    qInfo() << "Received new bar JSON for" << symbol << "at timestamp" << epochMs;
+    qInfo() << "Received new bar raw JSON data for" << symbol << "at timestamp" << epochMs;
     
     this->storeBarRawData(symbol, epochMs, rawData);
 }
