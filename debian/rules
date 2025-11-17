@@ -54,6 +54,7 @@ override_dh_auto_install:
 	install -d debian/l2trader/usr/share/doc/l2trader/examples
 	install -m 0644 Example_Config/selection_criteria.ini debian/l2trader/usr/share/doc/l2trader/examples/
 	install -m 0644 Example_Config/nasdaq_screener.csv debian/l2trader/usr/share/doc/l2trader/examples/
+	install -m 0644 Example_Config/nasdaq_screener_mini.csv debian/l2trader/usr/share/doc/l2trader/examples/
 	
 	# Install tests binaries
 	install -d debian/l2trader-tests/usr/lib/l2trader/tests
