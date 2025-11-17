@@ -45,9 +45,6 @@ void Stream::onReadyRead()
     emit receivedAmountOfData(bytesReceived);
 
     // Start by emitting the raw json for recording purposes if anyone binds to this signal
-
-    // TODO tomorrow: bring the symbol in this stream class instead of children classes so 
-    // that we can emit the raw json here
     emit receivedNewRawData(symbol, rawData);
 
     accumulatedData.append(rawData);
@@ -131,7 +128,7 @@ void Stream::onFinished()
 
     if (parseError.error != QJsonParseError::NoError) {
         qCCritical(StreamLog) << streamName << "Failed to parse JSON:" << parseError.errorString();
-        qCCritical(StreamLog) << "Bad content : " << rawData << ". This is expected when the server closes the conenction after an error.";
+        qCCritical(StreamLog) << "Bad content : " << rawData << ". Empty quotes are expected when the server closes the connection after an error.";
         return;
     }
 

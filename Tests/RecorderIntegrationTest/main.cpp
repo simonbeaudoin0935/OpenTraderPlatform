@@ -16,13 +16,31 @@ private slots:
     void testRecorderNoCriticalLogs();
 };
 
+/**
+ * @brief Tests that the recorder process does not produce any critical (CRIT) log messages.
+ *
+ * This test function starts the L2Trader recorder process with predefined arguments,
+ * allows it to run for 20 seconds, then terminates it. It subsequently checks the
+ * most recent log file in the user's local state directory for any "CRIT" level messages.
+ * If any are found, the test fails and outputs the offending lines.
+ *
+ * The recorder binary path is determined as follows:
+ * - If "/usr/bin/l2trader-recorder" exists, that path is used (installed binary branch).
+ * - Otherwise, a relative path from the application directory is used (development build branch).
+ *
+ * @note This test assumes the presence of specific configuration files and directories
+ *       as hardcoded in the arguments. It uses QProcess for execution and QTimer/QEventLoop
+ *       for timing control.
+ */
 void TestRecorderIntegration::testRecorderNoCriticalLogs()
 {
     // Path to the recorder binary
     QString recorderPath;
     if (QFile::exists("/usr/bin/l2trader-recorder")) {
+        qInfo() << "Using installed recorder binary.";
         recorderPath = "/usr/bin/l2trader-recorder";
     } else {
+        qInfo() << "Using development recorder binary.";
         recorderPath = QCoreApplication::applicationDirPath() + "/../../L2Trader_Recorder/src/L2Trader_Recorder";
     }
 
@@ -60,7 +78,7 @@ void TestRecorderIntegration::testRecorderNoCriticalLogs()
     QVERIFY(!logFiles.isEmpty());
 
     QString latestLog = logDir + "/" + logFiles.last();
-
+    qInfo() << "Opening log file:" << latestLog;
     QFile logFile(latestLog);
     QVERIFY(logFile.open(QIODevice::ReadOnly | QIODevice::Text));
 
@@ -68,6 +86,27 @@ void TestRecorderIntegration::testRecorderNoCriticalLogs()
     QString logContent = in.readAll();
 
     // Check for CRIT messages
+    if (logContent.contains("CRIT")) {
+        // Extract and log the CRIT lines
+        QStringList lines = logContent.split('\n');
+        for (const QString& line : lines) {
+            if (line.contains("CRIT")) {
+                qCritical() << "Found CRIT message:" << line;
+            }
+        }
+        QFAIL("Critical messages found in recorder log");
+    }
+
+    // Check for WARN messages
+    if (logContent.contains("WARN")) {
+        // Extract and log the WARN lines
+        QStringList lines = logContent.split('\n');
+        for (const QString& line : lines) {
+            if (line.contains("WARN")) {
+                qWarning() << "Found WARN message:" << line;
+            }
+        }
+    }
     if (logContent.contains("CRIT")) {
         // Extract and log the CRIT lines
         QStringList lines = logContent.split('\n');
