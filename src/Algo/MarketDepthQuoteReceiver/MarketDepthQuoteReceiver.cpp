@@ -125,4 +125,6 @@ void MarketDepthQuoteReceiver::onStreamError(Stream::StreamError error, QString 
     Q_UNUSED(error);
 
     qCWarning(MarketDepthQuoteReceiverLog) << "Market Depth Quote Receiver stream error : " << errorMessage;
+
+    // TODO do something more advanced here like restarting the stream
 }

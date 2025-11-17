@@ -79,7 +79,7 @@ void Stream::onReadyRead()
 
         if (jsonObj.contains("Heartbeat") && jsonObj.contains("Timestamp")) {
             heartbeatTimer.start(timeoutMS);
-            qCInfo(StreamLog) << streamName << "received heartbeat";
+            qCDebug(StreamLog) << streamName << "received heartbeat";
         }
         else if (jsonObj.contains("Error") && jsonObj.contains("Message")) {
             streamIsInError = true;
@@ -94,15 +94,18 @@ void Stream::onReadyRead()
                 error = StreamError::GoAway;
             } else if (errorStr == "InternalServerError") {
                 error = StreamError::InternalServerError;
+            } else if (errorStr == "InvalidSymbol"){
+                error = StreamError::InvalidSymbol;
             } else {
                 error = StreamError::Unknown;
+                qCCritical(StreamLog) << streamName << "received unknown error string: " << errorStr;
             }
 
-            qCInfo(StreamLog) << streamName << " received an error : " << jsonObj["Message"].toString();
+            qCCritical(StreamLog) << streamName << " received an error : " << jsonObj["Message"].toString();
 
             emit streamErrorOccurred(error, jsonObj["Message"].toString());
         }
-        else {
+        else { // Happy path, process the object
             if (processJsonObject(jsonObj)) {
                 heartbeatTimer.start(timeoutMS);
             } else {
@@ -117,7 +120,7 @@ void Stream::onFinished()
 {
     QString streamName = this->objectName();
 
-    qCWarning(StreamLog) << streamName << "received the signal finished()";
+    qCWarning(StreamLog) << streamName << "received the signal finished(). There has been a previous json description of the error received, and this is the remote closing this connection.";
 
     QByteArray rawData = reply->readAll();
 
@@ -128,7 +131,7 @@ void Stream::onFinished()
 
     if (parseError.error != QJsonParseError::NoError) {
         qCCritical(StreamLog) << streamName << "Failed to parse JSON:" << parseError.errorString();
-        qCCritical(StreamLog) << "Bad content : " << rawData;
+        qCCritical(StreamLog) << "Bad content : " << rawData << ". This is expected when the server closes the conenction after an error.";
         return;
     }
 

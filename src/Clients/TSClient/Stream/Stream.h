@@ -28,6 +28,7 @@ public:
         DualLogon,
         GoAway,
         InternalServerError,
+        InvalidSymbol,
         Unknown
     };
 
