@@ -18,6 +18,5 @@ signals:
     void receivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote);
 
 private:
-    QString symbol;
     bool processJsonObject(const QJsonObject& jsonObj);
 };

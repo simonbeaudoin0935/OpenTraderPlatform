@@ -2,19 +2,13 @@
 #include "TSClient.h"
 
 StreamBars::StreamBars(const QString &symbol, QObject *parent) :
-    Stream(parent),
-    symbol(symbol)
+    Stream(symbol, parent)
 {
     this->setObjectName("Stream::Bars::" + symbol);
 }
 
 StreamBars::~StreamBars()
 {
-}
-
-void StreamBars::startRecording(const QString &dir)
-{
-    Stream::startRecording(dir, "Bar_" + symbol);
 }
 
 bool StreamBars::processJsonObject(const QJsonObject& jsonObj)
@@ -29,7 +23,6 @@ bool StreamBars::processJsonObject(const QJsonObject& jsonObj)
         return false;
     }
 }
-
 
 StreamBars *TSClient::openStreamBars(const QString &symbol,
                                      unsigned int interval,
@@ -47,14 +40,9 @@ StreamBars *TSClient::openStreamBars(const QString &symbol,
 
     QUrlQuery query = Bar::buildUrlQuery(interval, unit, barsback, sessionTemplate);
 
-    StreamBars * stream = new StreamBars(symbol);
-    stream->moveToThread(thread);
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamBars";
 
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamBars" << static_cast<void*>(stream);
-
-    TSClient::openStream(symbol, endpoint, query, stream);
-
-    return stream;
+    return openStream<StreamBars>(symbol, endpoint, query, symbol);
 }
 
 void TSClient::closeStreamBars(StreamBars *stream)

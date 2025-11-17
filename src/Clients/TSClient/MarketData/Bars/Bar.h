@@ -8,7 +8,7 @@
 
 class Bar {
 public:
-    enum class BarStatus { Open, Closed, Void};
+    enum class BarStatus { Open, Closed, Null};
     enum class BarUnit { Minute, Daily, Weekly, Monthly };
     enum class BarSessionTemplate { USEQPre, USEQPost, USEPreAndPost,USEQ24Hour, Default };
 

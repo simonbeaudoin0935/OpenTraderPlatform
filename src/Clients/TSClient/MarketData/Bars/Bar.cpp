@@ -20,7 +20,7 @@ QString Bar::barStatusToString(BarStatus barStatus)
     switch (barStatus) {
         case BarStatus::Open: return "Open";
         case BarStatus::Closed: return "Closed";
-        case BarStatus::Void: return "Void";
+        case BarStatus::Null: return "Null";
         default: Q_UNREACHABLE();
     }
 }
@@ -74,7 +74,7 @@ return query;
 Bar Bar::nullBar(QDateTime dateTime)
 {
     Bar bar = Bar();
-    bar.barStatus = BarStatus::Void;
+    bar.barStatus = BarStatus::Null;
     bar.timeStamp = dateTime;
 
     return bar;

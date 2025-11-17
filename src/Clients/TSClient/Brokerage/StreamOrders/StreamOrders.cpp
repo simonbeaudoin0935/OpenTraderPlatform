@@ -28,7 +28,7 @@ bool StreamOrders::StreamOrdersStatus::isStatusValid() const {
 }
 
 StreamOrders::StreamOrders(QString &accountID, QObject *parent) :
-    Stream(parent),
+    Stream("Orders " + accountID, parent),
     accountID(accountID)
 {
     this->setObjectName("Stream::Orders::" + accountID);
@@ -87,14 +87,9 @@ StreamOrders* TSClient::openStreamOrders(QString &accountID) {
 
     QUrlQuery query;
 
-    StreamOrders * stream = new StreamOrders(accountID);
-    stream->moveToThread(thread);
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamOrders";
 
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamOrders " << static_cast<void*>(stream);
-
-    TSClient::openStream("NOSYMBOL", endpoint, query, stream);
-
-    return stream;
+    return openStream<StreamOrders>("NOSYMBOL", endpoint, query, accountID);
 }
 
 void TSClient::closeStreamOrders(StreamOrders* stream) {

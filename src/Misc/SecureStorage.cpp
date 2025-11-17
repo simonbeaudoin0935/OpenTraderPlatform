@@ -95,7 +95,7 @@ bool SecureStorage::isSecureStorageAvailable()
 #ifdef QT_KEYCHAIN_LIB
     return true;
 #else
-    qCWarning(secureStorage) << "QKeychain not available, using encrypted QSettings fallback";
+    //qCWarning(secureStorage) << "QKeychain not available, using encrypted QSettings fallback";
     return false;
 #endif
 }

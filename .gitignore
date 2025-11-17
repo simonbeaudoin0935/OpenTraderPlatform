@@ -1,6 +1,4 @@
 build/
-build-*/
-Makefile
 src/Misc/Logging_generated.h
 
 # Debian packaging artifacts

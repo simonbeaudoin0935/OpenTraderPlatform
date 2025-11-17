@@ -7,13 +7,13 @@
 #include "Settings.h"
 #include "BarCache.h"
 #include "TSClient.h"
+#include "RecorderLogic.h"
 
 #include <QtGlobal>
 
 #include <iostream>
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     QCoreApplication::setApplicationName("Recorder");
@@ -36,15 +36,20 @@ int main(int argc, char *argv[])
         qInfo() << "Stock CSV file:" << stockCsvFile;
     }
 
-    // TODO: Implement recording logic here
+    QStringList stockTickers = loadStockTickers(stockCsvFile);
+    qInfo() << "Loaded" << stockTickers.size() << "stock tickers from CSV.";
+
+    QString recordedDataPath = createRecordingFolders(getCacheLocation());
+    qInfo() << "Recorded data folder:" << recordedDataPath;
+
+    TSClient::getInstancePtr()->start();
+
+    QString barsPath = recordedDataPath + "/Bars";
+    LiveBarsDB* liveBarsDB = initializeBarsDatabase(barsPath);
+
+    liveBarsDB->startRecording();
+
     qInfo() << "Recorder started - recording market data...";
-
-
-    TSClient* tradeStationClient = TSClient::getInstancePtr();
-
-    tradeStationClient->start();
-
-    BarCache barCache("AAPL", true);
 
     return app.exec();
 }
