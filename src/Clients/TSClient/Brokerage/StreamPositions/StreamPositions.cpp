@@ -97,15 +97,9 @@ StreamPositions *TSClient::openStreamPositions(QString &accountID, bool changes)
     QUrlQuery query;
     query.addQueryItem("changes", changes? "true":"false");
 
-    StreamPositions * stream = new StreamPositions(accountID);
-    stream->moveToThread(thread);
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamPositions";
 
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamPositions " << static_cast<void*>(stream);
-
-    TSClient::openStream("NOSYMBOL", endpoint, query, stream);
-
-
-    return stream;
+    return openStream<StreamPositions>("NOSYMBOL", endpoint, query, accountID);
 }
 
 void TSClient::closeStreamPositions(StreamPositions *stream)

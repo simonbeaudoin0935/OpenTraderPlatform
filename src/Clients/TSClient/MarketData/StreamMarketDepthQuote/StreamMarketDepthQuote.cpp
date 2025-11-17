@@ -45,14 +45,9 @@ StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(const QString &symb
     QUrlQuery query;
     query.addQueryItem("maxlevels", QString::number(depth));
 
-    StreamMarketDepthQuote * stream = new StreamMarketDepthQuote(symbol);
-    stream->moveToThread(thread);
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamMarketDepthQuote";
 
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamMarketDepthQuote " << static_cast<void*>(stream);
-
-    TSClient::openStream(symbol, endpoint, query, stream);
-
-    return stream;
+    return openStream<StreamMarketDepthQuote>(symbol, endpoint, query, symbol);
 }
 
 void TSClient::closeStreamMarketDepthQuote(StreamMarketDepthQuote *stream)

@@ -40,14 +40,9 @@ StreamBars *TSClient::openStreamBars(const QString &symbol,
 
     QUrlQuery query = Bar::buildUrlQuery(interval, unit, barsback, sessionTemplate);
 
-    StreamBars * stream = new StreamBars(symbol);
-    stream->moveToThread(thread);
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamBars";
 
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamBars" << static_cast<void*>(stream);
-
-    TSClient::openStream(symbol, endpoint, query, stream);
-
-    return stream;
+    return openStream<StreamBars>(symbol, endpoint, query, symbol);
 }
 
 void TSClient::closeStreamBars(StreamBars *stream)
