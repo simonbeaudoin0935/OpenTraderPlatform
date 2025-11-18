@@ -61,6 +61,7 @@ void LiveMarketDepthQuoteDB::startRecording() {
         Q_ASSERT(streamMarketDepthQuote != nullptr);
 
         QObject::connect(streamMarketDepthQuote, &StreamMarketDepthQuote::receivedNewRawData, this, &LiveMarketDepthQuoteDB::onReceivedNewRawDataForStock);
+        QObject::connect(streamMarketDepthQuote, &Stream::streamErrorOccurred, this, &LiveMarketDepthQuoteDB::onStreamErrorOccurred);
 
         this->streamMarketDepthQuotes[symbol] = streamMarketDepthQuote;
     }
@@ -73,4 +74,22 @@ void LiveMarketDepthQuoteDB::onReceivedNewRawDataForStock(QString symbol, const 
     qDebug() << "Received new market depth quote raw JSON data for" << symbol << "at timestamp" << epochMs;
     
     this->storeMarketDepthQuoteRawData(symbol, epochMs, rawData);
+}
+
+void LiveMarketDepthQuoteDB::onStreamErrorOccurred(Stream::StreamError error, QString errorMessage) {
+    StreamMarketDepthQuote* senderStream = qobject_cast<StreamMarketDepthQuote*>(sender());
+    if (senderStream) {
+        // Find the symbol by looking up the sender in our stream map
+        QString symbol;
+        for (auto it = streamMarketDepthQuotes.begin(); it != streamMarketDepthQuotes.end(); ++it) {
+            if (it.value() == senderStream) {
+                symbol = it.key();
+                break;
+            }
+        }
+        if (!symbol.isEmpty()) {
+            streamErrorCounters[symbol][error]++;
+            qWarning() << "Stream error for" << symbol << "error:" << static_cast<int>(error) << "message:" << errorMessage;
+        }
+    }
 }

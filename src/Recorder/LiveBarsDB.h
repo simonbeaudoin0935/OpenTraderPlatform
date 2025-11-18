@@ -18,8 +18,11 @@ public:
 
     void startRecording();
     
+    QMap<QString, QMap<Stream::StreamError, int>> getErrorCounters() const { return streamErrorCounters; }
+    
 private slots:
     void onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData);
+    void onStreamErrorOccurred(Stream::StreamError error, QString errorMessage);
 
 private:
     bool storeBarRawData(const QString& stock, qint64 epochMs, const QByteArray& rawData);
@@ -28,4 +31,5 @@ private:
     QSqlDatabase db;
     QMap<QString, int> stockSequences;
     QMap<QString, StreamBars*> streamBars;
+    QMap<QString, QMap<Stream::StreamError, int>> streamErrorCounters;
 };

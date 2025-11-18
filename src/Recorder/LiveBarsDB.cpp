@@ -65,6 +65,7 @@ void LiveBarsDB::startRecording() {
         Q_ASSERT(streamBar != nullptr);
 
         QObject::connect(streamBar, &StreamBars::receivedNewRawData, this, &LiveBarsDB::onReceivedNewRawDataForStock);
+        QObject::connect(streamBar, &Stream::streamErrorOccurred, this, &LiveBarsDB::onStreamErrorOccurred);
 
         this->streamBars[symbol] = streamBar;
     }
@@ -77,4 +78,22 @@ void LiveBarsDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray& 
     qDebug() << "Received new bar raw JSON data for" << symbol << "at timestamp" << epochMs;
     
     this->storeBarRawData(symbol, epochMs, rawData);
+}
+
+void LiveBarsDB::onStreamErrorOccurred(Stream::StreamError error, QString errorMessage) {
+    StreamBars* senderStream = qobject_cast<StreamBars*>(sender());
+    if (senderStream) {
+        // Find the symbol by looking up the sender in our stream map
+        QString symbol;
+        for (auto it = streamBars.begin(); it != streamBars.end(); ++it) {
+            if (it.value() == senderStream) {
+                symbol = it.key();
+                break;
+            }
+        }
+        if (!symbol.isEmpty()) {
+            streamErrorCounters[symbol][error]++;
+            qWarning() << "Stream error for" << symbol << "error:" << static_cast<int>(error) << "message:" << errorMessage;
+        }
+    }
 }
