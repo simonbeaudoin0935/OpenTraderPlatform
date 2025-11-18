@@ -238,6 +238,28 @@ void LoggingConfig::writeConfigToDisk() {
         m_settings.setValue(QString("Categories/%1").arg(it.key()), it.value());
     }
     
+    // Write global settings
+    m_settings.setValue("Global/DisableDebug", isDebugDisabled());
+    m_settings.setValue("Global/DisableInfo", isInfoDisabled());
+    
+    m_settings.sync();
+}
+
+bool LoggingConfig::isDebugDisabled() const {
+    return m_settings.value("Global/DisableDebug", false).toBool();
+}
+
+void LoggingConfig::setDebugDisabled(bool disabled) {
+    m_settings.setValue("Global/DisableDebug", disabled);
+    m_settings.sync();
+}
+
+bool LoggingConfig::isInfoDisabled() const {
+    return m_settings.value("Global/DisableInfo", false).toBool();
+}
+
+void LoggingConfig::setInfoDisabled(bool disabled) {
+    m_settings.setValue("Global/DisableInfo", disabled);
     m_settings.sync();
 }
 
@@ -298,6 +320,12 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
     if (logStream) {
         *logStream << formattedMsg << "\n";
         logStream->flush();
+    }
+
+    // Check global disable settings first
+    if ((type == QtDebugMsg && LoggingConfig::instance().isDebugDisabled()) ||
+        (type == QtInfoMsg && LoggingConfig::instance().isInfoDisabled())) {
+        return;
     }
 
     // Filter console output based on category enabled state

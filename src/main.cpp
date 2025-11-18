@@ -28,6 +28,9 @@ int main(int argc, char *argv[])
     // Initialize logging (opens file and installs handler)
     initLogging();
 
+    // Write default config to disk on first run
+    LoggingConfig::instance().writeConfigToDisk();
+
     qInfo() << "Qt version:" << QT_VERSION_STR;
 
     qInfo() << "Version:" << version;

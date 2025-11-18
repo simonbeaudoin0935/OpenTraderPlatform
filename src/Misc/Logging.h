@@ -34,6 +34,11 @@ public:
     void setCategoryEnabled(const QString& category, bool enabled);
     QStringList getCategories() const;
     void writeConfigToDisk();
+    
+    bool isDebugDisabled() const;
+    void setDebugDisabled(bool disabled);
+    bool isInfoDisabled() const;
+    void setInfoDisabled(bool disabled);
 
 private:
     LoggingConfig();

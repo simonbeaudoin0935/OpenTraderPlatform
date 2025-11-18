@@ -70,7 +70,7 @@ void LiveMarketDepthQuoteDB::onReceivedNewRawDataForStock(QString symbol, const 
 
     qint64 epochMs = QDateTime::currentMSecsSinceEpoch();
 
-    qInfo() << "Received new market depth quote raw JSON data for" << symbol << "at timestamp" << epochMs;
+    qDebug() << "Received new market depth quote raw JSON data for" << symbol << "at timestamp" << epochMs;
     
     this->storeMarketDepthQuoteRawData(symbol, epochMs, rawData);
 }
