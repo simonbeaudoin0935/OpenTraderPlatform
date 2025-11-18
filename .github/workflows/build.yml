@@ -113,9 +113,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        fetch-tags: true
 
     - name: Set up ccache
       run: |
@@ -141,6 +138,10 @@ jobs:
       run: |
         cmake --version
         git config --global --add safe.directory /__w/L2Trader/L2Trader
+        export GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown")
+        export GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        export GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        echo "Building with version: $GIT_TAG ~ $GIT_BRANCH@$GIT_HASH"
         dpkg-buildpackage -us -uc -b
 
     - name: Show ccache statistics
@@ -178,9 +179,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        fetch-tags: true
 
     - name: Set up ccache
       run: |
@@ -206,6 +204,10 @@ jobs:
       run: |
         cmake --version
         git config --global --add safe.directory /__w/L2Trader/L2Trader
+        export GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown")
+        export GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        export GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        echo "Building with version: $GIT_TAG ~ $GIT_BRANCH@$GIT_HASH"
         dpkg-buildpackage -us -uc -b -aarm64 -Pcross
 
     - name: Show ccache statistics
