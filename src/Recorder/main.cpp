@@ -36,6 +36,14 @@ void signalHandler(int signal) {
     if (signal == SIGINT) {
         std::cout << "\nReceived SIGINT (Ctrl+C). Displaying error counters before exit:\n" << std::endl;
         
+        // Finalize any unrecovered timeouts
+        if (g_liveBarsDB) {
+            g_liveBarsDB->finalizeUnrecoveredTimeouts();
+        }
+        if (g_liveMarketDepthQuoteDB) {
+            g_liveMarketDepthQuoteDB->finalizeUnrecoveredTimeouts();
+        }
+        
         if (g_liveBarsDB) {
             std::cout << "Bars Stream Error Counters:" << std::endl;
             auto barsErrors = g_liveBarsDB->getErrorCounters();
@@ -54,6 +62,27 @@ void signalHandler(int signal) {
             }
             if (!hasErrors) {
                 std::cout << "  No errors recorded" << std::endl;
+            }
+            
+            // Display timeout recovery statistics
+            auto recoveredTimeouts = g_liveBarsDB->getRecoveredTimeouts();
+            auto unrecoveredTimeouts = g_liveBarsDB->getUnrecoveredTimeoutCounts();
+            if (!recoveredTimeouts.isEmpty() || !unrecoveredTimeouts.isEmpty()) {
+                std::cout << "  Timeout Recovery Statistics:" << std::endl;
+                QSet<QString> allSymbols;
+                for (auto it = recoveredTimeouts.begin(); it != recoveredTimeouts.end(); ++it) {
+                    allSymbols.insert(it.key());
+                }
+                for (auto it = unrecoveredTimeouts.begin(); it != unrecoveredTimeouts.end(); ++it) {
+                    allSymbols.insert(it.key());
+                }
+                
+                for (const QString& symbol : allSymbols) {
+                    int recovered = recoveredTimeouts.value(symbol, 0);
+                    int unrecovered = unrecoveredTimeouts.value(symbol, 0);
+                    std::cout << "    " << symbol.toStdString() << ": " 
+                              << recovered << " recovered, " << unrecovered << " unrecovered" << std::endl;
+                }
             }
             std::cout << std::endl;
         }
@@ -76,6 +105,27 @@ void signalHandler(int signal) {
             }
             if (!hasErrors) {
                 std::cout << "  No errors recorded" << std::endl;
+            }
+            
+            // Display timeout recovery statistics
+            auto recoveredTimeouts = g_liveMarketDepthQuoteDB->getRecoveredTimeouts();
+            auto unrecoveredTimeouts = g_liveMarketDepthQuoteDB->getUnrecoveredTimeoutCounts();
+            if (!recoveredTimeouts.isEmpty() || !unrecoveredTimeouts.isEmpty()) {
+                std::cout << "  Timeout Recovery Statistics:" << std::endl;
+                QSet<QString> allSymbols;
+                for (auto it = recoveredTimeouts.begin(); it != recoveredTimeouts.end(); ++it) {
+                    allSymbols.insert(it.key());
+                }
+                for (auto it = unrecoveredTimeouts.begin(); it != unrecoveredTimeouts.end(); ++it) {
+                    allSymbols.insert(it.key());
+                }
+                
+                for (const QString& symbol : allSymbols) {
+                    int recovered = recoveredTimeouts.value(symbol, 0);
+                    int unrecovered = unrecoveredTimeouts.value(symbol, 0);
+                    std::cout << "    " << symbol.toStdString() << ": " 
+                              << recovered << " recovered, " << unrecovered << " unrecovered" << std::endl;
+                }
             }
             std::cout << std::endl;
         }

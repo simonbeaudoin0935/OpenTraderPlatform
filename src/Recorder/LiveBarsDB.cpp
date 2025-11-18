@@ -77,23 +77,43 @@ void LiveBarsDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray& 
 
     qDebug() << "Received new bar raw JSON data for" << symbol << "at timestamp" << epochMs;
     
+    // Check if this symbol had an unrecovered timeout and mark it as recovered
+    if (unrecoveredTimeouts.contains(symbol)) {
+        unrecoveredTimeouts.remove(symbol);
+        recoveredTimeouts[symbol]++;
+        qInfo() << "Stream recovered from timeout for" << symbol;
+    }
+    
     this->storeBarRawData(symbol, epochMs, rawData);
+}
+
+void LiveBarsDB::finalizeUnrecoveredTimeouts() {
+    for (const QString& symbol : unrecoveredTimeouts) {
+        unrecoveredTimeoutCounts[symbol]++;
+    }
+    unrecoveredTimeouts.clear();
 }
 
 void LiveBarsDB::onStreamErrorOccurred(Stream::StreamError error, QString errorMessage) {
     StreamBars* senderStream = qobject_cast<StreamBars*>(sender());
-    if (senderStream) {
-        // Find the symbol by looking up the sender in our stream map
-        QString symbol;
-        for (auto it = streamBars.begin(); it != streamBars.end(); ++it) {
-            if (it.value() == senderStream) {
-                symbol = it.key();
-                break;
-            }
-        }
-        if (!symbol.isEmpty()) {
-            streamErrorCounters[symbol][error]++;
-            qWarning() << "Stream error for" << symbol << "error:" << static_cast<int>(error) << "message:" << errorMessage;
+    Q_ASSERT(senderStream);  // Should always be valid - catastrophic error if not
+    
+    // Find the symbol by looking up the sender in our stream map
+    QString symbol;
+    for (auto it = streamBars.begin(); it != streamBars.end(); ++it) {
+        if (it.value() == senderStream) {
+            symbol = it.key();
+            break;
         }
     }
+    Q_ASSERT(!symbol.isEmpty());  // Should always find the symbol - catastrophic error if not
+    
+    streamErrorCounters[symbol][error]++;
+    
+    // Track timeout recovery
+    if (error == Stream::StreamError::Timeout) {
+        unrecoveredTimeouts.insert(symbol);
+    }
+    
+    qWarning() << "Stream error for" << symbol << "error:" << static_cast<int>(error) << "message:" << errorMessage;
 }

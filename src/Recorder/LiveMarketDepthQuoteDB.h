@@ -19,6 +19,10 @@ public:
     void startRecording();
     
     QMap<QString, QMap<Stream::StreamError, int>> getErrorCounters() const { return streamErrorCounters; }
+    QMap<QString, int> getRecoveredTimeouts() const { return recoveredTimeouts; }
+    QMap<QString, int> getUnrecoveredTimeoutCounts() const { return unrecoveredTimeoutCounts; }
+    
+    void finalizeUnrecoveredTimeouts();
     
 private slots:
     void onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData);
@@ -32,4 +36,7 @@ private:
     QMap<QString, int> stockSequences;
     QMap<QString, StreamMarketDepthQuote*> streamMarketDepthQuotes;
     QMap<QString, QMap<Stream::StreamError, int>> streamErrorCounters;
+    QSet<QString> unrecoveredTimeouts;
+    QMap<QString, int> recoveredTimeouts;
+    QMap<QString, int> unrecoveredTimeoutCounts;
 };
