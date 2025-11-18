@@ -59,5 +59,8 @@ int main(int argc, char *argv[]) {
 
     qInfo() << "------ Recorder for Market Depth Quotes started - recording market data...";
 
+    // Write logging configuration to disk if this is the first run
+    LoggingConfig::instance().writeConfigToDisk();
+
     return app.exec();
 }

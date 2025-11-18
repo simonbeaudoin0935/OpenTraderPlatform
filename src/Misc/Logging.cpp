@@ -232,6 +232,15 @@ QStringList LoggingConfig::getCategories() const {
     return m_categories;
 }
 
+void LoggingConfig::writeConfigToDisk() {
+    // Write all current category states to settings
+    for (auto it = m_categoryEnabled.begin(); it != m_categoryEnabled.end(); ++it) {
+        m_settings.setValue(QString("Categories/%1").arg(it.key()), it.value());
+    }
+    
+    m_settings.sync();
+}
+
 // ANSI color codes
 #define RESET_COLOR "\033[0m"
 #define RED_COLOR "\033[31m"
