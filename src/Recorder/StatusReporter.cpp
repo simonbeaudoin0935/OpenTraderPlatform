@@ -19,6 +19,8 @@ void StatusReporter::printStatus() {
     printStreamStatus();
     printErrorStats("Bars", m_barsDB);
     printErrorStats("MarketDepth", m_marketDepthDB);
+    printRecoveryStats("Bars", m_barsDB);
+    printRecoveryStats("MarketDepth", m_marketDepthDB);
     printDatabaseStats();
     printMemoryUsage();
     printUptime();
@@ -95,6 +97,31 @@ void StatusReporter::printErrorStats(const QString& streamType, LiveStreamDB* db
         }
     } else {
         std::cout << streamType.toStdString() << " Errors: None" << std::endl;
+    }
+}
+
+void StatusReporter::printRecoveryStats(const QString& streamType, LiveStreamDB* db) {
+    if (!db) return;
+
+    auto recoveryAttempts = db->getRecoveryAttempts();
+    auto successfulRecoveries = db->getSuccessfulRecoveries();
+
+    int totalRecoveryAttempts = 0;
+    int totalSuccessfulRecoveries = 0;
+
+    for (auto it = recoveryAttempts.begin(); it != recoveryAttempts.end(); ++it) {
+        totalRecoveryAttempts += it.value();
+    }
+    for (auto it = successfulRecoveries.begin(); it != successfulRecoveries.end(); ++it) {
+        totalSuccessfulRecoveries += it.value();
+    }
+
+    if (totalRecoveryAttempts > 0) {
+        double recoverySuccessRate = (static_cast<double>(totalSuccessfulRecoveries) / totalRecoveryAttempts) * 100.0;
+        std::cout << streamType.toStdString() << " Recovery: " << totalSuccessfulRecoveries << "/" << totalRecoveryAttempts 
+                  << " successful (" << std::fixed << std::setprecision(1) << recoverySuccessRate << "% success rate)" << std::endl;
+    } else {
+        std::cout << streamType.toStdString() << " Recovery: No recoveries attempted" << std::endl;
     }
 }
 

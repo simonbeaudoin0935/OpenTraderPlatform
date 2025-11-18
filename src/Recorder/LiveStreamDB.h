@@ -27,12 +27,15 @@ public:
     QMap<QString, QMap<Stream::StreamError, int>> getErrorCounters() const { return streamErrorCounters; }
     QMap<QString, int> getRecoveredTimeouts() const { return recoveredTimeouts; }
     QMap<QString, int> getUnrecoveredTimeoutCounts() const { return unrecoveredTimeoutCounts; }
+    QMap<QString, int> getRecoveryAttempts() const { return recoveryAttempts; }
+    QMap<QString, int> getSuccessfulRecoveries() const { return successfulRecoveries; }
 
     int getRecordCount() const;
     int getActiveStreamCount() const;
     int getTotalConfiguredStreams() const { return stockTickers.size(); }
 
     void finalizeUnrecoveredTimeouts();
+    void attemptStreamRecovery(const QString& symbol);
 
 private slots:
     void onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData);
@@ -54,4 +57,6 @@ private:
     QSet<QString> unrecoveredTimeouts;
     QMap<QString, int> recoveredTimeouts;
     QMap<QString, int> unrecoveredTimeoutCounts;
+    QMap<QString, int> recoveryAttempts;
+    QMap<QString, int> successfulRecoveries;
 };

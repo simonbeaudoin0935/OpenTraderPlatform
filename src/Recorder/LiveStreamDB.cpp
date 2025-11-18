@@ -135,9 +135,11 @@ void LiveStreamDB::onStreamErrorOccurred(Stream::StreamError error, QString erro
 
     streamErrorCounters[symbol][error]++;
 
-    // Track timeout recovery
+    // Track timeout recovery and attempt automatic recovery
     if (error == Stream::StreamError::Timeout) {
         unrecoveredTimeouts.insert(symbol);
+        // Attempt automatic recovery
+        attemptStreamRecovery(symbol);
     }
 
     qWarning() << "Stream error for" << symbol << "error:" << static_cast<int>(error) << "message:" << errorMessage;
@@ -148,6 +150,60 @@ void LiveStreamDB::finalizeUnrecoveredTimeouts() {
         unrecoveredTimeoutCounts[symbol]++;
     }
     unrecoveredTimeouts.clear();
+}
+
+void LiveStreamDB::attemptStreamRecovery(const QString& symbol) {
+    recoveryAttempts[symbol]++;
+
+    qInfo() << "Attempting to recover stream for" << symbol << "(attempt #" << recoveryAttempts[symbol] << ")";
+
+    if (streamType == StreamType::Bars) {
+        // Close existing stream
+        if (streamBars.contains(symbol)) {
+            StreamBars* oldStream = streamBars[symbol];
+            if (oldStream) {
+                oldStream->deleteLater();
+            }
+            streamBars.remove(symbol);
+        }
+
+        // Open new stream
+        StreamBars* newStream = TSClient::getInstance().openStreamBars(symbol,
+                                                                       1,
+                                                                       Bar::BarUnit::Minute,
+                                                                       2,
+                                                                       Bar::BarSessionTemplate::USEQ24Hour);
+        if (newStream) {
+            QObject::connect(newStream, &StreamBars::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock);
+            QObject::connect(newStream, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred);
+            streamBars[symbol] = newStream;
+            successfulRecoveries[symbol]++;
+            qInfo() << "Successfully recovered bars stream for" << symbol;
+        } else {
+            qWarning() << "Failed to recover bars stream for" << symbol;
+        }
+    } else {
+        // Close existing stream
+        if (streamMarketDepthQuotes.contains(symbol)) {
+            StreamMarketDepthQuote* oldStream = streamMarketDepthQuotes[symbol];
+            if (oldStream) {
+                oldStream->deleteLater();
+            }
+            streamMarketDepthQuotes.remove(symbol);
+        }
+
+        // Open new stream
+        StreamMarketDepthQuote* newStream = TSClient::getInstance().openStreamMarketDepthQuote(symbol, 10);
+        if (newStream) {
+            QObject::connect(newStream, &StreamMarketDepthQuote::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock);
+            QObject::connect(newStream, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred);
+            streamMarketDepthQuotes[symbol] = newStream;
+            successfulRecoveries[symbol]++;
+            qInfo() << "Successfully recovered market depth stream for" << symbol;
+        } else {
+            qWarning() << "Failed to recover market depth stream for" << symbol;
+        }
+    }
 }
 
 int LiveStreamDB::getRecordCount() const {

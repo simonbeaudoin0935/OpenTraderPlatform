@@ -22,6 +22,7 @@ private:
     
     void printStreamStatus();
     void printErrorStats(const QString& streamType, LiveStreamDB* db);
+    void printRecoveryStats(const QString& streamType, LiveStreamDB* db);
     void printDatabaseStats();
     void printMemoryUsage();
     void printUptime();
