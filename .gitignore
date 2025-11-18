@@ -10,3 +10,6 @@ debian/*.debhelper*
 debian/*.substvars
 debian/debhelper-build-stamp
 obj-*/
+
+# CodeQL artifacts
+_codeql_detected_source_root
