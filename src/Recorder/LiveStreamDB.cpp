@@ -149,3 +149,31 @@ void LiveStreamDB::finalizeUnrecoveredTimeouts() {
     }
     unrecoveredTimeouts.clear();
 }
+
+int LiveStreamDB::getRecordCount() const {
+    QSqlQuery query(db);
+    QString tableName = (streamType == StreamType::Bars) ? "bars" : "market_depth_quotes";
+    query.prepare(QString("SELECT COUNT(*) FROM %1").arg(tableName));
+    if (query.exec() && query.next()) {
+        return query.value(0).toInt();
+    }
+    return 0;
+}
+
+int LiveStreamDB::getActiveStreamCount() const {
+    int activeCount = 0;
+    if (streamType == StreamType::Bars) {
+        for (auto it = streamBars.begin(); it != streamBars.end(); ++it) {
+            if (it.value() && !it.value()->isFinished() && !it.value()->isInError()) {
+                activeCount++;
+            }
+        }
+    } else {
+        for (auto it = streamMarketDepthQuotes.begin(); it != streamMarketDepthQuotes.end(); ++it) {
+            if (it.value() && !it.value()->isFinished() && !it.value()->isInError()) {
+                activeCount++;
+            }
+        }
+    }
+    return activeCount;
+}

@@ -3,6 +3,10 @@
 #include <QDateTime>
 #include <QTimer>
 #include <csignal>
+#include <iomanip>
+#include <iostream>
+#include <fstream>
+#include <unistd.h>
 
 #include "ArgumentParser.h"
 #include "Logging.h"
@@ -11,27 +15,14 @@
 #include "TSClient.h"
 #include "RecorderLogic.h"
 #include "LiveStreamDB.h"
+#include "StatusReporter.h"
+#include "RecorderUtils.h"
 
 #include <QtGlobal>
-
-#include <iostream>
 
 // Global pointers for signal handler
 LiveStreamDB* g_liveBarsDB = nullptr;
 LiveStreamDB* g_liveMarketDepthQuoteDB = nullptr;
-
-QString streamErrorToString(Stream::StreamError error) {
-    switch (error) {
-        case Stream::StreamError::Timeout: return "Timeout";
-        case Stream::StreamError::BadRequest: return "BadRequest";
-        case Stream::StreamError::DualLogon: return "DualLogon";
-        case Stream::StreamError::GoAway: return "GoAway";
-        case Stream::StreamError::InternalServerError: return "InternalServerError";
-        case Stream::StreamError::InvalidSymbol: return "InvalidSymbol";
-        case Stream::StreamError::Unknown: return "Unknown";
-        default: return "Unknown";
-    }
-}
 
 void signalHandler(int signal) {
     if (signal == SIGINT) {
@@ -189,6 +180,16 @@ int main(int argc, char *argv[]) {
     // Set global pointers for signal handler
     g_liveBarsDB = liveBarsDB;
     g_liveMarketDepthQuoteDB = liveMarketDepthQuoteDB;
+
+    // Create status reporter
+    StatusReporter statusReporter(liveBarsDB, liveMarketDepthQuoteDB);
+
+    // Set up status timer (every 10 seconds)
+    QTimer* statusTimer = new QTimer(&app);
+    QObject::connect(statusTimer, &QTimer::timeout, [&statusReporter]() {
+        statusReporter.printStatus();
+    });
+    statusTimer->start(10000); // 10 seconds
 
     // Write logging configuration to disk if this is the first run
     LoggingConfig::instance().writeConfigToDisk();

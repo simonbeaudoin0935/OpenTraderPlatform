@@ -28,6 +28,10 @@ public:
     QMap<QString, int> getRecoveredTimeouts() const { return recoveredTimeouts; }
     QMap<QString, int> getUnrecoveredTimeoutCounts() const { return unrecoveredTimeoutCounts; }
 
+    int getRecordCount() const;
+    int getActiveStreamCount() const;
+    int getTotalConfiguredStreams() const { return stockTickers.size(); }
+
     void finalizeUnrecoveredTimeouts();
 
 private slots:
