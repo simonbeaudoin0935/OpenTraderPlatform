@@ -48,15 +48,27 @@ execute_process(
     ERROR_QUIET
 )
 
-# Set default values if git commands fail
+# Set default values if git commands fail, using environment variables if available
 if(NOT GIT_TAG)
-    set(GIT_TAG "unknown")
+    if(DEFINED ENV{GIT_TAG})
+        set(GIT_TAG "$ENV{GIT_TAG}")
+    else()
+        set(GIT_TAG "unknown")
+    endif()
 endif()
 if(NOT GIT_HASH)
-    set(GIT_HASH "unknown")
+    if(DEFINED ENV{GIT_HASH})
+        set(GIT_HASH "$ENV{GIT_HASH}")
+    else()
+        set(GIT_HASH "unknown")
+    endif()
 endif()
 if(NOT GIT_BRANCH)
-    set(GIT_BRANCH "unknown")
+    if(DEFINED ENV{GIT_BRANCH})
+        set(GIT_BRANCH "$ENV{GIT_BRANCH}")
+    else()
+        set(GIT_BRANCH "unknown")
+    endif()
 endif()
 
 # Add version defines
