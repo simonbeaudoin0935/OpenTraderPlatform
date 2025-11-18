@@ -131,8 +131,7 @@ if(BUILD_RECORDER)
     add_executable(L2Trader_Recorder
         Recorder/main.cpp
         Recorder/RecorderLogic.cpp
-        Recorder/LiveBarsDB.cpp
-        Recorder/LiveMarketDepthQuoteDB.cpp
+        Recorder/LiveStreamDB.cpp
     )
 
     target_link_libraries(L2Trader_Recorder PRIVATE L2TraderCommon)

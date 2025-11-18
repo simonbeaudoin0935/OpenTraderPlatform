@@ -10,14 +10,15 @@
 #include "BarCache.h"
 #include "TSClient.h"
 #include "RecorderLogic.h"
+#include "LiveStreamDB.h"
 
 #include <QtGlobal>
 
 #include <iostream>
 
 // Global pointers for signal handler
-LiveBarsDB* g_liveBarsDB = nullptr;
-LiveMarketDepthQuoteDB* g_liveMarketDepthQuoteDB = nullptr;
+LiveStreamDB* g_liveBarsDB = nullptr;
+LiveStreamDB* g_liveMarketDepthQuoteDB = nullptr;
 
 QString streamErrorToString(Stream::StreamError error) {
     switch (error) {
@@ -170,15 +171,16 @@ int main(int argc, char *argv[]) {
 
     TSClient::getInstancePtr()->start();
 
-    QString barsPath = recordedDataPath + "/Bars";
-    LiveBarsDB* liveBarsDB = initializeBarsDatabase(barsPath);
+    QString dateStr = QDate::currentDate().toString("yyyy-MM-dd");
+    QString barsDbPath = recordedDataPath + "/Bars/RecordedLiveBars_" + dateStr + ".db";
+    LiveStreamDB* liveBarsDB = new LiveStreamDB(LiveStreamDB::StreamType::Bars, barsDbPath, stockTickers);
 
     liveBarsDB->startRecording();
 
     qInfo() << "------ Recorder for Bars started - recording market data...";
 
-    LiveMarketDepthQuoteDB* liveMarketDepthQuoteDB = initializeMarketDepthQuoteDatabase(recordedDataPath + "/MarketDepthQuotes", stockTickers);
-
+    QString marketDepthDbPath = recordedDataPath + "/MarketDepthQuotes/RecordedLiveMarketDepthQuotes_" + dateStr + ".db";
+    LiveStreamDB* liveMarketDepthQuoteDB = new LiveStreamDB(LiveStreamDB::StreamType::MarketDepthQuotes, marketDepthDbPath, stockTickers);
 
     liveMarketDepthQuoteDB->startRecording();
 

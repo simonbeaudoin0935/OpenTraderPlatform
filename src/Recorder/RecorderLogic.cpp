@@ -61,19 +61,3 @@ QString createRecordingFolders(const QString& cacheLocation) {
     }
     return recordedDataPath;
 }
-
-LiveBarsDB* initializeBarsDatabase(const QString& barsPath) {
-    QString dateStr = QDate::currentDate().toString("yyyy-MM-dd");
-    QString dbPath = barsPath + "/RecordedLiveBars_" + dateStr + ".db";
-    
-    QStringList stockTickers = loadStockTickers(stockCsvFile);
-    
-    return new LiveBarsDB(dbPath, stockTickers);
-}
-
-LiveMarketDepthQuoteDB* initializeMarketDepthQuoteDatabase(const QString& marketDepthQuotesPath, QStringList& stockTickers) {
-    QString dateStr = QDate::currentDate().toString("yyyy-MM-dd");
-    QString dbPath = marketDepthQuotesPath + "/RecordedLiveMarketDepthQuotes_" + dateStr + ".db";
-    
-    return new LiveMarketDepthQuoteDB(dbPath, stockTickers);
-}
