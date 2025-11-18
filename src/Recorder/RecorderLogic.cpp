@@ -31,7 +31,12 @@ QStringList loadStockTickers(const QString& csvFilePath) {
 QString createRecordingFolders(const QString& cacheLocation) {
     QDir cacheDir(cacheLocation);
 
-    Q_ASSERT_X(cacheDir.exists(), "createRecordingFolders", "Cache directory does not exist");
+    qDebug() << "Cache location:" << cacheLocation;
+    if (!cacheDir.exists()) {
+        if (!cacheDir.mkpath(".")) {
+            qFatal("Cannot create cache directory: %s", qUtf8Printable(cacheLocation));
+        }
+    }
 
     QString recordedDataPath = cacheLocation + "/RecordedLiveData";
     QDir recordedDir(recordedDataPath);
@@ -47,21 +52,12 @@ QString createRecordingFolders(const QString& cacheLocation) {
             qFatal("Cannot create Bars directory: %s", qUtf8Printable(barsPath));
         }
     }
-    QString marketDepthPath = recordedDataPath + "/MarketDepth";
+    QString marketDepthPath = recordedDataPath + "/MarketDepthQuotes";
     QDir mdDir(marketDepthPath);
     if (!mdDir.exists()) {
         if (!mdDir.mkpath(".")) {
-            qFatal("Cannot create MarketDepth directory: %s", qUtf8Printable(marketDepthPath));
+            qFatal("Cannot create MarketDepthQuotes directory: %s", qUtf8Printable(marketDepthPath));
         }
     }
     return recordedDataPath;
-}
-
-LiveBarsDB* initializeBarsDatabase(const QString& barsPath) {
-    QString dateStr = QDate::currentDate().toString("yyyy-MM-dd");
-    QString dbPath = barsPath + "/RecordedLiveBars_" + dateStr + ".db";
-    
-    QStringList stockTickers = loadStockTickers(stockCsvFile);
-    
-    return new LiveBarsDB(dbPath, stockTickers);
 }
