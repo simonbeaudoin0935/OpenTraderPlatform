@@ -7,5 +7,6 @@ extern QSettings *criteriaSettings;
 
 extern QString cacheRootDir;
 extern QString stockCsvFile;
+extern QString recordedDataDir;
 
 QString getCacheLocation();
