@@ -356,6 +356,437 @@ void TestBarCache::testGetBarsWithHoles()
     QCOMPARE(result.size(), 4 * 60);
 }
 
+// Cache hierarchy tests
+void TestBarCache::testDatabasePersistence()
+{
+    qInfo() << "Testing database persistence across cache instances";
+    
+    QTimeZone newYorkTimeZone("America/New_York");
+    QDate date(2025, 4, 11);
+    const QTime noon(12, 0, 0);
+    QDateTime fromDate = QDateTime(date, noon, newYorkTimeZone);
+    QDateTime toDate = fromDate.addSecs(60 * 9); // 10 bars
+    
+    // First cache instance - fetch bars and store in DB
+    {
+        BarCache cache1("AAPL");
+        cache1.clearDatabase();
+        
+        QVector<Bar> results = cache1.getBars(fromDate, toDate);
+        
+        QCOMPARE(cache1.getLastHitType(), BarCache::HitType::Miss);
+        QCOMPARE(results.size(), 10);
+        QCOMPARE_GE(cache1.getLastNumberFetchedBars(), 1);
+    } // cache1 destroyed here, only DB should persist
+    
+    // Second cache instance - should load from database
+    {
+        BarCache cache2("AAPL");
+        
+        // Memory cache is empty, but DB has the bars
+        QVector<Bar> results = cache2.getBars(fromDate, toDate);
+        
+        // Should be a Hit because bars are loaded from database into memory
+        QCOMPARE(cache2.getLastHitType(), BarCache::HitType::Hit);
+        QCOMPARE(results.size(), 10);
+        // No API fetch should happen
+        QCOMPARE(cache2.getLastNumberFetchedBars(), 0);
+        
+        cache2.clearDatabase();
+    }
+}
+
+void TestBarCache::testDatabaseOnlyHit()
+{
+    qInfo() << "Testing database-only hit scenario";
+    
+    BarCache cache("AAPL");
+    cache.clearDatabase();
+    
+    QTimeZone newYorkTimeZone("America/New_York");
+    QDate date(2025, 4, 11);
+    const QTime noon(12, 0, 0);
+    QDateTime fromDate = QDateTime(date, noon, newYorkTimeZone);
+    QDateTime toDate = fromDate.addSecs(60 * 4); // 5 bars
+    
+    // First request - populate both memory and database
+    QVector<Bar> results1 = cache.getBars(fromDate, toDate);
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::Miss);
+    QCOMPARE(results1.size(), 5);
+    
+    // Clear memory cache by directly accessing the private member
+    // Since we can't access private members, we'll create a new cache instance
+    BarCache cache2("AAPL");
+    
+    // Request same range - should load from database
+    QVector<Bar> results2 = cache2.getBars(fromDate, toDate);
+    QCOMPARE(cache2.getLastHitType(), BarCache::HitType::Hit);
+    QCOMPARE(results2.size(), 5);
+    QCOMPARE(cache2.getLastNumberFetchedBars(), 0);
+    
+    cache2.clearDatabase();
+}
+
+void TestBarCache::testMixedCacheStates()
+{
+    qInfo() << "Testing mixed cache states (memory + DB + API)";
+    
+    BarCache cache("AAPL");
+    cache.clearDatabase();
+    
+    QTimeZone newYorkTimeZone("America/New_York");
+    QDate date(2025, 4, 11);
+    const QTime noon(12, 0, 0);
+    QDateTime start1 = QDateTime(date, noon, newYorkTimeZone);
+    QDateTime end1 = start1.addSecs(60 * 4); // 5 bars
+    
+    // Fetch first range (will be in memory and DB)
+    QVector<Bar> results1 = cache.getBars(start1, end1);
+    QCOMPARE(results1.size(), 5);
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::Miss);
+    
+    // Create new cache to clear memory but keep DB
+    BarCache cache2("AAPL");
+    
+    // Fetch overlapping but extended range
+    // This should: load 5 from DB, fetch 5 from API
+    QDateTime start2 = start1;
+    QDateTime end2 = end1.addSecs(60 * 5); // 10 bars total
+    
+    QVector<Bar> results2 = cache2.getBars(start2, end2);
+    QCOMPARE(results2.size(), 10);
+    // Should be PartialHit because we had some bars in DB
+    QCOMPARE(cache2.getLastHitType(), BarCache::HitType::PartialHit);
+    QCOMPARE(cache2.getLastNumberFetchedBars(), 5);
+    
+    cache2.clearDatabase();
+}
+
+void TestBarCache::testCacheClearingAndRepopulation()
+{
+    qInfo() << "Testing cache clearing and repopulation";
+    
+    BarCache cache("AAPL");
+    cache.clearDatabase();
+    
+    QTimeZone newYorkTimeZone("America/New_York");
+    QDate date(2025, 4, 11);
+    const QTime noon(12, 0, 0);
+    QDateTime fromDate = QDateTime(date, noon, newYorkTimeZone);
+    QDateTime toDate = fromDate.addSecs(60 * 9); // 10 bars
+    
+    // Initial population
+    QVector<Bar> results1 = cache.getBars(fromDate, toDate);
+    QCOMPARE(results1.size(), 10);
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::Miss);
+    
+    // Clear database
+    cache.clearDatabase();
+    
+    // New cache instance (fresh memory, empty DB)
+    BarCache cache2("AAPL");
+    
+    // Should fetch from API again
+    QVector<Bar> results2 = cache2.getBars(fromDate, toDate);
+    QCOMPARE(results2.size(), 10);
+    QCOMPARE(cache2.getLastHitType(), BarCache::HitType::Miss);
+    QCOMPARE_GE(cache2.getLastNumberFetchedBars(), 1);
+    
+    cache2.clearDatabase();
+}
+
+// Edge case tests
+void TestBarCache::testSingleBarRequest()
+{
+    qInfo() << "Testing single bar request";
+    
+    BarCache cache("AAPL");
+    cache.clearDatabase();
+    
+    QTimeZone newYorkTimeZone("America/New_York");
+    QDate date(2025, 4, 11);
+    const QTime noon(12, 0, 0);
+    QDateTime barTime = QDateTime(date, noon, newYorkTimeZone);
+    
+    // Request a single bar (start == end)
+    QVector<Bar> results = cache.getBars(barTime, barTime);
+    
+    QCOMPARE(results.size(), 1);
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::Miss);
+    QCOMPARE_GE(cache.getLastNumberFetchedBars(), 1);
+    
+    // Request same bar again - should hit
+    QVector<Bar> results2 = cache.getBars(barTime, barTime);
+    QCOMPARE(results2.size(), 1);
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::Hit);
+    QCOMPARE(cache.getLastNumberFetchedBars(), 0);
+    
+    cache.clearDatabase();
+}
+
+void TestBarCache::testLargeRangeRequest()
+{
+    qInfo() << "Testing large range request (multiple hours)";
+    
+    BarCache cache("AAPL");
+    cache.clearDatabase();
+    
+    QTimeZone newYorkTimeZone("America/New_York");
+    QDate date(2025, 4, 11);
+    const QTime time10AM(10, 0, 0);
+    const QTime time2PM(14, 0, 0);
+    
+    QDateTime fromDate = QDateTime(date, time10AM, newYorkTimeZone);
+    QDateTime toDate = QDateTime(date, time2PM, newYorkTimeZone);
+    
+    // Request 4 hours of bars (240 bars)
+    QVector<Bar> results = cache.getBars(fromDate, toDate);
+    
+    qint64 expectedBars = fromDate.secsTo(toDate) / 60 + 1;
+    QCOMPARE(results.size(), expectedBars);
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::Miss);
+    
+    // Verify bars are in chronological order
+    for (int i = 1; i < results.size(); ++i) {
+        QVERIFY(results[i-1].getTimeStamp() < results[i].getTimeStamp());
+        // Each bar should be exactly 60 seconds apart
+        QCOMPARE(results[i-1].getTimeStamp().secsTo(results[i].getTimeStamp()), 60);
+    }
+    
+    cache.clearDatabase();
+}
+
+void TestBarCache::testOverlappingRequests()
+{
+    qInfo() << "Testing overlapping requests with different ranges";
+    
+    BarCache cache("AAPL");
+    cache.clearDatabase();
+    
+    QTimeZone newYorkTimeZone("America/New_York");
+    QDate date(2025, 4, 11);
+    const QTime noon(12, 0, 0);
+    QDateTime baseTime = QDateTime(date, noon, newYorkTimeZone);
+    
+    // Request 1: bars 0-9
+    QVector<Bar> results1 = cache.getBars(baseTime, baseTime.addSecs(60 * 9));
+    QCOMPARE(results1.size(), 10);
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::Miss);
+    
+    // Request 2: bars 5-14 (overlaps with 0-9)
+    QVector<Bar> results2 = cache.getBars(baseTime.addSecs(60 * 5), baseTime.addSecs(60 * 14));
+    QCOMPARE(results2.size(), 10);
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::PartialHit);
+    // Should only fetch bars 10-14 (5 bars)
+    QCOMPARE(cache.getLastNumberFetchedBars(), 5);
+    
+    // Request 3: bars 0-14 (fully contained in cache now)
+    QVector<Bar> results3 = cache.getBars(baseTime, baseTime.addSecs(60 * 14));
+    QCOMPARE(results3.size(), 15);
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::Hit);
+    QCOMPARE(cache.getLastNumberFetchedBars(), 0);
+    
+    cache.clearDatabase();
+}
+
+void TestBarCache::testBoundaryConditions()
+{
+    qInfo() << "Testing boundary conditions at trading hours";
+    
+    BarCache cache("AAPL");
+    cache.clearDatabase();
+    
+    QTimeZone newYorkTimeZone("America/New_York");
+    QDate date(2025, 4, 11);
+    
+    // Test at 6:00 AM (start of trading data)
+    const QTime time6AM(6, 0, 0);
+    QDateTime start6AM = QDateTime(date, time6AM, newYorkTimeZone);
+    
+    // Request first few bars of the day
+    QVector<Bar> results = cache.getBars(start6AM, start6AM.addSecs(60 * 4));
+    QCOMPARE(results.size(), 5);
+    
+    // Verify first bar timestamp
+    QCOMPARE(results.first().getTimeStamp(), start6AM);
+    
+    cache.clearDatabase();
+}
+
+// Data integrity tests
+void TestBarCache::testIdentifyMissingRanges()
+{
+    qInfo() << "Testing identifyMissingRanges functionality";
+    
+    BarCache cache("AAPL");
+    cache.clearDatabase();
+    
+    QTimeZone newYorkTimeZone("America/New_York");
+    QDate date(2025, 4, 11);
+    const QTime noon(12, 0, 0);
+    QDateTime start = QDateTime(date, noon, newYorkTimeZone);
+    
+    // Create a gap pattern: bars at 0, 1, 2, gap, 6, 7, 8, gap, 12
+    QVector<Bar> cachedBars;
+    for (int i : {0, 1, 2, 6, 7, 8, 12}) {
+        QDateTime barTime = start.addSecs(60 * i);
+        cachedBars.append(Bar::nullBar(barTime));
+    }
+    
+    // Request range from 0 to 15
+    QDateTime end = start.addSecs(60 * 15);
+    
+    QVector<QPair<QDateTime, QDateTime>> missing = cache.identifyMissingRanges(start, end, cachedBars);
+    
+    // Should identify 3 missing ranges:
+    // 1. bars 3-5 (3 bars)
+    // 2. bars 9-11 (3 bars)
+    // 3. bars 13-15 (3 bars)
+    QCOMPARE(missing.size(), 3);
+    
+    // Verify first gap (bars 3-5)
+    QCOMPARE(missing[0].first, start.addSecs(60 * 3));
+    QCOMPARE(missing[0].second, start.addSecs(60 * 5));
+    
+    // Verify second gap (bars 9-11)
+    QCOMPARE(missing[1].first, start.addSecs(60 * 9));
+    QCOMPARE(missing[1].second, start.addSecs(60 * 11));
+    
+    // Verify third gap (bars 13-15)
+    QCOMPARE(missing[2].first, start.addSecs(60 * 13));
+    QCOMPARE(missing[2].second, start.addSecs(60 * 15));
+}
+
+void TestBarCache::testNullBarsMixedWithRealBars()
+{
+    qInfo() << "Testing null bars mixed with real bars";
+    
+    BarCache cache("TIVC"); // Stock known to have null bars
+    cache.clearDatabase();
+    
+    QTimeZone newYorkTimeZone("America/New_York");
+    QDate date(2025, 04, 02);
+    const QTime time4PM(16, 0, 0);
+    const QTime time5PM(16, 59, 0);
+    
+    QDateTime fromDate = QDateTime(date, time4PM, newYorkTimeZone);
+    QDateTime toDate = QDateTime(date, time5PM, newYorkTimeZone);
+    
+    // Request range that includes both null and real bars
+    QVector<Bar> results = cache.getBars(fromDate, toDate);
+    
+    qint64 expectedBars = fromDate.secsTo(toDate) / 60 + 1;
+    QCOMPARE(results.size(), expectedBars);
+    
+    // Count null vs real bars
+    int nullCount = 0;
+    int realCount = 0;
+    for (const Bar& bar : results) {
+        if (bar.getBarStatus() == Bar::BarStatus::Null) {
+            nullCount++;
+        } else {
+            realCount++;
+        }
+    }
+    
+    qInfo() << "Found" << nullCount << "null bars and" << realCount << "real bars";
+    
+    // Verify consistency - requesting again should give same results
+    QVector<Bar> results2 = cache.getBars(fromDate, toDate);
+    QCOMPARE(results2.size(), results.size());
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::Hit);
+    
+    cache.clearDatabase();
+}
+
+void TestBarCache::testDuplicateStoreTracking()
+{
+    qInfo() << "Testing duplicate store count tracking";
+    
+    BarCache cache("AAPL");
+    cache.clearDatabase();
+    
+    QTimeZone newYorkTimeZone("America/New_York");
+    QDate date(2025, 4, 11);
+    const QTime noon(12, 0, 0);
+    QDateTime fromDate = QDateTime(date, noon, newYorkTimeZone);
+    QDateTime toDate = fromDate.addSecs(60 * 4);
+    
+    // Initial fetch
+    cache.getBars(fromDate, toDate);
+    qsizetype initialDuplicates = cache.getDuplicateStoreCount();
+    
+    // Fetch same range - should be cache hit, no duplicates
+    cache.getBars(fromDate, toDate);
+    QCOMPARE(cache.getDuplicateStoreCount(), initialDuplicates);
+    
+    // The duplicate count should remain 0 for well-behaved cache operations
+    QCOMPARE(cache.getDuplicateStoreCount(), qsizetype(0));
+    
+    cache.clearDatabase();
+}
+
+// Metrics validation tests
+void TestBarCache::testHitTypeAccuracy()
+{
+    qInfo() << "Testing HitType accuracy in various scenarios";
+    
+    BarCache cache("AAPL");
+    cache.clearDatabase();
+    
+    QTimeZone newYorkTimeZone("America/New_York");
+    QDate date(2025, 4, 11);
+    const QTime noon(12, 0, 0);
+    QDateTime start = QDateTime(date, noon, newYorkTimeZone);
+    
+    // Scenario 1: Complete miss
+    cache.getBars(start, start.addSecs(60 * 4));
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::Miss);
+    
+    // Scenario 2: Complete hit
+    cache.getBars(start, start.addSecs(60 * 4));
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::Hit);
+    
+    // Scenario 3: Partial hit (extend range)
+    cache.getBars(start, start.addSecs(60 * 9));
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::PartialHit);
+    
+    // Scenario 4: Hit after partial hit
+    cache.getBars(start, start.addSecs(60 * 9));
+    QCOMPARE(cache.getLastHitType(), BarCache::HitType::Hit);
+    
+    cache.clearDatabase();
+}
+
+void TestBarCache::testMetricsTracking()
+{
+    qInfo() << "Testing comprehensive metrics tracking";
+    
+    BarCache cache("AAPL");
+    cache.clearDatabase();
+    
+    QTimeZone newYorkTimeZone("America/New_York");
+    QDate date(2025, 4, 11);
+    const QTime noon(12, 0, 0);
+    QDateTime start = QDateTime(date, noon, newYorkTimeZone);
+    
+    // Test 1: Fetch 10 bars
+    cache.getBars(start, start.addSecs(60 * 9));
+    QCOMPARE_GE(cache.getLastNumberFetchedBars(), qsizetype(1));
+    QCOMPARE(cache.getNumberOfBars(), (unsigned)10);
+    
+    // Test 2: Hit should have 0 fetched
+    cache.getBars(start, start.addSecs(60 * 9));
+    QCOMPARE(cache.getLastNumberFetchedBars(), qsizetype(0));
+    
+    // Test 3: Extend by 5 bars
+    cache.getBars(start, start.addSecs(60 * 14));
+    QCOMPARE(cache.getLastNumberFetchedBars(), qsizetype(5));
+    QCOMPARE(cache.getNumberOfBars(), (unsigned)15);
+    
+    cache.clearDatabase();
+}
+
 void TestBarCache::testBarStreaming()
 {
     QSKIP("yo");
