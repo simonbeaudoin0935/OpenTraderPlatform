@@ -11,7 +11,9 @@ LoggingTab::LoggingTab(QWidget* parent)
     : QWidget(parent),
       categoryCheckBoxLayout(nullptr),
       loggerVisibilityCheckBox(nullptr),
-      logDepthSpinBox(nullptr)
+      logDepthSpinBox(nullptr),
+      globalDebugDisableCheckBox(nullptr),
+      globalInfoDisableCheckBox(nullptr)
 {
     setupUI();
     populateCategoryCheckboxes();
@@ -43,6 +45,18 @@ void LoggingTab::setupUI() {
     logDepthLayout->addWidget(logDepthSpinBox);
     logDepthLayout->addStretch();
     loggerControlsLayout->addLayout(logDepthLayout);
+
+    // Global debug disable checkbox
+    globalDebugDisableCheckBox = new QCheckBox("Disable Debug Messages Globally");
+    globalDebugDisableCheckBox->setChecked(LoggingConfig::instance().isDebugDisabled());
+    connect(globalDebugDisableCheckBox, &QCheckBox::toggled, this, &LoggingTab::onGlobalDebugDisableToggled);
+    loggerControlsLayout->addWidget(globalDebugDisableCheckBox);
+
+    // Global info disable checkbox
+    globalInfoDisableCheckBox = new QCheckBox("Disable Info Messages Globally");
+    globalInfoDisableCheckBox->setChecked(LoggingConfig::instance().isInfoDisabled());
+    connect(globalInfoDisableCheckBox, &QCheckBox::toggled, this, &LoggingTab::onGlobalInfoDisableToggled);
+    loggerControlsLayout->addWidget(globalInfoDisableCheckBox);
 
     mainLayout->addWidget(loggerControlsGroupBox);
 
@@ -109,4 +123,14 @@ void LoggingTab::onLoggerVisibilityToggled(bool checked) {
 
 void LoggingTab::onLogDepthValueChanged(int value) {
     emit logDepthChanged(value);
+}
+
+void LoggingTab::onGlobalDebugDisableToggled(bool checked) {
+    LoggingConfig::instance().setDebugDisabled(checked);
+    qInfo() << "Global debug messages" << (checked ? "disabled" : "enabled");
+}
+
+void LoggingTab::onGlobalInfoDisableToggled(bool checked) {
+    LoggingConfig::instance().setInfoDisabled(checked);
+    qInfo() << "Global info messages" << (checked ? "disabled" : "enabled");
 }

@@ -232,6 +232,37 @@ QStringList LoggingConfig::getCategories() const {
     return m_categories;
 }
 
+void LoggingConfig::writeConfigToDisk() {
+    // Write all current category states to settings
+    for (auto it = m_categoryEnabled.begin(); it != m_categoryEnabled.end(); ++it) {
+        m_settings.setValue(QString("Categories/%1").arg(it.key()), it.value());
+    }
+    
+    // Write global settings
+    m_settings.setValue("Global/DisableDebug", isDebugDisabled());
+    m_settings.setValue("Global/DisableInfo", isInfoDisabled());
+    
+    m_settings.sync();
+}
+
+bool LoggingConfig::isDebugDisabled() const {
+    return m_settings.value("Global/DisableDebug", false).toBool();
+}
+
+void LoggingConfig::setDebugDisabled(bool disabled) {
+    m_settings.setValue("Global/DisableDebug", disabled);
+    m_settings.sync();
+}
+
+bool LoggingConfig::isInfoDisabled() const {
+    return m_settings.value("Global/DisableInfo", false).toBool();
+}
+
+void LoggingConfig::setInfoDisabled(bool disabled) {
+    m_settings.setValue("Global/DisableInfo", disabled);
+    m_settings.sync();
+}
+
 // ANSI color codes
 #define RESET_COLOR "\033[0m"
 #define RED_COLOR "\033[31m"
@@ -289,6 +320,12 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
     if (logStream) {
         *logStream << formattedMsg << "\n";
         logStream->flush();
+    }
+
+    // Check global disable settings first
+    if ((type == QtDebugMsg && LoggingConfig::instance().isDebugDisabled()) ||
+        (type == QtInfoMsg && LoggingConfig::instance().isInfoDisabled())) {
+        return;
     }
 
     // Filter console output based on category enabled state

@@ -21,6 +21,8 @@ private slots:
     void onCategoryCheckBoxToggled(bool checked);
     void onLoggerVisibilityToggled(bool checked);
     void onLogDepthValueChanged(int value);
+    void onGlobalDebugDisableToggled(bool checked);
+    void onGlobalInfoDisableToggled(bool checked);
 
 private:
     void setupUI();
@@ -30,4 +32,6 @@ private:
     QMap<QString, QCheckBox*> categoryCheckBoxes;
     QCheckBox* loggerVisibilityCheckBox;
     QSpinBox* logDepthSpinBox;
+    QCheckBox* globalDebugDisableCheckBox;
+    QCheckBox* globalInfoDisableCheckBox;
 };

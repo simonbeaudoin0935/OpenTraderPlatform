@@ -1,7 +1,17 @@
 build/
-build-*/
-Makefile
 src/Misc/Logging_generated.h
+
+# WatchApp Android/Gradle artifacts
+WatchApp/.gradle/
+WatchApp/.idea/
+WatchApp/build/
+WatchApp/app/build/
+WatchApp/local.properties
+WatchApp/*.iml
+WatchApp/.DS_Store
+WatchApp/captures/
+WatchApp/.externalNativeBuild/
+WatchApp/.cxx/
 
 # Debian packaging artifacts
 debian/.debhelper/

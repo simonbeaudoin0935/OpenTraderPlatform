@@ -1,5 +1,7 @@
 # Copilot Instructions for L2Trader Repository
 
+DO NOT ADD _codeql_build_dir to .gitignore, do not commit that ever
+
 ## High Level Details
 
 **Repository Summary**: L2Trader is a real-time algorithmic trading application built with Qt6 that monitors stock market data, executes trading strategies, and provides comprehensive market analysis tools. It connects to TradeStation and Financial Modeling Prep (FMP) APIs for live market data, implements automated stock screening, breaking news monitoring, Level 2 market depth visualization, and position tracking.

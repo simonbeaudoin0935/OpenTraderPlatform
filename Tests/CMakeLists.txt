@@ -266,3 +266,18 @@ target_compile_definitions(test_RunUpDetector PRIVATE UNIT_TESTING)
 target_compile_options(test_RunUpDetector PRIVATE -Og)
 
 add_test(NAME RunUpDetectorTest COMMAND test_RunUpDetector)
+
+# Recorder Integration Test
+add_executable(test_recorder_integration
+    RecorderIntegrationTest/main.cpp
+)
+
+target_link_libraries(test_recorder_integration PRIVATE
+    Qt6::Core
+    Qt6::Test
+)
+
+target_compile_definitions(test_recorder_integration PRIVATE UNIT_TESTING)
+target_compile_options(test_recorder_integration PRIVATE -Og)
+
+add_test(NAME RecorderIntegrationTest COMMAND test_recorder_integration)

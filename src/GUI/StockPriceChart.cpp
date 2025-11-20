@@ -158,7 +158,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
 
     // Insert all received bars into the map
     for (const Bar& bar : bars) {
-        if (bar.getBarStatus() != Bar::BarStatus::Void) {
+        if (bar.getBarStatus() != Bar::BarStatus::Null) {
             completedBars.insert(bar.getTimeStamp(), bar);
             // Update the last valid close price
             lastValidClosePrice = bar.getClose();

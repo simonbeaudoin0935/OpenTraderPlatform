@@ -2,7 +2,6 @@
 
 #include <QObject>
 #include <QLoggingCategory>
-#include <QVector>
 
 #include "RESTClient.h"
 #include "AuthToken.h"
@@ -243,6 +242,53 @@ private:
 
     bool activateMockStream = false;
 
-    void openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Stream * const stream);
+    template<typename T, typename... Args>
+    T* openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Args&&... args) {
+        Q_ASSERT(!symbol.isEmpty());
+        if (symbol != "NOSYMBOL") Q_ASSERT_X(symbol.length() >= 1 && symbol.length() <= 8, symbol.toStdString().c_str(), "Symbol length must be between 1 and 8 characters");
+        Q_ASSERT(!symbol.contains(','));
+        Q_ASSERT(symbol.isUpper());
+        Q_ASSERT(!endpoint.isEmpty());
+
+        // Only external callers to TSClient thread should get here. Calling a fetch sync from within the TSClient's
+        // thread would cause a deadlock to itself
+        Q_ASSERT_X(QThread::currentThread() != thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
+
+        T* stream = nullptr;
+
+        // FIXME fix this NOSYMBOL shit
+        QMetaObject::invokeMethod(this,
+            [this, &symbol, &endpoint, &query, &stream, args...]() mutable
+            {
+                stream = new T(std::forward<Args>(args)..., nullptr);
+
+                QUrl url(QString(BASE_URL_TS_API_SIMULATION) + endpoint + ((symbol=="NOSYMBOL") ? "" : ("/" + symbol)));
+                url.setQuery(query);
+
+                QNetworkRequest request(url);
+                request.setRawHeader("Authorization", QString("Bearer %1").arg(authToken.getAccessToken()).toUtf8());
+
+                // The stream is now created in the TSClient thread
+                stream->setParent(this);
+                streams.push_back(stream);
+
+                QNetworkReply *reply = fetchStream(request, static_cast<void*>(stream));
+
+                // The readyRead, finished and errorOccured are connected internaly here.
+                // This call starts the timeout timer as well
+                stream->setNetworkReply(reply);
+
+                connect(stream, &Stream::receivedAmountOfData, this, &TSClient::onReceivedNewAmountOfData);
+                
+                // Emit signal that stream count has changed
+                emit streamCountChanged(streams.size());
+            },
+        Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
+                                       // finishes executing this lambda so that a valid pointer is returned
+
+        qCDebug(TSClientLog) << Q_FUNC_INFO << "Opened Stream " << static_cast<void*>(stream);
+
+        return stream;
+    }
     void closeStream(Stream* const stream);
 };

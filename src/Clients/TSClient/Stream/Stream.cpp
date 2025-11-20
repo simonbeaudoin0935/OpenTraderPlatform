@@ -9,22 +9,15 @@
 Q_LOGGING_CATEGORY(StreamLog, "Stream")
 
 
-Stream::Stream(QObject *parent) :
-    QObject(parent)
+Stream::Stream(QString symbol, QObject *parent) :
+    QObject(parent),
+    symbol(symbol)
 {
 }
 
 Stream::~Stream()
 {
-    // Clean up recording resources
-    if (isRecording) {
-        recordingFile.close();
-        delete recordingStream;
-    }
-
-    if (heartbeatTimer) {
-        delete heartbeatTimer;
-    }
+    qCDebug(StreamLog) << "Destroying Stream " << this->objectName() << " for symbol " << symbol;
 }
 
 void Stream::setNetworkReply(QNetworkReply *networkReply)
@@ -37,43 +30,7 @@ void Stream::setNetworkReply(QNetworkReply *networkReply)
     connect(reply, &QNetworkReply::errorOccurred, this, &Stream::onErrorOccurred);
     connect(reply, &QNetworkReply::finished, this, &Stream::onFinished);
 
-    heartbeatTimer = new QTimer(this);
-    Q_CHECK_PTR(heartbeatTimer);
-
-    connect(heartbeatTimer, &QTimer::timeout, this, &Stream::onHeartbeatTimerTimeout);
-}
-
-void Stream::startRecording(const QString &dir, const QString &name)
-{
-    // Close any existing recording
-    if (isRecording) {
-        Q_ASSERT(false); // I think its a bug if we call startRecording more than once
-
-        recordingFile.close();
-        delete recordingStream;
-        recordingStream = nullptr;
-        isRecording = false;
-    }
-
-    QString fileName = QString("%1/Stream_%2_%3").arg(dir, name, QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss"));
-
-    // Open the file in WriteOnly mode, which will create the file if it doesn't exist
-    // or truncate it if it does exist
-    recordingFile.setFileName(fileName);
-    if (!recordingFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qCWarning(StreamLog) << Q_FUNC_INFO << "Failed to open file for recording:" << recordingFile.fileName();
-        return;
-    }
-
-    // Create a new text stream for the file
-    recordingStream = new QTextStream(&recordingFile);
-    Q_CHECK_PTR(recordingStream);
-
-    // Set UTF-8 encoding
-    recordingStream->setEncoding(QStringConverter::Utf8);
-
-    isRecording = true;
-    qCDebug(StreamLog) << Q_FUNC_INFO << "Started recording to file:" << recordingFile.fileName();
+    connect(&heartbeatTimer, &QTimer::timeout, this, &Stream::onHeartbeatTimerTimeout);
 }
 
 void Stream::onReadyRead()
@@ -86,6 +43,9 @@ void Stream::onReadyRead()
     qsizetype bytesReceived = rawData.size();
 
     emit receivedAmountOfData(bytesReceived);
+
+    // Start by emitting the raw json for recording purposes if anyone binds to this signal
+    emit receivedNewRawData(symbol, rawData);
 
     accumulatedData.append(rawData);
 
@@ -105,9 +65,6 @@ void Stream::onReadyRead()
         QJsonDocument doc = QJsonDocument::fromJson(jsonData, &parseError);
 
         // Write raw data to recording file if recording is active
-        if (isRecording) {
-            writeToRecordingFile(doc);
-        }
 
         if (parseError.error != QJsonParseError::NoError) {
             qCCritical(StreamLog) << streamName << "Failed to parse JSON:" << parseError.errorString();
@@ -118,8 +75,8 @@ void Stream::onReadyRead()
         QJsonObject jsonObj = doc.object();
 
         if (jsonObj.contains("Heartbeat") && jsonObj.contains("Timestamp")) {
-            heartbeatTimer->start(timeoutMS);
-            qCInfo(StreamLog) << streamName << "received heartbeat";
+            heartbeatTimer.start(timeoutMS);
+            qCDebug(StreamLog) << streamName << "received heartbeat";
         }
         else if (jsonObj.contains("Error") && jsonObj.contains("Message")) {
             streamIsInError = true;
@@ -134,17 +91,20 @@ void Stream::onReadyRead()
                 error = StreamError::GoAway;
             } else if (errorStr == "InternalServerError") {
                 error = StreamError::InternalServerError;
+            } else if (errorStr == "InvalidSymbol"){
+                error = StreamError::InvalidSymbol;
             } else {
                 error = StreamError::Unknown;
+                qCCritical(StreamLog) << streamName << "received unknown error string: " << errorStr;
             }
 
-            qCInfo(StreamLog) << streamName << " received an error : " << jsonObj["Message"].toString();
+            qCCritical(StreamLog) << streamName << " received an error : " << jsonObj["Message"].toString();
 
             emit streamErrorOccurred(error, jsonObj["Message"].toString());
         }
-        else {
+        else { // Happy path, process the object
             if (processJsonObject(jsonObj)) {
-                heartbeatTimer->start(timeoutMS);
+                heartbeatTimer.start(timeoutMS);
             } else {
                 qCCritical(StreamLog) << "The stream " << streamName << " failed to process Json object";
             }
@@ -157,7 +117,7 @@ void Stream::onFinished()
 {
     QString streamName = this->objectName();
 
-    qCWarning(StreamLog) << streamName << "received the signal finished()";
+    qCWarning(StreamLog) << streamName << "received the signal finished(). There has been a previous json description of the error received, and this is the remote closing this connection.";
 
     QByteArray rawData = reply->readAll();
 
@@ -168,7 +128,7 @@ void Stream::onFinished()
 
     if (parseError.error != QJsonParseError::NoError) {
         qCCritical(StreamLog) << streamName << "Failed to parse JSON:" << parseError.errorString();
-        qCCritical(StreamLog) << "Bad content : " << rawData;
+        qCCritical(StreamLog) << "Bad content : " << rawData << ". Empty quotes are expected when the server closes the connection after an error.";
         return;
     }
 
@@ -209,14 +169,4 @@ void Stream::onHeartbeatTimerTimeout()
                           << Q_FUNC_INFO;
 
     emit streamErrorOccurred(StreamError::Timeout, QString("Stream did not receive data nor heartbeat"));
-}
-
-void Stream::writeToRecordingFile(const QJsonDocument &doc) {
-
-    Q_ASSERT(recordingStream != nullptr);
-
-    QDateTime now = QDateTime::currentDateTime();
-
-    *recordingStream << now.toMSecsSinceEpoch() << ":" << doc.toJson(QJsonDocument::Compact) << "\n";
-    recordingStream->flush();
 }

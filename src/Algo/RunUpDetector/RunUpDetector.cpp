@@ -53,7 +53,7 @@ void RunUpDetector::computeStatsOnLastAfterMarket()
     struct stats st;
 
     for (const Bar& bar: bars) {
-        if (bar.getBarStatus() == Bar::BarStatus::Void) continue; // A bar where there has been zero activity
+        if (bar.getBarStatus() == Bar::BarStatus::Null) continue; // A bar where there has been zero activity
 
         st.nonVoidBars++;
         st.averagePriceChangePerBar += (qAbs<double>(bar.getClose() - bar.getOpen()) / bars.size());
@@ -110,7 +110,7 @@ void RunUpDetector::detectRunUp()
     // Find valid bars in the window (last windowBars non-void bars)
     QList<int> validIndices;
     for (int i = barList.size() - 1; i >= 0 && validIndices.size() < windowBars; --i) {
-        if (barList[i].getBarStatus() != Bar::BarStatus::Void) {
+        if (barList[i].getBarStatus() != Bar::BarStatus::Null) {
             validIndices.prepend(i); // Store indices in ascending order
         }
     }
@@ -173,7 +173,7 @@ double RunUpDetector::calculateRSI(int period) {
     // Collect valid bars for RSI
     QList<Bar> validBars;
     for (int i = barList.size() - 1; validBars.size() < period + 1 && i >= 0; --i) {
-        if (barList[i].getBarStatus() != Bar::BarStatus::Void) {
+        if (barList[i].getBarStatus() != Bar::BarStatus::Null) {
             validBars.prepend(barList[i]);
         }
     }

@@ -28,10 +28,14 @@ public:
         DualLogon,
         GoAway,
         InternalServerError,
+        InvalidSymbol,
         Unknown
     };
 
 signals:
+    // This exist so that RecorderLogic can record the received json to replay later
+    void receivedNewRawData(QString symbol, const QByteArray jsonObj);
+
     void streamErrorOccurred(StreamError error, QString errorMessage);
     void receivedAmountOfData(qsizetype bytes);
 
@@ -45,20 +49,17 @@ private slots:
 
 protected:
 
-    virtual void startRecording(const QString &dir, const QString &name);
-
-    explicit Stream(QObject *parent = nullptr);
+    explicit Stream(QString symbol = "", QObject *parent = nullptr);
 
     Stream(const Stream&) = delete;
     Stream& operator=(const Stream&) = delete;
 
     virtual bool processJsonObject(const QJsonObject& doc) = 0;
 
-    // Helper function to write to recording file
-    void writeToRecordingFile(const QJsonDocument& doc);
+    QString symbol;
 
 private:
-    QTimer *heartbeatTimer = nullptr;
+    QTimer heartbeatTimer;
     bool streamIsInError = false;
     bool streamIsFinished = false;
 
@@ -66,9 +67,5 @@ private:
     unsigned int timeoutMS = 10000;
 
     QByteArray accumulatedData;
-
-    QFile recordingFile;
-    QTextStream* recordingStream = nullptr;
-    bool isRecording = false;
 };
 

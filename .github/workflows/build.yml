@@ -73,6 +73,28 @@ jobs:
     - name: Run RunUpDetector unit test
       run: ./build/Tests/test_RunUpDetector
 
+  run-recorder-integration-test:
+    runs-on: [self-hosted, Linux, X64]
+    needs: [build-main]
+
+    steps:
+    - name: Run Recorder integration test
+      run: |
+        rm $HOME/.local/state/Recorder/logs/Recorder_*.log.ansi
+        ./build/Tests/test_recorder_integration
+
+    - name: Display Recorder log
+      if: always()
+      run: |
+        LOG_FILE=$(ls -t $HOME/.local/state/Recorder/logs/Recorder_*.log.ansi | head -1)
+        echo "Log file: $LOG_FILE"
+        if [ -f "$LOG_FILE" ]; then
+          echo "=== Recorder Log ==="
+          cat "$LOG_FILE"
+        else
+          echo "No log file found"
+        fi
+
   build-debian-package:
     runs-on: ubuntu-24.04
     permissions:
@@ -107,15 +129,19 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.cache/ccache
-        key: ccache-debian-noble-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' || github.sha }}
+        key: ccache-debian-noble-X86-${{ github.ref }}-${{ github.sha }}
         restore-keys: |
-          ccache-debian-noble-main
-          ccache-debian-noble-
+          ccache-debian-noble-X86-${{ github.ref }}
+          ccache-debian-noble-X86-refs/heads/main
 
     - name: Build Debian package
       run: |
         cmake --version
         git config --global --add safe.directory /__w/L2Trader/L2Trader
+        export GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown")
+        export GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        export GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        echo "Building with version: $GIT_TAG ~ $GIT_BRANCH@$GIT_HASH"
         dpkg-buildpackage -us -uc -b
 
     - name: Show ccache statistics
@@ -169,15 +195,19 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.cache/ccache
-        key: ccache-debian-bookworm-arm64-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' || github.sha }}
+        key: ccache-debian-bookworm-ARM64-${{ github.ref }}-${{ github.sha }}
         restore-keys: |
-          ccache-debian-bookworm-arm64-main
-          ccache-debian-bookworm-arm64-
+          ccache-debian-bookworm-ARM64-${{ github.ref }}
+          ccache-debian-bookworm-ARM64-refs/heads/main
 
     - name: Build Debian package for RPI
       run: |
         cmake --version
         git config --global --add safe.directory /__w/L2Trader/L2Trader
+        export GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown")
+        export GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        export GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        echo "Building with version: $GIT_TAG ~ $GIT_BRANCH@$GIT_HASH"
         dpkg-buildpackage -us -uc -b -aarm64 -Pcross
 
     - name: Show ccache statistics
@@ -332,6 +362,62 @@ jobs:
     - name: Run RunUpDetector unit test
       run: /usr/lib/l2trader/tests/test_runupdetector
 
+  run-recorder-integration-test-debian:
+    runs-on: ubuntu-24.04
+    needs: build-debian-package
+    permissions:
+      contents: read
+      actions: read
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download Debian package artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: debian-packages-X64
+        path: ./packages
+
+    - name: Install packages
+      run: |
+        apt-get update
+        apt-get install -y ./packages/l2trader_*.deb ./packages/l2trader-tests_*.deb
+
+    - name: Setup test credentials
+      env:
+        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+        CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        ID_TOKEN: ${{ secrets.ID_TOKEN }}
+        REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+        EXPIRES_IN: ${{ vars.EXPIRES_IN }}
+        RECEIVED_AT: ${{ vars.RECEIVED_AT }}
+        SCOPE: ${{ vars.SCOPE }}
+        TOKEN_TYPE: ${{ vars.TOKEN_TYPE }}
+      run: |
+        chmod +x .github/scripts/setup-test-credentials.sh
+        .github/scripts/setup-test-credentials.sh
+
+    - name: Run Recorder integration test
+      run: /usr/lib/l2trader/tests/test_recorder_integration
+
+    - name: Display Recorder log
+      if: always()
+      run: |
+        LOG_FILE=$(ls -t /root/.local/state/Recorder/logs/Recorder_*.log.ansi | head -1)
+        if [ -f "$LOG_FILE" ]; then
+          echo "=== Recorder Log ==="
+          cat "$LOG_FILE"
+        else
+          echo "No log file found"
+        fi
+
   run-barcache-test-rpi:
     runs-on: [self-hosted, Linux, ARM64]
     needs: build-debian-package-rpi
@@ -443,3 +529,57 @@ jobs:
 
     - name: Run RunUpDetector unit test
       run: /usr/lib/l2trader/tests/test_runupdetector
+
+  run-recorder-integration-test-rpi:
+    runs-on: [self-hosted, Linux, ARM64]
+    needs: build-debian-package-rpi
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.rpi-tests == 'true') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      github.event_name == 'push'
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download Debian package artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: debian-packages-RPI
+        path: ./packages
+
+    - name: Install packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ./packages/l2trader_*.deb ./packages/l2trader-tests_*.deb
+
+    - name: Setup test credentials
+      env:
+        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+        CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        ID_TOKEN: ${{ secrets.ID_TOKEN }}
+        REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+        EXPIRES_IN: ${{ vars.EXPIRES_IN }}
+        RECEIVED_AT: ${{ vars.RECEIVED_AT }}
+        SCOPE: ${{ vars.SCOPE }}
+        TOKEN_TYPE: ${{ vars.TOKEN_TYPE }}
+      run: |
+        chmod +x .github/scripts/setup-test-credentials.sh
+        .github/scripts/setup-test-credentials.sh
+
+    - name: Run Recorder integration test
+      run: /usr/lib/l2trader/tests/test_recorder_integration
+
+    - name: Display Recorder log
+      if: always()
+      run: |
+        LOG_FILE=$(ls -t $HOME/.local/state/Recorder/logs/Recorder_*.log.ansi | head -1)
+        if [ -f "$LOG_FILE" ]; then
+          echo "=== Recorder Log ==="
+          cat "$LOG_FILE"
+        else
+          echo "No log file found"
+        fi

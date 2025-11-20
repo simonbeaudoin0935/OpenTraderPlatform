@@ -452,51 +452,6 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, 
     }
 }
 
-void TSClient::openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Stream * const stream) {
-    Q_ASSERT(!symbol.isEmpty());
-    if (symbol != "NOSYMBOL") Q_ASSERT(symbol.length() >= 1 && symbol.length() <= 8);
-    Q_ASSERT(!symbol.contains(','));
-    Q_ASSERT(symbol.isUpper());
-    Q_ASSERT(stream != nullptr);
-    Q_ASSERT(!endpoint.isEmpty());
-
-    // Only external callers to TSClient thread should get here. Calling a fetch sync from within the TSClient's
-    // thread would cause a deadlock to itself
-    Q_ASSERT_X(QThread::currentThread() != thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
-
-    // FIXME fix this NOSYMBOL shit
-    QMetaObject::invokeMethod(this,
-        [this, &symbol, &endpoint, &query, stream]()
-        {
-            QUrl url(QString(BASE_URL_TS_API_SIMULATION) + endpoint + ((symbol=="NOSYMBOL") ? "" : ("/" + symbol)));
-            url.setQuery(query);
-
-            QNetworkRequest request(url);
-            request.setRawHeader("Authorization", QString("Bearer %1").arg(authToken.getAccessToken()).toUtf8());
-
-            // The stream was new'ed in the caller's thread
-            stream->setParent(this); //TODO is this the right thing?
-            streams.push_back(stream);
-
-            QNetworkReply *reply = fetchStream(request, static_cast<void*>(stream));
-
-            // The readyRead, finished and errorOccured are connected internaly here.
-            // This call starts the timeout timer as well
-            stream->setNetworkReply(reply);
-
-            connect(stream, &Stream::receivedAmountOfData, this, &TSClient::onReceivedNewAmountOfData);
-            
-            // Emit signal that stream count has changed
-            emit streamCountChanged(streams.size());
-        },
-    Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
-                                   // finishes executing this lambda so that a valid pointer is returned
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opened Stream " << static_cast<void*>(stream);
-
-    return;
-}
-
 void TSClient::closeStream(Stream* const stream) {
     Q_ASSERT(stream != nullptr);
     Q_ASSERT_X(QThread::currentThread() != thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
