@@ -150,6 +150,20 @@ The GUI provides:
 
 For headless operation, build the application without GUI support (see "Building with GUI Disabled" above). The terminal frontend will be used automatically when GUI is not compiled in.
 
+### Recorder Mode
+
+The Recorder application captures live market data (bars and market depth) to SQLite databases for later analysis.
+
+```bash
+./Recorder --stock-csv=stocks.csv
+```
+
+By default, data is written to `~/.cache/Recorder/RecordedLiveData/`. To specify a custom directory (e.g., external USB drive):
+
+```bash
+./Recorder --stock-csv=stocks.csv --recorded-data-dir=/mnt/ssd
+```
+
 ### Development Workflow
 
 The application automatically:
