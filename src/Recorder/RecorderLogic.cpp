@@ -29,16 +29,26 @@ QStringList loadStockTickers(const QString& csvFilePath) {
 }
 
 QString createRecordingFolders(const QString& cacheLocation) {
-    QDir cacheDir(cacheLocation);
+    // Determine the base path for recorded data
+    QString basePath;
+    if (!recordedDataDir.isEmpty()) {
+        // Use the user-specified recorded data directory
+        basePath = recordedDataDir;
+        qDebug() << "Using custom recorded data directory:" << basePath;
+    } else {
+        // Use the default cache location
+        basePath = cacheLocation;
+        qDebug() << "Using default cache location:" << basePath;
+    }
 
-    qDebug() << "Cache location:" << cacheLocation;
-    if (!cacheDir.exists()) {
-        if (!cacheDir.mkpath(".")) {
-            qFatal("Cannot create cache directory: %s", qUtf8Printable(cacheLocation));
+    QDir baseDir(basePath);
+    if (!baseDir.exists()) {
+        if (!baseDir.mkpath(".")) {
+            qFatal("Cannot create base directory: %s", qUtf8Printable(basePath));
         }
     }
 
-    QString recordedDataPath = cacheLocation + "/RecordedLiveData";
+    QString recordedDataPath = basePath + "/RecordedLiveData";
     QDir recordedDir(recordedDataPath);
     if (!recordedDir.exists()) {
         if (!recordedDir.mkpath(".")) {

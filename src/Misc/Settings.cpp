@@ -7,6 +7,7 @@ QSettings *criteriaSettings;
 
 QString cacheRootDir;
 QString stockCsvFile;
+QString recordedDataDir;
 
 QString getCacheLocation() {
     if (!cacheRootDir.isEmpty()) {
