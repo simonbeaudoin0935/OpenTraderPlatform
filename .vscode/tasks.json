@@ -195,7 +195,7 @@
        {
             "label": "run-barcache-test",
             "type": "shell",
-            "command": "${workspaceFolder}/build/Tests/test_barcache",
+            "command": "${workspaceFolder}/build/All/Tests/test_barcache",
             "args": [
                 "--cache-root-dir=/tmp/l2trader_test_cache",
                 "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
