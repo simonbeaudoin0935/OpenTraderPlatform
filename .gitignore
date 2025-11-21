@@ -22,3 +22,4 @@ debian/*.debhelper*
 debian/*.substvars
 debian/debhelper-build-stamp
 obj-*/
+_codeql_detected_source_root
