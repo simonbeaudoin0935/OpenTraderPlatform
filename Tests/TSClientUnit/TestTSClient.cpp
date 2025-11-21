@@ -7,6 +7,7 @@
 #include "TestTSClient.h"
 #include "TSClient.h"
 #include "MarketHours.h"
+#include "Logging.h"
 
 static TSClient* client;
 
@@ -58,6 +59,11 @@ void TestTSClient::initTestCase() {
 // Will be called before each test function is executed.
 void TestTSClient::init()
 {
+    // QTest installs its own message handler which overrides our colored logging.
+    // Reinstall our custom colored message handler before each test to ensure
+    // proper colored output during test execution.
+    reinstallColoredMessageHandler();
+    
     // Make sure the debug prints are enabled
     QLoggingCategory::setFilterRules("TSClient.debug=true");
 

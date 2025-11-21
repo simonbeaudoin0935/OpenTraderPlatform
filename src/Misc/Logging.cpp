@@ -427,6 +427,12 @@ void initLogging()
     // LoggingConfig handles loading and saving category states
 }
 
+void reinstallColoredMessageHandler()
+{
+    // Reinstall our custom colored message handler (useful after QTest overrides it)
+    qInstallMessageHandler(coloredMessageOutput);
+}
+
 // Include the moc file for LogBroadcaster (QObject defined in this .cpp file)
 #include "Logging.moc"
 

@@ -7,6 +7,7 @@
 #include <QObject>
 
 void initLogging();
+void reinstallColoredMessageHandler();
 
 // Singleton to broadcast log messages to GUI
 class LogBroadcaster : public QObject {

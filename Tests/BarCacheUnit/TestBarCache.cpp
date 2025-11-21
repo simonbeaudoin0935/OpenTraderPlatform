@@ -133,7 +133,10 @@ void TestBarCache::initTestCase() {
 // Will be called before each test function is executed.
 void TestBarCache::init()
 {
-
+    // QTest installs its own message handler which overrides our colored logging.
+    // Reinstall our custom colored message handler before each test to ensure
+    // proper colored output during test execution.
+    reinstallColoredMessageHandler();
 }
 
 // Will be called after every test function.
@@ -452,6 +455,9 @@ void TestBarCache::testMixedCacheStates()
     // This should: load 5 from DB, fetch 5 from API
     QDateTime start2 = start1;
     QDateTime end2 = end1.addSecs(60 * 5); // 10 bars total
+    
+    start2.setTimeZone(newYorkTimeZone);
+    end2.setTimeZone(newYorkTimeZone);
     
     QVector<Bar> results2 = cache2.getBars(start2, end2);
     QCOMPARE(results2.size(), 10);
