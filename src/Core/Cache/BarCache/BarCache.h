@@ -48,6 +48,7 @@ signals:
 
 private slots:
     void onReceivedNewBar(QString symbol, Bar newBar);
+    void onStreamError(Stream::StreamError error, QString errorMessage);
 
 private:
     QString symbol;
