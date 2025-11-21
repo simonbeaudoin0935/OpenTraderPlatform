@@ -122,9 +122,35 @@ void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, Mar
 
 void MarketDepthQuoteReceiver::onStreamError(Stream::StreamError error, QString errorMessage)
 {
-    Q_UNUSED(error);
+    qCWarning(MarketDepthQuoteReceiverLog) << "Market Depth Quote Receiver stream error for" << symbol
+                                            << "- Error:" << static_cast<int>(error)
+                                            << "Message:" << errorMessage;
 
-    qCWarning(MarketDepthQuoteReceiverLog) << "Market Depth Quote Receiver stream error : " << errorMessage;
+    // Log specific error types for better diagnostics
+    switch (error) {
+        case Stream::StreamError::Timeout:
+            qCWarning(MarketDepthQuoteReceiverLog) << "Stream timeout for" << symbol << "- no data or heartbeat received";
+            break;
+        case Stream::StreamError::InvalidSymbol:
+            qCCritical(MarketDepthQuoteReceiverLog) << "Invalid symbol error for" << symbol;
+            break;
+        case Stream::StreamError::DualLogon:
+            qCCritical(MarketDepthQuoteReceiverLog) << "Dual logon detected for" << symbol;
+            break;
+        case Stream::StreamError::GoAway:
+            qCWarning(MarketDepthQuoteReceiverLog) << "Server requested stream closure for" << symbol;
+            break;
+        case Stream::StreamError::InternalServerError:
+            qCCritical(MarketDepthQuoteReceiverLog) << "Internal server error for" << symbol;
+            break;
+        case Stream::StreamError::BadRequest:
+            qCCritical(MarketDepthQuoteReceiverLog) << "Bad request error for" << symbol;
+            break;
+        case Stream::StreamError::Unknown:
+            qCCritical(MarketDepthQuoteReceiverLog) << "Unknown stream error for" << symbol;
+            break;
+    }
 
-    // TODO do something more advanced here like restarting the stream
+    // TODO: Consider implementing automatic stream recovery similar to LiveStreamDB
+    // For now, the stream remains in error state and will need manual intervention
 }

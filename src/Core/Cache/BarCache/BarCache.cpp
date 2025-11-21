@@ -77,6 +77,7 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
         Q_ASSERT(streamBar != nullptr);
 
         connect(streamBar, &StreamBars::receivedNewBar, this, &BarCache::onReceivedNewBar);
+        connect(streamBar, &Stream::streamErrorOccurred, this, &BarCache::onStreamError);
     }
 
 }
@@ -362,6 +363,43 @@ void BarCache::onReceivedNewBar(QString symbol, Bar newBar)
     storeBarInCache(newBar);
 
     emit receivedNewBar(symbol, newBar);
+}
+
+void BarCache::onStreamError(Stream::StreamError error, QString errorMessage)
+{
+    QString cacheName = this->objectName();
+
+    qCWarning(BarCacheLog) << cacheName << "Stream error occurred - Error:" << static_cast<int>(error)
+                           << "Message:" << errorMessage;
+
+    // Log specific error types for better diagnostics
+    switch (error) {
+        case Stream::StreamError::Timeout:
+            qCWarning(BarCacheLog) << cacheName << "Stream timeout - no data or heartbeat received";
+            break;
+        case Stream::StreamError::InvalidSymbol:
+            qCCritical(BarCacheLog) << cacheName << "Invalid symbol error - this should not happen";
+            break;
+        case Stream::StreamError::DualLogon:
+            qCCritical(BarCacheLog) << cacheName << "Dual logon detected - another session may be active";
+            break;
+        case Stream::StreamError::GoAway:
+            qCWarning(BarCacheLog) << cacheName << "Server requested stream closure";
+            break;
+        case Stream::StreamError::InternalServerError:
+            qCCritical(BarCacheLog) << cacheName << "Internal server error";
+            break;
+        case Stream::StreamError::BadRequest:
+            qCCritical(BarCacheLog) << cacheName << "Bad request error";
+            break;
+        case Stream::StreamError::Unknown:
+            qCCritical(BarCacheLog) << cacheName << "Unknown stream error";
+            break;
+    }
+
+    // Note: Stream errors in BarCache are logged but not automatically recovered
+    // The stream is in error state and will need to be recreated by closing and
+    // reopening the BarCache if recovery is needed
 }
 
 QVector<Bar> BarCache::getBarsFromDatabase(QDateTime start, QDateTime end) const {
