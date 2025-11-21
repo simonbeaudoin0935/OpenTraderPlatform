@@ -151,6 +151,7 @@ void MarketDepthQuoteReceiver::onStreamError(Stream::StreamError error, QString 
             break;
     }
 
-    // TODO: Consider implementing automatic stream recovery similar to LiveStreamDB
-    // For now, the stream remains in error state and will need manual intervention
+    // Note: No automatic recovery is currently implemented
+    // Stream remains in error state and requires manual intervention via stopStream/reconnection
+    // Automatic recovery similar to LiveStreamDB could be implemented if needed
 }

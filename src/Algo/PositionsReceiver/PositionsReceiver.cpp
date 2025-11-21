@@ -80,11 +80,10 @@ void PositionsReceiver::onStreamError(Stream::StreamError error, QString errorMe
             break;
     }
 
-    // For critical errors, close the stream
-    // Note: The stream is already in error state, but we should clean up our reference
+    // For critical errors, the stream is in error state
+    // Note: No automatic recovery is implemented - the stream remains in error state
+    // Consider implementing automatic recovery similar to LiveStreamDB if needed
     if (senderStream && !account.isEmpty()) {
-        qCWarning(PositionsReceiverLog) << "Stream for account" << account << "is in error state";
-        // The stream will be cleaned up when stopStream is called or the object is destroyed
-        // Automatic recovery could be implemented here if needed
+        qCWarning(PositionsReceiverLog) << "Stream for account" << account << "is in error state and requires manual recovery";
     }
 }
