@@ -13,7 +13,7 @@ MainApp::MainApp() :
 #ifdef GUI_ENABLED
     appFrontend = new GUIFrontend(mainAlgo);
 #else
-    appFrontend = new TUIFrontend();
+    appFrontend = new TUIFrontend(mainAlgo);
 #endif
     // Connect memory usage updates to frontend
     QObject::connect(&memoryMonitor, &MemoryMonitor::memoryUsageUpdated, appFrontend, &AppFrontend::onMemoryUsageUpdate);

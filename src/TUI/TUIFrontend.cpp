@@ -1,7 +1,10 @@
 #include "TUIFrontend.h"
 #include <QDebug>
 
-TUIFrontend::TUIFrontend(QObject* parent) : AppFrontend(parent) {
+TUIFrontend::TUIFrontend(MainAlgo* mainAlgo, QObject* parent) 
+    : AppFrontend(parent),
+      mainAlgo(mainAlgo)
+{
 
 }
 

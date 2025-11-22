@@ -2,10 +2,13 @@
 
 #include "AppFrontend.h"
 
+// Forward declaration
+class MainAlgo;
+
 class TUIFrontend : public AppFrontend {
     Q_OBJECT
 public:
-    explicit TUIFrontend(QObject* parent = nullptr);
+    explicit TUIFrontend(MainAlgo* mainAlgo, QObject* parent = nullptr);
 
 public slots:
 
@@ -21,4 +24,6 @@ public slots:
     void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP) override;
     void onRequestedMissingBarsDisplayedStockReceived(QVector<Bar>) override;
 
+private:
+    MainAlgo* mainAlgo;
 };
