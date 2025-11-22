@@ -12,12 +12,12 @@ classDiagram
         +onRequestedMissingBarsDisplayedStockReceived(QVector<Bar>)*
     }
 
-    class GuiFrontend {
+    class GUIFrontend {
         -MainAlgo* mainAlgo
-        -Ui::GuiFrontend* ui
+        -Ui::GUIFrontend* ui
         -QPushButton* tradeStationLoginButton
-        +explicit GuiFrontend(MainAlgo*, QObject*)
-        +~GuiFrontend()
+        +explicit GUIFrontend(MainAlgo*, QObject*)
+        +~GUIFrontend()
         +onFMPClientDataUsageUpdate(qsizetype) override
         +onTSClientDataUsageUpdate(qsizetype) override
         +onTradeStationAccountsReceived(QVector<Account>) override
@@ -136,13 +136,13 @@ classDiagram
     }
 
     %% Relationships
-    AppFrontend <|-- GuiFrontend : implements
-    GuiFrontend --> StockPriceChart : contains
-    GuiFrontend --> MarketDepthTable : contains
-    GuiFrontend --> PositionWindow : contains
-    GuiFrontend --> Gauge : contains (4 instances)
-    GuiFrontend --> CacheTab : manages
-    GuiFrontend --> LoggingTab : manages
+    AppFrontend <|-- GUIFrontend : implements
+    GUIFrontend --> StockPriceChart : contains
+    GUIFrontend --> MarketDepthTable : contains
+    GUIFrontend --> PositionWindow : contains
+    GUIFrontend --> Gauge : contains (4 instances)
+    GUIFrontend --> CacheTab : manages
+    GUIFrontend --> LoggingTab : manages
 
     MarketDepthTable --> MarketDepthTableView : uses
     MarketDepthTableView --> QTableView : extends
@@ -205,8 +205,8 @@ classDiagram
 
 ```mermaid
 graph TB
-    subgraph "Main Window (GuiFrontend)"
-        A[GuiFrontend<br/>QMainWindow]
+    subgraph "Main Window (GUIFrontend)"
+        A[GUIFrontend<br/>QMainWindow]
         B[Stock Symbol Input<br/>QLineEdit]
         C[Main Splitter<br/>QSplitter]
     end
@@ -270,22 +270,22 @@ graph TB
 
 ```mermaid
 stateDiagram-v2
-    [*] --> GuiFrontend: Application Start
-    GuiFrontend --> StockPriceChart: User selects symbol
-    GuiFrontend --> MarketDepthTable: Receives market depth data
-    GuiFrontend --> PositionWindow: Receives position updates
-    GuiFrontend --> Gauge: Receives metric updates (BAI, DWP, OBLR, QRR)
+    [*] --> GUIFrontend: Application Start
+    GUIFrontend --> StockPriceChart: User selects symbol
+    GUIFrontend --> MarketDepthTable: Receives market depth data
+    GUIFrontend --> PositionWindow: Receives position updates
+    GUIFrontend --> Gauge: Receives metric updates (BAI, DWP, OBLR, QRR)
 
     StockPriceChart --> StockPriceChart: addBar() / onRequestedMissingBarsReceived()
     MarketDepthTable --> MarketDepthTable: updateData() / updateDWP()
     PositionWindow --> PositionWindow: updatePosition()
     Gauge --> Gauge: setValue()
 
-    StockPriceChart --> GuiFrontend: requestMissingBars()
-    GuiFrontend --> StockPriceChart: Bars received
+    StockPriceChart --> GUIFrontend: requestMissingBars()
+    GUIFrontend --> StockPriceChart: Bars received
 
-    note right of GuiFrontend : Main coordinator receives data\nfrom MainAlgo and updates UI components
+    note right of GUIFrontend : Main coordinator receives data\nfrom MainAlgo and updates UI components
 
-    GuiFrontend --> [*]: Application exit
+    GUIFrontend --> [*]: Application exit
 ```</content>
 <parameter name="filePath">/home/simon/Documents/TradingAlgorithm/src/GUI/GUI_Architecture.md

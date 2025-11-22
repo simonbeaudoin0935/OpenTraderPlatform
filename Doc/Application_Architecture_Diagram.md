@@ -26,7 +26,7 @@ graph TD
     end
 
     subgraph "GUI Frontend"
-        AF --> GFW[GuiFrontend]
+        AF --> GFW[GUIFrontend]
         GFW --> SPC[StockPriceChart]
         GFW --> MDT[MarketDepthTable]
         GFW --> CT[CacheTab]
@@ -97,8 +97,8 @@ graph TD
 
 ### GUI Updates
 - **MemoryMonitor** → **AppFrontend**: System resource monitoring
-- **MainAlgo** → **GuiFrontend**: Position updates and market data
-- **GuiFrontend** → **UI Components**: Data distribution to charts and tables
+- **MainAlgo** → **GUIFrontend**: Position updates and market data
+- **GUIFrontend** → **UI Components**: Data distribution to charts and tables
 
 ## Architecture Overview
 
@@ -106,7 +106,7 @@ The application follows a **Model-View-Controller** pattern with Qt's signal/slo
 
 1. **Data Sources** (TSClient, FMPClient): Handle external API communications
 2. **Business Logic** (MainAlgo): Processes data and executes trading algorithms
-3. **Presentation** (AppFrontend/GuiFrontend): Manages user interface and data visualization
+3. **Presentation** (AppFrontend/GUIFrontend): Manages user interface and data visualization
 4. **Monitoring** (MemoryMonitor): System resource tracking
 
 All components communicate asynchronously through Qt's signal/slot system, ensuring thread-safe data flow and loose coupling between modules.

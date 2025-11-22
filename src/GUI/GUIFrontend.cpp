@@ -11,17 +11,17 @@
 #include <QScrollBar>
 
 #include "TSClient.h"
-#include "GuiFrontend.h"
+#include "GUIFrontend.h"
 #include "ui_GUIFrontend.h"
 #include "LoggingTab.h"
 #include "CacheTab.h"
 #include "Misc/Logging.h"
 
-GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
+GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     AppFrontend(parent),
     mainAlgo(mainAlgo)
 {
-    ui = new Ui::GuiFrontend();
+    ui = new Ui::GUIFrontend();
     ui->setupUi(new QMainWindow());
     
     QMainWindow* mainWindow = static_cast<QMainWindow*>(ui->centralwidget->parent());
@@ -45,39 +45,39 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
     ui->statusbar->addPermanentWidget(tradeStationLoginButton);
 
     // Connect TradeStation signals and slots
-    connect(tradeStationLoginButton, &QPushButton::clicked, this, &GuiFrontend::onTradeStationLoginClicked);
+    connect(tradeStationLoginButton, &QPushButton::clicked, this, &GUIFrontend::onTradeStationLoginClicked);
 
     // Connect app frontend signals and slots
     connect(this, &AppFrontend::tradeStationAuthStateChanged,
-            this, &GuiFrontend::onTradeStationAuthStateChanged,
+            this, &GUIFrontend::onTradeStationAuthStateChanged,
             Qt::DirectConnection);
 
     connect(this, &AppFrontend::tradeStationAccountsReceived,
-            this, &GuiFrontend::onTradeStationAccountsReceived,
+            this, &GUIFrontend::onTradeStationAccountsReceived,
             Qt::DirectConnection);
 
     connect(this, &AppFrontend::fmpDataUsageUpdated,
-            this, &GuiFrontend::onFMPClientDataUsageUpdate,
+            this, &GUIFrontend::onFMPClientDataUsageUpdate,
             Qt::DirectConnection);
 
     connect(this, &AppFrontend::tradeStationDataUsageUpdated,
-            this, &GuiFrontend::onTSClientDataUsageUpdate,
+            this, &GUIFrontend::onTSClientDataUsageUpdate,
             Qt::DirectConnection);
 
     connect(this, &AppFrontend::streamCountUpdated,
-            this, &GuiFrontend::onStreamCountUpdate,
+            this, &GUIFrontend::onStreamCountUpdate,
             Qt::DirectConnection);
 
     connect(this, &AppFrontend::currentHighlightedStockBarReceived,
-            this, &GuiFrontend::onCurrentHighlightedStockBarReceived,
+            this, &GUIFrontend::onCurrentHighlightedStockBarReceived,
             Qt::DirectConnection);
 
     connect(this, &AppFrontend::currentHighlightedReceivedNewMarketDepthQuote,
-            this, &GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote,
+            this, &GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote,
             Qt::DirectConnection);
 
     connect(this, &AppFrontend::newPositionReceived,
-            this, &GuiFrontend::onNewPositionReceived,
+            this, &GUIFrontend::onNewPositionReceived,
             Qt::DirectConnection);
 
     // Propagate up when the chart needs missing bars to display
@@ -85,7 +85,7 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
             this, &AppFrontend::requestMissingBars);
 
     // Connect the stock symbol input to its slot
-    connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GuiFrontend::onNewDisplayedStockSelection);
+    connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GUIFrontend::onNewDisplayedStockSelection);
 
     // Make the stock symbol input convert text to uppercase
     connect(ui->stockSymbolInput, &QLineEdit::textChanged, [this](const QString &text) {
@@ -111,9 +111,9 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
 
     // Connect logging tab signals
     connect(loggingTab, &LoggingTab::loggerVisibilityChanged,
-            this, &GuiFrontend::onLoggerVisibilityChanged);
+            this, &GUIFrontend::onLoggerVisibilityChanged);
     connect(loggingTab, &LoggingTab::logDepthChanged,
-            this, &GuiFrontend::onLogDepthChanged);
+            this, &GUIFrontend::onLogDepthChanged);
 
     // Set up the cache tab
     CacheTab* cacheTab = new CacheTab();
@@ -127,15 +127,15 @@ GuiFrontend::GuiFrontend(MainAlgo *mainAlgo, QObject* parent) :
         
         // Connect to the log broadcaster
         connect(&LogBroadcaster::instance(), &LogBroadcaster::logMessageReceived,
-                this, &GuiFrontend::updateLiveLogDisplay, Qt::QueuedConnection);
+                this, &GUIFrontend::updateLiveLogDisplay, Qt::QueuedConnection);
     }
 }
 
-GuiFrontend::~GuiFrontend() {
+GUIFrontend::~GUIFrontend() {
     delete ui;
 }
 
-void GuiFrontend::setupDarkTheme(QMainWindow* mainWindow) {
+void GUIFrontend::setupDarkTheme(QMainWindow* mainWindow) {
     // Define the dark theme palette
     QPalette darkPalette;
     darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
@@ -284,7 +284,7 @@ void GuiFrontend::setupDarkTheme(QMainWindow* mainWindow) {
     qApp->setStyleSheet(styleSheet);
 }
 
-void GuiFrontend::onFMPClientDataUsageUpdate(qsizetype newDataUsage)
+void GUIFrontend::onFMPClientDataUsageUpdate(qsizetype newDataUsage)
 {
     FMPClientDataUsage = newDataUsage;
 
@@ -295,7 +295,7 @@ void GuiFrontend::onFMPClientDataUsageUpdate(qsizetype newDataUsage)
     ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(streamCount));
 }
 
-void GuiFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
+void GUIFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
 {
     TSClientDataUsage = newDataUsage;
 
@@ -306,7 +306,7 @@ void GuiFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
     ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(streamCount));
 }
 
-void GuiFrontend::onTradeStationAccountsReceived(QVector<Account> results)
+void GUIFrontend::onTradeStationAccountsReceived(QVector<Account> results)
 {
     for (const Account& account : results) {
         ui->logDisplay->append("  ID:" + account.getAccountId());
@@ -330,7 +330,7 @@ void GuiFrontend::onTradeStationAccountsReceived(QVector<Account> results)
     }
 }
 
-void GuiFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
+void GUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
 {
     memoryUsage = newDataUsage;
 
@@ -341,7 +341,7 @@ void GuiFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
     ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(streamCount));
 }
 
-void GuiFrontend::onStreamCountUpdate(int count)
+void GUIFrontend::onStreamCountUpdate(int count)
 {
     streamCount = count;
 
@@ -352,13 +352,13 @@ void GuiFrontend::onStreamCountUpdate(int count)
     ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(count));
 }
 
-void GuiFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
+void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 {
     ui->priceChart->setSymbol(symbol);
     ui->priceChart->addBar(bar);
 }
 
-void GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP)
+void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP)
 {
     Q_UNUSED(symbol);
 
@@ -369,22 +369,22 @@ void GuiFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
     ui->baiGauge->setValue(bidAskImbalance);
 }
 
-void GuiFrontend::onNewPositionReceived(QString account, Position position) {
+void GUIFrontend::onNewPositionReceived(QString account, Position position) {
     ui->positionWindow->updatePosition(account, position);
 }
 
-void GuiFrontend::onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars)
+void GUIFrontend::onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars)
 {
     ui->priceChart->onRequestedMissingBarsReceived(bars);
 }
 
-void GuiFrontend::onTradeStationLoginClicked() {
+void GUIFrontend::onTradeStationLoginClicked() {
     // AuthWindow is modal, so it's impossible to click the button while authentication is in progress
     Q_ASSERT(!TSClient::getInstance().isAuthInProgress());
     TSClient::getInstance().launchAuthProcess();
 }
 
-void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason) {
+void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason) {
     static bool isFirstTime = true;
     QString log;
 
@@ -412,7 +412,7 @@ void GuiFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
     isFirstTime = false;
 }
 
-QString GuiFrontend::bytesToString(qint64 bytes) {
+QString GUIFrontend::bytesToString(qint64 bytes) {
     if (bytes >= 1024 * 1024) {
         double megabytes = static_cast<double>(bytes) / (1024 * 1024);
         return QString("%1 MB").arg(megabytes, 0, 'f', 2);
@@ -424,7 +424,7 @@ QString GuiFrontend::bytesToString(qint64 bytes) {
     }
 }
 
-void GuiFrontend::onNewDisplayedStockSelection()
+void GUIFrontend::onNewDisplayedStockSelection()
 {
     QString symbol = ui->stockSymbolInput->text().toUpper();
 
@@ -449,7 +449,7 @@ void GuiFrontend::onNewDisplayedStockSelection()
     ui->stockSymbolInput->clearFocus();
 }
 
-void GuiFrontend::updateLiveLogDisplay(const QString& message) {
+void GUIFrontend::updateLiveLogDisplay(const QString& message) {
     if (!ui->liveLogDisplay) {
         return;
     }
@@ -486,13 +486,13 @@ void GuiFrontend::updateLiveLogDisplay(const QString& message) {
     }
 }
 
-void GuiFrontend::onLoggerVisibilityChanged(bool visible) {
+void GUIFrontend::onLoggerVisibilityChanged(bool visible) {
     if (ui->liveLogDisplay) {
         ui->liveLogDisplay->setVisible(visible);
     }
 }
 
-void GuiFrontend::onLogDepthChanged(int maxLines) {
+void GUIFrontend::onLogDepthChanged(int maxLines) {
     maxLiveLogLines = maxLines;
     
     // Trim current log display if needed

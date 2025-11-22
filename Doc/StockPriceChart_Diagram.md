@@ -91,7 +91,7 @@ classDiagram
         +isValid() bool
     }
 
-    class GuiFrontend {
+    class GUIFrontend {
         +onRequestedMissingBarsDisplayedStockReceived(QVector~Bar~)
     }
 
@@ -110,8 +110,8 @@ classDiagram
     QWidget <|-- StockPriceChart
     StockPriceChart --> Bar : uses
     StockPriceChart --> MarketHours : uses
-    GuiFrontend --> StockPriceChart : owns
-    AppFrontend <|-- GuiFrontend
+    GUIFrontend --> StockPriceChart : owns
+    AppFrontend <|-- GUIFrontend
     StockPriceChart --> AppFrontend : signals
 ```
 
@@ -120,14 +120,14 @@ classDiagram
 ```mermaid
 sequenceDiagram
     participant MainAlgo
-    participant GuiFrontend
+    participant GUIFrontend
     participant StockPriceChart
     participant BarCache
     participant QChart
 
     Note over MainAlgo,QChart: Real-time Bar Updates
-    MainAlgo->>GuiFrontend: onCurrentHighlightedStockBarReceived(symbol, bar)
-    GuiFrontend->>StockPriceChart: addBar(bar)
+    MainAlgo->>GUIFrontend: onCurrentHighlightedStockBarReceived(symbol, bar)
+    GUIFrontend->>StockPriceChart: addBar(bar)
     
     alt Bar is Closed
         StockPriceChart->>StockPriceChart: handleClosedBar(bar)
@@ -145,12 +145,12 @@ sequenceDiagram
 
     Note over MainAlgo,QChart: Historical Bar Request (Pan/Zoom)
     StockPriceChart->>StockPriceChart: checkForMissingBars(viewStart, viewEnd)
-    StockPriceChart->>GuiFrontend: requestMissingBars(startTime, firstBarTime)
-    GuiFrontend->>MainAlgo: Forward signal
+    StockPriceChart->>GUIFrontend: requestMissingBars(startTime, firstBarTime)
+    GUIFrontend->>MainAlgo: Forward signal
     MainAlgo->>BarCache: Request bars for time range
     BarCache-->>MainAlgo: Return QVector<Bar>
-    MainAlgo->>GuiFrontend: onRequestedMissingBarsDisplayedStockReceived(bars)
-    GuiFrontend->>StockPriceChart: onRequestedMissingBarsReceived(bars)
+    MainAlgo->>GUIFrontend: onRequestedMissingBarsDisplayedStockReceived(bars)
+    GUIFrontend->>StockPriceChart: onRequestedMissingBarsReceived(bars)
     StockPriceChart->>StockPriceChart: Insert bars into completedBars
     StockPriceChart->>StockPriceChart: updateChart()
 ```
@@ -236,7 +236,7 @@ stateDiagram-v2
 ```mermaid
 graph TB
     subgraph "GUI Layer"
-        GF[GuiFrontend]
+        GF[GUIFrontend]
         SPC[StockPriceChart]
         UI[UI Components]
     end
@@ -682,7 +682,7 @@ flowchart TD
 flowchart TD
     subgraph "Main Thread - GUI"
         SPC[StockPriceChart]
-        GF[GuiFrontend]
+        GF[GUIFrontend]
         QCV[QChartView]
     end
     
@@ -789,7 +789,7 @@ flowchart TD
   - Ctrl+Shift+Scroll: Pan vertically
 - **Mouse Drag**: Left-click drag for pan in both directions
 - **Right Click**: Reset to default 30-minute view centered on current bar
-- **Keyboard**: 'i' to focus stock input (from GuiFrontend)
+- **Keyboard**: 'i' to focus stock input (from GUIFrontend)
 
 ### 5. Performance Optimizations
 - **View-based Rendering**: Only processes visible bars for min/max calculations using `QMap::lowerBound`
@@ -800,7 +800,7 @@ flowchart TD
 
 ### 6. Smart Bar Fetching
 - **Automatic Detection**: Detects when user pans/zooms beyond available data
-- **Signal-based Request**: Emits `requestMissingBars` signal to MainAlgo via GuiFrontend
+- **Signal-based Request**: Emits `requestMissingBars` signal to MainAlgo via GUIFrontend
 - **Asynchronous Loading**: Non-blocking bar retrieval from cache
 - **Seamless Integration**: Automatically renders new bars when received
 - **Request Guard**: Prevents multiple simultaneous requests with flag

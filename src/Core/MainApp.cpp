@@ -1,8 +1,8 @@
 #include "MainApp.h"
 #ifdef GUI_ENABLED
-#include "GUI/GuiFrontend.h"
+#include "GUI/GUIFrontend.h"
 #else
-#include "TerminalFrontend.h"
+#include "TUI/TUIFrontend.h"
 #endif
 
 MainApp::MainApp() :
@@ -11,7 +11,9 @@ MainApp::MainApp() :
     mainAlgo(new MainAlgo())
 {
 #ifdef GUI_ENABLED
-    appFrontend = new GuiFrontend(mainAlgo);
+    appFrontend = new GUIFrontend(mainAlgo);
+#else
+    appFrontend = new TUIFrontend(mainAlgo);
 #endif
     // Connect memory usage updates to frontend
     QObject::connect(&memoryMonitor, &MemoryMonitor::memoryUsageUpdated, appFrontend, &AppFrontend::onMemoryUsageUpdate);
