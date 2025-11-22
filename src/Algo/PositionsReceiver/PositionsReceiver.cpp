@@ -11,6 +11,12 @@ PositionsReceiver::PositionsReceiver(QObject *parent) :
 
 void PositionsReceiver::startStream(QString &account)
 {
+    // Check if stream already exists for this account
+    if (streams.contains(account)) {
+        qCWarning(PositionsReceiverLog) << Q_FUNC_INFO << "Stream already exists for account:" << account << "- ignoring duplicate startStream call";
+        return;
+    }
+
     qCDebug(PositionsReceiverLog) << Q_FUNC_INFO << "Starting Positions stream for account : " << account;
 
     StreamPositions *stream = TSClient::getInstance().openStreamPositions(account);
