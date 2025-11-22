@@ -109,16 +109,25 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
         return; //
     }
 
+    // Only initialize position stream once
+    if (positionStreamStarted) {
+        qCDebug(MainAlgoLog) << "Position stream already started, skipping initialization";
+        return;
+    }
+
     // FIXME warning hack, better this. This is just for sim
     QString accountNumber = accounts.at(1).getAccountId();
 
     connect(&positionReceiver, &PositionsReceiver::receivedNewPosition,
-            this, &MainAlgo::receivedNewPosition);
+            this, &MainAlgo::receivedNewPosition,
+            Qt::UniqueConnection);
 
     connect(&positionReceiver, &PositionsReceiver::receivedNewPosition,
-            this, &MainAlgo::onReceivedNewPosition);
+            this, &MainAlgo::onReceivedNewPosition,
+            Qt::UniqueConnection);
 
     positionReceiver.startStream(accountNumber);
+    positionStreamStarted = true;
 }
 
 

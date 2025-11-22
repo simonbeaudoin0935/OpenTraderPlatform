@@ -67,6 +67,7 @@ private:
 
 
     PositionsReceiver positionReceiver;
+    bool positionStreamStarted = false;
 
     QTextStream *algoLogFile;
     QFile file;

@@ -11,11 +11,13 @@ PositionsReceiver::PositionsReceiver(QObject *parent) :
 
 void PositionsReceiver::startStream(QString &account)
 {
+    // Check if stream already exists for this account - this is a logic error
+    Q_ASSERT_X(!streams.contains(account), "PositionsReceiver::startStream", 
+               qPrintable(QString("Stream already exists for account: %1").arg(account)));
+
     qCDebug(PositionsReceiverLog) << Q_FUNC_INFO << "Starting Positions stream for account : " << account;
 
     StreamPositions *stream = TSClient::getInstance().openStreamPositions(account);
-
-    void receivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote);
 
     connect(stream, &StreamPositions::receivedNewPosition, this, &PositionsReceiver::onReceivedNewPosition);
     connect(stream, &Stream::streamErrorOccurred, this, &PositionsReceiver::onStreamError);
