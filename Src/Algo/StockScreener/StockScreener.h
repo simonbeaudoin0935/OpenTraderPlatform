@@ -4,6 +4,7 @@
 #include <QLoggingCategory>
 
 #include "FMPClient.h"
+#include "Ticker.h"
 
 Q_DECLARE_LOGGING_CATEGORY(StockScreenerLog)
 
@@ -19,7 +20,7 @@ public:
 
 signals:
 
-    void finished(QVector<QString> watchlist);
+    void finished(QVector<Ticker> watchlist);
 
 private slots:
     void onSharesFloatReceived(struct FMPClient::SharesFloatResult result);
@@ -38,6 +39,6 @@ private:
     QVector<CompanyScreenerResult> biotechScreeningResults;
     QVector<CompanyScreenerResult> healthtechnologyScreeningResults;
 
-    QVector<QString> symbolsScreenedByFloat;
+    QVector<Ticker> symbolsScreenedByFloat;
 
 };

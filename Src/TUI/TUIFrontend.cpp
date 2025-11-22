@@ -39,13 +39,13 @@ void TUIFrontend::onNewPositionReceived(QString account, Position position)
     Q_UNUSED(position);
 }
 
-void TUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
+void TUIFrontend::onCurrentHighlightedStockBarReceived(Ticker symbol, Bar bar)
 {
     Q_UNUSED(symbol);
     Q_UNUSED(bar);
 }
 
-void TUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP)
+void TUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(Ticker symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP)
 {
     Q_UNUSED(symbol);
     Q_UNUSED(quote);

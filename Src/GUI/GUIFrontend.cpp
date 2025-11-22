@@ -370,13 +370,13 @@ void GUIFrontend::onStreamCountUpdate(int count)
     ui->statusbar->showMessage("FMP usage : " + usageFMP + " - TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(count));
 }
 
-void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
+void GUIFrontend::onCurrentHighlightedStockBarReceived(Ticker symbol, Bar bar)
 {
-    ui->priceChart->setSymbol(symbol);
+    ui->priceChart->setSymbol(symbol.toString());
     ui->priceChart->addBar(bar);
 }
 
-void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP)
+void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(Ticker symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP)
 {
     Q_UNUSED(symbol);
 
@@ -449,19 +449,21 @@ void GUIFrontend::onNewDisplayedStockSelection()
     // Update the input field to show the uppercase symbol
     ui->stockSymbolInput->setText(symbol);
 
-    if (symbol == currentlyDisplayedSymbol) {
+    Ticker symbolTicker(symbol);
+
+    if (symbolTicker == currentlyDisplayedSymbol) {
         qWarning() << "Symbol " << symbol << " is already the currently displayed symbol";
         return;
     }
 
-    currentlyDisplayedSymbol = symbol;
+    currentlyDisplayedSymbol = symbolTicker;
 
     ui->priceChart->clearSymbol();
 
     QMetaObject::invokeMethod(mainAlgo,
                               "onSelectDisplayedStock",
                               Qt::QueuedConnection,
-                              Q_ARG(QString, symbol)); // Pass the symbol parameter
+                              Q_ARG(Ticker, symbolTicker)); // Pass the symbol parameter
 
     // Clear focus from the input box after processing
     ui->stockSymbolInput->clearFocus();

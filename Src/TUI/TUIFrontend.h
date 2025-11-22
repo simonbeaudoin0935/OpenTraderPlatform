@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AppFrontend.h"
+#include "Ticker.h"
 
 // Forward declaration
 class MainAlgo;
@@ -20,8 +21,8 @@ public slots:
 
     void onTradeStationAccountsReceived(QVector<Account> results) override;
     void onNewPositionReceived(QString account, Position position) override;
-    void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
-    void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP) override;
+    void onCurrentHighlightedStockBarReceived(Ticker symbol, Bar bar) override;
+    void onCurrentHighlightedReceivedNewMarketDepthQuote(Ticker symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP) override;
     void onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars) override;
 
 private:

@@ -7,7 +7,7 @@ BreakingNewsFetcher::BreakingNewsFetcher(QObject *parent)
     : QObject{parent}
 {}
 
-void BreakingNewsFetcher::start(QVector<QString> &symbolsScreenedByFloat,
+void BreakingNewsFetcher::start(QVector<Ticker> &symbolsScreenedByFloat,
                                 int newsFetchDepthLimit,
                                 int newsFetchingInterval)
 {
@@ -41,9 +41,9 @@ void BreakingNewsFetcher::fetchAsyncNewsStockScreenedByFloat()
     qCDebug(BreakingNewsFetcherLog) << "Fetching news ASYNC for all screened stocks";
     qCDebug(BreakingNewsFetcherLog) << "Waiting for all the news to be received";
 
-    for (QString &symbol : symbolsToWatch) {
+    for (Ticker &symbol : symbolsToWatch) {
 
-        filter.setSymbol(symbol);
+        filter.setSymbol(symbol.toString());
         filter.setLimit(fetchDepthLimit);
 
         client.fetchAsyncStockNews(filter);
@@ -58,13 +58,13 @@ void BreakingNewsFetcher::fetchSyncNewsStockScreenedByFloat()
     qCDebug(BreakingNewsFetcherLog) << "Fetching news SYNC for all screened stocks";
     qCDebug(BreakingNewsFetcherLog) << "Waiting for all the " << symbolsToWatch.size() << "news to be received";
 
-    for (QString &symbol : symbolsToWatch   ) {
+    for (Ticker &symbol : symbolsToWatch   ) {
 
         StockNewsFilter filter;
-        filter.setSymbol(symbol);
+        filter.setSymbol(symbol.toString());
         filter.setLimit(2);
 
-        qCDebug(BreakingNewsFetcherLog) << "Fetching SYNC news for : " << symbol;
+        qCDebug(BreakingNewsFetcherLog) << "Fetching SYNC news for : " << symbol.toString();
 
         QVector<StockNewsResult> newsResults;
         bool success = client.fetchSyncStockNews(filter, newsResults);
@@ -200,8 +200,8 @@ static const StockNewsResult& getNewestNews(const QVector<StockNewsResult>& news
 
 void BreakingNewsFetcher::processReceivedNewsPingPongBuffers()
 {
-    QMap<QString, QVector<StockNewsResult>> *newBuffer;
-    QMap<QString, QVector<StockNewsResult>> *oldBuffer;
+    QMap<Ticker, QVector<StockNewsResult>> *newBuffer;
+    QMap<Ticker, QVector<StockNewsResult>> *oldBuffer;
 
     newBuffer = latestNewsPerSymbolPingPongPtr;
     oldBuffer = (latestNewsPerSymbolPingPongPtr == &latestNewsPerSymbolPingPong1) ? &latestNewsPerSymbolPingPong2 : &latestNewsPerSymbolPingPong1;
@@ -215,9 +215,9 @@ void BreakingNewsFetcher::processReceivedNewsPingPongBuffers()
     }
 
     // Iterate through every symbol in the pingpong buffer
-    QMap<QString, QVector<StockNewsResult>>::const_iterator it;
+    QMap<Ticker, QVector<StockNewsResult>>::const_iterator it;
     for (it = newBuffer->constBegin(); it != newBuffer->constEnd(); ++it) {
-        QString symbol = it.key();
+        Ticker symbol = it.key();
         const QVector<StockNewsResult>& newNewsVector = it.value();
 
         // Find the newest new in the old news buffer

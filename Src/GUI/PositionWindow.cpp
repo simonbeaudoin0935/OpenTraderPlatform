@@ -171,6 +171,6 @@ QList<QStandardItem*> PositionWindow::createRowItems(const Position& position) {
 void PositionWindow::onSymbolClicked(const QModelIndex& index) {
     if (index.column() == 0) {  // Only handle clicks on the Symbol column
         QString symbol = model->item(index.row(), 0)->text();
-        emit symbolClicked(symbol);
+        emit symbolClicked(Ticker(symbol));
     }
 } 

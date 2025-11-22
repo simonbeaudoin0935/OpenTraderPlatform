@@ -141,7 +141,7 @@ void StockScreener::onSharesFloatReceived(struct FMPClient::SharesFloatResult re
     if (result.floatShares <= (signed) MaxFloat) {
         qCDebug(StockScreenerLog) << "Company : " << result.symbol << " has a float acceptable of : " << result.floatShares;
 
-        symbolsScreenedByFloat.append(result.symbol);
+        symbolsScreenedByFloat.append(Ticker(result.symbol));
     }
 
     if (numFloatReceived == (unsigned) biotechScreeningResults.size()) {

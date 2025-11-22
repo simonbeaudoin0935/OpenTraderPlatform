@@ -5,6 +5,7 @@
 #include <QMap>
 
 #include "Position.h"
+#include "Ticker.h"
 
 class QTableView;
 class QLabel;
@@ -19,7 +20,7 @@ public slots:
     void updatePosition(const QString& account, const Position& position);
 
 signals:
-    void symbolClicked(const QString& symbol);
+    void symbolClicked(const Ticker& symbol);
 
 private:
     void setupUI();

@@ -12,6 +12,7 @@
 #include "PositionsReceiver.h"
 #include "Account.h"
 #include "BarCache.h"
+#include "Ticker.h"
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
@@ -19,10 +20,10 @@ Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 class StockInstruments : public QObject{
 
 public:
-    explicit StockInstruments(const QString &symbol);
+    explicit StockInstruments(const Ticker &symbol);
     ~StockInstruments();
 
-    QString symbol;
+    Ticker symbol;
     BarCache barCache;
     RunUpDetector runUpDetector;
     MarketDepthQuoteReceiver marketDepthQuoteReceiver;
@@ -37,15 +38,15 @@ public:
     void start();
 
 signals:
-    void displayedStockReceivedNewBar(QString symbol, Bar bar);
-    void displayedStockReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP);
+    void displayedStockReceivedNewBar(Ticker symbol, Bar bar);
+    void displayedStockReceivedNewMarketDepthQuote(Ticker symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP);
     void requestedMissingBarsDisplayedStockReceived(QVector<Bar>);
 
     void receivedNewPosition(QString account, Position position);
 
 public slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
-    void onSelectDisplayedStock(QString symbol);
+    void onSelectDisplayedStock(Ticker symbol);
     void onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime last);
 
 private slots:
@@ -59,7 +60,7 @@ private:
     QThread thread;
 
     QVector<Account> accounts;
-    QMap<QString, StockInstruments*> stockInstruments;
+    QMap<Ticker, StockInstruments*> stockInstruments;
     StockInstruments* currentDisplayedStockInstrument = nullptr;
 
     StockScreener stockScreener;

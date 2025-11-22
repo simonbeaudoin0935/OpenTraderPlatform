@@ -3,11 +3,11 @@
 
 Q_LOGGING_CATEGORY(MarketDepthQuoteReceiverLog, "MarketDepthQuoteReceiver")
 
-MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(const QString &symbol, QObject *parent) :
+MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(const Ticker &symbol, QObject *parent) :
     QObject(parent),
     symbol(symbol)
 {
-    qCDebug(MarketDepthQuoteReceiverLog) << Q_FUNC_INFO << "Starting Market Depth Quote stream for " << symbol;
+    qCDebug(MarketDepthQuoteReceiverLog) << Q_FUNC_INFO << "Starting Market Depth Quote stream for " << symbol.toString();
 
     StreamMarketDepthQuote *stream = TSClient::getInstance().openStreamMarketDepthQuote(symbol, 10);
 
@@ -101,7 +101,7 @@ void MarketDepthQuoteReceiver::stopStream()
     TSClient::getInstance().closeStreamMarketDepthQuote(stream);
 }
 
-void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote)
+void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(Ticker symbol, MarketDepthQuote marketDepthQuote)
 {
     qCDebug(MarketDepthQuoteReceiverLog).noquote() << marketDepthQuote.toJsonString();
     
@@ -113,7 +113,7 @@ void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, Mar
     double bidDWP = calculateDepthWeightedPrice(marketDepthQuote.getBids());
     double askDWP = calculateDepthWeightedPrice(marketDepthQuote.getAsks());
     
-    qCDebug(MarketDepthQuoteReceiverLog) << "Bid-Ask Imbalance for" << symbol
+    qCDebug(MarketDepthQuoteReceiverLog) << "Bid-Ask Imbalance for" << symbol.toString()
                                          << "- All levels:" << imbalance
                                          << "- Top 3 levels:" << imbalanceTopLevels
                                          << "- Bid DWP:" << bidDWP
@@ -124,7 +124,7 @@ void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, Mar
 
 void MarketDepthQuoteReceiver::onStreamError(Stream::StreamError error, QString errorMessage)
 {
-    qCWarning(MarketDepthQuoteReceiverLog) << "Market Depth Quote Receiver stream error for" << symbol
+    qCWarning(MarketDepthQuoteReceiverLog) << "Market Depth Quote Receiver stream error for" << symbol.toString()
                                             << "- Error:" << static_cast<int>(error)
                                             << "Message:" << errorMessage;
 

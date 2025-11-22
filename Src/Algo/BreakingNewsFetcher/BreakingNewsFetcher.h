@@ -5,6 +5,7 @@
 #include <QLoggingCategory>
 
 #include "StockNewsFilter.h"
+#include "Ticker.h"
 
 
 Q_DECLARE_LOGGING_CATEGORY(BreakingNewsFetcherLog)
@@ -15,7 +16,7 @@ class BreakingNewsFetcher : public QObject
 public:
     explicit BreakingNewsFetcher(QObject *parent = nullptr);
 
-    void start(QVector<QString> &symbolsScreenedByFloat,
+    void start(QVector<Ticker> &symbolsScreenedByFloat,
                int newsFetchingInterval,
                int newsFetchDepthLimit);
 
@@ -41,10 +42,10 @@ private:
     int fetchingInterval = -1;
     int fetchDepthLimit = -1;
 
-    QVector<QString> symbolsToWatch;
+    QVector<Ticker> symbolsToWatch;
 
-    QMap<QString, QVector<StockNewsResult>> latestNewsPerSymbolPingPong1;
-    QMap<QString, QVector<StockNewsResult>> latestNewsPerSymbolPingPong2;
+    QMap<Ticker, QVector<StockNewsResult>> latestNewsPerSymbolPingPong1;
+    QMap<Ticker, QVector<StockNewsResult>> latestNewsPerSymbolPingPong2;
 
-    QMap<QString, QVector<StockNewsResult>> *latestNewsPerSymbolPingPongPtr;
+    QMap<Ticker, QVector<StockNewsResult>> *latestNewsPerSymbolPingPongPtr;
 };

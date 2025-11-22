@@ -46,7 +46,7 @@ void MainAlgo::start()
     thread.start();
 }
 
-void MainAlgo::onSelectDisplayedStock(QString symbol)
+void MainAlgo::onSelectDisplayedStock(Ticker symbol)
 {
     // Make sure that this method gets Qt::InvokeMethod'ed if called from another thread
     Q_ASSERT(QThread::currentThread() == &thread);
@@ -141,7 +141,7 @@ void MainAlgo::onStockScreenerFinished()
 
     for (const auto &screeningResult:  stockScreener.getStockScreeningResult()) {
 
-        QString symbol = screeningResult.getSymbol();
+        Ticker symbol = Ticker(screeningResult.getSymbol());
 
         // Change the stock selected pointer to the new selected stock
         if (!stockInstruments.contains(symbol)) {
@@ -194,13 +194,13 @@ void MainAlgo::onReceivedNewPosition(QString account, Position position)
     // TODO
 }
 
-StockInstruments::StockInstruments(const QString &symbol) :
+StockInstruments::StockInstruments(const Ticker &symbol) :
     symbol(symbol),
     barCache(symbol, true, this),
     runUpDetector(&barCache, this),
     marketDepthQuoteReceiver(symbol, this)
 {
-    this->setObjectName("StockInstrument::" + symbol);
+    this->setObjectName("StockInstrument::" + symbol.toString());
 
     qDebug() << this->objectName() << "New instance";
 }

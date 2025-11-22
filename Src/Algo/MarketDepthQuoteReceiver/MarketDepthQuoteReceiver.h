@@ -3,6 +3,7 @@
 #include <QObject>
 
 #include "StreamMarketDepthQuote.h"
+#include "Ticker.h"
 
 Q_DECLARE_LOGGING_CATEGORY(MarketDepthQuoteReceiverLog)
 
@@ -10,7 +11,7 @@ class MarketDepthQuoteReceiver : public QObject
 {
     Q_OBJECT
 public:
-    explicit MarketDepthQuoteReceiver(const QString &symbol, QObject *parent = nullptr);
+    explicit MarketDepthQuoteReceiver(const Ticker &symbol, QObject *parent = nullptr);
     ~MarketDepthQuoteReceiver();
 
     void stopStream();
@@ -28,14 +29,14 @@ public:
     void setBidAskImbalanceLevel(unsigned int level) { Q_ASSERT(level > 0); bidAskImbalanceLevel = qMax(1u, level); }
 
 signals:
-    void receivedNewMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote, double bidAskImbalance, double bidDWP, double askDWP);
+    void receivedNewMarketDepthQuote(Ticker symbol, MarketDepthQuote marketDepthQuote, double bidAskImbalance, double bidDWP, double askDWP);
 
 private slots:
-    void onReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote);
+    void onReceivedNewMarketDepthQuote(Ticker symbol, MarketDepthQuote marketDepthQuote);
     void onStreamError(Stream::StreamError error, QString errorMessage);
 
 private:
-    QString symbol;
+    Ticker symbol;
     StreamMarketDepthQuote* stream = nullptr;
     unsigned int depthWeightedPriceLevel = 5; // Default value of 5
     unsigned int bidAskImbalanceLevel = 5; // Default value of 5
