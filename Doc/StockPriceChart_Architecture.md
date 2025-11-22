@@ -1,16 +1,18 @@
 # StockPriceChart Architecture Documentation
 
-This document provides comprehensive documentation of the StockPriceChart implementation to assist in debugging crashes and understanding the chart mechanics, particularly related to zoom and drag operations.
+This document provides comprehensive documentation of the StockPriceChart implementation to assist in debugging and understanding the chart mechanics, particularly related to the index-based continuous time display system.
 
 ## Table of Contents
 1. [Overview](#overview)
-2. [Class Architecture](#class-architecture)
-3. [Data Flow](#data-flow)
-4. [Event Handling](#event-handling)
-5. [State Management](#state-management)
-6. [Missing Bars Detection](#missing-bars-detection)
-7. [View State Preservation](#view-state-preservation)
-8. [Potential Crash Points](#potential-crash-points)
+2. [Index-Based Positioning System](#index-based-positioning-system)
+3. [Class Architecture](#class-architecture)
+4. [Data Flow](#data-flow)
+5. [Event Handling](#event-handling)
+6. [State Management](#state-management)
+7. [Missing Bars Detection](#missing-bars-detection)
+8. [View State Preservation](#view-state-preservation)
+9. [Session Background Rendering](#session-background-rendering)
+10. [Potential Issues](#potential-issues)
 
 ---
 
@@ -22,6 +24,72 @@ The `StockPriceChart` is a Qt-based widget that displays real-time stock price d
 - Real-time price updates
 - Market hours visualization (pre-market, regular hours, after-hours, closed)
 - Dynamic bar loading when viewing historical data
+- **Continuous time display** - bars shown without gaps for closed market periods
+
+### Key Innovation: Continuous Time Display
+
+The chart uses an **index-based positioning system** instead of time-based positioning to display bars continuously without gaps for:
+- Weekends (no gap between Friday 8pm and Monday 4am)
+- Overnight hours (no gap between 8pm and 4am)
+- Only displays trading hours: 4am-8pm ET on weekdays
+
+**Example:** For a stock like NVDA on a 1-minute chart:
+- Last candle from a day: 7:59pm (index 959)
+- Next morning first candle: 4:00am (index 960) - **displayed directly adjacent**
+- No visual gap despite 8-hour time difference
+
+---
+
+## Index-Based Positioning System
+
+### Core Concept
+
+Instead of using `QDateTimeAxis` which would create gaps for missing times, the chart uses `QValueAxis` with sequential indices:
+
+```
+Traditional (time-based):
+Time:  9:30  9:31  ...  8:00pm [GAP 12 hours] 4:00am  4:01
+Index: 0     1          959    [NO DATA]      960     961
+
+Our System (index-based):
+Index: 0     1     2    ...  959   960    961    962
+Time:  9:30  9:31  9:32 ... 8:00pm 4:00am 4:01am 4:02am
+       [bars displayed continuously, no visual gaps]
+```
+
+### Implementation Details
+
+#### 1. Bidirectional Mapping
+
+Two maps maintain the relationship between indices and timestamps:
+
+```cpp
+QMap<int, QDateTime> indexToTimestamp;  // Index → Timestamp
+QMap<QDateTime, int> timestampToIndex;  // Timestamp → Index
+```
+
+#### 2. Rebuilding Mappings
+
+Called whenever bars are added/removed:
+
+```cpp
+void rebuildIndexMapping() {
+    // Combines completedBars + voidBars + openBar
+    // Assigns sequential indices: 0, 1, 2, 3, ...
+    // Maintains sorted order by timestamp
+}
+```
+
+#### 3. Index-Timestamp Conversion
+
+```cpp
+int getIndexForTimestamp(const QDateTime& timestamp) const;
+QDateTime getTimestampForIndex(int index) const;
+```
+
+These helpers allow:
+- Chart operations to work in index space
+- Market hours logic to work with actual timestamps
 
 ---
 
@@ -38,10 +106,13 @@ classDiagram
         -QCandlestickSeries* candlestickSeries
         -QScatterSeries* voidBarSeries
         -QChartView* chartView
-        -QDateTimeAxis* axisX
+        -QValueAxis* axisX  [INDEX-BASED]
         -QValueAxis* axisY
         -QGraphicsTextItem* priceLabel
         -QMap~QDateTime, Bar~ completedBars
+        -QMap~QDateTime, double~ voidBars
+        -QMap~int, QDateTime~ indexToTimestamp
+        -QMap~QDateTime, int~ timestampToIndex
         -Bar currentOpenBar
         -bool hasOpenBar
         -double lastPrice
@@ -55,6 +126,9 @@ classDiagram
         +addBar(Bar)
         +onRequestedMissingBarsReceived(QVector~Bar~)
         -updateChart()
+        -rebuildIndexMapping()
+        -getIndexForTimestamp(QDateTime) int
+        -getTimestampForIndex(int) QDateTime
         -handleClosedBar(Bar)
         -handleOpenBar(Bar)
         -updateLastPriceLine(double, bool)
@@ -63,6 +137,9 @@ classDiagram
         -handleHorizontalZoom(QWheelEvent*, qreal)
         -handleVerticalZoom(QWheelEvent*, qreal)
         -handleBothAxesZoom(QWheelEvent*, qreal)
+        -updateAfterHoursBackground()
+        -drawBackgroundForTimeRange(...)
+        -updateAxisLabels()
     }
     
     class QWidget {
