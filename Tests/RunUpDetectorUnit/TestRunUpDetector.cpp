@@ -7,6 +7,7 @@
 #include "TestRunUpDetector.h"
 #include "TSClient.h"
 #include "RunUpDetector.h"
+#include "Logging.h"
 
 static TSClient* client;
 static BarCache *barCache;
@@ -120,6 +121,11 @@ void TestRunUpDetector::initTestCase() {
 // Will be called before each test function is executed.
 void TestRunUpDetector::init()
 {
+    // QTest installs its own message handler which overrides our colored logging.
+    // Reinstall our custom colored message handler before each test to ensure
+    // proper colored output during test execution.
+    reinstallColoredMessageHandler();
+    
     QLoggingCategory::setFilterRules("TSClient.debug=true");
     QLoggingCategory::setFilterRules("BarCache.debug=true");
 }

@@ -5,6 +5,7 @@
 
 #include "TestFMPClient.h"
 #include "FMPClient.h"
+#include "Logging.h"
 
 
 
@@ -21,6 +22,11 @@ void TestFMPClient::initTestCase() {
 
 void TestFMPClient::init()
 {
+    // QTest installs its own message handler which overrides our colored logging.
+    // Reinstall our custom colored message handler before each test to ensure
+    // proper colored output during test execution.
+    reinstallColoredMessageHandler();
+    
     // Make sure the debug prints are enabled
     QLoggingCategory::setFilterRules("FMPClient.debug=true");
 

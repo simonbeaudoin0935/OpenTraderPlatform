@@ -15,5 +15,26 @@ private slots:
     void testGetBarsWithHoles();
 
     void testBarStreaming();
+
+    // Cache hierarchy tests
+    void testDatabasePersistence();
+    void testDatabaseOnlyHit();
+    void testMixedCacheStates();
+    void testCacheClearingAndRepopulation();
+
+    // Edge case tests
+    void testSingleBarRequest();
+    void testLargeRangeRequest();
+    void testOverlappingRequests();
+    void testBoundaryConditions();
+
+    // Data integrity tests
+    void testIdentifyMissingRanges();
+    void testNullBarsMixedWithRealBars();
+    void testDuplicateStoreTracking();
+
+    // Metrics validation tests
+    void testHitTypeAccuracy();
+    void testMetricsTracking();
 private:
 };
