@@ -109,6 +109,9 @@ private:
     // Store completed bars in a map with timestamp as key
     QMap<QDateTime, Bar> completedBars;
     
+    // Track void bars (bars with BarStatus::Null)
+    QMap<QDateTime, double> voidBars;  // timestamp -> price to display
+    
     // Index-based positioning maps
     QMap<int, QDateTime> indexToTimestamp;  // Map from index to timestamp
     QMap<QDateTime, int> timestampToIndex;  // Map from timestamp to index

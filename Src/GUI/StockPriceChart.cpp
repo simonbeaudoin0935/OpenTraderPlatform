@@ -159,8 +159,8 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
             // Update the last valid close price
             lastValidClosePrice = bar.getClose();
         } else {
-            // Add void bar to the scatter series
-            voidBarSeries->append(bar.getTimeStamp().toMSecsSinceEpoch(), lastValidClosePrice);
+            // Store void bar with the timestamp and price
+            voidBars.insert(bar.getTimeStamp(), lastValidClosePrice);
         }
     }
 
@@ -250,42 +250,52 @@ void StockPriceChart::updateChart() {
     // Rebuild the index mapping
     rebuildIndexMapping();
 
-    // Clear existing candlesticks
+    // Clear existing candlesticks and void bars
     candlestickSeries->clear();
     candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH); // Reset body width after clearing
+    voidBarSeries->clear();
 
     // Calculate marker size based on candlestick width
     qreal markerSize = CANDLESTICK_BODY_WIDTH * 0.8; // Make it slightly smaller than candlestick width
     voidBarSeries->setMarkerSize(markerSize);
 
-    // Add completed bars using their indices
-    int index = 0;
-    for (auto it = completedBars.constBegin(); it != completedBars.constEnd(); ++it) {
-        const Bar& bar = it.value();
-        auto set = new QCandlestickSet();
-        set->setTimestamp(index);  // Use index instead of timestamp
-        set->setOpen(bar.getOpen());
-        set->setHigh(bar.getHigh());
-        set->setLow(bar.getLow());
-        set->setClose(bar.getClose());
-        candlestickSeries->append(set);
-        index++;
-    }
-
-    // Add current open bar if it exists
-    if (hasOpenBar) {
-        auto set = new QCandlestickSet();
-        set->setTimestamp(index);  // Use index instead of timestamp
-        set->setOpen(currentOpenBar.getOpen());
-        set->setHigh(currentOpenBar.getHigh());
-        set->setLow(currentOpenBar.getLow());
-        set->setClose(currentOpenBar.getClose());
-        candlestickSeries->append(set);
+    // Add all bars (completed and void) using their indices
+    for (auto it = indexToTimestamp.constBegin(); it != indexToTimestamp.constEnd(); ++it) {
+        int index = it.key();
+        const QDateTime& timestamp = it.value();
+        
+        // Check if it's a void bar
+        if (voidBars.contains(timestamp)) {
+            // Add void bar to scatter series
+            double price = voidBars[timestamp];
+            voidBarSeries->append(index, price);
+        }
+        // Check if it's a completed bar
+        else if (completedBars.contains(timestamp)) {
+            const Bar& bar = completedBars[timestamp];
+            auto set = new QCandlestickSet();
+            set->setTimestamp(index);  // Use index instead of timestamp
+            set->setOpen(bar.getOpen());
+            set->setHigh(bar.getHigh());
+            set->setLow(bar.getLow());
+            set->setClose(bar.getClose());
+            candlestickSeries->append(set);
+        }
+        // Check if it's the current open bar
+        else if (hasOpenBar && timestamp == currentOpenBar.getTimeStamp()) {
+            auto set = new QCandlestickSet();
+            set->setTimestamp(index);  // Use index instead of timestamp
+            set->setOpen(currentOpenBar.getOpen());
+            set->setHigh(currentOpenBar.getHigh());
+            set->setLow(currentOpenBar.getLow());
+            set->setClose(currentOpenBar.getClose());
+            candlestickSeries->append(set);
+        }
     }
 
     // Only update time axis range if this is the initial setup
-    if (!hadInitialView && candlestickSeries->count() > 0) {
-        int lastIndex = index;  // Last bar index
+    if (!hadInitialView && !indexToTimestamp.isEmpty()) {
+        int lastIndex = indexToTimestamp.lastKey();
         int startIndex = qMax(0, lastIndex - 30);  // Show last 30 bars
         int endIndex = lastIndex + 1;  // Small buffer
         
@@ -305,22 +315,32 @@ void StockPriceChart::updateChart() {
     int visibleStartIndex = static_cast<int>(axisX->min());
     int visibleEndIndex = static_cast<int>(axisX->max());
     
-    int currentIndex = 0;
-    for (auto it = completedBars.constBegin(); it != completedBars.constEnd(); ++it) {
-        if (currentIndex >= visibleStartIndex && currentIndex <= visibleEndIndex) {
-            const Bar& bar = it.value();
-            minPrice = qMin(minPrice, bar.getLow());
-            maxPrice = qMax(maxPrice, bar.getHigh());
-            currentPrice = bar.getClose();
+    for (auto it = indexToTimestamp.constBegin(); it != indexToTimestamp.constEnd(); ++it) {
+        int index = it.key();
+        if (index >= visibleStartIndex && index <= visibleEndIndex) {
+            const QDateTime& timestamp = it.value();
+            
+            // Check completed bars
+            if (completedBars.contains(timestamp)) {
+                const Bar& bar = completedBars[timestamp];
+                minPrice = qMin(minPrice, bar.getLow());
+                maxPrice = qMax(maxPrice, bar.getHigh());
+                currentPrice = bar.getClose();
+            }
+            // Check open bar
+            else if (hasOpenBar && timestamp == currentOpenBar.getTimeStamp()) {
+                minPrice = qMin(minPrice, currentOpenBar.getLow());
+                maxPrice = qMax(maxPrice, currentOpenBar.getHigh());
+                currentPrice = currentOpenBar.getClose();
+            }
+            // Check void bars
+            else if (voidBars.contains(timestamp)) {
+                double price = voidBars[timestamp];
+                minPrice = qMin(minPrice, price);
+                maxPrice = qMax(maxPrice, price);
+                currentPrice = price;
+            }
         }
-        currentIndex++;
-    }
-
-    // Check open bar if visible
-    if (hasOpenBar && currentIndex >= visibleStartIndex && currentIndex <= visibleEndIndex) {
-        minPrice = qMin(minPrice, currentOpenBar.getLow());
-        maxPrice = qMax(maxPrice, currentOpenBar.getHigh());
-        currentPrice = currentOpenBar.getClose();
     }
 
     // Only update Y axis range if necessary and if we're not preserving the view
@@ -678,7 +698,7 @@ bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
         QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
         if (mouseEvent->button() == Qt::RightButton) {
             // Handle right click - recenter view
-            if (candlestickSeries->count() > 0) {
+            if (!indexToTimestamp.isEmpty()) {
                 int lastIndex = indexToTimestamp.lastKey();
                 int startIndex = qMax(0, lastIndex - 30);  // Show last 30 bars
                 int endIndex = lastIndex + 1;
@@ -692,22 +712,32 @@ bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
                 double currentPrice = 0.0;
                 
                 // Find min/max prices for bars in the visible range
-                int currentIndex = 0;
-                for (auto it = completedBars.constBegin(); it != completedBars.constEnd(); ++it) {
-                    if (currentIndex >= startIndex && currentIndex <= endIndex) {
-                        const Bar& bar = it.value();
-                        minPrice = qMin(minPrice, bar.getLow());
-                        maxPrice = qMax(maxPrice, bar.getHigh());
-                        currentPrice = bar.getClose();
+                for (auto it = indexToTimestamp.constBegin(); it != indexToTimestamp.constEnd(); ++it) {
+                    int index = it.key();
+                    if (index >= startIndex && index <= endIndex) {
+                        const QDateTime& timestamp = it.value();
+                        
+                        // Check completed bars
+                        if (completedBars.contains(timestamp)) {
+                            const Bar& bar = completedBars[timestamp];
+                            minPrice = qMin(minPrice, bar.getLow());
+                            maxPrice = qMax(maxPrice, bar.getHigh());
+                            currentPrice = bar.getClose();
+                        }
+                        // Check open bar
+                        else if (hasOpenBar && timestamp == currentOpenBar.getTimeStamp()) {
+                            minPrice = qMin(minPrice, currentOpenBar.getLow());
+                            maxPrice = qMax(maxPrice, currentOpenBar.getHigh());
+                            currentPrice = currentOpenBar.getClose();
+                        }
+                        // Check void bars
+                        else if (voidBars.contains(timestamp)) {
+                            double price = voidBars[timestamp];
+                            minPrice = qMin(minPrice, price);
+                            maxPrice = qMax(maxPrice, price);
+                            currentPrice = price;
+                        }
                     }
-                    currentIndex++;
-                }
-                
-                // Check open bar
-                if (hasOpenBar && currentIndex >= startIndex && currentIndex <= endIndex) {
-                    minPrice = qMin(minPrice, currentOpenBar.getLow());
-                    maxPrice = qMax(maxPrice, currentOpenBar.getHigh());
-                    currentPrice = currentOpenBar.getClose();
                 }
                 
                 // Set vertical range if we found any bars
@@ -842,6 +872,9 @@ void StockPriceChart::clearSymbol() {
     // Clear the completed bars
     completedBars.clear();
     
+    // Clear void bars
+    voidBars.clear();
+    
     // Reset the current open bar
     hasOpenBar = false;
     currentOpenBar = Bar();
@@ -872,19 +905,29 @@ void StockPriceChart::rebuildIndexMapping() {
     indexToTimestamp.clear();
     timestampToIndex.clear();
     
-    int index = 0;
+    // Create a combined sorted list of all timestamps (completed bars + void bars)
+    QMap<QDateTime, bool> allTimestamps;  // timestamp -> isVoid
+    
     for (auto it = completedBars.constBegin(); it != completedBars.constEnd(); ++it) {
-        const QDateTime& timestamp = it.key();
-        indexToTimestamp[index] = timestamp;
-        timestampToIndex[timestamp] = index;
-        index++;
+        allTimestamps[it.key()] = false;
+    }
+    
+    for (auto it = voidBars.constBegin(); it != voidBars.constEnd(); ++it) {
+        allTimestamps[it.key()] = true;
     }
     
     // Add open bar if it exists
     if (hasOpenBar) {
-        const QDateTime& timestamp = currentOpenBar.getTimeStamp();
+        allTimestamps[currentOpenBar.getTimeStamp()] = false;
+    }
+    
+    // Build index mapping
+    int index = 0;
+    for (auto it = allTimestamps.constBegin(); it != allTimestamps.constEnd(); ++it) {
+        const QDateTime& timestamp = it.key();
         indexToTimestamp[index] = timestamp;
         timestampToIndex[timestamp] = index;
+        index++;
     }
 }
 
