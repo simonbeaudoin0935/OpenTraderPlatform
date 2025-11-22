@@ -21,8 +21,6 @@ void PositionsReceiver::startStream(QString &account)
 
     StreamPositions *stream = TSClient::getInstance().openStreamPositions(account);
 
-    void receivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote);
-
     connect(stream, &StreamPositions::receivedNewPosition, this, &PositionsReceiver::onReceivedNewPosition);
     connect(stream, &Stream::streamErrorOccurred, this, &PositionsReceiver::onStreamError);
 
