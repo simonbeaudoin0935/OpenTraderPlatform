@@ -9,14 +9,14 @@
 
 // Forward declare the generated UI class
 namespace Ui {
-class GuiFrontend;
+class GUIFrontend;
 }
 
-class GuiFrontend : public AppFrontend {
+class GUIFrontend : public AppFrontend {
     Q_OBJECT
 public:
-    explicit GuiFrontend(MainAlgo* mainAlgo, QObject* parent = nullptr);
-    ~GuiFrontend() override;
+    explicit GUIFrontend(MainAlgo* mainAlgo, QObject* parent = nullptr);
+    ~GUIFrontend() override;
 
 public slots:
     void onFMPClientDataUsageUpdate(qsizetype newDataUsage) override;
@@ -44,7 +44,7 @@ private:
 
     static QString bytesToString(qint64 bytes);
 
-    Ui::GuiFrontend* ui;  // Pointer to the UI object
+    Ui::GUIFrontend* ui;  // Pointer to the UI object
     QPushButton* tradeStationLoginButton;  // Login button in status bar
 
     qsizetype FMPClientDataUsage = 0;

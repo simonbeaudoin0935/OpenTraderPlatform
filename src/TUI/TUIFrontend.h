@@ -2,10 +2,10 @@
 
 #include "AppFrontend.h"
 
-class TerminalFrontend : public AppFrontend {
+class TUIFrontend : public AppFrontend {
     Q_OBJECT
 public:
-    explicit TerminalFrontend(QObject* parent = nullptr);
+    explicit TUIFrontend(QObject* parent = nullptr);
 
 public slots:
 
@@ -23,4 +23,3 @@ public slots:
     void onMarketDepthNotAvailable();
 
 };
-
