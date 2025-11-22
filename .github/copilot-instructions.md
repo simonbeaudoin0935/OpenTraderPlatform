@@ -1,7 +1,9 @@
 # Copilot Instructions for L2Trader Repository
 
-DO NOT ADD _codeql_build_dir to .gitignore, do not commit that ever
-
+- DO NOT ADD _codeql_build_dir to .gitignore, do not commit that ever
+- Prioritize adding Q_ASSERT/Q_ASSERT_X where it makes sense instead of trying to add runtime logic for things that should always be true.
+- When creating connections between signal and slots, prioritize using a Qt::UniqueConnection and asserting that the connection made was indeed unique and not a double. It should be extremely rare, if not never, that we should authorize multiple same connections.
+  
 ## High Level Details
 
 **Repository Summary**: L2Trader is a real-time algorithmic trading application built with Qt6 that monitors stock market data, executes trading strategies, and provides comprehensive market analysis tools. It connects to TradeStation and Financial Modeling Prep (FMP) APIs for live market data, implements automated stock screening, breaking news monitoring, Level 2 market depth visualization, and position tracking.
