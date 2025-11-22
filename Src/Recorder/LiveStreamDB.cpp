@@ -72,16 +72,20 @@ void LiveStreamDB::startRecording() {
                                                                            Bar::BarSessionTemplate::USEQ24Hour);
             Q_ASSERT(streamBar != nullptr);
 
-            QObject::connect(streamBar, &StreamBars::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock);
-            QObject::connect(streamBar, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred);
+            bool connection1 = QObject::connect(streamBar, &StreamBars::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock, Qt::UniqueConnection);
+            Q_ASSERT_X(connection1, "LiveStreamDB::startStreams", "Failed to create unique connection for streamBar receivedNewRawData");
+            bool connection2 = QObject::connect(streamBar, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred, Qt::UniqueConnection);
+            Q_ASSERT_X(connection2, "LiveStreamDB::startStreams", "Failed to create unique connection for streamBar streamErrorOccurred");
 
             streamBars[symbol] = streamBar;
         } else {
             StreamMarketDepthQuote* streamMarketDepthQuote = TSClient::getInstance().openStreamMarketDepthQuote(symbol, 10); // depth 10
             Q_ASSERT(streamMarketDepthQuote != nullptr);
 
-            QObject::connect(streamMarketDepthQuote, &StreamMarketDepthQuote::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock);
-            QObject::connect(streamMarketDepthQuote, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred);
+            bool connection3 = QObject::connect(streamMarketDepthQuote, &StreamMarketDepthQuote::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock, Qt::UniqueConnection);
+            Q_ASSERT_X(connection3, "LiveStreamDB::startStreams", "Failed to create unique connection for streamMarketDepthQuote receivedNewRawData");
+            bool connection4 = QObject::connect(streamMarketDepthQuote, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred, Qt::UniqueConnection);
+            Q_ASSERT_X(connection4, "LiveStreamDB::startStreams", "Failed to create unique connection for streamMarketDepthQuote streamErrorOccurred");
 
             streamMarketDepthQuotes[symbol] = streamMarketDepthQuote;
         }
@@ -174,8 +178,10 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol) {
                                                                        2,
                                                                        Bar::BarSessionTemplate::USEQ24Hour);
         if (newStream) {
-            QObject::connect(newStream, &StreamBars::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock);
-            QObject::connect(newStream, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred);
+            bool connection1 = QObject::connect(newStream, &StreamBars::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock, Qt::UniqueConnection);
+            Q_ASSERT_X(connection1, "LiveStreamDB::recoverStream", "Failed to create unique connection for newStream receivedNewRawData");
+            bool connection2 = QObject::connect(newStream, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred, Qt::UniqueConnection);
+            Q_ASSERT_X(connection2, "LiveStreamDB::recoverStream", "Failed to create unique connection for newStream streamErrorOccurred");
             streamBars[symbol] = newStream;
             successfulRecoveries[symbol]++;
             qInfo() << "Successfully recovered bars stream for" << symbol;
@@ -195,8 +201,10 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol) {
         // Open new stream
         StreamMarketDepthQuote* newStream = TSClient::getInstance().openStreamMarketDepthQuote(symbol, 10);
         if (newStream) {
-            QObject::connect(newStream, &StreamMarketDepthQuote::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock);
-            QObject::connect(newStream, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred);
+            bool connection3 = QObject::connect(newStream, &StreamMarketDepthQuote::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock, Qt::UniqueConnection);
+            Q_ASSERT_X(connection3, "LiveStreamDB::recoverStream", "Failed to create unique connection for newStream receivedNewRawData");
+            bool connection4 = QObject::connect(newStream, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred, Qt::UniqueConnection);
+            Q_ASSERT_X(connection4, "LiveStreamDB::recoverStream", "Failed to create unique connection for newStream streamErrorOccurred");
             streamMarketDepthQuotes[symbol] = newStream;
             successfulRecoveries[symbol]++;
             qInfo() << "Successfully recovered market depth stream for" << symbol;

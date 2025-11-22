@@ -32,11 +32,13 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
 
     // Add Ctrl+Q shortcut to quit the application
     QShortcut *quitShortcut = new QShortcut(QKeySequence("Ctrl+Q"), mainWindow);
-    connect(quitShortcut, &QShortcut::activated, qApp, &QApplication::quit);
+    bool connection1 = connect(quitShortcut, &QShortcut::activated, qApp, &QApplication::quit, Qt::UniqueConnection);
+    Q_ASSERT_X(connection1, "GUIFrontend", "Failed to create unique connection for quit shortcut");
 
     // Add "i" shortcut to focus the stock symbol input box
     QShortcut *focusShortcut = new QShortcut(QKeySequence("i"), mainWindow);
-    connect(focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); });
+    bool connection2 = connect(focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); }, Qt::UniqueConnection);
+    Q_ASSERT_X(connection2, "GUIFrontend", "Failed to create unique connection for focus shortcut");
 
     // Create and setup TradeStation login button
     tradeStationLoginButton = new QPushButton("Login to TradeStation", ui->statusbar);
@@ -45,50 +47,61 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     ui->statusbar->addPermanentWidget(tradeStationLoginButton);
 
     // Connect TradeStation signals and slots
-    connect(tradeStationLoginButton, &QPushButton::clicked, this, &GUIFrontend::onTradeStationLoginClicked);
+    bool connection3 = connect(tradeStationLoginButton, &QPushButton::clicked, this, &GUIFrontend::onTradeStationLoginClicked, Qt::UniqueConnection);
+    Q_ASSERT_X(connection3, "GUIFrontend", "Failed to create unique connection for TradeStation login button");
 
     // Connect app frontend signals and slots
-    connect(this, &AppFrontend::tradeStationAuthStateChanged,
+    bool connection4 = connect(this, &AppFrontend::tradeStationAuthStateChanged,
             this, &GUIFrontend::onTradeStationAuthStateChanged,
-            Qt::DirectConnection);
+            Qt::DirectConnection | Qt::UniqueConnection);
+    Q_ASSERT_X(connection4, "GUIFrontend", "Failed to create unique connection for tradeStationAuthStateChanged");
 
-    connect(this, &AppFrontend::tradeStationAccountsReceived,
+    bool connection5 = connect(this, &AppFrontend::tradeStationAccountsReceived,
             this, &GUIFrontend::onTradeStationAccountsReceived,
-            Qt::DirectConnection);
+            Qt::DirectConnection | Qt::UniqueConnection);
+    Q_ASSERT_X(connection5, "GUIFrontend", "Failed to create unique connection for tradeStationAccountsReceived");
 
-    connect(this, &AppFrontend::fmpDataUsageUpdated,
+    bool connection6 = connect(this, &AppFrontend::fmpDataUsageUpdated,
             this, &GUIFrontend::onFMPClientDataUsageUpdate,
-            Qt::DirectConnection);
+            Qt::DirectConnection | Qt::UniqueConnection);
+    Q_ASSERT_X(connection6, "GUIFrontend", "Failed to create unique connection for fmpDataUsageUpdated");
 
-    connect(this, &AppFrontend::tradeStationDataUsageUpdated,
+    bool connection7 = connect(this, &AppFrontend::tradeStationDataUsageUpdated,
             this, &GUIFrontend::onTSClientDataUsageUpdate,
-            Qt::DirectConnection);
+            Qt::DirectConnection | Qt::UniqueConnection);
+    Q_ASSERT_X(connection7, "GUIFrontend", "Failed to create unique connection for tradeStationDataUsageUpdated");
 
-    connect(this, &AppFrontend::streamCountUpdated,
+    bool connection8 = connect(this, &AppFrontend::streamCountUpdated,
             this, &GUIFrontend::onStreamCountUpdate,
-            Qt::DirectConnection);
+            Qt::DirectConnection | Qt::UniqueConnection);
+    Q_ASSERT_X(connection8, "GUIFrontend", "Failed to create unique connection for streamCountUpdated");
 
-    connect(this, &AppFrontend::currentHighlightedStockBarReceived,
+    bool connection9 = connect(this, &AppFrontend::currentHighlightedStockBarReceived,
             this, &GUIFrontend::onCurrentHighlightedStockBarReceived,
-            Qt::DirectConnection);
+            Qt::DirectConnection | Qt::UniqueConnection);
+    Q_ASSERT_X(connection9, "GUIFrontend", "Failed to create unique connection for currentHighlightedStockBarReceived");
 
-    connect(this, &AppFrontend::currentHighlightedReceivedNewMarketDepthQuote,
+    bool connection10 = connect(this, &AppFrontend::currentHighlightedReceivedNewMarketDepthQuote,
             this, &GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote,
-            Qt::DirectConnection);
+            Qt::DirectConnection | Qt::UniqueConnection);
+    Q_ASSERT_X(connection10, "GUIFrontend", "Failed to create unique connection for currentHighlightedReceivedNewMarketDepthQuote");
 
-    connect(this, &AppFrontend::newPositionReceived,
+    bool connection11 = connect(this, &AppFrontend::newPositionReceived,
             this, &GUIFrontend::onNewPositionReceived,
-            Qt::DirectConnection);
+            Qt::DirectConnection | Qt::UniqueConnection);
+    Q_ASSERT_X(connection11, "GUIFrontend", "Failed to create unique connection for newPositionReceived");
 
     // Propagate up when the chart needs missing bars to display
-    connect(ui->priceChart, &StockPriceChart::requestMissingBars,
-            this, &AppFrontend::requestMissingBars);
+    bool connection12 = connect(ui->priceChart, &StockPriceChart::requestMissingBars,
+            this, &AppFrontend::requestMissingBars, Qt::UniqueConnection);
+    Q_ASSERT_X(connection12, "GUIFrontend", "Failed to create unique connection for requestMissingBars");
 
     // Connect the stock symbol input to its slot
-    connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GUIFrontend::onNewDisplayedStockSelection);
+    bool connection13 = connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GUIFrontend::onNewDisplayedStockSelection, Qt::UniqueConnection);
+    Q_ASSERT_X(connection13, "GUIFrontend", "Failed to create unique connection for stockSymbolInput returnPressed");
 
     // Make the stock symbol input convert text to uppercase
-    connect(ui->stockSymbolInput, &QLineEdit::textChanged, [this](const QString &text) {
+    bool connection14 = connect(ui->stockSymbolInput, &QLineEdit::textChanged, [this](const QString &text) {
         QString upper = text.toUpper();
         if (upper != text) {
             int pos = ui->stockSymbolInput->cursorPosition();
@@ -97,23 +110,27 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
             ui->stockSymbolInput->setCursorPosition(pos);
             ui->stockSymbolInput->blockSignals(false);
         }
-    });
+    }, Qt::UniqueConnection);
+    Q_ASSERT_X(connection14, "GUIFrontend", "Failed to create unique connection for stockSymbolInput textChanged");
 
     // Connect position window symbol click
-    connect(ui->positionWindow, &PositionWindow::symbolClicked, this, [this](const QString& symbol) {
+    bool connection15 = connect(ui->positionWindow, &PositionWindow::symbolClicked, this, [this](const QString& symbol) {
         ui->stockSymbolInput->setText(symbol);
         ui->stockSymbolInput->returnPressed();  // Simulate Enter key press
-    });
+    }, Qt::UniqueConnection);
+    Q_ASSERT_X(connection15, "GUIFrontend", "Failed to create unique connection for positionWindow symbolClicked");
 
     // Set up the logging tab
     LoggingTab* loggingTab = new LoggingTab();
     ui->tabWidget->addTab(loggingTab, "Logging");
 
     // Connect logging tab signals
-    connect(loggingTab, &LoggingTab::loggerVisibilityChanged,
-            this, &GUIFrontend::onLoggerVisibilityChanged);
-    connect(loggingTab, &LoggingTab::logDepthChanged,
-            this, &GUIFrontend::onLogDepthChanged);
+    bool connection16 = connect(loggingTab, &LoggingTab::loggerVisibilityChanged,
+            this, &GUIFrontend::onLoggerVisibilityChanged, Qt::UniqueConnection);
+    Q_ASSERT_X(connection16, "GUIFrontend", "Failed to create unique connection for loggerVisibilityChanged");
+    bool connection17 = connect(loggingTab, &LoggingTab::logDepthChanged,
+            this, &GUIFrontend::onLogDepthChanged, Qt::UniqueConnection);
+    Q_ASSERT_X(connection17, "GUIFrontend", "Failed to create unique connection for logDepthChanged");
 
     // Set up the cache tab
     CacheTab* cacheTab = new CacheTab();
@@ -126,8 +143,9 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
         ui->liveLogDisplay->setFont(font);
         
         // Connect to the log broadcaster
-        connect(&LogBroadcaster::instance(), &LogBroadcaster::logMessageReceived,
-                this, &GUIFrontend::updateLiveLogDisplay, Qt::QueuedConnection);
+        bool connection18 = connect(&LogBroadcaster::instance(), &LogBroadcaster::logMessageReceived,
+                this, &GUIFrontend::updateLiveLogDisplay, Qt::QueuedConnection | Qt::UniqueConnection);
+        Q_ASSERT_X(connection18, "GUIFrontend", "Failed to create unique connection for logMessageReceived");
     }
 }
 

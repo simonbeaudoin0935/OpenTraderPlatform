@@ -14,7 +14,8 @@ MainAlgo::MainAlgo()
 
     this->moveToThread(&thread);
 
-    connect(&thread, &QThread::started, this, &MainAlgo::onThreadStarted);
+    bool connection = connect(&thread, &QThread::started, this, &MainAlgo::onThreadStarted, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "MainAlgo", "Failed to create unique connection for thread started - connection already exists");
 
     {
         QString filePath = QDir::homePath() + "/Documents/results.txt";
@@ -71,11 +72,13 @@ void MainAlgo::onSelectDisplayedStock(QString symbol)
     }
 
     // Redoo the plumbing we disconnected at the top of this function
-    connect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
-            this, &MainAlgo::displayedStockReceivedNewBar);
+    bool connection1 = connect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
+            this, &MainAlgo::displayedStockReceivedNewBar, Qt::UniqueConnection);
+    Q_ASSERT_X(connection1, "MainAlgo::onSelectDisplayedStock", "Failed to create unique connection for receivedNewBar");
 
-    connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
-            this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
+    bool connection2 = connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+            this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote, Qt::UniqueConnection);
+    Q_ASSERT_X(connection2, "MainAlgo::onSelectDisplayedStock", "Failed to create unique connection for receivedNewMarketDepthQuote");
 
 }
 
@@ -96,7 +99,8 @@ void MainAlgo::onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime las
 
 void MainAlgo::onThreadStarted()
 {
-    connect(&stockScreener, &StockScreener::finished, this, &MainAlgo::onStockScreenerFinished);
+    bool connection = connect(&stockScreener, &StockScreener::finished, this, &MainAlgo::onStockScreenerFinished, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "MainAlgo::onThreadStarted", "Failed to create unique connection for stockScreener finished");
     //stockScreener.start();
 }
 

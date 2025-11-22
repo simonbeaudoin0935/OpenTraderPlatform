@@ -19,8 +19,10 @@ void PositionsReceiver::startStream(QString &account)
 
     StreamPositions *stream = TSClient::getInstance().openStreamPositions(account);
 
-    connect(stream, &StreamPositions::receivedNewPosition, this, &PositionsReceiver::onReceivedNewPosition);
-    connect(stream, &Stream::streamErrorOccurred, this, &PositionsReceiver::onStreamError);
+    bool connection1 = connect(stream, &StreamPositions::receivedNewPosition, this, &PositionsReceiver::onReceivedNewPosition, Qt::UniqueConnection);
+    Q_ASSERT_X(connection1, "PositionsReceiver::startStream", "Failed to create unique connection for receivedNewPosition");
+    bool connection2 = connect(stream, &Stream::streamErrorOccurred, this, &PositionsReceiver::onStreamError, Qt::UniqueConnection);
+    Q_ASSERT_X(connection2, "PositionsReceiver::startStream", "Failed to create unique connection for streamErrorOccurred");
 
     streams.insert(account, stream);
 }

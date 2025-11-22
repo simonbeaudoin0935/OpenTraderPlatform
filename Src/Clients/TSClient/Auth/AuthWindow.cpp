@@ -29,7 +29,8 @@ AuthWindow::AuthWindow(QWidget *parent) : QDialog(parent)
     setAttribute(Qt::WA_DeleteOnClose);  // Ensure dialog is deleted when closed
     
     // Connect dialog finished signal first
-    connect(this, &QDialog::finished, this, &AuthWindow::handleDialogFinished);
+    bool connection = connect(this, &QDialog::finished, this, &AuthWindow::handleDialogFinished, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "AuthWindow", "Failed to create unique connection for dialog finished");
     
     
     // Generate random state for CSRF protection
@@ -83,7 +84,8 @@ void AuthWindow::setupUi()
     auto *buttonBox = new QDialogButtonBox(
         QDialogButtonBox::Cancel,
         Qt::Horizontal, this);
-    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    bool connection = connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "AuthWindow::setupUi", "Failed to create unique connection for buttonBox rejected");
     layout->addWidget(buttonBox);
     
     setLayout(layout);
@@ -130,7 +132,8 @@ void AuthWindow::startHttpServer()
         return;
     }
 
-    connect(httpServer, &QTcpServer::newConnection, this, &AuthWindow::handleNewConnection);
+    bool connection = connect(httpServer, &QTcpServer::newConnection, this, &AuthWindow::handleNewConnection, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "AuthWindow::startHttpServer", "Failed to create unique connection for httpServer newConnection");
     qCDebug(TSAuthWindowLog) << "HTTP server successfully started on" 
                     << httpServer->serverAddress().toString() 
                     << "port" << httpServer->serverPort();
@@ -204,13 +207,17 @@ void AuthWindow::handleNewConnection()
     qCDebug(TSAuthWindowLog) << "  Peer Address:" << socket->peerAddress().toString();
     qCDebug(TSAuthWindowLog) << "  Peer Port:" << socket->peerPort();
 
-    connect(socket, &QTcpSocket::readyRead, this, &AuthWindow::handleSocketReadyRead);
-    connect(socket, &QTcpSocket::disconnected, this, [socket]() {
+    bool connection1 = connect(socket, &QTcpSocket::readyRead, this, &AuthWindow::handleSocketReadyRead, Qt::UniqueConnection);
+    Q_ASSERT_X(connection1, "AuthWindow::handleNewConnection", "Failed to create unique connection for socket readyRead");
+    bool connection2 = connect(socket, &QTcpSocket::disconnected, this, [socket]() {
         qCDebug(TSAuthWindowLog) << "Connection closed";
         socket->deleteLater();
-    });
-    connect(socket, &QTcpSocket::errorOccurred, this, &AuthWindow::handleSocketError);
-    connect(socket, &QTcpSocket::stateChanged, this, &AuthWindow::handleSocketStateChanged);
+    }, Qt::UniqueConnection);
+    Q_ASSERT_X(connection2, "AuthWindow::handleNewConnection", "Failed to create unique connection for socket disconnected");
+    bool connection3 = connect(socket, &QTcpSocket::errorOccurred, this, &AuthWindow::handleSocketError, Qt::UniqueConnection);
+    Q_ASSERT_X(connection3, "AuthWindow::handleNewConnection", "Failed to create unique connection for socket errorOccurred");
+    bool connection4 = connect(socket, &QTcpSocket::stateChanged, this, &AuthWindow::handleSocketStateChanged, Qt::UniqueConnection);
+    Q_ASSERT_X(connection4, "AuthWindow::handleNewConnection", "Failed to create unique connection for socket stateChanged");
 }
 
 void AuthWindow::handleSocketReadyRead()
@@ -339,7 +346,7 @@ void AuthWindow::exchangeCodeForTokens(const QString& code)
 
     QNetworkReply *reply = networkManager->post(request, requestData.toUtf8());
     
-    connect(reply, &QNetworkReply::finished, [this, reply]() {
+    bool connection = connect(reply, &QNetworkReply::finished, [this, reply]() {
         if (reply->error() == QNetworkReply::NoError) {
             QByteArray responseData = reply->readAll();
             qCDebug(TSAuthWindowLog) << "Token exchange successful";
@@ -348,6 +355,10 @@ void AuthWindow::exchangeCodeForTokens(const QString& code)
         } else {
             qCDebug(TSAuthWindowLog) << "Token exchange failed:" << reply->errorString();
             handleTokenError(reply->errorString());
+        }
+        reply->deleteLater();
+    }, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "AuthWindow::exchangeCodeForToken", "Failed to create unique connection for reply finished");
         }
         reply->deleteLater();
     });

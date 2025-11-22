@@ -20,7 +20,8 @@ void BreakingNewsFetcher::start(QVector<QString> &symbolsScreenedByFloat,
     // IMPORTANT init the pointer with the first pingpong buffer
     latestNewsPerSymbolPingPongPtr = &this->latestNewsPerSymbolPingPong1;
 
-    connect(FMPClient::getInstancePtr(), &FMPClient::stockNewsReceived, this, &BreakingNewsFetcher::onStockNewsReceived);
+    bool connection = connect(FMPClient::getInstancePtr(), &FMPClient::stockNewsReceived, this, &BreakingNewsFetcher::onStockNewsReceived, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "BreakingNewsFetcher::start", "Failed to create unique connection for stockNewsReceived");
 
     fetchAsyncNewsStockScreenedByFloat();
 }

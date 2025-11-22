@@ -33,9 +33,10 @@ void SecureStorage::storeValue(const QString& service, const QString& key, const
         job->setKey(key);
         job->setBinaryData(value.toUtf8());
 
-        connect(job, &QKeychain::Job::finished, this, [this, job, callback]() {
+        bool connection = connect(job, &QKeychain::Job::finished, this, [this, job, callback]() {
             handleStoreFinished(job, callback);
-        });
+        }, Qt::UniqueConnection);
+        Q_ASSERT_X(connection, "SecureStorage::storeValue", "Failed to create unique connection for WritePasswordJob finished");
 
         job->start();
         return;
@@ -56,9 +57,10 @@ void SecureStorage::retrieveValue(const QString& service, const QString& key,
         auto* job = new QKeychain::ReadPasswordJob(service, this);
         job->setKey(key);
 
-        connect(job, &QKeychain::Job::finished, this, [this, job, callback]() {
+        bool connection = connect(job, &QKeychain::Job::finished, this, [this, job, callback]() {
             handleReadFinished(job, callback);
-        });
+        }, Qt::UniqueConnection);
+        Q_ASSERT_X(connection, "SecureStorage::retrieveValue", "Failed to create unique connection for ReadPasswordJob finished");
 
         job->start();
         return;
@@ -77,9 +79,10 @@ void SecureStorage::deleteValue(const QString& service, const QString& key,
         auto* job = new QKeychain::DeletePasswordJob(service, this);
         job->setKey(key);
 
-        connect(job, &QKeychain::Job::finished, this, [this, job, callback]() {
+        bool connection = connect(job, &QKeychain::Job::finished, this, [this, job, callback]() {
             handleDeleteFinished(job, callback);
-        });
+        }, Qt::UniqueConnection);
+        Q_ASSERT_X(connection, "SecureStorage::deleteValue", "Failed to create unique connection for DeletePasswordJob finished");
 
         job->start();
         return;
@@ -138,7 +141,8 @@ bool SecureStorage::storeValuesSync(const QString& service, const QMap<QString, 
         timer.setSingleShot(true);
         timer.start(timeoutMs);
 
-        QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+        bool connection = QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit, Qt::UniqueConnection);
+        Q_ASSERT_X(connection, "SecureStorage::storeValuesSync", "Failed to create unique connection for timer timeout");
 
         loop.exec();
 
@@ -213,7 +217,8 @@ QMap<QString, QString> SecureStorage::retrieveValuesSync(const QString& service,
         timer.setSingleShot(true);
         timer.start(timeoutMs);
 
-        QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+        bool connection = QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit, Qt::UniqueConnection);
+        Q_ASSERT_X(connection, "SecureStorage::retrieveValuesSync", "Failed to create unique connection for timer timeout");
 
         loop.exec();
 
@@ -278,7 +283,8 @@ bool SecureStorage::deleteValuesSync(const QString& service, const QStringList& 
         timer.setSingleShot(true);
         timer.start(timeoutMs);
 
-        QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+        bool connection = QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit, Qt::UniqueConnection);
+        Q_ASSERT_X(connection, "SecureStorage::deleteValuesSync", "Failed to create unique connection for timer timeout");
 
         loop.exec();
 

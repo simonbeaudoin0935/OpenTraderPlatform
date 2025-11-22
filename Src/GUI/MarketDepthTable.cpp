@@ -179,14 +179,15 @@ void MarketDepthTable::setupUI() {
     });
 
     // Set up a connection to handle header widget resizing
-    connect(tableView->horizontalHeader(), &QHeaderView::geometriesChanged,
+    bool connection = connect(tableView->horizontalHeader(), &QHeaderView::geometriesChanged,
             [headerWidget, spreadWidget, dwpWidget, this]() {
                 int width = tableView->viewport()->width() +
                            tableView->verticalHeader()->width();
                 headerWidget->setGeometry(0, 0, width, 24);
                 spreadWidget->setGeometry(0, 24, width, 24);
                 dwpWidget->setGeometry(0, 48, width, 24);
-            });
+            }, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "MarketDepthTable", "Failed to create unique connection for horizontalHeader geometriesChanged");
 }
 
 void MarketDepthTable::setupStyles() {

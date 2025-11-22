@@ -19,7 +19,8 @@ CacheTab::CacheTab(QWidget* parent)
 
     // Set up auto-refresh timer (every 30 seconds)
     refreshTimer = new QTimer(this);
-    connect(refreshTimer, &QTimer::timeout, this, &CacheTab::refreshCacheInfo);
+    bool connection = connect(refreshTimer, &QTimer::timeout, this, &CacheTab::refreshCacheInfo, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "CacheTab", "Failed to create unique connection for refreshTimer timeout");
     refreshTimer->start(30000);
 }
 
@@ -75,9 +76,12 @@ void CacheTab::setupUI() {
     mainLayout->addWidget(cacheGroupBox);
 
     // Connect signals
-    connect(refreshButton, &QPushButton::clicked, this, &CacheTab::refreshCacheInfo);
-    connect(clearSelectedButton, &QPushButton::clicked, this, &CacheTab::clearSelectedCache);
-    connect(clearAllButton, &QPushButton::clicked, this, &CacheTab::clearAllCache);
+    bool connection1 = connect(refreshButton, &QPushButton::clicked, this, &CacheTab::refreshCacheInfo, Qt::UniqueConnection);
+    Q_ASSERT_X(connection1, "CacheTab::setupUI", "Failed to create unique connection for refreshButton clicked");
+    bool connection2 = connect(clearSelectedButton, &QPushButton::clicked, this, &CacheTab::clearSelectedCache, Qt::UniqueConnection);
+    Q_ASSERT_X(connection2, "CacheTab::setupUI", "Failed to create unique connection for clearSelectedButton clicked");
+    bool connection3 = connect(clearAllButton, &QPushButton::clicked, this, &CacheTab::clearAllCache, Qt::UniqueConnection);
+    Q_ASSERT_X(connection3, "CacheTab::setupUI", "Failed to create unique connection for clearAllButton clicked");
 }
 
 void CacheTab::refreshCacheInfo() {

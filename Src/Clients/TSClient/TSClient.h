@@ -278,7 +278,8 @@ private:
                 // This call starts the timeout timer as well
                 stream->setNetworkReply(reply);
 
-                connect(stream, &Stream::receivedAmountOfData, this, &TSClient::onReceivedNewAmountOfData);
+                bool connection = connect(stream, &Stream::receivedAmountOfData, this, &TSClient::onReceivedNewAmountOfData, Qt::UniqueConnection);
+                Q_ASSERT_X(connection, "TSClient::openStream", "Failed to create unique connection for receivedAmountOfData");
                 
                 // Emit signal that stream count has changed
                 emit streamCountChanged(streams.size());

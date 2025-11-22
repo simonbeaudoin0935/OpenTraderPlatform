@@ -11,8 +11,10 @@ MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(const QString &symbol, QObjec
 
     StreamMarketDepthQuote *stream = TSClient::getInstance().openStreamMarketDepthQuote(symbol, 10);
 
-    connect(stream, &StreamMarketDepthQuote::receivedNewMarketDepthQuote, this, &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote);
-    connect(stream, &Stream::streamErrorOccurred, this, &MarketDepthQuoteReceiver::onStreamError);
+    bool connection1 = connect(stream, &StreamMarketDepthQuote::receivedNewMarketDepthQuote, this, &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote, Qt::UniqueConnection);
+    Q_ASSERT_X(connection1, "MarketDepthQuoteReceiver", "Failed to create unique connection for receivedNewMarketDepthQuote");
+    bool connection2 = connect(stream, &Stream::streamErrorOccurred, this, &MarketDepthQuoteReceiver::onStreamError, Qt::UniqueConnection);
+    Q_ASSERT_X(connection2, "MarketDepthQuoteReceiver", "Failed to create unique connection for streamErrorOccurred");
 }
 
 MarketDepthQuoteReceiver::~MarketDepthQuoteReceiver() {

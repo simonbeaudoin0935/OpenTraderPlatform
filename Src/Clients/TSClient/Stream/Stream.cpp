@@ -26,11 +26,15 @@ void Stream::setNetworkReply(QNetworkReply *networkReply)
 
     reply = networkReply;
 
-    connect(reply, &QNetworkReply::readyRead, this, &Stream::onReadyRead);
-    connect(reply, &QNetworkReply::errorOccurred, this, &Stream::onErrorOccurred);
-    connect(reply, &QNetworkReply::finished, this, &Stream::onFinished);
+    bool connection1 = connect(reply, &QNetworkReply::readyRead, this, &Stream::onReadyRead, Qt::UniqueConnection);
+    Q_ASSERT_X(connection1, "Stream::setNetworkReply", "Failed to create unique connection for reply readyRead");
+    bool connection2 = connect(reply, &QNetworkReply::errorOccurred, this, &Stream::onErrorOccurred, Qt::UniqueConnection);
+    Q_ASSERT_X(connection2, "Stream::setNetworkReply", "Failed to create unique connection for reply errorOccurred");
+    bool connection3 = connect(reply, &QNetworkReply::finished, this, &Stream::onFinished, Qt::UniqueConnection);
+    Q_ASSERT_X(connection3, "Stream::setNetworkReply", "Failed to create unique connection for reply finished");
 
-    connect(&heartbeatTimer, &QTimer::timeout, this, &Stream::onHeartbeatTimerTimeout);
+    bool connection4 = connect(&heartbeatTimer, &QTimer::timeout, this, &Stream::onHeartbeatTimerTimeout, Qt::UniqueConnection);
+    Q_ASSERT_X(connection4, "Stream::setNetworkReply", "Failed to create unique connection for heartbeatTimer timeout");
 }
 
 void Stream::onReadyRead()
