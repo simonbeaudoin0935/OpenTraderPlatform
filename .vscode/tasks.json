@@ -160,7 +160,7 @@
         {
             "label": "run-main",
             "type": "shell",
-            "command": "${workspaceFolder}/build/L2Trader/src/L2Trader",
+            "command": "${workspaceFolder}/build/L2Trader/Src/L2Trader",
             "args": [
                 "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
             ],
@@ -176,7 +176,7 @@
         {
             "label": "run-recorder",
             "type": "shell",
-            "command": "${workspaceFolder}/build/L2Trader_Recorder/src/L2Trader_Recorder",
+            "command": "${workspaceFolder}/build/L2Trader_Recorder/Src/L2Trader_Recorder",
             "args": [
                 "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini",
                 "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener_mini.csv"
