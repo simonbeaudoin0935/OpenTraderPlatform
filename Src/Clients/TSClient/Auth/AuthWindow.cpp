@@ -251,7 +251,6 @@ void AuthWindow::handleSocketReadyRead()
         return;
     }
 
-    Q_ASSERT(requestParts.size() >= 3);
     QString method = requestParts[0];
     QString path = requestParts[1];
     

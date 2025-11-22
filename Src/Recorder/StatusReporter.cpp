@@ -88,7 +88,6 @@ void StatusReporter::printErrorStats(const QString& streamType, LiveStreamDB* db
                 totalTimeouts = totalRecovered + totalUnrecovered;
                 
                 if (totalTimeouts > 0) {
-                    Q_ASSERT(totalTimeouts > 0);  // Ensure no division by zero
                     double recoveryRate = (static_cast<double>(totalRecovered) / totalTimeouts) * 100.0;
                     std::cout << " (" << totalRecovered << " recovered, " << totalUnrecovered << " unrecovered, " 
                               << std::fixed << std::setprecision(1) << recoveryRate << "% recovery)";
@@ -118,7 +117,6 @@ void StatusReporter::printRecoveryStats(const QString& streamType, LiveStreamDB*
     }
 
     if (totalRecoveryAttempts > 0) {
-        Q_ASSERT(totalRecoveryAttempts > 0);  // Ensure no division by zero
         double recoverySuccessRate = (static_cast<double>(totalSuccessfulRecoveries) / totalRecoveryAttempts) * 100.0;
         std::cout << streamType.toStdString() << " Recovery: " << totalSuccessfulRecoveries << "/" << totalRecoveryAttempts 
                   << " successful (" << std::fixed << std::setprecision(1) << recoverySuccessRate << "% success rate)" << std::endl;

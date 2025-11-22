@@ -146,7 +146,6 @@ void BreakingNewsFetcher::onStockNewsReceived(QVector<StockNewsResult> results)
     if (results.isEmpty()) {
         //qCDebug(MainAlgoLog) << "Received an empty result. I guess this is to be expected";
     } else {
-        Q_ASSERT_X(!results.isEmpty(), "BreakingNewsFetcher::onStockNewsReceived", "results should not be empty before calling first()");
         latestNewsPerSymbolPingPongPtr->insert(results.first().getSymbol(), results);
     }
 
