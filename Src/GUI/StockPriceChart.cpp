@@ -213,9 +213,23 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
 }
 
 void StockPriceChart::maintainBarLimit() {
-    while (completedBars.size() > MAX_BARS) {
-        // Remove the oldest bar (first key in the map)
-        completedBars.erase(completedBars.begin());
+    // Count total bars (completed + void)
+    int totalBars = completedBars.size() + voidBars.size();
+    
+    while (totalBars > MAX_BARS) {
+        // Find the oldest timestamp across both maps
+        QDateTime oldestCompletedTime = completedBars.isEmpty() ? QDateTime() : completedBars.firstKey();
+        QDateTime oldestVoidTime = voidBars.isEmpty() ? QDateTime() : voidBars.firstKey();
+        
+        // Remove the older one
+        if (oldestCompletedTime.isValid() && 
+            (!oldestVoidTime.isValid() || oldestCompletedTime < oldestVoidTime)) {
+            completedBars.erase(completedBars.begin());
+        } else if (oldestVoidTime.isValid()) {
+            voidBars.erase(voidBars.begin());
+        }
+        
+        totalBars--;
     }
 }
 
