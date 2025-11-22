@@ -8,6 +8,7 @@
 #include <QShortcut>
 #include <QFont>
 #include <QTextCursor>
+#include <QScrollBar>
 
 #include "TSClient.h"
 #include "GuiFrontend.h"
@@ -453,6 +454,9 @@ void GuiFrontend::updateLiveLogDisplay(const QString& message) {
         return;
     }
 
+    // Check if the user is currently at the bottom of the log
+    bool wasAtBottom = ui->liveLogDisplay->verticalScrollBar()->value() == ui->liveLogDisplay->verticalScrollBar()->maximum();
+
     ui->liveLogDisplay->append(message);
 
     // Enforce max log lines
@@ -474,10 +478,12 @@ void GuiFrontend::updateLiveLogDisplay(const QString& message) {
         }
     }
 
-    // Auto-scroll to bottom
-    QTextCursor cursor = ui->liveLogDisplay->textCursor();
-    cursor.movePosition(QTextCursor::End);
-    ui->liveLogDisplay->setTextCursor(cursor);
+    // Only auto-scroll to bottom if the user was already at the bottom
+    if (wasAtBottom) {
+        QTextCursor cursor = ui->liveLogDisplay->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        ui->liveLogDisplay->setTextCursor(cursor);
+    }
 }
 
 void GuiFrontend::onLoggerVisibilityChanged(bool visible) {
