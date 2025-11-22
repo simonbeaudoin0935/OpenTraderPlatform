@@ -17,6 +17,15 @@
 
 Q_LOGGING_CATEGORY(ChartLog, "Chart");
 
+/**
+ * @brief Constructs a StockPriceChart widget.
+ * 
+ * Initializes the chart with candlestick series, last price line, void bar series,
+ * axes, and sets up the dark theme. Connects axis range change signals to update
+ * background and price line positioning.
+ * 
+ * @param parent The parent widget, defaults to nullptr.
+ */
 StockPriceChart::StockPriceChart(QWidget* parent)
     : QWidget(parent) {
     lastPriceLine = new QLineSeries();
@@ -109,16 +118,36 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::updateLastPriceLineIfNeeded);
 }
 
+/**
+ * @brief Destroys the StockPriceChart widget.
+ * 
+ * Qt's parent-child hierarchy handles cleanup of chart, series, and other Qt objects.
+ */
 StockPriceChart::~StockPriceChart() {
     // No need to delete chart, series, etc.—handled by Qt parent hierarchy
 }
 
+/**
+ * @brief Sets the stock symbol for the chart.
+ * 
+ * Updates the chart title and candlestick series name to display the new symbol.
+ * 
+ * @param symbol The stock symbol to display (e.g., "AAPL", "GOOGL").
+ */
 void StockPriceChart::setSymbol(const QString& symbol) {
     this->symbol = symbol;
     candlestickSeries->setName(symbol + " (Bars)");
     chart->setTitle("Stock Price: " + symbol);
 }
 
+/**
+ * @brief Adds a new bar to the chart.
+ * 
+ * Processes the bar based on its status - either handles it as a closed bar
+ * or open bar, then updates the chart display.
+ * 
+ * @param bar The Bar object containing price data and timestamp.
+ */
 void StockPriceChart::addBar(const Bar& bar) {
     if (!bar.isValid()) {
         return;
@@ -135,6 +164,15 @@ void StockPriceChart::addBar(const Bar& bar) {
     updateChart();
 }
 
+/**
+ * @brief Handles the response to a missing bars request.
+ * 
+ * Processes the received bars, inserting them into the appropriate data structures
+ * (completed bars or void bars). Updates the chart display and last price line.
+ * Resets the request flag to allow future requests.
+ * 
+ * @param bars Vector of Bar objects received from the data source.
+ */
 void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     // If this flag isn't true, it means there is a logic bug somewhere
     Q_ASSERT(currentGetBarsRequestInProcess == true);
@@ -180,6 +218,15 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     updateAfterHoursBackground();
 }
 
+/**
+ * @brief Processes a closed bar (completed trading period).
+ * 
+ * Stores the closed bar in the completed bars map. If there was a previous open bar
+ * with a different timestamp, it gets stored as well. Maintains the bar limit
+ * and preserves the current view state.
+ * 
+ * @param bar The closed Bar object to process.
+ */
 void StockPriceChart::handleClosedBar(const Bar& bar) {
     // Store current view state (using indices)
     qreal currentMinIndex = axisX->min();
@@ -212,6 +259,12 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
     }
 }
 
+/**
+ * @brief Maintains the maximum number of bars limit.
+ * 
+ * Removes the oldest bars (both completed and void bars) when the total
+ * exceeds MAX_BARS to prevent memory issues and maintain performance.
+ */
 void StockPriceChart::maintainBarLimit() {
     // Count total bars (completed + void)
     int totalBars = completedBars.size() + voidBars.size();
@@ -233,6 +286,14 @@ void StockPriceChart::maintainBarLimit() {
     }
 }
 
+/**
+ * @brief Processes an open bar (currently active trading period).
+ * 
+ * Updates the current open bar data and manages the transition between
+ * different open bars. Updates the last price line accordingly.
+ * 
+ * @param bar The open Bar object to process.
+ */
 void StockPriceChart::handleOpenBar(const Bar& bar) {
     QDateTime newBarTime = bar.getTimeStamp();
     double newPrice = bar.getClose();
@@ -253,6 +314,13 @@ void StockPriceChart::handleOpenBar(const Bar& bar) {
     updateLastPriceLine(newPrice, newPrice >= currentOpenBar.getOpen());
 }
 
+/**
+ * @brief Updates the entire chart display.
+ * 
+ * Rebuilds the index mapping, clears and repopulates all series (candlesticks,
+ * void bars), calculates appropriate axis ranges based on visible data,
+ * and preserves the current view state when possible.
+ */
 void StockPriceChart::updateChart() {
     // Store current view state (now using indices)
     qreal currentMinIndex = axisX->min();
@@ -371,6 +439,18 @@ void StockPriceChart::updateChart() {
     }
 }
 
+/**
+ * @brief Handles mouse wheel events for chart interaction.
+ * 
+ * Provides different zoom and pan behaviors based on modifier keys:
+ * - Ctrl+Shift: Vertical panning
+ * - Alt: Horizontal panning  
+ * - Ctrl: Horizontal zooming
+ * - Shift: Vertical zooming
+ * - No modifiers: Both axes zooming
+ * 
+ * @param event The QWheelEvent containing wheel movement information.
+ */
 void StockPriceChart::wheelEvent(QWheelEvent* event) {
     if (!chartView->rect().contains(event->position().toPoint())) {
         event->ignore();
@@ -397,6 +477,14 @@ void StockPriceChart::wheelEvent(QWheelEvent* event) {
     event->accept();
 }
 
+/**
+ * @brief Handles vertical panning with mouse wheel.
+ * 
+ * Pans the Y-axis (price) up or down based on wheel direction.
+ * Used when Ctrl+Shift modifiers are held.
+ * 
+ * @param event The QWheelEvent containing wheel movement information.
+ */
 void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
     qreal currentMin = axisY->min();
     qreal currentMax = axisY->max();
@@ -411,6 +499,15 @@ void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
     updateLastPriceLineIfNeeded();
 }
 
+/**
+ * @brief Handles horizontal panning with mouse wheel.
+ * 
+ * Pans the X-axis (time) left or right based on wheel direction.
+ * Checks for missing bars when panning to earlier times.
+ * Used when Alt modifier is held.
+ * 
+ * @param event The QWheelEvent containing wheel movement information.
+ */
 void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
     qreal currentMin = axisX->min();
     qreal currentMax = axisX->max();
@@ -435,6 +532,16 @@ void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
     updateLastPriceLineIfNeeded();
 }
 
+/**
+ * @brief Handles horizontal zooming with mouse wheel.
+ * 
+ * Zooms in/out on the X-axis (time) centered on current view.
+ * Checks for missing bars when zooming out to earlier times.
+ * Used when Ctrl modifier is held.
+ * 
+ * @param event The QWheelEvent containing wheel movement information.
+ * @param zoomFactor The zoom multiplier (typically 0.9 for zoom in, 1.1 for zoom out).
+ */
 void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor) {
     Q_UNUSED(event);
 
@@ -461,6 +568,15 @@ void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor)
     updateLastPriceLineIfNeeded();
 }
 
+/**
+ * @brief Handles vertical zooming with mouse wheel.
+ * 
+ * Zooms in/out on the Y-axis (price) centered on current view.
+ * Used when Shift modifier is held.
+ * 
+ * @param event The QWheelEvent containing wheel movement information.
+ * @param zoomFactor The zoom multiplier (typically 0.9 for zoom in, 1.1 for zoom out).
+ */
 void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
     Q_UNUSED(event);
 
@@ -477,6 +593,16 @@ void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
     updateLastPriceLineIfNeeded();
 }
 
+/**
+ * @brief Handles simultaneous zooming on both axes with mouse wheel.
+ * 
+ * Zooms in/out on both X-axis (time) and Y-axis (price) centered on current view.
+ * Checks for missing bars when zooming out on time axis.
+ * Used with no modifier keys held.
+ * 
+ * @param event The QWheelEvent containing wheel movement information.
+ * @param zoomFactor The zoom multiplier (typically 0.9 for zoom in, 1.1 for zoom out).
+ */
 void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
     Q_UNUSED(event);
 
@@ -516,6 +642,12 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
     updateLastPriceLineIfNeeded();
 }
 
+/**
+ * @brief Updates the last price line if there are candlesticks available.
+ * 
+ * Uses the last candlestick's close and open prices to determine the line color
+ * and position. Called when axis ranges change.
+ */
 void StockPriceChart::updateLastPriceLineIfNeeded() {
     // Update the price line regardless of whether there's an open bar
     if (candlestickSeries->count() > 0) {
@@ -526,6 +658,12 @@ void StockPriceChart::updateLastPriceLineIfNeeded() {
     }
 }
 
+/**
+ * @brief Updates the position of the price label on the chart.
+ * 
+ * Positions the price label in the right margin of the chart, aligned with
+ * the last price line. Keeps the label within the plot area bounds.
+ */
 void StockPriceChart::updatePriceLabelPosition() {
     if (lastPriceLine->points().isEmpty() || lastPriceLine->points().size() < 2) {
         return;
@@ -555,6 +693,16 @@ void StockPriceChart::updatePriceLabelPosition() {
     priceLabel->setPos(scenePos);
 }
 
+/**
+ * @brief Updates the horizontal last price line across the visible chart area.
+ * 
+ * Creates a horizontal dashed line at the specified price level spanning the
+ * current visible X-axis range. Sets the line color based on price movement
+ * (green for uptick, red for downtick) and updates the price label.
+ * 
+ * @param price The price level for the line.
+ * @param isUpTick True if price is moving up (green line), false for down (red line).
+ */
 void StockPriceChart::updateLastPriceLine(double price, bool isUpTick) {
     lastPriceLine->clear();
 
@@ -580,6 +728,14 @@ void StockPriceChart::updateLastPriceLine(double price, bool isUpTick) {
     lastPrice = price;
 }
 
+/**
+ * @brief Handles widget resize events.
+ * 
+ * Updates the chart geometry and repositions the price label and background
+ * rectangles when the widget is resized.
+ * 
+ * @param event The QResizeEvent containing size information.
+ */
 void StockPriceChart::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     
@@ -591,6 +747,14 @@ void StockPriceChart::resizeEvent(QResizeEvent* event) {
     updateAfterHoursBackground();
 }
 
+/**
+ * @brief Checks if the given time is after market hours.
+ * 
+ * Converts the local time to New York timezone and checks if it's after 4 PM ET.
+ * 
+ * @param localTime The time to check in local timezone.
+ * @return True if the time is after 4 PM ET, false otherwise.
+ */
 bool StockPriceChart::isAfterMarketHours(const QDateTime& localTime) {
     // Convert local time to New York time
     QTimeZone nyZone("America/New_York");
@@ -600,6 +764,16 @@ bool StockPriceChart::isAfterMarketHours(const QDateTime& localTime) {
     return nyTime.time().hour() >= 16;
 }
 
+/**
+ * @brief Updates the background rectangles for different market sessions.
+ * 
+ * Draws colored background rectangles to indicate:
+ * - Pre-market hours (brown)
+ * - After-hours (blue)
+ * - Closed market periods including weekends (dark gray)
+ * 
+ * Only draws backgrounds for the currently visible time range.
+ */
 void StockPriceChart::updateAfterHoursBackground() {
     // Clear existing rectangles
     clearBackgroundRects();
@@ -671,6 +845,13 @@ void StockPriceChart::updateAfterHoursBackground() {
     }
 }
 
+/**
+ * @brief Creates a background rectangle with specified color and Z-value.
+ * 
+ * @param color The fill color for the rectangle.
+ * @param zValue The stacking order (higher values appear on top).
+ * @return Pointer to the created QGraphicsRectItem.
+ */
 QGraphicsRectItem* StockPriceChart::createBackgroundRect(const QColor& color, int zValue) {
     QGraphicsRectItem* rect = new QGraphicsRectItem(chart);
     rect->setBrush(color);
@@ -679,6 +860,11 @@ QGraphicsRectItem* StockPriceChart::createBackgroundRect(const QColor& color, in
     return rect;
 }
 
+/**
+ * @brief Clears all background rectangles from the chart.
+ * 
+ * Removes and deletes all after-hours, pre-market, and closed market background rectangles.
+ */
 void StockPriceChart::clearBackgroundRects() {
     // Delete and clear after-hours rectangles
     for (auto rect : afterHoursRects) {
@@ -702,6 +888,17 @@ void StockPriceChart::clearBackgroundRects() {
     closedMarketRects.clear();
 }
 
+/**
+ * @brief Filters events for the chart view's viewport.
+ * 
+ * Handles mouse interactions for panning and right-click recentering:
+ * - Left mouse button: Initiates and performs panning
+ * - Right mouse button: Recenters the view to show last 30 bars
+ * 
+ * @param object The object that received the event.
+ * @param event The event to filter.
+ * @return True if the event was handled, false to pass it to the parent.
+ */
 bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
     if (object != chartView->viewport()) {
         return QWidget::eventFilter(object, event);
@@ -810,6 +1007,15 @@ bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
     }
 }
 
+/**
+ * @brief Handles mouse panning movement.
+ * 
+ * Updates the chart axes based on mouse movement delta, converting pixel
+ * movement to appropriate index and price units. Checks for missing bars
+ * when panning to earlier times.
+ * 
+ * @param mouseEvent The QMouseEvent containing mouse position information.
+ */
 void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
     QPoint delta = mouseEvent->pos() - lastMousePos;
     lastMousePos = mouseEvent->pos();
@@ -847,6 +1053,16 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
     }
 }
 
+
+/**
+ * @brief Checks if the current view requires missing bars to be loaded.
+ * 
+ * When the view extends beyond available data, emits a signal to request
+ * missing bars from the data source. Only one request can be active at a time.
+ * 
+ * @param viewStartTime The start time of the current view.
+ * @param viewEndTime The end time of the current view (unused).
+ */
 void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime) {
     Q_UNUSED(viewEndTime);
 
@@ -879,6 +1095,12 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     }
 }
 
+/**
+ * @brief Clears all data and resets the chart for a new symbol.
+ * 
+ * Removes all bars, series data, background rectangles, and resets axes
+ * to default ranges. Prepares the chart for displaying a new stock symbol.
+ */
 void StockPriceChart::clearSymbol() {
     // Clear the candlestick series
     candlestickSeries->clear();
@@ -915,6 +1137,13 @@ void StockPriceChart::clearSymbol() {
     axisY->setRange(0, 100);
 }
 
+/**
+ * @brief Rebuilds the index-to-timestamp mappings for continuous display.
+ * 
+ * Creates sequential indices (0, 1, 2, ...) for all timestamps (completed bars,
+ * void bars, and open bar) to enable gapless chart display across time periods.
+ * Maintains bidirectional mapping between indices and timestamps.
+ */
 void StockPriceChart::rebuildIndexMapping() {
     indexToTimestamp.clear();
     timestampToIndex.clear();
@@ -945,6 +1174,12 @@ void StockPriceChart::rebuildIndexMapping() {
     }
 }
 
+/**
+ * @brief Gets the index corresponding to a timestamp.
+ * 
+ * @param timestamp The timestamp to find the index for.
+ * @return The index for the timestamp, or the closest available index if exact match not found.
+ */
 int StockPriceChart::getIndexForTimestamp(const QDateTime& timestamp) const {
     auto it = timestampToIndex.find(timestamp);
     if (it != timestampToIndex.end()) {
@@ -967,6 +1202,15 @@ int StockPriceChart::getIndexForTimestamp(const QDateTime& timestamp) const {
     return upper.value();
 }
 
+/**
+ * @brief Gets the timestamp corresponding to an index.
+ * 
+ * For indices within the mapped range, returns the exact timestamp.
+ * For indices outside the range, extrapolates assuming 1-minute bars.
+ * 
+ * @param index The index to find the timestamp for.
+ * @return The timestamp for the index.
+ */
 QDateTime StockPriceChart::getTimestampForIndex(int index) const {
     auto it = indexToTimestamp.find(index);
     if (it != indexToTimestamp.end()) {
@@ -998,6 +1242,13 @@ QDateTime StockPriceChart::getTimestampForIndex(int index) const {
     return QDateTime::currentDateTime();
 }
 
+/**
+ * @brief Updates the X-axis tick count based on the visible range.
+ * 
+ * Adjusts the number of tick marks on the X-axis depending on the zoom level
+ * to provide appropriate labeling density. Currently uses automatic labeling
+ * showing index numbers.
+ */
 void StockPriceChart::updateAxisLabels() {
     // Get visible range in indices
     qreal minIndex = axisX->min();
@@ -1028,6 +1279,18 @@ void StockPriceChart::updateAxisLabels() {
     // The axis will show index numbers which is acceptable for now.
 }
 
+/**
+ * @brief Draws a background rectangle for a specific time range.
+ * 
+ * Creates a colored background rectangle covering the bars that fall within
+ * the specified time range, clipped to the currently visible area.
+ * 
+ * @param rangeStart The start time of the range to highlight.
+ * @param rangeEnd The end time of the range to highlight.
+ * @param color The color for the background rectangle.
+ * @param zValue The Z-order for layering (higher values appear on top).
+ * @param rectList The list to add the created rectangle to.
+ */
 void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd,
                                                    const QColor& color, int zValue,
                                                    QList<QGraphicsRectItem*>& rectList) {
