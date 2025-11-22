@@ -22,42 +22,42 @@ target_link_libraries(test_barcache PRIVATE
 )
 
 target_include_directories(test_barcache PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/Misc
-    ${CMAKE_SOURCE_DIR}/src/Clients
-    ${CMAKE_SOURCE_DIR}/src/Clients/FMPClient
-    ${CMAKE_SOURCE_DIR}/src/Clients/FMPClient/Filters
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Auth
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/GetAccounts
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/GetBalances
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/GetOrders
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/StreamOrders
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/StreamPositions
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/Bars
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/GetQuoteSnapshots
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/MockStream
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/StreamMarketDepthQuote
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/StreamQuote
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/OrderExecution
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/OrderExecution/CancelOrder
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/OrderExecution/PlaceOrder
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Stream
-    ${CMAKE_SOURCE_DIR}/src/Core
-    ${CMAKE_SOURCE_DIR}/src/Core/Cache
-    ${CMAKE_SOURCE_DIR}/src/Core/Cache/BarCache
+    ${CMAKE_SOURCE_DIR}/Src/Misc
+    ${CMAKE_SOURCE_DIR}/Src/Clients
+    ${CMAKE_SOURCE_DIR}/Src/Clients/FMPClient
+    ${CMAKE_SOURCE_DIR}/Src/Clients/FMPClient/Filters
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Auth
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetAccounts
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetBalances
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetOrders
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/StreamOrders
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/StreamPositions
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/Bars
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/GetQuoteSnapshots
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/MockStream
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/StreamMarketDepthQuote
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/StreamQuote
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution/CancelOrder
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution/PlaceOrder
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Stream
+    ${CMAKE_SOURCE_DIR}/Src/Core
+    ${CMAKE_SOURCE_DIR}/Src/Core/Cache
+    ${CMAKE_SOURCE_DIR}/Src/Core/Cache/BarCache
 )
 
 # Collect sources needed for the test
 file(GLOB_RECURSE BARCACHE_TEST_MISC_SOURCES 
-    "${CMAKE_SOURCE_DIR}/src/Misc/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Src/Misc/*.cpp"
 )
 file(GLOB_RECURSE BARCACHE_TEST_CLIENTS_SOURCES 
-    "${CMAKE_SOURCE_DIR}/src/Clients/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Src/Clients/*.cpp"
 )
 file(GLOB_RECURSE BARCACHE_TEST_CACHE_SOURCES 
-    "${CMAKE_SOURCE_DIR}/src/Core/Cache/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Src/Core/Cache/*.cpp"
 )
 
 # Exclude GUI-specific sources (both .cpp and .h)
@@ -89,36 +89,36 @@ target_link_libraries(test_fmpclient PRIVATE
 )
 
 target_include_directories(test_fmpclient PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/Misc
-    ${CMAKE_SOURCE_DIR}/src/Clients
-    ${CMAKE_SOURCE_DIR}/src/Clients/FMPClient
-    ${CMAKE_SOURCE_DIR}/src/Clients/FMPClient/Filters
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Auth
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/GetAccounts
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/GetBalances
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/GetOrders
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/StreamOrders
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/StreamPositions
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/Bars
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/GetQuoteSnapshots
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/MockStream
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/StreamMarketDepthQuote
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/StreamQuote
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/OrderExecution
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/OrderExecution/CancelOrder
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/OrderExecution/PlaceOrder
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Stream
+    ${CMAKE_SOURCE_DIR}/Src/Misc
+    ${CMAKE_SOURCE_DIR}/Src/Clients
+    ${CMAKE_SOURCE_DIR}/Src/Clients/FMPClient
+    ${CMAKE_SOURCE_DIR}/Src/Clients/FMPClient/Filters
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Auth
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetAccounts
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetBalances
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetOrders
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/StreamOrders
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/StreamPositions
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/Bars
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/GetQuoteSnapshots
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/MockStream
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/StreamMarketDepthQuote
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/StreamQuote
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution/CancelOrder
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution/PlaceOrder
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Stream
 )
 
 # Collect sources needed for the test
 file(GLOB_RECURSE FMPCLIENT_TEST_MISC_SOURCES 
-    "${CMAKE_SOURCE_DIR}/src/Misc/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Src/Misc/*.cpp"
 )
 file(GLOB_RECURSE FMPCLIENT_TEST_CLIENTS_SOURCES 
-    "${CMAKE_SOURCE_DIR}/src/Clients/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Src/Clients/*.cpp"
 )
 
 # Exclude GUI-specific sources (both .cpp and .h)
@@ -149,36 +149,36 @@ target_link_libraries(test_tradestationclient PRIVATE
 )
 
 target_include_directories(test_tradestationclient PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/Misc
-    ${CMAKE_SOURCE_DIR}/src/Clients
-    ${CMAKE_SOURCE_DIR}/src/Clients/FMPClient
-    ${CMAKE_SOURCE_DIR}/src/Clients/FMPClient/Filters
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Auth
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/GetAccounts
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/GetBalances
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/GetOrders
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/StreamOrders
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/StreamPositions
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/Bars
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/GetQuoteSnapshots
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/MockStream
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/StreamMarketDepthQuote
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/StreamQuote
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/OrderExecution
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/OrderExecution/CancelOrder
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/OrderExecution/PlaceOrder
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Stream
+    ${CMAKE_SOURCE_DIR}/Src/Misc
+    ${CMAKE_SOURCE_DIR}/Src/Clients
+    ${CMAKE_SOURCE_DIR}/Src/Clients/FMPClient
+    ${CMAKE_SOURCE_DIR}/Src/Clients/FMPClient/Filters
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Auth
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetAccounts
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetBalances
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetOrders
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/StreamOrders
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/StreamPositions
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/Bars
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/GetQuoteSnapshots
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/MockStream
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/StreamMarketDepthQuote
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/StreamQuote
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution/CancelOrder
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution/PlaceOrder
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Stream
 )
 
 # Collect sources needed for the test
 file(GLOB_RECURSE TSCLIENT_TEST_MISC_SOURCES 
-    "${CMAKE_SOURCE_DIR}/src/Misc/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Src/Misc/*.cpp"
 )
 file(GLOB_RECURSE TSCLIENT_TEST_CLIENTS_SOURCES 
-    "${CMAKE_SOURCE_DIR}/src/Clients/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Src/Clients/*.cpp"
 )
 
 # Exclude GUI-specific sources (both .cpp and .h)
@@ -210,46 +210,46 @@ target_link_libraries(test_RunUpDetector PRIVATE
 )
 
 target_include_directories(test_RunUpDetector PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/Misc
-    ${CMAKE_SOURCE_DIR}/src/Clients
-    ${CMAKE_SOURCE_DIR}/src/Clients/FMPClient
-    ${CMAKE_SOURCE_DIR}/src/Clients/FMPClient/Filters
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Auth
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/GetAccounts
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/GetBalances
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/GetOrders
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/StreamOrders
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Brokerage/StreamPositions
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/Bars
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/GetQuoteSnapshots
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/MockStream
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/StreamMarketDepthQuote
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/MarketData/StreamQuote
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/OrderExecution
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/OrderExecution/CancelOrder
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/OrderExecution/PlaceOrder
-    ${CMAKE_SOURCE_DIR}/src/Clients/TSClient/Stream
-    ${CMAKE_SOURCE_DIR}/src/Core/Cache
-    ${CMAKE_SOURCE_DIR}/src/Core/Cache/BarCache
-    ${CMAKE_SOURCE_DIR}/src/Algo
-    ${CMAKE_SOURCE_DIR}/src/Algo/RunUpDetector
+    ${CMAKE_SOURCE_DIR}/Src/Misc
+    ${CMAKE_SOURCE_DIR}/Src/Clients
+    ${CMAKE_SOURCE_DIR}/Src/Clients/FMPClient
+    ${CMAKE_SOURCE_DIR}/Src/Clients/FMPClient/Filters
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Auth
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetAccounts
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetBalances
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetOrders
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/StreamOrders
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/StreamPositions
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/Bars
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/GetQuoteSnapshots
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/MockStream
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/StreamMarketDepthQuote
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/StreamQuote
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution/CancelOrder
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution/PlaceOrder
+    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Stream
+    ${CMAKE_SOURCE_DIR}/Src/Core/Cache
+    ${CMAKE_SOURCE_DIR}/Src/Core/Cache/BarCache
+    ${CMAKE_SOURCE_DIR}/Src/Algo
+    ${CMAKE_SOURCE_DIR}/Src/Algo/RunUpDetector
 )
 
 # Collect sources needed for the test
 file(GLOB_RECURSE RUNUPDETECTOR_TEST_MISC_SOURCES 
-    "${CMAKE_SOURCE_DIR}/src/Misc/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Src/Misc/*.cpp"
 )
 file(GLOB_RECURSE RUNUPDETECTOR_TEST_CLIENTS_SOURCES 
-    "${CMAKE_SOURCE_DIR}/src/Clients/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Src/Clients/*.cpp"
 )
 file(GLOB_RECURSE RUNUPDETECTOR_TEST_CACHE_SOURCES 
-    "${CMAKE_SOURCE_DIR}/src/Core/Cache/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Src/Core/Cache/*.cpp"
 )
 file(GLOB_RECURSE RUNUPDETECTOR_TEST_ALGO_SOURCES 
-    "${CMAKE_SOURCE_DIR}/src/Algo/RunUpDetector/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Src/Algo/RunUpDetector/*.cpp"
 )
 
 # Exclude GUI-specific sources (both .cpp and .h)

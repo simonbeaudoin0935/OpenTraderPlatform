@@ -8,7 +8,7 @@
 #include "TestBarCache.h"
 #include "TSClient.h"
 #include "BarCache.h"
-#include "../../src/Misc/Logging.h"
+#include "Logging.h"
 
 static TSClient* client;
 static QVector<QString> companies;

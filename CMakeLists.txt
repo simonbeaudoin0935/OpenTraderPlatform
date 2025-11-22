@@ -97,7 +97,7 @@ option(BUILD_TESTS "Build tests" ON)
 option(BUILD_RECORDER "Build recorder application" ON)
 
 # Add subdirectories
-add_subdirectory(src)
+add_subdirectory(Src)
 
 if(BUILD_TESTS)
     enable_testing()
