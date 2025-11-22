@@ -32,7 +32,7 @@ signals:
 
 public slots:
 
-    // Usage uptade
+    // Usage update
     virtual void onFMPClientDataUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onTSClientDataUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onMemoryUsageUpdate(qsizetype newDataUsage) = 0;

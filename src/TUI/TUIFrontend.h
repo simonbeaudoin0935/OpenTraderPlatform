@@ -9,7 +9,7 @@ public:
 
 public slots:
 
-    // Usage uptade
+    // Usage update
     void onFMPClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onTSClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onMemoryUsageUpdate(qsizetype newDataUsage) override;
@@ -20,6 +20,5 @@ public slots:
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
     void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP) override;
     void onRequestedMissingBarsDisplayedStockReceived(QVector<Bar>) override;
-    void onMarketDepthNotAvailable();
 
 };

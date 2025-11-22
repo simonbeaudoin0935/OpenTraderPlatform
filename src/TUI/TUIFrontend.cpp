@@ -55,8 +55,3 @@ void TUIFrontend::onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars
 {
     Q_UNUSED(bars);
 }
-
-void TUIFrontend::onMarketDepthNotAvailable()
-{
-
-}
