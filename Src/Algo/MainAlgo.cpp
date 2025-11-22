@@ -120,6 +120,7 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
     }
 
     // FIXME warning hack, better this. This is just for sim
+    Q_ASSERT_X(accounts.size() > 1, "MainAlgo::onTradeStationAuthStateChanged", "Expected at least 2 accounts");
     QString accountNumber = accounts.at(1).getAccountId();
 
     connect(&positionReceiver, &PositionsReceiver::receivedNewPosition,

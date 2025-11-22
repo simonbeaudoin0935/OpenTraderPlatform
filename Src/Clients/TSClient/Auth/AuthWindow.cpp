@@ -242,6 +242,7 @@ void AuthWindow::handleSocketReadyRead()
     }
 
     // Parse the request line (e.g., "GET /callback?code=xyz&state=abc HTTP/1.1")
+    Q_ASSERT_X(!requestLines.isEmpty(), "AuthWindow::handleRequest", "requestLines should not be empty");
     QStringList requestParts = requestLines[0].split(" ");
     if (requestParts.size() < 3) {
         qCDebug(TSAuthWindowLog) << "Error: Invalid HTTP request line";
@@ -250,6 +251,7 @@ void AuthWindow::handleSocketReadyRead()
         return;
     }
 
+    Q_ASSERT(requestParts.size() >= 3);
     QString method = requestParts[0];
     QString path = requestParts[1];
     

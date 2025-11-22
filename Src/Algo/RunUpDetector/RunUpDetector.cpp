@@ -49,6 +49,8 @@ void RunUpDetector::computeStatsOnLastAfterMarket()
     while (yesterday.dayOfWeek() > 5) yesterday = yesterday.addDays(-1);
 
     QVector<Bar> bars = barCache->getAfterHourBars(yesterday);
+    
+    Q_ASSERT_X(!bars.isEmpty(), "RunUpDetector::computeStatsOnLastAfterMarket", "bars should not be empty for division operations");
 
     struct stats st;
 
@@ -121,13 +123,16 @@ void RunUpDetector::detectRunUp()
         return; // Not enough valid bars
     }
 
-
+    Q_ASSERT(!validIndices.isEmpty());
     int startIdx = validIndices.first();
     int endIdx = validIndices.last();
 
     // Calculate price gain using valid bars
+    Q_ASSERT(startIdx >= 0 && startIdx < barList.size());
+    Q_ASSERT(endIdx >= 0 && endIdx < barList.size());
     double startPrice = barList[startIdx].getClose();
     double endPrice = barList[endIdx].getClose();
+    Q_ASSERT_X(startPrice != 0.0, "RunUpDetector::detectRunUp", "startPrice should not be zero for division");
     double priceGainPct = ((endPrice - startPrice) / startPrice) * 100.0;
 
     // Calculate average volume over window (include void bars as 0 volume)

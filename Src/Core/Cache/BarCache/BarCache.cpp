@@ -497,6 +497,7 @@ QVector<QPair<QDateTime, QDateTime>> BarCache::identifyMissingRanges(QDateTime s
     }
     
     // Check for gap before first cached bar
+    Q_ASSERT_X(!cachedBars.isEmpty(), "BarCache::identifyMissingRanges", "cachedBars should not be empty at this point");
     QDateTime firstCachedTime = cachedBars.first().getTimeStamp();
     if (firstCachedTime > start) {
         missingRanges.append(qMakePair(start, firstCachedTime.addSecs(-60)));
@@ -517,6 +518,7 @@ QVector<QPair<QDateTime, QDateTime>> BarCache::identifyMissingRanges(QDateTime s
     }
     
     // Check for gap after last cached bar
+    Q_ASSERT_X(!cachedBars.isEmpty(), "BarCache::identifyMissingRanges", "cachedBars should not be empty at this point (checking last)");
     QDateTime lastCachedTime = cachedBars.last().getTimeStamp();
     if (lastCachedTime < end) {
         missingRanges.append(qMakePair(lastCachedTime.addSecs(60), end));

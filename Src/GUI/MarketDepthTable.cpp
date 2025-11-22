@@ -384,10 +384,10 @@ void MarketDepthTable::updateData(const QVector<MarketDepthLevel>& bids, const Q
             double bidPrice = bid.getPrice().toDouble();
             int priceLevel = sortedBidPrices.indexOf(bidPrice);
             
-            rowItems << new QStandardItem(); setMarketDepthItem(rowItems.last(), bid, "Name", priceLevel);
-            rowItems << new QStandardItem(); setMarketDepthItem(rowItems.last(), bid, "Orders", priceLevel);
-            rowItems << new QStandardItem(); setMarketDepthItem(rowItems.last(), bid, "Size", priceLevel);
-            rowItems << new QStandardItem(); setMarketDepthItem(rowItems.last(), bid, "Price", priceLevel);
+            rowItems << new QStandardItem(); Q_ASSERT(!rowItems.isEmpty()); setMarketDepthItem(rowItems.last(), bid, "Name", priceLevel);
+            rowItems << new QStandardItem(); Q_ASSERT(!rowItems.isEmpty()); setMarketDepthItem(rowItems.last(), bid, "Orders", priceLevel);
+            rowItems << new QStandardItem(); Q_ASSERT(!rowItems.isEmpty()); setMarketDepthItem(rowItems.last(), bid, "Size", priceLevel);
+            rowItems << new QStandardItem(); Q_ASSERT(!rowItems.isEmpty()); setMarketDepthItem(rowItems.last(), bid, "Price", priceLevel);
         } else {
             // Add empty cells for bid
             for (int j = 0; j < 4; ++j) {
@@ -403,10 +403,10 @@ void MarketDepthTable::updateData(const QVector<MarketDepthLevel>& bids, const Q
             double askPrice = ask.getPrice().toDouble();
             int priceLevel = sortedAskPrices.indexOf(askPrice);
             
-            rowItems << new QStandardItem(); setMarketDepthItem(rowItems.last(), ask, "Price", priceLevel);
-            rowItems << new QStandardItem(); setMarketDepthItem(rowItems.last(), ask, "Size", priceLevel);
-            rowItems << new QStandardItem(); setMarketDepthItem(rowItems.last(), ask, "Orders", priceLevel);
-            rowItems << new QStandardItem(); setMarketDepthItem(rowItems.last(), ask, "Name", priceLevel);
+            rowItems << new QStandardItem(); Q_ASSERT(!rowItems.isEmpty()); setMarketDepthItem(rowItems.last(), ask, "Price", priceLevel);
+            rowItems << new QStandardItem(); Q_ASSERT(!rowItems.isEmpty()); setMarketDepthItem(rowItems.last(), ask, "Size", priceLevel);
+            rowItems << new QStandardItem(); Q_ASSERT(!rowItems.isEmpty()); setMarketDepthItem(rowItems.last(), ask, "Orders", priceLevel);
+            rowItems << new QStandardItem(); Q_ASSERT(!rowItems.isEmpty()); setMarketDepthItem(rowItems.last(), ask, "Name", priceLevel);
         } else {
             // Add empty cells for ask
             for (int j = 0; j < 4; ++j) {

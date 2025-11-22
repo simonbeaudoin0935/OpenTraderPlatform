@@ -90,6 +90,8 @@ void BreakingNewsFetcher::processReceivedNews()
         a++;
         if (a == 3) {
             a = 0;
+            Q_ASSERT_X(!latestNewsPerSymbolPingPongPtr->isEmpty(), "BreakingNewsFetcher::processReceivedNews", "latestNewsPerSymbolPingPongPtr should not be empty");
+            Q_ASSERT_X(!latestNewsPerSymbolPingPongPtr->first().isEmpty(), "BreakingNewsFetcher::processReceivedNews", "first element should not be empty");
             latestNewsPerSymbolPingPongPtr->first().first().TESTsetPublishedDateToNow();
         }
     }
@@ -144,6 +146,7 @@ void BreakingNewsFetcher::onStockNewsReceived(QVector<StockNewsResult> results)
     if (results.isEmpty()) {
         //qCDebug(MainAlgoLog) << "Received an empty result. I guess this is to be expected";
     } else {
+        Q_ASSERT_X(!results.isEmpty(), "BreakingNewsFetcher::onStockNewsReceived", "results should not be empty before calling first()");
         latestNewsPerSymbolPingPongPtr->insert(results.first().getSymbol(), results);
     }
 

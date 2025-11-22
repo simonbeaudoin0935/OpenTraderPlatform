@@ -157,6 +157,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     //Q_ASSERT(!bars.isEmpty());
 
     if (lastValidClosePrice == 0.0) {
+        Q_ASSERT_X(!completedBars.isEmpty(), "StockPriceChart::onRequestedMissingBarsReceived", "completedBars must not be empty when lastValidClosePrice is 0.0");
         lastValidClosePrice = completedBars.first().getOpen();
     }
 
@@ -469,6 +470,7 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
 void StockPriceChart::updateLastPriceLineIfNeeded() {
     // Update the price line regardless of whether there's an open bar
     if (candlestickSeries->count() > 0) {
+        Q_ASSERT_X(!candlestickSeries->sets().isEmpty(), "StockPriceChart::updateLastPriceLineIfNeeded", "candlestickSeries sets should not be empty when count > 0");
         auto lastSet = candlestickSeries->sets().last();
         double closePrice = lastSet->close();
         double openPrice = lastSet->open();
@@ -481,6 +483,7 @@ void StockPriceChart::updatePriceLabelPosition() {
         return;
     }
 
+    Q_ASSERT(!lastPriceLine->points().isEmpty());
     QDateTime endTime = QDateTime::fromMSecsSinceEpoch(lastPriceLine->points().last().x());
     double price = lastPriceLine->points().last().y();
 

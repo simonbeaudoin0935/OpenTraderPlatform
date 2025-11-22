@@ -67,9 +67,11 @@ qint64 MemoryMonitor::getProcessMemoryUsage() {
     QStringList fields = QString::fromStdString(line).split(' ', Qt::SkipEmptyParts);
     if (fields.size() >= 24) {
         bool ok;
+        Q_ASSERT_X(fields.size() > 23, "MemoryMonitor::getProcessMemoryUsage", "fields array must have at least 24 elements to access index 23");
         qint64 rssPages = fields[23].toLongLong(&ok); // RSS in pages
         if (ok) {
             long pageSize = sysconf(_SC_PAGESIZE); // Get system page size in bytes
+            Q_ASSERT(pageSize > 0);
             return rssPages * pageSize; // Convert to bytes
         }
     }

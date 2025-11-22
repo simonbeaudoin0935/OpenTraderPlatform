@@ -20,8 +20,11 @@ QStringList loadStockTickers(const QString& csvFilePath) {
     while (!in.atEnd()) {
         QString line = in.readLine();
         QStringList fields = line.split(',');
-        if (!fields.isEmpty() && !fields[0].isEmpty()) {
-            stockTickers.append(fields[0]);
+        if (!fields.isEmpty()) {
+            Q_ASSERT(!fields[0].isNull());
+            if (!fields[0].isEmpty()) {
+                stockTickers.append(fields[0]);
+            }
         }
     }
     file.close();
