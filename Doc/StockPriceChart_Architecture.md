@@ -96,8 +96,8 @@ classDiagram
         +isAfterHours(QDateTime) bool
     }
     
-    class GuiFrontend {
-        -Ui::GuiFrontend* ui
+    class GUIFrontend {
+        -Ui::GUIFrontend* ui
         +onRequestedMissingBarsDisplayedStockReceived(QVector~Bar~)
     }
     
@@ -108,9 +108,9 @@ classDiagram
     StockPriceChart --|> QWidget
     StockPriceChart --> Bar : uses
     StockPriceChart --> MarketHours : uses
-    GuiFrontend --> StockPriceChart : contains
-    GuiFrontend --|> AppFrontend
-    StockPriceChart --> GuiFrontend : signals requestMissingBars
+    GUIFrontend --> StockPriceChart : contains
+    GUIFrontend --|> AppFrontend
+    StockPriceChart --> GUIFrontend : signals requestMissingBars
 ```
 
 ### Component Dependencies
@@ -174,7 +174,7 @@ This diagram shows how bars flow from external sources into the chart display:
 ```mermaid
 sequenceDiagram
     participant TS as TradeStation/Cache
-    participant GF as GuiFrontend
+    participant GF as GUIFrontend
     participant SPC as StockPriceChart
     participant Chart as Qt Chart Components
     
@@ -481,7 +481,7 @@ graph TD
 sequenceDiagram
     participant User
     participant SPC as StockPriceChart
-    participant GF as GuiFrontend
+    participant GF as GUIFrontend
     participant Cache as BarCache
     
     User->>SPC: Zoom Out / Pan Left
@@ -694,7 +694,7 @@ graph TB
 sequenceDiagram
     participant User
     participant SPC as StockPriceChart
-    participant GF as GuiFrontend
+    participant GF as GUIFrontend
     participant Cache as BarCache
     
     Note over User,Cache: SCENARIO: Rapid zoom out + drag operations
