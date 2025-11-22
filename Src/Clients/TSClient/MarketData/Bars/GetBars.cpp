@@ -2,7 +2,7 @@
 
 #include "TSClient.h"
 
-void TSClient::getBarsAsync(const QString &symbol,
+void TSClient::getBarsAsync(const Ticker &symbol,
                             unsigned int interval,
                             Bar::BarUnit unit,
                             unsigned int barsback,
@@ -22,18 +22,18 @@ void TSClient::getBarsAsync(const QString &symbol,
 
     Q_ASSERT(!symbol.isEmpty());
 
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, QString(ENDPOINT_GET_BARS).arg(symbol), query);
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, QString(ENDPOINT_GET_BARS).arg(symbol.toString()), query);
 
-    void* arg = static_cast<void*> (new QString(symbol));
+    void* arg = static_cast<void*> (new Ticker(symbol));
     Q_CHECK_PTR(arg);
 
     fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetBars), HttpMethod::GET, QByteArray(), arg);
 
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching Bars for symbols : " << symbol;
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching Bars for symbols : " << symbol.toString();
 }
 
 bool TSClient::getBarsSync(QVector<Bar> &results,
-                           const QString &symbol,
+                           const Ticker &symbol,
                            unsigned int interval,
                            Bar::BarUnit unit,
                            unsigned int barsback,
@@ -52,7 +52,7 @@ bool TSClient::getBarsSync(QVector<Bar> &results,
 
     Q_ASSERT(!symbol.isEmpty());
 
-    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, QString(ENDPOINT_GET_BARS).arg(symbol), query);
+    QNetworkRequest request = buildRequest(API_KEY_PLACEMENT, QString(ENDPOINT_GET_BARS).arg(symbol.toString()), query);
 
 
     QJsonDocument *jsonDocumentFromReplyToDelete = nullptr;

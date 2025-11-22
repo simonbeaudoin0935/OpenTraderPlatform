@@ -7,6 +7,7 @@
 #include <QNetworkReply>
 #include <QFile>
 #include <QTextStream>
+#include "Ticker.h"
 
 Q_DECLARE_LOGGING_CATEGORY(StreamLog)
 
@@ -34,7 +35,7 @@ public:
 
 signals:
     // This exist so that RecorderLogic can record the received json to replay later
-    void receivedNewRawData(QString symbol, const QByteArray jsonObj);
+    void receivedNewRawData(Ticker symbol, const QByteArray jsonObj);
 
     void streamErrorOccurred(StreamError error, QString errorMessage);
     void receivedAmountOfData(qsizetype bytes);
@@ -49,14 +50,14 @@ private slots:
 
 protected:
 
-    explicit Stream(QString symbol = "", QObject *parent = nullptr);
+    explicit Stream(Ticker symbol = Ticker(), QObject *parent = nullptr);
 
     Stream(const Stream&) = delete;
     Stream& operator=(const Stream&) = delete;
 
     virtual bool processJsonObject(const QJsonObject& doc) = 0;
 
-    QString symbol;
+    Ticker symbol;
 
 private:
     QTimer heartbeatTimer;

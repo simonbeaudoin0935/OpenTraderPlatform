@@ -11,16 +11,16 @@
 
 Q_LOGGING_CATEGORY(BarCacheLog, "BarCache")
 
-BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
+BarCache::BarCache(const Ticker &symbol, bool isStreaming, QObject *parent):
     QObject(parent),
     symbol(symbol),
     isStreaming(isStreaming)
 {
-    this->setObjectName("BarCache::" + symbol);
+    this->setObjectName("BarCache::" + symbol.toString());
 
     // Set up database - one database file per symbol
     QString cacheLocation = getCacheLocation();
-    QString dbPath = cacheLocation + "/bars_cache_" + symbol + ".db";
+    QString dbPath = cacheLocation + "/bars_cache_" + symbol.toString() + ".db";
     bool dbFileExisted = QFileInfo::exists(dbPath);
     {
         qCInfo(BarCacheLog) << "Cache location:" << cacheLocation;
@@ -41,12 +41,12 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
             qCInfo(BarCacheLog) << "Created cache directory:" << dbInfo.absolutePath();
         }
 
-        qCInfo(BarCacheLog) << "SQLite connection name to be used:" << ("BarCache_" + symbol);
+        qCInfo(BarCacheLog) << "SQLite connection name to be used:" << ("BarCache_" + symbol.toString());
     }
-    db = QSqlDatabase::addDatabase("QSQLITE", "BarCache_" + symbol);
+    db = QSqlDatabase::addDatabase("QSQLITE", "BarCache_" + symbol.toString());
     db.setDatabaseName(dbPath);
     if (!db.open()) {
-        qFatal("Failed to open database for %s: %s", qPrintable(symbol), qPrintable(db.lastError().text()));
+        qFatal("Failed to open database for %s: %s", qPrintable(symbol.toString()), qPrintable(db.lastError().text()));
     } else {
         if (dbFileExisted) {
             qCInfo(BarCacheLog) << "Opened existing database for symbol" << symbol << "at" << dbPath;
@@ -354,7 +354,7 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
     return result;
 }
 
-void BarCache::onReceivedNewBar(QString symbol, Bar newBar)
+void BarCache::onReceivedNewBar(Ticker symbol, Bar newBar)
 {
     QString cacheName = this->objectName();
 

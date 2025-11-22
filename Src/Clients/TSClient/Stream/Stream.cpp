@@ -9,7 +9,7 @@
 Q_LOGGING_CATEGORY(StreamLog, "Stream")
 
 
-Stream::Stream(QString symbol, QObject *parent) :
+Stream::Stream(Ticker symbol, QObject *parent) :
     QObject(parent),
     symbol(symbol)
 {
@@ -17,7 +17,7 @@ Stream::Stream(QString symbol, QObject *parent) :
 
 Stream::~Stream()
 {
-    qCDebug(StreamLog) << "Destroying Stream " << this->objectName() << " for symbol " << symbol;
+    qCDebug(StreamLog) << "Destroying Stream " << this->objectName() << " for symbol " << symbol.toString();
 }
 
 void Stream::setNetworkReply(QNetworkReply *networkReply)

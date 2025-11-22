@@ -15,6 +15,7 @@
 #include "StreamBars.h"
 #include "StreamMarketDepthQuote.h"
 #include "Balance.h"
+#include "Ticker.h"
 
 #ifdef GUI_ENABLED
 #include "AuthWindow.h"
@@ -75,7 +76,7 @@ public:
      *
      * @note : Returned pointer dynamically allocated. Delete with closeStreamBars
      */
-    StreamBars* openStreamBars(const QString &symbol,
+    StreamBars* openStreamBars(const Ticker &symbol,
                                unsigned int interval = 1,
                                Bar::BarUnit unit = Bar::BarUnit::Daily,
                                unsigned int barsback = 1,
@@ -84,7 +85,7 @@ public:
     void closeStreamBars(StreamBars* stream);
 
     bool getBarsSync(QVector<Bar> &results,
-                     const QString &symbol,
+                     const Ticker &symbol,
                      unsigned int interval = 1,
                      Bar::BarUnit unit = Bar::BarUnit::Daily,
                      unsigned int barsback = 1,
@@ -92,7 +93,7 @@ public:
                      QDateTime firstDate = QDateTime(),
                      QDateTime lastDate = QDateTime());
 
-    void getBarsAsync(const QString &symbol,
+    void getBarsAsync(const Ticker &symbol,
                       unsigned int interval = 1,
                       Bar::BarUnit unit = Bar::BarUnit::Daily,
                       unsigned int barsback = 1,
@@ -110,7 +111,7 @@ public:
      *         in the thread of the client and shares the same network access manager. Later
      *         calling closeStreamMarketDepthQuote will delete it. Do not delete outside.
      */
-    StreamMarketDepthQuote* openStreamMarketDepthQuote(const QString &symbol, unsigned int depth = 20);
+    StreamMarketDepthQuote* openStreamMarketDepthQuote(const Ticker &symbol, unsigned int depth = 20);
     void closeStreamMarketDepthQuote(StreamMarketDepthQuote* stream);
 
                               // -------- Brokerage methods -------------
@@ -184,7 +185,7 @@ signals:
     void getQuoteSnapshotsAsyncReceived(QVector<QuoteSnapshot> quoteSnapshots);
     void placeOrderAsyncReceived(PlaceOrderResult result);
     void cancelOrderAsyncReceived(CancelOrderResult result);
-    void getBarsAsyncReceived(QString symbol, QVector<Bar> bars);
+    void getBarsAsyncReceived(Ticker symbol, QVector<Bar> bars);
     void streamCountChanged(int count);
 
 private slots:
@@ -243,11 +244,11 @@ private:
     bool activateMockStream = false;
 
     template<typename T, typename... Args>
-    T* openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Args&&... args) {
+    T* openStream(const Ticker &symbol, const QString &endpoint, const QUrlQuery &query, Args&&... args) {
         Q_ASSERT(!symbol.isEmpty());
-        if (symbol != "NOSYMBOL") Q_ASSERT_X(symbol.length() >= 1 && symbol.length() <= 8, symbol.toStdString().c_str(), "Symbol length must be between 1 and 8 characters");
-        Q_ASSERT(!symbol.contains(','));
-        Q_ASSERT(symbol.isUpper());
+        if (symbol.toString() != "NOSYMBOL") Q_ASSERT_X(symbol.length() >= 1 && symbol.length() <= 8, symbol.c_str(), "Symbol length must be between 1 and 8 characters");
+        Q_ASSERT(!symbol.toString().contains(','));
+        Q_ASSERT(symbol.toString().isUpper());
         Q_ASSERT(!endpoint.isEmpty());
 
         // Only external callers to TSClient thread should get here. Calling a fetch sync from within the TSClient's
@@ -262,7 +263,7 @@ private:
             {
                 stream = new T(std::forward<Args>(args)..., nullptr);
 
-                QUrl url(QString(BASE_URL_TS_API_SIMULATION) + endpoint + ((symbol=="NOSYMBOL") ? "" : ("/" + symbol)));
+                QUrl url(QString(BASE_URL_TS_API_SIMULATION) + endpoint + ((symbol.toString()=="NOSYMBOL") ? "" : ("/" + symbol.toString())));
                 url.setQuery(query);
 
                 QNetworkRequest request(url);

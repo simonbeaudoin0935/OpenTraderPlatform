@@ -8,6 +8,7 @@
 
 #include "Bar.h"
 #include "StreamBars.h"
+#include "Ticker.h"
 
 Q_DECLARE_LOGGING_CATEGORY(BarCacheLog)
 
@@ -15,10 +16,10 @@ class BarCache : public QObject
 {
     Q_OBJECT
 public:
-    explicit BarCache(const QString &symbol, bool isStreaming = false, QObject *parent = nullptr);
+    explicit BarCache(const Ticker &symbol, bool isStreaming = false, QObject *parent = nullptr);
     ~BarCache();
 
-    const QString& getSymbol() const { return symbol;};
+    const Ticker& getSymbol() const { return symbol;};
 
     unsigned int getNumberOfBars() const { return barCacheOneMinute.size();};
 
@@ -44,14 +45,14 @@ public:
     qsizetype getLastNumberFetchedBars() const { return lastNumberFetchedBars; }
 
 signals:
-    void receivedNewBar(QString symbol, Bar newBar);
+    void receivedNewBar(Ticker symbol, Bar newBar);
 
 private slots:
-    void onReceivedNewBar(QString symbol, Bar newBar);
+    void onReceivedNewBar(Ticker symbol, Bar newBar);
     void onStreamError(Stream::StreamError error, QString errorMessage);
 
 private:
-    QString symbol;
+    Ticker symbol;
     bool isStreaming;
     QMap<QDateTime, Bar> barCacheOneMinute;
     mutable QReadWriteLock rwLock;

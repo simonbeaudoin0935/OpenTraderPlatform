@@ -395,7 +395,7 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, 
         case RequestType::GetBars:
         {
             Q_ASSERT(optArg != nullptr);
-            QString* symbol = static_cast<QString*>(optArg);
+            Ticker* symbol = static_cast<Ticker*>(optArg);
 
             const QJsonArray barsArray = obj["Bars"].toArray();
             QVector<Bar> results;

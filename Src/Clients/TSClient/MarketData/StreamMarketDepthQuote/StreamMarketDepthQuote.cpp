@@ -1,10 +1,10 @@
 #include "StreamMarketDepthQuote.h"
 #include "TSClient.h"
 
-StreamMarketDepthQuote::StreamMarketDepthQuote(const QString &symbol, QObject *parent) :
+StreamMarketDepthQuote::StreamMarketDepthQuote(const Ticker &symbol, QObject *parent) :
     Stream(symbol, parent)
 {
-    this->setObjectName("Stream::MarketDepthQuote::" + symbol);
+    this->setObjectName("Stream::MarketDepthQuote::" + symbol.toString());
 }
 
 StreamMarketDepthQuote::~StreamMarketDepthQuote()
@@ -37,7 +37,7 @@ bool StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
     return false;
 }
 
-StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(const QString &symbol, unsigned int depth)
+StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(const Ticker &symbol, unsigned int depth)
 {
     Q_ASSERT(depth >= 1 && depth <= 20);
 

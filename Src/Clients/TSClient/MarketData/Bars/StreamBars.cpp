@@ -1,10 +1,10 @@
 #include "StreamBars.h"
 #include "TSClient.h"
 
-StreamBars::StreamBars(const QString &symbol, QObject *parent) :
+StreamBars::StreamBars(const Ticker &symbol, QObject *parent) :
     Stream(symbol, parent)
 {
-    this->setObjectName("Stream::Bars::" + symbol);
+    this->setObjectName("Stream::Bars::" + symbol.toString());
 }
 
 StreamBars::~StreamBars()
@@ -24,7 +24,7 @@ bool StreamBars::processJsonObject(const QJsonObject& jsonObj)
     }
 }
 
-StreamBars *TSClient::openStreamBars(const QString &symbol,
+StreamBars *TSClient::openStreamBars(const Ticker &symbol,
                                      unsigned int interval,
                                      Bar::BarUnit unit,
                                      unsigned int barsback,
