@@ -164,16 +164,20 @@ void CacheTab::clearSelectedCache() {
     // Get unique rows
     QSet<int> selectedRows;
     for (QTableWidgetItem* item : selectedItems) {
+        Q_ASSERT(item != nullptr);
         selectedRows.insert(item->row());
     }
 
     QStringList filesToDelete;
     for (int row : selectedRows) {
         QTableWidgetItem* categoryItem = cacheTable->item(row, 0);
+        Q_ASSERT(categoryItem != nullptr);
         if (categoryItem) {
             QString filePath = categoryItem->data(Qt::UserRole).toString();
             if (!filePath.isEmpty()) {
-                filesToDelete.append(cacheTable->item(row, 1)->text());
+                QTableWidgetItem* fileNameItem = cacheTable->item(row, 1);
+                Q_ASSERT(fileNameItem != nullptr);
+                filesToDelete.append(fileNameItem->text());
             }
         }
     }

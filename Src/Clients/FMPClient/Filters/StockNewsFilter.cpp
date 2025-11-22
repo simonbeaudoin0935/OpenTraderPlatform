@@ -7,23 +7,36 @@ StockNewsFilter::StockNewsFilter() {
 }
 
 // Setters
-void StockNewsFilter::setSymbol(const QString &symbol) { 
+void StockNewsFilter::setSymbol(const QString &symbol) {
+    Q_ASSERT_X(!symbol.isEmpty(), "StockNewsFilter::setSymbol", "symbol should not be empty");
     this->symbol = symbol; 
 }
 
-void StockNewsFilter::setLimit(std::optional<int> limit) { 
+void StockNewsFilter::setLimit(std::optional<int> limit) {
+    if (limit.has_value()) {
+        Q_ASSERT_X(limit.value() > 0, "StockNewsFilter::setLimit", "limit should be positive");
+    }
     this->limit = limit; 
 }
 
-void StockNewsFilter::setPage(std::optional<int> page) { 
+void StockNewsFilter::setPage(std::optional<int> page) {
+    if (page.has_value()) {
+        Q_ASSERT_X(page.value() >= 0, "StockNewsFilter::setPage", "page should be non-negative");
+    }
     this->page = page; 
 }
 
 void StockNewsFilter::setFrom(std::optional<QDate> from) {
+    if (from.has_value()) {
+        Q_ASSERT(from.value().isValid());
+    }
     this->from = from;
 }
 
 void StockNewsFilter::setTo(std::optional<QDate> to) {
+    if (to.has_value()) {
+        Q_ASSERT(to.value().isValid());
+    }
     this->to = to;
 }
 

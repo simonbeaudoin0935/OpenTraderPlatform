@@ -5,7 +5,7 @@ TUIFrontend::TUIFrontend(MainAlgo* mainAlgo, QObject* parent)
     : AppFrontend(parent),
       mainAlgo(mainAlgo)
 {
-
+    Q_ASSERT_X(mainAlgo != nullptr, "TUIFrontend::TUIFrontend", "mainAlgo cannot be nullptr");
 }
 
 void TUIFrontend::onFMPClientDataUsageUpdate(qsizetype newDataUsage)

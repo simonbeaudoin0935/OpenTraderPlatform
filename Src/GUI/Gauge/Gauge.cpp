@@ -43,6 +43,7 @@ void Gauge::setValue(double value) {
 }
 
 void Gauge::setRange(double min, double max) {
+    Q_ASSERT_X(min < max, "Gauge::setRange", "min must be less than max");
     if (min < max) {
         m_minValue = min;
         m_maxValue = max;
@@ -198,6 +199,7 @@ void Gauge::drawIndicator(QPainter &painter) {
 
     // Calculate the position of the indicator
     double valueRange = m_maxValue - m_minValue;
+    Q_ASSERT_X(valueRange != 0.0, "Gauge::drawIndicator", "valueRange should not be zero for division");
     double normalizedValue = (m_value - m_minValue) / valueRange;
     double x = rect.x() + normalizedValue * rect.width();
 
