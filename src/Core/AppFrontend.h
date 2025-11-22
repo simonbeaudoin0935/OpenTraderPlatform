@@ -43,5 +43,5 @@ public slots:
 
     virtual void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) = 0;
     virtual void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP) = 0;
-    virtual void onRequestedMissingBarsDisplayedStockReceived(QVector<Bar>) = 0;
+    virtual void onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars) = 0;
 };
