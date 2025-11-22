@@ -8,24 +8,45 @@ CompanyScreenerFilter::CompanyScreenerFilter() {
 }
 
 // Setters (unchanged, omitted for brevity)
-void CompanyScreenerFilter::setMarketCapMoreThan(std::optional<long long> value) { marketCapMoreThan = value; }
-void CompanyScreenerFilter::setMarketCapLowerThan(std::optional<long long> value) { marketCapLowerThan = value; }
+void CompanyScreenerFilter::setMarketCapMoreThan(std::optional<long long> value) {
+    if (value.has_value()) Q_ASSERT(value.value() >= 0);
+    marketCapMoreThan = value;
+}
+void CompanyScreenerFilter::setMarketCapLowerThan(std::optional<long long> value) {
+    if (value.has_value()) Q_ASSERT(value.value() >= 0);
+    marketCapLowerThan = value;
+}
 void CompanyScreenerFilter::setSector(std::optional<std::string> value) { sector = value; }
 void CompanyScreenerFilter::setIndustry(std::optional<std::string> value) { industry = value; }
 void CompanyScreenerFilter::setBetaMoreThan(std::optional<double> value) { betaMoreThan = value; }
 void CompanyScreenerFilter::setBetaLowerThan(std::optional<double> value) { betaLowerThan = value; }
-void CompanyScreenerFilter::setPriceMoreThan(std::optional<double> value) { priceMoreThan = value; }
-void CompanyScreenerFilter::setPriceLowerThan(std::optional<double> value) { priceLowerThan = value; }
+void CompanyScreenerFilter::setPriceMoreThan(std::optional<double> value) {
+    if (value.has_value()) Q_ASSERT(value.value() >= 0.0);
+    priceMoreThan = value;
+}
+void CompanyScreenerFilter::setPriceLowerThan(std::optional<double> value) {
+    if (value.has_value()) Q_ASSERT(value.value() >= 0.0);
+    priceLowerThan = value;
+}
 void CompanyScreenerFilter::setDividendMoreThan(std::optional<double> value) { dividendMoreThan = value; }
 void CompanyScreenerFilter::setDividendLowerThan(std::optional<double> value) { dividendLowerThan = value; }
-void CompanyScreenerFilter::setVolumeMoreThan(std::optional<long long> value) { volumeMoreThan = value; }
-void CompanyScreenerFilter::setVolumeLowerThan(std::optional<long long> value) { volumeLowerThan = value; }
+void CompanyScreenerFilter::setVolumeMoreThan(std::optional<long long> value) {
+    if (value.has_value()) Q_ASSERT(value.value() >= 0);
+    volumeMoreThan = value;
+}
+void CompanyScreenerFilter::setVolumeLowerThan(std::optional<long long> value) {
+    if (value.has_value()) Q_ASSERT(value.value() >= 0);
+    volumeLowerThan = value;
+}
 void CompanyScreenerFilter::setExchange(std::optional<std::string> value) { exchange = value; }
 void CompanyScreenerFilter::setCountry(std::optional<std::string> value) { country = value; }
 void CompanyScreenerFilter::setIsEtf(std::optional<bool> value) { isEtf = value; }
 void CompanyScreenerFilter::setIsFund(std::optional<bool> value) { isFund = value; }
 void CompanyScreenerFilter::setIsActivelyTrading(std::optional<bool> value) { isActivelyTrading = value; }
-void CompanyScreenerFilter::setLimit(std::optional<int> value) { limit = value; }
+void CompanyScreenerFilter::setLimit(std::optional<int> value) {
+    if (value.has_value()) Q_ASSERT_X(value.value() > 0, "CompanyScreenerFilter::setLimit", "limit should be positive");
+    limit = value;
+}
 void CompanyScreenerFilter::setIncludeAllShareClasses(std::optional<bool> value) { includeAllShareClasses = value; }
 
 // Getters (unchanged, omitted for brevity)

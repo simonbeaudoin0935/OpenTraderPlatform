@@ -35,8 +35,15 @@ TimeInForce::TimeInForce(OrderDuration duration)
 {
 }
 
-void TimeInForce::setDuration(OrderDuration value) { duration = value; }
-void TimeInForce::setExpiration(const std::optional<QString>& value) { expiration = value; }
+void TimeInForce::setDuration(OrderDuration value) {
+    duration = value;
+}
+void TimeInForce::setExpiration(const std::optional<QString>& value) {
+    if (value.has_value()) {
+        Q_ASSERT(isValidExpiration(value.value()));
+    }
+    expiration = value;
+}
 
 OrderDuration TimeInForce::getDuration() const { return duration; }
 std::optional<QString> TimeInForce::getExpiration() const { return expiration; }
