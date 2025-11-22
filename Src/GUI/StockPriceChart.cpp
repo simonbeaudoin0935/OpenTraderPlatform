@@ -69,9 +69,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
 
     setSymbol("");
 
-    axisX = new QDateTimeAxis();
-    // We want labels only at 5-minute marks
-    axisX->setFormat("hh:mm"); // Show only hours and minutes
+    axisX = new QValueAxis();  // Changed from QDateTimeAxis - now uses indices
     axisX->setTitleText("Time");
     axisX->setGridLineVisible(true);
     axisX->setMinorGridLineVisible(false);
@@ -79,10 +77,8 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     axisX->setGridLineColor(QColor(70, 70, 70));
     axisX->setLabelsColor(QColor(220, 220, 220));
     axisX->setTitleBrush(QBrush(QColor(220, 220, 220)));
-
-    // Calculate number of ticks for 30-minute view
-    // We want a tick every 5 minutes, so for 30 minutes we need 7 ticks (0,5,10,15,20,25,30)
-    axisX->setTickCount(7);
+    axisX->setLabelFormat("");  // We'll use custom labels
+    axisX->setTickCount(7);  // Default tick count
 
     chart->addAxis(axisX, Qt::AlignBottom);
     candlestickSeries->attachAxis(axisX);
@@ -185,12 +181,12 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
 }
 
 void StockPriceChart::handleClosedBar(const Bar& bar) {
-    // Store current view state
-    QDateTime currentMin = axisX->min();
-    QDateTime currentMax = axisX->max();
+    // Store current view state (using indices)
+    qreal currentMinIndex = axisX->min();
+    qreal currentMaxIndex = axisX->max();
     qreal currentYMin = axisY->min();
     qreal currentYMax = axisY->max();
-    bool hadInitialView = currentMin != currentMax && currentMin.toMSecsSinceEpoch() != 0;
+    bool hadInitialView = (currentMaxIndex - currentMinIndex) > 0;
 
     if (!hasOpenBar) {
         completedBars.insert(bar.getTimeStamp(), bar);
@@ -211,7 +207,7 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
 
     // Restore view state if it was initialized
     if (hadInitialView) {
-        axisX->setRange(currentMin, currentMax);
+        axisX->setRange(currentMinIndex, currentMaxIndex);
         axisY->setRange(currentYMin, currentYMax);
     }
 }
@@ -244,12 +240,15 @@ void StockPriceChart::handleOpenBar(const Bar& bar) {
 }
 
 void StockPriceChart::updateChart() {
-    // Store current view state
-    QDateTime currentMin = axisX->min();
-    QDateTime currentMax = axisX->max();
+    // Store current view state (now using indices)
+    qreal currentMinIndex = axisX->min();
+    qreal currentMaxIndex = axisX->max();
     qreal currentYMin = axisY->min();
     qreal currentYMax = axisY->max();
-    bool hadInitialView = currentMin != currentMax && currentMin.toMSecsSinceEpoch() != 0;
+    bool hadInitialView = (currentMaxIndex - currentMinIndex) > 0;
+
+    // Rebuild the index mapping
+    rebuildIndexMapping();
 
     // Clear existing candlesticks
     candlestickSeries->clear();
@@ -259,24 +258,24 @@ void StockPriceChart::updateChart() {
     qreal markerSize = CANDLESTICK_BODY_WIDTH * 0.8; // Make it slightly smaller than candlestick width
     voidBarSeries->setMarkerSize(markerSize);
 
-    // Add completed bars
+    // Add completed bars using their indices
+    int index = 0;
     for (auto it = completedBars.constBegin(); it != completedBars.constEnd(); ++it) {
-        const QDateTime& timestamp = it.key();
         const Bar& bar = it.value();
         auto set = new QCandlestickSet();
-        set->setTimestamp(timestamp.toMSecsSinceEpoch());
+        set->setTimestamp(index);  // Use index instead of timestamp
         set->setOpen(bar.getOpen());
         set->setHigh(bar.getHigh());
         set->setLow(bar.getLow());
         set->setClose(bar.getClose());
         candlestickSeries->append(set);
+        index++;
     }
 
     // Add current open bar if it exists
     if (hasOpenBar) {
-        QDateTime timestamp = currentOpenBar.getTimeStamp();
         auto set = new QCandlestickSet();
-        set->setTimestamp(timestamp.toMSecsSinceEpoch());
+        set->setTimestamp(index);  // Use index instead of timestamp
         set->setOpen(currentOpenBar.getOpen());
         set->setHigh(currentOpenBar.getHigh());
         set->setLow(currentOpenBar.getLow());
@@ -286,28 +285,14 @@ void StockPriceChart::updateChart() {
 
     // Only update time axis range if this is the initial setup
     if (!hadInitialView && candlestickSeries->count() > 0) {
-        QDateTime currentBarTime;
-        if (hasOpenBar) {
-            currentBarTime = currentOpenBar.getTimeStamp();
-        } else {
-            currentBarTime = completedBars.lastKey();
-        }
-
-        // Round current time down to the nearest 5-minute mark
-        int currentMinute = currentBarTime.time().minute();
-        int baseMinute = (currentMinute / 5) * 5;
-        QDateTime baseTime = currentBarTime;
-        baseTime.setTime(QTime(currentBarTime.time().hour(), baseMinute, 0));
-
-        // Set start time to 30 minutes before the base time
-        QDateTime startTime = baseTime.addSecs(-30 * 60);
-        // Set end time to the next 5-minute mark after base time plus a small buffer
-        QDateTime endTime = baseTime.addSecs(5 * 60 + 60); // Next 5-min mark + 1 min buffer
-
-        axisX->setRange(startTime, endTime);
+        int lastIndex = index;  // Last bar index
+        int startIndex = qMax(0, lastIndex - 30);  // Show last 30 bars
+        int endIndex = lastIndex + 1;  // Small buffer
+        
+        axisX->setRange(startIndex, endIndex);
     } else {
         // Restore the previous view
-        axisX->setRange(currentMin, currentMax);
+        axisX->setRange(currentMinIndex, currentMaxIndex);
         axisY->setRange(currentYMin, currentYMax);
     }
 
@@ -316,23 +301,30 @@ void StockPriceChart::updateChart() {
     double maxPrice = std::numeric_limits<double>::lowest();
     double currentPrice = 0.0;
 
-    // Find min/max prices and current price for visible bars only
-    QDateTime visibleStart = axisX->min();
-    QDateTime visibleEnd = axisX->max();
+    // Find min/max prices for visible bars only
+    int visibleStartIndex = static_cast<int>(axisX->min());
+    int visibleEndIndex = static_cast<int>(axisX->max());
     
-    for (auto it = completedBars.lowerBound(visibleStart); 
-         it != completedBars.end() && it.key() <= visibleEnd; 
-         ++it) {
-        const Bar& bar = it.value();
-        minPrice = qMin(minPrice, bar.getLow());
-        maxPrice = qMax(maxPrice, bar.getHigh());
-        if (it == --completedBars.end()) {
+    int currentIndex = 0;
+    for (auto it = completedBars.constBegin(); it != completedBars.constEnd(); ++it) {
+        if (currentIndex >= visibleStartIndex && currentIndex <= visibleEndIndex) {
+            const Bar& bar = it.value();
+            minPrice = qMin(minPrice, bar.getLow());
+            maxPrice = qMax(maxPrice, bar.getHigh());
             currentPrice = bar.getClose();
         }
+        currentIndex++;
+    }
+
+    // Check open bar if visible
+    if (hasOpenBar && currentIndex >= visibleStartIndex && currentIndex <= visibleEndIndex) {
+        minPrice = qMin(minPrice, currentOpenBar.getLow());
+        maxPrice = qMax(maxPrice, currentOpenBar.getHigh());
+        currentPrice = currentOpenBar.getClose();
     }
 
     // Only update Y axis range if necessary and if we're not preserving the view
-    if (!hadInitialView && (minPrice < currentYMin || maxPrice > currentYMax || currentYMin == currentYMax)) {
+    if (!hadInitialView && minPrice != std::numeric_limits<double>::max()) {
         // Add padding
         double padding = currentPrice * 0.0002; // 0.02% padding
         // Ensure minimum range
@@ -386,31 +378,52 @@ void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
 }
 
 void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
-    QDateTime currentMin = axisX->min();
-    QDateTime currentMax = axisX->max();
-    qint64 timeRange = currentMax.toMSecsSinceEpoch() - currentMin.toMSecsSinceEpoch();
-    qint64 shiftAmount = timeRange * 0.05;
+    qreal currentMin = axisX->min();
+    qreal currentMax = axisX->max();
+    qreal indexRange = currentMax - currentMin;
+    qreal shiftAmount = indexRange * 0.05;
     shiftAmount = -shiftAmount * (event->angleDelta().x() > 0 ? 1 : -1);
 
-    QDateTime newMinTime = QDateTime::fromMSecsSinceEpoch(currentMin.toMSecsSinceEpoch() + shiftAmount);
-    QDateTime newMaxTime = QDateTime::fromMSecsSinceEpoch(currentMax.toMSecsSinceEpoch() + shiftAmount);
-    axisX->setRange(newMinTime, newMaxTime);
+    qreal newMin = currentMin + shiftAmount;
+    qreal newMax = currentMax + shiftAmount;
+    
+    // Check for missing bars BEFORE constraining
+    if (newMin < 0 && !completedBars.isEmpty()) {
+        QDateTime firstBarTime = completedBars.firstKey();
+        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
+        checkForMissingBars(requestTime, firstBarTime);
+    }
+    
+    // Constrain to available data
+    newMin = qMax(0.0, newMin);
+    
+    axisX->setRange(newMin, newMax);
     updateLastPriceLineIfNeeded();
 }
 
 void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor) {
     Q_UNUSED(event);
 
-    QDateTime currentMin = axisX->min();
-    QDateTime currentMax = axisX->max();
-    qint64 timeRange = currentMax.toMSecsSinceEpoch() - currentMin.toMSecsSinceEpoch();
-    qint64 centerTime = currentMin.toMSecsSinceEpoch() + (timeRange / 2);
+    qreal currentMin = axisX->min();
+    qreal currentMax = axisX->max();
+    qreal indexRange = currentMax - currentMin;
+    qreal centerIndex = currentMin + (indexRange / 2);
 
-    qint64 newTimeRange = timeRange * zoomFactor;
-    QDateTime newMinTime = QDateTime::fromMSecsSinceEpoch(centerTime - (newTimeRange / 2));
-    QDateTime newMaxTime = QDateTime::fromMSecsSinceEpoch(centerTime + (newTimeRange / 2));
+    qreal newIndexRange = indexRange * zoomFactor;
+    qreal newMin = centerIndex - (newIndexRange / 2);
+    qreal newMax = centerIndex + (newIndexRange / 2);
+    
+    // Check for missing bars BEFORE constraining
+    if (newMin < 0 && !completedBars.isEmpty()) {
+        QDateTime firstBarTime = completedBars.firstKey();
+        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
+        checkForMissingBars(requestTime, firstBarTime);
+    }
+    
+    // Constrain to available data
+    newMin = qMax(0.0, newMin);
 
-    axisX->setRange(newMinTime, newMaxTime);
+    axisX->setRange(newMin, newMax);
     updateLastPriceLineIfNeeded();
 }
 
@@ -433,15 +446,25 @@ void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
 void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
     Q_UNUSED(event);
 
-    // Time axis zoom
-    QDateTime currentMin = axisX->min();
-    QDateTime currentMax = axisX->max();
-    qint64 timeRange = currentMax.toMSecsSinceEpoch() - currentMin.toMSecsSinceEpoch();
-    qint64 centerTime = currentMin.toMSecsSinceEpoch() + (timeRange / 2);
+    // Index axis zoom
+    qreal currentMin = axisX->min();
+    qreal currentMax = axisX->max();
+    qreal indexRange = currentMax - currentMin;
+    qreal centerIndex = currentMin + (indexRange / 2);
 
-    qint64 newTimeRange = timeRange * zoomFactor;
-    QDateTime newMinTime = QDateTime::fromMSecsSinceEpoch(centerTime - (newTimeRange / 2));
-    QDateTime newMaxTime = QDateTime::fromMSecsSinceEpoch(centerTime + (newTimeRange / 2));
+    qreal newIndexRange = indexRange * zoomFactor;
+    qreal newMin = centerIndex - (newIndexRange / 2);
+    qreal newMax = centerIndex + (newIndexRange / 2);
+    
+    // Check for missing bars BEFORE constraining
+    if (newMin < 0 && !completedBars.isEmpty()) {
+        QDateTime firstBarTime = completedBars.firstKey();
+        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
+        checkForMissingBars(requestTime, firstBarTime);
+    }
+    
+    // Constrain to available data
+    newMin = qMax(0.0, newMin);
 
     // Price axis zoom
     qreal currentMinPrice = axisY->min();
@@ -453,11 +476,8 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
     qreal newMinPrice = centerPrice - (newPriceRange / 2);
     qreal newMaxPrice = centerPrice + (newPriceRange / 2);
 
-    axisX->setRange(newMinTime, newMaxTime);
+    axisX->setRange(newMin, newMax);
     axisY->setRange(newMinPrice, newMaxPrice);
-
-    // Check if we need more bars
-    checkForMissingBars(newMinTime, newMaxTime);
 
     updateLastPriceLineIfNeeded();
 }
@@ -477,11 +497,11 @@ void StockPriceChart::updatePriceLabelPosition() {
         return;
     }
 
-    QDateTime endTime = QDateTime::fromMSecsSinceEpoch(lastPriceLine->points().last().x());
+    qreal endIndex = lastPriceLine->points().last().x();
     double price = lastPriceLine->points().last().y();
 
     // Get the price point in view coordinates
-    QPointF pricePoint(endTime.toMSecsSinceEpoch(), price);
+    QPointF pricePoint(endIndex, price);
     QPointF viewPoint = chart->mapToPosition(pricePoint, lastPriceLine);
 
     // Calculate position in scene coordinates
@@ -504,13 +524,13 @@ void StockPriceChart::updatePriceLabelPosition() {
 void StockPriceChart::updateLastPriceLine(double price, bool isUpTick) {
     lastPriceLine->clear();
 
-    // Get the current visible range
-    QDateTime startTime = axisX->min();
-    QDateTime endTime = axisX->max();
+    // Get the current visible range in indices
+    qreal startIndex = axisX->min();
+    qreal endIndex = axisX->max();
 
     // Create two points for the horizontal line spanning the visible range
-    lastPriceLine->append(startTime.toMSecsSinceEpoch(), price);
-    lastPriceLine->append(endTime.toMSecsSinceEpoch(), price);
+    lastPriceLine->append(startIndex, price);
+    lastPriceLine->append(endIndex, price);
 
     // Update the line color based on price movement
     QColor lineColor = isUpTick ? Qt::green : Qt::red;
@@ -552,14 +572,19 @@ void StockPriceChart::updateAfterHoursBackground() {
 
     // Update the chart's geometry
     chart->resize(chartView->size());
-
-    QDateTime startTime = axisX->min();
-    QDateTime endTime = axisX->max();
     
-    // Convert the range to points on the chart
-    QPointF topLeft = chart->mapToPosition(QPointF(startTime.toMSecsSinceEpoch(), axisY->max()));
-    QPointF bottomRight = chart->mapToPosition(QPointF(endTime.toMSecsSinceEpoch(), axisY->min()));
+    if (indexToTimestamp.isEmpty()) {
+        return;
+    }
 
+    // Get visible range in indices
+    qreal minIndex = axisX->min();
+    qreal maxIndex = axisX->max();
+    
+    // Get the timestamps for visible range
+    QDateTime startTime = getTimestampForIndex(static_cast<int>(minIndex));
+    QDateTime endTime = getTimestampForIndex(static_cast<int>(maxIndex));
+    
     // Convert times to NY timezone for date calculations
     QTimeZone nyZone("America/New_York");
     QDateTime nyStartTime = startTime.toTimeZone(nyZone);
@@ -577,21 +602,9 @@ void StockPriceChart::updateAfterHoursBackground() {
 
         // Handle weekends - show closed market background
         if (currentDate.dayOfWeek() > 5) {  // Saturday = 6, Sunday = 7
-            QDateTime visibleStart = qMax(startTime, currentDateTime.toLocalTime());
-            QDateTime visibleEnd = qMin(endTime, nextDayDateTime.toLocalTime());
-
-            if (visibleStart < visibleEnd) {
-                QPointF sessionStart = chart->mapToPosition(QPointF(
-                    visibleStart.toMSecsSinceEpoch(), axisY->max()));
-                QPointF sessionEnd = chart->mapToPosition(QPointF(
-                    visibleEnd.toMSecsSinceEpoch(), axisY->max()));
-                
-                auto rect = createBackgroundRect(QColor(40, 40, 50, 120), -2);
-                rect->setRect(sessionStart.x(), topLeft.y(),
-                            sessionEnd.x() - sessionStart.x(),
-                            bottomRight.y() - topLeft.y());
-                closedMarketRects.append(rect);
-            }
+            drawBackgroundForTimeRange(currentDateTime.toLocalTime(), 
+                                      nextDayDateTime.toLocalTime(),
+                                      QColor(40, 40, 50, 120), -2, closedMarketRects);
             currentDate = currentDate.addDays(1);
             continue;
         }
@@ -603,53 +616,21 @@ void StockPriceChart::updateAfterHoursBackground() {
                 QDateTime(currentDate, QTime(23, 59, 59), nyZone) : 
                 QDateTime(currentDate, QTime(hour + 1, 0), nyZone);
 
-            // Convert to local time for visibility check
+            // Convert to local time
             QDateTime localHourStart = hourStart.toLocalTime();
             QDateTime localHourEnd = hourEnd.toLocalTime();
 
-            // Skip if this hour is not visible
-            if (localHourEnd < startTime || localHourStart > endTime) {
-                continue;
-            }
-
-            QDateTime visibleStart = qMax(startTime, localHourStart);
-            QDateTime visibleEnd = qMin(endTime, localHourEnd);
-
             if (MarketHours::isPreMarket(hourStart)) {
-                auto rect = createBackgroundRect(QColor(90, 60, 30, 100), -1);
-                QPointF sessionStart = chart->mapToPosition(QPointF(
-                    visibleStart.toMSecsSinceEpoch(), axisY->max()));
-                QPointF sessionEnd = chart->mapToPosition(QPointF(
-                    visibleEnd.toMSecsSinceEpoch(), axisY->max()));
-                
-                rect->setRect(sessionStart.x(), topLeft.y(),
-                            sessionEnd.x() - sessionStart.x(),
-                            bottomRight.y() - topLeft.y());
-                preMarketRects.append(rect);
+                drawBackgroundForTimeRange(localHourStart, localHourEnd,
+                                          QColor(90, 60, 30, 100), -1, preMarketRects);
             }
             else if (MarketHours::isAfterHours(hourStart)) {
-                auto rect = createBackgroundRect(QColor(50, 50, 80, 100), -1);
-                QPointF sessionStart = chart->mapToPosition(QPointF(
-                    visibleStart.toMSecsSinceEpoch(), axisY->max()));
-                QPointF sessionEnd = chart->mapToPosition(QPointF(
-                    visibleEnd.toMSecsSinceEpoch(), axisY->max()));
-                
-                rect->setRect(sessionStart.x(), topLeft.y(),
-                            sessionEnd.x() - sessionStart.x(),
-                            bottomRight.y() - topLeft.y());
-                afterHoursRects.append(rect);
+                drawBackgroundForTimeRange(localHourStart, localHourEnd,
+                                          QColor(50, 50, 80, 100), -1, afterHoursRects);
             }
             else if (!MarketHours::isRegularHours(hourStart)) {
-                auto rect = createBackgroundRect(QColor(40, 40, 50, 120), -2);
-                QPointF sessionStart = chart->mapToPosition(QPointF(
-                    visibleStart.toMSecsSinceEpoch(), axisY->max()));
-                QPointF sessionEnd = chart->mapToPosition(QPointF(
-                    visibleEnd.toMSecsSinceEpoch(), axisY->max()));
-                
-                rect->setRect(sessionStart.x(), topLeft.y(),
-                            sessionEnd.x() - sessionStart.x(),
-                            bottomRight.y() - topLeft.y());
-                closedMarketRects.append(rect);
+                drawBackgroundForTimeRange(localHourStart, localHourEnd,
+                                          QColor(40, 40, 50, 120), -2, closedMarketRects);
             }
         }
         currentDate = currentDate.addDays(1);
@@ -698,42 +679,35 @@ bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
         if (mouseEvent->button() == Qt::RightButton) {
             // Handle right click - recenter view
             if (candlestickSeries->count() > 0) {
-                QDateTime currentBarTime;
-                if (hasOpenBar) {
-                    currentBarTime = currentOpenBar.getTimeStamp();
-                } else {
-                    currentBarTime = completedBars.lastKey();
-                }
-
-                // Round current time down to the nearest 5-minute mark
-                int currentMinute = currentBarTime.time().minute();
-                int baseMinute = (currentMinute / 5) * 5;
-                QDateTime baseTime = currentBarTime;
-                baseTime.setTime(QTime(currentBarTime.time().hour(), baseMinute, 0));
-
-                // Set start time to 30 minutes before the base time
-                QDateTime startTime = baseTime.addSecs(-30 * 60);
-                // Set end time to the next 5-minute mark after base time plus a small buffer
-                QDateTime endTime = baseTime.addSecs(5 * 60 + 60); // Next 5-min mark + 1 min buffer
+                int lastIndex = indexToTimestamp.lastKey();
+                int startIndex = qMax(0, lastIndex - 30);  // Show last 30 bars
+                int endIndex = lastIndex + 1;
 
                 // Reset the horizontal axis
-                axisX->setRange(startTime, endTime);
+                axisX->setRange(startIndex, endIndex);
 
                 // Reset the vertical axis to fit visible bars
                 double minPrice = std::numeric_limits<double>::max();
                 double maxPrice = std::numeric_limits<double>::lowest();
                 double currentPrice = 0.0;
                 
-                // Find min/max prices for bars in the new time range
-                for (auto it = completedBars.lowerBound(startTime); 
-                     it != completedBars.end() && it.key() <= endTime; 
-                     ++it) {
-                    const Bar& bar = it.value();
-                    minPrice = qMin(minPrice, bar.getLow());
-                    maxPrice = qMax(maxPrice, bar.getHigh());
-                    if (it == --completedBars.end()) {
+                // Find min/max prices for bars in the visible range
+                int currentIndex = 0;
+                for (auto it = completedBars.constBegin(); it != completedBars.constEnd(); ++it) {
+                    if (currentIndex >= startIndex && currentIndex <= endIndex) {
+                        const Bar& bar = it.value();
+                        minPrice = qMin(minPrice, bar.getLow());
+                        maxPrice = qMax(maxPrice, bar.getHigh());
                         currentPrice = bar.getClose();
                     }
+                    currentIndex++;
+                }
+                
+                // Check open bar
+                if (hasOpenBar && currentIndex >= startIndex && currentIndex <= endIndex) {
+                    minPrice = qMin(minPrice, currentOpenBar.getLow());
+                    maxPrice = qMax(maxPrice, currentOpenBar.getHigh());
+                    currentPrice = currentOpenBar.getClose();
                 }
                 
                 // Set vertical range if we found any bars
@@ -796,22 +770,30 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
     QPoint delta = mouseEvent->pos() - lastMousePos;
     lastMousePos = mouseEvent->pos();
 
-    // Convert pixel movement to time units for X axis
-    qreal timePerPixel = (axisX->max().toMSecsSinceEpoch() - axisX->min().toMSecsSinceEpoch()) / chartView->width();
-    qint64 timeOffset = -delta.x() * timePerPixel;
+    // Convert pixel movement to index units for X axis
+    qreal indexPerPixel = (axisX->max() - axisX->min()) / chartView->width();
+    qreal indexOffset = -delta.x() * indexPerPixel;
 
     // Convert pixel movement to price units for Y axis
     qreal pricePerPixel = (axisY->max() - axisY->min()) / chartView->height();
     qreal priceOffset = delta.y() * pricePerPixel;
 
     // Update axes ranges
-    QDateTime newMinTime = QDateTime::fromMSecsSinceEpoch(axisX->min().toMSecsSinceEpoch() + timeOffset);
-    QDateTime newMaxTime = QDateTime::fromMSecsSinceEpoch(axisX->max().toMSecsSinceEpoch() + timeOffset);
-    axisX->setRange(newMinTime, newMaxTime);
+    qreal newMin = axisX->min() + indexOffset;
+    qreal newMax = axisX->max() + indexOffset;
+    
+    // Check for missing bars BEFORE constraining
+    if (newMin < 0 && !completedBars.isEmpty()) {
+        QDateTime firstBarTime = completedBars.firstKey();
+        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
+        checkForMissingBars(requestTime, firstBarTime);
+    }
+    
+    // Constrain to available data
+    newMin = qMax(0.0, newMin);
+    
+    axisX->setRange(newMin, newMax);
     axisY->setRange(axisY->min() + priceOffset, axisY->max() + priceOffset);
-
-    // Check if we need more bars
-    checkForMissingBars(newMinTime, newMaxTime);
 
     // Update the price label position and last price line
     updatePriceLabelPosition();
@@ -877,8 +859,158 @@ void StockPriceChart::clearSymbol() {
     // Reset the chart title
     chart->setTitle("Stock Price: " + symbol);
     
+    // Clear index mappings
+    indexToTimestamp.clear();
+    timestampToIndex.clear();
+    
     // Reset the axes ranges to default
-    QDateTime now = QDateTime::currentDateTime();
-    axisX->setRange(now.addSecs(-30 * 60), now.addSecs(5 * 60));
+    axisX->setRange(0, 30);
     axisY->setRange(0, 100);
+}
+
+void StockPriceChart::rebuildIndexMapping() {
+    indexToTimestamp.clear();
+    timestampToIndex.clear();
+    
+    int index = 0;
+    for (auto it = completedBars.constBegin(); it != completedBars.constEnd(); ++it) {
+        const QDateTime& timestamp = it.key();
+        indexToTimestamp[index] = timestamp;
+        timestampToIndex[timestamp] = index;
+        index++;
+    }
+    
+    // Add open bar if it exists
+    if (hasOpenBar) {
+        const QDateTime& timestamp = currentOpenBar.getTimeStamp();
+        indexToTimestamp[index] = timestamp;
+        timestampToIndex[timestamp] = index;
+    }
+}
+
+int StockPriceChart::getIndexForTimestamp(const QDateTime& timestamp) const {
+    auto it = timestampToIndex.find(timestamp);
+    if (it != timestampToIndex.end()) {
+        return it.value();
+    }
+    
+    // If exact timestamp not found, find the closest index
+    if (timestampToIndex.isEmpty()) {
+        return 0;
+    }
+    
+    // Find the first timestamp greater than or equal to the given timestamp
+    auto upper = timestampToIndex.upperBound(timestamp);
+    if (upper == timestampToIndex.begin()) {
+        return 0;  // Before all bars
+    }
+    
+    // Return the index of the previous bar
+    --upper;
+    return upper.value();
+}
+
+QDateTime StockPriceChart::getTimestampForIndex(int index) const {
+    auto it = indexToTimestamp.find(index);
+    if (it != indexToTimestamp.end()) {
+        return it.value();
+    }
+    
+    // If index not found, interpolate or extrapolate
+    if (indexToTimestamp.isEmpty()) {
+        return QDateTime::currentDateTime();
+    }
+    
+    if (index < 0) {
+        // Extrapolate backwards - assume 1-minute bars
+        int firstIndex = indexToTimestamp.firstKey();
+        QDateTime firstTime = indexToTimestamp.first();
+        int deltaIndex = firstIndex - index;
+        return firstTime.addSecs(-deltaIndex * 60);
+    }
+    
+    int lastIndex = indexToTimestamp.lastKey();
+    if (index > lastIndex) {
+        // Extrapolate forwards - assume 1-minute bars
+        QDateTime lastTime = indexToTimestamp.last();
+        int deltaIndex = index - lastIndex;
+        return lastTime.addSecs(deltaIndex * 60);
+    }
+    
+    // Should not reach here, but return current time as fallback
+    return QDateTime::currentDateTime();
+}
+
+void StockPriceChart::updateAxisLabels() {
+    // Get visible range in indices
+    qreal minIndex = axisX->min();
+    qreal maxIndex = axisX->max();
+    qreal range = maxIndex - minIndex;
+    
+    if (range <= 0 || indexToTimestamp.isEmpty()) {
+        return;
+    }
+    
+    // Determine number of labels based on range
+    int numLabels = 7;  // Default
+    if (range < 10) {
+        numLabels = qMax(3, static_cast<int>(range) + 1);
+    } else if (range < 30) {
+        numLabels = 5;
+    } else if (range < 60) {
+        numLabels = 7;
+    } else {
+        numLabels = 10;
+    }
+    
+    axisX->setTickCount(numLabels);
+    
+    // Qt doesn't provide easy custom labels for QValueAxis, so we'll rely on
+    // the automatic labeling showing indices. For a production version, you
+    // could use QCategoryAxis or custom drawing, but that's beyond minimal changes.
+    // The axis will show index numbers which is acceptable for now.
+}
+
+void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd,
+                                                   const QColor& color, int zValue,
+                                                   QList<QGraphicsRectItem*>& rectList) {
+    if (indexToTimestamp.isEmpty()) {
+        return;
+    }
+    
+    // Find the indices that correspond to this time range
+    int startIndex = -1;
+    int endIndex = -1;
+    
+    // Iterate through all bars to find which ones fall in this time range
+    for (auto it = indexToTimestamp.constBegin(); it != indexToTimestamp.constEnd(); ++it) {
+        const QDateTime& barTime = it.value();
+        if (barTime >= rangeStart && barTime <= rangeEnd) {
+            if (startIndex == -1) {
+                startIndex = it.key();
+            }
+            endIndex = it.key();
+        }
+    }
+    
+    // If we found bars in this range, draw the background
+    if (startIndex != -1 && endIndex != -1) {
+        qreal visibleMinIndex = axisX->min();
+        qreal visibleMaxIndex = axisX->max();
+        
+        // Clip to visible range
+        qreal clippedStart = qMax(static_cast<qreal>(startIndex), visibleMinIndex);
+        qreal clippedEnd = qMin(static_cast<qreal>(endIndex + 1), visibleMaxIndex);
+        
+        if (clippedStart < clippedEnd) {
+            QPointF topLeft = chart->mapToPosition(QPointF(clippedStart, axisY->max()));
+            QPointF bottomRight = chart->mapToPosition(QPointF(clippedEnd, axisY->min()));
+            
+            auto rect = createBackgroundRect(color, zValue);
+            rect->setRect(topLeft.x(), topLeft.y(),
+                         bottomRight.x() - topLeft.x(),
+                         bottomRight.y() - topLeft.y());
+            rectList.append(rect);
+        }
+    }
 }

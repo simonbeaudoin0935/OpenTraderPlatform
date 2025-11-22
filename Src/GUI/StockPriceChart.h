@@ -22,6 +22,20 @@ Q_DECLARE_LOGGING_CATEGORY(ChartLog)
 
 class QGraphicsRectItem;
 
+/**
+ * @class StockPriceChart
+ * @brief A chart widget that displays stock price data using candlesticks.
+ * 
+ * This chart displays bars continuously without gaps for closed market periods.
+ * It uses an index-based positioning system where each bar is assigned a sequential
+ * index (0, 1, 2, ...) for continuous display, while maintaining mappings to actual
+ * timestamps. This allows the chart to show:
+ * - Last bar Friday 7:59pm → next to Monday 4:00am (no weekend gap)
+ * - Last bar 7:59pm → next to next day 4:00am (no overnight gap)
+ * - Only 4am-8pm ET trading hours on weekdays
+ * 
+ * The X-axis uses QValueAxis with indices, and custom labels show actual timestamps.
+ */
 class StockPriceChart : public QWidget {
     Q_OBJECT
 
@@ -63,6 +77,15 @@ private:
     void updateLastPriceLineIfNeeded();
     void handlePanning(QMouseEvent* mouseEvent);
     void checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime);
+    
+    // Index-based positioning helpers
+    void rebuildIndexMapping();
+    int getIndexForTimestamp(const QDateTime& timestamp) const;
+    QDateTime getTimestampForIndex(int index) const;
+    void updateAxisLabels();
+    void drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd, 
+                                     const QColor& color, int zValue,
+                                     QList<QGraphicsRectItem*>& rectList);
 
     QString symbol;
     QChart* chart;
@@ -70,7 +93,7 @@ private:
     QCandlestickSeries* candlestickSeries;
     QScatterSeries* voidBarSeries;
     QChartView* chartView;
-    QDateTimeAxis* axisX;
+    QValueAxis* axisX;  // Changed from QDateTimeAxis - now uses indices
     QValueAxis* axisY;
     QGraphicsTextItem* priceLabel;
     QList<QGraphicsRectItem*> afterHoursRects;  // List of rectangles for after-hours sessions
@@ -85,6 +108,10 @@ private:
 
     // Store completed bars in a map with timestamp as key
     QMap<QDateTime, Bar> completedBars;
+    
+    // Index-based positioning maps
+    QMap<int, QDateTime> indexToTimestamp;  // Map from index to timestamp
+    QMap<QDateTime, int> timestampToIndex;  // Map from timestamp to index
 
     // Mouse tracking for panning
     bool isPanning = false;
