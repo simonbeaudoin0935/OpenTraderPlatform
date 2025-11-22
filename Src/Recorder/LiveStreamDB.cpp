@@ -39,20 +39,20 @@ bool LiveStreamDB::isOpen() const {
     return db.isOpen();
 }
 
-bool LiveStreamDB::storeData(const QString& stock, qint64 timestamp, const QByteArray& rawData) {
+bool LiveStreamDB::storeData(const Ticker& stock, qint64 timestamp, const QByteArray& rawData) {
     int stockSeq = stockSequences.value(stock, 0) + 1;
     stockSequences[stock] = stockSeq;
 
     QSqlQuery query(db);
     QString insertQuery = (streamType == StreamType::Bars) ? SqlQueries::INSERT_BAR : SqlQueries::INSERT_MARKET_DEPTH_QUOTE;
     query.prepare(insertQuery);
-    query.addBindValue(stock);
+    query.addBindValue(stock.toString());
     query.addBindValue(stockSeq);
     query.addBindValue(timestamp);
     query.addBindValue(rawData);
     if (!query.exec()) {
         QString dataType = (streamType == StreamType::Bars) ? "bar" : "market depth quote";
-        qWarning() << "Failed to store" << dataType << "for" << stock << ":" << query.lastError().text();
+        qWarning() << "Failed to store" << dataType << "for" << stock.toString() << ":" << query.lastError().text();
 
         // Assert for now because storing should not fail, maybe handle more gracefully much later
         Q_ASSERT_X(false, "LiveStreamDB::storeData", "Database insert failed");
@@ -64,8 +64,9 @@ bool LiveStreamDB::storeData(const QString& stock, qint64 timestamp, const QByte
 
 void LiveStreamDB::startRecording() {
     for (const QString& symbol : stockTickers) {
+        Ticker ticker(symbol);
         if (streamType == StreamType::Bars) {
-            StreamBars* streamBar = TSClient::getInstance().openStreamBars(symbol,
+            StreamBars* streamBar = TSClient::getInstance().openStreamBars(ticker,
                                                                            1,
                                                                            Bar::BarUnit::Minute,
                                                                            2,
@@ -77,9 +78,9 @@ void LiveStreamDB::startRecording() {
             bool connection2 = QObject::connect(streamBar, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred, Qt::UniqueConnection);
             Q_ASSERT_X(connection2, "LiveStreamDB::startStreams", "Failed to create unique connection for streamBar streamErrorOccurred");
 
-            streamBars[symbol] = streamBar;
+            streamBars[ticker] = streamBar;
         } else {
-            StreamMarketDepthQuote* streamMarketDepthQuote = TSClient::getInstance().openStreamMarketDepthQuote(symbol, 10); // depth 10
+            StreamMarketDepthQuote* streamMarketDepthQuote = TSClient::getInstance().openStreamMarketDepthQuote(ticker, 10); // depth 10
             Q_ASSERT(streamMarketDepthQuote != nullptr);
 
             bool connection3 = QObject::connect(streamMarketDepthQuote, &StreamMarketDepthQuote::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock, Qt::UniqueConnection);
@@ -87,22 +88,22 @@ void LiveStreamDB::startRecording() {
             bool connection4 = QObject::connect(streamMarketDepthQuote, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred, Qt::UniqueConnection);
             Q_ASSERT_X(connection4, "LiveStreamDB::startStreams", "Failed to create unique connection for streamMarketDepthQuote streamErrorOccurred");
 
-            streamMarketDepthQuotes[symbol] = streamMarketDepthQuote;
+            streamMarketDepthQuotes[ticker] = streamMarketDepthQuote;
         }
     }
 }
 
-void LiveStreamDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData) {
+void LiveStreamDB::onReceivedNewRawDataForStock(Ticker symbol, const QByteArray& rawData) {
     qint64 epochMs = QDateTime::currentMSecsSinceEpoch();
 
     QString dataType = (streamType == StreamType::Bars) ? "bar" : "market depth quote";
-    qDebug() << "Received new" << dataType << "raw JSON data for" << symbol << "at timestamp" << epochMs;
+    qDebug() << "Received new" << dataType << "raw JSON data for" << symbol.toString() << "at timestamp" << epochMs;
 
     // Check if this symbol had an unrecovered timeout and mark it as recovered
     if (unrecoveredTimeouts.contains(symbol)) {
         unrecoveredTimeouts.remove(symbol);
         recoveredTimeouts[symbol]++;
-        qInfo() << "Stream recovered from timeout for" << symbol;
+        qInfo() << "Stream recovered from timeout for" << symbol.toString();
     }
 
     storeData(symbol, epochMs, rawData);
@@ -110,7 +111,7 @@ void LiveStreamDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray
 
 void LiveStreamDB::onStreamErrorOccurred(Stream::StreamError error, QString errorMessage) {
     // Find the sender and symbol based on stream type
-    QString symbol;
+    Ticker symbol;
     if (streamType == StreamType::Bars) {
         StreamBars* senderStream = qobject_cast<StreamBars*>(sender());
         Q_ASSERT(senderStream);  // Should always be valid - catastrophic error if not
@@ -146,20 +147,20 @@ void LiveStreamDB::onStreamErrorOccurred(Stream::StreamError error, QString erro
         attemptStreamRecovery(symbol);
     }
 
-    qWarning() << "Stream error for" << symbol << "error:" << static_cast<int>(error) << "message:" << errorMessage;
+    qWarning() << "Stream error for" << symbol.toString() << "error:" << static_cast<int>(error) << "message:" << errorMessage;
 }
 
 void LiveStreamDB::finalizeUnrecoveredTimeouts() {
-    for (const QString& symbol : unrecoveredTimeouts) {
+    for (const Ticker& symbol : unrecoveredTimeouts) {
         unrecoveredTimeoutCounts[symbol]++;
     }
     unrecoveredTimeouts.clear();
 }
 
-void LiveStreamDB::attemptStreamRecovery(const QString& symbol) {
+void LiveStreamDB::attemptStreamRecovery(const Ticker& symbol) {
     recoveryAttempts[symbol]++;
 
-    qInfo() << "Attempting to recover stream for" << symbol << "(attempt #" << recoveryAttempts[symbol] << ")";
+    qInfo() << "Attempting to recover stream for" << symbol.toString() << "(attempt #" << recoveryAttempts[symbol] << ")";
 
     if (streamType == StreamType::Bars) {
         // Close existing stream
@@ -184,9 +185,9 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol) {
             Q_ASSERT_X(connection2, "LiveStreamDB::recoverStream", "Failed to create unique connection for newStream streamErrorOccurred");
             streamBars[symbol] = newStream;
             successfulRecoveries[symbol]++;
-            qInfo() << "Successfully recovered bars stream for" << symbol;
+            qInfo() << "Successfully recovered bars stream for" << symbol.toString();
         } else {
-            qWarning() << "Failed to recover bars stream for" << symbol;
+            qWarning() << "Failed to recover bars stream for" << symbol.toString();
         }
     } else {
         // Close existing stream
@@ -207,9 +208,9 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol) {
             Q_ASSERT_X(connection4, "LiveStreamDB::recoverStream", "Failed to create unique connection for newStream streamErrorOccurred");
             streamMarketDepthQuotes[symbol] = newStream;
             successfulRecoveries[symbol]++;
-            qInfo() << "Successfully recovered market depth stream for" << symbol;
+            qInfo() << "Successfully recovered market depth stream for" << symbol.toString();
         } else {
-            qWarning() << "Failed to recover market depth stream for" << symbol;
+            qWarning() << "Failed to recover market depth stream for" << symbol.toString();
         }
     }
 }
