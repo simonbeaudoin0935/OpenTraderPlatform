@@ -8,6 +8,7 @@
 #include "TSClient.h"
 #include "MarketHours.h"
 #include "Logging.h"
+#include "Ticker.h"
 
 static TSClient* client;
 
@@ -662,7 +663,7 @@ void TestTSClient::testGetBarsSync()
 
     QVector<Bar> results;
 
-    bool success = client->getBarsSync(results, symbol, interval, unit, barsback, sessionTemplate, firstDate, lastDate);
+    bool success = client->getBarsSync(results, Ticker(symbol), interval, unit, barsback, sessionTemplate, firstDate, lastDate);
     QVERIFY(success == true);
 
     QCOMPARE(results.size(), 4);
@@ -706,7 +707,7 @@ void TestTSClient::testGetBarsAsync()
     // Intercept the bars received signal
     QSignalSpy getBarsAsyncSpy(client, &TSClient::getBarsAsyncReceived); // Create signal spies to monitor authentication signals
 
-    client->getBarsAsync(symbol, interval, unit, barsback, sessionTemplate, firstDate, lastDate);
+    client->getBarsAsync(Ticker(symbol), interval, unit, barsback, sessionTemplate, firstDate, lastDate);
 
     bool triggered = getBarsAsyncSpy.wait(2000);
     QVERIFY(triggered);
@@ -718,14 +719,14 @@ void TestTSClient::testGetBarsAsync()
     QList<QVariant> firstSignal = getBarsAsyncSpy.first();
     QVERIFY(firstSignal.size() == 2); // Two arguments, symbol and bar vector
 
-    // Convert first arg to QString
+    // Convert first arg to Ticker
     QVariant firstArg = firstSignal.at(0);
-    QVERIFY(firstArg.canConvert<QString>());
+    QVERIFY(firstArg.canConvert<Ticker>());
 
     QVariant secondArg = firstSignal.at(1);
     QVERIFY(secondArg.canConvert<QVector<Bar>>());
 
-    QCOMPARE(firstArg.value<QString>(), symbol);
+    QCOMPARE(firstArg.value<Ticker>(), Ticker(symbol));
 
     QVector<Bar> receivedBars = secondArg.value<QVector<Bar>>();
 
@@ -743,7 +744,7 @@ void TestTSClient::testStreamBars()
 
 void TestTSClient::testStreamBarsRecording()
 {
-    QString symbol = "AAPL";
+    Ticker symbol("AAPL");
     StreamBars* streamBars;
     const size_t countdown = 30;
 
@@ -817,7 +818,7 @@ void TestTSClient::testStreamMarketDepthQuote()
 
     QVERIFY(client->isCleanedUp());
 
-    stream = client->openStreamMarketDepthQuote(symbol);
+    stream = client->openStreamMarketDepthQuote(Ticker(symbol));
     QVERIFY(stream != nullptr);
 
     QSignalSpy signalSpy(stream, &StreamMarketDepthQuote::receivedNewMarketDepthQuote);
@@ -963,8 +964,8 @@ void TestTSClient::testMockStreamBars()
 
 void TestTSClient::testStreamCount()
 {
-    QString symbol1 = "AAPL";
-    QString symbol2 = "MSFT";
+    Ticker symbol1("AAPL");
+    Ticker symbol2("MSFT");
     
     QVERIFY(client->isCleanedUp());
     
