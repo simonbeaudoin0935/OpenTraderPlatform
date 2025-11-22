@@ -59,7 +59,7 @@ void TestRecorderIntegration::testRecorderNoCriticalLogs()
     bool hasCrit = false;
     QString buffer;
 
-     connect(&process, &QProcess::readyReadStandardOutput, [&]() {
+     bool connection1 = connect(&process, &QProcess::readyReadStandardOutput, [&]() {
         buffer += process.readAllStandardOutput();
         int pos;
         while ((pos = buffer.indexOf('\n')) != -1) {
@@ -73,14 +73,16 @@ void TestRecorderIntegration::testRecorderNoCriticalLogs()
                 qWarning() << "Found WARN message:" << line;
             }
         }
-    });
+    }, Qt::UniqueConnection);
+    Q_ASSERT_X(connection1, "RecorderIntegrationTest::testBasicExecution", "Failed to create unique connection for process readyReadStandardOutput");
 
     // Run for 20 seconds
     QTimer timer;
     timer.setSingleShot(true);
     timer.start(20000);
     QEventLoop loop;
-    connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    bool connection2 = connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit, Qt::UniqueConnection);
+    Q_ASSERT_X(connection2, "RecorderIntegrationTest::testBasicExecution", "Failed to create unique connection for timer timeout");
     loop.exec();
 
     // Process any remaining buffer
@@ -144,7 +146,8 @@ void TestRecorderIntegration::testRecordedDataDirOption()
     timer.setSingleShot(true);
     timer.start(5000);
     QEventLoop loop;
-    connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    bool connection = connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "RecorderIntegrationTest::testCustomCacheRootDir", "Failed to create unique connection for timer timeout");
     loop.exec();
 
     // Kill the process

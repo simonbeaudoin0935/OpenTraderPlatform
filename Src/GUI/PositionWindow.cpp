@@ -42,7 +42,8 @@ void PositionWindow::setupUI() {
     tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     // Connect click signal
-    connect(tableView, &QTableView::clicked, this, &PositionWindow::onSymbolClicked);
+    bool connection = connect(tableView, &QTableView::clicked, this, &PositionWindow::onSymbolClicked, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "PositionWindow", "Failed to create unique connection for tableView clicked");
 
     // Set column widths
     tableView->setColumnWidth(0, 70);  // Symbol

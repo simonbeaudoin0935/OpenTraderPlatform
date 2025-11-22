@@ -12,7 +12,8 @@
 #endif
 
 MemoryMonitor::MemoryMonitor(QObject* parent) : QObject(parent), timer(new QTimer(this)) {
-    connect(timer, &QTimer::timeout, this, &MemoryMonitor::updateMemoryUsage);
+    bool connection = connect(timer, &QTimer::timeout, this, &MemoryMonitor::updateMemoryUsage, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "MemoryMonitor", "Failed to create unique connection for timer timeout");
 }
 
 MemoryMonitor::~MemoryMonitor() {

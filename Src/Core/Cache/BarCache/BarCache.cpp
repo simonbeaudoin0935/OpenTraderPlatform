@@ -76,8 +76,10 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
                                                            Bar::BarSessionTemplate::USEQ24Hour);
         Q_ASSERT(streamBar != nullptr);
 
-        connect(streamBar, &StreamBars::receivedNewBar, this, &BarCache::onReceivedNewBar);
-        connect(streamBar, &Stream::streamErrorOccurred, this, &BarCache::onStreamError);
+        bool connection1 = connect(streamBar, &StreamBars::receivedNewBar, this, &BarCache::onReceivedNewBar, Qt::UniqueConnection);
+        Q_ASSERT_X(connection1, "BarCache", "Failed to create unique connection for receivedNewBar");
+        bool connection2 = connect(streamBar, &Stream::streamErrorOccurred, this, &BarCache::onStreamError, Qt::UniqueConnection);
+        Q_ASSERT_X(connection2, "BarCache", "Failed to create unique connection for streamErrorOccurred");
     }
 
 }

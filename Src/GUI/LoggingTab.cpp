@@ -29,7 +29,8 @@ void LoggingTab::setupUI() {
     // Visibility checkbox
     loggerVisibilityCheckBox = new QCheckBox("Show Logger Widget");
     loggerVisibilityCheckBox->setChecked(true);  // Default to visible
-    connect(loggerVisibilityCheckBox, &QCheckBox::toggled, this, &LoggingTab::onLoggerVisibilityToggled);
+    bool connection1 = connect(loggerVisibilityCheckBox, &QCheckBox::toggled, this, &LoggingTab::onLoggerVisibilityToggled, Qt::UniqueConnection);
+    Q_ASSERT_X(connection1, "LoggingTab", "Failed to create unique connection for loggerVisibilityCheckBox toggled");
     loggerControlsLayout->addWidget(loggerVisibilityCheckBox);
 
     // Log depth control
@@ -40,7 +41,8 @@ void LoggingTab::setupUI() {
     logDepthSpinBox->setMaximum(10000);
     logDepthSpinBox->setValue(1000);  // Default value
     logDepthSpinBox->setSingleStep(100);
-    connect(logDepthSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &LoggingTab::onLogDepthValueChanged);
+    bool connection2 = connect(logDepthSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &LoggingTab::onLogDepthValueChanged, Qt::UniqueConnection);
+    Q_ASSERT_X(connection2, "LoggingTab", "Failed to create unique connection for logDepthSpinBox valueChanged");
     logDepthLayout->addWidget(logDepthLabel);
     logDepthLayout->addWidget(logDepthSpinBox);
     logDepthLayout->addStretch();
@@ -49,13 +51,15 @@ void LoggingTab::setupUI() {
     // Global debug disable checkbox
     globalDebugDisableCheckBox = new QCheckBox("Disable Debug Messages Globally");
     globalDebugDisableCheckBox->setChecked(LoggingConfig::instance().isDebugDisabled());
-    connect(globalDebugDisableCheckBox, &QCheckBox::toggled, this, &LoggingTab::onGlobalDebugDisableToggled);
+    bool connection3 = connect(globalDebugDisableCheckBox, &QCheckBox::toggled, this, &LoggingTab::onGlobalDebugDisableToggled, Qt::UniqueConnection);
+    Q_ASSERT_X(connection3, "LoggingTab", "Failed to create unique connection for globalDebugDisableCheckBox toggled");
     loggerControlsLayout->addWidget(globalDebugDisableCheckBox);
 
     // Global info disable checkbox
     globalInfoDisableCheckBox = new QCheckBox("Disable Info Messages Globally");
     globalInfoDisableCheckBox->setChecked(LoggingConfig::instance().isInfoDisabled());
-    connect(globalInfoDisableCheckBox, &QCheckBox::toggled, this, &LoggingTab::onGlobalInfoDisableToggled);
+    bool connection4 = connect(globalInfoDisableCheckBox, &QCheckBox::toggled, this, &LoggingTab::onGlobalInfoDisableToggled, Qt::UniqueConnection);
+    Q_ASSERT_X(connection4, "LoggingTab", "Failed to create unique connection for globalInfoDisableCheckBox toggled");
     loggerControlsLayout->addWidget(globalInfoDisableCheckBox);
 
     mainLayout->addWidget(loggerControlsGroupBox);
@@ -96,7 +100,8 @@ void LoggingTab::populateCategoryCheckboxes() {
         checkBox->setChecked(LoggingConfig::instance().isCategoryEnabled(category));
         checkBox->setProperty("category", category);
 
-        connect(checkBox, &QCheckBox::toggled, this, &LoggingTab::onCategoryCheckBoxToggled);
+        bool connection = connect(checkBox, &QCheckBox::toggled, this, &LoggingTab::onCategoryCheckBoxToggled, Qt::UniqueConnection);
+        Q_ASSERT_X(connection, "LoggingTab::populateCategoryCheckboxes", "Failed to create unique connection for category checkbox toggled");
 
         categoryCheckBoxes[category] = checkBox;
         categoryCheckBoxLayout->addWidget(checkBox);

@@ -127,8 +127,10 @@ void TSClient::launchAuthProcess() {
 
     authInProgress = true;
     authWindow = new AuthWindow();
-    connect(authWindow, &AuthWindow::authFinished, this, &TSClient::onAuthFinished);
-    connect(authWindow, &QObject::destroyed, this, &TSClient::onAuthWindowDestroyed);
+    bool connection1 = connect(authWindow, &AuthWindow::authFinished, this, &TSClient::onAuthFinished, Qt::UniqueConnection);
+    Q_ASSERT_X(connection1, "TSClient::authenticate", "Failed to create unique connection for authFinished");
+    bool connection2 = connect(authWindow, &QObject::destroyed, this, &TSClient::onAuthWindowDestroyed, Qt::UniqueConnection);
+    Q_ASSERT_X(connection2, "TSClient::authenticate", "Failed to create unique connection for authWindow destroyed");
     authWindow->show();
 }
 

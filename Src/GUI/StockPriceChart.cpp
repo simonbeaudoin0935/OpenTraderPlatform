@@ -107,10 +107,14 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     setLayout(layout);
 
     // Connect to the axis range changed signal
-    connect(axisX, &QDateTimeAxis::rangeChanged, this, &StockPriceChart::updateAfterHoursBackground);
-    connect(axisX, &QDateTimeAxis::rangeChanged, this, &StockPriceChart::updateLastPriceLineIfNeeded);
-    connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::updateAfterHoursBackground);
-    connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::updateLastPriceLineIfNeeded);
+    bool connection1 = connect(axisX, &QDateTimeAxis::rangeChanged, this, &StockPriceChart::updateAfterHoursBackground, Qt::UniqueConnection);
+    Q_ASSERT_X(connection1, "StockPriceChart", "Failed to create unique connection for axisX rangeChanged to updateAfterHoursBackground");
+    bool connection2 = connect(axisX, &QDateTimeAxis::rangeChanged, this, &StockPriceChart::updateLastPriceLineIfNeeded, Qt::UniqueConnection);
+    Q_ASSERT_X(connection2, "StockPriceChart", "Failed to create unique connection for axisX rangeChanged to updateLastPriceLineIfNeeded");
+    bool connection3 = connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::updateAfterHoursBackground, Qt::UniqueConnection);
+    Q_ASSERT_X(connection3, "StockPriceChart", "Failed to create unique connection for axisY rangeChanged to updateAfterHoursBackground");
+    bool connection4 = connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::updateLastPriceLineIfNeeded, Qt::UniqueConnection);
+    Q_ASSERT_X(connection4, "StockPriceChart", "Failed to create unique connection for axisY rangeChanged to updateLastPriceLineIfNeeded");
 }
 
 StockPriceChart::~StockPriceChart() {

@@ -15,7 +15,8 @@ void StockScreener::start()
 {
     FMPClient& client = FMPClient::getInstance();
 
-    connect(&client, &FMPClient::sharesFloatReceived, this, &StockScreener::onSharesFloatReceived);
+    bool connection = connect(&client, &FMPClient::sharesFloatReceived, this, &StockScreener::onSharesFloatReceived, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "StockScreener::start", "Failed to create unique connection for sharesFloatReceived");
 
     loadCriterias();
 

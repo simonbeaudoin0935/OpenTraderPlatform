@@ -186,9 +186,10 @@ int main(int argc, char *argv[]) {
 
     // Set up status timer (every 10 seconds)
     QTimer* statusTimer = new QTimer(&app);
-    QObject::connect(statusTimer, &QTimer::timeout, [&statusReporter]() {
+    bool connection = QObject::connect(statusTimer, &QTimer::timeout, [&statusReporter]() {
         statusReporter.printStatus();
-    });
+    }, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "Recorder::main", "Failed to create unique connection for statusTimer timeout");
     statusTimer->start(10000); // 10 seconds
 
     // Write logging configuration to disk if this is the first run

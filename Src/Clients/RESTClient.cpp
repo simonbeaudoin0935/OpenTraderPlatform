@@ -20,7 +20,8 @@ RESTClient::RESTClient(const QUrl &baseUrl, QObject *parent)
 {
     this->moveToThread(thread);
 
-    connect(manager, &QNetworkAccessManager::finished, this, &RESTClient::onReplyFinished);
+    bool connection = connect(manager, &QNetworkAccessManager::finished, this, &RESTClient::onReplyFinished, Qt::UniqueConnection);
+    Q_ASSERT_X(connection, "RESTClient", "Failed to create unique connection for manager finished");
 }
 
 RESTClient::~RESTClient() {
