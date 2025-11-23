@@ -107,7 +107,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
 
     axisY = new QValueAxis();
     axisY->setLabelFormat("%.2f");
-    axisY->setTitleText("Price");
+    //axisY->setTitleText("Price");
     axisY->setGridLineColor(QColor(70, 70, 70));
     axisY->setLabelsColor(QColor(220, 220, 220));
     axisY->setTitleBrush(QBrush(QColor(220, 220, 220)));
