@@ -76,6 +76,7 @@ bool StockPriceChart::handleMouseButtonPress(QMouseEvent* mouseEvent) {
 
             // Reset the horizontal axis
             axisX->setRange(startIndex, endIndex);
+            updateAxisLabels();
 
             // Reset the vertical axis to fit visible bars
             double minPrice = std::numeric_limits<double>::max();
@@ -214,6 +215,7 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
     
     axisX->setRange(newMin, newMax);
     axisY->setRange(qMax(0.0, axisY->min() + priceOffset), axisY->max() + priceOffset);
+    updateAxisLabels();
 
     // Update the price label position and last price line
     updatePriceLabelPosition();

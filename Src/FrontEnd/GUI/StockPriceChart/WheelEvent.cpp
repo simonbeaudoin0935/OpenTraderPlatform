@@ -93,6 +93,7 @@ void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
     
     axisX->setRange(newMin, newMax);
     updateLastPriceLineIfNeeded();
+    updateAxisLabels();
 }
 
 /**
@@ -129,6 +130,7 @@ void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor)
 
     axisX->setRange(newMin, newMax);
     updateLastPriceLineIfNeeded();
+    updateAxisLabels();
 }
 
 /**
@@ -203,4 +205,5 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
     axisY->setRange(qMax(0.0, newMinPrice), newMaxPrice);
 
     updateLastPriceLineIfNeeded();
+    updateAxisLabels();
 }

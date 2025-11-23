@@ -271,6 +271,7 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
     if (hadInitialView) {
         axisX->setRange(currentMinIndex, currentMaxIndex);
         axisY->setRange(currentYMin, currentYMax);
+        updateAxisLabels();
     }
 }
 
@@ -396,12 +397,14 @@ void StockPriceChart::updateChart() {
         int startIndex = qMax(0, lastIndex - 30);  // Show last 30 bars
         int endIndex = lastIndex + 1;  // Small buffer
         
-        axisX->setRange(startIndex, endIndex);
+        axisX->setRange(startIndex, endIndex);   
     } else {
         // Restore the previous view
         axisX->setRange(currentMinIndex, currentMaxIndex);
         axisY->setRange(currentYMin, currentYMax);
     }
+
+    updateAxisLabels();
 
     // Calculate current visible price range
     double minPrice = std::numeric_limits<double>::max();
@@ -545,6 +548,7 @@ void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
     
     axisX->setRange(newMin, newMax);
     updateLastPriceLineIfNeeded();
+    updateAxisLabels();
 }
 
 /**
@@ -1101,9 +1105,32 @@ void StockPriceChart::updateAxisLabels() {
         numLabels = 10;
     }
     
-    qCWarning(ChartLog) << "Setting X-axis tick count to" << numLabels << "for range" << range;
+    qCDebug(ChartLog) << "Setting X-axis tick count to" << numLabels << "for range" << range;
     axisX->setTickCount(numLabels);
-    
+
+    // Additionally, adjust tick interval based on chart width and range
+    {
+        qreal range = axisX->max() - axisX->min();
+        int chartWidth = chartView->width();
+        qreal rangeRatio = chartWidth / range;
+
+        int a = 0;
+
+        if (rangeRatio <= 2){
+
+        }
+        else if (rangeRatio <= 10){
+            a = 3;
+        }
+        else if (rangeRatio <= 20){
+            a = 2;
+        }
+        else if (rangeRatio <= 30) {
+            a = 1;
+        }
+        axisX->setTickInterval(a + 1);
+    }
+
     // Qt doesn't provide easy custom labels for QValueAxis, so we'll rely on
     // the automatic labeling showing indices. For a production version, you
     // could use QCategoryAxis or custom drawing, but that's beyond minimal changes.
