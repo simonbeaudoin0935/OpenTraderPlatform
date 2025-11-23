@@ -154,7 +154,7 @@ StockPriceChart::~StockPriceChart() {
 void StockPriceChart::setSymbol(const QString& symbol) {
     this->symbol = symbol;
     candlestickSeries->setName(symbol + " (Bars)");
-    chart->setTitle("Stock Price: " + symbol);
+    chart->setTitle(symbol);
 }
 
 /**
@@ -956,7 +956,7 @@ void StockPriceChart::clearSymbol() {
     priceLabel->setPlainText("");
     
     // Reset the chart title
-    chart->setTitle("Stock Price: " + symbol);
+    chart->setTitle(symbol);
     
     // Clear index mappings
     indexToTimestamp.clear();
