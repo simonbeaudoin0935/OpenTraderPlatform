@@ -9,6 +9,7 @@
 #include <QFont>
 #include <QTextCursor>
 #include <QScrollBar>
+#include <QRegularExpression>
 
 #include "TSClient.h"
 #include "GUIFrontend.h"
@@ -424,9 +425,48 @@ QString GUIFrontend::bytesToString(qint64 bytes) {
     }
 }
 
+bool GUIFrontend::isValidStockSymbol(const QString& symbol) const {
+    // Check if symbol is empty
+    if (symbol.isEmpty()) {
+        return false;
+    }
+
+    // Check for leading or trailing whitespace
+    if (symbol != symbol.trimmed()) {
+        return false;
+    }
+
+    // Check length (typical stock symbols are 1-10 characters)
+    if (symbol.length() > 10 || symbol.length() < 1) {
+        return false;
+    }
+
+    // Check for valid characters: alphanumeric, dots, hyphens, slashes
+    QRegularExpression validSymbolRegex("^[A-Z0-9.\\-/]+$");
+    if (!validSymbolRegex.match(symbol).hasMatch()) {
+        return false;
+    }
+
+    return true;
+}
+
 void GUIFrontend::onNewDisplayedStockSelection()
 {
     QString symbol = ui->stockSymbolInput->text().toUpper();
+
+    // Validate the stock symbol
+    if (!isValidStockSymbol(symbol)) {
+        QMessageBox::warning(nullptr, "Invalid Symbol", 
+                           "Please enter a valid stock symbol.\n\n"
+                           "Valid symbols:\n"
+                           "- Must not be empty\n"
+                           "- Must not contain leading or trailing spaces\n"
+                           "- Must be 1-10 characters long\n"
+                           "- Can only contain letters, numbers, dots (.), hyphens (-), and slashes (/)");
+        ui->stockSymbolInput->setFocus();
+        ui->stockSymbolInput->selectAll();
+        return;
+    }
 
     // Update the input field to show the uppercase symbol
     ui->stockSymbolInput->setText(symbol);

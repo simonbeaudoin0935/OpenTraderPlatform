@@ -1101,6 +1101,7 @@ void StockPriceChart::updateAxisLabels() {
         numLabels = 10;
     }
     
+    qCWarning(ChartLog) << "Setting X-axis tick count to" << numLabels << "for range" << range;
     axisX->setTickCount(numLabels);
     
     // Qt doesn't provide easy custom labels for QValueAxis, so we'll rely on
