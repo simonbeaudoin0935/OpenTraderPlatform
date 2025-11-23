@@ -1,8 +1,8 @@
 #include "MainApp.h"
 #ifdef GUI_ENABLED
-#include "../FrontEnd/GUI/GUIFrontend.h"
+#include "GUIFrontend.h"
 #else
-#include "../FrontEnd/TUI/TUIFrontend.h"
+#include "TUIFrontend.h"
 #endif
 
 MainApp::MainApp() :

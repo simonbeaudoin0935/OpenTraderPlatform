@@ -2,7 +2,7 @@
 
 #include "FMPClient.h"
 #include "TSClient.h"
-#include "../FrontEnd/FrontEnd.h"
+#include "FrontEnd.h"
 #include "MainAlgo.h"
 #include "MemoryMonitor.h"
 
