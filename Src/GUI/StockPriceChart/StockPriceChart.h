@@ -17,6 +17,7 @@
 #include <QLoggingCategory>
 
 #include "Bar.h"
+#include "TimeFrameSelector.h"
 
 Q_DECLARE_LOGGING_CATEGORY(ChartLog)
 
@@ -78,12 +79,6 @@ private:
     void handlePanning(QMouseEvent* mouseEvent);
     void checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime);
     
-
-    // Sub-Event handling helper functions
-    bool handleMouseButtonPress(QMouseEvent* event);
-    bool handleMouseButtonRelease(QMouseEvent* event);
-    bool handleMouseMove(QMouseEvent* event);
-
     // Index-based positioning helpers
     void rebuildIndexMapping();
     int getIndexForTimestamp(const QDateTime& timestamp) const;
@@ -126,10 +121,18 @@ private:
     bool isPanning = false;
     QPoint lastMousePos;
 
+    // Timeframe selector widget
+    TimeFrameSelector* timeframeSelector;
+
     // Helper method to create a background rectangle
     QGraphicsRectItem* createBackgroundRect(const QColor& color, int zValue);
     // Helper method to clear all background rectangles
     void clearBackgroundRects();
+
+    // Event handling helper functions
+    bool handleMouseButtonPress(QMouseEvent* event);
+    bool handleMouseButtonRelease(QMouseEvent* event);
+    bool handleMouseMove(QMouseEvent* event);
 
     bool currentGetBarsRequestInProcess = false;
 };

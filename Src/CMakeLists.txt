@@ -101,6 +101,7 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache/BarCache
     ${CMAKE_CURRENT_SOURCE_DIR}/GUI
     ${CMAKE_CURRENT_SOURCE_DIR}/GUI/Gauge
+    ${CMAKE_CURRENT_SOURCE_DIR}/GUI/StockPriceChart
     ${CMAKE_CURRENT_SOURCE_DIR}/TUI
     ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
 )
