@@ -66,6 +66,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     chart->legend()->setBackgroundVisible(true);
     chart->legend()->setAlignment(Qt::AlignBottom);
     chart->legend()->setColor(QColor(65, 65, 70, 150));
+    chart->legend()->setVisible(false);
 
     chartView = new QChartView(chart, this);
     chartView->setRenderHint(QPainter::Antialiasing);
@@ -84,7 +85,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     setSymbol("");
 
     axisX = new QValueAxis();  // Changed from QDateTimeAxis - now uses indices
-    axisX->setTitleText("Time");
+    //axisX->setTitleText("Time");
     axisX->setGridLineVisible(true);
     axisX->setMinorGridLineVisible(false);
     axisX->setLabelsAngle(-45); // Angle the time labels for better readability
@@ -107,7 +108,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
 
     axisY = new QValueAxis();
     axisY->setLabelFormat("%.2f");
-    axisY->setTitleText("Price");
+    //axisY->setTitleText("Price");
     axisY->setGridLineColor(QColor(70, 70, 70));
     axisY->setLabelsColor(QColor(220, 220, 220));
     axisY->setTitleBrush(QBrush(QColor(220, 220, 220)));
