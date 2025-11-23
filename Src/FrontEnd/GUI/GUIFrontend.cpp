@@ -18,7 +18,7 @@
 #include "Misc/Logging.h"
 
 GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
-    AppFrontend(parent),
+    FrontEnd(parent),
     mainAlgo(mainAlgo)
 {
     ui = new Ui::GUIFrontend();
@@ -48,41 +48,41 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     connect(tradeStationLoginButton, &QPushButton::clicked, this, &GUIFrontend::onTradeStationLoginClicked);
 
     // Connect app frontend signals and slots
-    connect(this, &AppFrontend::tradeStationAuthStateChanged,
+    connect(this, &FrontEnd::tradeStationAuthStateChanged,
             this, &GUIFrontend::onTradeStationAuthStateChanged,
             Qt::DirectConnection);
 
-    connect(this, &AppFrontend::tradeStationAccountsReceived,
+    connect(this, &FrontEnd::tradeStationAccountsReceived,
             this, &GUIFrontend::onTradeStationAccountsReceived,
             Qt::DirectConnection);
 
-    connect(this, &AppFrontend::fmpDataUsageUpdated,
+    connect(this, &FrontEnd::fmpDataUsageUpdated,
             this, &GUIFrontend::onFMPClientDataUsageUpdate,
             Qt::DirectConnection);
 
-    connect(this, &AppFrontend::tradeStationDataUsageUpdated,
+    connect(this, &FrontEnd::tradeStationDataUsageUpdated,
             this, &GUIFrontend::onTSClientDataUsageUpdate,
             Qt::DirectConnection);
 
-    connect(this, &AppFrontend::streamCountUpdated,
+    connect(this, &FrontEnd::streamCountUpdated,
             this, &GUIFrontend::onStreamCountUpdate,
             Qt::DirectConnection);
 
-    connect(this, &AppFrontend::currentHighlightedStockBarReceived,
+    connect(this, &FrontEnd::currentHighlightedStockBarReceived,
             this, &GUIFrontend::onCurrentHighlightedStockBarReceived,
             Qt::DirectConnection);
 
-    connect(this, &AppFrontend::currentHighlightedReceivedNewMarketDepthQuote,
+    connect(this, &FrontEnd::currentHighlightedReceivedNewMarketDepthQuote,
             this, &GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote,
             Qt::DirectConnection);
 
-    connect(this, &AppFrontend::newPositionReceived,
+    connect(this, &FrontEnd::newPositionReceived,
             this, &GUIFrontend::onNewPositionReceived,
             Qt::DirectConnection);
 
     // Propagate up when the chart needs missing bars to display
     connect(ui->priceChart, &StockPriceChart::requestMissingBars,
-            this, &AppFrontend::requestMissingBars);
+            this, &FrontEnd::requestMissingBars);
 
     // Connect the stock symbol input to its slot
     connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GUIFrontend::onNewDisplayedStockSelection);

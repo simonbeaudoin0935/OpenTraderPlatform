@@ -2,7 +2,7 @@
 
 #include "FMPClient.h"
 #include "TSClient.h"
-#include "AppFrontend.h"
+#include "../FrontEnd/FrontEnd.h"
 #include "MainAlgo.h"
 #include "MemoryMonitor.h"
 
@@ -17,6 +17,6 @@ private:
     FMPClient*   fmpClient;
     TSClient* tradeStationClient;
     MainAlgo*    mainAlgo;
-    AppFrontend* appFrontend;
+    FrontEnd* appFrontend;
     MemoryMonitor memoryMonitor;
 };

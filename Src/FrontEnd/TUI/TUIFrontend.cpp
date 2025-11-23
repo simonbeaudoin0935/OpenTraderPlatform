@@ -2,7 +2,7 @@
 #include <QDebug>
 
 TUIFrontend::TUIFrontend(MainAlgo* mainAlgo, QObject* parent) 
-    : AppFrontend(parent),
+    : FrontEnd(parent),
       mainAlgo(mainAlgo)
 {
 

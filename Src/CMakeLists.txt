@@ -30,21 +30,25 @@ file(GLOB_RECURSE CORE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Core/*.h"
 )
 
+file(GLOB FRONTEND_SOURCES 
+    "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/*.h"
+)
+
 # Conditionally add GUI or TUI sources
 set(GUI_SOURCES "")
 set(TUI_SOURCES "")
 if(ENABLE_GUI)
     file(GLOB_RECURSE GUI_SOURCES 
-        "${CMAKE_CURRENT_SOURCE_DIR}/GUI/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/GUI/*.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/*.h"
     )
     set(GUI_UI_FILES
-        "${CMAKE_CURRENT_SOURCE_DIR}/GUI/GUIFrontend.ui"
+        "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/GUIFrontend.ui"
     )
 else()
     file(GLOB_RECURSE TUI_SOURCES 
-        "${CMAKE_CURRENT_SOURCE_DIR}/TUI/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/TUI/*.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI/*.h"
     )
     # Remove GUI-incompatible sources from Clients when GUI is disabled
     list(FILTER CLIENTS_SOURCES EXCLUDE REGEX "AuthWindow\\.(cpp|h)$")
@@ -56,6 +60,7 @@ add_library(L2TraderCommon STATIC
     ${CLIENTS_SOURCES}
     ${ALGO_SOURCES}
     ${CORE_SOURCES}
+    ${FRONTEND_SOURCES}
     ${GUI_SOURCES}
     ${TUI_SOURCES}
     ${GUI_UI_FILES}
@@ -99,10 +104,11 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Core
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache/BarCache
-    ${CMAKE_CURRENT_SOURCE_DIR}/GUI
-    ${CMAKE_CURRENT_SOURCE_DIR}/GUI/Gauge
-    ${CMAKE_CURRENT_SOURCE_DIR}/GUI/StockPriceChart
-    ${CMAKE_CURRENT_SOURCE_DIR}/TUI
+    ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd
+    ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI
+    ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Gauge
+    ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/StockPriceChart
+    ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI
     ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
 )
 

@@ -1,8 +1,8 @@
 #include "MainApp.h"
 #ifdef GUI_ENABLED
-#include "GUI/GUIFrontend.h"
+#include "../FrontEnd/GUI/GUIFrontend.h"
 #else
-#include "TUI/TUIFrontend.h"
+#include "../FrontEnd/TUI/TUIFrontend.h"
 #endif
 
 MainApp::MainApp() :
@@ -16,47 +16,47 @@ MainApp::MainApp() :
     appFrontend = new TUIFrontend(mainAlgo);
 #endif
     // Connect memory usage updates to frontend
-    QObject::connect(&memoryMonitor, &MemoryMonitor::memoryUsageUpdated, appFrontend, &AppFrontend::onMemoryUsageUpdate);
+    QObject::connect(&memoryMonitor, &MemoryMonitor::memoryUsageUpdated, appFrontend, &FrontEnd::onMemoryUsageUpdate);
 
     // Connect TradeStation authentication state changes to frontend
     // When the client thread starts and the event loop kicks, there will be an initial
     // emition to signal what is the initial state
     QObject::connect(tradeStationClient, &TSClient::authStateChanged,
-                     appFrontend, &AppFrontend::tradeStationAuthStateChanged);
+                     appFrontend, &FrontEnd::tradeStationAuthStateChanged);
 
     QObject::connect(tradeStationClient, &TSClient::authStateChanged,
                      mainAlgo, &MainAlgo::onTradeStationAuthStateChanged);
 
     QObject::connect(tradeStationClient, &TSClient::getAccountsAsyncReceived,
-                     appFrontend, &AppFrontend::tradeStationAccountsReceived);
+                     appFrontend, &FrontEnd::tradeStationAccountsReceived);
 
     // Connect FMP data usage updates to frontend
     QObject::connect(fmpClient, &FMPClient::totalDataReceivedBytesIncreased,
-                     appFrontend, &AppFrontend::fmpDataUsageUpdated);
+                     appFrontend, &FrontEnd::fmpDataUsageUpdated);
 
     // Connect TradeStation data usage updates to frontend
     QObject::connect(tradeStationClient, &TSClient::totalDataReceivedBytesIncreased,
-                     appFrontend, &AppFrontend::tradeStationDataUsageUpdated);
+                     appFrontend, &FrontEnd::tradeStationDataUsageUpdated);
 
     // Connect TradeStation stream count updates to frontend
     QObject::connect(tradeStationClient, &TSClient::streamCountChanged,
-                     appFrontend, &AppFrontend::streamCountUpdated);
+                     appFrontend, &FrontEnd::streamCountUpdated);
 
     QObject::connect(mainAlgo, &MainAlgo::displayedStockReceivedNewBar,
-                     appFrontend, &AppFrontend::currentHighlightedStockBarReceived);
+                     appFrontend, &FrontEnd::currentHighlightedStockBarReceived);
 
     QObject::connect(mainAlgo, &MainAlgo::displayedStockReceivedNewMarketDepthQuote,
-                     appFrontend, &AppFrontend::currentHighlightedReceivedNewMarketDepthQuote);
+                     appFrontend, &FrontEnd::currentHighlightedReceivedNewMarketDepthQuote);
 
 
     QObject::connect(mainAlgo, &MainAlgo::receivedNewPosition,
-                     appFrontend, &AppFrontend::newPositionReceived);
+                     appFrontend, &FrontEnd::newPositionReceived);
 
-    QObject::connect(appFrontend, &AppFrontend::requestMissingBars,
+    QObject::connect(appFrontend, &FrontEnd::requestMissingBars,
                      mainAlgo,    &MainAlgo::onRequestMissingBarsDisplayedStock);
 
     QObject::connect(mainAlgo,    &MainAlgo::requestedMissingBarsDisplayedStockReceived,
-                     appFrontend, &AppFrontend::onRequestedMissingBarsDisplayedStockReceived);
+                     appFrontend, &FrontEnd::onRequestedMissingBarsDisplayedStockReceived);
 }
 
 void MainApp::start()

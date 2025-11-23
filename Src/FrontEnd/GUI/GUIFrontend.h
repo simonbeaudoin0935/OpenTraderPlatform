@@ -4,7 +4,7 @@
 #include <QTimer>
 #include <QPushButton>
 
-#include "AppFrontend.h"
+#include "FrontEnd.h"
 #include "MainAlgo.h"
 
 // Forward declare the generated UI class
@@ -12,7 +12,7 @@ namespace Ui {
 class GUIFrontend;
 }
 
-class GUIFrontend : public AppFrontend {
+class GUIFrontend : public FrontEnd {
     Q_OBJECT
 public:
     explicit GUIFrontend(MainAlgo* mainAlgo, QObject* parent = nullptr);

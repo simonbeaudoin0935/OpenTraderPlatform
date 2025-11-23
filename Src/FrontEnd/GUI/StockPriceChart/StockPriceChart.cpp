@@ -743,25 +743,6 @@ void StockPriceChart::updateLastPriceLine(double price, bool isUpTick) {
 }
 
 /**
- * @brief Handles widget resize events.
- * 
- * Updates the chart geometry and repositions the price label and background
- * rectangles when the widget is resized.
- * 
- * @param event The QResizeEvent containing size information.
- */
-void StockPriceChart::resizeEvent(QResizeEvent* event) {
-    QWidget::resizeEvent(event);
-    
-    // Update the chart's geometry
-    chart->resize(event->size());
-    
-    // Update price label and backgrounds
-    updatePriceLabelPosition();
-    updateAfterHoursBackground();
-}
-
-/**
  * @brief Checks if the given time is after market hours.
  * 
  * Converts the local time to New York timezone and checks if it's after 4 PM ET.
@@ -901,64 +882,6 @@ void StockPriceChart::clearBackgroundRects() {
     }
     closedMarketRects.clear();
 }
-
-/**
- * @brief Filters events for the chart view's viewport.
- * 
- * Handles mouse interactions for panning and right-click recentering:
- * - Left mouse button: Initiates and performs panning
- * - Right mouse button: Recenters the view to show last 30 bars
- * 
- * @param object The object that received the event.
- * @param event The event to filter.
- * @return True if the event was handled, false to pass it to the parent.
- */
-/**
- * @brief Handles mouse panning movement.
- * 
- * Updates the chart axes based on mouse movement delta, converting pixel
- * movement to appropriate index and price units. Checks for missing bars
- * when panning to earlier times.
- * 
- * @param mouseEvent The QMouseEvent containing mouse position information.
- */
-void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
-    QPoint delta = mouseEvent->pos() - lastMousePos;
-    lastMousePos = mouseEvent->pos();
-
-    // Convert pixel movement to index units for X axis
-    qreal indexPerPixel = (axisX->max() - axisX->min()) / chartView->width();
-    qreal indexOffset = -delta.x() * indexPerPixel;
-
-    // Convert pixel movement to price units for Y axis
-    qreal pricePerPixel = (axisY->max() - axisY->min()) / chartView->height();
-    qreal priceOffset = delta.y() * pricePerPixel;
-
-    // Update axes ranges
-    qreal newMin = axisX->min() + indexOffset;
-    qreal newMax = axisX->max() + indexOffset;
-    
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
-    }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
-    
-    axisX->setRange(newMin, newMax);
-    axisY->setRange(axisY->min() + priceOffset, axisY->max() + priceOffset);
-
-    // Update the price label position and last price line
-    updatePriceLabelPosition();
-    if (hasOpenBar) {
-        updateLastPriceLine(currentOpenBar.getClose(),
-                          currentOpenBar.getClose() >= currentOpenBar.getOpen());
-    }
-}
-
 
 /**
  * @brief Checks if the current view requires missing bars to be loaded.
