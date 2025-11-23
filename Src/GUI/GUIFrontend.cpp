@@ -13,8 +13,8 @@
 #include "TSClient.h"
 #include "GUIFrontend.h"
 #include "ui_GUIFrontend.h"
-#include "LoggingTab.h"
-#include "CacheTab.h"
+#include "Tabs/LoggingTab.h"
+#include "Tabs/CacheTab.h"
 #include "Misc/Logging.h"
 
 GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
