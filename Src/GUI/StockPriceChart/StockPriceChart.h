@@ -78,6 +78,12 @@ private:
     void handlePanning(QMouseEvent* mouseEvent);
     void checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime);
     
+
+    // Sub-Event handling helper functions
+    bool handleMouseButtonPress(QMouseEvent* event);
+    bool handleMouseButtonRelease(QMouseEvent* event);
+    bool handleMouseMove(QMouseEvent* event);
+
     // Index-based positioning helpers
     void rebuildIndexMapping();
     int getIndexForTimestamp(const QDateTime& timestamp) const;

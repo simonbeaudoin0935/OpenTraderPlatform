@@ -289,7 +289,7 @@
   <customwidget>
    <class>StockPriceChart</class>
    <extends>QWidget</extends>
-   <header>GUI/StockPriceChart.h</header>
+   <header>GUI/StockPriceChart/StockPriceChart.h</header>
   </customwidget>
   <customwidget>
    <class>MarketDepthTable</class>

@@ -11,7 +11,7 @@
 #include <QTimeZone>
 
 #include "StockPriceChart.h"
-#include "../Misc/MarketHours.h"
+#include "MarketHours.h"
 
 #define CANDLESTICK_BODY_WIDTH 0.9 // 90% of available space
 
@@ -28,15 +28,19 @@ Q_LOGGING_CATEGORY(ChartLog, "Chart");
  */
 StockPriceChart::StockPriceChart(QWidget* parent)
     : QWidget(parent) {
+
+    // Last price line setup
     lastPriceLine = new QLineSeries();
     lastPriceLine->setPen(QPen(Qt::green, 1, Qt::DashLine)); // Start with green, dashed line
 
+    // Candlestick series setup
     candlestickSeries = new QCandlestickSeries();
     candlestickSeries->setPen(QPen(QColor(Qt::black)));
     candlestickSeries->setIncreasingColor(QColor(Qt::green));
     candlestickSeries->setDecreasingColor(QColor(Qt::red));
     candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
 
+    // Void bar series setup
     voidBarSeries = new QScatterSeries();
     voidBarSeries->setName("Void Bars");
     voidBarSeries->setMarkerShape(QScatterSeries::MarkerShapeRectangle);
@@ -44,10 +48,11 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     voidBarSeries->setPen(QPen(QColor(Qt::red), 2));  // Red X with thicker lines
     voidBarSeries->setBrush(Qt::NoBrush);  // No fill, just the X outline
 
+    // Adding all series to the chart
     chart = new QChart();
     chart->addSeries(candlestickSeries);
     chart->addSeries(lastPriceLine);
-    chart->addSeries(voidBarSeries);  // Add the void bar series to the chart
+    chart->addSeries(voidBarSeries);
 
     // Add margins to ensure price label is visible
     chart->setMargins(QMargins(5, 5, 50, 5));  // Left, Top, Right, Bottom
@@ -87,7 +92,13 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     axisX->setLabelsColor(QColor(220, 220, 220));
     axisX->setTitleBrush(QBrush(QColor(220, 220, 220)));
     axisX->setLabelFormat("");  // We'll use custom labels
+
+    axisX->setRange(-3, 3);
     axisX->setTickCount(7);  // Default tick count
+    axisX->setLabelFormat("%d");
+    axisX->setTickType(QValueAxis::TicksDynamic);
+    axisX->setTickAnchor(0);  // <----------------- I think this is wrong for the panning to work properly
+    axisX->setTickInterval(1);
 
     chart->addAxis(axisX, Qt::AlignBottom);
     candlestickSeries->attachAxis(axisX);
@@ -149,9 +160,7 @@ void StockPriceChart::setSymbol(const QString& symbol) {
  * @param bar The Bar object containing price data and timestamp.
  */
 void StockPriceChart::addBar(const Bar& bar) {
-    if (!bar.isValid()) {
-        return;
-    }
+    Q_ASSERT(bar.isValid());
 
     if (bar.getBarStatus() == Bar::BarStatus::Closed) {
         handleClosedBar(bar);
@@ -440,209 +449,6 @@ void StockPriceChart::updateChart() {
 }
 
 /**
- * @brief Handles mouse wheel events for chart interaction.
- * 
- * Provides different zoom and pan behaviors based on modifier keys:
- * - Ctrl+Shift: Vertical panning
- * - Alt: Horizontal panning  
- * - Ctrl: Horizontal zooming
- * - Shift: Vertical zooming
- * - No modifiers: Both axes zooming
- * 
- * @param event The QWheelEvent containing wheel movement information.
- */
-void StockPriceChart::wheelEvent(QWheelEvent* event) {
-    if (!chartView->rect().contains(event->position().toPoint())) {
-        event->ignore();
-        return;
-    }
-
-    // Calculate zoom factor based on scroll direction
-    qreal zoomFactor = event->angleDelta().y() > 0 ? 0.9 : 1.1;
-
-    if ((event->modifiers() & Qt::ShiftModifier) && (event->modifiers() & Qt::ControlModifier)) {
-        handleVerticalPanning(event);
-    } else if (event->modifiers() & Qt::AltModifier) {
-        handleHorizontalPanning(event);
-    } else if (event->modifiers() & Qt::ControlModifier) {
-        handleHorizontalZoom(event, zoomFactor);
-    } else if (event->modifiers() & Qt::ShiftModifier) {
-        handleVerticalZoom(event, zoomFactor);
-    } else {
-        handleBothAxesZoom(event, zoomFactor);
-    }
-
-    // Update the price label position
-    updatePriceLabelPosition();
-    event->accept();
-}
-
-/**
- * @brief Handles vertical panning with mouse wheel.
- * 
- * Pans the Y-axis (price) up or down based on wheel direction.
- * Used when Ctrl+Shift modifiers are held.
- * 
- * @param event The QWheelEvent containing wheel movement information.
- */
-void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
-    qreal currentMin = axisY->min();
-    qreal currentMax = axisY->max();
-    qreal priceRange = currentMax - currentMin;
-
-    qreal shiftAmount = priceRange * 0.05;
-    if (event->angleDelta().y() < 0) {
-        shiftAmount = -shiftAmount;
-    }
-
-    axisY->setRange(currentMin + shiftAmount, currentMax + shiftAmount);
-    updateLastPriceLineIfNeeded();
-}
-
-/**
- * @brief Handles horizontal panning with mouse wheel.
- * 
- * Pans the X-axis (time) left or right based on wheel direction.
- * Checks for missing bars when panning to earlier times.
- * Used when Alt modifier is held.
- * 
- * @param event The QWheelEvent containing wheel movement information.
- */
-void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
-    qreal currentMin = axisX->min();
-    qreal currentMax = axisX->max();
-    qreal indexRange = currentMax - currentMin;
-    qreal shiftAmount = indexRange * 0.05;
-    shiftAmount = -shiftAmount * (event->angleDelta().x() > 0 ? 1 : -1);
-
-    qreal newMin = currentMin + shiftAmount;
-    qreal newMax = currentMax + shiftAmount;
-    
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
-    }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
-    
-    axisX->setRange(newMin, newMax);
-    updateLastPriceLineIfNeeded();
-}
-
-/**
- * @brief Handles horizontal zooming with mouse wheel.
- * 
- * Zooms in/out on the X-axis (time) centered on current view.
- * Checks for missing bars when zooming out to earlier times.
- * Used when Ctrl modifier is held.
- * 
- * @param event The QWheelEvent containing wheel movement information.
- * @param zoomFactor The zoom multiplier (typically 0.9 for zoom in, 1.1 for zoom out).
- */
-void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor) {
-    Q_UNUSED(event);
-
-    qreal currentMin = axisX->min();
-    qreal currentMax = axisX->max();
-    qreal indexRange = currentMax - currentMin;
-    qreal centerIndex = currentMin + (indexRange / 2);
-
-    qreal newIndexRange = indexRange * zoomFactor;
-    qreal newMin = centerIndex - (newIndexRange / 2);
-    qreal newMax = centerIndex + (newIndexRange / 2);
-    
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
-    }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
-
-    axisX->setRange(newMin, newMax);
-    updateLastPriceLineIfNeeded();
-}
-
-/**
- * @brief Handles vertical zooming with mouse wheel.
- * 
- * Zooms in/out on the Y-axis (price) centered on current view.
- * Used when Shift modifier is held.
- * 
- * @param event The QWheelEvent containing wheel movement information.
- * @param zoomFactor The zoom multiplier (typically 0.9 for zoom in, 1.1 for zoom out).
- */
-void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
-    Q_UNUSED(event);
-
-    qreal currentMin = axisY->min();
-    qreal currentMax = axisY->max();
-    qreal range = currentMax - currentMin;
-    qreal center = (currentMax + currentMin) / 2;
-
-    qreal newRange = range * zoomFactor;
-    qreal newMin = center - (newRange / 2);
-    qreal newMax = center + (newRange / 2);
-
-    axisY->setRange(newMin, newMax);
-    updateLastPriceLineIfNeeded();
-}
-
-/**
- * @brief Handles simultaneous zooming on both axes with mouse wheel.
- * 
- * Zooms in/out on both X-axis (time) and Y-axis (price) centered on current view.
- * Checks for missing bars when zooming out on time axis.
- * Used with no modifier keys held.
- * 
- * @param event The QWheelEvent containing wheel movement information.
- * @param zoomFactor The zoom multiplier (typically 0.9 for zoom in, 1.1 for zoom out).
- */
-void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
-    Q_UNUSED(event);
-
-    // Index axis zoom
-    qreal currentMin = axisX->min();
-    qreal currentMax = axisX->max();
-    qreal indexRange = currentMax - currentMin;
-    qreal centerIndex = currentMin + (indexRange / 2);
-
-    qreal newIndexRange = indexRange * zoomFactor;
-    qreal newMin = centerIndex - (newIndexRange / 2);
-    qreal newMax = centerIndex + (newIndexRange / 2);
-    
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
-    }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
-
-    // Price axis zoom
-    qreal currentMinPrice = axisY->min();
-    qreal currentMaxPrice = axisY->max();
-    qreal priceRange = currentMaxPrice - currentMinPrice;
-    qreal centerPrice = (currentMaxPrice + currentMinPrice) / 2;
-
-    qreal newPriceRange = priceRange * zoomFactor;
-    qreal newMinPrice = centerPrice - (newPriceRange / 2);
-    qreal newMaxPrice = centerPrice + (newPriceRange / 2);
-
-    axisX->setRange(newMin, newMax);
-    axisY->setRange(newMinPrice, newMaxPrice);
-
-    updateLastPriceLineIfNeeded();
-}
-
-/**
  * @brief Updates the last price line if there are candlesticks available.
  * 
  * Uses the last candlestick's close and open prices to determine the line color
@@ -728,24 +534,7 @@ void StockPriceChart::updateLastPriceLine(double price, bool isUpTick) {
     lastPrice = price;
 }
 
-/**
- * @brief Handles widget resize events.
- * 
- * Updates the chart geometry and repositions the price label and background
- * rectangles when the widget is resized.
- * 
- * @param event The QResizeEvent containing size information.
- */
-void StockPriceChart::resizeEvent(QResizeEvent* event) {
-    QWidget::resizeEvent(event);
-    
-    // Update the chart's geometry
-    chart->resize(event->size());
-    
-    // Update price label and backgrounds
-    updatePriceLabelPosition();
-    updateAfterHoursBackground();
-}
+
 
 /**
  * @brief Checks if the given time is after market hours.
@@ -888,170 +677,6 @@ void StockPriceChart::clearBackgroundRects() {
     closedMarketRects.clear();
 }
 
-/**
- * @brief Filters events for the chart view's viewport.
- * 
- * Handles mouse interactions for panning and right-click recentering:
- * - Left mouse button: Initiates and performs panning
- * - Right mouse button: Recenters the view to show last 30 bars
- * 
- * @param object The object that received the event.
- * @param event The event to filter.
- * @return True if the event was handled, false to pass it to the parent.
- */
-bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
-    if (object != chartView->viewport()) {
-        return QWidget::eventFilter(object, event);
-    }
-
-    switch (event->type()) {
-    case QEvent::MouseButtonPress: {
-        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
-        if (mouseEvent->button() == Qt::RightButton) {
-            // Handle right click - recenter view
-            if (!indexToTimestamp.isEmpty()) {
-                int lastIndex = indexToTimestamp.lastKey();
-                int startIndex = qMax(0, lastIndex - 30);  // Show last 30 bars
-                int endIndex = lastIndex + 1;
-
-                // Reset the horizontal axis
-                axisX->setRange(startIndex, endIndex);
-
-                // Reset the vertical axis to fit visible bars
-                double minPrice = std::numeric_limits<double>::max();
-                double maxPrice = std::numeric_limits<double>::lowest();
-                double currentPrice = 0.0;
-                
-                // Find min/max prices for bars in the visible range
-                for (auto it = indexToTimestamp.constBegin(); it != indexToTimestamp.constEnd(); ++it) {
-                    int index = it.key();
-                    if (index >= startIndex && index <= endIndex) {
-                        const QDateTime& timestamp = it.value();
-                        
-                        // Check completed bars
-                        if (completedBars.contains(timestamp)) {
-                            const Bar& bar = completedBars[timestamp];
-                            minPrice = qMin(minPrice, bar.getLow());
-                            maxPrice = qMax(maxPrice, bar.getHigh());
-                            currentPrice = bar.getClose();
-                        }
-                        // Check open bar
-                        else if (hasOpenBar && timestamp == currentOpenBar.getTimeStamp()) {
-                            minPrice = qMin(minPrice, currentOpenBar.getLow());
-                            maxPrice = qMax(maxPrice, currentOpenBar.getHigh());
-                            currentPrice = currentOpenBar.getClose();
-                        }
-                        // Check void bars
-                        else if (voidBars.contains(timestamp)) {
-                            double price = voidBars[timestamp];
-                            minPrice = qMin(minPrice, price);
-                            maxPrice = qMax(maxPrice, price);
-                            currentPrice = price;
-                        }
-                    }
-                }
-                
-                // Set vertical range if we found any bars
-                if (minPrice != std::numeric_limits<double>::max()) {
-                    // Add padding
-                    double padding = currentPrice * 0.0002; // 0.02% padding
-                    // Ensure minimum range
-                    double minRange = currentPrice * 0.0005; // 0.05% of current price
-                    if (maxPrice - minPrice < minRange) {
-                        maxPrice = currentPrice + (minRange / 2);
-                        minPrice = currentPrice - (minRange / 2);
-                    }
-                    axisY->setRange(minPrice - padding, maxPrice + padding);
-                }
-                
-                updateAfterHoursBackground();
-                updateLastPriceLineIfNeeded();
-                return true;
-            }
-            return false;
-        }
-        if (mouseEvent->button() != Qt::LeftButton) {
-            return false;
-        }
-        isPanning = true;
-        lastMousePos = mouseEvent->pos();
-        chartView->setCursor(Qt::ClosedHandCursor);
-        return true;
-    }
-
-    case QEvent::MouseButtonRelease: {
-        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
-        if (mouseEvent->button() != Qt::LeftButton || !isPanning) {
-            return false;
-        }
-        isPanning = false;
-        chartView->setCursor(Qt::ArrowCursor);
-        if (hasOpenBar) {
-            updateLastPriceLine(currentOpenBar.getClose(),
-                              currentOpenBar.getClose() >= currentOpenBar.getOpen());
-        }
-        return true;
-    }
-
-    case QEvent::MouseMove: {
-        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
-        if (!isPanning) {
-            return false;
-        }
-        handlePanning(mouseEvent);
-        return true;
-    }
-
-    default:
-        return QWidget::eventFilter(object, event);
-    }
-}
-
-/**
- * @brief Handles mouse panning movement.
- * 
- * Updates the chart axes based on mouse movement delta, converting pixel
- * movement to appropriate index and price units. Checks for missing bars
- * when panning to earlier times.
- * 
- * @param mouseEvent The QMouseEvent containing mouse position information.
- */
-void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
-    QPoint delta = mouseEvent->pos() - lastMousePos;
-    lastMousePos = mouseEvent->pos();
-
-    // Convert pixel movement to index units for X axis
-    qreal indexPerPixel = (axisX->max() - axisX->min()) / chartView->width();
-    qreal indexOffset = -delta.x() * indexPerPixel;
-
-    // Convert pixel movement to price units for Y axis
-    qreal pricePerPixel = (axisY->max() - axisY->min()) / chartView->height();
-    qreal priceOffset = delta.y() * pricePerPixel;
-
-    // Update axes ranges
-    qreal newMin = axisX->min() + indexOffset;
-    qreal newMax = axisX->max() + indexOffset;
-    
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
-    }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
-    
-    axisX->setRange(newMin, newMax);
-    axisY->setRange(axisY->min() + priceOffset, axisY->max() + priceOffset);
-
-    // Update the price label position and last price line
-    updatePriceLabelPosition();
-    if (hasOpenBar) {
-        updateLastPriceLine(currentOpenBar.getClose(),
-                          currentOpenBar.getClose() >= currentOpenBar.getOpen());
-    }
-}
 
 
 /**

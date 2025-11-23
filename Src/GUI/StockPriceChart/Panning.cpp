@@ -1,0 +1,224 @@
+#include "StockPriceChart.h"
+
+/**
+ * @brief Handles widget resize events.
+ * 
+ * Updates the chart geometry and repositions the price label and background
+ * rectangles when the widget is resized.
+ * 
+ * @param event The QResizeEvent containing size information.
+ */
+void StockPriceChart::resizeEvent(QResizeEvent* event) {
+    QWidget::resizeEvent(event);
+    
+    // Update the chart's geometry
+    chart->resize(event->size());
+    
+    // Update price label and backgrounds
+    updatePriceLabelPosition();
+    updateAfterHoursBackground();
+}
+
+
+
+/**
+ * @brief Event filter for handling mouse interactions on the chart view.
+ *
+ * Processes mouse button press, release, and move events to implement
+ * panning and right-click recentering functionality. Only handles events
+ * from the chart view's viewport.
+ *
+ * @param object The object that generated the event.
+ * @param event The event to process.
+ * @return true if the event was handled, false otherwise.
+ */
+bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
+    if (object != chartView->viewport()) {
+        return QWidget::eventFilter(object, event);
+    }
+
+    switch (event->type()) {
+    case QEvent::MouseButtonPress: {
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        return handleMouseButtonPress(mouseEvent);
+    }
+
+    case QEvent::MouseButtonRelease: {
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        return handleMouseButtonRelease(mouseEvent);
+    }
+
+    case QEvent::MouseMove: {
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        return handleMouseMove(mouseEvent);
+    }
+
+    default:
+        return QWidget::eventFilter(object, event);
+    }
+}
+
+/**
+ * @brief Handles mouse button press events.
+ *
+ * Processes right-click for recentering the view and left-click for starting panning.
+ *
+ * @param mouseEvent The mouse event containing button and position information.
+ * @return true if the event was handled, false otherwise.
+ */
+bool StockPriceChart::handleMouseButtonPress(QMouseEvent* mouseEvent) {
+    if (mouseEvent->button() == Qt::RightButton) {
+        // Handle right click - recenter view
+        if (!indexToTimestamp.isEmpty()) {
+            int lastIndex = indexToTimestamp.lastKey();
+            int startIndex = qMax(0, lastIndex - 30);  // Show last 30 bars
+            int endIndex = lastIndex + 1;
+
+            // Reset the horizontal axis
+            axisX->setRange(startIndex, endIndex);
+
+            // Reset the vertical axis to fit visible bars
+            double minPrice = std::numeric_limits<double>::max();
+            double maxPrice = std::numeric_limits<double>::lowest();
+            double currentPrice = 0.0;
+
+            // Find min/max prices for bars in the visible range
+            for (auto it = indexToTimestamp.constBegin(); it != indexToTimestamp.constEnd(); ++it) {
+                int index = it.key();
+                if (index >= startIndex && index <= endIndex) {
+                    const QDateTime& timestamp = it.value();
+
+                    // Check completed bars
+                    if (completedBars.contains(timestamp)) {
+                        const Bar& bar = completedBars[timestamp];
+                        minPrice = qMin(minPrice, bar.getLow());
+                        maxPrice = qMax(maxPrice, bar.getHigh());
+                        currentPrice = bar.getClose();
+                    }
+                    // Check open bar
+                    else if (hasOpenBar && timestamp == currentOpenBar.getTimeStamp()) {
+                        minPrice = qMin(minPrice, currentOpenBar.getLow());
+                        maxPrice = qMax(maxPrice, currentOpenBar.getHigh());
+                        currentPrice = currentOpenBar.getClose();
+                    }
+                    // Check void bars
+                    else if (voidBars.contains(timestamp)) {
+                        double price = voidBars[timestamp];
+                        minPrice = qMin(minPrice, price);
+                        maxPrice = qMax(maxPrice, price);
+                        currentPrice = price;
+                    }
+                }
+            }
+
+            // Set vertical range if we found any bars
+            if (minPrice != std::numeric_limits<double>::max()) {
+                // Add padding
+                double padding = currentPrice * 0.0002; // 0.02% padding
+                // Ensure minimum range
+                double minRange = currentPrice * 0.0005; // 0.05% of current price
+                if (maxPrice - minPrice < minRange) {
+                    maxPrice = currentPrice + (minRange / 2);
+                    minPrice = currentPrice - (minRange / 2);
+                }
+                axisY->setRange(minPrice - padding, maxPrice + padding);
+            }
+
+            updateAfterHoursBackground();
+            updateLastPriceLineIfNeeded();
+            return true;
+        }
+        return false;
+    }
+    if (mouseEvent->button() != Qt::LeftButton) {
+        return false;
+    }
+    isPanning = true;
+    lastMousePos = mouseEvent->pos();
+    chartView->setCursor(Qt::ClosedHandCursor);
+    return true;
+}
+
+/**
+ * @brief Handles mouse button release events.
+ *
+ * Stops panning mode when left mouse button is released.
+ *
+ * @param mouseEvent The mouse event containing button information.
+ * @return true if the event was handled, false otherwise.
+ */
+bool StockPriceChart::handleMouseButtonRelease(QMouseEvent* mouseEvent) {
+    if (mouseEvent->button() != Qt::LeftButton || !isPanning) {
+        return false;
+    }
+    isPanning = false;
+    chartView->setCursor(Qt::ArrowCursor);
+    if (hasOpenBar) {
+        updateLastPriceLine(currentOpenBar.getClose(),
+                          currentOpenBar.getClose() >= currentOpenBar.getOpen());
+    }
+    return true;
+}
+
+/**
+ * @brief Handles mouse move events during panning.
+ *
+ * Updates chart axes based on mouse movement when in panning mode.
+ *
+ * @param mouseEvent The mouse event containing position information.
+ * @return true if the event was handled, false otherwise.
+ */
+bool StockPriceChart::handleMouseMove(QMouseEvent* mouseEvent) {
+    if (!isPanning) {
+        return false;
+    }
+    handlePanning(mouseEvent);
+    return true;
+}
+
+
+/**
+ * @brief Handles mouse panning movement.
+ * 
+ * Updates the chart axes based on mouse movement delta, converting pixel
+ * movement to appropriate index and price units. Checks for missing bars
+ * when panning to earlier times.
+ * 
+ * @param mouseEvent The QMouseEvent containing mouse position information.
+ */
+void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
+    QPoint delta = mouseEvent->pos() - lastMousePos;
+    lastMousePos = mouseEvent->pos();
+
+    // Convert pixel movement to index units for X axis
+    qreal indexPerPixel = (axisX->max() - axisX->min()) / chartView->width();
+    qreal indexOffset = -delta.x() * indexPerPixel;
+
+    // Convert pixel movement to price units for Y axis
+    qreal pricePerPixel = (axisY->max() - axisY->min()) / chartView->height();
+    qreal priceOffset = delta.y() * pricePerPixel;
+
+    // Update axes ranges
+    qreal newMin = axisX->min() + indexOffset;
+    qreal newMax = axisX->max() + indexOffset;
+    
+    // Check for missing bars BEFORE constraining
+    if (newMin < 0 && !completedBars.isEmpty()) {
+        QDateTime firstBarTime = completedBars.firstKey();
+        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
+        checkForMissingBars(requestTime, firstBarTime);
+    }
+    
+    // Constrain to available data
+    newMin = qMax(0.0, newMin);
+    
+    axisX->setRange(newMin, newMax);
+    axisY->setRange(axisY->min() + priceOffset, axisY->max() + priceOffset);
+
+    // Update the price label position and last price line
+    updatePriceLabelPosition();
+    if (hasOpenBar) {
+        updateLastPriceLine(currentOpenBar.getClose(),
+                          currentOpenBar.getClose() >= currentOpenBar.getOpen());
+    }
+}
