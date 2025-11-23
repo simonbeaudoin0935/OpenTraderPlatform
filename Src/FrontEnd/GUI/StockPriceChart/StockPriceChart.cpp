@@ -450,7 +450,7 @@ void StockPriceChart::updateChart() {
             maxPrice = currentPrice + (minRange / 2);
             minPrice = currentPrice - (minRange / 2);
         }
-        axisY->setRange(minPrice - padding, maxPrice + padding);
+        axisY->setRange(qMax(0.0, minPrice - padding), maxPrice + padding);
     }
 }
 
@@ -510,7 +510,7 @@ void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
         shiftAmount = -shiftAmount;
     }
 
-    axisY->setRange(currentMin + shiftAmount, currentMax + shiftAmount);
+    axisY->setRange(qMax(0.0, currentMin + shiftAmount), currentMax + shiftAmount);
     updateLastPriceLineIfNeeded();
 }
 
@@ -604,7 +604,7 @@ void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
     qreal newMin = center - (newRange / 2);
     qreal newMax = center + (newRange / 2);
 
-    axisY->setRange(newMin, newMax);
+    axisY->setRange(qMax(0.0, newMin), newMax);
     updateLastPriceLineIfNeeded();
 }
 
@@ -652,7 +652,7 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
     qreal newMaxPrice = centerPrice + (newPriceRange / 2);
 
     axisX->setRange(newMin, newMax);
-    axisY->setRange(newMinPrice, newMaxPrice);
+    axisY->setRange(qMax(0.0, newMinPrice), newMaxPrice);
 
     updateLastPriceLineIfNeeded();
 }

@@ -121,7 +121,7 @@ bool StockPriceChart::handleMouseButtonPress(QMouseEvent* mouseEvent) {
                     maxPrice = currentPrice + (minRange / 2);
                     minPrice = currentPrice - (minRange / 2);
                 }
-                axisY->setRange(minPrice - padding, maxPrice + padding);
+                axisY->setRange(qMax(0.0, minPrice - padding), maxPrice + padding);
             }
 
             updateAfterHoursBackground();
@@ -213,7 +213,7 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
     newMin = qMax(0.0, newMin);
     
     axisX->setRange(newMin, newMax);
-    axisY->setRange(axisY->min() + priceOffset, axisY->max() + priceOffset);
+    axisY->setRange(qMax(0.0, axisY->min() + priceOffset), axisY->max() + priceOffset);
 
     // Update the price label position and last price line
     updatePriceLabelPosition();
