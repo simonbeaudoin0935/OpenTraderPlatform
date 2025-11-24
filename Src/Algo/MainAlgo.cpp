@@ -86,7 +86,7 @@ void MainAlgo::onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime las
     QVector<Bar> bars;
 
     if (currentDisplayedStockInstrument != nullptr) {
-        bars = currentDisplayedStockInstrument->barCache.getBars(first.toTimeZone(QTimeZone("America/New_York")), last);
+        bars = currentDisplayedStockInstrument->barCache.getBars(first.toTimeZone(QTimeZone("America/New_York")), last.toTimeZone(QTimeZone("America/New_York")));
     } else {
         qCWarning(MainAlgoLog) << "No current displayed stock selected";
     }
@@ -103,7 +103,13 @@ void MainAlgo::onThreadStarted()
 void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
 {
     if (isAuthenticated) {
+        // TODO handle if the request times out. if happened to me when the token was not expired and went ahead to get accounts but the connection
+        // was bad and the request times out after 5s. Not checking the return value is a problem because we continue otherwise and hit assert when
+        // referencing accounts[1] later on.
+
         TSClient::getInstance().getAccountsSync(accounts);
+
+
     } else {
         qCCritical(MainAlgoLog) << "Tradestation lost authentication. Reason : " << reason;
         return; //
