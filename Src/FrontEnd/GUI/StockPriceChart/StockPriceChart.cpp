@@ -128,20 +128,13 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     layout->addWidget(chartView);
     setLayout(layout);
 
-    // Create debouncing timers for expensive operations
-    backgroundUpdateTimer = new QTimer(this);
-    backgroundUpdateTimer->setSingleShot(true);
-    backgroundUpdateTimer->setInterval(100); // 100ms debounce delay
-    connect(backgroundUpdateTimer, &QTimer::timeout, this, &StockPriceChart::updateAfterHoursBackground);
-    
-    priceLineUpdateTimer = new QTimer(this);
-    priceLineUpdateTimer->setSingleShot(true);
-    priceLineUpdateTimer->setInterval(50); // 50ms debounce delay (shorter for responsiveness)
-    connect(priceLineUpdateTimer, &QTimer::timeout, this, &StockPriceChart::updateLastPriceLineIfNeeded);
-
-    // Connect to the axis range changed signal with debouncing
-    connect(axisX, &QValueAxis::rangeChanged, this, &StockPriceChart::onAxisRangeChanged);
-    connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::onAxisRangeChanged);
+    // Connect to the axis range changed signals directly
+    // Background rendering is now optimized with binary search (O(log n) per hour)
+    // instead of linear search (O(n) per hour), making it fast enough for real-time updates
+    connect(axisX, &QValueAxis::rangeChanged, this, &StockPriceChart::updateAfterHoursBackground);
+    connect(axisX, &QValueAxis::rangeChanged, this, &StockPriceChart::updateLastPriceLineIfNeeded);
+    connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::updateAfterHoursBackground);
+    connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::updateLastPriceLineIfNeeded);
 }
 
 /**
@@ -956,22 +949,6 @@ void StockPriceChart::clearBackgroundRects() {
 }
 
 /**
- * @brief Handles axis range changes with debouncing.
- * 
- * This slot is called whenever the X or Y axis range changes (pan/zoom).
- * Instead of immediately triggering expensive operations, it restarts debounce
- * timers that will execute the operations only after user stops interacting.
- * This prevents hundreds of expensive redraws during continuous panning.
- */
-void StockPriceChart::onAxisRangeChanged() {
-    // Restart the debounce timers
-    // This means if range keeps changing, the timers keep getting reset
-    // and the expensive operations only execute after changes stop
-    backgroundUpdateTimer->start();
-    priceLineUpdateTimer->start();
-}
-
-/**
  * @brief Checks if the current view requires missing bars to be loaded.
  * 
  * When the view extends beyond available data, emits a signal to request
@@ -1364,6 +1341,7 @@ void StockPriceChart::updateAxisLabels() {
  * 
  * Creates a colored background rectangle covering the bars that fall within
  * the specified time range, clipped to the currently visible area.
+ * Uses efficient binary search (lowerBound/upperBound) instead of linear iteration.
  * 
  * @param rangeStart The start time of the range to highlight.
  * @param rangeEnd The end time of the range to highlight.
@@ -1378,40 +1356,50 @@ void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, co
         return;
     }
     
-    // Find the indices that correspond to this time range
-    int startIndex = -1;
-    int endIndex = -1;
+    // Use efficient binary search to find indices instead of linear iteration
+    // Find first timestamp >= rangeStart
+    auto startIt = timestampToIndex.lowerBound(rangeStart);
     
-    // Iterate through all bars to find which ones fall in this time range
-    for (auto it = indexToTimestamp.constBegin(); it != indexToTimestamp.constEnd(); ++it) {
-        const QDateTime& barTime = it.value();
-        if (barTime >= rangeStart && barTime <= rangeEnd) {
-            if (startIndex == -1) {
-                startIndex = it.key();
-            }
-            endIndex = it.key();
-        }
+    // Find first timestamp > rangeEnd
+    auto endIt = timestampToIndex.upperBound(rangeEnd);
+    
+    // Check if we found any bars in this range
+    if (startIt == timestampToIndex.end() || startIt.key() > rangeEnd) {
+        return; // No bars in this range
     }
     
-    // If we found bars in this range, draw the background
-    if (startIndex != -1 && endIndex != -1) {
-        qreal visibleMinIndex = axisX->min();
-        qreal visibleMaxIndex = axisX->max();
+    int startIndex = startIt.value();
+    int endIndex = -1;
+    
+    // Get the last valid index in range
+    if (endIt != timestampToIndex.begin()) {
+        --endIt;
+        endIndex = endIt.value();
+    } else {
+        return; // No bars in range
+    }
+    
+    // Verify we have a valid range
+    if (startIndex == -1 || endIndex == -1 || endIndex < startIndex) {
+        return;
+    }
+    
+    qreal visibleMinIndex = axisX->min();
+    qreal visibleMaxIndex = axisX->max();
+    
+    // Clip to visible range
+    qreal clippedStart = qMax(static_cast<qreal>(startIndex), visibleMinIndex);
+    qreal clippedEnd = qMin(static_cast<qreal>(endIndex + 1), visibleMaxIndex);
+    
+    if (clippedStart < clippedEnd) {
+        QPointF topLeft = chart->mapToPosition(QPointF(clippedStart, axisY->max()));
+        QPointF bottomRight = chart->mapToPosition(QPointF(clippedEnd, axisY->min()));
         
-        // Clip to visible range
-        qreal clippedStart = qMax(static_cast<qreal>(startIndex), visibleMinIndex);
-        qreal clippedEnd = qMin(static_cast<qreal>(endIndex + 1), visibleMaxIndex);
-        
-        if (clippedStart < clippedEnd) {
-            QPointF topLeft = chart->mapToPosition(QPointF(clippedStart, axisY->max()));
-            QPointF bottomRight = chart->mapToPosition(QPointF(clippedEnd, axisY->min()));
-            
-            auto rect = createBackgroundRect(color, zValue);
-            rect->setRect(topLeft.x(), topLeft.y(),
-                         bottomRight.x() - topLeft.x(),
-                         bottomRight.y() - topLeft.y());
-            rectList.append(rect);
-        }
+        auto rect = createBackgroundRect(color, zValue);
+        rect->setRect(topLeft.x(), topLeft.y(),
+                     bottomRight.x() - topLeft.x(),
+                     bottomRight.y() - topLeft.y());
+        rectList.append(rect);
     }
 }
 

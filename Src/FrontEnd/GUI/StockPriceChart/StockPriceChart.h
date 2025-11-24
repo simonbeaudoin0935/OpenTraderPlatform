@@ -15,7 +15,6 @@
 #include <QTimeZone>
 #include <QMap>
 #include <QLoggingCategory>
-#include <QTimer>
 
 #include "Bar.h"
 #include "TimeFrameSelector.h"
@@ -140,18 +139,11 @@ private:
 
     // Timeframe selector widget
     TimeFrameSelector* timeframeSelector;
-    
-    // Debouncing timers for expensive operations
-    QTimer* backgroundUpdateTimer;
-    QTimer* priceLineUpdateTimer;
 
     // Helper method to create a background rectangle
     QGraphicsRectItem* createBackgroundRect(const QColor& color, int zValue);
     // Helper method to clear all background rectangles
     void clearBackgroundRects();
-    
-    // Slot for debounced background update
-    void onAxisRangeChanged();
 
     // Event handling helper functions
     bool handleMouseButtonPress(QMouseEvent* event);
