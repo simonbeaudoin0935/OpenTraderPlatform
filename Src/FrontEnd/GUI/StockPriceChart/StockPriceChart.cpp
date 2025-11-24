@@ -128,11 +128,20 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     layout->addWidget(chartView);
     setLayout(layout);
 
-    // Connect to the axis range changed signal
-    connect(axisX, &QValueAxis::rangeChanged, this, &StockPriceChart::updateAfterHoursBackground);
-    connect(axisX, &QValueAxis::rangeChanged, this, &StockPriceChart::updateLastPriceLineIfNeeded);
-    connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::updateAfterHoursBackground);
-    connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::updateLastPriceLineIfNeeded);
+    // Create debouncing timers for expensive operations
+    backgroundUpdateTimer = new QTimer(this);
+    backgroundUpdateTimer->setSingleShot(true);
+    backgroundUpdateTimer->setInterval(100); // 100ms debounce delay
+    connect(backgroundUpdateTimer, &QTimer::timeout, this, &StockPriceChart::updateAfterHoursBackground);
+    
+    priceLineUpdateTimer = new QTimer(this);
+    priceLineUpdateTimer->setSingleShot(true);
+    priceLineUpdateTimer->setInterval(50); // 50ms debounce delay (shorter for responsiveness)
+    connect(priceLineUpdateTimer, &QTimer::timeout, this, &StockPriceChart::updateLastPriceLineIfNeeded);
+
+    // Connect to the axis range changed signal with debouncing
+    connect(axisX, &QValueAxis::rangeChanged, this, &StockPriceChart::onAxisRangeChanged);
+    connect(axisY, &QValueAxis::rangeChanged, this, &StockPriceChart::onAxisRangeChanged);
 }
 
 /**
@@ -944,6 +953,22 @@ void StockPriceChart::clearBackgroundRects() {
         delete rect;
     }
     closedMarketRects.clear();
+}
+
+/**
+ * @brief Handles axis range changes with debouncing.
+ * 
+ * This slot is called whenever the X or Y axis range changes (pan/zoom).
+ * Instead of immediately triggering expensive operations, it restarts debounce
+ * timers that will execute the operations only after user stops interacting.
+ * This prevents hundreds of expensive redraws during continuous panning.
+ */
+void StockPriceChart::onAxisRangeChanged() {
+    // Restart the debounce timers
+    // This means if range keeps changing, the timers keep getting reset
+    // and the expensive operations only execute after changes stop
+    backgroundUpdateTimer->start();
+    priceLineUpdateTimer->start();
 }
 
 /**
