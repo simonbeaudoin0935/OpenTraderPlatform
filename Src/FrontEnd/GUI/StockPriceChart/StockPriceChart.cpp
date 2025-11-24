@@ -1180,7 +1180,7 @@ QDateTime StockPriceChart::adjustToValidTradingTime(const QDateTime& timestamp) 
         }
         return QDateTime(previousDay, QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), 
                         nyZone).toTimeZone(timestamp.timeZone());
-    } else if (time >= QTime(TRADING_END_HOUR, TRADING_END_MINUTE, 0)) {
+    } else if (time >= QTime(TRADING_END_HOUR, 0, 0)) {
         // After 8PM - move to 7:59PM same day
         return QDateTime(nyTime.date(), QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), 
                         nyZone).toTimeZone(timestamp.timeZone());
