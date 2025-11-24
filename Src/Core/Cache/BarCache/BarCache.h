@@ -15,6 +15,12 @@ class BarCache : public QObject
 {
     Q_OBJECT
 public:
+    // Trading hours constants (America/New_York timezone)
+    static constexpr int TRADING_START_HOUR = 6;   // 6:00 AM ET
+    static constexpr int TRADING_END_HOUR = 20;    // 8:00 PM ET (20:00)
+    static constexpr int MONDAY = 1;               // Qt::Monday
+    static constexpr int FRIDAY = 5;               // Qt::Friday
+    
     explicit BarCache(const QString &symbol, bool isStreaming = false, QObject *parent = nullptr);
     ~BarCache();
 
@@ -30,6 +36,7 @@ public:
     void clearDatabase();
 
     QVector<QPair<QDateTime, QDateTime>> identifyMissingRanges(const QDateTime &start, const QDateTime &end, const QVector<Bar>& cachedBars) const;
+    QVector<QPair<QDateTime, QDateTime>> splitIntoTradingDayRanges(const QDateTime &first, const QDateTime &last) const;
 
     enum class HitType{
         None,
