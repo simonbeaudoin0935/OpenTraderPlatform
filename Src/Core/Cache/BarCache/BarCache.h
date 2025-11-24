@@ -30,6 +30,7 @@ public:
     void clearDatabase();
 
     QVector<QPair<QDateTime, QDateTime>> identifyMissingRanges(const QDateTime &start, const QDateTime &end, const QVector<Bar>& cachedBars) const;
+    QVector<QPair<QDateTime, QDateTime>> splitIntoTradingDayRanges(const QDateTime &first, const QDateTime &last) const;
 
     enum class HitType{
         None,

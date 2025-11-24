@@ -83,6 +83,8 @@ private:
     void rebuildIndexMapping();
     int getIndexForTimestamp(const QDateTime& timestamp) const;
     QDateTime getTimestampForIndex(int index) const;
+    QDateTime getPreviousTradingMinute(const QDateTime& timestamp) const;
+    QDateTime adjustToValidTradingTime(const QDateTime& timestamp) const;
     void updateAxisLabels();
     void drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd, 
                                      const QColor& color, int zValue,

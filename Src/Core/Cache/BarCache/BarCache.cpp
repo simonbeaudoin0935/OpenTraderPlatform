@@ -125,6 +125,42 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
                qPrintable(cacheName),
                "getBars() called with first >= last");
 
+    // Check if the request spans multiple days or crosses non-trading hours
+    QTimeZone nyZone("America/New_York");
+    QDateTime nyFirst = first.toTimeZone(nyZone);
+    QDateTime nyLast = last.toTimeZone(nyZone);
+    
+    bool needsSplitting = false;
+    
+    // Check if it spans multiple days
+    if (nyFirst.date() != nyLast.date()) {
+        needsSplitting = true;
+    }
+    // Check if first is before 6AM or last is after 8PM
+    else if (nyFirst.time() < QTime(6, 0, 0) || nyLast.time() > QTime(20, 0, 0)) {
+        needsSplitting = true;
+    }
+    // Check if it's on a weekend
+    else if (nyFirst.date().dayOfWeek() > 5 || nyLast.date().dayOfWeek() > 5) {
+        needsSplitting = true;
+    }
+    
+    // If the request needs splitting, handle it recursively
+    if (needsSplitting) {
+        qCDebug(BarCacheLog) << cacheName << "Request spans multiple days or invalid hours, splitting into valid ranges";
+        
+        QVector<QPair<QDateTime, QDateTime>> tradingRanges = splitIntoTradingDayRanges(first, last);
+        QVector<Bar> allBars;
+        
+        for (const auto& range : tradingRanges) {
+            QVector<Bar> rangeBars = getBars(range.first, range.second);
+            allBars.append(rangeBars);
+        }
+        
+        return allBars;
+    }
+    
+    // Original assertions for single-day requests
     Q_ASSERT_X(first.date().dayOfWeek() >= 1 && first.date().dayOfWeek() <= 5,
                qPrintable(cacheName),
                "getBars() called not strictly in between monday to friday");
@@ -551,4 +587,52 @@ QVector<QPair<QDateTime, QDateTime>> BarCache::identifyMissingRanges(const QDate
     }
     
     return missingRanges;
+}
+
+QVector<QPair<QDateTime, QDateTime>> BarCache::splitIntoTradingDayRanges(const QDateTime &first, const QDateTime &last) const {
+    QString cacheName = this->objectName();
+    QVector<QPair<QDateTime, QDateTime>> ranges;
+    
+    QTimeZone nyZone("America/New_York");
+    QDateTime nyFirst = first.toTimeZone(nyZone);
+    QDateTime nyLast = last.toTimeZone(nyZone);
+    
+    QDate currentDate = nyFirst.date();
+    QDate endDate = nyLast.date();
+    
+    qCDebug(BarCacheLog) << cacheName << "Splitting range into trading days from" << nyFirst << "to" << nyLast;
+    
+    while (currentDate <= endDate) {
+        // Skip weekends
+        if (currentDate.dayOfWeek() > 5) {
+            currentDate = currentDate.addDays(1);
+            continue;
+        }
+        
+        // Define valid trading hours for this date (6AM to 8PM)
+        QDateTime dayStart = QDateTime(currentDate, QTime(6, 0, 0), nyZone);
+        QDateTime dayEnd = QDateTime(currentDate, QTime(20, 0, 0), nyZone);
+        
+        // Determine actual start and end for this day
+        QDateTime rangeStart = (currentDate == nyFirst.date()) ? nyFirst : dayStart;
+        QDateTime rangeEnd = (currentDate == nyLast.date()) ? nyLast : dayEnd;
+        
+        // Clamp to valid trading hours
+        if (rangeStart.time() < QTime(6, 0, 0)) {
+            rangeStart = dayStart;
+        }
+        if (rangeEnd.time() > QTime(20, 0, 0)) {
+            rangeEnd = dayEnd;
+        }
+        
+        // Only add if the range is valid
+        if (rangeStart <= rangeEnd && rangeStart.date() == currentDate) {
+            ranges.append(qMakePair(rangeStart, rangeEnd));
+            qCDebug(BarCacheLog) << cacheName << "  Adding range:" << rangeStart << "to" << rangeEnd;
+        }
+        
+        currentDate = currentDate.addDays(1);
+    }
+    
+    return ranges;
 }

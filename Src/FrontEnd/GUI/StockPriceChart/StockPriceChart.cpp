@@ -893,6 +893,7 @@ void StockPriceChart::clearBackgroundRects() {
  * 
  * When the view extends beyond available data, emits a signal to request
  * missing bars from the data source. Only one request can be active at a time.
+ * Adjusts request times to valid trading hours (6AM-8PM weekdays).
  * 
  * @param viewStartTime The start time of the current view.
  * @param viewEndTime The end time of the current view (unused).
@@ -902,6 +903,10 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 
     QDateTime viewStartTimeRounded = viewStartTime.addSecs(-viewStartTime.time().second());
     viewStartTimeRounded = viewStartTimeRounded.addMSecs(-viewStartTime.time().msec());
+    
+    // Adjust to valid trading hours
+    viewStartTimeRounded = adjustToValidTradingTime(viewStartTimeRounded);
+    
     QDateTime firstBarTime;
 
     if (completedBars.isEmpty()) {
@@ -1048,7 +1053,8 @@ int StockPriceChart::getIndexForTimestamp(const QDateTime& timestamp) const {
  * @brief Gets the timestamp corresponding to an index.
  * 
  * For indices within the mapped range, returns the exact timestamp.
- * For indices outside the range, extrapolates assuming 1-minute bars.
+ * For indices outside the range, extrapolates assuming 1-minute bars,
+ * skipping over non-trading hours (weekends and 8PM-6AM gaps).
  * 
  * @param index The index to find the timestamp for.
  * @return The timestamp for the index.
@@ -1065,11 +1071,17 @@ QDateTime StockPriceChart::getTimestampForIndex(int index) const {
     }
     
     if (index < 0) {
-        // Extrapolate backwards - assume 1-minute bars
+        // Extrapolate backwards - skip over non-trading hours
         int firstIndex = indexToTimestamp.firstKey();
-        QDateTime firstTime = indexToTimestamp.first();
+        QDateTime currentTime = indexToTimestamp.first();
         int deltaIndex = firstIndex - index;
-        return firstTime.addSecs(-deltaIndex * 60);
+        
+        // Walk backwards minute by minute, skipping non-trading hours
+        for (int i = 0; i < deltaIndex; ++i) {
+            currentTime = getPreviousTradingMinute(currentTime);
+        }
+        
+        return currentTime;
     }
     
     int lastIndex = indexToTimestamp.lastKey();
@@ -1082,6 +1094,93 @@ QDateTime StockPriceChart::getTimestampForIndex(int index) const {
     
     // Should not reach here, but return current time as fallback
     return QDateTime::currentDateTime();
+}
+
+/**
+ * @brief Gets the previous valid trading minute, skipping non-trading hours.
+ * 
+ * Given a timestamp, returns the timestamp of the previous 1-minute bar,
+ * skipping over closed market periods (8PM-6AM overnight gaps and weekends).
+ * Uses America/New_York timezone for market hours calculations.
+ * 
+ * @param timestamp The current timestamp.
+ * @return The previous trading minute timestamp.
+ */
+QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) const {
+    QTimeZone nyZone("America/New_York");
+    QDateTime nyTime = timestamp.toTimeZone(nyZone);
+    QDateTime previousMinute = nyTime.addSecs(-60);
+    
+    // Check if we crossed into a closed period
+    QTime time = previousMinute.time();
+    int dayOfWeek = previousMinute.date().dayOfWeek();
+    
+    // If we're in the closed period (before 6AM or after 8PM on a weekday, or weekend)
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        // Weekday
+        if (time < QTime(6, 0, 0)) {
+            // Before 6AM - jump to 8PM previous day
+            QDateTime result = QDateTime(previousMinute.date().addDays(-1), QTime(19, 59, 0), nyZone);
+            // If that was a Friday, we're now on Friday night - OK
+            // If that was a weekend day, we need to go back to Friday
+            if (result.date().dayOfWeek() > 5) {
+                result = QDateTime(result.date().addDays(-(result.date().dayOfWeek() - 5)), QTime(19, 59, 0), nyZone);
+            }
+            return result.toTimeZone(timestamp.timeZone());
+        } else if (time >= QTime(20, 0, 0)) {
+            // After 8PM - this shouldn't happen if we start from valid times, but handle it
+            return QDateTime(previousMinute.date(), QTime(19, 59, 0), nyZone).toTimeZone(timestamp.timeZone());
+        }
+    } else {
+        // Weekend - jump to Friday 8PM
+        QDate friday = previousMinute.date().addDays(-(dayOfWeek - 5));
+        return QDateTime(friday, QTime(19, 59, 0), nyZone).toTimeZone(timestamp.timeZone());
+    }
+    
+    // Normal case - previous minute is within trading hours
+    return previousMinute.toTimeZone(timestamp.timeZone());
+}
+
+/**
+ * @brief Adjusts a timestamp to the nearest valid trading time.
+ * 
+ * If the timestamp falls in a closed market period (8PM-6AM or weekend),
+ * adjusts it to the nearest valid trading time. For times before 6AM,
+ * moves to the previous day's 8PM. For weekends, moves to Friday 8PM.
+ * 
+ * @param timestamp The timestamp to adjust.
+ * @return The adjusted timestamp within valid trading hours (6AM-8PM weekdays).
+ */
+QDateTime StockPriceChart::adjustToValidTradingTime(const QDateTime& timestamp) const {
+    QTimeZone nyZone("America/New_York");
+    QDateTime nyTime = timestamp.toTimeZone(nyZone);
+    QTime time = nyTime.time();
+    int dayOfWeek = nyTime.date().dayOfWeek();
+    
+    // Handle weekends
+    if (dayOfWeek > 5) {
+        // Weekend - move to Friday 7:59PM
+        QDate friday = nyTime.date().addDays(-(dayOfWeek - 5));
+        return QDateTime(friday, QTime(19, 59, 0), nyZone).toTimeZone(timestamp.timeZone());
+    }
+    
+    // Handle weekday times outside trading hours
+    if (time < QTime(6, 0, 0)) {
+        // Before 6AM - move to previous day's 7:59PM
+        QDate previousDay = nyTime.date().addDays(-1);
+        // If previous day is weekend, move to Friday
+        int prevDayOfWeek = previousDay.dayOfWeek();
+        if (prevDayOfWeek > 5) {
+            previousDay = previousDay.addDays(-(prevDayOfWeek - 5));
+        }
+        return QDateTime(previousDay, QTime(19, 59, 0), nyZone).toTimeZone(timestamp.timeZone());
+    } else if (time >= QTime(20, 0, 0)) {
+        // After 8PM - move to 7:59PM same day
+        return QDateTime(nyTime.date(), QTime(19, 59, 0), nyZone).toTimeZone(timestamp.timeZone());
+    }
+    
+    // Already in valid trading hours
+    return timestamp;
 }
 
 /**
