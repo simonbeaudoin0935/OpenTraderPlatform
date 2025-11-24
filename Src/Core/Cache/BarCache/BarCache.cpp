@@ -160,8 +160,8 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     missingRanges = identifyMissingRanges(first, last, cachedBars);
         
     for (const auto& range : missingRanges) {
-        Q_ASSERT(range.first.timeZone == QTimeZone("America/New_York"));
-        Q_ASSERT(range.second.timeZone == QTimeZone("America/New_York"));
+        Q_ASSERT(range.first.timeZone() == QTimeZone("America/New_York"));
+        Q_ASSERT(range.second.timeZone() == QTimeZone("America/New_York"));
 
         Q_ASSERT_X(range.first <= range.second,
                    qPrintable(range.first.toString() + " - " + range.second.toString()),
@@ -204,8 +204,8 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
         
     for (const auto& range : missingRanges) {
 
-        Q_ASSERT(range.first.timeZone == QTimeZone("America/New_York"));
-        Q_ASSERT(range.second.timeZone == QTimeZone("America/New_York"));
+        Q_ASSERT(range.first.timeZone() == QTimeZone("America/New_York"));
+        Q_ASSERT(range.second.timeZone() == QTimeZone("America/New_York"));
 
         Q_ASSERT_X(range.first <= range.second,
                    qPrintable(range.first.toString() + " - " + range.second.toString()),
@@ -446,6 +446,7 @@ QVector<Bar> BarCache::getBarsFromDatabase(QDateTime start, QDateTime end) const
     if (query.exec()) {
         while (query.next()) {
             QDateTime ts = QDateTime::fromSecsSinceEpoch(query.value(0).toLongLong());
+            ts.setTimeZone(QTimeZone("America/New_York"));
             double open = query.value(1).toDouble();
             double high = query.value(2).toDouble();
             double low = query.value(3).toDouble();

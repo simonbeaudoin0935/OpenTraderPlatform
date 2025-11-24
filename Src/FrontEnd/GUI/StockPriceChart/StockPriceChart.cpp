@@ -925,6 +925,14 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     } else {
         currentGetBarsRequestInProcess = true;
 
+
+        qCDebug(ChartLog) << "Requesting missing bars from"
+                          << viewStartTimeRounded.toString(Qt::ISODate)
+                          << "to"
+                          << firstBarTime.toString(Qt::ISODate);
+
+        Q_ASSERT(viewStartTimeRounded < firstBarTime);
+
         emit requestMissingBars(viewStartTimeRounded, firstBarTime);
     }
 }
@@ -1108,6 +1116,7 @@ void StockPriceChart::updateAxisLabels() {
     qCDebug(ChartLog) << "Setting X-axis tick count to" << numLabels << "for range" << range;
     axisX->setTickCount(numLabels);
 
+    // FIXME this is a hack, continue modifying the a variable
     // Additionally, adjust tick interval based on chart width and range
     {
         qreal range = axisX->max() - axisX->min();
