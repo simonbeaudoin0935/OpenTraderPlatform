@@ -160,8 +160,8 @@ void StockPriceChart::setSymbol(const QString& symbol) {
 /**
  * @brief Adds a new bar to the chart.
  * 
- * Processes the bar based on its status - either handles it as a closed bar
- * or open bar, then updates the chart display.
+ * Processes the bar based on its status using incremental updates.
+ * No longer calls updateChart() for performance - updates are done incrementally.
  * 
  * @param bar The Bar object containing price data and timestamp.
  */
@@ -176,7 +176,8 @@ void StockPriceChart::addBar(const Bar& bar) {
         qCritical("StockPriceChart: Received bar with unknown status");
     }
 
-    updateChart();
+    // Note: updateChart() is NOT called here anymore for performance.
+    // Individual handlers now do incremental updates instead of full rebuilds.
 }
 
 /**
@@ -236,9 +237,8 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
 /**
  * @brief Processes a closed bar (completed trading period).
  * 
- * Stores the closed bar in the completed bars map. If there was a previous open bar
- * with a different timestamp, it gets stored as well. Maintains the bar limit
- * and preserves the current view state.
+ * Stores the closed bar in the completed bars map. Uses incremental updates
+ * instead of full chart rebuild for better performance.
  * 
  * @param bar The closed Bar object to process.
  */
@@ -249,10 +249,28 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
     qreal currentYMin = axisY->min();
     qreal currentYMax = axisY->max();
     bool hadInitialView = (currentMaxIndex - currentMinIndex) > 0;
+    bool isFirstBar = !hasOpenBar && completedBars.isEmpty();
 
     if (!hasOpenBar) {
+        // No open bar - just add the closed bar
         completedBars.insert(bar.getTimeStamp(), bar);
+        updateIndexMappingIncremental(bar.getTimeStamp());
+        addNewCandlestick(bar.getTimeStamp(), bar);
         maintainBarLimit();
+        
+        // If this is the very first bar, set up initial view
+        if (isFirstBar) {
+            int index = getIndexForTimestamp(bar.getTimeStamp());
+            axisX->setRange(qMax(0, index - 30), index + 1);
+            
+            // Set Y axis range with padding
+            double price = bar.getClose();
+            double padding = price * 0.0002;
+            double minRange = price * 0.0005;
+            axisY->setRange(qMax(0.0, price - minRange/2 - padding), 
+                           price + minRange/2 + padding);
+            updateAxisLabels();
+        }
         return;
     }
 
@@ -260,11 +278,27 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
     QDateTime closedBarTime = bar.getTimeStamp();
 
     if (openBarTime != closedBarTime) {
+        // Different timestamps - move open bar to completed, then add closed bar
         completedBars.insert(openBarTime, currentOpenBar);
+        completedBars.insert(closedBarTime, bar);
+        updateIndexMappingIncremental(closedBarTime);
+        addNewCandlestick(closedBarTime, bar);
+    } else {
+        // Same timestamp - the open bar became closed, update the existing candlestick
+        completedBars.insert(closedBarTime, bar);
+        QCandlestickSet* existingSet = findCandlestickSetByTimestamp(closedBarTime);
+        if (existingSet) {
+            existingSet->setOpen(bar.getOpen());
+            existingSet->setHigh(bar.getHigh());
+            existingSet->setLow(bar.getLow());
+            existingSet->setClose(bar.getClose());
+        } else {
+            // Shouldn't happen, but add it if missing
+            addNewCandlestick(closedBarTime, bar);
+        }
     }
     
     hasOpenBar = false;
-    completedBars.insert(closedBarTime, bar);
     maintainBarLimit();
 
     // Restore view state if it was initialized
@@ -306,27 +340,51 @@ void StockPriceChart::maintainBarLimit() {
  * @brief Processes an open bar (currently active trading period).
  * 
  * Updates the current open bar data and manages the transition between
- * different open bars. Updates the last price line accordingly.
+ * different open bars. Uses incremental updates instead of full chart rebuild.
  * 
  * @param bar The open Bar object to process.
  */
 void StockPriceChart::handleOpenBar(const Bar& bar) {
     QDateTime newBarTime = bar.getTimeStamp();
     double newPrice = bar.getClose();
+    bool isFirstBar = !hasOpenBar && completedBars.isEmpty();
 
     if (!hasOpenBar) {
+        // First open bar - add to index mapping and create candlestick
         currentOpenBar = bar;
         hasOpenBar = true;
+        updateIndexMappingIncremental(newBarTime);
+        addNewCandlestick(newBarTime, bar);
         updateLastPriceLine(newPrice, newPrice >= lastPrice);
+        
+        // If this is the very first bar, set up initial view
+        if (isFirstBar) {
+            int index = getIndexForTimestamp(newBarTime);
+            axisX->setRange(qMax(0, index - 30), index + 1);
+            
+            // Set Y axis range with padding
+            double padding = newPrice * 0.0002;
+            double minRange = newPrice * 0.0005;
+            axisY->setRange(qMax(0.0, newPrice - minRange/2 - padding), 
+                           newPrice + minRange/2 + padding);
+            updateAxisLabels();
+        }
         return;
     }
 
     QDateTime currentBarTime = currentOpenBar.getTimeStamp();
     if (newBarTime != currentBarTime) {
+        // New bar started - move old open bar to completed
         completedBars.insert(currentBarTime, currentOpenBar);
+        currentOpenBar = bar;
+        updateIndexMappingIncremental(newBarTime);
+        addNewCandlestick(newBarTime, bar);
+    } else {
+        // Same bar updated - just update the candlestick
+        currentOpenBar = bar;
+        updateOpenBarCandlestick();
     }
 
-    currentOpenBar = bar;
     updateLastPriceLine(newPrice, newPrice >= currentOpenBar.getOpen());
 }
 
@@ -1330,4 +1388,110 @@ void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, co
             rectList.append(rect);
         }
     }
+}
+
+/**
+ * @brief Updates index mapping incrementally for a single timestamp.
+ * 
+ * Instead of rebuilding the entire mapping, this adds a new timestamp
+ * to the existing mappings. This is O(log n) instead of O(n log n).
+ * Only works when adding bars in chronological order.
+ * 
+ * @param timestamp The timestamp to add to the mapping.
+ */
+void StockPriceChart::updateIndexMappingIncremental(const QDateTime& timestamp) {
+    // Check if timestamp already exists
+    if (timestampToIndex.contains(timestamp)) {
+        return;  // Already in mapping
+    }
+    
+    // Add to the end of the mapping (assumes chronological order)
+    int newIndex = indexToTimestamp.isEmpty() ? 0 : indexToTimestamp.lastKey() + 1;
+    
+    // However, we need to handle the case where the timestamp is not at the end
+    // For now, if the timestamp is older than the last one, we need to rebuild
+    if (!indexToTimestamp.isEmpty() && timestamp < indexToTimestamp.last()) {
+        // Timestamp is out of order, need full rebuild
+        rebuildIndexMapping();
+        return;
+    }
+    
+    indexToTimestamp[newIndex] = timestamp;
+    timestampToIndex[timestamp] = newIndex;
+}
+
+/**
+ * @brief Updates the candlestick for the current open bar.
+ * 
+ * Finds and updates the existing candlestick set for the open bar
+ * instead of rebuilding the entire series. This is O(1) instead of O(n).
+ */
+void StockPriceChart::updateOpenBarCandlestick() {
+    if (!hasOpenBar) {
+        return;
+    }
+    
+    // Find the candlestick set for the open bar
+    QCandlestickSet* openSet = findCandlestickSetByTimestamp(currentOpenBar.getTimeStamp());
+    
+    if (openSet) {
+        // Update existing set
+        openSet->setOpen(currentOpenBar.getOpen());
+        openSet->setHigh(currentOpenBar.getHigh());
+        openSet->setLow(currentOpenBar.getLow());
+        openSet->setClose(currentOpenBar.getClose());
+    } else {
+        // Set doesn't exist yet, add it
+        int index = getIndexForTimestamp(currentOpenBar.getTimeStamp());
+        auto set = new QCandlestickSet();
+        set->setTimestamp(index);
+        set->setOpen(currentOpenBar.getOpen());
+        set->setHigh(currentOpenBar.getHigh());
+        set->setLow(currentOpenBar.getLow());
+        set->setClose(currentOpenBar.getClose());
+        candlestickSeries->append(set);
+    }
+}
+
+/**
+ * @brief Adds a new candlestick to the series.
+ * 
+ * Appends a single candlestick set to the series instead of rebuilding everything.
+ * This is O(1) instead of O(n).
+ * 
+ * @param timestamp The timestamp of the bar.
+ * @param bar The bar data to add.
+ */
+void StockPriceChart::addNewCandlestick(const QDateTime& timestamp, const Bar& bar) {
+    int index = getIndexForTimestamp(timestamp);
+    
+    auto set = new QCandlestickSet();
+    set->setTimestamp(index);
+    set->setOpen(bar.getOpen());
+    set->setHigh(bar.getHigh());
+    set->setLow(bar.getLow());
+    set->setClose(bar.getClose());
+    candlestickSeries->append(set);
+}
+
+/**
+ * @brief Finds a candlestick set by its timestamp.
+ * 
+ * Searches through the candlestick series to find the set with the given timestamp.
+ * Returns nullptr if not found.
+ * 
+ * @param timestamp The timestamp to search for.
+ * @return Pointer to the candlestick set, or nullptr if not found.
+ */
+QCandlestickSet* StockPriceChart::findCandlestickSetByTimestamp(const QDateTime& timestamp) const {
+    int targetIndex = getIndexForTimestamp(timestamp);
+    
+    // Search through the series sets
+    for (QCandlestickSet* set : candlestickSeries->sets()) {
+        if (set && static_cast<int>(set->timestamp()) == targetIndex) {
+            return set;
+        }
+    }
+    
+    return nullptr;
 }

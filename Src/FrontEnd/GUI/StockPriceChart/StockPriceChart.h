@@ -88,6 +88,7 @@ private:
     
     // Index-based positioning helpers
     void rebuildIndexMapping();
+    void updateIndexMappingIncremental(const QDateTime& timestamp);
     int getIndexForTimestamp(const QDateTime& timestamp) const;
     QDateTime getTimestampForIndex(int index) const;
     QDateTime getPreviousTradingMinute(const QDateTime& timestamp) const;
@@ -97,6 +98,11 @@ private:
     void drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd, 
                                      const QColor& color, int zValue,
                                      QList<QGraphicsRectItem*>& rectList);
+    
+    // Incremental chart update helpers
+    void updateOpenBarCandlestick();
+    void addNewCandlestick(const QDateTime& timestamp, const Bar& bar);
+    QCandlestickSet* findCandlestickSetByTimestamp(const QDateTime& timestamp) const;
 
     QString symbol;
     QChart* chart;
