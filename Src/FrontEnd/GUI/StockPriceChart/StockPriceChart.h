@@ -48,7 +48,6 @@ public:
     static constexpr int MONDAY = 1;               // Qt::Monday
     static constexpr int FRIDAY = 5;               // Qt::Friday
 
-public:
     explicit StockPriceChart(QWidget* parent = nullptr);
     ~StockPriceChart() override;
 

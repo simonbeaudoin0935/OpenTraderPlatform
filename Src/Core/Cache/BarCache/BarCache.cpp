@@ -164,10 +164,10 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     // Original assertions for single-day requests
     Q_ASSERT_X(first.date().dayOfWeek() >= MONDAY && first.date().dayOfWeek() <= FRIDAY,
                qPrintable(cacheName),
-               "getBars() called not strictly in between monday to friday");
+               "getBars() called with date outside Monday-Friday range");
     Q_ASSERT_X(last.date().dayOfWeek() >= MONDAY && last.date().dayOfWeek() <= FRIDAY,
                qPrintable(cacheName),
-               "getBars() called not strictly in between monday to friday");
+               "getBars() called with date outside Monday-Friday range");
     Q_ASSERT_X(first.toTimeZone(QTimeZone("America/New_York")).time() >= QTime(TRADING_START_HOUR, 0, 0),
                qPrintable(cacheName),
                "Fetching bars before 6am"); // Tradestation bars start at 6

@@ -1130,7 +1130,9 @@ QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) 
             }
             return result.toTimeZone(timestamp.timeZone());
         } else if (time >= QTime(TRADING_END_HOUR, 0, 0)) {
-            // After 8PM - move to 7:59PM same day (this shouldn't happen with valid input)
+            // After 8PM - move to 7:59PM same day
+            // This case shouldn't occur with valid input, but we handle it defensively
+            qCDebug(ChartLog) << "Unexpected: getPreviousTradingMinute called with time after 8PM:" << nyTime;
             return QDateTime(previousMinute.date(), 
                            QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), 
                            nyZone).toTimeZone(timestamp.timeZone());
