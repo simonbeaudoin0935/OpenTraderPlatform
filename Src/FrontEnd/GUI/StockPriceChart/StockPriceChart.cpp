@@ -880,30 +880,62 @@ void StockPriceChart::updateAfterHoursBackground() {
             continue;
         }
 
-        // Handle each hour of the day
-        for (int hour = 0; hour < 24; hour++) {
+        // Consolidate consecutive hours of the same session type into single rectangles
+        // This eliminates visual artifacts from overlapping hourly rectangles
+        int hour = 0;
+        while (hour < 24) {
             QDateTime hourStart = QDateTime(currentDate, QTime(hour, 0), nyZone);
-            QDateTime hourEnd = hour == 23 ? 
-                QDateTime(currentDate, QTime(23, 59, 59), nyZone) : 
-                QDateTime(currentDate, QTime(hour + 1, 0), nyZone);
-
-            // Convert to local time
-            QDateTime localHourStart = hourStart.toLocalTime();
-            QDateTime localHourEnd = hourEnd.toLocalTime();
-
-            if (MarketHours::isPreMarket(hourStart)) {
-                drawBackgroundForTimeRange(localHourStart, localHourEnd,
+            
+            // Determine the session type for this hour
+            bool isPreMarket = MarketHours::isPreMarket(hourStart);
+            bool isAfterHours = MarketHours::isAfterHours(hourStart);
+            bool isRegularHours = MarketHours::isRegularHours(hourStart);
+            
+            // Find the end of this session by scanning forward
+            int sessionEndHour = hour;
+            while (sessionEndHour < 24) {
+                QDateTime testTime = QDateTime(currentDate, QTime(sessionEndHour, 0), nyZone);
+                bool sameSession = (isPreMarket && MarketHours::isPreMarket(testTime)) ||
+                                  (isAfterHours && MarketHours::isAfterHours(testTime)) ||
+                                  (isRegularHours && MarketHours::isRegularHours(testTime)) ||
+                                  (!isPreMarket && !isAfterHours && !isRegularHours && 
+                                   !MarketHours::isPreMarket(testTime) && 
+                                   !MarketHours::isAfterHours(testTime) && 
+                                   !MarketHours::isRegularHours(testTime));
+                
+                if (!sameSession) {
+                    break;
+                }
+                sessionEndHour++;
+            }
+            
+            // Create single rectangle for the entire session
+            QDateTime sessionStart = QDateTime(currentDate, QTime(hour, 0), nyZone);
+            QDateTime sessionEnd = sessionEndHour == 24 ? 
+                QDateTime(currentDate, QTime(23, 59, 59), nyZone) :
+                QDateTime(currentDate, QTime(sessionEndHour, 0), nyZone);
+            
+            QDateTime localSessionStart = sessionStart.toLocalTime();
+            QDateTime localSessionEnd = sessionEnd.toLocalTime();
+            
+            // Draw one rectangle for the entire session instead of one per hour
+            if (isPreMarket) {
+                drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
                                           QColor(90, 60, 30, 100), -1, preMarketRects);
             }
-            else if (MarketHours::isAfterHours(hourStart)) {
-                drawBackgroundForTimeRange(localHourStart, localHourEnd,
+            else if (isAfterHours) {
+                drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
                                           QColor(50, 50, 80, 100), -1, afterHoursRects);
             }
-            else if (!MarketHours::isRegularHours(hourStart)) {
-                drawBackgroundForTimeRange(localHourStart, localHourEnd,
+            else if (!isRegularHours) {
+                drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
                                           QColor(40, 40, 50, 120), -2, closedMarketRects);
             }
+            
+            // Move to the next session
+            hour = sessionEndHour;
         }
+        
         currentDate = currentDate.addDays(1);
     }
 }
