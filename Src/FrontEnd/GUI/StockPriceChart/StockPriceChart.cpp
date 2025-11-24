@@ -466,40 +466,43 @@ void StockPriceChart::updateChart() {
 
     updateAxisLabels();
 
-    // Calculate current visible price range
+    // Calculate current visible price range efficiently
+    // Use binary search to find only the visible bars instead of iterating all bars
     double minPrice = std::numeric_limits<double>::max();
     double maxPrice = std::numeric_limits<double>::lowest();
     double currentPrice = 0.0;
 
-    // Find min/max prices for visible bars only
+    // Get visible range in indices
     int visibleStartIndex = static_cast<int>(axisX->min());
     int visibleEndIndex = static_cast<int>(axisX->max());
     
-    for (auto it = indexToTimestamp.constBegin(); it != indexToTimestamp.constEnd(); ++it) {
-        int index = it.key();
-        if (index >= visibleStartIndex && index <= visibleEndIndex) {
-            const QDateTime& timestamp = it.value();
-            
-            // Check completed bars
-            if (completedBars.contains(timestamp)) {
-                const Bar& bar = completedBars[timestamp];
-                minPrice = qMin(minPrice, bar.getLow());
-                maxPrice = qMax(maxPrice, bar.getHigh());
-                currentPrice = bar.getClose();
-            }
-            // Check open bar
-            else if (hasOpenBar && timestamp == currentOpenBar.getTimeStamp()) {
-                minPrice = qMin(minPrice, currentOpenBar.getLow());
-                maxPrice = qMax(maxPrice, currentOpenBar.getHigh());
-                currentPrice = currentOpenBar.getClose();
-            }
-            // Check void bars
-            else if (voidBars.contains(timestamp)) {
-                double price = voidBars[timestamp];
-                minPrice = qMin(minPrice, price);
-                maxPrice = qMax(maxPrice, price);
-                currentPrice = price;
-            }
+    // Use lowerBound to find first visible bar efficiently - O(log n) instead of O(n)
+    auto startIt = indexToTimestamp.lowerBound(visibleStartIndex);
+    auto endIt = indexToTimestamp.upperBound(visibleEndIndex);
+    
+    // Iterate only through visible bars - O(m) where m = visible bars
+    for (auto it = startIt; it != endIt; ++it) {
+        const QDateTime& timestamp = it.value();
+        
+        // Check completed bars
+        if (completedBars.contains(timestamp)) {
+            const Bar& bar = completedBars[timestamp];
+            minPrice = qMin(minPrice, bar.getLow());
+            maxPrice = qMax(maxPrice, bar.getHigh());
+            currentPrice = bar.getClose();
+        }
+        // Check open bar
+        else if (hasOpenBar && timestamp == currentOpenBar.getTimeStamp()) {
+            minPrice = qMin(minPrice, currentOpenBar.getLow());
+            maxPrice = qMax(maxPrice, currentOpenBar.getHigh());
+            currentPrice = currentOpenBar.getClose();
+        }
+        // Check void bars
+        else if (voidBars.contains(timestamp)) {
+            double price = voidBars[timestamp];
+            minPrice = qMin(minPrice, price);
+            maxPrice = qMax(maxPrice, price);
+            currentPrice = price;
         }
     }
 
