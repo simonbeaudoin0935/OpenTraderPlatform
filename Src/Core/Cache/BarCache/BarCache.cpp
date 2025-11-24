@@ -162,10 +162,10 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     }
     
     // Original assertions for single-day requests
-    Q_ASSERT_X(first.date().dayOfWeek() >= 1 && first.date().dayOfWeek() <= 5,
+    Q_ASSERT_X(first.date().dayOfWeek() >= MONDAY && first.date().dayOfWeek() <= FRIDAY,
                qPrintable(cacheName),
                "getBars() called not strictly in between monday to friday");
-    Q_ASSERT_X(last.date().dayOfWeek() >= 1 && last.date().dayOfWeek() <= 5,
+    Q_ASSERT_X(last.date().dayOfWeek() >= MONDAY && last.date().dayOfWeek() <= FRIDAY,
                qPrintable(cacheName),
                "getBars() called not strictly in between monday to friday");
     Q_ASSERT_X(first.toTimeZone(QTimeZone("America/New_York")).time() >= QTime(TRADING_START_HOUR, 0, 0),

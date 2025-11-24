@@ -1116,7 +1116,7 @@ QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) 
     int dayOfWeek = previousMinute.date().dayOfWeek();
     
     // If we're in the closed period (before 6AM or after 8PM on a weekday, or weekend)
-    if (dayOfWeek >= Qt::Monday && dayOfWeek <= Qt::Friday) {
+    if (dayOfWeek >= MONDAY && dayOfWeek <= FRIDAY) {
         // Weekday
         if (time < QTime(TRADING_START_HOUR, 0, 0)) {
             // Before 6AM - jump to 7:59PM previous day
