@@ -8,11 +8,11 @@
 #include "Bar.h"
 #include "MarketDepthQuote.h"
 
-class AppFrontend : public QObject {
+class FrontEnd : public QObject {
     Q_OBJECT
 public:
-    explicit AppFrontend(QObject* parent = nullptr) : QObject(parent) {}
-    virtual ~AppFrontend() = default;
+    explicit FrontEnd(QObject* parent = nullptr) : QObject(parent) {}
+    virtual ~FrontEnd() = default;
 
 signals:
     void tradeStationAuthStateChanged(bool isAuthenticated, QString reason);

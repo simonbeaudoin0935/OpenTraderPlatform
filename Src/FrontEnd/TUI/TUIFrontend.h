@@ -1,11 +1,11 @@
 #pragma once
 
-#include "AppFrontend.h"
+#include "FrontEnd.h"
 
 // Forward declaration
 class MainAlgo;
 
-class TUIFrontend : public AppFrontend {
+class TUIFrontend : public FrontEnd {
     Q_OBJECT
 public:
     explicit TUIFrontend(MainAlgo* mainAlgo, QObject* parent = nullptr);

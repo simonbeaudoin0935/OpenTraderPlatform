@@ -21,7 +21,7 @@
        <string>Enter stock symbol and press Enter</string>
       </property>
       <property name="maximumWidth">
-       <number>150</number>
+       <number>75</number>
       </property>
       <property name="sizePolicy">
        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -289,7 +289,7 @@
   <customwidget>
    <class>StockPriceChart</class>
    <extends>QWidget</extends>
-   <header>GUI/StockPriceChart.h</header>
+   <header>GUI/StockPriceChart/StockPriceChart.h</header>
   </customwidget>
   <customwidget>
    <class>MarketDepthTable</class>

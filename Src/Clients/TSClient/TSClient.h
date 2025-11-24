@@ -50,13 +50,13 @@ public:
     TSClient& operator=(const TSClient&) = delete;
 
     // Authentication state getter
-    bool isAuthenticated() const { return authenticated; }
-    bool isAuthInProgress() const { return authInProgress; }
+    [[nodiscard]] bool isAuthenticated() const { return authenticated; }
+    [[nodiscard]] bool isAuthInProgress() const { return authInProgress; }
 
     void activateMockStreamCreation(bool activate) { activateMockStream = activate; };
 
     // Stream count getter
-    int getStreamCount() const { return streams.size(); }
+    [[nodiscard]] int getStreamCount() const { return streams.size(); }
 
                               // -------- Market data methods ----------
     /*
@@ -64,7 +64,7 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/GetQuoteSnapshots
      */
-    bool getQuoteSnapshotsSync(QString &symbols, QVector<QuoteSnapshot> &quoteSnapshots);
+    [[nodiscard]] bool getQuoteSnapshotsSync(QString &symbols, QVector<QuoteSnapshot> &quoteSnapshots);
     void getQuoteSnapshotsAsync(QString &symbols);
 
     /*
@@ -75,7 +75,7 @@ public:
      *
      * @note : Returned pointer dynamically allocated. Delete with closeStreamBars
      */
-    StreamBars* openStreamBars(const QString &symbol,
+    [[nodiscard]] StreamBars* openStreamBars(const QString &symbol,
                                unsigned int interval = 1,
                                Bar::BarUnit unit = Bar::BarUnit::Daily,
                                unsigned int barsback = 1,
@@ -83,7 +83,7 @@ public:
                                bool mock = false);
     void closeStreamBars(StreamBars* stream);
 
-    bool getBarsSync(QVector<Bar> &results,
+    [[nodiscard]] bool getBarsSync(QVector<Bar> &results,
                      const QString &symbol,
                      unsigned int interval = 1,
                      Bar::BarUnit unit = Bar::BarUnit::Daily,
@@ -110,7 +110,7 @@ public:
      *         in the thread of the client and shares the same network access manager. Later
      *         calling closeStreamMarketDepthQuote will delete it. Do not delete outside.
      */
-    StreamMarketDepthQuote* openStreamMarketDepthQuote(const QString &symbol, unsigned int depth = 20);
+    [[nodiscard]] StreamMarketDepthQuote* openStreamMarketDepthQuote(const QString &symbol, unsigned int depth = 20);
     void closeStreamMarketDepthQuote(StreamMarketDepthQuote* stream);
 
                               // -------- Brokerage methods -------------
@@ -120,7 +120,7 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
      */
-    bool getAccountsSync(QVector<Account> &results);
+    [[nodiscard]] bool getAccountsSync(QVector<Account> &results);
     void getAccountsAsync();
 
     /*
@@ -128,7 +128,7 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetBalances
      */
-    bool getBalancesSync(const QString accounts, QVector<Balance> &results);
+    [[nodiscard]] bool getBalancesSync(const QString accounts, QVector<Balance> &results);
     void getBalancesAsync(const QString accounts);
 
     /*
@@ -137,7 +137,7 @@ public:
      * @return : nullptr if the stream could not be created
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/StreamOrders
      */
-    StreamOrders* openStreamOrders(QString &account);
+    [[nodiscard]] StreamOrders* openStreamOrders(QString &account);
     void closeStreamOrders(StreamOrders* stream);
 
     /*
@@ -150,7 +150,7 @@ public:
      *         in the thread of the client and shares the same network access manager. Later
      *         calling closeStreamMarketDepthQuote will delete it. Do not delete outside.
      */
-    StreamPositions* openStreamPositions(QString &account, bool changes = false);
+    [[nodiscard]] StreamPositions* openStreamPositions(QString &account, bool changes = false);
     void closeStreamPositions(StreamPositions* stream);
 
                               // -------- Order execution methods --------
@@ -160,7 +160,7 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/PlaceOrder
      */
-    bool placeOrderSync(const PlaceOrderRequest &order, PlaceOrderResult &result);
+    [[nodiscard]] bool placeOrderSync(const PlaceOrderRequest &order, PlaceOrderResult &result);
     void placeOrderAsync(const PlaceOrderRequest &order);
 
     /*
@@ -168,7 +168,7 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/CancelOrder
      */
-    bool cancelOrderSync(const QString &orderID, CancelOrderResult &result);
+    [[nodiscard]] bool cancelOrderSync(const QString &orderID, CancelOrderResult &result);
     void cancelOrderAsync(const QString &orderID);
 
 public slots:
@@ -206,7 +206,8 @@ private:
                                              const QString &clientSecret,
                                              const QString &refreshToken);
                                            
-    bool refreshSyncAccessToken(); // TODO remove or think about something because this causes a deadlocl when called within TSClient itself
+    // Sync version of refresh token purposly does not exist because it causes a deadlock when its this
+    // thread that calls it on itself
     void refreshAsyncAccessToken();
 
     enum class RequestType {

@@ -29,7 +29,7 @@ public:
 
     void clearDatabase();
 
-    QVector<QPair<QDateTime, QDateTime>> identifyMissingRanges(QDateTime start, QDateTime end, const QVector<Bar>& cachedBars) const;
+    QVector<QPair<QDateTime, QDateTime>> identifyMissingRanges(const QDateTime &start, const QDateTime &end, const QVector<Bar>& cachedBars) const;
 
     enum class HitType{
         None,
