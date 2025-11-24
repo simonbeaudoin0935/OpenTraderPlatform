@@ -1116,25 +1116,30 @@ QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) 
     int dayOfWeek = previousMinute.date().dayOfWeek();
     
     // If we're in the closed period (before 6AM or after 8PM on a weekday, or weekend)
-    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+    if (dayOfWeek >= Qt::Monday && dayOfWeek <= Qt::Friday) {
         // Weekday
-        if (time < QTime(6, 0, 0)) {
-            // Before 6AM - jump to 8PM previous day
-            QDateTime result = QDateTime(previousMinute.date().addDays(-1), QTime(19, 59, 0), nyZone);
-            // If that was a Friday, we're now on Friday night - OK
-            // If that was a weekend day, we need to go back to Friday
-            if (result.date().dayOfWeek() > 5) {
-                result = QDateTime(result.date().addDays(-(result.date().dayOfWeek() - 5)), QTime(19, 59, 0), nyZone);
+        if (time < QTime(TRADING_START_HOUR, 0, 0)) {
+            // Before 6AM - jump to 7:59PM previous day
+            QDateTime result = QDateTime(previousMinute.date().addDays(-1), 
+                                        QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), 
+                                        nyZone);
+            // If that previous day is a weekend, jump to Friday 7:59PM
+            if (result.date().dayOfWeek() > FRIDAY) {
+                QDate friday = getPreviousFriday(result.date());
+                result = QDateTime(friday, QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), nyZone);
             }
             return result.toTimeZone(timestamp.timeZone());
-        } else if (time >= QTime(20, 0, 0)) {
-            // After 8PM - this shouldn't happen if we start from valid times, but handle it
-            return QDateTime(previousMinute.date(), QTime(19, 59, 0), nyZone).toTimeZone(timestamp.timeZone());
+        } else if (time >= QTime(TRADING_END_HOUR, 0, 0)) {
+            // After 8PM - move to 7:59PM same day (this shouldn't happen with valid input)
+            return QDateTime(previousMinute.date(), 
+                           QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), 
+                           nyZone).toTimeZone(timestamp.timeZone());
         }
     } else {
-        // Weekend - jump to Friday 8PM
-        QDate friday = previousMinute.date().addDays(-(dayOfWeek - 5));
-        return QDateTime(friday, QTime(19, 59, 0), nyZone).toTimeZone(timestamp.timeZone());
+        // Weekend - jump to Friday 7:59PM
+        QDate friday = getPreviousFriday(previousMinute.date());
+        return QDateTime(friday, QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), 
+                        nyZone).toTimeZone(timestamp.timeZone());
     }
     
     // Normal case - previous minute is within trading hours
@@ -1146,7 +1151,7 @@ QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) 
  * 
  * If the timestamp falls in a closed market period (8PM-6AM or weekend),
  * adjusts it to the nearest valid trading time. For times before 6AM,
- * moves to the previous day's 8PM. For weekends, moves to Friday 8PM.
+ * moves to the previous day's 7:59PM. For weekends, moves to Friday 7:59PM.
  * 
  * @param timestamp The timestamp to adjust.
  * @return The adjusted timestamp within valid trading hours (6AM-8PM weekdays).
@@ -1158,29 +1163,53 @@ QDateTime StockPriceChart::adjustToValidTradingTime(const QDateTime& timestamp) 
     int dayOfWeek = nyTime.date().dayOfWeek();
     
     // Handle weekends
-    if (dayOfWeek > 5) {
+    if (dayOfWeek > FRIDAY) {
         // Weekend - move to Friday 7:59PM
-        QDate friday = nyTime.date().addDays(-(dayOfWeek - 5));
-        return QDateTime(friday, QTime(19, 59, 0), nyZone).toTimeZone(timestamp.timeZone());
+        QDate friday = getPreviousFriday(nyTime.date());
+        return QDateTime(friday, QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), 
+                        nyZone).toTimeZone(timestamp.timeZone());
     }
     
     // Handle weekday times outside trading hours
-    if (time < QTime(6, 0, 0)) {
+    if (time < QTime(TRADING_START_HOUR, 0, 0)) {
         // Before 6AM - move to previous day's 7:59PM
         QDate previousDay = nyTime.date().addDays(-1);
         // If previous day is weekend, move to Friday
-        int prevDayOfWeek = previousDay.dayOfWeek();
-        if (prevDayOfWeek > 5) {
-            previousDay = previousDay.addDays(-(prevDayOfWeek - 5));
+        if (previousDay.dayOfWeek() > FRIDAY) {
+            previousDay = getPreviousFriday(previousDay);
         }
-        return QDateTime(previousDay, QTime(19, 59, 0), nyZone).toTimeZone(timestamp.timeZone());
-    } else if (time >= QTime(20, 0, 0)) {
+        return QDateTime(previousDay, QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), 
+                        nyZone).toTimeZone(timestamp.timeZone());
+    } else if (time >= QTime(TRADING_END_HOUR, TRADING_END_MINUTE, 0)) {
         // After 8PM - move to 7:59PM same day
-        return QDateTime(nyTime.date(), QTime(19, 59, 0), nyZone).toTimeZone(timestamp.timeZone());
+        return QDateTime(nyTime.date(), QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), 
+                        nyZone).toTimeZone(timestamp.timeZone());
     }
     
     // Already in valid trading hours
     return timestamp;
+}
+
+/**
+ * @brief Gets the previous Friday given a date.
+ * 
+ * Calculates the most recent Friday before or equal to the given date.
+ * Used for adjusting weekend dates to the last trading day.
+ * 
+ * @param date The date to start from.
+ * @return The date of the previous Friday.
+ */
+QDate StockPriceChart::getPreviousFriday(const QDate& date) const {
+    int dayOfWeek = date.dayOfWeek();
+    if (dayOfWeek == FRIDAY) {
+        return date;  // Already Friday
+    } else if (dayOfWeek > FRIDAY) {
+        // Saturday or Sunday - go back to Friday
+        return date.addDays(-(dayOfWeek - FRIDAY));
+    } else {
+        // Monday-Thursday - go back to previous Friday
+        return date.addDays(-(dayOfWeek + 2));
+    }
 }
 
 /**

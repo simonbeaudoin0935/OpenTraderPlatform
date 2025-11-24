@@ -41,6 +41,14 @@ class StockPriceChart : public QWidget {
     Q_OBJECT
 
 public:
+    // Trading hours constants (America/New_York timezone)
+    static constexpr int TRADING_START_HOUR = 6;   // 6:00 AM ET
+    static constexpr int TRADING_END_HOUR = 20;    // 8:00 PM ET (20:00)
+    static constexpr int TRADING_END_MINUTE = 0;   // Trading ends at 8:00 PM sharp
+    static constexpr int LAST_TRADING_MINUTE = 59; // Last bar is at 7:59 PM
+    static constexpr int FRIDAY = 5;               // Qt::Friday
+
+public:
     explicit StockPriceChart(QWidget* parent = nullptr);
     ~StockPriceChart() override;
 
@@ -85,6 +93,7 @@ private:
     QDateTime getTimestampForIndex(int index) const;
     QDateTime getPreviousTradingMinute(const QDateTime& timestamp) const;
     QDateTime adjustToValidTradingTime(const QDateTime& timestamp) const;
+    QDate getPreviousFriday(const QDate& date) const;
     void updateAxisLabels();
     void drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd, 
                                      const QColor& color, int zValue,

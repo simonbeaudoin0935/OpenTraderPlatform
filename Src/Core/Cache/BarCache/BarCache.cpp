@@ -137,11 +137,12 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
         needsSplitting = true;
     }
     // Check if first is before 6AM or last is after 8PM
-    else if (nyFirst.time() < QTime(6, 0, 0) || nyLast.time() > QTime(20, 0, 0)) {
+    else if (nyFirst.time() < QTime(TRADING_START_HOUR, 0, 0) || 
+             nyLast.time() > QTime(TRADING_END_HOUR, 0, 0)) {
         needsSplitting = true;
     }
     // Check if it's on a weekend
-    else if (nyFirst.date().dayOfWeek() > 5 || nyLast.date().dayOfWeek() > 5) {
+    else if (nyFirst.date().dayOfWeek() > FRIDAY || nyLast.date().dayOfWeek() > FRIDAY) {
         needsSplitting = true;
     }
     
@@ -167,10 +168,10 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     Q_ASSERT_X(last.date().dayOfWeek() >= 1 && last.date().dayOfWeek() <= 5,
                qPrintable(cacheName),
                "getBars() called not strictly in between monday to friday");
-    Q_ASSERT_X(first.toTimeZone(QTimeZone("America/New_York")).time() >= QTime(6,0,0),
+    Q_ASSERT_X(first.toTimeZone(QTimeZone("America/New_York")).time() >= QTime(TRADING_START_HOUR, 0, 0),
                qPrintable(cacheName),
                "Fetching bars before 6am"); // Tradestation bars start at 6
-    Q_ASSERT_X(last.toTimeZone(QTimeZone("America/New_York")).time() <= QTime(20,0,0),
+    Q_ASSERT_X(last.toTimeZone(QTimeZone("America/New_York")).time() <= QTime(TRADING_END_HOUR, 0, 0),
                qPrintable(cacheName),
                "Fetching bars after 8pm");
 
@@ -604,24 +605,24 @@ QVector<QPair<QDateTime, QDateTime>> BarCache::splitIntoTradingDayRanges(const Q
     
     while (currentDate <= endDate) {
         // Skip weekends
-        if (currentDate.dayOfWeek() > 5) {
+        if (currentDate.dayOfWeek() > FRIDAY) {
             currentDate = currentDate.addDays(1);
             continue;
         }
         
         // Define valid trading hours for this date (6AM to 8PM)
-        QDateTime dayStart = QDateTime(currentDate, QTime(6, 0, 0), nyZone);
-        QDateTime dayEnd = QDateTime(currentDate, QTime(20, 0, 0), nyZone);
+        QDateTime dayStart = QDateTime(currentDate, QTime(TRADING_START_HOUR, 0, 0), nyZone);
+        QDateTime dayEnd = QDateTime(currentDate, QTime(TRADING_END_HOUR, 0, 0), nyZone);
         
         // Determine actual start and end for this day
         QDateTime rangeStart = (currentDate == nyFirst.date()) ? nyFirst : dayStart;
         QDateTime rangeEnd = (currentDate == nyLast.date()) ? nyLast : dayEnd;
         
         // Clamp to valid trading hours
-        if (rangeStart.time() < QTime(6, 0, 0)) {
+        if (rangeStart.time() < QTime(TRADING_START_HOUR, 0, 0)) {
             rangeStart = dayStart;
         }
-        if (rangeEnd.time() > QTime(20, 0, 0)) {
+        if (rangeEnd.time() > QTime(TRADING_END_HOUR, 0, 0)) {
             rangeEnd = dayEnd;
         }
         
