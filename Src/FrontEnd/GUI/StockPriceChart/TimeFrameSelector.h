@@ -4,6 +4,7 @@
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QCheckBox>
 #include "Misc/TimeFrame.h"
 
 /**
@@ -36,12 +37,30 @@ public:
      */
     void setCurrentTimeFrame(TimeFrame timeframe);
 
+    /**
+     * @brief Checks if auto timeframe selection is enabled.
+     * @return True if auto selection is enabled, false otherwise.
+     */
+    bool isAutoTimeFrameEnabled() const;
+
+    /**
+     * @brief Sets the auto timeframe selection state.
+     * @param enabled True to enable auto selection, false to disable.
+     */
+    void setAutoTimeFrameEnabled(bool enabled);
+
 signals:
     /**
      * @brief Emitted when the user selects a different timeframe.
      * @param timeframe The newly selected TimeFrame.
      */
     void timeFrameChanged(TimeFrame timeframe);
+
+    /**
+     * @brief Emitted when the auto timeframe selection state changes.
+     * @param enabled True if auto selection is enabled, false otherwise.
+     */
+    void autoTimeFrameChanged(bool enabled);
 
 private slots:
     /**
@@ -50,9 +69,16 @@ private slots:
      */
     void onComboBoxChanged(int index);
 
+    /**
+     * @brief Handles checkbox state changes.
+     * @param state The new state of the checkbox.
+     */
+    void onAutoCheckBoxChanged(int state);
+
 private:
     QComboBox* comboBox;  ///< The dropdown selection widget
     QLabel* label;        ///< Label showing "Timeframe:"
+    QCheckBox* autoCheckBox;  ///< Checkbox for auto timeframe selection
 
     /**
      * @brief Populates the combobox with timeframe options.

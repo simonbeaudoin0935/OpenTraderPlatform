@@ -1,5 +1,6 @@
 #include "TimeFrameSelector.h"
 #include <QHBoxLayout>
+#include <QCheckBox>
 
 /**
  * @brief Constructs a TimeFrameSelector widget.
@@ -16,6 +17,9 @@ TimeFrameSelector::TimeFrameSelector(QWidget* parent)
     comboBox->setMinimumWidth(80);
     comboBox->setMaximumWidth(100);
 
+    // Create the auto checkbox
+    autoCheckBox = new QCheckBox("Auto", this);
+
     // Populate with timeframe options
     populateTimeFrames();
 
@@ -28,11 +32,14 @@ TimeFrameSelector::TimeFrameSelector(QWidget* parent)
     layout->setSpacing(5);
     layout->addWidget(label);
     layout->addWidget(comboBox);
+    layout->addWidget(autoCheckBox);
     layout->addStretch(); // Push widgets to the left
 
-    // Connect signal
+    // Connect signals
     connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &TimeFrameSelector::onComboBoxChanged);
+    connect(autoCheckBox, &QCheckBox::stateChanged,
+            this, &TimeFrameSelector::onAutoCheckBoxChanged);
 
     // Set a nice background and border
     setStyleSheet(
@@ -65,6 +72,21 @@ TimeFrameSelector::TimeFrameSelector(QWidget* parent)
         "    selection-background-color: #555;"
         "    border: 1px solid #666;"
         "}"
+        "QCheckBox {"
+        "    color: #ffffff;"
+        "}"
+        "QCheckBox::indicator {"
+        "    width: 13px;"
+        "    height: 13px;"
+        "}"
+        "QCheckBox::indicator:unchecked {"
+        "    border: 1px solid #666;"
+        "    background-color: #3a3a3a;"
+        "}"
+        "QCheckBox::indicator:checked {"
+        "    border: 1px solid #666;"
+        "    background-color: #555;"
+        "}"
     );
 }
 
@@ -92,6 +114,20 @@ void TimeFrameSelector::setCurrentTimeFrame(TimeFrame timeframe) {
 }
 
 /**
+ * @brief Checks if auto timeframe selection is enabled.
+ */
+bool TimeFrameSelector::isAutoTimeFrameEnabled() const {
+    return autoCheckBox->isChecked();
+}
+
+/**
+ * @brief Sets the auto timeframe selection state.
+ */
+void TimeFrameSelector::setAutoTimeFrameEnabled(bool enabled) {
+    autoCheckBox->setChecked(enabled);
+}
+
+/**
  * @brief Handles combobox selection changes.
  */
 void TimeFrameSelector::onComboBoxChanged(int index) {
@@ -99,6 +135,14 @@ void TimeFrameSelector::onComboBoxChanged(int index) {
         TimeFrame selectedTimeFrame = static_cast<TimeFrame>(comboBox->itemData(index).toInt());
         emit timeFrameChanged(selectedTimeFrame);
     }
+}
+
+/**
+ * @brief Handles checkbox state changes.
+ */
+void TimeFrameSelector::onAutoCheckBoxChanged(int state) {
+    bool enabled = (state == Qt::Checked);
+    emit autoTimeFrameChanged(enabled);
 }
 
 /**
