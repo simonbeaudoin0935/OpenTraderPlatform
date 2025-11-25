@@ -14,6 +14,23 @@
 
 Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
 
+#define BASE_URL_SCHEME                "https"
+#define BASE_URL_HOST_SIMULATION       "sim-api.tradestation.com"
+#define BASE_URL_HOST_VERSION          "/v3/"
+
+#define ENDPOINT_GET_QUOTE_SNAPSHOTS       "marketdata/quotes/%1"
+#define ENDPOINT_GET_BARS                  "marketdata/barcharts/%1"
+#define ENDPOINT_STREAM_BARS               "marketdata/stream/barcharts"
+#define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes"
+
+#define ENDPOINT_GET_ACCOUNTS              "brokerage/accounts"
+#define ENDPOINT_GET_BALANCES              "brokerage/accounts/%1/balances"
+#define ENDPOINT_STREAM_ORDERS             "brokerage/stream/accounts/%1/orders"
+#define ENDPOINT_STREAM_POSITIONS          "brokerage/stream/accounts/%1/positions"
+
+#define ENDPOINT_PLACE_ORDER               "orderexecution/orders"
+#define ENDPOINT_CANCEL_ORDER              "orderexecution/orders/%1"
+
 // Initialize static member outside class
 TSClient* TSClient::instance = nullptr;
 
@@ -34,12 +51,15 @@ TSClient* TSClient::getInstancePtr() {
 }
 
 TSClient::TSClient() :
-    RESTClient(QUrl(BASE_URL_TS_API_SIMULATION)),
+    RESTClient(),
     authenticated(false),
     authInProgress(false)
 {
-    thread->setObjectName("TSClientThread");
+    m_baseUrl.setScheme(BASE_URL_SCHEME);
+    m_baseUrl.setHost(BASE_URL_HOST_SIMULATION);
+    m_baseUrl.setPath(BASE_URL_HOST_VERSION);
 
+    m_thread.setObjectName("TSClientThread");
     clientToken = ClientToken::loadFromSettings();
     authToken = AuthToken::loadFromSettings();
     
@@ -113,8 +133,8 @@ TSClient::TSClient() :
 }
 
 TSClient::~TSClient() {
-    thread->quit();
-    thread->wait();
+    m_thread.quit();
+    m_thread.wait();
 
     qCDebug(TSClientLog) << "Singleton instance destroyed";
 }
@@ -244,44 +264,6 @@ void TSClient::onAsyncRefreshTokenFinished(bool completed, const AuthToken &newT
     });
 }
 
-int TSClient::refreshAsyncAccessToken()
-{
-    Q_ASSERT_X(asyncTokenRefreshRequestId == 0, Q_FUNC_INFO, "A refresh token request is already ongoing");
-    Q_ASSERT_X(authInProgress == false, Q_FUNC_INFO, "A refresh token is already in progress");
-
-    authInProgress = true;
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Starting an ASYNC token refresh request";
-
-    // Make sure we are good to go
-    {
-        // Note we don't check if authToken is expired, as it can be logically both
-        Q_ASSERT(authToken.isValid());
-        Q_ASSERT(clientToken.isValid());
-    }
-
-    {
-        QNetworkRequest request;
-        QByteArray postData;
-
-        // Build the request and query using our static helper methods
-        request = buildRefreshTokenRequest();
-        postData = buildRefreshTokenQuery(clientToken.getClientId(),
-                                          clientToken.getClientSecret(),
-                                          authToken.getRefreshToken());
-
-        // Make the POST request
-        asyncTokenRefreshRequestId = fetchAsync(request,
-                                                static_cast<RequestTypeInt>(RequestType::GetRefreshAccessToken),
-                                                HttpMethod::POST,
-                                                postData);
-
-        Q_ASSERT(asyncTokenRefreshRequestId > 0);
-    }
-
-    return asyncTokenRefreshRequestId;
-}
-
 
 void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, bool completed, void *optArg) {
     RequestType requestType = static_cast<RequestType>(type);
@@ -393,7 +375,7 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, 
 
 void TSClient::closeStream(Stream* const stream) {
     Q_ASSERT(stream != nullptr);
-    Q_ASSERT_X(QThread::currentThread() != thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
+    Q_ASSERT_X(QThread::currentThread() != &m_thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
 
     QMetaObject::invokeMethod(this,
         [this, &stream]()
@@ -419,24 +401,59 @@ void TSClient::closeStream(Stream* const stream) {
 
 
 
+int TSClient::refreshAsyncAccessToken()
+{
+    Q_ASSERT_X(QThread::currentThread() == &m_thread, qPrintable(QThread::currentThread()->objectName()), "Only TSClient thread can call this function");
+    Q_ASSERT_X(m_asyncTokenRefreshRequestId == 0, Q_FUNC_INFO, "A refresh token request is already ongoing");
+    Q_ASSERT_X(m_refreshInProgress == false, Q_FUNC_INFO, "A refresh token is already in progress");
+    Q_ASSERT(m_authToken.isValid());
+    Q_ASSERT(m_clientToken.isValid());
+    // Note we don't check if authToken is expired, as it can be logically both
+
+    m_refreshInProgress = true;
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Starting an ASYNC token refresh request";
+
+
+    // Build the request and query using our static helper methods
+    QNetworkRequest request = buildRefreshTokenRequest();
+    QByteArray postData     = buildRefreshTokenQuery(m_clientToken.getClientId(), m_clientToken.getClientSecret(), m_authToken.getRefreshToken());
+
+    // Make the POST request
+    m_asyncTokenRefreshRequestId = fetchAsync(request,
+                                            static_cast<RequestTypeInt>(RequestType::GetRefreshAccessToken),
+                                            HttpMethod::POST,
+                                            postData);
+
+    Q_ASSERT(m_asyncTokenRefreshRequestId > 0);
+
+    return m_asyncTokenRefreshRequestId;
+}
+
 
 
 
 int TSClient::getAccountsAsync()
 {
-    QNetworkRequest request = buildRequest(ENDPOINT_GET_ACCOUNTS);
+    Q_ASSERT_X(QThread::currentThread() != this->thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching accounts async";
+
+
+    QNetworkRequest request = buildRequest(ENDPOINT_GET_ACCOUNTS);
 
     return fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetAccounts));
 }
 
-int TSClient::getBalancesAsync(const QString accounts) {
+int TSClient::getBalancesAsync(const QString accounts)
+{
+    Q_ASSERT_X(QThread::currentThread() != this->thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
+
     QNetworkRequest request = buildRequest(QString(ENDPOINT_GET_BALANCES).arg(accounts));
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching Balances";
 
-    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetBalances));
+    return fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetBalances));
 }
 
 int TSClient::getBarsAsync(const QString &symbol,
@@ -447,6 +464,8 @@ int TSClient::getBarsAsync(const QString &symbol,
                            QDateTime firstDate,
                            QDateTime lastDate)
 {
+    Q_ASSERT_X(QThread::currentThread() != &m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
+
     // Interval that each bar will consist of - for minute bars, the number of minutes aggregated in a single bar. For bar units other than minute, value must be 1.
     if (unit == Bar::BarUnit::Minute) {Q_ASSERT(interval >= 1);}
     else { Q_ASSERT(interval == 1);}
@@ -455,7 +474,6 @@ int TSClient::getBarsAsync(const QString &symbol,
     if (barsback > 0) Q_ASSERT(firstDate == QDateTime());
 
     QUrlQuery query = Bar::buildUrlQuery(interval, unit, barsback, sessionTemplate, firstDate, lastDate);
-
 
     Q_ASSERT(!symbol.isEmpty());
 
@@ -472,15 +490,19 @@ int TSClient::getBarsAsync(const QString &symbol,
 
 int TSClient::getQuoteSnapshotsAsync(QString &symbols)
 {
+    Q_ASSERT_X(QThread::currentThread() != &m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
     Q_ASSERT(!symbols.isEmpty());
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching quotes for symbols : " << symbols;
 
     QNetworkRequest request = buildRequest(QString(ENDPOINT_GET_QUOTE_SNAPSHOTS).arg(symbols));
+
     return fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetQuoteSnapshots));
 }
 
-int TSClient::placeOrderAsync(const PlaceOrderRequest &order) {
+int TSClient::placeOrderAsync(const PlaceOrderRequest &order)
+{
+    Q_ASSERT_X(QThread::currentThread() != &m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
     Q_ASSERT(order.isValid());
 
     QNetworkRequest request = buildRequest(ENDPOINT_PLACE_ORDER);
@@ -497,6 +519,7 @@ int TSClient::placeOrderAsync(const PlaceOrderRequest &order) {
 
 int TSClient::cancelOrderAsync(const QString &orderID)
 {
+    Q_ASSERT_X(QThread::currentThread() != &m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
     Q_ASSERT(!orderID.isEmpty());
     Q_ASSERT(QRegularExpression("^[0-9]+$").match(orderID).hasMatch());
 
@@ -507,4 +530,104 @@ int TSClient::cancelOrderAsync(const QString &orderID)
     return fetchAsync(request,
                       static_cast<RequestTypeInt>(RequestType::CancelOrder),
                       HttpMethod::DELETE);
+}
+
+
+
+
+
+
+StreamPositions *TSClient::openStreamPositions(QString &accountID, bool changes)
+{
+    Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
+
+    const QString endpoint = QString(ENDPOINT_STREAM_POSITIONS).arg(accountID);
+
+    QUrlQuery query;
+    query.addQueryItem("changes", changes? "true":"false");
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamPositions";
+
+    return openStream<StreamPositions>("NOSYMBOL", endpoint, query, accountID);
+}
+
+void TSClient::closeStreamPositions(StreamPositions *stream)
+{
+    Q_ASSERT(stream != nullptr);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamPositions " << static_cast<void*>(stream);
+
+    TSClient::closeStream(stream);
+}
+
+StreamOrders* TSClient::openStreamOrders(QString &accountID) {
+    Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
+
+    const QString endpoint = QString(ENDPOINT_STREAM_ORDERS).arg(accountID);
+
+    QUrlQuery query;
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamOrders";
+
+    return openStream<StreamOrders>("NOSYMBOL", endpoint, query, accountID);
+}
+
+void TSClient::closeStreamOrders(StreamOrders* stream) {
+    Q_ASSERT(stream != nullptr);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamOrders " << static_cast<void*>(stream);
+
+    TSClient::closeStream(stream);
+}
+
+StreamBars *TSClient::openStreamBars(const QString &symbol,
+                                     unsigned int interval,
+                                     Bar::BarUnit unit,
+                                     unsigned int barsback,
+                                     Bar::BarSessionTemplate sessionTemplate,
+                                     bool mock)
+{
+    // Interval that each bar will consist of - for minute bars, the number of minutes aggregated in a single bar. For bar units other than minute, value must be 1.
+    if (unit == Bar::BarUnit::Minute) {Q_ASSERT(interval >= 1);}
+    else { Q_ASSERT(interval == 1);}
+    Q_ASSERT(barsback <= 57600);
+
+    const QString endpoint = ENDPOINT_STREAM_BARS;
+
+    QUrlQuery query = Bar::buildUrlQuery(interval, unit, barsback, sessionTemplate);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamBars";
+
+    return openStream<StreamBars>(symbol, endpoint, query, symbol);
+}
+
+void TSClient::closeStreamBars(StreamBars *stream)
+{
+    Q_ASSERT(stream != nullptr);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamBars " << static_cast<void*>(stream);
+
+    TSClient::closeStream(stream);
+}
+
+StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(const QString &symbol, unsigned int depth)
+{
+    Q_ASSERT(depth >= 1 && depth <= 20);
+
+    const QString endpoint = ENDPOINT_STREAM_MARKET_DEPTH_QUOTE;
+    QUrlQuery query;
+    query.addQueryItem("maxlevels", QString::number(depth));
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamMarketDepthQuote";
+
+    return openStream<StreamMarketDepthQuote>(symbol, endpoint, query, symbol);
+}
+
+void TSClient::closeStreamMarketDepthQuote(StreamMarketDepthQuote *stream)
+{
+    Q_ASSERT(stream != nullptr);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamMarketDepthQuote " << static_cast<void*>(stream);
+
+    TSClient::closeStream(stream);
 }

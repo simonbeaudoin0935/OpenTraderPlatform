@@ -261,7 +261,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
         qCDebug(BarCacheLog) << cacheName << "Fetching bars from API for" << symbol
                              << "in range" << range.first << "to" << fetchLast;
 
-        bool success = TSClient::getInstance().getBarsSync(fetchedBars, symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour, range.first, fetchLast);
+        bool success = TSClient::getInstance().getBarsAsync(fetchedBars, symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour, range.first, fetchLast);
             
         if (!success) {
             qCCritical(BarCacheLog) << cacheName << "Failed to fetch bars from API for" << symbol

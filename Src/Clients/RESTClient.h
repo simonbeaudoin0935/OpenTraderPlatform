@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QReadWriteLock>
 #include <QUrlQuery>
 #include <QUrl>
 #include <QNetworkRequest>
@@ -9,6 +10,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
+#include "Stream.h"
 
 // Define the logging category
 Q_DECLARE_LOGGING_CATEGORY(RESTClientLog)
@@ -18,15 +20,15 @@ class RESTClient : public QObject
     Q_OBJECT
 
 public:
-    explicit RESTClient(const QUrl &baseUrl, QObject *parent = nullptr);
-    virtual ~RESTClient();
+    explicit RESTClient();
+    ~RESTClient() = default; // TODO evaluate if default constriuctor is ok
 
     // starts the inner thread
-    void start();
+    void start() { m_thread.start(); };
 
     // To monitor usage
-    qsizetype getTotalDataReceivedBytes() const;
-    bool isCleanedUp();
+    [[nodiscard]] qsizetype getTotalDataReceivedBytes() const { return m_totalDataReceivedBytes; };
+    [[nodiscard]] bool isCleanedUp();
 
 signals:
     // Emited at basically every new message
@@ -39,19 +41,15 @@ private slots:
     void onReplyFinished(QNetworkReply *reply);
 
 protected:
-    // Must be called before the first getInstance() call otherwise an assert is triggered in the constructor
-    void setAPIKey(const QString &apiKey);
 
-    enum class RequestType { Async, Stream };
     typedef int RequestTypeInt; // TODO explain why
-    const int RequestTypeNone = 0;
     struct RequestInfo {
-        RequestType async_type;
-        RequestTypeInt type;
+        bool isStream = false;
         bool completed = false;
+        int requestID = -1;
+        RequestTypeInt type = 0;
         void* optArg = nullptr;
     };
-
     enum class HttpMethod {
         GET,
         POST,
@@ -59,32 +57,45 @@ protected:
         DELETE
     };
 
+
+    // Must be called before the first getInstance() call otherwise an assert is triggered in the constructor
+    void setAPIKey(const QString &apiKey) { m_apiKey = apiKey; }
+
     // Static method to build refresh token request
-    static QNetworkRequest buildRefreshTokenRequest(const QString &clientId,
-                                                    const QString &clientSecret,
-                                                    const QString &refreshToken);
+    [[nodiscard]] static QNetworkRequest buildRefreshTokenRequest(const QString &clientId,
+                                                                  const QString &clientSecret,
+                                                                  const QString &refreshToken);
 
-    // Overloaded function to build network requests
-    QNetworkRequest buildRequest(const QString &endpoint, const QString &symbol = "") const;
-    QNetworkRequest buildRequest(const QString &endpoint, const QUrlQuery &query) const;
+    [[nodiscard]] QNetworkRequest buildRequest(const QString &endpoint, const QUrlQuery &query = QUrlQuery()) const;
 
+    /**
+     * @brief Fetches data asynchronously.
+     * @param request The network request.
+     * @param type The request type integer.
+     * @param method The HTTP method (default GET).
+     * @param postData The POST data (default empty).
+     * @param optArg Optional argument to hold in the request.
+     * @return The request ID.
+     */
     [[nodiscard]] int fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method = HttpMethod::GET, const QByteArray &postData =  QByteArray(), void* optArg = nullptr);
 
-    QNetworkReply *fetchStream(const QNetworkRequest &request, void *arg);
+    [[nodiscard]] QNetworkReply *fetchStream(const QNetworkRequest &request, void *arg);
     void closeStream(void *arg);
 
     virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, bool completed, void* optArg = nullptr) = 0;
 
-    qsizetype totalDataReceivedBytes = 0;
-    QString apiKey;
-    QThread *thread;
-    QNetworkAccessManager *manager;
-    QMap<QNetworkReply*, RequestInfo> pendingRequests;
+    QUrl m_baseUrl;
+    int m_requestIDSeq = 0;
+    mutable QReadWriteLock m_requestIDMapRWLock; // To protect m_requestIDSeq
+    qsizetype m_totalDataReceivedBytes = 0;
+    QString m_apiKey;
+    QThread m_thread;
+    QNetworkAccessManager m_networkManager;
+    QMap<QNetworkReply*, RequestInfo> m_pendingRequests;
+    QMap<QNetworkReply*, Stream*> m_streams;
 
 
 private:
     friend class TestTSClient;
     friend class TestBarCache;
-
-    const QUrl baseUrl;
 };

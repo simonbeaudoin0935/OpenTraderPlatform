@@ -22,22 +22,6 @@
 
 Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 
-#define BASE_URL_TS_API_SIMULATION         "https://sim-api.tradestation.com/v3/"
-
-#define ENDPOINT_GET_QUOTE_SNAPSHOTS       "marketdata/quotes/%1"
-#define ENDPOINT_GET_BARS                  "marketdata/barcharts/%1"
-#define ENDPOINT_STREAM_BARS               "marketdata/stream/barcharts"
-#define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes"
-
-#define ENDPOINT_GET_ACCOUNTS              "brokerage/accounts"
-#define ENDPOINT_GET_BALANCES              "brokerage/accounts/%1/balances"
-#define ENDPOINT_STREAM_ORDERS             "brokerage/stream/accounts/%1/orders"
-#define ENDPOINT_STREAM_POSITIONS          "brokerage/stream/accounts/%1/positions"
-
-#define ENDPOINT_PLACE_ORDER               "orderexecution/orders"
-#define ENDPOINT_CANCEL_ORDER              "orderexecution/orders/%1"
-
-
 // This is a singleton
 
 class TSClient : public RESTClient {
@@ -52,8 +36,6 @@ public:
     // Authentication state getter
     [[nodiscard]] bool isAuthenticated() const { return authenticated; }
     [[nodiscard]] bool isAuthInProgress() const { return authInProgress; }
-
-    void activateMockStreamCreation(bool activate) { activateMockStream = activate; };
 
     // Stream count getter
     [[nodiscard]] int getStreamCount() const { return streams.size(); }
@@ -215,7 +197,7 @@ private slots:
 
 private:
 
-    int asyncTokenRefreshRequestId = 0;
+    int m_asyncTokenRefreshRequestId = 0;
 
     QMap<size_t, void*> AsyncGetAccountsRequests;
     QMap<size_t, void*> AsyncGetBalancesRequests;
@@ -251,21 +233,18 @@ private:
     void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, bool completed, void* optArg = nullptr) override;
 
     // tokens
-    AuthToken authToken;
-    ClientToken clientToken;
+    AuthToken m_authToken;
+    ClientToken m_clientToken;
 
     // Singleton
-    static TSClient* instance;
+    static TSClient* m_instance;
 
-    bool authenticated = false;  // Track authentication state
-    bool authInProgress = false;  // Track if authentication process is in progress
+    bool m_authenticated = false;  // Track authentication state
+    bool m_refreshInProgress = false;  // Track if authentication process is in progress
 
 #ifdef GUI_ENABLED
-    AuthWindow* authWindow = nullptr;  // Authentication window
+    AuthWindow* m_authWindow = nullptr;  // Authentication window
 #endif
-    QVector<Stream*> streams;
-
-    bool activateMockStream = false;
 
     template<typename T, typename... Args>
     T* openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Args&&... args) {
@@ -277,7 +256,7 @@ private:
 
         // Only external callers to TSClient thread should get here. Calling a fetch sync from within the TSClient's
         // thread would cause a deadlock to itself
-        Q_ASSERT_X(QThread::currentThread() != thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
+        Q_ASSERT_X(QThread::currentThread() != &m_thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
 
         T* stream = nullptr;
 
@@ -287,7 +266,8 @@ private:
             {
                 stream = new T(std::forward<Args>(args)..., nullptr);
 
-                QUrl url(QString(BASE_URL_TS_API_SIMULATION) + endpoint + ((symbol=="NOSYMBOL") ? "" : ("/" + symbol)));
+                #warning fix this shit
+                QUrl url(m_baseUrl.path() + endpoint + ((symbol=="NOSYMBOL") ? "" : ("/" + symbol)));
                 url.setQuery(query);
 
                 QNetworkRequest request(url);

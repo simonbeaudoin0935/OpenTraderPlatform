@@ -86,27 +86,3 @@ StreamPositions::StreamPositionStatus::StreamPositionStatus(const QJsonObject& j
         status = Status::Unknown;
     }
 }
-
-
-StreamPositions *TSClient::openStreamPositions(QString &accountID, bool changes)
-{
-    Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
-
-    const QString endpoint = QString(ENDPOINT_STREAM_POSITIONS).arg(accountID);
-
-    QUrlQuery query;
-    query.addQueryItem("changes", changes? "true":"false");
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamPositions";
-
-    return openStream<StreamPositions>("NOSYMBOL", endpoint, query, accountID);
-}
-
-void TSClient::closeStreamPositions(StreamPositions *stream)
-{
-    Q_ASSERT(stream != nullptr);
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamPositions " << static_cast<void*>(stream);
-
-    TSClient::closeStream(stream);
-}
