@@ -132,39 +132,6 @@ void TestTSClient::testRefreshSyncAccessToken()
     QVERIFY(client->isCleanedUp());
 }
 
-void TestTSClient::testGetAccountsSync()
-{
-    bool success;
-    
-    // Verify initial state
-    QVERIFY(client->isCleanedUp());
-    QVERIFY(client->isAuthenticated());
-
-    QVector<Account> results;
-    success = client->getAccountsSync(results);
-
-    // Verify the results
-    QVERIFY(success);
-    QCOMPARE(results.size(), 2); // Verify exactly 2 accounts
-    qDebug() << "Found" << results.size() << "accounts:";
-
-    // Save the second account's ID for use in place order test
-    secondAccountId = results[1].getAccountId();
-    qDebug() << "Saved second account ID for place order test:" << secondAccountId;
-
-    // Verify each account has valid data
-    const QVector<Account>& constResults = results;
-    for (const Account& account : constResults) {
-
-        QVERIFY(account.isValid());
-
-        qDebug().noquote() << "* Account info *\n" << account.toJsonString();
-    }
-
-    // Verify no resources were leaked
-    QVERIFY(client->isCleanedUp());
-}
-
 void TestTSClient::testGetAccountsAsync()
 {
     // Verify initial state
@@ -173,7 +140,7 @@ void TestTSClient::testGetAccountsAsync()
     QVERIFY(!client->isAuthInProgress());
 
     // Intercept the accounts when they are received
-    QSignalSpy fetchAsyncAccoutnsSpy(client, &TSClient::getAccountsAsyncReceived);
+    QSignalSpy fetchAsyncAccoutnsSpy(client, &TSClient::receivedAsyncGetAccounts);
 
     client->getAccountsAsync();
 
@@ -204,32 +171,6 @@ void TestTSClient::testGetAccountsAsync()
     QVERIFY(client->isCleanedUp());
 }
 
-void TestTSClient::testGetBalancesSync()
-{
-    bool success;
-
-    // Verify initial state
-    QVERIFY(client->isCleanedUp());
-    QVERIFY(client->isAuthenticated());
-
-    QVector<Balance> results;
-    success = client->getBalancesSync(secondAccountId, results);
-
-    // Verify the results
-    QVERIFY(success);
-    QCOMPARE(results.size(), 1); // Verify exactly 2 accounts
-    qDebug() << "Found" << results.size() << "accounts:";
-
-    // Verify each account has valid data
-    const QVector<Balance>& constResults = results;
-    for (const Balance& balance : constResults) {
-
-        qDebug().noquote() << "* Balance info *\n" << balance.toJsonString();
-    }
-
-    // Verify no resources were leaked
-    QVERIFY(client->isCleanedUp());}
-
 void TestTSClient::testGetBalancesAsync()
 {
     // Verify initial state
@@ -238,7 +179,7 @@ void TestTSClient::testGetBalancesAsync()
     QVERIFY(!client->isAuthInProgress());
 
     // Intercept the accounts when they are received
-    QSignalSpy spy(client, &TSClient::getBalancesAsyncReceived);
+    QSignalSpy spy(client, &TSClient::receivedAsyncGetBalances);
 
     client->getBalancesAsync(secondAccountId);
 
@@ -267,99 +208,12 @@ void TestTSClient::testGetBalancesAsync()
     QVERIFY(client->isCleanedUp());
 }
 
-void TestTSClient::testGetQuoteSnapshotsSync()
-{
-    bool success;
-
-    QString symbol = "AAPL";
-
-    // Verify initial state
-    QVERIFY(client->isCleanedUp());
-    QVERIFY(client->isAuthenticated());
-
-    QVector<QuoteSnapshot> quoteResults;
-    success = client->getQuoteSnapshotsSync(symbol, quoteResults);
-
-    // Verify the results
-    QVERIFY(success);
-    QCOMPARE(quoteResults.size(), 1); // We asked for one symbol, there should be one quote
-    qDebug() << "Found" << quoteResults.size() << " quote snapshots";
-
-
-    // Verify each account has valid data
-    const QVector<QuoteSnapshot>& constResults = quoteResults;
-    for (const QuoteSnapshot& quote : constResults) {
-
-        QVERIFY(quote.isValid());
-
-        qDebug().noquote() << "Quote snapshot :\n" << quote.toJsonString();
-    }
-
-    // Verify no resources were leaked
-    QVERIFY(client->isCleanedUp());
-}
 
 void TestTSClient::testGetQuoteSnapshotsAsync()
 {
     QSKIP("not implemented");
 }
 
-void TestTSClient::testPlaceOrderSync()
-{
-    if (!MarketHours::isRegularHours()) {
-        QSKIP("Test skipped because market is not open");
-    }
-
-    PlaceOrderRequest order;
-
-    QVERIFY(client->isCleanedUp());
-
-    // Populate the order
-    {
-        order.setAccountID(secondAccountId); // Use the saved second account ID
-        order.setOrderType(OrderType::Type::Market);
-        order.setQuantity(100);
-        order.setSymbol("AAPL");
-        order.setTradeAction(TradeAction::Buy);
-        order.setRoute("Intelligent");
-
-        // Set up time in force
-        TimeInForce timeInForce(OrderDuration::Day);
-        order.setTimeInForce(timeInForce);
-
-        // Set up advanced options
-        //AdvancedOptions advancedOptions;
-        //advancedOptions.setAllOrNone(true);
-        //order.setAdvancedOptions(advancedOptions);
-    }
-    
-    QVERIFY(order.isValid());
-
-    qDebug().noquote() << "Content of the request :\n" << order.toJsonString();
-
-    // Place the order
-    PlaceOrderResult result;
-    bool success = client->placeOrderSync(order, result);
-    
-    // Verify the order was placed successfully
-    QVERIFY(success);
-    
-    qDebug().noquote() << "Received result :\n" << result.toJsonString();
-
-
-    if (MarketHours::isRegularHours()) {
-        QVERIFY(result.isAllSuccessful());
-    } else {
-        QVERIFY(result.hasErrors());
-        QVERIFY(result.getErrors().first().getError().has_value());
-        QVERIFY(result.getErrors().first().getMessage() == "Order failed. Reason: No Day orders after 4:00PM Eastern");
-        QVERIFY(result.getErrors().first().getOrderID().isEmpty() == false);
-
-        qDebug() << "*** Market is closed this is expected ***";
-    }
-
-    QVERIFY(client->isCleanedUp());
-}
 
 void TestTSClient::testPlaceOrderAsync()
 {
@@ -394,7 +248,7 @@ void TestTSClient::testPlaceOrderAsync()
 
     qDebug().noquote() << "Content of the request :\n" << order.toJsonString();
 
-    QSignalSpy spy(client, &TSClient::placeOrderAsyncReceived);
+    QSignalSpy spy(client, &TSClient::receivedAsyncPlaceOrder);
 
     client->placeOrderAsync(order);
 
@@ -431,80 +285,6 @@ void TestTSClient::testPlaceOrderAsync()
     QVERIFY(client->isCleanedUp());
 }
 
-void TestTSClient::testCancelOrderSync()
-{
-    if (!MarketHours::isRegularHours()) {
-        QSKIP("Test skipped because market is not open");
-    }
-
-    QString symbol = "AAPL";
-    double lastAsk;
-
-    {
-        QVector<QuoteSnapshot> quoteResults;
-        bool success = client->getQuoteSnapshotsSync(symbol, quoteResults);
-        QVERIFY(success);
-
-        lastAsk = quoteResults.first().getAsk();
-    }
-
-    // Startin by placing a limit order way high so that we can rest assured
-    // it doesnt fill while we do out test
-    PlaceOrderRequest orderRequest;
-
-    QVERIFY(client->isCleanedUp());
-
-    // Populate the order
-    {
-        orderRequest.setAccountID(secondAccountId); // Use the saved second account ID
-        orderRequest.setOrderType(OrderType::Type::Limit);
-        orderRequest.setQuantity(100);
-        orderRequest.setSymbol("AAPL");
-        orderRequest.setTradeAction(TradeAction::Buy);
-        orderRequest.setRoute("Intelligent");
-        orderRequest.setLimitPrice(lastAsk / 2); // set ridiculous low price
-
-        // Set up time in force
-        TimeInForce timeInForce(OrderDuration::DayPlus);
-        orderRequest.setTimeInForce(timeInForce);
-
-        QVERIFY(orderRequest.isValid());
-        qDebug().noquote() << "Content of the request :\n" << orderRequest.toJsonString();
-    }
-
-    QString orderID;
-
-    // Place the order
-    {
-        PlaceOrderResult orderResult;
-        bool success = client->placeOrderSync(orderRequest, orderResult);
-        QVERIFY(success);
-
-        qDebug().noquote() << "Received result :\n" << orderResult.toJsonString();
-
-        QVERIFY(orderResult.isAllSuccessful());
-
-        QCOMPARE(orderResult.getOrders().size(), 1);
-
-        orderID = orderResult.getOrders().first().getOrderID();
-
-        QVERIFY(!orderID.isEmpty());
-    }
-
-    // Now spit on that thang
-    {
-        CancelOrderResult result;
-
-        client->cancelOrderSync(orderID, result);
-
-        QVERIFY(result.isError() == false);
-
-        qDebug() << "Cancel order message : " << result.getMessage();
-
-        QVERIFY(result.getOrderID() == orderID);
-    }
-}
-
 void TestTSClient::testCancelOrderAsync()
 {
     if (!MarketHours::isRegularHours()) {
@@ -514,10 +294,11 @@ void TestTSClient::testCancelOrderAsync()
     QString symbol = "AAPL";
     double lastAsk;
 
+    #warning fixme, replace the commented out sync versions and use the async ones with signal spies
     {
         QVector<QuoteSnapshot> quoteResults;
-        bool success = client->getQuoteSnapshotsSync(symbol, quoteResults);
-        QVERIFY(success);
+        //bool success = client->getQuoteSnapshotsSync(symbol, quoteResults);
+        //QVERIFY(success);
 
         lastAsk = quoteResults.first().getAsk();
     }
@@ -549,10 +330,11 @@ void TestTSClient::testCancelOrderAsync()
     QString orderID;
 
     // Place the order
+    #warning fixme, replace the commented out sync versions and use the async ones with signal spies
     {
         PlaceOrderResult orderResult;
-        bool success = client->placeOrderSync(orderRequest, orderResult);
-        QVERIFY(success);
+        //bool success = client->placeOrderSync(orderRequest, orderResult);
+        //QVERIFY(success);
 
         qDebug().noquote() << "Received result :\n" << orderResult.toJsonString();
 
@@ -567,7 +349,7 @@ void TestTSClient::testCancelOrderAsync()
 
     // Now spit on that thang
     {
-        QSignalSpy spy(client, &TSClient::cancelOrderAsyncReceived);
+        QSignalSpy spy(client, &TSClient::receivedAsyncCancelOrder);
 
         client->cancelOrderAsync(orderID);
 
@@ -624,50 +406,6 @@ void TestTSClient::testFetchingMoreThanMaximumPerMinute()
 }
 
 
-void TestTSClient::testGetBarsSync()
-{
-
-    // Define 4:00 PM (16:00)
-    const QTime fourPM(16, 0, 0);
-    // Define 4:04 PM (16:04)
-    const QTime fourPM4(16, 4, 0);
-
-    QString symbol = "AAPL";
-    unsigned int interval = 1;
-    Bar::BarUnit unit = Bar::BarUnit::Minute;
-    unsigned int barsback = 0;
-    Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::USEQPost;
-    QDateTime firstDate;
-    QDateTime lastDate;
-
-    {
-        QDateTime now = QDateTime::currentDateTime();
-
-        // Get the date for the previous day
-        QDate previousDay = now.date().addDays(-1);
-
-        while(previousDay.dayOfWeek() > 4) previousDay = previousDay.addDays(-1);
-
-        // Create a QDateTime for previous day at 4:00 PM in New York time zone
-        QTimeZone newYorkTimeZone("America/New_York");
-
-        firstDate = QDateTime(previousDay, fourPM, newYorkTimeZone);
-        lastDate = QDateTime(previousDay, fourPM4, newYorkTimeZone);
-    }
-
-    // Verify initial state
-    QVERIFY(client->isCleanedUp());
-    QVERIFY(client->isAuthenticated());
-    QVERIFY(!client->isAuthInProgress());
-
-    QVector<Bar> results;
-
-    bool success = client->getBarsSync(results, symbol, interval, unit, barsback, sessionTemplate, firstDate, lastDate);
-    QVERIFY(success == true);
-
-    QCOMPARE(results.size(), 4);
-}
-
 void TestTSClient::testGetBarsAsync()
 {
     // Define 4:00 PM (16:00)
@@ -704,7 +442,7 @@ void TestTSClient::testGetBarsAsync()
     QVERIFY(!client->isAuthInProgress());
 
     // Intercept the bars received signal
-    QSignalSpy getBarsAsyncSpy(client, &TSClient::getBarsAsyncReceived); // Create signal spies to monitor authentication signals
+    QSignalSpy getBarsAsyncSpy(client, &TSClient::receivedAsyncGetBars);
 
     client->getBarsAsync(symbol, interval, unit, barsback, sessionTemplate, firstDate, lastDate);
 
@@ -893,10 +631,11 @@ void TestTSClient::testStreamOrders()
 
     double lastAsk;
 
+    #warning fixme, replace the commented out sync versions and use the async ones with signal spies
     {
         QVector<QuoteSnapshot> quoteResults;
-        bool success = client->getQuoteSnapshotsSync(symbol, quoteResults);
-        QVERIFY(success);
+        //bool success = client->getQuoteSnapshotsSync(symbol, quoteResults);
+        //QVERIFY(success);
 
         lastAsk = quoteResults.first().getAsk();
     }
@@ -927,10 +666,11 @@ void TestTSClient::testStreamOrders()
     QString orderID;
 
     // Place the order
+    #warning fixme, replace the commented out sync versions and use the async ones with signal spies
     {
         PlaceOrderResult orderResult;
-        bool success = client->placeOrderSync(orderRequest, orderResult);
-        QVERIFY(success);
+        //bool success = client->placeOrderSync(orderRequest, orderResult);
+        //QVERIFY(success);
 
         qDebug().noquote() << "Received result :\n" << orderResult.toJsonString();
 

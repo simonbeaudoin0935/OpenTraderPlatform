@@ -246,6 +246,7 @@ void TSClient::onAsyncRefreshTokenFinished(bool completed, const AuthToken &newT
 
 void TSClient::refreshAsyncAccessToken()
 {
+    Q_ASSERT_X(asyncTokenRefreshRequestId == 0, Q_FUNC_INFO, "A refresh token request is already ongoing");
     Q_ASSERT_X(authInProgress == false, Q_FUNC_INFO, "A refresh token is already in progress");
 
     authInProgress = true;
@@ -270,10 +271,12 @@ void TSClient::refreshAsyncAccessToken()
                                           authToken.getRefreshToken());
 
         // Make the POST request
-        fetchAsync(request,
-                   static_cast<RequestTypeInt>(RequestType::GetRefreshAccessToken),
-                   HttpMethod::POST,
-                   postData);
+        asyncTokenRefreshRequestId = fetchAsync(request,
+                                                static_cast<RequestTypeInt>(RequestType::GetRefreshAccessToken),
+                                                HttpMethod::POST,
+                                                postData);
+
+        Q_ASSERT(asyncTokenRefreshRequestId > 0);
     }
 }
 
@@ -406,4 +409,100 @@ void TSClient::closeStream(Stream* const stream) {
     Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread finishes executing this lambda
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Closed Stream " << static_cast<void*>(stream);
+}
+
+
+
+
+
+
+
+
+
+
+int TSClient::getAccountsAsync()
+{
+    QNetworkRequest request = buildRequest(ENDPOINT_GET_ACCOUNTS);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching accounts async";
+
+    return fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetAccounts));
+}
+
+int TSClient::getBalancesAsync(const QString accounts) {
+    QNetworkRequest request = buildRequest(QString(ENDPOINT_GET_BALANCES).arg(accounts));
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching Balances";
+
+    fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetBalances));
+}
+
+int TSClient::getBarsAsync(const QString &symbol,
+                           unsigned int interval,
+                           Bar::BarUnit unit,
+                           unsigned int barsback,
+                           Bar::BarSessionTemplate sessionTemplate,
+                           QDateTime firstDate,
+                           QDateTime lastDate)
+{
+    // Interval that each bar will consist of - for minute bars, the number of minutes aggregated in a single bar. For bar units other than minute, value must be 1.
+    if (unit == Bar::BarUnit::Minute) {Q_ASSERT(interval >= 1);}
+    else { Q_ASSERT(interval == 1);}
+    Q_ASSERT(barsback <= 57600);
+
+    if (barsback > 0) Q_ASSERT(firstDate == QDateTime());
+
+    QUrlQuery query = Bar::buildUrlQuery(interval, unit, barsback, sessionTemplate, firstDate, lastDate);
+
+
+    Q_ASSERT(!symbol.isEmpty());
+
+    QNetworkRequest request = buildRequest(QString(ENDPOINT_GET_BARS).arg(symbol), query);
+
+    void* arg = static_cast<void*> (new QString(symbol));
+    Q_CHECK_PTR(arg);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching Bars for symbols : " << symbol;
+
+    return fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetBars), HttpMethod::GET, QByteArray(), arg);
+}
+
+
+int TSClient::getQuoteSnapshotsAsync(QString &symbols)
+{
+    Q_ASSERT(!symbols.isEmpty());
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching quotes for symbols : " << symbols;
+
+    QNetworkRequest request = buildRequest(QString(ENDPOINT_GET_QUOTE_SNAPSHOTS).arg(symbols));
+    return fetchAsync(request, static_cast<RequestTypeInt>(RequestType::GetQuoteSnapshots));
+}
+
+int TSClient::placeOrderAsync(const PlaceOrderRequest &order) {
+    Q_ASSERT(order.isValid());
+
+    QNetworkRequest request = buildRequest(ENDPOINT_PLACE_ORDER);
+
+    QByteArray postData = QJsonDocument(order.toJson()).toJson(QJsonDocument::Compact);
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Placing order async";
+
+    return fetchAsync(request,
+                      static_cast<RequestTypeInt>(RequestType::PlaceOrder),
+                      HttpMethod::POST,
+                      postData);
+}
+
+int TSClient::cancelOrderAsync(const QString &orderID)
+{
+    Q_ASSERT(!orderID.isEmpty());
+    Q_ASSERT(QRegularExpression("^[0-9]+$").match(orderID).hasMatch());
+
+    QNetworkRequest request = buildRequest(QString(ENDPOINT_CANCEL_ORDER).arg(orderID));
+
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Cancel order async";
+
+    return fetchAsync(request,
+                      static_cast<RequestTypeInt>(RequestType::CancelOrder),
+                      HttpMethod::DELETE);
 }

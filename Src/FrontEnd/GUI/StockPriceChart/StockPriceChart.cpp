@@ -98,7 +98,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     axisX->setTickCount(7);  // Default tick count
     axisX->setLabelFormat("%d");
     axisX->setTickType(QValueAxis::TicksDynamic);
-    axisX->setTickAnchor(0);  // <----------------- I think this is wrong for the panning to work properly
+    axisX->setTickAnchor(0);
     axisX->setTickInterval(1);
 
     chart->addAxis(axisX, Qt::AlignBottom);
@@ -1352,6 +1352,9 @@ void StockPriceChart::updateAxisLabels() {
 
         if (rangeRatio <= 2){
 
+        }
+        else if (rangeRatio <= 5){
+            a = 6;
         }
         else if (rangeRatio <= 10){
             a = 3;

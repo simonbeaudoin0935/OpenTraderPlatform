@@ -102,17 +102,34 @@ void MainAlgo::onThreadStarted()
 
 void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
 {
-    if (isAuthenticated) {
-        // TODO handle if the request times out. if happened to me when the token was not expired and went ahead to get accounts but the connection
-        // was bad and the request times out after 5s. Not checking the return value is a problem because we continue otherwise and hit assert when
-        // referencing accounts[1] later on.
+    static bool havePastSuccessfulExchanges = false;
 
-        TSClient::getInstance().getAccountsSync(accounts);
+    if (!isAuthenticated && !havePastSuccessfulExchanges) {
+        qCritical(MainAlgoLog) << "Tradestation failed to authenticate. Reason : " << reason;
+        qCritical(MainAlgoLog) << "Cannot proceed without authentication. Retrying";
 
-
-    } else {
+        // TODO relaunch a auth attempt
+        return;
+    } else if (!isAuthenticated && havePastSuccessfulExchanges) {
         qCCritical(MainAlgoLog) << "Tradestation lost authentication. Reason : " << reason;
-        return; //
+        return;
+    }
+
+    qCDebug(MainAlgoLog) << "Tradestation authenticated successfully : " << reason;
+
+    // TODO handle if the request times out. if happened to me when the token was not expired and went ahead to get accounts but the connection
+    // was bad and the request times out after 5s. Not checking the return value is a problem because we continue otherwise and hit assert when
+    // referencing accounts[1] later on.
+
+    bool success = TSClient::getInstance().getAccountsSync(accounts);
+
+    if (success) {
+        havePastSuccessfulExchanges = true;
+    } else {
+        qCritical(MainAlgoLog) << "Failed to get accounts after authentication. Cannot proceed.";
+
+        // TODO retry logic
+        return;
     }
 
     // Only initialize position stream once
@@ -134,6 +151,20 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
 
     positionReceiver.startStream(accountNumber);
     positionStreamStarted = true;
+}
+
+void MainAlgo::onGetAccountsAsyncReceived(QVector<Account> results);
+
+
+void MainAlgo::getAccountsAsync()
+{
+    TSClient::getInstance().getAccountsAsync([this](bool success, const QVector<Account>& accounts){
+        if (success) {
+            this->accounts = accounts;
+        } else {
+            qCritical(MainAlgoLog) << "Failed to get accounts asynchronously.";
+        }
+    });
 }
 
 

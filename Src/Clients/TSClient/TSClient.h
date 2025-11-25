@@ -63,9 +63,12 @@ public:
      * Get Quote Snapshots
      *
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/GetQuoteSnapshots
+     * 
+     * @return :
+     *  > 0 : The request ID of the async request
+     *  = 0 : Failed to start the async request
      */
-    [[nodiscard]] bool getQuoteSnapshotsSync(QString &symbols, QVector<QuoteSnapshot> &quoteSnapshots);
-    void getQuoteSnapshotsAsync(QString &symbols);
+    [[nodiscard]] int getQuoteSnapshotsAsync(QString &symbols);
 
     /*
      * Creates a Bars Stream
@@ -83,16 +86,15 @@ public:
                                bool mock = false);
     void closeStreamBars(StreamBars* stream);
 
-    [[nodiscard]] bool getBarsSync(QVector<Bar> &results,
-                     const QString &symbol,
-                     unsigned int interval = 1,
-                     Bar::BarUnit unit = Bar::BarUnit::Daily,
-                     unsigned int barsback = 1,
-                     Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default,
-                     QDateTime firstDate = QDateTime(),
-                     QDateTime lastDate = QDateTime());
 
-    void getBarsAsync(const QString &symbol,
+    /*
+     * Get Bars asynchronously
+     *
+     * @return :
+     *  > 0 : The request ID of the async request
+     *  = 0 : Failed to start the async request
+     */
+    [[nodiscard]] int getBarsAsync(const QString &symbol,
                       unsigned int interval = 1,
                       Bar::BarUnit unit = Bar::BarUnit::Daily,
                       unsigned int barsback = 1,
@@ -119,17 +121,23 @@ public:
      * Get Accounts
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
+     * 
+     * @return :
+     *  > 0 : The request ID of the async request
+     *  = 0 : Failed to start the async request
      */
-    [[nodiscard]] bool getAccountsSync(QVector<Account> &results);
-    void getAccountsAsync();
+    [[nodiscard]] int getAccountsAsync();
 
     /*
      * Get Balances
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetBalances
+     * 
+     * @return :
+     *  > 0 : The request ID of the async request
+     *  = 0 : Failed to start the async request
      */
-    [[nodiscard]] bool getBalancesSync(const QString accounts, QVector<Balance> &results);
-    void getBalancesAsync(const QString accounts);
+    [[nodiscard]] int getBalancesAsync(const QString accounts);
 
     /*
      * Creates a StreaOrders Stream
@@ -159,17 +167,23 @@ public:
      * Place order
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/PlaceOrder
+     * 
+     * @return :
+     *   > 0 : The request ID of the async request
+     *   = 0 : Failed to start the async request
      */
-    [[nodiscard]] bool placeOrderSync(const PlaceOrderRequest &order, PlaceOrderResult &result);
-    void placeOrderAsync(const PlaceOrderRequest &order);
+    [[nodiscard]] int placeOrderAsync(const PlaceOrderRequest &order);
 
     /*
      * Cancel order
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/CancelOrder
+     * 
+     * @return :
+     *   > 0 : The request ID of the async request
+     *   = 0 : Failed to start the async request
      */
-    [[nodiscard]] bool cancelOrderSync(const QString &orderID, CancelOrderResult &result);
-    void cancelOrderAsync(const QString &orderID);
+    [[nodiscard]] int cancelOrderAsync(const QString &orderID);
 
 public slots:
     #ifdef GUI_ENABLED
@@ -179,14 +193,19 @@ public slots:
 
 signals:
     void authStateChanged(bool isAuthenticated, QString reason);
-    void getAccountsAsyncReceived(QVector<Account> results);
-    void getBalancesAsyncReceived(QVector<Balance> results);
-    void getQuoteSnapshotsAsyncReceived(QVector<QuoteSnapshot> quoteSnapshots);
-    void placeOrderAsyncReceived(PlaceOrderResult result);
-    void cancelOrderAsyncReceived(CancelOrderResult result);
-    void getBarsAsyncReceived(QString symbol, QVector<Bar> bars);
     void streamCountChanged(int count);
 
+    // Signals from API requests
+    // request id > 0 : normal response
+    // request id == 0 : timeout
+    // request id < 0 : failed
+    void receivedAsyncGetAccounts      (int request_id, QVector<Account> results);
+    void receivedAsyncGetBalances      (int request_id, QVector<Balance> results);
+    void receivedAsyncGetQuoteSnapshots(int request_id, QVector<QuoteSnapshot> quoteSnapshots);
+    void receivedAsyncPlaceOrder       (int request_id, PlaceOrderResult result);
+    void receivedAsyncCancelOrder      (int request_id, CancelOrderResult result);
+    void receivedAsyncGetBars          (int request_id, QString symbol, QVector<Bar> bars);
+    
 private slots:
     #ifdef GUI_ENABLED
     void onAuthFinished(bool success, AuthToken token, QString reason);
@@ -195,6 +214,16 @@ private slots:
     void onAsyncRefreshTokenFinished(bool completed, const AuthToken &newToken);
 
 private:
+
+    int asyncTokenRefreshRequestId = 0;
+    
+    QMap<size_t, void*> AsyncGetAccountsRequests;
+    QMap<size_t, void*> AsyncGetBalancesRequests;
+    QMap<size_t, void*> AsyncGetQuoteSnapshotsRequests;
+    QMap<size_t, void*> AsyncPlaceOrderRequests;
+    QMap<size_t, void*> AsyncCancelOrderRequests;
+    QMap<size_t, QString> AsyncGetBarsRequests;
+
     // Singleton : private constructor
     explicit TSClient();
     ~TSClient();
@@ -237,9 +266,6 @@ private:
     AuthWindow* authWindow = nullptr;  // Authentication window
 #endif
     QVector<Stream*> streams;
-
-    // API key placement configuration
-    static constexpr ApiKeyPlacement API_KEY_PLACEMENT = ApiKeyPlacement::InHeader;
 
     bool activateMockStream = false;
 

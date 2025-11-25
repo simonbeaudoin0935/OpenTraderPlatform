@@ -1,8 +1,5 @@
 #pragma once
 
-#include <QReadWriteLock>
-#include <QSemaphore>
-#include <QHash>
 #include <QUrlQuery>
 #include <QUrl>
 #include <QNetworkRequest>
@@ -12,13 +9,6 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
-#ifdef UNIT_TESTING
-#define TRACK_NEW_JSON_ARRAY(x) x; allocated_json_arrays++;
-#define TRACK_DELETED_JSON_ARRAY(x) x; allocated_json_arrays--;
-#else
-#define TRACK_NEW_JSON_ARRAY(x) x;
-#define TRACK_DELETED_JSON_ARRAY(x) x;
-#endif
 
 // Define the logging category
 Q_DECLARE_LOGGING_CATEGORY(RESTClientLog)
@@ -52,20 +42,15 @@ protected:
     // Must be called before the first getInstance() call otherwise an assert is triggered in the constructor
     void setAPIKey(const QString &apiKey);
 
-    enum class RequestSynchronicity { Async, Sync, Stream };
+    enum class RequestType { Async, Stream };
     typedef int RequestTypeInt; // TODO explain why
     const int RequestTypeNone = 0;
     struct RequestInfo {
-        RequestSynchronicity synchronicity;
+        RequestType async_type;
         RequestTypeInt type;
         bool completed = false;
         QJsonDocument *jsonDocument = nullptr;
         void* optArg = nullptr;
-    };
-
-    enum class ApiKeyPlacement {
-        InUrl,      // API key is sent as a URL parameter
-        InHeader    // API key is sent in the Authorization header
     };
 
     enum class HttpMethod {
@@ -81,12 +66,10 @@ protected:
                                                     const QString &refreshToken);
 
     // Overloaded function to build network requests
-    QNetworkRequest buildRequest(ApiKeyPlacement placement, const QString &endpoint, const QString &symbol = "") const;
-    QNetworkRequest buildRequest(ApiKeyPlacement placement, const QString &endpoint, const QUrlQuery &query) const;
+    QNetworkRequest buildRequest(const QString &endpoint, const QString &symbol = "") const;
+    QNetworkRequest buildRequest(const QString &endpoint, const QUrlQuery &query) const;
 
-
-    bool fetchSync(const QNetworkRequest &request, QJsonDocument *&jsonDocumentFromReplyToDelete, HttpMethod method = HttpMethod::GET, const QByteArray &postData = QByteArray());
-    void fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method = HttpMethod::GET, const QByteArray &postData =  QByteArray(), void* optArg = nullptr);
+    [[nodiscard]] int fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method = HttpMethod::GET, const QByteArray &postData =  QByteArray(), void* optArg = nullptr);
 
     QNetworkReply *fetchStream(const QNetworkRequest &request, void *arg);
     void closeStream(void *arg);
@@ -97,26 +80,12 @@ protected:
     QString apiKey;
     QThread *thread;
     QNetworkAccessManager *manager;
-    mutable QReadWriteLock pendingRequestsRWLock;
     QMap<QNetworkReply*, RequestInfo> pendingRequests;
 
-#ifdef UNIT_TESTING
-    int allocated_json_arrays = 0;
-#endif
 
 private:
-    friend class TestFMPClient;
     friend class TestTSClient;
     friend class TestBarCache;
 
     const QUrl baseUrl;
-    QLoggingCategory *loggingCategory;
-
-#ifdef UNIT_TESTING
-    bool simulate_reply_network_latency = false;
-    QSemaphore onReplyFinished_sem;
-    unsigned long fetchSyncTimeoutMs = 5000;
-#else
-    const unsigned long fetchSyncTimeoutMs = 5000; // Const under normal operation
-#endif
 };

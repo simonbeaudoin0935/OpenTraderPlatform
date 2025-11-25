@@ -45,6 +45,7 @@ signals:
 
 public slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
+    void onGetAccountsAsyncReceived(QVector<Account> results);
     void onSelectDisplayedStock(QString symbol);
     void onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime last);
 
