@@ -216,7 +216,7 @@ private slots:
 private:
 
     int asyncTokenRefreshRequestId = 0;
-    
+
     QMap<size_t, void*> AsyncGetAccountsRequests;
     QMap<size_t, void*> AsyncGetBalancesRequests;
     QMap<size_t, void*> AsyncGetQuoteSnapshotsRequests;
@@ -235,9 +235,7 @@ private:
                                              const QString &clientSecret,
                                              const QString &refreshToken);
                                            
-    // Sync version of refresh token purposly does not exist because it causes a deadlock when its this
-    // thread that calls it on itself
-    void refreshAsyncAccessToken();
+    [[nodiscard]] int refreshAsyncAccessToken();
 
     enum class RequestType {
         None,

@@ -49,7 +49,6 @@ protected:
         RequestType async_type;
         RequestTypeInt type;
         bool completed = false;
-        QJsonDocument *jsonDocument = nullptr;
         void* optArg = nullptr;
     };
 

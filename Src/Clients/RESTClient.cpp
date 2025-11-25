@@ -95,7 +95,6 @@ int RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type, 
         pendingRequests[reply] = { .async_type = RequestType::Async,
                                    .type = type,
                                    .completed = false,
-                                   .jsonDocument = nullptr,
                                    .optArg = optArg};
     }, Qt::QueuedConnection);
 
@@ -133,7 +132,6 @@ QNetworkReply* RESTClient::fetchStream(const QNetworkRequest &request, void* arg
     pendingRequests[reply] = { .async_type = RequestType::Stream,
                                .type = 0,
                                .completed = false,
-                               .jsonDocument = nullptr,
                                .optArg = arg};
 
     return reply;
@@ -199,10 +197,9 @@ void RESTClient::closeStream(void *arg)
 
 void RESTClient::onReplyFinished(QNetworkReply *reply) {
     QJsonDocument doc;
-    RequestInfo *requestInfo;
     QJsonParseError parseError;
 
-    Q_ASSERT(QThread::currentThread() == thread); // Paranoia
+    Q_ASSERT(QThread::currentThread() == this->thread); // Paranoia
 
     QByteArray rawData = reply->readAll();
     qsizetype bytesReceived = rawData.size();
@@ -216,14 +213,13 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
     Q_ASSERT_X(pendingRequests.contains(reply), Q_FUNC_INFO, "The reply must be present in the pendingRequests map");
 
     // copying the struct so we can use it outside the RW lock
-    requestInfo = &pendingRequests[reply];
+    RequestInfo *requestInfo = &pendingRequests[reply];
 
     qCDebug(RESTClientLog) << Q_FUNC_INFO <<
         " : Thread [" << QThread::currentThread()->objectName() <<
         "] working on reply of request " << static_cast<void*>(reply);
 
     // Those are the default values, just being paranoid that we are consistent and nothing else corrupted those before us
-    Q_ASSERT(requestInfo->jsonDocument == nullptr);
     Q_ASSERT(requestInfo->completed == false);
 
     doc = QJsonDocument::fromJson(rawData, &parseError);
@@ -271,19 +267,15 @@ notify:
     if (requestInfo->async_type == RequestType::Async) {
         // The request might have failed, this info is passed along
         emitSignalDemuxer(requestInfo->type, doc, requestInfo->completed, requestInfo->optArg);
-
-        // Whether the request was successful or not, take it out of the map
-        bool removed = pendingRequests.remove(reply);
-        Q_ASSERT(removed);
-
     } else if (requestInfo->async_type == RequestType::Stream) {
-        qCDebug(RESTClientLog) << Q_FUNC_INFO << "Removing network reply " << static_cast<void*>(reply) << " for stream " << requestInfo->optArg;
-
-        bool removed = pendingRequests.remove(reply);
-        Q_ASSERT(removed);
+        qCCritical(RESTClientLog) << Q_FUNC_INFO << "Removing network reply " << static_cast<void*>(reply) << " for stream " << requestInfo->optArg;
     } else {
         Q_UNREACHABLE();
     }
+
+    // Whether the request was successful or not, take it out of the map
+    bool removed = pendingRequests.remove(reply);
+    Q_ASSERT(removed);
 
     reply->deleteLater();
 }
@@ -312,7 +304,6 @@ bool RESTClient::isCleanedUp()
                 qDebug() << "  Syncronicity : " << ((request.async_type == RequestType::Async) ? "ASYNC" : "SYNC");
                 qDebug() << "  RequestType  : " << request.type;
                 qDebug() << "  Completed    : " << ((request.completed) ? "TRUE" : "FALSE");
-                qDebug() << "  Docptr       : " << static_cast<void*>(request.jsonDocument);
             }
         }
     }

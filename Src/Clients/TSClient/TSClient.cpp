@@ -244,7 +244,7 @@ void TSClient::onAsyncRefreshTokenFinished(bool completed, const AuthToken &newT
     });
 }
 
-void TSClient::refreshAsyncAccessToken()
+int TSClient::refreshAsyncAccessToken()
 {
     Q_ASSERT_X(asyncTokenRefreshRequestId == 0, Q_FUNC_INFO, "A refresh token request is already ongoing");
     Q_ASSERT_X(authInProgress == false, Q_FUNC_INFO, "A refresh token is already in progress");
@@ -278,6 +278,8 @@ void TSClient::refreshAsyncAccessToken()
 
         Q_ASSERT(asyncTokenRefreshRequestId > 0);
     }
+
+    return asyncTokenRefreshRequestId;
 }
 
 
