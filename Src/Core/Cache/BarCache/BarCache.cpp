@@ -343,7 +343,7 @@ const QVector<Bar> BarCache::getBarsInRange(const QDateTime &first, const QDateT
     for (const auto& range : identifyMissingRanges(first, last, cachedBars)) {
         Q_ASSERT(range.first.timeZone() == QTimeZone("America/New_York"));
         Q_ASSERT(range.second.timeZone() == QTimeZone("America/New_York"));
-        Q_ASSERT(range.first < range.second);
+        Q_ASSERT(range.first <= range.second); // Could be equal if asking just one bar
 
         qCDebug(BarCacheLog) << cacheName << "Will fetch from Database for range" << range.first << "to" << range.second;
 

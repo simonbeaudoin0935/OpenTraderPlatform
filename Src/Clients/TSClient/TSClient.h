@@ -225,7 +225,7 @@ private:
 
     void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, size_t requestID, RequestStatus status, void* optArg = nullptr) override;
 
-
+    #warning FIX THIS SHIT
     template<typename T, typename... Args>
     T* openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Args&&... args) {
         Q_ASSERT(!symbol.isEmpty());
@@ -295,13 +295,6 @@ private:
     bool m_authInProgress = false;  // Track if authentication process is in progress
 
     size_t m_asyncTokenRefreshRequestId = 0; // Store the request ID of the ongoing token refresh request
-
-    QMap<size_t, void*> AsyncGetAccountsRequests;
-    QMap<size_t, void*> AsyncGetBalancesRequests;
-    QMap<size_t, void*> AsyncGetQuoteSnapshotsRequests;
-    QMap<size_t, void*> AsyncPlaceOrderRequests;
-    QMap<size_t, void*> AsyncCancelOrderRequests;
-    QMap<size_t, QString> AsyncGetBarsRequests;
 
 #ifdef GUI_ENABLED
     AuthWindow* m_authWindow = nullptr;  // Authentication window

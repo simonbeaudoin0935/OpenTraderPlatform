@@ -196,7 +196,7 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
     Q_ASSERT(QThread::currentThread() == m_thread); // Paranoia
     Q_ASSERT_X(m_pendingRequests.contains(reply), Q_FUNC_INFO, "The reply must be present in the pendingRequests map");
 
-    qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Thread [" << QThread::currentThread()->objectName() << "] working on reply of request " << static_cast<void*>(reply);
+    qCDebug(RESTClientLog) << Q_FUNC_INFO << " reply of request " << static_cast<void*>(reply);
 
     QByteArray rawData = reply->readAll();
 
@@ -211,25 +211,25 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
     }
     
 
-    // copying the struct so we can use it outside the RW lock
-    RequestInfo *requestInfo = &m_pendingRequests[reply];
+    RequestInfo * const requestInfo = &m_pendingRequests[reply];
 
-    // Those are the default values, just being paranoid that we are consistent and nothing else corrupted those before us
-    //Q_ASSERT(requestInfo->completed == false);
-
-    doc = QJsonDocument::fromJson(rawData, &parseError);
+    requestInfo->status = RequestStatus::ERROR;
 
     if (reply->error() != QNetworkReply::NoError) {
         qCCritical(RESTClientLog) << Q_FUNC_INFO << " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString() << " : " << reply->error();
-        qCCritical(RESTClientLog).noquote() << Q_FUNC_INFO << " : Content of the reply : \n" << doc.toJson(QJsonDocument::Indented);
 
-        if (reply->error() == QNetworkReply::ContentNotFoundError) {
+        #warning deal with number 3
+        if (reply->error() == QNetworkReply::ContentNotFoundError && requestInfo->type == 3) {
+            // IMPORTANT EDGE CASE
             // Its possible in the case of getBars for example to receive this, as its possible to ask for a range of bars
             // in the after market for instance where there just isnt any bars
-        } else {
-            goto notify;
+            requestInfo->status = RequestStatus::SUCCESS;
         }
+
+        goto notify;
     }
+
+    doc = QJsonDocument::fromJson(rawData, &parseError);
 
     if (parseError.error != QJsonParseError::NoError) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO << "Failed to parse JSON:" << parseError.errorString();
@@ -254,7 +254,7 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 
 
     // At this point, the reply is legit
-    //requestInfo->completed = true;
+    requestInfo->status = RequestStatus::SUCCESS;
 
 notify:
     if (requestInfo->isStream) {
