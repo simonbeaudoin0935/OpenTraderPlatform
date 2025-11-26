@@ -8,8 +8,26 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Enable export of compile commands for IDE support
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Find Qt6 packages
-find_package(Qt6 REQUIRED COMPONENTS Core Network Sql Widgets Charts WebEngineWidgets Test)
+# Option to enable/disable GUI
+option(ENABLE_GUI "Enable GUI support" ON)
+
+if(ENABLE_GUI)
+    # Find Qt6 GUI packages
+    find_package(Qt6 REQUIRED COMPONENTS Widgets Charts WebEngineWidgets)
+    add_compile_definitions(GUI_ENABLED)
+else()
+    # When building for TUI, we depend oon ncurses
+    find_packages(Curses REQUIRED)
+endif()
+
+# Option to build tests
+option(BUILD_TESTS "Build tests" ON)
+
+# Option to build recorder
+option(BUILD_RECORDER "Build recorder application" ON)
+
+# Find Qt6 coore packages
+find_package(Qt6 REQUIRED COMPONENTS Core Network Sql Test)
 
 # Configure ccache for faster rebuilds
 find_program(CCACHE_PROGRAM ccache)
@@ -82,19 +100,6 @@ add_compile_definitions(
 if(UNIX AND NOT APPLE)
     add_link_options(-rdynamic)
 endif()
-
-# Option to enable/disable GUI
-option(ENABLE_GUI "Enable GUI support" ON)
-
-if(ENABLE_GUI)
-    add_compile_definitions(GUI_ENABLED)
-endif()
-
-# Option to build tests
-option(BUILD_TESTS "Build tests" ON)
-
-# Option to build recorder
-option(BUILD_RECORDER "Build recorder application" ON)
 
 # Add subdirectories
 add_subdirectory(Src)
