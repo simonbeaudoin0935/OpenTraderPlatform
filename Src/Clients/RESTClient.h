@@ -44,7 +44,9 @@ protected slots:
     void onReceivedNewAmountOfData(qsizetype bytes);
 
 private slots:
-    void onReplyFinished(QNetworkReply *reply);
+    void onReplyReadyRead();
+    void onReplyFinished();
+    void onReplyErrorOccurred(QNetworkReply::NetworkError code, QNetworkReply *reply);
 
 protected:
 

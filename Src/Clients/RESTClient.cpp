@@ -19,7 +19,24 @@ RESTClient::RESTClient()
 {
     this->moveToThread(m_thread);
 
-    connect(m_networkManager, &QNetworkAccessManager::finished, this, &RESTClient::onReplyFinished);
+    /*
+    connect(m_networkManager, &QNetworkAccessManager::authenticationRequired, this, [](QNetworkReply *reply, QAuthenticator *authenticator) {
+        qCCritical(RESTClientLog) << " Network Manager authentication required for reply : " << static_cast<void*>(reply);
+        Q_ASSERT(false);
+    });
+
+    connect(m_networkManager, &QNetworkAccessManager::sslErrors, this, [](QNetworkReply *reply, const QList<QSslError> &errors) {
+        qCCritical(RESTClientLog) << " Network Manager finished reply : " << static_cast<void*>(reply);
+        for (const QSslError &error : errors) {
+            qCCritical(RESTClientLog) << " SSL Error: " << error.errorString(); 
+        }
+        Q_ASSERT(false);
+    });
+    */
+
+    connect(m_networkManager, &QNetworkAccessManager::finished, this, [](QNetworkReply *reply) {
+        qCDebug(RESTClientLog) << " Network Manager finished reply : " << static_cast<void*>(reply);
+    });
 }
 
 
@@ -189,18 +206,49 @@ void RESTClient::closeStream(void *arg)
     }
 }
 
-void RESTClient::onReplyFinished(QNetworkReply *reply)
+void RESTClient::onReplyReadyRead()
 {
-    QJsonDocument doc;
+    Q_ASSERT(QThread::currentThread() == m_thread); // Paranoia
+
+    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
+    Q_CHECK_PTR(reply);
+
+    Q_ASSERT_X(m_pendingRequests.contains(reply), Q_FUNC_INFO, "The reply must be present in the pendingRequests map");
+
+    RequestInfo * const requestInfo = &m_pendingRequests[reply];
+
+    Q_ASSERT(requestInfo->isStream == true);
+
+
+    QByteArray rawData = reply->readAll();
+    {
+        qsizetype bytesReceived = rawData.size();
+
+        m_totalDataReceivedBytes += bytesReceived;
+
+        emit totalDataReceivedBytesIncreased(m_totalDataReceivedBytes);
+
+        qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << m_totalDataReceivedBytes << " bytes";
+    }
+
+    #error i was here. 
+}
+
+void RESTClient::onReplyFinished()
+{
     QJsonParseError parseError;
+    QJsonDocument doc;
 
     Q_ASSERT(QThread::currentThread() == m_thread); // Paranoia
+
+    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
+    Q_CHECK_PTR(reply);
+
     Q_ASSERT_X(m_pendingRequests.contains(reply), Q_FUNC_INFO, "The reply must be present in the pendingRequests map");
 
     qCDebug(RESTClientLog) << Q_FUNC_INFO << " reply of request " << static_cast<void*>(reply);
 
     QByteArray rawData = reply->readAll();
-
     {
         qsizetype bytesReceived = rawData.size();
 
@@ -213,6 +261,9 @@ void RESTClient::onReplyFinished(QNetworkReply *reply)
     
 
     RequestInfo * const requestInfo = &m_pendingRequests[reply];
+
+    #warning fuck this
+    Q_ASSERT(requestInfo->isStream == false);
 
     requestInfo->status = RequestStatus::ERROR;
 
@@ -249,7 +300,6 @@ void RESTClient::onReplyFinished(QNetworkReply *reply)
             goto notify;
             break;
     };
-
 
     doc = QJsonDocument::fromJson(rawData, &parseError);
 
@@ -290,6 +340,15 @@ notify:
 
     reply->deleteLater();
 }
+
+void RESTClient::onReplyErrorOccurred(QNetworkReply::NetworkError code, QNetworkReply *reply)
+{
+    Q_ASSERT(QThread::currentThread() == m_thread); // Paranoia
+
+    qCWarning(RESTClientLog) << Q_FUNC_INFO <<
+        "The reply " << static_cast<void*>(reply) << " received the error : " << code << " : " << reply->errorString();
+}
+
 
 void RESTClient::onReceivedNewAmountOfData(qsizetype bytes)
 {

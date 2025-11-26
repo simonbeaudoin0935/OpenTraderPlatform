@@ -149,24 +149,24 @@ void Stream::onErrorOccurred(QNetworkReply::NetworkError code) {
 
     streamIsInError = true;
 
-    qCWarning(StreamLog) << Q_FUNC_INFO <<
-        "The stream " << static_cast<void*>(this) << " received the error : " << code << " : " << reply->errorString();
+    qCWarning(StreamLog) << Q_FUNC_INFO << "The stream " << static_cast<void*>(this) << " received the error : " << code << " : " << reply->errorString();
+
+
+    switch(code)
+    {
+        case QNetworkReply::RemoteHostClosedError:
+            qCCritical(StreamLog) << "Remote host closed the connection unexpectedly.";
+            break;
+    };
 }
 
 void Stream::onHeartbeatTimerTimeout()
 {
     streamIsInError = true;
 
-    QString streamName;
+    const QString streamName = this->objectName();
 
-    if (this->objectName().isEmpty()) {
-        streamName = QString::asprintf("Name not set, ptr = %p", this);
-    } else {
-        streamName = this->objectName();
-    }
-
-    qCCritical(StreamLog) << "The stream <" << streamName << "> did not receive data nor heartbeat in : " << timeoutMS  << "ms"
-                          << Q_FUNC_INFO;
+    qCCritical(StreamLog) << "The stream " << streamName << " did not receive data nor heartbeat in : " << timeoutMS  << "ms";
 
     emit streamErrorOccurred(StreamError::Timeout, QString("Stream did not receive data nor heartbeat"));
 }
