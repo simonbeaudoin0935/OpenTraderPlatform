@@ -8,6 +8,7 @@
 
 #include "Bar.h"
 #include "StreamBars.h"
+#include "TSClient.h"
 
 Q_DECLARE_LOGGING_CATEGORY(BarCacheLog)
 
@@ -31,6 +32,7 @@ public:
     bool warmUpBarsOfDayUntilNow(QDate date = QDateTime::currentDateTime().date());
 
     const QVector<Bar> getBars(const QDateTime &first, const QDateTime &last);
+    
     const QVector<Bar> getAfterHourBars(const QDate &date);
 
     void clearDatabase();
@@ -54,7 +56,9 @@ signals:
     void receivedNewBar(QString symbol, Bar newBar);
 
 private slots:
-    void onReceivedNewBar(QString symbol, Bar newBar);
+
+    static void onReceivedAsyncGetBars(size_t requestID, RESTClient::RequestStatus status, QString symbol, QVector<Bar> bars);
+    void onReceivedNewLiveBar(QString symbol, Bar newBar);
     void onStreamError(Stream::StreamError error, QString errorMessage);
 
 private:

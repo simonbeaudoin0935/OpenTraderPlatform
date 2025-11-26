@@ -76,9 +76,12 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
                                                            Bar::BarSessionTemplate::USEQ24Hour);
         Q_ASSERT(streamBar != nullptr);
 
-        connect(streamBar, &StreamBars::receivedNewBar, this, &BarCache::onReceivedNewBar);
+        connect(streamBar, &StreamBars::receivedNewBar, this, &BarCache::onReceivedNewLiveBar);
         connect(streamBar, &Stream::streamErrorOccurred, this, &BarCache::onStreamError);
     }
+
+
+    connect(TSClient::getInstancePtr(), &TSClient::receivedAsyncGetBars, this, &BarCache::onReceivedAsyncGetBars, Qt::UniqueConnection);
 
 }
 
@@ -115,6 +118,12 @@ bool BarCache::warmUpBarsOfDayUntilNow(QDate date)
     return true;
 }
 
+void BarCache::onReceivedAsyncGetBars(size_t requestID, RESTClient::RequestStatus status, QString symbol, QVector<Bar> bars)
+{
+
+
+}
+
 const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &last) {
     const QString cacheName = this->objectName();
 
@@ -127,39 +136,37 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     
     // Handle if the request needs to be split into multiple valid trading day ranges
     {
-    bool needsSplitting = false;
-    
-    // Check if it spans multiple days
-    if (first.date() != last.date()) {
-        needsSplitting = true;
-    }
-    // Check if first is before 6AM or last is after 8PM
-    else if (first.time() < QTime(TRADING_START_HOUR, 0, 0) || 
-             last.time() > QTime(TRADING_END_HOUR, 0, 0)) {
-        needsSplitting = true;
-    }
-    // Check if it's on a weekend
-    else if (first.date().dayOfWeek() > FRIDAY || last.date().dayOfWeek() > FRIDAY) {
-        needsSplitting = true;
-    }
-    
-    // If the request needs splitting, handle it recursively
-    if (needsSplitting) {
-        qCDebug(BarCacheLog) << cacheName << "Request spans multiple days or invalid hours, splitting into valid ranges";
+        bool needsSplitting = false;
         
-        QVector<QPair<QDateTime, QDateTime>> tradingRanges = splitIntoTradingDayRanges(first, last);
-        QVector<Bar> allBars;
-        
-        for (const auto& range : tradingRanges) {
-            QVector<Bar> rangeBars = getBars(range.first, range.second);
-            allBars.append(rangeBars);
+        // Check if it spans multiple days
+        if (first.date() != last.date()) {
+            needsSplitting = true;
+        }
+        // Check if first is before 6AM or last is after 8PM
+        else if (first.time() < QTime(TRADING_START_HOUR, 0, 0) || 
+                last.time() > QTime(TRADING_END_HOUR, 0, 0)) {
+            needsSplitting = true;
+        }
+        // Check if it's on a weekend
+        else if (first.date().dayOfWeek() > FRIDAY || last.date().dayOfWeek() > FRIDAY) {
+            needsSplitting = true;
         }
         
-        return allBars;
+        // If the request needs splitting, handle it recursively
+        if (needsSplitting) {
+            qCDebug(BarCacheLog) << cacheName << "Request spans multiple days or invalid hours, splitting into valid ranges";
+            
+            QVector<QPair<QDateTime, QDateTime>> tradingRanges = splitIntoTradingDayRanges(first, last);
+            QVector<Bar> allBars;
+            
+            for (const auto& range : tradingRanges) {
+                QVector<Bar> rangeBars = getBars(range.first, range.second);
+                allBars.append(rangeBars);
+            }
+            
+            return allBars;
+        }
     }
-    }
-
-
     
     // Original assertions for single-day requests
     Q_ASSERT_X(first.date().dayOfWeek() >= MONDAY && first.date().dayOfWeek() <= FRIDAY,
@@ -191,29 +198,21 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
         return cachedBars;
     }
 
-    qCDebug(BarCacheLog) << cacheName << " : partial hit or complete miss, check database for missing bars";
-
-    // Identify missing time ranges
-    const QVector<QPair<QDateTime, QDateTime>> missingRanges = identifyMissingRanges(first, last, cachedBars);
-        
-    for (const auto& range : missingRanges) {
-        Q_ASSERT(range.first.timeZone() == QTimeZone("America/New_York"));
-        Q_ASSERT(range.second.timeZone() == QTimeZone("America/New_York"));
-
-        Q_ASSERT_X(range.first <= range.second,
-                   qPrintable(range.first.toString() + " - " + range.second.toString()),
-                   "identifyMissingRanges() returned invalid range with first >= second");
-
-        qCDebug(BarCacheLog) << cacheName << "Will fetch from Database for range" << range.first << "to" << range.second;
-    }
+    qCDebug(BarCacheLog) << cacheName << " : partial hit or complete miss memory-cache, check database for missing bars";
 
     // Load missing bars from database
-    for (const auto& range : missingRanges) {
+    for (const auto& range : identifyMissingRanges(first, last, cachedBars)) {
+        Q_ASSERT(range.first.timeZone() == QTimeZone("America/New_York"));
+        Q_ASSERT(range.second.timeZone() == QTimeZone("America/New_York"));
+        Q_ASSERT(range.first < range.second);
+
+        qCDebug(BarCacheLog) << cacheName << "Will fetch from Database for range" << range.first << "to" << range.second;
+
         QVector<Bar> dbBars = getBarsFromDatabase(range.first, range.second);
-        if (!dbBars.isEmpty()) {
-            qCInfo(BarCacheLog) << cacheName << "Loaded" << dbBars.size() 
-                                << "bars from database into memory cache for" << symbol
-                                << "in range" << range.first << "to" << range.second;
+        if (dbBars.isEmpty()) {
+            qCDebug(BarCacheLog) << cacheName << "No bars found in database for" << symbol << "in range" << range.first << "to" << range.second;
+        } else {
+            qCDebug(BarCacheLog) << cacheName << "Loaded" << dbBars.size() << "bars from database into memory cache for" << symbol << "in range" << range.first << "to" << range.second;
             storeBarsInCache(dbBars);
         }
     }
@@ -236,39 +235,27 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     // Track whether we had any bars before API call
     lastHitType = cachedBars.isEmpty() ? HitType::Miss : HitType::PartialHit;
 
-    // Identify remaining missing ranges
-    missingRanges = identifyMissingRanges(first, last, cachedBars);
-        
-    for (const auto& range : missingRanges) {
 
+    // Fetch missing bars from API for each range
+    for (const auto& range : identifyMissingRanges(first, last, cachedBars)) {
         Q_ASSERT(range.first.timeZone() == QTimeZone("America/New_York"));
         Q_ASSERT(range.second.timeZone() == QTimeZone("America/New_York"));
         Q_ASSERT(range.first <= range.second);
 
-
-        qCDebug(BarCacheLog) << cacheName << "Will fetch from API for range" << range.first << "to" << range.second;
-    }
-
-    // Fetch missing bars from API for each range
-    QVector<Bar> allFetchedBars;
-    for (const auto& range : missingRanges) {
-        QVector<Bar> fetchedBars;
+        // FIXME this is likely the source of why we often fetch one bar too far
         QDateTime fetchLast = range.second.addSecs(60); // Need to add a minute because the API bounds are excluding the last minute
             
         qCDebug(BarCacheLog) << cacheName << "Fetching bars from API for" << symbol << "in range" << range.first << "to" << fetchLast;
 
-        bool success = TSClient::getInstance().getBarsAsync(fetchedBars, symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour, range.first, fetchLast);
+        // TODO : Regi+
+        size_t requestID = TSClient::getInstance().getBarsAsync(symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour, range.first, fetchLast);
             
-        if (!success) {
-            qCCritical(BarCacheLog) << cacheName << "Failed to fetch bars from API for" << symbol
-                                       << "in range" << range.first << "to" << range.second;
-            return QVector<Bar>();
-        }
-            
-        // Adjust timestamps
-        for(Bar& bar: fetchedBars) bar.ajustTimeStampToOpeningMinute();
-        allFetchedBars.append(fetchedBars);
+
     }
+
+    #warning here populate this
+    QVector<Bar> allFetchedBars;
+
         
     qCDebug(BarCacheLog) << cacheName << "Successfully fetched" << allFetchedBars.size()
                          << "bars from API for" << symbol;
@@ -412,7 +399,7 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
     return result;
 }
 
-void BarCache::onReceivedNewBar(QString symbol, Bar newBar)
+void BarCache::onReceivedNewLiveBar(QString symbol, Bar newBar)
 {
     QString cacheName = this->objectName();
 

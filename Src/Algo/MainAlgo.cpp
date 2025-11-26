@@ -95,7 +95,7 @@ void MainAlgo::onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime las
 
 void MainAlgo::onThreadStarted()
 {
-    connect(&stockScreener, &StockScreener::finished, this, &MainAlgo::onStockScreenerFinished);
+    //connect(&stockScreener, &StockScreener::finished, this, &MainAlgo::onStockScreenerFinished);
     //stockScreener.start();
 }
 
