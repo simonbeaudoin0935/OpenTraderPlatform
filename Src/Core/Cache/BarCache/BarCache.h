@@ -56,7 +56,6 @@ public:
 signals:
     void receivedNewBar(QString symbol, Bar newBar);
 
-    #warning connect to the main algo!
     void receivedAsyncGetBars(QVector<Bar> bars); 
 
 private slots:

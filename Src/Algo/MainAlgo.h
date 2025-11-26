@@ -10,6 +10,7 @@
 #include "PositionsReceiver.h"
 #include "Account.h"
 #include "BarCache.h"
+#include "RESTClient.h" // FIXNEeeeee
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
@@ -40,18 +41,20 @@ signals:
     void requestedMissingBarsDisplayedStockReceived(QVector<Bar>);
 
     void receivedNewPosition(QString account, Position position);
+    void tradeStationAccountsReceived(QVector<Account> accounts);
 
 public slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
-    void onGetAccountsAsyncReceived(QVector<Account> results);
     void onSelectDisplayedStock(QString symbol);
     void onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime last);
 
 private slots:
     void onThreadStarted();
 
-    void onStockScreenerFinished();
     void onReceivedNewPosition(QString account, Position position);
+
+    void onReceivedAsyncGetAccounts(size_t requestID, RESTClient::RequestStatus status, QVector<Account> results);
+
 
 private:
     QThread thread;
@@ -65,4 +68,7 @@ private:
 
     QTextStream *algoLogFile;
     QFile file;
+
+    size_t m_savedGetAccountsRequestID;
+    bool m_havePastSuccessfulExchanges = false;
 };

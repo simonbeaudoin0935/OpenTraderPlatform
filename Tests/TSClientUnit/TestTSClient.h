@@ -12,24 +12,18 @@ private slots:
 
 
 
-    void testGetAccountsSync();
     void testGetAccountsAsync();
 
-    void testGetBalancesSync();
     void testGetBalancesAsync();
 
-    void testGetQuoteSnapshotsSync();
     void testGetQuoteSnapshotsAsync();
 
-    void testPlaceOrderSync();
     void testPlaceOrderAsync();
 
-    void testCancelOrderSync();
     void testCancelOrderAsync();
 
     void testFetchingMoreThanMaximumPerMinute();
 
-    void testGetBarsSync();
     void testGetBarsAsync();
 
     void testStreamBars();

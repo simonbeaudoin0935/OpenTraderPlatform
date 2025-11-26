@@ -50,10 +50,16 @@ void MainAlgo::onSelectDisplayedStock(QString symbol)
     // Make sure that this method gets Qt::InvokeMethod'ed if called from another thread
     Q_ASSERT(QThread::currentThread() == &thread);
 
+    
     // If there is a current selected stock for display, disconnect its receivedNew* signals from the main algo emition
     if (currentDisplayedStockInstrument != nullptr) {
+        Q_ASSERT_X(currentDisplayedStockInstrument->symbol != symbol, "MainAlgo::onSelectDisplayedStock", "Selecting the same stock as currently selected. No action taken.");
+
         disconnect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
                    this, &MainAlgo::displayedStockReceivedNewBar);
+
+        disconnect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedAsyncGetBars,
+                   this, &MainAlgo::requestedMissingBarsDisplayedStockReceived);
 
         disconnect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
                    this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
@@ -74,6 +80,9 @@ void MainAlgo::onSelectDisplayedStock(QString symbol)
     connect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
             this, &MainAlgo::displayedStockReceivedNewBar);
 
+    connect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedAsyncGetBars,
+            this, &MainAlgo::requestedMissingBarsDisplayedStockReceived);
+
     connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
             this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
 
@@ -88,28 +97,33 @@ void MainAlgo::onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime las
     Q_ASSERT(first < last);
     Q_ASSERT_X(currentDisplayedStockInstrument != nullptr, "Currently displayed stock instrument is null", "Bug if here");
 
-    QVector<Bar> bars = currentDisplayedStockInstrument->barCache.getBars(first.toTimeZone(QTimeZone("America/New_York")), last.toTimeZone(QTimeZone("America/New_York")));
+    QVector<Bar> bars = currentDisplayedStockInstrument->barCache.getBars(first, last);
 
-    emit requestedMissingBarsDisplayedStockReceived(bars);
+    if (bars.isEmpty()) {
+        qCDebug(MainAlgoLog) << "Missing bars in cache for requested range. Sent API request. The barcache will emit signal when bars are ready.";
+    } else {
+        qCDebug(MainAlgoLog) << "All bars found in cache for requested range. Emitting signal.";
+        
+        emit requestedMissingBarsDisplayedStockReceived(bars);
+    }
+
 }
 
 void MainAlgo::onThreadStarted()
 {
-    //connect(&stockScreener, &StockScreener::finished, this, &MainAlgo::onStockScreenerFinished);
-    //stockScreener.start();
+
 }
 
 void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
 {
-    static bool havePastSuccessfulExchanges = false;
 
-    if (!isAuthenticated && !havePastSuccessfulExchanges) {
+    if (!isAuthenticated && !m_havePastSuccessfulExchanges) {
         qCritical(MainAlgoLog) << "Tradestation failed to authenticate. Reason : " << reason;
         qCritical(MainAlgoLog) << "Cannot proceed without authentication. Retrying";
 
         // TODO relaunch a auth attempt
         return;
-    } else if (!isAuthenticated && havePastSuccessfulExchanges) {
+    } else if (!isAuthenticated && m_havePastSuccessfulExchanges) {
         qCCritical(MainAlgoLog) << "Tradestation lost authentication. Reason : " << reason;
         return;
     }
@@ -120,25 +134,33 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
     // was bad and the request times out after 5s. Not checking the return value is a problem because we continue otherwise and hit assert when
     // referencing accounts[1] later on.
 
-    bool success = TSClient::getInstance().getAccountsSync(accounts);
+    connect(&TSClient::getInstance(), &TSClient::receivedAsyncGetAccounts,
+            this, &MainAlgo::onReceivedAsyncGetAccounts,
+            Qt::UniqueConnection);
 
-    if (success) {
-        havePastSuccessfulExchanges = true;
-    } else {
-        qCritical(MainAlgoLog) << "Failed to get accounts after authentication. Cannot proceed.";
+    m_savedGetAccountsRequestID = TSClient::getInstance().getAccountsAsync();
+}
 
-        // TODO retry logic
-        return;
-    }
 
+void MainAlgo::onReceivedAsyncGetAccounts(size_t requestID, RESTClient::RequestStatus status, QVector<Account> results)
+{
+    Q_ASSERT(requestID == m_savedGetAccountsRequestID);
+    Q_ASSERT_X(status != RESTClient::RequestStatus::TIMEOUT, "MainAlgo::onReceivedAsyncGetAccounts", "GetAccounts request timed out. TODO handle this case properly.");
+    Q_ASSERT_X(status != RESTClient::RequestStatus::ERROR, "MainAlgo::onReceivedAsyncGetAccounts", "GetAccounts request returned error. TODO handle this case properly.");
+
+    m_havePastSuccessfulExchanges = true;
+ 
     // Only initialize position stream once
     if (positionStreamStarted) {
         qCDebug(MainAlgoLog) << "Position stream already started, skipping initialization";
         return;
     }
 
+    positionStreamStarted = true;
+
+
     // FIXME warning hack, better this. This is just for sim
-    QString accountNumber = accounts.at(1).getAccountId();
+    QString accountNumber = results.at(1).getAccountId();
 
     connect(&positionReceiver, &PositionsReceiver::receivedNewPosition,
             this, &MainAlgo::receivedNewPosition,
@@ -149,59 +171,13 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
             Qt::UniqueConnection);
 
     positionReceiver.startStream(accountNumber);
-    positionStreamStarted = true;
-}
 
-void MainAlgo::onGetAccountsAsyncReceived(QVector<Account> results)
-{
-    #error complete
+    emit tradeStationAccountsReceived(results);
 }
 
 
-void MainAlgo::getAccountsAsync()
-{
-    TSClient::getInstance().getAccountsAsync([this](bool success, const QVector<Account>& accounts){
-        if (success) {
-            this->accounts = accounts;
-        } else {
-            qCritical(MainAlgoLog) << "Failed to get accounts asynchronously.";
-        }
-    });
-}
 
 
-void MainAlgo::onStockScreenerFinished()
-{
-    // disconnect?
-
-    for (const auto &screeningResult:  stockScreener.getStockScreeningResult()) {
-
-        QString symbol = screeningResult.getSymbol();
-
-        // Change the stock selected pointer to the new selected stock
-        if (!stockInstruments.contains(symbol)) {
-
-            StockInstruments *stock = new StockInstruments(symbol);
-
-
-            stockInstruments.insert(symbol, stock);
-        }
-    }
-
-    qDebug() << "Added " << stockScreener.getStockScreeningResult().size() << " biotech stocks to the stock instruments list";
-
-    //connect(&breakingNewsFetcher, &BreakingNewsFetcher::foundNewNews, this, &MainAlgo::onNewNewsFound);
-
-    //breakingNewsFetcher.start(stockScreener.getStockScreeningResult(),
-    //                          newsFetchDepthLimit,
-    //                          newsFetchingInterval);
-
-    //stockRunUpDetector.start(stockScreener.getStockScreeningResult());
-
-    //stockRunUpDetector.start(stockScreener.getStockScreeningResult());
-
-
-}
 
 
 void MainAlgo::onReceivedNewPosition(QString account, Position position)
