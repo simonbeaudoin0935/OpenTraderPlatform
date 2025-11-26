@@ -116,15 +116,17 @@ bool BarCache::warmUpBarsOfDayUntilNow(QDate date)
 }
 
 const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &last) {
-    QString cacheName = this->objectName();
-    QVector<QPair<QDateTime, QDateTime>> missingRanges;
-
-    qCDebug(BarCacheLog) << cacheName << "getBars() called for range" << first << "to" << last;
+    const QString cacheName = this->objectName();
 
     Q_ASSERT(first.timeZone() == QTimeZone("America/New_York"));
     Q_ASSERT(last.timeZone() == QTimeZone("America/New_York"));
     Q_ASSERT(first < last);
+
+    qCDebug(BarCacheLog) << cacheName << "getBars() called for range" << first << "to" << last;
+ 
     
+    // Handle if the request needs to be split into multiple valid trading day ranges
+    {
     bool needsSplitting = false;
     
     // Check if it spans multiple days
@@ -155,6 +157,9 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
         
         return allBars;
     }
+    }
+
+
     
     // Original assertions for single-day requests
     Q_ASSERT_X(first.date().dayOfWeek() >= MONDAY && first.date().dayOfWeek() <= FRIDAY,
@@ -189,7 +194,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     qCDebug(BarCacheLog) << cacheName << " : partial hit or complete miss, check database for missing bars";
 
     // Identify missing time ranges
-    missingRanges = identifyMissingRanges(first, last, cachedBars);
+    const QVector<QPair<QDateTime, QDateTime>> missingRanges = identifyMissingRanges(first, last, cachedBars);
         
     for (const auto& range : missingRanges) {
         Q_ASSERT(range.first.timeZone() == QTimeZone("America/New_York"));
@@ -238,10 +243,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
 
         Q_ASSERT(range.first.timeZone() == QTimeZone("America/New_York"));
         Q_ASSERT(range.second.timeZone() == QTimeZone("America/New_York"));
-
-        Q_ASSERT_X(range.first <= range.second,
-                   qPrintable(range.first.toString() + " - " + range.second.toString()),
-                   "identifyMissingRanges() returned invalid range with first >= second");
+        Q_ASSERT(range.first <= range.second);
 
 
         qCDebug(BarCacheLog) << cacheName << "Will fetch from API for range" << range.first << "to" << range.second;
@@ -253,8 +255,7 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
         QVector<Bar> fetchedBars;
         QDateTime fetchLast = range.second.addSecs(60); // Need to add a minute because the API bounds are excluding the last minute
             
-        qCDebug(BarCacheLog) << cacheName << "Fetching bars from API for" << symbol
-                             << "in range" << range.first << "to" << fetchLast;
+        qCDebug(BarCacheLog) << cacheName << "Fetching bars from API for" << symbol << "in range" << range.first << "to" << fetchLast;
 
         bool success = TSClient::getInstance().getBarsAsync(fetchedBars, symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour, range.first, fetchLast);
             

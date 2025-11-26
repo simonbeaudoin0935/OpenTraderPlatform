@@ -6,9 +6,6 @@
 #include <QJsonArray>
 #include <QMutexLocker>
 #include <QDebug>
-#ifdef UNIT_TESTING
-#include <QtTest>
-#endif
 
 #include "TSClient.h"
 
@@ -33,8 +30,9 @@ Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
 
 // Initialize static member outside class
 TSClient* TSClient::m_instance = nullptr;
-
-TSClient& TSClient::getInstance() {
+    
+TSClient& TSClient::getInstance()
+{
     if (m_instance == nullptr) {
         qCDebug(TSClientLog) << "Singleton instance created";
         m_instance = new TSClient();
@@ -42,7 +40,8 @@ TSClient& TSClient::getInstance() {
     return *m_instance;
 }
 
-TSClient* TSClient::getInstancePtr() {
+TSClient* TSClient::getInstancePtr()
+{
     if (m_instance == nullptr) {
         qCDebug(TSClientLog) << "Singleton instance created";
         m_instance = new TSClient();
@@ -127,7 +126,8 @@ TSClient::TSClient() :
     }
 }
 
-TSClient::~TSClient() {
+TSClient::~TSClient()
+{
     m_thread.quit();
     m_thread.wait();
 
@@ -136,7 +136,8 @@ TSClient::~TSClient() {
 
 #ifdef GUI_ENABLED
 // Launches a pop up. We will receive a signal when the process finishes
-void TSClient::launchAuthProcess() {
+void TSClient::launchAuthProcess()
+{
 
     Q_ASSERT(m_authInProgress == false);
 
@@ -147,7 +148,8 @@ void TSClient::launchAuthProcess() {
     m_authWindow->show();
 }
 
-void TSClient::onAuthFinished(bool success, AuthToken token, QString reason) {
+void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
+{
     m_authenticated = success;
     m_authInProgress = false;
 
@@ -163,14 +165,16 @@ void TSClient::onAuthFinished(bool success, AuthToken token, QString reason) {
     emit authStateChanged(m_authenticated, reason);
 }
 
-void TSClient::onAuthWindowDestroyed() {
+void TSClient::onAuthWindowDestroyed()
+{
     // TODO race contition possible?
     m_authWindow = nullptr;
 }
 #endif
 
 
-QNetworkRequest TSClient::buildRefreshTokenRequest() {
+QNetworkRequest TSClient::buildRefreshTokenRequest()
+{
     QUrl url;
     url.setScheme("https");
     url.setHost("signin.tradestation.com");
@@ -184,7 +188,8 @@ QNetworkRequest TSClient::buildRefreshTokenRequest() {
 
 QByteArray TSClient::buildRefreshTokenQuery(const QString &clientId,
                                             const QString &clientSecret,
-                                            const QString &refreshToken) {
+                                            const QString &refreshToken)
+{
     QUrlQuery query;
     query.addQueryItem("grant_type", "refresh_token");
     query.addQueryItem("client_id", clientId);
@@ -290,7 +295,8 @@ void TSClient::onAsyncRefreshTokenFinished(size_t requestID, RequestStatus statu
 }
 
 
-void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, size_t requestID, RequestStatus status, void *optArg) {
+void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, size_t requestID, RequestStatus status, void *optArg)
+{
     RequestType requestType = static_cast<RequestType>(type);
     QJsonObject obj = doc.object();
 
@@ -408,7 +414,8 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, 
     }
 }
 
-void TSClient::closeStream(Stream* const stream) {
+void TSClient::closeStream(Stream* const stream)
+{
     Q_ASSERT(stream != nullptr);
     Q_ASSERT_X(QThread::currentThread() != &m_thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
 

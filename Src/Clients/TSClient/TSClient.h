@@ -244,7 +244,6 @@ private:
             {
                 stream = new T(std::forward<Args>(args)..., nullptr);
 
-                #warning fix this shit
                 QUrl url(m_baseUrl.path() + endpoint + ((symbol=="NOSYMBOL") ? "" : ("/" + symbol)));
                 url.setQuery(query);
 
