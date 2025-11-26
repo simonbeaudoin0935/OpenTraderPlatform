@@ -18,6 +18,7 @@ public:
 
     // Calling this function arms the timeout timer!
     void setNetworkReply(QNetworkReply *networkReply);
+    QNetworkReply* getNetworkReply() const { return reply; }
 
     bool isFinished() const {return streamIsFinished;}
     bool isInError()  const {return streamIsInError;}

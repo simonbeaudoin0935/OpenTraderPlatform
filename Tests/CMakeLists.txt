@@ -74,66 +74,6 @@ target_compile_options(test_barcache PRIVATE -Og)
 
 add_test(NAME BarCacheTest COMMAND test_barcache)
 
-# FMPClient Unit Test
-add_executable(test_fmpclient
-    FMPClientUnit/TestFMPClient.cpp
-    FMPClientUnit/TestFMPClient.h
-    FMPClientUnit/main.cpp
-)
-
-target_link_libraries(test_fmpclient PRIVATE
-    Qt6::Core
-    Qt6::Network
-    Qt6::Test
-    Qt6::Gui
-)
-
-target_include_directories(test_fmpclient PRIVATE
-    ${CMAKE_SOURCE_DIR}/Src/Misc
-    ${CMAKE_SOURCE_DIR}/Src/Clients
-    ${CMAKE_SOURCE_DIR}/Src/Clients/FMPClient
-    ${CMAKE_SOURCE_DIR}/Src/Clients/FMPClient/Filters
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Auth
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetAccounts
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetBalances
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/GetOrders
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/StreamOrders
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Brokerage/StreamPositions
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/Bars
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/GetQuoteSnapshots
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/MockStream
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/StreamMarketDepthQuote
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/MarketData/StreamQuote
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution/CancelOrder
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution/PlaceOrder
-    ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Stream
-)
-
-# Collect sources needed for the test
-file(GLOB_RECURSE FMPCLIENT_TEST_MISC_SOURCES 
-    "${CMAKE_SOURCE_DIR}/Src/Misc/*.cpp"
-)
-file(GLOB_RECURSE FMPCLIENT_TEST_CLIENTS_SOURCES 
-    "${CMAKE_SOURCE_DIR}/Src/Clients/*.cpp"
-)
-
-# Exclude GUI-specific sources (both .cpp and .h)
-list(FILTER FMPCLIENT_TEST_CLIENTS_SOURCES EXCLUDE REGEX "AuthWindow\\.(cpp|h)$")
-
-target_sources(test_fmpclient PRIVATE
-    ${FMPCLIENT_TEST_MISC_SOURCES}
-    ${FMPCLIENT_TEST_CLIENTS_SOURCES}
-)
-
-target_compile_definitions(test_fmpclient PRIVATE UNIT_TESTING)
-target_compile_options(test_fmpclient PRIVATE -Og)
-
-add_test(NAME FMPClientTest COMMAND test_fmpclient)
-
 # TSClient Unit Test
 add_executable(test_tradestationclient
     TSClientUnit/TestTSClient.cpp

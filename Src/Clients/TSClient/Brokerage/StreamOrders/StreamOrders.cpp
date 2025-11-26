@@ -78,24 +78,3 @@ bool StreamOrders::processJsonObject(const QJsonObject &jsonObj)
         return false;
     }
 }
-
-
-StreamOrders* TSClient::openStreamOrders(QString &accountID) {
-    Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
-
-    const QString endpoint = QString(ENDPOINT_STREAM_ORDERS).arg(accountID);
-
-    QUrlQuery query;
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamOrders";
-
-    return openStream<StreamOrders>("NOSYMBOL", endpoint, query, accountID);
-}
-
-void TSClient::closeStreamOrders(StreamOrders* stream) {
-    Q_ASSERT(stream != nullptr);
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamOrders " << static_cast<void*>(stream);
-
-    TSClient::closeStream(stream);
-}

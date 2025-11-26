@@ -50,10 +50,16 @@ void MainAlgo::onSelectDisplayedStock(QString symbol)
     // Make sure that this method gets Qt::InvokeMethod'ed if called from another thread
     Q_ASSERT(QThread::currentThread() == &thread);
 
+    
     // If there is a current selected stock for display, disconnect its receivedNew* signals from the main algo emition
     if (currentDisplayedStockInstrument != nullptr) {
+        Q_ASSERT_X(currentDisplayedStockInstrument->symbol != symbol, "MainAlgo::onSelectDisplayedStock", "Selecting the same stock as currently selected. No action taken.");
+
         disconnect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
                    this, &MainAlgo::displayedStockReceivedNewBar);
+
+        disconnect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedAsyncGetBars,
+                   this, &MainAlgo::requestedMissingBarsDisplayedStockReceived);
 
         disconnect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
                    this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
@@ -74,6 +80,9 @@ void MainAlgo::onSelectDisplayedStock(QString symbol)
     connect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
             this, &MainAlgo::displayedStockReceivedNewBar);
 
+    connect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedAsyncGetBars,
+            this, &MainAlgo::requestedMissingBarsDisplayedStockReceived);
+
     connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
             this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
 
@@ -83,46 +92,75 @@ void MainAlgo::onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime las
 {
     qCDebug(MainAlgoLog) << "Requested bars from current displayed stock cache: " << first << " to " << last;
 
-    QVector<Bar> bars;
+    Q_ASSERT(first.timeZone() == QTimeZone("America/New_York"));
+    Q_ASSERT(last.timeZone() == QTimeZone("America/New_York"));
+    Q_ASSERT(first < last);
+    Q_ASSERT_X(currentDisplayedStockInstrument != nullptr, "Currently displayed stock instrument is null", "Bug if here");
 
-    if (currentDisplayedStockInstrument != nullptr) {
-        bars = currentDisplayedStockInstrument->barCache.getBars(first.toTimeZone(QTimeZone("America/New_York")), last.toTimeZone(QTimeZone("America/New_York")));
+    QVector<Bar> bars = currentDisplayedStockInstrument->barCache.getBars(first, last);
+
+    if (bars.isEmpty()) {
+        qCDebug(MainAlgoLog) << "Missing bars in cache for requested range. Sent API request. The barcache will emit signal when bars are ready.";
     } else {
-        qCWarning(MainAlgoLog) << "No current displayed stock selected";
+        qCDebug(MainAlgoLog) << "All bars found in cache for requested range. Emitting signal.";
+        
+        emit requestedMissingBarsDisplayedStockReceived(bars);
     }
 
-    emit requestedMissingBarsDisplayedStockReceived(bars);
 }
 
 void MainAlgo::onThreadStarted()
 {
-    connect(&stockScreener, &StockScreener::finished, this, &MainAlgo::onStockScreenerFinished);
-    //stockScreener.start();
+
 }
 
 void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
 {
-    if (isAuthenticated) {
-        // TODO handle if the request times out. if happened to me when the token was not expired and went ahead to get accounts but the connection
-        // was bad and the request times out after 5s. Not checking the return value is a problem because we continue otherwise and hit assert when
-        // referencing accounts[1] later on.
 
-        TSClient::getInstance().getAccountsSync(accounts);
+    if (!isAuthenticated && !m_havePastSuccessfulExchanges) {
+        qCritical(MainAlgoLog) << "Tradestation failed to authenticate. Reason : " << reason;
+        qCritical(MainAlgoLog) << "Cannot proceed without authentication. Retrying";
 
-
-    } else {
+        // TODO relaunch a auth attempt
+        return;
+    } else if (!isAuthenticated && m_havePastSuccessfulExchanges) {
         qCCritical(MainAlgoLog) << "Tradestation lost authentication. Reason : " << reason;
-        return; //
+        return;
     }
 
+    qCDebug(MainAlgoLog) << "Tradestation authenticated successfully : " << reason;
+
+    // TODO handle if the request times out. if happened to me when the token was not expired and went ahead to get accounts but the connection
+    // was bad and the request times out after 5s. Not checking the return value is a problem because we continue otherwise and hit assert when
+    // referencing accounts[1] later on.
+
+    connect(&TSClient::getInstance(), &TSClient::receivedAsyncGetAccounts,
+            this, &MainAlgo::onReceivedAsyncGetAccounts,
+            Qt::UniqueConnection);
+
+    m_savedGetAccountsRequestID = TSClient::getInstance().getAccountsAsync();
+}
+
+
+void MainAlgo::onReceivedAsyncGetAccounts(size_t requestID, RESTClient::RequestStatus status, QVector<Account> results)
+{
+    Q_ASSERT(requestID == m_savedGetAccountsRequestID);
+    Q_ASSERT_X(status != RESTClient::RequestStatus::TIMEOUT, "MainAlgo::onReceivedAsyncGetAccounts", "GetAccounts request timed out. TODO handle this case properly.");
+    Q_ASSERT_X(status != RESTClient::RequestStatus::ERROR, "MainAlgo::onReceivedAsyncGetAccounts", "GetAccounts request returned error. TODO handle this case properly.");
+
+    m_havePastSuccessfulExchanges = true;
+ 
     // Only initialize position stream once
     if (positionStreamStarted) {
         qCDebug(MainAlgoLog) << "Position stream already started, skipping initialization";
         return;
     }
 
+    positionStreamStarted = true;
+
+
     // FIXME warning hack, better this. This is just for sim
-    QString accountNumber = accounts.at(1).getAccountId();
+    QString accountNumber = results.at(1).getAccountId();
 
     connect(&positionReceiver, &PositionsReceiver::receivedNewPosition,
             this, &MainAlgo::receivedNewPosition,
@@ -133,60 +171,14 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
             Qt::UniqueConnection);
 
     positionReceiver.startStream(accountNumber);
-    positionStreamStarted = true;
+
+    emit tradeStationAccountsReceived(results);
 }
 
 
-void MainAlgo::onStockScreenerFinished()
-{
-    // disconnect?
-
-    for (const auto &screeningResult:  stockScreener.getStockScreeningResult()) {
-
-        QString symbol = screeningResult.getSymbol();
-
-        // Change the stock selected pointer to the new selected stock
-        if (!stockInstruments.contains(symbol)) {
-
-            StockInstruments *stock = new StockInstruments(symbol);
 
 
-            stockInstruments.insert(symbol, stock);
-        }
-    }
 
-    qDebug() << "Added " << stockScreener.getStockScreeningResult().size() << " biotech stocks to the stock instruments list";
-
-    //connect(&breakingNewsFetcher, &BreakingNewsFetcher::foundNewNews, this, &MainAlgo::onNewNewsFound);
-
-    //breakingNewsFetcher.start(stockScreener.getStockScreeningResult(),
-    //                          newsFetchDepthLimit,
-    //                          newsFetchingInterval);
-
-    //stockRunUpDetector.start(stockScreener.getStockScreeningResult());
-
-    //stockRunUpDetector.start(stockScreener.getStockScreeningResult());
-
-
-}
-
-void MainAlgo::onNewNewsFound(StockNewsResult newNews)
-{
-    qDebug(BreakingNewsFetcherLog) << "  ******************** STRIKE ****************";
-    qDebug(BreakingNewsFetcherLog) << "  Date     : " << newNews.getPublishedDate();
-    qDebug(BreakingNewsFetcherLog) << "  Title    : " << newNews.getTitle();
-    qDebug(BreakingNewsFetcherLog) << "  Url      : " << newNews.getUrl();
-    qDebug(BreakingNewsFetcherLog) << "  Found at : " << QDateTime::currentDateTimeUtc();
-    qDebug(BreakingNewsFetcherLog) << "  ******************** STRIKE ****************";
-
-    *algoLogFile << "  ******************** STRIKE ****************\n";
-    *algoLogFile << "  Published date : " << newNews.getPublishedDate() << "\n";
-    *algoLogFile << "  Title          : " << newNews.getTitle() << "\n";
-    *algoLogFile << "  Url            : " << newNews.getUrl() << "\n";
-    *algoLogFile << "  Found at       : " << QDateTime::currentDateTimeUtc().toString() << "\n";
-    *algoLogFile << "  ******************** STRIKE ****************\n\n";
-    algoLogFile->flush();
-}
 
 void MainAlgo::onReceivedNewPosition(QString account, Position position)
 {

@@ -36,25 +36,3 @@ bool StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
 
     return false;
 }
-
-StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(const QString &symbol, unsigned int depth)
-{
-    Q_ASSERT(depth >= 1 && depth <= 20);
-
-    const QString endpoint = ENDPOINT_STREAM_MARKET_DEPTH_QUOTE;
-    QUrlQuery query;
-    query.addQueryItem("maxlevels", QString::number(depth));
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamMarketDepthQuote";
-
-    return openStream<StreamMarketDepthQuote>(symbol, endpoint, query, symbol);
-}
-
-void TSClient::closeStreamMarketDepthQuote(StreamMarketDepthQuote *stream)
-{
-    Q_ASSERT(stream != nullptr);
-
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Closing StreamMarketDepthQuote " << static_cast<void*>(stream);
-
-    TSClient::closeStream(stream);
-}

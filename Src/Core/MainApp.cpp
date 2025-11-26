@@ -6,7 +6,6 @@
 #endif
 
 MainApp::MainApp() :
-    fmpClient(FMPClient::getInstancePtr()),
     tradeStationClient(TSClient::getInstancePtr()),
     mainAlgo(new MainAlgo())
 {
@@ -27,12 +26,8 @@ MainApp::MainApp() :
     QObject::connect(tradeStationClient, &TSClient::authStateChanged,
                      mainAlgo, &MainAlgo::onTradeStationAuthStateChanged);
 
-    QObject::connect(tradeStationClient, &TSClient::getAccountsAsyncReceived,
+    QObject::connect(mainAlgo, &MainAlgo::tradeStationAccountsReceived,
                      appFrontend, &FrontEnd::tradeStationAccountsReceived);
-
-    // Connect FMP data usage updates to frontend
-    QObject::connect(fmpClient, &FMPClient::totalDataReceivedBytesIncreased,
-                     appFrontend, &FrontEnd::fmpDataUsageUpdated);
 
     // Connect TradeStation data usage updates to frontend
     QObject::connect(tradeStationClient, &TSClient::totalDataReceivedBytesIncreased,
@@ -62,7 +57,6 @@ MainApp::MainApp() :
 void MainApp::start()
 {
     // start the threads
-    fmpClient->start();
     tradeStationClient->start();
     mainAlgo->start();
 

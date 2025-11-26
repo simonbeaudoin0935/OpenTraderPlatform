@@ -6,12 +6,11 @@
 #include <QMap>
 
 #include "RunUpDetector.h"
-#include "StockScreener.h"
-#include "BreakingNewsFetcher.h"
 #include "MarketDepthQuoteReceiver.h"
 #include "PositionsReceiver.h"
 #include "Account.h"
 #include "BarCache.h"
+#include "RESTClient.h" // FIXNEeeeee
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
@@ -42,6 +41,7 @@ signals:
     void requestedMissingBarsDisplayedStockReceived(QVector<Bar>);
 
     void receivedNewPosition(QString account, Position position);
+    void tradeStationAccountsReceived(QVector<Account> accounts);
 
 public slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
@@ -51,9 +51,10 @@ public slots:
 private slots:
     void onThreadStarted();
 
-    void onStockScreenerFinished();
-    void onNewNewsFound(StockNewsResult newNews);
     void onReceivedNewPosition(QString account, Position position);
+
+    void onReceivedAsyncGetAccounts(size_t requestID, RESTClient::RequestStatus status, QVector<Account> results);
+
 
 private:
     QThread thread;
@@ -62,13 +63,12 @@ private:
     QMap<QString, StockInstruments*> stockInstruments;
     StockInstruments* currentDisplayedStockInstrument = nullptr;
 
-    StockScreener stockScreener;
-    BreakingNewsFetcher breakingNewsFetcher;
-
-
     PositionsReceiver positionReceiver;
     bool positionStreamStarted = false;
 
     QTextStream *algoLogFile;
     QFile file;
+
+    size_t m_savedGetAccountsRequestID;
+    bool m_havePastSuccessfulExchanges = false;
 };
