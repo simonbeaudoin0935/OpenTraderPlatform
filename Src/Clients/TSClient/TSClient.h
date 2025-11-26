@@ -186,6 +186,8 @@ signals:
     void receivedAsyncGetQuoteSnapshots(size_t requestID, RequestStatus status, QVector<QuoteSnapshot> quoteSnapshots);
     void receivedAsyncPlaceOrder       (size_t requestID, RequestStatus status, PlaceOrderResult result);
     void receivedAsyncCancelOrder      (size_t requestID, RequestStatus status, CancelOrderResult result);
+
+    // TODO: allocate the vector before emitting the signal to avoid copies and delete later in the receiver
     void receivedAsyncGetBars          (size_t requestID, RequestStatus status, QString symbol, QVector<Bar> bars);
     
 private slots:

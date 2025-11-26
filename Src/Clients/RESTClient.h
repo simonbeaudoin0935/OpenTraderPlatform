@@ -83,7 +83,7 @@ protected:
      * @param optArg Optional argument to hold in the request.
      * @return The request ID.
      */
-    [[nodiscard]] int fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method = HttpMethod::GET, const QByteArray &postData =  QByteArray(), void* optArg = nullptr);
+    [[nodiscard]] size_t fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method = HttpMethod::GET, const QByteArray &postData =  QByteArray(), void* optArg = nullptr);
 
     [[nodiscard]] QNetworkReply *fetchStream(const QNetworkRequest &request, void *arg);
     void closeStream(void *arg);

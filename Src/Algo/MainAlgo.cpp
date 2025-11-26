@@ -152,7 +152,10 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
     positionStreamStarted = true;
 }
 
-void MainAlgo::onGetAccountsAsyncReceived(QVector<Account> results);
+void MainAlgo::onGetAccountsAsyncReceived(QVector<Account> results)
+{
+    #error complete
+}
 
 
 void MainAlgo::getAccountsAsync()
@@ -200,23 +203,6 @@ void MainAlgo::onStockScreenerFinished()
 
 }
 
-void MainAlgo::onNewNewsFound(StockNewsResult newNews)
-{
-    qDebug(BreakingNewsFetcherLog) << "  ******************** STRIKE ****************";
-    qDebug(BreakingNewsFetcherLog) << "  Date     : " << newNews.getPublishedDate();
-    qDebug(BreakingNewsFetcherLog) << "  Title    : " << newNews.getTitle();
-    qDebug(BreakingNewsFetcherLog) << "  Url      : " << newNews.getUrl();
-    qDebug(BreakingNewsFetcherLog) << "  Found at : " << QDateTime::currentDateTimeUtc();
-    qDebug(BreakingNewsFetcherLog) << "  ******************** STRIKE ****************";
-
-    *algoLogFile << "  ******************** STRIKE ****************\n";
-    *algoLogFile << "  Published date : " << newNews.getPublishedDate() << "\n";
-    *algoLogFile << "  Title          : " << newNews.getTitle() << "\n";
-    *algoLogFile << "  Url            : " << newNews.getUrl() << "\n";
-    *algoLogFile << "  Found at       : " << QDateTime::currentDateTimeUtc().toString() << "\n";
-    *algoLogFile << "  ******************** STRIKE ****************\n\n";
-    algoLogFile->flush();
-}
 
 void MainAlgo::onReceivedNewPosition(QString account, Position position)
 {

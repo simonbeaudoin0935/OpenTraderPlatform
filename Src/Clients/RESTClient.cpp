@@ -40,7 +40,7 @@ QNetworkRequest RESTClient::buildRequest(const QString &endpoint, const QUrlQuer
     return request;
 }
 
-int RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method, const QByteArray &postData, void *optArg)
+size_t RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method, const QByteArray &postData, void *optArg)
 {
     size_t requestID;
     m_requestIDMapRWLock.lockForWrite();
