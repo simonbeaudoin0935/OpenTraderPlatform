@@ -30,7 +30,7 @@ public:
     ~RESTClient() = default; // TODO evaluate if default constriuctor is ok
 
     // starts the inner thread
-    void start() { m_thread.start(); };
+    void start() { m_thread->start(); };
 
     // To monitor usage
     [[nodiscard]] qsizetype getTotalDataReceivedBytes() const { return m_totalDataReceivedBytes; };
@@ -95,8 +95,8 @@ protected:
     mutable QReadWriteLock m_requestIDMapRWLock; // To protect m_requestIDSeq
     qsizetype m_totalDataReceivedBytes = 0;
     QString m_apiKey;
-    QThread m_thread;
-    QNetworkAccessManager m_networkManager;
+    QThread *m_thread;
+    QNetworkAccessManager *m_networkManager;
     QMap<QNetworkReply*, RequestInfo> m_pendingRequests;
     QMap<QNetworkReply*, Stream*> m_streams;
 

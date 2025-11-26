@@ -58,7 +58,7 @@ TSClient::TSClient() :
     m_baseUrl.setHost(BASE_URL_HOST_SIMULATION);
     m_baseUrl.setPath(BASE_URL_HOST_VERSION);
 
-    m_thread.setObjectName("TSClientThread");
+    m_thread->setObjectName("TSClientThread");
     m_clientToken = ClientToken::loadFromSettings();
     m_authToken = AuthToken::loadFromSettings();
     
@@ -128,8 +128,8 @@ TSClient::TSClient() :
 
 TSClient::~TSClient()
 {
-    m_thread.quit();
-    m_thread.wait();
+    m_thread->quit();
+    m_thread->wait();
 
     qCDebug(TSClientLog) << "Singleton instance destroyed";
 }
@@ -200,7 +200,7 @@ QByteArray TSClient::buildRefreshTokenQuery(const QString &clientId,
 
 void TSClient::refreshAsyncAccessToken()
 {
-    Q_ASSERT_X(QThread::currentThread() == &m_thread, qPrintable(QThread::currentThread()->objectName()), "Only TSClient thread can call this function");
+    Q_ASSERT_X(QThread::currentThread() == m_thread, qPrintable(QThread::currentThread()->objectName()), "Only TSClient thread can call this function");
     Q_ASSERT_X(m_asyncTokenRefreshRequestId == 0, Q_FUNC_INFO, "A refresh token request is already ongoing");
     Q_ASSERT_X(m_authInProgress == false, Q_FUNC_INFO, "Auth process is ongoing, cannot refresh token");
     Q_ASSERT_X(m_refreshInProgress == false, Q_FUNC_INFO, "A refresh token is already in progress");
@@ -417,7 +417,7 @@ void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, 
 void TSClient::closeStream(Stream* const stream)
 {
     Q_ASSERT(stream != nullptr);
-    Q_ASSERT_X(QThread::currentThread() != &m_thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
+    Q_ASSERT_X(QThread::currentThread() != m_thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
 
     QMetaObject::invokeMethod(this,
         [this, &stream]()
@@ -449,10 +449,9 @@ void TSClient::closeStream(Stream* const stream)
 
 size_t TSClient::getAccountsAsync(const std::chrono::milliseconds &timeout)
 {
-    Q_ASSERT_X(QThread::currentThread() != &m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
+    Q_ASSERT_X(QThread::currentThread() != m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching accounts async";
-
 
     QNetworkRequest request = buildRequest(ENDPOINT_GET_ACCOUNTS);
 
@@ -461,7 +460,7 @@ size_t TSClient::getAccountsAsync(const std::chrono::milliseconds &timeout)
 
 size_t TSClient::getBalancesAsync(const QString &accounts, const std::chrono::milliseconds &timeout)
 {
-    Q_ASSERT_X(QThread::currentThread() != &m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
+    Q_ASSERT_X(QThread::currentThread() != m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
 
     QNetworkRequest request = buildRequest(QString(ENDPOINT_GET_BALANCES).arg(accounts));
 
@@ -479,7 +478,7 @@ size_t TSClient::getBarsAsync(const QString &symbol,
                            QDateTime lastDate,
                            const std::chrono::milliseconds &timeout)
 {
-    Q_ASSERT_X(QThread::currentThread() != &m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
+    Q_ASSERT_X(QThread::currentThread() != m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
 
     // Interval that each bar will consist of - for minute bars, the number of minutes aggregated in a single bar. For bar units other than minute, value must be 1.
     if (unit == Bar::BarUnit::Minute) {Q_ASSERT(interval >= 1);}
@@ -505,7 +504,7 @@ size_t TSClient::getBarsAsync(const QString &symbol,
 
 size_t TSClient::getQuoteSnapshotsAsync(QString &symbols, const std::chrono::milliseconds &timeout)
 {
-    Q_ASSERT_X(QThread::currentThread() != &m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
+    Q_ASSERT_X(QThread::currentThread() != m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
     Q_ASSERT(!symbols.isEmpty());
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Fetching quotes for symbols : " << symbols;
@@ -517,7 +516,7 @@ size_t TSClient::getQuoteSnapshotsAsync(QString &symbols, const std::chrono::mil
 
 size_t TSClient::placeOrderAsync(const PlaceOrderRequest &order, const std::chrono::milliseconds &timeout)
 {
-    Q_ASSERT_X(QThread::currentThread() != &m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
+    Q_ASSERT_X(QThread::currentThread() != m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
     Q_ASSERT(order.isValid());
 
     QNetworkRequest request = buildRequest(ENDPOINT_PLACE_ORDER);
@@ -534,7 +533,7 @@ size_t TSClient::placeOrderAsync(const PlaceOrderRequest &order, const std::chro
 
 size_t TSClient::cancelOrderAsync(const QString &orderID, const std::chrono::milliseconds &timeout)
 {
-    Q_ASSERT_X(QThread::currentThread() != &m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
+    Q_ASSERT_X(QThread::currentThread() != m_thread, qPrintable(QThread::currentThread()->objectName()), "TSClient object cannot call this function itself");
     Q_ASSERT(!orderID.isEmpty());
     Q_ASSERT(QRegularExpression("^[0-9]+$").match(orderID).hasMatch());
 

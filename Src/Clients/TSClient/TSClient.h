@@ -236,7 +236,7 @@ private:
 
         // Only external callers to TSClient thread should get here. Calling a fetch sync from within the TSClient's
         // thread would cause a deadlock to itself
-        Q_ASSERT_X(QThread::currentThread() != &m_thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
+        Q_ASSERT_X(QThread::currentThread() != m_thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
 
         T* stream = nullptr;
 
@@ -246,7 +246,8 @@ private:
             {
                 stream = new T(std::forward<Args>(args)..., nullptr);
 
-                QUrl url(m_baseUrl.path() + endpoint + ((symbol=="NOSYMBOL") ? "" : ("/" + symbol)));
+                QUrl url(m_baseUrl);
+                url.setPath(m_baseUrl.path() + endpoint + ((symbol=="NOSYMBOL") ? "" : ("/" + symbol)));
                 url.setQuery(query);
 
                 QNetworkRequest request(url);
