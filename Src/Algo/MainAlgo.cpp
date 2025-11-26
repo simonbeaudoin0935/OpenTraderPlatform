@@ -145,8 +145,23 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
 void MainAlgo::onReceivedAsyncGetAccounts(size_t requestID, RESTClient::RequestStatus status, QVector<Account> results)
 {
     Q_ASSERT(requestID == m_savedGetAccountsRequestID);
-    Q_ASSERT_X(status != RESTClient::RequestStatus::TIMEOUT, "MainAlgo::onReceivedAsyncGetAccounts", "GetAccounts request timed out. TODO handle this case properly.");
-    Q_ASSERT_X(status != RESTClient::RequestStatus::ERROR, "MainAlgo::onReceivedAsyncGetAccounts", "GetAccounts request returned error. TODO handle this case properly.");
+
+    m_savedGetAccountsRequestID = 0;
+    
+    if (status == RESTClient::RequestStatus::ERROR) {
+        qCCritical(MainAlgoLog) << "get accounts error";
+        Q_ASSERT(false);
+        return;
+    } else if (status == RESTClient::RequestStatus::TIMEOUT) {
+        qCWarning(MainAlgoLog) << "Received get accounts timeout";
+
+        // Retry in one second
+        QTimer::singleShot(1000, this, [this]() {
+            m_savedGetAccountsRequestID = TSClient::getInstance().getAccountsAsync();
+        });
+
+        return;
+    }
 
     m_havePastSuccessfulExchanges = true;
  
@@ -157,7 +172,6 @@ void MainAlgo::onReceivedAsyncGetAccounts(size_t requestID, RESTClient::RequestS
     }
 
     positionStreamStarted = true;
-
 
     // FIXME warning hack, better this. This is just for sim
     QString accountNumber = results.at(1).getAccountId();

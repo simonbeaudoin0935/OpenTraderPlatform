@@ -189,7 +189,8 @@ void RESTClient::closeStream(void *arg)
     }
 }
 
-void RESTClient::onReplyFinished(QNetworkReply *reply) {
+void RESTClient::onReplyFinished(QNetworkReply *reply)
+{
     QJsonDocument doc;
     QJsonParseError parseError;
 
@@ -215,29 +216,52 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 
     requestInfo->status = RequestStatus::ERROR;
 
-    if (reply->error() != QNetworkReply::NoError) {
-        qCCritical(RESTClientLog) << Q_FUNC_INFO << " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString() << " : " << reply->error();
-
-        #warning deal with number 3
-        if (reply->error() == QNetworkReply::ContentNotFoundError && requestInfo->type == 3) {
-            // IMPORTANT EDGE CASE
-            // Its possible in the case of getBars for example to receive this, as its possible to ask for a range of bars
-            // in the after market for instance where there just isnt any bars
+    switch (reply->error())
+    {
+        case QNetworkReply::NoError:
             requestInfo->status = RequestStatus::SUCCESS;
-        }
+            break;
 
-        goto notify;
-    }
+        case QNetworkReply::HostNotFoundError:
+        case QNetworkReply::UnknownNetworkError:
+            requestInfo->status = RequestStatus::TIMEOUT;
+            qCCritical(RESTClientLog) << Q_FUNC_INFO << " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString() << " : " << reply->error();
+            goto notify;
+            break;
+
+        case QNetworkReply::ContentNotFoundError:
+            if (requestInfo->type == 3) {
+                // IMPORTANT EDGE CASE
+                // Its possible in the case of getBars for example to receive this, as its possible to ask for a range of bars
+                // in the after market for instance where there just isnt any bars
+                requestInfo->status = RequestStatus::SUCCESS;
+            } else {
+                requestInfo->status = RequestStatus::ERROR;
+                qCCritical(RESTClientLog) << Q_FUNC_INFO << " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString() << " : " << reply->error();
+                goto notify;
+            }
+            break;
+
+        default:
+            requestInfo->status = RequestStatus::ERROR;
+
+            qCCritical(RESTClientLog) << Q_FUNC_INFO << " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString() << " : " << reply->error();
+            goto notify;
+            break;
+    };
+
 
     doc = QJsonDocument::fromJson(rawData, &parseError);
 
     if (parseError.error != QJsonParseError::NoError) {
+        requestInfo->status = RequestStatus::ERROR;
         qCWarning(RESTClientLog) << Q_FUNC_INFO << "Failed to parse JSON:" << parseError.errorString();
         qCWarning(RESTClientLog) << Q_FUNC_INFO << "Content of the bad data : " << rawData;
         goto notify;
     }
 
     if (doc.isNull()){
+        requestInfo->status = RequestStatus::ERROR;
         qCWarning(RESTClientLog) << Q_FUNC_INFO << " : JSON doc is null";
         goto notify;
     }
@@ -251,10 +275,6 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
         qCWarning(RESTClientLog) << Q_FUNC_INFO << " : Doc object is empty";
         // Continue, this is legal
     }
-
-
-    // At this point, the reply is legit
-    requestInfo->status = RequestStatus::SUCCESS;
 
 notify:
     if (requestInfo->isStream) {

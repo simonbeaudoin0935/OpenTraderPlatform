@@ -51,7 +51,7 @@ protected:
     typedef int RequestTypeInt; // TODO explain why
     struct RequestInfo {
         bool isStream = false;
-        RequestStatus status = RequestStatus::SUCCESS;
+        RequestStatus status = RequestStatus::ERROR;
         size_t requestID = 0;
         RequestTypeInt type = 0;
         void* optArg = nullptr;

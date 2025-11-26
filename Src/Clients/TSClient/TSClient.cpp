@@ -228,18 +228,27 @@ void TSClient::refreshAsyncAccessToken()
 
 void TSClient::onAsyncRefreshTokenFinished(size_t requestID, RequestStatus status, AuthToken newToken)
 {
+    Q_ASSERT_X(m_asyncTokenRefreshRequestId == requestID, "token refresh", "Stored refresh request ID does not match the finished one");
+
+    m_asyncTokenRefreshRequestId = 0;
     m_refreshInProgress = false;
 
     if (status == RequestStatus::ERROR) {
+        qCCritical(TSClientLog) << "Refresh request in error";
+        Q_ASSERT(false);
+        return;
+    } else if (status == RequestStatus::TIMEOUT) {
+        qCWarning(TSClientLog) << "Received refreshed token timeout";
 
+        // Retry in one second
+        QTimer::singleShot(1000, this, [this]() {
+            refreshAsyncAccessToken();
+        });
+
+        return;
     }
-
-    if (status == RequestStatus::TIMEOUT) {
-
-    }
-
+    
     Q_ASSERT(status == RequestStatus::SUCCESS);
-    Q_ASSERT_X(m_asyncTokenRefreshRequestId == requestID, "token refresh", "Stored refresh request ID does not match the finished one");
 
     m_authenticated = newToken.isValidRefreshedToken() && !newToken.isExpired();;
 
