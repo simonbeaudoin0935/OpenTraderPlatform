@@ -25,10 +25,10 @@ override_dh_auto_test:
 
 override_dh_auto_install:
 	# Install main application binary
-	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/src/L2Trader debian/l2trader/usr/bin/l2trader
+	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Src/L2Trader debian/l2trader/usr/bin/l2trader
 	
 	# Install recorder application binary
-	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/src/L2Trader_Recorder debian/l2trader/usr/bin/l2trader-recorder
+	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Src/L2Trader_Recorder debian/l2trader/usr/bin/l2trader-recorder
 	
 	# Install application icon
 	install -D -m 0644 Resources/Icons/L2T.png debian/l2trader/usr/share/pixmaps/l2trader.png
@@ -62,8 +62,6 @@ override_dh_auto_install:
 	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Tests/test_RunUpDetector debian/l2trader-tests/usr/lib/l2trader/tests/test_runupdetector
 	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Tests/test_tradestationclient debian/l2trader-tests/usr/lib/l2trader/tests/test_tradestationclient
 	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Tests/test_recorder_integration debian/l2trader-tests/usr/lib/l2trader/tests/test_recorder_integration
-	# FMPClient test is disabled as per build.yml
-	# install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Tests/test_fmpclient debian/l2trader-tests/usr/lib/l2trader/tests/test_fmpclient
 
 override_dh_auto_clean:
 	dh_auto_clean
