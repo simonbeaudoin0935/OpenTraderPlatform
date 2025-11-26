@@ -20,6 +20,12 @@ class RESTClient : public QObject
     Q_OBJECT
 
 public:
+    enum RequestStatus {
+        SUCCESS,
+        TIMEOUT,
+        ERROR
+    };
+
     explicit RESTClient();
     ~RESTClient() = default; // TODO evaluate if default constriuctor is ok
 
@@ -45,8 +51,8 @@ protected:
     typedef int RequestTypeInt; // TODO explain why
     struct RequestInfo {
         bool isStream = false;
-        bool completed = false;
-        int requestID = -1;
+        RequestStatus status = RequestStatus::SUCCESS;
+        size_t requestID = 0;
         RequestTypeInt type = 0;
         void* optArg = nullptr;
     };
@@ -82,10 +88,10 @@ protected:
     [[nodiscard]] QNetworkReply *fetchStream(const QNetworkRequest &request, void *arg);
     void closeStream(void *arg);
 
-    virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, bool completed, void* optArg = nullptr) = 0;
+    virtual void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, size_t requestID, RequestStatus status, void* optArg = nullptr) = 0;
 
     QUrl m_baseUrl;
-    int m_requestIDSeq = 0;
+    size_t m_requestIDSeq = 0;
     mutable QReadWriteLock m_requestIDMapRWLock; // To protect m_requestIDSeq
     qsizetype m_totalDataReceivedBytes = 0;
     QString m_apiKey;

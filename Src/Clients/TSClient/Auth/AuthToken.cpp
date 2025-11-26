@@ -13,11 +13,12 @@ Q_LOGGING_CATEGORY(TSAuthTokenLog, "TSClient.token.auth")
 const QString AuthToken::EXPECTED_TOKEN_TYPE = "Bearer";
 const QStringList AuthToken::EXPECTED_SCOPES = {
     "openid",
+    "offline_access",
     "profile",
     "MarketData",
+    "Matrix",
     "ReadAccount",
-    "Trade",
-    "offline_access"
+    "Trade"
 };
 
 AuthToken::AuthToken(const QString &accessToken,

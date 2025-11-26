@@ -42,7 +42,7 @@ QNetworkRequest RESTClient::buildRequest(const QString &endpoint, const QUrlQuer
 
 int RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method, const QByteArray &postData, void *optArg)
 {
-    int requestID;
+    size_t requestID;
     m_requestIDMapRWLock.lockForWrite();
     {
         requestID = ++m_requestIDSeq;
@@ -76,7 +76,7 @@ int RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type, 
         Q_CHECK_PTR(reply);
 
         m_pendingRequests[reply] = {.isStream = false,
-                                    .completed = false,
+                                    .status = RequestStatus::SUCCESS,
                                     .requestID = requestID, 
                                     .type = type,
                                     .optArg = optArg};
@@ -113,8 +113,8 @@ QNetworkReply* RESTClient::fetchStream(const QNetworkRequest &request, void* opt
 
 
     m_pendingRequests[reply] = {.isStream = true,
-                                .completed = false,
-                                .requestID = -1, 
+                                .status = RequestStatus::SUCCESS,
+                                .requestID = 0, 
                                 .type = 0,
                                 .optArg = optArg};
 
@@ -190,35 +190,34 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
     QJsonParseError parseError;
 
     Q_ASSERT(QThread::currentThread() == &m_thread); // Paranoia
+    Q_ASSERT_X(m_pendingRequests.contains(reply), Q_FUNC_INFO, "The reply must be present in the pendingRequests map");
+
+    qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Thread [" << QThread::currentThread()->objectName() << "] working on reply of request " << static_cast<void*>(reply);
 
     QByteArray rawData = reply->readAll();
-    qsizetype bytesReceived = rawData.size();
 
-    m_totalDataReceivedBytes += bytesReceived;
+    {
+        qsizetype bytesReceived = rawData.size();
 
-    emit totalDataReceivedBytesIncreased(m_totalDataReceivedBytes);
+        m_totalDataReceivedBytes += bytesReceived;
 
-    qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << m_totalDataReceivedBytes << " bytes";
+        emit totalDataReceivedBytesIncreased(m_totalDataReceivedBytes);
+
+        qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << m_totalDataReceivedBytes << " bytes";
+    }
     
-    Q_ASSERT_X(m_pendingRequests.contains(reply), Q_FUNC_INFO, "The reply must be present in the pendingRequests map");
 
     // copying the struct so we can use it outside the RW lock
     RequestInfo *requestInfo = &m_pendingRequests[reply];
 
-    qCDebug(RESTClientLog) << Q_FUNC_INFO <<
-        " : Thread [" << QThread::currentThread()->objectName() <<
-        "] working on reply of request " << static_cast<void*>(reply);
-
     // Those are the default values, just being paranoid that we are consistent and nothing else corrupted those before us
-    Q_ASSERT(requestInfo->completed == false);
+    //Q_ASSERT(requestInfo->completed == false);
 
     doc = QJsonDocument::fromJson(rawData, &parseError);
 
     if (reply->error() != QNetworkReply::NoError) {
-        qCCritical(RESTClientLog) << Q_FUNC_INFO <<
-            " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString() << " : " << reply->error();
-        qCCritical(RESTClientLog).noquote() << Q_FUNC_INFO <<
-            " : Content of the reply : \n" << doc.toJson(QJsonDocument::Indented);
+        qCCritical(RESTClientLog) << Q_FUNC_INFO << " : Error with the reply " << static_cast<void*>(reply) << " : " << reply->errorString() << " : " << reply->error();
+        qCCritical(RESTClientLog).noquote() << Q_FUNC_INFO << " : Content of the reply : \n" << doc.toJson(QJsonDocument::Indented);
 
         if (reply->error() == QNetworkReply::ContentNotFoundError) {
             // Its possible in the case of getBars for example to receive this, as its possible to ask for a range of bars
@@ -251,14 +250,14 @@ void RESTClient::onReplyFinished(QNetworkReply *reply) {
 
 
     // At this point, the reply is legit
-    requestInfo->completed = true;
+    //requestInfo->completed = true;
 
 notify:
     if (requestInfo->isStream) {
         qCCritical(RESTClientLog) << Q_FUNC_INFO << "Removing network reply " << static_cast<void*>(reply) << " for stream " << requestInfo->optArg;
     } else {
         // The request might have failed, this info is passed along
-        emitSignalDemuxer(requestInfo->type, doc, requestInfo->completed, requestInfo->optArg);
+        emitSignalDemuxer(requestInfo->type, doc, requestInfo->requestID, requestInfo->status, requestInfo->optArg);
     }
 
     // Whether the request was successful or not, take it out of the map
@@ -290,7 +289,7 @@ bool RESTClient::isCleanedUp()
             for (const auto& request : m_pendingRequests) {
                 qDebug() << "Request info #" << i;
                 qDebug() << "  RequestType  : " << request.type;
-                qDebug() << "  Completed    : " << ((request.completed) ? "TRUE" : "FALSE");
+                //qDebug() << "  Completed    : " << ((request.completed) ? "TRUE" : "FALSE");
             }
         }
     }

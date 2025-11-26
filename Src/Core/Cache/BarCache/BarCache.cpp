@@ -121,28 +121,23 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
 
     qCDebug(BarCacheLog) << cacheName << "getBars() called for range" << first << "to" << last;
 
-    Q_ASSERT_X(first < last,
-               qPrintable(cacheName),
-               "getBars() called with first >= last");
-
-    // Check if the request spans multiple days or crosses non-trading hours
-    QTimeZone nyZone("America/New_York");
-    QDateTime nyFirst = first.toTimeZone(nyZone);
-    QDateTime nyLast = last.toTimeZone(nyZone);
+    Q_ASSERT(first.timeZone() == QTimeZone("America/New_York"));
+    Q_ASSERT(last.timeZone() == QTimeZone("America/New_York"));
+    Q_ASSERT(first < last);
     
     bool needsSplitting = false;
     
     // Check if it spans multiple days
-    if (nyFirst.date() != nyLast.date()) {
+    if (first.date() != last.date()) {
         needsSplitting = true;
     }
     // Check if first is before 6AM or last is after 8PM
-    else if (nyFirst.time() < QTime(TRADING_START_HOUR, 0, 0) || 
-             nyLast.time() > QTime(TRADING_END_HOUR, 0, 0)) {
+    else if (first.time() < QTime(TRADING_START_HOUR, 0, 0) || 
+             last.time() > QTime(TRADING_END_HOUR, 0, 0)) {
         needsSplitting = true;
     }
     // Check if it's on a weekend
-    else if (nyFirst.date().dayOfWeek() > FRIDAY || nyLast.date().dayOfWeek() > FRIDAY) {
+    else if (first.date().dayOfWeek() > FRIDAY || last.date().dayOfWeek() > FRIDAY) {
         needsSplitting = true;
     }
     
@@ -168,10 +163,10 @@ const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &la
     Q_ASSERT_X(last.date().dayOfWeek() >= MONDAY && last.date().dayOfWeek() <= FRIDAY,
                qPrintable(cacheName),
                "getBars() called with date outside Monday-Friday range");
-    Q_ASSERT_X(first.toTimeZone(QTimeZone("America/New_York")).time() >= QTime(TRADING_START_HOUR, 0, 0),
+    Q_ASSERT_X(first.time() >= QTime(TRADING_START_HOUR, 0, 0),
                qPrintable(cacheName),
                "Fetching bars before 6am"); // Tradestation bars start at 6
-    Q_ASSERT_X(last.toTimeZone(QTimeZone("America/New_York")).time() <= QTime(TRADING_END_HOUR, 0, 0),
+    Q_ASSERT_X(last.time() <= QTime(TRADING_END_HOUR, 0, 0),
                qPrintable(cacheName),
                "Fetching bars after 8pm");
 

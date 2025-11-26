@@ -6,8 +6,6 @@
 #include <QMap>
 
 #include "RunUpDetector.h"
-#include "StockScreener.h"
-#include "BreakingNewsFetcher.h"
 #include "MarketDepthQuoteReceiver.h"
 #include "PositionsReceiver.h"
 #include "Account.h"
@@ -53,7 +51,6 @@ private slots:
     void onThreadStarted();
 
     void onStockScreenerFinished();
-    void onNewNewsFound(StockNewsResult newNews);
     void onReceivedNewPosition(QString account, Position position);
 
 private:
@@ -62,10 +59,6 @@ private:
     QVector<Account> accounts;
     QMap<QString, StockInstruments*> stockInstruments;
     StockInstruments* currentDisplayedStockInstrument = nullptr;
-
-    StockScreener stockScreener;
-    BreakingNewsFetcher breakingNewsFetcher;
-
 
     PositionsReceiver positionReceiver;
     bool positionStreamStarted = false;

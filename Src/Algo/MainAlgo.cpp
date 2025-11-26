@@ -83,13 +83,12 @@ void MainAlgo::onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime las
 {
     qCDebug(MainAlgoLog) << "Requested bars from current displayed stock cache: " << first << " to " << last;
 
-    QVector<Bar> bars;
+    Q_ASSERT(first.timeZone() == QTimeZone("America/New_York"));
+    Q_ASSERT(last.timeZone() == QTimeZone("America/New_York"));
+    Q_ASSERT(first < last);
+    Q_ASSERT_X(currentDisplayedStockInstrument != nullptr, "Currently displayed stock instrument is null", "Bug if here");
 
-    if (currentDisplayedStockInstrument != nullptr) {
-        bars = currentDisplayedStockInstrument->barCache.getBars(first.toTimeZone(QTimeZone("America/New_York")), last.toTimeZone(QTimeZone("America/New_York")));
-    } else {
-        qCWarning(MainAlgoLog) << "No current displayed stock selected";
-    }
+    QVector<Bar> bars = currentDisplayedStockInstrument->barCache.getBars(first.toTimeZone(QTimeZone("America/New_York")), last.toTimeZone(QTimeZone("America/New_York")));
 
     emit requestedMissingBarsDisplayedStockReceived(bars);
 }

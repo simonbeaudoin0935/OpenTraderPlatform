@@ -23,6 +23,9 @@ public:
              int expiresIn,
              QDateTime receivedAt);
 
+    // Copy constructor
+    AuthToken(const AuthToken &other) = default;
+
     // Constructor from JSON response like this :
     // {
     //     "access_token": "...",
@@ -43,6 +46,9 @@ public:
     QString getScope() const { return scope; }
     int getExpiresIn() const { return expiresIn; }
     QDateTime getReceivedAt() const { return receivedAt; }
+
+    // Setters
+    void setRefreshToken(const QString &token) {refreshToken = token; }
 
     // Utility methods
     int secondsUntilExpiration(); // Gives the number of seconds until expiration
