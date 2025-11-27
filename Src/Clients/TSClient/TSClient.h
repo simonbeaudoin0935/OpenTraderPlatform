@@ -26,7 +26,7 @@ Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 
 // This is a singleton
 
-class TSClient : public RESTClient {
+class TSClient final : public RESTClient {
     Q_OBJECT
 public:
 
@@ -42,19 +42,21 @@ public:
     [[nodiscard]] bool isAuthInProgress() const { return m_authInProgress; }  // Track if authentication process is in progress
 
 
-    // Stream count getter
-    [[nodiscard]] int getStreamCount() const { return m_streams.size(); }
+  
                               // -------- Market data methods ----------
     /*
      * Get Quote Snapshots
      *
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/GetQuoteSnapshots
      * 
+     * @note : symbols parameter is a comma separated list of symbols
+     * 
      * @return :
      *  > 0 : The request ID of the async request
      *  0 : Failed to start the async request
      */
-    [[nodiscard]] size_t getQuoteSnapshotsAsync(QString &symbols, const std::chrono::milliseconds &timeout = std::chrono::milliseconds(5000));
+    #warning TODO replace symbol QString for QStringList
+    [[nodiscard]] RESTClient::requestID_t getQuoteSnapshotsAsync(const QString &symbols);
 
     /*
      * Creates a Bars Stream
@@ -80,14 +82,13 @@ public:
      *  > 0 : The request ID of the async request
      *  0 : Failed to start the async request
      */
-    [[nodiscard]] size_t getBarsAsync(const QString &symbol,
+    [[nodiscard]] RESTClient::requestID_t getBarsAsync(const QString &symbol,
                                       unsigned int interval = 1,
                                       Bar::BarUnit unit = Bar::BarUnit::Daily,
                                       unsigned int barsback = 1,
                                       Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default,
                                       QDateTime firstDate = QDateTime(),
-                                      QDateTime lastDate = QDateTime(),
-                                      const std::chrono::milliseconds &timeout = std::chrono::milliseconds(ASYNC_REQUEST_TIMEOUT_MS_DEFAULT));
+                                      QDateTime lastDate = QDateTime());
 
     /*
      * Creates a MarketDepthQuote Stream
@@ -113,7 +114,7 @@ public:
      *  > 0 : The request ID of the async request
      *  0 : Failed to start the async request
      */
-    [[nodiscard]] size_t getAccountsAsync(const std::chrono::milliseconds &timeout = std::chrono::milliseconds(5000));
+    [[nodiscard]] RESTClient::requestID_t getAccountsAsync();
     /*
      * Get Balances
      *
@@ -123,7 +124,7 @@ public:
      *  > 0 : The request ID of the async request
      *  0 : Failed to start the async request
      */
-    [[nodiscard]] size_t getBalancesAsync(const QString &account, const std::chrono::milliseconds &timeout = std::chrono::milliseconds(ASYNC_REQUEST_TIMEOUT_MS_DEFAULT));
+    [[nodiscard]] RESTClient::requestID_t getBalancesAsync(const QString &account);
 
     /*
      * Creates a StreaOrders Stream
@@ -158,7 +159,7 @@ public:
      *   > 0 : The request ID of the async request
      *   0 : Failed to start the async request
      */
-    [[nodiscard]] size_t placeOrderAsync(const PlaceOrderRequest &order, const std::chrono::milliseconds &timeout = std::chrono::milliseconds(ASYNC_REQUEST_TIMEOUT_MS_DEFAULT));
+    [[nodiscard]] RESTClient::requestID_t placeOrderAsync(const PlaceOrderRequest &order);
 
     /*
      * Cancel order
@@ -169,7 +170,7 @@ public:
      *   > 0 : The request ID of the async request
      *   0 : Failed to start the async request
      */
-    [[nodiscard]] size_t cancelOrderAsync(const QString &orderID, const std::chrono::milliseconds &timeout = std::chrono::milliseconds(ASYNC_REQUEST_TIMEOUT_MS_DEFAULT));
+    [[nodiscard]] RESTClient::requestID_t cancelOrderAsync(const QString &orderID);
 
 public slots:
     #ifdef GUI_ENABLED
@@ -179,20 +180,18 @@ public slots:
 
 signals:
     void authStateChanged(bool isAuthenticated, QString reason);
-    void streamCountChanged(int count);
 
-    void receivedAsyncGetAccounts      (size_t requestID, RequestStatus status, QVector<Account> results);
-    void receivedAsyncGetBalances      (size_t requestID, RequestStatus status, QVector<Balance> results);
-    void receivedAsyncGetQuoteSnapshots(size_t requestID, RequestStatus status, QVector<QuoteSnapshot> quoteSnapshots);
-    void receivedAsyncPlaceOrder       (size_t requestID, RequestStatus status, PlaceOrderResult result);
-    void receivedAsyncCancelOrder      (size_t requestID, RequestStatus status, CancelOrderResult result);
-
+    void receivedAsyncGetAccounts      (RESTClient::requestID_t requestID, RequestStatus status, QVector<Account> results);
+    void receivedAsyncGetBalances      (RESTClient::requestID_t requestID, RequestStatus status, QVector<Balance> results);
+    void receivedAsyncGetQuoteSnapshots(RESTClient::requestID_t requestID, RequestStatus status, QVector<QuoteSnapshot> quoteSnapshots);
+    void receivedAsyncPlaceOrder       (RESTClient::requestID_t requestID, RequestStatus status, PlaceOrderResult result);
+    void receivedAsyncCancelOrder      (RESTClient::requestID_t requestID, RequestStatus status, CancelOrderResult result);
     // TODO: allocate the vector before emitting the signal to avoid copies and delete later in the receiver
-    void receivedAsyncGetBars          (size_t requestID, RequestStatus status, QString symbol, QVector<Bar> bars);
+    void receivedAsyncGetBars          (RESTClient::requestID_t requestID, RequestStatus status, QString symbol, QVector<Bar> bars);
     
 private slots:
 
-    void onAsyncRefreshTokenFinished(size_t requestID, RequestStatus status, AuthToken newToken);
+    void onAsyncRefreshTokenFinished(RESTClient::requestID_t requestID, RequestStatus status, AuthToken newToken);
     #ifdef GUI_ENABLED
     void onAuthFinished(bool success, AuthToken token, QString reason);
     void onAuthWindowDestroyed();
@@ -200,7 +199,7 @@ private slots:
 
 private:
 
-    enum class RequestType {
+    enum class RequestType_t {
         None,
         GetAccounts,
         GetBalances,
@@ -208,7 +207,8 @@ private:
         GetQuoteSnapshots,
         GetRefreshAccessToken,
         PlaceOrder,
-        CancelOrder
+        CancelOrder,
+        MAX_REQUEST_TYPE
     };
 
     // Singleton : private constructor
@@ -216,68 +216,17 @@ private:
     ~TSClient();
 
     // Static helper methods for authentication
-    static QNetworkRequest buildRefreshTokenRequest();
-    static QByteArray buildRefreshTokenQuery(const QString &clientId,
-                                             const QString &clientSecret,
-                                             const QString &refreshToken);
+    [[nodiscard]] static QNetworkRequest buildRefreshTokenRequest();
+    [[nodiscard]] static QByteArray buildRefreshTokenQuery(const QString &clientId,
+                                                           const QString &clientSecret,
+                                                           const QString &refreshToken);
                                            
     void refreshAsyncAccessToken();
 
-    void emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, size_t requestID, RequestStatus status, void* optArg = nullptr) override;
+    void finalClassDemuxReceivedAsyncRequestReply(RequestTypeBase_t type, const QJsonDocument &doc, requestID_t requestID, RequestStatus status) override;
 
-    #warning FIX THIS SHIT
-    template<typename T, typename... Args>
-    T* openStream(const QString &symbol, const QString &endpoint, const QUrlQuery &query, Args&&... args) {
-        Q_ASSERT(!symbol.isEmpty());
-        if (symbol != "NOSYMBOL") Q_ASSERT_X(symbol.length() >= 1 && symbol.length() <= 8, symbol.toStdString().c_str(), "Symbol length must be between 1 and 8 characters");
-        Q_ASSERT(!symbol.contains(','));
-        Q_ASSERT(symbol.isUpper());
-        Q_ASSERT(!endpoint.isEmpty());
+    void finalClassDemuxReceivedStreamReply(StreamTypeBase_t streamType, const QJsonDocument &doc, requestID_t requestID, RequestStatus status) = 0;
 
-        // Only external callers to TSClient thread should get here. Calling a fetch sync from within the TSClient's
-        // thread would cause a deadlock to itself
-        Q_ASSERT_X(QThread::currentThread() != m_thread, Q_FUNC_INFO, "TSClient object cannot call this function itself");
-
-        T* stream = nullptr;
-
-        // FIXME fix this NOSYMBOL shit
-        QMetaObject::invokeMethod(this,
-            [this, &symbol, &endpoint, &query, &stream, args...]() mutable
-            {
-                stream = new T(std::forward<Args>(args)..., nullptr);
-
-                QUrl url(m_baseUrl);
-                url.setPath(m_baseUrl.path() + endpoint + ((symbol=="NOSYMBOL") ? "" : ("/" + symbol)));
-                url.setQuery(query);
-
-                QNetworkRequest request(url);
-                request.setRawHeader("Authorization", QString("Bearer %1").arg(m_authToken.getAccessToken()).toUtf8());
-
-                QNetworkReply *reply = fetchStream(request, static_cast<void*>(stream));
-
-
-                // The stream is now created in the TSClient thread
-                stream->setParent(this);
-
-                m_streams[reply] = stream;
-
-                // The readyRead, finished and errorOccured are connected internaly here.
-                // This call starts the timeout timer as well
-                stream->setNetworkReply(reply);
-
-                connect(stream, &Stream::receivedAmountOfData, this, &TSClient::onReceivedNewAmountOfData);
-                
-                // Emit signal that stream count has changed
-                emit streamCountChanged(m_streams.size());
-            },
-        Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
-                                       // finishes executing this lambda so that a valid pointer is returned
-
-        qCDebug(TSClientLog) << Q_FUNC_INFO << "Opened Stream " << static_cast<void*>(stream);
-
-        return stream;
-    }
-    void closeStream(Stream* const stream);
 
   
     //********* members ********/
@@ -294,7 +243,7 @@ private:
     bool m_refreshInProgress = false;  // Track if authentication process is in progress
     bool m_authInProgress = false;  // Track if authentication process is in progress
 
-    size_t m_asyncTokenRefreshRequestId = 0; // Store the request ID of the ongoing token refresh request
+    RESTClient::requestID_t m_asyncTokenRefreshRequestId = 0; // Store the request ID of the ongoing token refresh request
 
 #ifdef GUI_ENABLED
     AuthWindow* m_authWindow = nullptr;  // Authentication window

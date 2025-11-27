@@ -12,6 +12,13 @@
 
 Q_LOGGING_CATEGORY(RESTClientLog, "RESTClient");
 
+#define DEBUG    qCDebug(RESTClientLog)
+#define INFO     qCInfo(RESTClientLog)
+#define WARNING  qCWarning(RESTClientLog)
+#define CRITICAL qCCritical(RESTClientLog)
+
+
+
 RESTClient::RESTClient()
     : QObject(nullptr),
     m_thread(new QThread()),
@@ -40,38 +47,47 @@ RESTClient::RESTClient()
 }
 
 
-QNetworkRequest RESTClient::buildRequest(const QString &endpoint, const QUrlQuery &query) const
+QNetworkRequest RESTClient::buildNetworkRequest(const QString &endpoint, const QUrlQuery &query) const
 {
-    QUrl url(m_baseUrl);
-
     Q_ASSERT_X(!m_baseUrl.isEmpty(), Q_FUNC_INFO, "Base URL is not set. Did you forget to set it before using the RESTClient?");
     Q_ASSERT_X(!m_apiKey.isEmpty(), Q_FUNC_INFO, "API key is not set. Did you forget to set it before using the RESTClient?");
     Q_ASSERT_X(!endpoint.isEmpty(), Q_FUNC_INFO, "Endpoint is empty. Did you forget to provide it?");
     Q_ASSERT_X(!endpoint.contains(QRegularExpression("%\\d+")), Q_FUNC_INFO, "Endpoint contains unresolved format placeholders");
 
+    QUrl url(m_baseUrl);
+
     url.setPath(url.path() + endpoint);
     url.setQuery(query);
 
     QNetworkRequest request(url);
+
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("Authorization", QString("Bearer %1").arg(m_apiKey).toUtf8());
 
     return request;
 }
 
-size_t RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt type, HttpMethod method, const QByteArray &postData, void *optArg)
+/*
+ * @brief Fetches data asynchronously.
+ *
+ * This function sends an asynchronous network request using the specified HTTP method and parameters.
+ * By design, the thread executint this function will never be the Client thread itself, except for the token refresh
+ */
+RESTClient::requestID_t RESTClient::sendAsyncRequest(const QNetworkRequest &request, RequestTypeBase_t type, HttpMethod method, const QByteArray &postData)
 {
-    size_t requestID;
+    requestID_t requestID;
+
     m_requestIDMapRWLock.lockForWrite();
     {
+        // TODO use atomic
         requestID = ++m_requestIDSeq;
     }
     m_requestIDMapRWLock.unlock();
 
     // Because this is a queud method invocation, the parameters have to be passed by value
     // TODO in the future, to avoid postData especialy, we could new it where it is build and deleted inside here
-    QMetaObject::invokeMethod(this, [this, request, requestID, type, method, postData, optArg]() {
-        Q_ASSERT_X(QThread::currentThread() == m_thread, "lambda", "TSClient object has to be the one executing this method");
+    QMetaObject::invokeMethod(this, [this, request, requestID, type, method, postData]() {
+        Q_ASSERT_X(QThread::currentThread() == m_thread, "lambda", "The RESTClient thread has to be the one executing this method");
 
         QNetworkReply *reply = nullptr;
         
@@ -96,145 +112,127 @@ size_t RESTClient::fetchAsync(const QNetworkRequest &request, RequestTypeInt typ
 
         Q_CHECK_PTR(reply);
 
-        m_pendingRequests[reply] = {.isStream = false,
-                                    .status = RequestStatus::SUCCESS,
-                                    .requestID = requestID, 
-                                    .type = type,
-                                    .optArg = optArg};
+        Q_ASSERT(!m_networkReplyToPendingAsyncRequests.contains(reply)); // Paranoia
 
-        qCDebug(RESTClientLog) << "Sent request to Network Manager and registered: request_id=" << requestID << 
-            " method=" << [method]() {
-            switch (method) {
-                case HttpMethod::GET: return "GET";
-                case HttpMethod::POST: return "POST";
-                case HttpMethod::PUT: return "PUT";
-                case HttpMethod::DELETE: return "DELETE";
-                default: return "UNKNOWN";
-            }
-        }() << " with reply addr=" << static_cast<void*>(reply);
+        auto a = connect(reply, &QNetworkReply::readyRead, this, &RESTClient::onReplyAsyncRequestReadyRead);
+        Q_ASSERT(a);
+        auto b = connect(reply, &QNetworkReply::finished, this, &RESTClient::onReplyAsyncRequestFinished);
+        Q_ASSERT(b);
+        auto c = connect(reply, &QNetworkReply::errorOccurred, this, &RESTClient::onReplyAsyncRequestErrorOccurred);
+        Q_ASSERT(c);
+
+
+        m_networkReplyToPendingAsyncRequests[reply] =
+            {
+                .status = RequestStatus::UNSET,
+                .requestID = requestID, 
+                .type = type
+            };
+
+        emit pendingAsyncRequestsCountChanges(m_networkReplyToOpenStreams.size());
+
+        qCDebug(RESTClientLog) << "Sent request to Network Manager and registered: request_id=" << requestID << " with reply addr=" << static_cast<void*>(reply);
 
     }, Qt::QueuedConnection);
 
     return requestID;
 }
 
-// This is all a bit hacky for now...
-QNetworkReply* RESTClient::fetchStream(const QNetworkRequest &request, void* optArg)
+
+Stream* RESTClient::openStream(const QNetworkRequest &request, StreamTypeBase_t streamType)
 {
-    Q_ASSERT(optArg != nullptr);
+    Q_ASSERT_X(QThread::currentThread() != m_thread, "lambda", "The RESTClient thread by design shall never be the one opening a stream, always another thread");
 
-    // Fetch stream is only meant to be called from TSClient's thread
-    Q_ASSERT(QThread::currentThread() == m_thread);
+    Stream * stream = nullptr;
 
+    QMetaObject::invokeMethod(this,
+        [this, &request, &stream]()
+        {
+            stream = new Stream(this);
+            Q_CHECK_PTR(stream);
 
-    QNetworkReply *reply = m_networkManager->get(request);
+            QNetworkReply *reply = m_networkManager->get(request);
+            Q_CHECK_PTR(reply);
 
-    Q_ASSERT(reply != nullptr);
+            Q_ASSERT(!m_networkReplyToOpenStreams.contains(reply)); // Paranoia
 
+            auto a = connect(reply, &QNetworkReply::readyRead, this, &RESTClient::onReplyStreamReadyRead);
+            Q_ASSERT(a);
+            auto b = connect(reply, &QNetworkReply::finished, this, &RESTClient::onReplyAsyncRequestFinished);
+            Q_ASSERT(b);
+            auto c = connect(reply, &QNetworkReply::errorOccurred, this, &RESTClient::onReplyStreamErrorOccurred);
+            Q_ASSERT(c);
 
+            m_networkReplyToOpenStreams[reply] = stream;
+                
+            // Emit signal that stream count has changed
+            emit openStreamCountChanged(m_networkReplyToOpenStreams.size());
+        },
+    Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
+                                   // finishes executing this lambda so that a valid pointer is returned
 
-    m_pendingRequests[reply] = {.isStream = true,
-                                .status = RequestStatus::SUCCESS,
-                                .requestID = 0, 
-                                .type = 0,
-                                .optArg = optArg};
+    qCDebug(RESTClientLog) << Q_FUNC_INFO << "Opened stream = " << static_cast<void*>(stream) << "with URL : " << request.url();
 
-
-    qCDebug(RESTClientLog) << Q_FUNC_INFO <<
-        "GET network reply = " << static_cast<void*>(reply) <<
-        " with URL : " << request.url() <<
-        " and header : "; /* << request.headers() << */
-
-    return reply;
+    return stream;
 }
 
-void RESTClient::closeStream(void *arg)
+void RESTClient::closeStream(Stream * const stream)
 {
-    QNetworkReply *replyToDelete = nullptr;
+    Q_ASSERT(stream != nullptr);
 
-    Q_ASSERT(arg != nullptr);
+    QMetaObject::invokeMethod(this,
+        [this, &stream]()
+        {
+            Q_ASSERT_X(QThread::currentThread() == m_thread, Q_FUNC_INFO, "Closing the stream is only meant to be called from RESTClient thread");
 
-    Q_ASSERT_X(QThread::currentThread() == m_thread, Q_FUNC_INFO, "Closing the stream is only meant to be called from RESTClient thread");
+            QNetworkReply *replyToDelete = nullptr;
 
-    
-    qCDebug(RESTClientLog) << Q_FUNC_INFO << "Going through all pending replies";
-
-
-    for (auto it = m_pendingRequests.constBegin(); it != m_pendingRequests.constEnd(); ++it) {
-        QNetworkReply *reply = it.key();
-
-        qCDebug(RESTClientLog) << Q_FUNC_INFO << "Checking reply " << static_cast<void*>(reply);
-
-        const RequestInfo &info = it.value();
-        if (info.optArg == arg) {
-
-            // Paranoia. If we found the pendingRequest for which the stream arg corresponds, it has to have
-            // its type to stream
-            Q_ASSERT(info.isStream == true);
-
-            replyToDelete = reply;
-
-            qCDebug(RESTClientLog) << Q_FUNC_INFO << "Found that this reply has stream  " << static_cast<void*>(arg) << " attached";
-
-            break;
-        }
-    }
-
-    Stream* stream = static_cast<Stream*>(arg);
-
-    if (stream->isFinished()) {
-        // We are closing a Stream that previously received a finishing event from the remote server.
-        // This means that the TSClient already did some cleanup and removed its pendingRequest from the
-        // container. If the Stream was marked finished, it means it MUST have been removed from the list
-        Q_ASSERT(replyToDelete == nullptr);
-    } else {
-        // On the other hand, we are closing a stream that is stil ongoing, it MUST still be present in the container
-        Q_ASSERT(replyToDelete != nullptr);
-
-        qCDebug(RESTClientLog) << Q_FUNC_INFO << "Aborting request";
-        // Close the connection and mark it
-        replyToDelete->abort();
-        replyToDelete->deleteLater();
+            qCDebug(RESTClientLog) << Q_FUNC_INFO << "Going through all pending replies";
 
 
-        bool removed = m_pendingRequests.remove(replyToDelete);
-        if (removed) {
-            qCDebug(RESTClientLog) << Q_FUNC_INFO << " normal";
-        } else {
-            qCDebug(RESTClientLog) << Q_FUNC_INFO << " request not removed because it appears that the stream was manually closed before";
-        }
-    }
+            for (auto it = m_networkReplyToOpenStreams.constBegin(); it != m_networkReplyToOpenStreams.constEnd(); ++it) {
+                QNetworkReply *reply = it.key();
+
+                qCDebug(RESTClientLog) << Q_FUNC_INFO << "Checking reply " << static_cast<void*>(reply);
+
+                if (stream == it.value()) {
+
+                    replyToDelete = reply;
+
+                    qCDebug(RESTClientLog) << Q_FUNC_INFO << "Found thre reply for stream :" << static_cast<void*>(reply);
+
+                    break;
+               }
+            }
+
+            Q_ASSERT_X(replyToDelete != nullptr, Q_FUNC_INFO, "Double close on stream");
+
+            qCDebug(RESTClientLog) << Q_FUNC_INFO << "Aborting request";
+     
+            replyToDelete->abort();
+            replyToDelete->deleteLater();
+
+            bool removed = m_networkReplyToOpenStreams.remove(replyToDelete);
+            Q_ASSERT_X(removed, "Q_FUNC_INFO", "Corruption if not removed");
+     
+            delete stream;
+
+            emit openStreamCountChanged(m_networkReplyToOpenStreams.size());
+        },
+    Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
+                                   // finishes executing this lambda so that a valid pointer is returned
 }
 
-void RESTClient::onReplyReadyRead()
-{
-    Q_ASSERT(QThread::currentThread() == m_thread); // Paranoia
 
+void RESTClient::onReplyAsyncRequestReadyRead()
+{
     QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
     Q_CHECK_PTR(reply);
 
-    Q_ASSERT_X(m_pendingRequests.contains(reply), Q_FUNC_INFO, "The reply must be present in the pendingRequests map");
-
-    RequestInfo * const requestInfo = &m_pendingRequests[reply];
-
-    Q_ASSERT(requestInfo->isStream == true);
-
-
-    QByteArray rawData = reply->readAll();
-    {
-        qsizetype bytesReceived = rawData.size();
-
-        m_totalDataReceivedBytes += bytesReceived;
-
-        emit totalDataReceivedBytesIncreased(m_totalDataReceivedBytes);
-
-        qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << m_totalDataReceivedBytes << " bytes";
-    }
-
-    #error i was here. 
+    Q_ASSERT(false);
 }
 
-void RESTClient::onReplyFinished()
+void RESTClient::onReplyAsyncRequestFinished()
 {
     QJsonParseError parseError;
     QJsonDocument doc;
@@ -244,9 +242,9 @@ void RESTClient::onReplyFinished()
     QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
     Q_CHECK_PTR(reply);
 
-    Q_ASSERT_X(m_pendingRequests.contains(reply), Q_FUNC_INFO, "The reply must be present in the pendingRequests map");
+    Q_ASSERT(m_networkReplyToPendingAsyncRequests.contains(reply));
 
-    qCDebug(RESTClientLog) << Q_FUNC_INFO << " reply of request " << static_cast<void*>(reply);
+    DEBUG << " reply of request " << static_cast<void*>(reply);
 
     QByteArray rawData = reply->readAll();
     {
@@ -341,21 +339,142 @@ notify:
     reply->deleteLater();
 }
 
-void RESTClient::onReplyErrorOccurred(QNetworkReply::NetworkError code, QNetworkReply *reply)
+void RESTClient::onReplyAsyncRequestErrorOccurred(QNetworkReply::NetworkError code, QNetworkReply *reply)
 {
-    Q_ASSERT(QThread::currentThread() == m_thread); // Paranoia
+    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
+    Q_CHECK_PTR(reply);
 
-    qCWarning(RESTClientLog) << Q_FUNC_INFO <<
-        "The reply " << static_cast<void*>(reply) << " received the error : " << code << " : " << reply->errorString();
+    Q_ASSERT_X(false, Q_FUNC_INFO, "Not supposed to happen");
 }
 
 
-void RESTClient::onReceivedNewAmountOfData(qsizetype bytes)
-{
-    m_totalDataReceivedBytes += bytes;
 
-    emit totalDataReceivedBytesIncreased(m_totalDataReceivedBytes);
+
+
+
+void RESTClient::onReplyStreamReadyRead()
+{
+   Q_ASSERT(QThread::currentThread() == m_thread); // Paranoia
+
+    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
+    Q_CHECK_PTR(reply);
+
+    Q_ASSERT_X(m_pendingRequests.contains(reply), Q_FUNC_INFO, "The reply must be present in the pendingRequests map");
+
+    RequestInfo * const requestInfo = &m_pendingRequests[reply];
+
+    Q_ASSERT_X(requestInfo->isStream == true, Q_FUNC_INFO, "This method is only meant to be called for stream requests");
+
+
+    QByteArray rawData = reply->readAll();
+    {
+        qsizetype bytesReceived = rawData.size();
+
+        m_totalDataReceivedBytes += bytesReceived;
+
+        emit totalDataReceivedBytesIncreased(m_totalDataReceivedBytes);
+
+        qCDebug(RESTClientLog) << Q_FUNC_INFO << " : Received " << bytesReceived << " bytes, total now " << m_totalDataReceivedBytes << " bytes";
+    }
+
+    Stream * const stream = m_streams[reply];
+    Q_CHECK_PTR(stream);
+    const QString streamName = stream->objectName();
+
+    while(true) {
+        int delimiterPos = stream->accumulatedData.indexOf('\n');
+        if (delimiterPos == -1) {
+            // No complete object yet, wait for more data
+            //TODO implement metric
+            break;
+        }
+
+        QByteArray jsonData = stream->accumulatedData.left(delimiterPos + 1);
+        stream->accumulatedData.remove(0, delimiterPos + 1); // Remove extracted data from buffer
+
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(jsonData, &parseError);
+
+        // Write raw data to recording file if recording is active
+
+        if (parseError.error != QJsonParseError::NoError) {
+            qCCritical(StreamLog) << streamName << "Failed to parse JSON:" << parseError.errorString();
+            qCDebug(StreamLog) << streamName << "Raw data : " << jsonData;
+            continue;
+        }
+
+        QJsonObject jsonObj = doc.object();
+
+        if (jsonObj.contains("Heartbeat") && jsonObj.contains("Timestamp")) {
+            heartbeatTimer.start(timeoutMS);
+            qCDebug(StreamLog) << streamName << "received heartbeat";
+        }
+        else if (jsonObj.contains("Error") && jsonObj.contains("Message")) {
+            streamIsInError = true;
+            StreamError error;
+            QString errorStr = jsonObj["Error"].toString();
+
+            if (errorStr == "BadRequest"){
+                error = StreamError::BadRequest;
+            } else if (errorStr == "DualLogon") {
+                error = StreamError::DualLogon;
+            } else if (errorStr == "GoAway") {
+                error = StreamError::GoAway;
+            } else if (errorStr == "InternalServerError") {
+                error = StreamError::InternalServerError;
+            } else if (errorStr == "InvalidSymbol"){
+                error = StreamError::InvalidSymbol;
+            } else {
+                error = StreamError::Unknown;
+                qCCritical(StreamLog) << streamName << "received unknown error string: " << errorStr;
+            }
+
+            qCCritical(StreamLog) << streamName << " received an error : " << jsonObj["Message"].toString();
+
+            emit streamErrorOccurred(error, jsonObj["Message"].toString());
+        }
+        else { // Happy path, process the object
+            if (processJsonObject(jsonObj)) {
+                heartbeatTimer.start(timeoutMS);
+            } else {
+                qCCritical(StreamLog) << "The stream " << streamName << " failed to process Json object";
+            }
+        }
+    }
 }
+
+void RESTClient::onReplyStreamFinished()
+{
+    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
+    Q_CHECK_PTR(reply);
+
+    Q_ASSERT_X(false, Q_FUNC_INFO, "Not supposed to happen");
+}
+
+void RESTClient::onReplyStreamErrorOccurred(QNetworkReply::NetworkError code, QNetworkReply *reply)
+{
+    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
+    Q_CHECK_PTR(reply);
+
+    Q_ASSERT_X(false, Q_FUNC_INFO, "Not supposed to happen");
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #ifdef UNIT_TESTING
 bool RESTClient::isCleanedUp()

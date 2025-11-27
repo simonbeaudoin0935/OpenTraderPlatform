@@ -226,7 +226,7 @@ void TSClient::refreshAsyncAccessToken()
     Q_ASSERT(m_asyncTokenRefreshRequestId > 0);
 }
 
-void TSClient::onAsyncRefreshTokenFinished(size_t requestID, RequestStatus status, AuthToken newToken)
+void TSClient::onAsyncRefreshTokenFinished(RESTClient::requestID_t requestID, RequestStatus status, AuthToken newToken)
 {
     Q_ASSERT_X(m_asyncTokenRefreshRequestId == requestID, "token refresh", "Stored refresh request ID does not match the finished one");
 
@@ -304,9 +304,9 @@ void TSClient::onAsyncRefreshTokenFinished(size_t requestID, RequestStatus statu
 }
 
 
-void TSClient::emitSignalDemuxer(RequestTypeInt type, const QJsonDocument &doc, size_t requestID, RequestStatus status, void *optArg)
+void TSClient::emitSignalDemuxer(RequestTypeBase_t type, const QJsonDocument &doc, RESTClient::requestID_t requestID, RequestStatus status, void *optArg)
 {
-    RequestType requestType = static_cast<RequestType>(type);
+    RequestType_t requestType = static_cast<RequestType_t>(type);
     QJsonObject obj = doc.object();
 
     Q_ASSERT(requestID > 0);
