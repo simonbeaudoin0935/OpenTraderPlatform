@@ -75,8 +75,6 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/Misc
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/FMPClient
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/FMPClient/Filters
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Auth
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage

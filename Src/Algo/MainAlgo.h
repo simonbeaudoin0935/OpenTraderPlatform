@@ -10,7 +10,6 @@
 #include "PositionsReceiver.h"
 #include "Account.h"
 #include "BarCache.h"
-#include "RESTClient.h" // FIXNEeeeee
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 

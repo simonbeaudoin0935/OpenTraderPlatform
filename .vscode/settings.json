@@ -1,4 +1,7 @@
 {
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "C_Cpp.intelliSenseEngine": "default",
+    
     "files.associations": {
         "array": "cpp",
         "atomic": "cpp",

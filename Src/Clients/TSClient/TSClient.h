@@ -2,8 +2,11 @@
 
 #include <QObject>
 #include <QLoggingCategory>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QNetworkAccessManager>
+#include <QThread>
 
-#include "RESTClient.h"
 #include "AuthToken.h"
 #include "ClientToken.h"
 #include "Account.h"
@@ -16,17 +19,31 @@
 #include "StreamMarketDepthQuote.h"
 #include "Balance.h"
 
+#include "Stream.h"
+
 #ifdef GUI_ENABLED
 #include "AuthWindow.h"
 #endif
 
 Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 
-#define ASYNC_REQUEST_TIMEOUT_MS_DEFAULT 5000
+#define ENDPOINT_GET_QUOTE_SNAPSHOTS       "marketdata/quotes/%1"
+#define ENDPOINT_GET_BARS                  "marketdata/barcharts/%1"
+#define ENDPOINT_STREAM_BARS               "marketdata/stream/barcharts"
+#define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes"
+
+#define ENDPOINT_GET_ACCOUNTS              "brokerage/accounts"
+#define ENDPOINT_GET_BALANCES              "brokerage/accounts/%1/balances"
+#define ENDPOINT_STREAM_ORDERS             "brokerage/stream/accounts/%1/orders"
+#define ENDPOINT_STREAM_POSITIONS          "brokerage/stream/accounts/%1/positions"
+
+#define ENDPOINT_PLACE_ORDER               "orderexecution/orders"
+#define ENDPOINT_CANCEL_ORDER              "orderexecution/orders/%1"
 
 // This is a singleton
 
-class TSClient final : public RESTClient {
+class TSClient final : public QObject
+{
     Q_OBJECT
 public:
 
@@ -36,6 +53,27 @@ public:
     TSClient(const TSClient&) = delete;
     TSClient& operator=(const TSClient&) = delete;
 
+   /*
+     * @brief Type alias for request ID.
+     * This type is used to uniquely identify each request made by the RESTClient.
+     */
+    typedef quint64 AsyncRequestID_t;
+
+    enum class AsyncRequestStatus_e {
+        UNSET,
+        SUCCESS,
+        TIMEOUT,
+        ERROR
+    };
+
+    void start() { m_thread->start(); };
+
+    // To monitor usage
+    [[nodiscard]] qsizetype getTotalDataReceivedBytes() const { return m_totalDataReceivedBytes; };
+    [[nodiscard]] bool isCleanedUp();
+
+      // Stream count getter
+    [[nodiscard]] size_t getStreamCount() const { return m_networkReplyToOpenStreams.size(); }
 
     // Authentication state getter
     [[nodiscard]] bool isAuthenticated() const { return m_authenticated; }
@@ -55,8 +93,7 @@ public:
      *  > 0 : The request ID of the async request
      *  0 : Failed to start the async request
      */
-    #warning TODO replace symbol QString for QStringList
-    [[nodiscard]] RESTClient::requestID_t getQuoteSnapshotsAsync(const QString &symbols);
+    [[nodiscard]] AsyncRequestID_t getQuoteSnapshotsAsync(const QStringList &symbols);
 
     /*
      * Creates a Bars Stream
@@ -82,7 +119,7 @@ public:
      *  > 0 : The request ID of the async request
      *  0 : Failed to start the async request
      */
-    [[nodiscard]] RESTClient::requestID_t getBarsAsync(const QString &symbol,
+    [[nodiscard]] AsyncRequestID_t getBarsAsync(const QString &symbol,
                                       unsigned int interval = 1,
                                       Bar::BarUnit unit = Bar::BarUnit::Daily,
                                       unsigned int barsback = 1,
@@ -114,7 +151,7 @@ public:
      *  > 0 : The request ID of the async request
      *  0 : Failed to start the async request
      */
-    [[nodiscard]] RESTClient::requestID_t getAccountsAsync();
+    [[nodiscard]] AsyncRequestID_t getAccountsAsync();
     /*
      * Get Balances
      *
@@ -124,7 +161,7 @@ public:
      *  > 0 : The request ID of the async request
      *  0 : Failed to start the async request
      */
-    [[nodiscard]] RESTClient::requestID_t getBalancesAsync(const QString &account);
+    [[nodiscard]] AsyncRequestID_t getBalancesAsync(const QStringList &accounts);
 
     /*
      * Creates a StreaOrders Stream
@@ -159,7 +196,7 @@ public:
      *   > 0 : The request ID of the async request
      *   0 : Failed to start the async request
      */
-    [[nodiscard]] RESTClient::requestID_t placeOrderAsync(const PlaceOrderRequest &order);
+    [[nodiscard]] AsyncRequestID_t placeOrderAsync(const PlaceOrderRequest &order);
 
     /*
      * Cancel order
@@ -170,7 +207,7 @@ public:
      *   > 0 : The request ID of the async request
      *   0 : Failed to start the async request
      */
-    [[nodiscard]] RESTClient::requestID_t cancelOrderAsync(const QString &orderID);
+    [[nodiscard]] AsyncRequestID_t cancelOrderAsync(const QString &orderID);
 
 public slots:
     #ifdef GUI_ENABLED
@@ -179,19 +216,28 @@ public slots:
     #endif
 
 signals:
+    // Emited at basically every new message
+    void totalDataReceivedBytesIncreased(qsizetype dataSize);
+    
+    void openStreamCountChanged(size_t count);
+    void pendingAsyncRequestsCountChanges(size_t count);
+
     void authStateChanged(bool isAuthenticated, QString reason);
 
-    void receivedAsyncGetAccounts      (RESTClient::requestID_t requestID, RequestStatus status, QVector<Account> results);
-    void receivedAsyncGetBalances      (RESTClient::requestID_t requestID, RequestStatus status, QVector<Balance> results);
-    void receivedAsyncGetQuoteSnapshots(RESTClient::requestID_t requestID, RequestStatus status, QVector<QuoteSnapshot> quoteSnapshots);
-    void receivedAsyncPlaceOrder       (RESTClient::requestID_t requestID, RequestStatus status, PlaceOrderResult result);
-    void receivedAsyncCancelOrder      (RESTClient::requestID_t requestID, RequestStatus status, CancelOrderResult result);
-    // TODO: allocate the vector before emitting the signal to avoid copies and delete later in the receiver
-    void receivedAsyncGetBars          (RESTClient::requestID_t requestID, RequestStatus status, QString symbol, QVector<Bar> bars);
+    void receivedAsyncGetBars          (AsyncRequestID_t requestID, AsyncRequestStatus_e status, QString symbol, QVector<Bar> bars);
+    void receivedAsyncGetAccounts      (AsyncRequestID_t requestID, AsyncRequestStatus_e status, QVector<Account> results);
+    void receivedAsyncGetBalances      (AsyncRequestID_t requestID, AsyncRequestStatus_e status, QVector<Balance> results);
+    void receivedAsyncGetQuoteSnapshots(AsyncRequestID_t requestID, AsyncRequestStatus_e status, QVector<QuoteSnapshot> quoteSnapshots);
+    void receivedAsyncPlaceOrder       (AsyncRequestID_t requestID, AsyncRequestStatus_e status, PlaceOrderResult result);
+    void receivedAsyncCancelOrder      (AsyncRequestID_t requestID, AsyncRequestStatus_e status, CancelOrderResult result);
     
 private slots:
 
-    void onAsyncRefreshTokenFinished(RESTClient::requestID_t requestID, RequestStatus status, AuthToken newToken);
+    void onReplyAsyncRequestReadyRead();
+    void onReplyAsyncRequestFinished();
+    void onReplyAsyncRequestErrorOccurred(QNetworkReply::NetworkError code, QNetworkReply *reply);
+
+
     #ifdef GUI_ENABLED
     void onAuthFinished(bool success, AuthToken token, QString reason);
     void onAuthWindowDestroyed();
@@ -199,33 +245,69 @@ private slots:
 
 private:
 
-    enum class RequestType_t {
+    enum class HttpMethod {
+        GET,
+        POST,
+        PUT,
+        DELETE
+    };
+
+    enum class AsyncRequestType_t {
         None,
+        GetRefreshAccessToken,
+        GetBars,
         GetAccounts,
         GetBalances,
-        GetBars,
         GetQuoteSnapshots,
-        GetRefreshAccessToken,
         PlaceOrder,
         CancelOrder,
         MAX_REQUEST_TYPE
     };
 
-    // Singleton : private constructor
-    explicit TSClient();
-    ~TSClient();
+    enum class StreamType_t {
+        None,
+        Bars,
+        MarketDepthQuote,
+        Orders,
+        Positions,
+        MAX_STREAM_TYPE
+    };
 
-    // Static helper methods for authentication
+    struct RequestInfo {
+        AsyncRequestID_t requestID = 0;
+        AsyncRequestType_t type = AsyncRequestType_t::None;
+    };
+
+   
+    // Implemented in TSClient.cpp
+     explicit TSClient(); // Singleton : private constructor
+    ~TSClient();
+    void processNewAmountOfDataReceived(qsizetype bytesReceived);
+    [[nodiscard]] QNetworkRequest buildNetworkRequest(const QString &endpoint, const QUrlQuery &query = QUrlQuery()) const;
+
+
+    // Auth and refresh stuff implemented in TSClientRefreshToken.cpp
     [[nodiscard]] static QNetworkRequest buildRefreshTokenRequest();
     [[nodiscard]] static QByteArray buildRefreshTokenQuery(const QString &clientId,
                                                            const QString &clientSecret,
-                                                           const QString &refreshToken);
-                                           
+                                                           const QString &refreshToken);                                       
     void refreshAsyncAccessToken();
+    void processAsyncRefreshTokenFinished(AsyncRequestID_t requestID, AsyncRequestStatus_e status, AuthToken newToken);
 
-    void finalClassDemuxReceivedAsyncRequestReply(RequestTypeBase_t type, const QJsonDocument &doc, requestID_t requestID, RequestStatus status) override;
 
-    void finalClassDemuxReceivedStreamReply(StreamTypeBase_t streamType, const QJsonDocument &doc, requestID_t requestID, RequestStatus status) = 0;
+
+
+    [[nodiscard]] AsyncRequestID_t sendAsyncRequest(const QNetworkRequest &request, AsyncRequestType_t type, HttpMethod method = HttpMethod::GET, const QByteArray &postData = QByteArray());
+    void demuxReceivedAsyncRequestReply(AsyncRequestType_t asyncRequestType, const QJsonDocument &doc, AsyncRequestID_t requestID, AsyncRequestStatus_e status);
+
+    [[nodiscard]] Stream* openStream(const QNetworkRequest &request, StreamType_t streamType);
+    void closeStream(Stream * const stream);
+    void demuxReceivedStreamReply(StreamType_t streamType, const QJsonDocument &doc, AsyncRequestID_t requestID, AsyncRequestStatus_e status);
+
+
+
+
+ 
 
 
   
@@ -235,17 +317,30 @@ private:
     static TSClient* m_instance;
 
     // tokens
-    AuthToken m_authToken;
+    AuthToken   m_authToken;
     ClientToken m_clientToken;
 
-
-    bool m_authenticated = false;  // Track authentication state
+    bool m_authenticated     = false;  // Track authentication state
     bool m_refreshInProgress = false;  // Track if authentication process is in progress
-    bool m_authInProgress = false;  // Track if authentication process is in progress
+    bool m_authInProgress    = false;  // Track if authentication process is in progress
 
-    RESTClient::requestID_t m_asyncTokenRefreshRequestId = 0; // Store the request ID of the ongoing token refresh request
+    AsyncRequestID_t m_asyncTokenRefreshRequestId = 0; // Store the request ID of the ongoing token refresh request
+
+    QUrl m_baseUrl;
+    QAtomicInteger<AsyncRequestID_t> m_asyncRequestIDCurrentSequence{0};   // starts at 0
+    //mutable QReadWriteLock m_requestIDMapRWLock; // To protect m_requestIDSeq
+    qsizetype m_totalDataReceivedBytes = 0;
+    QString m_apiKey;
+    QThread *m_thread;
+    QNetworkAccessManager *m_networkManager;
+    QMap<QNetworkReply*, RequestInfo> m_networkReplyToPendingAsyncRequests;
+    QMap<QNetworkReply*, Stream*> m_networkReplyToOpenStreams;
+
 
 #ifdef GUI_ENABLED
     AuthWindow* m_authWindow = nullptr;  // Authentication window
 #endif
+
+    friend class TestTSClient;
+    friend class TestBarCache;
 };
