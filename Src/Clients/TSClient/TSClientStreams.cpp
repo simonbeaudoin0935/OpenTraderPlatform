@@ -1,41 +1,22 @@
 #include "TSClient.h"
 
 // Generic stream opening method
-Stream* TSClient::openStream(const QNetworkRequest &request, StreamType_t streamType)
+void TSClient::openStream(const QNetworkRequest &request, Stream *stream)
 {
-    Q_ASSERT_X(QThread::currentThread() != m_thread, "lambda", "The TSClient thread by design shall never be the one opening a stream, always another thread");
+    Q_ASSERT(QThread::currentThread() == m_thread);
+    Q_CHECK_PTR(stream);
 
-    Stream * stream = nullptr;
+    QNetworkReply *reply = m_networkManager->get(request);
+    Q_CHECK_PTR(reply);
 
-    QMetaObject::invokeMethod(this,
-        [this, &request, &stream]()
-        {
-            stream = new Stream();
-            Q_CHECK_PTR(stream);
+    stream->setNetworkReply(reply);
 
-            QNetworkReply *reply = m_networkManager->get(request);
-            Q_CHECK_PTR(reply);
 
-            Q_ASSERT(!m_networkReplyToOpenStreams.contains(reply)); // Paranoia
 
-            auto a = connect(reply, &QNetworkReply::readyRead, stream, &Stream::onReplyStreamReadyRead);
-            Q_ASSERT(a);
-            auto b = connect(reply, &QNetworkReply::finished, stream, &Stream::onReplyStreamReadyRead);
-            Q_ASSERT(b);
-            auto c = connect(reply, &QNetworkReply::errorOccurred, stream, &Stream::onReplyStreamErrorOccurred);
-            Q_ASSERT(c);
+    // Emit signal that stream count has changed
+    emit openStreamCountChanged(m_networkReplyToOpenStreams.size());
 
-            m_networkReplyToOpenStreams[reply] = stream;
-                
-            // Emit signal that stream count has changed
-            emit openStreamCountChanged(m_networkReplyToOpenStreams.size());
-        },
-    Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
-                                   // finishes executing this lambda so that a valid pointer is returned
-
-    qCDebug(TSClientLog) << "Opened stream = " << static_cast<void*>(stream) << "with URL : " << request.url();
-
-    return stream;
+    qCDebug(TSClientLog) << "Opened stream " << qPrintable(stream->objectName()) << "with URL : " << request.url();
 }
 
 // Generic stream closing method
@@ -93,15 +74,32 @@ void TSClient::closeStream(Stream * const stream)
 StreamPositions *TSClient::openStreamPositions(QString &accountID, bool changes)
 {
     Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
+    
+    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamPositions for account " << accountID << " with changes=" << changes;
 
+    
     const QString endpoint = QString(ENDPOINT_STREAM_POSITIONS).arg(accountID);
 
     QUrlQuery query;
     query.addQueryItem("changes", changes? "true":"false");
 
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamPositions";
+    QNetworkRequest request = buildNetworkRequest(endpoint, query);
 
-    return openStream<StreamPositions>("NOSYMBOL", endpoint, query, accountID);
+    StreamPositions* stream = nullptr;
+
+    QMetaObject::invokeMethod(this,
+        [this, &request, &stream]()
+        {
+            stream = new StreamPositions();
+            Q_CHECK_PTR(stream);
+
+            stream = static_cast<StreamPositions*>(openStream(request, stream));
+
+        },
+    Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
+                                   // finishes executing this lambda so that a valid pointer is returned
+
+    return openStream();
 }
 
 StreamOrders* TSClient::openStreamOrders(QString &accountID) {
@@ -121,8 +119,7 @@ StreamBars *TSClient::openStreamBars(const QString &symbol,
                                      unsigned int interval,
                                      Bar::BarUnit unit,
                                      unsigned int barsback,
-                                     Bar::BarSessionTemplate sessionTemplate,
-                                     bool mock)
+                                     Bar::BarSessionTemplate sessionTemplate)
 {
     // Interval that each bar will consist of - for minute bars, the number of minutes aggregated in a single bar. For bar units other than minute, value must be 1.
     if (unit == Bar::BarUnit::Minute) {Q_ASSERT(interval >= 1);}

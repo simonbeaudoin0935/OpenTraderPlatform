@@ -107,8 +107,7 @@ public:
                                unsigned int interval = 1,
                                Bar::BarUnit unit = Bar::BarUnit::Daily,
                                unsigned int barsback = 1,
-                               Bar::BarSessionTemplate sesstionTemplate = Bar::BarSessionTemplate::Default,
-                               bool mock = false);
+                               Bar::BarSessionTemplate sesstionTemplate = Bar::BarSessionTemplate::Default);
     void closeStreamBars(StreamBars* stream);
 
 
@@ -300,17 +299,12 @@ private:
     [[nodiscard]] AsyncRequestID_t sendAsyncRequest(const QNetworkRequest &request, AsyncRequestType_t type, HttpMethod method = HttpMethod::GET, const QByteArray &postData = QByteArray());
     void demuxReceivedAsyncRequestReply(AsyncRequestType_t asyncRequestType, const QJsonDocument &doc, AsyncRequestID_t requestID, AsyncRequestStatus_e status);
 
-    [[nodiscard]] Stream* openStream(const QNetworkRequest &request, StreamType_t streamType);
+    void openStream(const QNetworkRequest &request, Stream *stream);
+
     void closeStream(Stream * const stream);
+
     void demuxReceivedStreamReply(StreamType_t streamType, const QJsonDocument &doc, AsyncRequestID_t requestID, AsyncRequestStatus_e status);
-
-
-
-
  
-
-
-  
     //********* members ********/
 
     // Singleton

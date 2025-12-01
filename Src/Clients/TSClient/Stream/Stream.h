@@ -8,21 +8,13 @@
 
 Q_DECLARE_LOGGING_CATEGORY(StreamLog)
 
+
+
 class Stream : public QObject {
     Q_OBJECT
 
-public:
-    Stream();
-    ~Stream();
-
-    Stream(const Stream&) = delete;
-    Stream& operator=(const Stream&) = delete;
-
-    bool isFinished() const {return streamIsFinished;}
-    bool isInError()  const {return streamIsInError;}
-
-
-    enum class StreamError {
+    enum class ErrorStatus {
+        NoError,
         Timeout,
         BadRequest,
         DualLogon,
@@ -32,31 +24,46 @@ public:
         Unknown
     };
 
-signals:
+public:
+    Stream(QObject *parent = nullptr);
+    ~Stream();
 
-    void streamErrorOccurred(StreamError error, QString errorMessage);
+    Stream(const Stream&) = delete;
+    Stream& operator=(const Stream&) = delete;
+
+    [[nodiscard]] bool isFinished() const {return m_streamIsFinished; }
+    [[nodiscard]] ErrorStatus getErrorStatus() const {return m_errorStatus; }
+
+    void setNetworkReply(QNetworkReply * reply);
+
+signals:
+    void newAmountOfDataReceived(size_t bytes);
+    void streamErrorOccurred(ErrorStatus error, QString errorMessage);
 
 public slots:
     void onReplyStreamReadyRead();
     void onReplyStreamFinished();
     void onReplyStreamErrorOccurred(QNetworkReply::NetworkError code, QNetworkReply *reply);
 
+protected:
+    virtual bool processJsonObject(const QJsonObject& doc) = 0;
+
 private slots:
     void onHeartbeatTimerTimeout();
 
-protected:
-
-    virtual bool processJsonObject(const QJsonObject& doc) = 0;
-
 private:
     void processRawData(const QByteArray& rawData);
+    
+    // This is the QNetworkReply that this stream gets attributed to when issuing the http->get request
+    QNetworkReply* m_networkReply = nullptr;
 
-    QTimer heartbeatTimer;
-    bool streamIsInError = false;
-    bool streamIsFinished = false;
+    ErrorStatus  m_errorStatus = ErrorStatus::NoError;
+    bool         m_streamIsFinished = false;
+    const size_t m_heartbeatTimeoutMS = 10000;
+    QTimer       m_heartbeatTimer;
+    QByteArray   m_accumulatedData;
 
-    unsigned int timeoutMS = 10000;
-
-    QByteArray m_accumulatedData;
+    size_t m_metricJsonParseError = 0;
+    size_t m_metricIncompleteJsonObjectWhenParsing = 0;
 };
 

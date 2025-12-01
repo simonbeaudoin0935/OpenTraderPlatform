@@ -5,114 +5,55 @@
 Q_LOGGING_CATEGORY(StreamLog, "Stream")
 
 
-Stream::Stream() :
-    QObject(nullptr)
+Stream::Stream(QObject *parent) :
+    QObject(parent)
 {
 }
 
 Stream::~Stream()
 {
-    qCDebug(StreamLog) << "Destroying Stream " << this->objectName() << " for symbol " << symbol;
+    qCDebug(StreamLog) << "Destroying Stream " << this->objectName();
 }
 
 
-
-void Stream::processRawData(const QByteArray& rawData)
+void Stream::setNetworkReply(QNetworkReply * reply)
 {
-    const QString streamName = this->objectName();
+    Q_CHECK_PTR(reply);
+    m_networkReply = reply; 
 
-    m_accumulatedData.append(rawData);
-
-    while(true) {
-        int delimiterPos = m_accumulatedData.indexOf('\n');
-        if (delimiterPos == -1) {
-            // No complete object yet, wait for more data
-            //TODO implement metric
-            break;
-        }
-
-        // TODO optimize to avoid copy
-        QByteArray jsonData = m_accumulatedData.left(delimiterPos + 1);
-        m_accumulatedData.remove(0, delimiterPos + 1); // Remove extracted data from buffer
-
-        QJsonParseError parseError;
-        QJsonDocument doc = QJsonDocument::fromJson(jsonData, &parseError);
-
-        if (parseError.error != QJsonParseError::NoError) {
-            qCCritical(StreamLog) << streamName << "Failed to parse JSON:" << parseError.errorString();
-            qCDebug(StreamLog) << streamName << "Raw data : " << jsonData;
-            continue;
-        }
-
-        QJsonObject jsonObj = doc.object();
-
-        if (jsonObj.contains("Heartbeat") && jsonObj.contains("Timestamp")) {
-            // TODO implement a container of all the stream timers for eficient timer management
-            heartbeatTimer.start(timeoutMS);
-            qCDebug(StreamLog) << streamName << "received heartbeat";
-        }
-        else if (jsonObj.contains("Error") && jsonObj.contains("Message")) {
-            streamIsInError = true;
-            StreamError error;
-            QString errorStr = jsonObj["Error"].toString();
-
-            if (errorStr == "BadRequest"){
-                error = StreamError::BadRequest;
-            } else if (errorStr == "DualLogon") {
-                error = StreamError::DualLogon;
-            } else if (errorStr == "GoAway") {
-                error = StreamError::GoAway;
-            } else if (errorStr == "InternalServerError") {
-                error = StreamError::InternalServerError;
-            } else if (errorStr == "InvalidSymbol"){
-                error = StreamError::InvalidSymbol;
-            } else {
-                error = StreamError::Unknown;
-                qCCritical(StreamLog) << streamName << "received unknown error string: " << errorStr;
-            }
-
-            qCCritical(StreamLog) << streamName << " received an error : " << jsonObj["Message"].toString();
-
-            emit streamErrorOccurred(error, jsonObj["Message"].toString());
-        }
-        else { // Happy path, process the object
-            if (processJsonObject(jsonObj)) {
-                heartbeatTimer.start(timeoutMS);
-            } else {
-                qCCritical(StreamLog) << "The stream " << streamName << " failed to process Json object";
-            }
-        }
-    }
+    QMetaObject::Connection c;
+    c = connect(m_networkReply, &QNetworkReply::readyRead, this, &Stream::onReplyStreamReadyRead);
+    Q_ASSERT(c);
+    c = connect(m_networkReply, &QNetworkReply::finished, this, &Stream::onReplyStreamReadyRead);
+    Q_ASSERT(c);
+    c = connect(m_networkReply, &QNetworkReply::errorOccurred, this, &Stream::onReplyStreamErrorOccurred);
+    Q_ASSERT(c);
 }
+
 
 void Stream::onReplyStreamReadyRead()
 {
-    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
-    Q_CHECK_PTR(reply);
+    const QByteArray rawData = m_networkReply->readAll();
 
-    QByteArray rawData = reply->readAll();
+    Q_ASSERT(rawData.size() > 0);
 
-    #warning deal with this shit
-    //processNewAmountOfDataReceived(rawData.size());
+    emit newAmountOfDataReceived(rawData.size());
 
     processRawData(rawData);
 }
 
+#warning TODO complete
 void Stream::onReplyStreamFinished()
 {
-    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
-    Q_CHECK_PTR(reply);
-
     const QString streamName = this->objectName();
 
     qCWarning(StreamLog) << streamName << "received the signal finished(). There has been a previous json description of the error received, and this is the remote closing this connection.";
 
-    QByteArray rawData = reply->readAll();
+    QByteArray rawData = m_networkReply->readAll();
 
-    #warning deal with this shit
-    //processNewAmountOfDataReceived(rawData.size());
+    emit newAmountOfDataReceived(rawData.size());
 
-    streamIsFinished = true;
+    m_streamIsFinished = true;
 
     QJsonParseError parseError;
     QJsonDocument doc = QJsonDocument::fromJson(rawData, &parseError);
@@ -137,6 +78,7 @@ void Stream::onReplyStreamFinished()
     Q_ASSERT(false);
 }
 
+#warning TODO complete
 void Stream::onReplyStreamErrorOccurred(QNetworkReply::NetworkError code, QNetworkReply *reply)
 {
     Q_CHECK_PTR(reply);
@@ -154,11 +96,90 @@ void Stream::onReplyStreamErrorOccurred(QNetworkReply::NetworkError code, QNetwo
 
 void Stream::onHeartbeatTimerTimeout()
 {
-    streamIsInError = true;
+    m_errorStatus = ErrorStatus::Timeout;
 
     const QString streamName = this->objectName();
 
-    qCCritical(StreamLog) << "The stream " << streamName << " did not receive data nor heartbeat in : " << timeoutMS  << "ms";
+    qCCritical(StreamLog) << "The stream " << streamName << " did not receive data nor heartbeat in : " << m_heartbeatTimeoutMS  << "ms";
 
-    emit streamErrorOccurred(StreamError::Timeout, QString("Stream did not receive data nor heartbeat"));
+    emit streamErrorOccurred(m_errorStatus, QString("Stream supposed to receive data or heartbeat every 5000ms, received nothing in 10000ms"));
+}
+
+void Stream::processRawData(const QByteArray& rawData)
+{
+    const QString streamName = this->objectName();
+
+    m_accumulatedData.append(rawData);
+
+    while(true) {
+
+        int delimiterPos = m_accumulatedData.indexOf('\n');
+        if (delimiterPos == -1) {
+            // No complete object yet, wait for more data
+            m_metricIncompleteJsonObjectWhenParsing++;
+            
+            break;
+        }
+
+        // TODO optimize to avoid copy
+        QByteArray jsonData = m_accumulatedData.left(delimiterPos + 1);
+        m_accumulatedData.remove(0, delimiterPos + 1); // Remove extracted data from buffer
+
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(jsonData, &parseError);
+
+        if (parseError.error != QJsonParseError::NoError) {
+            qCCritical(StreamLog) << streamName << "Failed to parse JSON:" << parseError.errorString();
+            qCDebug(StreamLog) << streamName << "Raw data : " << jsonData;
+            
+            m_metricJsonParseError++;
+            
+            continue;
+        }
+
+        QJsonObject jsonObj = doc.object();
+
+        if (jsonObj.contains("Heartbeat") && jsonObj.contains("Timestamp")) {
+            // TODO implement a container of all the stream timers for eficient timer management
+            // Kick the watchdog
+            m_heartbeatTimer.start(m_heartbeatTimeoutMS);
+            qCDebug(StreamLog) << streamName << "received heartbeat";
+
+            continue;
+        }
+
+        if (jsonObj.contains("Error") && jsonObj.contains("Message")) {
+
+            QString errorStr = jsonObj["Error"].toString();
+
+            if (errorStr == "BadRequest"){
+                m_errorStatus = ErrorStatus::BadRequest;
+            } else if (errorStr == "DualLogon") {
+                m_errorStatus = ErrorStatus::DualLogon;
+            } else if (errorStr == "GoAway") {
+                m_errorStatus = ErrorStatus::GoAway;
+            } else if (errorStr == "InternalServerError") {
+                m_errorStatus = ErrorStatus::InternalServerError;
+            } else if (errorStr == "InvalidSymbol"){
+                m_errorStatus = ErrorStatus::InvalidSymbol;
+            } else {
+                m_errorStatus = ErrorStatus::Unknown;
+                qCCritical(StreamLog) << streamName << "received unknown error string: " << errorStr;
+            }
+
+            qCCritical(StreamLog) << streamName << " received an error : " << jsonObj["Message"].toString();
+
+            emit streamErrorOccurred(m_errorStatus, jsonObj["Message"].toString());
+
+            continue;
+        }
+
+        // Happy path, process the object
+        
+        if (processJsonObject(jsonObj)) {
+            m_heartbeatTimer.start(m_heartbeatTimeoutMS);
+        } else {
+            qCCritical(StreamLog) << "The stream " << streamName << " failed to process Json object";
+        }
+    }
 }

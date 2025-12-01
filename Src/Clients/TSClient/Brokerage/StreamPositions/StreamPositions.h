@@ -3,10 +3,12 @@
 #include "Stream.h"
 #include "Position.h"
 
-class StreamPositions : public Stream
+class StreamPositions final : public Stream
 {
     Q_OBJECT
+    
 public:
+
     class StreamPositionStatus {
     public:
         enum class Status {

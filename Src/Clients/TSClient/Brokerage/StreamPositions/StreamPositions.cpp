@@ -58,7 +58,7 @@ bool StreamPositions::processJsonObject(const QJsonObject &jsonObj)
     }
 
     // If not a status message, try to process as a position update
-    Position position(jsonObj, receivedEndSnapshot);  // Pass the update flag based on EndSnapshot status
+    Position position(jsonObj, receivedEndSnapshot); // Pass the update flag based on EndSnapshot status
     if (position.isValid()) {
         emit receivedNewPosition(accountID, position);
         return true;
