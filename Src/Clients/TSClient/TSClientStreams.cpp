@@ -168,13 +168,30 @@ StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(const QString &symb
 {
     Q_ASSERT(depth >= 1 && depth <= 20);
 
-    const QString endpoint = ENDPOINT_STREAM_MARKET_DEPTH_QUOTE;
+    const QString endpoint = QString(ENDPOINT_STREAM_MARKET_DEPTH_QUOTE).arg(symbol);
     QUrlQuery query;
     query.addQueryItem("maxlevels", QString::number(depth));
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamMarketDepthQuote";
 
-    return openStream<StreamMarketDepthQuote>(symbol, endpoint, query, symbol);
+
+    QNetworkRequest request = buildNetworkRequest(endpoint, query);
+
+    StreamMarketDepthQuote* stream = nullptr;
+
+    QMetaObject::invokeMethod(this,
+        [this, &request, &stream, &symbol]()
+        {
+            stream = new StreamMarketDepthQuote(symbol, this);
+            Q_CHECK_PTR(stream);
+
+            openStream(request, stream);
+
+        },
+    Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
+                                   // finishes executing this lambda so that a valid pointer is returned
+
+    return stream;
 }
 
 

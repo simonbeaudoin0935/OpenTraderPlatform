@@ -29,8 +29,8 @@ Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 
 #define ENDPOINT_GET_QUOTE_SNAPSHOTS       "marketdata/quotes/%1"
 #define ENDPOINT_GET_BARS                  "marketdata/barcharts/%1"
-#define ENDPOINT_STREAM_BARS               "marketdata/stream/barcharts"
-#define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes"
+#define ENDPOINT_STREAM_BARS               "marketdata/stream/barcharts/%1"
+#define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes/%1"
 
 #define ENDPOINT_GET_ACCOUNTS              "brokerage/accounts"
 #define ENDPOINT_GET_BALANCES              "brokerage/accounts/%1/balances"

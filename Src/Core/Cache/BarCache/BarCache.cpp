@@ -14,7 +14,7 @@ Q_LOGGING_CATEGORY(BarCacheLog, "BarCache")
 
 
 QMap<QString, BarCache*> BarCache::barCacheMap = QMap<QString, BarCache*>();
-
+QMap<TSClient::AsyncRequestID_t, QString> BarCache::m_asyncReqIdToSymbol = QMap<TSClient::AsyncRequestID_t, QString> ();
 
 
 BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
@@ -143,9 +143,13 @@ bool BarCache::warmUpBarsOfDayUntilNow(QDate date)
 /*
  * Static method which is connected to the TSClient singleton instances's receivedAsyncGetBars() signal.
  */
-void BarCache::onReceivedAsyncGetBars(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QString symbol, QVector<Bar> bars)
+void BarCache::onReceivedAsyncGetBars(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Bar> bars)
 {
     Q_ASSERT(requestID != 0);
+
+    Q_ASSERT(m_asyncReqIdToSymbol.contains(requestID));
+    QString symbol = m_asyncReqIdToSymbol[requestID];
+    m_asyncReqIdToSymbol.remove(requestID);
     Q_ASSERT(barCacheMap.contains(symbol));
 
     BarCache* barCacheInstance = barCacheMap.value(symbol);
@@ -384,6 +388,10 @@ const QVector<Bar> BarCache::getBarsInRange(const QDateTime &first, const QDateT
         size_t requestID = TSClient::getInstance().getBarsAsync(symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour, range.first, fetchLast);
 
         Q_ASSERT(requestID != 0);
+
+        Q_ASSERT(!m_asyncReqIdToSymbol.contains(requestID));
+
+        m_asyncReqIdToSymbol[requestID] = symbol;
 
         PendingAsyncGetBarRequest pendingRequest;
         pendingRequest.first = range.first;

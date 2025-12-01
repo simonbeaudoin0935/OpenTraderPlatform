@@ -61,7 +61,7 @@ signals:
 private slots:
 
     // Static method which is connected to the TSClient singleton instances's receivedAsyncGetBars() signal.
-    static void onReceivedAsyncGetBars(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QString symbol, QVector<Bar> bars);
+    static void onReceivedAsyncGetBars(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Bar> bars);
 
     void onReceivedAsyncGetBarsInstance(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Bar> bars);
 
@@ -95,6 +95,9 @@ private:
     // BarCache instance that triggered the request based on the symbol.
     static QMap<QString, BarCache*> barCacheMap;
 
+    // This map associates 
+    static QMap<TSClient::AsyncRequestID_t, QString> m_asyncReqIdToSymbol;
+
 
     struct PendingAsyncGetBarRequest {
         QDateTime first;
@@ -106,7 +109,7 @@ private:
     // This map holds pending async get bars requests: key is request ID, value is a pair where first element indicates
     // whether the request was fulfilled (true) or still pending (false), and second element
     // holds the fetched bars once the request is fulfilled.
-    QMap<size_t, PendingAsyncGetBarRequest> pendingAsyncGetBarRequests;
+    QMap<TSClient::AsyncRequestID_t, PendingAsyncGetBarRequest> pendingAsyncGetBarRequests;
     QDateTime savedFirst;
     QDateTime savedLast;
 };
