@@ -79,10 +79,8 @@ void Stream::onReplyStreamFinished()
 }
 
 #warning TODO complete
-void Stream::onReplyStreamErrorOccurred(QNetworkReply::NetworkError code, QNetworkReply *reply)
+void Stream::onReplyStreamErrorOccurred(QNetworkReply::NetworkError code)
 {
-    Q_CHECK_PTR(reply);
-
     switch(code)
     {
         case QNetworkReply::RemoteHostClosedError:

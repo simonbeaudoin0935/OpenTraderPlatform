@@ -52,7 +52,7 @@ private slots:
 
     void onReceivedNewPosition(QString account, Position position);
 
-    void onReceivedAsyncGetAccounts(size_t requestID, RESTClient::RequestStatus status, QVector<Account> results);
+    void onReceivedAsyncGetAccounts(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Account> results);
 
 
 private:

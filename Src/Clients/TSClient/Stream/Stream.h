@@ -13,6 +13,8 @@ Q_DECLARE_LOGGING_CATEGORY(StreamLog)
 class Stream : public QObject {
     Q_OBJECT
 
+public:
+
     enum class ErrorStatus {
         NoError,
         Timeout,
@@ -23,8 +25,7 @@ class Stream : public QObject {
         InvalidSymbol,
         Unknown
     };
-
-public:
+    
     Stream(QObject *parent = nullptr);
     ~Stream();
 
@@ -43,7 +44,7 @@ signals:
 public slots:
     void onReplyStreamReadyRead();
     void onReplyStreamFinished();
-    void onReplyStreamErrorOccurred(QNetworkReply::NetworkError code, QNetworkReply *reply);
+    void onReplyStreamErrorOccurred(QNetworkReply::NetworkError code);
 
 protected:
     virtual bool processJsonObject(const QJsonObject& doc) = 0;

@@ -3,26 +3,10 @@
 #include "StreamPositions.h"
 #include "TSClient.h"
 
-bool StreamPositions::StreamPositionStatus::isValid() const {
-    // A status object is valid if it contains a non-empty status string
-    return !statusString.isEmpty();
-}
 
-bool StreamPositions::StreamPositionStatus::isStatusValid() const {
-    // A status is valid if it's one of the known values
-    return status != Status::Unknown;
-}
-
-QString StreamPositions::StreamPositionStatus::toJsonString() const {
-    QJsonObject jsonObj;
-    jsonObj["StreamStatus"] = statusString;
-    
-    QJsonDocument doc(jsonObj);
-    return QString(doc.toJson(QJsonDocument::Compact));
-}
 
 StreamPositions::StreamPositions(QString &accountID, QObject *parent) :
-    Stream("Positions " + accountID, parent),
+    Stream(parent),
     accountID(accountID),
     receivedEndSnapshot(false)
 {
@@ -73,7 +57,25 @@ bool StreamPositions::processJsonObject(const QJsonObject &jsonObj)
 }
 
 
-StreamPositions::StreamPositionStatus::StreamPositionStatus(const QJsonObject& jsonObj) {
+bool StreamPositionStatus::isValid() const {
+    // A status object is valid if it contains a non-empty status string
+    return !statusString.isEmpty();
+}
+
+bool StreamPositionStatus::isStatusValid() const {
+    // A status is valid if it's one of the known values
+    return status != Status::Unknown;
+}
+
+QString StreamPositionStatus::toJsonString() const {
+    QJsonObject jsonObj;
+    jsonObj["StreamStatus"] = statusString;
+    
+    QJsonDocument doc(jsonObj);
+    return QString(doc.toJson(QJsonDocument::Compact));
+}
+
+StreamPositionStatus::StreamPositionStatus(const QJsonObject& jsonObj) {
     // Get the StreamStatus string
     statusString = jsonObj["StreamStatus"].toString();
 

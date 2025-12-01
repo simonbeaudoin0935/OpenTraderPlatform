@@ -32,7 +32,7 @@ signals:
 
 private slots:
     void onReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote);
-    void onStreamError(Stream::StreamError error, QString errorMessage);
+    void onStreamError(Stream::ErrorStatus error, QString errorMessage);
 
 private:
     QString symbol;

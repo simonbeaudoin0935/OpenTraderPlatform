@@ -28,7 +28,7 @@ bool StreamOrders::StreamOrdersStatus::isStatusValid() const {
 }
 
 StreamOrders::StreamOrders(QString &accountID, QObject *parent) :
-    Stream("Orders " + accountID, parent),
+    Stream(parent),
     accountID(accountID)
 {
     this->setObjectName("Stream::Orders::" + accountID);

@@ -120,7 +120,7 @@ void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, Mar
     emit receivedNewMarketDepthQuote(symbol, marketDepthQuote, imbalance, bidDWP, askDWP);
 }
 
-void MarketDepthQuoteReceiver::onStreamError(Stream::StreamError error, QString errorMessage)
+void MarketDepthQuoteReceiver::onStreamError(Stream::ErrorStatus error, QString errorMessage)
 {
     qCWarning(MarketDepthQuoteReceiverLog) << "Market Depth Quote Receiver stream error for" << symbol
                                             << "- Error:" << static_cast<int>(error)
@@ -128,25 +128,25 @@ void MarketDepthQuoteReceiver::onStreamError(Stream::StreamError error, QString 
 
     // Log specific error types for better diagnostics
     switch (error) {
-        case Stream::StreamError::Timeout:
+        case Stream::ErrorStatus::Timeout:
             qCWarning(MarketDepthQuoteReceiverLog) << "Stream timeout for" << symbol << "- no data or heartbeat received";
             break;
-        case Stream::StreamError::InvalidSymbol:
+        case Stream::ErrorStatus::InvalidSymbol:
             qCCritical(MarketDepthQuoteReceiverLog) << "Invalid symbol error for" << symbol;
             break;
-        case Stream::StreamError::DualLogon:
+        case Stream::ErrorStatus::DualLogon:
             qCCritical(MarketDepthQuoteReceiverLog) << "Dual logon detected for" << symbol;
             break;
-        case Stream::StreamError::GoAway:
+        case Stream::ErrorStatus::GoAway:
             qCWarning(MarketDepthQuoteReceiverLog) << "Server requested stream closure for" << symbol;
             break;
-        case Stream::StreamError::InternalServerError:
+        case Stream::ErrorStatus::InternalServerError:
             qCCritical(MarketDepthQuoteReceiverLog) << "Internal server error for" << symbol;
             break;
-        case Stream::StreamError::BadRequest:
+        case Stream::ErrorStatus::BadRequest:
             qCCritical(MarketDepthQuoteReceiverLog) << "Bad request error for" << symbol;
             break;
-        case Stream::StreamError::Unknown:
+        case Stream::ErrorStatus::Unknown:
             qCCritical(MarketDepthQuoteReceiverLog) << "Unknown stream error for" << symbol;
             break;
     }

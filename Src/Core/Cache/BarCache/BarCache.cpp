@@ -143,7 +143,7 @@ bool BarCache::warmUpBarsOfDayUntilNow(QDate date)
 /*
  * Static method which is connected to the TSClient singleton instances's receivedAsyncGetBars() signal.
  */
-void BarCache::onReceivedAsyncGetBars(size_t requestID, RESTClient::RequestStatus status, QString symbol, QVector<Bar> bars)
+void BarCache::onReceivedAsyncGetBars(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QString symbol, QVector<Bar> bars)
 {
     Q_ASSERT(requestID != 0);
     Q_ASSERT(barCacheMap.contains(symbol));
@@ -154,7 +154,7 @@ void BarCache::onReceivedAsyncGetBars(size_t requestID, RESTClient::RequestStatu
     barCacheInstance->onReceivedAsyncGetBarsInstance(requestID, status, bars);
 }
 
-void BarCache::onReceivedAsyncGetBarsInstance(size_t requestID, RESTClient::RequestStatus status, QVector<Bar> bars)
+void BarCache::onReceivedAsyncGetBarsInstance(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Bar> bars)
 {
     const QString cacheName = this->objectName();
 
@@ -166,12 +166,12 @@ void BarCache::onReceivedAsyncGetBarsInstance(size_t requestID, RESTClient::Requ
                         << "with status" << static_cast<int>(status)
                         << "and" << bars.size() << "bars";
 
-    if (status == RESTClient::RequestStatus::SUCCESS) {
+    if (status == TSClient::AsyncRequestStatus_e::SUCCESS) {
         storeBarsInCache(bars);
-    } else if (status == RESTClient::RequestStatus::ERROR){
+    } else if (status == TSClient::AsyncRequestStatus_e::ERROR){
         qCCritical(BarCacheLog) << cacheName << "Async getBars request failed with status" << static_cast<int>(status);
         Q_ASSERT(false); // TODO handle errors properly
-    } else if (status == RESTClient::RequestStatus::TIMEOUT) {
+    } else if (status == TSClient::AsyncRequestStatus_e::TIMEOUT) {
         qCCritical(BarCacheLog) << cacheName << "Async getBars request timed out";
         Q_ASSERT(false); // TODO handle errors properly
     }
@@ -506,7 +506,7 @@ void BarCache::onReceivedNewLiveBar(QString symbol, Bar newBar)
     emit receivedNewBar(symbol, newBar);
 }
 
-void BarCache::onStreamError(Stream::StreamError error, QString errorMessage)
+void BarCache::onStreamError(Stream::ErrorStatus error, QString errorMessage)
 {
     QString cacheName = this->objectName();
 
@@ -515,25 +515,25 @@ void BarCache::onStreamError(Stream::StreamError error, QString errorMessage)
 
     // Log specific error types for better diagnostics
     switch (error) {
-        case Stream::StreamError::Timeout:
+        case Stream::ErrorStatus::Timeout:
             qCWarning(BarCacheLog) << cacheName << "Stream timeout - no data or heartbeat received";
             break;
-        case Stream::StreamError::InvalidSymbol:
+        case Stream::ErrorStatus::InvalidSymbol:
             qCCritical(BarCacheLog) << cacheName << "Invalid symbol error - this should not happen";
             break;
-        case Stream::StreamError::DualLogon:
+        case Stream::ErrorStatus::DualLogon:
             qCCritical(BarCacheLog) << cacheName << "Dual logon detected - another session may be active";
             break;
-        case Stream::StreamError::GoAway:
+        case Stream::ErrorStatus::GoAway:
             qCWarning(BarCacheLog) << cacheName << "Server requested stream closure";
             break;
-        case Stream::StreamError::InternalServerError:
+        case Stream::ErrorStatus::InternalServerError:
             qCCritical(BarCacheLog) << cacheName << "Internal server error";
             break;
-        case Stream::StreamError::BadRequest:
+        case Stream::ErrorStatus::BadRequest:
             qCCritical(BarCacheLog) << cacheName << "Bad request error";
             break;
-        case Stream::StreamError::Unknown:
+        case Stream::ErrorStatus::Unknown:
             qCCritical(BarCacheLog) << cacheName << "Unknown stream error";
             break;
     }

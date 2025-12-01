@@ -274,10 +274,13 @@ notify:
     reply->deleteLater();
 }
 
-void TSClient::onReplyAsyncRequestErrorOccurred(QNetworkReply::NetworkError code, QNetworkReply *reply)
+void TSClient::onReplyAsyncRequestErrorOccurred(QNetworkReply::NetworkError code)
 {
     QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
     Q_CHECK_PTR(reply);
+
+    //do something with
+    Q_UNUSED(code);
 
     Q_ASSERT(false);
 }
@@ -343,7 +346,7 @@ void TSClient::demuxReceivedAsyncRequestReply(AsyncRequestType_t type, const QJs
                 }
             }
 
-            emit receivedAsyncGetBars(requestID, status, *symbol, results);
+            emit receivedAsyncGetBars(requestID, status, results);
 
                 break;
         }

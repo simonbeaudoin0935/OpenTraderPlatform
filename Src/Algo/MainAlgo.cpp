@@ -142,17 +142,17 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
 }
 
 
-void MainAlgo::onReceivedAsyncGetAccounts(size_t requestID, RESTClient::RequestStatus status, QVector<Account> results)
+void MainAlgo::onReceivedAsyncGetAccounts(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Account> results)
 {
     Q_ASSERT(requestID == m_savedGetAccountsRequestID);
 
     m_savedGetAccountsRequestID = 0;
     
-    if (status == RESTClient::RequestStatus::ERROR) {
+    if (status == TSClient::AsyncRequestStatus_e::ERROR) {
         qCCritical(MainAlgoLog) << "get accounts error";
         Q_ASSERT(false);
         return;
-    } else if (status == RESTClient::RequestStatus::TIMEOUT) {
+    } else if (status == TSClient::AsyncRequestStatus_e::TIMEOUT) {
         qCWarning(MainAlgoLog) << "Received get accounts timeout";
 
         // Retry in one second

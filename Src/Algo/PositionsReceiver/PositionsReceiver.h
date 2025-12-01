@@ -23,7 +23,7 @@ signals:
 
 private slots:
     void onReceivedNewPosition(QString account, Position position);
-    void onStreamError(Stream::StreamError error, QString errorMessage);
+    void onStreamError(Stream::ErrorStatus error, QString errorMessage);
 
 private:
     QMap<QString, StreamPositions*> streams;

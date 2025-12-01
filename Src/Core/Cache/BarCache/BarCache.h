@@ -61,12 +61,12 @@ signals:
 private slots:
 
     // Static method which is connected to the TSClient singleton instances's receivedAsyncGetBars() signal.
-    static void onReceivedAsyncGetBars(size_t requestID, RESTClient::RequestStatus status, QString symbol, QVector<Bar> bars);
+    static void onReceivedAsyncGetBars(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QString symbol, QVector<Bar> bars);
 
-    void onReceivedAsyncGetBarsInstance(size_t requestID, RESTClient::RequestStatus status, QVector<Bar> bars);
+    void onReceivedAsyncGetBarsInstance(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Bar> bars);
 
     void onReceivedNewLiveBar(QString symbol, Bar newBar);
-    void onStreamError(Stream::StreamError error, QString errorMessage);
+    void onStreamError(Stream::ErrorStatus error, QString errorMessage);
 
 private:
     const QVector<Bar> getBarsInRange(const QDateTime &first, const QDateTime &last);

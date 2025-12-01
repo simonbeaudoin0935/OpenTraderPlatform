@@ -2,7 +2,8 @@
 #include "TSClient.h"
 
 StreamMarketDepthQuote::StreamMarketDepthQuote(const QString &symbol, QObject *parent) :
-    Stream(symbol, parent)
+    Stream(parent),
+    m_symbol(symbol)
 {
     this->setObjectName("Stream::MarketDepthQuote::" + symbol);
 }
@@ -21,7 +22,7 @@ bool StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
         } else if (quote.isCrossed()) {
             qCDebug(StreamLog) << Q_FUNC_INFO << " Quote is crossed";
         }
-        emit receivedNewMarketDepthQuote(symbol, quote);
+        emit receivedNewMarketDepthQuote(m_symbol, quote);
         return true;
     } else {
         QJsonDocument doc(jsonObj);

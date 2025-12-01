@@ -6,7 +6,7 @@
 #include "Bar.h"
 
 
-class StreamBars : public Stream {
+class StreamBars final : public Stream {
     Q_OBJECT
 
 public:
@@ -19,5 +19,6 @@ signals:
     void receivedNewBar(QString symbol, Bar bar);
 
 private:
-    virtual bool processJsonObject(const QJsonObject& jsonObj);
+    bool processJsonObject(const QJsonObject& jsonObj) override;
+    QString m_symbol;
 };

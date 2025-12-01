@@ -37,7 +37,7 @@ void PositionsReceiver::onReceivedNewPosition(QString account, Position position
     emit receivedNewPosition(account, position);
 }
 
-void PositionsReceiver::onStreamError(Stream::StreamError error, QString errorMessage)
+void PositionsReceiver::onStreamError(Stream::ErrorStatus error, QString errorMessage)
 {
     // Find which stream triggered the error by checking the sender
     StreamPositions* senderStream = qobject_cast<StreamPositions*>(sender());
@@ -59,25 +59,25 @@ void PositionsReceiver::onStreamError(Stream::StreamError error, QString errorMe
 
     // Log specific error types for better diagnostics
     switch (error) {
-        case Stream::StreamError::Timeout:
+        case Stream::ErrorStatus::Timeout:
             qCWarning(PositionsReceiverLog) << "Stream timeout for account" << account << "- no data or heartbeat received";
             break;
-        case Stream::StreamError::InvalidSymbol:
+        case Stream::ErrorStatus::InvalidSymbol:
             qCCritical(PositionsReceiverLog) << "Invalid symbol error for account" << account;
             break;
-        case Stream::StreamError::DualLogon:
+        case Stream::ErrorStatus::DualLogon:
             qCCritical(PositionsReceiverLog) << "Dual logon detected for account" << account;
             break;
-        case Stream::StreamError::GoAway:
+        case Stream::ErrorStatus::GoAway:
             qCWarning(PositionsReceiverLog) << "Server requested stream closure for account" << account;
             break;
-        case Stream::StreamError::InternalServerError:
+        case Stream::ErrorStatus::InternalServerError:
             qCCritical(PositionsReceiverLog) << "Internal server error for account" << account;
             break;
-        case Stream::StreamError::BadRequest:
+        case Stream::ErrorStatus::BadRequest:
             qCCritical(PositionsReceiverLog) << "Bad request error for account" << account;
             break;
-        case Stream::StreamError::Unknown:
+        case Stream::ErrorStatus::Unknown:
             qCCritical(PositionsReceiverLog) << "Unknown stream error for account" << account;
             break;
     }

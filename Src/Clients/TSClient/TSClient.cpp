@@ -132,6 +132,7 @@ TSClient::TSClient() :
 
 TSClient::~TSClient()
 {
+    // This should in fact never be called
     m_thread->quit();
     m_thread->wait();
 
@@ -162,11 +163,10 @@ QNetworkRequest TSClient::buildNetworkRequest(const QString &endpoint, const QUr
     return request;
 }
 
-void TSClient::processNewAmountOfDataReceived(qsizetype bytesReceived)
+void TSClient::processNewAmountOfDataReceived(size_t bytesReceived)
 {
-
     if (bytesReceived == 0) {
-        DEBUG << "No data received in this streamReadyRead";
+        CRITICAL << "No data received in this streamReadyRead";
     } else {
         m_totalDataReceivedBytes += bytesReceived;
 

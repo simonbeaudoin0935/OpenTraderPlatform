@@ -53,7 +53,9 @@ public:
     TSClient(const TSClient&) = delete;
     TSClient& operator=(const TSClient&) = delete;
 
-   /*
+    void start() { m_thread->start(); };
+
+    /*
      * @brief Type alias for request ID.
      * This type is used to uniquely identify each request made by the RESTClient.
      */
@@ -66,7 +68,6 @@ public:
         ERROR
     };
 
-    void start() { m_thread->start(); };
 
     // To monitor usage
     [[nodiscard]] qsizetype getTotalDataReceivedBytes() const { return m_totalDataReceivedBytes; };
@@ -96,6 +97,20 @@ public:
     [[nodiscard]] AsyncRequestID_t getQuoteSnapshotsAsync(const QStringList &symbols);
 
     /*
+     * Get Bars asynchronously
+     *
+     * @return :
+     *  > 0 : The request ID of the async request
+     *  0 : Failed to start the async request
+     */
+    [[nodiscard]] AsyncRequestID_t getBarsAsync(const QString &symbol,
+                                                unsigned int interval = 1,
+                                                Bar::BarUnit unit = Bar::BarUnit::Daily,
+                                                unsigned int barsback = 1,
+                                                Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default,
+                                                QDateTime firstDate = QDateTime(),
+                                                QDateTime lastDate = QDateTime());
+    /*
      * Creates a Bars Stream
      *
      * @return : nullptr if the stream could not be created
@@ -111,20 +126,7 @@ public:
     void closeStreamBars(StreamBars* stream);
 
 
-    /*
-     * Get Bars asynchronously
-     *
-     * @return :
-     *  > 0 : The request ID of the async request
-     *  0 : Failed to start the async request
-     */
-    [[nodiscard]] AsyncRequestID_t getBarsAsync(const QString &symbol,
-                                      unsigned int interval = 1,
-                                      Bar::BarUnit unit = Bar::BarUnit::Daily,
-                                      unsigned int barsback = 1,
-                                      Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default,
-                                      QDateTime firstDate = QDateTime(),
-                                      QDateTime lastDate = QDateTime());
+
 
     /*
      * Creates a MarketDepthQuote Stream
@@ -223,7 +225,7 @@ signals:
 
     void authStateChanged(bool isAuthenticated, QString reason);
 
-    void receivedAsyncGetBars          (AsyncRequestID_t requestID, AsyncRequestStatus_e status, QString symbol, QVector<Bar> bars);
+    void receivedAsyncGetBars          (AsyncRequestID_t requestID, AsyncRequestStatus_e status, QVector<Bar> bars);
     void receivedAsyncGetAccounts      (AsyncRequestID_t requestID, AsyncRequestStatus_e status, QVector<Account> results);
     void receivedAsyncGetBalances      (AsyncRequestID_t requestID, AsyncRequestStatus_e status, QVector<Balance> results);
     void receivedAsyncGetQuoteSnapshots(AsyncRequestID_t requestID, AsyncRequestStatus_e status, QVector<QuoteSnapshot> quoteSnapshots);
@@ -234,7 +236,7 @@ private slots:
 
     void onReplyAsyncRequestReadyRead();
     void onReplyAsyncRequestFinished();
-    void onReplyAsyncRequestErrorOccurred(QNetworkReply::NetworkError code, QNetworkReply *reply);
+    void onReplyAsyncRequestErrorOccurred(QNetworkReply::NetworkError code);
 
 
     #ifdef GUI_ENABLED
@@ -243,6 +245,9 @@ private slots:
     #endif
 
 private:
+    static TSClient* m_instance;
+     explicit TSClient(); // Singleton : private constructor
+    ~TSClient();
 
     enum class HttpMethod {
         GET,
@@ -278,10 +283,8 @@ private:
     };
 
    
-    // Implemented in TSClient.cpp
-     explicit TSClient(); // Singleton : private constructor
-    ~TSClient();
-    void processNewAmountOfDataReceived(qsizetype bytesReceived);
+
+    void processNewAmountOfDataReceived(size_t bytesReceived);
     [[nodiscard]] QNetworkRequest buildNetworkRequest(const QString &endpoint, const QUrlQuery &query = QUrlQuery()) const;
 
 
@@ -307,8 +310,7 @@ private:
  
     //********* members ********/
 
-    // Singleton
-    static TSClient* m_instance;
+
 
     // tokens
     AuthToken   m_authToken;

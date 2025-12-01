@@ -81,30 +81,30 @@ void TSClient::refreshAsyncAccessToken()
 
 
     // Build the request and query using our static helper methods
-    QNetworkRequest request = buildRefreshTokenRequest();
-    QByteArray postData     = buildRefreshTokenQuery(m_clientToken.getClientId(), m_clientToken.getClientSecret(), m_authToken.getRefreshToken());
+    const QNetworkRequest request = buildRefreshTokenRequest();
+    const QByteArray     postData = buildRefreshTokenQuery(m_clientToken.getClientId(), m_clientToken.getClientSecret(), m_authToken.getRefreshToken());
 
     // Make the POST request
-    m_asyncTokenRefreshRequestId = fetchAsync(request,
-                                            static_cast<RequestTypeInt>(RequestType::GetRefreshAccessToken),
-                                            HttpMethod::POST,
-                                            postData);
+    m_asyncTokenRefreshRequestId = sendAsyncRequest(request,
+                                                    AsyncRequestType_t::GetRefreshAccessToken,
+                                                    HttpMethod::POST,
+                                                    postData);
 
     Q_ASSERT(m_asyncTokenRefreshRequestId > 0);
 }
 
-void TSClient::processRefreshTokenFinished(RESTClient::requestID_t requestID, RequestStatus status, AuthToken newToken)
+void TSClient::processAsyncRefreshTokenFinished(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, AuthToken newToken)
 {
     Q_ASSERT_X(m_asyncTokenRefreshRequestId == requestID, "token refresh", "Stored refresh request ID does not match the finished one");
 
     m_asyncTokenRefreshRequestId = 0;
     m_refreshInProgress = false;
 
-    if (status == RequestStatus::ERROR) {
+    if (status == AsyncRequestStatus_e::ERROR) {
         qCCritical(TSClientLog) << "Refresh request in error";
         Q_ASSERT(false);
         return;
-    } else if (status == RequestStatus::TIMEOUT) {
+    } else if (status == AsyncRequestStatus_e::TIMEOUT) {
         qCWarning(TSClientLog) << "Received refreshed token timeout";
 
         // Retry in one second
@@ -115,7 +115,7 @@ void TSClient::processRefreshTokenFinished(RESTClient::requestID_t requestID, Re
         return;
     }
     
-    Q_ASSERT(status == RequestStatus::SUCCESS);
+    Q_ASSERT(status == AsyncRequestStatus_e::SUCCESS);
 
     m_authenticated = newToken.isValidRefreshedToken() && !newToken.isExpired();;
 
@@ -144,7 +144,7 @@ void TSClient::processRefreshTokenFinished(RESTClient::requestID_t requestID, Re
 
     m_authToken = validNewToken;
 
-    RESTClient::setAPIKey(m_authToken.getAccessToken());
+    m_apiKey = m_authToken.getAccessToken();
 
     // Kick a new refresh in 20min - 5s
     {
