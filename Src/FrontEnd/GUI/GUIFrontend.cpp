@@ -81,6 +81,10 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
             this, &GUIFrontend::onNewPositionReceived,
             Qt::DirectConnection);
 
+    connect(this, &FrontEnd::balanceUpdated,
+            this, &GUIFrontend::onBalanceUpdated,
+            Qt::DirectConnection);
+
     // Propagate up when the chart needs missing bars to display
     connect(ui->priceChart, &StockPriceChart::requestMissingBars,
             this, &FrontEnd::requestMissingBars);
@@ -372,6 +376,10 @@ void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
 
 void GUIFrontend::onNewPositionReceived(QString account, Position position) {
     ui->positionWindow->updatePosition(account, position);
+}
+
+void GUIFrontend::onBalanceUpdated(Balance balance) {
+    ui->balanceWindow->updateBalance(balance);
 }
 
 void GUIFrontend::onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars)

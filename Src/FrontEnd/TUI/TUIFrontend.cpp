@@ -39,6 +39,11 @@ void TUIFrontend::onNewPositionReceived(QString account, Position position)
     Q_UNUSED(position);
 }
 
+void TUIFrontend::onBalanceUpdated(Balance balance)
+{
+    Q_UNUSED(balance);
+}
+
 void TUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 {
     Q_UNUSED(symbol);

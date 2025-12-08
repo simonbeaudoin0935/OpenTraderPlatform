@@ -271,6 +271,7 @@ void MainAlgo::onBalanceReceived(TSClient::AsyncRequestID_t requestID, TSClient:
     if (status == TSClient::AsyncRequestStatus_e::SUCCESS) {
         m_currentBalance = results.at(0);
         qCDebug(MainAlgoLog) << "Received balances for" << results.size() << "accounts";
+        emit balanceUpdated(m_currentBalance);
     } else if (status == TSClient::AsyncRequestStatus_e::TIMEOUT) {
         qCWarning(MainAlgoLog) << "Get balances request timed out";
     } else {

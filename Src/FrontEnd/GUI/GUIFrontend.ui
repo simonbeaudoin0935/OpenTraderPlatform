@@ -214,6 +214,16 @@
               </widget>
              </item>
              <item>
+              <widget class="BalanceWindow" name="balanceWindow" native="true">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+              </widget>
+             </item>
+             <item>
               <widget class="PositionWindow" name="positionWindow" native="true">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
@@ -295,6 +305,11 @@
    <class>MarketDepthTable</class>
    <extends>QWidget</extends>
    <header>GUI/MarketDepthTable.h</header>
+  </customwidget>
+  <customwidget>
+   <class>BalanceWindow</class>
+   <extends>QWidget</extends>
+   <header>GUI/BalanceWindow.h</header>
   </customwidget>
   <customwidget>
    <class>PositionWindow</class>

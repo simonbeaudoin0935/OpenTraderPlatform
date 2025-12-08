@@ -49,6 +49,7 @@ signals:
 
     void receivedNewPosition(QString account, Position position);
     void tradeStationAccountsReceived(QVector<Account> accounts);
+    void balanceUpdated(Balance balance);
 
 public slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);

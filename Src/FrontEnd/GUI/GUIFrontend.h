@@ -27,6 +27,7 @@ public slots:
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
     void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP) override;
     void onNewPositionReceived(QString account, Position position) override;
+    void onBalanceUpdated(Balance balance) override;
     void onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars) override;
 
 private slots:

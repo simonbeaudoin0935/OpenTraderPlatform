@@ -7,6 +7,7 @@
 #include "Position.h"
 #include "Bar.h"
 #include "MarketDepthQuote.h"
+#include "Balance.h"
 
 class FrontEnd : public QObject {
     Q_OBJECT
@@ -23,6 +24,7 @@ signals:
     void streamCountUpdated(int count);
 
     void newPositionReceived(QString account, Position position);
+    void balanceUpdated(Balance balance);
 
     void currentHighlightedStockBarReceived(QString symbol, Bar bar);
     void currentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP);
@@ -40,6 +42,7 @@ public slots:
 
     virtual void onTradeStationAccountsReceived(QVector<Account> results) = 0;
     virtual void onNewPositionReceived(QString account, Position position) = 0;
+    virtual void onBalanceUpdated(Balance balance) = 0;
 
     virtual void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) = 0;
     virtual void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP) = 0;
