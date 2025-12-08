@@ -15,7 +15,7 @@ void TSClient::openStream(const QNetworkRequest &request, Stream *stream)
     Q_ASSERT(c);
 
     // Emit signal that stream count has changed
-    emit openStreamCountChanged(m_networkReplyToOpenStreams.size());
+    emit openStreamCountChanged(Stream::getNumberOpenStream());
 
     qCDebug(TSClientLog) << "Opened stream " << qPrintable(stream->objectName()) << "with URL : " << request.url();
 }
@@ -30,38 +30,10 @@ void TSClient::closeStream(Stream * const stream)
         {
             Q_ASSERT(QThread::currentThread() == m_thread);
 
-            QNetworkReply *replyToDelete = nullptr;
-
-            qCDebug(TSClientLog) << "Going through all pending replies";
-
-            for (auto it = m_networkReplyToOpenStreams.constBegin(); it != m_networkReplyToOpenStreams.constEnd(); ++it) {
-                QNetworkReply *reply = it.key();
-
-                qCDebug(TSClientLog) << "Checking reply " << static_cast<void*>(reply);
-
-                if (stream == it.value()) {
-
-                    replyToDelete = reply;
-
-                    qCDebug(TSClientLog) << "Found thre reply for stream :" << static_cast<void*>(reply);
-
-                    break;
-               }
-            }
-
-            Q_ASSERT(replyToDelete != nullptr);
-
-            qCDebug(TSClientLog) << "Aborting request";
-     
-            replyToDelete->abort();
-            replyToDelete->deleteLater();
-
-            bool removed = m_networkReplyToOpenStreams.remove(replyToDelete);
-            Q_ASSERT(removed);
-     
+            // Deleting the stream will also close the associated QNetworkReply
             delete stream;
 
-            emit openStreamCountChanged(m_networkReplyToOpenStreams.size());
+            emit openStreamCountChanged(Stream::getNumberOpenStream());
         },
     Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
                                    // finishes executing this lambda so that a valid pointer is returned

@@ -37,6 +37,8 @@ public:
 
     void setNetworkReply(QNetworkReply * reply);
 
+    static size_t getNumberOpenStream() { return s_numberOfStream; }
+    
 signals:
     void newAmountOfDataReceived(size_t bytes);
     void streamErrorOccurred(ErrorStatus error, QString errorMessage);
@@ -66,5 +68,7 @@ private:
 
     size_t m_metricJsonParseError = 0;
     size_t m_metricIncompleteJsonObjectWhenParsing = 0;
+
+    static size_t s_numberOfStream; 
 };
 

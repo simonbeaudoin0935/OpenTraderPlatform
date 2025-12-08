@@ -4,14 +4,21 @@
 
 Q_LOGGING_CATEGORY(StreamLog, "Stream")
 
+size_t Stream::s_numberOfStream = 0;
 
 Stream::Stream(QObject *parent) :
     QObject(parent)
 {
+    s_numberOfStream++;
 }
 
 Stream::~Stream()
 {
+    s_numberOfStream--;
+
+    m_networkReply->abort();
+    m_networkReply->deleteLater();
+
     qCDebug(StreamLog) << "Destroying Stream " << this->objectName();
 }
 
