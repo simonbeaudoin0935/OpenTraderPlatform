@@ -7,7 +7,7 @@
 
 MainApp::MainApp() :
     tradeStationClient(TSClient::getInstancePtr()),
-    mainAlgo(new MainAlgo())
+    mainAlgo(MainAlgo::getInstancePtr())
 {
 #ifdef GUI_ENABLED
     appFrontend = new GUIFrontend(mainAlgo);

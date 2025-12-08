@@ -29,12 +29,15 @@ public:
     MarketDepthQuoteReceiver marketDepthQuoteReceiver;
 };
 
-class MainAlgo : public QObject
+class MainAlgo final : public QObject
 {
     Q_OBJECT
 public:
-    MainAlgo();
-    ~MainAlgo();
+    // Singleton : Instance getter  and delete copy and assignment
+    static MainAlgo& getInstance();
+    static MainAlgo* getInstancePtr();
+    MainAlgo(const MainAlgo&) = delete;
+    MainAlgo& operator=(const MainAlgo&) = delete;
 
     void start();
 
@@ -68,6 +71,10 @@ private slots:
 
 
 private:
+    static MainAlgo* m_instance;
+     explicit MainAlgo(); // Singleton : private constructor
+    ~MainAlgo();
+
     QThread thread;
 
     QMap<QString, StockInstruments*> stockInstruments;

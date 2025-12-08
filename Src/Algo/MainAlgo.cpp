@@ -8,6 +8,27 @@
 
 Q_LOGGING_CATEGORY(MainAlgoLog, "MainAlgo")
 
+// Initialize static member outside class
+MainAlgo* MainAlgo::m_instance = nullptr;
+    
+MainAlgo& MainAlgo::getInstance()
+{
+    if (m_instance == nullptr) {
+        qCDebug(TSClientLog) << "Singleton instance created";
+        m_instance = new MainAlgo();
+    }
+    return *m_instance;
+}
+
+MainAlgo* MainAlgo::getInstancePtr()
+{
+    if (m_instance == nullptr) {
+        qCDebug(TSClientLog) << "Singleton instance created";
+        m_instance = new MainAlgo();
+    }
+    return m_instance;
+}
+
 MainAlgo::MainAlgo()
 {
     thread.setObjectName("MainAlgoThread");
@@ -39,8 +60,6 @@ MainAlgo::MainAlgo()
         algoLogFile->setEncoding(QStringConverter::Utf8);
     }
 
-    m_balancePollingTimer = new QTimer(this);
-    connect(m_balancePollingTimer, &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
     m_savedGetBalancesRequestID = 0;
 }
 
@@ -52,6 +71,13 @@ MainAlgo::~MainAlgo()
 void MainAlgo::start()
 {
     thread.start();
+}
+
+void MainAlgo::onThreadStarted()
+{
+    m_balancePollingTimer = new QTimer(this);
+
+    connect(m_balancePollingTimer, &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
 }
 
 void MainAlgo::onSelectDisplayedStock(QString symbol)
@@ -118,10 +144,7 @@ void MainAlgo::onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime las
 
 }
 
-void MainAlgo::onThreadStarted()
-{
 
-}
 
 void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
 {
@@ -228,7 +251,7 @@ void MainAlgo::startBalancePolling()
             this, &MainAlgo::onBalanceReceived,
             Qt::UniqueConnection);
 
-    m_balancePollingTimer->start(30000); // 30 seconds
+    m_balancePollingTimer->start(5000); // 5 seconds
     requestBalance(); // initial request
     qCDebug(MainAlgoLog) << "Started balance polling";
 }
