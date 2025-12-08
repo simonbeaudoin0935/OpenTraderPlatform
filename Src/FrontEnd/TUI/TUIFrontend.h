@@ -13,7 +13,6 @@ public:
 public slots:
 
     // Usage update
-    void onFMPClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onTSClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onMemoryUsageUpdate(qsizetype newDataUsage) override;
     void onStreamCountUpdate(int count) override;

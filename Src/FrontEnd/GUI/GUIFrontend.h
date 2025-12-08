@@ -19,7 +19,6 @@ public:
     ~GUIFrontend() override;
 
 public slots:
-    void onFMPClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onTSClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onTradeStationAccountsReceived(QVector<Account> results) override;
     void onMemoryUsageUpdate(qsizetype newDataUsage) override;
@@ -49,7 +48,6 @@ private:
     Ui::GUIFrontend* ui;  // Pointer to the UI object
     QPushButton* tradeStationLoginButton;  // Login button in status bar
 
-    qsizetype FMPClientDataUsage = 0;
     qsizetype TSClientDataUsage = 0;
     qint64 memoryUsage = 0;
     int streamCount = 0;

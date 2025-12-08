@@ -19,7 +19,6 @@ signals:
     void tradeStationAuthStateChanged(bool isAuthenticated, QString reason);
     void tradeStationAccountsReceived(QVector<Account> results);
 
-    void fmpDataUsageUpdated(qsizetype newDataUsage);
     void tradeStationDataUsageUpdated(qsizetype newDataUsage);
     void streamCountUpdated(int count);
 
@@ -35,7 +34,6 @@ signals:
 public slots:
 
     // Usage update
-    virtual void onFMPClientDataUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onTSClientDataUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onMemoryUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onStreamCountUpdate(int count) = 0;

@@ -8,11 +8,6 @@ TUIFrontend::TUIFrontend(MainAlgo* mainAlgo, QObject* parent)
 
 }
 
-void TUIFrontend::onFMPClientDataUsageUpdate(qsizetype newDataUsage)
-{
-    Q_UNUSED(newDataUsage);
-}
-
 void TUIFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
 {
     Q_UNUSED(newDataUsage);
