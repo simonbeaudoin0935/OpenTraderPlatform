@@ -176,7 +176,7 @@ void TSClient::onReplyAsyncRequestReadyRead()
     QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
     Q_CHECK_PTR(reply);
 
-    Q_ASSERT(false);
+//    Q_ASSERT(false);
 }
 
 void TSClient::onReplyAsyncRequestFinished()
@@ -282,7 +282,8 @@ void TSClient::onReplyAsyncRequestErrorOccurred(QNetworkReply::NetworkError code
     //do something with
     Q_UNUSED(code);
 
-    Q_ASSERT(false);
+    qCritical() << "ERROR happened in the request, but won't treat it in this ErrorOccurred handler, instead in the finished() handler";
+    //Q_ASSERT(false);
 }
 
 

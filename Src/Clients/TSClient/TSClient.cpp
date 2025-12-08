@@ -52,11 +52,6 @@ TSClient::TSClient() :
 {
     this->moveToThread(m_thread);
 
-    connect(m_networkManager, &QNetworkAccessManager::finished, this, [](QNetworkReply *reply) {
-        DEBUG << " Network Manager finished reply : " << static_cast<void*>(reply);
-        Q_ASSERT(false); // likely going to remove this connection as individual reply finished signals are handled elsewhere
-    });
-
     m_baseUrl.setScheme(BASE_URL_SCHEME);
     m_baseUrl.setHost(BASE_URL_HOST_SIMULATION);
     m_baseUrl.setPath(BASE_URL_HOST_VERSION);
@@ -166,7 +161,7 @@ QNetworkRequest TSClient::buildNetworkRequest(const QString &endpoint, const QUr
 void TSClient::processNewAmountOfDataReceived(size_t bytesReceived)
 {
     if (bytesReceived == 0) {
-        CRITICAL << "No data received in this streamReadyRead";
+        CRITICAL << "No data received in this readyRead/finished";
     } else {
         m_totalDataReceivedBytes += bytesReceived;
 

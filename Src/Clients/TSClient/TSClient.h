@@ -323,7 +323,7 @@ private:
     AsyncRequestID_t m_asyncTokenRefreshRequestId = 0; // Store the request ID of the ongoing token refresh request
 
     QUrl m_baseUrl;
-    QAtomicInteger<AsyncRequestID_t> m_asyncRequestIDCurrentSequence{0};   // starts at 0
+    QAtomicInteger<AsyncRequestID_t> m_asyncRequestIDCurrentSequence{1};   // starts at 1
     //mutable QReadWriteLock m_requestIDMapRWLock; // To protect m_requestIDSeq
     qsizetype m_totalDataReceivedBytes = 0;
     QString m_apiKey;
