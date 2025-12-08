@@ -72,7 +72,7 @@ void TSClient::closeStream(Stream * const stream)
 
 // -- Specific stream opening methods - -
 
-StreamPositions* TSClient::openStreamPositions(QString &accountID, bool changes)
+StreamPositions* TSClient::openStreamPositions(const QString &accountID, bool changes)
 {
     Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
     
@@ -103,7 +103,7 @@ StreamPositions* TSClient::openStreamPositions(QString &accountID, bool changes)
     return stream;
 }
 
-StreamOrders* TSClient::openStreamOrders(QString &accountID) {
+StreamOrders* TSClient::openStreamOrders(const QString &accountID) {
     Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamOrders for account " << accountID;

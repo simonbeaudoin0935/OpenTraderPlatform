@@ -12,10 +12,10 @@ class PositionsReceiver : public QObject
 public:
     explicit PositionsReceiver(QObject *parent = nullptr);
 
-    void startStream(QString &account);
+    void startStream(const QString &account);
     void startStream(const char* account);
 
-    void stopStream(QString &account);
+    void stopStream(const QString &account);
     void stopStream(const char* account);
 
 signals:

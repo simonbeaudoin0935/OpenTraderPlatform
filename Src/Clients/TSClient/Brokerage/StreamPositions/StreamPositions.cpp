@@ -5,7 +5,7 @@
 
 
 
-StreamPositions::StreamPositions(QString &accountID, QObject *parent) :
+StreamPositions::StreamPositions(const QString &accountID, QObject *parent) :
     Stream(parent),
     accountID(accountID),
     receivedEndSnapshot(false)

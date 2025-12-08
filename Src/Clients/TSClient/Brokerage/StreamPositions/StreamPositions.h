@@ -40,7 +40,7 @@ class StreamPositions final : public Stream
     Q_OBJECT
     
 public:
-    explicit StreamPositions(QString &accountID, QObject *parent = nullptr);
+    explicit StreamPositions(const QString &accountID, QObject *parent = nullptr);
 
     ~StreamPositions();
     StreamPositions(const StreamPositions&) = delete;

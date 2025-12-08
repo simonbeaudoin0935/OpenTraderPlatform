@@ -170,7 +170,7 @@ public:
      * @return : nullptr if the stream could not be created
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/StreamOrders
      */
-    [[nodiscard]] StreamOrders* openStreamOrders(QString &account);
+    [[nodiscard]] StreamOrders* openStreamOrders(const QString &account);
     void closeStreamOrders(StreamOrders* stream);
 
     /*
@@ -183,7 +183,7 @@ public:
      *         in the thread of the client and shares the same network access manager. Later
      *         calling closeStreamMarketDepthQuote will delete it. Do not delete outside.
      */
-    [[nodiscard]] StreamPositions* openStreamPositions(QString &account, bool changes = false);
+    [[nodiscard]] StreamPositions* openStreamPositions(const QString &account, bool changes = false);
     void closeStreamPositions(StreamPositions* stream);
 
                               // -------- Order execution methods --------

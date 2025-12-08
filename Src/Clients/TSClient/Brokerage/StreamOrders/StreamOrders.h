@@ -40,7 +40,7 @@ public:
     };
 
     // TODO make it multiple accounts
-    explicit StreamOrders(QString &account, QObject *parent = nullptr);
+    explicit StreamOrders(const QString &account, QObject *parent = nullptr);
 
     ~StreamOrders();
     StreamOrders(const StreamOrders&) = delete;

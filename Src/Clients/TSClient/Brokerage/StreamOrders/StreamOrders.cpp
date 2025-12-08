@@ -27,7 +27,7 @@ bool StreamOrders::StreamOrdersStatus::isStatusValid() const {
     return status != Status::Unknown;
 }
 
-StreamOrders::StreamOrders(QString &accountID, QObject *parent) :
+StreamOrders::StreamOrders(const QString &accountID, QObject *parent) :
     Stream(parent),
     accountID(accountID)
 {

@@ -9,7 +9,7 @@ PositionsReceiver::PositionsReceiver(QObject *parent) :
 
 }
 
-void PositionsReceiver::startStream(QString &account)
+void PositionsReceiver::startStream(const QString &account)
 {
     // Check if stream already exists for this account - this is a logic error
     Q_ASSERT_X(!streams.contains(account), "PositionsReceiver::startStream", 

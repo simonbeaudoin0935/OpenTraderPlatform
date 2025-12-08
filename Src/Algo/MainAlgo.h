@@ -4,12 +4,15 @@
 #include <QFile>
 #include <QThread>
 #include <QMap>
+#include <QTimer>
+#include <QVector>
 
 #include "RunUpDetector.h"
 #include "MarketDepthQuoteReceiver.h"
 #include "PositionsReceiver.h"
 #include "Account.h"
 #include "BarCache.h"
+#include "Balance.h"
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
@@ -31,8 +34,13 @@ class MainAlgo : public QObject
     Q_OBJECT
 public:
     MainAlgo();
+    ~MainAlgo();
 
     void start();
+
+    void startBalancePolling();
+    void stopBalancePolling();
+    [[nodiscard]] Balance getCurrentBalance() const;
 
 signals:
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
@@ -54,11 +62,13 @@ private slots:
 
     void onReceivedAsyncGetAccounts(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Account> results);
 
+    void onBalanceReceived(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Balance> results);
+    void requestBalance();
+
 
 private:
     QThread thread;
 
-    QVector<Account> accounts;
     QMap<QString, StockInstruments*> stockInstruments;
     StockInstruments* currentDisplayedStockInstrument = nullptr;
 
@@ -68,6 +78,13 @@ private:
     QTextStream *algoLogFile;
     QFile file;
 
-    size_t m_savedGetAccountsRequestID;
+    TSClient::AsyncRequestID_t m_savedGetAccountsRequestID;
     bool m_havePastSuccessfulExchanges = false;
+
+    Account m_activeAccount;
+    Balance m_currentBalance;
+
+    QTimer* m_balancePollingTimer;
+    TSClient::AsyncRequestID_t m_savedGetBalancesRequestID;
+    bool m_balancePollingStarted = false;
 };

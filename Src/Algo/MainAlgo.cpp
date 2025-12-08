@@ -38,6 +38,15 @@ MainAlgo::MainAlgo()
         // Optional: Set encoding (UTF-8 is default in modern Qt)
         algoLogFile->setEncoding(QStringConverter::Utf8);
     }
+
+    m_balancePollingTimer = new QTimer(this);
+    connect(m_balancePollingTimer, &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
+    m_savedGetBalancesRequestID = 0;
+}
+
+MainAlgo::~MainAlgo()
+{
+    stopBalancePolling();
 }
 
 void MainAlgo::start()
@@ -164,6 +173,15 @@ void MainAlgo::onReceivedAsyncGetAccounts(TSClient::AsyncRequestID_t requestID, 
     }
 
     m_havePastSuccessfulExchanges = true;
+
+    //TODO this is only for sim, in reality it will be number 0
+    m_activeAccount = results.at(1);
+
+    // Start balance polling if not already started
+    if (!m_balancePollingStarted) {
+        startBalancePolling();
+        m_balancePollingStarted = true;
+    }
  
     // Only initialize position stream once
     if (positionStreamStarted) {
@@ -173,9 +191,6 @@ void MainAlgo::onReceivedAsyncGetAccounts(TSClient::AsyncRequestID_t requestID, 
 
     positionStreamStarted = true;
 
-    // FIXME warning hack, better this. This is just for sim
-    QString accountNumber = results.at(1).getAccountId();
-
     connect(&positionReceiver, &PositionsReceiver::receivedNewPosition,
             this, &MainAlgo::receivedNewPosition,
             Qt::UniqueConnection);
@@ -184,9 +199,12 @@ void MainAlgo::onReceivedAsyncGetAccounts(TSClient::AsyncRequestID_t requestID, 
             this, &MainAlgo::onReceivedNewPosition,
             Qt::UniqueConnection);
 
-    positionReceiver.startStream(accountNumber);
+    positionReceiver.startStream(m_activeAccount.getAccountId());
 
     emit tradeStationAccountsReceived(results);
+
+
+
 }
 
 
@@ -200,6 +218,64 @@ void MainAlgo::onReceivedNewPosition(QString account, Position position)
     Q_UNUSED(position);
 
     // TODO
+}
+
+void MainAlgo::startBalancePolling()
+{
+    Q_ASSERT(QThread::currentThread() == &thread);
+
+    connect(&TSClient::getInstance(), &TSClient::receivedAsyncGetBalances,
+            this, &MainAlgo::onBalanceReceived,
+            Qt::UniqueConnection);
+
+    m_balancePollingTimer->start(30000); // 30 seconds
+    requestBalance(); // initial request
+    qCDebug(MainAlgoLog) << "Started balance polling";
+}
+
+void MainAlgo::stopBalancePolling()
+{
+    Q_ASSERT(QThread::currentThread() == &thread);
+
+    m_balancePollingTimer->stop();
+    qCDebug(MainAlgoLog) << "Stopped balance polling";
+}
+
+[[nodiscard]] Balance MainAlgo::getCurrentBalance() const
+{
+    return m_currentBalance;
+}
+
+void MainAlgo::requestBalance()
+{
+    Q_ASSERT(QThread::currentThread() == &thread);
+
+    Q_ASSERT(!m_activeAccount.getAccountId().isEmpty());
+
+
+    m_savedGetBalancesRequestID = TSClient::getInstance().getBalancesAsync(QStringList(m_activeAccount.getAccountId()));
+
+    if (m_savedGetBalancesRequestID == 0) {
+        qCWarning(MainAlgoLog) << "Failed to start getBalancesAsync request";
+    }
+}
+
+void MainAlgo::onBalanceReceived(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Balance> results)
+{
+    Q_ASSERT(QThread::currentThread() == &thread);
+    Q_ASSERT(requestID == m_savedGetBalancesRequestID);
+    Q_ASSERT(results.size() == 1);
+
+    m_savedGetBalancesRequestID = 0;
+
+    if (status == TSClient::AsyncRequestStatus_e::SUCCESS) {
+        m_currentBalance = results.at(0);
+        qCDebug(MainAlgoLog) << "Received balances for" << results.size() << "accounts";
+    } else if (status == TSClient::AsyncRequestStatus_e::TIMEOUT) {
+        qCWarning(MainAlgoLog) << "Get balances request timed out";
+    } else {
+        qCWarning(MainAlgoLog) << "Get balances request failed";
+    }
 }
 
 StockInstruments::StockInstruments(const QString &symbol) :
