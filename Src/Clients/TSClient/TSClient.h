@@ -6,6 +6,7 @@
 #include <QNetworkReply>
 #include <QNetworkAccessManager>
 #include <QThread>
+#include <QFuture>
 
 #include "AuthToken.h"
 #include "ClientToken.h"
@@ -14,7 +15,7 @@
 #include "StreamPositions.h"
 #include "PlaceOrder.h"
 #include "CancelOrder.h"
-#include "QuoteSnapshot.h"
+#include "Quote.h"
 #include "StreamBars.h"
 #include "StreamMarketDepthQuote.h"
 #include "Balance.h"
@@ -50,23 +51,14 @@ public:
     // Singleton : Instance getter  and delete copy and assignment
     static TSClient& getInstance();
     static TSClient* getInstancePtr();
-    TSClient(const TSClient&) = delete;
-    TSClient& operator=(const TSClient&) = delete;
+    ~TSClient() = delete; // Delete destructor
+    TSClient(const TSClient&) = delete; // Delete copy constructor
+    TSClient(TSClient&&) = delete; // Delete move constructor
+    TSClient& operator=(const TSClient&) = delete; // Delete copy assignment
+    TSClient& operator=(TSClient&&) = delete; // Delete move assignment
+
 
     void start() { m_thread->start(); };
-
-    /*
-     * @brief Type alias for request ID.
-     * This type is used to uniquely identify each request made by the RESTClient.
-     */
-    typedef quint64 AsyncRequestID_t;
-
-    enum class AsyncRequestStatus_e {
-        UNSET,
-        SUCCESS,
-        TIMEOUT,
-        ERROR
-    };
 
 
     // To monitor usage
@@ -81,35 +73,41 @@ public:
     [[nodiscard]] bool isAuthInProgress() const { return m_authInProgress; }  // Track if authentication process is in progress
 
 
+
+    enum class AsyncRequestError_e {
+        TIMEOUT,
+        ERROR
+    };
+    
+
+
+
   
                               // -------- Market data methods ----------
     /*
      * Get Quote Snapshots
      *
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/GetQuoteSnapshots
-     * 
-     * @note : symbols parameter is a comma separated list of symbols
-     * 
-     * @return :
-     *  > 0 : The request ID of the async request
-     *  0 : Failed to start the async request
      */
-    [[nodiscard]] AsyncRequestID_t getQuoteSnapshotsAsync(const QStringList &symbols);
+    typedef std::variant<QVector<Quote>, AsyncRequestError_e> GetQuoteSnapshotResult_t;
+    typedef QFuture<GetQuoteSnapshotResult_t> GetQuoteSnapshotFuture_t;
+
+    [[nodiscard]] GetQuoteSnapshotFuture_t getQuoteSnapshots(const QStringList &symbols);
 
     /*
      * Get Bars asynchronously
-     *
-     * @return :
-     *  > 0 : The request ID of the async request
      *  0 : Failed to start the async request
      */
-    [[nodiscard]] AsyncRequestID_t getBarsAsync(const QString &symbol,
-                                                unsigned int interval = 1,
-                                                Bar::BarUnit unit = Bar::BarUnit::Daily,
-                                                unsigned int barsback = 1,
-                                                Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default,
-                                                QDateTime firstDate = QDateTime(),
-                                                QDateTime lastDate = QDateTime());
+    typedef std::variant<QVector<Bar>, AsyncRequestError_e> GetBarsResult_t;
+    typedef QFuture<GetBarsResult_t> GetBarsFuture_t;
+
+    [[nodiscard]] GetBarsFuture_t getBars(const QString &symbol,
+                                          unsigned int interval = 1,
+                                          Bar::BarUnit unit = Bar::BarUnit::Daily,
+                                          unsigned int barsback = 1,
+                                          Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default,
+                                          QDateTime firstDate = QDateTime(),
+                                          QDateTime lastDate = QDateTime());
     /*
      * Creates a Bars Stream
      *
@@ -147,22 +145,21 @@ public:
      * Get Accounts
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
-     * 
-     * @return :
-     *  > 0 : The request ID of the async request
-     *  0 : Failed to start the async request
      */
-    [[nodiscard]] AsyncRequestID_t getAccountsAsync();
+    typedef std::variant<QVector<Account>, AsyncRequestError_e> GetAccountsResult_t;
+    typedef QFuture<GetAccountsResult_t> GetAccountsFuture_t;
+
+    [[nodiscard]] GetAccountsFuture_t getAccounts();
+
     /*
      * Get Balances
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetBalances
-     * 
-     * @return :
-     *  > 0 : The request ID of the async request
-     *  0 : Failed to start the async request
      */
-    [[nodiscard]] AsyncRequestID_t getBalancesAsync(const QStringList &accounts);
+    typedef std::variant<QVector<Balance>, AsyncRequestError_e> GetBalancesResult_t;
+    typedef QFuture<GetBalancesResult_t> GetBalancesFuture_t;
+
+    [[nodiscard]] GetBalancesFuture_t getBalances(const QStringList &accounts);
 
     /*
      * Creates a StreaOrders Stream
@@ -192,23 +189,21 @@ public:
      * Place order
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/PlaceOrder
-     * 
-     * @return :
-     *   > 0 : The request ID of the async request
-     *   0 : Failed to start the async request
      */
-    [[nodiscard]] AsyncRequestID_t placeOrderAsync(const PlaceOrderRequest &order);
+    typedef std::variant<PlaceOrderResult, AsyncRequestError_e> PlaceOrderResult_t;
+    typedef QFuture<PlaceOrderResult_t> PlaceOrderFuture_t;
+
+    [[nodiscard]] PlaceOrderFuture_t placeOrder(const PlaceOrderRequest &order);
 
     /*
      * Cancel order
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/CancelOrder
-     * 
-     * @return :
-     *   > 0 : The request ID of the async request
-     *   0 : Failed to start the async request
      */
-    [[nodiscard]] AsyncRequestID_t cancelOrderAsync(const QString &orderID);
+    typedef std::variant<CancelOrderResult, AsyncRequestError_e> CancelOrderResult_t;
+    typedef QFuture<CancelOrderResult_t> CancelOrderFuture_t;
+
+    [[nodiscard]] CancelOrderFuture_t cancelOrder(const QString &orderID);
 
 public slots:
     #ifdef GUI_ENABLED
@@ -221,23 +216,10 @@ signals:
     void totalDataReceivedBytesIncreased(qsizetype dataSize);
     
     void openStreamCountChanged(size_t count);
-    void pendingAsyncRequestsCountChanges(size_t count);
 
     void authStateChanged(bool isAuthenticated, QString reason);
 
-    void receivedAsyncGetBars          (AsyncRequestID_t requestID, AsyncRequestStatus_e status, QVector<Bar> bars);
-    void receivedAsyncGetAccounts      (AsyncRequestID_t requestID, AsyncRequestStatus_e status, QVector<Account> results);
-    void receivedAsyncGetBalances      (AsyncRequestID_t requestID, AsyncRequestStatus_e status, QVector<Balance> results);
-    void receivedAsyncGetQuoteSnapshots(AsyncRequestID_t requestID, AsyncRequestStatus_e status, QVector<QuoteSnapshot> quoteSnapshots);
-    void receivedAsyncPlaceOrder       (AsyncRequestID_t requestID, AsyncRequestStatus_e status, PlaceOrderResult result);
-    void receivedAsyncCancelOrder      (AsyncRequestID_t requestID, AsyncRequestStatus_e status, CancelOrderResult result);
-    
 private slots:
-
-    void onReplyAsyncRequestReadyRead();
-    void onReplyAsyncRequestFinished();
-    void onReplyAsyncRequestErrorOccurred(QNetworkReply::NetworkError code);
-
 
     #ifdef GUI_ENABLED
     void onAuthFinished(bool success, AuthToken token, QString reason);
@@ -248,41 +230,6 @@ private:
     static TSClient* m_instance;
      explicit TSClient(); // Singleton : private constructor
     ~TSClient();
-
-    enum class HttpMethod {
-        GET,
-        POST,
-        PUT,
-        DELETE
-    };
-
-    enum class AsyncRequestType_t {
-        None,
-        GetRefreshAccessToken,
-        GetBars,
-        GetAccounts,
-        GetBalances,
-        GetQuoteSnapshots,
-        PlaceOrder,
-        CancelOrder,
-        MAX_REQUEST_TYPE
-    };
-
-    enum class StreamType_t {
-        None,
-        Bars,
-        MarketDepthQuote,
-        Orders,
-        Positions,
-        MAX_STREAM_TYPE
-    };
-
-    struct RequestInfo {
-        AsyncRequestID_t requestID = 0;
-        AsyncRequestType_t type = AsyncRequestType_t::None;
-    };
-
-   
 
     void processNewAmountOfDataReceived(size_t bytesReceived);
     [[nodiscard]] QNetworkRequest buildNetworkRequest(const QString &endpoint, const QUrlQuery &query = QUrlQuery()) const;
@@ -298,16 +245,9 @@ private:
 
 
 
-
-    [[nodiscard]] AsyncRequestID_t sendAsyncRequest(const QNetworkRequest &request, AsyncRequestType_t type, HttpMethod method = HttpMethod::GET, const QByteArray &postData = QByteArray());
-    void demuxReceivedAsyncRequestReply(AsyncRequestType_t asyncRequestType, const QJsonDocument &doc, AsyncRequestID_t requestID, AsyncRequestStatus_e status);
-
     void openStream(const QNetworkRequest &request, Stream *stream);
 
     void closeStream(Stream * const stream);
-
-    void demuxReceivedStreamReply(StreamType_t streamType, const QJsonDocument &doc, AsyncRequestID_t requestID, AsyncRequestStatus_e status);
- 
     //********* members ********/
 
 
@@ -323,15 +263,12 @@ private:
     AsyncRequestID_t m_asyncTokenRefreshRequestId = 0; // Store the request ID of the ongoing token refresh request
 
     QUrl m_baseUrl;
-    QAtomicInteger<AsyncRequestID_t> m_asyncRequestIDCurrentSequence{1};   // starts at 1
-    //mutable QReadWriteLock m_requestIDMapRWLock; // To protect m_requestIDSeq
+    
     qsizetype m_totalDataReceivedBytes = 0;
     QString m_apiKey;
     QThread *m_thread;
     QNetworkAccessManager *m_networkManager;
-    QMap<QNetworkReply*, RequestInfo> m_networkReplyToPendingAsyncRequests;
     QMap<QNetworkReply*, Stream*> m_networkReplyToOpenStreams;
-
 
 #ifdef GUI_ENABLED
     AuthWindow* m_authWindow = nullptr;  // Authentication window

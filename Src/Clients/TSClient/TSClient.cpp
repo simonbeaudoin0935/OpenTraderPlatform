@@ -125,19 +125,6 @@ TSClient::TSClient() :
     }
 }
 
-TSClient::~TSClient()
-{
-    // This should in fact never be called
-    m_thread->quit();
-    m_thread->wait();
-
-    qCDebug(TSClientLog) << "Singleton instance destroyed";
-}
-
-
-
-
-
 QNetworkRequest TSClient::buildNetworkRequest(const QString &endpoint, const QUrlQuery &query) const
 {
     Q_ASSERT(!m_baseUrl.isEmpty());

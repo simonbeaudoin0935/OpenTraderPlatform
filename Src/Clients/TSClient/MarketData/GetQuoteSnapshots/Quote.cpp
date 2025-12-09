@@ -3,18 +3,18 @@
 #include <QDateTime>
 #include <QJsonDocument>
 
-#include "QuoteSnapshot.h"
+#include "Quote.h"
 
-QuoteSnapshot::QuoteSnapshot()
+Quote::Quote()
 {
 }
 
-QuoteSnapshot::QuoteSnapshot(const QJsonObject& json)
+Quote::Quote(const QJsonObject& json)
 {
     fromJson(json);
 }
 
-bool QuoteSnapshot::isValid() const
+bool Quote::isValid() const
 {
     // Check if symbol is not empty
     if (m_symbol.isEmpty()) {
@@ -45,7 +45,7 @@ bool QuoteSnapshot::isValid() const
     return true;
 }
 
-QJsonObject QuoteSnapshot::toJson() const
+QJsonObject Quote::toJson() const
 {
     QJsonObject json;
     json["Symbol"] = m_symbol;
@@ -85,13 +85,13 @@ QJsonObject QuoteSnapshot::toJson() const
     return json;
 }
 
-QString QuoteSnapshot::toJsonString() const
+QString Quote::toJsonString() const
 {
     QJsonDocument doc(toJson());
     return doc.toJson(QJsonDocument::Indented);
 }
 
-void QuoteSnapshot::fromJson(const QJsonObject& json)
+void Quote::fromJson(const QJsonObject& json)
 {
     m_symbol = json["Symbol"].toString();
     m_open = json["Open"].toString().toDouble();
