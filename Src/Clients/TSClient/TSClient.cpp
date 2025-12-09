@@ -25,16 +25,7 @@ Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
 // Initialize static member outside class
 TSClient* TSClient::m_instance = nullptr;
     
-TSClient& TSClient::getInstance()
-{
-    if (m_instance == nullptr) {
-        qCDebug(TSClientLog) << "Singleton instance created";
-        m_instance = new TSClient();
-    }
-    return *m_instance;
-}
-
-TSClient* TSClient::getInstancePtr()
+TSClient* TSClient::getInstance()
 {
     if (m_instance == nullptr) {
         qCDebug(TSClientLog) << "Singleton instance created";
@@ -42,6 +33,7 @@ TSClient* TSClient::getInstancePtr()
     }
     return m_instance;
 }
+
 
 TSClient::TSClient() :
     QObject(),

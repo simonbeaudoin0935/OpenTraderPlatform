@@ -624,25 +624,3 @@ TSClient::CancelOrderFuture_t TSClient::cancelOrder(const QString &orderID)
 
     return future;
 }
-
-
-
-void TSClient::demuxReceivedAsyncRequestReply(AsyncRequestType_t type, const QJsonDocument &doc, AsyncRequestID_t requestID, AsyncRequestStatus_e status)
-{
-
-        case AsyncRequestType_t::GetRefreshAccessToken:
-        {
-            AuthToken token;
-            if (status == AsyncRequestStatus_e::SUCCESS) {
-                token = AuthToken::receiveAuthToken(obj);
-            }
-            // No emit on purpose, this is calling a private function of this class
-            processAsyncRefreshTokenFinished(requestID, status, token);
-            break;
-        }
-
-    default:
-        Q_UNREACHABLE();
-        break;
-    }
-}

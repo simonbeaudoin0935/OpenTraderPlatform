@@ -84,89 +84,115 @@ void TSClient::refreshAsyncAccessToken()
     const QNetworkRequest request = buildRefreshTokenRequest();
     const QByteArray     postData = buildRefreshTokenQuery(m_clientToken.getClientId(), m_clientToken.getClientSecret(), m_authToken.getRefreshToken());
 
-    // Make the POST request
-    m_asyncTokenRefreshRequestId = sendAsyncRequest(request,
-                                                    AsyncRequestType_t::GetRefreshAccessToken,
-                                                    HttpMethod::POST,
-                                                    postData);
+    QNetworkReply *reply = m_networkManager->get(request);
+    Q_CHECK_PTR(reply);
 
-    Q_ASSERT(m_asyncTokenRefreshRequestId > 0);
-}
+    auto b = connect(reply, &QNetworkReply::finished, this,
+        [this, reply]() mutable {
 
-void TSClient::processAsyncRefreshTokenFinished(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, AuthToken newToken)
-{
-    Q_ASSERT_X(m_asyncTokenRefreshRequestId == requestID, "token refresh", "Stored refresh request ID does not match the finished one");
-
-    m_asyncTokenRefreshRequestId = 0;
-    m_refreshInProgress = false;
-
-    if (status == AsyncRequestStatus_e::ERROR) {
-        qCCritical(TSClientLog) << "Refresh request in error";
-        Q_ASSERT(false);
-        return;
-    } else if (status == AsyncRequestStatus_e::TIMEOUT) {
-        qCWarning(TSClientLog) << "Received refreshed token timeout";
-
-        // Retry in one second
-        QTimer::singleShot(1000, this, [this]() {
-            refreshAsyncAccessToken();
-        });
-
-        return;
-    }
+            QByteArray rawData = reply->readAll();
     
-    Q_ASSERT(status == AsyncRequestStatus_e::SUCCESS);
+            processNewAmountOfDataReceived(rawData.size());
 
-    m_authenticated = newToken.isValidRefreshedToken() && !newToken.isExpired();;
+            switch (reply->error())
+            {
+                // Happy path
+                case QNetworkReply::NoError:
+                {
+                    QJsonParseError parseError;
+                    QJsonDocument doc = QJsonDocument::fromJson(rawData, &parseError);
 
-    if (m_authenticated == false) {
-        emit authStateChanged(false, "Received refreshed token invalid");
+                    if (parseError.error != QJsonParseError::NoError) {
+                        qCCritical(TSClientLog) << "Failed to parse JSON:" << parseError.errorString();
+                        qCCritical(TSClientLog) << "Content of the bad data : " << rawData;
+                        QTimer::singleShot(1000, this, [this]() { refreshAsyncAccessToken();});
+                        break;
+                    }
 
-        qCCritical(TSClientLog) << "Received refreshed token invalid";
+                    if (!doc.isObject()) {
+                        qCCritical(TSClientLog) << " : JSON is not an object";
+                        QTimer::singleShot(1000, this, [this]() { refreshAsyncAccessToken();});
+                        break;
+                    }
 
-        //TODO retry
+                    //TODO happy path
+                    AuthToken newToken = AuthToken::receiveAuthToken(doc.object());
+                    m_authenticated = newToken.isValidRefreshedToken() && !newToken.isExpired();
 
-        return;
-    }
+                    if (m_authenticated == false) {
+                        emit authStateChanged(false, "Received refreshed token invalid");
+                        qCCritical(TSClientLog) << "Received refreshed token invalid";
 
-    qCInfo(TSClientLog) << "Successful auth token refresh";
+                        //TODO probably need more
+                        QTimer::singleShot(1000, this, [this]() { refreshAsyncAccessToken();});
+                        break;
+                    }
 
-    // For some reason (security maybe) the new token return doesn't contain the refresh_key
-    // All other fields are good (which is why it needs a special isValidRefreshedToken()
-    // methods that does like isValid(), but omits the refresh_token field)
-    // Now, we want to store this new token on disk, but we first need to retreive the
-    // refresh_token from the actual token, stick it in there then save.
-    AuthToken validNewToken(newToken); 
+                    qCInfo(TSClientLog) << "Successful auth token refresh";
+
+                    // For some reason (security maybe) the new token return doesn't contain the refresh_key
+                    // All other fields are good (which is why it needs a special isValidRefreshedToken()
+                    // methods that does like isValid(), but omits the refresh_token field)
+                    // Now, we want to store this new token on disk, but we first need to retreive the
+                    // refresh_token from the actual token, stick it in there then save.
+                    AuthToken validNewToken(newToken); 
+                    
+                    validNewToken.setRefreshToken(m_authToken.getRefreshToken());
+
+                    AuthToken::storeToSettings(validNewToken);
+
+                    m_authToken = validNewToken;
+
+                    m_apiKey = m_authToken.getAccessToken();
+
+                    // Kick a new refresh in 20min - 5s
+                    {
+                        int secondsToNextRefreshRequest = m_authToken.secondsToNextRefreshRequest();
+                        // Logically if we are here this HAS to be t least 1s
+                        Q_ASSERT(secondsToNextRefreshRequest > 1 && secondsToNextRefreshRequest <= 1195);
+
+                        qCDebug(TSClientLog) << "Programming the next refresh in " << secondsToNextRefreshRequest << " seconds";
+
+                        // Launch a request in X seconds from now.
+                        QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() {
+                            refreshAsyncAccessToken();
+                        });
+                    }
+
+                    QTimer::singleShot(1000, this, [this]() {
+                        // Based on observation, if we propagate the good new immediately and start
+                        // making calls, the remote server will send us back an error 401 (unauthenticated)
+                        // for the first API call. Almost as if the refresh did not properly propagade in their system.
+                        // Wait a second on our end before propagating the successful authentification as to delay
+                        // making the first API call.
+                        emit authStateChanged(true, "Auth token refresh successful");
+                    });
+
+                }
+
+                // timeout
+                case QNetworkReply::HostNotFoundError:
+                case QNetworkReply::UnknownNetworkError:
+                {
+                    qCCritical(TSClientLog) << ": cancelOrder(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
+                    QTimer::singleShot(1000, this, [this]() { refreshAsyncAccessToken();});
+                    break;
+                }
+
+                // other errors
+                default:
+                {
+                    qCCritical(TSClientLog) << ": cancelOrder(): Error with reply: " << reply->errorString() << " : " << reply->error();
+                    QTimer::singleShot(1000, this, [this]() { refreshAsyncAccessToken();});
+                    break;
+                }
+            };
     
-    validNewToken.setRefreshToken(m_authToken.getRefreshToken());
-
-    AuthToken::storeToSettings(validNewToken);
-
-    m_authToken = validNewToken;
-
-    m_apiKey = m_authToken.getAccessToken();
-
-    // Kick a new refresh in 20min - 5s
-    {
-        int secondsToNextRefreshRequest = m_authToken.secondsToNextRefreshRequest();
-        // Logically if we are here this HAS to be t least 1s
-        Q_ASSERT(secondsToNextRefreshRequest > 1 && secondsToNextRefreshRequest <= 1195);
-
-        qCDebug(TSClientLog) << "Programming the next refresh in " << secondsToNextRefreshRequest << " seconds";
-
-        // Launch a request in X seconds from now.
-        QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() {
-            refreshAsyncAccessToken();
+            reply->deleteLater();
         });
-    }
+    Q_ASSERT(b);
 
-    QTimer::singleShot(1000, this, [this]() {
-        // Based on observation, if we propagate the good new immediately and start
-        // making calls, the remote server will send us back an error 401 (unauthenticated)
-        // for the first API call. Almost as if the refresh did not properly propagade in their system.
-        // Wait a second on our end before propagating the successful authentification as to delay
-        // making the first API call.
-        emit authStateChanged(true, "Auth token refresh successful");
-    });
+    qCDebug(TSClientLog) << "Sent refreshToken() to Network Manager";
+
+    //TODO store the promise to be able to act on it
 }
-

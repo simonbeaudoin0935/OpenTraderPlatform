@@ -48,10 +48,9 @@ class TSClient final : public QObject
     Q_OBJECT
 public:
 
-    // Singleton : Instance getter  and delete copy and assignment
-    static TSClient& getInstance();
-    static TSClient* getInstancePtr();
-    ~TSClient() = delete; // Delete destructor
+    // Singleton : Instance getter
+    [[nodiscard]] static TSClient* getInstance();
+
     TSClient(const TSClient&) = delete; // Delete copy constructor
     TSClient(TSClient&&) = delete; // Delete move constructor
     TSClient& operator=(const TSClient&) = delete; // Delete copy assignment
@@ -80,10 +79,8 @@ public:
     };
     
 
+    // -------- Market data methods ----------
 
-
-  
-                              // -------- Market data methods ----------
     /*
      * Get Quote Snapshots
      *
@@ -96,7 +93,6 @@ public:
 
     /*
      * Get Bars asynchronously
-     *  0 : Failed to start the async request
      */
     typedef std::variant<QVector<Bar>, AsyncRequestError_e> GetBarsResult_t;
     typedef QFuture<GetBarsResult_t> GetBarsFuture_t;
@@ -111,7 +107,6 @@ public:
     /*
      * Creates a Bars Stream
      *
-     * @return : nullptr if the stream could not be created
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/StreamBars
      *
      * @note : Returned pointer dynamically allocated. Delete with closeStreamBars
@@ -139,7 +134,7 @@ public:
     [[nodiscard]] StreamMarketDepthQuote* openStreamMarketDepthQuote(const QString &symbol, unsigned int depth = 20);
     void closeStreamMarketDepthQuote(StreamMarketDepthQuote* stream);
 
-                              // -------- Brokerage methods -------------
+    // -------- Brokerage methods -------------
 
     /*
      * Get Accounts
@@ -227,9 +222,10 @@ private slots:
     #endif
 
 private:
+    virtual ~TSClient(); // Delete destructor
+
     static TSClient* m_instance;
-     explicit TSClient(); // Singleton : private constructor
-    ~TSClient();
+    explicit TSClient(); // Singleton : private constructor
 
     void processNewAmountOfDataReceived(size_t bytesReceived);
     [[nodiscard]] QNetworkRequest buildNetworkRequest(const QString &endpoint, const QUrlQuery &query = QUrlQuery()) const;
@@ -240,8 +236,11 @@ private:
     [[nodiscard]] static QByteArray buildRefreshTokenQuery(const QString &clientId,
                                                            const QString &clientSecret,
                                                            const QString &refreshToken);                                       
+    
+    typedef std::variant<AuthToken, AsyncRequestError_e> TokenRefreshResult_t;
+    typedef QFuture<TokenRefreshResult_t> TokenRefreshFuture_t;
+
     void refreshAsyncAccessToken();
-    void processAsyncRefreshTokenFinished(AsyncRequestID_t requestID, AsyncRequestStatus_e status, AuthToken newToken);
 
 
 
@@ -259,8 +258,6 @@ private:
     bool m_authenticated     = false;  // Track authentication state
     bool m_refreshInProgress = false;  // Track if authentication process is in progress
     bool m_authInProgress    = false;  // Track if authentication process is in progress
-
-    AsyncRequestID_t m_asyncTokenRefreshRequestId = 0; // Store the request ID of the ongoing token refresh request
 
     QUrl m_baseUrl;
     
