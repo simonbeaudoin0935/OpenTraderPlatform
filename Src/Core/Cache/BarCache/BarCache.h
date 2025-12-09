@@ -2,9 +2,9 @@
 
 #include <QLoggingCategory>
 #include <QMap>
-#include <QObject>
 #include <QReadWriteLock>
 #include <QSqlDatabase>
+#include <QFutures>
 
 #include "Bar.h"
 #include "StreamBars.h"
@@ -60,16 +60,16 @@ signals:
 
 private slots:
 
-    // Static method which is connected to the TSClient singleton instances's receivedAsyncGetBars() signal.
-    static void onReceivedAsyncGetBars(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Bar> bars);
-
-    void onReceivedAsyncGetBarsInstance(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Bar> bars);
-
     void onReceivedNewLiveBar(QString symbol, Bar newBar);
     void onStreamError(Stream::ErrorStatus error, QString errorMessage);
 
 private:
-    const QVector<Bar> getBarsInRange(const QDateTime &first, const QDateTime &last);
+    /*
+     * Get Bars in range (aka, during a single day), returning either the bars or a future to get them asynchronously
+     */
+    typedef std::variant<QVector<Bar>, TSClient::GetBarsFuture_t> GetBarsInRangeResult_t;
+    GetBarsInRangeResult_t getBarsInRange(const QDateTime &first, const QDateTime &last);
+
 
     void storeBarInCache(const Bar& bar);
     void storeBarsInCache(const QVector<Bar>& bars);
@@ -93,10 +93,8 @@ private:
     // This map associates stock symbol to bar cache instance, which means there can only be one BarCache per symbol
     // It is used so that when the TSClient singleton instance emits receivedAsyncGetBars() we can route this request back to
     // BarCache instance that triggered the request based on the symbol.
-    static QMap<QString, BarCache*> barCacheMap;
+    QMap<QString, BarCache*> barCacheMap;
 
-    // This map associates 
-    static QMap<TSClient::AsyncRequestID_t, QString> m_asyncReqIdToSymbol;
 
 
     struct PendingAsyncGetBarRequest {
@@ -109,7 +107,8 @@ private:
     // This map holds pending async get bars requests: key is request ID, value is a pair where first element indicates
     // whether the request was fulfilled (true) or still pending (false), and second element
     // holds the fetched bars once the request is fulfilled.
-    QMap<TSClient::AsyncRequestID_t, PendingAsyncGetBarRequest> pendingAsyncGetBarRequests;
+    QMap<TSClient::GetBarsFuture_t, PendingAsyncGetBarRequest> pendingAsyncGetBarRequests;
+    
     QDateTime savedFirst;
     QDateTime savedLast;
 };

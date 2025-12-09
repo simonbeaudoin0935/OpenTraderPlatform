@@ -222,9 +222,10 @@ private slots:
     #endif
 
 private:
+    static TSClient* m_instance; // Singleton instance
+
     virtual ~TSClient(); // Delete destructor
 
-    static TSClient* m_instance;
     explicit TSClient(); // Singleton : private constructor
 
     void processNewAmountOfDataReceived(size_t bytesReceived);
@@ -233,21 +234,12 @@ private:
 
     // Auth and refresh stuff implemented in TSClientRefreshToken.cpp
     [[nodiscard]] static QNetworkRequest buildRefreshTokenRequest();
-    [[nodiscard]] static QByteArray buildRefreshTokenQuery(const QString &clientId,
-                                                           const QString &clientSecret,
-                                                           const QString &refreshToken);                                       
-    
-    typedef std::variant<AuthToken, AsyncRequestError_e> TokenRefreshResult_t;
-    typedef QFuture<TokenRefreshResult_t> TokenRefreshFuture_t;
-
+    [[nodiscard]] static QByteArray buildRefreshTokenQuery(const QString &clientId, const QString &clientSecret, const QString &refreshToken);                                       
     void refreshAsyncAccessToken();
 
 
-
     void openStream(const QNetworkRequest &request, Stream *stream);
-
     void closeStream(Stream * const stream);
-    //********* members ********/
 
 
 
@@ -270,7 +262,4 @@ private:
 #ifdef GUI_ENABLED
     AuthWindow* m_authWindow = nullptr;  // Authentication window
 #endif
-
-    friend class TestTSClient;
-    friend class TestBarCache;
 };

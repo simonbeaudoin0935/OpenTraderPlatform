@@ -12,11 +12,6 @@
 Q_LOGGING_CATEGORY(BarCacheLog, "BarCache")
 
 
-
-QMap<QString, BarCache*> BarCache::barCacheMap = QMap<QString, BarCache*>();
-QMap<TSClient::AsyncRequestID_t, QString> BarCache::m_asyncReqIdToSymbol = QMap<TSClient::AsyncRequestID_t, QString> ();
-
-
 BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
     QObject(parent),
     symbol(symbol),
@@ -110,7 +105,7 @@ BarCache::~BarCache()
     const QString cacheName = this->objectName();
 
     if (streamBar != nullptr) {
-        TSClient::getInstance().closeStreamBars(streamBar);
+        TSClient::getInstance()->closeStreamBars(streamBar);
     }
 
     qCDebug(BarCacheLog) << cacheName << "Destroyed";
@@ -385,7 +380,7 @@ const QVector<Bar> BarCache::getBarsInRange(const QDateTime &first, const QDateT
             
         qCDebug(BarCacheLog) << cacheName << "Fetching bars from API for" << symbol << "in range" << range.first << "to" << fetchLast;
 
-        size_t requestID = TSClient::getInstance().getBarsAsync(symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour, range.first, fetchLast);
+        size_t requestID = TSClient::getInstance()->getBars(symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour, range.first, fetchLast);
 
         Q_ASSERT(requestID != 0);
 

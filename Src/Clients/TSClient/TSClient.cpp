@@ -34,6 +34,10 @@ TSClient* TSClient::getInstance()
     return m_instance;
 }
 
+TSClient::~TSClient()
+{
+    Q_ASSERT(false); // Destructor should never be called for singleton
+}
 
 TSClient::TSClient() :
     QObject(),
