@@ -68,7 +68,6 @@ QByteArray TSClient::buildRefreshTokenQuery(const QString &clientId,
 void TSClient::refreshAsyncAccessToken()
 {
     Q_ASSERT_X(QThread::currentThread() == m_thread, qPrintable(QThread::currentThread()->objectName()), "Only TSClient thread can call this function");
-    Q_ASSERT_X(m_asyncTokenRefreshRequestId == 0, Q_FUNC_INFO, "A refresh token request is already ongoing");
     Q_ASSERT_X(m_authInProgress == false, Q_FUNC_INFO, "Auth process is ongoing, cannot refresh token");
     Q_ASSERT_X(m_refreshInProgress == false, Q_FUNC_INFO, "A refresh token is already in progress");
     Q_ASSERT(m_authToken.isValid());

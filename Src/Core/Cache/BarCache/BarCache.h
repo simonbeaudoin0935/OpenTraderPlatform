@@ -4,7 +4,7 @@
 #include <QMap>
 #include <QReadWriteLock>
 #include <QSqlDatabase>
-#include <QFutures>
+#include <QFuture>
 
 #include "Bar.h"
 #include "StreamBars.h"
@@ -26,37 +26,30 @@ public:
     explicit BarCache(const QString &symbol, bool isStreaming = false, QObject *parent = nullptr);
     ~BarCache();
 
-    const QString& getSymbol() const { return symbol;};
+    const QString& getSymbol() const { return m_symbol;};
 
-    unsigned int getNumberOfBars() const { return barCacheOneMinute.size();};
+    unsigned int getNumberOfBars() const { return m_barCacheOneMinute.size();};
 
     bool warmUpBarsOfDayUntilNow(QDate date = QDateTime::currentDateTime().date());
 
-    const QVector<Bar> getBars(const QDateTime &first, const QDateTime &last);
+    /*
+     * Get Bars between two date-times
+     *
+     * @note : Both date-times must be in America/New_York timezone
+     */
+    typedef std::variant<QVector<Bar>, QFuture<QVector<Bar>>> GetBarsResult_t;
+    std::variant<QVector<Bar>, QFuture<QVector<Bar>>>
+    getBars(const QDateTime &first, const QDateTime &last);
     
-    const QVector<Bar> getAfterHourBars(const QDate &date);
-
-    void clearDatabase();
-
     QVector<QPair<QDateTime, QDateTime>> identifyMissingRanges(const QDateTime &start, const QDateTime &end, const QVector<Bar>& cachedBars) const;
     QVector<QPair<QDateTime, QDateTime>> splitIntoTradingDayRanges(const QDateTime &first, const QDateTime &last) const;
 
-    enum class HitType{
-        None,
-        Hit,
-        Miss,
-        PartialHit
-    };
+    qsizetype getDuplicateStoreCount() const { return m_duplicateStoreCount; }
 
-    HitType getLastHitType() const { return lastHitType; }
-
-    qsizetype getDuplicateStoreCount() const { return duplicateStoreCount; }
-    qsizetype getLastNumberFetchedBars() const { return lastNumberFetchedBars; }
+    void clearDatabase();
 
 signals:
     void receivedNewBar(QString symbol, Bar newBar);
-
-    void receivedAsyncGetBars(QVector<Bar> bars); 
 
 private slots:
 
@@ -64,36 +57,28 @@ private slots:
     void onStreamError(Stream::ErrorStatus error, QString errorMessage);
 
 private:
-    /*
-     * Get Bars in range (aka, during a single day), returning either the bars or a future to get them asynchronously
-     */
-    typedef std::variant<QVector<Bar>, TSClient::GetBarsFuture_t> GetBarsInRangeResult_t;
-    GetBarsInRangeResult_t getBarsInRange(const QDateTime &first, const QDateTime &last);
 
+    GetBarsResult_t getBarsInRange(const QDateTime &first, const QDateTime &last);
 
     void storeBarInCache(const Bar& bar);
     void storeBarsInCache(const QVector<Bar>& bars);
+    void storeBarsInDatabase(const QVector<Bar>& bars);
+
     QVector<Bar> getBarsFromCache(QDateTime start, QDateTime end) const;
     QVector<Bar> getBarsFromDatabase(QDateTime start, QDateTime end) const;
-    void storeBarsInDatabase(const QVector<Bar>& bars);
+
     void handleReceivedAllPendingGetBarsRequests();
     QVector<Bar> fillHolesOfReceivedRequest(const QDateTime& first, const QDateTime& last, const QVector<Bar>& barsFromAPI);
 
 
-    QString symbol;
-    bool isStreaming;
-    QMap<QDateTime, Bar> barCacheOneMinute;
-    mutable QReadWriteLock rwLock; // TODO study if this is really needed
-    QSqlDatabase db;
-    StreamBars* streamBar = nullptr;
-    HitType lastHitType = HitType::None;
-    mutable quint64 duplicateStoreCount = 0;
-    mutable quint64 lastNumberFetchedBars = 0;
+    QString m_symbol;
+    bool m_isStreaming;
+    QMap<QDateTime, Bar> m_barCacheOneMinute; // This is the in-memory cache of bars
+    mutable QReadWriteLock m_barCacheOneMinuteRwLock; // TODO study if this is really needed
+    QSqlDatabase m_db;
+    StreamBars* m_streamBar = nullptr;
+    mutable quint64 m_duplicateStoreCount = 0;
 
-    // This map associates stock symbol to bar cache instance, which means there can only be one BarCache per symbol
-    // It is used so that when the TSClient singleton instance emits receivedAsyncGetBars() we can route this request back to
-    // BarCache instance that triggered the request based on the symbol.
-    QMap<QString, BarCache*> barCacheMap;
 
 
 
@@ -104,11 +89,6 @@ private:
         QVector<Bar> bars;
     };
 
-    // This map holds pending async get bars requests: key is request ID, value is a pair where first element indicates
-    // whether the request was fulfilled (true) or still pending (false), and second element
-    // holds the fetched bars once the request is fulfilled.
-    QMap<TSClient::GetBarsFuture_t, PendingAsyncGetBarRequest> pendingAsyncGetBarRequests;
-    
     QDateTime savedFirst;
     QDateTime savedLast;
 };

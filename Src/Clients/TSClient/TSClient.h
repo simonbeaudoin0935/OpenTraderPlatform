@@ -48,6 +48,24 @@ class TSClient final : public QObject
     Q_OBJECT
 public:
 
+    class TimeoutException : public QException {
+    public:
+        void raise() const override { throw *this; }
+        TimeoutException *clone() const override { return new TimeoutException(*this); }
+    };
+
+    class JSONErrorException : public QException {
+    public:
+        void raise() const override { throw *this; }
+        JSONErrorException *clone() const override { return new JSONErrorException(*this); }
+    };
+
+    class OtherErrorException : public QException {
+    public:
+        void raise() const override { throw *this; }
+        OtherErrorException *clone() const override { return new OtherErrorException(*this); }
+    };
+
     // Singleton : Instance getter
     [[nodiscard]] static TSClient* getInstance();
 
@@ -73,12 +91,6 @@ public:
 
 
 
-    enum class AsyncRequestError_e {
-        TIMEOUT,
-        ERROR
-    };
-    
-
     // -------- Market data methods ----------
 
     /*
@@ -86,18 +98,12 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/GetQuoteSnapshots
      */
-    typedef std::variant<QVector<Quote>, AsyncRequestError_e> GetQuoteSnapshotResult_t;
-    typedef QFuture<GetQuoteSnapshotResult_t> GetQuoteSnapshotFuture_t;
-
-    [[nodiscard]] GetQuoteSnapshotFuture_t getQuoteSnapshots(const QStringList &symbols);
+    [[nodiscard]] QFuture<QVector<Quote>> getQuoteSnapshots(const QStringList &symbols);
 
     /*
      * Get Bars asynchronously
      */
-    typedef std::variant<QVector<Bar>, AsyncRequestError_e> GetBarsResult_t;
-    typedef QFuture<GetBarsResult_t> GetBarsFuture_t;
-
-    [[nodiscard]] GetBarsFuture_t getBars(const QString &symbol,
+    [[nodiscard]] QFuture<QVector<Bar>> getBars(const QString &symbol,
                                           unsigned int interval = 1,
                                           Bar::BarUnit unit = Bar::BarUnit::Daily,
                                           unsigned int barsback = 1,
@@ -141,20 +147,14 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
      */
-    typedef std::variant<QVector<Account>, AsyncRequestError_e> GetAccountsResult_t;
-    typedef QFuture<GetAccountsResult_t> GetAccountsFuture_t;
-
-    [[nodiscard]] GetAccountsFuture_t getAccounts();
+    [[nodiscard]] QFuture<QVector<Account>> getAccounts();
 
     /*
      * Get Balances
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetBalances
      */
-    typedef std::variant<QVector<Balance>, AsyncRequestError_e> GetBalancesResult_t;
-    typedef QFuture<GetBalancesResult_t> GetBalancesFuture_t;
-
-    [[nodiscard]] GetBalancesFuture_t getBalances(const QStringList &accounts);
+    [[nodiscard]] QFuture<QVector<Balance>>  getBalances(const QStringList &accounts);
 
     /*
      * Creates a StreaOrders Stream
@@ -185,20 +185,14 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/PlaceOrder
      */
-    typedef std::variant<PlaceOrderResult, AsyncRequestError_e> PlaceOrderResult_t;
-    typedef QFuture<PlaceOrderResult_t> PlaceOrderFuture_t;
-
-    [[nodiscard]] PlaceOrderFuture_t placeOrder(const PlaceOrderRequest &order);
+    [[nodiscard]] QFuture<PlaceOrderResult> placeOrder(const PlaceOrderRequest &order);
 
     /*
      * Cancel order
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/CancelOrder
      */
-    typedef std::variant<CancelOrderResult, AsyncRequestError_e> CancelOrderResult_t;
-    typedef QFuture<CancelOrderResult_t> CancelOrderFuture_t;
-
-    [[nodiscard]] CancelOrderFuture_t cancelOrder(const QString &orderID);
+    [[nodiscard]] QFuture<CancelOrderResult> cancelOrder(const QString &orderID);
 
 public slots:
     #ifdef GUI_ENABLED
