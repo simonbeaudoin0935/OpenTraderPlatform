@@ -17,7 +17,7 @@ void PositionsReceiver::startStream(const QString &account)
 
     qCDebug(PositionsReceiverLog) << Q_FUNC_INFO << "Starting Positions stream for account : " << account;
 
-    StreamPositions *stream = TSClient::getInstance().openStreamPositions(account);
+    StreamPositions *stream = TSClient::getInstance()->openStreamPositions(account);
 
     connect(stream, &StreamPositions::receivedNewPosition, this, &PositionsReceiver::onReceivedNewPosition);
     connect(stream, &Stream::streamErrorOccurred, this, &PositionsReceiver::onStreamError);

@@ -79,7 +79,7 @@ TSClient::TSClient() :
 
         // Schedule a refresh for when the thread starts
         QTimer::singleShot(0, this, [this]() {
-            refreshAsyncAccessToken();
+            refreshAccessToken();
         });
     }
 
@@ -108,7 +108,7 @@ TSClient::TSClient() :
 
         // Launch a request in X seconds from now.
         QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() {
-            refreshAsyncAccessToken();
+            refreshAccessToken();
         });
 
         // Schedule an emition for when the event loop is started

@@ -229,7 +229,7 @@ private:
     // Auth and refresh stuff implemented in TSClientRefreshToken.cpp
     [[nodiscard]] static QNetworkRequest buildRefreshTokenRequest();
     [[nodiscard]] static QByteArray buildRefreshTokenQuery(const QString &clientId, const QString &clientSecret, const QString &refreshToken);                                       
-    void refreshAsyncAccessToken();
+    void refreshAccessToken();
 
 
     void openStream(const QNetworkRequest &request, Stream *stream);

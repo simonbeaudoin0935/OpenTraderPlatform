@@ -40,18 +40,6 @@ QFuture<QVector<Account>> TSClient::getAccounts()
                             break;
                         }
 
-                        if (!doc.isArray()) {
-                            qCCritical(TSClientLog) << " : JSON is not an array";
-                            promise.setException(JSONErrorException());
-                            break;
-                        }
-
-                        if (doc.array().isEmpty()) {
-                            qCCritical(TSClientLog) << " : JSON is an empty array";
-                            promise.setException(JSONErrorException());
-                            break;
-                        }
-
                         const QJsonValue val = doc["Accounts"];
 
                         if(val == QJsonValue::Undefined) {
@@ -74,6 +62,7 @@ QFuture<QVector<Account>> TSClient::getAccounts()
                             results.push_back(Account(json.toObject()));
                         }
 
+                        qCInfo(TSClientLog) << "Fetched" << results.size() << "accounts";
                         promise.addResult(results);
                         break;
                     }
@@ -157,18 +146,6 @@ QFuture<QVector<Balance>> TSClient::getBalances(const QStringList &accounts)
                             break;
                         }
 
-                        if (!doc.isArray()) {
-                            qCCritical(TSClientLog) << " : JSON is not an array";
-                            promise.setException(JSONErrorException());
-                            break;
-                        }
-
-                        if (doc.array().isEmpty()) {
-                            qCCritical(TSClientLog) << " : JSON is an empty array";
-                            promise.setException(JSONErrorException());
-                            break;
-                        }
-
                         const QJsonValue val = doc["Balances"];
 
                         if(val == QJsonValue::Undefined) {
@@ -191,6 +168,7 @@ QFuture<QVector<Balance>> TSClient::getBalances(const QStringList &accounts)
                             results.push_back(Balance(json.toObject()));
                         }
 
+                        qCInfo(TSClientLog) << "Fetched" << results.size() << "accounts";
                         promise.addResult(results);
                         break;
                     }

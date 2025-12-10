@@ -38,8 +38,7 @@ public:
      * @note : Both date-times must be in America/New_York timezone
      */
     typedef std::variant<QVector<Bar>, QFuture<QVector<Bar>>> GetBarsResult_t;
-    std::variant<QVector<Bar>, QFuture<QVector<Bar>>>
-    getBars(const QDateTime &first, const QDateTime &last);
+    GetBarsResult_t getBars(const QDateTime &first, const QDateTime &last);
     
     QVector<QPair<QDateTime, QDateTime>> identifyMissingRanges(const QDateTime &start, const QDateTime &end, const QVector<Bar>& cachedBars) const;
     QVector<QPair<QDateTime, QDateTime>> splitIntoTradingDayRanges(const QDateTime &first, const QDateTime &last) const;

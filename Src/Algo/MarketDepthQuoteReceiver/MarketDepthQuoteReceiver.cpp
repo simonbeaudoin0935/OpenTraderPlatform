@@ -9,7 +9,7 @@ MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(const QString &symbol, QObjec
 {
     qCDebug(MarketDepthQuoteReceiverLog) << Q_FUNC_INFO << "Starting Market Depth Quote stream for " << symbol;
 
-    StreamMarketDepthQuote *stream = TSClient::getInstance().openStreamMarketDepthQuote(symbol, 10);
+    StreamMarketDepthQuote *stream = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10);
 
     connect(stream, &StreamMarketDepthQuote::receivedNewMarketDepthQuote, this, &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote);
     connect(stream, &Stream::streamErrorOccurred, this, &MarketDepthQuoteReceiver::onStreamError);
@@ -96,7 +96,7 @@ void MarketDepthQuoteReceiver::stopStream()
 
     disconnect(stream);
 
-    TSClient::getInstance().closeStreamMarketDepthQuote(stream);
+    TSClient::getInstance()->closeStreamMarketDepthQuote(stream);
 }
 
 void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote)

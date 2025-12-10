@@ -65,7 +65,7 @@ QByteArray TSClient::buildRefreshTokenQuery(const QString &clientId,
     return query.toString(QUrl::FullyEncoded).toUtf8();
 }
 
-void TSClient::refreshAsyncAccessToken()
+void TSClient::refreshAccessToken()
 {
     Q_ASSERT_X(QThread::currentThread() == m_thread, qPrintable(QThread::currentThread()->objectName()), "Only TSClient thread can call this function");
     Q_ASSERT_X(m_authInProgress == false, Q_FUNC_INFO, "Auth process is ongoing, cannot refresh token");
@@ -83,7 +83,7 @@ void TSClient::refreshAsyncAccessToken()
     const QNetworkRequest request = buildRefreshTokenRequest();
     const QByteArray     postData = buildRefreshTokenQuery(m_clientToken.getClientId(), m_clientToken.getClientSecret(), m_authToken.getRefreshToken());
 
-    QNetworkReply *reply = m_networkManager->get(request);
+    QNetworkReply *reply = m_networkManager->post(request, postData);
     Q_CHECK_PTR(reply);
 
     auto b = connect(reply, &QNetworkReply::finished, this,
@@ -104,13 +104,13 @@ void TSClient::refreshAsyncAccessToken()
                     if (parseError.error != QJsonParseError::NoError) {
                         qCCritical(TSClientLog) << "Failed to parse JSON:" << parseError.errorString();
                         qCCritical(TSClientLog) << "Content of the bad data : " << rawData;
-                        QTimer::singleShot(1000, this, [this]() { refreshAsyncAccessToken();});
+                        QTimer::singleShot(1000, this, [this]() { refreshAccessToken();});
                         break;
                     }
 
                     if (!doc.isObject()) {
                         qCCritical(TSClientLog) << " : JSON is not an object";
-                        QTimer::singleShot(1000, this, [this]() { refreshAsyncAccessToken();});
+                        QTimer::singleShot(1000, this, [this]() { refreshAccessToken();});
                         break;
                     }
 
@@ -123,7 +123,7 @@ void TSClient::refreshAsyncAccessToken()
                         qCCritical(TSClientLog) << "Received refreshed token invalid";
 
                         //TODO probably need more
-                        QTimer::singleShot(1000, this, [this]() { refreshAsyncAccessToken();});
+                        QTimer::singleShot(1000, this, [this]() { refreshAccessToken();});
                         break;
                     }
 
@@ -154,7 +154,7 @@ void TSClient::refreshAsyncAccessToken()
 
                         // Launch a request in X seconds from now.
                         QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() {
-                            refreshAsyncAccessToken();
+                            refreshAccessToken();
                         });
                     }
 
@@ -166,32 +166,33 @@ void TSClient::refreshAsyncAccessToken()
                         // making the first API call.
                         emit authStateChanged(true, "Auth token refresh successful");
                     });
-
+                    break;
                 }
 
                 // timeout
                 case QNetworkReply::HostNotFoundError:
                 case QNetworkReply::UnknownNetworkError:
                 {
-                    qCCritical(TSClientLog) << ": cancelOrder(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
-                    QTimer::singleShot(1000, this, [this]() { refreshAsyncAccessToken();});
+                    qCCritical(TSClientLog) << ": refreshAccessToken(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
+                    QTimer::singleShot(1000, this, [this]() { refreshAccessToken();});
                     break;
                 }
 
                 // other errors
                 default:
                 {
-                    qCCritical(TSClientLog) << ": cancelOrder(): Error with reply: " << reply->errorString() << " : " << reply->error();
-                    QTimer::singleShot(1000, this, [this]() { refreshAsyncAccessToken();});
+                    qCCritical(TSClientLog) << ": refreshAccessToken(): Error with reply: " << reply->errorString() << " : " << reply->error();
+                    QTimer::singleShot(1000, this, [this]() { refreshAccessToken();});
                     break;
                 }
             };
-    
+
+            m_refreshInProgress = false;
             reply->deleteLater();
         });
     Q_ASSERT(b);
 
-    qCDebug(TSClientLog) << "Sent refreshToken() to Network Manager";
+    qCDebug(TSClientLog) << "Sent refreshAccessToken() to Network Manager";
 
     //TODO store the promise to be able to act on it
 }

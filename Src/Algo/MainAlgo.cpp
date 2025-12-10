@@ -11,23 +11,15 @@ Q_LOGGING_CATEGORY(MainAlgoLog, "MainAlgo")
 // Initialize static member outside class
 MainAlgo* MainAlgo::m_instance = nullptr;
     
-MainAlgo& MainAlgo::getInstance()
+MainAlgo* MainAlgo::getInstance()
 {
     if (m_instance == nullptr) {
-        qCDebug(TSClientLog) << "Singleton instance created";
-        m_instance = new MainAlgo();
-    }
-    return *m_instance;
-}
-
-MainAlgo* MainAlgo::getInstancePtr()
-{
-    if (m_instance == nullptr) {
-        qCDebug(TSClientLog) << "Singleton instance created";
+        qCDebug(MainAlgoLog) << "Singleton instance created";
         m_instance = new MainAlgo();
     }
     return m_instance;
 }
+
 
 MainAlgo::MainAlgo()
 {
@@ -59,8 +51,6 @@ MainAlgo::MainAlgo()
         // Optional: Set encoding (UTF-8 is default in modern Qt)
         algoLogFile->setEncoding(QStringConverter::Utf8);
     }
-
-    m_savedGetBalancesRequestID = 0;
 }
 
 MainAlgo::~MainAlgo()
@@ -93,9 +83,6 @@ void MainAlgo::onSelectDisplayedStock(QString symbol)
         disconnect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
                    this, &MainAlgo::displayedStockReceivedNewBar);
 
-        disconnect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedAsyncGetBars,
-                   this, &MainAlgo::requestedMissingBarsDisplayedStockReceived);
-
         disconnect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
                    this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
     }
@@ -103,7 +90,6 @@ void MainAlgo::onSelectDisplayedStock(QString symbol)
     // Change the stock selected pointer to the new selected stock
     if (stockInstruments.contains(symbol)) {
         currentDisplayedStockInstrument = stockInstruments[symbol];
-
     } else {
         currentDisplayedStockInstrument = new StockInstruments(symbol);
         Q_CHECK_PTR(currentDisplayedStockInstrument);
@@ -115,15 +101,12 @@ void MainAlgo::onSelectDisplayedStock(QString symbol)
     connect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
             this, &MainAlgo::displayedStockReceivedNewBar);
 
-    connect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedAsyncGetBars,
-            this, &MainAlgo::requestedMissingBarsDisplayedStockReceived);
-
     connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
             this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
 
 }
 
-void MainAlgo::onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime last)
+BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDateTime first, QDateTime last)
 {
     qCDebug(MainAlgoLog) << "Requested bars from current displayed stock cache: " << first << " to " << last;
 
@@ -132,69 +115,52 @@ void MainAlgo::onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime las
     Q_ASSERT(first < last);
     Q_ASSERT_X(currentDisplayedStockInstrument != nullptr, "Currently displayed stock instrument is null", "Bug if here");
 
-    QVector<Bar> bars = currentDisplayedStockInstrument->barCache.getBars(first, last);
-
-    if (bars.isEmpty()) {
-        qCDebug(MainAlgoLog) << "Missing bars in cache for requested range. Sent API request. The barcache will emit signal when bars are ready.";
-    } else {
-        qCDebug(MainAlgoLog) << "All bars found in cache for requested range. Emitting signal.";
-        
-        emit requestedMissingBarsDisplayedStockReceived(bars);
-    }
-
+    BarCache::GetBarsResult_t result = currentDisplayedStockInstrument->barCache.getBars(first, last);
+    
+    return result;
 }
 
 
-
+/*
+ * This is the entry point that activates the chain of events after authentication state changes
+ */
 void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
 {
-
-    if (!isAuthenticated && !m_havePastSuccessfulExchanges) {
-        qCritical(MainAlgoLog) << "Tradestation failed to authenticate. Reason : " << reason;
-        qCritical(MainAlgoLog) << "Cannot proceed without authentication. Retrying";
-
-        // TODO relaunch a auth attempt
-        return;
-    } else if (!isAuthenticated && m_havePastSuccessfulExchanges) {
-        qCCritical(MainAlgoLog) << "Tradestation lost authentication. Reason : " << reason;
+    if (!isAuthenticated) {
+        if (!m_havePastSuccessfulExchanges) {
+            qCritical(MainAlgoLog) << "Tradestation failed to authenticate. Reason : " << reason;
+            qCritical(MainAlgoLog) << "Cannot proceed without authentication. Retrying";
+            // TODO relaunch a auth attempt
+            Q_ASSERT(false);
+        } else {
+            qCCritical(MainAlgoLog) << "Tradestation lost authentication. Reason : " << reason;
+        }
         return;
     }
 
     qCDebug(MainAlgoLog) << "Tradestation authenticated successfully : " << reason;
 
-    // TODO handle if the request times out. if happened to me when the token was not expired and went ahead to get accounts but the connection
-    // was bad and the request times out after 5s. Not checking the return value is a problem because we continue otherwise and hit assert when
-    // referencing accounts[1] later on.
+    // Now that the TSClient notified us that we are authenticated,
+    // the first thing is to request the accounts.
+    QFuture<QVector<Account>> future = TSClient::getInstance()->getAccounts();
 
-    connect(&TSClient::getInstance(), &TSClient::receivedAsyncGetAccounts,
-            this, &MainAlgo::onReceivedAsyncGetAccounts,
-            Qt::UniqueConnection);
-
-    m_savedGetAccountsRequestID = TSClient::getInstance().getAccountsAsync();
+    future.then(this, [this](const QVector<Account>& results){
+        onReceivedAsyncGetAccounts(results);
+    }).onFailed(this, [this] (const TSClient::TimeoutException& e){
+        Q_UNUSED(e);
+        Q_ASSERT_X(false, "MainAlgo::onTradeStationAuthStateChanged", "getAccounts() timed out");
+    }).onFailed(this, [this] (const TSClient::JSONErrorException& e){
+        Q_UNUSED(e);
+        Q_ASSERT_X(false, "MainAlgo::onTradeStationAuthStateChanged", "getAccounts() JSON error");
+    }).onFailed(this, [this] (const TSClient::OtherErrorException& e){
+        Q_UNUSED(e);
+        Q_ASSERT_X(false, "MainAlgo::onTradeStationAuthStateChanged", "getAccounts() other error");
+    });
 }
 
 
-void MainAlgo::onReceivedAsyncGetAccounts(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Account> results)
-{
-    Q_ASSERT(requestID == m_savedGetAccountsRequestID);
-
-    m_savedGetAccountsRequestID = 0;
-    
-    if (status == TSClient::AsyncRequestStatus_e::ERROR) {
-        qCCritical(MainAlgoLog) << "get accounts error";
-        Q_ASSERT(false);
-        return;
-    } else if (status == TSClient::AsyncRequestStatus_e::TIMEOUT) {
-        qCWarning(MainAlgoLog) << "Received get accounts timeout";
-
-        // Retry in one second
-        QTimer::singleShot(1000, this, [this]() {
-            m_savedGetAccountsRequestID = TSClient::getInstance().getAccountsAsync();
-        });
-
-        return;
-    }
-
+void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
+{ 
     m_havePastSuccessfulExchanges = true;
 
     //TODO this is only for sim, in reality it will be number 0
@@ -225,9 +191,6 @@ void MainAlgo::onReceivedAsyncGetAccounts(TSClient::AsyncRequestID_t requestID, 
     positionReceiver.startStream(m_activeAccount.getAccountId());
 
     emit tradeStationAccountsReceived(results);
-
-
-
 }
 
 
@@ -246,10 +209,6 @@ void MainAlgo::onReceivedNewPosition(QString account, Position position)
 void MainAlgo::startBalancePolling()
 {
     Q_ASSERT(QThread::currentThread() == &thread);
-
-    connect(&TSClient::getInstance(), &TSClient::receivedAsyncGetBalances,
-            this, &MainAlgo::onBalanceReceived,
-            Qt::UniqueConnection);
 
     m_balancePollingTimer->start(5000); // 5 seconds
     requestBalance(); // initial request
@@ -276,30 +235,35 @@ void MainAlgo::requestBalance()
     Q_ASSERT(!m_activeAccount.getAccountId().isEmpty());
 
 
-    m_savedGetBalancesRequestID = TSClient::getInstance().getBalancesAsync(QStringList(m_activeAccount.getAccountId()));
+    QFuture<QVector<Balance>> balanceFuture = TSClient::getInstance()->getBalances(QStringList(m_activeAccount.getAccountId()));
 
-    if (m_savedGetBalancesRequestID == 0) {
-        qCWarning(MainAlgoLog) << "Failed to start getBalancesAsync request";
-    }
+    balanceFuture.then(this, [this](const QVector<Balance>& results){
+        onBalanceReceived(results);
+    }).onFailed(this, [this] (const TSClient::TimeoutException& e){
+        Q_UNUSED(e);
+        Q_ASSERT_X(false, "Get balances request timed out", "Get balances request timed out");
+    }).onFailed(this, [this] (const TSClient::JSONErrorException& e){
+        Q_UNUSED(e);
+        Q_ASSERT_X(false, "Get balances request JSON error", "Get balances request JSON error");
+    }).onFailed(this, [this] (const TSClient::OtherErrorException& e){
+        Q_UNUSED(e);
+        Q_ASSERT_X(false, "Get balances request other error", "Get balances request other error");
+    });
 }
 
-void MainAlgo::onBalanceReceived(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Balance> results)
+void MainAlgo::onBalanceReceived(const QVector<Balance>& results)
 {
     Q_ASSERT(QThread::currentThread() == &thread);
-    Q_ASSERT(requestID == m_savedGetBalancesRequestID);
     Q_ASSERT(results.size() == 1);
 
-    m_savedGetBalancesRequestID = 0;
 
-    if (status == TSClient::AsyncRequestStatus_e::SUCCESS) {
-        m_currentBalance = results.at(0);
-        qCDebug(MainAlgoLog) << "Received balances for" << results.size() << "accounts";
-        emit balanceUpdated(m_currentBalance);
-    } else if (status == TSClient::AsyncRequestStatus_e::TIMEOUT) {
-        qCWarning(MainAlgoLog) << "Get balances request timed out";
-    } else {
-        qCWarning(MainAlgoLog) << "Get balances request failed";
-    }
+    m_currentBalance = results.at(0);
+    qCDebug(MainAlgoLog) << "Received balances for" << results.size() << "accounts";
+
+    // Emit signal for the UI or other components interested
+    emit balanceUpdated(m_currentBalance);
+
+    // TODO save this balance figure and act on it
 }
 
 StockInstruments::StockInstruments(const QString &symbol) :

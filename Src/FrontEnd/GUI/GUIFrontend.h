@@ -27,10 +27,8 @@ public slots:
     void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP) override;
     void onNewPositionReceived(QString account, Position position) override;
     void onBalanceUpdated(Balance balance) override;
-    void onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars) override;
 
 private slots:
-    void onTradeStationLoginClicked();
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
     void onNewDisplayedStockSelection();
     void updateLiveLogDisplay(const QString& message);
