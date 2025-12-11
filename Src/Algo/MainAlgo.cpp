@@ -10,7 +10,7 @@ Q_LOGGING_CATEGORY(MainAlgoLog, "MainAlgo")
 
 // Initialize static member outside class
 MainAlgo* MainAlgo::m_instance = nullptr;
-    
+
 MainAlgo* MainAlgo::getInstance()
 {
     if (m_instance == nullptr) {
@@ -178,17 +178,16 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
         return;
     }
 
+    m_positionReceiver = new PositionsReceiver(m_activeAccount.getAccountId());
     positionStreamStarted = true;
 
-    connect(&positionReceiver, &PositionsReceiver::receivedNewPosition,
+    connect(m_positionReceiver, &PositionsReceiver::receivedNewPosition,
             this, &MainAlgo::receivedNewPosition,
             Qt::UniqueConnection);
 
-    connect(&positionReceiver, &PositionsReceiver::receivedNewPosition,
+    connect(m_positionReceiver, &PositionsReceiver::receivedNewPosition,
             this, &MainAlgo::onReceivedNewPosition,
             Qt::UniqueConnection);
-
-    positionReceiver.startStream(m_activeAccount.getAccountId());
 
     emit tradeStationAccountsReceived(results);
 }

@@ -40,17 +40,18 @@ class StreamPositions final : public Stream
     Q_OBJECT
     
 public:
-    explicit StreamPositions(const QString &accountID, QObject *parent = nullptr);
-
-    ~StreamPositions();
+    explicit StreamPositions(const QString &accountID, QNetworkReply * reply, QObject *parent = nullptr);
+    ~StreamPositions() {};
     StreamPositions(const StreamPositions&) = delete;
     StreamPositions& operator=(const StreamPositions&) = delete;
 
-signals:
-    void receivedNewPosition(QString accountID, Position position);
+    QFuture<Position> future() { return m_future; }
 
 private:
+    void processJsonObject(const QJsonObject& jsonObj) override;
+
     QString accountID;
+    QPromise<Position> m_promise;
+    QFuture<Position> m_future;
     bool receivedEndSnapshot = false;  // Track if we've received the EndSnapshot status
-    bool processJsonObject(const QJsonObject& jsonObj) override;
 };

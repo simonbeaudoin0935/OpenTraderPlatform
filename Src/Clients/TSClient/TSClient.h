@@ -117,7 +117,7 @@ public:
      *
      * @note : Returned pointer dynamically allocated. Delete with closeStreamBars
      */
-    [[nodiscard]] StreamBars* openStreamBars(const QString &symbol,
+    [[nodiscard]] QPair<QFuture<Bar>, StreamBars*> openStreamBars(const QString &symbol,
                                unsigned int interval = 1,
                                Bar::BarUnit unit = Bar::BarUnit::Daily,
                                unsigned int barsback = 1,
@@ -137,7 +137,7 @@ public:
      *         in the thread of the client and shares the same network access manager. Later
      *         calling closeStreamMarketDepthQuote will delete it. Do not delete outside.
      */
-    [[nodiscard]] StreamMarketDepthQuote* openStreamMarketDepthQuote(const QString &symbol, unsigned int depth = 20);
+    [[nodiscard]] QPair<QFuture<MarketDepthQuote>, StreamMarketDepthQuote*> openStreamMarketDepthQuote(const QString &symbol, unsigned int depth = 20);
     void closeStreamMarketDepthQuote(StreamMarketDepthQuote* stream);
 
     // -------- Brokerage methods -------------
@@ -162,7 +162,7 @@ public:
      * @return : nullptr if the stream could not be created
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/StreamOrders
      */
-    [[nodiscard]] StreamOrders* openStreamOrders(const QString &account);
+    [[nodiscard]] QPair<QFuture<Order>, StreamOrders*> openStreamOrders(const QString &account);
     void closeStreamOrders(StreamOrders* stream);
 
     /*
@@ -175,7 +175,7 @@ public:
      *         in the thread of the client and shares the same network access manager. Later
      *         calling closeStreamMarketDepthQuote will delete it. Do not delete outside.
      */
-    [[nodiscard]] StreamPositions* openStreamPositions(const QString &account, bool changes = false);
+    [[nodiscard]] QPair<QFuture<Position>, StreamPositions*> openStreamPositions(const QString &account, bool changes = false);
     void closeStreamPositions(StreamPositions* stream);
 
                               // -------- Order execution methods --------
@@ -231,8 +231,6 @@ private:
     [[nodiscard]] static QByteArray buildRefreshTokenQuery(const QString &clientId, const QString &clientSecret, const QString &refreshToken);                                       
     void refreshAccessToken();
 
-
-    void openStream(const QNetworkRequest &request, Stream *stream);
     void closeStream(Stream * const stream);
 
 

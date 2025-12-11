@@ -10,10 +10,7 @@ class PositionsReceiver : public QObject
 {
     Q_OBJECT
 public:
-    explicit PositionsReceiver(QObject *parent = nullptr);
-
-    void startStream(const QString &account);
-    void startStream(const char* account);
+    explicit PositionsReceiver(const QString &account, QObject *parent = nullptr);
 
     void stopStream(const QString &account);
     void stopStream(const char* account);
@@ -23,8 +20,8 @@ signals:
 
 private slots:
     void onReceivedNewPosition(QString account, Position position);
-    void onStreamError(Stream::ErrorStatus error, QString errorMessage);
 
 private:
-    QMap<QString, StreamPositions*> streams;
+    StreamPositions* m_stream = nullptr;
+    QString m_account;
 };

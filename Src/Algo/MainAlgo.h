@@ -79,7 +79,7 @@ private:
     QMap<QString, StockInstruments*> stockInstruments;
     StockInstruments* currentDisplayedStockInstrument = nullptr;
 
-    PositionsReceiver positionReceiver;
+    PositionsReceiver* m_positionReceiver = nullptr;
     bool positionStreamStarted = false;
 
     QTextStream *algoLogFile;

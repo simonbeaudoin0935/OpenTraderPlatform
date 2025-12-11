@@ -12,8 +12,9 @@ Q_DECLARE_LOGGING_CATEGORY(StreamLog)
 
 
 
-template<typename T>
-class Stream : public QObject {
+
+class Stream : public QObject
+{
     Q_OBJECT
 
 public:
@@ -50,7 +51,7 @@ public:
     };        
     
     
-    Stream(QNetworkReply * reply, QPromise<T> movedDataPromise, QObject *parent = nullptr);
+    Stream(QNetworkReply * reply, QObject *parent = nullptr);
     ~Stream();
 
     Stream(const Stream&) = delete;
@@ -69,6 +70,33 @@ protected:
     // Each derived class must implement how to process a json object
     virtual void processJsonObject(const QJsonObject& doc) = 0;
 
+    // This is the abstract interface that every QPromise<T> implements
+    class PromiseInterface {
+    public:
+        virtual ~PromiseInterface() = default;
+        virtual void finish() = 0;
+        virtual void setException(const QException &e) = 0;
+        //virtual void start() = 0;
+        //virtual void setProgressValue(int v) = 0;
+        // add more as needed: start(), setProgressValue(), cancel(), suspend(), etc.
+    };
+
+    // The base holds only a pointer to the interface
+    std::unique_ptr<PromiseInterface> promiseImpl;
+
+    // Helper so derived classes can install their typed promise
+    template<typename T>
+    void setPromise(QPromise<T>& p) {
+        // Wrap the typed promise into the interface
+        struct Wrapper : PromiseInterface {
+            QPromise<T>& ref;
+            Wrapper(QPromise<T>& r) : ref(r) {}
+            void finish() override              { ref.finish(); }
+            void setException(const QException &e) override { ref.setException(e); }
+        };
+        promiseImpl = std::make_unique<Wrapper>(p);
+    }
+
 private slots:
     void onHeartbeatTimerTimeout();
 
@@ -82,7 +110,6 @@ private:
     
     // This is the QNetworkReply that this stream gets attributed to when issuing the http->get request
     QNetworkReply* m_networkReply = nullptr;
-    QPromise<T> m_dataPromise;
 
     const size_t m_heartbeatTimeoutMS = 10000;
     QTimer       m_heartbeatTimer;

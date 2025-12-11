@@ -1,24 +1,22 @@
 #pragma once
 
-#include <QObject>
-
 #include "Stream.h"
 #include "Bar.h"
 
-
-class StreamBars final : public Stream {
+class StreamBars final : public Stream
+{
     Q_OBJECT
 
 public:
-    explicit StreamBars(const QString &symbol, QObject *parent = nullptr);
-    ~StreamBars();
+    explicit StreamBars(const QString &symbol, QNetworkReply * reply, QObject *parent = nullptr);
+    ~StreamBars() {};
     StreamBars(const StreamBars&) = delete;
     StreamBars& operator=(const StreamBars&) = delete;
 
-signals:
-    void receivedNewBar(QString symbol, Bar bar);
+    QFuture<Bar> future() const { return m_promise.future(); }
 
 private:
-    bool processJsonObject(const QJsonObject& jsonObj) override;
+    void processJsonObject(const QJsonObject& jsonObj) override;
     QString m_symbol;
+    QPromise<Bar> m_promise;
 };

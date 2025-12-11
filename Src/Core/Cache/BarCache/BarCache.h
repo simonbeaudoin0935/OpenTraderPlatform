@@ -53,7 +53,6 @@ signals:
 private slots:
 
     void onReceivedNewLiveBar(QString symbol, Bar newBar);
-    void onStreamError(Stream::ErrorStatus error, QString errorMessage);
 
 private:
 
@@ -75,16 +74,6 @@ private:
     QMap<QDateTime, Bar> m_barCacheOneMinute; // This is the in-memory cache of bars
     mutable QReadWriteLock m_barCacheOneMinuteRwLock; // TODO study if this is really needed
     QSqlDatabase m_db;
-    StreamBars* m_streamBar = nullptr;
+    StreamBars* m_stream = nullptr;
     mutable quint64 m_duplicateStoreCount = 0;
-
-
-
-
-    struct PendingAsyncGetBarRequest {
-        QDateTime first;
-        QDateTime last;
-        bool fulfilled;
-        QVector<Bar> bars;
-    };
 };

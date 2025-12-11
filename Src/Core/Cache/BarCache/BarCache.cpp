@@ -14,6 +14,9 @@
 Q_LOGGING_CATEGORY(BarCacheLog, "BarCache")
 
 #define DEBUG qCDebug(BarCacheLog) << this->objectName()
+#define INFO qCInfo(BarCacheLog) << this->objectName()
+#define WARNING qCWarning(BarCacheLog) << this->objectName()
+#define CRITICAL qCCritical(BarCacheLog) << this->objectName()
 
 BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
     QObject(parent),
@@ -75,15 +78,31 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
     }
 
     if (isStreaming) {
-        m_streamBar = TSClient::getInstance()->openStreamBars(symbol,
+        DEBUG <<  "Starting bars stream for symbol " << symbol;
+
+        QPair<QFuture<Bar>, StreamBars*> pair = TSClient::getInstance()->openStreamBars(symbol,
                                                            1,
                                                            Bar::BarUnit::Minute,
                                                            2,
                                                            Bar::BarSessionTemplate::USEQ24Hour);
-        Q_ASSERT(m_streamBar != nullptr);
+        m_stream = pair.second;
+        Q_CHECK_PTR(m_stream);
 
-        connect(m_streamBar, &StreamBars::receivedNewBar, this, &BarCache::onReceivedNewLiveBar);
-        connect(m_streamBar, &Stream::streamErrorOccurred, this, &BarCache::onStreamError);
+        pair.first.then(this, [this, symbol](Bar bar){
+            onReceivedNewLiveBar(symbol, bar);
+        }).onFailed(this, [this, symbol](Stream::TimeoutException ex){
+            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+        }).onFailed(this, [this, symbol](Stream::BadRequestException ex){
+            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+        }).onFailed(this, [this, symbol](Stream::DualLogonException ex){
+            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+        }).onFailed(this, [this, symbol](Stream::GoAwayException ex){
+            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+        }).onFailed(this, [this, symbol](Stream::InvalidSymbolException ex){
+            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+        }).onFailed(this, [this, symbol](Stream::InvalidSymbolException ex){
+            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+        });
     }
 }
 
@@ -91,8 +110,8 @@ BarCache::~BarCache()
 {
     const QString cacheName = this->objectName();
 
-    if (m_streamBar != nullptr) {
-        TSClient::getInstance()->closeStreamBars(m_streamBar);
+    if (m_stream != nullptr) {
+        TSClient::getInstance()->closeStreamBars(m_stream);
     }
 
     qCDebug(BarCacheLog) << cacheName << "Destroyed";
@@ -429,43 +448,6 @@ void BarCache::onReceivedNewLiveBar(QString symbol, Bar newBar)
     storeBarInCache(newBar);
 
     emit receivedNewBar(symbol, newBar);
-}
-
-void BarCache::onStreamError(Stream::ErrorStatus error, QString errorMessage)
-{
-    QString cacheName = this->objectName();
-
-    qCWarning(BarCacheLog) << cacheName << "Stream error occurred - Error:" << static_cast<int>(error)
-                           << "Message:" << errorMessage;
-
-    // Log specific error types for better diagnostics
-    switch (error) {
-        case Stream::ErrorStatus::Timeout:
-            qCWarning(BarCacheLog) << cacheName << "Stream timeout - no data or heartbeat received";
-            break;
-        case Stream::ErrorStatus::InvalidSymbol:
-            qCCritical(BarCacheLog) << cacheName << "Invalid symbol error - this should not happen";
-            break;
-        case Stream::ErrorStatus::DualLogon:
-            qCCritical(BarCacheLog) << cacheName << "Dual logon detected - another session may be active";
-            break;
-        case Stream::ErrorStatus::GoAway:
-            qCWarning(BarCacheLog) << cacheName << "Server requested stream closure";
-            break;
-        case Stream::ErrorStatus::InternalServerError:
-            qCCritical(BarCacheLog) << cacheName << "Internal server error";
-            break;
-        case Stream::ErrorStatus::BadRequest:
-            qCCritical(BarCacheLog) << cacheName << "Bad request error";
-            break;
-        case Stream::ErrorStatus::Unknown:
-            qCCritical(BarCacheLog) << cacheName << "Unknown stream error";
-            break;
-    }
-
-    // Note: Stream errors in BarCache are logged but not automatically recovered
-    // The stream is in error state and will need to be recreated by closing and
-    // reopening the BarCache if recovery is needed
 }
 
 QVector<Bar> BarCache::getBarsFromDatabase(QDateTime start, QDateTime end) const {

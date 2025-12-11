@@ -1,25 +1,5 @@
 #include "TSClient.h"
 
-// Generic stream opening method
-void TSClient::openStream(const QNetworkRequest &request, Stream *stream)
-{
-    Q_ASSERT(QThread::currentThread() == m_thread);
-    Q_CHECK_PTR(stream);
-
-    QNetworkReply *reply = m_networkManager->get(request);
-    Q_CHECK_PTR(reply);
-
-    stream->setNetworkReply(reply);
-
-    auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
-    Q_ASSERT(c);
-
-    // Emit signal that stream count has changed
-    emit openStreamCountChanged(Stream::getNumberOpenStream());
-
-    qCDebug(TSClientLog) << "Opened stream " << qPrintable(stream->objectName()) << "with URL : " << request.url();
-}
-
 // Generic stream closing method
 void TSClient::closeStream(Stream * const stream)
 {
@@ -44,7 +24,7 @@ void TSClient::closeStream(Stream * const stream)
 
 // -- Specific stream opening methods - -
 
-StreamPositions* TSClient::openStreamPositions(const QString &accountID, bool changes)
+QPair<QFuture<Position>, StreamPositions*> TSClient::openStreamPositions(const QString &accountID, bool changes)
 {
     Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
     
@@ -63,19 +43,25 @@ StreamPositions* TSClient::openStreamPositions(const QString &accountID, bool ch
     QMetaObject::invokeMethod(this,
         [this, &request, &stream, &accountID]()
         {
-            stream = new StreamPositions(accountID, this);
+            QNetworkReply *reply = m_networkManager->get(request);
+            Q_CHECK_PTR(reply);
+
+            stream = new StreamPositions(accountID, reply, this);
             Q_CHECK_PTR(stream);
 
-            openStream(request, stream);
+            auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+            Q_ASSERT(c);
 
+            // Emit signal that stream count has changed
+            emit openStreamCountChanged(Stream::getNumberOpenStream());
         },
     Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
                                    // finishes executing this lambda so that a valid pointer is returned
 
-    return stream;
+    return QPair<QFuture<Position>, StreamPositions*>(stream->future(), stream);
 }
 
-StreamOrders* TSClient::openStreamOrders(const QString &accountID) {
+QPair<QFuture<Order>, StreamOrders*> TSClient::openStreamOrders(const QString &accountID) {
     Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamOrders for account " << accountID;
@@ -89,20 +75,27 @@ StreamOrders* TSClient::openStreamOrders(const QString &accountID) {
     QMetaObject::invokeMethod(this,
         [this, &request, &stream, &accountID]()
         {
-            stream = new StreamOrders(accountID, this);
+            QNetworkReply *reply = m_networkManager->get(request);
+            Q_CHECK_PTR(reply);
+
+            stream = new StreamOrders(accountID, reply, this);
             Q_CHECK_PTR(stream);
 
-            openStream(request, stream);
+            auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+            Q_ASSERT(c);
+
+            // Emit signal that stream count has changed
+            emit openStreamCountChanged(Stream::getNumberOpenStream());
 
         },
     Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
                                    // finishes executing this lambda so that a valid pointer is returned
 
-    return stream;
+    return QPair<QFuture<Order>, StreamOrders*>(stream->future(), stream);
 }
 
 
-StreamBars *TSClient::openStreamBars(const QString &symbol,
+QPair<QFuture<Bar>, StreamBars*> TSClient::openStreamBars(const QString &symbol,
                                      unsigned int interval,
                                      Bar::BarUnit unit,
                                      unsigned int barsback,
@@ -124,19 +117,25 @@ StreamBars *TSClient::openStreamBars(const QString &symbol,
     QMetaObject::invokeMethod(this,
         [this, &request, &stream, &symbol]()
         {
-            stream = new StreamBars(symbol, this);
+            QNetworkReply *reply = m_networkManager->get(request);
+            Q_CHECK_PTR(reply);
+
+            stream = new StreamBars(symbol, reply, this);
             Q_CHECK_PTR(stream);
 
-            openStream(request, stream);
+            auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+            Q_ASSERT(c);
 
+            // Emit signal that stream count has changed
+            emit openStreamCountChanged(Stream::getNumberOpenStream());
         },
     Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
                                    // finishes executing this lambda so that a valid pointer is returned
 
-    return stream;
+    return QPair<QFuture<Bar>, StreamBars*>(stream->future(), stream);
 }
 
-StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(const QString &symbol, unsigned int depth)
+QPair<QFuture<MarketDepthQuote>, StreamMarketDepthQuote*> TSClient::openStreamMarketDepthQuote(const QString &symbol, unsigned int depth)
 {
     Q_ASSERT(depth >= 1 && depth <= 20);
 
@@ -154,16 +153,22 @@ StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(const QString &symb
     QMetaObject::invokeMethod(this,
         [this, &request, &stream, &symbol]()
         {
-            stream = new StreamMarketDepthQuote(symbol, this);
+            QNetworkReply *reply = m_networkManager->get(request);
+            Q_CHECK_PTR(reply);
+
+            stream = new StreamMarketDepthQuote(symbol, reply, this);
             Q_CHECK_PTR(stream);
 
-            openStream(request, stream);
+            auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+            Q_ASSERT(c);
 
+            // Emit signal that stream count has changed
+            emit openStreamCountChanged(Stream::getNumberOpenStream());
         },
     Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
                                    // finishes executing this lambda so that a valid pointer is returned
 
-    return stream;
+    return QPair<QFuture<MarketDepthQuote>, StreamMarketDepthQuote*>(stream->future(), stream);
 }
 
 

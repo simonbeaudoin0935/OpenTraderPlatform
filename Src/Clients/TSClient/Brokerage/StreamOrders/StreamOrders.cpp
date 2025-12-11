@@ -1,7 +1,5 @@
-
 #include "StreamOrders.h"
 #include "TSClient.h"
-
 
 StreamOrders::StreamOrdersStatus::StreamOrdersStatus(const QJsonObject& jsonObj) {
     // Get the StreamStatus string
@@ -27,19 +25,18 @@ bool StreamOrders::StreamOrdersStatus::isStatusValid() const {
     return status != Status::Unknown;
 }
 
-StreamOrders::StreamOrders(const QString &accountID, QObject *parent) :
-    Stream(parent),
+StreamOrders::StreamOrders(const QString &accountID, QNetworkReply * reply, QObject *parent) :
+    Stream(reply, parent),
     accountID(accountID)
 {
     this->setObjectName("Stream::Orders::" + accountID);
+
+    // Install the promise wrapper in the base class
+    setPromise(m_promise);
+    m_promise.start();
 }
 
-StreamOrders::~StreamOrders()
-{
-
-}
-
-bool StreamOrders::processJsonObject(const QJsonObject &jsonObj)
+void StreamOrders::processJsonObject(const QJsonObject &jsonObj)
 {
     // First check if this is a status message
     if (jsonObj.contains("StreamStatus")) {
@@ -48,33 +45,24 @@ bool StreamOrders::processJsonObject(const QJsonObject &jsonObj)
             // Update the EndSnapshot flag if we receive that status
             if (status.getStatus() == StreamOrdersStatus::Status::EndSnapshot) {
                 receivedEndSnapshot = true;
-                qCDebug(StreamLog) << Q_FUNC_INFO << "Received EndSnapshot status for account" << accountID;
+                qCDebug(StreamLog) << "Received EndSnapshot status for account" << accountID;
             } else if (status.getStatus() == StreamOrdersStatus::Status::GoAway) {
-                qCWarning(StreamLog) << Q_FUNC_INFO << "Received GoAway status for account" << accountID;
+                qCWarning(StreamLog) << "Received GoAway status for account" << accountID;
             }
-            return true;
         } else {
-            QJsonDocument doc(jsonObj);
-            QString jsonString = QString(doc.toJson(QJsonDocument::Indented));
-            qCWarning(StreamLog) << Q_FUNC_INFO <<
-                "Stream status object invalid : " << jsonString;
-            return false;
+            qCWarning(StreamLog) << "Stream status object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
+            return;
         }
+        return;
     }
-
-    qDebug().noquote() << "***** " << jsonObj;
 
     // If not a status message, try to process as a position update
     Order order(jsonObj, receivedEndSnapshot);  // Pass the update flag based on EndSnapshot status
-    if (order.isValid()) {
-        emit receivedNewOrder(accountID, order);
-        return true;
-    } else {
-        QJsonDocument doc(jsonObj);
-        QString jsonString = QString(doc.toJson(QJsonDocument::Indented));
-        qCWarning(StreamLog) << Q_FUNC_INFO <<
-            "Position update object invalid : " << jsonString; // <<
-//            "Malformed object to string : " << order.toJsonString();
-        return false;
-    }
+
+    if (!order.isValid()) [[unlikely]] {
+        qCWarning(StreamLog) << "Position update object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented)); 
+        return;
+    } 
+    
+    m_promise.addResult(order);
 }

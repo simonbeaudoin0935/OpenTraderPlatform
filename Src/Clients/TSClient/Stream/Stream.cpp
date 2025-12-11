@@ -4,11 +4,16 @@
 
 Q_LOGGING_CATEGORY(StreamLog, "Stream")
 
-template<typename T> size_t Stream<T>::s_numberOfStream = 0;
+#define DEBUG    qCDebug(StreamLog)    << this->objectName()
+#define INFO     qCInfo(StreamLog)     << this->objectName()
+#define WARNING  qCWarning(StreamLog)  << this->objectName()
+#define CRITICAL qCCritical(StreamLog) << this->objectName()
 
-template<typename T> Stream<T>::Stream(QNetworkReply * reply, QPromise<T> movedDataPromise, QObject *parent) :
+size_t Stream::s_numberOfStream = 0;
+
+
+Stream::Stream(QNetworkReply * reply, QObject *parent) :
     QObject(parent),
-    m_dataPromise(std::move(movedDataPromise)),
     m_networkReply(reply)
 {
     Q_CHECK_PTR(reply);
@@ -32,20 +37,20 @@ template<typename T> Stream<T>::Stream(QNetworkReply * reply, QPromise<T> movedD
     m_heartbeatTimer.start(m_heartbeatTimeoutMS);
 }
 
-template<typename T> Stream<T>::~Stream()
+Stream::~Stream()
 {
-    qCDebug(StreamLog) << "Destroying Stream " << this->objectName();
+    DEBUG << "Destroying Stream ";
 
     s_numberOfStream--;
 
     m_networkReply->abort();
     m_networkReply->deleteLater();
 
-    m_dataPromise.finish();
+    promiseImpl->finish();
     m_heartbeatTimer.stop();
 }
 
-template<typename T> void Stream<T>::onReplyStreamReadyRead()
+void Stream::onReplyStreamReadyRead()
 {
     const QByteArray rawData = m_networkReply->readAll();
 
@@ -56,11 +61,9 @@ template<typename T> void Stream<T>::onReplyStreamReadyRead()
     processRawData(rawData);
 }
 
-template<typename T> void Stream<T>::onReplyStreamFinished()
+void Stream::onReplyStreamFinished()
 {
-    const QString streamName = this->objectName();
-
-    qCError(StreamLog) << streamName << "received the signal finished(). There has been a previous json description of the error received, and this is the remote closing this connection.";
+    CRITICAL << "received the signal finished(). There has been a previous json description of the error received, and this is the remote closing this connection.";
 
     // Because we listen to readyRead(), it WILL have been called becofore and therefore finishing there should be no more data
     Q_ASSERT(m_networkReply->readAll().size() == 0);
@@ -73,18 +76,18 @@ template<typename T> void Stream<T>::onReplyStreamFinished()
 
     m_isFinished = true;
 
-    m_dataPromise.finish();
+    promiseImpl->finish();
 }
 
-template<typename T> void Stream<T>::onHeartbeatTimerTimeout()
+void Stream::onHeartbeatTimerTimeout()
 {
     m_isFinished = true;
     m_heartbeatTimer.stop();
     m_networkReply->abort();  
-    m_dataPromise.setException(TimeoutException());
-    m_dataPromise.finish();
+    promiseImpl->setException(TimeoutException());
+    promiseImpl->finish();
 
-    qCCritical(StreamLog) << "The stream " << this->objectName() << " did not receive data nor heartbeat in : " << m_heartbeatTimeoutMS  << "ms";
+    CRITICAL << "Did not receive data nor heartbeat in : " << m_heartbeatTimeoutMS  << "ms";
 }
 
 /*
@@ -92,7 +95,7 @@ template<typename T> void Stream<T>::onHeartbeatTimerTimeout()
  * Data is expected to be newline delimited JSON objects.
  * Process as many complete JSON objects as there are in the accumulation buffer possible.
  */
-template<typename T> void Stream<T>::processRawData(const QByteArray& rawData)
+void Stream::processRawData(const QByteArray& rawData)
 {
     m_accumulatedData.append(rawData);
 
@@ -109,8 +112,8 @@ template<typename T> void Stream<T>::processRawData(const QByteArray& rawData)
         const QJsonDocument doc = QJsonDocument::fromJson(jsonData, &parseError);
 
         if (parseError.error != QJsonParseError::NoError) {
-            qCCritical(StreamLog) << this->objectName() << "Failed to parse JSON:" << parseError.errorString();
-            qCDebug(StreamLog) << this->objectName() << "Raw data : " << jsonData;
+            CRITICAL << "Failed to parse JSON:" << parseError.errorString();
+            DEBUG << "Raw data : " << jsonData;
             
             m_metricJsonParseError++;
             
@@ -126,7 +129,7 @@ template<typename T> void Stream<T>::processRawData(const QByteArray& rawData)
  * Process a JSON document extracted from the stream.
  * Handles error and heartbeat objects, and delegates normal objects to derived classes.
  */
-template<typename T> void Stream<T>::processJsonDoc(const QJsonDocument& doc)
+void Stream::processJsonDoc(const QJsonDocument& doc)
 {
     const QJsonObject jsonObj = doc.object();
 
@@ -138,24 +141,24 @@ template<typename T> void Stream<T>::processJsonDoc(const QJsonDocument& doc)
         if ( jsonObj.contains("Message")) [[likely]]{
             message = jsonObj["Message"].toString();
         } else [[unlikely]] {
-            qCCritical(StreamLog) << streamName << " received malformed error object without Message field";
+            CRITICAL << " received malformed error object without Message field";
         }
 
         if (errorStr == "BadRequest"){
-            m_dataPromise.setException(BadRequestException());
+            promiseImpl->setException(BadRequestException());
         } else if (errorStr == "DualLogon") {
-            m_dataPromise.setException(DualLogonException());
+            promiseImpl->setException(DualLogonException());
         } else if (errorStr == "GoAway") {
-            m_dataPromise.setException(GoAwayException());
+            promiseImpl->setException(GoAwayException());
         } else if (errorStr == "InternalServerError") {
-            m_dataPromise.setException(InternalServerErrorException());
+            promiseImpl->setException(InternalServerErrorException());
         } else if (errorStr == "InvalidSymbol"){
-            m_dataPromise.setException(InvalidSymbolException());
+            promiseImpl->setException(InvalidSymbolException());
         } else {
-            m_dataPromise.setException(std::runtime_error(message.toStdString()));
+            promiseImpl->setException(QException());
         }
-
-        qCCritical(StreamLog) << this->objectName() << " received error string '" << errorStr << "' and message: " << jsonObj["Message"].toString();
+        
+        CRITICAL << "Received error string '" << errorStr << "' and message: " << jsonObj["Message"].toString();
         
         m_receivedError = true;
 
@@ -167,16 +170,15 @@ template<typename T> void Stream<T>::processJsonDoc(const QJsonDocument& doc)
         // Here, we just test that the heartbeat object is well formed, we don't actually care about the timestamp
         // We will kick the watchdog timer anyway
         if (jsonObj.contains("Timestamp") == false) [[unlikely]]{
-            qCCritical(StreamLog) << this->objectName() << " received malformed heartbeat object without Timestamp field";
+            CRITICAL << " received malformed heartbeat object without Timestamp field";
         }
 
         m_heartbeatTimer.start(m_heartbeatTimeoutMS);
-        qCDebug(StreamLog) << this->objectName() << "received heartbeat";
-
+        DEBUG << "received heartbeat";
         return;;
     }
 
     // Happy path, process the object
-    // Delegate to derived class for processing
+    // Delegate to derived class for processing    
     processJsonObject(jsonObj);
 }

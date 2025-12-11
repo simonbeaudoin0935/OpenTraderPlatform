@@ -3,16 +3,37 @@
 
 Q_LOGGING_CATEGORY(MarketDepthQuoteReceiverLog, "MarketDepthQuoteReceiver")
 
+#define DEBUG qCDebug(MarketDepthQuoteReceiverLog) << this->objectName()
+#define INFO qCInfo(MarketDepthQuoteReceiverLog) << this->objectName()
+#define WARNING qCWarning(MarketDepthQuoteReceiverLog) << this->objectName()
+#define CRITICAL qCCritical(MarketDepthQuoteReceiverLog) << this->objectName()
+
 MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(const QString &symbol, QObject *parent) :
     QObject(parent),
     symbol(symbol)
 {
-    qCDebug(MarketDepthQuoteReceiverLog) << Q_FUNC_INFO << "Starting Market Depth Quote stream for " << symbol;
+    DEBUG <<  "Starting Market Depth Quote stream for " << symbol;
+    QPair<QFuture<MarketDepthQuote>, StreamMarketDepthQuote*> pair = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10);
 
-    StreamMarketDepthQuote *stream = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10);
+    stream = pair.second;
+    Q_CHECK_PTR(stream);
 
-    connect(stream, &StreamMarketDepthQuote::receivedNewMarketDepthQuote, this, &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote);
-    connect(stream, &Stream::streamErrorOccurred, this, &MarketDepthQuoteReceiver::onStreamError);
+    pair.first.then(this, [this, symbol](MarketDepthQuote quote){
+        CRITICAL << "Received new Market Depth Quote for" << symbol;
+        onReceivedNewMarketDepthQuote(symbol, quote);
+    }).onFailed(this, [this, symbol](Stream::TimeoutException ex){
+        WARNING << "Market Depth Quote Receiver future failed for" << symbol << "- Exception:" << ex.what();
+    }).onFailed(this, [this, symbol](Stream::BadRequestException ex){
+        WARNING << "Market Depth Quote Receiver future failed for" << symbol << "- Exception:" << ex.what();
+    }).onFailed(this, [this, symbol](Stream::DualLogonException ex){
+        WARNING << "Market Depth Quote Receiver future failed for" << symbol << "- Exception:" << ex.what();
+    }).onFailed(this, [this, symbol](Stream::GoAwayException ex){
+        WARNING << "Market Depth Quote Receiver future failed for" << symbol << "- Exception:" << ex.what();
+    }).onFailed(this, [this, symbol](Stream::InternalServerErrorException ex){
+        WARNING << "Market Depth Quote Receiver future failed for" << symbol << "- Exception:" << ex.what();
+    }).onFailed(this, [this, symbol](Stream::InvalidSymbolException ex){
+        WARNING << "Market Depth Quote Receiver future failed for" << symbol << "- Exception:" << ex.what();
+    });
 }
 
 MarketDepthQuoteReceiver::~MarketDepthQuoteReceiver() {
@@ -90,11 +111,9 @@ double MarketDepthQuoteReceiver::calculateDepthWeightedPrice(const QVector<Marke
 
 void MarketDepthQuoteReceiver::stopStream()
 {
-    qCDebug(MarketDepthQuoteReceiverLog) << Q_FUNC_INFO << "Stopping MarketDepthQuote stream for " << symbol;
+    DEBUG << "Stopping MarketDepthQuote stream for " << symbol;
 
     Q_ASSERT(stream != nullptr);
-
-    disconnect(stream);
 
     TSClient::getInstance()->closeStreamMarketDepthQuote(stream);
 }
@@ -118,40 +137,4 @@ void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, Mar
                                          << "- Ask DWP:" << askDWP;
 
     emit receivedNewMarketDepthQuote(symbol, marketDepthQuote, imbalance, bidDWP, askDWP);
-}
-
-void MarketDepthQuoteReceiver::onStreamError(Stream::ErrorStatus error, QString errorMessage)
-{
-    qCWarning(MarketDepthQuoteReceiverLog) << "Market Depth Quote Receiver stream error for" << symbol
-                                            << "- Error:" << static_cast<int>(error)
-                                            << "Message:" << errorMessage;
-
-    // Log specific error types for better diagnostics
-    switch (error) {
-        case Stream::ErrorStatus::Timeout:
-            qCWarning(MarketDepthQuoteReceiverLog) << "Stream timeout for" << symbol << "- no data or heartbeat received";
-            break;
-        case Stream::ErrorStatus::InvalidSymbol:
-            qCCritical(MarketDepthQuoteReceiverLog) << "Invalid symbol error for" << symbol;
-            break;
-        case Stream::ErrorStatus::DualLogon:
-            qCCritical(MarketDepthQuoteReceiverLog) << "Dual logon detected for" << symbol;
-            break;
-        case Stream::ErrorStatus::GoAway:
-            qCWarning(MarketDepthQuoteReceiverLog) << "Server requested stream closure for" << symbol;
-            break;
-        case Stream::ErrorStatus::InternalServerError:
-            qCCritical(MarketDepthQuoteReceiverLog) << "Internal server error for" << symbol;
-            break;
-        case Stream::ErrorStatus::BadRequest:
-            qCCritical(MarketDepthQuoteReceiverLog) << "Bad request error for" << symbol;
-            break;
-        case Stream::ErrorStatus::Unknown:
-            qCCritical(MarketDepthQuoteReceiverLog) << "Unknown stream error for" << symbol;
-            break;
-    }
-
-    // Note: No automatic recovery is currently implemented
-    // Stream remains in error state and requires manual intervention via stopStream/reconnection
-    // Automatic recovery similar to LiveStreamDB could be implemented if needed
 }

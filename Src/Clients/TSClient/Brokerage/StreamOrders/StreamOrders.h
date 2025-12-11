@@ -1,13 +1,12 @@
 #pragma once
 
-#pragma once
-
 #include "Stream.h"
 #include "Order.h"
 
-class StreamOrders : public Stream
+class StreamOrders final : public Stream
 {
     Q_OBJECT
+
 public:
     class StreamOrdersStatus {
     public:
@@ -40,17 +39,18 @@ public:
     };
 
     // TODO make it multiple accounts
-    explicit StreamOrders(const QString &account, QObject *parent = nullptr);
-
-    ~StreamOrders();
+    explicit StreamOrders(const QString &account, QNetworkReply * reply, QObject *parent = nullptr);
+    ~StreamOrders() {};
     StreamOrders(const StreamOrders&) = delete;
     StreamOrders& operator=(const StreamOrders&) = delete;
 
-signals:
-    void receivedNewOrder(QString account, Order order);
+    QFuture<Order> future() const { return m_promise.future(); }
 
 private:
+    void processJsonObject(const QJsonObject& jsonObj) override;
+
     QString accountID;
+    QPromise<Order> m_promise;
+    
     bool receivedEndSnapshot = false;  // Track if we've received the EndSnapshot status
-    bool processJsonObject(const QJsonObject& jsonObj) override;
 };
