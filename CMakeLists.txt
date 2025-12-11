@@ -29,7 +29,7 @@ option(BUILD_TESTS "Build tests" ON)
 option(BUILD_RECORDER "Build recorder application" ON)
 
 # Find Qt6 coore packages
-find_package(Qt6 REQUIRED COMPONENTS Core Network Sql Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Network Sql Test Concurrent)
 
 # Configure ccache for faster rebuilds
 find_program(CCACHE_PROGRAM ccache)

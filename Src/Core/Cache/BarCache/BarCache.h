@@ -87,7 +87,4 @@ private:
         bool fulfilled;
         QVector<Bar> bars;
     };
-
-    QDateTime savedFirst;
-    QDateTime savedLast;
 };

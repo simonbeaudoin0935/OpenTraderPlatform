@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QFutureSynchronizer>
+#include <QtConcurrent>
 
 #include "BarCache.h"
 #include "TSClient.h"
@@ -218,18 +219,32 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDateTime &first, const QDateT
         }
     }
 
-    if (!futuresOrMissingRanges.isEmpty()) {
-        savedFirst = first;
-        savedLast = last;
-
-        DEBUG << " : Returning MISS/PARTIAL HIT, waiting for async fetches to complete";
-
-        Q_ASSERT_X(false, qPrintable(this->objectName()), "TODO implement combining multiple futures into one and acting on it");
-
-    } else {
+    if (futuresOrMissingRanges.isEmpty()) {
         DEBUG << " : Returning complete HIT from cache/database";
         return allBars;
     }
+
+    DEBUG << " : Returning MISS/PARTIAL HIT, waiting for async fetches to complete";
+
+    QFuture<void> combinedFuture = QtConcurrent::run([futuresOrMissingRanges = std::move(futuresOrMissingRanges)]() {
+        QFutureSynchronizer<QVector<Bar>> synchronizer;
+        for (auto& future : futuresOrMissingRanges) {
+            synchronizer.addFuture(future);
+        }
+        synchronizer.waitForFinished();
+    });
+
+    QFuture<QVector<Bar>> resultFuture = combinedFuture.then(this, [this, first, last]() -> QVector<Bar> {
+
+        // Here it means that all futures are completed and therefore all missing ranges have been fetched and written to cache/database
+        GetBarsResult_t allBars = getBars(first, last);
+        Q_ASSERT_X(std::holds_alternative<QVector<Bar>>(allBars), qPrintable(this->objectName()), "Expected allBars to hold QVector<Bar> because all async fetches are completed");
+
+
+        return std::get<QVector<Bar>>(allBars);
+    });
+    
+    return resultFuture;
 }
 
 BarCache::GetBarsResult_t BarCache::getBarsInRange(const QDateTime &first, const QDateTime &last)
@@ -308,21 +323,26 @@ BarCache::GetBarsResult_t BarCache::getBarsInRange(const QDateTime &first, const
                                                                     last.addSecs(60)); // Need to add a minute because the API bounds are excluding the last minute
                                                                     // FIXME the addSecs(60) is likely the source of why we often fetch one bar too far
 
-    future.then([this, first, last](QVector<Bar> bars){
+    future.then(this, [this, first, last](QVector<Bar> bars){
         DEBUG << "Asynchronous getBars() from API completed for range" << first << "to" << last
               << "with" << bars.size() << "bars received";
 
         QVector<Bar> barsFromApiHolesFilled = fillHolesOfReceivedRequest(first, last, bars);
         // Handle the received bars
+        
+        storeBarsInCache(barsFromApiHolesFilled);
+        storeBarsInDatabase(barsFromApiHolesFilled);
 
-
-    }).onFailed([this, first, last](QException exception){
-        DEBUG << "Asynchronous getBars() from API FAILED for range" << first << "to" << last
-              << "with error message:" << exception.what();
-
-        Q_ASSERT(false); // "TODO handle failed async getBars request");
+    }).onFailed(this, [this] (const TSClient::TimeoutException& e){
+        Q_UNUSED(e);
+        Q_ASSERT_X(false, "MainAlgo::onTradeStationAuthStateChanged", "getBarsInRange() timed out");
+    }).onFailed(this, [this] (const TSClient::JSONErrorException& e){
+        Q_UNUSED(e);
+        Q_ASSERT_X(false, "MainAlgo::onTradeStationAuthStateChanged", "getBarsInRange() JSON error");
+    }).onFailed(this, [this] (const TSClient::OtherErrorException& e){
+        Q_UNUSED(e);
+        Q_ASSERT_X(false, "MainAlgo::onTradeStationAuthStateChanged", "getBarsInRange() other error");
     });
- 
 
     return future; // Indicate that async requests have been sent; result will come via signal later
 }

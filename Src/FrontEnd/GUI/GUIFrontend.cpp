@@ -95,7 +95,8 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
 
                 if (std::holds_alternative<QVector<Bar>>(result)) {
                     // The barCache had the bars ready immediately
-                    QVector<Bar> bars = std::move(std::get<QVector<Bar>>(result));
+                    ui->priceChart->onRequestedMissingBarsReceived(std::move(std::get<QVector<Bar>>(result)));
+
                 } else {
                     QFuture<QVector<Bar>> future = std::move(std::get<QFuture<QVector<Bar>>>(result));
 

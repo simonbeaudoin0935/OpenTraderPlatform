@@ -193,11 +193,6 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
     emit tradeStationAccountsReceived(results);
 }
 
-
-
-
-
-
 void MainAlgo::onReceivedNewPosition(QString account, Position position)
 {
     Q_UNUSED(account);

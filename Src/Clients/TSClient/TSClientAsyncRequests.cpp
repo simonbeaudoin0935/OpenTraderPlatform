@@ -257,18 +257,6 @@ QFuture<QVector<Bar>> TSClient::getBars(const QString &symbol,
                             break;
                         }
 
-                        if (!doc.isArray()) {
-                            qCCritical(TSClientLog) << " : JSON is not an array";
-                            promise.setException(JSONErrorException());
-                            break;
-                        }
-
-                        if (doc.array().isEmpty()) {
-                            qCCritical(TSClientLog) << " : JSON is an empty array";
-                            promise.setException(JSONErrorException());
-                            break;
-                        }
-
                         const QJsonValue val = doc["Bars"];
 
                         if(val == QJsonValue::Undefined) {
