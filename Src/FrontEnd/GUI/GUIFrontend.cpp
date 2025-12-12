@@ -84,6 +84,10 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
             this, &GUIFrontend::onNewPositionReceived,
             Qt::DirectConnection);
 
+    connect(this, &FrontEnd::positionDeleted,
+            this, &GUIFrontend::onPositionDeleted,
+            Qt::DirectConnection);
+
     connect(this, &FrontEnd::newOrderReceived,
             this, &GUIFrontend::onNewOrderReceived,
             Qt::DirectConnection);
@@ -415,6 +419,10 @@ void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
 
 void GUIFrontend::onNewPositionReceived(QString account, Position position) {
     ui->positionWindow->updatePosition(account, position);
+}
+
+void GUIFrontend::onPositionDeleted(QString account, QString positionID) {
+    ui->positionWindow->onPositionDeleted(account, positionID);
 }
 
 void GUIFrontend::onNewOrderReceived(QString account, Order order) {
