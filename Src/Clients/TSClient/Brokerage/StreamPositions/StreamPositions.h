@@ -47,6 +47,7 @@ public:
 
 signals:
     void newPositionReceived(Position position);
+    void positionDeleted(QString positionID);
 
 private:
     void processJsonObject(const QJsonObject& jsonObj) override;

@@ -19,6 +19,7 @@ PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
     Q_CHECK_PTR(m_stream);
 
     connect(m_stream, &StreamPositions::newPositionReceived, this, &PositionsReceiver::onReceivedNewPosition);
+    connect(m_stream, &StreamPositions::positionDeleted, this, &PositionsReceiver::onPositionDeleted);
 
     m_stream->future().then(
         [this](){
@@ -49,4 +50,10 @@ void PositionsReceiver::onReceivedNewPosition(Position position)
 {
     qCDebug(PositionsReceiverLog).noquote() << "New position for account (" << m_account << ") : " << position.toJsonString();
     emit receivedNewPosition(m_account, position);
+}
+
+void PositionsReceiver::onPositionDeleted(QString positionID)
+{
+    qCDebug(PositionsReceiverLog) << "Position deleted for account (" << m_account << ") : " << positionID;
+    emit positionDeleted(m_account, positionID);
 }

@@ -33,6 +33,12 @@ void StreamPositions::processJsonObject(const QJsonObject &jsonObj)
         return;
     }
 
+    // Check if this is a position deletion
+    if (jsonObj.contains("Deleted") && jsonObj["Deleted"].toBool() && jsonObj.contains("PositionID")) {
+        QString positionID = jsonObj["PositionID"].toString();
+        emit positionDeleted(positionID);
+        return;
+    }
     // If not a status message, try to process as a position update
     Position position(jsonObj, receivedEndSnapshot); // Pass the update flag based on EndSnapshot status
     

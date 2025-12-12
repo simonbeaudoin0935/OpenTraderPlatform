@@ -189,6 +189,11 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
                 this, &MainAlgo::onReceivedNewPosition,
                 Qt::UniqueConnection);
         Q_ASSERT(c2);
+
+        auto c3 = connect(m_positionReceiver, &PositionsReceiver::positionDeleted,
+                this, &MainAlgo::onPositionDeleted,
+                Qt::UniqueConnection);
+        Q_ASSERT(c3);
     }
 
     // Only initialize order stream once
@@ -216,9 +221,16 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
 void MainAlgo::onReceivedNewPosition(QString account, Position position)
 {
     Q_UNUSED(account);
-    Q_UNUSED(position);
+    qCDebug(MainAlgoLog) << "Received new position:" << position.toJsonString();
 
-    // TODO
+    
+}
+
+void MainAlgo::onPositionDeleted(QString account, QString positionID)
+{
+    Q_UNUSED(account);
+    qCDebug(MainAlgoLog) << "Position deleted:" << positionID;
+    emit positionDeleted(account, positionID);
 }
 
 void MainAlgo::onReceivedNewOrder(QString account, Order order)

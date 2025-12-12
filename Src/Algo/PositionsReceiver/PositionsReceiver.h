@@ -18,9 +18,11 @@ public:
 
 signals:
     void receivedNewPosition(QString account, Position position);
+    void positionDeleted(QString account, QString positionID);
 
 private slots:
     void onReceivedNewPosition(Position position);
+    void onPositionDeleted(QString positionID);
 
 private:
     StreamPositions* m_stream = nullptr;

@@ -17,6 +17,7 @@ public:
 
 public slots:
     void updatePosition(const QString& account, const Position& position);
+    void onPositionDeleted(const QString& account, const QString& positionID);
 
 signals:
     void symbolClicked(const QString& symbol);
