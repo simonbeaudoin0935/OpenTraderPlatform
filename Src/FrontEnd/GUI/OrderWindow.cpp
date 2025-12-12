@@ -240,6 +240,54 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     auto statusItem = new QStandardItem(order.getStatusDescription());
     Q_CHECK_PTR(statusItem);
     statusItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    
+    // Color code status based on OrderStatus enum
+    switch (order.getOrderStatus()) {
+        case OrderStatus::FLL:  // Filled
+            statusItem->setBackground(QColor("#D4EDDA"));  // Light green
+            statusItem->setForeground(QColor("#155724"));  // Dark green text
+            break;
+        case OrderStatus::FLP:  // Partial Fill (UROut)
+        case OrderStatus::FPR:  // Partial Fill (Alive)
+            statusItem->setBackground(QColor("#F8F9FA"));  // Light gray
+            statusItem->setForeground(QColor("#383D41"));  // Dark gray text
+            break;
+        case OrderStatus::REJ:  // Rejected
+        case OrderStatus::RJC:  // Cancel Request Rejected
+            statusItem->setBackground(QColor("#F8D7DA"));  // Light red
+            statusItem->setForeground(QColor("#721C24"));  // Dark red text
+            break;
+        case OrderStatus::CAN:  // Canceled
+        case OrderStatus::TSC:  // Trade Server Canceled
+        case OrderStatus::EXP:  // Expired
+        case OrderStatus::BRO:  // Broken
+            statusItem->setBackground(QColor("#F8D7DA"));  // Light red
+            statusItem->setForeground(QColor("#721C24"));  // Dark red text
+            break;
+        case OrderStatus::OPN:  // Sent
+        case OrderStatus::DON:  // Queued
+        case OrderStatus::UCN:  // Cancel Sent
+        case OrderStatus::RSN:  // Replace Sent
+            statusItem->setBackground(QColor("#FFF3CD"));  // Light yellow
+            statusItem->setForeground(QColor("#856404"));  // Dark yellow text
+            break;
+        case OrderStatus::ACK:  // Received
+            statusItem->setBackground(QColor("#D1ECF1"));  // Light blue
+            statusItem->setForeground(QColor("#0C5460"));  // Dark blue text
+            break;
+        case OrderStatus::LAT:  // Too Late to Cancel
+        case OrderStatus::OUT:  // UROut
+        case OrderStatus::UCH:  // Replaced
+        case OrderStatus::CND:  // Condition Met
+        case OrderStatus::OSO:  // OSO Order
+        case OrderStatus::SUS:  // Suspended
+        default:
+            // Default color for other statuses
+            statusItem->setBackground(QColor("#F8F9FA"));  // Light gray
+            statusItem->setForeground(QColor("#383D41"));  // Dark gray text
+            break;
+    }
+    
     items << statusItem;
 
     return items;

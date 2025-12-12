@@ -31,6 +31,29 @@ public:
     std::optional<double> dscpr;
 };
 
+// Enum for order status codes
+enum class OrderStatus {
+    ACK,  // Received
+    BRO,  // Broken
+    CAN,  // Canceled
+    EXP,  // Expired
+    FLL,  // Filled
+    FLP,  // Partial Fill (UROut)
+    FPR,  // Partial Fill (Alive)
+    LAT,  // Too Late to Cancel
+    OPN,  // Sent
+    OUT,  // UROut
+    REJ,  // Rejected
+    UCH,  // Replaced
+    UCN,  // Cancel Sent
+    TSC,  // Trade Server Canceled
+    RJC,  // Cancel Request Rejected
+    DON,  // Queued
+    RSN,  // Replace Sent
+    CND,  // Condition Met
+    OSO,  // OSO Order
+    SUS   // Suspended
+};
 
 struct ConditionalOrder {
     QString orderID;
@@ -52,6 +75,7 @@ public:
     QString getSymbol() const { return symbol; }
     QString getAccountID() const { return accountID; }
     QString getStatusDescription() const { return statusDescription; }
+    OrderStatus getOrderStatus() const { return orderStatus; }
     QString getQuantity() const { return quantity; }
     QString getTradeAction() const { return tradeAction; }
     QString getDuration() const { return duration; }
@@ -94,6 +118,7 @@ public:
     QString tradeAction;
 
     // status
+    OrderStatus orderStatus;
     QString statusDescription;
     std::optional<double> stopPrice;
     TrailingStop trailingStop;

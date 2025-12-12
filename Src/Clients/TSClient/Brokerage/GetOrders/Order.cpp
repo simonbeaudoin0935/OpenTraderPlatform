@@ -28,6 +28,34 @@ AdvancedOptions::AdvancedOptions(const QString &str)
     }
 }
 
+// Helper function to convert status string to OrderStatus enum
+OrderStatus stringToOrderStatus(const QString& statusStr) {
+    if (statusStr == "ACK") return OrderStatus::ACK;
+    if (statusStr == "BRO") return OrderStatus::BRO;
+    if (statusStr == "CAN") return OrderStatus::CAN;
+    if (statusStr == "EXP") return OrderStatus::EXP;
+    if (statusStr == "FLL") return OrderStatus::FLL;
+    if (statusStr == "FLP") return OrderStatus::FLP;
+    if (statusStr == "FPR") return OrderStatus::FPR;
+    if (statusStr == "LAT") return OrderStatus::LAT;
+    if (statusStr == "OPN") return OrderStatus::OPN;
+    if (statusStr == "OUT") return OrderStatus::OUT;
+    if (statusStr == "REJ") return OrderStatus::REJ;
+    if (statusStr == "UCH") return OrderStatus::UCH;
+    if (statusStr == "UCN") return OrderStatus::UCN;
+    if (statusStr == "TSC") return OrderStatus::TSC;
+    if (statusStr == "RJC") return OrderStatus::RJC;
+    if (statusStr == "DON") return OrderStatus::DON;
+    if (statusStr == "RSN") return OrderStatus::RSN;
+    if (statusStr == "CND") return OrderStatus::CND;
+    if (statusStr == "OSO") return OrderStatus::OSO;
+    if (statusStr == "SUS") return OrderStatus::SUS;
+    
+    // Default to ACK for unknown status
+    qWarning() << "Unknown order status:" << statusStr << "- defaulting to ACK";
+    return OrderStatus::ACK;
+}
+
 Order::Order(const QJsonObject &jsonObj, bool isUpdate_) :
     isUpdate(isUpdate_)
 {
@@ -80,6 +108,10 @@ Order::Order(const QJsonObject &jsonObj, bool isUpdate_) :
     orderID = jsonObj["OrderID"].toString();
     routing = jsonObj["Routing"].toString();
     statusDescription = jsonObj["StatusDescription"].toString();
+    
+    // Parse status code and convert to enum
+    QString statusCode = jsonObj["Status"].toString();
+    orderStatus = stringToOrderStatus(statusCode);
     
     // Parse display fields from Legs array
     if (jsonObj.contains("Legs") && jsonObj["Legs"].isArray()) {
