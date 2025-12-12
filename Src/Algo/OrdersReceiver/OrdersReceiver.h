@@ -20,7 +20,7 @@ signals:
     void receivedNewOrder(QString account, Order order);
 
 private slots:
-    void onReceivedNewOrder(QString account, Order order);
+    void onReceivedNewOrder(Order order);
 
 private:
     StreamOrders* m_stream = nullptr;

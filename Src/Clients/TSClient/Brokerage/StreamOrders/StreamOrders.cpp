@@ -60,6 +60,5 @@ void StreamOrders::processJsonObject(const QJsonObject &jsonObj)
         return;
     } 
     
-    m_promise.addResult(order);
     emit newOrderReceived(order);
 }

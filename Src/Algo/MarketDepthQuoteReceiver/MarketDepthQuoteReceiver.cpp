@@ -16,9 +16,8 @@ MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(const QString &symbol, QObjec
 
     Q_CHECK_PTR(m_stream);
 
-    connect(m_stream, &StreamMarketDepthQuote::newMarketDepthQuoteReceived, this, [this](MarketDepthQuote quote) {
-        onReceivedNewMarketDepthQuote(quote);
-    });
+    connect(m_stream, &StreamMarketDepthQuote::newMarketDepthQuoteReceived,
+            this, &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote);
 
     m_stream->future().then(this,
         [this](){

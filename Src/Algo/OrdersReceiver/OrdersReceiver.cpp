@@ -21,12 +21,9 @@ OrdersReceiver::OrdersReceiver(const QString &p_account, QObject *p_parent) :
     m_stream = TSClient::getInstance()->openStreamOrders(p_account);
     Q_CHECK_PTR(m_stream);
 
-    connect(m_stream, &StreamOrders::newOrderReceived, this, [this](Order order) {
-        CRITICAL << "Orders Receiver received new order for account" << m_account;
-        onReceivedNewOrder(m_account, order);
-    });
+    connect(m_stream, &StreamOrders::newOrderReceived, this, &OrdersReceiver::onReceivedNewOrder);
 
-    m_stream->future().then(
+    m_stream->future().then(this,
         [this](){
             CRITICAL << "Orders Receiver future finished for account" << m_account;
         }
@@ -45,8 +42,8 @@ OrdersReceiver::OrdersReceiver(const QString &p_account, QObject *p_parent) :
     });
 }
 
-void OrdersReceiver::onReceivedNewOrder(QString account, Order order)
+void OrdersReceiver::onReceivedNewOrder(Order order)
 {
-    qCDebug(OrdersReceiverLog).noquote() << "New order for account (" << account << ") : OrderID=" << order.getOrderID();
-    emit receivedNewOrder(account, order);
+    qCDebug(OrdersReceiverLog).noquote() << "New order for account (" << m_account << ") : OrderID=" << order.getOrderID();
+    emit receivedNewOrder(m_account, order);
 }
