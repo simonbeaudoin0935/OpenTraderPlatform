@@ -12,8 +12,11 @@
 #include <QGroupBox>
 #include <QFile>
 #include <QTextStream>
+
+#ifdef Q_OS_LINUX
 #include <fstream>
 #include <unistd.h>
+#endif
 
 RecorderTab::RecorderTab(QWidget* p_parent)
     : QWidget(p_parent),
@@ -182,13 +185,21 @@ void RecorderTab::onStartRecording() {
     QString barsPath = recordedDataPath + "/Bars";
     QDir barsDir(barsPath);
     if (!barsDir.exists()) {
-        barsDir.mkpath(".");
+        if (!barsDir.mkpath(".")) {
+            QMessageBox::critical(this, "Directory Error", 
+                                QString("Cannot create Bars directory: %1").arg(barsPath));
+            return;
+        }
     }
 
     QString marketDepthPath = recordedDataPath + "/MarketDepthQuotes";
     QDir mdDir(marketDepthPath);
     if (!mdDir.exists()) {
-        mdDir.mkpath(".");
+        if (!mdDir.mkpath(".")) {
+            QMessageBox::critical(this, "Directory Error", 
+                                QString("Cannot create MarketDepthQuotes directory: %1").arg(marketDepthPath));
+            return;
+        }
     }
 
     // Create database instances
@@ -284,6 +295,7 @@ void RecorderTab::updateStatsDisplay() {
     }
 
     // Update memory usage
+#ifdef Q_OS_LINUX
     std::ifstream statm("/proc/self/statm");
     if (statm.is_open()) {
         long pages;
@@ -292,7 +304,13 @@ void RecorderTab::updateStatsDisplay() {
         long memoryBytes = pages * pageSize;
         m_memoryUsageLabel->setText(QString("Memory Usage: %1").arg(formatFileSize(memoryBytes)));
         statm.close();
+    } else {
+        m_memoryUsageLabel->setText("Memory Usage: N/A");
     }
+#else
+    // For non-Linux platforms, we don't have a simple way to get memory usage
+    m_memoryUsageLabel->setText("Memory Usage: N/A (platform not supported)");
+#endif
 }
 
 void RecorderTab::updateStreamTable() {
