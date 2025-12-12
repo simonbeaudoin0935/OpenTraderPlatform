@@ -24,6 +24,7 @@ private slots:
     void onStartRecording();
     void onStopRecording();
     void refreshRecorderStats();
+    void onTradeStationAuthStateChanged(bool p_isAuthenticated, QString p_reason);
 
 private:
     void setupUI();
@@ -48,6 +49,7 @@ private:
 
     // Recorder state
     bool m_isRecording;
+    bool m_isAuthenticated;
     QDateTime m_startTime;
     LiveStreamDB* m_liveBarsDB;
     LiveStreamDB* m_liveMarketDepthQuoteDB;

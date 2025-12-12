@@ -32,6 +32,7 @@ RecorderTab::RecorderTab(QWidget* p_parent)
       m_memoryUsageLabel(nullptr),
       m_refreshTimer(nullptr),
       m_isRecording(false),
+      m_isAuthenticated(false),
       m_liveBarsDB(nullptr),
       m_liveMarketDepthQuoteDB(nullptr)
 {
@@ -40,6 +41,11 @@ RecorderTab::RecorderTab(QWidget* p_parent)
     // Set up auto-refresh timer (every 5 seconds)
     m_refreshTimer = new QTimer(this);
     connect(m_refreshTimer, &QTimer::timeout, this, &RecorderTab::refreshRecorderStats);
+
+    // Connect to TSClient authentication state changes
+    connect(TSClient::getInstance(), &TSClient::authStateChanged,
+            this, &RecorderTab::onTradeStationAuthStateChanged,
+            Qt::UniqueConnection);
 }
 
 RecorderTab::~RecorderTab() {
@@ -77,6 +83,8 @@ void RecorderTab::setupUI() {
 
     m_startButton = new QPushButton("Start Recording");
     m_startButton->setStyleSheet("QPushButton { background-color: #4CAF50; color: white; }");
+    m_startButton->setEnabled(false); // Disabled until TSClient authentication
+    m_startButton->setToolTip("Waiting for TradeStation authentication...");
     
     m_stopButton = new QPushButton("Stop Recording");
     m_stopButton->setStyleSheet("QPushButton { background-color: #FF4444; color: white; }");
@@ -128,7 +136,43 @@ void RecorderTab::setupUI() {
     connect(m_refreshButton, &QPushButton::clicked, this, &RecorderTab::refreshRecorderStats);
 }
 
+void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, QString p_reason) {
+    m_isAuthenticated = p_isAuthenticated;
+    
+    if (p_isAuthenticated) {
+        // Enable the start button only if not already recording
+        if (!m_isRecording) {
+            m_startButton->setEnabled(true);
+            m_startButton->setToolTip("Start recording market data");
+        }
+        qInfo() << "RecorderTab: TradeStation authenticated -" << p_reason;
+    } else {
+        // Disable the start button and show reason
+        m_startButton->setEnabled(false);
+        m_startButton->setToolTip(QString("Cannot start recording: %1").arg(p_reason));
+        qWarning() << "RecorderTab: TradeStation not authenticated -" << p_reason;
+        
+        // If currently recording, we should stop
+        if (m_isRecording) {
+            qCritical() << "RecorderTab: Lost authentication during recording. Stopping recording.";
+            onStopRecording();
+            QMessageBox::warning(this, "Authentication Lost",
+                               QString("Lost TradeStation authentication during recording.\n"
+                                     "Recording has been stopped.\n\n"
+                                     "Reason: %1").arg(p_reason));
+        }
+    }
+}
+
 void RecorderTab::onStartRecording() {
+    // Check if authenticated before starting
+    if (!m_isAuthenticated) {
+        QMessageBox::warning(this, "Authentication Required",
+                           "Please authenticate with TradeStation before starting recording.\n\n"
+                           "Use the login button in the status bar to authenticate.");
+        return;
+    }
+    
     // Load stock tickers from CSV
     // Note: We don't use loadStockTickers() utility because it uses qFatal() on error
     // which would crash the GUI. Instead, we handle errors gracefully with message boxes.
