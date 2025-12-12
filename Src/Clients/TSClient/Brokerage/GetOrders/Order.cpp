@@ -1,3 +1,4 @@
+#include <QJsonDocument>
 #include "Order.h"
 
 AdvancedOptions::AdvancedOptions(const QString &str)
@@ -29,6 +30,10 @@ AdvancedOptions::AdvancedOptions(const QString &str)
 Order::Order(const QJsonObject &jsonObj, bool isUpdate_) :
     isUpdate(isUpdate_)
 {
+    // Debug: Log all keys in the JSON object
+    qDebug() << "Order constructor: JSON keys:" << jsonObj.keys();
+    qDebug() << "Order constructor: Full JSON:" << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Compact));
+    
     accountID = jsonObj["AccountID"].toString();
 
     if (jsonObj.contains("AdvancedOptions")) {
@@ -61,10 +66,56 @@ Order::Order(const QJsonObject &jsonObj, bool isUpdate_) :
     routing = jsonObj["Routing"].toString();
     statusDescription = jsonObj["StatusDescription"].toString();
     
-    // Parse additional display fields
-    symbol = jsonObj["Symbol"].toString();
-    quantity = jsonObj["Quantity"].toString();
-    tradeAction = jsonObj["TradeAction"].toString();
+    // Parse additional display fields - try multiple possible field names and nested structures
+    QJsonObject orderObj = jsonObj;
+    
+    // Check if the order data is nested under an "Order" key
+    if (jsonObj.contains("Order") && jsonObj["Order"].isObject()) {
+        orderObj = jsonObj["Order"].toObject();
+        qDebug() << "Found nested Order object";
+    }
+    
+    symbol = orderObj["Symbol"].toString();
+    if (symbol.isEmpty()) {
+        symbol = orderObj["symbol"].toString();
+    }
+    if (symbol.isEmpty()) {
+        symbol = orderObj["Instrument"].toString();
+    }
+    
+    quantity = orderObj["Quantity"].toString();
+    if (quantity.isEmpty()) {
+        quantity = orderObj["Qty"].toString();
+        if (quantity.isEmpty()) {
+            quantity = orderObj["quantity"].toString();
+            if (quantity.isEmpty()) {
+                quantity = orderObj["qty"].toString();
+            }
+        }
+    }
+    
+    tradeAction = orderObj["TradeAction"].toString();
+    if (tradeAction.isEmpty()) {
+        tradeAction = orderObj["Side"].toString();
+        if (tradeAction.isEmpty()) {
+            tradeAction = orderObj["Action"].toString();
+            if (tradeAction.isEmpty()) {
+                tradeAction = orderObj["tradeAction"].toString();
+                if (tradeAction.isEmpty()) {
+                    tradeAction = orderObj["side"].toString();
+                    if (tradeAction.isEmpty()) {
+                        tradeAction = orderObj["action"].toString();
+                    }
+                }
+            }
+        }
+    }
+    
+    // Debug: Log parsed values
+    qDebug() << "Order parsed values - OrderID:" << orderID 
+             << "Symbol:" << symbol 
+             << "Quantity:" << quantity 
+             << "TradeAction:" << tradeAction;
     
     // Parse optional fields
     if (jsonObj.contains("GoodTillDate")) {

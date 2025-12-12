@@ -29,7 +29,7 @@ void OrderWindow::setupUI() {
 
     // Setup model columns
     QStringList headers;
-    headers << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "Status";
+    headers << "Order ID" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "Status";
     m_model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -46,13 +46,14 @@ void OrderWindow::setupUI() {
     Q_ASSERT(c);
 
     // Set column widths
-    m_tableView->setColumnWidth(0, 70);  // Symbol
-    m_tableView->setColumnWidth(1, 80);  // Action
-    m_tableView->setColumnWidth(2, 50);  // Quantity
-    m_tableView->setColumnWidth(3, 70);  // Type
-    m_tableView->setColumnWidth(4, 60);  // Limit
-    m_tableView->setColumnWidth(5, 60);  // Stop
-    m_tableView->setColumnWidth(6, 100); // Status
+    m_tableView->setColumnWidth(0, 100); // Order ID
+    m_tableView->setColumnWidth(1, 70);  // Symbol
+    m_tableView->setColumnWidth(2, 80);  // Action
+    m_tableView->setColumnWidth(3, 50);  // Quantity
+    m_tableView->setColumnWidth(4, 70);  // Type
+    m_tableView->setColumnWidth(5, 60);  // Limit
+    m_tableView->setColumnWidth(6, 60);  // Stop
+    m_tableView->setColumnWidth(7, 100); // Status
 
     // Add widgets to layout
     mainLayout->addWidget(m_headerLabel);
@@ -102,6 +103,11 @@ void OrderWindow::updateOrder(const QString& account, const Order& order) {
     Q_UNUSED(account);
     QString orderId = order.getOrderID();
     
+    qDebug() << "OrderWindow::updateOrder called for order ID:" << orderId 
+                        << "Symbol:" << order.getSymbol()
+                        << "Quantity:" << order.getQuantity()
+                        << "TradeAction:" << order.getTradeAction();
+    
     if (m_orderRowMap.contains(orderId)) {
         // Update existing order
         // Note: Row indices are maintained across updates. Orders are not removed from the display,
@@ -140,6 +146,12 @@ void OrderWindow::updateOrderRow(const QString& account, const Order& order) {
 
 QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     QList<QStandardItem*> items;
+
+    // Order ID
+    auto orderIdItem = new QStandardItem(order.getOrderID());
+    Q_CHECK_PTR(orderIdItem);
+    orderIdItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    items << orderIdItem;
 
     // Symbol
     auto symbolItem = new QStandardItem(order.getSymbol());
@@ -213,8 +225,8 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
 }
 
 void OrderWindow::onSymbolClicked(const QModelIndex& index) {
-    if (index.column() == 0) {  // Only handle clicks on the Symbol column
-        QStandardItem* item = m_model->item(index.row(), 0);
+    if (index.column() == 1) {  // Only handle clicks on the Symbol column (now column 1)
+        QStandardItem* item = m_model->item(index.row(), 1);
         if (item != nullptr) {
             QString symbol = item->text();
             emit symbolClicked(symbol);
