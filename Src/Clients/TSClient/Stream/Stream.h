@@ -18,6 +18,15 @@ class Stream : public QObject
     Q_OBJECT
 
 public:
+    enum class StreamError {
+        Timeout,
+        BadRequest,
+        DualLogon,
+        GoAway,
+        InternalServerError,
+        InvalidSymbol,
+        Unknown
+    };
 
     class TimeoutException : public QException {
     public:
@@ -60,8 +69,11 @@ public:
 
     static size_t getNumberOpenStream() { return s_numberOfStream; }
     
+    bool isFinished() const { return m_isFinished; }
+    bool isInError() const { return m_receivedError; }
 signals:
     void newAmountOfDataReceived(size_t bytes);
+    void receivedNewRawData(const QByteArray& rawData);
 
 public slots:
     void onReplyReadyRead();

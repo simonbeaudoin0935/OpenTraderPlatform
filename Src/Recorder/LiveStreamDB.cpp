@@ -5,6 +5,10 @@
 #include "LiveStreamDB.h"
 #include "SqlQueries.h"
 #include "TSClient.h"
+#include "Logging.h"
+
+#define LOGGING_CATEGORY StreamLog
+
 
 LiveStreamDB::LiveStreamDB(StreamType type, const QString& dbPath, QStringList& stockTickers)
     : streamType(type), stockTickers(stockTickers)
@@ -65,25 +69,64 @@ bool LiveStreamDB::storeData(const QString& stock, qint64 timestamp, const QByte
 void LiveStreamDB::startRecording() {
     for (const QString& symbol : stockTickers) {
         if (streamType == StreamType::Bars) {
-            StreamBars* streamBar = TSClient::getInstance().openStreamBars(symbol,
+            StreamBars* stream = TSClient::getInstance()->openStreamBars(symbol,
                                                                            1,
                                                                            Bar::BarUnit::Minute,
                                                                            2,
                                                                            Bar::BarSessionTemplate::USEQ24Hour);
-            Q_ASSERT(streamBar != nullptr);
+            Q_ASSERT(stream != nullptr);
 
-            QObject::connect(streamBar, &StreamBars::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock);
-            QObject::connect(streamBar, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred);
+            QObject::connect(stream, &StreamBars::receivedNewRawData, this,
+                [this, symbol = stream->getSymbol()](const QByteArray& rawData){
+                    onReceivedNewRawDataForStock(symbol, rawData);
+                });
 
-            streamBars[symbol] = streamBar;
+            stream->future().then(
+                [this](){
+                    CRITICAL << "StreamBars Receiver future completed";
+                }
+            ).onFailed(this, [this](Stream::TimeoutException ex){
+                WARNING << "StreamBars Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::BadRequestException ex){
+                WARNING << "StreamBars Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::DualLogonException ex){
+                WARNING << "StreamBars Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::GoAwayException ex){
+                WARNING << "StreamBars Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::InternalServerErrorException ex){
+                WARNING << "StreamBars Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::InvalidSymbolException ex){
+                WARNING << "StreamBars Receiver future failed - Exception:" << ex.what();
+            });
+            streamBars[symbol] = stream;
         } else {
-            StreamMarketDepthQuote* streamMarketDepthQuote = TSClient::getInstance().openStreamMarketDepthQuote(symbol, 10); // depth 10
-            Q_ASSERT(streamMarketDepthQuote != nullptr);
+            StreamMarketDepthQuote* stream = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10); // depth 10
+            Q_ASSERT(stream != nullptr);
 
-            QObject::connect(streamMarketDepthQuote, &StreamMarketDepthQuote::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock);
-            QObject::connect(streamMarketDepthQuote, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred);
 
-            streamMarketDepthQuotes[symbol] = streamMarketDepthQuote;
+            stream->future().then(
+                [this](){
+                    CRITICAL << "StreamMarketDepthQuote Receiver future completed";
+                }
+            ).onFailed(this, [this](Stream::TimeoutException ex){
+                WARNING << "StreamMarketDepthQuote Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::BadRequestException ex){
+                WARNING << "StreamMarketDepthQuote Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::DualLogonException ex){
+                WARNING << "StreamMarketDepthQuote Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::GoAwayException ex){
+                WARNING << "StreamMarketDepthQuote Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::InternalServerErrorException ex){
+                WARNING << "StreamMarketDepthQuote Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::InvalidSymbolException ex){
+                WARNING << "StreamMarketDepthQuote Receiver future failed - Exception:" << ex.what();
+            });
+
+            QObject::connect(stream, &StreamMarketDepthQuote::receivedNewRawData, this, 
+                [this, symbol = stream->getSymbol()](const QByteArray& rawData){
+                    onReceivedNewRawDataForStock(symbol, rawData);
+                });
+            streamMarketDepthQuotes[symbol] = stream;
         }
     }
 }
@@ -162,20 +205,41 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol) {
         if (streamBars.contains(symbol)) {
             StreamBars* oldStream = streamBars[symbol];
             if (oldStream) {
-                oldStream->deleteLater();
+                TSClient::getInstance()->closeStream(oldStream);
             }
             streamBars.remove(symbol);
         }
 
         // Open new stream
-        StreamBars* newStream = TSClient::getInstance().openStreamBars(symbol,
+        StreamBars* newStream = TSClient::getInstance()->openStreamBars(symbol,
                                                                        1,
                                                                        Bar::BarUnit::Minute,
                                                                        2,
                                                                        Bar::BarSessionTemplate::USEQ24Hour);
         if (newStream) {
-            QObject::connect(newStream, &StreamBars::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock);
-            QObject::connect(newStream, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred);
+            QObject::connect(newStream, &StreamBars::receivedNewRawData, this, 
+                [this, symbol = newStream->getSymbol()](const QByteArray& rawData){
+                    onReceivedNewRawDataForStock(symbol, rawData);
+                });
+
+            newStream->future().then(
+                [this](){
+                    CRITICAL << "Bar Receiver future completed";
+                }
+            ).onFailed(this, [this](Stream::TimeoutException ex){
+                WARNING << "Bar Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::BadRequestException ex){
+                WARNING << "Bar Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::DualLogonException ex){
+                WARNING << "Bar Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::GoAwayException ex){
+                WARNING << "Bar Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::InternalServerErrorException ex){
+                WARNING << "Bar Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::InvalidSymbolException ex){
+                WARNING << "Bar Receiver future failed - Exception:" << ex.what();
+            });
+
             streamBars[symbol] = newStream;
             successfulRecoveries[symbol]++;
             qInfo() << "Successfully recovered bars stream for" << symbol;
@@ -187,16 +251,37 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol) {
         if (streamMarketDepthQuotes.contains(symbol)) {
             StreamMarketDepthQuote* oldStream = streamMarketDepthQuotes[symbol];
             if (oldStream) {
-                oldStream->deleteLater();
+                TSClient::getInstance()->closeStream(oldStream);
             }
             streamMarketDepthQuotes.remove(symbol);
         }
 
         // Open new stream
-        StreamMarketDepthQuote* newStream = TSClient::getInstance().openStreamMarketDepthQuote(symbol, 10);
+        StreamMarketDepthQuote* newStream = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10);
         if (newStream) {
-            QObject::connect(newStream, &StreamMarketDepthQuote::receivedNewRawData, this, &LiveStreamDB::onReceivedNewRawDataForStock);
-            QObject::connect(newStream, &Stream::streamErrorOccurred, this, &LiveStreamDB::onStreamErrorOccurred);
+            QObject::connect(newStream, &StreamMarketDepthQuote::receivedNewRawData, this, 
+                [this, symbol = newStream->getSymbol()](const QByteArray& rawData){
+                    onReceivedNewRawDataForStock(symbol, rawData);
+                });
+
+            newStream->future().then(
+                [this](){
+                    CRITICAL << "Bar Receiver future completed";
+                }
+            ).onFailed(this, [this](Stream::TimeoutException ex){
+                WARNING << "Bar Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::BadRequestException ex){
+                WARNING << "Bar Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::DualLogonException ex){
+                WARNING << "Bar Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::GoAwayException ex){
+                WARNING << "Bar Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::InternalServerErrorException ex){
+                WARNING << "Bar Receiver future failed - Exception:" << ex.what();
+            }).onFailed(this, [this](Stream::InvalidSymbolException ex){
+                WARNING << "Bar Receiver future failed - Exception:" << ex.what();
+            });
+
             streamMarketDepthQuotes[symbol] = newStream;
             successfulRecoveries[symbol]++;
             qInfo() << "Successfully recovered market depth stream for" << symbol;

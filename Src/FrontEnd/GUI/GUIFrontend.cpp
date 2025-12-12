@@ -16,6 +16,7 @@
 #include "ui_GUIFrontend.h"
 #include "Tabs/LoggingTab.h"
 #include "Tabs/CacheTab.h"
+#include "Tabs/RecorderTab.h"
 #include "Misc/Logging.h"
 #include "Misc/Settings.h"
 
@@ -161,6 +162,10 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     CacheTab* cacheTab = new CacheTab();
     ui->tabWidget->addTab(cacheTab, "Cache");
 
+    // Set up the recorder tab
+    RecorderTab* recorderTab = new RecorderTab();
+    ui->tabWidget->addTab(recorderTab, "Recorder");
+
     // Set up the live log display at the bottom
     if (ui->liveLogDisplay) {
         QFont font("Monospace");
@@ -172,8 +177,8 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
                 this, &GUIFrontend::updateLiveLogDisplay, Qt::QueuedConnection);
     }
 
-    // Restore the last displayed stock from previous session
-    restoreLastDisplayedStock();
+    // NOTE: Don't restore the last displayed stock here - wait for authentication
+    // It will be restored in onTradeStationAuthStateChanged() when authenticated
 }
 
 GUIFrontend::~GUIFrontend() {
@@ -420,6 +425,13 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
         tradeStationLoginButton->setText("TradeStation Connected");
         tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #E6FFE6; color: #4CAF50; padding: 2px 6px; border-radius: 3px; }");
         log += "TradeStation Client AUTHENTICATED : " + reason;
+        
+        // Restore the last displayed stock now that we're authenticated
+        // Only do this once on the first successful authentication
+        if (!m_hasRestoredLastStock) {
+            m_hasRestoredLastStock = true;
+            restoreLastDisplayedStock();
+        }
     } else {
         if (isFirstTime) {
             // If its the first time we receive this signal and its negative state, it just

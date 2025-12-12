@@ -1,9 +1,9 @@
-#ifndef RECORDER_UTILS_H
-#define RECORDER_UTILS_H
+#pragma once
 
 #include <QString>
-#include "Clients/TSClient/Stream/Stream.h"
+#include <QStringList>
+#include "Stream.h"
 
+QStringList loadStockTickers(const QString& csvFilePath);
+QString createRecordingFolders(const QString& cacheLocation);
 QString streamErrorToString(Stream::StreamError error);
-
-#endif // RECORDER_UTILS_H
