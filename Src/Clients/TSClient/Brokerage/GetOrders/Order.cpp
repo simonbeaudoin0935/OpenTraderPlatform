@@ -44,7 +44,7 @@ Order::Order(const QJsonObject &jsonObj, bool isUpdate_) :
     }
     
     // Parse numeric fields
-    comissionsFee = jsonObj["CommissionFee"].toDouble(0.0);
+    commissionsFee = jsonObj["CommissionFee"].toDouble(0.0);
     conversionRate = jsonObj["ConversionRate"].toDouble(1.0);
     filledPrice = jsonObj["FilledPrice"].toDouble(0.0);
     limitPrice = jsonObj["LimitPrice"].toDouble(0.0);
@@ -88,7 +88,14 @@ Order::Order(const QJsonObject &jsonObj, bool isUpdate_) :
             orderType.type = OrderType::Type::StopMarket;
         } else if (orderTypeStr == "StopLimit") {
             orderType.type = OrderType::Type::StopLimit;
+        } else {
+            // Default to Market for unknown types
+            qWarning() << "Unknown OrderType:" << orderTypeStr << "- defaulting to Market";
+            orderType.type = OrderType::Type::Market;
         }
+    } else {
+        // Default to Market if not specified
+        orderType.type = OrderType::Type::Market;
     }
 }
 

@@ -65,7 +65,7 @@ public:
     QString accountID;
     std::optional<AdvancedOptions> advancedOptions;
     QDateTime closedDateTime;
-    double comissionsFee;
+    double commissionsFee;
     std::optional<QVector<ConditionalOrder>> conditionalOrders;
     double conversionRate;
     QString currency;

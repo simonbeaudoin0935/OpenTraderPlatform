@@ -104,6 +104,9 @@ void OrderWindow::updateOrder(const QString& account, const Order& order) {
     
     if (m_orderRowMap.contains(orderId)) {
         // Update existing order
+        // Note: Row indices are maintained across updates. Orders are not removed from the display,
+        // only updated in place. If order removal is needed in the future, consider implementing
+        // a cleanup mechanism that rebuilds the map after row removal.
         updateOrderRow(account, order);
     } else {
         // Add new order
@@ -116,7 +119,18 @@ void OrderWindow::updateOrder(const QString& account, const Order& order) {
 void OrderWindow::updateOrderRow(const QString& account, const Order& order) {
     Q_UNUSED(account);
 
-    int row = m_orderRowMap[order.getOrderID()];
+    QString orderId = order.getOrderID();
+    if (!m_orderRowMap.contains(orderId)) {
+        qWarning() << "OrderWindow::updateOrderRow: Order ID not found in map:" << orderId;
+        return;
+    }
+
+    int row = m_orderRowMap[orderId];
+    if (row < 0 || row >= m_model->rowCount()) {
+        qWarning() << "OrderWindow::updateOrderRow: Invalid row index:" << row;
+        return;
+    }
+
     QList<QStandardItem*> items = createRowItems(order);
     
     for (int col = 0; col < items.size(); ++col) {
@@ -166,6 +180,9 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
         case OrderType::Type::StopLimit:
             orderTypeStr = "StopLmt";
             break;
+        default:
+            orderTypeStr = "Unknown";
+            break;
     }
     auto typeItem = new QStandardItem(orderTypeStr);
     Q_CHECK_PTR(typeItem);
@@ -197,7 +214,10 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
 
 void OrderWindow::onSymbolClicked(const QModelIndex& index) {
     if (index.column() == 0) {  // Only handle clicks on the Symbol column
-        QString symbol = m_model->item(index.row(), 0)->text();
-        emit symbolClicked(symbol);
+        QStandardItem* item = m_model->item(index.row(), 0);
+        if (item != nullptr) {
+            QString symbol = item->text();
+            emit symbolClicked(symbol);
+        }
     }
 }
