@@ -16,6 +16,11 @@ int main(int argc, char *argv[]) {
 
     parseArguments(app.arguments());
 
+    // Initialize app state settings (not used by tests, but needed for linking)
+    appStateSettings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
+                                      QCoreApplication::applicationName(), "AppState");
+    appStateSettings->setFallbacksEnabled(false);
+
     // Initialize logging (opens file and installs handler)
     initLogging();
 
