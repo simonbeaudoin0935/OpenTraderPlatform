@@ -2,7 +2,7 @@
 #define RECORDER_UTILS_H
 
 #include <QString>
-#include "Clients/TSClient/Stream/Stream.h"
+#include "Stream.h"
 
 QString streamErrorToString(Stream::StreamError error);
 
