@@ -9,6 +9,7 @@
 #include <QGroupBox>
 #include <QTimer>
 #include <QDateTime>
+#include <QLineEdit>
 
 // Forward declarations
 class LiveStreamDB;
@@ -25,6 +26,8 @@ private slots:
     void onStopRecording();
     void refreshRecorderStats();
     void onTradeStationAuthStateChanged(bool p_isAuthenticated, QString p_reason);
+    void onBrowseButtonClicked();
+    void onCsvFilePathChanged(const QString& p_text);
 
 private:
     void setupUI();
@@ -33,6 +36,8 @@ private:
     QString formatUptime(qint64 p_seconds) const;
     void updateStreamTable();
     void updateErrorTable();
+    void saveLastCsvFilePath(const QString& p_filePath);
+    void restoreLastCsvFilePath();
 
     // UI Components
     QTableWidget* m_streamTable;
@@ -40,6 +45,8 @@ private:
     QPushButton* m_startButton;
     QPushButton* m_stopButton;
     QPushButton* m_refreshButton;
+    QPushButton* m_browseButton;
+    QLineEdit* m_stockCsvFileInput;
     QLabel* m_statusLabel;
     QLabel* m_uptimeLabel;
     QLabel* m_barsRecordCountLabel;
@@ -54,4 +61,5 @@ private:
     LiveStreamDB* m_liveBarsDB;
     LiveStreamDB* m_liveMarketDepthQuoteDB;
     QStringList m_stockTickers;
+    QString m_stockCsvFilePath;
 };

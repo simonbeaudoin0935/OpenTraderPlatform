@@ -12,6 +12,7 @@
 #include <QGroupBox>
 #include <QFile>
 #include <QTextStream>
+#include <QFileDialog>
 
 #ifdef Q_OS_LINUX
 #include <fstream>
@@ -25,6 +26,8 @@ RecorderTab::RecorderTab(QWidget* p_parent)
       m_startButton(nullptr),
       m_stopButton(nullptr),
       m_refreshButton(nullptr),
+      m_browseButton(nullptr),
+      m_stockCsvFileInput(nullptr),
       m_statusLabel(nullptr),
       m_uptimeLabel(nullptr),
       m_barsRecordCountLabel(nullptr),
@@ -34,7 +37,8 @@ RecorderTab::RecorderTab(QWidget* p_parent)
       m_isRecording(false),
       m_isAuthenticated(false),
       m_liveBarsDB(nullptr),
-      m_liveMarketDepthQuoteDB(nullptr)
+      m_liveMarketDepthQuoteDB(nullptr),
+      m_stockCsvFilePath("")
 {
     setupUI();
 
@@ -46,6 +50,15 @@ RecorderTab::RecorderTab(QWidget* p_parent)
     connect(TSClient::getInstance(), &TSClient::authStateChanged,
             this, &RecorderTab::onTradeStationAuthStateChanged,
             Qt::UniqueConnection);
+    
+    // Restore last selected CSV file from app state (if any)
+    restoreLastCsvFilePath();
+    
+    // If global stockCsvFile is set and we don't have a restored path, use it as default
+    if (m_stockCsvFilePath.isEmpty() && !stockCsvFile.isEmpty()) {
+        m_stockCsvFilePath = stockCsvFile;
+        m_stockCsvFileInput->setText(stockCsvFile);
+    }
 }
 
 RecorderTab::~RecorderTab() {
@@ -77,6 +90,22 @@ void RecorderTab::setupUI() {
 
     m_memoryUsageLabel = new QLabel("Memory Usage: N/A");
     statusLayout->addWidget(m_memoryUsageLabel);
+
+    // CSV file input section
+    QHBoxLayout* csvFileLayout = new QHBoxLayout();
+    QLabel* csvFileLabel = new QLabel("Stock CSV File:");
+    m_stockCsvFileInput = new QLineEdit();
+    m_stockCsvFileInput->setPlaceholderText("Select a CSV file containing stock symbols...");
+    m_stockCsvFileInput->setReadOnly(false);
+    
+    m_browseButton = new QPushButton("Browse...");
+    m_browseButton->setMaximumWidth(100);
+    
+    csvFileLayout->addWidget(csvFileLabel);
+    csvFileLayout->addWidget(m_stockCsvFileInput);
+    csvFileLayout->addWidget(m_browseButton);
+    
+    statusLayout->addLayout(csvFileLayout);
 
     // Control buttons
     QHBoxLayout* buttonLayout = new QHBoxLayout();
@@ -131,9 +160,73 @@ void RecorderTab::setupUI() {
     mainLayout->addWidget(errorGroupBox);
 
     // Connect signals
-    connect(m_startButton, &QPushButton::clicked, this, &RecorderTab::onStartRecording);
-    connect(m_stopButton, &QPushButton::clicked, this, &RecorderTab::onStopRecording);
-    connect(m_refreshButton, &QPushButton::clicked, this, &RecorderTab::refreshRecorderStats);
+    bool isConnectionUnique;
+    
+    isConnectionUnique = connect(m_startButton, &QPushButton::clicked, this, &RecorderTab::onStartRecording, Qt::UniqueConnection);
+    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "Start button connection should be unique");
+    
+    isConnectionUnique = connect(m_stopButton, &QPushButton::clicked, this, &RecorderTab::onStopRecording, Qt::UniqueConnection);
+    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "Stop button connection should be unique");
+    
+    isConnectionUnique = connect(m_refreshButton, &QPushButton::clicked, this, &RecorderTab::refreshRecorderStats, Qt::UniqueConnection);
+    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "Refresh button connection should be unique");
+    
+    isConnectionUnique = connect(m_browseButton, &QPushButton::clicked, this, &RecorderTab::onBrowseButtonClicked, Qt::UniqueConnection);
+    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "Browse button connection should be unique");
+    
+    // Connect CSV file input text changes to update internal path
+    isConnectionUnique = connect(m_stockCsvFileInput, &QLineEdit::textChanged, this, &RecorderTab::onCsvFilePathChanged, Qt::UniqueConnection);
+    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "CSV file input connection should be unique");
+}
+
+void RecorderTab::onBrowseButtonClicked() {
+    QString fileName = QFileDialog::getOpenFileName(
+        this,
+        "Select Stock CSV File",
+        QString(),  // Default directory (use last directory)
+        "CSV Files (*.csv);;All Files (*)"
+    );
+    
+    if (!fileName.isEmpty()) {
+        m_stockCsvFilePath = fileName;
+        m_stockCsvFileInput->setText(fileName);
+        saveLastCsvFilePath(fileName);
+    }
+}
+
+void RecorderTab::onCsvFilePathChanged(const QString& p_text) {
+    m_stockCsvFilePath = p_text;
+    saveLastCsvFilePath(p_text);
+}
+
+void RecorderTab::saveLastCsvFilePath(const QString& p_filePath) {
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("RecorderTab/LastCsvFilePath", p_filePath);
+    appStateSettings->sync();
+    qInfo() << "Saved last CSV file path:" << p_filePath;
+}
+
+void RecorderTab::restoreLastCsvFilePath() {
+    Q_CHECK_PTR(appStateSettings);
+    QString lastCsvPath = appStateSettings->value("RecorderTab/LastCsvFilePath").toString();
+    
+    if (lastCsvPath.isEmpty()) {
+        qInfo() << "No previously selected CSV file to restore";
+        return;
+    }
+    
+    // Check if the file exists
+    QFileInfo fileInfo(lastCsvPath);
+    if (!fileInfo.exists() || !fileInfo.isFile()) {
+        qWarning() << "Previously saved CSV file no longer exists:" << lastCsvPath;
+        return;
+    }
+    
+    qInfo() << "Restoring last CSV file path:" << lastCsvPath;
+    
+    // Set the path in the internal variable and display it
+    m_stockCsvFilePath = lastCsvPath;
+    m_stockCsvFileInput->setText(lastCsvPath);
 }
 
 void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, QString p_reason) {
@@ -176,16 +269,16 @@ void RecorderTab::onStartRecording() {
     // Load stock tickers from CSV
     // Note: We don't use loadStockTickers() utility because it uses qFatal() on error
     // which would crash the GUI. Instead, we handle errors gracefully with message boxes.
-    if (stockCsvFile.isEmpty()) {
+    if (m_stockCsvFilePath.isEmpty()) {
         QMessageBox::warning(this, "Configuration Error", 
-                           "Stock CSV file not configured. Please specify it in the application settings.");
+                           "Stock CSV file not specified. Please select a CSV file using the Browse button.");
         return;
     }
 
-    QFile file(stockCsvFile);
+    QFile file(m_stockCsvFilePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QMessageBox::critical(this, "File Error", 
-                            QString("Cannot open stock CSV file: %1").arg(stockCsvFile));
+                            QString("Cannot open stock CSV file: %1").arg(m_stockCsvFilePath));
         return;
     }
 
