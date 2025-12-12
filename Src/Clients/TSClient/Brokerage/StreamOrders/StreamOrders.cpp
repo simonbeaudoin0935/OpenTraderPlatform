@@ -27,7 +27,7 @@ bool StreamOrders::StreamOrdersStatus::isStatusValid() const {
 
 StreamOrders::StreamOrders(const QString &accountID, QNetworkReply * reply, QObject *parent) :
     Stream(reply, parent),
-    accountID(accountID)
+    m_accountID(accountID)
 {
     this->setObjectName("Stream::Orders::" + accountID);
 }
@@ -41,9 +41,9 @@ void StreamOrders::processJsonObject(const QJsonObject &jsonObj)
             // Update the EndSnapshot flag if we receive that status
             if (status.getStatus() == StreamOrdersStatus::Status::EndSnapshot) {
                 receivedEndSnapshot = true;
-                qCDebug(StreamLog) << "Received EndSnapshot status for account" << accountID;
+                qCDebug(StreamLog) << "Received EndSnapshot status for account" << m_accountID;
             } else if (status.getStatus() == StreamOrdersStatus::Status::GoAway) {
-                qCWarning(StreamLog) << "Received GoAway status for account" << accountID;
+                qCWarning(StreamLog) << "Received GoAway status for account" << m_accountID;
             }
         } else {
             qCWarning(StreamLog) << "Stream status object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));

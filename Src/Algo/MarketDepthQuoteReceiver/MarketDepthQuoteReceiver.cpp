@@ -24,28 +24,13 @@ MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(const QString &symbol, QObjec
             CRITICAL << "Market Depth Quote future finished";
         }
     ).onFailed(this,
-        [this](Stream::TimeoutException ex){
-            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol << "- Exception:" << ex.what();
-        }
-    ).onFailed(this,
-        [this](Stream::BadRequestException ex){
-            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol << "- Exception:" << ex.what();
-        }
-    ).onFailed(this,
-        [this](Stream::DualLogonException ex){
-            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol << "- Exception:" << ex.what();
-        }
-    ).onFailed(this,
-        [this](Stream::GoAwayException ex){
-            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol << "- Exception:" << ex.what();
-        }
-    ).onFailed(this,
-        [this](Stream::InternalServerErrorException ex){
-            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol << "- Exception:" << ex.what();
-        }
-    ).onFailed(this,
-        [this](Stream::InvalidSymbolException ex){
-            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol << "- Exception:" << ex.what();
+        [this](QException ex){
+            Q_UNUSED(ex);
+
+            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol
+                    << "- Exception:" << m_stream->errorToString();
+
+            CRITICAL << "TODO : deal with this";
         }
     );
 }

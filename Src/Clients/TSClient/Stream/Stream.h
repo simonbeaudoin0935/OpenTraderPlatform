@@ -18,7 +18,8 @@ class Stream : public QObject
     Q_OBJECT
 
 public:
-    enum class StreamError {
+    enum StreamError {
+        NoError,
         Timeout,
         BadRequest,
         DualLogon,
@@ -27,39 +28,11 @@ public:
         InvalidSymbol,
         Unknown
     };
+    Q_ENUM(StreamError);
 
-    class TimeoutException : public QException {
-    public:
-        void raise() const override { throw *this; }
-        TimeoutException *clone() const override { return new TimeoutException(*this); }
-    };
-    class BadRequestException : public QException {
-    public:
-        void raise() const override { throw *this; }
-        BadRequestException *clone() const override { return new BadRequestException(*this); }
-    };    
-    class DualLogonException : public QException {
-    public:
-        void raise() const override { throw *this; }
-        DualLogonException *clone() const override { return new DualLogonException(*this); }
-    };
-    class GoAwayException : public QException {
-    public:
-        void raise() const override { throw *this; }
-        GoAwayException *clone() const override { return new GoAwayException(*this); }
-    };
-    class InternalServerErrorException : public QException {
-    public:
-        void raise() const override { throw *this; }
-        InternalServerErrorException *clone() const override { return new InternalServerErrorException(*this); }
-    };           
-    class InvalidSymbolException : public QException {
-    public:
-        void raise() const override { throw *this; }
-        InvalidSymbolException *clone() const override { return new InvalidSymbolException(*this); }
-    };        
-    
-    
+    StreamError m_streamError = StreamError::NoError;
+    QString errorToString() const;
+
     Stream(QNetworkReply * reply, QObject *parent = nullptr);
     ~Stream();
     Stream(const Stream&) = delete;

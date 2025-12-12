@@ -88,27 +88,19 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
         connect(m_stream, &StreamBars::newBarReceived, this, &BarCache::onReceivedNewLiveBar);
 
         m_stream->future().then(this,
-            [this, symbol](){
-                DEBUG << "Bars stream future finished for symbol" << symbol;
+            [this](){
+                CRITICAL << "Bars cache bar future finished";
             }
         ).onFailed(this,
-            [this, symbol](Stream::TimeoutException ex){
-                WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+            [this](QException ex){
+                Q_UNUSED(ex);
+
+                WARNING << "Bars cache bar future failed for" << m_symbol
+                        << "- Exception:" << m_stream->errorToString();
+
+                CRITICAL << "TODO : deal with this";
             }
-        ).onFailed(this,
-            [this, symbol](Stream::BadRequestException ex){
-                WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
-            }
-        ).onFailed(this,
-            [this, symbol](Stream::DualLogonException ex){
-                WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
-        }).onFailed(this,
-            [this, symbol](Stream::GoAwayException ex){
-            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
-        }).onFailed(this,
-            [this, symbol](Stream::InvalidSymbolException ex){
-            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
-        });
+        );
     }
 }
 

@@ -21,23 +21,21 @@ PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
     connect(m_stream, &StreamPositions::newPositionReceived, this, &PositionsReceiver::onReceivedNewPosition);
     connect(m_stream, &StreamPositions::positionDeleted, this, &PositionsReceiver::onPositionDeleted);
 
-    m_stream->future().then(
+
+    m_stream->future().then(this,
         [this](){
-            CRITICAL << "Positions Receiver future finished for account" << m_account;
+            CRITICAL << "Positions Receiver future finished";
         }
-    ).onFailed(this, [this](Stream::TimeoutException ex){
-        WARNING << "Positions Receiver future failed for" << m_account << "- Exception:" << ex.what();
-    }).onFailed(this, [this](Stream::BadRequestException ex){
-        WARNING << "Positions Receiver future failed for" << m_account << "- Exception:" << ex.what();
-    }).onFailed(this, [this](Stream::DualLogonException ex){
-        WARNING << "Positions Receiver future failed for" << m_account << "- Exception:" << ex.what();
-    }).onFailed(this, [this](Stream::GoAwayException ex){
-        WARNING << "Positions Receiver future failed for" << m_account << "- Exception:" << ex.what();
-    }).onFailed(this, [this](Stream::InternalServerErrorException ex){
-        WARNING << "Positions Receiver future failed for" << m_account << "- Exception:" << ex.what();
-    }).onFailed(this, [this](Stream::InvalidSymbolException ex){
-        WARNING << "Positions Receiver future failed for" << m_account << "- Exception:" << ex.what();
-    });
+    ).onFailed(this,
+        [this](QException ex){
+            Q_UNUSED(ex);
+
+            WARNING << "Positions Receiver future failed for" << m_account
+                    << "- Exception:" << m_stream->errorToString();
+
+            CRITICAL << "TODO : deal with this";
+        }
+    );
 }
 
 PositionsReceiver::~PositionsReceiver() {

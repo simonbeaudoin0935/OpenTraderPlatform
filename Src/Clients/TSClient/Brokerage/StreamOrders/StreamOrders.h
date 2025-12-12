@@ -44,13 +44,14 @@ public:
     StreamOrders(const StreamOrders&) = delete;
     StreamOrders& operator=(const StreamOrders&) = delete;
 
+    QString getAccountID() {return m_accountID; };
 signals:
     void newOrderReceived(Order order);
 
 private:
     void processJsonObject(const QJsonObject& jsonObj) override;
 
-    QString accountID;
+    QString m_accountID;
     
     bool receivedEndSnapshot = false;  // Track if we've received the EndSnapshot status
 };

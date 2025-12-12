@@ -1,4 +1,5 @@
 #include <QJsonObject>
+#include <QMetaEnum>
 
 #include "Stream.h"
 #include "Logging.h"
@@ -52,6 +53,12 @@ Stream::~Stream()
     m_heartbeatTimer.stop();
 }
 
+QString Stream::errorToString() const
+{
+    return Stream::staticMetaObject.enumerator(Stream::staticMetaObject.indexOfEnumerator("StreamError")).valueToKey(static_cast<int>(m_streamError));
+}
+
+
 void Stream::onReplyReadyRead()
 {
     const QByteArray rawData = m_networkReply->readAll();
@@ -76,6 +83,11 @@ void Stream::onReplyFinished()
     // but where the server never sent an error json object. So we need to handle this case better.
     //Q_ASSERT(m_receivedError == true);
 
+    if (m_isFinished) {
+        WARNING << "Already finished, likely due to heartbeat timeout";
+        return;
+    }
+
     m_heartbeatTimer.stop();
 
     m_isFinished = true;
@@ -85,12 +97,21 @@ void Stream::onReplyFinished()
 
 void Stream::onHeartbeatTimerTimeout()
 {
+    CRITICAL << "Heartbeat timer timeout for ";
+
+    if (m_isFinished) {
+        WARNING << "possible glitch where watchdog timer timeout called after stream is finished from another error";
+        return;
+    }
+
     m_isFinished = true;
     m_heartbeatTimer.stop();
-    m_networkReply->abort();  
-    m_promise.setException(TimeoutException());
+    
+    m_networkReply->abort();
+    m_streamError = StreamError::Timeout;
+    m_promise.setException(QException());
     m_promise.finish();
-
+    
     CRITICAL << "Did not receive data nor heartbeat in : " << m_heartbeatTimeoutMS  << "ms";
 }
 
@@ -150,20 +171,22 @@ void Stream::processJsonDoc(const QJsonDocument& doc)
             CRITICAL << " received malformed error object without Message field";
         }
 
-        if (errorStr == "BadRequest"){
-            m_promise.setException(BadRequestException());
+        if (errorStr == "DualLogon"){
+            m_streamError = StreamError::BadRequest;
         } else if (errorStr == "DualLogon") {
-            m_promise.setException(DualLogonException());
+            m_streamError = StreamError::DualLogon;
         } else if (errorStr == "GoAway") {
-            m_promise.setException(GoAwayException());
+            m_streamError = StreamError::GoAway;
         } else if (errorStr == "InternalServerError") {
-            m_promise.setException(InternalServerErrorException());
+            m_streamError = StreamError::InternalServerError;
         } else if (errorStr == "InvalidSymbol"){
-            m_promise.setException(InvalidSymbolException());
+            m_streamError = StreamError::InvalidSymbol;
         } else {
-            m_promise.
-            setException(QException());
+            m_streamError = StreamError::Unknown;
         }
+
+        m_promise.setException(QException());
+
         
         CRITICAL << "Received error string '" << errorStr << "' and message: " << jsonObj["Message"].toString();
         

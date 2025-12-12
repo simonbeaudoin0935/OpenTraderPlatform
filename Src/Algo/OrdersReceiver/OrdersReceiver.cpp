@@ -23,21 +23,18 @@ OrdersReceiver::OrdersReceiver(const QString &p_account, QObject *p_parent) :
 
     m_stream->future().then(this,
         [this](){
-            CRITICAL << "Orders Receiver future finished for account" << m_account;
+            CRITICAL << "Orders Receiver future finished";
         }
-    ).onFailed(this, [this](Stream::TimeoutException ex){
-        WARNING << "Orders Receiver future failed for" << m_account << "- Exception:" << ex.what();
-    }).onFailed(this, [this](Stream::BadRequestException ex){
-        WARNING << "Orders Receiver future failed for" << m_account << "- Exception:" << ex.what();
-    }).onFailed(this, [this](Stream::DualLogonException ex){
-        WARNING << "Orders Receiver future failed for" << m_account << "- Exception:" << ex.what();
-    }).onFailed(this, [this](Stream::GoAwayException ex){
-        WARNING << "Orders Receiver future failed for" << m_account << "- Exception:" << ex.what();
-    }).onFailed(this, [this](Stream::InternalServerErrorException ex){
-        WARNING << "Orders Receiver future failed for" << m_account << "- Exception:" << ex.what();
-    }).onFailed(this, [this](Stream::InvalidSymbolException ex){
-        WARNING << "Orders Receiver future failed for" << m_account << "- Exception:" << ex.what();
-    });
+    ).onFailed(this,
+        [this](QException ex){
+            Q_UNUSED(ex);
+
+            WARNING << "Orders Receiver future failed for" << m_account
+                    << "- Exception:" << m_stream->errorToString();
+
+            CRITICAL << "TODO : deal with this";
+        }
+    );
 }
 
 void OrdersReceiver::onReceivedNewOrder(Order order)
