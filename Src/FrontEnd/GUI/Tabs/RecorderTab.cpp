@@ -130,6 +130,8 @@ void RecorderTab::setupUI() {
 
 void RecorderTab::onStartRecording() {
     // Load stock tickers from CSV
+    // Note: We don't use loadStockTickers() utility because it uses qFatal() on error
+    // which would crash the GUI. Instead, we handle errors gracefully with message boxes.
     if (stockCsvFile.isEmpty()) {
         QMessageBox::warning(this, "Configuration Error", 
                            "Stock CSV file not configured. Please specify it in the application settings.");
@@ -162,6 +164,8 @@ void RecorderTab::onStartRecording() {
     }
 
     // Create recording folders
+    // Note: We don't use createRecordingFolders() utility because it uses qFatal() on error
+    // which would crash the GUI. Instead, we handle errors gracefully with message boxes.
     QString cacheLocation = getCacheLocation();
     QDir baseDir(cacheLocation);
     if (!baseDir.exists()) {
