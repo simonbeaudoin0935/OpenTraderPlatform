@@ -17,6 +17,7 @@
 #include "Tabs/LoggingTab.h"
 #include "Tabs/CacheTab.h"
 #include "Misc/Logging.h"
+#include "Misc/Settings.h"
 
 GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     FrontEnd(parent),
@@ -170,6 +171,9 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
         connect(&LogBroadcaster::instance(), &LogBroadcaster::logMessageReceived,
                 this, &GUIFrontend::updateLiveLogDisplay, Qt::QueuedConnection);
     }
+
+    // Restore the last displayed stock from previous session
+    restoreLastDisplayedStock();
 }
 
 GUIFrontend::~GUIFrontend() {
@@ -506,6 +510,9 @@ void GUIFrontend::onNewDisplayedStockSelection()
                               Qt::QueuedConnection,
                               Q_ARG(QString, symbol)); // Pass the symbol parameter
 
+    // Save the selected stock to settings for restoration on next startup
+    saveLastDisplayedStock(symbol);
+
     // Clear focus from the input box after processing
     ui->stockSymbolInput->clearFocus();
 }
@@ -574,4 +581,34 @@ void GUIFrontend::onLogDepthChanged(int maxLines) {
             }
         }
     }
+}
+
+void GUIFrontend::saveLastDisplayedStock(const QString& symbol) {
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("GUI/LastDisplayedStock", symbol);
+    appStateSettings->sync();
+    qInfo() << "Saved last displayed stock:" << symbol;
+}
+
+void GUIFrontend::restoreLastDisplayedStock() {
+    Q_CHECK_PTR(appStateSettings);
+    QString lastSymbol = appStateSettings->value("GUI/LastDisplayedStock").toString();
+    
+    if (lastSymbol.isEmpty()) {
+        qInfo() << "No previously displayed stock to restore";
+        return;
+    }
+    
+    if (!isValidStockSymbol(lastSymbol)) {
+        qWarning() << "Previously saved stock symbol is invalid:" << lastSymbol;
+        return;
+    }
+    
+    qInfo() << "Restoring last displayed stock:" << lastSymbol;
+    
+    // Set the symbol in the input box
+    ui->stockSymbolInput->setText(lastSymbol);
+    
+    // Trigger the selection programmatically
+    onNewDisplayedStockSelection();
 }

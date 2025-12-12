@@ -39,6 +39,8 @@ private slots:
 private:
     void setupDarkTheme(QMainWindow* mainWindow);
     bool isValidStockSymbol(const QString& symbol) const;
+    void saveLastDisplayedStock(const QString& symbol);
+    void restoreLastDisplayedStock();
     MainAlgo *mainAlgo;
     QString currentlyDisplayedSymbol;
 
