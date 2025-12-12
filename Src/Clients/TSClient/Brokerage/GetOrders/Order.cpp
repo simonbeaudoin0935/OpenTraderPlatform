@@ -1,4 +1,5 @@
 #include <QJsonDocument>
+#include <QJsonArray>
 #include "Order.h"
 
 AdvancedOptions::AdvancedOptions(const QString &str)
@@ -52,12 +53,26 @@ Order::Order(const QJsonObject &jsonObj, bool isUpdate_) :
     commissionsFee = jsonObj["CommissionFee"].toDouble(0.0);
     conversionRate = jsonObj["ConversionRate"].toDouble(1.0);
     filledPrice = jsonObj["FilledPrice"].toDouble(0.0);
-    limitPrice = jsonObj["LimitPrice"].toDouble(0.0);
+    
+    // Parse optional limit price
+    if (jsonObj.contains("LimitPrice")) {
+        limitPrice = jsonObj["LimitPrice"].toDouble(0.0);
+    }
+    
     priceUsedForBuyingPower = jsonObj["PriceUsedForBuyingPower"].toDouble(0.0);
     showOnlyQuantity = jsonObj["ShowOnlyQuantity"].toDouble(0.0);
     spread = jsonObj["Spread"].toDouble(0.0);
-    stopPrice = jsonObj["StopPrice"].toDouble(0.0);
+    
+    // Parse optional stop price
+    if (jsonObj.contains("StopPrice")) {
+        stopPrice = jsonObj["StopPrice"].toDouble(0.0);
+    }
+    
     unbundledRouteFee = jsonObj["UnbundledRouteFee"].toDouble(0.0);
+    
+    // Debug: Log limit price parsing
+    qDebug() << "Order limitPrice parsed:" << (limitPrice.has_value() ? QString::number(limitPrice.value()) : "not set") 
+             << "stopPrice parsed:" << (stopPrice.has_value() ? QString::number(stopPrice.value()) : "not set");
     
     // Parse string fields
     currency = jsonObj["Currency"].toString();
@@ -66,45 +81,73 @@ Order::Order(const QJsonObject &jsonObj, bool isUpdate_) :
     routing = jsonObj["Routing"].toString();
     statusDescription = jsonObj["StatusDescription"].toString();
     
-    // Parse additional display fields - try multiple possible field names and nested structures
-    QJsonObject orderObj = jsonObj;
-    
-    // Check if the order data is nested under an "Order" key
-    if (jsonObj.contains("Order") && jsonObj["Order"].isObject()) {
-        orderObj = jsonObj["Order"].toObject();
-        qDebug() << "Found nested Order object";
-    }
-    
-    symbol = orderObj["Symbol"].toString();
-    if (symbol.isEmpty()) {
-        symbol = orderObj["symbol"].toString();
-    }
-    if (symbol.isEmpty()) {
-        symbol = orderObj["Instrument"].toString();
-    }
-    
-    quantity = orderObj["Quantity"].toString();
-    if (quantity.isEmpty()) {
-        quantity = orderObj["Qty"].toString();
-        if (quantity.isEmpty()) {
-            quantity = orderObj["quantity"].toString();
-            if (quantity.isEmpty()) {
-                quantity = orderObj["qty"].toString();
+    // Parse display fields from Legs array
+    if (jsonObj.contains("Legs") && jsonObj["Legs"].isArray()) {
+        QJsonArray legsArray = jsonObj["Legs"].toArray();
+        if (!legsArray.isEmpty()) {
+            // For now, we take the first leg (most orders have only one leg)
+            QJsonObject firstLeg = legsArray[0].toObject();
+            
+            symbol = firstLeg["Symbol"].toString();
+            quantity = firstLeg["QuantityOrdered"].toString();
+            
+            // Construct trade action from BuyOrSell and OpenOrClose
+            QString buyOrSell = firstLeg["BuyOrSell"].toString();
+            QString openOrClose = firstLeg["OpenOrClose"].toString();
+            
+            if (buyOrSell == "Buy" && openOrClose == "Open") {
+                tradeAction = "Buy";
+            } else if (buyOrSell == "Buy" && openOrClose == "Close") {
+                tradeAction = "Buy to Cover";
+            } else if (buyOrSell == "Sell" && openOrClose == "Open") {
+                tradeAction = "Sell Short";
+            } else if (buyOrSell == "Sell" && openOrClose == "Close") {
+                tradeAction = "Sell";
+            } else {
+                tradeAction = buyOrSell + " " + openOrClose;
             }
         }
-    }
-    
-    tradeAction = orderObj["TradeAction"].toString();
-    if (tradeAction.isEmpty()) {
-        tradeAction = orderObj["Side"].toString();
+    } else {
+        // Fallback to old parsing logic if no Legs array
+        QJsonObject orderObj = jsonObj;
+        
+        // Check if the order data is nested under an "Order" key
+        if (jsonObj.contains("Order") && jsonObj["Order"].isObject()) {
+            orderObj = jsonObj["Order"].toObject();
+            qDebug() << "Found nested Order object";
+        }
+        
+        symbol = orderObj["Symbol"].toString();
+        if (symbol.isEmpty()) {
+            symbol = orderObj["symbol"].toString();
+        }
+        if (symbol.isEmpty()) {
+            symbol = orderObj["Instrument"].toString();
+        }
+        
+        quantity = orderObj["Quantity"].toString();
+        if (quantity.isEmpty()) {
+            quantity = orderObj["Qty"].toString();
+            if (quantity.isEmpty()) {
+                quantity = orderObj["quantity"].toString();
+                if (quantity.isEmpty()) {
+                    quantity = orderObj["qty"].toString();
+                }
+            }
+        }
+        
+        tradeAction = orderObj["TradeAction"].toString();
         if (tradeAction.isEmpty()) {
-            tradeAction = orderObj["Action"].toString();
+            tradeAction = orderObj["Side"].toString();
             if (tradeAction.isEmpty()) {
-                tradeAction = orderObj["tradeAction"].toString();
+                tradeAction = orderObj["Action"].toString();
                 if (tradeAction.isEmpty()) {
-                    tradeAction = orderObj["side"].toString();
+                    tradeAction = orderObj["tradeAction"].toString();
                     if (tradeAction.isEmpty()) {
-                        tradeAction = orderObj["action"].toString();
+                        tradeAction = orderObj["side"].toString();
+                        if (tradeAction.isEmpty()) {
+                            tradeAction = orderObj["action"].toString();
+                        }
                     }
                 }
             }

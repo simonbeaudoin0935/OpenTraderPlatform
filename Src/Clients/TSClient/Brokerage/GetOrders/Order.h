@@ -56,8 +56,8 @@ public:
     QString getTradeAction() const { return tradeAction; }
     QString getDuration() const { return duration; }
     OrderType getOrderType() const { return orderType; }
-    double getLimitPrice() const { return limitPrice; }
-    double getStopPrice() const { return stopPrice; }
+    std::optional<double> getLimitPrice() const { return limitPrice; }
+    std::optional<double> getStopPrice() const { return stopPrice; }
     double getFilledPrice() const { return filledPrice; }
     QDateTime getOpenedDateTime() const { return openedDateTime; }
     QString getRouting() const { return routing; }
@@ -76,7 +76,7 @@ public:
     std::optional<QVector<Leg>> legs;
     std::optional<QVector<MarketActivationRule>> marketActivationsRules;
     std::optional<QVector<TimeActivationRule>> timeActivationRules;
-    double limitPrice;
+    std::optional<double> limitPrice;
     QDateTime openedDateTime;
     QString orderID;
 
@@ -95,7 +95,7 @@ public:
 
     // status
     QString statusDescription;
-    double stopPrice;
+    std::optional<double> stopPrice;
     TrailingStop trailingStop;
     double unbundledRouteFee;
 

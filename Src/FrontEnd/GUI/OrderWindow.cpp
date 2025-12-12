@@ -106,7 +106,10 @@ void OrderWindow::updateOrder(const QString& account, const Order& order) {
     qDebug() << "OrderWindow::updateOrder called for order ID:" << orderId 
                         << "Symbol:" << order.getSymbol()
                         << "Quantity:" << order.getQuantity()
-                        << "TradeAction:" << order.getTradeAction();
+                        << "TradeAction:" << order.getTradeAction()
+                        << "OrderType:" << static_cast<int>(order.getOrderType().type)
+                        << "LimitPrice:" << (order.getLimitPrice().has_value() ? QString::number(order.getLimitPrice().value()) : "not set")
+                        << "StopPrice:" << (order.getStopPrice().has_value() ? QString::number(order.getStopPrice().value()) : "not set");
     
     if (m_orderRowMap.contains(orderId)) {
         // Update existing order
@@ -202,14 +205,32 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     items << typeItem;
 
     // Limit Price
-    QString limitPriceStr = order.getLimitPrice() > 0 ? QString::number(order.getLimitPrice(), 'f', 2) : "-";
+    QString limitPriceStr = "-";
+    if (order.getOrderType().type == OrderType::Type::Limit || 
+        order.getOrderType().type == OrderType::Type::StopLimit) {
+        auto limitPriceOpt = order.getLimitPrice();
+        if (limitPriceOpt.has_value() && limitPriceOpt.value() > 0) {
+            limitPriceStr = QString::number(limitPriceOpt.value(), 'f', 2);
+        } else if (limitPriceOpt.has_value()) {
+            limitPriceStr = QString::number(limitPriceOpt.value(), 'f', 2);  // Show even if 0
+        }
+    }
     auto limitItem = new QStandardItem(limitPriceStr);
     Q_CHECK_PTR(limitItem);
     limitItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     items << limitItem;
 
     // Stop Price
-    QString stopPriceStr = order.getStopPrice() > 0 ? QString::number(order.getStopPrice(), 'f', 2) : "-";
+    QString stopPriceStr = "-";
+    if (order.getOrderType().type == OrderType::Type::StopMarket || 
+        order.getOrderType().type == OrderType::Type::StopLimit) {
+        auto stopPriceOpt = order.getStopPrice();
+        if (stopPriceOpt.has_value() && stopPriceOpt.value() > 0) {
+            stopPriceStr = QString::number(stopPriceOpt.value(), 'f', 2);
+        } else if (stopPriceOpt.has_value()) {
+            stopPriceStr = QString::number(stopPriceOpt.value(), 'f', 2);  // Show even if 0
+        }
+    }
     auto stopItem = new QStandardItem(stopPriceStr);
     Q_CHECK_PTR(stopItem);
     stopItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
