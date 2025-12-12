@@ -157,15 +157,25 @@ void RecorderTab::setupUI() {
     mainLayout->addWidget(errorGroupBox);
 
     // Connect signals
-    connect(m_startButton, &QPushButton::clicked, this, &RecorderTab::onStartRecording);
-    connect(m_stopButton, &QPushButton::clicked, this, &RecorderTab::onStopRecording);
-    connect(m_refreshButton, &QPushButton::clicked, this, &RecorderTab::refreshRecorderStats);
-    connect(m_browseButton, &QPushButton::clicked, this, &RecorderTab::onBrowseButtonClicked);
+    bool isConnectionUnique;
+    
+    isConnectionUnique = connect(m_startButton, &QPushButton::clicked, this, &RecorderTab::onStartRecording, Qt::UniqueConnection);
+    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "Start button connection should be unique");
+    
+    isConnectionUnique = connect(m_stopButton, &QPushButton::clicked, this, &RecorderTab::onStopRecording, Qt::UniqueConnection);
+    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "Stop button connection should be unique");
+    
+    isConnectionUnique = connect(m_refreshButton, &QPushButton::clicked, this, &RecorderTab::refreshRecorderStats, Qt::UniqueConnection);
+    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "Refresh button connection should be unique");
+    
+    isConnectionUnique = connect(m_browseButton, &QPushButton::clicked, this, &RecorderTab::onBrowseButtonClicked, Qt::UniqueConnection);
+    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "Browse button connection should be unique");
     
     // Connect CSV file input text changes to update internal path
-    connect(m_stockCsvFileInput, &QLineEdit::textChanged, this, [this](const QString& text) {
+    isConnectionUnique = connect(m_stockCsvFileInput, &QLineEdit::textChanged, this, [this](const QString& text) {
         m_stockCsvFilePath = text;
-    });
+    }, Qt::UniqueConnection);
+    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "CSV file input connection should be unique");
 }
 
 void RecorderTab::onBrowseButtonClicked() {
