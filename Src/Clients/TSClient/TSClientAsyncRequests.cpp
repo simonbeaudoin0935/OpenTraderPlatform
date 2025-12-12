@@ -62,7 +62,7 @@ QFuture<QVector<Account>> TSClient::getAccounts()
                             results.push_back(Account(json.toObject()));
                         }
 
-                        qCInfo(TSClientLog) << "Fetched" << results.size() << "accounts";
+                        qCDebug(TSClientLog) << "Fetched" << results.size() << "accounts";
                         promise.addResult(results);
                         break;
                     }
@@ -168,7 +168,7 @@ QFuture<QVector<Balance>> TSClient::getBalances(const QStringList &accounts)
                             results.push_back(Balance(json.toObject()));
                         }
 
-                        qCInfo(TSClientLog) << "Fetched" << results.size() << "accounts";
+                        qCDebug(TSClientLog) << "Fetched" << results.size() << "account balances";
                         promise.addResult(results);
                         break;
                     }
