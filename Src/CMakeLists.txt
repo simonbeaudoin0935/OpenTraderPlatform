@@ -30,6 +30,15 @@ file(GLOB_RECURSE CORE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Core/*.h"
 )
 
+# Recorder sources (excluding the standalone main.cpp)
+file(GLOB RECORDER_SOURCES 
+    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/RecorderLogic.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/LiveStreamDB.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/StatusReporter.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/RecorderUtils.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/*.h"
+)
+
 file(GLOB FRONTEND_SOURCES 
     "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/*.h"
 )
@@ -60,6 +69,7 @@ add_library(L2TraderCommon STATIC
     ${CLIENTS_SOURCES}
     ${ALGO_SOURCES}
     ${CORE_SOURCES}
+    ${RECORDER_SOURCES}
     ${FRONTEND_SOURCES}
     ${GUI_SOURCES}
     ${TUI_SOURCES}

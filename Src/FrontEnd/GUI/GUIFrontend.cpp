@@ -16,6 +16,7 @@
 #include "ui_GUIFrontend.h"
 #include "Tabs/LoggingTab.h"
 #include "Tabs/CacheTab.h"
+#include "Tabs/RecorderTab.h"
 #include "Misc/Logging.h"
 #include "Misc/Settings.h"
 
@@ -160,6 +161,10 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     // Set up the cache tab
     CacheTab* cacheTab = new CacheTab();
     ui->tabWidget->addTab(cacheTab, "Cache");
+
+    // Set up the recorder tab
+    RecorderTab* recorderTab = new RecorderTab();
+    ui->tabWidget->addTab(recorderTab, "Recorder");
 
     // Set up the live log display at the bottom
     if (ui->liveLogDisplay) {
