@@ -52,13 +52,13 @@ void StreamOrders::processJsonObject(const QJsonObject &jsonObj)
         return;
     }
 
-    // If not a status message, try to process as a position update
+    // If not a status message, try to process as an order update
     Order order(jsonObj, receivedEndSnapshot);  // Pass the update flag based on EndSnapshot status
 
     if (!order.isValid()) [[unlikely]] {
-        qCWarning(StreamLog) << "Position update object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented)); 
+        qCWarning(StreamLog) << "Order update object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented)); 
         return;
     } 
     
-    m_promise.addResult(order);
+    emit newOrderReceived(order);
 }

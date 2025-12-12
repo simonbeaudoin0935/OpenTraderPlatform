@@ -46,11 +46,26 @@ class Order {
 public:
     Order(const QJsonObject& jsonObj, bool isUpdate = false);
     bool isValid();
+    
+    // Getters for display
+    QString getOrderID() const { return orderID; }
+    QString getSymbol() const { return symbol; }
+    QString getAccountID() const { return accountID; }
+    QString getStatusDescription() const { return statusDescription; }
+    QString getQuantity() const { return quantity; }
+    QString getTradeAction() const { return tradeAction; }
+    QString getDuration() const { return duration; }
+    OrderType getOrderType() const { return orderType; }
+    double getLimitPrice() const { return limitPrice; }
+    double getStopPrice() const { return stopPrice; }
+    double getFilledPrice() const { return filledPrice; }
+    QDateTime getOpenedDateTime() const { return openedDateTime; }
+    QString getRouting() const { return routing; }
 
     QString accountID;
     std::optional<AdvancedOptions> advancedOptions;
     QDateTime closedDateTime;
-    double comissionsFee;
+    double commissionsFee;
     std::optional<QVector<ConditionalOrder>> conditionalOrders;
     double conversionRate;
     QString currency;
@@ -73,6 +88,11 @@ public:
     double showOnlyQuantity;
     double spread;
 
+    // Additional fields for display
+    QString symbol;
+    QString quantity;
+    QString tradeAction;
+
     // status
     QString statusDescription;
     double stopPrice;
@@ -80,7 +100,7 @@ public:
     double unbundledRouteFee;
 
 
-    bool isUpdate = false;                // Whether this position is an update
+    bool isUpdate = false;                // Whether this order is an update
 
 };
 

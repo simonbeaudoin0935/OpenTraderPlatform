@@ -82,6 +82,10 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
             this, &GUIFrontend::onNewPositionReceived,
             Qt::DirectConnection);
 
+    connect(this, &FrontEnd::newOrderReceived,
+            this, &GUIFrontend::onNewOrderReceived,
+            Qt::DirectConnection);
+
     connect(this, &FrontEnd::balanceUpdated,
             this, &GUIFrontend::onBalanceUpdated,
             Qt::DirectConnection);
@@ -132,6 +136,12 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
 
     // Connect position window symbol click
     connect(ui->positionWindow, &PositionWindow::symbolClicked, this, [this](const QString& symbol) {
+        ui->stockSymbolInput->setText(symbol);
+        ui->stockSymbolInput->returnPressed();  // Simulate Enter key press
+    });
+
+    // Connect order window symbol click
+    connect(ui->orderWindow, &OrderWindow::symbolClicked, this, [this](const QString& symbol) {
         ui->stockSymbolInput->setText(symbol);
         ui->stockSymbolInput->returnPressed();  // Simulate Enter key press
     });
@@ -388,6 +398,10 @@ void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
 
 void GUIFrontend::onNewPositionReceived(QString account, Position position) {
     ui->positionWindow->updatePosition(account, position);
+}
+
+void GUIFrontend::onNewOrderReceived(QString account, Order order) {
+    ui->orderWindow->updateOrder(account, order);
 }
 
 void GUIFrontend::onBalanceUpdated(Balance balance) {

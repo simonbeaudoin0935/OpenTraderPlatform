@@ -175,19 +175,40 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
     // Only initialize position stream once
     if (positionStreamStarted) {
         qCDebug(MainAlgoLog) << "Position stream already started, skipping initialization";
-        return;
+    } else {
+        m_positionReceiver = new PositionsReceiver(m_activeAccount.getAccountId());
+        Q_CHECK_PTR(m_positionReceiver);
+        positionStreamStarted = true;
+
+        auto c1 = connect(m_positionReceiver, &PositionsReceiver::receivedNewPosition,
+                this, &MainAlgo::receivedNewPosition,
+                Qt::UniqueConnection);
+        Q_ASSERT(c1);
+
+        auto c2 = connect(m_positionReceiver, &PositionsReceiver::receivedNewPosition,
+                this, &MainAlgo::onReceivedNewPosition,
+                Qt::UniqueConnection);
+        Q_ASSERT(c2);
     }
 
-    m_positionReceiver = new PositionsReceiver(m_activeAccount.getAccountId());
-    positionStreamStarted = true;
+    // Only initialize order stream once
+    if (orderStreamStarted) {
+        qCDebug(MainAlgoLog) << "Order stream already started, skipping initialization";
+    } else {
+        m_orderReceiver = new OrdersReceiver(m_activeAccount.getAccountId());
+        Q_CHECK_PTR(m_orderReceiver);
+        orderStreamStarted = true;
 
-    connect(m_positionReceiver, &PositionsReceiver::receivedNewPosition,
-            this, &MainAlgo::receivedNewPosition,
-            Qt::UniqueConnection);
+        auto c3 = connect(m_orderReceiver, &OrdersReceiver::receivedNewOrder,
+                this, &MainAlgo::receivedNewOrder,
+                Qt::UniqueConnection);
+        Q_ASSERT(c3);
 
-    connect(m_positionReceiver, &PositionsReceiver::receivedNewPosition,
-            this, &MainAlgo::onReceivedNewPosition,
-            Qt::UniqueConnection);
+        auto c4 = connect(m_orderReceiver, &OrdersReceiver::receivedNewOrder,
+                this, &MainAlgo::onReceivedNewOrder,
+                Qt::UniqueConnection);
+        Q_ASSERT(c4);
+    }
 
     emit tradeStationAccountsReceived(results);
 }
@@ -196,6 +217,14 @@ void MainAlgo::onReceivedNewPosition(QString account, Position position)
 {
     Q_UNUSED(account);
     Q_UNUSED(position);
+
+    // TODO
+}
+
+void MainAlgo::onReceivedNewOrder(QString account, Order order)
+{
+    Q_UNUSED(account);
+    Q_UNUSED(order);
 
     // TODO
 }

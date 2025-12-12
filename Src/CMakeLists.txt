@@ -97,6 +97,7 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BreakingNewsFetcher
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/MarketDepthQuoteReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/PositionsReceiver
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/OrdersReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/RunUpDetector
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StockScreener
     ${CMAKE_CURRENT_SOURCE_DIR}/Core
