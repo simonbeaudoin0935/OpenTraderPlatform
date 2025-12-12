@@ -642,7 +642,7 @@ void GUIFrontend::restoreLastDisplayedStock() {
 }
 
 void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
-    qCInfo(frontend_log) << "Placing order:" << order.toJsonString();
+    qInfo() << "Placing order:" << order.toJsonString();
     
     // Submit order to TSClient
     QFuture<PlaceOrderResult> future = TSClient::getInstance()->placeOrder(order);
@@ -657,7 +657,7 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
                 }
             }
             QMessageBox::critical(nullptr, "Order Error", errorMsg);
-            qCCritical(frontend_log) << "Order placement failed:" << errorMsg;
+            qCritical() << "Order placement failed:" << errorMsg;
         } else {
             QString successMsg = "Order(s) placed successfully:\n";
             for (const auto& orderItem : result.getOrders()) {
@@ -665,19 +665,19 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
                 successMsg += orderItem.getMessage() + "\n";
             }
             QMessageBox::information(nullptr, "Order Success", successMsg);
-            qCInfo(frontend_log) << "Order placement successful:" << successMsg;
+            qInfo() << "Order placement successful:" << successMsg;
         }
     }).onFailed([](const TSClient::TimeoutException& e){
         Q_UNUSED(e);
         QMessageBox::critical(nullptr, "Order Error", "Order request timed out. Please try again.");
-        qCCritical(frontend_log) << "Order placement timed out";
+        qCritical() << "Order placement timed out";
     }).onFailed([](const TSClient::JSONErrorException& e){
         Q_UNUSED(e);
         QMessageBox::critical(nullptr, "Order Error", "Failed to parse order response from server.");
-        qCCritical(frontend_log) << "Order placement JSON error";
+        qCritical() << "Order placement JSON error";
     }).onFailed([](const TSClient::OtherErrorException& e){
         Q_UNUSED(e);
         QMessageBox::critical(nullptr, "Order Error", "An error occurred while placing the order.");
-        qCCritical(frontend_log) << "Order placement error";
+        qCritical() << "Order placement error";
     });
 }

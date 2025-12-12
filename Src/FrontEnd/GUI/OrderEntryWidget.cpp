@@ -4,8 +4,6 @@
 #include <QMessageBox>
 #include <QGroupBox>
 
-#include "Misc/Logging.h"
-
 OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     : QWidget(p_parent)
     , m_headerLabel(new QLabel("ORDER ENTRY", this))
@@ -336,7 +334,7 @@ void OrderEntryWidget::onSubmitClicked() {
     );
 
     if (reply == QMessageBox::Yes) {
-        qCInfo(frontend_log) << "Order submitted:" << order.toJsonString();
+        qInfo() << "Order submitted:" << order.toJsonString();
         emit orderPlaced(order);
     }
 }
