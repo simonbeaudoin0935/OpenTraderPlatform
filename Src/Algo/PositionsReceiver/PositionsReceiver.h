@@ -20,7 +20,7 @@ signals:
     void receivedNewPosition(QString account, Position position);
 
 private slots:
-    void onReceivedNewPosition(QString account, Position position);
+    void onReceivedNewPosition(Position position);
 
 private:
     StreamPositions* m_stream = nullptr;
