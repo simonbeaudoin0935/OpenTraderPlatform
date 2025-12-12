@@ -6,10 +6,6 @@ StreamMarketDepthQuote::StreamMarketDepthQuote(const QString &symbol, QNetworkRe
     m_symbol(symbol)
 {
     this->setObjectName("Stream::MarketDepthQuote::" + symbol);
-
-    // Install the promise wrapper in the base class
-    setPromise(m_promise);
-    m_promise.start();
 }
 
 void StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
@@ -32,5 +28,5 @@ void StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
         qCDebug(StreamLog) << Q_FUNC_INFO << " Quote is crossed";
     }
   
-    m_promise.addResult(quote);
+    emit newMarketDepthQuoteReceived(quote);
 }

@@ -6,10 +6,6 @@ StreamBars::StreamBars(const QString &symbol, QNetworkReply * reply, QObject *pa
     m_symbol(symbol)
 {
     this->setObjectName("Stream::Bars::" + symbol);
-
-    // Install the promise wrapper in the base class
-    setPromise(m_promise);
-    m_promise.start();
 }
 
 void StreamBars::processJsonObject(const QJsonObject& jsonObj)
@@ -21,5 +17,5 @@ void StreamBars::processJsonObject(const QJsonObject& jsonObj)
         return;
     }
 
-    m_promise.addResult(bar);
+    emit newBarReceived(bar);
 }

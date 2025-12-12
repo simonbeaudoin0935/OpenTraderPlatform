@@ -10,13 +10,10 @@
 #include "BarCache.h"
 #include "TSClient.h"
 #include "Settings.h"
+#include "Logging.h"
 
+#define LOGGING_CATEGORY BarCacheLog
 Q_LOGGING_CATEGORY(BarCacheLog, "BarCache")
-
-#define DEBUG qCDebug(BarCacheLog) << this->objectName()
-#define INFO qCInfo(BarCacheLog) << this->objectName()
-#define WARNING qCWarning(BarCacheLog) << this->objectName()
-#define CRITICAL qCCritical(BarCacheLog) << this->objectName()
 
 BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
     QObject(parent),
@@ -32,12 +29,12 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
     QString dbPath = cacheLocation + "/bars_cache_" + symbol + ".db";
     bool dbFileExisted = QFileInfo::exists(dbPath);
     {
-        qCInfo(BarCacheLog) << "Cache location:" << cacheLocation;
-        qCInfo(BarCacheLog) << "Using database file:" << dbPath;
-        qCInfo(BarCacheLog) << "Database file existed:" << dbFileExisted;
+        DEBUG << "Cache location:" << cacheLocation;
+        DEBUG << "Using database file:" << dbPath;
+        DEBUG << "Database file existed:" << dbFileExisted;
 
         QFileInfo dbInfo(dbPath);
-        qCInfo(BarCacheLog) << "Database directory:" << dbInfo.absolutePath()
+        DEBUG << "Database directory:" << dbInfo.absolutePath()
                            << "Dir exists:" << dbInfo.dir().exists()
                            << "File readable:" << dbInfo.isReadable()
                            << "File writable:" << dbInfo.isWritable();
@@ -47,10 +44,10 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
             if (!dbInfo.dir().mkpath(".")) {
                 qFatal("Failed to create cache directory: %s", qPrintable(dbInfo.absolutePath()));
             }
-            qCInfo(BarCacheLog) << "Created cache directory:" << dbInfo.absolutePath();
+            INFO << "Created cache directory:" << dbInfo.absolutePath();
         }
 
-        qCInfo(BarCacheLog) << "SQLite connection name to be used:" << ("BarCache_" + symbol);
+        INFO << "SQLite connection name to be used:" << ("BarCache_" + symbol);
     }
     m_db = QSqlDatabase::addDatabase("QSQLITE", "BarCache_" + symbol);
     m_db.setDatabaseName(dbPath);
@@ -58,9 +55,9 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
         qFatal("Failed to open database for %s: %s", qPrintable(symbol), qPrintable(m_db.lastError().text()));
     } else {
         if (dbFileExisted) {
-            qCInfo(BarCacheLog) << "Opened existing database for symbol" << symbol << "at" << dbPath;
+            INFO << "Opened existing database for symbol" << symbol << "at" << dbPath;
         } else {
-            qCInfo(BarCacheLog) << "Created new database for symbol" << symbol << "at" << dbPath;
+            INFO << "Created new database for symbol" << symbol << "at" << dbPath;
         }
         
         // Create table if not exists
@@ -73,34 +70,43 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
                    "close REAL, "
                    "volume INTEGER)");
         if (query.lastError().isValid()) {
-            qWarning() << "Failed to create table:" << query.lastError().text();
+            WARNING << "Failed to create table:" << query.lastError().text();
         }
     }
 
     if (isStreaming) {
         DEBUG <<  "Starting bars stream for symbol " << symbol;
 
-        QPair<QFuture<Bar>, StreamBars*> pair = TSClient::getInstance()->openStreamBars(symbol,
+        m_stream = TSClient::getInstance()->openStreamBars(symbol,
                                                            1,
                                                            Bar::BarUnit::Minute,
                                                            2,
                                                            Bar::BarSessionTemplate::USEQ24Hour);
-        m_stream = pair.second;
         Q_CHECK_PTR(m_stream);
 
-        pair.first.then(this, [this, symbol](Bar bar){
-            onReceivedNewLiveBar(symbol, bar);
-        }).onFailed(this, [this, symbol](Stream::TimeoutException ex){
+
+        connect(m_stream, &StreamBars::newBarReceived, this, &BarCache::onReceivedNewLiveBar);
+
+        m_stream->future().then(this,
+            [this, symbol](){
+                DEBUG << "Bars stream future finished for symbol" << symbol;
+            }
+        ).onFailed(this,
+            [this, symbol](Stream::TimeoutException ex){
+                WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+            }
+        ).onFailed(this,
+            [this, symbol](Stream::BadRequestException ex){
+                WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+            }
+        ).onFailed(this,
+            [this, symbol](Stream::DualLogonException ex){
+                WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+        }).onFailed(this,
+            [this, symbol](Stream::GoAwayException ex){
             WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
-        }).onFailed(this, [this, symbol](Stream::BadRequestException ex){
-            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
-        }).onFailed(this, [this, symbol](Stream::DualLogonException ex){
-            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
-        }).onFailed(this, [this, symbol](Stream::GoAwayException ex){
-            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
-        }).onFailed(this, [this, symbol](Stream::InvalidSymbolException ex){
-            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
-        }).onFailed(this, [this, symbol](Stream::InvalidSymbolException ex){
+        }).onFailed(this,
+            [this, symbol](Stream::InvalidSymbolException ex){
             WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
         });
     }
@@ -108,21 +114,17 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
 
 BarCache::~BarCache()
 {
-    const QString cacheName = this->objectName();
+    Q_CHECK_PTR(m_stream);
+    
+    TSClient::getInstance()->closeStream(m_stream);
 
-    if (m_stream != nullptr) {
-        TSClient::getInstance()->closeStreamBars(m_stream);
-    }
-
-    qCDebug(BarCacheLog) << cacheName << "Destroyed";
+    DEBUG << "Destroyed";
 
     Q_ASSERT(false); // TODO clean up database connection properly
 }
 
 bool BarCache::warmUpBarsOfDayUntilNow(QDate date)
 {
-    QString cacheName = this->objectName();
-
     QDateTime _6AM = QDateTime(date, QTime(6,0), QTimeZone("America/New_York"));
     QDateTime _4PM = QDateTime(date, QTime(15,59), QTimeZone("America/New_York"));
 
@@ -130,11 +132,11 @@ bool BarCache::warmUpBarsOfDayUntilNow(QDate date)
 
 
     if (now.date() == date) {
-        qCDebug(BarCacheLog) << cacheName << "Warming up cache with all bars from 6AM to now";
+        DEBUG << "Warming up cache with all bars from 6AM to now";
 
         getBars(_6AM, now);
     } else {
-        qCDebug(BarCacheLog) << cacheName << "Warming up cache with all bars from " << date;
+        DEBUG << "Warming up cache with all bars from " << date;
         getBars(_6AM, _4PM);
     }
 
@@ -178,8 +180,7 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first, const 
     }
         
     if (voidBarsCreated > 0) {
-        qCDebug(BarCacheLog) << cacheName << "Created" << voidBarsCreated 
-                             << "void bars to account for periods with no trading activity";
+        DEBUG << "Created" << voidBarsCreated << "void bars to account for periods with no trading activity";
     }
 
     return resultBars;
@@ -245,6 +246,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDateTime &first, const QDateT
 
     DEBUG << " : Returning MISS/PARTIAL HIT, waiting for async fetches to complete";
 
+    #warning fix this shit
     QFuture<void> combinedFuture = QtConcurrent::run([futuresOrMissingRanges = std::move(futuresOrMissingRanges)]() {
         QFutureSynchronizer<QVector<Bar>> synchronizer;
         for (auto& future : futuresOrMissingRanges) {
@@ -437,17 +439,13 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const
     return result;
 }
 
-void BarCache::onReceivedNewLiveBar(QString symbol, Bar newBar)
+void BarCache::onReceivedNewLiveBar(Bar newBar)
 {
-    QString cacheName = this->objectName();
-
-    Q_ASSERT_X(m_symbol == symbol, qPrintable(cacheName), "Mismatch in symbol");
-
     newBar.ajustTimeStampToOpeningMinute();
 
     storeBarInCache(newBar);
 
-    emit receivedNewBar(symbol, newBar);
+    emit receivedNewBar(m_symbol, newBar);
 }
 
 QVector<Bar> BarCache::getBarsFromDatabase(QDateTime start, QDateTime end) const {

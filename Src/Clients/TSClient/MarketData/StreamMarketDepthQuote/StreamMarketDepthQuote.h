@@ -12,10 +12,11 @@ public:
     StreamMarketDepthQuote(const StreamMarketDepthQuote&) = delete;
     StreamMarketDepthQuote& operator=(const StreamMarketDepthQuote&) = delete;
 
-    QFuture<MarketDepthQuote> future() const { return m_promise.future(); }
-
+signals :
+    void newMarketDepthQuoteReceived(MarketDepthQuote quote);
+    
 private:
     void processJsonObject(const QJsonObject& jsonObj) override;
     QString m_symbol;
-    QPromise<MarketDepthQuote> m_promise;
 };
+   

@@ -13,10 +13,10 @@ public:
     StreamBars(const StreamBars&) = delete;
     StreamBars& operator=(const StreamBars&) = delete;
 
-    QFuture<Bar> future() const { return m_promise.future(); }
-
+signals:
+    void newBarReceived(Bar bar);
+    
 private:
     void processJsonObject(const QJsonObject& jsonObj) override;
     QString m_symbol;
-    QPromise<Bar> m_promise;
 };

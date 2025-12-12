@@ -1,13 +1,10 @@
 #include <QJsonObject>
 
 #include "Stream.h"
+#include "Logging.h"
 
-Q_LOGGING_CATEGORY(StreamLog, "Stream")
-
-#define DEBUG    qCDebug(StreamLog)    << this->objectName()
-#define INFO     qCInfo(StreamLog)     << this->objectName()
-#define WARNING  qCWarning(StreamLog)  << this->objectName()
-#define CRITICAL qCCritical(StreamLog) << this->objectName()
+#define LOGGING_CATEGORY StreamLog
+Q_LOGGING_CATEGORY(LOGGING_CATEGORY, "Stream")
 
 size_t Stream::s_numberOfStream = 0;
 
@@ -23,9 +20,9 @@ Stream::Stream(QNetworkReply * reply, QObject *parent) :
     m_networkReply->setParent(this);
 
     QMetaObject::Connection c;
-    c = connect(m_networkReply, &QNetworkReply::readyRead, this, &Stream::onReplyStreamReadyRead);
+    c = connect(m_networkReply, &QNetworkReply::readyRead, this, &Stream::onReplyReadyRead);
     Q_ASSERT(c);
-    c = connect(m_networkReply, &QNetworkReply::finished, this, &Stream::onReplyStreamFinished);
+    c = connect(m_networkReply, &QNetworkReply::finished, this, &Stream::onReplyFinished);
     Q_ASSERT(c);
 
     m_heartbeatTimer.setSingleShot(true);
@@ -35,6 +32,9 @@ Stream::Stream(QNetworkReply * reply, QObject *parent) :
     // Creating a Stream implies that we expect data to start flowing in because the QNetworkReply
     // that was passed has been obtained after the HTTP x request, so we start the heartbeat timer now
     m_heartbeatTimer.start(m_heartbeatTimeoutMS);
+
+    m_future = m_promise.future();
+    m_promise.start();
 }
 
 Stream::~Stream()
@@ -46,11 +46,11 @@ Stream::~Stream()
     m_networkReply->abort();
     m_networkReply->deleteLater();
 
-    promiseImpl->finish();
+    m_promise.finish();
     m_heartbeatTimer.stop();
 }
 
-void Stream::onReplyStreamReadyRead()
+void Stream::onReplyReadyRead()
 {
     const QByteArray rawData = m_networkReply->readAll();
 
@@ -61,7 +61,7 @@ void Stream::onReplyStreamReadyRead()
     processRawData(rawData);
 }
 
-void Stream::onReplyStreamFinished()
+void Stream::onReplyFinished()
 {
     CRITICAL << "received the signal finished(). There has been a previous json description of the error received, and this is the remote closing this connection.";
 
@@ -76,7 +76,7 @@ void Stream::onReplyStreamFinished()
 
     m_isFinished = true;
 
-    promiseImpl->finish();
+    m_promise.finish();
 }
 
 void Stream::onHeartbeatTimerTimeout()
@@ -84,8 +84,8 @@ void Stream::onHeartbeatTimerTimeout()
     m_isFinished = true;
     m_heartbeatTimer.stop();
     m_networkReply->abort();  
-    promiseImpl->setException(TimeoutException());
-    promiseImpl->finish();
+    m_promise.setException(TimeoutException());
+    m_promise.finish();
 
     CRITICAL << "Did not receive data nor heartbeat in : " << m_heartbeatTimeoutMS  << "ms";
 }
@@ -145,17 +145,18 @@ void Stream::processJsonDoc(const QJsonDocument& doc)
         }
 
         if (errorStr == "BadRequest"){
-            promiseImpl->setException(BadRequestException());
+            m_promise.setException(BadRequestException());
         } else if (errorStr == "DualLogon") {
-            promiseImpl->setException(DualLogonException());
+            m_promise.setException(DualLogonException());
         } else if (errorStr == "GoAway") {
-            promiseImpl->setException(GoAwayException());
+            m_promise.setException(GoAwayException());
         } else if (errorStr == "InternalServerError") {
-            promiseImpl->setException(InternalServerErrorException());
+            m_promise.setException(InternalServerErrorException());
         } else if (errorStr == "InvalidSymbol"){
-            promiseImpl->setException(InvalidSymbolException());
+            m_promise.setException(InvalidSymbolException());
         } else {
-            promiseImpl->setException(QException());
+            m_promise.
+            setException(QException());
         }
         
         CRITICAL << "Received error string '" << errorStr << "' and message: " << jsonObj["Message"].toString();

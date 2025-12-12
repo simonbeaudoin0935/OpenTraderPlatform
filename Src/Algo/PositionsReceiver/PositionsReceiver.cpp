@@ -1,6 +1,8 @@
 #include "PositionsReceiver.h"
 #include "TSClient.h"
 
+#include <QFutureWatcher>
+
 Q_LOGGING_CATEGORY(PositionsReceiverLog, "PositionsReceiver");
 
 #define DEBUG qCDebug(PositionsReceiverLog) << this->objectName()
@@ -15,27 +17,32 @@ PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
     this->setObjectName("PositionReceiver");
     
     DEBUG <<  "Starting Positions stream for account " << account;
-    QPair<QFuture<Position>, StreamPositions*> pair = TSClient::getInstance()->openStreamPositions(account);
-
-    m_stream = pair.second;
+    
+    m_stream = TSClient::getInstance()->openStreamPositions(account);
     Q_CHECK_PTR(m_stream);
 
-    pair.first.then(this, [this, account](Position position){
-        CRITICAL << "Received new Position for account" << account;
-        onReceivedNewPosition(account, position);
-    }).onFailed(this, [this, account](Stream::TimeoutException ex){
-        WARNING << "Positions Receiver future failed for" << account << "- Exception:" << ex.what();
-    }).onFailed(this, [this, account](Stream::BadRequestException ex){
-        WARNING << "Positions Receiver future failed for" << account << "- Exception:" << ex.what();
-    }).onFailed(this, [this, account](Stream::DualLogonException ex){
-        WARNING << "Positions Receiver future failed for" << account << "- Exception:" << ex.what();
-    }).onFailed(this, [this, account](Stream::GoAwayException ex){
-        WARNING << "Positions Receiver future failed for" << account << "- Exception:" << ex.what();
-    }).onFailed(this, [this, account](Stream::InternalServerErrorException ex){
-        WARNING << "Positions Receiver future failed for" << account << "- Exception:" << ex.what();
-    }).onFailed(this, [this, account](Stream::InvalidSymbolException ex){
-        WARNING << "Positions Receiver future failed for" << account << "- Exception:" << ex.what();
-    }).onFinished();
+    connect(m_stream, &StreamPositions::newPositionReceived, this, [this](Position position) {
+        CRITICAL << "Positions Receiver received new position for account" << m_account;
+        onReceivedNewPosition(m_account, position);
+    });
+
+    m_stream->future().then(
+        [this](){
+            CRITICAL << "Positions Receiver future finished for account" << m_account;
+        }
+    ).onFailed(this, [this](Stream::TimeoutException ex){
+        WARNING << "Positions Receiver future failed for" << m_account << "- Exception:" << ex.what();
+    }).onFailed(this, [this](Stream::BadRequestException ex){
+        WARNING << "Positions Receiver future failed for" << m_account << "- Exception:" << ex.what();
+    }).onFailed(this, [this](Stream::DualLogonException ex){
+        WARNING << "Positions Receiver future failed for" << m_account << "- Exception:" << ex.what();
+    }).onFailed(this, [this](Stream::GoAwayException ex){
+        WARNING << "Positions Receiver future failed for" << m_account << "- Exception:" << ex.what();
+    }).onFailed(this, [this](Stream::InternalServerErrorException ex){
+        WARNING << "Positions Receiver future failed for" << m_account << "- Exception:" << ex.what();
+    }).onFailed(this, [this](Stream::InvalidSymbolException ex){
+        WARNING << "Positions Receiver future failed for" << m_account << "- Exception:" << ex.what();
+    });
 }
 
 void PositionsReceiver::onReceivedNewPosition(QString account, Position position)

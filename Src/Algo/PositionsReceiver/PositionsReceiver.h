@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QFutureWatcher>
 
 #include "StreamPositions.h"
 

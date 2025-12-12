@@ -1,5 +1,9 @@
 #include "StreamPositions.h"
 #include "TSClient.h"
+#include "Logging.h"
+
+#define LOGGING_CATEGORY StreamLog
+
 
 StreamPositions::StreamPositions(const QString &accountID, QNetworkReply * reply, QObject *parent) :
     Stream(reply, parent),
@@ -7,11 +11,6 @@ StreamPositions::StreamPositions(const QString &accountID, QNetworkReply * reply
     receivedEndSnapshot(false)
 {
     this->setObjectName("Stream::Positions::" + accountID);
-
-    // Install the promise wrapper in the base class
-    setPromise(m_promise);
-    m_future = m_promise.future();
-    m_promise.start();
 }
 
 void StreamPositions::processJsonObject(const QJsonObject &jsonObj)
@@ -23,12 +22,12 @@ void StreamPositions::processJsonObject(const QJsonObject &jsonObj)
             // Update the EndSnapshot flag if we receive that status
             if (status.getStatus() == StreamPositionStatus::Status::EndSnapshot) {
                 receivedEndSnapshot = true;
-                qCDebug(StreamLog) << Q_FUNC_INFO << "Received EndSnapshot status for account" << accountID;
+                DEBUG << "Received EndSnapshot status for account" << accountID;
             } else if (status.getStatus() == StreamPositionStatus::Status::GoAway) {
-                qCWarning(StreamLog) << "Received GoAway status for account" << accountID;
+                WARNING << "Received GoAway status for account" << accountID;
             }
         } else {
-            qCWarning(StreamLog) << "Stream status object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
+            WARNING << "Stream status object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
             return;
         }
         return;
@@ -38,25 +37,12 @@ void StreamPositions::processJsonObject(const QJsonObject &jsonObj)
     Position position(jsonObj, receivedEndSnapshot); // Pass the update flag based on EndSnapshot status
     
     if (!position.isValid()) [[unlikely]] {
-        qCWarning(StreamLog) << "Position update object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented)); 
+        WARNING << "Position update object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented)); 
         return;
     } 
     
-    qCritical() << this->objectName() << "happy path, promise.addResult";
-
-    m_promise.addResult(position);
-
-    static int counter = 0;
-    counter++;
-
-            m_promise.finish();
-
-    if (counter == 3) {
-        qCritical() << this->objectName() << " added 3 positions";
-      //  m_promise.finish();
-    }
-
-
+    CRITICAL << "happy path, promise.addResult";
+    emit newPositionReceived(position);
 }
 
 

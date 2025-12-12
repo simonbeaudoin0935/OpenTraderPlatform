@@ -13,8 +13,6 @@ public:
     explicit MarketDepthQuoteReceiver(const QString &symbol, QObject *parent = nullptr);
     ~MarketDepthQuoteReceiver();
 
-    void stopStream();
-
     // Market analysis functions
     double calculateBidAskImbalance(const MarketDepthQuote& quote, int levels = 0) const;
     double calculateDepthWeightedPrice(const QVector<MarketDepthLevel>& levels) const;
@@ -31,11 +29,11 @@ signals:
     void receivedNewMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote, double bidAskImbalance, double bidDWP, double askDWP);
 
 private slots:
-    void onReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote);
+    void onReceivedNewMarketDepthQuote(MarketDepthQuote marketDepthQuote);
 
 private:
-    QString symbol;
-    StreamMarketDepthQuote* stream = nullptr;
+    QString m_symbol;
+    StreamMarketDepthQuote* m_stream = nullptr;
     unsigned int depthWeightedPriceLevel = 5; // Default value of 5
     unsigned int bidAskImbalanceLevel = 5; // Default value of 5
 };

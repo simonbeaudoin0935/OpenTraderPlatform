@@ -53,9 +53,10 @@ public:
     
     Stream(QNetworkReply * reply, QObject *parent = nullptr);
     ~Stream();
-
     Stream(const Stream&) = delete;
     Stream& operator=(const Stream&) = delete;
+
+    QFuture<void> future() const { return m_future; }
 
     static size_t getNumberOpenStream() { return s_numberOfStream; }
     
@@ -63,44 +64,21 @@ signals:
     void newAmountOfDataReceived(size_t bytes);
 
 public slots:
-    void onReplyStreamReadyRead();
-    void onReplyStreamFinished();
+    void onReplyReadyRead();
+    void onReplyFinished();
 
 protected:
     // Each derived class must implement how to process a json object
     virtual void processJsonObject(const QJsonObject& doc) = 0;
 
-    // This is the abstract interface that every QPromise<T> implements
-    class PromiseInterface {
-    public:
-        virtual ~PromiseInterface() = default;
-        virtual void finish() = 0;
-        virtual void setException(const QException &e) = 0;
-        //virtual void start() = 0;
-        //virtual void setProgressValue(int v) = 0;
-        // add more as needed: start(), setProgressValue(), cancel(), suspend(), etc.
-    };
-
-    // The base holds only a pointer to the interface
-    std::unique_ptr<PromiseInterface> promiseImpl;
-
-    // Helper so derived classes can install their typed promise
-    template<typename T>
-    void setPromise(QPromise<T>& p) {
-        // Wrap the typed promise into the interface
-        struct Wrapper : PromiseInterface {
-            QPromise<T>& ref;
-            Wrapper(QPromise<T>& r) : ref(r) {}
-            void finish() override              { ref.finish(); }
-            void setException(const QException &e) override { ref.setException(e); }
-        };
-        promiseImpl = std::make_unique<Wrapper>(p);
-    }
-
 private slots:
     void onHeartbeatTimerTimeout();
 
 private:
+
+    QPromise<void> m_promise;
+    QFuture<void> m_future;
+
     bool m_receivedError = false;
     bool m_isFinished = false;
 

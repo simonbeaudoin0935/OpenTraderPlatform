@@ -52,7 +52,7 @@ signals:
 
 private slots:
 
-    void onReceivedNewLiveBar(QString symbol, Bar newBar);
+    void onReceivedNewLiveBar(Bar newBar);
 
 private:
 

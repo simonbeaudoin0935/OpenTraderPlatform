@@ -30,10 +30,6 @@ StreamOrders::StreamOrders(const QString &accountID, QNetworkReply * reply, QObj
     accountID(accountID)
 {
     this->setObjectName("Stream::Orders::" + accountID);
-
-    // Install the promise wrapper in the base class
-    setPromise(m_promise);
-    m_promise.start();
 }
 
 void StreamOrders::processJsonObject(const QJsonObject &jsonObj)

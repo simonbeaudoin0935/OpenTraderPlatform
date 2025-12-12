@@ -43,6 +43,8 @@ Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 
 // This is a singleton
 
+// @note : Returned pointer dynamically allocated. Delete with closeStreamBars
+
 class TSClient final : public QObject
 {
     Q_OBJECT
@@ -78,20 +80,6 @@ public:
     void start() { m_thread->start(); };
 
 
-    // To monitor usage
-    [[nodiscard]] qsizetype getTotalDataReceivedBytes() const { return m_totalDataReceivedBytes; };
-    [[nodiscard]] bool isCleanedUp();
-
-      // Stream count getter
-    [[nodiscard]] size_t getStreamCount() const { return m_networkReplyToOpenStreams.size(); }
-
-    // Authentication state getter
-    [[nodiscard]] bool isAuthenticated() const { return m_authenticated; }
-    [[nodiscard]] bool isAuthInProgress() const { return m_authInProgress; }  // Track if authentication process is in progress
-
-
-
-    // -------- Market data methods ----------
 
     /*
      * Get Quote Snapshots
@@ -102,6 +90,8 @@ public:
 
     /*
      * Get Bars asynchronously
+     *
+     * @doc : https://api.tradestation.com/docs/specification#tag/MarketData/operation/GetBars
      */
     [[nodiscard]] QFuture<QVector<Bar>> getBars(const QString &symbol,
                                           unsigned int interval = 1,
@@ -110,37 +100,7 @@ public:
                                           Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default,
                                           QDateTime firstDate = QDateTime(),
                                           QDateTime lastDate = QDateTime());
-    /*
-     * Creates a Bars Stream
-     *
-     * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/StreamBars
-     *
-     * @note : Returned pointer dynamically allocated. Delete with closeStreamBars
-     */
-    [[nodiscard]] QPair<QFuture<Bar>, StreamBars*> openStreamBars(const QString &symbol,
-                               unsigned int interval = 1,
-                               Bar::BarUnit unit = Bar::BarUnit::Daily,
-                               unsigned int barsback = 1,
-                               Bar::BarSessionTemplate sesstionTemplate = Bar::BarSessionTemplate::Default);
-    void closeStreamBars(StreamBars* stream);
 
-
-
-
-    /*
-     * Creates a MarketDepthQuote Stream
-     *
-     * @return : nullptr if the stream could not be created
-     * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/StreamMarketDepthQuotes
-     *
-     * @note : Object dynamically allocated and returned. TSClient owns this object and it lives
-     *         in the thread of the client and shares the same network access manager. Later
-     *         calling closeStreamMarketDepthQuote will delete it. Do not delete outside.
-     */
-    [[nodiscard]] QPair<QFuture<MarketDepthQuote>, StreamMarketDepthQuote*> openStreamMarketDepthQuote(const QString &symbol, unsigned int depth = 20);
-    void closeStreamMarketDepthQuote(StreamMarketDepthQuote* stream);
-
-    // -------- Brokerage methods -------------
 
     /*
      * Get Accounts
@@ -155,30 +115,6 @@ public:
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetBalances
      */
     [[nodiscard]] QFuture<QVector<Balance>>  getBalances(const QStringList &accounts);
-
-    /*
-     * Creates a StreaOrders Stream
-     *
-     * @return : nullptr if the stream could not be created
-     * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/StreamOrders
-     */
-    [[nodiscard]] QPair<QFuture<Order>, StreamOrders*> openStreamOrders(const QString &account);
-    void closeStreamOrders(StreamOrders* stream);
-
-    /*
-     * Creates a StreamPositions Stream
-     *
-     * @return : nullptr if the stream could not be created
-     * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/StreamPositions
-     *
-     * @note : Object dynamically allocated and returned. TSClient owns this object and it lives
-     *         in the thread of the client and shares the same network access manager. Later
-     *         calling closeStreamMarketDepthQuote will delete it. Do not delete outside.
-     */
-    [[nodiscard]] QPair<QFuture<Position>, StreamPositions*> openStreamPositions(const QString &account, bool changes = false);
-    void closeStreamPositions(StreamPositions* stream);
-
-                              // -------- Order execution methods --------
  
     /*
      * Place order
@@ -193,6 +129,49 @@ public:
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/CancelOrder
      */
     [[nodiscard]] QFuture<CancelOrderResult> cancelOrder(const QString &orderID);
+
+    /*
+     * Creates a Bars Stream
+     *
+     * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/StreamBars
+     */
+    [[nodiscard]] StreamBars* openStreamBars(const QString &symbol,
+                               unsigned int interval = 1,
+                               Bar::BarUnit unit = Bar::BarUnit::Daily,
+                               unsigned int barsback = 1,
+                               Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default);
+
+    /*
+     * Creates a MarketDepthQuote Stream
+     *
+     * @return : nullptr if the stream could not be created
+     * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/StreamMarketDepthQuotes
+     */
+    [[nodiscard]] StreamMarketDepthQuote* openStreamMarketDepthQuote(const QString &symbol, unsigned int depth = 20);
+
+    /*
+     * Creates a StreaOrders Stream
+     *
+     * @return : nullptr if the stream could not be created
+     * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/StreamOrders
+     */
+    [[nodiscard]] StreamOrders* openStreamOrders(const QString &account);
+
+    /*
+     * Creates a StreamPositions Stream
+     *
+     * @return : nullptr if the stream could not be created
+     * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/StreamPositions
+     */
+    [[nodiscard]] StreamPositions* openStreamPositions(const QString &account, bool changes = false);
+    
+    void closeStream(Stream* stream);
+
+    [[nodiscard]] qsizetype getTotalDataReceivedBytes() const { return m_totalDataReceivedBytes; };
+    [[nodiscard]] bool isCleanedUp();
+    [[nodiscard]] size_t getStreamCount() const { return m_networkReplyToOpenStreams.size(); }
+    [[nodiscard]] bool isAuthenticated() const { return m_authenticated; }
+    [[nodiscard]] bool isAuthInProgress() const { return m_authInProgress; }
 
 public slots:
     #ifdef GUI_ENABLED
@@ -230,10 +209,6 @@ private:
     [[nodiscard]] static QNetworkRequest buildRefreshTokenRequest();
     [[nodiscard]] static QByteArray buildRefreshTokenQuery(const QString &clientId, const QString &clientSecret, const QString &refreshToken);                                       
     void refreshAccessToken();
-
-    void closeStream(Stream * const stream);
-
-
 
     // tokens
     AuthToken   m_authToken;

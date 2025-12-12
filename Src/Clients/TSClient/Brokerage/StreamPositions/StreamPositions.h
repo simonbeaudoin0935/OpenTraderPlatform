@@ -45,13 +45,12 @@ public:
     StreamPositions(const StreamPositions&) = delete;
     StreamPositions& operator=(const StreamPositions&) = delete;
 
-    QFuture<Position> future() { return m_future; }
+signals:
+    void newPositionReceived(Position position);
 
 private:
     void processJsonObject(const QJsonObject& jsonObj) override;
 
     QString accountID;
-    QPromise<Position> m_promise;
-    QFuture<Position> m_future;
     bool receivedEndSnapshot = false;  // Track if we've received the EndSnapshot status
 };

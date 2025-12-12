@@ -1,43 +1,60 @@
 #include "MarketDepthQuoteReceiver.h"
 #include "TSClient.h"
+#include "Logging.h"
 
-Q_LOGGING_CATEGORY(MarketDepthQuoteReceiverLog, "MarketDepthQuoteReceiver")
-
-#define DEBUG qCDebug(MarketDepthQuoteReceiverLog) << this->objectName()
-#define INFO qCInfo(MarketDepthQuoteReceiverLog) << this->objectName()
-#define WARNING qCWarning(MarketDepthQuoteReceiverLog) << this->objectName()
-#define CRITICAL qCCritical(MarketDepthQuoteReceiverLog) << this->objectName()
+#define LOGGING_CATEGORY MarketDepthQuoteReceiverLog
+Q_LOGGING_CATEGORY(LOGGING_CATEGORY, "MarketDepthQuoteReceiver")
 
 MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(const QString &symbol, QObject *parent) :
     QObject(parent),
-    symbol(symbol)
+    m_symbol(symbol)
 {
-    DEBUG <<  "Starting Market Depth Quote stream for " << symbol;
-    QPair<QFuture<MarketDepthQuote>, StreamMarketDepthQuote*> pair = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10);
+    setObjectName("MarketDepthQuoteReceiver::" + symbol);
 
-    stream = pair.second;
-    Q_CHECK_PTR(stream);
+    DEBUG <<  "Starting Market Depth Quote stream for " << m_symbol;
+    m_stream = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10);
 
-    pair.first.then(this, [this, symbol](MarketDepthQuote quote){
-        CRITICAL << "Received new Market Depth Quote for" << symbol;
-        onReceivedNewMarketDepthQuote(symbol, quote);
-    }).onFailed(this, [this, symbol](Stream::TimeoutException ex){
-        WARNING << "Market Depth Quote Receiver future failed for" << symbol << "- Exception:" << ex.what();
-    }).onFailed(this, [this, symbol](Stream::BadRequestException ex){
-        WARNING << "Market Depth Quote Receiver future failed for" << symbol << "- Exception:" << ex.what();
-    }).onFailed(this, [this, symbol](Stream::DualLogonException ex){
-        WARNING << "Market Depth Quote Receiver future failed for" << symbol << "- Exception:" << ex.what();
-    }).onFailed(this, [this, symbol](Stream::GoAwayException ex){
-        WARNING << "Market Depth Quote Receiver future failed for" << symbol << "- Exception:" << ex.what();
-    }).onFailed(this, [this, symbol](Stream::InternalServerErrorException ex){
-        WARNING << "Market Depth Quote Receiver future failed for" << symbol << "- Exception:" << ex.what();
-    }).onFailed(this, [this, symbol](Stream::InvalidSymbolException ex){
-        WARNING << "Market Depth Quote Receiver future failed for" << symbol << "- Exception:" << ex.what();
+    Q_CHECK_PTR(m_stream);
+
+    connect(m_stream, &StreamMarketDepthQuote::newMarketDepthQuoteReceived, this, [this](MarketDepthQuote quote) {
+        onReceivedNewMarketDepthQuote(quote);
     });
+
+    m_stream->future().then(this,
+        [this](){
+            CRITICAL << "Market Depth Quote future finished";
+        }
+    ).onFailed(this,
+        [this](Stream::TimeoutException ex){
+            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol << "- Exception:" << ex.what();
+        }
+    ).onFailed(this,
+        [this](Stream::BadRequestException ex){
+            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol << "- Exception:" << ex.what();
+        }
+    ).onFailed(this,
+        [this](Stream::DualLogonException ex){
+            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol << "- Exception:" << ex.what();
+        }
+    ).onFailed(this,
+        [this](Stream::GoAwayException ex){
+            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol << "- Exception:" << ex.what();
+        }
+    ).onFailed(this,
+        [this](Stream::InternalServerErrorException ex){
+            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol << "- Exception:" << ex.what();
+        }
+    ).onFailed(this,
+        [this](Stream::InvalidSymbolException ex){
+            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol << "- Exception:" << ex.what();
+        }
+    );
 }
 
 MarketDepthQuoteReceiver::~MarketDepthQuoteReceiver() {
-    stopStream();
+    Q_ASSERT(m_stream != nullptr);
+
+    TSClient::getInstance()->closeStream(m_stream);
 }
 
 // Calculate Bid-Ask Imbalance (BAI)
@@ -109,16 +126,7 @@ double MarketDepthQuoteReceiver::calculateDepthWeightedPrice(const QVector<Marke
 }
 
 
-void MarketDepthQuoteReceiver::stopStream()
-{
-    DEBUG << "Stopping MarketDepthQuote stream for " << symbol;
-
-    Q_ASSERT(stream != nullptr);
-
-    TSClient::getInstance()->closeStreamMarketDepthQuote(stream);
-}
-
-void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote marketDepthQuote)
+void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(MarketDepthQuote marketDepthQuote)
 {
     qCDebug(MarketDepthQuoteReceiverLog).noquote() << marketDepthQuote.toJsonString();
     
@@ -130,11 +138,11 @@ void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(QString symbol, Mar
     double bidDWP = calculateDepthWeightedPrice(marketDepthQuote.getBids());
     double askDWP = calculateDepthWeightedPrice(marketDepthQuote.getAsks());
     
-    qCDebug(MarketDepthQuoteReceiverLog) << "Bid-Ask Imbalance for" << symbol
+    qCDebug(MarketDepthQuoteReceiverLog) << "Bid-Ask Imbalance for" << m_symbol
                                          << "- All levels:" << imbalance
                                          << "- Top 3 levels:" << imbalanceTopLevels
                                          << "- Bid DWP:" << bidDWP
                                          << "- Ask DWP:" << askDWP;
 
-    emit receivedNewMarketDepthQuote(symbol, marketDepthQuote, imbalance, bidDWP, askDWP);
+    emit receivedNewMarketDepthQuote(m_symbol, marketDepthQuote, imbalance, bidDWP, askDWP);
 }

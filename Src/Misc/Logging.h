@@ -6,6 +6,12 @@
 #include <QSettings>
 #include <QObject>
 
+
+#define DEBUG    qCDebug(LOGGING_CATEGORY)    << this->objectName()
+#define INFO     qCInfo(LOGGING_CATEGORY)     << this->objectName()
+#define WARNING  qCWarning(LOGGING_CATEGORY)  << this->objectName()
+#define CRITICAL qCCritical(LOGGING_CATEGORY) << this->objectName()
+
 void initLogging();
 void reinstallColoredMessageHandler();
 
