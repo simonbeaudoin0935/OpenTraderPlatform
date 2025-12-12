@@ -4,6 +4,7 @@
 #include <QCoreApplication>
 
 QSettings *criteriaSettings;
+QSettings *appStateSettings;
 
 QString cacheRootDir;
 QString stockCsvFile;

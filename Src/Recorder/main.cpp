@@ -146,6 +146,11 @@ int main(int argc, char *argv[]) {
 
     parseArguments(app.arguments());
 
+    // Initialize app state settings (not used by Recorder, but needed for linking)
+    appStateSettings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
+                                      QCoreApplication::applicationName(), "AppState");
+    appStateSettings->setFallbacksEnabled(false);
+
     qInfo() << "Cache root directory:" << getCacheLocation();
     
     if (stockCsvFile.isEmpty()) {

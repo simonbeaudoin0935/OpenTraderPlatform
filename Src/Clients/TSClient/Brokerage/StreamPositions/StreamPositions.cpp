@@ -41,7 +41,6 @@ void StreamPositions::processJsonObject(const QJsonObject &jsonObj)
         return;
     } 
     
-    CRITICAL << "happy path, promise.addResult";
     emit newPositionReceived(position);
 }
 

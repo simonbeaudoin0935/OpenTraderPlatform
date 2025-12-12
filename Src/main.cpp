@@ -41,6 +41,11 @@ int main(int argc, char *argv[])
 
     parseArguments(app.arguments());
 
+    // Initialize app state settings for persistent UI state
+    appStateSettings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
+                                      QCoreApplication::applicationName(), "AppState");
+    appStateSettings->setFallbacksEnabled(false);
+
     qInfo() << "Cache root directory:" << getCacheLocation();
 
     MainApp mainApp;

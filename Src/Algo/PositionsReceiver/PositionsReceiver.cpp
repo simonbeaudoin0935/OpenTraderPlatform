@@ -21,10 +21,7 @@ PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
     m_stream = TSClient::getInstance()->openStreamPositions(account);
     Q_CHECK_PTR(m_stream);
 
-    connect(m_stream, &StreamPositions::newPositionReceived, this, [this](Position position) {
-        CRITICAL << "Positions Receiver received new position for account" << m_account;
-        onReceivedNewPosition(m_account, position);
-    });
+    connect(m_stream, &StreamPositions::newPositionReceived, this, &PositionsReceiver::onReceivedNewPosition);
 
     m_stream->future().then(
         [this](){
@@ -45,8 +42,8 @@ PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
     });
 }
 
-void PositionsReceiver::onReceivedNewPosition(QString account, Position position)
+void PositionsReceiver::onReceivedNewPosition(Position position)
 {
-    qCDebug(PositionsReceiverLog).noquote() << "New position for account (" << account << ") : " << position.toJsonString();
-    emit receivedNewPosition(account, position);
+    qCDebug(PositionsReceiverLog).noquote() << "New position for account (" << m_account << ") : " << position.toJsonString();
+    emit receivedNewPosition(m_account, position);
 }
