@@ -153,19 +153,19 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     // Order ID
     auto orderIdItem = new QStandardItem(order.getOrderID());
     Q_CHECK_PTR(orderIdItem);
-    orderIdItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    orderIdItem->setTextAlignment(Qt::AlignCenter);
     items << orderIdItem;
 
     // Symbol
     auto symbolItem = new QStandardItem(order.getSymbol());
     Q_CHECK_PTR(symbolItem);
-    symbolItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    symbolItem->setTextAlignment(Qt::AlignCenter);
     items << symbolItem;
 
     // Trade Action
     auto actionItem = new QStandardItem(order.getTradeAction());
     Q_CHECK_PTR(actionItem);
-    actionItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    actionItem->setTextAlignment(Qt::AlignCenter);
     // Color code buy/sell
     if (order.getTradeAction().contains("Buy", Qt::CaseInsensitive)) {
         actionItem->setForeground(QColor(Qt::green));
@@ -177,7 +177,7 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     // Quantity
     auto quantityItem = new QStandardItem(order.getQuantity());
     Q_CHECK_PTR(quantityItem);
-    quantityItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    quantityItem->setTextAlignment(Qt::AlignCenter);
     items << quantityItem;
 
     // Order Type
@@ -201,7 +201,7 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     }
     auto typeItem = new QStandardItem(orderTypeStr);
     Q_CHECK_PTR(typeItem);
-    typeItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    typeItem->setTextAlignment(Qt::AlignCenter);
     items << typeItem;
 
     // Limit Price
@@ -217,7 +217,7 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     }
     auto limitItem = new QStandardItem(limitPriceStr);
     Q_CHECK_PTR(limitItem);
-    limitItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    limitItem->setTextAlignment(Qt::AlignCenter);
     items << limitItem;
 
     // Stop Price
@@ -233,13 +233,13 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     }
     auto stopItem = new QStandardItem(stopPriceStr);
     Q_CHECK_PTR(stopItem);
-    stopItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    stopItem->setTextAlignment(Qt::AlignCenter);
     items << stopItem;
 
     // Status
     auto statusItem = new QStandardItem(order.getStatusDescription());
     Q_CHECK_PTR(statusItem);
-    statusItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    statusItem->setTextAlignment(Qt::AlignCenter);
     
     // Color code status based on OrderStatus enum
     switch (order.getOrderStatus()) {
