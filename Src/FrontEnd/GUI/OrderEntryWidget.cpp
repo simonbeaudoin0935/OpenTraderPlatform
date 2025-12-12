@@ -9,7 +9,11 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     , m_headerLabel(new QLabel("ORDER ENTRY", this))
     , m_accountCombo(new QComboBox(this))
     , m_symbolInput(new QLineEdit(this))
-    , m_tradeActionCombo(new QComboBox(this))
+    , m_buyRadio(new QRadioButton("Buy", this))
+    , m_buyToCoverRadio(new QRadioButton("Buy to Cover", this))
+    , m_sellRadio(new QRadioButton("Sell", this))
+    , m_sellToCoverRadio(new QRadioButton("Sell to Cover", this))
+    , m_tradeActionGroup(new QButtonGroup(this))
     , m_orderTypeCombo(new QComboBox(this))
     , m_quantityInput(new QSpinBox(this))
     , m_limitPriceInput(new QDoubleSpinBox(this))
@@ -53,13 +57,26 @@ void OrderEntryWidget::setupUI() {
     m_symbolInput->setToolTip("Stock symbol to trade");
     formLayout->addRow("Symbol:", m_symbolInput);
 
-    // Trade Action (Buy/Sell)
-    m_tradeActionCombo->addItem("Buy", static_cast<int>(TradeAction::Buy));
-    m_tradeActionCombo->addItem("Sell", static_cast<int>(TradeAction::Sell));
-    m_tradeActionCombo->addItem("Buy To Cover", static_cast<int>(TradeAction::BuyToCover));
-    m_tradeActionCombo->addItem("Sell Short", static_cast<int>(TradeAction::SellShort));
-    m_tradeActionCombo->setToolTip("Select trade action");
-    formLayout->addRow("Action:", m_tradeActionCombo);
+    // Trade Action (Buy/Sell) - Radio buttons
+    QGroupBox* tradeActionGroup = new QGroupBox("Action:", this);
+    QVBoxLayout* tradeActionLayout = new QVBoxLayout(tradeActionGroup);
+    tradeActionLayout->setContentsMargins(8, 8, 8, 8);
+    tradeActionLayout->setSpacing(4);
+    
+    m_tradeActionGroup->addButton(m_buyRadio, static_cast<int>(TradeAction::Buy));
+    m_tradeActionGroup->addButton(m_sellRadio, static_cast<int>(TradeAction::Sell));
+    m_tradeActionGroup->addButton(m_buyToCoverRadio, static_cast<int>(TradeAction::BuyToCover));
+    m_tradeActionGroup->addButton(m_sellToCoverRadio, static_cast<int>(TradeAction::SellToClose));
+    
+    tradeActionLayout->addWidget(m_buyRadio);
+    tradeActionLayout->addWidget(m_buyToCoverRadio);
+    tradeActionLayout->addWidget(m_sellRadio);
+    tradeActionLayout->addWidget(m_sellToCoverRadio);
+    
+    // Set Buy as default
+    m_buyRadio->setChecked(true);
+    
+    formLayout->addRow(tradeActionGroup);
 
     // Order Type
     m_orderTypeCombo->addItem("Market", static_cast<int>(OrderType::Type::Market));
@@ -122,12 +139,19 @@ void OrderEntryWidget::setupUI() {
                       this, &OrderEntryWidget::onOrderTypeChanged, Qt::UniqueConnection);
     Q_ASSERT(c1);
 
-    auto c2 = connect(m_submitButton, &QPushButton::clicked,
-                      this, &OrderEntryWidget::onSubmitClicked, Qt::UniqueConnection);
+    auto c2 = connect(m_tradeActionGroup, QOverload<int>::of(&QButtonGroup::idClicked),
+                      this, &OrderEntryWidget::onTradeActionChanged, Qt::UniqueConnection);
     Q_ASSERT(c2);
+
+    auto c3 = connect(m_submitButton, &QPushButton::clicked,
+                      this, &OrderEntryWidget::onSubmitClicked, Qt::UniqueConnection);
+    Q_ASSERT(c3);
 
     // Initialize visibility based on default order type
     updatePriceFieldsVisibility();
+    
+    // Initialize button styling based on default trade action (Buy)
+    onTradeActionChanged(static_cast<int>(TradeAction::Buy));
 }
 
 void OrderEntryWidget::setupStyles() {
@@ -137,31 +161,11 @@ void OrderEntryWidget::setupStyles() {
         "   background-color: #2D2D2D;"
         "   color: #FFFFFF;"
         "   padding: 4px;"
-        "   border-bottom: 1px solid #3D3D3D;"
+        "   border-bottom: 1px solid #3D3D2D;"
         "}"
     );
 
-    // Style the submit button
-    m_submitButton->setStyleSheet(
-        "QPushButton {"
-        "   background-color: #00A0E9;"
-        "   color: #FFFFFF;"
-        "   border: none;"
-        "   border-radius: 4px;"
-        "   padding: 8px;"
-        "   font-weight: bold;"
-        "}"
-        "QPushButton:hover {"
-        "   background-color: #0080C0;"
-        "}"
-        "QPushButton:pressed {"
-        "   background-color: #006090;"
-        "}"
-        "QPushButton:disabled {"
-        "   background-color: #505050;"
-        "   color: #888888;"
-        "}"
-    );
+    // Submit button styling is now handled dynamically in onTradeActionChanged
 }
 
 void OrderEntryWidget::setAccounts(const QVector<Account>& accounts) {
@@ -188,6 +192,89 @@ void OrderEntryWidget::setSymbol(const QString& symbol) {
 void OrderEntryWidget::onOrderTypeChanged(int index) {
     Q_UNUSED(index);
     updatePriceFieldsVisibility();
+}
+
+void OrderEntryWidget::onTradeActionChanged(int id) {
+    TradeAction action = static_cast<TradeAction>(id);
+    
+    QString buttonText;
+    QString buttonStyle;
+    
+    switch (action) {
+        case TradeAction::Buy:
+        case TradeAction::BuyToCover:
+            buttonText = "Buy";
+            buttonStyle = 
+                "QPushButton {"
+                "   background-color: #28A745;"  // Green
+                "   color: #FFFFFF;"
+                "   border: none;"
+                "   border-radius: 4px;"
+                "   padding: 8px;"
+                "   font-weight: bold;"
+                "}"
+                "QPushButton:hover {"
+                "   background-color: #218838;"
+                "}"
+                "QPushButton:pressed {"
+                "   background-color: #1E7E34;"
+                "}"
+                "QPushButton:disabled {"
+                "   background-color: #505050;"
+                "   color: #888888;"
+                "}";
+            break;
+            
+        case TradeAction::Sell:
+        case TradeAction::SellToClose:
+            buttonText = "Sell";
+            buttonStyle = 
+                "QPushButton {"
+                "   background-color: #DC3545;"  // Red
+                "   color: #FFFFFF;"
+                "   border: none;"
+                "   border-radius: 4px;"
+                "   padding: 8px;"
+                "   font-weight: bold;"
+                "}"
+                "QPushButton:hover {"
+                "   background-color: #C82333;"
+                "}"
+                "QPushButton:pressed {"
+                "   background-color: #BD2130;"
+                "}"
+                "QPushButton:disabled {"
+                "   background-color: #505050;"
+                "   color: #888888;"
+                "}";
+            break;
+            
+        default:
+            buttonText = "Submit Order";
+            buttonStyle = 
+                "QPushButton {"
+                "   background-color: #00A0E9;"
+                "   color: #FFFFFF;"
+                "   border: none;"
+                "   border-radius: 4px;"
+                "   padding: 8px;"
+                "   font-weight: bold;"
+                "}"
+                "QPushButton:hover {"
+                "   background-color: #0080C0;"
+                "}"
+                "QPushButton:pressed {"
+                "   background-color: #006090;"
+                "}"
+                "QPushButton:disabled {"
+                "   background-color: #505050;"
+                "   color: #888888;"
+                "}";
+            break;
+    }
+    
+    m_submitButton->setText(buttonText);
+    m_submitButton->setStyleSheet(buttonStyle);
 }
 
 void OrderEntryWidget::updatePriceFieldsVisibility() {
@@ -266,7 +353,7 @@ PlaceOrderRequest OrderEntryWidget::buildOrderRequest() {
     request.setSymbol(symbol);
 
     TradeAction tradeAction = static_cast<TradeAction>(
-        m_tradeActionCombo->currentData().toInt()
+        m_tradeActionGroup->checkedId()
     );
     request.setTradeAction(tradeAction);
 
@@ -303,6 +390,14 @@ void OrderEntryWidget::onSubmitClicked() {
     PlaceOrderRequest order = buildOrderRequest();
 
     // Confirm order with user
+    QString actionText;
+    QRadioButton* checkedButton = qobject_cast<QRadioButton*>(m_tradeActionGroup->checkedButton());
+    if (checkedButton) {
+        actionText = checkedButton->text();
+    } else {
+        actionText = "Unknown";
+    }
+    
     QString confirmMessage = QString(
         "Submit order:\n\n"
         "Symbol: %1\n"
@@ -311,7 +406,7 @@ void OrderEntryWidget::onSubmitClicked() {
         "Quantity: %4\n"
     ).arg(
         order.getSymbol(),
-        m_tradeActionCombo->currentText(),
+        actionText,
         m_orderTypeCombo->currentText(),
         QString::number(order.getQuantity())
     );

@@ -7,6 +7,8 @@
 #include <QDoubleSpinBox>
 #include <QPushButton>
 #include <QLabel>
+#include <QRadioButton>
+#include <QButtonGroup>
 #include <QVector>
 
 #include "Account.h"
@@ -27,6 +29,7 @@ signals:
 
 private slots:
     void onOrderTypeChanged(int index);
+    void onTradeActionChanged(int id);
     void onSubmitClicked();
 
 private:
@@ -40,7 +43,11 @@ private:
     QLabel* m_headerLabel;
     QComboBox* m_accountCombo;
     QLineEdit* m_symbolInput;
-    QComboBox* m_tradeActionCombo;
+    QRadioButton* m_buyRadio;
+    QRadioButton* m_buyToCoverRadio;
+    QRadioButton* m_sellRadio;
+    QRadioButton* m_sellToCoverRadio;
+    QButtonGroup* m_tradeActionGroup;
     QComboBox* m_orderTypeCombo;
     QSpinBox* m_quantityInput;
     QDoubleSpinBox* m_limitPriceInput;
