@@ -42,6 +42,12 @@ PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
     });
 }
 
+PositionsReceiver::~PositionsReceiver() {
+    Q_ASSERT(m_stream != nullptr);
+
+    TSClient::getInstance()->closeStream(m_stream);
+}
+
 void PositionsReceiver::onReceivedNewPosition(Position position)
 {
     qCDebug(PositionsReceiverLog).noquote() << "New position for account (" << m_account << ") : " << position.toJsonString();

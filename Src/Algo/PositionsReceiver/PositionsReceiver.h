@@ -12,7 +12,7 @@ class PositionsReceiver : public QObject
     Q_OBJECT
 public:
     explicit PositionsReceiver(const QString &account, QObject *parent = nullptr);
-
+    ~PositionsReceiver();
     void stopStream(const QString &account);
     void stopStream(const char* account);
 
