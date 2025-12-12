@@ -170,8 +170,8 @@ void OrderEntryWidget::setAccounts(const QVector<Account>& accounts) {
     
     for (const Account& account : accounts) {
         m_accountCombo->addItem(
-            QString("%1 (%2)").arg(account.accountID, account.name),
-            account.accountID
+            QString("%1 (%2)").arg(account.getAccountId(), AccountType::accountTypeToString(account.getAccountType().type)),
+            account.getAccountId()
         );
     }
     

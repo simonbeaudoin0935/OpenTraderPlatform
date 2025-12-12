@@ -5,7 +5,7 @@
             "name": "Debug L2Trader",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/src/L2Trader",
+            "program": "${workspaceFolder}/build/L2Trader/",
             "args": [
                 "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
             ],
@@ -21,7 +21,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "build",
+            "preLaunchTask": "build-main-only",
             "miDebuggerPath": "/usr/bin/gdb"
         }
     ]
