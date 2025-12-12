@@ -55,5 +55,7 @@ private:
     int streamCount = 0;
     
     int maxLiveLogLines = 1000;  // Maximum lines in live log display
+    
+    bool m_hasRestoredLastStock = false;  // Track if we've restored the last stock
 };
 
