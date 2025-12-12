@@ -47,6 +47,9 @@ MainApp::MainApp() :
     QObject::connect(mainAlgo, &MainAlgo::receivedNewPosition,
                      appFrontend, &FrontEnd::newPositionReceived);
 
+    QObject::connect(mainAlgo, &MainAlgo::receivedNewOrder,
+                     appFrontend, &FrontEnd::newOrderReceived);
+
     QObject::connect(mainAlgo, &MainAlgo::balanceUpdated,
                      appFrontend, &FrontEnd::balanceUpdated);
 }

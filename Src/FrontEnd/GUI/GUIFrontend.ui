@@ -233,6 +233,16 @@
                </property>
               </widget>
              </item>
+             <item>
+              <widget class="OrderWindow" name="orderWindow" native="true">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+              </widget>
+             </item>
             </layout>
            </widget>
           </widget>
@@ -315,6 +325,11 @@
    <class>PositionWindow</class>
    <extends>QWidget</extends>
    <header>GUI/PositionWindow.h</header>
+  </customwidget>
+  <customwidget>
+   <class>OrderWindow</class>
+   <extends>QWidget</extends>
+   <header>GUI/OrderWindow.h</header>
   </customwidget>
   <customwidget>
    <class>Gauge</class>

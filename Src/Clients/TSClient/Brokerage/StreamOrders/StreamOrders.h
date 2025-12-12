@@ -46,6 +46,9 @@ public:
 
     QFuture<Order> future() const { return m_promise.future(); }
 
+signals:
+    void newOrderReceived(Order order);
+
 private:
     void processJsonObject(const QJsonObject& jsonObj) override;
 

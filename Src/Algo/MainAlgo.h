@@ -10,6 +10,7 @@
 #include "RunUpDetector.h"
 #include "MarketDepthQuoteReceiver.h"
 #include "PositionsReceiver.h"
+#include "OrdersReceiver.h"
 #include "Account.h"
 #include "BarCache.h"
 #include "Balance.h"
@@ -51,6 +52,7 @@ signals:
     void displayedStockReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP);
 
     void receivedNewPosition(QString account, Position position);
+    void receivedNewOrder(QString account, Order order);
     void tradeStationAccountsReceived(QVector<Account> accounts);
     void balanceUpdated(Balance balance);
 
@@ -62,6 +64,7 @@ private slots:
     void onThreadStarted();
 
     void onReceivedNewPosition(QString account, Position position);
+    void onReceivedNewOrder(QString account, Order order);
 
     void onReceivedAsyncGetAccounts(const QVector<Account>& results);
 
@@ -80,7 +83,9 @@ private:
     StockInstruments* currentDisplayedStockInstrument = nullptr;
 
     PositionsReceiver* m_positionReceiver = nullptr;
+    OrdersReceiver* m_orderReceiver = nullptr;
     bool positionStreamStarted = false;
+    bool orderStreamStarted = false;
 
     QTextStream *algoLogFile;
     QFile file;

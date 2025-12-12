@@ -5,6 +5,7 @@
 
 #include "Account.h"
 #include "Position.h"
+#include "Order.h"
 #include "Bar.h"
 #include "MarketDepthQuote.h"
 #include "Balance.h"
@@ -23,6 +24,7 @@ signals:
     void streamCountUpdated(int count);
 
     void newPositionReceived(QString account, Position position);
+    void newOrderReceived(QString account, Order order);
     void balanceUpdated(Balance balance);
 
     void currentHighlightedStockBarReceived(QString symbol, Bar bar);
@@ -37,6 +39,7 @@ public slots:
 
     virtual void onTradeStationAccountsReceived(QVector<Account> results) = 0;
     virtual void onNewPositionReceived(QString account, Position position) = 0;
+    virtual void onNewOrderReceived(QString account, Order order) = 0;
     virtual void onBalanceUpdated(Balance balance) = 0;
 
     virtual void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) = 0;
