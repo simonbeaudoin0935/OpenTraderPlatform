@@ -13,6 +13,7 @@ public:
     StreamBars(const StreamBars&) = delete;
     StreamBars& operator=(const StreamBars&) = delete;
 
+    QString getSymbol() const { return m_symbol; }
 signals:
     void newBarReceived(Bar bar);
     

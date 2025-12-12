@@ -12,6 +12,7 @@ public:
     StreamMarketDepthQuote(const StreamMarketDepthQuote&) = delete;
     StreamMarketDepthQuote& operator=(const StreamMarketDepthQuote&) = delete;
 
+    QString getSymbol() const { return m_symbol; }
 signals :
     void newMarketDepthQuoteReceived(MarketDepthQuote quote);
     

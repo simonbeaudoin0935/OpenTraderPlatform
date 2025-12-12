@@ -97,11 +97,13 @@ void Stream::onHeartbeatTimerTimeout()
  */
 void Stream::processRawData(const QByteArray& rawData)
 {
-    m_accumulatedData.append(rawData);
-
     // Doesnt matter what it, heartbeat or data or error, we kick the heartbeat watchdog
     m_heartbeatTimer.start(m_heartbeatTimeoutMS);
 
+    m_accumulatedData.append(rawData);
+
+    emit receivedNewRawData(rawData);
+    
     for(int delimiterPos = m_accumulatedData.indexOf('\n'); delimiterPos != -1; delimiterPos = m_accumulatedData.indexOf('\n'))
     {
         // TODO optimize to avoid copy

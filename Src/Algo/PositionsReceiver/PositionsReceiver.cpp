@@ -1,14 +1,11 @@
 #include "PositionsReceiver.h"
 #include "TSClient.h"
+#include "Logging.h"
 
 #include <QFutureWatcher>
 
+#define LOGGING_CATEGORY PositionsReceiverLog
 Q_LOGGING_CATEGORY(PositionsReceiverLog, "PositionsReceiver");
-
-#define DEBUG qCDebug(PositionsReceiverLog) << this->objectName()
-#define INFO qCInfo(PositionsReceiverLog) << this->objectName()
-#define WARNING qCWarning(PositionsReceiverLog) << this->objectName()
-#define CRITICAL qCCritical(PositionsReceiverLog) << this->objectName()
 
 PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
     QObject(parent),
