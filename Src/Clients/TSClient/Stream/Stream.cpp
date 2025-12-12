@@ -204,7 +204,7 @@ void Stream::processJsonDoc(const QJsonDocument& doc)
         }
 
         m_heartbeatTimer.start(m_heartbeatTimeoutMS);
-        DEBUG << "received heartbeat";
+        //DEBUG << "received heartbeat";
         return;;
     }
 

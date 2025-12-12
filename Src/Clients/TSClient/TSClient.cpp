@@ -148,7 +148,7 @@ void TSClient::processNewAmountOfDataReceived(size_t bytesReceived)
     } else {
         m_totalDataReceivedBytes += bytesReceived;
 
-        DEBUG << "Received " << bytesReceived << " bytes, total now " << m_totalDataReceivedBytes << " bytes";
+        //DEBUG << "Received " << bytesReceived << " bytes, total now " << m_totalDataReceivedBytes << " bytes";
         emit totalDataReceivedBytesIncreased(m_totalDataReceivedBytes);
     }
 }

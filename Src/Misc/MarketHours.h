@@ -40,6 +40,9 @@ public:
     // Get next session change time
     static QDateTime getNextSessionChange(const QDateTime& localTime = QDateTime::currentDateTime());
 
+    // Convert datetime to New York time
+    static QDateTime toNewYorkTime(const QDateTime& dateTime);
+
     // Get formatted time string in ET
     static QString getFormattedTimeET(const QDateTime& localTime = QDateTime::currentDateTime());
 
@@ -61,5 +64,4 @@ public:
 
 private:
     static const QTimeZone nyZone;
-    static QDateTime toNewYorkTime(const QDateTime& localTime);
 };

@@ -3,6 +3,7 @@
 #include <QHeaderView>
 #include <QVBoxLayout>
 #include <QLabel>
+#include "Misc/MarketHours.h"
 
 OrderWindow::OrderWindow(QWidget* p_parent)
     : QWidget(p_parent)
@@ -29,7 +30,7 @@ void OrderWindow::setupUI() {
 
     // Setup model columns
     QStringList headers;
-    headers << "Order ID" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "Status";
+    headers << "Order ID" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "DateTime" << "Status";
     m_model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -235,6 +236,16 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     Q_CHECK_PTR(stopItem);
     stopItem->setTextAlignment(Qt::AlignCenter);
     items << stopItem;
+
+    // DateTime
+    QDateTime nyDateTime = MarketHours::toNewYorkTime(order.getOpenedDateTime());
+    QString dateTimeStr = nyDateTime.toString("MM/dd/yyyy hh:mm:ss");
+    QString timeOnlyStr = nyDateTime.toString("hh:mm:ss");
+    auto dateTimeItem = new QStandardItem(timeOnlyStr);
+    Q_CHECK_PTR(dateTimeItem);
+    dateTimeItem->setTextAlignment(Qt::AlignCenter);
+    dateTimeItem->setToolTip(dateTimeStr);  // Show full datetime on hover
+    items << dateTimeItem;
 
     // Status
     auto statusItem = new QStandardItem(order.getStatusDescription());
