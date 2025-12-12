@@ -9,6 +9,7 @@
 #include <QGroupBox>
 #include <QTimer>
 #include <QDateTime>
+#include <QLineEdit>
 
 // Forward declarations
 class LiveStreamDB;
@@ -25,6 +26,7 @@ private slots:
     void onStopRecording();
     void refreshRecorderStats();
     void onTradeStationAuthStateChanged(bool p_isAuthenticated, QString p_reason);
+    void onBrowseButtonClicked();
 
 private:
     void setupUI();
@@ -40,6 +42,8 @@ private:
     QPushButton* m_startButton;
     QPushButton* m_stopButton;
     QPushButton* m_refreshButton;
+    QPushButton* m_browseButton;
+    QLineEdit* m_stockCsvFileInput;
     QLabel* m_statusLabel;
     QLabel* m_uptimeLabel;
     QLabel* m_barsRecordCountLabel;
@@ -54,4 +58,5 @@ private:
     LiveStreamDB* m_liveBarsDB;
     LiveStreamDB* m_liveMarketDepthQuoteDB;
     QStringList m_stockTickers;
+    QString m_stockCsvFilePath;
 };
