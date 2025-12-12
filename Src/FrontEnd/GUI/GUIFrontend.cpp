@@ -149,9 +149,9 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     });
 
     // Connect order entry widget
-    auto c3 = connect(ui->orderEntryWidget, &OrderEntryWidget::orderPlaced,
+    auto orderEntryConnection = connect(ui->orderEntryWidget, &OrderEntryWidget::orderPlaced,
                       this, &GUIFrontend::onOrderPlaced, Qt::UniqueConnection);
-    Q_ASSERT(c3);
+    Q_ASSERT(orderEntryConnection);
 
     // Set up the logging tab
     LoggingTab* loggingTab = new LoggingTab();
