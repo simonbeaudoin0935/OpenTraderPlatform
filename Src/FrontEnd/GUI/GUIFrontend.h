@@ -7,6 +7,9 @@
 #include "FrontEnd.h"
 #include "MainAlgo.h"
 
+// Forward declarations
+class PlaceOrderRequest;
+
 // Forward declare the generated UI class
 namespace Ui {
 class GUIFrontend;
@@ -35,6 +38,7 @@ private slots:
     void updateLiveLogDisplay(const QString& message);
     void onLoggerVisibilityChanged(bool visible);
     void onLogDepthChanged(int maxLines);
+    void onOrderPlaced(const PlaceOrderRequest& order);
 
 private:
     void setupDarkTheme(QMainWindow* mainWindow);

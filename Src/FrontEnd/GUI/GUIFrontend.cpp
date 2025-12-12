@@ -148,6 +148,11 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
         ui->stockSymbolInput->returnPressed();  // Simulate Enter key press
     });
 
+    // Connect order entry widget
+    auto c3 = connect(ui->orderEntryWidget, &OrderEntryWidget::orderPlaced,
+                      this, &GUIFrontend::onOrderPlaced, Qt::UniqueConnection);
+    Q_ASSERT(c3);
+
     // Set up the logging tab
     LoggingTab* loggingTab = new LoggingTab();
     ui->tabWidget->addTab(loggingTab, "Logging");
@@ -366,6 +371,9 @@ void GUIFrontend::onTradeStationAccountsReceived(QVector<Account> results)
             ui->logDisplay->append("  No Account Detail available");
         }
     }
+    
+    // Pass accounts to order entry widget
+    ui->orderEntryWidget->setAccounts(results);
 }
 
 void GUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
@@ -528,6 +536,9 @@ void GUIFrontend::displayStock(const QString& symbol) {
 
     ui->priceChart->clearSymbol();
 
+    // Update the order entry widget with the new symbol
+    ui->orderEntryWidget->setSymbol(symbol);
+
     QMetaObject::invokeMethod(mainAlgo,
                               "onSelectDisplayedStock",
                               Qt::QueuedConnection,
@@ -628,4 +639,45 @@ void GUIFrontend::restoreLastDisplayedStock() {
     
     // Display the stock without saving again
     displayStock(lastSymbol);
+}
+
+void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
+    qCInfo(frontend_log) << "Placing order:" << order.toJsonString();
+    
+    // Submit order to TSClient
+    QFuture<PlaceOrderResult> future = TSClient::getInstance()->placeOrder(order);
+    
+    future.then(this, [this](const PlaceOrderResult& result) {
+        if (result.hasErrors()) {
+            QString errorMsg = "Order failed:\n";
+            for (const auto& error : result.getErrors()) {
+                errorMsg += error.getMessage() + "\n";
+                if (error.getError().has_value()) {
+                    errorMsg += "Error: " + error.getError().value() + "\n";
+                }
+            }
+            QMessageBox::critical(nullptr, "Order Error", errorMsg);
+            qCCritical(frontend_log) << "Order placement failed:" << errorMsg;
+        } else {
+            QString successMsg = "Order(s) placed successfully:\n";
+            for (const auto& orderItem : result.getOrders()) {
+                successMsg += "Order ID: " + orderItem.getOrderID() + "\n";
+                successMsg += orderItem.getMessage() + "\n";
+            }
+            QMessageBox::information(nullptr, "Order Success", successMsg);
+            qCInfo(frontend_log) << "Order placement successful:" << successMsg;
+        }
+    }).onFailed([](const TSClient::TimeoutException& e){
+        Q_UNUSED(e);
+        QMessageBox::critical(nullptr, "Order Error", "Order request timed out. Please try again.");
+        qCCritical(frontend_log) << "Order placement timed out";
+    }).onFailed([](const TSClient::JSONErrorException& e){
+        Q_UNUSED(e);
+        QMessageBox::critical(nullptr, "Order Error", "Failed to parse order response from server.");
+        qCCritical(frontend_log) << "Order placement JSON error";
+    }).onFailed([](const TSClient::OtherErrorException& e){
+        Q_UNUSED(e);
+        QMessageBox::critical(nullptr, "Order Error", "An error occurred while placing the order.");
+        qCCritical(frontend_log) << "Order placement error";
+    });
 }
