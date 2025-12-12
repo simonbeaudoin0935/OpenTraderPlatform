@@ -36,6 +36,8 @@ private:
     QString formatUptime(qint64 p_seconds) const;
     void updateStreamTable();
     void updateErrorTable();
+    void saveLastCsvFilePath(const QString& p_filePath);
+    void restoreLastCsvFilePath();
 
     // UI Components
     QTableWidget* m_streamTable;

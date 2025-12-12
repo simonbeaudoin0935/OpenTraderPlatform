@@ -51,8 +51,11 @@ RecorderTab::RecorderTab(QWidget* p_parent)
             this, &RecorderTab::onTradeStationAuthStateChanged,
             Qt::UniqueConnection);
     
-    // If global stockCsvFile is set, use it as default
-    if (!stockCsvFile.isEmpty()) {
+    // Restore last selected CSV file from app state (if any)
+    restoreLastCsvFilePath();
+    
+    // If global stockCsvFile is set and we don't have a restored path, use it as default
+    if (m_stockCsvFilePath.isEmpty() && !stockCsvFile.isEmpty()) {
         m_stockCsvFilePath = stockCsvFile;
         m_stockCsvFileInput->setText(stockCsvFile);
     }
@@ -187,11 +190,43 @@ void RecorderTab::onBrowseButtonClicked() {
     if (!fileName.isEmpty()) {
         m_stockCsvFilePath = fileName;
         m_stockCsvFileInput->setText(fileName);
+        saveLastCsvFilePath(fileName);
     }
 }
 
 void RecorderTab::onCsvFilePathChanged(const QString& p_text) {
     m_stockCsvFilePath = p_text;
+    saveLastCsvFilePath(p_text);
+}
+
+void RecorderTab::saveLastCsvFilePath(const QString& p_filePath) {
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("RecorderTab/LastCsvFilePath", p_filePath);
+    appStateSettings->sync();
+    qInfo() << "Saved last CSV file path:" << p_filePath;
+}
+
+void RecorderTab::restoreLastCsvFilePath() {
+    Q_CHECK_PTR(appStateSettings);
+    QString lastCsvPath = appStateSettings->value("RecorderTab/LastCsvFilePath").toString();
+    
+    if (lastCsvPath.isEmpty()) {
+        qInfo() << "No previously selected CSV file to restore";
+        return;
+    }
+    
+    // Check if the file exists
+    QFileInfo fileInfo(lastCsvPath);
+    if (!fileInfo.exists() || !fileInfo.isFile()) {
+        qWarning() << "Previously saved CSV file no longer exists:" << lastCsvPath;
+        return;
+    }
+    
+    qInfo() << "Restoring last CSV file path:" << lastCsvPath;
+    
+    // Set the path in the internal variable and display it
+    m_stockCsvFilePath = lastCsvPath;
+    m_stockCsvFileInput->setText(lastCsvPath);
 }
 
 void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, QString p_reason) {
