@@ -27,6 +27,7 @@ private slots:
     void refreshRecorderStats();
     void onTradeStationAuthStateChanged(bool p_isAuthenticated, QString p_reason);
     void onBrowseButtonClicked();
+    void onCsvFilePathChanged(const QString& p_text);
 
 private:
     void setupUI();

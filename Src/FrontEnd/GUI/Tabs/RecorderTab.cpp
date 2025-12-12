@@ -172,9 +172,7 @@ void RecorderTab::setupUI() {
     Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "Browse button connection should be unique");
     
     // Connect CSV file input text changes to update internal path
-    isConnectionUnique = connect(m_stockCsvFileInput, &QLineEdit::textChanged, this, [this](const QString& text) {
-        m_stockCsvFilePath = text;
-    }, Qt::UniqueConnection);
+    isConnectionUnique = connect(m_stockCsvFileInput, &QLineEdit::textChanged, this, &RecorderTab::onCsvFilePathChanged, Qt::UniqueConnection);
     Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "CSV file input connection should be unique");
 }
 
@@ -190,6 +188,10 @@ void RecorderTab::onBrowseButtonClicked() {
         m_stockCsvFilePath = fileName;
         m_stockCsvFileInput->setText(fileName);
     }
+}
+
+void RecorderTab::onCsvFilePathChanged(const QString& p_text) {
+    m_stockCsvFilePath = p_text;
 }
 
 void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, QString p_reason) {
