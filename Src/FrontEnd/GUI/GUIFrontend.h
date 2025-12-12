@@ -7,6 +7,9 @@
 #include "FrontEnd.h"
 #include "MainAlgo.h"
 
+// Forward declarations
+class PlaceOrderRequest;
+
 // Forward declare the generated UI class
 namespace Ui {
 class GUIFrontend;
@@ -26,6 +29,7 @@ public slots:
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
     void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP) override;
     void onNewPositionReceived(QString account, Position position) override;
+    void onPositionDeleted(QString account, QString positionID) override;
     void onNewOrderReceived(QString account, Order order) override;
     void onBalanceUpdated(Balance balance) override;
 
@@ -35,6 +39,7 @@ private slots:
     void updateLiveLogDisplay(const QString& message);
     void onLoggerVisibilityChanged(bool visible);
     void onLogDepthChanged(int maxLines);
+    void onOrderPlaced(const PlaceOrderRequest& order);
 
 private:
     void setupDarkTheme(QMainWindow* mainWindow);

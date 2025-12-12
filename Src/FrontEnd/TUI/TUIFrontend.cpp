@@ -34,6 +34,18 @@ void TUIFrontend::onNewPositionReceived(QString account, Position position)
     Q_UNUSED(position);
 }
 
+void TUIFrontend::onPositionDeleted(QString account, QString positionID)
+{
+    Q_UNUSED(account);
+    Q_UNUSED(positionID);
+}
+
+void TUIFrontend::onNewOrderReceived(QString account, Order order)
+{
+    Q_UNUSED(account);
+    Q_UNUSED(order);
+}
+
 void TUIFrontend::onBalanceUpdated(Balance balance)
 {
     Q_UNUSED(balance);

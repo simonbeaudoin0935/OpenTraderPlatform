@@ -167,9 +167,21 @@ QList<QStandardItem*> PositionWindow::createRowItems(const Position& position) {
     return items;
 }
 
+void PositionWindow::onPositionDeleted(const QString& account, const QString& positionID) {
+    Q_UNUSED(account);
+
+    if (positionRowMap.contains(positionID)) {
+        int row = positionRowMap[positionID];
+        // Set quantity to 0 instead of removing the row
+        auto quantityItem = new QStandardItem("0");
+        quantityItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        model->setItem(row, 1, quantityItem);  // Column 1 is Quantity
+    }
+}
+
 void PositionWindow::onSymbolClicked(const QModelIndex& index) {
     if (index.column() == 0) {  // Only handle clicks on the Symbol column
         QString symbol = model->item(index.row(), 0)->text();
         emit symbolClicked(symbol);
     }
-} 
+}

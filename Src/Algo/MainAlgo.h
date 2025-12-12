@@ -52,6 +52,7 @@ signals:
     void displayedStockReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP);
 
     void receivedNewPosition(QString account, Position position);
+    void positionDeleted(QString account, QString positionID);
     void receivedNewOrder(QString account, Order order);
     void tradeStationAccountsReceived(QVector<Account> accounts);
     void balanceUpdated(Balance balance);
@@ -64,6 +65,7 @@ private slots:
     void onThreadStarted();
 
     void onReceivedNewPosition(QString account, Position position);
+    void onPositionDeleted(QString account, QString positionID);
     void onReceivedNewOrder(QString account, Order order);
 
     void onReceivedAsyncGetAccounts(const QVector<Account>& results);

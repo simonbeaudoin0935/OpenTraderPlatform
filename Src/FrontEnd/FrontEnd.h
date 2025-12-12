@@ -24,6 +24,7 @@ signals:
     void streamCountUpdated(int count);
 
     void newPositionReceived(QString account, Position position);
+    void positionDeleted(QString account, QString positionID);
     void newOrderReceived(QString account, Order order);
     void balanceUpdated(Balance balance);
 
@@ -39,6 +40,7 @@ public slots:
 
     virtual void onTradeStationAccountsReceived(QVector<Account> results) = 0;
     virtual void onNewPositionReceived(QString account, Position position) = 0;
+    virtual void onPositionDeleted(QString account, QString positionID) = 0;
     virtual void onNewOrderReceived(QString account, Order order) = 0;
     virtual void onBalanceUpdated(Balance balance) = 0;
 
