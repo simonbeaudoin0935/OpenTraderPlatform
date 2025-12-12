@@ -4,11 +4,11 @@
 #include <QDateTime>
 #include <QJsonObject>
 
-class QuoteSnapshot
+class Quote
 {
 public:
-    QuoteSnapshot();
-    explicit QuoteSnapshot(const QJsonObject& json);
+    Quote();
+    explicit Quote(const QJsonObject& json);
 
     // Getters
     QString getSymbol() const { return m_symbol; }

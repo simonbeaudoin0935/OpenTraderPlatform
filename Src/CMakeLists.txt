@@ -116,6 +116,7 @@ target_link_libraries(L2TraderCommon PUBLIC
     Qt6::Network
     Qt6::Sql
     Qt6::Gui
+    Qt6::Concurrent
 )
 
 if(ENABLE_GUI)

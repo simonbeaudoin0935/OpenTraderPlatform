@@ -1,24 +1,19 @@
-#include <QJsonDocument>
-
 #include "StreamPositions.h"
 #include "TSClient.h"
+#include "Logging.h"
+
+#define LOGGING_CATEGORY StreamLog
 
 
-
-StreamPositions::StreamPositions(const QString &accountID, QObject *parent) :
-    Stream(parent),
+StreamPositions::StreamPositions(const QString &accountID, QNetworkReply * reply, QObject *parent) :
+    Stream(reply, parent),
     accountID(accountID),
     receivedEndSnapshot(false)
 {
     this->setObjectName("Stream::Positions::" + accountID);
 }
 
-StreamPositions::~StreamPositions()
-{
-
-}
-
-bool StreamPositions::processJsonObject(const QJsonObject &jsonObj)
+void StreamPositions::processJsonObject(const QJsonObject &jsonObj)
 {
     // First check if this is a status message
     if (jsonObj.contains("StreamStatus")) {
@@ -27,33 +22,27 @@ bool StreamPositions::processJsonObject(const QJsonObject &jsonObj)
             // Update the EndSnapshot flag if we receive that status
             if (status.getStatus() == StreamPositionStatus::Status::EndSnapshot) {
                 receivedEndSnapshot = true;
-                qCDebug(StreamLog) << Q_FUNC_INFO << "Received EndSnapshot status for account" << accountID;
+                DEBUG << "Received EndSnapshot status for account" << accountID;
             } else if (status.getStatus() == StreamPositionStatus::Status::GoAway) {
-                qCWarning(StreamLog) << Q_FUNC_INFO << "Received GoAway status for account" << accountID;
+                WARNING << "Received GoAway status for account" << accountID;
             }
-            return true;
         } else {
-            QJsonDocument doc(jsonObj);
-            QString jsonString = QString(doc.toJson(QJsonDocument::Indented));
-            qCWarning(StreamLog) << Q_FUNC_INFO <<
-                "Stream status object invalid : " << jsonString;
-            return false;
+            WARNING << "Stream status object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
+            return;
         }
+        return;
     }
 
     // If not a status message, try to process as a position update
     Position position(jsonObj, receivedEndSnapshot); // Pass the update flag based on EndSnapshot status
-    if (position.isValid()) {
-        emit receivedNewPosition(accountID, position);
-        return true;
-    } else {
-        QJsonDocument doc(jsonObj);
-        QString jsonString = QString(doc.toJson(QJsonDocument::Indented));
-        qCWarning(StreamLog) << Q_FUNC_INFO <<
-            "Position update object invalid : " << jsonString <<
-            "Malformed object to string : " << position.toJsonString();
-        return false;
-    }
+    
+    if (!position.isValid()) [[unlikely]] {
+        WARNING << "Position update object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented)); 
+        return;
+    } 
+    
+    CRITICAL << "happy path, promise.addResult";
+    emit newPositionReceived(position);
 }
 
 

@@ -25,22 +25,18 @@ Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
 // Initialize static member outside class
 TSClient* TSClient::m_instance = nullptr;
     
-TSClient& TSClient::getInstance()
-{
-    if (m_instance == nullptr) {
-        qCDebug(TSClientLog) << "Singleton instance created";
-        m_instance = new TSClient();
-    }
-    return *m_instance;
-}
-
-TSClient* TSClient::getInstancePtr()
+TSClient* TSClient::getInstance()
 {
     if (m_instance == nullptr) {
         qCDebug(TSClientLog) << "Singleton instance created";
         m_instance = new TSClient();
     }
     return m_instance;
+}
+
+TSClient::~TSClient()
+{
+    Q_ASSERT(false); // Destructor should never be called for singleton
 }
 
 TSClient::TSClient() :
@@ -83,7 +79,7 @@ TSClient::TSClient() :
 
         // Schedule a refresh for when the thread starts
         QTimer::singleShot(0, this, [this]() {
-            refreshAsyncAccessToken();
+            refreshAccessToken();
         });
     }
 
@@ -112,7 +108,7 @@ TSClient::TSClient() :
 
         // Launch a request in X seconds from now.
         QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() {
-            refreshAsyncAccessToken();
+            refreshAccessToken();
         });
 
         // Schedule an emition for when the event loop is started
@@ -124,19 +120,6 @@ TSClient::TSClient() :
         Q_UNREACHABLE();
     }
 }
-
-TSClient::~TSClient()
-{
-    // This should in fact never be called
-    m_thread->quit();
-    m_thread->wait();
-
-    qCDebug(TSClientLog) << "Singleton instance destroyed";
-}
-
-
-
-
 
 QNetworkRequest TSClient::buildNetworkRequest(const QString &endpoint, const QUrlQuery &query) const
 {

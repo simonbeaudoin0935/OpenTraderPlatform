@@ -26,7 +26,7 @@ void RunUpDetector::start(QDate startDate, qsizetype runUpWindowWidth)
     QDateTime fromDate = QDateTime(startDate, _6AM,   NYTZ);
     QDateTime toDate   = QDateTime(startDate, toTime, NYTZ);
 
-    QVector<Bar> bars = barCache->getBars(fromDate, toDate);
+    QVector<Bar> bars = QVector<Bar>(); //barCache->getBars(fromDate, toDate);
 
     Q_ASSERT(bars.size() == runUpWindowWidth);
 
@@ -48,7 +48,7 @@ void RunUpDetector::computeStatsOnLastAfterMarket()
 
     while (yesterday.dayOfWeek() > 5) yesterday = yesterday.addDays(-1);
 
-    QVector<Bar> bars = barCache->getAfterHourBars(yesterday);
+    QVector<Bar> bars = QVector<Bar>(); //barCache->getAfterHourBars(yesterday);
 
     struct stats st;
 
@@ -79,7 +79,7 @@ void RunUpDetector::computeNextCandle()
     QDateTime fromDate = timestampLastBarEnqued.addSecs(60);
     QDateTime toDate   = fromDate;
 
-    QVector<Bar> bars = barCache->getBars(fromDate, toDate);
+    QVector<Bar> bars = QVector<Bar>(); // barCache->getBars(fromDate, toDate);
 
     Q_ASSERT(bars.size() == 1);
 

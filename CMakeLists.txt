@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 project(L2Trader VERSION 1.0.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=unused-parameter")
@@ -29,7 +29,7 @@ option(BUILD_TESTS "Build tests" ON)
 option(BUILD_RECORDER "Build recorder application" ON)
 
 # Find Qt6 coore packages
-find_package(Qt6 REQUIRED COMPONENTS Core Network Sql Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Network Sql Test Concurrent)
 
 # Configure ccache for faster rebuilds
 find_program(CCACHE_PROGRAM ccache)

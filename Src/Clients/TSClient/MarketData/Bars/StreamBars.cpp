@@ -1,26 +1,21 @@
 #include "StreamBars.h"
 #include "TSClient.h"
 
-StreamBars::StreamBars(const QString &symbol, QObject *parent) :
-    Stream(parent),
+StreamBars::StreamBars(const QString &symbol, QNetworkReply * reply, QObject *parent) :
+    Stream(reply, parent),
     m_symbol(symbol)
 {
     this->setObjectName("Stream::Bars::" + symbol);
 }
 
-StreamBars::~StreamBars()
-{
-}
-
-bool StreamBars::processJsonObject(const QJsonObject& jsonObj)
+void StreamBars::processJsonObject(const QJsonObject& jsonObj)
 {
     Bar bar(jsonObj);
 
-    if (bar.isValid()) {
-        emit receivedNewBar(m_symbol, bar);
-        return true;
-    } else {
+    if (!bar.isValid()) [[unlikely]] {
         qCWarning(StreamLog) << "Bar malformed : " << bar.toJsonString();
-        return false;
+        return;
     }
+
+    emit newBarReceived(bar);
 }

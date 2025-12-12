@@ -34,8 +34,7 @@ class MainAlgo final : public QObject
     Q_OBJECT
 public:
     // Singleton : Instance getter  and delete copy and assignment
-    static MainAlgo& getInstance();
-    static MainAlgo* getInstancePtr();
+    static MainAlgo* getInstance();
     MainAlgo(const MainAlgo&) = delete;
     MainAlgo& operator=(const MainAlgo&) = delete;
 
@@ -45,10 +44,11 @@ public:
     void stopBalancePolling();
     [[nodiscard]] Balance getCurrentBalance() const;
 
+    BarCache::GetBarsResult_t requestMissingBarsDisplayedStock(QDateTime first, QDateTime last);
+
 signals:
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
     void displayedStockReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP);
-    void requestedMissingBarsDisplayedStockReceived(QVector<Bar>);
 
     void receivedNewPosition(QString account, Position position);
     void tradeStationAccountsReceived(QVector<Account> accounts);
@@ -57,16 +57,15 @@ signals:
 public slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
     void onSelectDisplayedStock(QString symbol);
-    void onRequestMissingBarsDisplayedStock(QDateTime first, QDateTime last);
 
 private slots:
     void onThreadStarted();
 
     void onReceivedNewPosition(QString account, Position position);
 
-    void onReceivedAsyncGetAccounts(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Account> results);
+    void onReceivedAsyncGetAccounts(const QVector<Account>& results);
 
-    void onBalanceReceived(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Balance> results);
+    void onBalanceReceived(const QVector<Balance>& results);
     void requestBalance();
 
 
@@ -80,19 +79,18 @@ private:
     QMap<QString, StockInstruments*> stockInstruments;
     StockInstruments* currentDisplayedStockInstrument = nullptr;
 
-    PositionsReceiver positionReceiver;
+    PositionsReceiver* m_positionReceiver = nullptr;
     bool positionStreamStarted = false;
 
     QTextStream *algoLogFile;
     QFile file;
 
-    TSClient::AsyncRequestID_t m_savedGetAccountsRequestID;
     bool m_havePastSuccessfulExchanges = false;
 
     Account m_activeAccount;
     Balance m_currentBalance;
 
     QTimer* m_balancePollingTimer;
-    TSClient::AsyncRequestID_t m_savedGetBalancesRequestID;
+
     bool m_balancePollingStarted = false;
 };

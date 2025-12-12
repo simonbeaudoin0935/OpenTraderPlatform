@@ -6,8 +6,8 @@
 #endif
 
 MainApp::MainApp() :
-    tradeStationClient(TSClient::getInstancePtr()),
-    mainAlgo(MainAlgo::getInstancePtr())
+    tradeStationClient(TSClient::getInstance()),
+    mainAlgo(MainAlgo::getInstance())
 {
 #ifdef GUI_ENABLED
     appFrontend = new GUIFrontend(mainAlgo);
@@ -49,12 +49,6 @@ MainApp::MainApp() :
 
     QObject::connect(mainAlgo, &MainAlgo::balanceUpdated,
                      appFrontend, &FrontEnd::balanceUpdated);
-
-    QObject::connect(appFrontend, &FrontEnd::requestMissingBars,
-                     mainAlgo,    &MainAlgo::onRequestMissingBarsDisplayedStock);
-
-    QObject::connect(mainAlgo,    &MainAlgo::requestedMissingBarsDisplayedStockReceived,
-                     appFrontend, &FrontEnd::onRequestedMissingBarsDisplayedStockReceived);
 }
 
 void MainApp::start()

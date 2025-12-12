@@ -4,29 +4,24 @@
 #include <QStandardPaths>
 #include <QFileInfo>
 #include <QDir>
+#include <QFutureSynchronizer>
+#include <QtConcurrent>
 
 #include "BarCache.h"
 #include "TSClient.h"
 #include "Settings.h"
+#include "Logging.h"
 
+#define LOGGING_CATEGORY BarCacheLog
 Q_LOGGING_CATEGORY(BarCacheLog, "BarCache")
-
-
-
-QMap<QString, BarCache*> BarCache::barCacheMap = QMap<QString, BarCache*>();
-QMap<TSClient::AsyncRequestID_t, QString> BarCache::m_asyncReqIdToSymbol = QMap<TSClient::AsyncRequestID_t, QString> ();
-
 
 BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
     QObject(parent),
-    symbol(symbol),
-    isStreaming(isStreaming)
+    m_symbol(symbol),
+    m_isStreaming(isStreaming)
 {
     Q_ASSERT(parent != nullptr);
-    Q_ASSERT_X(!barCacheMap.contains(symbol), "BarCache::BarCache", "BarCache for symbol already exists");
     
-    barCacheMap.insert(symbol, this);
-
     this->setObjectName("BarCache::" + symbol);
 
     // Set up database - one database file per symbol
@@ -34,12 +29,12 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
     QString dbPath = cacheLocation + "/bars_cache_" + symbol + ".db";
     bool dbFileExisted = QFileInfo::exists(dbPath);
     {
-        qCInfo(BarCacheLog) << "Cache location:" << cacheLocation;
-        qCInfo(BarCacheLog) << "Using database file:" << dbPath;
-        qCInfo(BarCacheLog) << "Database file existed:" << dbFileExisted;
+        DEBUG << "Cache location:" << cacheLocation;
+        DEBUG << "Using database file:" << dbPath;
+        DEBUG << "Database file existed:" << dbFileExisted;
 
         QFileInfo dbInfo(dbPath);
-        qCInfo(BarCacheLog) << "Database directory:" << dbInfo.absolutePath()
+        DEBUG << "Database directory:" << dbInfo.absolutePath()
                            << "Dir exists:" << dbInfo.dir().exists()
                            << "File readable:" << dbInfo.isReadable()
                            << "File writable:" << dbInfo.isWritable();
@@ -49,24 +44,24 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
             if (!dbInfo.dir().mkpath(".")) {
                 qFatal("Failed to create cache directory: %s", qPrintable(dbInfo.absolutePath()));
             }
-            qCInfo(BarCacheLog) << "Created cache directory:" << dbInfo.absolutePath();
+            INFO << "Created cache directory:" << dbInfo.absolutePath();
         }
 
-        qCInfo(BarCacheLog) << "SQLite connection name to be used:" << ("BarCache_" + symbol);
+        INFO << "SQLite connection name to be used:" << ("BarCache_" + symbol);
     }
-    db = QSqlDatabase::addDatabase("QSQLITE", "BarCache_" + symbol);
-    db.setDatabaseName(dbPath);
-    if (!db.open()) {
-        qFatal("Failed to open database for %s: %s", qPrintable(symbol), qPrintable(db.lastError().text()));
+    m_db = QSqlDatabase::addDatabase("QSQLITE", "BarCache_" + symbol);
+    m_db.setDatabaseName(dbPath);
+    if (!m_db.open()) {
+        qFatal("Failed to open database for %s: %s", qPrintable(symbol), qPrintable(m_db.lastError().text()));
     } else {
         if (dbFileExisted) {
-            qCInfo(BarCacheLog) << "Opened existing database for symbol" << symbol << "at" << dbPath;
+            INFO << "Opened existing database for symbol" << symbol << "at" << dbPath;
         } else {
-            qCInfo(BarCacheLog) << "Created new database for symbol" << symbol << "at" << dbPath;
+            INFO << "Created new database for symbol" << symbol << "at" << dbPath;
         }
         
         // Create table if not exists
-        QSqlQuery query(db);
+        QSqlQuery query(m_db);
         query.exec("CREATE TABLE IF NOT EXISTS bars ("
                    "timestamp INTEGER PRIMARY KEY, "
                    "open REAL, "
@@ -75,53 +70,61 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
                    "close REAL, "
                    "volume INTEGER)");
         if (query.lastError().isValid()) {
-            qWarning() << "Failed to create table:" << query.lastError().text();
+            WARNING << "Failed to create table:" << query.lastError().text();
         }
     }
 
     if (isStreaming) {
-        streamBar = TSClient::getInstance().openStreamBars(symbol,
+        DEBUG <<  "Starting bars stream for symbol " << symbol;
+
+        m_stream = TSClient::getInstance()->openStreamBars(symbol,
                                                            1,
                                                            Bar::BarUnit::Minute,
                                                            2,
                                                            Bar::BarSessionTemplate::USEQ24Hour);
-        Q_ASSERT(streamBar != nullptr);
+        Q_CHECK_PTR(m_stream);
 
-        connect(streamBar, &StreamBars::receivedNewBar, this, &BarCache::onReceivedNewLiveBar);
-        connect(streamBar, &Stream::streamErrorOccurred, this, &BarCache::onStreamError);
+
+        connect(m_stream, &StreamBars::newBarReceived, this, &BarCache::onReceivedNewLiveBar);
+
+        m_stream->future().then(this,
+            [this, symbol](){
+                DEBUG << "Bars stream future finished for symbol" << symbol;
+            }
+        ).onFailed(this,
+            [this, symbol](Stream::TimeoutException ex){
+                WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+            }
+        ).onFailed(this,
+            [this, symbol](Stream::BadRequestException ex){
+                WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+            }
+        ).onFailed(this,
+            [this, symbol](Stream::DualLogonException ex){
+                WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+        }).onFailed(this,
+            [this, symbol](Stream::GoAwayException ex){
+            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+        }).onFailed(this,
+            [this, symbol](Stream::InvalidSymbolException ex){
+            WARNING << "Bars Receiver future failed for" << symbol << "- Exception:" << ex.what();
+        });
     }
-
-
-    // Ensure TSClient signal for async get bars is connected only once to the static slot onReceivedAsyncGetBars
-    // which will then forward to the appropriate BarCache instance based on symbol
-    {
-        static bool TSCLientReceivedAsyncGetBarsSignalConnected = false;
-
-        if (TSCLientReceivedAsyncGetBarsSignalConnected == false) {
-            TSCLientReceivedAsyncGetBarsSignalConnected = true;
-            connect(TSClient::getInstancePtr(), &TSClient::receivedAsyncGetBars, &BarCache::onReceivedAsyncGetBars);
-        }
-    }
-
 }
 
 BarCache::~BarCache()
 {
-    const QString cacheName = this->objectName();
+    Q_CHECK_PTR(m_stream);
+    
+    TSClient::getInstance()->closeStream(m_stream);
 
-    if (streamBar != nullptr) {
-        TSClient::getInstance().closeStreamBars(streamBar);
-    }
+    DEBUG << "Destroyed";
 
-    qCDebug(BarCacheLog) << cacheName << "Destroyed";
-
-    #warning need to remove database connection here, and from the static map too
+    Q_ASSERT(false); // TODO clean up database connection properly
 }
 
 bool BarCache::warmUpBarsOfDayUntilNow(QDate date)
 {
-    QString cacheName = this->objectName();
-
     QDateTime _6AM = QDateTime(date, QTime(6,0), QTimeZone("America/New_York"));
     QDateTime _4PM = QDateTime(date, QTime(15,59), QTimeZone("America/New_York"));
 
@@ -129,72 +132,17 @@ bool BarCache::warmUpBarsOfDayUntilNow(QDate date)
 
 
     if (now.date() == date) {
-        qCDebug(BarCacheLog) << cacheName << "Warming up cache with all bars from 6AM to now";
+        DEBUG << "Warming up cache with all bars from 6AM to now";
 
         getBars(_6AM, now);
     } else {
-        qCDebug(BarCacheLog) << cacheName << "Warming up cache with all bars from " << date;
+        DEBUG << "Warming up cache with all bars from " << date;
         getBars(_6AM, _4PM);
     }
 
     return true;
 }
 
-/*
- * Static method which is connected to the TSClient singleton instances's receivedAsyncGetBars() signal.
- */
-void BarCache::onReceivedAsyncGetBars(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Bar> bars)
-{
-    Q_ASSERT(requestID != 0);
-
-    Q_ASSERT(m_asyncReqIdToSymbol.contains(requestID));
-    QString symbol = m_asyncReqIdToSymbol[requestID];
-    m_asyncReqIdToSymbol.remove(requestID);
-    Q_ASSERT(barCacheMap.contains(symbol));
-
-    BarCache* barCacheInstance = barCacheMap.value(symbol);
-    Q_ASSERT(barCacheInstance != nullptr);
-
-    barCacheInstance->onReceivedAsyncGetBarsInstance(requestID, status, bars);
-}
-
-void BarCache::onReceivedAsyncGetBarsInstance(TSClient::AsyncRequestID_t requestID, TSClient::AsyncRequestStatus_e status, QVector<Bar> bars)
-{
-    const QString cacheName = this->objectName();
-
-    Q_ASSERT_X(pendingAsyncGetBarRequests.contains(requestID),
-               qPrintable(cacheName),
-               "Received async getBars response for unknown requestID");
-
-    qCDebug(BarCacheLog) << cacheName << "Received async getBars response for requestID" << requestID
-                        << "with status" << static_cast<int>(status)
-                        << "and" << bars.size() << "bars";
-
-    if (status == TSClient::AsyncRequestStatus_e::SUCCESS) {
-        storeBarsInCache(bars);
-    } else if (status == TSClient::AsyncRequestStatus_e::ERROR){
-        qCCritical(BarCacheLog) << cacheName << "Async getBars request failed with status" << static_cast<int>(status);
-        Q_ASSERT(false); // TODO handle errors properly
-    } else if (status == TSClient::AsyncRequestStatus_e::TIMEOUT) {
-        qCCritical(BarCacheLog) << cacheName << "Async getBars request timed out";
-        Q_ASSERT(false); // TODO handle errors properly
-    }
-
-    pendingAsyncGetBarRequests[requestID].fulfilled = true;
-    pendingAsyncGetBarRequests[requestID].bars = bars;
-
-    // Check if all pending requests are fulfilled
-    bool allFulfilled = true;
-    for (auto it = pendingAsyncGetBarRequests.constBegin(); it != pendingAsyncGetBarRequests.constEnd(); ++it) {
-        if (it.value().fulfilled == false) {
-            allFulfilled = false;
-            break;
-        }
-    }
-    if (allFulfilled) {
-        handleReceivedAllPendingGetBarsRequests();
-    }
-}
 
 QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first, const QDateTime& last, const QVector<Bar>& barsFromAPI)
 {
@@ -232,130 +180,136 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first, const 
     }
         
     if (voidBarsCreated > 0) {
-        qCDebug(BarCacheLog) << cacheName << "Created" << voidBarsCreated 
-                             << "void bars to account for periods with no trading activity";
+        DEBUG << "Created" << voidBarsCreated << "void bars to account for periods with no trading activity";
     }
 
     return resultBars;
 }
 
-void BarCache::handleReceivedAllPendingGetBarsRequests()
-{
-    const QString cacheName = this->objectName();
-
-        
-    qCDebug(BarCacheLog) << cacheName << "Successfully fetched" << pendingAsyncGetBarRequests.size() << " requests bars from API for" << symbol;
-    
-    // Loop through all the pendingAsyncGetBarRequests in order
-    for (auto it = pendingAsyncGetBarRequests.constBegin(); it != pendingAsyncGetBarRequests.constEnd(); ++it) {
-        Q_ASSERT(it.value().fulfilled == true); // Should be fulfilled
-        const QVector<Bar>& barsFromAPI = it.value().bars;
-
-        QVector<Bar> barsFromAPIWithHolesFilled = fillHolesOfReceivedRequest(it.value().first, it.value().last, barsFromAPI);
-
-        storeBarsInCache(barsFromAPIWithHolesFilled);
-        storeBarsInDatabase(barsFromAPIWithHolesFilled); // TODO optimize by batching inserts later
-    }
-
-    // At this point, we have received and stored all the holes-filled bars requested from the API.
-
-    // Clear pending requests not so that we can accept new getBars() calls
-    pendingAsyncGetBarRequests.clear();
-
-    // Now retrieve all bars for the original requested range from cache (memory + database), but should be a complete memory hit
-    QVector<Bar> allFetchedBars = getBars(savedFirst, savedLast); // TODO assert that it was a complete memory hit (not even fetching from database)
-
-    Q_ASSERT_X(!allFetchedBars.empty(), qPrintable(cacheName), "After fetching missing bars from API, still do not have complete set of bars in cache");
-        
-    qCDebug(BarCacheLog) << cacheName << " : Returning" << (lastHitType == HitType::PartialHit ? "PARTIAL HIT" : "MISS");
-    
-    emit receivedAsyncGetBars(allFetchedBars);
-}
-
 /*
  * Fetch bars for the given datetime range.
+ * 
+ * @note : Both date-times must be in America/New_York timezone
  *
+ * This function breaks the requested range into trading day ranges, in case the range spans multiple days.
+ * For each trading day range, it attempts to retrieve bars from the in-memory cache first. If some bars are missing, it checks the local database.
+ * If bars are still missing after checking the database, it sends all the asynchronous requests needed to complete the set of bars in the future
+ * 
  * @return 
- *   - If the returned vector is not empty, then it means all the requested bars were in cache (either memory or database)
- *   - If the vector is empty, it means that the cache had to send async requests for the missing bars ranges and will emit a receivedAsyncGetBars(QVector<Bar> bars) signal later 
+ *   - QVector<Bar> if the bars were found in cache (memory and/or database)
+ *   - QFuture<QVector<Bar>> if some bars are missing and async requests were sent to fetch them from the API
+ * 
  */
-const QVector<Bar> BarCache::getBars(const QDateTime &first, const QDateTime &last) {
-    const QString cacheName = this->objectName();
+BarCache::GetBarsResult_t BarCache::getBars(const QDateTime &first, const QDateTime &last) {
+    DEBUG << "getBars() called for range" << first << "to" << last;
 
-    // FIXME : allow multiple concurrent getBars requests later
-    Q_ASSERT_X(pendingAsyncGetBarRequests.isEmpty(), qPrintable(cacheName), "getBars() called while there are still pending async getBars requests. Please wait for those to complete before making new requests.");
+    #warning allow multiple concurrent getBars requests later, use invoke method auto
     Q_ASSERT(first.timeZone() == QTimeZone("America/New_York"));
     Q_ASSERT(last.timeZone() == QTimeZone("America/New_York"));
     Q_ASSERT(first < last);
 
-    qCDebug(BarCacheLog) << cacheName << "getBars() called for range" << first << "to" << last;
-         
-    QVector<QPair<QDateTime, QDateTime>> tradingRanges = splitIntoTradingDayRanges(first, last);
- 
+    // Accumulate all bars until we find a missing range, then we stop accumulating.
     QVector<Bar> allBars;
-    
-    bool missingAtLeastOneRange = false;
 
-    for (const auto& range : tradingRanges) {
-        QVector<Bar> rangeBars = getBarsInRange(range.first, range.second);
-        allBars.append(rangeBars);
-        if (rangeBars.isEmpty()) {
-            missingAtLeastOneRange = true;
+    // As we accumulate bars for each trading day range, we also keep track of any missing ranges that require async fetching.
+    // At the end, if this vector is empty, it means we had a complete hit and can return allBars.
+    QVector<QFuture<QVector<Bar>>> futuresOrMissingRanges;
+
+    // Try to get bars for every trading day range.
+    for (const auto& range : splitIntoTradingDayRanges(first, last)) {
+
+        // If all the bars are found for this range, we get a QVector<Bar>.
+        // If there were missing bars that need to be fetched from the API,
+        // we will get a QFuture<QVector<Bar>> for that range.
+        GetBarsResult_t rangeBars = getBarsInRange(range.first, range.second);
+        
+        if (std::holds_alternative<QFuture<QVector<Bar>>>(rangeBars)) {
+            // This range of bars will require waiting for the API
+            futuresOrMissingRanges.append(std::move(std::get<QFuture<QVector<Bar>>>(rangeBars)));
+        } else {
+            if (futuresOrMissingRanges.isEmpty()) {
+                // If there are already missing ranges being fetched async,
+                // Theres no purpuse to waste copying the fetches ranges because we won't return
+                // the allBars anyway. Only if there are no missing ranges, we keep on accumulating
+                // the bars and hope that no missing range show up. If one show up, we still continue
+                // probing all ranges so that we can send all the async requests needed to fetch all the
+                // ranges needed. 
+                allBars.append(std::move(std::get<QVector<Bar>>(rangeBars)));
+            }
         }
     }
 
-    if (missingAtLeastOneRange) {
-        savedFirst = first;
-        savedLast = last;
+    if (futuresOrMissingRanges.isEmpty()) {
+        DEBUG << " : Returning complete HIT from cache/database";
+        return allBars;
     }
-       
-    return missingAtLeastOneRange ? QVector<Bar>() : allBars;
- }
 
-const QVector<Bar> BarCache::getBarsInRange(const QDateTime &first, const QDateTime &last)
+    DEBUG << " : Returning MISS/PARTIAL HIT, waiting for async fetches to complete";
+
+    #warning fix this shit
+    QFuture<void> combinedFuture = QtConcurrent::run([futuresOrMissingRanges = std::move(futuresOrMissingRanges)]() {
+        QFutureSynchronizer<QVector<Bar>> synchronizer;
+        for (auto& future : futuresOrMissingRanges) {
+            synchronizer.addFuture(future);
+        }
+        synchronizer.waitForFinished();
+    });
+
+    QFuture<QVector<Bar>> resultFuture = combinedFuture.then(this, [this, first, last]() -> QVector<Bar> {
+
+        // Here it means that all futures are completed and therefore all missing ranges have been fetched and written to cache/database
+        GetBarsResult_t allBars = getBars(first, last);
+        Q_ASSERT_X(std::holds_alternative<QVector<Bar>>(allBars), qPrintable(this->objectName()), "Expected allBars to hold QVector<Bar> because all async fetches are completed");
+
+
+        return std::get<QVector<Bar>>(allBars);
+    });
+    
+    return resultFuture;
+}
+
+BarCache::GetBarsResult_t BarCache::getBarsInRange(const QDateTime &first, const QDateTime &last)
 {
+    DEBUG << "getBarsInRange() called for range" << first << "to" << last;
+
+    Q_ASSERT(first.timeZone() == QTimeZone("America/New_York"));
+    Q_ASSERT(last.timeZone() == QTimeZone("America/New_York"));
+
+    // Original assertions for single-day requestsk
     const QString cacheName = this->objectName();
-
-    qCDebug(BarCacheLog) << cacheName << "getBarsInRange() called for range" << first << "to" << last;
-
-    // Original assertions for single-day requests
     Q_ASSERT_X(first.date() == last.date(), qPrintable(cacheName), "getBarsInRange() only supports single-day ranges");
     Q_ASSERT_X(first.date().dayOfWeek() >= MONDAY && first.date().dayOfWeek() <= FRIDAY, qPrintable(cacheName), "getBars() called with date outside Monday-Friday range");
     Q_ASSERT_X(first.time() >= QTime(TRADING_START_HOUR, 0, 0), qPrintable(cacheName), "Fetching bars before 6am"); // Tradestation bars start at 6
     Q_ASSERT_X(last.time() <= QTime(TRADING_END_HOUR, 0, 0), qPrintable(cacheName), "Fetching bars after 8pm");
 
-    lastHitType = HitType::None;
-
-    // Reset the counter of fetched bar for the last request
-    lastNumberFetchedBars = 0; //TODO
-    
+   
     // Check memory cache first
     QVector<Bar> cachedBars = getBarsFromCache(first, last);
     
     // complete HIT : If we have a complete set, return it
     if (cachedBars.size() == (first.secsTo(last) / 60) + 1) {
-        lastHitType = HitType::Hit;
-
-        qCDebug(BarCacheLog) << cacheName << " : Returning complete HIT from memory cache";
-
+        DEBUG << " : Returning complete HIT from memory cache";
         return cachedBars;
     }
 
-    qCDebug(BarCacheLog) << cacheName << " : partial hit or complete miss memory-cache, check database for missing bars";
+    if (cachedBars.isEmpty()) {
+        DEBUG << " : miss in memory-cache, check database for missing bars";
+    } else {
+        DEBUG << " : partial hit in memory-cache, check database for missing bars";
+    }
+    
 
     // Load missing bars from database
     for (const auto& range : identifyMissingRanges(first, last, cachedBars)) {
-        Q_ASSERT(range.first.timeZone() == QTimeZone("America/New_York"));
-        Q_ASSERT(range.second.timeZone() == QTimeZone("America/New_York"));
         Q_ASSERT(range.first <= range.second); // Could be equal if asking just one bar
 
-        qCDebug(BarCacheLog) << cacheName << "Will fetch from Database for range" << range.first << "to" << range.second;
+        DEBUG << "Will fetch from Database for range" << range.first << "to" << range.second;
 
         QVector<Bar> dbBars = getBarsFromDatabase(range.first, range.second);
         if (dbBars.isEmpty()) {
-            qCDebug(BarCacheLog) << cacheName << "No bars found in database for" << symbol << "in range" << range.first << "to" << range.second;
+            DEBUG << " : miss in database in range" << range.first << "to" << range.second;
         } else {
-            qCDebug(BarCacheLog) << cacheName << "Loaded" << dbBars.size() << "bars from database into memory cache for" << symbol << "in range" << range.first << "to" << range.second;
+            DEBUG << "Loaded" << dbBars.size() << "bars from database into memory cache in range" << range.first << "to" << range.second;
             storeBarsInCache(dbBars);
         }
     }
@@ -365,68 +319,57 @@ const QVector<Bar> BarCache::getBarsInRange(const QDateTime &first, const QDateT
         
     // complete HIT after database load : If we have a complete set now, return it
     if (cachedBars.size() == (first.secsTo(last) / 60) + 1) {
-        lastHitType = HitType::Hit;
-
-        qCDebug(BarCacheLog) << cacheName << " : Returning HIT (after database load)";
-
+        DEBUG << " : Returning HIT (after database load)";
         return cachedBars;
     }
 
-    qCDebug(BarCacheLog) << cacheName << " : still partial hit or complete miss after database load, fetch from API";
-
-    // Fetch missing bars from API for each range
-    for (const auto& range : identifyMissingRanges(first, last, cachedBars)) {
-        Q_ASSERT(range.first.timeZone() == QTimeZone("America/New_York"));
-        Q_ASSERT(range.second.timeZone() == QTimeZone("America/New_York"));
-        Q_ASSERT(range.first <= range.second);
-
-        // FIXME this is likely the source of why we often fetch one bar too far
-        QDateTime fetchLast = range.second.addSecs(60); // Need to add a minute because the API bounds are excluding the last minute
-            
-        qCDebug(BarCacheLog) << cacheName << "Fetching bars from API for" << symbol << "in range" << range.first << "to" << fetchLast;
-
-        size_t requestID = TSClient::getInstance().getBarsAsync(symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour, range.first, fetchLast);
-
-        Q_ASSERT(requestID != 0);
-
-        Q_ASSERT(!m_asyncReqIdToSymbol.contains(requestID));
-
-        m_asyncReqIdToSymbol[requestID] = symbol;
-
-        PendingAsyncGetBarRequest pendingRequest;
-        pendingRequest.first = range.first;
-        pendingRequest.last = range.second;
-        pendingRequest.fulfilled = false;
-        pendingRequest.bars = QVector<Bar>();
-
-        pendingAsyncGetBarRequests.insert(requestID, pendingRequest);
+    if (!cachedBars.isEmpty()) {
+        DEBUG << " : partial hit in cache/database, fetch from API for missing bars";
+    } else {
+        DEBUG << " : miss in cache/database, fetch from API for missing bars";
     }
 
-    return QVector<Bar>(); // Indicate that async requests have been sent; result will come via signal later
+    // At this point, we still have missing bars after checking both memory cache and database
+    // For algorithmic simplicity, we will fetch the whole first@last range from API, even if some bars may likely be already in cache/database,
+    // as to only send one API request for that day range.
+    qCDebug(BarCacheLog) << cacheName << "Fetching bars from API in range" << first << "to" << last;
+
+
+    QFuture<QVector<Bar>> future = TSClient::getInstance()->getBars(m_symbol,
+                                                                    1,
+                                                                    Bar::BarUnit::Minute,
+                                                                    0,
+                                                                    Bar::BarSessionTemplate::USEQ24Hour,
+                                                                    first,
+                                                                    last.addSecs(60)); // Need to add a minute because the API bounds are excluding the last minute
+                                                                    // FIXME the addSecs(60) is likely the source of why we often fetch one bar too far
+
+    future.then(this, [this, first, last](QVector<Bar> bars){
+        DEBUG << "Asynchronous getBars() from API completed for range" << first << "to" << last
+              << "with" << bars.size() << "bars received";
+
+        QVector<Bar> barsFromApiHolesFilled = fillHolesOfReceivedRequest(first, last, bars);
+        // Handle the received bars
+        
+        storeBarsInCache(barsFromApiHolesFilled);
+        storeBarsInDatabase(barsFromApiHolesFilled);
+
+    }).onFailed(this, [this] (const TSClient::TimeoutException& e){
+        Q_UNUSED(e);
+        Q_ASSERT_X(false, "MainAlgo::onTradeStationAuthStateChanged", "getBarsInRange() timed out");
+    }).onFailed(this, [this] (const TSClient::JSONErrorException& e){
+        Q_UNUSED(e);
+        Q_ASSERT_X(false, "MainAlgo::onTradeStationAuthStateChanged", "getBarsInRange() JSON error");
+    }).onFailed(this, [this] (const TSClient::OtherErrorException& e){
+        Q_UNUSED(e);
+        Q_ASSERT_X(false, "MainAlgo::onTradeStationAuthStateChanged", "getBarsInRange() other error");
+    });
+
+    return future; // Indicate that async requests have been sent; result will come via signal later
 }
 
 
 
-
-
-
-
-const QVector<Bar> BarCache::getAfterHourBars(const QDate &date)
-{
-    QString cacheName = this->objectName();
-
-    Q_ASSERT_X(date.dayOfWeek() >= 1 && date.dayOfWeek() <= 5, qPrintable(cacheName), "Not monday to friday");
-
-    QTimeZone newYorkTimeZone("America/New_York");
-
-    const QTime _4PM(16, 0, 0);
-    const QTime _8PM(19, 59, 0);
-
-    QDateTime fromDate = QDateTime(date, _4PM, newYorkTimeZone);
-    QDateTime toDate   = QDateTime(date, _8PM, newYorkTimeZone);
-
-    return getBars(fromDate, toDate);
-}
 
 void BarCache::storeBarInCache(const Bar& bar) {
     QString cacheName = this->objectName();
@@ -434,10 +377,10 @@ void BarCache::storeBarInCache(const Bar& bar) {
     QDateTime dateTime = bar.getTimeStamp();
 
     if (!bar.getIsRealtime()) {
-        if (barCacheOneMinute.contains(dateTime)) {
-            qCWarning(BarCacheLog) << cacheName << "Bar already in cache for" << symbol
+        if (m_barCacheOneMinute.contains(dateTime)) {
+            qCWarning(BarCacheLog) << cacheName << "Bar already in cache for" << m_symbol
                                  << "at " << dateTime;
-            duplicateStoreCount++;
+            m_duplicateStoreCount++;
         }
     } else {
         if (bar.getBarStatus() == Bar::BarStatus::Closed) {
@@ -446,8 +389,8 @@ void BarCache::storeBarInCache(const Bar& bar) {
     }
 
     {
-        QWriteLocker locker(&rwLock);
-        barCacheOneMinute.insert(dateTime, bar);
+        QWriteLocker locker(&m_barCacheOneMinuteRwLock);
+        m_barCacheOneMinute.insert(dateTime, bar);
     }
 
     qCDebug(BarCacheLog) << cacheName << "Inserted bar in cache with timestamp :" << bar.getTimeStamp();
@@ -459,29 +402,25 @@ void BarCache::storeBarsInCache(const QVector<Bar>& bars) {
     }
 }
 
-QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
-    QString cacheName = this->objectName();
+QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const
+{
+    DEBUG << "Checking in-memory cache from" << start << " to " << end;
 
     QVector<Bar> result;
-    QVector<QDateTime> missingTimes;
-    bool hasCompleteSet = true;
-    qCDebug(BarCacheLog) << cacheName << "Checking in-memory cache for" << symbol
-                         << "from" << start << " to " << end;
+ 
+    size_t numMissingBars = 0;
     
-
-
     // Check for complete set and identify missing bars
     {
-        QReadLocker locker(&rwLock);
+        QReadLocker locker(&m_barCacheOneMinuteRwLock);
 
         // Find the first bar at or after start
-        auto it = barCacheOneMinute.lowerBound(start);
+        auto it = m_barCacheOneMinute.lowerBound(start);
 
         for (QDateTime expectedTime = start; expectedTime <= end; expectedTime = expectedTime.addSecs(60)) {
-            if (it == barCacheOneMinute.end() || it.key() != expectedTime) {
-                hasCompleteSet = false;
-                missingTimes.append(expectedTime);
-                qCDebug(BarCacheLog) << cacheName << "Cache MISS - missing bar at" << expectedTime;
+            if (it == m_barCacheOneMinute.end() || it.key() != expectedTime) {
+                numMissingBars++;
+                DEBUG << "Cache MISS - missing bar at" << expectedTime;
             } else {
                 result.append(it.value());
                 ++it;
@@ -489,78 +428,36 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const {
         }
     }
     
-    if (hasCompleteSet) {
-        qCDebug(BarCacheLog) << cacheName << "Cache HIT - found complete set of bars for" << symbol;
+    if (numMissingBars == 0) {
+        DEBUG << "Cache HIT - found complete set of bars for" << m_symbol;
     } else if (!result.isEmpty()) {
-        qCDebug(BarCacheLog) << cacheName << "Cache PARTIAL HIT - found" << result.size()
-                            << "bars, missing" << missingTimes.size() << "bars";
+        DEBUG << "Cache PARTIAL HIT - found" << result.size() << "bars, missing" << numMissingBars << "bars";
     } else {
-        qCDebug(BarCacheLog) << cacheName << "Cache MISS - no bars found for" << symbol;
+        DEBUG << "Cache MISS - no bars found for" << m_symbol;
     }
     
     return result;
 }
 
-void BarCache::onReceivedNewLiveBar(QString symbol, Bar newBar)
+void BarCache::onReceivedNewLiveBar(Bar newBar)
 {
-    QString cacheName = this->objectName();
-
-    Q_ASSERT_X(this->symbol == symbol, qPrintable(cacheName), "Mismatch in symbol");
-
     newBar.ajustTimeStampToOpeningMinute();
 
     storeBarInCache(newBar);
 
-    emit receivedNewBar(symbol, newBar);
-}
-
-void BarCache::onStreamError(Stream::ErrorStatus error, QString errorMessage)
-{
-    QString cacheName = this->objectName();
-
-    qCWarning(BarCacheLog) << cacheName << "Stream error occurred - Error:" << static_cast<int>(error)
-                           << "Message:" << errorMessage;
-
-    // Log specific error types for better diagnostics
-    switch (error) {
-        case Stream::ErrorStatus::Timeout:
-            qCWarning(BarCacheLog) << cacheName << "Stream timeout - no data or heartbeat received";
-            break;
-        case Stream::ErrorStatus::InvalidSymbol:
-            qCCritical(BarCacheLog) << cacheName << "Invalid symbol error - this should not happen";
-            break;
-        case Stream::ErrorStatus::DualLogon:
-            qCCritical(BarCacheLog) << cacheName << "Dual logon detected - another session may be active";
-            break;
-        case Stream::ErrorStatus::GoAway:
-            qCWarning(BarCacheLog) << cacheName << "Server requested stream closure";
-            break;
-        case Stream::ErrorStatus::InternalServerError:
-            qCCritical(BarCacheLog) << cacheName << "Internal server error";
-            break;
-        case Stream::ErrorStatus::BadRequest:
-            qCCritical(BarCacheLog) << cacheName << "Bad request error";
-            break;
-        case Stream::ErrorStatus::Unknown:
-            qCCritical(BarCacheLog) << cacheName << "Unknown stream error";
-            break;
-    }
-
-    // Note: Stream errors in BarCache are logged but not automatically recovered
-    // The stream is in error state and will need to be recreated by closing and
-    // reopening the BarCache if recovery is needed
+    emit receivedNewBar(m_symbol, newBar);
 }
 
 QVector<Bar> BarCache::getBarsFromDatabase(QDateTime start, QDateTime end) const {
     QString cacheName = this->objectName();
     QVector<Bar> bars;
 
-    Q_ASSERT_X(db.isOpen(), qPrintable(objectName()), "Database must be open for reading bars");
+    Q_ASSERT_X(m_db.isOpen(), qPrintable(objectName()), "Database must be open for reading bars");
 
-    qCDebug(BarCacheLog) << cacheName << "Checking database cache for" << symbol
+    qCDebug(BarCacheLog) << cacheName << "Checking database cache for" << m_symbol
                          << "from" << start << " to " << end;
     
-    QSqlQuery query(db);
+    QSqlQuery query(m_db);
     query.prepare("SELECT timestamp, open, high, low, close, volume FROM bars WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp");
     query.addBindValue(start.toSecsSinceEpoch());
     query.addBindValue(end.toSecsSinceEpoch());
@@ -585,23 +482,21 @@ QVector<Bar> BarCache::getBarsFromDatabase(QDateTime start, QDateTime end) const
             
             bars.append(bar);
         }
-        qCInfo(BarCacheLog) << "Loaded" << bars.size() << "bars from database for" << symbol;
+        qCInfo(BarCacheLog) << "Loaded" << bars.size() << "bars from database for" << m_symbol;
     } else {
-        qCWarning(BarCacheLog) << "Database query failed for" << symbol << ":" << query.lastError().text();
+        qCWarning(BarCacheLog) << "Database query failed for" << m_symbol << ":" << query.lastError().text();
     }
     return bars;
 }
 
 void BarCache::storeBarsInDatabase(const QVector<Bar>& bars) {
-    Q_ASSERT_X(db.isOpen(), qPrintable(objectName()), "Database must be open for storing bars");
-    if (bars.isEmpty()) {
-        qCDebug(BarCacheLog) << "No bars to store in database for" << symbol;
-        return;
-    }
+    Q_ASSERT_X(m_db.isOpen(), qPrintable(objectName()), "Database must be open for storing bars");
+   
+   
+    Q_ASSERT(bars.isEmpty() == false);
 
-    qCInfo(BarCacheLog) << "Storing" << bars.size() << "bars in database for" << symbol;
-
-    QSqlQuery query(db);
+    qCDebug(BarCacheLog) << "Storing" << bars.size() << "bars in database for" << m_symbol;
+    QSqlQuery query(m_db);
     query.prepare("INSERT OR REPLACE INTO bars (timestamp, open, high, low, close, volume) VALUES (?, ?, ?, ?, ?, ?)");
 
     int storedCount = 0;
@@ -615,25 +510,25 @@ void BarCache::storeBarsInDatabase(const QVector<Bar>& bars) {
         if (query.exec()) {
             storedCount++;
         } else {
-            qCWarning(BarCacheLog) << "Failed to store bar in database for" << symbol
+            qCWarning(BarCacheLog) << "Failed to store bar in database for" << m_symbol
                                    << "at" << bar.getTimeStamp().toString() << ":"
                                    << query.lastError().text();
         }
     }
 
-    qCInfo(BarCacheLog) << "Successfully stored" << storedCount << "bars in database for" << symbol;
+    qCInfo(BarCacheLog) << "Successfully stored" << storedCount << "bars in database for" << m_symbol;
 }
 
 void BarCache::clearDatabase() {
-    Q_ASSERT_X(db.isOpen(), qPrintable(objectName()), "Database must be open for clearing");
+    Q_ASSERT_X(m_db.isOpen(), qPrintable(objectName()), "Database must be open for clearing");
     
-    qCInfo(BarCacheLog) << "Clearing all bars from database for" << symbol;
+    qCInfo(BarCacheLog) << "Clearing all bars from database for" << m_symbol;
     
-    QSqlQuery query(db);
+    QSqlQuery query(m_db);
     if (query.exec("DELETE FROM bars")) {
-        qCInfo(BarCacheLog) << "Successfully cleared database for" << symbol;
+        qCInfo(BarCacheLog) << "Successfully cleared database for" << m_symbol;
     } else {
-        qCWarning(BarCacheLog) << "Failed to clear database for" << symbol << ":" << query.lastError().text();
+        qCWarning(BarCacheLog) << "Failed to clear database for" << m_symbol << ":" << query.lastError().text();
     }
 }
 

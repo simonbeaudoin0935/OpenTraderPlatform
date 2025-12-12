@@ -45,8 +45,13 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
     ui->statusbar->addPermanentWidget(tradeStationLoginButton);
 
-    // Connect TradeStation signals and slots
-    connect(tradeStationLoginButton, &QPushButton::clicked, this, &GUIFrontend::onTradeStationLoginClicked);
+    // Connect TradeStation login button click to launch auth process
+    connect(tradeStationLoginButton, &QPushButton::clicked,
+        this, []() {
+            // AuthWindow is modal, so it's impossible to click the button while authentication is in progress
+            Q_ASSERT(TSClient::getInstance()->isAuthInProgress() == false);
+            TSClient::getInstance()->launchAuthProcess();
+        });
 
     // Connect app frontend signals and slots
     connect(this, &FrontEnd::tradeStationAuthStateChanged,
@@ -81,9 +86,34 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
             this, &GUIFrontend::onBalanceUpdated,
             Qt::DirectConnection);
 
-    // Propagate up when the chart needs missing bars to display
+    // When the chart requests missing bars, inside the lambda we call the main algo to get the bars from the displayed stock's bar cache
+    // The result can be either immediate (QVector<Bar>) or asynchronous (QFuture<QVector<Bar>>)
     connect(ui->priceChart, &StockPriceChart::requestMissingBars,
-            this, &FrontEnd::requestMissingBars);
+            this, [this](QDateTime from, QDateTime to) mutable {
+                
+                BarCache::GetBarsResult_t result = MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from, to);
+
+                if (std::holds_alternative<QVector<Bar>>(result)) {
+                    // The barCache had the bars ready immediately
+                    ui->priceChart->onRequestedMissingBarsReceived(std::move(std::get<QVector<Bar>>(result)));
+
+                } else {
+                    QFuture<QVector<Bar>> future = std::move(std::get<QFuture<QVector<Bar>>>(result));
+
+                    future.then(this, [this](const QVector<Bar>& bars){
+                        ui->priceChart->onRequestedMissingBarsReceived(bars);
+                    }).onFailed([](const TSClient::TimeoutException& e){
+                        Q_UNUSED(e);
+                        Q_ASSERT_X(false, "Get bars request timed out", "Get bars request timed out");
+                    }).onFailed([](const TSClient::JSONErrorException& e){
+                        Q_UNUSED(e);
+                        Q_ASSERT_X(false, "Get bars request JSON error", "Get bars request JSON error");
+                    }).onFailed([](const TSClient::OtherErrorException& e){
+                        Q_UNUSED(e);
+                        Q_ASSERT_X(false, "Get bars request other error", "Get bars request other error");
+                    });
+                }
+            });
 
     // Connect the stock symbol input to its slot
     connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GUIFrontend::onNewDisplayedStockSelection);
@@ -362,17 +392,6 @@ void GUIFrontend::onNewPositionReceived(QString account, Position position) {
 
 void GUIFrontend::onBalanceUpdated(Balance balance) {
     ui->balanceWindow->updateBalance(balance);
-}
-
-void GUIFrontend::onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars)
-{
-    ui->priceChart->onRequestedMissingBarsReceived(bars);
-}
-
-void GUIFrontend::onTradeStationLoginClicked() {
-    // AuthWindow is modal, so it's impossible to click the button while authentication is in progress
-    Q_ASSERT(!TSClient::getInstance().isAuthInProgress());
-    TSClient::getInstance().launchAuthProcess();
 }
 
 void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason) {
