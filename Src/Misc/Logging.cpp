@@ -275,11 +275,31 @@ void LoggingConfig::setInfoDisabled(bool disabled) {
 #define GRAY_COLOR "\033[90m"
 
 void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
-{
-    std::lock_guard<std::recursive_mutex> lock(loggingMutex);
-    
+{   
     QString colorCode;
     QString typeText;
+    QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
+    QString category = (strcmp(context.category, "default") == 0) ? "" : QString(context.category ? context.category : "");
+
+    // Broadcast to GUI with HTML color formatting
+    QString htmlColorCode;
+    switch (type) {
+    case QtDebugMsg:
+        htmlColorCode = "#00CED1"; // Cyan
+        break;
+    case QtInfoMsg:
+        htmlColorCode = "#32CD32"; // Green
+        break;
+    case QtWarningMsg:
+        htmlColorCode = "#FFD700"; // Yellow
+        break;
+    case QtCriticalMsg:
+        htmlColorCode = "#FF4500"; // Red
+        break;
+    case QtFatalMsg:
+        htmlColorCode = "#FF00FF"; // Magenta
+        break;
+    }
 
     switch (type) {
     case QtDebugMsg:
@@ -304,9 +324,6 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
         break;
     }
 
-    QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
-    QString category = (strcmp(context.category, "default") == 0) ? "" : QString(context.category ? context.category : "");
-
     QString formattedMsg = QString("%1[%2] %3 %4:%5 %6%7")
                                .arg(colorCode)
                                .arg(timestamp)
@@ -315,6 +332,15 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
                                .arg(RESET_COLOR)
                                .arg(msg)
                                .arg(RESET_COLOR);
+
+    QString htmlMsg = QString("<span style='color:%1'>[%2] %3 %4:</span> %5")
+                          .arg(htmlColorCode)
+                          .arg(timestamp)
+                          .arg(typeText)
+                          .arg(category)
+                          .arg(msg);
+
+    std::lock_guard<std::recursive_mutex> lock(loggingMutex);
 
     // Always write to log file (without ANSI colors)
     if (logStream) {
@@ -336,32 +362,9 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
     std::cout << formattedMsg.toStdString() << std::endl;
     std::cout.flush();
 
-    // Broadcast to GUI with HTML color formatting
-    QString htmlColorCode;
-    switch (type) {
-    case QtDebugMsg:
-        htmlColorCode = "#00CED1"; // Cyan
-        break;
-    case QtInfoMsg:
-        htmlColorCode = "#32CD32"; // Green
-        break;
-    case QtWarningMsg:
-        htmlColorCode = "#FFD700"; // Yellow
-        break;
-    case QtCriticalMsg:
-        htmlColorCode = "#FF4500"; // Red
-        break;
-    case QtFatalMsg:
-        htmlColorCode = "#FF00FF"; // Magenta
-        break;
-    }
+
     
-    QString htmlMsg = QString("<span style='color:%1'>[%2] %3 %4:</span> %5")
-                          .arg(htmlColorCode)
-                          .arg(timestamp)
-                          .arg(typeText)
-                          .arg(category)
-                          .arg(msg);
+
     LogBroadcaster::instance().broadcastLogMessage(htmlMsg);
 
     // Print stack trace for fatal messages

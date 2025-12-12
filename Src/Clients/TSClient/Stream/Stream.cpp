@@ -72,7 +72,7 @@ void Stream::onReplyFinished()
     // received prior that was decoded in the onReadyRead() method.
     // FIXME I hit this assert. reason is because the wifi is cut, and i hit a timeout or something that makes the connection finis(),
     // but where the server never sent an error json object. So we need to handle this case better.
-    Q_ASSERT(m_receivedError == true);
+    //Q_ASSERT(m_receivedError == true);
 
     m_heartbeatTimer.stop();
 
