@@ -1123,11 +1123,22 @@ void StockPriceChart::clearSymbol() {
 /**
  * @brief Rebuilds the index-to-timestamp mappings for continuous display.
  * 
- * Creates sequential indices (0, 1, 2, ...) for all timestamps (completed bars,
- * void bars, and open bar) to enable gapless chart display across time periods.
+ * Creates indices for all timestamps (completed bars, void bars, and open bar) 
+ * to enable gapless chart display across time periods. When existing indices 
+ * are present, preserves the existing index origin (index 0) position by 
+ * rebuilding around it. Otherwise, starts from index 0.
+ * 
  * Maintains bidirectional mapping between indices and timestamps.
  */
 void StockPriceChart::rebuildIndexMapping() {
+    // Save the current origin timestamp (what was at index 0) if it exists
+    QDateTime originTimestamp;
+    bool hadOrigin = false;
+    if (indexToTimestamp.contains(0)) {
+        originTimestamp = indexToTimestamp[0];
+        hadOrigin = true;
+    }
+    
     indexToTimestamp.clear();
     timestampToIndex.clear();
     
@@ -1147,8 +1158,24 @@ void StockPriceChart::rebuildIndexMapping() {
         allTimestamps[currentOpenBar.getTimeStamp()] = false;
     }
     
-    // Build index mapping
-    int index = 0;
+    if (allTimestamps.isEmpty()) {
+        return;  // Nothing to map
+    }
+    
+    // Find where to start indexing based on origin preservation
+    int startIndex = 0;
+    QMap<QDateTime, bool>::const_iterator startIt = allTimestamps.constBegin();
+    
+    if (hadOrigin && allTimestamps.contains(originTimestamp)) {
+        // Find the origin timestamp in the sorted list
+        startIt = allTimestamps.find(originTimestamp);
+        // Count how many timestamps come before it (they'll get negative indices)
+        int timestampsBeforeOrigin = std::distance(allTimestamps.constBegin(), startIt);
+        startIndex = -timestampsBeforeOrigin;
+    }
+    
+    // Build index mapping starting from startIndex
+    int index = startIndex;
     for (auto it = allTimestamps.constBegin(); it != allTimestamps.constEnd(); ++it) {
         const QDateTime& timestamp = it.key();
         indexToTimestamp[index] = timestamp;
@@ -1171,13 +1198,14 @@ int StockPriceChart::getIndexForTimestamp(const QDateTime& timestamp) const {
     
     // If exact timestamp not found, find the closest index
     if (timestampToIndex.isEmpty()) {
-        return 0;
+        return 0;  // Default when no bars exist yet
     }
     
     // Find the first timestamp greater than or equal to the given timestamp
     auto upper = timestampToIndex.upperBound(timestamp);
     if (upper == timestampToIndex.begin()) {
-        return 0;  // Before all bars
+        // Before all bars - return the first available index (could be negative)
+        return indexToTimestamp.firstKey();
     }
     
     // Return the index of the previous bar
@@ -1523,9 +1551,11 @@ void StockPriceChart::updateIndexMappingIncremental(const QDateTime& timestamp) 
  * All bars (including void bars) are added to the index mapping to maintain
  * proper chronological ordering in the index space.
  * 
- * The bars vector should be sorted chronologically (oldest to newest).
+ * The bars vector is expected to be sorted chronologically (oldest to newest),
+ * but they are processed in reverse order (newest to oldest) to assign negative
+ * indices correctly going backwards from the current minimum index.
  * 
- * @param bars Vector of historical bars to add (should be sorted by timestamp).
+ * @param bars Vector of historical bars to add (should be sorted by timestamp oldest to newest).
  */
 void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) {
     if (bars.isEmpty()) {
