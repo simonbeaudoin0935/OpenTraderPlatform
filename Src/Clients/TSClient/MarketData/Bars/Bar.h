@@ -60,8 +60,6 @@ public:
     // Convert to JSON string for debugging/logging
     QString toJsonString() const;
 
-    void ajustTimeStampToOpeningMinute();
-
 
 private:
     double    high;

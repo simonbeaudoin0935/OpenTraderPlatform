@@ -333,8 +333,7 @@ BarCache::GetBarsResult_t BarCache::getBarsInRange(const QDateTime &first, const
                                                                     0,
                                                                     Bar::BarSessionTemplate::USEQ24Hour,
                                                                     first,
-                                                                    last.addSecs(60)); // Need to add a minute because the API bounds are excluding the last minute
-                                                                    // FIXME the addSecs(60) is likely the source of why we often fetch one bar too far
+                                                                    last);
 
     future.then(this, [this, first, last](QVector<Bar> bars){
         DEBUG << "Asynchronous getBars() from API completed for range" << first << "to" << last
@@ -433,8 +432,6 @@ QVector<Bar> BarCache::getBarsFromCache(QDateTime start, QDateTime end) const
 
 void BarCache::onReceivedNewLiveBar(Bar newBar)
 {
-    newBar.ajustTimeStampToOpeningMinute();
-
     storeBarInCache(newBar);
 
     emit receivedNewBar(m_symbol, newBar);
