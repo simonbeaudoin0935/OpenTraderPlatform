@@ -208,23 +208,52 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
         lastValidClosePrice = completedBars.first().getOpen();
     }
 
-    // Insert all received bars into the map
+    // Store current view state to preserve it
+    qreal currentMinIndex = axisX->min();
+    qreal currentMaxIndex = axisX->max();
+    qreal currentYMin = axisY->min();
+    qreal currentYMax = axisY->max();
+    bool hadInitialView = (currentMaxIndex - currentMinIndex) > 0;
+
+    // First, add all historical bars to the index mapping using negative indices
+    // This is O(m) where m = number of new bars, instead of O(n) rebuild
+    addHistoricalBarsToIndexMapping(bars);
+
+    // Insert all received bars into the completedBars/voidBars maps
     for (const Bar& bar : bars) {
         if (bar.getBarStatus() != Bar::BarStatus::Null) {
             completedBars.insert(bar.getTimeStamp(), bar);
             // Update the last valid close price
             lastValidClosePrice = bar.getClose();
+            
+            // Add candlestick for this bar
+            int index = getIndexForTimestamp(bar.getTimeStamp());
+            QCandlestickSet* set = new QCandlestickSet(index, this);
+            Q_CHECK_PTR(set);
+            set->setOpen(bar.getOpen());
+            set->setHigh(bar.getHigh());
+            set->setLow(bar.getLow());
+            set->setClose(bar.getClose());
+            candlestickSeries->append(set);
         } else {
             // Store void bar with the timestamp and price
             voidBars.insert(bar.getTimeStamp(), lastValidClosePrice);
+            
+            // Add to void bar scatter series
+            int index = getIndexForTimestamp(bar.getTimeStamp());
+            voidBarSeries->append(index, lastValidClosePrice);
         }
     }
 
     // Maintain the bar limit
     maintainBarLimit();
 
-    // Update the chart to display the new bars
-    updateChart();
+    // Restore the view state if it was initialized
+    if (hadInitialView) {
+        axisX->setRange(currentMinIndex, currentMaxIndex);
+        axisY->setRange(currentYMin, currentYMax);
+        updateAxisLabels();
+    }
 
     // Update the last price line if needed
     if (!bars.isEmpty()) {
@@ -263,7 +292,7 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
         // If this is the very first bar, set up initial view
         if (isFirstBar) {
             int index = getIndexForTimestamp(bar.getTimeStamp());
-            axisX->setRange(qMax(0, index - 30), index + 1);
+            axisX->setRange(index - 30, index + 1);  // Allow negative indices
             
             // Set Y axis range with padding
             double price = bar.getClose();
@@ -362,7 +391,7 @@ void StockPriceChart::handleOpenBar(const Bar& bar) {
         // If this is the very first bar, set up initial view
         if (isFirstBar) {
             int index = getIndexForTimestamp(newBarTime);
-            axisX->setRange(qMax(0, index - 30), index + 1);
+            axisX->setRange(index - 30, index + 1);  // Allow negative indices
             
             // Set Y axis range with padding
             double padding = newPrice * 0.0002;
@@ -454,7 +483,7 @@ void StockPriceChart::updateChart() {
     // Only update time axis range if this is the initial setup
     if (!hadInitialView && !indexToTimestamp.isEmpty()) {
         int lastIndex = indexToTimestamp.lastKey();
-        int startIndex = qMax(0, lastIndex - 30);  // Show last 30 bars
+        int startIndex = lastIndex - 30;  // Show last 30 bars (can be negative)
         int endIndex = lastIndex + 1;  // Small buffer
         
         axisX->setRange(startIndex, endIndex);   
@@ -1469,6 +1498,49 @@ void StockPriceChart::updateIndexMappingIncremental(const QDateTime& timestamp) 
     
     indexToTimestamp[newIndex] = timestamp;
     timestampToIndex[timestamp] = newIndex;
+}
+
+/**
+ * @brief Adds historical bars to the index mapping using negative indices.
+ * 
+ * This method implements the bidirectional index system where historical bars
+ * (earlier than the first existing bar) are assigned negative indices going
+ * backwards: -1, -2, -3, etc. This avoids the O(n) cost of shifting all
+ * existing positive indices when adding historical data.
+ * 
+ * The bars vector should be sorted chronologically (oldest to newest).
+ * 
+ * @param bars Vector of historical bars to add (should be sorted by timestamp).
+ */
+void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) {
+    if (bars.isEmpty()) {
+        return;
+    }
+    
+    // Get the current minimum index (could be negative or 0)
+    int minIndex = indexToTimestamp.isEmpty() ? 0 : indexToTimestamp.firstKey();
+    
+    // Process bars in reverse chronological order (newest to oldest)
+    // so we can assign negative indices going backwards
+    for (int i = bars.size() - 1; i >= 0; --i) {
+        const Bar& bar = bars[i];
+        const QDateTime& timestamp = bar.getTimeStamp();
+        
+        // Skip if already in mapping
+        if (timestampToIndex.contains(timestamp)) {
+            continue;
+        }
+        
+        // Skip void bars - they're handled separately in onRequestedMissingBarsReceived
+        if (bar.getBarStatus() == Bar::BarStatus::Null) {
+            continue;
+        }
+        
+        // Assign the next negative index
+        --minIndex;
+        indexToTimestamp[minIndex] = timestamp;
+        timestampToIndex[timestamp] = minIndex;
+    }
 }
 
 /**

@@ -71,7 +71,7 @@ bool StockPriceChart::handleMouseButtonPress(QMouseEvent* mouseEvent) {
         // Handle right click - recenter view
         if (!indexToTimestamp.isEmpty()) {
             int lastIndex = indexToTimestamp.lastKey();
-            int startIndex = qMax(0, lastIndex - 30);  // Show last 30 bars
+            int startIndex = lastIndex - 30;  // Show last 30 bars (can be negative now)
             int endIndex = lastIndex + 1;
 
             // Reset the horizontal axis
@@ -203,15 +203,15 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
     qreal newMin = axisX->min() + indexOffset;
     qreal newMax = axisX->max() + indexOffset;
     
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
+    // Check for missing bars when panning beyond the first available bar
+    if (!completedBars.isEmpty() && !indexToTimestamp.isEmpty()) {
+        int firstAvailableIndex = indexToTimestamp.firstKey();
+        if (newMin < firstAvailableIndex) {
+            QDateTime firstBarTime = completedBars.firstKey();
+            QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
+            checkForMissingBars(requestTime, firstBarTime);
+        }
     }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
     
     axisX->setRange(newMin, newMax);
     axisY->setRange(qMax(0.0, axisY->min() + priceOffset), axisY->max() + priceOffset);
