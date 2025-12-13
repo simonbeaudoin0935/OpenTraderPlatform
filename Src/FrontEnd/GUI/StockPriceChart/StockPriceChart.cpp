@@ -231,8 +231,9 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
             
             // Add candlestick for this bar
             int index = getIndexForTimestamp(bar.getTimeStamp());
-            QCandlestickSet* set = new QCandlestickSet(index, this);
+            auto set = new QCandlestickSet();
             Q_CHECK_PTR(set);
+            set->setTimestamp(index);  // Use index instead of timestamp
             set->setOpen(bar.getOpen());
             set->setHigh(bar.getHigh());
             set->setLow(bar.getLow());
@@ -1167,13 +1168,17 @@ void StockPriceChart::rebuildIndexMapping() {
     
     // Find where to start indexing based on origin preservation
     int startIndex = 0;
-    QMap<QDateTime, bool>::const_iterator startIt = allTimestamps.constBegin();
     
     if (hadOrigin && allTimestamps.contains(originTimestamp)) {
-        // Find the origin timestamp in the sorted list
-        startIt = allTimestamps.find(originTimestamp);
-        // Count how many timestamps come before it (they'll get negative indices)
-        int timestampsBeforeOrigin = std::distance(allTimestamps.constBegin(), startIt);
+        // Count how many timestamps come before the origin (they'll get negative indices)
+        // Iterate and count instead of using std::distance for O(n) but more Qt-idiomatic
+        int timestampsBeforeOrigin = 0;
+        for (auto it = allTimestamps.constBegin(); it != allTimestamps.constEnd(); ++it) {
+            if (it.key() == originTimestamp) {
+                break;
+            }
+            ++timestampsBeforeOrigin;
+        }
         startIndex = -timestampsBeforeOrigin;
     }
     
