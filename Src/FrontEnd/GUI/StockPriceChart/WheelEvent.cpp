@@ -81,15 +81,15 @@ void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
     qreal newMin = currentMin + shiftAmount;
     qreal newMax = currentMax + shiftAmount;
     
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
+    // Check for missing bars when panning beyond the first available bar
+    if (!completedBars.isEmpty() && !indexToTimestamp.isEmpty()) {
+        int firstAvailableIndex = indexToTimestamp.firstKey();
+        if (newMin < firstAvailableIndex) {
+            QDateTime firstBarTime = completedBars.firstKey();
+            QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
+            checkForMissingBars(requestTime, firstBarTime);
+        }
     }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
     
     axisX->setRange(newMin, newMax);
     updateLastPriceLineIfNeeded();
@@ -118,15 +118,15 @@ void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor)
     qreal newMin = centerIndex - (newIndexRange / 2);
     qreal newMax = centerIndex + (newIndexRange / 2);
     
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
+    // Check for missing bars when zooming beyond the first available bar
+    if (!completedBars.isEmpty() && !indexToTimestamp.isEmpty()) {
+        int firstAvailableIndex = indexToTimestamp.firstKey();
+        if (newMin < firstAvailableIndex) {
+            QDateTime firstBarTime = completedBars.firstKey();
+            QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
+            checkForMissingBars(requestTime, firstBarTime);
+        }
     }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
 
     axisX->setRange(newMin, newMax);
     updateLastPriceLineIfNeeded();
@@ -181,15 +181,15 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
     qreal newMin = centerIndex - (newIndexRange / 2);
     qreal newMax = centerIndex + (newIndexRange / 2);
     
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
+    // Check for missing bars when zooming beyond the first available bar
+    if (!completedBars.isEmpty() && !indexToTimestamp.isEmpty()) {
+        int firstAvailableIndex = indexToTimestamp.firstKey();
+        if (newMin < firstAvailableIndex) {
+            QDateTime firstBarTime = completedBars.firstKey();
+            QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
+            checkForMissingBars(requestTime, firstBarTime);
+        }
     }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
 
     // Price axis zoom
     qreal currentMinPrice = axisY->min();
