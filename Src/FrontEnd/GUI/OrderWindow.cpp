@@ -119,10 +119,15 @@ void OrderWindow::updateOrder(const QString& account, const Order& order) {
         // a cleanup mechanism that rebuilds the map after row removal.
         updateOrderRow(account, order);
     } else {
-        // Add new order
+        // Add new order at the top (latest first)
+        // Shift all existing row indices down by 1
+        for (auto& rowIndex : m_orderRowMap) {
+            rowIndex++;
+        }
+        
         QList<QStandardItem*> rowItems = createRowItems(order);
-        m_model->appendRow(rowItems);
-        m_orderRowMap[orderId] = m_model->rowCount() - 1;
+        m_model->insertRow(0, rowItems);
+        m_orderRowMap[orderId] = 0;
     }
 }
 
@@ -287,6 +292,7 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
             // Button styling for received orders
             statusItem->setBackground(QColor("#007BFF"));
             statusItem->setForeground(QColor("#FFFFFF"));
+            statusItem->setText("Received ❌");  // Add X emoji to make it look like a cancel button
             break;
         case OrderStatus::LAT:  // Too Late to Cancel
         case OrderStatus::OUT:  // UROut

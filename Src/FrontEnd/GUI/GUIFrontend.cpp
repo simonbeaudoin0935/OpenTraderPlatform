@@ -169,6 +169,9 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
                 qCWarning(GUIFrontendLog) << "Failed to cancel order" << orderId << ":" << result.getMessage();
                 // TODO: Show error message to user
             }
+        }).onFailed([](const QException& e){
+            Q_UNUSED(e);
+            Q_ASSERT_X(false, "Cancel order request timed out", "Cancel order request timed out");
         });
     });
 
