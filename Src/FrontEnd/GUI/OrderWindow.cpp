@@ -37,7 +37,7 @@ void OrderWindow::setupUI() {
     m_tableView->setModel(m_model);
     m_tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     m_tableView->verticalHeader()->setVisible(false);
-    m_tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_tableView->setSelectionMode(QAbstractItemView::NoSelection);
     m_tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_tableView->setAlternatingRowColors(true);
     m_tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
