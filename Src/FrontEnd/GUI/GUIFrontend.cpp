@@ -101,31 +101,30 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     // When the chart requests missing bars, inside the lambda we call the main algo to get the bars from the displayed stock's bar cache
     // The result can be either immediate (QVector<Bar>) or asynchronous (QFuture<QVector<Bar>>)
     connect(ui->priceChart, &StockPriceChart::requestMissingBars,
-            this, [this](QDateTime from, QDateTime to) mutable {
+        this, [this](QDateTime from, QDateTime to) mutable {
                 
-                BarCache::GetBarsResult_t result = MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from, to);
+            BarCache::GetBarsResult_t result = MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from, to);
 
-                if (std::holds_alternative<QVector<Bar>>(result)) {
-                    // The barCache had the bars ready immediately
-                    ui->priceChart->onRequestedMissingBarsReceived(std::move(std::get<QVector<Bar>>(result)));
+            if (std::holds_alternative<QVector<Bar>>(result)) {
+                // The barCache had the bars ready immediately
+                ui->priceChart->onRequestedMissingBarsReceived(std::move(std::get<QVector<Bar>>(result)));
+            } else {
+                QFuture<QVector<Bar>> future = std::move(std::get<QFuture<QVector<Bar>>>(result));
 
-                } else {
-                    QFuture<QVector<Bar>> future = std::move(std::get<QFuture<QVector<Bar>>>(result));
-
-                    future.then(this, [this](const QVector<Bar>& bars){
-                        ui->priceChart->onRequestedMissingBarsReceived(bars);
-                    }).onFailed([](const TSClient::TimeoutException& e){
-                        Q_UNUSED(e);
-                        Q_ASSERT_X(false, "Get bars request timed out", "Get bars request timed out");
-                    }).onFailed([](const TSClient::JSONErrorException& e){
-                        Q_UNUSED(e);
-                        Q_ASSERT_X(false, "Get bars request JSON error", "Get bars request JSON error");
-                    }).onFailed([](const TSClient::OtherErrorException& e){
-                        Q_UNUSED(e);
-                        Q_ASSERT_X(false, "Get bars request other error", "Get bars request other error");
-                    });
-                }
-            });
+                future.then(this, [this](const QVector<Bar>& bars){
+                    ui->priceChart->onRequestedMissingBarsReceived(std::move(bars));
+                }).onFailed([](const TSClient::TimeoutException& e){
+                    Q_UNUSED(e);
+                    Q_ASSERT_X(false, "Get bars request timed out", "Get bars request timed out");
+                }).onFailed([](const TSClient::JSONErrorException& e){
+                    Q_UNUSED(e);
+                    Q_ASSERT_X(false, "Get bars request JSON error", "Get bars request JSON error");
+                }).onFailed([](const TSClient::OtherErrorException& e){
+                    Q_UNUSED(e);
+                    Q_ASSERT_X(false, "Get bars request other error", "Get bars request other error");
+                });
+            }
+        });
 
     // Connect the stock symbol input to its slot
     connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GUIFrontend::onNewDisplayedStockSelection);
