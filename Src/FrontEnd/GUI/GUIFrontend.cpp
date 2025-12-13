@@ -176,6 +176,7 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     });
 
     // Connect order entry widget
+    ui->orderEntryWidget->setGUIFrontend(this);
     auto orderEntryConnection = connect(ui->orderEntryWidget, &OrderEntryWidget::orderPlaced,
                       this, &GUIFrontend::onOrderPlaced, Qt::UniqueConnection);
     Q_ASSERT(orderEntryConnection);
@@ -378,6 +379,8 @@ void GUIFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
 
 void GUIFrontend::onTradeStationAccountsReceived(QVector<Account> results)
 {
+    m_accounts = results;  // Store accounts
+    
     for (const Account& account : results) {
         ui->logDisplay->append("  ID:" + account.getAccountId());
         ui->logDisplay->append("  Type:" + AccountType::accountTypeToString(account.getAccountType().type));
@@ -399,8 +402,30 @@ void GUIFrontend::onTradeStationAccountsReceived(QVector<Account> results)
         }
     }
     
-    // Pass accounts to order entry widget
+    // Populate account selector
+    ui->accountSelector->clear();
+    for (const Account& account : results) {
+        ui->accountSelector->addItem(
+            QString("%1 (%2)").arg(account.getAccountId(), AccountType::accountTypeToString(account.getAccountType().type)),
+            account.getAccountId()
+        );
+    }
+    
+    // Set default to last account (as requested)
+    if (!results.isEmpty()) {
+        ui->accountSelector->setCurrentIndex(results.size() - 1);
+    }
+    
+    // Pass accounts to order entry widget (for submit button enabling)
     ui->orderEntryWidget->setAccounts(results);
+}
+
+QString GUIFrontend::getSelectedAccountId() const
+{
+    if (ui->accountSelector->currentIndex() >= 0 && ui->accountSelector->currentIndex() < m_accounts.size()) {
+        return m_accounts[ui->accountSelector->currentIndex()].getAccountId();
+    }
+    return QString();  // Return empty string if no valid selection
 }
 
 void GUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)

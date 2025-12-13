@@ -14,14 +14,18 @@
 #include "Account.h"
 #include "PlaceOrder.h"
 
+class GUIFrontend;
+
 class OrderEntryWidget : public QWidget {
     Q_OBJECT
 public:
     explicit OrderEntryWidget(QWidget* p_parent = nullptr);
     ~OrderEntryWidget();
 
+    void setGUIFrontend(GUIFrontend* guiFrontend);
+
 public slots:
-    void setAccounts(const QVector<Account>& accounts);
+    void setAccounts(const QList<Account>& accounts);
     void setSymbol(const QString& symbol);
 
 signals:
@@ -41,7 +45,6 @@ private:
 
     // UI Components
     QLabel* m_headerLabel;
-    QComboBox* m_accountCombo;
     QLineEdit* m_symbolInput;
     QRadioButton* m_buyRadio;
     QRadioButton* m_buyToCoverRadio;
@@ -58,6 +61,9 @@ private:
     // Labels for price fields
     QLabel* m_limitPriceLabel;
     QLabel* m_stopPriceLabel;
+
+    // Reference to GUIFrontend for account selection
+    GUIFrontend* m_guiFrontend;
 
     // Account storage
     QVector<Account> m_accounts;

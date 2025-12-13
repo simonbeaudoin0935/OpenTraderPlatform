@@ -2,8 +2,10 @@
 static const char* logging_categories[] = {
     "BarCache",
     "Chart",
+    "GUIFrontend",
     "MainAlgo",
     "MarketDepthQuoteReceiver",
+    "OrdersReceiver",
     "PositionsReceiver",
     "RunUpDetector",
     "SecureStorage",
@@ -13,4 +15,4 @@ static const char* logging_categories[] = {
     "TSClient.token.auth",
     "TSClient.token.client",
 };
-static const int logging_categories_count = 12;
+static const int logging_categories_count = 14;

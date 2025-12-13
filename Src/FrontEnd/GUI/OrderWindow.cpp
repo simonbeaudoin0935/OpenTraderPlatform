@@ -282,11 +282,16 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
             statusItem->setForeground(QColor("#721C24"));  // Dark red text
             break;
         case OrderStatus::OPN:  // Sent
-        case OrderStatus::DON:  // Queued
         case OrderStatus::UCN:  // Cancel Sent
         case OrderStatus::RSN:  // Replace Sent
             statusItem->setBackground(QColor("#FFF3CD"));  // Light yellow
             statusItem->setForeground(QColor("#856404"));  // Dark yellow text
+            break;
+        case OrderStatus::DON:  // Queued
+            // Button styling for queued orders
+            statusItem->setBackground(QColor("#007BFF"));
+            statusItem->setForeground(QColor("#FFFFFF"));
+            statusItem->setText("Queued ❌");  // Add X emoji to make it look like a cancel button
             break;
         case OrderStatus::ACK:  // Received
             // Button styling for received orders
@@ -307,6 +312,15 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
             break;
     }
     
+    // Set tooltip with detailed status information
+    QString tooltipText = order.getStatusDescription();
+    if (order.getOrderStatus() == OrderStatus::OUT) {
+        tooltipText = "Successfully Cancelled (UROut)\n\nThis order was cancelled successfully.";
+    } else if (order.rejectReason.has_value() && !order.rejectReason.value().isEmpty()) {
+        tooltipText += "\n\nReject Reason: " + order.rejectReason.value();
+    }
+    statusItem->setToolTip(tooltipText);
+    
     items << statusItem;
 
     return items;
@@ -321,12 +335,14 @@ void OrderWindow::onSymbolClicked(const QModelIndex& index) {
     
     QString orderId = orderIdItem->text();
     
-    // Check if this row has "Received" status (last column)
+    // Check if this row has "Received" or "Queued" status (last column)
     QStandardItem* statusItem = m_model->item(index.row(), 8);  // Status column
-    bool isReceivedOrder = (statusItem != nullptr && statusItem->text().contains("Received", Qt::CaseInsensitive));
+    bool isCancelableOrder = (statusItem != nullptr && 
+                             (statusItem->text().contains("Received", Qt::CaseInsensitive) ||
+                              statusItem->text().contains("Queued", Qt::CaseInsensitive)));
     
-    if (isReceivedOrder) {
-        // This is a received order - emit cancel signal
+    if (isCancelableOrder) {
+        // This is a cancelable order - emit cancel signal
         emit cancelOrderRequested(orderId);
         return;
     }

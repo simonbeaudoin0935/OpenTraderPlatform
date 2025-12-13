@@ -4,11 +4,12 @@
 #include <QGridLayout>
 #include <QMessageBox>
 #include <QGroupBox>
+#include "GUIFrontend.h"
 
 OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     : QWidget(p_parent)
+    , m_guiFrontend(nullptr)
     , m_headerLabel(new QLabel("ORDER ENTRY", this))
-    , m_accountCombo(new QComboBox(this))
     , m_symbolInput(new QLineEdit(this))
     , m_buyRadio(new QRadioButton("Buy", this))
     , m_buyToCoverRadio(new QRadioButton("Buy to Cover", this))
@@ -47,10 +48,6 @@ void OrderEntryWidget::setupUI() {
     QFormLayout* formLayout = new QFormLayout(formWidget);
     formLayout->setSpacing(8);
     formLayout->setContentsMargins(8, 8, 8, 8);
-
-    // Account selection
-    m_accountCombo->setToolTip("Select trading account");
-    formLayout->addRow("Account:", m_accountCombo);
 
     // Symbol input
     m_symbolInput->setPlaceholderText("e.g., AAPL");
@@ -171,20 +168,15 @@ void OrderEntryWidget::setupStyles() {
     // Submit button styling is now handled dynamically in onTradeActionChanged
 }
 
-void OrderEntryWidget::setAccounts(const QVector<Account>& accounts) {
-    m_accounts = accounts;
-    m_accountCombo->clear();
+void OrderEntryWidget::setGUIFrontend(GUIFrontend* guiFrontend) {
+    m_guiFrontend = guiFrontend;
+}
+
+void OrderEntryWidget::setAccounts(const QList<Account>& accounts) {
+    m_accounts = accounts.toVector();
     
-    for (const Account& account : accounts) {
-        m_accountCombo->addItem(
-            QString("%1 (%2)").arg(account.getAccountId(), AccountType::accountTypeToString(account.getAccountType().type)),
-            account.getAccountId()
-        );
-    }
-    
-    // Enable/disable based on account availability
+    // Enable/disable submit button based on account availability
     bool hasAccounts = !accounts.isEmpty();
-    m_accountCombo->setEnabled(hasAccounts);
     m_submitButton->setEnabled(hasAccounts);
 }
 
@@ -299,8 +291,12 @@ void OrderEntryWidget::updatePriceFieldsVisibility() {
 }
 
 bool OrderEntryWidget::validateInputs() {
+    // Check GUIFrontend reference
+    Q_ASSERT(m_guiFrontend);
+    
     // Check account selected
-    if (m_accountCombo->currentIndex() < 0) {
+    QString accountID = m_guiFrontend->getSelectedAccountId();
+    if (accountID.isEmpty()) {
         QMessageBox::warning(this, "Invalid Input", "Please select an account.");
         return false;
     }
@@ -348,8 +344,11 @@ bool OrderEntryWidget::validateInputs() {
 PlaceOrderRequest OrderEntryWidget::buildOrderRequest() {
     PlaceOrderRequest request;
 
-    // Set required fields
-    QString accountID = m_accountCombo->currentData().toString();
+    // Check GUIFrontend reference
+    Q_ASSERT(m_guiFrontend);
+    
+    // Get account from GUIFrontend
+    QString accountID = m_guiFrontend->getSelectedAccountId();
     request.setAccountID(accountID);
 
     QString symbol = m_symbolInput->text().trimmed().toUpper();

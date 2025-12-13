@@ -35,6 +35,9 @@ public slots:
     void onNewOrderReceived(QString account, Order order) override;
     void onBalanceUpdated(Balance balance) override;
 
+public:
+    QString getSelectedAccountId() const;
+
 private slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
     void onNewDisplayedStockSelection();
@@ -64,5 +67,7 @@ private:
     int maxLiveLogLines = 1000;  // Maximum lines in live log display
     
     bool m_hasRestoredLastStock = false;  // Track if we've restored the last stock
+    
+    QVector<Account> m_accounts;  // Store available accounts
 };
 
