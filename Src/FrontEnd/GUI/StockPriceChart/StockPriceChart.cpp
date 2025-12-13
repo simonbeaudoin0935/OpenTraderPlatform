@@ -218,8 +218,10 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     qreal currentYMax = axisY->max();
     bool hadInitialView = (currentMaxIndex - currentMinIndex) > 0;
 
-    // First, add all historical bars to the index mapping using negative indices
-    // This is O(m) where m = number of new bars, instead of O(n) rebuild
+    // First, add all historical bars to the index mapping using negative indices.
+    // This is O(m) where m = number of new bars, instead of O(n) rebuild.
+    // Note: This only creates timestamp → index mappings; bars don't need to be
+    // in completedBars/voidBars yet since we only read their timestamps.
     addHistoricalBarsToIndexMapping(bars);
 
     // Insert all received bars into the completedBars/voidBars maps
@@ -1195,6 +1197,11 @@ void StockPriceChart::rebuildIndexMapping() {
 /**
  * @brief Gets the index corresponding to a timestamp.
  * 
+ * Returns the exact index if the timestamp exists in the mapping, otherwise
+ * returns the index of the closest earlier bar. If the timestamp is before
+ * all available bars, returns the first available index (which could be negative),
+ * serving as a boundary for extrapolation by getTimestampForIndex().
+ * 
  * @param timestamp The timestamp to find the index for.
  * @return The index for the timestamp, or the closest available index if exact match not found.
  */
@@ -1598,17 +1605,20 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) 
     int minIndex = indexToTimestamp.isEmpty() ? 0 : indexToTimestamp.firstKey();
     
     // Process bars in reverse chronological order (newest to oldest)
-    // so we can assign negative indices going backwards
+    // so we can assign negative indices going backwards.
+    // We decrement the index only when we actually add a bar to avoid gaps.
     for (int i = bars.size() - 1; i >= 0; --i) {
         const Bar& bar = bars[i];
         const QDateTime& timestamp = bar.getTimeStamp();
         
-        // Skip if already in mapping
+        // Skip if already in mapping (shouldn't happen in normal flow,
+        // but protects against duplicate insertions)
         if (timestampToIndex.contains(timestamp)) {
             continue;
         }
         
         // Assign the next negative index for all bars (including void bars)
+        // Decrement BEFORE assignment so the first bar gets minIndex-1
         --minIndex;
         indexToTimestamp[minIndex] = timestamp;
         timestampToIndex[timestamp] = minIndex;
