@@ -220,6 +220,9 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     // Note: This only creates timestamp → index mappings; bars don't need to be
     // in completedBars/voidBars yet since we only read their timestamps.
     addHistoricalBarsToIndexMapping(bars);
+    
+    qCDebug(ChartLog) << "After addHistoricalBarsToIndexMapping, index range:" 
+                      << (indexToTimestamp.isEmpty() ? "empty" : QString("%1 to %2").arg(indexToTimestamp.firstKey()).arg(indexToTimestamp.lastKey()));
 
     // Insert all received bars into the completedBars/voidBars maps
     for (const Bar& bar : bars) {
@@ -240,7 +243,10 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     voidBarSeries->clear();
     candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
     
+    qCDebug(ChartLog) << "Rebuilding candlestick series with" << indexToTimestamp.size() << "total bars";
+    
     // Add all bars in sorted index order
+    int addedCount = 0;
     for (auto it = indexToTimestamp.constBegin(); it != indexToTimestamp.constEnd(); ++it) {
         int index = it.key();
         const QDateTime& timestamp = it.value();
@@ -249,6 +255,10 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
         if (voidBars.contains(timestamp)) {
             double price = voidBars[timestamp];
             voidBarSeries->append(index, price);
+            if (addedCount < 5 || index < 0) {
+                qCDebug(ChartLog) << "  Adding void bar at index" << index << "time" << timestamp.toString("hh:mm:ss");
+            }
+            addedCount++;
         }
         // Check if it's a completed bar
         else if (completedBars.contains(timestamp)) {
@@ -261,6 +271,10 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
             set->setLow(bar.getLow());
             set->setClose(bar.getClose());
             candlestickSeries->append(set);
+            if (addedCount < 5 || index < 0) {
+                qCDebug(ChartLog) << "  Adding candlestick at index" << index << "time" << timestamp.toString("hh:mm:ss") << "O/H/L/C:" << bar.getOpen() << bar.getHigh() << bar.getLow() << bar.getClose();
+            }
+            addedCount++;
         }
         // Check if it's the current open bar
         else if (hasOpenBar && timestamp == currentOpenBar.getTimeStamp()) {
@@ -272,6 +286,8 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
             set->setLow(currentOpenBar.getLow());
             set->setClose(currentOpenBar.getClose());
             candlestickSeries->append(set);
+            qCDebug(ChartLog) << "  Adding open bar at index" << index << "time" << timestamp.toString("hh:mm:ss");
+            addedCount++;
         }
     }
 
@@ -1604,6 +1620,8 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) 
     // Get the current minimum index (could be negative or 0)
     int minIndex = indexToTimestamp.isEmpty() ? 0 : indexToTimestamp.firstKey();
     
+    qCDebug(ChartLog) << "addHistoricalBarsToIndexMapping: adding" << bars.size() << "bars, starting minIndex:" << minIndex;
+    
     // Process bars in reverse chronological order (newest to oldest)
     // so we can assign negative indices going backwards.
     // We decrement the index only when we actually add a bar to avoid gaps.
@@ -1614,6 +1632,7 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) 
         // Skip if already in mapping (shouldn't happen in normal flow,
         // but protects against duplicate insertions)
         if (timestampToIndex.contains(timestamp)) {
+            qCDebug(ChartLog) << "  Skipping duplicate timestamp" << timestamp.toString("hh:mm:ss");
             continue;
         }
         
@@ -1622,7 +1641,13 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) 
         --minIndex;
         indexToTimestamp[minIndex] = timestamp;
         timestampToIndex[timestamp] = minIndex;
+        
+        if (i >= bars.size() - 3 || minIndex >= -3) {
+            qCDebug(ChartLog) << "  Assigned index" << minIndex << "to timestamp" << timestamp.toString("hh:mm:ss");
+        }
     }
+    
+    qCDebug(ChartLog) << "addHistoricalBarsToIndexMapping: completed, new minIndex:" << minIndex;
 }
 
 /**
