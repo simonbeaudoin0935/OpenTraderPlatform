@@ -178,8 +178,3 @@ QString Bar::toJsonString() const {
     QJsonDocument doc(jsonObj);
     return QString(doc.toJson(QJsonDocument::Indented));
 }
-
-void Bar::ajustTimeStampToOpeningMinute()
-{
-    timeStamp = timeStamp.addSecs(-60);
-}

@@ -613,8 +613,8 @@ void TestBarCache::testBoundaryConditions()
     QVector<Bar> results = cache.getBars(start6AM, start6AM.addSecs(60 * 4));
     QCOMPARE(results.size(), 5);
     
-    // Verify first bar timestamp
-    QCOMPARE(results.first().getTimeStamp(), start6AM);
+    // Verify first bar timestamp (should be closing time of first minute bar)
+    QCOMPARE(results.first().getTimeStamp(), start6AM.addSecs(60));
     
     cache.clearDatabase();
 }
