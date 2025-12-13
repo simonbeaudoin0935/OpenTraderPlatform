@@ -89,6 +89,7 @@ private:
     // Index-based positioning helpers
     void rebuildIndexMapping();
     void updateIndexMappingIncremental(const QDateTime& timestamp);
+    void addHistoricalBarsToIndexMapping(const QVector<Bar>& bars);
     int getIndexForTimestamp(const QDateTime& timestamp) const;
     QDateTime getTimestampForIndex(int index) const;
     QDateTime getPreviousTradingMinute(const QDateTime& timestamp) const;
