@@ -345,6 +345,7 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
  * 
  * Removes the oldest bars (both completed and void bars) when the total
  * exceeds MAX_BARS to prevent memory issues and maintain performance.
+ * Also cleans up the index mappings for removed bars.
  */
 void StockPriceChart::maintainBarLimit() {
     // Count total bars (completed + void)
@@ -355,12 +356,23 @@ void StockPriceChart::maintainBarLimit() {
         QDateTime oldestCompletedTime = completedBars.isEmpty() ? QDateTime() : completedBars.firstKey();
         QDateTime oldestVoidTime = voidBars.isEmpty() ? QDateTime() : voidBars.firstKey();
         
+        QDateTime oldestTime;
+        
         // Remove the older one
         if (oldestCompletedTime.isValid() && 
             (!oldestVoidTime.isValid() || oldestCompletedTime < oldestVoidTime)) {
+            oldestTime = oldestCompletedTime;
             completedBars.erase(completedBars.begin());
         } else if (oldestVoidTime.isValid()) {
+            oldestTime = oldestVoidTime;
             voidBars.erase(voidBars.begin());
+        }
+        
+        // Clean up the index mapping for the removed bar
+        if (oldestTime.isValid() && timestampToIndex.contains(oldestTime)) {
+            int removedIndex = timestampToIndex[oldestTime];
+            timestampToIndex.remove(oldestTime);
+            indexToTimestamp.remove(removedIndex);
         }
         
         totalBars--;
@@ -628,15 +640,15 @@ void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
     qreal newMin = currentMin + shiftAmount;
     qreal newMax = currentMax + shiftAmount;
     
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
+    // Check for missing bars when panning beyond the first available bar
+    if (!completedBars.isEmpty() && !indexToTimestamp.isEmpty()) {
+        int firstAvailableIndex = indexToTimestamp.firstKey();
+        if (newMin < firstAvailableIndex) {
+            QDateTime firstBarTime = completedBars.firstKey();
+            QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
+            checkForMissingBars(requestTime, firstBarTime);
+        }
     }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
     
     axisX->setRange(newMin, newMax);
     updateLastPriceLineIfNeeded();
@@ -665,15 +677,15 @@ void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor)
     qreal newMin = centerIndex - (newIndexRange / 2);
     qreal newMax = centerIndex + (newIndexRange / 2);
     
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
+    // Check for missing bars when zooming beyond the first available bar
+    if (!completedBars.isEmpty() && !indexToTimestamp.isEmpty()) {
+        int firstAvailableIndex = indexToTimestamp.firstKey();
+        if (newMin < firstAvailableIndex) {
+            QDateTime firstBarTime = completedBars.firstKey();
+            QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
+            checkForMissingBars(requestTime, firstBarTime);
+        }
     }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
 
     axisX->setRange(newMin, newMax);
     updateLastPriceLineIfNeeded();
@@ -727,15 +739,15 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
     qreal newMin = centerIndex - (newIndexRange / 2);
     qreal newMax = centerIndex + (newIndexRange / 2);
     
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
+    // Check for missing bars when zooming beyond the first available bar
+    if (!completedBars.isEmpty() && !indexToTimestamp.isEmpty()) {
+        int firstAvailableIndex = indexToTimestamp.firstKey();
+        if (newMin < firstAvailableIndex) {
+            QDateTime firstBarTime = completedBars.firstKey();
+            QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
+            checkForMissingBars(requestTime, firstBarTime);
+        }
     }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
 
     // Price axis zoom
     qreal currentMinPrice = axisY->min();
@@ -1508,6 +1520,9 @@ void StockPriceChart::updateIndexMappingIncremental(const QDateTime& timestamp) 
  * backwards: -1, -2, -3, etc. This avoids the O(n) cost of shifting all
  * existing positive indices when adding historical data.
  * 
+ * All bars (including void bars) are added to the index mapping to maintain
+ * proper chronological ordering in the index space.
+ * 
  * The bars vector should be sorted chronologically (oldest to newest).
  * 
  * @param bars Vector of historical bars to add (should be sorted by timestamp).
@@ -1531,12 +1546,7 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) 
             continue;
         }
         
-        // Skip void bars - they're handled separately in onRequestedMissingBarsReceived
-        if (bar.getBarStatus() == Bar::BarStatus::Null) {
-            continue;
-        }
-        
-        // Assign the next negative index
+        // Assign the next negative index for all bars (including void bars)
         --minIndex;
         indexToTimestamp[minIndex] = timestamp;
         timestampToIndex[timestamp] = minIndex;
