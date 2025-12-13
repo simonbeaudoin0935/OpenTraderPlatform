@@ -1,6 +1,7 @@
 #include "OrderEntryWidget.h"
 #include <QVBoxLayout>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QMessageBox>
 #include <QGroupBox>
 
@@ -59,7 +60,7 @@ void OrderEntryWidget::setupUI() {
 
     // Trade Action (Buy/Sell) - Radio buttons
     QGroupBox* tradeActionGroup = new QGroupBox("Action:", this);
-    QVBoxLayout* tradeActionLayout = new QVBoxLayout(tradeActionGroup);
+    QGridLayout* tradeActionLayout = new QGridLayout(tradeActionGroup);
     tradeActionLayout->setContentsMargins(8, 8, 8, 8);
     tradeActionLayout->setSpacing(4);
     
@@ -68,10 +69,12 @@ void OrderEntryWidget::setupUI() {
     m_tradeActionGroup->addButton(m_buyToCoverRadio, static_cast<int>(TradeAction::BuyToCover));
     m_tradeActionGroup->addButton(m_sellToCoverRadio, static_cast<int>(TradeAction::SellToClose));
     
-    tradeActionLayout->addWidget(m_buyRadio);
-    tradeActionLayout->addWidget(m_buyToCoverRadio);
-    tradeActionLayout->addWidget(m_sellRadio);
-    tradeActionLayout->addWidget(m_sellToCoverRadio);
+    // Arrange in 2x2 grid: Buy | Sell
+    //                      Buy to Cover | Sell to Cover
+    tradeActionLayout->addWidget(m_buyRadio, 0, 0);
+    tradeActionLayout->addWidget(m_sellRadio, 0, 1);
+    tradeActionLayout->addWidget(m_buyToCoverRadio, 1, 0);
+    tradeActionLayout->addWidget(m_sellToCoverRadio, 1, 1);
     
     // Set Buy as default
     m_buyRadio->setChecked(true);
