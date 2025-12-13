@@ -84,7 +84,19 @@ Order::Order(const QJsonObject &jsonObj, bool isUpdate_) :
     
     // Parse optional limit price
     if (jsonObj.contains("LimitPrice")) {
-        limitPrice = jsonObj["LimitPrice"].toDouble(0.0);
+        QJsonValue limitPriceJson = jsonObj["LimitPrice"];
+        qDebug() << "Order: LimitPrice JSON value:" << limitPriceJson << "type:" << limitPriceJson.type();
+        
+        // Try different conversion methods
+        double limitPriceValue = 0.0;
+        if (limitPriceJson.isString()) {
+            QString str = limitPriceJson.toString();
+            limitPriceValue = str.toDouble();
+        } else if (limitPriceJson.isDouble()) {
+            limitPriceValue = limitPriceJson.toDouble();
+        }
+        
+        limitPrice = limitPriceValue;
     }
     
     priceUsedForBuyingPower = jsonObj["PriceUsedForBuyingPower"].toDouble(0.0);

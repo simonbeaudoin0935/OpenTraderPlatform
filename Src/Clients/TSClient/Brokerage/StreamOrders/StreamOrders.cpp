@@ -52,6 +52,10 @@ void StreamOrders::processJsonObject(const QJsonObject &jsonObj)
         return;
     }
 
+    if (jsonObj.contains("ErrorResponse")) {
+        Q_ASSERT(false); // TODO
+    }
+
     // If not a status message, try to process as an order update
     qDebug() << "StreamOrders: Processing order JSON:" << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Compact));
     
