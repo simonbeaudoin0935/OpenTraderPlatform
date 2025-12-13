@@ -35,11 +35,18 @@ private slots:
     void onOrderTypeChanged(int index);
     void onTradeActionChanged(int id);
     void onSubmitClicked();
+    void saveOrderTypeSetting(int index);
+    void saveDurationSetting(int index);
+    void saveQuantitySetting(int value);
+    void saveLimitPriceSetting(double value);
+    void saveStopPriceSetting(double value);
+    void saveTradeActionSetting(int id);
 
 private:
     void setupUI();
     void setupStyles();
     void updatePriceFieldsVisibility();
+    void loadSavedSettings();
     [[nodiscard]] bool validateInputs();
     [[nodiscard]] PlaceOrderRequest buildOrderRequest();
 

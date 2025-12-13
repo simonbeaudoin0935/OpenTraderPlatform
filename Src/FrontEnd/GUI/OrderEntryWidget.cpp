@@ -5,6 +5,7 @@
 #include <QMessageBox>
 #include <QGroupBox>
 #include "GUIFrontend.h"
+#include "Misc/Settings.h"
 
 OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     : QWidget(p_parent)
@@ -134,6 +135,9 @@ void OrderEntryWidget::setupUI() {
     // Set fixed width
     setFixedWidth(280);
 
+    // Load saved settings
+    loadSavedSettings();
+
     // Connect signals
     auto c1 = connect(m_orderTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
                       this, &OrderEntryWidget::onOrderTypeChanged, Qt::UniqueConnection);
@@ -146,6 +150,31 @@ void OrderEntryWidget::setupUI() {
     auto c3 = connect(m_submitButton, &QPushButton::clicked,
                       this, &OrderEntryWidget::onSubmitClicked, Qt::UniqueConnection);
     Q_ASSERT(c3);
+
+    // Connect settings save signals
+    auto c4 = connect(m_orderTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                      this, &OrderEntryWidget::saveOrderTypeSetting, Qt::UniqueConnection);
+    Q_ASSERT(c4);
+
+    auto c5 = connect(m_durationCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                      this, &OrderEntryWidget::saveDurationSetting, Qt::UniqueConnection);
+    Q_ASSERT(c5);
+
+    auto c6 = connect(m_quantityInput, QOverload<int>::of(&QSpinBox::valueChanged),
+                      this, &OrderEntryWidget::saveQuantitySetting, Qt::UniqueConnection);
+    Q_ASSERT(c6);
+
+    auto c7 = connect(m_limitPriceInput, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                      this, &OrderEntryWidget::saveLimitPriceSetting, Qt::UniqueConnection);
+    Q_ASSERT(c7);
+
+    auto c8 = connect(m_stopPriceInput, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                      this, &OrderEntryWidget::saveStopPriceSetting, Qt::UniqueConnection);
+    Q_ASSERT(c8);
+
+    auto c9 = connect(m_tradeActionGroup, QOverload<int>::of(&QButtonGroup::idClicked),
+                      this, &OrderEntryWidget::saveTradeActionSetting, Qt::UniqueConnection);
+    Q_ASSERT(c9);
 
     // Initialize visibility based on default order type
     updatePriceFieldsVisibility();
@@ -434,4 +463,75 @@ void OrderEntryWidget::onSubmitClicked() {
         qInfo() << "Order submitted:" << order.toJsonString();
         emit orderPlaced(order);
     }
+}
+
+void OrderEntryWidget::loadSavedSettings() {
+    Q_CHECK_PTR(appStateSettings);
+    
+    // Load saved order type
+    int savedOrderType = appStateSettings->value("OrderEntry/OrderType", 0).toInt();
+    if (savedOrderType >= 0 && savedOrderType < m_orderTypeCombo->count()) {
+        m_orderTypeCombo->setCurrentIndex(savedOrderType);
+    }
+    
+    // Load saved duration
+    int savedDuration = appStateSettings->value("OrderEntry/Duration", 0).toInt();
+    if (savedDuration >= 0 && savedDuration < m_durationCombo->count()) {
+        m_durationCombo->setCurrentIndex(savedDuration);
+    }
+
+    // Load saved quantity
+    int savedQuantity = appStateSettings->value("OrderEntry/Quantity", 100).toInt();
+    m_quantityInput->setValue(savedQuantity);
+
+    // Load saved limit price
+    double savedLimitPrice = appStateSettings->value("OrderEntry/LimitPrice", 0.0).toDouble();
+    m_limitPriceInput->setValue(savedLimitPrice);
+
+    // Load saved stop price
+    double savedStopPrice = appStateSettings->value("OrderEntry/StopPrice", 0.0).toDouble();
+    m_stopPriceInput->setValue(savedStopPrice);
+
+    // Load saved trade action
+    int savedTradeAction = appStateSettings->value("OrderEntry/TradeAction", static_cast<int>(TradeAction::Buy)).toInt();
+    QAbstractButton* button = m_tradeActionGroup->button(savedTradeAction);
+    if (button) {
+        button->setChecked(true);
+    }
+}
+
+void OrderEntryWidget::saveOrderTypeSetting(int index) {
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("OrderEntry/OrderType", index);
+    appStateSettings->sync();
+}
+
+void OrderEntryWidget::saveDurationSetting(int index) {
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("OrderEntry/Duration", index);
+    appStateSettings->sync();
+}
+
+void OrderEntryWidget::saveQuantitySetting(int value) {
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("OrderEntry/Quantity", value);
+    appStateSettings->sync();
+}
+
+void OrderEntryWidget::saveLimitPriceSetting(double value) {
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("OrderEntry/LimitPrice", value);
+    appStateSettings->sync();
+}
+
+void OrderEntryWidget::saveStopPriceSetting(double value) {
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("OrderEntry/StopPrice", value);
+    appStateSettings->sync();
+}
+
+void OrderEntryWidget::saveTradeActionSetting(int id) {
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("OrderEntry/TradeAction", id);
+    appStateSettings->sync();
 }
