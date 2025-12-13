@@ -127,12 +127,12 @@ target_link_libraries(L2TraderCommon PUBLIC
     Qt6::Core
     Qt6::Network
     Qt6::Sql
-    Qt6::Gui
     Qt6::Concurrent
 )
 
 if(ENABLE_GUI)
     target_link_libraries(L2TraderCommon PUBLIC
+        Qt6::Gui
         Qt6::Widgets
         Qt6::Charts
         Qt6::WebEngineWidgets
