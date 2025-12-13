@@ -204,6 +204,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     }
     //Q_ASSERT(!bars.isEmpty());
 
+    // thats just to handle the initial pass in this function
     if (lastValidClosePrice == 0.0) {
         lastValidClosePrice = completedBars.first().getOpen();
     }
@@ -1625,8 +1626,8 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) 
     // Process bars in reverse chronological order (newest to oldest)
     // so we can assign negative indices going backwards.
     // We decrement the index only when we actually add a bar to avoid gaps.
-    for (int i = bars.size() - 1; i >= 0; --i) {
-        const Bar& bar = bars[i];
+    for (auto it = bars.rbegin(); it != bars.rend(); ++it) {
+        const Bar& bar = *it;
         const QDateTime& timestamp = bar.getTimeStamp();
         
         // Skip if already in mapping (shouldn't happen in normal flow,
@@ -1642,7 +1643,7 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) 
         indexToTimestamp[minIndex] = timestamp;
         timestampToIndex[timestamp] = minIndex;
         
-        if (i >= bars.size() - 3 || minIndex >= -3) {
+        if (it - bars.rbegin() >= bars.size() - 3 || minIndex >= -3) {
             qCDebug(ChartLog) << "  Assigned index" << minIndex << "to timestamp" << timestamp.toString("hh:mm:ss");
         }
     }
