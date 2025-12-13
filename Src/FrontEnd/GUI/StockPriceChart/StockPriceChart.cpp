@@ -227,24 +227,51 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
             completedBars.insert(bar.getTimeStamp(), bar);
             // Update the last valid close price
             lastValidClosePrice = bar.getClose();
-            
-            // Add candlestick for this bar
-            int index = getIndexForTimestamp(bar.getTimeStamp());
+        } else {
+            // Store void bar with the timestamp and price
+            voidBars.insert(bar.getTimeStamp(), lastValidClosePrice);
+        }
+    }
+    
+    // Rebuild candlestick series in sorted index order to ensure correct positioning.
+    // QCandlestickSeries positions bars by insertion order, not by timestamp value,
+    // so we need to clear and rebuild the series sorted by index.
+    candlestickSeries->clear();
+    voidBarSeries->clear();
+    candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
+    
+    // Add all bars in sorted index order
+    for (auto it = indexToTimestamp.constBegin(); it != indexToTimestamp.constEnd(); ++it) {
+        int index = it.key();
+        const QDateTime& timestamp = it.value();
+        
+        // Check if it's a void bar
+        if (voidBars.contains(timestamp)) {
+            double price = voidBars[timestamp];
+            voidBarSeries->append(index, price);
+        }
+        // Check if it's a completed bar
+        else if (completedBars.contains(timestamp)) {
+            const Bar& bar = completedBars[timestamp];
             auto set = new QCandlestickSet();
             Q_CHECK_PTR(set);
-            set->setTimestamp(index);  // Use index instead of timestamp
+            set->setTimestamp(index);
             set->setOpen(bar.getOpen());
             set->setHigh(bar.getHigh());
             set->setLow(bar.getLow());
             set->setClose(bar.getClose());
             candlestickSeries->append(set);
-        } else {
-            // Store void bar with the timestamp and price
-            voidBars.insert(bar.getTimeStamp(), lastValidClosePrice);
-            
-            // Add to void bar scatter series
-            int index = getIndexForTimestamp(bar.getTimeStamp());
-            voidBarSeries->append(index, lastValidClosePrice);
+        }
+        // Check if it's the current open bar
+        else if (hasOpenBar && timestamp == currentOpenBar.getTimeStamp()) {
+            auto set = new QCandlestickSet();
+            Q_CHECK_PTR(set);
+            set->setTimestamp(index);
+            set->setOpen(currentOpenBar.getOpen());
+            set->setHigh(currentOpenBar.getHigh());
+            set->setLow(currentOpenBar.getLow());
+            set->setClose(currentOpenBar.getClose());
+            candlestickSeries->append(set);
         }
     }
 
