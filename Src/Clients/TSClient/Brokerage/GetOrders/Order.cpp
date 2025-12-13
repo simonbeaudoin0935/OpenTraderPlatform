@@ -84,7 +84,7 @@ Order::Order(const QJsonObject &jsonObj, bool isUpdate_) :
     
     // Parse optional limit price
     if (jsonObj.contains("LimitPrice")) {
-        double limitPriceValue = jsonObj["LimitPrice"].toString().toDouble(0.0);
+        double limitPriceValue = jsonObj["LimitPrice"].toString().toDouble();
         limitPrice = limitPriceValue;
     }
     
@@ -94,7 +94,7 @@ Order::Order(const QJsonObject &jsonObj, bool isUpdate_) :
     
     // Parse optional stop price
     if (jsonObj.contains("StopPrice")) {
-        stopPrice = jsonObj["StopPrice"].toString().toDouble(0.0);
+        stopPrice = jsonObj["StopPrice"].toString().toDouble();
     }
     
     unbundledRouteFee = jsonObj["UnbundledRouteFee"].toDouble(0.0);

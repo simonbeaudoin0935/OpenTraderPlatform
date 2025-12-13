@@ -20,6 +20,8 @@
 #include "Misc/Logging.h"
 #include "Misc/Settings.h"
 
+Q_LOGGING_CATEGORY(GUIFrontendLog, "GUIFrontend")
+
 GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     FrontEnd(parent),
     mainAlgo(mainAlgo)
@@ -150,6 +152,24 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     connect(ui->orderWindow, &OrderWindow::symbolClicked, this, [this](const QString& symbol) {
         ui->stockSymbolInput->setText(symbol);
         ui->stockSymbolInput->returnPressed();  // Simulate Enter key press
+    });
+
+    // Connect order window cancel order request
+    connect(ui->orderWindow, &OrderWindow::cancelOrderRequested, this, [this](const QString& orderId) {
+        qCDebug(GUIFrontendLog) << "Cancel order requested for order ID:" << orderId;
+        
+        // Cancel the order using TSClient
+        auto cancelFuture = TSClient::getInstance()->cancelOrder(orderId);
+        
+        // Handle the result asynchronously
+        cancelFuture.then([this, orderId](const CancelOrderResult& result) {
+            if (!result.isError()) {
+                qCInfo(GUIFrontendLog) << "Order" << orderId << "cancelled successfully:" << result.getMessage();
+            } else {
+                qCWarning(GUIFrontendLog) << "Failed to cancel order" << orderId << ":" << result.getMessage();
+                // TODO: Show error message to user
+            }
+        });
     });
 
     // Connect order entry widget

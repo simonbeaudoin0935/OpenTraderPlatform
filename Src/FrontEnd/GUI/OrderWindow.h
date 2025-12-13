@@ -20,6 +20,7 @@ public slots:
 
 signals:
     void symbolClicked(const QString& symbol);
+    void cancelOrderRequested(const QString& orderId);
 
 private:
     void setupUI();

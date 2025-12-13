@@ -150,6 +150,7 @@ void OrderWindow::updateOrderRow(const QString& account, const Order& order) {
 
 QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     QList<QStandardItem*> items;
+    bool isReceivedOrder = (order.getOrderStatus() == OrderStatus::ACK);
 
     // Order ID
     auto orderIdItem = new QStandardItem(order.getOrderID());
@@ -283,8 +284,9 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
             statusItem->setForeground(QColor("#856404"));  // Dark yellow text
             break;
         case OrderStatus::ACK:  // Received
-            statusItem->setBackground(QColor("#D1ECF1"));  // Light blue
-            statusItem->setForeground(QColor("#0C5460"));  // Dark blue text
+            // Button styling for received orders
+            statusItem->setBackground(QColor("#007BFF"));
+            statusItem->setForeground(QColor("#FFFFFF"));
             break;
         case OrderStatus::LAT:  // Too Late to Cancel
         case OrderStatus::OUT:  // UROut
@@ -305,10 +307,29 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
 }
 
 void OrderWindow::onSymbolClicked(const QModelIndex& index) {
-    if (index.column() == 1) {  // Only handle clicks on the Symbol column (now column 1)
-        QStandardItem* item = m_model->item(index.row(), 1);
-        if (item != nullptr) {
-            QString symbol = item->text();
+    // Get the order ID from the first column of the clicked row
+    QStandardItem* orderIdItem = m_model->item(index.row(), 0);
+    if (orderIdItem == nullptr) {
+        return;
+    }
+    
+    QString orderId = orderIdItem->text();
+    
+    // Check if this row has "Received" status (last column)
+    QStandardItem* statusItem = m_model->item(index.row(), 8);  // Status column
+    bool isReceivedOrder = (statusItem != nullptr && statusItem->text().contains("Received", Qt::CaseInsensitive));
+    
+    if (isReceivedOrder) {
+        // This is a received order - emit cancel signal
+        emit cancelOrderRequested(orderId);
+        return;
+    }
+    
+    // Otherwise, handle symbol clicks (only on Symbol column)
+    if (index.column() == 1) {  // Symbol column
+        QStandardItem* symbolItem = m_model->item(index.row(), 1);
+        if (symbolItem != nullptr) {
+            QString symbol = symbolItem->text();
             emit symbolClicked(symbol);
         }
     }

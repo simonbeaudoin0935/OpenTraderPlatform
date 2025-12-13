@@ -15,6 +15,8 @@ namespace Ui {
 class GUIFrontend;
 }
 
+Q_DECLARE_LOGGING_CATEGORY(GUIFrontendLog)
+
 class GUIFrontend : public FrontEnd {
     Q_OBJECT
 public:
