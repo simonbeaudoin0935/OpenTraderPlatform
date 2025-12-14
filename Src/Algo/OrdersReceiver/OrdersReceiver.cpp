@@ -45,7 +45,7 @@ void OrdersReceiver::createOrdersStream()
             // will have called deleteLater() on itself after throwing an exception at us.
             // Its safe to then just re-execute this function, since we don't have to worry amout
             // freeing the current stream variable. 
-            createOrdersStream();
+            QTimer::singleShot(300, this, &OrdersReceiver::createOrdersStream);
         }
     );
 }

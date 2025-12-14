@@ -32,6 +32,9 @@ private slots:
     void onReceivedNewMarketDepthQuote(MarketDepthQuote marketDepthQuote);
 
 private:
+
+    void createMarketDepthQuoteStream();
+    
     QString m_symbol;
     QPointer<StreamMarketDepthQuote> m_stream;
     unsigned int depthWeightedPriceLevel = 5; // Default value of 5

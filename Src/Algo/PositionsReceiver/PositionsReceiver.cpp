@@ -13,9 +13,20 @@ PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
 {
     this->setObjectName("PositionReceiver");
     
-    DEBUG <<  "Starting Positions stream for account " << account;
+
+}
+
+PositionsReceiver::~PositionsReceiver() {
+    Q_ASSERT(m_stream != nullptr);
+
+    TSClient::getInstance()->closeStream(m_stream);
+}
+
+void PositionsReceiver::createPositionsStream()
+{
+    DEBUG <<  "Starting Positions stream for account " << m_account;
     
-    m_stream = TSClient::getInstance()->openStreamPositions(account);
+    m_stream = TSClient::getInstance()->openStreamPositions(m_account);
     Q_CHECK_PTR(m_stream);
 
     connect(m_stream, &StreamPositions::newPositionReceived, this, &PositionsReceiver::onReceivedNewPosition);
@@ -28,7 +39,11 @@ PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
 
     m_stream->future().then(this,
         [this](){
-            CRITICAL << "Positions Receiver future finished";
+            // We get here when the stream is gracefully closed by the receiving side.
+            // This should never happen for the orders stream, its supposed to operate during
+            // all the program execution.
+            CRITICAL << "Not supposed to voluntarly close the orders stream with TSClient::closeStream()";
+            Q_ASSERT(false);
         }
     ).onFailed(this,
         [this](const std::exception& e){
@@ -38,16 +53,15 @@ PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
 
             Q_ASSERT(false);
 
-            //TODO attempt to restart the stream
+            // Since we are in the failed path, it means the stream on the other end
+            // will have called deleteLater() on itself after throwing an exception at us.
+            // Its safe to then just re-execute this function, since we don't have to worry amout
+            // freeing the current stream variable. 
+            QTimer::singleShot(300, this, &PositionsReceiver::createPositionsStream);
         }
     );
 }
 
-PositionsReceiver::~PositionsReceiver() {
-    Q_ASSERT(m_stream != nullptr);
-
-    TSClient::getInstance()->closeStream(m_stream);
-}
 
 void PositionsReceiver::onReceivedNewPosition(Position position)
 {

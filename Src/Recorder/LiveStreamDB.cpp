@@ -97,6 +97,11 @@ void LiveStreamDB::startRecording() {
                     Q_ASSERT(false);
 
                     //TODO attempt to restart the stream
+
+                    // if we have to know that is the source of the failure. 
+                    // if its an invalid symbol, then we dont restart
+                    // if its a timeout then we restart
+                    
                 }
             );
 
@@ -135,7 +140,7 @@ void LiveStreamDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray
     qint64 epochMs = QDateTime::currentMSecsSinceEpoch();
 
     QString dataType = (streamType == StreamType::Bars) ? "bar" : "market depth quote";
-    qDebug() << "Received new" << dataType << "raw JSON data for" << symbol << "at timestamp" << epochMs;
+    DEBUG << "Received new" << dataType << "raw JSON data for" << symbol << "at timestamp" << epochMs;
 
     // Check if this symbol had an unrecovered timeout and mark it as recovered
     if (unrecoveredTimeouts.contains(symbol)) {

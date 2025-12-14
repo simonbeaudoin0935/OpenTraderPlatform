@@ -25,6 +25,8 @@ private slots:
     void onPositionDeleted(QString positionID);
 
 private:
-    StreamPositions* m_stream = nullptr;
+    QPointer<StreamPositions> m_stream = nullptr;
     QString m_account;
+
+    void createPositionsStream();
 };

@@ -43,13 +43,11 @@ Stream::Stream(QNetworkReply * reply, QObject *parent) :
 
 Stream::~Stream()
 {
-    INFO << "Stream destroyed ";
+    WARNING << "Stream destroyed ";
 
     Q_ASSERT_X(QThread::currentThread() == this->thread(),
                "Stream::~Stream",
                "Stream must be destroyed in the same thread where it was created");
-
-    INFO << "Destroying Stream " << objectName();
 
     s_numberOfStream--;
 
