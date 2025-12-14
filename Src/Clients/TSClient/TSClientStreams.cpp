@@ -1,18 +1,19 @@
 #include "TSClient.h"
+#include "Logging.h"
+
+#define LOGGING_CATEGORY TSClientLog
 
 QPointer<StreamPositions> TSClient::openStreamPositions(const QString &accountID, bool changes)
 {
     Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
     
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamPositions for account " << accountID << " with changes=" << changes;
-
+    DEBUG << "Opening StreamPositions for account " << accountID << " with changes=" << changes;
     
-    const QString endpoint = QString(ENDPOINT_STREAM_POSITIONS).arg(accountID);
-
     QUrlQuery query;
     query.addQueryItem("changes", changes? "true":"false");
 
-    QNetworkRequest request = buildNetworkRequest(endpoint, query);
+    QNetworkRequest request = buildNetworkRequest(QString(ENDPOINT_STREAM_POSITIONS).arg(accountID),
+                                                  query);
 
     QPointer<StreamPositions> stream;
 
@@ -89,6 +90,9 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString &symbol,
     QNetworkRequest request = buildNetworkRequest(endpoint, query);
 
     QPointer<StreamBars> stream;
+    QUrlQuery query;    QUrlQuery query;
+
+    QUrlQuery query;
 
     QMetaObject::invokeMethod(this,
         [this, &request, &stream, &symbol]()
@@ -115,14 +119,14 @@ QPointer<StreamMarketDepthQuote> TSClient::openStreamMarketDepthQuote(const QStr
 {
     Q_ASSERT(depth >= 1 && depth <= 20);
 
-    const QString endpoint = QString(ENDPOINT_STREAM_MARKET_DEPTH_QUOTE).arg(symbol);
     QUrlQuery query;
     query.addQueryItem("maxlevels", QString::number(depth));
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamMarketDepthQuote";
 
 
-    QNetworkRequest request = buildNetworkRequest(endpoint, query);
+    QNetworkRequest request = buildNetworkRequest(QString(ENDPOINT_STREAM_MARKET_DEPTH_QUOTE).arg(symbol),
+                                                  query);
 
     QPointer<StreamMarketDepthQuote> stream;
 
