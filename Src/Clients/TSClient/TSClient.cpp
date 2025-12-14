@@ -8,13 +8,11 @@
 #include <QDebug>
 
 #include "TSClient.h"
+#include "Logging.h"
+
+#define LOGGING_CATEGORY TSClientLog
 
 Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
-
-#define DEBUG    qCDebug(TSClientLog)
-#define INFO     qCInfo(TSClientLog)
-#define WARNING  qCWarning(TSClientLog)
-#define CRITICAL qCCritical(TSClientLog)
 
 #define BASE_URL_SCHEME                "https"
 #define BASE_URL_HOST_SIMULATION       "sim-api.tradestation.com"

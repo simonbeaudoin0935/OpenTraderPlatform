@@ -6,4 +6,3 @@
 
 QStringList loadStockTickers(const QString& csvFilePath);
 QString createRecordingFolders(const QString& cacheLocation);
-QString streamErrorToString(Stream::StreamError error);

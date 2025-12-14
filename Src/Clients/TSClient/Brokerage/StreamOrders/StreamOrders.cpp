@@ -1,29 +1,8 @@
 #include "StreamOrders.h"
 #include "TSClient.h"
+#include "Logging.h"
 
-StreamOrders::StreamOrdersStatus::StreamOrdersStatus(const QJsonObject& jsonObj) {
-    // Get the StreamStatus string
-    statusString = jsonObj["StreamStatus"].toString();
-
-    // Convert string to enum
-    if (statusString == "EndSnapshot") {
-        status = Status::EndSnapshot;
-    } else if (statusString == "GoAway") {
-        status = Status::GoAway;
-    } else {
-        status = Status::Unknown;
-    }
-}
-
-bool StreamOrders::StreamOrdersStatus::isValid() const {
-    // A status object is valid if it contains a non-empty status string
-    return !statusString.isEmpty();
-}
-
-bool StreamOrders::StreamOrdersStatus::isStatusValid() const {
-    // A status is valid if it's one of the known values
-    return status != Status::Unknown;
-}
+#define LOGGING_CATEGORY StreamLog
 
 StreamOrders::StreamOrders(const QString &accountID, QNetworkReply * reply, QObject *parent) :
     Stream(reply, parent),
@@ -35,31 +14,36 @@ StreamOrders::StreamOrders(const QString &accountID, QNetworkReply * reply, QObj
 void StreamOrders::processJsonObject(const QJsonObject &jsonObj)
 {
     // First check if this is a status message
-    if (jsonObj.contains("StreamStatus")) {
-        StreamOrdersStatus status(jsonObj);
-        if (status.isValid()) {
-            // Update the EndSnapshot flag if we receive that status
-            if (status.getStatus() == StreamOrdersStatus::Status::EndSnapshot) {
-                receivedEndSnapshot = true;
-                qCDebug(StreamLog) << "Received EndSnapshot status for account" << m_accountID;
-            } else if (status.getStatus() == StreamOrdersStatus::Status::GoAway) {
-                qCWarning(StreamLog) << "Received GoAway status for account" << m_accountID;
-            }
+    if (jsonObj.contains("StreamStatus")) [[unlikely]] {
+        QString statusStr = jsonObj["StreamStatus"].toString();
+        if (statusStr == "EndSnapshot") {
+            emit endSnapshotReceived();
+        } else if (statusStr == "GoAway") {
+            WARNING << "Received GoAway status for account" << m_accountID;
+            Q_ASSERT(false); // TODO handle this properly
         } else {
-            qCWarning(StreamLog) << "Stream status object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
-            return;
+            WARNING << "Stream status object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
         }
+
         return;
     }
 
-    if (jsonObj.contains("ErrorResponse")) {
-        Q_ASSERT(false); // TODO
+    if (jsonObj.contains("ErrorResponse")) [[unlikely]] {
+        QString errorStr = jsonObj["Error"].toString();
+        QString message =  jsonObj["Message"].toString();
+        QString accountID = jsonObj["AccountID"].toString();
+
+        m_jsonErrorString = errorStr + ": " + message + " (AccountID: " + accountID + ")";
+
+        CRITICAL << "Received error string '" << errorStr << "' and message: " << message << " for account " << accountID;
+        
+        return;
     }
 
     // If not a status message, try to process as an order update
     qDebug() << "StreamOrders: Processing order JSON:" << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Compact));
     
-    Order order(jsonObj, receivedEndSnapshot);  // Pass the update flag based on EndSnapshot status
+    Order order(jsonObj, m_receivedEndSnapshot);  // Pass the update flag based on EndSnapshot status
 
     if (!order.isValid()) [[unlikely]] {
         qCWarning(StreamLog) << "Order update object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented)); 

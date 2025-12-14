@@ -7,13 +7,16 @@
 #include "TSClient.h"
 #include "Logging.h"
 
-#define LOGGING_CATEGORY StreamLog
-
+#define LOGGING_CATEGORY LiveStreamDBLog
+Q_LOGGING_CATEGORY(LiveStreamDBLog, "LiveStreamDB");
 
 LiveStreamDB::LiveStreamDB(StreamType type, const QString& dbPath, QStringList& stockTickers)
     : streamType(type), stockTickers(stockTickers)
 {
     QString connectionName = (type == StreamType::Bars) ? "LiveBarsDB" : "LiveMarketDepthQuoteDB";
+
+    setObjectName("LiveStreamDB::" + connectionName);
+
     db = QSqlDatabase::addDatabase("QSQLITE", connectionName);
     db.setDatabaseName(dbPath);
     if (!db.open()) {
@@ -26,11 +29,11 @@ LiveStreamDB::LiveStreamDB(StreamType type, const QString& dbPath, QStringList& 
     QString tableQuery = (type == StreamType::Bars) ? SqlQueries::CREATE_BARS_TABLE : SqlQueries::CREATE_MARKET_DEPTH_QUOTES_TABLE;
     query.exec(tableQuery);
     if (query.lastError().isValid()) {
-        qWarning() << "Failed to create" << ((type == StreamType::Bars) ? "bars" : "market depth quotes") << "table:" << query.lastError().text();
+        WARNING << "Failed to create" << ((type == StreamType::Bars) ? "bars" : "market depth quotes") << "table:" << query.lastError().text();
     }
 
     QString dbType = (type == StreamType::Bars) ? "bars" : "market depth quotes";
-    qInfo() << "Live" << dbType << "database opened at" << dbPath;
+    INFO  << "Live" << dbType << "database opened at" << dbPath;
 }
 
 LiveStreamDB::~LiveStreamDB() {
@@ -56,7 +59,7 @@ bool LiveStreamDB::storeData(const QString& stock, qint64 timestamp, const QByte
     query.addBindValue(rawData);
     if (!query.exec()) {
         QString dataType = (streamType == StreamType::Bars) ? "bar" : "market depth quote";
-        qWarning() << "Failed to store" << dataType << "for" << stock << ":" << query.lastError().text();
+        WARNING << "Failed to store" << dataType << "for" << stock << ":" << query.lastError().text();
 
         // Assert for now because storing should not fail, maybe handle more gracefully much later
         Q_ASSERT_X(false, "LiveStreamDB::storeData", "Database insert failed");
@@ -69,7 +72,7 @@ bool LiveStreamDB::storeData(const QString& stock, qint64 timestamp, const QByte
 void LiveStreamDB::startRecording() {
     for (const QString& symbol : stockTickers) {
         if (streamType == StreamType::Bars) {
-            StreamBars* stream = TSClient::getInstance()->openStreamBars(symbol,
+            QPointer<StreamBars> stream = TSClient::getInstance()->openStreamBars(symbol,
                                                                            1,
                                                                            Bar::BarUnit::Minute,
                                                                            2,
@@ -82,25 +85,24 @@ void LiveStreamDB::startRecording() {
                 });
 
             stream->future().then(this,
-                [this, stream](){
-                    CRITICAL << "StreamBars Receiver future finished for " << stream->getSymbol();
+                [this, symbol](){
+                    CRITICAL << "StreamBars Receiver future finished for " << symbol;
                 }
             ).onFailed(this,
-                [this, stream](QException ex){
-                    Q_UNUSED(ex);
+                [this, symbol](const std::exception& e){
 
-                    WARNING << "StreamBars Receiver failed for" << stream->getSymbol()
-                            << "- Exception:" << stream->errorToString();
+                    CRITICAL << "StreamBars Receiver failed for" << symbol
+                             << "- Exception:" << QString::fromStdString(e.what());
 
-                    CRITICAL << "TODO : deal with this";
+                    Q_ASSERT(false);
+
+                    //TODO attempt to restart the stream
                 }
             );
 
-
-
-            streamBars[symbol] = stream;
+            m_streamBars[symbol] = stream;
         } else {
-            StreamMarketDepthQuote* stream = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10); // depth 10
+            QPointer<StreamMarketDepthQuote> stream = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10); // depth 10
             Q_ASSERT(stream != nullptr);
 
 
@@ -110,21 +112,21 @@ void LiveStreamDB::startRecording() {
                 });
 
             stream->future().then(this,
-                [this, stream](){
-                    CRITICAL << "StreamMarketDepthQuote Receiver future finished";
+                [this, symbol](){
+                    CRITICAL << "StreamMarketDepthQuote Receiver future finished for " << symbol;
                 }
             ).onFailed(this,
-                [this, stream](QException ex){
-                    Q_UNUSED(ex);
+                [this, symbol](const std::exception& e){
+                    CRITICAL << "StreamMarketDepthQuote Receiver failed for" << symbol
+                             << "- Exception:" << QString::fromStdString(e.what());
 
-                    WARNING << "StreamMarketDepthQuote Receiver failed for" << stream->getSymbol()
-                            << "- Exception:" << stream->errorToString();
+                    Q_ASSERT(false);
 
-                    CRITICAL << "TODO : deal with this";
+                    //TODO attempt to restart the stream
                 }
             );
 
-            streamMarketDepthQuotes[symbol] = stream;
+            m_streamMarketDepthQuotes[symbol] = stream;
         }
     }
 }
@@ -145,7 +147,9 @@ void LiveStreamDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray
     storeData(symbol, epochMs, rawData);
 }
 
-void LiveStreamDB::onStreamErrorOccurred(Stream::StreamError error, QString errorMessage) {
+// TODO fix this shit, and plug that everywhere in this file where we have todos about acting on the stream erroring
+/*
+void LiveStreamDB::onStreamErrorOccurred(QString errorMessage) {
     // Find the sender and symbol based on stream type
     QString symbol;
     if (streamType == StreamType::Bars) {
@@ -185,6 +189,7 @@ void LiveStreamDB::onStreamErrorOccurred(Stream::StreamError error, QString erro
 
     qWarning() << "Stream error for" << symbol << "error:" << static_cast<int>(error) << "message:" << errorMessage;
 }
+*/
 
 void LiveStreamDB::finalizeUnrecoveredTimeouts() {
     for (const QString& symbol : unrecoveredTimeouts) {
@@ -200,87 +205,84 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol) {
 
     if (streamType == StreamType::Bars) {
         // Close existing stream
-        if (streamBars.contains(symbol)) {
-            StreamBars* oldStream = streamBars[symbol];
+        if (m_streamBars.contains(symbol)) {
+            QPointer<StreamBars> oldStream = m_streamBars[symbol];
             if (oldStream) {
                 TSClient::getInstance()->closeStream(oldStream);
             }
-            streamBars.remove(symbol);
+            m_streamBars.remove(symbol);
         }
 
         // Open new stream
-        StreamBars* stream = TSClient::getInstance()->openStreamBars(symbol,
+        QPointer<StreamBars> stream = TSClient::getInstance()->openStreamBars(symbol,
                                                                        1,
                                                                        Bar::BarUnit::Minute,
                                                                        2,
                                                                        Bar::BarSessionTemplate::USEQ24Hour);
-        if (stream) {
-            QObject::connect(stream, &StreamBars::receivedNewRawData, this, 
-                [this, symbol = stream->getSymbol()](const QByteArray& rawData){
-                    onReceivedNewRawDataForStock(symbol, rawData);
-                });
+        Q_ASSERT(stream != nullptr);
+
+        QObject::connect(stream, &StreamBars::receivedNewRawData, this, 
+            [this, symbol](const QByteArray& rawData){
+                onReceivedNewRawDataForStock(symbol, rawData);
+            });
 
 
-            stream->future().then(this,
-                [this, stream](){
-                    CRITICAL << "Bar Receiver Receiver future finished";
-                }
-            ).onFailed(this,
-                [this, stream](QException ex){
-                    Q_UNUSED(ex);
+        stream->future().then(this,
+            [this, symbol](){
+                CRITICAL << "Bar Receiver Receiver future finished for " << symbol;
+            }
+        ).onFailed(this,
+            [this, symbol](const std::exception& e){
 
-                    WARNING << "Bar Receiver Receiver failed for" << stream->getSymbol()
-                            << "- Exception:" << stream->errorToString();
+                CRITICAL << "Bar Receiver Receiver failed for" << symbol
+                        << "- Exception:" << QString::fromStdString(e.what());
 
-                    CRITICAL << "TODO : deal with this";
-                }
-            );
+                Q_ASSERT(false);
 
-            streamBars[symbol] = stream;
-            successfulRecoveries[symbol]++;
-            qInfo() << "Successfully recovered bars stream for" << symbol;
-        } else {
-            qWarning() << "Failed to recover bars stream for" << symbol;
-        }
+                //TODO attempt to restart the stream
+            }
+        );
+
+        m_streamBars[symbol] = stream;
+        successfulRecoveries[symbol]++;
+        qInfo() << "Successfully recovered bars stream for" << symbol;
     } else {
         // Close existing stream
-        if (streamMarketDepthQuotes.contains(symbol)) {
-            StreamMarketDepthQuote* oldStream = streamMarketDepthQuotes[symbol];
+        if (m_streamMarketDepthQuotes.contains(symbol)) {
+            StreamMarketDepthQuote* oldStream = m_streamMarketDepthQuotes[symbol];
             if (oldStream) {
                 TSClient::getInstance()->closeStream(oldStream);
             }
-            streamMarketDepthQuotes.remove(symbol);
+            m_streamMarketDepthQuotes.remove(symbol);
         }
 
         // Open new stream
         StreamMarketDepthQuote* stream = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10);
-        if (stream) {
-            QObject::connect(stream, &StreamMarketDepthQuote::receivedNewRawData, this, 
-                [this, symbol = stream->getSymbol()](const QByteArray& rawData){
-                    onReceivedNewRawDataForStock(symbol, rawData);
-                });
+        Q_CHECK_PTR(stream);
 
-            stream->future().then(this,
-                [this, stream](){
-                    CRITICAL << "Recorder Bar receiver bar future finished";
-                }
-            ).onFailed(this,
-                [this, stream](QException ex){
-                    Q_UNUSED(ex);
+        QObject::connect(stream, &StreamMarketDepthQuote::receivedNewRawData, this, 
+            [this, symbol](const QByteArray& rawData){
+                onReceivedNewRawDataForStock(symbol, rawData);
+            });
 
-                    WARNING << "Recorder Bar receiver future failed for" << stream->getSymbol()
-                            << "- Exception:" << stream->errorToString();
+        stream->future().then(this,
+            [this, symbol](){
+                CRITICAL << "Recorder Bar receiver bar future finished for " << symbol;
+            }
+        ).onFailed(this,
+            [this, symbol](const std::exception& e){
+                CRITICAL << "Recorder Bar receiver future failed for" << symbol
+                         << "- Exception:" << QString::fromStdString(e.what());
 
-                    CRITICAL << "TODO : deal with this";
-                }
-            );
+                    Q_ASSERT(false);
 
-            streamMarketDepthQuotes[symbol] = stream;
-            successfulRecoveries[symbol]++;
-            qInfo() << "Successfully recovered market depth stream for" << symbol;
-        } else {
-            qWarning() << "Failed to recover market depth stream for" << symbol;
-        }
+                //TODO attempt to restart the stream
+            }
+        );
+
+        m_streamMarketDepthQuotes[symbol] = stream;
+        successfulRecoveries[symbol]++;
+        INFO << "Successfully recovered market depth stream for" << symbol;
     }
 }
 
@@ -296,18 +298,23 @@ int LiveStreamDB::getRecordCount() const {
 
 int LiveStreamDB::getActiveStreamCount() const {
     int activeCount = 0;
+
+    // When an error occurs in a stream, it auto deletes itself, and thanks to QPointer we can detect that here
+
     if (streamType == StreamType::Bars) {
-        for (auto it = streamBars.begin(); it != streamBars.end(); ++it) {
-            if (it.value() && !it.value()->isFinished() && !it.value()->isInError()) {
+        for (QPointer<StreamBars> stream : m_streamBars) {
+            if (stream != nullptr) {
                 activeCount++;
             }
         }
     } else {
-        for (auto it = streamMarketDepthQuotes.begin(); it != streamMarketDepthQuotes.end(); ++it) {
-            if (it.value() && !it.value()->isFinished() && !it.value()->isInError()) {
+        for (QPointer<StreamMarketDepthQuote> stream : m_streamMarketDepthQuotes) {
+    
+            if (stream != nullptr) {
                 activeCount++;
             }
         }
     }
+
     return activeCount;
 }

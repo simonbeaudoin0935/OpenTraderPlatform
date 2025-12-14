@@ -1,12 +1,9 @@
 #include "OrdersReceiver.h"
 #include "TSClient.h"
+#include "Logging.h"
 
+#define LOGGING_CATEGORY OrdersReceiverLog
 Q_LOGGING_CATEGORY(OrdersReceiverLog, "OrdersReceiver");
-
-#define DEBUG qCDebug(OrdersReceiverLog) << this->objectName()
-#define INFO qCInfo(OrdersReceiverLog) << this->objectName()
-#define WARNING qCWarning(OrdersReceiverLog) << this->objectName()
-#define CRITICAL qCCritical(OrdersReceiverLog) << this->objectName()
 
 OrdersReceiver::OrdersReceiver(const QString &p_account, QObject *p_parent) :
     QObject(p_parent),
@@ -16,23 +13,39 @@ OrdersReceiver::OrdersReceiver(const QString &p_account, QObject *p_parent) :
     
     DEBUG <<  "Starting Orders stream for account " << p_account;
     
-    m_stream = TSClient::getInstance()->openStreamOrders(p_account);
+    createOrdersStream();
+}
+
+void OrdersReceiver::createOrdersStream()
+{
+    m_stream = TSClient::getInstance()->openStreamOrders(m_account);
     Q_CHECK_PTR(m_stream);
 
     connect(m_stream, &StreamOrders::newOrderReceived, this, &OrdersReceiver::onReceivedNewOrder);
+    connect(m_stream, &StreamOrders::endSnapshotReceived, this,
+        [this](){
+            INFO << "Received EndSnapshot for Orders stream";
+        });
 
     m_stream->future().then(this,
         [this](){
-            CRITICAL << "Orders Receiver future finished";
+            // We get here when the stream is gracefully closed by the receiving side.
+            // This should never happen for the orders stream, its supposed to operate during
+            // all the program execution.
+            CRITICAL << "Not supposed to voluntarly close the orders stream with TSClient::closeStream()";
+            Q_ASSERT(false);
         }
     ).onFailed(this,
-        [this](QException ex){
-            Q_UNUSED(ex);
+        [this](const std::exception& e){
 
-            WARNING << "Orders Receiver future failed for" << m_account
-                    << "- Exception:" << m_stream->errorToString();
+            CRITICAL << "Orders Receiver future failed for" << m_account
+                     << "- Exception:" << QString::fromStdString(e.what());
 
-            CRITICAL << "TODO : deal with this";
+            // Since we are in the failed path, it means the stream on the other end
+            // will have called deleteLater() on itself after throwing an exception at us.
+            // Its safe to then just re-execute this function, since we don't have to worry amout
+            // freeing the current stream variable. 
+            createOrdersStream();
         }
     );
 }

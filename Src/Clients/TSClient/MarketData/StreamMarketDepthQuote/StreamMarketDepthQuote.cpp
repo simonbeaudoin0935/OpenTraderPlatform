@@ -1,5 +1,9 @@
 #include "StreamMarketDepthQuote.h"
 #include "TSClient.h"
+#include "Logging.h"
+
+#define LOGGING_CATEGORY StreamLog
+
 
 StreamMarketDepthQuote::StreamMarketDepthQuote(const QString &symbol, QNetworkReply * reply, QObject *parent) :
     Stream(reply, parent),
@@ -10,6 +14,19 @@ StreamMarketDepthQuote::StreamMarketDepthQuote(const QString &symbol, QNetworkRe
 
 void StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
 {
+    if (jsonObj.contains("Error")) [[unlikely]] {
+            
+        QString errorStr = jsonObj["Error"].toString();
+        QString message =  jsonObj["Message"].toString();
+            
+        m_jsonErrorString = errorStr + ": " + message;
+
+        CRITICAL << "Received error string '" << errorStr << "' and message: " << jsonObj["Message"].toString();
+        
+        return;
+    }
+
+
     MarketDepthQuote quote(jsonObj);
 
     if (!quote.isValid()) [[unlikely]] {

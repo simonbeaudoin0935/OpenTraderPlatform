@@ -3,38 +3,6 @@
 #include "Stream.h"
 #include "Position.h"
 
-
-class StreamPositionStatus {
-public:
-    enum class Status {
-        EndSnapshot,  // Initial snapshot is complete
-        GoAway,      // Server is about to shut down
-        Unknown      // Any other status value
-    };
-
-    // Default constructor
-    StreamPositionStatus() = default;
-        
-    // Constructor taking a QJsonObject
-    StreamPositionStatus(const QJsonObject& jsonObj);
-
-    // Getters
-    Status getStatus() const { return status; }
-    QString getStatusString() const { return statusString; }
-
-    // Validation
-    bool isValid() const;
-    bool isStatusValid() const;
-
-    // Convert to JSON string for debugging/logging
-    QString toJsonString() const;
-
-    private:
-        Status status = Status::Unknown;
-        QString statusString;  // Original status string from JSON
-};
-
-
 class StreamPositions final : public Stream
 {
     Q_OBJECT
@@ -45,13 +13,16 @@ public:
     StreamPositions(const StreamPositions&) = delete;
     StreamPositions& operator=(const StreamPositions&) = delete;
 
+    QString getAccountID() {return m_accountID; };
+    
 signals:
     void newPositionReceived(Position position);
+    void endSnapshotReceived();
     void positionDeleted(QString positionID);
 
 private:
     void processJsonObject(const QJsonObject& jsonObj) override;
 
-    QString accountID;
-    bool receivedEndSnapshot = false;  // Track if we've received the EndSnapshot status
+    QString m_accountID;
+    bool m_receivedEndSnapshot = false;  // Track if we've received the EndSnapshot status
 };

@@ -1,5 +1,6 @@
 #include <QJsonObject>
 #include <QMetaEnum>
+#include <QNetworkReply>
 
 #include "Stream.h"
 #include "Logging.h"
@@ -42,6 +43,12 @@ Stream::Stream(QNetworkReply * reply, QObject *parent) :
 
 Stream::~Stream()
 {
+    INFO << "Stream destroyed ";
+
+    Q_ASSERT_X(QThread::currentThread() == this->thread(),
+               "Stream::~Stream",
+               "Stream must be destroyed in the same thread where it was created");
+
     INFO << "Destroying Stream " << objectName();
 
     s_numberOfStream--;
@@ -49,70 +56,65 @@ Stream::~Stream()
     m_networkReply->abort();
     m_networkReply->deleteLater();
 
+    // Here, maybe its this stream that asked to destroy itself because of an error detected in the stream,
+    // or maybe the user of the stream is destroying it because he wants to stop it.
+    // In any case, we must finish the promise to mark the stream as finished, and if there was an error, we
+    // must have already set the exception in the promise.
     m_promise.finish();
     m_heartbeatTimer.stop();
 }
 
-QString Stream::errorToString() const
+void Stream::onReplyFinished()
 {
-    return Stream::staticMetaObject.enumerator(Stream::staticMetaObject.indexOfEnumerator("StreamError")).valueToKey(static_cast<int>(m_streamError));
+    CRITICAL << "received the signal finished()";
+
+    Q_CHECK_PTR(m_networkReply);
+
+    // Because we listen to readyRead(), it WILL have been called before and therefore finishing there should be no more data
+    Q_ASSERT(m_networkReply->readAll().size() == 0);
+
+    // Theres 3 ways to get here:
+    // 1) In the previous readyRead() call, we detected an error object in the stream and marked m_isInError = true
+    // 2) The heartbeat timer timed out and aborted the network reply
+    // 3) There is a network error reported by QNetworkReply (timeout, disconnection, etc )
+    QString exceptionString = "Timeout: " + (m_receivedTimeoutError ? QString("true"):QString("false")) + " JSON Error: " + m_jsonErrorString + ". Network error: " + m_networkReply->errorString();
+
+    CRITICAL << "exceptionString: " << exceptionString;
+
+    m_heartbeatTimer.stop();
+
+    m_promise.setException(std::make_exception_ptr(
+        std::runtime_error(exceptionString.toStdString())    
+    ));
+
+    // m_promise.finish() will be called in the destructor
+    this->deleteLater();
 }
+
+void Stream::onHeartbeatTimerTimeout()
+{
+    CRITICAL << "Heartbeat timer timeout occurred";
+
+    m_receivedTimeoutError = true;
+    m_heartbeatTimer.stop();
+
+    // The fact of aborting the network reply will then trigger the finished() slot
+    // which will take care of further destruction and promise finalization
+    m_networkReply->abort();
+}
+
 
 
 void Stream::onReplyReadyRead()
 {
     const QByteArray rawData = m_networkReply->readAll();
 
+    // Something is very wrong if we get a readyRead signal but no data
     Q_ASSERT(rawData.size() > 0);
 
     emit newAmountOfDataReceived(rawData.size());
 
     processRawData(rawData);
-}
-
-void Stream::onReplyFinished()
-{
-    CRITICAL << "received the signal finished(). There has been a previous json description of the error received, and this is the remote closing this connection.";
-
-    // Because we listen to readyRead(), it WILL have been called becofore and therefore finishing there should be no more data
-    Q_ASSERT(m_networkReply->readAll().size() == 0);
-
-    // Logically, in a stream, the reason why we would get finished is because there has been an error
-    // received prior that was decoded in the onReadyRead() method.
-    // FIXME I hit this assert. reason is because the wifi is cut, and i hit a timeout or something that makes the connection finis(),
-    // but where the server never sent an error json object. So we need to handle this case better.
-    //Q_ASSERT(m_receivedError == true);
-
-    if (m_isFinished) {
-        WARNING << "Already finished, likely due to heartbeat timeout";
-        return;
-    }
-
-    m_heartbeatTimer.stop();
-
-    m_isFinished = true;
-
-    m_promise.finish();
-}
-
-void Stream::onHeartbeatTimerTimeout()
-{
-    CRITICAL << "Heartbeat timer timeout for ";
-
-    if (m_isFinished) {
-        WARNING << "possible glitch where watchdog timer timeout called after stream is finished from another error";
-        return;
-    }
-
-    m_isFinished = true;
-    m_heartbeatTimer.stop();
-    
-    m_networkReply->abort();
-    m_streamError = StreamError::Timeout;
-    m_promise.setException(QException());
-    m_promise.finish();
-    
-    CRITICAL << "Did not receive data nor heartbeat in : " << m_heartbeatTimeoutMS  << "ms";
 }
 
 /*
@@ -129,6 +131,7 @@ void Stream::processRawData(const QByteArray& rawData)
 
     emit receivedNewRawData(rawData);
     
+    // Decode and parse one JSON document at a time, as long as we have complete objects (newline delimited)
     for(int delimiterPos = m_accumulatedData.indexOf('\n'); delimiterPos != -1; delimiterPos = m_accumulatedData.indexOf('\n'))
     {
         // TODO optimize to avoid copy
@@ -141,10 +144,8 @@ void Stream::processRawData(const QByteArray& rawData)
         if (parseError.error != QJsonParseError::NoError) {
             CRITICAL << "Failed to parse JSON:" << parseError.errorString();
             DEBUG << "Raw data : " << jsonData;
-            
-            m_metricJsonParseError++;
-            
-            // Skip this malformed object and continue processing further data
+                        
+            // Skip this malformed object and continue processing further data, hopefully we can resync on good objects
             continue;
         }
 
@@ -160,41 +161,7 @@ void Stream::processJsonDoc(const QJsonDocument& doc)
 {
     const QJsonObject jsonObj = doc.object();
 
-    if (jsonObj.contains("Error")) [[unlikely]] {
-            
-        QString errorStr = jsonObj["Error"].toString();
-        QString message = "no error message";
-            
-        if ( jsonObj.contains("Message")) [[likely]]{
-            message = jsonObj["Message"].toString();
-        } else [[unlikely]] {
-            CRITICAL << " received malformed error object without Message field";
-        }
-
-        if (errorStr == "DualLogon"){
-            m_streamError = StreamError::BadRequest;
-        } else if (errorStr == "DualLogon") {
-            m_streamError = StreamError::DualLogon;
-        } else if (errorStr == "GoAway") {
-            m_streamError = StreamError::GoAway;
-        } else if (errorStr == "InternalServerError") {
-            m_streamError = StreamError::InternalServerError;
-        } else if (errorStr == "InvalidSymbol"){
-            m_streamError = StreamError::InvalidSymbol;
-        } else {
-            m_streamError = StreamError::Unknown;
-        }
-
-        m_promise.setException(QException());
-
-        
-        CRITICAL << "Received error string '" << errorStr << "' and message: " << jsonObj["Message"].toString();
-        
-        m_receivedError = true;
-
-        return;
-    }
-
+    // All types of stream have in common this heartbeat object
     if (jsonObj.contains("Heartbeat")) {
 
         // Here, we just test that the heartbeat object is well formed, we don't actually care about the timestamp
@@ -207,6 +174,9 @@ void Stream::processJsonDoc(const QJsonDocument& doc)
         //DEBUG << "received heartbeat";
         return;;
     }
+
+    // Each type of stream may have its own error object, so we delegate to derived classes
+    // to handle error objects as they see fit.
 
     // Happy path, process the object
     // Delegate to derived class for processing    

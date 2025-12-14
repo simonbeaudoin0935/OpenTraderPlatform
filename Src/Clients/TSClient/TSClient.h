@@ -135,7 +135,7 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/StreamBars
      */
-    [[nodiscard]] StreamBars* openStreamBars(const QString &symbol,
+    [[nodiscard]] QPointer<StreamBars> openStreamBars(const QString &symbol,
                                unsigned int interval = 1,
                                Bar::BarUnit unit = Bar::BarUnit::Daily,
                                unsigned int barsback = 1,
@@ -147,7 +147,7 @@ public:
      * @return : nullptr if the stream could not be created
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/StreamMarketDepthQuotes
      */
-    [[nodiscard]] StreamMarketDepthQuote* openStreamMarketDepthQuote(const QString &symbol, unsigned int depth = 20);
+    [[nodiscard]] QPointer<StreamMarketDepthQuote> openStreamMarketDepthQuote(const QString &symbol, unsigned int depth = 20);
 
     /*
      * Creates a StreaOrders Stream
@@ -155,7 +155,7 @@ public:
      * @return : nullptr if the stream could not be created
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/StreamOrders
      */
-    [[nodiscard]] StreamOrders* openStreamOrders(const QString &account);
+    [[nodiscard]] QPointer<StreamOrders> openStreamOrders(const QString &account);
 
     /*
      * Creates a StreamPositions Stream
@@ -163,13 +163,13 @@ public:
      * @return : nullptr if the stream could not be created
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/StreamPositions
      */
-    [[nodiscard]] StreamPositions* openStreamPositions(const QString &account, bool changes = false);
+    [[nodiscard]] QPointer<StreamPositions> openStreamPositions(const QString &account, bool changes = false);
     
     void closeStream(Stream* stream);
 
     [[nodiscard]] qsizetype getTotalDataReceivedBytes() const { return m_totalDataReceivedBytes; };
     [[nodiscard]] bool isCleanedUp();
-    [[nodiscard]] size_t getStreamCount() const { return m_networkReplyToOpenStreams.size(); }
+    [[nodiscard]] size_t getStreamCount() const { return Stream::getNumberOpenStream(); }
     [[nodiscard]] bool isAuthenticated() const { return m_authenticated; }
     [[nodiscard]] bool isAuthInProgress() const { return m_authInProgress; }
 
@@ -224,7 +224,6 @@ private:
     QString m_apiKey;
     QThread *m_thread;
     QNetworkAccessManager *m_networkManager;
-    QMap<QNetworkReply*, Stream*> m_networkReplyToOpenStreams;
 
 #ifdef GUI_ENABLED
     AuthWindow* m_authWindow = nullptr;  // Authentication window

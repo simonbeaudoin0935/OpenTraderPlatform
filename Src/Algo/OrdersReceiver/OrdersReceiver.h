@@ -23,6 +23,8 @@ private slots:
     void onReceivedNewOrder(Order order);
 
 private:
-    StreamOrders* m_stream = nullptr;
+    QPointer<StreamOrders> m_stream = nullptr;
     QString m_account;
+
+    void createOrdersStream();
 };

@@ -5,6 +5,9 @@
 
 #include "MainAlgo.h"
 #include "TSClient.h"
+#include "Logging.h"
+
+#define LOGGING_CATEGORY MainAlgoLog
 
 Q_LOGGING_CATEGORY(MainAlgoLog, "MainAlgo")
 
@@ -146,15 +149,13 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
 
     future.then(this, [this](const QVector<Account>& results){
         onReceivedAsyncGetAccounts(results);
-    }).onFailed(this, [this] (const TSClient::TimeoutException& e){
-        Q_UNUSED(e);
-        Q_ASSERT_X(false, "MainAlgo::onTradeStationAuthStateChanged", "getAccounts() timed out");
-    }).onFailed(this, [this] (const TSClient::JSONErrorException& e){
-        Q_UNUSED(e);
-        Q_ASSERT_X(false, "MainAlgo::onTradeStationAuthStateChanged", "getAccounts() JSON error");
-    }).onFailed(this, [this] (const TSClient::OtherErrorException& e){
-        Q_UNUSED(e);
-        Q_ASSERT_X(false, "MainAlgo::onTradeStationAuthStateChanged", "getAccounts() other error");
+    }).onFailed(this, [this] (const QException& e){
+        CRITICAL << "getAccounts() failed" << QString::fromStdString(e.what());
+
+        QTimer::singleShot(1000, this, [this]() {
+            qCDebug(MainAlgoLog) << "Retrying getAccounts() after failure";
+            onTradeStationAuthStateChanged(true, "Re-auth after getAccounts() failure");
+        });
     });
 }
 

@@ -18,24 +18,27 @@ MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(const QString &symbol, QObjec
 
     connect(m_stream, &StreamMarketDepthQuote::newMarketDepthQuoteReceived,
             this, &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote);
-
+    
     m_stream->future().then(this,
         [this](){
             CRITICAL << "Market Depth Quote future finished";
         }
     ).onFailed(this,
-        [this](QException ex){
-            Q_UNUSED(ex);
+        [this](const std::exception& e){
 
-            WARNING << "Market Depth Quote Receiver future failed for" << m_symbol
-                    << "- Exception:" << m_stream->errorToString();
+            CRITICAL << "Market Depth Quote Receiver future failed for" << m_symbol
+                     << "- Exception:" << QString::fromStdString(e.what());
 
-            CRITICAL << "TODO : deal with this";
+            Q_ASSERT(false);
+
+            //TODO attempt to restart the stream
         }
     );
+
 }
 
-MarketDepthQuoteReceiver::~MarketDepthQuoteReceiver() {
+MarketDepthQuoteReceiver::~MarketDepthQuoteReceiver()
+{
     Q_ASSERT(m_stream != nullptr);
 
     TSClient::getInstance()->closeStream(m_stream);

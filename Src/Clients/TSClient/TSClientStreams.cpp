@@ -1,6 +1,6 @@
 #include "TSClient.h"
 
-StreamPositions* TSClient::openStreamPositions(const QString &accountID, bool changes)
+QPointer<StreamPositions> TSClient::openStreamPositions(const QString &accountID, bool changes)
 {
     Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
     
@@ -14,7 +14,7 @@ StreamPositions* TSClient::openStreamPositions(const QString &accountID, bool ch
 
     QNetworkRequest request = buildNetworkRequest(endpoint, query);
 
-    StreamPositions* stream = nullptr;
+    QPointer<StreamPositions> stream;
 
     QMetaObject::invokeMethod(this,
         [this, &request, &stream, &accountID]()
@@ -37,7 +37,7 @@ StreamPositions* TSClient::openStreamPositions(const QString &accountID, bool ch
     return stream;
 }
 
-StreamOrders* TSClient::openStreamOrders(const QString &accountID) {
+QPointer<StreamOrders> TSClient::openStreamOrders(const QString &accountID) {
     Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamOrders for account " << accountID;
@@ -46,7 +46,7 @@ StreamOrders* TSClient::openStreamOrders(const QString &accountID) {
 
     QNetworkRequest request = buildNetworkRequest(endpoint);
 
-    StreamOrders* stream = nullptr;
+    QPointer<StreamOrders> stream;
 
     QMetaObject::invokeMethod(this,
         [this, &request, &stream, &accountID]()
@@ -71,7 +71,7 @@ StreamOrders* TSClient::openStreamOrders(const QString &accountID) {
 }
 
 
-StreamBars* TSClient::openStreamBars(const QString &symbol,
+QPointer<StreamBars> TSClient::openStreamBars(const QString &symbol,
                                      unsigned int interval,
                                      Bar::BarUnit unit,
                                      unsigned int barsback,
@@ -88,7 +88,7 @@ StreamBars* TSClient::openStreamBars(const QString &symbol,
 
     QNetworkRequest request = buildNetworkRequest(endpoint, query);
 
-    StreamBars* stream = nullptr;
+    QPointer<StreamBars> stream;
 
     QMetaObject::invokeMethod(this,
         [this, &request, &stream, &symbol]()
@@ -111,7 +111,7 @@ StreamBars* TSClient::openStreamBars(const QString &symbol,
     return stream;
 }
 
-StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(const QString &symbol, unsigned int depth)
+QPointer<StreamMarketDepthQuote> TSClient::openStreamMarketDepthQuote(const QString &symbol, unsigned int depth)
 {
     Q_ASSERT(depth >= 1 && depth <= 20);
 
@@ -124,7 +124,7 @@ StreamMarketDepthQuote* TSClient::openStreamMarketDepthQuote(const QString &symb
 
     QNetworkRequest request = buildNetworkRequest(endpoint, query);
 
-    StreamMarketDepthQuote* stream = nullptr;
+    QPointer<StreamMarketDepthQuote> stream;
 
     QMetaObject::invokeMethod(this,
         [this, &request, &stream, &symbol]()

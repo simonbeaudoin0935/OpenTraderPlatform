@@ -49,56 +49,6 @@ void StatusReporter::printStreamStatus() {
     std::cout << std::endl;
 }
 
-void StatusReporter::printErrorStats(const QString& streamType, LiveStreamDB* db) {
-    if (!db) return;
-    
-    auto errorCounters = db->getErrorCounters();
-    int totalErrors = 0;
-    QMap<Stream::StreamError, int> errorTypeCounts;
-    
-    for (auto symbolIt = errorCounters.begin(); symbolIt != errorCounters.end(); ++symbolIt) {
-        for (auto errorIt = symbolIt.value().begin(); errorIt != symbolIt.value().end(); ++errorIt) {
-            totalErrors += errorIt.value();
-            errorTypeCounts[errorIt.key()] += errorIt.value();
-        }
-    }
-    
-    if (totalErrors > 0) {
-        std::cout << streamType.toStdString() << " Errors (total): " << totalErrors << std::endl;
-        
-        // Print error types
-        for (auto it = errorTypeCounts.begin(); it != errorTypeCounts.end(); ++it) {
-            std::cout << "  - " << streamErrorToString(it.key()).toStdString() << ": " << it.value();
-            
-            // Special handling for timeouts - show recovery stats
-            if (it.key() == Stream::StreamError::Timeout) {
-                auto recovered = db->getRecoveredTimeouts();
-                auto unrecovered = db->getUnrecoveredTimeoutCounts();
-                
-                int totalTimeouts = 0;
-                int totalRecovered = 0;
-                int totalUnrecovered = 0;
-                
-                for (auto rit = recovered.begin(); rit != recovered.end(); ++rit) {
-                    totalRecovered += rit.value();
-                }
-                for (auto uit = unrecovered.begin(); uit != unrecovered.end(); ++uit) {
-                    totalUnrecovered += uit.value();
-                }
-                totalTimeouts = totalRecovered + totalUnrecovered;
-                
-                if (totalTimeouts > 0) {
-                    double recoveryRate = (static_cast<double>(totalRecovered) / totalTimeouts) * 100.0;
-                    std::cout << " (" << totalRecovered << " recovered, " << totalUnrecovered << " unrecovered, " 
-                              << std::fixed << std::setprecision(1) << recoveryRate << "% recovery)";
-                }
-            }
-            std::cout << std::endl;
-        }
-    } else {
-        std::cout << streamType.toStdString() << " Errors: None" << std::endl;
-    }
-}
 
 void StatusReporter::printRecoveryStats(const QString& streamType, LiveStreamDB* db) {
     if (!db) return;

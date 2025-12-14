@@ -92,13 +92,12 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
                 CRITICAL << "Bars cache bar future finished";
             }
         ).onFailed(this,
-            [this](QException ex){
-                Q_UNUSED(ex);
+            [this](const std::exception& e){
 
-                WARNING << "Bars cache bar future failed for" << m_symbol
-                        << "- Exception:" << m_stream->errorToString();
+                CRITICAL << "Bars cache bar future failed for" << m_symbol
+                         << "- Exception:" << QString::fromStdString(e.what());
 
-                CRITICAL << "TODO : deal with this";
+                //TODO attempt to restart the stream
             }
         );
     }

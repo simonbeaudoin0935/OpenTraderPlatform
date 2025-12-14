@@ -18,20 +18,6 @@ class Stream : public QObject
     Q_OBJECT
 
 public:
-    enum StreamError {
-        NoError,
-        Timeout,
-        BadRequest,
-        DualLogon,
-        GoAway,
-        InternalServerError,
-        InvalidSymbol,
-        Unknown
-    };
-    Q_ENUM(StreamError);
-
-    StreamError m_streamError = StreamError::NoError;
-    QString errorToString() const;
 
     Stream(QNetworkReply * reply, QObject *parent = nullptr);
     ~Stream();
@@ -41,9 +27,7 @@ public:
     QFuture<void> future() const { return m_future; }
 
     static size_t getNumberOpenStream() { return s_numberOfStream; }
-    
-    bool isFinished() const { return m_isFinished; }
-    bool isInError() const { return m_receivedError; }
+
 signals:
     void newAmountOfDataReceived(size_t bytes);
     void receivedNewRawData(const QByteArray& rawData);
@@ -56,6 +40,10 @@ protected:
     // Each derived class must implement how to process a json object
     virtual void processJsonObject(const QJsonObject& doc) = 0;
 
+    bool m_receivedTimeoutError = false;
+
+    QString m_jsonErrorString;
+    
 private slots:
     void onHeartbeatTimerTimeout();
 
@@ -64,8 +52,7 @@ private:
     QPromise<void> m_promise;
     QFuture<void> m_future;
 
-    bool m_receivedError = false;
-    bool m_isFinished = false;
+
 
     QByteArray   m_accumulatedData;
     void processRawData(const QByteArray& rawData);
@@ -77,8 +64,6 @@ private:
     const size_t m_heartbeatTimeoutMS = 10000;
     QTimer       m_heartbeatTimer;
 
-    // Metrics
-    size_t m_metricJsonParseError = 0;
     static size_t s_numberOfStream; 
 };
 

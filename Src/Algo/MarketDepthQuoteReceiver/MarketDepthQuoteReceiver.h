@@ -33,7 +33,7 @@ private slots:
 
 private:
     QString m_symbol;
-    StreamMarketDepthQuote* m_stream = nullptr;
+    QPointer<StreamMarketDepthQuote> m_stream;
     unsigned int depthWeightedPriceLevel = 5; // Default value of 5
     unsigned int bidAskImbalanceLevel = 5; // Default value of 5
 };

@@ -20,6 +20,10 @@ PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
 
     connect(m_stream, &StreamPositions::newPositionReceived, this, &PositionsReceiver::onReceivedNewPosition);
     connect(m_stream, &StreamPositions::positionDeleted, this, &PositionsReceiver::onPositionDeleted);
+    connect(m_stream, &StreamPositions::endSnapshotReceived, this,
+        [this](){
+            INFO << "Received EndSnapshot for Orders stream";
+        });
 
 
     m_stream->future().then(this,
@@ -27,13 +31,14 @@ PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
             CRITICAL << "Positions Receiver future finished";
         }
     ).onFailed(this,
-        [this](QException ex){
-            Q_UNUSED(ex);
+        [this](const std::exception& e){
 
-            WARNING << "Positions Receiver future failed for" << m_account
-                    << "- Exception:" << m_stream->errorToString();
+            CRITICAL << "Positions Receiver future failed for" << m_account
+                     << "- Exception:" << QString::fromStdString(e.what());
 
-            CRITICAL << "TODO : deal with this";
+            Q_ASSERT(false);
+
+            //TODO attempt to restart the stream
         }
     );
 }

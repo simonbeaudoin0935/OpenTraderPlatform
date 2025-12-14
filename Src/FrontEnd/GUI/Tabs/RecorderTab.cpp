@@ -414,7 +414,9 @@ void RecorderTab::refreshRecorderStats() {
 
     updateStatsDisplay();
     updateStreamTable();
-    updateErrorTable();
+
+    // TODO fix this function
+    //updateErrorTable();
 }
 
 void RecorderTab::updateStatsDisplay() {
@@ -488,6 +490,7 @@ void RecorderTab::updateStreamTable() {
     m_streamTable->setItem(row, 3, new QTableWidgetItem(QString::number(totalDepthStreams)));
 }
 
+/*
 void RecorderTab::updateErrorTable() {
     m_errorTable->setRowCount(0);
 
@@ -585,6 +588,7 @@ void RecorderTab::updateErrorTable() {
         row++;
     }
 }
+*/
 
 QString RecorderTab::formatFileSize(qint64 p_bytes) const {
     if (p_bytes >= 1024 * 1024 * 1024) {
