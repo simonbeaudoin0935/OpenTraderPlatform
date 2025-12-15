@@ -1,4 +1,7 @@
 #include "StockPriceChart.h"
+#include "Logging.h"
+
+#define LOGGING_CATEGORY ChartLog
 
 /**
  * @brief Handles mouse wheel events for chart interaction.
@@ -12,7 +15,10 @@
  * 
  * @param event The QWheelEvent containing wheel movement information.
  */
-void StockPriceChart::wheelEvent(QWheelEvent* event) {
+void StockPriceChart::wheelEvent(QWheelEvent* event) 
+{    
+    DEBUG << "wheelEvent called";
+
     if (!chartView->rect().contains(event->position().toPoint())) {
         event->ignore();
         return;
@@ -49,11 +55,13 @@ void StockPriceChart::wheelEvent(QWheelEvent* event) {
  * @param event The QWheelEvent containing wheel movement information.
  */
 void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
+    DEBUG << "Vertical panning with wheel";
+    
     qreal currentMin = axisY->min();
     qreal currentMax = axisY->max();
     qreal priceRange = currentMax - currentMin;
 
-    qreal shiftAmount = priceRange * 0.05;
+    qreal shiftAmount = priceRange * 0.03;
     if (event->angleDelta().y() < 0) {
         shiftAmount = -shiftAmount;
     }
@@ -73,6 +81,8 @@ void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
  * @param event The QWheelEvent containing wheel movement information.
  */
 void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
+    DEBUG << "Horizontal panning with wheel";
+
     qreal currentMin = axisX->min();
     qreal currentMax = axisX->max();
     qreal indexRange = currentMax - currentMin;
