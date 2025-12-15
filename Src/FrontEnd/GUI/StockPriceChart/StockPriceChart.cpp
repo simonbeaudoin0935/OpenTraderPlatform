@@ -1537,8 +1537,7 @@ void StockPriceChart::updateAxisLabels() {
         int finalTickCount = qMin(estimatedTicks, 20); // Cap at 20 ticks maximum
         axisX->setTickCount(finalTickCount);
         
-        // Force the axis and chart to update with new tick settings
-        axisX->update();
+        // Force the chart to update with new tick settings
         chart->update();
         
         qCDebug(ChartLog) << "→ SELECTED:" << tickInterval 
@@ -1607,8 +1606,7 @@ void StockPriceChart::updateAxisLabels() {
         int finalTickCount = qMin(estimatedTicksY, 20); // Cap at 20 ticks maximum
         axisY->setTickCount(finalTickCount);
         
-        // Force the axis and chart to update with new tick settings
-        axisY->update();
+        // Force the chart to update with new tick settings
         chart->update();
         
         qCDebug(ChartLog) << "→ SELECTED: $" << selectedInterval 
