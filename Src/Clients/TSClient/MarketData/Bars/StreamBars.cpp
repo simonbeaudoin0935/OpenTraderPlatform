@@ -9,6 +9,8 @@ StreamBars::StreamBars(const QString &symbol, QNetworkReply * reply, QObject *pa
     m_symbol(symbol)
 {
     this->setObjectName("Stream::Bars::" + symbol);
+
+    INFO << "Stream created";
 }
 
 void StreamBars::processJsonObject(const QJsonObject& jsonObj)

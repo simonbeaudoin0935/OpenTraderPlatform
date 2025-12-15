@@ -24,41 +24,17 @@
 
 
         {
-            "label": "configure-main-only",
+            "label": "configure",
             "type": "shell",
             "command": "cmake",
             "args": [
                 "-S",
                 "${workspaceFolder}",
                 "-B",
-                "${workspaceFolder}/build/L2Trader",
+                "${workspaceFolder}/build",
                 "-DCMAKE_BUILD_TYPE=Debug",
                 "-DENABLE_GUI=ON",
-                "-DBUILD_TESTS=OFF",
-                "-DBUILD_RECORDER=OFF"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "silent",
-                "focus": false,
-                "panel": "shared"
-            },
-            "problemMatcher": "$gcc"
-        },
-        {
-            "label": "configure-recorder-only",
-            "type": "shell",
-            "command": "cmake",
-            "args": [
-                "-S",
-                "${workspaceFolder}",
-                "-B",
-                "${workspaceFolder}/build/L2Trader_Recorder",
-                "-DCMAKE_BUILD_TYPE=Debug",
-                "-DENABLE_GUI=OFF",
-                "-DBUILD_TESTS=OFF",
-                "-DBUILD_RECORDER=ON"
+                "-DBUILD_TESTS=OFF"
             ],
             "group": "build",
             "presentation": {
@@ -80,8 +56,7 @@
                 "${workspaceFolder}/build/All",
                 "-DCMAKE_BUILD_TYPE=Debug",
                 "-DENABLE_GUI=ON",
-                "-DBUILD_TESTS=ON",
-                "-DBUILD_RECORDER=ON"
+                "-DBUILD_TESTS=ON"
             ],
             "group": "build",
             "presentation": {
@@ -95,12 +70,12 @@
 
     
         {
-            "label": "build-main-only",
+            "label": "build",
             "type": "shell",
             "command": "cmake",
             "args": [
                 "--build",
-                "${workspaceFolder}/build/L2Trader",
+                "${workspaceFolder}/build",
                 "--parallel",
                 "3"
             ],
@@ -112,27 +87,7 @@
                 "panel": "shared"
             },
             "problemMatcher": "$gcc",
-            "dependsOn": ["configure-main-only"]
-        },
-        {
-            "label": "build-recorder-only",
-            "type": "shell",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "${workspaceFolder}/build/L2Trader_Recorder",
-                "--parallel",
-                "3"
-            ],
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "silent",
-                "focus": false,
-                "panel": "shared"
-            },
-            "problemMatcher": "$gcc",
-            "dependsOn": ["configure-recorder-only"]
+            "dependsOn": ["configure"]
         },
         {
             "label": "build-all",
@@ -158,9 +113,9 @@
 
 
         {
-            "label": "run-main",
+            "label": "run",
             "type": "shell",
-            "command": "${workspaceFolder}/build/L2Trader/Src/L2Trader",
+            "command": "${workspaceFolder}/build/Src/L2Trader",
             "args": [
                 "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
             ],
@@ -171,27 +126,8 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-main-only"]
+            "dependsOn": ["build"]
         },
-        {
-            "label": "run-recorder",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/L2Trader_Recorder/Src/L2Trader_Recorder",
-            "args": [
-                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini",
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener_mini.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "dependsOn": ["build-recorder-only"]
-        },
-
-
        {
             "label": "run-barcache-test",
             "type": "shell",
@@ -207,7 +143,7 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build"]
+            "dependsOn": ["build-all"]
         },
         {
             "label": "run-fmpclient-test",
@@ -223,7 +159,7 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build"]
+            "dependsOn": ["build-all"]
         },
         {
             "label": "run-tsclient-test",
@@ -239,7 +175,7 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build"]
+            "dependsOn": ["build-all"]
         },
         {
             "label": "run-runupdetector-test",
@@ -255,7 +191,7 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build"]
+            "dependsOn": ["build-all"]
         }
     ]
 }

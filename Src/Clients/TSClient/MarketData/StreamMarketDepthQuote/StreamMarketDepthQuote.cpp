@@ -10,6 +10,8 @@ StreamMarketDepthQuote::StreamMarketDepthQuote(const QString &symbol, QNetworkRe
     m_symbol(symbol)
 {
     this->setObjectName("Stream::MarketDepthQuote::" + symbol);
+
+    INFO << "Stream created";
 }
 
 void StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)

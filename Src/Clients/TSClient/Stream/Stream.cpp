@@ -16,8 +16,7 @@ Stream::Stream(QNetworkReply * reply, QObject *parent) :
     m_networkReply(reply)
 {
     Q_CHECK_PTR(reply);
-
-    INFO << "Stream created ";
+    Q_CHECK_PTR(parent);
 
     s_numberOfStream++;
 

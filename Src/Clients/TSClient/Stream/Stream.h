@@ -19,7 +19,7 @@ class Stream : public QObject
 
 public:
 
-    Stream(QNetworkReply * reply, QObject *parent = nullptr);
+    Stream(QNetworkReply * reply, QObject *parent);
     ~Stream();
     Stream(const Stream&) = delete;
     Stream& operator=(const Stream&) = delete;

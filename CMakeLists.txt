@@ -25,9 +25,6 @@ endif()
 # Option to build tests
 option(BUILD_TESTS "Build tests" ON)
 
-# Option to build recorder
-option(BUILD_RECORDER "Build recorder application" ON)
-
 # Find Qt6 coore packages
 find_package(Qt6 REQUIRED COMPONENTS Core Network Sql Test Concurrent)
 

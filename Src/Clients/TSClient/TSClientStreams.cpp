@@ -90,9 +90,6 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString &symbol,
     QNetworkRequest request = buildNetworkRequest(endpoint, query);
 
     QPointer<StreamBars> stream;
-    QUrlQuery query;    QUrlQuery query;
-
-    QUrlQuery query;
 
     QMetaObject::invokeMethod(this,
         [this, &request, &stream, &symbol]()
