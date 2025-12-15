@@ -1461,6 +1461,8 @@ QDate StockPriceChart::getPreviousFriday(const QDate& date) const {
  * @see MIN_PIXELS_PER_TICK_X, MIN_PIXELS_PER_TICK_Y for configurable thresholds
  */
 void StockPriceChart::updateAxisLabels() {
+    qCInfo(ChartLog) << ">>>>> updateAxisLabels() CALLED <<<<<";
+    
     // Get visible range in indices
     qreal minIndex = axisX->min();
     qreal maxIndex = axisX->max();
@@ -1546,6 +1548,9 @@ void StockPriceChart::updateAxisLabels() {
     qreal priceRange = maxPrice - minPrice;
     
     int chartHeight = chartView->height();
+    
+    qCInfo(ChartLog) << "About to check Y-axis conditions: priceRange=" << priceRange 
+                      << "chartHeight=" << chartHeight;
     
     if (priceRange > 0 && chartHeight > 0) {
         // Calculate current pixels per dollar on the Y-axis
