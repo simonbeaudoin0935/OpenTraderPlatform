@@ -1454,70 +1454,89 @@ void StockPriceChart::updateAxisLabels() {
         return;
     }
     
-    // Determine number of labels based on range
-    int numLabels = 7;  // Default
-    if (range < 10) {
-        numLabels = qMax(3, static_cast<int>(range) + 1);
-    } else if (range < 30) {
-        numLabels = 5;
-    } else if (range < 60) {
-        numLabels = 7;
-    } else {
-        numLabels = 10;
-    }
+    // ========== X-AXIS TICK INTERVAL ADJUSTMENT ==========
+    // Calculate density-based tick interval for X-axis
+    int chartWidth = chartView->width();
     
-    qCDebug(ChartLog) << "Setting X-axis tick count to" << numLabels << "for range" << range;
-    axisX->setTickCount(numLabels);
-
-    // FIXME this is a hack, continue modifying the a variable
-    // Additionally, adjust tick interval based on chart width and range
-    {
-        qreal range = axisX->max() - axisX->min();
-        int chartWidth = chartView->width();
-        qreal rangeRatio = chartWidth / range;
-
-        int a = 0;
-
-        if (rangeRatio <= 2){
-
+    if (chartWidth > 0 && range > 0) {
+        // Calculate current pixels per unit on the X-axis
+        qreal pixelsPerUnit = static_cast<qreal>(chartWidth) / range;
+        
+        // Determine the appropriate tick interval based on density
+        // We want at least MIN_PIXELS_PER_TICK_X pixels between ticks
+        qreal minTickInterval = MIN_PIXELS_PER_TICK_X / pixelsPerUnit;
+        
+        // Round up to a sensible tick interval (powers/multiples of common numbers)
+        qreal tickInterval = 1.0;
+        if (minTickInterval <= 1.0) {
+            tickInterval = 1.0;
+        } else if (minTickInterval <= 2.0) {
+            tickInterval = 2.0;
+        } else if (minTickInterval <= 5.0) {
+            tickInterval = 5.0;
+        } else if (minTickInterval <= 10.0) {
+            tickInterval = 10.0;
+        } else if (minTickInterval <= 20.0) {
+            tickInterval = 20.0;
+        } else if (minTickInterval <= 50.0) {
+            tickInterval = 50.0;
+        } else if (minTickInterval <= 100.0) {
+            tickInterval = 100.0;
+        } else {
+            // For very large zoom-outs, use larger intervals
+            tickInterval = qCeil(minTickInterval / 100.0) * 100.0;
         }
-        else if (rangeRatio <= 5){
-            a = 6;
-        }
-        else if (rangeRatio <= 10){
-            a = 3;
-        }
-        else if (rangeRatio <= 20){
-            a = 2;
-        }
-        else if (rangeRatio <= 30) {
-            a = 1;
-        }
-        axisX->setTickInterval(a + 1);
+        
+        axisX->setTickInterval(tickInterval);
+        
+        // Set tick count based on the range and interval
+        int estimatedTicks = qMax(2, static_cast<int>(range / tickInterval) + 1);
+        axisX->setTickCount(qMin(estimatedTicks, 20)); // Cap at 20 ticks maximum
+        
+        qCDebug(ChartLog) << "X-axis: range=" << range 
+                          << "width=" << chartWidth 
+                          << "pixelsPerUnit=" << pixelsPerUnit
+                          << "tickInterval=" << tickInterval;
     }
 
-    // Update Y-axis labels similarly
+    // ========== Y-AXIS TICK INTERVAL ADJUSTMENT ==========
+    // Calculate density-based tick interval for Y-axis
     qreal minPrice = axisY->min();
     qreal maxPrice = axisY->max();
     qreal priceRange = maxPrice - minPrice;
     
-    if (priceRange > 0) {
-        int numLabelsY = 5;  // Default
-        if (priceRange < 1) {
-            numLabelsY = 3;
-        } else if (priceRange < 5) {
-            numLabelsY = 5;
-        } else if (priceRange < 10) {
-            numLabelsY = 7;
-        } else {
-            numLabelsY = 10;
+    int chartHeight = chartView->height();
+    
+    if (priceRange > 0 && chartHeight > 0) {
+        // Calculate current pixels per dollar on the Y-axis
+        qreal pixelsPerDollar = static_cast<qreal>(chartHeight) / priceRange;
+        
+        // Available tick intervals in dollars: 0.05, 0.10, 0.25, 1.00, 5.00, 25.00, 100.00
+        static const QVector<qreal> availableIntervals = {0.05, 0.10, 0.25, 1.00, 5.00, 25.00, 100.00};
+        
+        // Select the smallest interval that maintains desired pixel density
+        qreal selectedInterval = availableIntervals.last(); // Default to largest
+        
+        for (qreal interval : availableIntervals) {
+            qreal pixelsPerTick = pixelsPerDollar * interval;
+            
+            // If this interval provides enough spacing, use it
+            if (pixelsPerTick >= MIN_PIXELS_PER_TICK_Y) {
+                selectedInterval = interval;
+                break;
+            }
         }
         
-        qCDebug(ChartLog) << "Setting Y-axis tick count to" << numLabelsY << "for price range" << priceRange;
-        axisY->setTickCount(numLabelsY);
+        axisY->setTickInterval(selectedInterval);
         
-        // Set tick interval to 5 cents
-        axisY->setTickInterval(0.05);
+        // Set tick count based on the range and interval
+        int estimatedTicksY = qMax(2, static_cast<int>(priceRange / selectedInterval) + 1);
+        axisY->setTickCount(qMin(estimatedTicksY, 20)); // Cap at 20 ticks maximum
+        
+        qCDebug(ChartLog) << "Y-axis: priceRange=" << priceRange 
+                          << "height=" << chartHeight
+                          << "pixelsPerDollar=" << pixelsPerDollar
+                          << "tickInterval=" << selectedInterval;
     }
 
     // Qt doesn't provide easy custom labels for QValueAxis, so we'll rely on

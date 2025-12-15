@@ -68,6 +68,11 @@ protected:
 
 private:
     static const int MAX_BARS = 1000;
+    
+    // Configurable thresholds for axis label density (pixels per tick)
+    // These can be adjusted to fine-tune when tick intervals change
+    static constexpr int MIN_PIXELS_PER_TICK_X = 40;  // Minimum pixels between X-axis ticks
+    static constexpr int MIN_PIXELS_PER_TICK_Y = 30;  // Minimum pixels between Y-axis ticks
 
     void updateChart();
     void handleClosedBar(const Bar& bar);
