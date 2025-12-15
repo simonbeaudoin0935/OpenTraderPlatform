@@ -1466,9 +1466,7 @@ void StockPriceChart::updateAxisLabels() {
     qreal maxIndex = axisX->max();
     qreal range = maxIndex - minIndex;
     
-    if (range <= 0 || indexToTimestamp.isEmpty()) {
-        return;
-    }
+    Q_ASSERT(range > 0 && !indexToTimestamp.isEmpty());
     
     // ========== X-AXIS TICK INTERVAL ADJUSTMENT ==========
     // Calculate density-based tick interval for X-axis
