@@ -112,6 +112,9 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     axisY->setGridLineColor(QColor(70, 70, 70));
     axisY->setLabelsColor(QColor(220, 220, 220));
     axisY->setTitleBrush(QBrush(QColor(220, 220, 220)));
+    axisY->setTickType(QValueAxis::TicksDynamic);
+    axisY->setTickAnchor(0);
+    axisY->setTickInterval(0.05);  // 5 cent increments for price ticks
     
     chart->addAxis(axisY, Qt::AlignLeft);
     candlestickSeries->attachAxis(axisY);
@@ -1366,6 +1369,30 @@ void StockPriceChart::updateAxisLabels() {
             a = 1;
         }
         axisX->setTickInterval(a + 1);
+    }
+
+    // Update Y-axis labels similarly
+    qreal minPrice = axisY->min();
+    qreal maxPrice = axisY->max();
+    qreal priceRange = maxPrice - minPrice;
+    
+    if (priceRange > 0) {
+        int numLabelsY = 5;  // Default
+        if (priceRange < 1) {
+            numLabelsY = 3;
+        } else if (priceRange < 5) {
+            numLabelsY = 5;
+        } else if (priceRange < 10) {
+            numLabelsY = 7;
+        } else {
+            numLabelsY = 10;
+        }
+        
+        qCDebug(ChartLog) << "Setting Y-axis tick count to" << numLabelsY << "for price range" << priceRange;
+        axisY->setTickCount(numLabelsY);
+        
+        // Set tick interval to 5 cents
+        axisY->setTickInterval(0.05);
     }
 
     // Qt doesn't provide easy custom labels for QValueAxis, so we'll rely on
