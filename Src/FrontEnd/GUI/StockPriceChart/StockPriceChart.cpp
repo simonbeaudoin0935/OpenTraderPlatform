@@ -12,7 +12,9 @@
 
 #include "StockPriceChart.h"
 #include "MarketHours.h"
+#include "Logging.h"
 
+#define LOGGING_CATEGORY ChartLog
 #define CANDLESTICK_BODY_WIDTH 0.9 // 90% of available space
 
 Q_LOGGING_CATEGORY(ChartLog, "Chart");
@@ -202,7 +204,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     currentGetBarsRequestInProcess = false;
 
     if (bars.isEmpty()) {
-        qCCritical(ChartLog) << "Requested missing bars empty";
+        CRITICAL << "Requested missing bars empty";
         return;
     }
     //Q_ASSERT(!bars.isEmpty());
@@ -225,7 +227,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     // in completedBars/voidBars yet since we only read their timestamps.
     addHistoricalBarsToIndexMapping(bars);
     
-    qCDebug(ChartLog) << "After addHistoricalBarsToIndexMapping, index range:" 
+    DEBUG << "After addHistoricalBarsToIndexMapping, index range:" 
                       << (indexToTimestamp.isEmpty() ? "empty" : QString("%1 to %2").arg(indexToTimestamp.firstKey()).arg(indexToTimestamp.lastKey()));
 
     // Insert all received bars into the completedBars/voidBars maps
@@ -247,7 +249,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     voidBarSeries->clear();
     candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
     
-    qCDebug(ChartLog) << "Rebuilding candlestick series with" << indexToTimestamp.size() << "total bars";
+    DEBUG << "Rebuilding candlestick series with" << indexToTimestamp.size() << "total bars";
     
     // Add all bars in sorted index order
     int addedCount = 0;
@@ -260,7 +262,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
             double price = voidBars[timestamp];
             voidBarSeries->append(index, price);
             if (addedCount < 5 || index < 0) {
-                qCDebug(ChartLog) << "  Adding void bar at index" << index << "time" << timestamp.toString("hh:mm:ss");
+                DEBUG << "  Adding void bar at index" << index << "time" << timestamp.toString("hh:mm:ss");
             }
             addedCount++;
         }
@@ -276,7 +278,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
             set->setClose(bar.getClose());
             candlestickSeries->append(set);
             if (addedCount < 5 || index < 0) {
-                qCDebug(ChartLog) << "  Adding candlestick at index" << index << "time" << timestamp.toString("hh:mm:ss") << "O/H/L/C:" << bar.getOpen() << bar.getHigh() << bar.getLow() << bar.getClose();
+                DEBUG << "  Adding candlestick at index" << index << "time" << timestamp.toString("hh:mm:ss") << "O/H/L/C:" << bar.getOpen() << bar.getHigh() << bar.getLow() << bar.getClose();
             }
             addedCount++;
         }
@@ -290,7 +292,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
             set->setLow(currentOpenBar.getLow());
             set->setClose(currentOpenBar.getClose());
             candlestickSeries->append(set);
-            qCDebug(ChartLog) << "  Adding open bar at index" << index << "time" << timestamp.toString("hh:mm:ss");
+            DEBUG << "  Adding open bar at index" << index << "time" << timestamp.toString("hh:mm:ss");
             addedCount++;
         }
     }
@@ -1102,22 +1104,22 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     }
         
     if (viewStartTimeRounded < firstBarTime) {
-        qCDebug(ChartLog) << "Chart view extends beyond available bars:";
-        qCDebug(ChartLog) << "  Last :" << firstBarTime;
-        qCDebug(ChartLog) << "  First:" << viewStartTimeRounded;
+        DEBUG << "Chart view extends beyond available bars:";
+        DEBUG << "  Last :" << firstBarTime;
+        DEBUG << "  First:" << viewStartTimeRounded;
     } else {
         return;
     }
 
     // If there is already a getBars request to the bar cache, suck it up and wait to receive the data
     if (currentGetBarsRequestInProcess) {
-        qCDebug(ChartLog) << "current get bars request already in progress";
+        DEBUG << "current get bars request already in progress";
         return;
     } else {
         currentGetBarsRequestInProcess = true;
 
 
-        qCDebug(ChartLog) << "Requesting missing bars from"
+        DEBUG << "Requesting missing bars from"
                           << viewStartTimeRounded.toString(Qt::ISODate)
                           << "to"
                           << firstBarTime.toString(Qt::ISODate);
@@ -1355,7 +1357,7 @@ QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) 
         } else if (time >= QTime(TRADING_END_HOUR, 0, 0)) {
             // After 8PM - move to 7:59PM same day
             // This case shouldn't occur with valid input, but we handle it defensively
-            qCDebug(ChartLog) << "Unexpected: getPreviousTradingMinute called with time after 8PM:" << nyTime;
+            DEBUG << "Unexpected: getPreviousTradingMinute called with time after 8PM:" << nyTime;
             return QDateTime(previousMinute.date(), 
                            QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), 
                            nyZone).toTimeZone(timestamp.timeZone());
@@ -1461,91 +1463,93 @@ QDate StockPriceChart::getPreviousFriday(const QDate& date) const {
  * @see MIN_PIXELS_PER_TICK_X, MIN_PIXELS_PER_TICK_Y for configurable thresholds
  */
 void StockPriceChart::updateAxisLabels() {
-    qCInfo(ChartLog) << ">>>>> updateAxisLabels() CALLED <<<<<";
+    INFO << ">>>>> updateAxisLabels() CALLED <<<<<";
     
     // Get visible range in indices
     qreal minIndex = axisX->min();
     qreal maxIndex = axisX->max();
     qreal range = maxIndex - minIndex;
     
-    qCInfo(ChartLog) << "X-axis range check: minIndex=" << minIndex << "maxIndex=" << maxIndex 
-                      << "range=" << range << "indexToTimestamp.isEmpty=" << indexToTimestamp.isEmpty();
+    INFO << "X-axis range check: minIndex=" << minIndex << "maxIndex=" << maxIndex 
+         << "range=" << range << "indexToTimestamp.isEmpty=" << indexToTimestamp.isEmpty();
     
-    Q_ASSERT(range > 0 && !indexToTimestamp.isEmpty());
+    Q_ASSERT(range > 0);
+    Q_ASSERT(!indexToTimestamp.isEmpty());
     
     // ========== X-AXIS TICK INTERVAL ADJUSTMENT ==========
     // Calculate density-based tick interval for X-axis
     int chartWidth = chartView->width();
     
-    if (chartWidth > 0 && range > 0) {
-        // Calculate current pixels per unit on the X-axis
-        qreal pixelsPerUnit = static_cast<qreal>(chartWidth) / range;
+    Q_ASSERT(chartWidth > 0);
+
+  
+    // Calculate current pixels per unit on the X-axis
+    qreal pixelsPerUnit = static_cast<qreal>(chartWidth) / range;
         
-        // Determine the appropriate tick interval based on density
-        // We want at least MIN_PIXELS_PER_TICK_X pixels between ticks
-        qreal minTickInterval = MIN_PIXELS_PER_TICK_X / pixelsPerUnit;
+    // Determine the appropriate tick interval based on density
+    // We want at least MIN_PIXELS_PER_TICK_X pixels between ticks
+    qreal minTickInterval = MIN_PIXELS_PER_TICK_X / pixelsPerUnit;
         
-        // Track previous interval for level jump detection
-        static qreal previousXInterval = 1.0;
+    // Track previous interval for level jump detection
+    static qreal previousXInterval = 1.0;
         
-        qCDebug(ChartLog) << "========== X-AXIS INTERVAL SELECTION ==========";
-        qCDebug(ChartLog) << "Chart width:" << chartWidth << "px, Range:" << range 
+    DEBUG << "========== X-AXIS INTERVAL SELECTION ==========";
+    DEBUG << "Chart width:" << chartWidth << "px, Range:" << range 
                           << "Pixels per unit:" << pixelsPerUnit;
-        qCDebug(ChartLog) << "MIN_PIXELS_PER_TICK_X threshold:" << MIN_PIXELS_PER_TICK_X << "px";
-        qCDebug(ChartLog) << "Minimum tick interval needed:" << minTickInterval;
+    DEBUG << "MIN_PIXELS_PER_TICK_X threshold:" << MIN_PIXELS_PER_TICK_X << "px";
+    DEBUG << "Minimum tick interval needed:" << minTickInterval;
         
-        // Round up to a sensible tick interval (powers/multiples of common numbers)
-        qreal tickInterval = 1.0;
-        if (minTickInterval <= 1.0) {
-            tickInterval = 1.0;
-            qCDebug(ChartLog) << "  Selected interval: 1 (minTickInterval <= 1.0)";
-        } else if (minTickInterval <= 2.0) {
-            tickInterval = 2.0;
-            qCDebug(ChartLog) << "  Selected interval: 2 (minTickInterval <= 2.0)";
-        } else if (minTickInterval <= 5.0) {
-            tickInterval = 5.0;
-            qCDebug(ChartLog) << "  Selected interval: 5 (minTickInterval <= 5.0)";
-        } else if (minTickInterval <= 10.0) {
-            tickInterval = 10.0;
-            qCDebug(ChartLog) << "  Selected interval: 10 (minTickInterval <= 10.0)";
-        } else if (minTickInterval <= 20.0) {
-            tickInterval = 20.0;
-            qCDebug(ChartLog) << "  Selected interval: 20 (minTickInterval <= 20.0)";
-        } else if (minTickInterval <= 50.0) {
-            tickInterval = 50.0;
-            qCDebug(ChartLog) << "  Selected interval: 50 (minTickInterval <= 50.0)";
-        } else if (minTickInterval <= 100.0) {
-            tickInterval = 100.0;
-            qCDebug(ChartLog) << "  Selected interval: 100 (minTickInterval <= 100.0)";
-        } else {
-            // For very large zoom-outs, use larger intervals
-            tickInterval = qCeil(minTickInterval / 100.0) * 100.0;
-            qCDebug(ChartLog) << "  Selected interval:" << tickInterval << "(very large zoom-out)";
-        }
-        
-        // Detect and log level jumps
-        if (tickInterval != previousXInterval) {
-            qCInfo(ChartLog) << "***** X-AXIS LEVEL JUMP:" << previousXInterval 
-                             << "→" << tickInterval << "*****";
-            previousXInterval = tickInterval;
-        }
-        
-        axisX->setTickInterval(tickInterval);
-        
-        // Set tick count based on the range and interval
-        int estimatedTicks = qMax(2, static_cast<int>(range / tickInterval) + 1);
-        int finalTickCount = qMin(estimatedTicks, 20); // Cap at 20 ticks maximum
-        axisX->setTickCount(finalTickCount);
-        
-        // Force the chart to update with new tick settings
-        chart->update();
-        
-        qCDebug(ChartLog) << "→ SELECTED:" << tickInterval 
-                          << "| Actual pixels per tick:" << (pixelsPerUnit * tickInterval)
-                          << "| Est. ticks:" << estimatedTicks 
-                          << "| Final tick count:" << finalTickCount;
-        qCDebug(ChartLog) << "================================================";
+    // Round up to a sensible tick interval (powers/multiples of common numbers)
+    qreal tickInterval = 1.0;
+    if (minTickInterval <= 1.0) {
+        tickInterval = 1.0;
+        DEBUG << "  Selected interval: 1 (minTickInterval <= 1.0)";
+    } else if (minTickInterval <= 2.0) {
+        tickInterval = 2.0;
+        DEBUG << "  Selected interval: 2 (minTickInterval <= 2.0)";
+    } else if (minTickInterval <= 5.0) {
+        tickInterval = 5.0;
+        DEBUG << "  Selected interval: 5 (minTickInterval <= 5.0)";
+    } else if (minTickInterval <= 10.0) {
+        tickInterval = 10.0;
+        DEBUG << "  Selected interval: 10 (minTickInterval <= 10.0)";
+    } else if (minTickInterval <= 20.0) {
+        tickInterval = 20.0;
+       DEBUG << "  Selected interval: 20 (minTickInterval <= 20.0)";
+    } else if (minTickInterval <= 50.0) {
+        tickInterval = 50.0;
+        DEBUG << "  Selected interval: 50 (minTickInterval <= 50.0)";
+    } else if (minTickInterval <= 100.0) {
+        tickInterval = 100.0;
+        DEBUG << "  Selected interval: 100 (minTickInterval <= 100.0)";
+    } else {
+        // For very large zoom-outs, use larger intervals
+        tickInterval = qCeil(minTickInterval / 100.0) * 100.0;
+        DEBUG << "  Selected interval:" << tickInterval << "(very large zoom-out)";
     }
+        
+    // Detect and log level jumps
+    if (tickInterval != previousXInterval) {
+        INFO << "***** X-AXIS LEVEL JUMP:" << previousXInterval 
+                         << "→" << tickInterval << "*****";
+        previousXInterval = tickInterval;
+    }
+        
+    axisX->setTickInterval(tickInterval);
+        
+    // Set tick count based on the range and interval
+    int estimatedTicks = qMax(2, static_cast<int>(range / tickInterval) + 1);
+    int finalTickCount = qMin(estimatedTicks, 20); // Cap at 20 ticks maximum
+    axisX->setTickCount(finalTickCount);
+        
+    // Force the chart to update with new tick settings
+    chart->update();
+        
+    DEBUG << "→ SELECTED:" << tickInterval 
+                      << "| Actual pixels per tick:" << (pixelsPerUnit * tickInterval)
+                      << "| Est. ticks:" << estimatedTicks 
+                      << "| Final tick count:" << finalTickCount;
+    DEBUG << "================================================";
 
     // ========== Y-AXIS TICK INTERVAL ADJUSTMENT ==========
     // Calculate density-based tick interval for Y-axis
@@ -1555,67 +1559,68 @@ void StockPriceChart::updateAxisLabels() {
     
     int chartHeight = chartView->height();
     
-    qCInfo(ChartLog) << "About to check Y-axis conditions: priceRange=" << priceRange 
+    INFO << "About to check Y-axis conditions: priceRange=" << priceRange 
                       << "chartHeight=" << chartHeight;
     
-    if (priceRange > 0 && chartHeight > 0) {
-        // Calculate current pixels per dollar on the Y-axis
-        qreal pixelsPerDollar = static_cast<qreal>(chartHeight) / priceRange;
-        
-        // Available tick intervals in dollars: 0.05, 0.10, 0.25, 1.00, 5.00, 25.00, 100.00
-        static const QVector<qreal> availableIntervals = {0.05, 0.10, 0.25, 1.00, 5.00, 25.00, 100.00};
-        
-        // Track previous interval for level jump detection
-        static qreal previousInterval = 0.05;
-        
-        // Select the smallest interval that maintains desired pixel density
-        qreal selectedInterval = availableIntervals.last(); // Default to largest
-        
-        qCDebug(ChartLog) << "========== Y-AXIS INTERVAL SELECTION ==========";
-        qCDebug(ChartLog) << "Chart height:" << chartHeight << "px, Price range:" << priceRange 
-                          << "Pixels per dollar:" << pixelsPerDollar;
-        qCDebug(ChartLog) << "MIN_PIXELS_PER_TICK_Y threshold:" << MIN_PIXELS_PER_TICK_Y << "px";
-        qCDebug(ChartLog) << "Current tick interval on axis:" << axisY->tickInterval();
-        
-        for (qreal interval : availableIntervals) {
-            qreal pixelsPerTick = pixelsPerDollar * interval;
-            bool meetsThreshold = pixelsPerTick >= MIN_PIXELS_PER_TICK_Y;
-            
-            qCDebug(ChartLog) << "  Testing interval $" << interval 
-                              << "→ pixelsPerTick:" << pixelsPerTick << "px"
-                              << (meetsThreshold ? "✓ ACCEPTABLE" : "✗ too dense");
-            
-            // If this interval provides enough spacing, use it
-            if (meetsThreshold) {
-                selectedInterval = interval;
-                break;
-            }
-        }
-        
-        // Detect and log level jumps
-        if (selectedInterval != previousInterval) {
-            qCInfo(ChartLog) << "***** Y-AXIS LEVEL JUMP: $" << previousInterval 
-                             << "→ $" << selectedInterval << "*****";
-            previousInterval = selectedInterval;
-        }
-        
-        axisY->setTickInterval(selectedInterval);
-        
-        // Set tick count based on the range and interval
-        int estimatedTicksY = qMax(2, static_cast<int>(priceRange / selectedInterval) + 1);
-        int finalTickCount = qMin(estimatedTicksY, 20); // Cap at 20 ticks maximum
-        axisY->setTickCount(finalTickCount);
-        
-        // Force the chart to update with new tick settings
-        chart->update();
-        
-        qCDebug(ChartLog) << "→ SELECTED: $" << selectedInterval 
-                          << "| Est. ticks:" << estimatedTicksY 
-                          << "| Final tick count:" << finalTickCount;
-        qCDebug(ChartLog) << "Axis tick interval after setting:" << axisY->tickInterval();
-        qCDebug(ChartLog) << "================================================";
-    }
+    Q_ASSERT(priceRange > 0);
+    Q_ASSERT(chartHeight > 0);
 
+    // Calculate current pixels per dollar on the Y-axis
+    qreal pixelsPerDollar = static_cast<qreal>(chartHeight) / priceRange;
+        
+    // Available tick intervals in dollars: 0.05, 0.10, 0.25, 1.00, 5.00, 25.00, 100.00
+    static const QVector<qreal> availableIntervals = {0.05, 0.10, 0.25, 1.00, 5.00, 25.00, 100.00};
+        
+    // Track previous interval for level jump detection
+    static qreal previousInterval = 0.05;
+        
+    // Select the smallest interval that maintains desired pixel density
+    qreal selectedInterval = availableIntervals.last(); // Default to largest
+        
+    DEBUG << "========== Y-AXIS INTERVAL SELECTION ==========";
+    DEBUG << "Chart height:" << chartHeight << "px, Price range:" << priceRange 
+                      << "Pixels per dollar:" << pixelsPerDollar;
+    DEBUG << "MIN_PIXELS_PER_TICK_Y threshold:" << MIN_PIXELS_PER_TICK_Y << "px";
+    DEBUG << "Current tick interval on axis:" << axisY->tickInterval();
+        
+    for (qreal interval : availableIntervals) {
+        qreal pixelsPerTick = pixelsPerDollar * interval;
+        bool meetsThreshold = pixelsPerTick >= MIN_PIXELS_PER_TICK_Y;
+          
+        DEBUG << "  Testing interval $" << interval 
+                          << "→ pixelsPerTick:" << pixelsPerTick << "px"
+                          << (meetsThreshold ? "✓ ACCEPTABLE" : "✗ too dense");
+            
+        // If this interval provides enough spacing, use it
+        if (meetsThreshold) {
+            selectedInterval = interval;
+            break;
+        }
+    }
+        
+    // Detect and log level jumps
+    if (selectedInterval != previousInterval) {
+        INFO << "***** Y-AXIS LEVEL JUMP: $" << previousInterval 
+                         << "→ $" << selectedInterval << "*****";
+        previousInterval = selectedInterval;
+    }
+        
+    axisY->setTickInterval(selectedInterval);
+       
+    // Set tick count based on the range and interval
+    int estimatedTicksY = qMax(2, static_cast<int>(priceRange / selectedInterval) + 1);
+    int finalTickCountY = qMin(estimatedTicksY, 20); // Cap at 20 ticks maximum
+    axisY->setTickCount(finalTickCountY);
+        
+    // Force the chart to update with new tick settings
+    chart->update();
+        
+    DEBUG << "→ SELECTED: $" << selectedInterval 
+                      << "| Est. ticks:" << estimatedTicksY 
+                      << "| Final tick count:" << finalTickCountY;
+    DEBUG << "Axis tick interval after setting:" << axisY->tickInterval();
+    DEBUG << "================================================";
+    
     // Qt doesn't provide easy custom labels for QValueAxis, so we'll rely on
     // the automatic labeling showing indices. For a production version, you
     // could use QCategoryAxis or custom drawing, but that's beyond minimal changes.
@@ -1744,7 +1749,7 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) 
     // Get the current minimum index (could be negative or 0)
     int minIndex = indexToTimestamp.isEmpty() ? 0 : indexToTimestamp.firstKey();
     
-    qCDebug(ChartLog) << "addHistoricalBarsToIndexMapping: adding" << bars.size() << "bars, starting minIndex:" << minIndex;
+    DEBUG << "addHistoricalBarsToIndexMapping: adding" << bars.size() << "bars, starting minIndex:" << minIndex;
     
     // Process bars in reverse chronological order (newest to oldest)
     // so we can assign negative indices going backwards.
@@ -1756,7 +1761,7 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) 
         // Skip if already in mapping (shouldn't happen in normal flow,
         // but protects against duplicate insertions)
         if (timestampToIndex.contains(timestamp)) {
-            qCDebug(ChartLog) << "  Skipping duplicate timestamp" << timestamp.toString("hh:mm:ss");
+            DEBUG << "  Skipping duplicate timestamp" << timestamp.toString("hh:mm:ss");
             continue;
         }
         
@@ -1767,11 +1772,11 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) 
         timestampToIndex[timestamp] = minIndex;
         
         if (it - bars.rbegin() >= bars.size() - 3 || minIndex >= -3) {
-            qCDebug(ChartLog) << "  Assigned index" << minIndex << "to timestamp" << timestamp.toString("hh:mm:ss");
+            DEBUG << "  Assigned index" << minIndex << "to timestamp" << timestamp.toString("hh:mm:ss");
         }
     }
     
-    qCDebug(ChartLog) << "addHistoricalBarsToIndexMapping: completed, new minIndex:" << minIndex;
+    DEBUG << "addHistoricalBarsToIndexMapping: completed, new minIndex:" << minIndex;
 }
 
 /**
