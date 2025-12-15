@@ -5,14 +5,15 @@ This document provides comprehensive documentation of the StockPriceChart implem
 ## Table of Contents
 1. [Overview](#overview)
 2. [Index-Based Positioning System](#index-based-positioning-system)
-3. [Class Architecture](#class-architecture)
-4. [Data Flow](#data-flow)
-5. [Event Handling](#event-handling)
-6. [State Management](#state-management)
-7. [Missing Bars Detection](#missing-bars-detection)
-8. [View State Preservation](#view-state-preservation)
-9. [Session Background Rendering](#session-background-rendering)
-10. [Potential Issues](#potential-issues)
+3. [Dynamic Axis Labeling](#dynamic-axis-labeling)
+4. [Class Architecture](#class-architecture)
+5. [Data Flow](#data-flow)
+6. [Event Handling](#event-handling)
+7. [State Management](#state-management)
+8. [Missing Bars Detection](#missing-bars-detection)
+9. [View State Preservation](#view-state-preservation)
+10. [Session Background Rendering](#session-background-rendering)
+11. [Potential Issues](#potential-issues)
 
 ---
 
@@ -51,36 +52,56 @@ Traditional (time-based):
 Time:  9:30  9:31  ...  8:00pm [GAP 12 hours] 4:00am  4:01
 Index: 0     1          959    [NO DATA]      960     961
 
-Our System (index-based):
-Index: 0     1     2    ...  959   960    961    962
-Time:  9:30  9:31  9:32 ... 8:00pm 4:00am 4:01am 4:02am
+Our System (bidirectional index-based):
+                      Historical ← | → Future/Live
+Index: ... -3    -2    -1    0     1     2    ...  959   960    961    962
+Time:  ... 9:27  9:28  9:29  9:30  9:31  9:32 ... 8:00pm 4:00am 4:01am 4:02am
        [bars displayed continuously, no visual gaps]
 ```
 
 ### Implementation Details
 
-#### 1. Bidirectional Mapping
+#### 1. Bidirectional Index System
+
+The chart uses a **bidirectional index system** to avoid O(n) recomputation when adding historical bars:
+
+- **Index 0 (Origin)**: The first bar received when the app starts or symbol is loaded
+- **Positive Indices (1, 2, 3...)**: Future bars received from live data stream, incrementally added
+- **Negative Indices (-1, -2, -3...)**: Historical bars requested when panning left, incrementally prepended
+
+This design allows **O(1) insertion at both ends** without shifting existing indices.
+
+#### 2. Bidirectional Mapping
 
 Two maps maintain the relationship between indices and timestamps:
 
 ```cpp
-QMap<int, QDateTime> indexToTimestamp;  // Index → Timestamp
-QMap<QDateTime, int> timestampToIndex;  // Timestamp → Index
+QMap<int, QDateTime> indexToTimestamp;  // Index → Timestamp (can be negative)
+QMap<QDateTime, int> timestampToIndex;  // Timestamp → Index (can be negative)
 ```
 
-#### 2. Rebuilding Mappings
+#### 3. Incremental Index Management
 
-Called whenever bars are added/removed:
+Instead of rebuilding the entire mapping, bars are added incrementally:
 
 ```cpp
-void rebuildIndexMapping() {
-    // Combines completedBars + voidBars + openBar
-    // Assigns sequential indices: 0, 1, 2, 3, ...
-    // Maintains sorted order by timestamp
+// For new live bars (positive direction)
+void updateIndexMappingIncremental(const QDateTime& timestamp) {
+    int newIndex = indexToTimestamp.lastKey() + 1;  // Next positive index
+    // Add mapping
+}
+
+// For historical bars (negative direction)
+void addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) {
+    int minIndex = indexToTimestamp.firstKey();
+    // Process bars from newest to oldest
+    // Assign --minIndex for each bar
 }
 ```
 
-#### 3. Index-Timestamp Conversion
+The full `rebuildIndexMapping()` is only called when bars are received out of order or during initialization.
+
+#### 4. Index-Timestamp Conversion
 
 ```cpp
 int getIndexForTimestamp(const QDateTime& timestamp) const;
@@ -88,8 +109,144 @@ QDateTime getTimestampForIndex(int index) const;
 ```
 
 These helpers allow:
-- Chart operations to work in index space
+- Chart operations to work in index space (negative or positive)
 - Market hours logic to work with actual timestamps
+- Extrapolation beyond available data for panning/zooming
+
+---
+
+## Dynamic Axis Labeling
+
+### Overview
+
+The chart implements a **density-based tick interval adjustment system** that automatically adjusts the spacing of tick marks on both X and Y axes based on the current zoom level and chart dimensions. This ensures that the axis labels remain readable and appropriately spaced regardless of how much the user zooms in or out.
+
+### Core Concept
+
+Instead of using fixed tick intervals, the system calculates the optimal tick interval dynamically by:
+1. Computing the current screen density (pixels per unit)
+2. Determining the minimum spacing needed between ticks for readability
+3. Selecting an appropriate tick interval from predefined sensible values
+
+### Implementation Details
+
+#### Configuration Constants
+
+Two configurable threshold constants control the minimum pixel spacing between ticks:
+
+```cpp
+static constexpr int MIN_PIXELS_PER_TICK_X = 40;  // Minimum pixels between X-axis ticks
+static constexpr int MIN_PIXELS_PER_TICK_Y = 30;  // Minimum pixels between Y-axis ticks
+```
+
+These values can be adjusted to fine-tune when tick intervals change based on user preference or display characteristics.
+
+#### X-Axis Tick Interval Selection
+
+The X-axis represents bar indices in the continuous time display. Available intervals are powers and common multiples:
+
+**Available Intervals**: 1, 2, 5, 10, 20, 50, 100, 200, 300, ...
+
+**Algorithm**:
+1. Calculate pixels per index unit: `pixelsPerUnit = chartWidth / range`
+2. Calculate minimum tick interval: `minTickInterval = MIN_PIXELS_PER_TICK_X / pixelsPerUnit`
+3. Select the smallest interval from the available set that meets or exceeds `minTickInterval`
+4. For very large zoom-outs (minTickInterval > 100), use multiples of 100
+
+**Example Scenarios**:
+- **Zoomed in** (range = 10 bars, width = 800px):
+  - pixelsPerUnit = 80 pixels/bar
+  - minTickInterval = 40 / 80 = 0.5
+  - Selected interval = 1 bar (every bar gets a tick)
+
+- **Zoomed out** (range = 500 bars, width = 800px):
+  - pixelsPerUnit = 1.6 pixels/bar
+  - minTickInterval = 40 / 1.6 = 25
+  - Selected interval = 50 bars
+
+#### Y-Axis Tick Interval Selection
+
+The Y-axis represents price values. Available intervals are chosen to produce clean, easy-to-read price increments:
+
+**Available Intervals (in dollars)**: $0.05, $0.10, $0.25, $1.00, $5.00, $25.00, $100.00
+
+**Algorithm**:
+1. Calculate pixels per dollar: `pixelsPerDollar = chartHeight / priceRange`
+2. For each interval (from smallest to largest):
+   - Calculate `pixelsPerTick = pixelsPerDollar × interval`
+   - If `pixelsPerTick >= MIN_PIXELS_PER_TICK_Y`, select this interval and stop
+3. If no interval meets the threshold, use the largest ($100.00)
+
+**Example Scenarios**:
+- **Narrow price range** (range = $1.00, height = 600px):
+  - pixelsPerDollar = 600 pixels/$
+  - Test $0.05: pixelsPerTick = 600 × 0.05 = 30 pixels ✓
+  - Selected interval = $0.05 (5 cent increments)
+
+- **Wide price range** (range = $50.00, height = 600px):
+  - pixelsPerDollar = 12 pixels/$
+  - Test $0.05: pixelsPerTick = 12 × 0.05 = 0.6 pixels ✗
+  - Test $0.10: pixelsPerTick = 12 × 0.10 = 1.2 pixels ✗
+  - ...continue testing...
+  - Test $5.00: pixelsPerTick = 12 × 5.00 = 60 pixels ✓
+  - Selected interval = $5.00
+
+### Behavior During Zoom Operations
+
+```mermaid
+graph TD
+    Start[User Zooms] --> UpdateRange[Axes ranges change]
+    UpdateRange --> CallUpdate[updateAxisLabels called]
+    
+    CallUpdate --> CalcX[Calculate X-axis density]
+    CalcX --> SelectX[Select X tick interval]
+    SelectX --> ApplyX[Apply interval to axisX]
+    
+    CallUpdate --> CalcY[Calculate Y-axis density]
+    CalcY --> SelectY[Select Y tick interval]
+    SelectY --> ApplyY[Apply interval to axisY]
+    
+    ApplyX --> UpdateCount[Update tick counts]
+    ApplyY --> UpdateCount
+    UpdateCount --> Render[Chart re-renders with new ticks]
+    
+    style CalcX fill:#e1f5ff
+    style CalcY fill:#e1f5ff
+    style SelectX fill:#b3e5fc
+    style SelectY fill:#b3e5fc
+```
+
+### Tick Count Management
+
+In addition to intervals, the system also manages the total number of ticks displayed:
+
+```cpp
+int estimatedTicks = qMax(2, static_cast<int>(range / tickInterval) + 1);
+axisX->setTickCount(qMin(estimatedTicks, 20)); // Cap at 20 ticks maximum
+```
+
+This ensures:
+- At least 2 ticks are shown (min and max)
+- No more than 20 ticks to prevent overcrowding
+- Tick count is appropriate for the selected interval
+
+### Debug Logging
+
+The function logs key metrics for troubleshooting:
+
+```cpp
+qCDebug(ChartLog) << "X-axis: range=" << range 
+                  << "width=" << chartWidth 
+                  << "pixelsPerUnit=" << pixelsPerUnit
+                  << "tickInterval=" << tickInterval;
+
+qCDebug(ChartLog) << "Y-axis: priceRange=" << priceRange 
+                  << "height=" << chartHeight
+                  << "pixelsPerDollar=" << pixelsPerDollar
+                  << "tickInterval=" << selectedInterval;
+```
+
+Enable the `Chart` logging category to see these metrics in real-time during zoom operations.
 
 ---
 
@@ -585,13 +742,14 @@ sequenceDiagram
             loop For each bar
                 alt Not Void Bar
                     SPC->>SPC: Insert into completedBars
+                    SPC->>SPC: Add to candlestickSeries (incremental)
                 else Void Bar
-                    SPC->>SPC: Add to voidBarSeries
+                    SPC->>SPC: Add to voidBarSeries (incremental)
                 end
             end
             
             SPC->>SPC: maintainBarLimit()
-            SPC->>SPC: updateChart()
+            Note over SPC: NO updateChart() call!<br/>Uses incremental updates with<br/>addHistoricalBarsToIndexMapping()
         else Request already in process
             SPC->>SPC: Log warning and return
             Note over SPC: Prevents duplicate requests

@@ -65,7 +65,6 @@ classDiagram
         +BarStatus getBarStatus() const
         +bool getIsRealtime() const
         +static Bar nullBar(QDateTime timestamp)
-        +void ajustTimeStampToOpeningMinute()
     }
 
     class StreamBars {

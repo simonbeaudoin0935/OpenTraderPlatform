@@ -69,67 +69,68 @@ bool StockPriceChart::eventFilter(QObject* object, QEvent* event) {
 bool StockPriceChart::handleMouseButtonPress(QMouseEvent* mouseEvent) {
     if (mouseEvent->button() == Qt::RightButton) {
         // Handle right click - recenter view
-        if (!indexToTimestamp.isEmpty()) {
-            int lastIndex = indexToTimestamp.lastKey();
-            int startIndex = qMax(0, lastIndex - 30);  // Show last 30 bars
-            int endIndex = lastIndex + 1;
 
-            // Reset the horizontal axis
-            axisX->setRange(startIndex, endIndex);
-            updateAxisLabels();
+        Q_ASSERT(!indexToTimestamp.isEmpty());
 
-            // Reset the vertical axis to fit visible bars
-            double minPrice = std::numeric_limits<double>::max();
-            double maxPrice = std::numeric_limits<double>::lowest();
-            double currentPrice = 0.0;
+        
+        int lastIndex = indexToTimestamp.lastKey();
+        int startIndex = lastIndex - 30;  // Show last 30 bars (can be negative now)
+        int endIndex = lastIndex + 1;
 
-            // Find min/max prices for bars in the visible range
-            for (auto it = indexToTimestamp.constBegin(); it != indexToTimestamp.constEnd(); ++it) {
-                int index = it.key();
-                if (index >= startIndex && index <= endIndex) {
-                    const QDateTime& timestamp = it.value();
+        // Reset the horizontal axis
+        axisX->setRange(startIndex, endIndex);
 
-                    // Check completed bars
-                    if (completedBars.contains(timestamp)) {
-                        const Bar& bar = completedBars[timestamp];
-                        minPrice = qMin(minPrice, bar.getLow());
-                        maxPrice = qMax(maxPrice, bar.getHigh());
-                        currentPrice = bar.getClose();
-                    }
-                    // Check open bar
-                    else if (hasOpenBar && timestamp == currentOpenBar.getTimeStamp()) {
-                        minPrice = qMin(minPrice, currentOpenBar.getLow());
-                        maxPrice = qMax(maxPrice, currentOpenBar.getHigh());
-                        currentPrice = currentOpenBar.getClose();
-                    }
-                    // Check void bars
-                    else if (voidBars.contains(timestamp)) {
-                        double price = voidBars[timestamp];
-                        minPrice = qMin(minPrice, price);
-                        maxPrice = qMax(maxPrice, price);
-                        currentPrice = price;
-                    }
-                }
+        // Reset the vertical axis to fit visible bars
+        double minPrice = std::numeric_limits<double>::max();
+        double maxPrice = std::numeric_limits<double>::lowest();
+        double currentPrice = 0.0;
+
+        // Retrieve the iterator of the indexToTimestamp map from the startIndex to endIndex
+        const auto endIt = indexToTimestamp.upperBound(endIndex);
+   
+        // Find min/max prices for bars in the visible range
+        for (auto it = indexToTimestamp.lowerBound(startIndex); it != endIt; ++it) {
+            int index = it.key();
+            Q_ASSERT(index >= startIndex && index <= endIndex);
+
+            const QDateTime& timestamp = it.value();
+
+            // Check completed bars
+            if (completedBars.contains(timestamp)) {
+                const Bar& bar = completedBars[timestamp];
+                minPrice = qMin(minPrice, bar.getLow());
+                maxPrice = qMax(maxPrice, bar.getHigh());
+                currentPrice = bar.getClose();
             }
 
-            // Set vertical range if we found any bars
-            if (minPrice != std::numeric_limits<double>::max()) {
-                // Add padding
-                double padding = currentPrice * 0.0002; // 0.02% padding
-                // Ensure minimum range
-                double minRange = currentPrice * 0.0005; // 0.05% of current price
-                if (maxPrice - minPrice < minRange) {
-                    maxPrice = currentPrice + (minRange / 2);
-                    minPrice = currentPrice - (minRange / 2);
-                }
-                axisY->setRange(qMax(0.0, minPrice - padding), maxPrice + padding);
-            }
-
-            updateAfterHoursBackground();
-            updateLastPriceLineIfNeeded();
-            return true;
         }
-        return false;
+
+        // Check open bar
+        if (hasOpenBar) {
+            minPrice = qMin(minPrice, currentOpenBar.getLow());
+            maxPrice = qMax(maxPrice, currentOpenBar.getHigh());
+            currentPrice = currentOpenBar.getClose();
+        }
+
+        // Set vertical range if we found any bars
+        if (minPrice != std::numeric_limits<double>::max()) {
+            // Add padding
+            double padding = currentPrice * 0.0002; // 0.02% padding
+            // Ensure minimum range
+            double minRange = currentPrice * 0.0005; // 0.05% of current price
+            if (maxPrice - minPrice < minRange) {
+                maxPrice = currentPrice + (minRange / 2);
+                minPrice = currentPrice - (minRange / 2);
+            }
+            axisY->setRange(qMax(0.0, minPrice - padding), maxPrice + padding);
+        }
+
+        updateAfterHoursBackground();
+        updateLastPriceLineIfNeeded();
+        
+        updateAxisLabels();
+
+        return true;
     }
     if (mouseEvent->button() != Qt::LeftButton) {
         return false;
@@ -203,19 +204,22 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
     qreal newMin = axisX->min() + indexOffset;
     qreal newMax = axisX->max() + indexOffset;
     
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
+    // Check for missing bars when panning beyond the first available bar
+    if (!completedBars.isEmpty() && !indexToTimestamp.isEmpty()) {
+        int firstAvailableIndex = indexToTimestamp.firstKey();
+        if (newMin < firstAvailableIndex) {
+            QDateTime firstBarTime = completedBars.firstKey();
+            QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
+            checkForMissingBars(requestTime, firstBarTime);
+        }
     }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
     
     axisX->setRange(newMin, newMax);
     axisY->setRange(qMax(0.0, axisY->min() + priceOffset), axisY->max() + priceOffset);
-    updateAxisLabels();
+
+    // When panning, we don't update the axis labels to avoid jitter since they dont change,
+    // only the range shifts.
+    //updateAxisLabels();
 
     // Update the price label position and last price line
     updatePriceLabelPosition();

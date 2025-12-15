@@ -12,7 +12,9 @@
 
 #include "StockPriceChart.h"
 #include "MarketHours.h"
+#include "Logging.h"
 
+#define LOGGING_CATEGORY ChartLog
 #define CANDLESTICK_BODY_WIDTH 0.9 // 90% of available space
 
 Q_LOGGING_CATEGORY(ChartLog, "Chart");
@@ -201,17 +203,30 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     // Important to reset so more requests can be made in the future
     currentGetBarsRequestInProcess = false;
 
-    if (bars.isEmpty()) {
-        qCCritical(ChartLog) << "Requested missing bars empty";
-        return;
-    }
-    //Q_ASSERT(!bars.isEmpty());
+    Q_ASSERT(!bars.isEmpty());
 
+    // thats just to handle the initial pass in this function
     if (lastValidClosePrice == 0.0) {
-        lastValidClosePrice = completedBars.first().getOpen();
+        lastValidClosePrice = completedBars.last().getOpen();
     }
 
-    // Insert all received bars into the map
+    // Store current view state to preserve it
+    qreal currentMinIndex = axisX->min();
+    qreal currentMaxIndex = axisX->max();
+    qreal currentYMin = axisY->min();
+    qreal currentYMax = axisY->max();
+    bool hadInitialView = (currentMaxIndex - currentMinIndex) > 0;
+
+    // First, add all historical bars to the index mapping using negative indices.
+    // This is O(m) where m = number of new bars, instead of O(n) rebuild.
+    // Note: This only creates timestamp → index mappings; bars don't need to be
+    // in completedBars/voidBars yet since we only read their timestamps.
+    addHistoricalBarsToIndexMapping(bars);
+    
+    DEBUG << "After addHistoricalBarsToIndexMapping, index range:" 
+                      << (indexToTimestamp.isEmpty() ? "empty" : QString("%1 to %2").arg(indexToTimestamp.firstKey()).arg(indexToTimestamp.lastKey()));
+
+    // Insert all received bars into the completedBars/voidBars maps
     for (const Bar& bar : bars) {
         if (bar.getBarStatus() != Bar::BarStatus::Null) {
             completedBars.insert(bar.getTimeStamp(), bar);
@@ -222,12 +237,71 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
             voidBars.insert(bar.getTimeStamp(), lastValidClosePrice);
         }
     }
+    
+    // Rebuild candlestick series in sorted index order to ensure correct positioning.
+    // QCandlestickSeries positions bars by insertion order, not by timestamp value,
+    // so we need to clear and rebuild the series sorted by index.
+    candlestickSeries->clear();
+    voidBarSeries->clear();
+    candlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
+    
+    DEBUG << "Rebuilding candlestick series with" << indexToTimestamp.size() << "total bars";
+    
+    // Add all bars in sorted index order
+    int addedCount = 0;
+    for (auto it = indexToTimestamp.constBegin(); it != indexToTimestamp.constEnd(); ++it) {
+        int index = it.key();
+        const QDateTime& timestamp = it.value();
+        
+        // Check if it's a void bar
+        if (voidBars.contains(timestamp)) {
+            double price = voidBars[timestamp];
+            voidBarSeries->append(index, price);
+            if (addedCount < 5 || index < 0) {
+                DEBUG << "  Adding void bar at index" << index << "time" << timestamp.toString("hh:mm:ss");
+            }
+            addedCount++;
+        }
+        // Check if it's a completed bar
+        else if (completedBars.contains(timestamp)) {
+            const Bar& bar = completedBars[timestamp];
+            auto set = new QCandlestickSet();
+            Q_CHECK_PTR(set);
+            set->setTimestamp(index);
+            set->setOpen(bar.getOpen());
+            set->setHigh(bar.getHigh());
+            set->setLow(bar.getLow());
+            set->setClose(bar.getClose());
+            candlestickSeries->append(set);
+            if (addedCount < 5 || index < 0) {
+                DEBUG << "  Adding candlestick at index" << index << "time" << timestamp.toString("hh:mm:ss") << "O/H/L/C:" << bar.getOpen() << bar.getHigh() << bar.getLow() << bar.getClose();
+            }
+            addedCount++;
+        }
+        // Check if it's the current open bar
+        else if (hasOpenBar && timestamp == currentOpenBar.getTimeStamp()) {
+            auto set = new QCandlestickSet();
+            Q_CHECK_PTR(set);
+            set->setTimestamp(index);
+            set->setOpen(currentOpenBar.getOpen());
+            set->setHigh(currentOpenBar.getHigh());
+            set->setLow(currentOpenBar.getLow());
+            set->setClose(currentOpenBar.getClose());
+            candlestickSeries->append(set);
+            DEBUG << "  Adding open bar at index" << index << "time" << timestamp.toString("hh:mm:ss");
+            addedCount++;
+        }
+    }
 
     // Maintain the bar limit
     maintainBarLimit();
 
-    // Update the chart to display the new bars
-    updateChart();
+    // Restore the view state if it was initialized
+    if (hadInitialView) {
+        axisX->setRange(currentMinIndex, currentMaxIndex);
+        axisY->setRange(currentYMin, currentYMax);
+        updateAxisLabels();
+    }
 
     // Update the last price line if needed
     if (!bars.isEmpty()) {
@@ -266,7 +340,7 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
         // If this is the very first bar, set up initial view
         if (isFirstBar) {
             int index = getIndexForTimestamp(bar.getTimeStamp());
-            axisX->setRange(qMax(0, index - 30), index + 1);
+            axisX->setRange(index - 30, index + 1);  // Allow negative indices
             
             // Set Y axis range with padding
             double price = bar.getClose();
@@ -319,6 +393,7 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
  * 
  * Removes the oldest bars (both completed and void bars) when the total
  * exceeds MAX_BARS to prevent memory issues and maintain performance.
+ * Also cleans up the index mappings for removed bars.
  */
 void StockPriceChart::maintainBarLimit() {
     // Count total bars (completed + void)
@@ -329,12 +404,23 @@ void StockPriceChart::maintainBarLimit() {
         QDateTime oldestCompletedTime = completedBars.isEmpty() ? QDateTime() : completedBars.firstKey();
         QDateTime oldestVoidTime = voidBars.isEmpty() ? QDateTime() : voidBars.firstKey();
         
+        QDateTime oldestTime;
+        
         // Remove the older one
         if (oldestCompletedTime.isValid() && 
             (!oldestVoidTime.isValid() || oldestCompletedTime < oldestVoidTime)) {
+            oldestTime = oldestCompletedTime;
             completedBars.erase(completedBars.begin());
         } else if (oldestVoidTime.isValid()) {
+            oldestTime = oldestVoidTime;
             voidBars.erase(voidBars.begin());
+        }
+        
+        // Clean up the index mapping for the removed bar
+        if (oldestTime.isValid() && timestampToIndex.contains(oldestTime)) {
+            int removedIndex = timestampToIndex[oldestTime];
+            timestampToIndex.remove(oldestTime);
+            indexToTimestamp.remove(removedIndex);
         }
         
         totalBars--;
@@ -365,7 +451,7 @@ void StockPriceChart::handleOpenBar(const Bar& bar) {
         // If this is the very first bar, set up initial view
         if (isFirstBar) {
             int index = getIndexForTimestamp(newBarTime);
-            axisX->setRange(qMax(0, index - 30), index + 1);
+            axisX->setRange(index - 30, index + 1);  // Allow negative indices
             
             // Set Y axis range with padding
             double padding = newPrice * 0.0002;
@@ -457,7 +543,7 @@ void StockPriceChart::updateChart() {
     // Only update time axis range if this is the initial setup
     if (!hadInitialView && !indexToTimestamp.isEmpty()) {
         int lastIndex = indexToTimestamp.lastKey();
-        int startIndex = qMax(0, lastIndex - 30);  // Show last 30 bars
+        int startIndex = lastIndex - 30;  // Show last 30 bars (can be negative)
         int endIndex = lastIndex + 1;  // Small buffer
         
         axisX->setRange(startIndex, endIndex);   
@@ -523,209 +609,8 @@ void StockPriceChart::updateChart() {
     }
 }
 
-/**
- * @brief Handles mouse wheel events for chart interaction.
- * 
- * Provides different zoom and pan behaviors based on modifier keys:
- * - Ctrl+Shift: Vertical panning
- * - Alt: Horizontal panning  
- * - Ctrl: Horizontal zooming
- * - Shift: Vertical zooming
- * - No modifiers: Both axes zooming
- * 
- * @param event The QWheelEvent containing wheel movement information.
- */
-void StockPriceChart::wheelEvent(QWheelEvent* event) {
-    if (!chartView->rect().contains(event->position().toPoint())) {
-        event->ignore();
-        return;
-    }
 
-    // Calculate zoom factor based on scroll direction
-    qreal zoomFactor = event->angleDelta().y() > 0 ? 0.9 : 1.1;
 
-    if ((event->modifiers() & Qt::ShiftModifier) && (event->modifiers() & Qt::ControlModifier)) {
-        handleVerticalPanning(event);
-    } else if (event->modifiers() & Qt::AltModifier) {
-        handleHorizontalPanning(event);
-    } else if (event->modifiers() & Qt::ControlModifier) {
-        handleHorizontalZoom(event, zoomFactor);
-    } else if (event->modifiers() & Qt::ShiftModifier) {
-        handleVerticalZoom(event, zoomFactor);
-    } else {
-        handleBothAxesZoom(event, zoomFactor);
-    }
-
-    // Update the price label position
-    updatePriceLabelPosition();
-    event->accept();
-}
-
-/**
- * @brief Handles vertical panning with mouse wheel.
- * 
- * Pans the Y-axis (price) up or down based on wheel direction.
- * Used when Ctrl+Shift modifiers are held.
- * 
- * @param event The QWheelEvent containing wheel movement information.
- */
-void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
-    qreal currentMin = axisY->min();
-    qreal currentMax = axisY->max();
-    qreal priceRange = currentMax - currentMin;
-
-    qreal shiftAmount = priceRange * 0.05;
-    if (event->angleDelta().y() < 0) {
-        shiftAmount = -shiftAmount;
-    }
-
-    axisY->setRange(qMax(0.0, currentMin + shiftAmount), currentMax + shiftAmount);
-    updateLastPriceLineIfNeeded();
-}
-
-/**
- * @brief Handles horizontal panning with mouse wheel.
- * 
- * Pans the X-axis (time) left or right based on wheel direction.
- * Checks for missing bars when panning to earlier times.
- * Used when Alt modifier is held.
- * 
- * @param event The QWheelEvent containing wheel movement information.
- */
-void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
-    qreal currentMin = axisX->min();
-    qreal currentMax = axisX->max();
-    qreal indexRange = currentMax - currentMin;
-    qreal shiftAmount = indexRange * 0.05;
-    shiftAmount = -shiftAmount * (event->angleDelta().x() > 0 ? 1 : -1);
-
-    qreal newMin = currentMin + shiftAmount;
-    qreal newMax = currentMax + shiftAmount;
-    
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
-    }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
-    
-    axisX->setRange(newMin, newMax);
-    updateLastPriceLineIfNeeded();
-    updateAxisLabels();
-}
-
-/**
- * @brief Handles horizontal zooming with mouse wheel.
- * 
- * Zooms in/out on the X-axis (time) centered on current view.
- * Checks for missing bars when zooming out to earlier times.
- * Used when Ctrl modifier is held.
- * 
- * @param event The QWheelEvent containing wheel movement information.
- * @param zoomFactor The zoom multiplier (typically 0.9 for zoom in, 1.1 for zoom out).
- */
-void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor) {
-    Q_UNUSED(event);
-
-    qreal currentMin = axisX->min();
-    qreal currentMax = axisX->max();
-    qreal indexRange = currentMax - currentMin;
-    qreal centerIndex = currentMin + (indexRange / 2);
-
-    qreal newIndexRange = indexRange * zoomFactor;
-    qreal newMin = centerIndex - (newIndexRange / 2);
-    qreal newMax = centerIndex + (newIndexRange / 2);
-    
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
-    }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
-
-    axisX->setRange(newMin, newMax);
-    updateLastPriceLineIfNeeded();
-}
-
-/**
- * @brief Handles vertical zooming with mouse wheel.
- * 
- * Zooms in/out on the Y-axis (price) centered on current view.
- * Used when Shift modifier is held.
- * 
- * @param event The QWheelEvent containing wheel movement information.
- * @param zoomFactor The zoom multiplier (typically 0.9 for zoom in, 1.1 for zoom out).
- */
-void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
-    Q_UNUSED(event);
-
-    qreal currentMin = axisY->min();
-    qreal currentMax = axisY->max();
-    qreal range = currentMax - currentMin;
-    qreal center = (currentMax + currentMin) / 2;
-
-    qreal newRange = range * zoomFactor;
-    qreal newMin = center - (newRange / 2);
-    qreal newMax = center + (newRange / 2);
-
-    axisY->setRange(qMax(0.0, newMin), newMax);
-    updateLastPriceLineIfNeeded();
-}
-
-/**
- * @brief Handles simultaneous zooming on both axes with mouse wheel.
- * 
- * Zooms in/out on both X-axis (time) and Y-axis (price) centered on current view.
- * Checks for missing bars when zooming out on time axis.
- * Used with no modifier keys held.
- * 
- * @param event The QWheelEvent containing wheel movement information.
- * @param zoomFactor The zoom multiplier (typically 0.9 for zoom in, 1.1 for zoom out).
- */
-void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
-    Q_UNUSED(event);
-
-    // Index axis zoom
-    qreal currentMin = axisX->min();
-    qreal currentMax = axisX->max();
-    qreal indexRange = currentMax - currentMin;
-    qreal centerIndex = currentMin + (indexRange / 2);
-
-    qreal newIndexRange = indexRange * zoomFactor;
-    qreal newMin = centerIndex - (newIndexRange / 2);
-    qreal newMax = centerIndex + (newIndexRange / 2);
-    
-    // Check for missing bars BEFORE constraining
-    if (newMin < 0 && !completedBars.isEmpty()) {
-        QDateTime firstBarTime = completedBars.firstKey();
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, firstBarTime);
-    }
-    
-    // Constrain to available data
-    newMin = qMax(0.0, newMin);
-
-    // Price axis zoom
-    qreal currentMinPrice = axisY->min();
-    qreal currentMaxPrice = axisY->max();
-    qreal priceRange = currentMaxPrice - currentMinPrice;
-    qreal centerPrice = (currentMaxPrice + currentMinPrice) / 2;
-
-    qreal newPriceRange = priceRange * zoomFactor;
-    qreal newMinPrice = centerPrice - (newPriceRange / 2);
-    qreal newMaxPrice = centerPrice + (newPriceRange / 2);
-
-    axisX->setRange(newMin, newMax);
-    axisY->setRange(qMax(0.0, newMinPrice), newMaxPrice);
-
-    updateLastPriceLineIfNeeded();
-}
 
 /**
  * @brief Updates the last price line if there are candlesticks available.
@@ -1014,22 +899,22 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     }
         
     if (viewStartTimeRounded < firstBarTime) {
-        qCDebug(ChartLog) << "Chart view extends beyond available bars:";
-        qCDebug(ChartLog) << "  Last :" << firstBarTime;
-        qCDebug(ChartLog) << "  First:" << viewStartTimeRounded;
+        DEBUG << "Chart view extends beyond available bars:";
+        DEBUG << "  Last :" << firstBarTime;
+        DEBUG << "  First:" << viewStartTimeRounded;
     } else {
         return;
     }
 
     // If there is already a getBars request to the bar cache, suck it up and wait to receive the data
     if (currentGetBarsRequestInProcess) {
-        qCDebug(ChartLog) << "current get bars request already in progress";
+        DEBUG << "current get bars request already in progress";
         return;
     } else {
         currentGetBarsRequestInProcess = true;
 
 
-        qCDebug(ChartLog) << "Requesting missing bars from"
+        DEBUG << "Requesting missing bars from"
                           << viewStartTimeRounded.toString(Qt::ISODate)
                           << "to"
                           << firstBarTime.toString(Qt::ISODate);
@@ -1085,11 +970,22 @@ void StockPriceChart::clearSymbol() {
 /**
  * @brief Rebuilds the index-to-timestamp mappings for continuous display.
  * 
- * Creates sequential indices (0, 1, 2, ...) for all timestamps (completed bars,
- * void bars, and open bar) to enable gapless chart display across time periods.
+ * Creates indices for all timestamps (completed bars, void bars, and open bar) 
+ * to enable gapless chart display across time periods. When existing indices 
+ * are present, preserves the existing index origin (index 0) position by 
+ * rebuilding around it. Otherwise, starts from index 0.
+ * 
  * Maintains bidirectional mapping between indices and timestamps.
  */
 void StockPriceChart::rebuildIndexMapping() {
+    // Save the current origin timestamp (what was at index 0) if it exists
+    QDateTime originTimestamp;
+    bool hadOrigin = false;
+    if (indexToTimestamp.contains(0)) {
+        originTimestamp = indexToTimestamp[0];
+        hadOrigin = true;
+    }
+    
     indexToTimestamp.clear();
     timestampToIndex.clear();
     
@@ -1109,8 +1005,28 @@ void StockPriceChart::rebuildIndexMapping() {
         allTimestamps[currentOpenBar.getTimeStamp()] = false;
     }
     
-    // Build index mapping
-    int index = 0;
+    if (allTimestamps.isEmpty()) {
+        return;  // Nothing to map
+    }
+    
+    // Find where to start indexing based on origin preservation
+    int startIndex = 0;
+    
+    if (hadOrigin && allTimestamps.contains(originTimestamp)) {
+        // Count how many timestamps come before the origin (they'll get negative indices)
+        // Iterate and count instead of using std::distance for O(n) but more Qt-idiomatic
+        int timestampsBeforeOrigin = 0;
+        for (auto it = allTimestamps.constBegin(); it != allTimestamps.constEnd(); ++it) {
+            if (it.key() == originTimestamp) {
+                break;
+            }
+            ++timestampsBeforeOrigin;
+        }
+        startIndex = -timestampsBeforeOrigin;
+    }
+    
+    // Build index mapping starting from startIndex
+    int index = startIndex;
     for (auto it = allTimestamps.constBegin(); it != allTimestamps.constEnd(); ++it) {
         const QDateTime& timestamp = it.key();
         indexToTimestamp[index] = timestamp;
@@ -1121,6 +1037,11 @@ void StockPriceChart::rebuildIndexMapping() {
 
 /**
  * @brief Gets the index corresponding to a timestamp.
+ * 
+ * Returns the exact index if the timestamp exists in the mapping, otherwise
+ * returns the index of the closest earlier bar. If the timestamp is before
+ * all available bars, returns the first available index (which could be negative),
+ * serving as a boundary for extrapolation by getTimestampForIndex().
  * 
  * @param timestamp The timestamp to find the index for.
  * @return The index for the timestamp, or the closest available index if exact match not found.
@@ -1133,13 +1054,14 @@ int StockPriceChart::getIndexForTimestamp(const QDateTime& timestamp) const {
     
     // If exact timestamp not found, find the closest index
     if (timestampToIndex.isEmpty()) {
-        return 0;
+        return 0;  // Default when no bars exist yet
     }
     
     // Find the first timestamp greater than or equal to the given timestamp
     auto upper = timestampToIndex.upperBound(timestamp);
     if (upper == timestampToIndex.begin()) {
-        return 0;  // Before all bars
+        // Before all bars - return the first available index (could be negative)
+        return indexToTimestamp.firstKey();
     }
     
     // Return the index of the previous bar
@@ -1230,7 +1152,7 @@ QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) 
         } else if (time >= QTime(TRADING_END_HOUR, 0, 0)) {
             // After 8PM - move to 7:59PM same day
             // This case shouldn't occur with valid input, but we handle it defensively
-            qCDebug(ChartLog) << "Unexpected: getPreviousTradingMinute called with time after 8PM:" << nyTime;
+            DEBUG << "Unexpected: getPreviousTradingMinute called with time after 8PM:" << nyTime;
             return QDateTime(previousMinute.date(), 
                            QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), 
                            nyZone).toTimeZone(timestamp.timeZone());
@@ -1313,88 +1235,187 @@ QDate StockPriceChart::getPreviousFriday(const QDate& date) const {
 }
 
 /**
- * @brief Updates the X-axis tick count based on the visible range.
+ * @brief Updates axis tick intervals dynamically based on screen density.
  * 
- * Adjusts the number of tick marks on the X-axis depending on the zoom level
- * to provide appropriate labeling density. Currently uses automatic labeling
- * showing index numbers.
+ * This function implements a density-based tick interval adjustment system that
+ * automatically adjusts the spacing of tick marks on both X and Y axes based on
+ * the current zoom level and chart dimensions. This ensures axis labels remain
+ * readable and appropriately spaced regardless of zoom level.
+ * 
+ * **X-Axis (Index-based):**
+ * - Calculates pixels per index unit
+ * - Selects from intervals: 1, 2, 5, 10, 20, 50, 100, etc.
+ * - Maintains minimum spacing of MIN_PIXELS_PER_TICK_X pixels between ticks
+ * 
+ * **Y-Axis (Price-based):**
+ * - Calculates pixels per dollar
+ * - Selects from intervals: $0.05, $0.10, $0.25, $1.00, $5.00, $25.00, $100.00
+ * - Maintains minimum spacing of MIN_PIXELS_PER_TICK_Y pixels between ticks
+ * 
+ * The function is called automatically whenever the view is zoomed or panned
+ * to ensure tick density remains optimal for the current view.
+ * 
+ * @see MIN_PIXELS_PER_TICK_X, MIN_PIXELS_PER_TICK_Y for configurable thresholds
  */
 void StockPriceChart::updateAxisLabels() {
+    INFO << ">>>>> updateAxisLabels() CALLED <<<<<";
+    
     // Get visible range in indices
     qreal minIndex = axisX->min();
     qreal maxIndex = axisX->max();
     qreal range = maxIndex - minIndex;
     
-    if (range <= 0 || indexToTimestamp.isEmpty()) {
-        return;
-    }
+    INFO << "X-axis range check: minIndex=" << minIndex << "maxIndex=" << maxIndex 
+         << "range=" << range << "indexToTimestamp.isEmpty=" << indexToTimestamp.isEmpty();
     
-    // Determine number of labels based on range
-    int numLabels = 7;  // Default
-    if (range < 10) {
-        numLabels = qMax(3, static_cast<int>(range) + 1);
-    } else if (range < 30) {
-        numLabels = 5;
-    } else if (range < 60) {
-        numLabels = 7;
+    Q_ASSERT(range > 0);
+    Q_ASSERT(!indexToTimestamp.isEmpty());
+    
+    // ========== X-AXIS TICK INTERVAL ADJUSTMENT ==========
+    // Calculate density-based tick interval for X-axis
+    int chartWidth = chartView->width();
+    
+    Q_ASSERT(chartWidth > 0);
+
+  
+    // Calculate current pixels per unit on the X-axis
+    qreal pixelsPerUnit = static_cast<qreal>(chartWidth) / range;
+        
+    // Determine the appropriate tick interval based on density
+    // We want at least MIN_PIXELS_PER_TICK_X pixels between ticks
+    qreal minTickInterval = MIN_PIXELS_PER_TICK_X / pixelsPerUnit;
+        
+    // Track previous interval for level jump detection
+    static qreal previousXInterval = 1.0;
+        
+    DEBUG << "========== X-AXIS INTERVAL SELECTION ==========";
+    DEBUG << "Chart width:" << chartWidth << "px, Range:" << range 
+                          << "Pixels per unit:" << pixelsPerUnit;
+    DEBUG << "MIN_PIXELS_PER_TICK_X threshold:" << MIN_PIXELS_PER_TICK_X << "px";
+    DEBUG << "Minimum tick interval needed:" << minTickInterval;
+        
+    // Round up to a sensible tick interval (powers/multiples of common numbers)
+    qreal tickInterval = 1.0;
+    if (minTickInterval <= 1.0) {
+        tickInterval = 1.0;
+        DEBUG << "  Selected interval: 1 (minTickInterval <= 1.0)";
+    } else if (minTickInterval <= 2.0) {
+        tickInterval = 2.0;
+        DEBUG << "  Selected interval: 2 (minTickInterval <= 2.0)";
+    } else if (minTickInterval <= 5.0) {
+        tickInterval = 5.0;
+        DEBUG << "  Selected interval: 5 (minTickInterval <= 5.0)";
+    } else if (minTickInterval <= 10.0) {
+        tickInterval = 10.0;
+        DEBUG << "  Selected interval: 10 (minTickInterval <= 10.0)";
+    } else if (minTickInterval <= 20.0) {
+        tickInterval = 20.0;
+       DEBUG << "  Selected interval: 20 (minTickInterval <= 20.0)";
+    } else if (minTickInterval <= 50.0) {
+        tickInterval = 50.0;
+        DEBUG << "  Selected interval: 50 (minTickInterval <= 50.0)";
+    } else if (minTickInterval <= 100.0) {
+        tickInterval = 100.0;
+        DEBUG << "  Selected interval: 100 (minTickInterval <= 100.0)";
     } else {
-        numLabels = 10;
+        // For very large zoom-outs, use larger intervals
+        tickInterval = qCeil(minTickInterval / 100.0) * 100.0;
+        DEBUG << "  Selected interval:" << tickInterval << "(very large zoom-out)";
     }
-    
-    qCDebug(ChartLog) << "Setting X-axis tick count to" << numLabels << "for range" << range;
-    axisX->setTickCount(numLabels);
-
-    // FIXME this is a hack, continue modifying the a variable
-    // Additionally, adjust tick interval based on chart width and range
-    {
-        qreal range = axisX->max() - axisX->min();
-        int chartWidth = chartView->width();
-        qreal rangeRatio = chartWidth / range;
-
-        int a = 0;
-
-        if (rangeRatio <= 2){
-
-        }
-        else if (rangeRatio <= 5){
-            a = 6;
-        }
-        else if (rangeRatio <= 10){
-            a = 3;
-        }
-        else if (rangeRatio <= 20){
-            a = 2;
-        }
-        else if (rangeRatio <= 30) {
-            a = 1;
-        }
-        axisX->setTickInterval(a + 1);
+        
+    // Detect and log level jumps
+    if (tickInterval != previousXInterval) {
+        INFO << "***** X-AXIS LEVEL JUMP:" << previousXInterval 
+                         << "→" << tickInterval << "*****";
+        previousXInterval = tickInterval;
     }
+        
+    axisX->setTickInterval(tickInterval);
+        
+    // Set tick count based on the range and interval
+    int estimatedTicks = qMax(2, static_cast<int>(range / tickInterval) + 1);
+    int finalTickCount = qMin(estimatedTicks, 20); // Cap at 20 ticks maximum
+    axisX->setTickCount(finalTickCount);
+        
+    // Force the chart to update with new tick settings
+    chart->update();
+        
+    DEBUG << "→ SELECTED:" << tickInterval 
+                      << "| Actual pixels per tick:" << (pixelsPerUnit * tickInterval)
+                      << "| Est. ticks:" << estimatedTicks 
+                      << "| Final tick count:" << finalTickCount;
+    DEBUG << "================================================";
 
-    // Update Y-axis labels similarly
+    // ========== Y-AXIS TICK INTERVAL ADJUSTMENT ==========
+    // Calculate density-based tick interval for Y-axis
     qreal minPrice = axisY->min();
     qreal maxPrice = axisY->max();
     qreal priceRange = maxPrice - minPrice;
     
-    if (priceRange > 0) {
-        int numLabelsY = 5;  // Default
-        if (priceRange < 1) {
-            numLabelsY = 3;
-        } else if (priceRange < 5) {
-            numLabelsY = 5;
-        } else if (priceRange < 10) {
-            numLabelsY = 7;
-        } else {
-            numLabelsY = 10;
-        }
-        
-        qCDebug(ChartLog) << "Setting Y-axis tick count to" << numLabelsY << "for price range" << priceRange;
-        axisY->setTickCount(numLabelsY);
-        
-        // Set tick interval to 5 cents
-        axisY->setTickInterval(0.05);
-    }
+    int chartHeight = chartView->height();
+    
+    INFO << "About to check Y-axis conditions: priceRange=" << priceRange 
+                      << "chartHeight=" << chartHeight;
+    
+    Q_ASSERT(priceRange > 0);
+    Q_ASSERT(chartHeight > 0);
 
+    // Calculate current pixels per dollar on the Y-axis
+    qreal pixelsPerDollar = static_cast<qreal>(chartHeight) / priceRange;
+        
+    // Available tick intervals in dollars: 0.05, 0.10, 0.25, 1.00, 5.00, 25.00, 100.00
+    static const QVector<qreal> availableIntervals = {0.05, 0.10, 0.25, 1.00, 5.00, 25.00, 100.00};
+        
+    // Track previous interval for level jump detection
+    static qreal previousInterval = 0.05;
+        
+    // Select the smallest interval that maintains desired pixel density
+    qreal selectedInterval = availableIntervals.last(); // Default to largest
+        
+    DEBUG << "========== Y-AXIS INTERVAL SELECTION ==========";
+    DEBUG << "Chart height:" << chartHeight << "px, Price range:" << priceRange 
+                      << "Pixels per dollar:" << pixelsPerDollar;
+    DEBUG << "MIN_PIXELS_PER_TICK_Y threshold:" << MIN_PIXELS_PER_TICK_Y << "px";
+    DEBUG << "Current tick interval on axis:" << axisY->tickInterval();
+        
+    for (qreal interval : availableIntervals) {
+        qreal pixelsPerTick = pixelsPerDollar * interval;
+        bool meetsThreshold = pixelsPerTick >= MIN_PIXELS_PER_TICK_Y;
+          
+        DEBUG << "  Testing interval $" << interval 
+                          << "→ pixelsPerTick:" << pixelsPerTick << "px"
+                          << (meetsThreshold ? "✓ ACCEPTABLE" : "✗ too dense");
+            
+        // If this interval provides enough spacing, use it
+        if (meetsThreshold) {
+            selectedInterval = interval;
+            break;
+        }
+    }
+        
+    // Detect and log level jumps
+    if (selectedInterval != previousInterval) {
+        INFO << "***** Y-AXIS LEVEL JUMP: $" << previousInterval 
+                         << "→ $" << selectedInterval << "*****";
+        previousInterval = selectedInterval;
+    }
+        
+    axisY->setTickInterval(selectedInterval);
+       
+    // Set tick count based on the range and interval
+    int estimatedTicksY = qMax(2, static_cast<int>(priceRange / selectedInterval) + 1);
+    int finalTickCountY = qMin(estimatedTicksY, 20); // Cap at 20 ticks maximum
+    axisY->setTickCount(finalTickCountY);
+        
+    // Force the chart to update with new tick settings
+    chart->update();
+        
+    DEBUG << "→ SELECTED: $" << selectedInterval 
+                      << "| Est. ticks:" << estimatedTicksY 
+                      << "| Final tick count:" << finalTickCountY;
+    DEBUG << "Axis tick interval after setting:" << axisY->tickInterval();
+    DEBUG << "================================================";
+    
     // Qt doesn't provide easy custom labels for QValueAxis, so we'll rely on
     // the automatic labeling showing indices. For a production version, you
     // could use QCategoryAxis or custom drawing, but that's beyond minimal changes.
@@ -1496,6 +1517,61 @@ void StockPriceChart::updateIndexMappingIncremental(const QDateTime& timestamp) 
     
     indexToTimestamp[newIndex] = timestamp;
     timestampToIndex[timestamp] = newIndex;
+}
+
+/**
+ * @brief Adds historical bars to the index mapping using negative indices.
+ * 
+ * This method implements the bidirectional index system where historical bars
+ * (earlier than the first existing bar) are assigned negative indices going
+ * backwards: -1, -2, -3, etc. This avoids the O(n) cost of shifting all
+ * existing positive indices when adding historical data.
+ * 
+ * All bars (including void bars) are added to the index mapping to maintain
+ * proper chronological ordering in the index space.
+ * 
+ * The bars vector is expected to be sorted chronologically (oldest to newest),
+ * but they are processed in reverse order (newest to oldest) to assign negative
+ * indices correctly going backwards from the current minimum index.
+ * 
+ * @param bars Vector of historical bars to add (should be sorted by timestamp oldest to newest).
+ */
+void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) {
+    if (bars.isEmpty()) {
+        return;
+    }
+    
+    // Get the current minimum index (could be negative or 0)
+    int minIndex = indexToTimestamp.isEmpty() ? 0 : indexToTimestamp.firstKey();
+    
+    DEBUG << "addHistoricalBarsToIndexMapping: adding" << bars.size() << "bars, starting minIndex:" << minIndex;
+    
+    // Process bars in reverse chronological order (newest to oldest)
+    // so we can assign negative indices going backwards.
+    // We decrement the index only when we actually add a bar to avoid gaps.
+    for (auto it = bars.rbegin(); it != bars.rend(); ++it) {
+        const Bar& bar = *it;
+        const QDateTime& timestamp = bar.getTimeStamp();
+        
+        // Skip if already in mapping (shouldn't happen in normal flow,
+        // but protects against duplicate insertions)
+        if (timestampToIndex.contains(timestamp)) {
+            DEBUG << "  Skipping duplicate timestamp" << timestamp.toString("hh:mm:ss");
+            continue;
+        }
+        
+        // Assign the next negative index for all bars (including void bars)
+        // Decrement BEFORE assignment so the first bar gets minIndex-1
+        --minIndex;
+        indexToTimestamp[minIndex] = timestamp;
+        timestampToIndex[timestamp] = minIndex;
+        
+        if (it - bars.rbegin() >= bars.size() - 3 || minIndex >= -3) {
+            DEBUG << "  Assigned index" << minIndex << "to timestamp" << timestamp.toString("hh:mm:ss");
+        }
+    }
+    
+    DEBUG << "addHistoricalBarsToIndexMapping: completed, new minIndex:" << minIndex;
 }
 
 /**
