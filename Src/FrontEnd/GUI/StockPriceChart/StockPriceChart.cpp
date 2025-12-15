@@ -1468,6 +1468,9 @@ void StockPriceChart::updateAxisLabels() {
     qreal maxIndex = axisX->max();
     qreal range = maxIndex - minIndex;
     
+    qCInfo(ChartLog) << "X-axis range check: minIndex=" << minIndex << "maxIndex=" << maxIndex 
+                      << "range=" << range << "indexToTimestamp.isEmpty=" << indexToTimestamp.isEmpty();
+    
     Q_ASSERT(range > 0 && !indexToTimestamp.isEmpty());
     
     // ========== X-AXIS TICK INTERVAL ADJUSTMENT ==========
