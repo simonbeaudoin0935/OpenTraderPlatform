@@ -1482,37 +1482,63 @@ void StockPriceChart::updateAxisLabels() {
         // We want at least MIN_PIXELS_PER_TICK_X pixels between ticks
         qreal minTickInterval = MIN_PIXELS_PER_TICK_X / pixelsPerUnit;
         
+        // Track previous interval for level jump detection
+        static qreal previousXInterval = 1.0;
+        
+        qCDebug(ChartLog) << "========== X-AXIS INTERVAL SELECTION ==========";
+        qCDebug(ChartLog) << "Chart width:" << chartWidth << "px, Range:" << range 
+                          << "Pixels per unit:" << pixelsPerUnit;
+        qCDebug(ChartLog) << "MIN_PIXELS_PER_TICK_X threshold:" << MIN_PIXELS_PER_TICK_X << "px";
+        qCDebug(ChartLog) << "Minimum tick interval needed:" << minTickInterval;
+        
         // Round up to a sensible tick interval (powers/multiples of common numbers)
         qreal tickInterval = 1.0;
         if (minTickInterval <= 1.0) {
             tickInterval = 1.0;
+            qCDebug(ChartLog) << "  Selected interval: 1 (minTickInterval <= 1.0)";
         } else if (minTickInterval <= 2.0) {
             tickInterval = 2.0;
+            qCDebug(ChartLog) << "  Selected interval: 2 (minTickInterval <= 2.0)";
         } else if (minTickInterval <= 5.0) {
             tickInterval = 5.0;
+            qCDebug(ChartLog) << "  Selected interval: 5 (minTickInterval <= 5.0)";
         } else if (minTickInterval <= 10.0) {
             tickInterval = 10.0;
+            qCDebug(ChartLog) << "  Selected interval: 10 (minTickInterval <= 10.0)";
         } else if (minTickInterval <= 20.0) {
             tickInterval = 20.0;
+            qCDebug(ChartLog) << "  Selected interval: 20 (minTickInterval <= 20.0)";
         } else if (minTickInterval <= 50.0) {
             tickInterval = 50.0;
+            qCDebug(ChartLog) << "  Selected interval: 50 (minTickInterval <= 50.0)";
         } else if (minTickInterval <= 100.0) {
             tickInterval = 100.0;
+            qCDebug(ChartLog) << "  Selected interval: 100 (minTickInterval <= 100.0)";
         } else {
             // For very large zoom-outs, use larger intervals
             tickInterval = qCeil(minTickInterval / 100.0) * 100.0;
+            qCDebug(ChartLog) << "  Selected interval:" << tickInterval << "(very large zoom-out)";
+        }
+        
+        // Detect and log level jumps
+        if (tickInterval != previousXInterval) {
+            qCInfo(ChartLog) << "***** X-AXIS LEVEL JUMP:" << previousXInterval 
+                             << "→" << tickInterval << "*****";
+            previousXInterval = tickInterval;
         }
         
         axisX->setTickInterval(tickInterval);
         
         // Set tick count based on the range and interval
         int estimatedTicks = qMax(2, static_cast<int>(range / tickInterval) + 1);
-        axisX->setTickCount(qMin(estimatedTicks, 20)); // Cap at 20 ticks maximum
+        int finalTickCount = qMin(estimatedTicks, 20); // Cap at 20 ticks maximum
+        axisX->setTickCount(finalTickCount);
         
-        qCDebug(ChartLog) << "X-axis: range=" << range 
-                          << "width=" << chartWidth 
-                          << "pixelsPerUnit=" << pixelsPerUnit
-                          << "tickInterval=" << tickInterval;
+        qCDebug(ChartLog) << "→ SELECTED:" << tickInterval 
+                          << "| Actual pixels per tick:" << (pixelsPerUnit * tickInterval)
+                          << "| Est. ticks:" << estimatedTicks 
+                          << "| Final tick count:" << finalTickCount;
+        qCDebug(ChartLog) << "================================================";
     }
 
     // ========== Y-AXIS TICK INTERVAL ADJUSTMENT ==========
@@ -1530,29 +1556,50 @@ void StockPriceChart::updateAxisLabels() {
         // Available tick intervals in dollars: 0.05, 0.10, 0.25, 1.00, 5.00, 25.00, 100.00
         static const QVector<qreal> availableIntervals = {0.05, 0.10, 0.25, 1.00, 5.00, 25.00, 100.00};
         
+        // Track previous interval for level jump detection
+        static qreal previousInterval = 0.05;
+        
         // Select the smallest interval that maintains desired pixel density
         qreal selectedInterval = availableIntervals.last(); // Default to largest
         
+        qCDebug(ChartLog) << "========== Y-AXIS INTERVAL SELECTION ==========";
+        qCDebug(ChartLog) << "Chart height:" << chartHeight << "px, Price range:" << priceRange 
+                          << "Pixels per dollar:" << pixelsPerDollar;
+        qCDebug(ChartLog) << "MIN_PIXELS_PER_TICK_Y threshold:" << MIN_PIXELS_PER_TICK_Y << "px";
+        
         for (qreal interval : availableIntervals) {
             qreal pixelsPerTick = pixelsPerDollar * interval;
+            bool meetsThreshold = pixelsPerTick >= MIN_PIXELS_PER_TICK_Y;
+            
+            qCDebug(ChartLog) << "  Testing interval $" << interval 
+                              << "→ pixelsPerTick:" << pixelsPerTick << "px"
+                              << (meetsThreshold ? "✓ ACCEPTABLE" : "✗ too dense");
             
             // If this interval provides enough spacing, use it
-            if (pixelsPerTick >= MIN_PIXELS_PER_TICK_Y) {
+            if (meetsThreshold) {
                 selectedInterval = interval;
                 break;
             }
+        }
+        
+        // Detect and log level jumps
+        if (selectedInterval != previousInterval) {
+            qCInfo(ChartLog) << "***** Y-AXIS LEVEL JUMP: $" << previousInterval 
+                             << "→ $" << selectedInterval << "*****";
+            previousInterval = selectedInterval;
         }
         
         axisY->setTickInterval(selectedInterval);
         
         // Set tick count based on the range and interval
         int estimatedTicksY = qMax(2, static_cast<int>(priceRange / selectedInterval) + 1);
-        axisY->setTickCount(qMin(estimatedTicksY, 20)); // Cap at 20 ticks maximum
+        int finalTickCount = qMin(estimatedTicksY, 20); // Cap at 20 ticks maximum
+        axisY->setTickCount(finalTickCount);
         
-        qCDebug(ChartLog) << "Y-axis: priceRange=" << priceRange 
-                          << "height=" << chartHeight
-                          << "pixelsPerDollar=" << pixelsPerDollar
-                          << "tickInterval=" << selectedInterval;
+        qCDebug(ChartLog) << "→ SELECTED: $" << selectedInterval 
+                          << "| Est. ticks:" << estimatedTicksY 
+                          << "| Final tick count:" << finalTickCount;
+        qCDebug(ChartLog) << "================================================";
     }
 
     // Qt doesn't provide easy custom labels for QValueAxis, so we'll rely on
