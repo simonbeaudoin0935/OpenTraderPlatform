@@ -1438,11 +1438,27 @@ QDate StockPriceChart::getPreviousFriday(const QDate& date) const {
 }
 
 /**
- * @brief Updates the X-axis tick count based on the visible range.
+ * @brief Updates axis tick intervals dynamically based on screen density.
  * 
- * Adjusts the number of tick marks on the X-axis depending on the zoom level
- * to provide appropriate labeling density. Currently uses automatic labeling
- * showing index numbers.
+ * This function implements a density-based tick interval adjustment system that
+ * automatically adjusts the spacing of tick marks on both X and Y axes based on
+ * the current zoom level and chart dimensions. This ensures axis labels remain
+ * readable and appropriately spaced regardless of zoom level.
+ * 
+ * **X-Axis (Index-based):**
+ * - Calculates pixels per index unit
+ * - Selects from intervals: 1, 2, 5, 10, 20, 50, 100, etc.
+ * - Maintains minimum spacing of MIN_PIXELS_PER_TICK_X pixels between ticks
+ * 
+ * **Y-Axis (Price-based):**
+ * - Calculates pixels per dollar
+ * - Selects from intervals: $0.05, $0.10, $0.25, $1.00, $5.00, $25.00, $100.00
+ * - Maintains minimum spacing of MIN_PIXELS_PER_TICK_Y pixels between ticks
+ * 
+ * The function is called automatically whenever the view is zoomed or panned
+ * to ensure tick density remains optimal for the current view.
+ * 
+ * @see MIN_PIXELS_PER_TICK_X, MIN_PIXELS_PER_TICK_Y for configurable thresholds
  */
 void StockPriceChart::updateAxisLabels() {
     // Get visible range in indices
