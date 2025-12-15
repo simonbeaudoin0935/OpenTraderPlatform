@@ -68,7 +68,9 @@ void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
 
     axisY->setRange(qMax(0.0, currentMin + shiftAmount), currentMax + shiftAmount);
     updateLastPriceLineIfNeeded();
-    updateAxisLabels();
+
+    // Horizontal panning does not affect the spacing between the indices
+    //updateAxisLabels();
 }
 
 /**
@@ -104,7 +106,9 @@ void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
     
     axisX->setRange(newMin, newMax);
     updateLastPriceLineIfNeeded();
-    updateAxisLabels();
+
+    // Horizontal panning does not affect the spacing between the indices
+    //updateAxisLabels();
 }
 
 /**
@@ -141,7 +145,7 @@ void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor)
 
     axisX->setRange(newMin, newMax);
     updateLastPriceLineIfNeeded();
-    updateAxisLabels();
+    updateAxisLabelsDensity();
 }
 
 /**
@@ -167,7 +171,7 @@ void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
 
     axisY->setRange(qMax(0.0, newMin), newMax);
     updateLastPriceLineIfNeeded();
-    updateAxisLabels();
+    updateAxisLabelsDensity();
 }
 
 /**
@@ -217,5 +221,5 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
     axisY->setRange(qMax(0.0, newMinPrice), newMaxPrice);
 
     updateLastPriceLineIfNeeded();
-    updateAxisLabels();
+    updateAxisLabelsDensity();
 }

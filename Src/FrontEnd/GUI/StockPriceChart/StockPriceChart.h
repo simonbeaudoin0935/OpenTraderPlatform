@@ -59,7 +59,7 @@ signals:
 
 public slots:
     void addBar(const Bar& bar);
-    void onRequestedMissingBarsReceived(const QVector<Bar> &bars);
+    void onRequestedMissingBarsReceived(const QVector<Bar>& bars);
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -101,7 +101,7 @@ private:
     QDateTime getPreviousTradingMinute(const QDateTime& timestamp) const;
     QDateTime adjustToValidTradingTime(const QDateTime& timestamp) const;
     QDate getPreviousFriday(const QDate& date) const;
-    void updateAxisLabels();
+    void updateAxisLabelsDensity();
     void drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd, 
                                      const QColor& color, int zValue,
                                      QList<QGraphicsRectItem*>& rectList);

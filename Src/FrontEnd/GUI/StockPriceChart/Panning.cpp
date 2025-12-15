@@ -72,7 +72,6 @@ bool StockPriceChart::handleMouseButtonPress(QMouseEvent* mouseEvent) {
 
         Q_ASSERT(!indexToTimestamp.isEmpty());
 
-        
         int lastIndex = indexToTimestamp.lastKey();
         int startIndex = lastIndex - 30;  // Show last 30 bars (can be negative now)
         int endIndex = lastIndex + 1;
@@ -128,7 +127,7 @@ bool StockPriceChart::handleMouseButtonPress(QMouseEvent* mouseEvent) {
         updateAfterHoursBackground();
         updateLastPriceLineIfNeeded();
         
-        updateAxisLabels();
+        updateAxisLabelsDensity();
 
         return true;
     }

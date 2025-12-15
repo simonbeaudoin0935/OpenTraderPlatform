@@ -210,13 +210,6 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
         lastValidClosePrice = completedBars.last().getOpen();
     }
 
-    // Store current view state to preserve it
-    qreal currentMinIndex = axisX->min();
-    qreal currentMaxIndex = axisX->max();
-    qreal currentYMin = axisY->min();
-    qreal currentYMax = axisY->max();
-    bool hadInitialView = (currentMaxIndex - currentMinIndex) > 0;
-
     // First, add all historical bars to the index mapping using negative indices.
     // This is O(m) where m = number of new bars, instead of O(n) rebuild.
     // Note: This only creates timestamp → index mappings; bars don't need to be
@@ -296,13 +289,6 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     // Maintain the bar limit
     maintainBarLimit();
 
-    // Restore the view state if it was initialized
-    if (hadInitialView) {
-        axisX->setRange(currentMinIndex, currentMaxIndex);
-        axisY->setRange(currentYMin, currentYMax);
-        updateAxisLabels();
-    }
-
     // Update the last price line if needed
     if (!bars.isEmpty()) {
         const Bar& lastBar = bars.last();
@@ -323,11 +309,6 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
  */
 void StockPriceChart::handleClosedBar(const Bar& bar) {
     // Store current view state (using indices)
-    qreal currentMinIndex = axisX->min();
-    qreal currentMaxIndex = axisX->max();
-    qreal currentYMin = axisY->min();
-    qreal currentYMax = axisY->max();
-    bool hadInitialView = (currentMaxIndex - currentMinIndex) > 0;
     bool isFirstBar = !hasOpenBar && completedBars.isEmpty();
 
     if (!hasOpenBar) {
@@ -348,7 +329,7 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
             double minRange = price * 0.0005;
             axisY->setRange(qMax(0.0, price - minRange/2 - padding), 
                            price + minRange/2 + padding);
-            updateAxisLabels();
+            updateAxisLabelsDensity();
         }
         return;
     }
@@ -379,13 +360,6 @@ void StockPriceChart::handleClosedBar(const Bar& bar) {
     
     hasOpenBar = false;
     maintainBarLimit();
-
-    // Restore view state if it was initialized
-    if (hadInitialView) {
-        axisX->setRange(currentMinIndex, currentMaxIndex);
-        axisY->setRange(currentYMin, currentYMax);
-        updateAxisLabels();
-    }
 }
 
 /**
@@ -458,7 +432,7 @@ void StockPriceChart::handleOpenBar(const Bar& bar) {
             double minRange = newPrice * 0.0005;
             axisY->setRange(qMax(0.0, newPrice - minRange/2 - padding), 
                            newPrice + minRange/2 + padding);
-            updateAxisLabels();
+            updateAxisLabelsDensity();
         }
         return;
     }
@@ -553,7 +527,7 @@ void StockPriceChart::updateChart() {
         axisY->setRange(currentYMin, currentYMax);
     }
 
-    updateAxisLabels();
+    updateAxisLabelsDensity();
 
     // Calculate current visible price range efficiently
     // Use binary search to find only the visible bars instead of iterating all bars
@@ -1257,7 +1231,7 @@ QDate StockPriceChart::getPreviousFriday(const QDate& date) const {
  * 
  * @see MIN_PIXELS_PER_TICK_X, MIN_PIXELS_PER_TICK_Y for configurable thresholds
  */
-void StockPriceChart::updateAxisLabels() {
+void StockPriceChart::updateAxisLabelsDensity() {
     INFO << ">>>>> updateAxisLabels() CALLED <<<<<";
     
     // Get visible range in indices
