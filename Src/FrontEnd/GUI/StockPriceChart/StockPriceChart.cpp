@@ -1572,6 +1572,7 @@ void StockPriceChart::updateAxisLabels() {
         qCDebug(ChartLog) << "Chart height:" << chartHeight << "px, Price range:" << priceRange 
                           << "Pixels per dollar:" << pixelsPerDollar;
         qCDebug(ChartLog) << "MIN_PIXELS_PER_TICK_Y threshold:" << MIN_PIXELS_PER_TICK_Y << "px";
+        qCDebug(ChartLog) << "Current tick interval on axis:" << axisY->tickInterval();
         
         for (qreal interval : availableIntervals) {
             qreal pixelsPerTick = pixelsPerDollar * interval;
@@ -1608,6 +1609,7 @@ void StockPriceChart::updateAxisLabels() {
         qCDebug(ChartLog) << "→ SELECTED: $" << selectedInterval 
                           << "| Est. ticks:" << estimatedTicksY 
                           << "| Final tick count:" << finalTickCount;
+        qCDebug(ChartLog) << "Axis tick interval after setting:" << axisY->tickInterval();
         qCDebug(ChartLog) << "================================================";
     }
 
