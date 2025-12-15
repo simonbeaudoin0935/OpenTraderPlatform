@@ -60,6 +60,7 @@ void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
 
     axisY->setRange(qMax(0.0, currentMin + shiftAmount), currentMax + shiftAmount);
     updateLastPriceLineIfNeeded();
+    updateAxisLabels();
 }
 
 /**
@@ -156,6 +157,7 @@ void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
 
     axisY->setRange(qMax(0.0, newMin), newMax);
     updateLastPriceLineIfNeeded();
+    updateAxisLabels();
 }
 
 /**
