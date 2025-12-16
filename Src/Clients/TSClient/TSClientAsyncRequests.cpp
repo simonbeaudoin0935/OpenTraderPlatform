@@ -107,7 +107,7 @@ QFuture<QVector<Account>> TSClient::getAccounts()
 
 QFuture<QVector<Balance>> TSClient::getBalances(const QStringList &accounts)
 {
-    qCDebug(TSClientLog) << "Fetching Balances";
+    //qCDebug(TSClientLog) << "Fetching Balances";
     
     Q_ASSERT(!accounts.isEmpty());
     Q_ASSERT(accounts.size() == 1); // FIXME For now only single account is supported
@@ -168,7 +168,7 @@ QFuture<QVector<Balance>> TSClient::getBalances(const QStringList &accounts)
                             results.push_back(Balance(json.toObject()));
                         }
 
-                        qCDebug(TSClientLog) << "Fetched" << results.size() << "account balances";
+                        //qCDebug(TSClientLog) << "Fetched" << results.size() << "account balances";
                         promise.addResult(results);
                         break;
                     }
@@ -196,7 +196,7 @@ QFuture<QVector<Balance>> TSClient::getBalances(const QStringList &accounts)
             });
         Q_ASSERT(b);
 
-        qCDebug(TSClientLog) << "Sent getBalances() to Network Manager";
+        //qCDebug(TSClientLog) << "Sent getBalances() to Network Manager";
 
     }, Qt::QueuedConnection);
 

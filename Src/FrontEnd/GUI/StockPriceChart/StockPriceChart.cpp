@@ -156,6 +156,7 @@ void StockPriceChart::onOneOfTheAxesRangeChanged()
     redrawLastPriceLine();
     updateAxisLabelsDensity();
 }
+
 /**
  * @brief Destroys the StockPriceChart widget.
  * 
@@ -163,6 +164,7 @@ void StockPriceChart::onOneOfTheAxesRangeChanged()
  */
 StockPriceChart::~StockPriceChart() {
     // No need to delete chart, series, etc.—handled by Qt parent hierarchy
+    Q_ASSERT(false);
 }
 
 /**
@@ -204,12 +206,14 @@ void StockPriceChart::addBar(const QString& symbol, const Bar& bar)
             << "C:" << bar.getClose();
 
     // Is this the first bar ever received for this chart
-    if (m_latestCandlestick == nullptr ) [[unlikely]] {
+    if (indexToBar.size() == 0) [[unlikely]] {
 
         // Populate m_latestCandlestick
         addNewCandlestick(bar);
         m_latestBar = bar;
 
+
+        #error I WAS HERE ********************************************************8
         // Set initial view
         int index = 0; // First bar gets index 0
         axisX->setRange(index - 30, index + 1); // Show last 30 bars plus one extra for room
@@ -292,7 +296,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     // thats just to handle the initial pass in this function
     // FIXME this is wrong
     if (lastValidClosePrice == 0.0) {
-        lastValidClosePrice = completedBars.last().getOpen();
+        lastValidClosePrice = indexToTimestamp.first().getOpen();
     }
 
     // First, add all historical bars to the index mapping using negative indices.
@@ -650,7 +654,10 @@ void StockPriceChart::clearBackgroundRects() {
 void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime) {
     Q_UNUSED(viewEndTime);
 
-    Q_ASSERT(!completedBars.isEmpty() || !voidBars.isEmpty());
+    WARNING << "check missing bars for view starting at" 
+            << viewStartTime.toString(Qt::ISODate);
+
+    Q_ASSERT(!indexToTimestamp.isEmpty());
 
     QDateTime viewStartTimeRounded = viewStartTime;
 
@@ -661,7 +668,7 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     // Adjust to valid trading hours
     viewStartTimeRounded = adjustToValidTradingTime(viewStartTimeRounded);
     
-    QDateTime firstBarTime = completedBars.firstKey();
+    QDateTime firstBarTime = indexToTimestamp.first();
             
     if (viewStartTimeRounded >= firstBarTime) {
         // View is within available bars

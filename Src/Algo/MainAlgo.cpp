@@ -294,7 +294,7 @@ void MainAlgo::onBalanceReceived(const QVector<Balance>& results)
 
 
     m_currentBalance = results.at(0);
-    qCDebug(MainAlgoLog) << "Received balances for" << results.size() << "accounts";
+    //qCDebug(MainAlgoLog) << "Received balances for" << results.size() << "accounts";
 
     // Emit signal for the UI or other components interested
     emit balanceUpdated(m_currentBalance);

@@ -129,13 +129,10 @@ private:
 
     double lastValidClosePrice = 0.0;  // Track the last valid close price for void bar positioning
 
-    // Store completed bars in a map with timestamp as key
-    QMap<QDateTime, Bar> completedBars;
-    QMap<QDateTime, double> voidBars;  // timestamp -> price to display
     
     // Index-based positioning maps
-    QMap<int, QDateTime> indexToTimestamp;  // Map from index to timestamp
-    QMap<QDateTime, int> timestampToIndex;  // Map from timestamp to index
+    QMap<int, Bar> indexToBar;  // Map from index to Bar
+    QMap<QDateTime, int> timestampToBarIndex;  // Map from timestamp to index
 
     // Mouse tracking for panning
     bool isPanning = false;

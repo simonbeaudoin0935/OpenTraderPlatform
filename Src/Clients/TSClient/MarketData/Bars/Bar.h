@@ -53,6 +53,7 @@ public:
     quint64 getUpVolume() const { return upVolume; }
     qint64 getEpoch() const { return epoch; }
     BarStatus getBarStatus() const { return barStatus; }
+    QDateTime getTimestamp () const { return timeStamp; }
 
     // Validation
     bool isValid() const;
