@@ -120,6 +120,8 @@ Bar::Bar(const QJsonObject& jsonObj) {
     upVolume = (quint64) jsonObj["UpVolume"].toInt();
     epoch = jsonObj["Epoch"].toInteger();
     barStatus = barStatusFromString(jsonObj["BarStatus"].toString());
+
+    qWarning()<<"bar created with timestamp "<<timeStamp;
 }
 
 bool Bar::isValid() const {

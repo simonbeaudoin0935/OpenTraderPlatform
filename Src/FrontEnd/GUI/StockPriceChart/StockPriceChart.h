@@ -110,6 +110,8 @@ private:
     // Incremental chart update helpers
     void addNewCandlestick(const Bar& bar);
 
+    void updateIndexMappingForward(const QDateTime& timestamp);
+
     QString m_symbol;
     QChart* chart;
     QLineSeries* lastPriceLine;
