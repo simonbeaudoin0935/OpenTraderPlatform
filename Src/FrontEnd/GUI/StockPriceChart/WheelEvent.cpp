@@ -40,7 +40,6 @@ void StockPriceChart::wheelEvent(QWheelEvent* event)
     }
 
     // Update the price label position
-    updatePriceLabelPosition();
     event->accept();
 }
 
@@ -67,7 +66,6 @@ void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
     }
 
     axisY->setRange(qMax(0.0, currentMin + shiftAmount), currentMax + shiftAmount);
-    updateLastPriceLine();
 }
 
 /**
@@ -102,7 +100,6 @@ void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
     }
     
     axisX->setRange(newMin, newMax);
-    updateLastPriceLine();
 }
 
 /**
@@ -138,8 +135,6 @@ void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor)
     }
 
     axisX->setRange(newMin, newMax);
-    updateLastPriceLine();
-    updateAxisLabelsDensity();
 }
 
 /**
@@ -164,8 +159,6 @@ void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
     qreal newMax = center + (newRange / 2);
 
     axisY->setRange(qMax(0.0, newMin), newMax);
-    updateLastPriceLine();
-    updateAxisLabelsDensity();
 }
 
 /**
@@ -213,7 +206,4 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
 
     axisX->setRange(newMin, newMax);
     axisY->setRange(qMax(0.0, newMinPrice), newMaxPrice);
-
-    updateLastPriceLine();
-    updateAxisLabelsDensity();
 }

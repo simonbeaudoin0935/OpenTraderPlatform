@@ -61,6 +61,9 @@ public slots:
     void addBar(const QString& symbol, const Bar& bar);
     void onRequestedMissingBarsReceived(const QVector<Bar>& bars);
 
+private slots:
+    void onOneOfTheAxesRangeChanged();
+
 protected:
     void resizeEvent(QResizeEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
@@ -68,17 +71,18 @@ protected:
 
 private:
     static const int MAX_BARS = 1000;
-    
+
+    // Track the current open bar
+    Bar m_latestBar;
+    QCandlestickSet* m_latestCandlestick = nullptr;
+
     // Configurable thresholds for axis label density (pixels per tick)
     // These can be adjusted to fine-tune when tick intervals change
     // Increased values to prevent marks from cramming together during zoom out
     static constexpr int MIN_PIXELS_PER_TICK_X = 40;  // Minimum pixels between X-axis ticks (was 40)
     static constexpr int MIN_PIXELS_PER_TICK_Y = 30;  // Minimum pixels between Y-axis ticks (was 30)
 
-    void handleClosedBar(const Bar& bar);
-    void handleOpenBar(const Bar& bar);
-    void updateLastPriceLine();
-    void updatePriceLabelPosition();
+    void redrawLastPriceLine();
     bool isAfterMarketHours(const QDateTime& localTime);
     void updateAfterHoursBackground();
     void maintainBarLimit();
@@ -92,7 +96,6 @@ private:
     
     // Index-based positioning helpers
     void rebuildIndexMapping();
-    void updateIndexMappingIncremental(const QDateTime& timestamp);
     void addHistoricalBarsToIndexMapping(const QVector<Bar>& bars);
     int getIndexForTimestamp(const QDateTime& timestamp) const;
     QDateTime getTimestampForIndex(int index) const;
@@ -105,11 +108,9 @@ private:
                                      QList<QGraphicsRectItem*>& rectList);
     
     // Incremental chart update helpers
-    void updateOpenBarCandlestick();
-    void addNewCandlestick(const QDateTime& timestamp, const Bar& bar);
-    QCandlestickSet* findCandlestickSetByTimestamp(const QDateTime& timestamp) const;
+    void addNewCandlestick(const Bar& bar);
 
-    QString symbol;
+    QString m_symbol;
     QChart* chart;
     QLineSeries* lastPriceLine;
     QCandlestickSeries* m_forwardCandlestickSeries;
@@ -123,10 +124,7 @@ private:
     QList<QGraphicsRectItem*> preMarketRects;   // List of rectangles for pre-market sessions
     QList<QGraphicsRectItem*> closedMarketRects; // List of rectangles for closed market periods
 
-    // Track the current open bar
-    Bar currentOpenBar;
-    bool hasOpenBar = false;
-    double lastPrice = 0.0;
+
     double lastValidClosePrice = 0.0;  // Track the last valid close price for void bar positioning
 
     // Store completed bars in a map with timestamp as key

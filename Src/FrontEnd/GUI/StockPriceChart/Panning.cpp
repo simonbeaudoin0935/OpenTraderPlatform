@@ -14,9 +14,7 @@ void StockPriceChart::resizeEvent(QResizeEvent* event) {
     // Update the chart's geometry
     chart->resize(event->size());
     
-    // Update price label and backgrounds
-    updatePriceLabelPosition();
-    updateAfterHoursBackground();
+    onOneOfTheAxesRangeChanged();
 }
 
 
@@ -104,12 +102,9 @@ bool StockPriceChart::handleMouseButtonPress(QMouseEvent* mouseEvent) {
 
         }
 
-        // Check open bar
-        if (hasOpenBar) {
-            minPrice = qMin(minPrice, currentOpenBar.getLow());
-            maxPrice = qMax(maxPrice, currentOpenBar.getHigh());
-            currentPrice = currentOpenBar.getClose();
-        }
+        minPrice = qMin(minPrice, m_latestBar.getLow());
+        maxPrice = qMax(maxPrice, m_latestBar.getHigh());
+        currentPrice = m_latestBar.getClose();
 
         // Set vertical range if we found any bars
         if (minPrice != std::numeric_limits<double>::max()) {
@@ -123,11 +118,6 @@ bool StockPriceChart::handleMouseButtonPress(QMouseEvent* mouseEvent) {
             }
             axisY->setRange(qMax(0.0, minPrice - padding), maxPrice + padding);
         }
-
-        updateAfterHoursBackground();
-        updateLastPriceLine();
-        
-        updateAxisLabelsDensity();
 
         return true;
     }
@@ -154,9 +144,7 @@ bool StockPriceChart::handleMouseButtonRelease(QMouseEvent* mouseEvent) {
     }
     isPanning = false;
     chartView->setCursor(Qt::ArrowCursor);
-    if (hasOpenBar) {
-        updateLastPriceLine();
-    }
+
     return true;
 }
 
@@ -214,14 +202,4 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
     
     axisX->setRange(newMin, newMax);
     axisY->setRange(qMax(0.0, axisY->min() + priceOffset), axisY->max() + priceOffset);
-
-    // When panning, we don't update the axis labels to avoid jitter since they dont change,
-    // only the range shifts.
-    //updateAxisLabels();
-
-    // Update the price label position and last price line
-    updatePriceLabelPosition();
-    if (hasOpenBar) {
-        updateLastPriceLine();
-    }
 }

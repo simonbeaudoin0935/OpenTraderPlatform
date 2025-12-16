@@ -589,6 +589,7 @@ void GUIFrontend::displayStock(const QString& symbol) {
     currentlyDisplayedSymbol = symbol;
 
     ui->priceChart->clearSymbol();
+    ui->priceChart->setSymbol(symbol);
 
     // Update the order entry widget with the new symbol
     ui->orderEntryWidget->setSymbol(symbol);
