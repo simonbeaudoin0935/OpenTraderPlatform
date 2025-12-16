@@ -58,7 +58,7 @@ signals:
     void requestMissingBars(QDateTime viewStartTimeRounded, QDateTime firstBarTime);
 
 public slots:
-    void addBar(const Bar& bar);
+    void addBar(const QString& symbol, const Bar& bar);
     void onRequestedMissingBarsReceived(const QVector<Bar>& bars);
 
 protected:
@@ -75,10 +75,9 @@ private:
     static constexpr int MIN_PIXELS_PER_TICK_X = 40;  // Minimum pixels between X-axis ticks (was 40)
     static constexpr int MIN_PIXELS_PER_TICK_Y = 30;  // Minimum pixels between Y-axis ticks (was 30)
 
-    void updateChart();
     void handleClosedBar(const Bar& bar);
     void handleOpenBar(const Bar& bar);
-    void updateLastPriceLine(double price, bool isUpTick);
+    void updateLastPriceLine();
     void updatePriceLabelPosition();
     bool isAfterMarketHours(const QDateTime& localTime);
     void updateAfterHoursBackground();
@@ -88,7 +87,6 @@ private:
     void handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor);
     void handleVerticalZoom(QWheelEvent* event, qreal zoomFactor);
     void handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor);
-    void updateLastPriceLineIfNeeded();
     void handlePanning(QMouseEvent* mouseEvent);
     void checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime);
     
@@ -114,7 +112,8 @@ private:
     QString symbol;
     QChart* chart;
     QLineSeries* lastPriceLine;
-    QCandlestickSeries* candlestickSeries;
+    QCandlestickSeries* m_forwardCandlestickSeries;
+    QCandlestickSeries* m_backwardCandlestickSeries;
     QScatterSeries* voidBarSeries;
     QChartView* chartView;
     QValueAxis* axisX;  // Changed from QDateTimeAxis - now uses indices
@@ -132,8 +131,6 @@ private:
 
     // Store completed bars in a map with timestamp as key
     QMap<QDateTime, Bar> completedBars;
-    
-    // Track void bars (bars with BarStatus::Null)
     QMap<QDateTime, double> voidBars;  // timestamp -> price to display
     
     // Index-based positioning maps

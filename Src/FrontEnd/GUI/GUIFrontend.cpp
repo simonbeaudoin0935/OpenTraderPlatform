@@ -449,8 +449,7 @@ void GUIFrontend::onStreamCountUpdate(int count)
 
 void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 {
-    ui->priceChart->setSymbol(symbol);
-    ui->priceChart->addBar(bar);
+    ui->priceChart->addBar(symbol, bar);
 }
 
 void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP)

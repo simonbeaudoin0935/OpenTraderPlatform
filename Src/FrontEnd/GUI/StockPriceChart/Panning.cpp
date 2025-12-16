@@ -125,7 +125,7 @@ bool StockPriceChart::handleMouseButtonPress(QMouseEvent* mouseEvent) {
         }
 
         updateAfterHoursBackground();
-        updateLastPriceLineIfNeeded();
+        updateLastPriceLine();
         
         updateAxisLabelsDensity();
 
@@ -155,8 +155,7 @@ bool StockPriceChart::handleMouseButtonRelease(QMouseEvent* mouseEvent) {
     isPanning = false;
     chartView->setCursor(Qt::ArrowCursor);
     if (hasOpenBar) {
-        updateLastPriceLine(currentOpenBar.getClose(),
-                          currentOpenBar.getClose() >= currentOpenBar.getOpen());
+        updateLastPriceLine();
     }
     return true;
 }
@@ -223,7 +222,6 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
     // Update the price label position and last price line
     updatePriceLabelPosition();
     if (hasOpenBar) {
-        updateLastPriceLine(currentOpenBar.getClose(),
-                          currentOpenBar.getClose() >= currentOpenBar.getOpen());
+        updateLastPriceLine();
     }
 }
