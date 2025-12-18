@@ -80,7 +80,7 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
         m_stream = TSClient::getInstance()->openStreamBars(symbol,
                                                            1,
                                                            Bar::BarUnit::Minute,
-                                                           1,
+                                                           2,
                                                            Bar::BarSessionTemplate::USEQ24Hour);
         Q_CHECK_PTR(m_stream);
 

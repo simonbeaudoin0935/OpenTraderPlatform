@@ -61,7 +61,7 @@ public:
     // Convert to JSON string for debugging/logging
     QString toJsonString() const;
 
-
+    void setClose(double c) { close = c; }
 private:
     double    high;
     double    low;

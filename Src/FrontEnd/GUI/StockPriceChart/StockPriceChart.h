@@ -58,7 +58,7 @@ signals:
     void requestMissingBars(QDateTime viewStartTimeRounded, QDateTime firstBarTime);
 
 public slots:
-    void addBar(const QString& symbol, const Bar& bar);
+    void addLiveBar(const QString& symbol, const Bar& bar);
     void onRequestedMissingBarsReceived(const QVector<Bar>& bars);
 
 private slots:
@@ -93,12 +93,11 @@ private:
     void handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor);
     void handlePanning(QMouseEvent* mouseEvent);
     void checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime);
+    QDateTime getTimestampForIndex(int index) const;
     
     // Index-based positioning helpers
-    void rebuildIndexMapping();
     void addHistoricalBarsToIndexMapping(const QVector<Bar>& bars);
-    int getIndexForTimestamp(const QDateTime& timestamp) const;
-    QDateTime getTimestampForIndex(int index) const;
+
     QDateTime getPreviousTradingMinute(const QDateTime& timestamp) const;
     QDateTime adjustToValidTradingTime(const QDateTime& timestamp) const;
     QDate getPreviousFriday(const QDate& date) const;
@@ -107,11 +106,6 @@ private:
                                      const QColor& color, int zValue,
                                      QList<QGraphicsRectItem*>& rectList);
     
-    // Incremental chart update helpers
-    void addNewCandlestick(const Bar& bar);
-
-    void updateIndexMappingForward(const QDateTime& timestamp);
-
     QString m_symbol;
     QChart* chart;
     QLineSeries* lastPriceLine;
@@ -132,7 +126,7 @@ private:
     
     // Index-based positioning maps
     QMap<int, Bar> indexToBar;  // Map from index to Bar
-    QMap<QDateTime, int> timestampToBarIndex;  // Map from timestamp to index
+    QMap<QDateTime, int> timestampToIndex;  // Map from timestamp to index
 
     // Mouse tracking for panning
     bool isPanning = false;

@@ -185,9 +185,9 @@ void StockPriceChart::handlePanning(QMouseEvent* mouseEvent) {
     qreal newMin = axisX->min() + indexOffset;
     qreal newMax = axisX->max() + indexOffset;
     
-    qWarning() << "Panning X-axis from" 
-            << axisX->min() << "to" << newMin 
-            << "and Y-axis from" << axisY->min() << "to" << (axisY->max() + priceOffset);
+    //qWarning() << "Panning X-axis from" 
+    //        << axisX->min() << "to" << newMin 
+    //        << "and Y-axis from" << axisY->min() << "to" << (axisY->max() + priceOffset);
 
     axisX->setRange(newMin, newMax);
     axisY->setRange(qMax(0.0, axisY->min() + priceOffset), axisY->max() + priceOffset);

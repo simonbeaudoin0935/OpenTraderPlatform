@@ -291,6 +291,14 @@ QFuture<QVector<Bar>> TSClient::getBars(const QString &symbol,
                         break;
                     }
 
+                    case QNetworkReply::ContentNotFoundError:
+                    {
+                        // This is not really an error, it just means there are no bars in the requested range
+                        QVector<Bar> results; // empty vector
+                        promise.addResult(results);
+                        break;
+                    }
+                    
                     // other errors
                     default:
                     {
