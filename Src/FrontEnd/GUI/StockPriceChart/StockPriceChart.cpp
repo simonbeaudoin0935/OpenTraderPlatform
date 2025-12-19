@@ -302,6 +302,211 @@ void StockPriceChart::updateVolumeData()
 }
 
 /**
+ * @brief Updates the background colors for different market sessions.
+ * 
+ * Draws colored background rectangles to indicate:
+ * - Pre-market hours (brownish/orange)
+ * - After-hours (blueish/violet)
+ * - Closed market periods including weekends (dark gray)
+ * 
+ * Only draws backgrounds for the currently visible time range.
+ */
+void StockPriceChart::updateSessionBackgrounds() {
+    // Clear existing rectangles
+    clearBackgroundRects();
+    
+    if(indexToBar.isEmpty()) return;
+      
+    // Get the timestamps for visible range
+    int minIndex = static_cast<int>(m_customPlot->xAxis->range().lower);
+    int maxIndex = static_cast<int>(m_customPlot->xAxis->range().upper);
+    
+    // Find the bar at min and max indices (or closest)
+    auto minIt = indexToBar.lowerBound(minIndex);
+    auto maxIt = indexToBar.lowerBound(maxIndex);
+    
+    if (minIt == indexToBar.end() || maxIt == indexToBar.end()) {
+        return;
+    }
+    
+    QDateTime startTime = minIt.value().getTimeStamp();
+    QDateTime endTime = maxIt.value().getTimeStamp();
+    
+    // Convert times to NY timezone for date calculations
+    QTimeZone nyZone("America/New_York");
+    QDateTime nyStartTime = startTime.toTimeZone(nyZone);
+    QDateTime nyEndTime = endTime.toTimeZone(nyZone);
+
+    // Get all dates in the range, including the day before the start
+    QDate currentDate = nyStartTime.date().addDays(-1);  // Start from previous day
+    QDate endDate = nyEndTime.date();
+
+    // Create session boundaries for each day
+    while (currentDate <= endDate) {
+        // Create base time in NY timezone
+        QDateTime currentDateTime = QDateTime(currentDate, QTime(0, 0), nyZone);
+        QDateTime nextDayDateTime = QDateTime(currentDate.addDays(1), QTime(0, 0), nyZone);
+
+        // Handle weekends - show closed market background
+        if (currentDate.dayOfWeek() > 5) {  // Saturday = 6, Sunday = 7
+            drawBackgroundForTimeRange(currentDateTime.toLocalTime(), 
+                                      nextDayDateTime.toLocalTime(),
+                                      QColor(40, 40, 50, 120), m_closedMarketRects);
+            currentDate = currentDate.addDays(1);
+            continue;
+        }
+
+        // Consolidate consecutive hours of the same session type into single rectangles
+        int hour = 0;
+        while (hour < 24) {
+            QDateTime hourStart = QDateTime(currentDate, QTime(hour, 0), nyZone);
+            
+            // Determine the session type for this hour
+            bool isPreMarket = MarketHours::isPreMarket(hourStart);
+            bool isAfterHours = MarketHours::isAfterHours(hourStart);
+            bool isRegularHours = MarketHours::isRegularHours(hourStart);
+            
+            // Find the end of this session by scanning forward
+            int sessionEndHour = hour;
+            while (sessionEndHour < 24) {
+                QDateTime testTime = QDateTime(currentDate, QTime(sessionEndHour, 0), nyZone);
+                bool sameSession = (isPreMarket && MarketHours::isPreMarket(testTime)) ||
+                                  (isAfterHours && MarketHours::isAfterHours(testTime)) ||
+                                  (isRegularHours && MarketHours::isRegularHours(testTime)) ||
+                                  (!isPreMarket && !isAfterHours && !isRegularHours && 
+                                   !MarketHours::isPreMarket(testTime) && 
+                                   !MarketHours::isAfterHours(testTime) && 
+                                   !MarketHours::isRegularHours(testTime));
+                
+                if (!sameSession) {
+                    break;
+                }
+                sessionEndHour++;
+            }
+            
+            // Create single rectangle for the entire session
+            QDateTime sessionStart = QDateTime(currentDate, QTime(hour, 0), nyZone);
+            QDateTime sessionEnd = sessionEndHour == 24 ? 
+                QDateTime(currentDate, QTime(23, 59, 59), nyZone) :
+                QDateTime(currentDate, QTime(sessionEndHour, 0), nyZone);
+            
+            QDateTime localSessionStart = sessionStart.toLocalTime();
+            QDateTime localSessionEnd = sessionEnd.toLocalTime();
+            
+            // Draw one rectangle for the entire session
+            if (isPreMarket) {
+                drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
+                                          QColor(90, 60, 30, 100), m_preMarketRects);
+            }
+            else if (isAfterHours) {
+                drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
+                                          QColor(50, 50, 80, 100), m_afterHoursRects);
+            }
+            else if (!isRegularHours) {
+                drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
+                                          QColor(40, 40, 50, 120), m_closedMarketRects);
+            }
+            
+            // Move to the next session
+            hour = sessionEndHour;
+        }
+        
+        currentDate = currentDate.addDays(1);
+    }
+}
+
+/**
+ * @brief Clears all background rectangles from the chart.
+ */
+void StockPriceChart::clearBackgroundRects() {
+    // Delete and clear pre-market rectangles
+    for (auto rect : m_preMarketRects) {
+        m_customPlot->removeItem(rect);
+    }
+    m_preMarketRects.clear();
+
+    // Delete and clear after-hours rectangles
+    for (auto rect : m_afterHoursRects) {
+        m_customPlot->removeItem(rect);
+    }
+    m_afterHoursRects.clear();
+
+    // Delete and clear closed market rectangles
+    for (auto rect : m_closedMarketRects) {
+        m_customPlot->removeItem(rect);
+    }
+    m_closedMarketRects.clear();
+}
+
+/**
+ * @brief Draws a background rectangle for a specific time range.
+ * 
+ * Creates a colored background rectangle covering the bars that fall within
+ * the specified time range, clipped to the currently visible area.
+ * 
+ * @param rangeStart The start time of the range to highlight.
+ * @param rangeEnd The end time of the range to highlight.
+ * @param color The color for the background rectangle.
+ * @param rectList The list to add the created rectangle to.
+ */
+void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd,
+                                                   const QColor& color, QList<QCPItemRect*>& rectList) {
+    if (indexToBar.isEmpty()) {
+        return;
+    }
+    
+    // Use efficient binary search to find indices
+    auto startIt = timestampToIndex.lowerBound(rangeStart);
+    auto endIt = timestampToIndex.upperBound(rangeEnd);
+    
+    // Check if we found any bars in this range
+    if (startIt == timestampToIndex.end() || startIt.key() > rangeEnd) {
+        return; // No bars in this range
+    }
+    
+    int startIndex = startIt.value();
+    int endIndex = -1;
+    
+    // Get the last valid index in range
+    if (endIt != timestampToIndex.begin()) {
+        --endIt;
+        endIndex = endIt.value();
+    } else {
+        return; // No bars in range
+    }
+    
+    // Verify we have a valid range
+    if (startIndex == -1 || endIndex == -1 || endIndex < startIndex) {
+        return;
+    }
+    
+    qreal visibleMinIndex = m_customPlot->xAxis->range().lower;
+    qreal visibleMaxIndex = m_customPlot->xAxis->range().upper;
+    
+    // Clip to visible range
+    qreal clippedStart = qMax(static_cast<qreal>(startIndex), visibleMinIndex);
+    qreal clippedEnd = qMin(static_cast<qreal>(endIndex + 1), visibleMaxIndex);
+    
+    if (clippedStart < clippedEnd) {
+        QCPItemRect* rect = new QCPItemRect(m_customPlot);
+        Q_CHECK_PTR(rect);
+        
+        // Set the rectangle coordinates
+        rect->topLeft->setType(QCPItemPosition::ptPlotCoords);
+        rect->bottomRight->setType(QCPItemPosition::ptPlotCoords);
+        rect->topLeft->setAxes(m_customPlot->xAxis, m_customPlot->yAxis);
+        rect->bottomRight->setAxes(m_customPlot->xAxis, m_customPlot->yAxis);
+        rect->topLeft->setCoords(clippedStart, m_customPlot->yAxis->range().upper);
+        rect->bottomRight->setCoords(clippedEnd, m_customPlot->yAxis->range().lower);
+        
+        rect->setPen(Qt::NoPen);
+        rect->setBrush(QBrush(color));
+        
+        rectList.append(rect);
+    }
+}
+
+/**
  * @brief Handles the response to a missing bars request.
  */
 void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
@@ -409,6 +614,7 @@ void StockPriceChart::clearSymbol() {
     m_candlesticks->data()->clear();
     m_volumePos->data()->clear();
     m_volumeNeg->data()->clear();
+    clearBackgroundRects();
 
     indexToBar.clear();
     timestampToIndex.clear();
@@ -587,6 +793,7 @@ void StockPriceChart::onAxisRangeChanged()
 {
     updateAxisLabelsDensity();
     redrawLastPriceLine();
+    updateSessionBackgrounds();  // Update background colors when view changes
     
     // Check for missing bars when view extends beyond available data
     if (!indexToBar.isEmpty()) {

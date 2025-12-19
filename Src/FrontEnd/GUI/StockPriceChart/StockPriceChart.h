@@ -87,6 +87,13 @@ private:
     QDate getPreviousFriday(const QDate& date) const;
     void updateAxisLabelsDensity();
     void updateCandlestickData();
+    void updateVolumeData();
+    
+    // Background rendering methods
+    void updateSessionBackgrounds();
+    void clearBackgroundRects();
+    void drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd,
+                                     const QColor& color, QList<QCPItemRect*>& rectList);
     
     QString m_symbol;
     QCustomPlot* m_customPlot;
@@ -99,6 +106,11 @@ private:
     QCPBars* m_volumePos;
     QCPBars* m_volumeNeg;
     
+    // Background rectangles for different market sessions
+    QList<QCPItemRect*> m_preMarketRects;
+    QList<QCPItemRect*> m_afterHoursRects;
+    QList<QCPItemRect*> m_closedMarketRects;
+    
     // Index-based positioning maps
     QMap<int, Bar> indexToBar;  // Map from index to Bar
     QMap<QDateTime, int> timestampToIndex;  // Map from timestamp to index
@@ -110,5 +122,4 @@ private:
     
     // Helper to convert index to time for axis labels
     QString indexToTimeString(double index) const;
-    void updateVolumeData();
 };
