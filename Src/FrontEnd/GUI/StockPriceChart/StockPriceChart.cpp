@@ -81,9 +81,9 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     // Create and add the timeframe selector at the top
     timeframeSelector = new TimeFrameSelector(this);
     Q_CHECK_PTR(timeframeSelector);
-    layout->addWidget(timeframeSelector);
+    layout->addWidget(timeframeSelector, 0);  // 0 stretch - keep minimal size
     
-    layout->addWidget(m_customPlot);
+    layout->addWidget(m_customPlot, 1);  // 1 stretch - expand to fill space
     setLayout(layout);
 
     // Connect axis range change signals
