@@ -404,15 +404,15 @@ void StockPriceChart::updateSessionBackgrounds() {
             // Draw one rectangle for the entire session
             if (isPreMarket) {
                 drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
-                                          QColor(90, 60, 30, 100), m_preMarketRects);
+                                          QColor(255, 165, 0, 180), m_preMarketRects);  // More visible orange
             }
             else if (isAfterHours) {
                 drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
-                                          QColor(50, 50, 80, 100), m_afterHoursRects);
+                                          QColor(138, 43, 226, 180), m_afterHoursRects);  // More visible violet
             }
             else if (!isRegularHours) {
                 drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
-                                          QColor(40, 40, 50, 120), m_closedMarketRects);
+                                          QColor(40, 40, 50, 200), m_closedMarketRects);  // More visible dark gray
             }
             
             // Move to the next session
