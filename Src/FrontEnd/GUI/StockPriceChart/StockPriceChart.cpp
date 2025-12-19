@@ -160,6 +160,9 @@ void StockPriceChart::onOneOfTheAxesRangeChanged()
     //updateAfterHoursBackground();
     //redrawLastPriceLine();
     updateAxisLabelsDensity();
+
+    m_backwardCandlestickSeries->setBodyWidth(CANDLESTICK_BODY_WIDTH);
+
 }
 
 /**
@@ -358,6 +361,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
 
             int index = timestampToIndex[timestamp];
             Q_ASSERT(index <= 0); // Historical bars should have negative indices
+            index*=-1; // Make positive for prepending
 
             set->setTimestamp(index);
             set->setOpen(bar.getOpen());
@@ -365,7 +369,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
             set->setLow(bar.getLow());
             set->setClose(bar.getClose());
 
-            index*=-1; // Make positive for prepending
+//            index*=-1; // Make positive for prepending
             DEBUG << "Prepending candlestick at index" << index << "time" << timestamp.toString("hh:mm:ss") 
                   << "O/H/L/C:" << bar.getOpen() << bar.getHigh() << bar.getLow() << bar.getClose();
             m_backwardCandlestickSeries->append(set);
