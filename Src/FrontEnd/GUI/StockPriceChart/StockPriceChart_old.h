@@ -1,21 +1,31 @@
 #pragma once
 
 #include <QWidget>
+#include <QtCharts/QChartView>
+#include <QtCharts/QLineSeries>
+#include <QtCharts/QCandlestickSeries>
+#include <QtCharts/QCandlestickSet>
+#include <QtCharts/QScatterSeries>
+#include <QDateTimeAxis>
+#include <QValueAxis>
+#include <QDateTime>
+#include <QGraphicsTextItem>
+#include <QGraphicsRectItem>
 #include <QMouseEvent>
 #include <QTimeZone>
 #include <QMap>
 #include <QLoggingCategory>
-#include <QVBoxLayout>
 
-#include "qcustomplot.h"
 #include "Bar.h"
 #include "TimeFrameSelector.h"
 
 Q_DECLARE_LOGGING_CATEGORY(ChartLog)
 
+class QGraphicsRectItem;
+
 /**
  * @class StockPriceChart
- * @brief A chart widget that displays stock price data using candlesticks via qcustomplot.
+ * @brief A chart widget that displays stock price data using candlesticks.
  * 
  * This chart displays bars continuously without gaps for closed market periods.
  * It uses an index-based positioning system where each bar is assigned a sequential
@@ -25,7 +35,7 @@ Q_DECLARE_LOGGING_CATEGORY(ChartLog)
  * - Last bar 7:59pm → next to next day 4:00am (no overnight gap)
  * - Only 4am-8pm ET trading hours on weekdays
  * 
- * Uses qcustomplot library for rendering instead of Qt Charts.
+ * The X-axis uses QValueAxis with indices, and custom labels show actual timestamps.
  */
 class StockPriceChart : public QWidget {
     Q_OBJECT
@@ -52,31 +62,36 @@ public slots:
     void onRequestedMissingBarsReceived(const QVector<Bar>& bars);
 
 private slots:
-    void onAxisRangeChanged();
+    void onOneOfTheAxesRangeChanged();
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
+    bool eventFilter(QObject* object, QEvent* event) override;
 
 private:
     static const int MAX_BARS = 1000;
 
     // Track the current open bar
     Bar m_latestBar;
-    int m_latestBarIndex = -1;
+    QCandlestickSet* m_latestCandlestick = nullptr;
 
     // Configurable thresholds for axis label density (pixels per tick)
-    static constexpr int MIN_PIXELS_PER_TICK_X = 40;
-    static constexpr int MIN_PIXELS_PER_TICK_Y = 30;
+    // These can be adjusted to fine-tune when tick intervals change
+    // Increased values to prevent marks from cramming together during zoom out
+    static constexpr int MIN_PIXELS_PER_TICK_X = 40;  // Minimum pixels between X-axis ticks (was 40)
+    static constexpr int MIN_PIXELS_PER_TICK_Y = 30;  // Minimum pixels between Y-axis ticks (was 30)
 
     void redrawLastPriceLine();
+    bool isAfterMarketHours(const QDateTime& localTime);
+    void updateAfterHoursBackground();
     void maintainBarLimit();
     void handleVerticalPanning(QWheelEvent* event);
     void handleHorizontalPanning(QWheelEvent* event);
     void handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor);
     void handleVerticalZoom(QWheelEvent* event, qreal zoomFactor);
     void handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor);
-    void handlePanning(const QPoint& delta);
+    void handlePanning(QMouseEvent* mouseEvent);
     void checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime);
     QDateTime getTimestampForIndex(int index) const;
     
@@ -87,13 +102,27 @@ private:
     QDateTime adjustToValidTradingTime(const QDateTime& timestamp) const;
     QDate getPreviousFriday(const QDate& date) const;
     void updateAxisLabelsDensity();
-    void updateCandlestickData();
+    void drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd, 
+                                     const QColor& color, int zValue,
+                                     QList<QGraphicsRectItem*>& rectList);
     
     QString m_symbol;
-    QCustomPlot* m_customPlot;
-    QCPFinancial* m_candlesticks;
-    QCPItemLine* m_lastPriceLine;
-    QCPItemText* m_priceLabel;
+    QChart* chart;
+    QLineSeries* lastPriceLine;
+    QCandlestickSeries* m_forwardCandlestickSeries;
+    QCandlestickSeries* m_backwardCandlestickSeries;
+    QScatterSeries* voidBarSeries;
+    QChartView* chartView;
+    QValueAxis* axisX;  // Changed from QDateTimeAxis - now uses indices
+    QValueAxis* axisY;
+    QGraphicsTextItem* priceLabel;
+    QList<QGraphicsRectItem*> afterHoursRects;  // List of rectangles for after-hours sessions
+    QList<QGraphicsRectItem*> preMarketRects;   // List of rectangles for pre-market sessions
+    QList<QGraphicsRectItem*> closedMarketRects; // List of rectangles for closed market periods
+
+
+    double lastValidClosePrice = 0.0;  // Track the last valid close price for void bar positioning
+
     
     // Index-based positioning maps
     QMap<int, Bar> indexToBar;  // Map from index to Bar
@@ -106,8 +135,15 @@ private:
     // Timeframe selector widget
     TimeFrameSelector* timeframeSelector;
 
+    // Helper method to create a background rectangle
+    QGraphicsRectItem* createBackgroundRect(const QColor& color, int zValue);
+    // Helper method to clear all background rectangles
+    void clearBackgroundRects();
+
+    // Event handling helper functions
+    bool handleMouseButtonPress(QMouseEvent* event);
+    bool handleMouseButtonRelease(QMouseEvent* event);
+    bool handleMouseMove(QMouseEvent* event);
+
     bool currentGetBarsRequestInProcess = false;
-    
-    // Helper to convert index to time for axis labels
-    QString indexToTimeString(double index) const;
 };
