@@ -87,7 +87,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     m_volumeNeg->setPen(Qt::NoPen);
     m_volumeNeg->setBrush(QColor(180, 90, 90));
     
-    // Interconnect x axis ranges of main and bottom axis rects
+    // Interconnect x axis ranges of main and bottom axis rects (bidirectional for horizontal zoom)
     connect(m_customPlot->xAxis, QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
             m_volumeAxisRect->axis(QCPAxis::atBottom), QOverload<const QCPRange&>::of(&QCPAxis::setRange));
     connect(m_volumeAxisRect->axis(QCPAxis::atBottom), QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
@@ -129,6 +129,10 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     m_customPlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
     m_customPlot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
     
+    // Enable horizontal zoom and drag on volume chart independently
+    m_volumeAxisRect->setRangeDrag(Qt::Horizontal);
+    m_volumeAxisRect->setRangeZoom(Qt::Horizontal);
+    
     // Set initial ranges
     m_customPlot->xAxis->setRange(-3, 3);
     m_customPlot->yAxis->setRange(0, 100);
@@ -144,6 +148,10 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     
     layout->addWidget(m_customPlot, 1);  // 1 stretch - expand to fill space
     setLayout(layout);
+
+    // Connect timeframe selector signals
+    connect(timeframeSelector, &TimeFrameSelector::volumeChartVisibilityChanged,
+            this, &StockPriceChart::onVolumeChartVisibilityChanged);
 
     // Connect axis range change signals
     connect(m_customPlot->xAxis, QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
@@ -843,6 +851,33 @@ void StockPriceChart::onAxisRangeChanged()
             checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
         }
     }
+}
+
+/**
+ * @brief Slot called when volume chart visibility changes.
+ */
+void StockPriceChart::onVolumeChartVisibilityChanged(bool visible)
+{
+    if (visible) {
+        // Show volume chart
+        m_volumeAxisRect->setMinimumSize(QSize(0, 0));
+        m_volumeAxisRect->setMaximumSize(QSize(QWIDGETSIZE_MAX, 100)); // Restore height
+        m_volumeAxisRect->setVisible(true);
+        // Restore spacing and margins
+        m_customPlot->plotLayout()->setRowSpacing(0);
+        m_volumeAxisRect->setAutoMargins(QCP::msLeft | QCP::msRight | QCP::msBottom);
+        m_volumeAxisRect->setMargins(QMargins(0, 0, 0, 0));
+    } else {
+        // Hide volume chart by collapsing its height
+        m_volumeAxisRect->setMinimumSize(QSize(0, 0));
+        m_volumeAxisRect->setMaximumSize(QSize(QWIDGETSIZE_MAX, 0)); // Collapse height
+        m_volumeAxisRect->setVisible(false);
+    }
+    
+    // Force layout update
+    m_customPlot->plotLayout()->updateLayout();
+    // Replot to update layout
+    m_customPlot->replot();
 }
 
 /**

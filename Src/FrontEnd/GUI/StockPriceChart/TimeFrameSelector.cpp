@@ -20,6 +20,10 @@ TimeFrameSelector::TimeFrameSelector(QWidget* parent)
     // Create the auto checkbox
     autoCheckBox = new QCheckBox("Auto", this);
 
+    // Create the volume visibility checkbox
+    volumeCheckBox = new QCheckBox("Volume", this);
+    volumeCheckBox->setChecked(true); // Volume visible by default
+
     // Populate with timeframe options
     populateTimeFrames();
 
@@ -33,6 +37,7 @@ TimeFrameSelector::TimeFrameSelector(QWidget* parent)
     layout->addWidget(label);
     layout->addWidget(comboBox);
     layout->addWidget(autoCheckBox);
+    layout->addWidget(volumeCheckBox);
     layout->addStretch(); // Push widgets to the left
 
     // Connect signals
@@ -40,6 +45,8 @@ TimeFrameSelector::TimeFrameSelector(QWidget* parent)
             this, &TimeFrameSelector::onComboBoxChanged);
     connect(autoCheckBox, &QCheckBox::stateChanged,
             this, &TimeFrameSelector::onAutoCheckBoxChanged);
+    connect(volumeCheckBox, &QCheckBox::stateChanged,
+            this, &TimeFrameSelector::onVolumeCheckBoxChanged);
 
     // Set a nice background and border
     setStyleSheet(
@@ -128,6 +135,20 @@ void TimeFrameSelector::setAutoTimeFrameEnabled(bool enabled) {
 }
 
 /**
+ * @brief Checks if volume chart is visible.
+ */
+bool TimeFrameSelector::isVolumeChartVisible() const {
+    return volumeCheckBox->isChecked();
+}
+
+/**
+ * @brief Sets the volume chart visibility state.
+ */
+void TimeFrameSelector::setVolumeChartVisible(bool visible) {
+    volumeCheckBox->setChecked(visible);
+}
+
+/**
  * @brief Handles combobox selection changes.
  */
 void TimeFrameSelector::onComboBoxChanged(int index) {
@@ -143,6 +164,14 @@ void TimeFrameSelector::onComboBoxChanged(int index) {
 void TimeFrameSelector::onAutoCheckBoxChanged(int state) {
     bool enabled = (state == Qt::Checked);
     emit autoTimeFrameChanged(enabled);
+}
+
+/**
+ * @brief Handles volume chart visibility checkbox state changes.
+ */
+void TimeFrameSelector::onVolumeCheckBoxChanged(int state) {
+    bool visible = (state == Qt::Checked);
+    emit volumeChartVisibilityChanged(visible);
 }
 
 /**

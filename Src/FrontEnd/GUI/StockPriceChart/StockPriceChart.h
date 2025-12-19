@@ -53,6 +53,7 @@ public slots:
 
 private slots:
     void onAxisRangeChanged();
+    void onVolumeChartVisibilityChanged(bool visible);
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
