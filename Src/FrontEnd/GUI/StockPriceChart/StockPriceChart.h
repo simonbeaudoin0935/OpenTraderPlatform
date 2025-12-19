@@ -1,31 +1,21 @@
 #pragma once
 
 #include <QWidget>
-#include <QtCharts/QChartView>
-#include <QtCharts/QLineSeries>
-#include <QtCharts/QCandlestickSeries>
-#include <QtCharts/QCandlestickSet>
-#include <QtCharts/QScatterSeries>
-#include <QDateTimeAxis>
-#include <QValueAxis>
-#include <QDateTime>
-#include <QGraphicsTextItem>
-#include <QGraphicsRectItem>
 #include <QMouseEvent>
 #include <QTimeZone>
 #include <QMap>
 #include <QLoggingCategory>
+#include <QVBoxLayout>
 
+#include "qcustomplot.h"
 #include "Bar.h"
 #include "TimeFrameSelector.h"
 
 Q_DECLARE_LOGGING_CATEGORY(ChartLog)
 
-class QGraphicsRectItem;
-
 /**
  * @class StockPriceChart
- * @brief A chart widget that displays stock price data using candlesticks.
+ * @brief A chart widget that displays stock price data using candlesticks via qcustomplot.
  * 
  * This chart displays bars continuously without gaps for closed market periods.
  * It uses an index-based positioning system where each bar is assigned a sequential
@@ -35,7 +25,7 @@ class QGraphicsRectItem;
  * - Last bar 7:59pm → next to next day 4:00am (no overnight gap)
  * - Only 4am-8pm ET trading hours on weekdays
  * 
- * The X-axis uses QValueAxis with indices, and custom labels show actual timestamps.
+ * Uses qcustomplot library for rendering instead of Qt Charts.
  */
 class StockPriceChart : public QWidget {
     Q_OBJECT
@@ -62,36 +52,30 @@ public slots:
     void onRequestedMissingBarsReceived(const QVector<Bar>& bars);
 
 private slots:
-    void onOneOfTheAxesRangeChanged();
+    void onAxisRangeChanged();
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
-    bool eventFilter(QObject* object, QEvent* event) override;
 
 private:
     static const int MAX_BARS = 1000;
 
     // Track the current open bar
     Bar m_latestBar;
-    QCandlestickSet* m_latestCandlestick = nullptr;
+    int m_latestBarIndex = -1;
 
     // Configurable thresholds for axis label density (pixels per tick)
-    // These can be adjusted to fine-tune when tick intervals change
-    // Increased values to prevent marks from cramming together during zoom out
-    static constexpr int MIN_PIXELS_PER_TICK_X = 40;  // Minimum pixels between X-axis ticks (was 40)
-    static constexpr int MIN_PIXELS_PER_TICK_Y = 30;  // Minimum pixels between Y-axis ticks (was 30)
+    static constexpr int MIN_PIXELS_PER_TICK_X = 40;
+    static constexpr int MIN_PIXELS_PER_TICK_Y = 30;
 
     void redrawLastPriceLine();
-    bool isAfterMarketHours(const QDateTime& localTime);
-    void updateAfterHoursBackground();
     void maintainBarLimit();
     void handleVerticalPanning(QWheelEvent* event);
     void handleHorizontalPanning(QWheelEvent* event);
     void handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor);
     void handleVerticalZoom(QWheelEvent* event, qreal zoomFactor);
     void handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor);
-    void handlePanning(QMouseEvent* mouseEvent);
     void checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime);
     QDateTime getTimestampForIndex(int index) const;
     
@@ -102,48 +86,40 @@ private:
     QDateTime adjustToValidTradingTime(const QDateTime& timestamp) const;
     QDate getPreviousFriday(const QDate& date) const;
     void updateAxisLabelsDensity();
-    void drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd, 
-                                     const QColor& color, int zValue,
-                                     QList<QGraphicsRectItem*>& rectList);
+    void updateCandlestickData();
+    void updateVolumeData();
+    
+    // Background rendering methods
+    void updateSessionBackgrounds();
+    void clearBackgroundRects();
+    void drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd,
+                                     const QColor& color, QList<QCPItemRect*>& rectList);
     
     QString m_symbol;
-    QChart* chart;
-    QLineSeries* lastPriceLine;
-    QCandlestickSeries* m_forwardCandlestickSeries;
-    QCandlestickSeries* m_backwardCandlestickSeries;
-    QScatterSeries* voidBarSeries;
-    QChartView* chartView;
-    QValueAxis* axisX;  // Changed from QDateTimeAxis - now uses indices
-    QValueAxis* axisY;
-    QGraphicsTextItem* priceLabel;
-    QList<QGraphicsRectItem*> afterHoursRects;  // List of rectangles for after-hours sessions
-    QList<QGraphicsRectItem*> preMarketRects;   // List of rectangles for pre-market sessions
-    QList<QGraphicsRectItem*> closedMarketRects; // List of rectangles for closed market periods
-
-
-    double lastValidClosePrice = 0.0;  // Track the last valid close price for void bar positioning
-
+    QCustomPlot* m_customPlot;
+    QCPFinancial* m_candlesticks;
+    QCPItemLine* m_lastPriceLine;
+    QCPItemText* m_priceLabel;
+    
+    // Volume chart components
+    QCPAxisRect* m_volumeAxisRect;
+    QCPBars* m_volumePos;
+    QCPBars* m_volumeNeg;
+    
+    // Background rectangles for different market sessions
+    QList<QCPItemRect*> m_preMarketRects;
+    QList<QCPItemRect*> m_afterHoursRects;
+    QList<QCPItemRect*> m_closedMarketRects;
     
     // Index-based positioning maps
     QMap<int, Bar> indexToBar;  // Map from index to Bar
     QMap<QDateTime, int> timestampToIndex;  // Map from timestamp to index
 
-    // Mouse tracking for panning
-    bool isPanning = false;
-    QPoint lastMousePos;
-
     // Timeframe selector widget
     TimeFrameSelector* timeframeSelector;
 
-    // Helper method to create a background rectangle
-    QGraphicsRectItem* createBackgroundRect(const QColor& color, int zValue);
-    // Helper method to clear all background rectangles
-    void clearBackgroundRects();
-
-    // Event handling helper functions
-    bool handleMouseButtonPress(QMouseEvent* event);
-    bool handleMouseButtonRelease(QMouseEvent* event);
-    bool handleMouseMove(QMouseEvent* event);
-
     bool currentGetBarsRequestInProcess = false;
+    
+    // Helper to convert index to time for axis labels
+    QString indexToTimeString(double index) const;
 };

@@ -46,6 +46,7 @@ file(GLOB FRONTEND_SOURCES
 # Conditionally add GUI or TUI sources
 set(GUI_SOURCES "")
 set(TUI_SOURCES "")
+set(QCUSTOMPLOT_SOURCES "")
 if(ENABLE_GUI)
     file(GLOB_RECURSE GUI_SOURCES 
         "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/*.cpp"
@@ -53,6 +54,11 @@ if(ENABLE_GUI)
     )
     set(GUI_UI_FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/GUIFrontend.ui"
+    )
+    # Add qcustomplot sources for GUI builds
+    set(QCUSTOMPLOT_SOURCES
+        "${CMAKE_SOURCE_DIR}/qcustomplot/qcustomplot.cpp"
+        "${CMAKE_SOURCE_DIR}/qcustomplot/qcustomplot.h"
     )
 else()
     file(GLOB_RECURSE TUI_SOURCES 
@@ -74,6 +80,7 @@ add_library(L2TraderCommon STATIC
     ${GUI_SOURCES}
     ${TUI_SOURCES}
     ${GUI_UI_FILES}
+    ${QCUSTOMPLOT_SOURCES}
     ${CMAKE_SOURCE_DIR}/Resources/Resources.qrc
 )
 
@@ -120,6 +127,7 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Tabs
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI
     ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
+    ${CMAKE_SOURCE_DIR}/qcustomplot
 )
 
 # Link Qt libraries to the common library
@@ -134,7 +142,7 @@ if(ENABLE_GUI)
     target_link_libraries(L2TraderCommon PUBLIC
         Qt6::Gui
         Qt6::Widgets
-        Qt6::Charts
+        Qt6::PrintSupport
         Qt6::WebEngineWidgets
     )
 endif()
