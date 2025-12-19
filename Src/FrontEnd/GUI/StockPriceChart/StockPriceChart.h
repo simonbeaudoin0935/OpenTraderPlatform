@@ -76,7 +76,6 @@ private:
     void handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor);
     void handleVerticalZoom(QWheelEvent* event, qreal zoomFactor);
     void handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor);
-    void handlePanning(const QPoint& delta);
     void checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime);
     QDateTime getTimestampForIndex(int index) const;
     
@@ -98,10 +97,6 @@ private:
     // Index-based positioning maps
     QMap<int, Bar> indexToBar;  // Map from index to Bar
     QMap<QDateTime, int> timestampToIndex;  // Map from timestamp to index
-
-    // Mouse tracking for panning
-    bool isPanning = false;
-    QPoint lastMousePos;
 
     // Timeframe selector widget
     TimeFrameSelector* timeframeSelector;
