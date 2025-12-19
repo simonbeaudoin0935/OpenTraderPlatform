@@ -49,6 +49,65 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     m_customPlot->xAxis->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
     m_customPlot->yAxis->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
     
+    // Create bottom axis rect for volume bar chart
+    m_volumeAxisRect = new QCPAxisRect(m_customPlot);
+    Q_CHECK_PTR(m_volumeAxisRect);
+    m_customPlot->plotLayout()->addElement(1, 0, m_volumeAxisRect);
+    m_volumeAxisRect->setMaximumSize(QSize(QWIDGETSIZE_MAX, 100));
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->setLayer("axes");
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->grid()->setLayer("grid");
+    
+    // Bring bottom and main axis rect closer together
+    m_customPlot->plotLayout()->setRowSpacing(0);
+    m_volumeAxisRect->setAutoMargins(QCP::msLeft | QCP::msRight | QCP::msBottom);
+    m_volumeAxisRect->setMargins(QMargins(0, 0, 0, 0));
+    
+    // Apply dark theme to volume axis rect
+    m_volumeAxisRect->setBackground(QBrush(QColor(45, 45, 50)));
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->setBasePen(QPen(QColor(220, 220, 220)));
+    m_volumeAxisRect->axis(QCPAxis::atLeft)->setBasePen(QPen(QColor(220, 220, 220)));
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickPen(QPen(QColor(220, 220, 220)));
+    m_volumeAxisRect->axis(QCPAxis::atLeft)->setTickPen(QPen(QColor(220, 220, 220)));
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabelColor(QColor(220, 220, 220));
+    m_volumeAxisRect->axis(QCPAxis::atLeft)->setTickLabelColor(QColor(220, 220, 220));
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    m_volumeAxisRect->axis(QCPAxis::atLeft)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    
+    // Create two bar plottables for positive (green) and negative (red) volume bars
+    m_customPlot->setAutoAddPlottableToLegend(false);
+    m_volumePos = new QCPBars(m_volumeAxisRect->axis(QCPAxis::atBottom), m_volumeAxisRect->axis(QCPAxis::atLeft));
+    Q_CHECK_PTR(m_volumePos);
+    m_volumeNeg = new QCPBars(m_volumeAxisRect->axis(QCPAxis::atBottom), m_volumeAxisRect->axis(QCPAxis::atLeft));
+    Q_CHECK_PTR(m_volumeNeg);
+    
+    m_volumePos->setWidth(CANDLESTICK_BODY_WIDTH);
+    m_volumePos->setPen(Qt::NoPen);
+    m_volumePos->setBrush(QColor(100, 180, 110));
+    m_volumeNeg->setWidth(CANDLESTICK_BODY_WIDTH);
+    m_volumeNeg->setPen(Qt::NoPen);
+    m_volumeNeg->setBrush(QColor(180, 90, 90));
+    
+    // Interconnect x axis ranges of main and bottom axis rects
+    connect(m_customPlot->xAxis, QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
+            m_volumeAxisRect->axis(QCPAxis::atBottom), QOverload<const QCPRange&>::of(&QCPAxis::setRange));
+    connect(m_volumeAxisRect->axis(QCPAxis::atBottom), QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
+            m_customPlot->xAxis, QOverload<const QCPRange&>::of(&QCPAxis::setRange));
+    
+    // Configure axes of both main and bottom axis rect
+    QSharedPointer<QCPAxisTickerDateTime> dateTimeTicker(new QCPAxisTickerDateTime);
+    dateTimeTicker->setDateTimeSpec(Qt::UTC);
+    dateTimeTicker->setDateTimeFormat("hh:mm");
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->setTicker(dateTimeTicker);
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabelRotation(15);
+    m_customPlot->xAxis->setBasePen(Qt::NoPen);
+    m_customPlot->xAxis->setTickLabels(false);
+    m_customPlot->xAxis->setTicks(false); // Only want vertical grid in main axis rect
+    
+    // Make axis rects' left side line up
+    QCPMarginGroup *group = new QCPMarginGroup(m_customPlot);
+    m_customPlot->axisRect()->setMarginGroup(QCP::msLeft | QCP::msRight, group);
+    m_volumeAxisRect->setMarginGroup(QCP::msLeft | QCP::msRight, group);
+    
     // Create last price line
     m_lastPriceLine = new QCPItemLine(m_customPlot);
     Q_CHECK_PTR(m_lastPriceLine);
@@ -141,6 +200,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
         // Update candlestick data
         updateCandlestickData();
+        updateVolumeData();
 
         m_customPlot->xAxis->setRange(index - 30, index + 1);
 
@@ -178,6 +238,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
     // Update candlestick data
     updateCandlestickData();
+    updateVolumeData();
 
     redrawLastPriceLine();
     m_customPlot->replot();
@@ -210,6 +271,37 @@ void StockPriceChart::updateCandlestickData()
 }
 
 /**
+ * @brief Updates the volume bar data from indexToBar map.
+ */
+void StockPriceChart::updateVolumeData()
+{
+    // Clear existing volume data
+    m_volumePos->data()->clear();
+    m_volumeNeg->data()->clear();
+    
+    for (auto it = indexToBar.begin(); it != indexToBar.end(); ++it) {
+        const int index = it.key();
+        const Bar& bar = it.value();
+        
+        if (bar.getBarStatus() != Bar::BarStatus::Null) {
+            // Determine if bar is up or down based on close vs open
+            bool isUp = bar.getClose() >= bar.getOpen();
+            qint64 volume = bar.getTotalVolume();
+            
+            // Add to appropriate bar series
+            if (isUp) {
+                m_volumePos->addData(index, volume);
+            } else {
+                m_volumeNeg->addData(index, volume);
+            }
+        }
+    }
+    
+    // Rescale volume axis to fit data
+    m_volumeAxisRect->axis(QCPAxis::atLeft)->rescale();
+}
+
+/**
  * @brief Handles the response to a missing bars request.
  */
 void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
@@ -226,6 +318,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     
     // Update candlestick data
     updateCandlestickData();
+    updateVolumeData();
     
     m_customPlot->replot();
 }
@@ -314,6 +407,8 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
  */
 void StockPriceChart::clearSymbol() {
     m_candlesticks->data()->clear();
+    m_volumePos->data()->clear();
+    m_volumeNeg->data()->clear();
 
     indexToBar.clear();
     timestampToIndex.clear();

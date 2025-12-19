@@ -94,6 +94,11 @@ private:
     QCPItemLine* m_lastPriceLine;
     QCPItemText* m_priceLabel;
     
+    // Volume chart components
+    QCPAxisRect* m_volumeAxisRect;
+    QCPBars* m_volumePos;
+    QCPBars* m_volumeNeg;
+    
     // Index-based positioning maps
     QMap<int, Bar> indexToBar;  // Map from index to Bar
     QMap<QDateTime, int> timestampToIndex;  // Map from timestamp to index
@@ -105,4 +110,5 @@ private:
     
     // Helper to convert index to time for axis labels
     QString indexToTimeString(double index) const;
+    void updateVolumeData();
 };
