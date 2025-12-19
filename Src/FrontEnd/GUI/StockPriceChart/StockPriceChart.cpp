@@ -315,22 +315,30 @@ void StockPriceChart::updateSessionBackgrounds() {
     // Clear existing rectangles
     clearBackgroundRects();
     
-    if(indexToBar.isEmpty()) return;
+    if(indexToBar.isEmpty()) {
+        DEBUG << "No bars available for background drawing";
+        return;
+    }
       
     // Get the timestamps for visible range
     int minIndex = static_cast<int>(m_customPlot->xAxis->range().lower);
     int maxIndex = static_cast<int>(m_customPlot->xAxis->range().upper);
+    
+    DEBUG << "Updating session backgrounds for index range:" << minIndex << "to" << maxIndex;
     
     // Find the bar at min and max indices (or closest)
     auto minIt = indexToBar.lowerBound(minIndex);
     auto maxIt = indexToBar.lowerBound(maxIndex);
     
     if (minIt == indexToBar.end() || maxIt == indexToBar.end()) {
+        DEBUG << "Could not find bars at min/max indices";
         return;
     }
     
     QDateTime startTime = minIt.value().getTimeStamp();
     QDateTime endTime = maxIt.value().getTimeStamp();
+    
+    DEBUG << "Time range:" << startTime.toString() << "to" << endTime.toString();
     
     // Convert times to NY timezone for date calculations
     QTimeZone nyZone("America/New_York");
@@ -413,6 +421,10 @@ void StockPriceChart::updateSessionBackgrounds() {
         
         currentDate = currentDate.addDays(1);
     }
+    
+    DEBUG << "Created" << m_preMarketRects.size() << "pre-market rects,"
+          << m_afterHoursRects.size() << "after-hours rects,"
+          << m_closedMarketRects.size() << "closed market rects";
 }
 
 /**
@@ -461,6 +473,7 @@ void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, co
     
     // Check if we found any bars in this range
     if (startIt == timestampToIndex.end() || startIt.key() > rangeEnd) {
+        DEBUG << "No bars found in range" << rangeStart.toString() << "to" << rangeEnd.toString();
         return; // No bars in this range
     }
     
@@ -472,11 +485,13 @@ void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, co
         --endIt;
         endIndex = endIt.value();
     } else {
+        DEBUG << "No valid end index found";
         return; // No bars in range
     }
     
     // Verify we have a valid range
     if (startIndex == -1 || endIndex == -1 || endIndex < startIndex) {
+        DEBUG << "Invalid index range:" << startIndex << "to" << endIndex;
         return;
     }
     
@@ -502,7 +517,15 @@ void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, co
         rect->setPen(Qt::NoPen);
         rect->setBrush(QBrush(color));
         
+        // Set layer to ensure rectangles are behind the data
+        rect->setLayer("background");
+        
+        DEBUG << "Created background rect from index" << clippedStart << "to" << clippedEnd
+              << "with color" << color.name();
+        
         rectList.append(rect);
+    } else {
+        DEBUG << "Clipped range invalid:" << clippedStart << ">=" << clippedEnd;
     }
 }
 
