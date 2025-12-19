@@ -10,8 +10,6 @@ The StockPriceChart widget has been successfully migrated from Qt Charts to the 
 - `qcustomplot/qcustomplot.cpp` - QCustomPlot library implementation (35,529 lines)
 - `qcustomplot/qcustomplot.h` - QCustomPlot library header (7,774 lines)
 - `Doc/qcustomplot-migration.md` - Detailed migration documentation
-- `Src/FrontEnd/GUI/StockPriceChart/StockPriceChart_old.cpp` - Backup of original implementation
-- `Src/FrontEnd/GUI/StockPriceChart/StockPriceChart_old.h` - Backup of original header
 
 ### Modified
 - `CMakeLists.txt` - Replaced Qt6::Charts with Qt6::PrintSupport
@@ -98,15 +96,16 @@ When the project owner tests this implementation:
 
 ## Rollback Plan (If Needed)
 
-If issues are discovered, rollback is simple:
+If issues are discovered, rollback using git:
 ```bash
-cd Src/FrontEnd/GUI/StockPriceChart
-rm StockPriceChart.cpp StockPriceChart.h
-mv StockPriceChart_old.cpp StockPriceChart.cpp
-mv StockPriceChart_old.h StockPriceChart.h
-# Also restore the WheelEvent.cpp and Panning.cpp from git history
-# And revert CMakeLists.txt changes
+# Revert to the commit before the migration
+git revert <migration_commit_hash>
+# Or checkout specific files from before the migration
+git checkout <commit_before_migration> -- Src/FrontEnd/GUI/StockPriceChart/
+git checkout <commit_before_migration> -- CMakeLists.txt Src/CMakeLists.txt
 ```
+
+The old implementation is preserved in git history (commit f8c2e09 and earlier).
 
 ## References
 
