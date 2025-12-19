@@ -467,40 +467,40 @@ void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, co
         return;
     }
     
-    // Use efficient binary search to find indices
-    auto startIt = timestampToIndex.lowerBound(rangeStart);
-    auto endIt = timestampToIndex.upperBound(rangeEnd);
-    
-    // Check if we found any bars in this range
-    if (startIt == timestampToIndex.end() || startIt.key() > rangeEnd) {
-        DEBUG << "No bars found in range" << rangeStart.toString() << "to" << rangeEnd.toString();
-        return; // No bars in this range
-    }
-    
-    int startIndex = startIt.value();
-    int endIndex = -1;
-    
-    // Get the last valid index in range
-    if (endIt != timestampToIndex.begin()) {
-        --endIt;
-        endIndex = endIt.value();
-    } else {
-        DEBUG << "No valid end index found";
-        return; // No bars in range
-    }
-    
-    // Verify we have a valid range
-    if (startIndex == -1 || endIndex == -1 || endIndex < startIndex) {
-        DEBUG << "Invalid index range:" << startIndex << "to" << endIndex;
-        return;
-    }
-    
+    // Get visible index range
     qreal visibleMinIndex = m_customPlot->xAxis->range().lower;
     qreal visibleMaxIndex = m_customPlot->xAxis->range().upper;
     
+    // Convert time range to index range by finding bars closest to these times
+    // For start: find first bar at or after rangeStart, or use visible min
+    int rectStartIndex = static_cast<int>(visibleMinIndex);
+    int rectEndIndex = static_cast<int>(visibleMaxIndex);
+    
+    // Find first bar at or after rangeStart
+    auto startIt = timestampToIndex.lowerBound(rangeStart);
+    if (startIt != timestampToIndex.end() && startIt.value() > rectStartIndex) {
+        rectStartIndex = startIt.value();
+    }
+    
+    // Find last bar at or before rangeEnd
+    auto endIt = timestampToIndex.upperBound(rangeEnd);
+    if (endIt != timestampToIndex.begin()) {
+        --endIt;
+        if (endIt.value() < rectEndIndex) {
+            rectEndIndex = endIt.value() + 1;  // +1 to include the bar itself
+        }
+    }
+    
+    // Only draw if we have a valid range that intersects with visible area
+    if (rectStartIndex >= visibleMaxIndex || rectEndIndex <= visibleMinIndex) {
+        DEBUG << "Time range" << rangeStart.toString("hh:mm") << "to" << rangeEnd.toString("hh:mm")
+              << "does not intersect visible range";
+        return;
+    }
+    
     // Clip to visible range
-    qreal clippedStart = qMax(static_cast<qreal>(startIndex), visibleMinIndex);
-    qreal clippedEnd = qMin(static_cast<qreal>(endIndex + 1), visibleMaxIndex);
+    qreal clippedStart = qMax(static_cast<qreal>(rectStartIndex), visibleMinIndex);
+    qreal clippedEnd = qMin(static_cast<qreal>(rectEndIndex), visibleMaxIndex);
     
     if (clippedStart < clippedEnd) {
         QCPItemRect* rect = new QCPItemRect(m_customPlot);
@@ -521,6 +521,7 @@ void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, co
         rect->setLayer("background");
         
         DEBUG << "Created background rect from index" << clippedStart << "to" << clippedEnd
+              << "for time" << rangeStart.toString("hh:mm") << "-" << rangeEnd.toString("hh:mm")
               << "with color" << color.name();
         
         rectList.append(rect);
