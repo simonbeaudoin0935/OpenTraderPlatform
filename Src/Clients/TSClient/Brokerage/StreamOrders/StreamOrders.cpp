@@ -22,7 +22,7 @@ void StreamOrders::processJsonObject(const QJsonObject &jsonObj)
             emit endSnapshotReceived();
         } else if (statusStr == "GoAway") {
             WARNING << "Received GoAway status for account" << m_accountID;
-            Q_ASSERT(false); // TODO handle this properly
+//          Q_ASSERT(false); // TODO handle this properly
         } else {
             WARNING << "Stream status object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
         }

@@ -449,8 +449,7 @@ void GUIFrontend::onStreamCountUpdate(int count)
 
 void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 {
-    ui->priceChart->setSymbol(symbol);
-    ui->priceChart->addBar(bar);
+    ui->priceChart->addLiveBar(symbol, bar);
 }
 
 void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP)
@@ -590,6 +589,7 @@ void GUIFrontend::displayStock(const QString& symbol) {
     currentlyDisplayedSymbol = symbol;
 
     ui->priceChart->clearSymbol();
+    ui->priceChart->setSymbol(symbol);
 
     // Update the order entry widget with the new symbol
     ui->orderEntryWidget->setSymbol(symbol);

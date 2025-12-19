@@ -17,7 +17,7 @@
  */
 void StockPriceChart::wheelEvent(QWheelEvent* event) 
 {    
-    DEBUG << "wheelEvent called";
+    //DEBUG << "wheelEvent called";
 
     if (!chartView->rect().contains(event->position().toPoint())) {
         event->ignore();
@@ -40,7 +40,6 @@ void StockPriceChart::wheelEvent(QWheelEvent* event)
     }
 
     // Update the price label position
-    updatePriceLabelPosition();
     event->accept();
 }
 
@@ -67,10 +66,6 @@ void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
     }
 
     axisY->setRange(qMax(0.0, currentMin + shiftAmount), currentMax + shiftAmount);
-    updateLastPriceLineIfNeeded();
-
-    // Horizontal panning does not affect the spacing between the indices
-    //updateAxisLabels();
 }
 
 /**
@@ -95,20 +90,14 @@ void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
     qreal newMax = currentMax + shiftAmount;
     
     // Check for missing bars when panning beyond the first available bar
-    if (!completedBars.isEmpty() && !indexToTimestamp.isEmpty()) {
-        int firstAvailableIndex = indexToTimestamp.firstKey();
-        if (newMin < firstAvailableIndex) {
-            QDateTime firstBarTime = completedBars.firstKey();
+    if (indexToBar.isEmpty() == false) [[likely]] {
+        if (newMin < indexToBar.firstKey()) {
             QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-            checkForMissingBars(requestTime, firstBarTime);
+            checkForMissingBars(requestTime, indexToBar.first().getTimestamp());
         }
     }
     
     axisX->setRange(newMin, newMax);
-    updateLastPriceLineIfNeeded();
-
-    // Horizontal panning does not affect the spacing between the indices
-    //updateAxisLabels();
 }
 
 /**
@@ -134,18 +123,14 @@ void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor)
     qreal newMax = centerIndex + (newIndexRange / 2);
     
     // Check for missing bars when zooming beyond the first available bar
-    if (!completedBars.isEmpty() && !indexToTimestamp.isEmpty()) {
-        int firstAvailableIndex = indexToTimestamp.firstKey();
-        if (newMin < firstAvailableIndex) {
-            QDateTime firstBarTime = completedBars.firstKey();
+    if (indexToBar.isEmpty() == false) [[likely]] {
+        if (newMin < indexToBar.firstKey()) {
             QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-            checkForMissingBars(requestTime, firstBarTime);
+            checkForMissingBars(requestTime, indexToBar.first().getTimestamp());
         }
     }
 
     axisX->setRange(newMin, newMax);
-    updateLastPriceLineIfNeeded();
-    updateAxisLabelsDensity();
 }
 
 /**
@@ -170,8 +155,6 @@ void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
     qreal newMax = center + (newRange / 2);
 
     axisY->setRange(qMax(0.0, newMin), newMax);
-    updateLastPriceLineIfNeeded();
-    updateAxisLabelsDensity();
 }
 
 /**
@@ -198,12 +181,10 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
     qreal newMax = centerIndex + (newIndexRange / 2);
     
     // Check for missing bars when zooming beyond the first available bar
-    if (!completedBars.isEmpty() && !indexToTimestamp.isEmpty()) {
-        int firstAvailableIndex = indexToTimestamp.firstKey();
-        if (newMin < firstAvailableIndex) {
-            QDateTime firstBarTime = completedBars.firstKey();
+    if (indexToBar.isEmpty() == false) [[likely]] {
+        if (newMin < indexToBar.firstKey()) {
             QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-            checkForMissingBars(requestTime, firstBarTime);
+            checkForMissingBars(requestTime, indexToBar.first().getTimestamp());
         }
     }
 
@@ -219,7 +200,4 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
 
     axisX->setRange(newMin, newMax);
     axisY->setRange(qMax(0.0, newMinPrice), newMaxPrice);
-
-    updateLastPriceLineIfNeeded();
-    updateAxisLabelsDensity();
 }
