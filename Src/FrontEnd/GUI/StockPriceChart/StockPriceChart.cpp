@@ -32,8 +32,8 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     m_candlesticks->setPenNegative(QPen(QColor(0, 0, 0)));
 
     // Setup axes
-    m_customPlot->xAxis->setLabel("Time");
-    m_customPlot->yAxis->setLabel("Price");
+    m_customPlot->xAxis->setLabel("");
+    m_customPlot->yAxis->setLabel("");
     
     // Apply dark theme
     m_customPlot->setBackground(QBrush(QColor(45, 45, 50)));
@@ -173,8 +173,7 @@ StockPriceChart::~StockPriceChart() {
 void StockPriceChart::setSymbol(const QString& symbol) {
     m_symbol = symbol;
     m_candlesticks->setName(symbol + " (Bars)");
-    m_customPlot->plotLayout()->insertRow(0);
-    m_customPlot->plotLayout()->addElement(0, 0, new QCPTextElement(m_customPlot, symbol, QFont("sans", 12, QFont::Bold)));
+    // Removed stock ticker label to save space
     
     DEBUG << "Set chart symbol to" << symbol;
 }

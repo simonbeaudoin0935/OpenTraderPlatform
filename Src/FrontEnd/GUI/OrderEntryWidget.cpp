@@ -54,10 +54,11 @@ void OrderEntryWidget::setupUI() {
     m_symbolInput->setPlaceholderText("e.g., AAPL");
     m_symbolInput->setMaxLength(10);
     m_symbolInput->setToolTip("Stock symbol to trade");
+    m_symbolInput->setAlignment(Qt::AlignCenter);
     formLayout->addRow("Symbol:", m_symbolInput);
 
     // Trade Action (Buy/Sell) - Radio buttons
-    QGroupBox* tradeActionGroup = new QGroupBox("Action:", this);
+    QGroupBox* tradeActionGroup = new QGroupBox("", this);
     QGridLayout* tradeActionLayout = new QGridLayout(tradeActionGroup);
     tradeActionLayout->setContentsMargins(8, 8, 8, 8);
     tradeActionLayout->setSpacing(4);

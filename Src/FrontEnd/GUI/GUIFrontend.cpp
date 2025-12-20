@@ -141,6 +141,9 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
         }
     });
 
+    // Center the text in the stock symbol input
+    ui->stockSymbolInput->setAlignment(Qt::AlignCenter);
+
     // Connect position window symbol click
     connect(ui->positionWindow, &PositionWindow::symbolClicked, this, [this](const QString& symbol) {
         ui->stockSymbolInput->setText(symbol);
