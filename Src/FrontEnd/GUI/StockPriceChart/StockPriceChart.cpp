@@ -315,7 +315,6 @@ void StockPriceChart::updateVolumeData()
  * Draws colored background rectangles to indicate:
  * - Pre-market hours (brownish/orange)
  * - After-hours (blueish/violet)
- * - Closed market periods including weekends (dark gray)
  * 
  * Only draws backgrounds for the currently visible time range.
  */
@@ -377,9 +376,6 @@ void StockPriceChart::updateSessionBackgrounds() {
 
         // Handle weekends - show closed market background
         if (currentDate.dayOfWeek() > 5) {  // Saturday = 6, Sunday = 7
-            drawBackgroundForTimeRange(currentDateTime.toLocalTime(), 
-                                      nextDayDateTime.toLocalTime(),
-                                      QColor(40, 40, 50, 120), m_closedMarketRects);
             currentDate = currentDate.addDays(1);
             continue;
         }
@@ -430,10 +426,6 @@ void StockPriceChart::updateSessionBackgrounds() {
                 drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
                                           QColor(138, 43, 226, 180), m_afterHoursRects);  // More visible violet
             }
-            else if (!isRegularHours) {
-                drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
-                                          QColor(40, 40, 50, 200), m_closedMarketRects);  // More visible dark gray
-            }
             
             // Move to the next session
             hour = sessionEndHour;
@@ -443,8 +435,7 @@ void StockPriceChart::updateSessionBackgrounds() {
     }
     
     DEBUG << "Created" << m_preMarketRects.size() << "pre-market rects,"
-          << m_afterHoursRects.size() << "after-hours rects,"
-          << m_closedMarketRects.size() << "closed market rects";
+          << m_afterHoursRects.size() << "after-hours rects,";
 }
 
 /**
@@ -462,12 +453,6 @@ void StockPriceChart::clearBackgroundRects() {
         m_customPlot->removeItem(rect);
     }
     m_afterHoursRects.clear();
-
-    // Delete and clear closed market rectangles
-    for (auto rect : m_closedMarketRects) {
-        m_customPlot->removeItem(rect);
-    }
-    m_closedMarketRects.clear();
 }
 
 /**
@@ -584,7 +569,7 @@ void StockPriceChart::maintainBarLimit()
     int totalBars = indexToBar.size();
     
     if (totalBars > MAX_BARS) {
-        CRITICAL << "TODO: deal with this scenario";
+        CRITICAL << "TODO: deal with this scenario where we have more than MAX_BARS bars!";
     }
 }
 

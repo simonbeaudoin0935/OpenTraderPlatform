@@ -110,7 +110,9 @@ private:
     // Background rectangles for different market sessions
     QList<QCPItemRect*> m_preMarketRects;
     QList<QCPItemRect*> m_afterHoursRects;
-    QList<QCPItemRect*> m_closedMarketRects;
+    // The double associatives maps indexToBar and timestampToIndex are used to avoid caring about
+    // the time when the market is
+    //QList<QCPItemRect*> m_closedMarketRects;
     
     // Index-based positioning maps
     QMap<int, Bar> indexToBar;  // Map from index to Bar
