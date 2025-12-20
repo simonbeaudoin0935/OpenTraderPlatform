@@ -476,40 +476,39 @@ void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, co
     qreal visibleMinIndex = m_customPlot->xAxis->range().lower;
     qreal visibleMaxIndex = m_customPlot->xAxis->range().upper;
     
-    // Convert time range to index range by finding bars closest to these times
-    qreal rectStartIndex = visibleMinIndex;
-    qreal rectEndIndex = visibleMaxIndex;
-    
     // Find first bar at or after rangeStart
     auto startIt = timestampToIndex.lowerBound(rangeStart);
-    if (startIt != timestampToIndex.end()) {
-        // Use this bar's index if it's within or after the visible range
-        qreal barIndex = static_cast<qreal>(startIt.value());
-        if (barIndex > visibleMinIndex) {
-            rectStartIndex = barIndex;
-        }
+    if (startIt == timestampToIndex.end()) {
+        // No bar at or after rangeStart - session is entirely before available data
+        DEBUG << "Time range" << rangeStart.toString("hh:mm") << "to" << rangeEnd.toString("hh:mm")
+              << "is before all available bars";
+        return;
     }
     
     // Find last bar at or before rangeEnd
     auto endIt = timestampToIndex.upperBound(rangeEnd);
-    if (endIt != timestampToIndex.begin()) {
-        --endIt;
-        qreal barIndex = static_cast<qreal>(endIt.value());
-        if (barIndex < visibleMaxIndex) {
-            rectEndIndex = barIndex + 1.0;  // +1 to include the bar itself
-        }
-    }
-    
-    // Only draw if we have a valid range that intersects with visible area
-    if (rectStartIndex >= visibleMaxIndex || rectEndIndex <= visibleMinIndex) {
+    if (endIt == timestampToIndex.begin()) {
+        // No bar at or before rangeEnd - session is entirely after available data
         DEBUG << "Time range" << rangeStart.toString("hh:mm") << "to" << rangeEnd.toString("hh:mm")
-              << "does not intersect visible range";
+              << "is after all available bars";
+        return;
+    }
+    --endIt;
+    
+    // Get the actual bar indices for this session
+    qreal sessionStartIndex = static_cast<qreal>(startIt.value());
+    qreal sessionEndIndex = static_cast<qreal>(endIt.value()) + 1.0;  // +1 to include the bar itself
+    
+    // Only draw if session intersects with visible area
+    if (sessionEndIndex <= visibleMinIndex || sessionStartIndex >= visibleMaxIndex) {
+        DEBUG << "Session range [" << sessionStartIndex << "," << sessionEndIndex 
+              << "] does not intersect visible range [" << visibleMinIndex << "," << visibleMaxIndex << "]";
         return;
     }
     
     // Clip to visible range
-    qreal clippedStart = qMax(rectStartIndex, visibleMinIndex);
-    qreal clippedEnd = qMin(rectEndIndex, visibleMaxIndex);
+    qreal clippedStart = qMax(sessionStartIndex, visibleMinIndex);
+    qreal clippedEnd = qMin(sessionEndIndex, visibleMaxIndex);
     
     if (clippedStart < clippedEnd) {
         QCPItemRect* rect = new QCPItemRect(m_customPlot);
