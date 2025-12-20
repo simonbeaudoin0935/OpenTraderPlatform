@@ -380,56 +380,27 @@ void StockPriceChart::updateSessionBackgrounds() {
             continue;
         }
 
-        // Consolidate consecutive hours of the same session type into single rectangles
-        int hour = 0;
-        while (hour < 24) {
-            QDateTime hourStart = QDateTime(currentDate, QTime(hour, 0), nyZone);
-            
-            // Determine the session type for this hour
-            bool isPreMarket = MarketHours::isPreMarket(hourStart);
-            bool isAfterHours = MarketHours::isAfterHours(hourStart);
-            bool isRegularHours = MarketHours::isRegularHours(hourStart);
-            
-            // Find the end of this session by scanning forward
-            int sessionEndHour = hour;
-            while (sessionEndHour < 24) {
-                QDateTime testTime = QDateTime(currentDate, QTime(sessionEndHour, 0), nyZone);
-                bool sameSession = (isPreMarket && MarketHours::isPreMarket(testTime)) ||
-                                  (isAfterHours && MarketHours::isAfterHours(testTime)) ||
-                                  (isRegularHours && MarketHours::isRegularHours(testTime)) ||
-                                  (!isPreMarket && !isAfterHours && !isRegularHours && 
-                                   !MarketHours::isPreMarket(testTime) && 
-                                   !MarketHours::isAfterHours(testTime) && 
-                                   !MarketHours::isRegularHours(testTime));
-                
-                if (!sameSession) {
-                    break;
-                }
-                sessionEndHour++;
-            }
-            
-            // Create single rectangle for the entire session
-            QDateTime sessionStart = QDateTime(currentDate, QTime(hour, 0), nyZone);
-            QDateTime sessionEnd = sessionEndHour == 24 ? 
-                QDateTime(currentDate, QTime(23, 59, 59), nyZone) :
-                QDateTime(currentDate, QTime(sessionEndHour, 0), nyZone);
-            
-            QDateTime localSessionStart = sessionStart.toLocalTime();
-            QDateTime localSessionEnd = sessionEnd.toLocalTime();
-            
-            // Draw one rectangle for the entire session
-            if (isPreMarket) {
-                drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
-                                          QColor(255, 165, 0, 180), m_preMarketRects);  // More visible orange
-            }
-            else if (isAfterHours) {
-                drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
-                                          QColor(138, 43, 226, 180), m_afterHoursRects);  // More visible violet
-            }
-            
-            // Move to the next session
-            hour = sessionEndHour;
-        }
+        // Draw rectangles for pre-market and after-hours sessions using known boundaries
+        // NOTE: These times must match MarketHours class definitions:
+        //   - Pre-market: 4:00 AM - 9:30 AM ET (MarketHours::isPreMarket)
+        //   - After-hours: 4:00 PM - 8:00 PM ET (MarketHours::isAfterHours)
+        QDateTime preMarketStart = QDateTime(currentDate, QTime(4, 0), nyZone);
+        QDateTime preMarketEnd = QDateTime(currentDate, QTime(9, 30), nyZone);
+        
+        QDateTime afterHoursStart = QDateTime(currentDate, QTime(16, 0), nyZone);
+        QDateTime afterHoursEnd = QDateTime(currentDate, QTime(20, 0), nyZone);
+        
+        // CRITICAL: Keep NY timezone to match bar timestamps stored in timestampToIndex map.
+        // QDateTime comparison in QMap is timezone-aware, so even if two QDateTime objects
+        // represent the same absolute time, they won't match if timezones differ.
+        
+        // Draw pre-market rectangle
+        drawBackgroundForTimeRange(preMarketStart, preMarketEnd,
+                                  QColor(255, 165, 0, 180), m_preMarketRects);  // More visible orange
+        
+        // Draw after-hours rectangle
+        drawBackgroundForTimeRange(afterHoursStart, afterHoursEnd,
+                                  QColor(138, 43, 226, 180), m_afterHoursRects);  // More visible violet
         
         currentDate = currentDate.addDays(1);
     }
@@ -476,40 +447,39 @@ void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, co
     qreal visibleMinIndex = m_customPlot->xAxis->range().lower;
     qreal visibleMaxIndex = m_customPlot->xAxis->range().upper;
     
-    // Convert time range to index range by finding bars closest to these times
-    qreal rectStartIndex = visibleMinIndex;
-    qreal rectEndIndex = visibleMaxIndex;
-    
     // Find first bar at or after rangeStart
     auto startIt = timestampToIndex.lowerBound(rangeStart);
-    if (startIt != timestampToIndex.end()) {
-        // Use this bar's index if it's within or after the visible range
-        qreal barIndex = static_cast<qreal>(startIt.value());
-        if (barIndex > visibleMinIndex) {
-            rectStartIndex = barIndex;
-        }
+    if (startIt == timestampToIndex.end()) {
+        // No bar at or after rangeStart - session is entirely before available data
+        DEBUG << "Time range" << rangeStart.toString("hh:mm") << "to" << rangeEnd.toString("hh:mm")
+              << "is before all available bars";
+        return;
     }
     
     // Find last bar at or before rangeEnd
     auto endIt = timestampToIndex.upperBound(rangeEnd);
-    if (endIt != timestampToIndex.begin()) {
-        --endIt;
-        qreal barIndex = static_cast<qreal>(endIt.value());
-        if (barIndex < visibleMaxIndex) {
-            rectEndIndex = barIndex + 1.0;  // +1 to include the bar itself
-        }
-    }
-    
-    // Only draw if we have a valid range that intersects with visible area
-    if (rectStartIndex >= visibleMaxIndex || rectEndIndex <= visibleMinIndex) {
+    if (endIt == timestampToIndex.begin()) {
+        // No bar at or before rangeEnd - session is entirely after available data
         DEBUG << "Time range" << rangeStart.toString("hh:mm") << "to" << rangeEnd.toString("hh:mm")
-              << "does not intersect visible range";
+              << "is after all available bars";
+        return;
+    }
+    --endIt;
+    
+    // Get the actual bar indices for this session
+    qreal sessionStartIndex = static_cast<qreal>(startIt.value());
+    qreal sessionEndIndex = static_cast<qreal>(endIt.value()) + 1.0;  // +1 to extend to end boundary of bar
+    
+    // Only draw if session intersects with visible area
+    if (sessionEndIndex <= visibleMinIndex || sessionStartIndex >= visibleMaxIndex) {
+        DEBUG << "Session range [" << sessionStartIndex << "," << sessionEndIndex 
+              << "] does not intersect visible range [" << visibleMinIndex << "," << visibleMaxIndex << "]";
         return;
     }
     
     // Clip to visible range
-    qreal clippedStart = qMax(rectStartIndex, visibleMinIndex);
-    qreal clippedEnd = qMin(rectEndIndex, visibleMaxIndex);
+    qreal clippedStart = qMax(sessionStartIndex, visibleMinIndex);
+    qreal clippedEnd = qMin(sessionEndIndex, visibleMaxIndex);
     
     if (clippedStart < clippedEnd) {
         QCPItemRect* rect = new QCPItemRect(m_customPlot);
