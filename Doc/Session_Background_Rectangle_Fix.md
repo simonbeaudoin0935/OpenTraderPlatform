@@ -2,13 +2,18 @@
 
 ## Problem Description
 
-The session background rectangles (pre-market and after-hours) were not properly aligning with the correct x-axis indices in the price chart. These colored rectangles are meant to highlight the extended trading hours visually, but they were appearing at incorrect positions or not appearing at all.
+The session background rectangles (pre-market and after-hours) were not properly aligning with the correct x-axis indices in the price chart. Two distinct issues were identified:
+
+1. **Timezone Mismatch**: Rectangles not appearing or appearing at wrong positions due to timestamp lookup failures
+2. **Incorrect Clipping Logic**: Rectangles drawing across the entire screen when sessions extended beyond visible range
 
 ## Root Cause Analysis
 
-The issue was a **timezone mismatch** in the timestamp-to-index lookup process:
+### Issue 1: Timezone Mismatch
 
-### How Bars Are Stored
+The first issue was a **timezone mismatch** in the timestamp-to-index lookup process:
+
+#### How Bars Are Stored
 
 In `Bar.cpp` (line 109), when bars are parsed from JSON:
 ```cpp
@@ -18,7 +23,7 @@ timeStamp = QDateTime::fromString(jsonObj["TimeStamp"].toString(), Qt::ISODate)
 
 All bar timestamps are stored with **America/New_York timezone**.
 
-### How Index Mapping Works
+#### How Index Mapping Works
 
 The chart uses a bidirectional index mapping system:
 - `timestampToIndex`: Maps `QDateTime` → `int` (bar timestamp to chart index)
@@ -26,7 +31,7 @@ The chart uses a bidirectional index mapping system:
 
 The keys in `timestampToIndex` are QDateTime objects with **America/New_York timezone**.
 
-### The Bug
+#### The Bug (Issue 1)
 
 In `StockPriceChart.cpp::updateSessionBackgrounds()` (lines 417-418), before the fix:
 ```cpp
@@ -52,12 +57,44 @@ auto endIt = timestampToIndex.upperBound(rangeEnd);      // FAILS!
 
 They are **NOT equal** for map lookups because they have different timezone representations.
 
-Result: The lookups would fail to find matching bars, causing:
-1. `rectStartIndex` and `rectEndIndex` to fall back to defaults
-2. Rectangles to span the entire visible range or not appear at all
-3. Incorrect alignment with actual pre/after-market bars
+### Issue 2: Incorrect Clipping Logic
 
-## The Fix
+After fixing the timezone issue, a second problem became apparent when panning and zooming.
+
+#### The Bug (Issue 2)
+
+In the original `drawBackgroundForTimeRange()` logic:
+```cpp
+// Original buggy code
+qreal rectStartIndex = visibleMinIndex;  // Default to visible range
+qreal rectEndIndex = visibleMaxIndex;
+
+auto startIt = timestampToIndex.lowerBound(rangeStart);
+if (startIt != timestampToIndex.end()) {
+    qreal barIndex = static_cast<qreal>(startIt.value());
+    if (barIndex > visibleMinIndex) {  // BUG: Wrong condition!
+        rectStartIndex = barIndex;
+    }
+}
+// Similar logic for endIndex
+```
+
+**The Problem**: The condition `if (barIndex > visibleMinIndex)` is backwards!
+
+**Example scenario causing full-screen rectangle:**
+- Visible range: indices 100-200
+- Pre-market session: 4:00 AM - 9:30 AM (bar indices 50-380)
+- `lowerBound(4:00 AM)` correctly returns bar at index 50
+- Check: `50 > 100`? **NO** → keeps `rectStartIndex = 100` (visible min)
+- `upperBound(9:30 AM)` correctly returns bar at index 380
+- Check: `380 < 200`? **NO** → keeps `rectEndIndex = 200` (visible max)
+- **Result**: Rectangle draws from 100 to 200 (entire visible screen!)
+
+The logic was trying to be "smart" by only using found indices if they were within the visible range, but this backfired. When a session extended beyond the visible range, it would fall back to the defaults (entire visible range), causing full-screen overlays.
+
+## The Fixes
+
+### Fix 1: Timezone Consistency (Commit b26cafc)
 
 **Remove the timezone conversion** in `updateSessionBackgrounds()`:
 
@@ -77,7 +114,59 @@ else if (isAfterHours) {
 Now:
 - Session times stay in **America/New_York timezone**
 - Map lookups in `drawBackgroundForTimeRange()` succeed
-- Rectangles align correctly with the bar indices
+- Rectangles can now be looked up correctly (but see Fix 2 for complete solution)
+
+### Fix 2: Correct Clipping Logic (Commit e5dfcab)
+
+**Always use the actual session bar indices, then clip to visible range:**
+
+```cpp
+// Find first bar at or after rangeStart
+auto startIt = timestampToIndex.lowerBound(rangeStart);
+if (startIt == timestampToIndex.end()) {
+    // Session entirely before available data - don't draw
+    return;
+}
+
+// Find last bar at or before rangeEnd
+auto endIt = timestampToIndex.upperBound(rangeEnd);
+if (endIt == timestampToIndex.begin()) {
+    // Session entirely after available data - don't draw
+    return;
+}
+--endIt;
+
+// Get the actual bar indices for this session
+qreal sessionStartIndex = static_cast<qreal>(startIt.value());
+qreal sessionEndIndex = static_cast<qreal>(endIt.value()) + 1.0;
+
+// Only draw if session intersects with visible area
+if (sessionEndIndex <= visibleMinIndex || sessionStartIndex >= visibleMaxIndex) {
+    return;  // No intersection
+}
+
+// Clip to visible range
+qreal clippedStart = qMax(sessionStartIndex, visibleMinIndex);
+qreal clippedEnd = qMin(sessionEndIndex, visibleMaxIndex);
+
+// Draw rectangle from clippedStart to clippedEnd
+```
+
+**Key changes:**
+1. Always get the actual session indices from the map lookups
+2. Check for intersection with visible range
+3. Only then clip to visible boundaries
+4. No fallback to visible range defaults
+
+**Example with new logic:**
+- Visible range: indices 100-200
+- Pre-market session: 4:00 AM - 9:30 AM (bar indices 50-380)
+- `sessionStartIndex = 50`, `sessionEndIndex = 381`
+- Check intersection: `381 <= 100`? NO, `50 >= 200`? NO → session intersects
+- Clip: `clippedStart = max(50, 100) = 100`, `clippedEnd = min(381, 200) = 200`
+- **Result**: Rectangle draws from 100 to 200, but **only if this is a valid session range**
+
+Now when multiple sessions are present (e.g., pre-market from 50-330, after-hours from 390-480), each gets its own correctly clipped rectangle instead of overlapping full-screen rectangles.
 
 ## Testing Recommendations
 
