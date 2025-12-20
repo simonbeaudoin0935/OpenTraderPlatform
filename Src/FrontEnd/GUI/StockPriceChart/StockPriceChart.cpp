@@ -892,6 +892,14 @@ void StockPriceChart::wheelEvent(QWheelEvent* event)
 {    
     qreal zoomFactor = event->angleDelta().y() > 0 ? 0.9 : 1.1;
 
+    // Check if mouse is over volume chart using QCustomPlot's axisRectAt method
+    bool isOverVolumeChart = false;
+    if (m_volumeAxisRect && m_volumeAxisRect->isVisible()) {
+        QPointF mousePos = m_customPlot->mapFromGlobal(event->globalPosition().toPoint());
+        QCPAxisRect* axisRectAtMouse = m_customPlot->axisRectAt(mousePos);
+        isOverVolumeChart = (axisRectAtMouse == m_volumeAxisRect);
+    }
+
     if ((event->modifiers() & Qt::ShiftModifier) && (event->modifiers() & Qt::ControlModifier)) {
         handleVerticalPanning(event);
     } else if (event->modifiers() & Qt::AltModifier) {
@@ -899,9 +907,19 @@ void StockPriceChart::wheelEvent(QWheelEvent* event)
     } else if (event->modifiers() & Qt::ControlModifier) {
         handleHorizontalZoom(event, zoomFactor);
     } else if (event->modifiers() & Qt::ShiftModifier) {
-        handleVerticalZoom(event, zoomFactor);
+        // If over volume chart, zoom horizontally instead of vertically
+        if (isOverVolumeChart) {
+            handleHorizontalZoom(event, zoomFactor);
+        } else {
+            handleVerticalZoom(event, zoomFactor);
+        }
     } else {
-        handleBothAxesZoom(event, zoomFactor);
+        // If over volume chart, only zoom horizontally
+        if (isOverVolumeChart) {
+            handleHorizontalZoom(event, zoomFactor);
+        } else {
+            handleBothAxesZoom(event, zoomFactor);
+        }
     }
 
     event->accept();
