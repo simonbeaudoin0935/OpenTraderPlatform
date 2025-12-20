@@ -107,13 +107,14 @@ private:
     QDate getPreviousFriday(const QDate& date) const;
     void updateAxisLabelsDensity();
     void updateCandlestickData();
-    void updateVolumeData();
+    void updateVolumeAxisRange();
     
     // Background rendering methods
     void updateSessionBackgrounds();
     void clearBackgroundRects();
     void drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd,
-                                     const QColor& color, QList<QCPItemRect*>& rectList);
+                                     const QColor& color, QList<QCPItemRect*>& rectList,
+                                     QCPAxisRect* axisRect = nullptr);
     
     QString m_symbol;
     QCustomPlot* m_customPlot;
@@ -129,6 +130,8 @@ private:
     // Background rectangles for different market sessions
     QList<QCPItemRect*> m_preMarketRects;
     QList<QCPItemRect*> m_afterHoursRects;
+    QList<QCPItemRect*> m_volumePreMarketRects;
+    QList<QCPItemRect*> m_volumeAfterHoursRects;
     // The double associatives maps indexToBar and timestampToIndex are used to avoid caring about
     // the time when the market is
     //QList<QCPItemRect*> m_closedMarketRects;

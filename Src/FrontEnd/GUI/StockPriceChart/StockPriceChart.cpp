@@ -88,10 +88,10 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     
     m_volumePos->setWidth(CANDLESTICK_BODY_WIDTH);
     m_volumePos->setPen(Qt::NoPen);
-    m_volumePos->setBrush(QColor(100, 180, 110));
+    m_volumePos->setBrush(QColor(100, 180, 110, 180));  // Semi-transparent for backgrounds to show through
     m_volumeNeg->setWidth(CANDLESTICK_BODY_WIDTH);
     m_volumeNeg->setPen(Qt::NoPen);
-    m_volumeNeg->setBrush(QColor(180, 90, 90));
+    m_volumeNeg->setBrush(QColor(180, 90, 90, 180));  // Semi-transparent for backgrounds to show through
     
     // Interconnect x axis ranges of main and bottom axis rects (bidirectional for horizontal zoom)
     connect(m_customPlot->xAxis, QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
@@ -259,7 +259,18 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
         // Update candlestick data
         updateCandlestickData();
-        updateVolumeData();
+        
+        // Add volume data incrementally for the first bar
+        bool isUp = bar.getClose() >= bar.getOpen();
+        qint64 volume = bar.getTotalVolume();
+        if (isUp) {
+            m_volumePos->addData(index, volume);
+        } else {
+            m_volumeNeg->addData(index, volume);
+        }
+        updateVolumeAxisRange();
+        
+        updateSessionBackgrounds();
 
         m_customPlot->xAxis->setRange(index - 30, index + 1);
 
@@ -288,16 +299,40 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         m_latestBarIndex = newIndex;
         
         maintainBarLimit();
-    } else {
+
+        // Update volume data incrementally for new bar
+        bool isUp = bar.getClose() >= bar.getOpen();
+        qint64 volume = bar.getTotalVolume();
+        m_volumePos->data()->remove(newIndex);
+        m_volumeNeg->data()->remove(newIndex);
+        if (isUp) {
+            m_volumePos->addData(newIndex, volume);
+        } else {
+            m_volumeNeg->addData(newIndex, volume);
+        }
+        updateVolumeAxisRange();
+    } else { // open bar
         // Update existing bar
         Q_ASSERT(bar.getTimeStamp() == m_latestBar.getTimeStamp());
         indexToBar[m_latestBarIndex] = bar;
         m_latestBar = bar;
+
+        // Update volume data incrementally for existing bar
+        bool isUp = bar.getClose() >= bar.getOpen();
+        qint64 volume = bar.getTotalVolume();
+        m_volumePos->data()->remove(m_latestBarIndex);
+        m_volumeNeg->data()->remove(m_latestBarIndex);
+        if (isUp) {
+            m_volumePos->addData(m_latestBarIndex, volume);
+        } else {
+            m_volumeNeg->addData(m_latestBarIndex, volume);
+        }
+        updateVolumeAxisRange();
     }
 
     // Update candlestick data
     updateCandlestickData();
-    updateVolumeData();
+    updateSessionBackgrounds();
 
     redrawLastPriceLine();
     m_customPlot->replot();
@@ -330,34 +365,24 @@ void StockPriceChart::updateCandlestickData()
 }
 
 /**
- * @brief Updates the volume bar data from indexToBar map.
+ * @brief Updates the volume axis range based on current data.
  */
-void StockPriceChart::updateVolumeData()
+void StockPriceChart::updateVolumeAxisRange()
 {
-    // Clear existing volume data
-    m_volumePos->data()->clear();
-    m_volumeNeg->data()->clear();
-    
-    for (auto it = indexToBar.begin(); it != indexToBar.end(); ++it) {
-        const int index = it.key();
-        const Bar& bar = it.value();
-        
-        if (bar.getBarStatus() != Bar::BarStatus::Null) {
-            // Determine if bar is up or down based on close vs open
-            bool isUp = bar.getClose() >= bar.getOpen();
-            qint64 volume = bar.getTotalVolume();
-            
-            // Add to appropriate bar series
-            if (isUp) {
-                m_volumePos->addData(index, volume);
-            } else {
-                m_volumeNeg->addData(index, volume);
-            }
-        }
+    // Find max volume from current volume data
+    qreal maxVol = 0;
+    for (auto it = m_volumePos->data()->begin(); it != m_volumePos->data()->end(); ++it) {
+        maxVol = qMax(maxVol, it->value);
+    }
+    for (auto it = m_volumeNeg->data()->begin(); it != m_volumeNeg->data()->end(); ++it) {
+        maxVol = qMax(maxVol, it->value);
     }
     
-    // Rescale volume axis to fit data
-    m_volumeAxisRect->axis(QCPAxis::atLeft)->rescale();
+    if (maxVol > 0) {
+        m_volumeAxisRect->axis(QCPAxis::atLeft)->setRange(0, maxVol * 1.1);
+    } else {
+        m_volumeAxisRect->axis(QCPAxis::atLeft)->setRange(0, 100);  // Default range if no data
+    }
 }
 
 /**
@@ -452,12 +477,21 @@ void StockPriceChart::updateSessionBackgrounds() {
         // Draw after-hours rectangle
         drawBackgroundForTimeRange(afterHoursStart, afterHoursEnd,
                                   QColor(138, 43, 226, 180), m_afterHoursRects);  // More visible violet
+
+        // Draw volume chart backgrounds with same colors but potentially different opacity
+        drawBackgroundForTimeRange(preMarketStart, preMarketEnd,
+                                  QColor(255, 165, 0, 180), m_volumePreMarketRects, m_volumeAxisRect);
+        
+        drawBackgroundForTimeRange(afterHoursStart, afterHoursEnd,
+                                  QColor(138, 43, 226, 180), m_volumeAfterHoursRects, m_volumeAxisRect);
         
         currentDate = currentDate.addDays(1);
     }
     
     DEBUG << "Created" << m_preMarketRects.size() << "pre-market rects,"
-          << m_afterHoursRects.size() << "after-hours rects,";
+          << m_afterHoursRects.size() << "after-hours rects,"
+          << m_volumePreMarketRects.size() << "volume pre-market rects,"
+          << m_volumeAfterHoursRects.size() << "volume after-hours rects";
 }
 
 /**
@@ -475,6 +509,18 @@ void StockPriceChart::clearBackgroundRects() {
         m_customPlot->removeItem(rect);
     }
     m_afterHoursRects.clear();
+
+    // Delete and clear volume pre-market rectangles
+    for (auto rect : m_volumePreMarketRects) {
+        m_customPlot->removeItem(rect);
+    }
+    m_volumePreMarketRects.clear();
+
+    // Delete and clear volume after-hours rectangles
+    for (auto rect : m_volumeAfterHoursRects) {
+        m_customPlot->removeItem(rect);
+    }
+    m_volumeAfterHoursRects.clear();
 }
 
 /**
@@ -487,16 +533,22 @@ void StockPriceChart::clearBackgroundRects() {
  * @param rangeEnd The end time of the range to highlight.
  * @param color The color for the background rectangle.
  * @param rectList The list to add the created rectangle to.
+ * @param axisRect The axis rect to draw on (main chart if nullptr).
  */
 void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd,
-                                                   const QColor& color, QList<QCPItemRect*>& rectList) {
+                                                   const QColor& color, QList<QCPItemRect*>& rectList,
+                                                   QCPAxisRect* axisRect) {
     if (indexToBar.isEmpty()) {
         return;
     }
     
+    // Use main chart axes if no axis rect specified
+    QCPAxis* xAxis = axisRect ? axisRect->axis(QCPAxis::atBottom) : m_customPlot->xAxis;
+    QCPAxis* yAxis = axisRect ? axisRect->axis(QCPAxis::atLeft) : m_customPlot->yAxis;
+    
     // Get visible index range
-    qreal visibleMinIndex = m_customPlot->xAxis->range().lower;
-    qreal visibleMaxIndex = m_customPlot->xAxis->range().upper;
+    qreal visibleMinIndex = xAxis->range().lower;
+    qreal visibleMaxIndex = xAxis->range().upper;
     
     // Find first bar at or after rangeStart
     auto startIt = timestampToIndex.lowerBound(rangeStart);
@@ -536,13 +588,10 @@ void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, co
         QCPItemRect* rect = new QCPItemRect(m_customPlot);
         Q_CHECK_PTR(rect);
         
-        // Set the rectangle coordinates
-        rect->topLeft->setType(QCPItemPosition::ptPlotCoords);
-        rect->bottomRight->setType(QCPItemPosition::ptPlotCoords);
-        rect->topLeft->setAxes(m_customPlot->xAxis, m_customPlot->yAxis);
-        rect->bottomRight->setAxes(m_customPlot->xAxis, m_customPlot->yAxis);
-        rect->topLeft->setCoords(clippedStart, m_customPlot->yAxis->range().upper);
-        rect->bottomRight->setCoords(clippedEnd, m_customPlot->yAxis->range().lower);
+        // Set the rectangle coordinates to fill the entire height
+        // Use large values to ensure it covers the full axis rect regardless of range
+        rect->topLeft->setCoords(clippedStart, 1e10);  // Way above
+        rect->bottomRight->setCoords(clippedEnd, -1e10);  // Way below
         
         rect->setPen(Qt::NoPen);
         rect->setBrush(QBrush(color));
@@ -550,9 +599,15 @@ void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, co
         // Set layer to ensure rectangles are behind the data
         rect->setLayer("background");
         
+        // Clip to the specified axis rect if provided
+        if (axisRect) {
+            rect->setClipAxisRect(axisRect);
+        }
+        
         DEBUG << "Created background rect from index" << clippedStart << "to" << clippedEnd
               << "for time" << rangeStart.toString("hh:mm") << "-" << rangeEnd.toString("hh:mm")
-              << "with color" << color.name();
+              << "with color" << color.name()
+              << (axisRect ? " (clipped to volume chart)" : " (main chart)");
         
         rectList.append(rect);
     } else {
@@ -577,7 +632,25 @@ void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
     
     // Update candlestick data
     updateCandlestickData();
-    updateVolumeData();
+    
+    // Add volume data incrementally for the new historical bars
+    for (const Bar& bar : bars) {
+        if (bar.getBarStatus() != Bar::BarStatus::Null) {
+            int index = timestampToIndex.value(bar.getTimeStamp(), -1);
+            if (index != -1) {
+                bool isUp = bar.getClose() >= bar.getOpen();
+                qint64 volume = bar.getTotalVolume();
+                if (isUp) {
+                    m_volumePos->addData(index, volume);
+                } else {
+                    m_volumeNeg->addData(index, volume);
+                }
+            }
+        }
+    }
+    updateVolumeAxisRange();
+    
+    updateSessionBackgrounds();
     
     m_customPlot->replot();
 }
