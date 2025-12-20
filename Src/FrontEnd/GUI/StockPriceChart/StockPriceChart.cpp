@@ -16,6 +16,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     // Create the custom plot widget
     m_customPlot = new QCustomPlot(this);
     Q_CHECK_PTR(m_customPlot);
+    m_customPlot->installEventFilter(this);
     
     // Create candlestick chart
     m_candlesticks = new QCPFinancial(m_customPlot->xAxis, m_customPlot->yAxis);
@@ -125,7 +126,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     m_priceLabel->setVisible(false);
 
     // Enable mouse interactions
-    m_customPlot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
+    m_customPlot->setInteractions(QCP::iRangeDrag);
     m_customPlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
     m_customPlot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
     
@@ -871,6 +872,17 @@ void StockPriceChart::onVolumeChartVisibilityChanged(bool visible)
 void StockPriceChart::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     onAxisRangeChanged();
+}
+
+/**
+ * @brief Event filter to intercept events from child widgets.
+ */
+bool StockPriceChart::eventFilter(QObject* obj, QEvent* event) {
+    if (obj == m_customPlot && event->type() == QEvent::Wheel) {
+        wheelEvent(static_cast<QWheelEvent*>(event));
+        return true;
+    }
+    return QWidget::eventFilter(obj, event);
 }
 
 /**

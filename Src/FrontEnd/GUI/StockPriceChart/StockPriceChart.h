@@ -58,6 +58,7 @@ private slots:
 protected:
     void resizeEvent(QResizeEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
+    bool eventFilter(QObject* obj, QEvent* event) override;
 
 private:
     static const int MAX_BARS = 1000;
