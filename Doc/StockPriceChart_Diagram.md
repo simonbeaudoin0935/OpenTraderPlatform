@@ -2,6 +2,8 @@
 
 This document provides a comprehensive overview of the StockPriceChart component architecture using Mermaid diagrams.
 
+**Note**: The StockPriceChart now uses **qcustomplot** library instead of Qt Charts. Updated December 2024.
+
 ## Table of Contents
 - [Class Diagram](#class-diagram)
 - [Data Flow Sequence](#data-flow-sequence)
@@ -25,52 +27,46 @@ This document provides a comprehensive overview of the StockPriceChart component
 ```mermaid
 classDiagram
     class StockPriceChart {
-        -QString symbol
-        -QChart* chart
-        -QLineSeries* lastPriceLine
-        -QCandlestickSeries* candlestickSeries
-        -QScatterSeries* voidBarSeries
-        -QChartView* chartView
-        -QDateTimeAxis* axisX
-        -QValueAxis* axisY
-        -QGraphicsTextItem* priceLabel
-        -QList~QGraphicsRectItem*~ afterHoursRects
-        -QList~QGraphicsRectItem*~ preMarketRects
-        -QList~QGraphicsRectItem*~ closedMarketRects
-        -Bar currentOpenBar
-        -bool hasOpenBar
-        -double lastPrice
-        -double lastValidClosePrice
-        -QMap~QDateTime, Bar~ completedBars
-        -bool isPanning
-        -QPoint lastMousePos
+        -QString m_symbol
+        -QCustomPlot* m_customPlot
+        -QCPFinancial* m_candlesticks
+        -QCPItemLine* m_lastPriceLine
+        -QCPItemText* m_priceLabel
+        -QCPAxisRect* m_volumeAxisRect
+        -QCPBars* m_volumePos
+        -QCPBars* m_volumeNeg
+        -QList~QCPItemRect*~ m_preMarketRects
+        -QList~QCPItemRect*~ m_afterHoursRects
+        -Bar m_latestBar
+        -int m_latestBarIndex
+        -QMap~int, Bar~ indexToBar
+        -QMap~QDateTime, int~ timestampToIndex
+        -TimeFrameSelector* timeframeSelector
         -bool currentGetBarsRequestInProcess
         +setSymbol(QString)
         +clearSymbol()
-        +addBar(Bar)
+        +addLiveBar(QString, Bar)
         +onRequestedMissingBarsReceived(QVector~Bar~)
         +requestMissingBars(QDateTime, QDateTime)
         #resizeEvent(QResizeEvent*)
         #wheelEvent(QWheelEvent*)
         #eventFilter(QObject*, QEvent*)
-        -updateChart()
-        -handleClosedBar(Bar)
-        -handleOpenBar(Bar)
-        -updateLastPriceLine(double, bool)
-        -updatePriceLabelPosition()
-        -isAfterMarketHours(QDateTime)
-        -updateAfterHoursBackground()
+        -redrawLastPriceLine()
         -maintainBarLimit()
         -handleVerticalPanning(QWheelEvent*)
         -handleHorizontalPanning(QWheelEvent*)
         -handleHorizontalZoom(QWheelEvent*, qreal)
         -handleVerticalZoom(QWheelEvent*, qreal)
         -handleBothAxesZoom(QWheelEvent*, qreal)
-        -updateLastPriceLineIfNeeded()
-        -handlePanning(QMouseEvent*)
         -checkForMissingBars(QDateTime, QDateTime)
-        -createBackgroundRect(QColor, int)
+        -getTimestampForIndex(int)
+        -addHistoricalBarsToIndexMapping(QVector~Bar~)
+        -updateCandlestickData()
+        -updateVolumeData()
+        -updateSessionBackgrounds()
         -clearBackgroundRects()
+        -updateAxisLabelsDensity()
+        -indexToTimeString(double)
     }
 
     class QWidget {
@@ -92,27 +88,78 @@ classDiagram
     }
 
     class GUIFrontend {
+        +onCurrentHighlightedStockBarReceived(QString, Bar)
         +onRequestedMissingBarsDisplayedStockReceived(QVector~Bar~)
     }
 
-    class AppFrontend {
+    class FrontEnd {
         <<interface>>
         +requestMissingBars(QDateTime, QDateTime)
     }
 
-    class MarketHours {
-        <<utility>>
-        +isPreMarket(QDateTime) bool
-        +isAfterHours(QDateTime) bool
-        +isRegularHours(QDateTime) bool
+    class QCustomPlot {
+        <<qcustomplot>>
+        +xAxis QCPAxis*
+        +yAxis QCPAxis*
+        +replot()
+        +setBackground(QBrush)
+        +plotLayout() QCPLayoutGrid*
+    }
+
+    class QCPFinancial {
+        <<qcustomplot>>
+        +setChartStyle(ChartStyle)
+        +setData(QCPFinancialDataContainer)
+        +setTwoColored(bool)
+        +setBrushPositive(QColor)
+        +setBrushNegative(QColor)
+    }
+
+    class QCPBars {
+        <<qcustomplot>>
+        +setData(QVector~double~, QVector~double~)
+        +setWidth(double)
+        +setBrush(QColor)
+    }
+
+    class QCPItemLine {
+        <<qcustomplot>>
+        +start QCPItemPosition*
+        +end QCPItemPosition*
+        +setPen(QPen)
+    }
+
+    class QCPItemText {
+        <<qcustomplot>>
+        +position QCPItemPosition*
+        +setText(QString)
+        +setColor(QColor)
+    }
+
+    class QCPItemRect {
+        <<qcustomplot>>
+        +topLeft QCPItemPosition*
+        +bottomRight QCPItemPosition*
+        +setBrush(QBrush)
+        +setLayer(QString)
+    }
+
+    class TimeFrameSelector {
+        +volumeChartVisibilityChanged(bool)
     }
 
     QWidget <|-- StockPriceChart
     StockPriceChart --> Bar : uses
-    StockPriceChart --> MarketHours : uses
+    StockPriceChart --> QCustomPlot : contains
+    StockPriceChart --> QCPFinancial : contains
+    StockPriceChart --> QCPBars : contains (2x for volume)
+    StockPriceChart --> QCPItemLine : contains
+    StockPriceChart --> QCPItemText : contains
+    StockPriceChart --> QCPItemRect : contains (multiple)
+    StockPriceChart --> TimeFrameSelector : contains
     GUIFrontend --> StockPriceChart : owns
-    AppFrontend <|-- GUIFrontend
-    StockPriceChart --> AppFrontend : signals
+    FrontEnd <|-- GUIFrontend
+    StockPriceChart --> FrontEnd : signals
 ```
 
 ## Data Flow Sequence
@@ -123,36 +170,47 @@ sequenceDiagram
     participant GUIFrontend
     participant StockPriceChart
     participant BarCache
-    participant QChart
+    participant QCustomPlot
 
-    Note over MainAlgo,QChart: Real-time Bar Updates
+    Note over MainAlgo,QCustomPlot: Real-time Bar Updates
     MainAlgo->>GUIFrontend: onCurrentHighlightedStockBarReceived(symbol, bar)
-    GUIFrontend->>StockPriceChart: addBar(bar)
+    GUIFrontend->>StockPriceChart: addLiveBar(symbol, bar)
     
-    alt Bar is Closed
-        StockPriceChart->>StockPriceChart: handleClosedBar(bar)
-        StockPriceChart->>StockPriceChart: Insert into completedBars
-        StockPriceChart->>StockPriceChart: maintainBarLimit()
-    else Bar is Open
-        StockPriceChart->>StockPriceChart: handleOpenBar(bar)
-        StockPriceChart->>StockPriceChart: Store as currentOpenBar
-        StockPriceChart->>StockPriceChart: updateLastPriceLine(price, isUpTick)
+    StockPriceChart->>StockPriceChart: Check if bar exists in indexToBar
+    
+    alt New Bar
+        StockPriceChart->>StockPriceChart: Assign sequential index
+        StockPriceChart->>StockPriceChart: Add to indexToBar and timestampToIndex
+    else Existing Bar
+        StockPriceChart->>StockPriceChart: Update bar at existing index
     end
     
-    StockPriceChart->>StockPriceChart: updateChart()
-    StockPriceChart->>QChart: Render candlesticks
-    StockPriceChart->>StockPriceChart: updateAfterHoursBackground()
+    StockPriceChart->>StockPriceChart: updateCandlestickData()
+    Note over StockPriceChart: Rebuild QCPFinancialData from indexToBar
+    
+    StockPriceChart->>StockPriceChart: updateVolumeData()
+    Note over StockPriceChart: Update QCPBars for volume
+    
+    StockPriceChart->>StockPriceChart: maintainBarLimit()
+    Note over StockPriceChart: Remove oldest if > MAX_BARS (1000)
+    
+    StockPriceChart->>QCustomPlot: replot()
+    StockPriceChart->>StockPriceChart: redrawLastPriceLine()
+    StockPriceChart->>StockPriceChart: updateSessionBackgrounds()
 
-    Note over MainAlgo,QChart: Historical Bar Request (Pan/Zoom)
+    Note over MainAlgo,QCustomPlot: Historical Bar Request (Pan/Zoom)
     StockPriceChart->>StockPriceChart: checkForMissingBars(viewStart, viewEnd)
-    StockPriceChart->>GUIFrontend: requestMissingBars(startTime, firstBarTime)
+    StockPriceChart->>GUIFrontend: emit requestMissingBars(startTime, firstBarTime)
     GUIFrontend->>MainAlgo: Forward signal
     MainAlgo->>BarCache: Request bars for time range
     BarCache-->>MainAlgo: Return QVector<Bar>
-    MainAlgo->>GUIFrontend: onRequestedMissingBarsDisplayedStockReceived(bars)
+    MainAlgo->>GUIFrontend: Forward bars
     GUIFrontend->>StockPriceChart: onRequestedMissingBarsReceived(bars)
-    StockPriceChart->>StockPriceChart: Insert bars into completedBars
-    StockPriceChart->>StockPriceChart: updateChart()
+    StockPriceChart->>StockPriceChart: addHistoricalBarsToIndexMapping(bars)
+    Note over StockPriceChart: Assign negative indices (-1, -2, -3...)
+    StockPriceChart->>StockPriceChart: Insert bars into indexToBar
+    StockPriceChart->>StockPriceChart: updateCandlestickData()
+    StockPriceChart->>QCustomPlot: replot()
 ```
 
 ## User Interaction Flow
@@ -201,32 +259,30 @@ stateDiagram-v2
 stateDiagram-v2
     [*] --> Empty : Chart Created
     
-    Empty --> FirstBar : addBar(bar)
-    FirstBar --> InitialView : Set 30min window
+    Empty --> FirstBar : addLiveBar(symbol, bar)
+    FirstBar --> InitialView : Set 30min window & index 0
     
     InitialView --> HasData
     
-    HasData --> UpdatingOpen : Bar.Status == Open
-    HasData --> UpdatingClosed : Bar.Status == Closed
+    HasData --> CheckExisting : addLiveBar called
     
-    UpdatingOpen --> StoringOpenBar : hasOpenBar == false
-    UpdatingOpen --> ReplacingOpenBar : hasOpenBar == true
+    CheckExisting --> UpdateExisting : Bar exists at index
+    CheckExisting --> AddNew : New bar
     
-    StoringOpenBar --> UpdateChart
-    ReplacingOpenBar --> MoveToCompleted : Different timestamp
-    MoveToCompleted --> UpdateChart
+    UpdateExisting --> UpdateMaps : Update indexToBar
+    AddNew --> AssignIndex : Sequential positive index
+    AssignIndex --> UpdateMaps
     
-    UpdatingClosed --> StoreCompleted : Add to completedBars
-    StoreCompleted --> EnforceLimitCheck
+    UpdateMaps --> UpdateCandlesticks : updateCandlestickData()
+    UpdateCandlesticks --> UpdateVolume : updateVolumeData()
+    UpdateVolume --> EnforceLimitCheck
     EnforceLimitCheck --> RemoveOldest : Size > MAX_BARS (1000)
-    EnforceLimitCheck --> UpdateChart : Size <= MAX_BARS
-    RemoveOldest --> UpdateChart
+    EnforceLimitCheck --> Replot : Size <= MAX_BARS
+    RemoveOldest --> Replot
     
-    UpdateChart --> RenderCandlesticks
-    RenderCandlesticks --> UpdateLastPriceLine
-    UpdateLastPriceLine --> UpdateBackgrounds
-    UpdateBackgrounds --> UpdatePriceLabel
-    UpdatePriceLabel --> HasData
+    Replot --> RedrawPriceLine : m_customPlot->replot()
+    RedrawPriceLine --> UpdateBackgrounds
+    UpdateBackgrounds --> HasData
     
     HasData --> [*] : clearSymbol()
 ```
@@ -241,21 +297,24 @@ graph TB
         UI[UI Components]
     end
     
-    subgraph "Chart Components"
-        QCV[QChartView]
-        QC[QChart]
-        CS[QCandlestickSeries]
-        LPL[Last Price Line]
-        VBS[Void Bar Series]
-        AX[QDateTimeAxis]
-        AY[QValueAxis]
-        PL[Price Label]
-        BGR[Background Rects]
+    subgraph "Chart Components (qcustomplot)"
+        QCP[QCustomPlot]
+        QCPF[QCPFinancial - Candlesticks]
+        LPL[QCPItemLine - Last Price]
+        PLT[QCPItemText - Price Label]
+        VAR[QCPAxisRect - Volume]
+        VBP[QCPBars - Volume Positive]
+        VBN[QCPBars - Volume Negative]
+        AX[X Axis - QCPAxis]
+        AY[Y Axis - QCPAxis]
+        BGR[QCPItemRect - Backgrounds]
+        TFS[TimeFrameSelector]
     end
     
     subgraph "Data Storage"
-        CB[Completed Bars Map]
-        OB[Current Open Bar]
+        ITB[indexToBar Map]
+        TTI[timestampToIndex Map]
+        LB[m_latestBar]
     end
     
     subgraph "Business Logic"
@@ -269,29 +328,32 @@ graph TB
     end
     
     GF -->|owns| SPC
-    SPC -->|contains| QCV
-    QCV -->|displays| QC
-    QC -->|series| CS
-    QC -->|series| LPL
-    QC -->|series| VBS
-    QC -->|axis| AX
-    QC -->|axis| AY
-    QC -->|graphics item| PL
-    QC -->|graphics item| BGR
+    SPC -->|contains| QCP
+    SPC -->|contains| TFS
+    QCP -->|main plot| QCPF
+    QCP -->|item| LPL
+    QCP -->|item| PLT
+    QCP -->|item| BGR
+    QCP -->|volume rect| VAR
+    VAR -->|bars| VBP
+    VAR -->|bars| VBN
+    QCP -->|axes| AX
+    QCP -->|axes| AY
     
-    SPC -->|stores| CB
-    SPC -->|stores| OB
+    SPC -->|stores| ITB
+    SPC -->|stores| TTI
+    SPC -->|stores| LB
     SPC -->|uses| MH
     
     MA -->|sends bars| GF
-    GF -->|addBar| SPC
+    GF -->|addLiveBar| SPC
     SPC -->|requestMissingBars| GF
     GF -->|forward| MA
     MA -->|queries| BC
     MA -->|receives| TS
     
     style SPC fill:#4a90e2
-    style QC fill:#50c878
+    style QCP fill:#50c878
     style MA fill:#ff6b6b
     style BC fill:#ffd93d
 ```
