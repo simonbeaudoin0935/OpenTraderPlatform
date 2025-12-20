@@ -497,7 +497,7 @@ void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, co
     
     // Get the actual bar indices for this session
     qreal sessionStartIndex = static_cast<qreal>(startIt.value());
-    qreal sessionEndIndex = static_cast<qreal>(endIt.value()) + 1.0;  // +1 to include the bar itself
+    qreal sessionEndIndex = static_cast<qreal>(endIt.value()) + 1.0;  // +1 to extend to end boundary of bar
     
     // Only draw if session intersects with visible area
     if (sessionEndIndex <= visibleMinIndex || sessionStartIndex >= visibleMaxIndex) {
