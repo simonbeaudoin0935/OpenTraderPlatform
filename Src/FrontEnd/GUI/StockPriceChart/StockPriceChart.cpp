@@ -891,6 +891,10 @@ void StockPriceChart::wheelEvent(QWheelEvent* event)
 {    
     qreal zoomFactor = event->angleDelta().y() > 0 ? 0.9 : 1.1;
 
+    // Detect which axis rect the mouse is over
+    QCPAxisRect* axisRectUnderMouse = m_customPlot->axisRectAt(event->pos());
+    bool isOverVolumeChart = (axisRectUnderMouse == m_volumeAxisRect);
+
     if ((event->modifiers() & Qt::ShiftModifier) && (event->modifiers() & Qt::ControlModifier)) {
         handleVerticalPanning(event);
     } else if (event->modifiers() & Qt::AltModifier) {
@@ -898,9 +902,9 @@ void StockPriceChart::wheelEvent(QWheelEvent* event)
     } else if (event->modifiers() & Qt::ControlModifier) {
         handleHorizontalZoom(event, zoomFactor);
     } else if (event->modifiers() & Qt::ShiftModifier) {
-        handleVerticalZoom(event, zoomFactor);
+        handleVerticalZoom(event, isOverVolumeChart, zoomFactor);
     } else {
-        handleBothAxesZoom(event, zoomFactor);
+        handleBothAxesZoom(event, isOverVolumeChart, zoomFactor);
     }
 
     event->accept();
@@ -960,44 +964,70 @@ void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor)
     m_customPlot->replot();
 }
 
-void StockPriceChart::handleVerticalZoom(QWheelEvent* event, qreal zoomFactor) {
+void StockPriceChart::handleVerticalZoom(QWheelEvent* event, bool isOverVolumeChart, qreal zoomFactor) {
     Q_UNUSED(event);
 
-    QCPRange range = m_customPlot->yAxis->range();
-    qreal center = range.center();
+    if (isOverVolumeChart) {
+        // When over volume chart, only zoom the volume Y axis
+        QCPRange range = m_volumeAxisRect->axis(QCPAxis::atLeft)->range();
+        qreal center = range.center();
 
-    qreal newSize = range.size() * zoomFactor;
-    qreal newMin = center - (newSize / 2);
-    qreal newMax = center + (newSize / 2);
+        qreal newSize = range.size() * zoomFactor;
+        qreal newMin = center - (newSize / 2);
+        qreal newMax = center + (newSize / 2);
 
-    m_customPlot->yAxis->setRange(qMax(0.0, newMin), newMax);
+        m_volumeAxisRect->axis(QCPAxis::atLeft)->setRange(qMax(0.0, newMin), newMax);
+    } else {
+        // When over price chart, only zoom the price Y axis
+        QCPRange range = m_customPlot->yAxis->range();
+        qreal center = range.center();
+
+        qreal newSize = range.size() * zoomFactor;
+        qreal newMin = center - (newSize / 2);
+        qreal newMax = center + (newSize / 2);
+
+        m_customPlot->yAxis->setRange(qMax(0.0, newMin), newMax);
+    }
     m_customPlot->replot();
 }
 
-void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor) {
+void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, bool isOverVolumeChart, qreal zoomFactor) {
     Q_UNUSED(event);
 
-    // X-axis zoom
-    QCPRange xRange = m_customPlot->xAxis->range();
-    qreal centerIndex = xRange.center();
-    qreal newXSize = xRange.size() * zoomFactor;
-    qreal newMinX = centerIndex - (newXSize / 2);
-    qreal newMaxX = centerIndex + (newXSize / 2);
-    
-    if (!indexToBar.isEmpty() && newMinX < indexToBar.firstKey()) {
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMinX));
-        checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
+    if (isOverVolumeChart) {
+        // When over volume chart, only zoom Y axis of volume chart
+        QCPRange range = m_volumeAxisRect->axis(QCPAxis::atLeft)->range();
+        qreal center = range.center();
+
+        qreal newSize = range.size() * zoomFactor;
+        qreal newMin = center - (newSize / 2);
+        qreal newMax = center + (newSize / 2);
+
+        m_volumeAxisRect->axis(QCPAxis::atLeft)->setRange(qMax(0.0, newMin), newMax);
+    } else {
+        // When over price chart, zoom both axes
+        // X-axis zoom (this will automatically transfer to volume chart via connected signals)
+        QCPRange xRange = m_customPlot->xAxis->range();
+        qreal centerIndex = xRange.center();
+        qreal newXSize = xRange.size() * zoomFactor;
+        qreal newMinX = centerIndex - (newXSize / 2);
+        qreal newMaxX = centerIndex + (newXSize / 2);
+        
+        if (!indexToBar.isEmpty() && newMinX < indexToBar.firstKey()) {
+            QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMinX));
+            checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
+        }
+
+        // Y-axis zoom (only for price chart)
+        QCPRange yRange = m_customPlot->yAxis->range();
+        qreal centerPrice = yRange.center();
+        qreal newYSize = yRange.size() * zoomFactor;
+        qreal newMinY = centerPrice - (newYSize / 2);
+        qreal newMaxY = centerPrice + (newYSize / 2);
+
+        m_customPlot->xAxis->setRange(newMinX, newMaxX);
+        m_customPlot->yAxis->setRange(qMax(0.0, newMinY), newMaxY);
     }
-
-    // Y-axis zoom
-    QCPRange yRange = m_customPlot->yAxis->range();
-    qreal centerPrice = yRange.center();
-    qreal newYSize = yRange.size() * zoomFactor;
-    qreal newMinY = centerPrice - (newYSize / 2);
-    qreal newMaxY = centerPrice + (newYSize / 2);
-
-    m_customPlot->xAxis->setRange(newMinX, newMaxX);
-    m_customPlot->yAxis->setRange(qMax(0.0, newMinY), newMaxY);
     m_customPlot->replot();
 }
 
