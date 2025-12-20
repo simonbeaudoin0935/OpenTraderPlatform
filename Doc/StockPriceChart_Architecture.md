@@ -859,6 +859,166 @@ sequenceDiagram
 
 ---
 
+## Session Background Rendering
+
+### Overview
+
+The chart displays colored background rectangles to visually distinguish different trading sessions:
+- **Pre-Market** (4:00 AM - 9:30 AM ET): Orange with 180 alpha transparency
+- **Regular Hours** (9:30 AM - 4:00 PM ET): No background (default)
+- **After Hours** (4:00 PM - 8:00 PM ET): Violet with 180 alpha transparency
+- **Closed** (8:00 PM - 4:00 AM ET): No background
+
+These rectangles are dynamically updated when the chart view changes (zoom/pan) and align with the actual bar positions on the chart.
+
+### Architecture
+
+The system consists of three main components:
+
+1. **updateSessionBackgrounds()**: Called when axis ranges change
+2. **drawBackgroundForTimeRange()**: Converts time ranges to index ranges and creates rectangles
+3. **clearBackgroundRects()**: Removes all existing rectangles before redraw
+
+### Critical Implementation Detail: Timezone Consistency
+
+**All timestamps must use America/New_York timezone** for proper alignment. This is because:
+
+```cpp
+// In Bar.cpp line 109 - bars are stored with NY timezone
+timeStamp = QDateTime::fromString(...).toTimeZone(QTimeZone("America/New_York"));
+
+// In timestampToIndex map - keys are QDateTime with NY timezone
+timestampToIndex[bar.getTimeStamp()] = index;  // NY timezone!
+```
+
+When looking up timestamps in `drawBackgroundForTimeRange()`:
+```cpp
+// This lookup requires exact timezone match
+auto startIt = timestampToIndex.lowerBound(rangeStart);  
+```
+
+**QDateTime comparison is timezone-aware**: Two QDateTime objects representing the same absolute time but with different timezones will NOT match in map lookups.
+
+### Session Background Update Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Axis as Axes (X/Y)
+    participant SPC as StockPriceChart
+    participant Map as timestampToIndex
+    
+    User->>Axis: Zoom or Pan
+    Axis->>SPC: onAxisRangeChanged()
+    SPC->>SPC: updateSessionBackgrounds()
+    
+    SPC->>SPC: clearBackgroundRects()
+    Note over SPC: Remove all existing rectangles
+    
+    SPC->>Map: Get visible bar range
+    Map->>SPC: Return start/end timestamps (NY timezone)
+    
+    loop For each day in visible range
+        loop For each session (pre/after)
+            SPC->>SPC: Calculate session time range (NY timezone)
+            Note over SPC: e.g., 4:00 AM - 9:30 AM for pre-market
+            
+            SPC->>SPC: drawBackgroundForTimeRange(sessionStart, sessionEnd, color)
+            
+            SPC->>Map: timestampToIndex.lowerBound(sessionStart)
+            Map->>SPC: Return bar index for start
+            
+            SPC->>Map: timestampToIndex.upperBound(sessionEnd)
+            Map->>SPC: Return bar index for end
+            
+            SPC->>SPC: Create QCPItemRect from start index to end index
+            Note over SPC: Rectangle coordinates:<br/>X: [startIndex, endIndex]<br/>Y: [yAxis.min, yAxis.max]
+            
+            SPC->>SPC: Add rect to m_preMarketRects or m_afterHoursRects
+        end
+    end
+    
+    SPC->>SPC: m_customPlot->replot()
+```
+
+### Index-to-Coordinate Conversion
+
+```mermaid
+graph LR
+    subgraph "Time Domain (NY Timezone)"
+        T1[4:00 AM<br/>Pre-Market Start]
+        T2[9:30 AM<br/>Pre-Market End]
+    end
+    
+    subgraph "Index Domain"
+        I1[Index 0]
+        I2[Index 330]
+    end
+    
+    subgraph "Visual Domain"
+        R1[Rectangle Start X]
+        R2[Rectangle End X]
+    end
+    
+    T1 -->|timestampToIndex.lowerBound| I1
+    T2 -->|timestampToIndex.upperBound| I2
+    I1 -->|QCPItemRect coords| R1
+    I2 -->|QCPItemRect coords| R2
+    R1 --> Rect[Colored Rectangle]
+    R2 --> Rect
+```
+
+### Data Structures
+
+```cpp
+// Rectangle storage
+QList<QCPItemRect*> m_preMarketRects;     // Orange rectangles
+QList<QCPItemRect*> m_afterHoursRects;    // Violet rectangles
+
+// Index mapping (keys use America/New_York timezone!)
+QMap<QDateTime, int> timestampToIndex;     // Timestamp → Index
+QMap<int, Bar> indexToBar;                 // Index → Bar
+```
+
+### Common Issues and Solutions
+
+#### Issue 1: Rectangles Not Appearing
+
+**Symptom**: No colored backgrounds visible even though market is in pre/after hours.
+
+**Cause**: Timezone mismatch in timestamp lookup.
+
+**Solution**: Ensure all timestamps passed to `drawBackgroundForTimeRange()` use America/New_York timezone (fixed in commit b26cafc).
+
+#### Issue 2: Rectangles Spanning Entire Chart
+
+**Symptom**: Background covers all visible bars, not just the session hours.
+
+**Cause**: timestampToIndex lookup fails, falls back to visible range defaults.
+
+**Solution**: Same as Issue 1 - timezone consistency.
+
+#### Issue 3: Rectangles Misaligned by Time Offset
+
+**Symptom**: Rectangles appear shifted by several hours.
+
+**Cause**: Mixing local time and NY time in calculations.
+
+**Solution**: Keep all calculations in NY timezone until final display.
+
+### Performance Considerations
+
+- **Rectangles are recreated on every axis change**: This is acceptable because:
+  - QCPItemRect creation is fast
+  - Number of rectangles is small (typically 2-4 per visible day)
+  - User doesn't zoom/pan continuously
+  
+- **Map lookups are O(log n)**: `lowerBound` and `upperBound` are efficient even with thousands of bars.
+
+- **Layer optimization**: Rectangles use the "background" layer to render behind data without affecting performance.
+
+---
+
 ## Potential Crash Points
 
 ### Critical Assert and Edge Cases
