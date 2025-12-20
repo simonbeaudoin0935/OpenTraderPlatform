@@ -975,14 +975,11 @@ void StockPriceChart::handleVerticalZoom(QWheelEvent* event, bool isOverVolumeCh
 
     if (isOverVolumeChart) {
         // When over volume chart, only zoom the volume Y axis
+        // Keep lower bound at 0, only adjust upper bound
         QCPRange range = m_volumeAxisRect->axis(QCPAxis::atLeft)->range();
-        qreal center = range.center();
+        qreal newMax = range.upper * zoomFactor;
 
-        qreal newSize = range.size() * zoomFactor;
-        qreal newMin = center - (newSize / 2);
-        qreal newMax = center + (newSize / 2);
-
-        m_volumeAxisRect->axis(QCPAxis::atLeft)->setRange(qMax(0.0, newMin), newMax);
+        m_volumeAxisRect->axis(QCPAxis::atLeft)->setRange(0.0, newMax);
     } else {
         // When over price chart, only zoom the price Y axis
         QCPRange range = m_customPlot->yAxis->range();
@@ -1002,14 +999,11 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, bool isOverVolumeCh
 
     if (isOverVolumeChart) {
         // When over volume chart, only zoom Y axis of volume chart
+        // Keep lower bound at 0, only adjust upper bound
         QCPRange range = m_volumeAxisRect->axis(QCPAxis::atLeft)->range();
-        qreal center = range.center();
+        qreal newMax = range.upper * zoomFactor;
 
-        qreal newSize = range.size() * zoomFactor;
-        qreal newMin = center - (newSize / 2);
-        qreal newMax = center + (newSize / 2);
-
-        m_volumeAxisRect->axis(QCPAxis::atLeft)->setRange(qMax(0.0, newMin), newMax);
+        m_volumeAxisRect->axis(QCPAxis::atLeft)->setRange(0.0, newMax);
     } else {
         // When over price chart, zoom both axes
         // X-axis zoom (this will automatically transfer to volume chart via connected signals)
