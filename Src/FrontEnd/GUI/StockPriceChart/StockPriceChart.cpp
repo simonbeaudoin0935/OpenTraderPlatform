@@ -892,7 +892,13 @@ void StockPriceChart::wheelEvent(QWheelEvent* event)
     qreal zoomFactor = event->angleDelta().y() > 0 ? 0.9 : 1.1;
 
     // Detect which axis rect the mouse is over
-    QCPAxisRect* axisRectUnderMouse = m_customPlot->axisRectAt(event->pos());
+    // Handle Qt version differences: Qt 5.14+ uses position() instead of pos()
+#if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
+    const QPointF mousePos = event->pos();
+#else
+    const QPointF mousePos = event->position();
+#endif
+    QCPAxisRect* axisRectUnderMouse = m_customPlot->axisRectAt(mousePos);
     bool isOverVolumeChart = (axisRectUnderMouse == m_volumeAxisRect);
 
     if ((event->modifiers() & Qt::ShiftModifier) && (event->modifiers() & Qt::ControlModifier)) {
