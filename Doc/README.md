@@ -21,13 +21,9 @@ This directory contains comprehensive documentation for the L2Trader application
 ### StockPriceChart Component (qcustomplot-based)
 - **[StockPriceChart_Diagram.md](StockPriceChart_Diagram.md)** - Class diagrams for the chart component
   - Updated: Uses qcustomplot classes (QCustomPlot, QCPFinancial, QCPBars, QCPItemLine, QCPItemRect)
-- **[StockPriceChart_Architecture.md](StockPriceChart_Architecture.md)** - ⭐ **Comprehensive documentation** including:
-  - Detailed architecture and class relationships (NEEDS UPDATE for qcustomplot)
-  - Complete data flow diagrams
-  - Event handling for zoom/pan/mouse interactions
-  - State management and view preservation
-  - Missing bars detection and loading
-  - Bidirectional index system
+- **[StockPriceChart_Architecture.md](StockPriceChart_Architecture.md)** - ⭐ **Comprehensive documentation**
+  - ⚠️ **Note**: Contains some outdated Qt Charts references - core architecture concepts remain valid but implementation details reference old Qt Charts API. Use in conjunction with updated StockPriceChart_Diagram.md and StockPriceChart_BarReception.md for current implementation.
+  - Includes: Detailed architecture, data flow diagrams, event handling, state management, missing bars detection
 - **[StockPriceChart_BarReception.md](StockPriceChart_BarReception.md)** - Bar reception and processing flow
   - Updated: Reflects qcustomplot implementation with addLiveBar() and index-based system
 - **[BidirectionalIndexSystem_Implementation.md](BidirectionalIndexSystem_Implementation.md)** - Index system details
