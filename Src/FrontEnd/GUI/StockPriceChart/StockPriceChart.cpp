@@ -414,16 +414,14 @@ void StockPriceChart::updateSessionBackgrounds() {
                 QDateTime(currentDate, QTime(23, 59, 59), nyZone) :
                 QDateTime(currentDate, QTime(sessionEndHour, 0), nyZone);
             
-            QDateTime localSessionStart = sessionStart.toLocalTime();
-            QDateTime localSessionEnd = sessionEnd.toLocalTime();
-            
+            // Keep NY timezone to match bar timestamps stored in timestampToIndex map
             // Draw one rectangle for the entire session
             if (isPreMarket) {
-                drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
+                drawBackgroundForTimeRange(sessionStart, sessionEnd,
                                           QColor(255, 165, 0, 180), m_preMarketRects);  // More visible orange
             }
             else if (isAfterHours) {
-                drawBackgroundForTimeRange(localSessionStart, localSessionEnd,
+                drawBackgroundForTimeRange(sessionStart, sessionEnd,
                                           QColor(138, 43, 226, 180), m_afterHoursRects);  // More visible violet
             }
             
