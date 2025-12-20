@@ -414,7 +414,9 @@ void StockPriceChart::updateSessionBackgrounds() {
                 QDateTime(currentDate, QTime(23, 59, 59), nyZone) :
                 QDateTime(currentDate, QTime(sessionEndHour, 0), nyZone);
             
-            // Keep NY timezone to match bar timestamps stored in timestampToIndex map
+            // CRITICAL: Keep NY timezone to match bar timestamps stored in timestampToIndex map.
+            // QDateTime comparison in QMap is timezone-aware, so even if two QDateTime objects
+            // represent the same absolute time, they won't match if timezones differ.
             // Draw one rectangle for the entire session
             if (isPreMarket) {
                 drawBackgroundForTimeRange(sessionStart, sessionEnd,

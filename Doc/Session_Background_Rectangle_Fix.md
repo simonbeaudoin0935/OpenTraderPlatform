@@ -47,8 +47,8 @@ auto endIt = timestampToIndex.upperBound(rangeEnd);      // FAILS!
 ```
 
 **The Problem**: QMap uses QDateTime's comparison operators, which are timezone-aware. Even if two QDateTime objects represent the same absolute time:
-- `QDateTime("2024-01-01 09:30", "America/New_York")` 
-- `QDateTime("2024-01-01 14:30", "UTC")`  (same instant in time)
+- `QDateTime::fromString("2024-01-01T09:30:00", Qt::ISODate).toTimeZone(QTimeZone("America/New_York"))` 
+- `QDateTime::fromString("2024-01-01T14:30:00", Qt::ISODate).toTimeZone(QTimeZone("UTC"))`  (same instant in time)
 
 They are **NOT equal** for map lookups because they have different timezone representations.
 
