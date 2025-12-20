@@ -2,10 +2,11 @@
 
 ## Problem Description
 
-The session background rectangles (pre-market and after-hours) were not properly aligning with the correct x-axis indices in the price chart. Two distinct issues were identified:
+The session background rectangles (pre-market and after-hours) were not properly aligning with the correct x-axis indices in the price chart. Three distinct issues were identified:
 
 1. **Timezone Mismatch**: Rectangles not appearing or appearing at wrong positions due to timestamp lookup failures
 2. **Incorrect Clipping Logic**: Rectangles drawing across the entire screen when sessions extended beyond visible range
+3. **Session Boundary Precision**: Pre-market rectangle ending at 10:00 AM instead of 9:30 AM due to hour-by-hour scanning
 
 ## Root Cause Analysis
 
@@ -92,6 +93,47 @@ if (startIt != timestampToIndex.end()) {
 
 The logic was trying to be "smart" by only using found indices if they were within the visible range, but this backfired. When a session extended beyond the visible range, it would fall back to the defaults (entire visible range), causing full-screen overlays.
 
+### Issue 3: Session Boundary Precision
+
+After fixing issues 1 and 2, a third problem was noticed: the pre-market rectangle was ending at 10:00 AM instead of 9:30 AM.
+
+#### The Bug (Issue 3)
+
+The session detection logic scanned hour-by-hour:
+```cpp
+// Original buggy code - hour-by-hour scanning
+int hour = 0;
+while (hour < 24) {
+    QDateTime hourStart = QDateTime(currentDate, QTime(hour, 0), nyZone);
+    bool isPreMarket = MarketHours::isPreMarket(hourStart);
+    
+    // Find the end of this session by scanning forward
+    int sessionEndHour = hour;
+    while (sessionEndHour < 24) {
+        QDateTime testTime = QDateTime(currentDate, QTime(sessionEndHour, 0), nyZone);
+        bool sameSession = (isPreMarket && MarketHours::isPreMarket(testTime));
+        if (!sameSession) break;
+        sessionEndHour++;
+    }
+    // sessionEnd = QTime(sessionEndHour, 0)
+    hour = sessionEndHour;
+}
+```
+
+**The Problem**: Market hours have **non-hour boundaries** (9:30 AM), but scanning checked only whole hours!
+
+**Example showing the bug:**
+- Hour 4 (4:00 AM): `isPreMarket(4:00) = true` ✓
+- Hour 5 (5:00 AM): `isPreMarket(5:00) = true` ✓
+- ...
+- Hour 9 (9:00 AM): `isPreMarket(9:00) = true` ✓ (9:00 < 9:30)
+- Increment: `sessionEndHour = 10`
+- Hour 10 (10:00 AM): `isPreMarket(10:00) = false` ✗ (10:00 >= 9:30)
+- Break detected, session end set to **10:00 AM**
+
+The scanner couldn't detect the 9:30 AM boundary because it only checked at 9:00 AM (true) and 10:00 AM (false), never checking 9:30 AM itself.
+
+
 ## The Fixes
 
 ### Fix 1: Timezone Consistency (Commit b26cafc)
@@ -168,12 +210,57 @@ qreal clippedEnd = qMin(sessionEndIndex, visibleMaxIndex);
 
 Now when multiple sessions are present (e.g., pre-market from 50-330, after-hours from 390-480), each gets its own correctly clipped rectangle instead of overlapping full-screen rectangles.
 
+### Fix 3: Session Boundary Precision (Commit ae3b36d)
+
+**Use hardcoded session boundaries instead of hour-by-hour scanning:**
+
+The original code scanned hour-by-hour to detect session boundaries:
+```cpp
+// Original buggy code - hour-by-hour scanning
+int hour = 0;
+while (hour < 24) {
+    QDateTime hourStart = QDateTime(currentDate, QTime(hour, 0), nyZone);
+    bool isPreMarket = MarketHours::isPreMarket(hourStart);
+    // ... scan forward to find session end ...
+    hour = sessionEndHour;
+}
+```
+
+**The Problem**: Market opens at **9:30 AM**, not on an hour boundary!
+
+**Example showing the bug:**
+- Hour 9 (9:00 AM): `isPreMarket(9:00) = true` ✓ (9:00 < 9:30)
+- Hour 10 (10:00 AM): `isPreMarket(10:00) = false` ✗ (10:00 >= 9:30)
+- Session end detected at **10:00 AM** instead of **9:30 AM**
+
+The fix directly uses the known session boundaries:
+```cpp
+// Fixed - use exact boundaries
+// Pre-market: 4:00 AM - 9:30 AM ET
+QDateTime preMarketStart = QDateTime(currentDate, QTime(4, 0), nyZone);
+QDateTime preMarketEnd = QDateTime(currentDate, QTime(9, 30), nyZone);
+
+// After-hours: 4:00 PM - 8:00 PM ET
+QDateTime afterHoursStart = QDateTime(currentDate, QTime(16, 0), nyZone);
+QDateTime afterHoursEnd = QDateTime(currentDate, QTime(20, 0), nyZone);
+
+// Draw rectangles with exact boundaries
+drawBackgroundForTimeRange(preMarketStart, preMarketEnd, ...);
+drawBackgroundForTimeRange(afterHoursStart, afterHoursEnd, ...);
+```
+
+**Benefits:**
+1. **Accurate**: Pre-market ends at exactly 9:30 AM
+2. **Efficient**: No scanning needed, direct boundary usage
+3. **Maintainable**: Session times clearly visible in code
+4. **Aligned with MarketHours**: Uses same boundaries as `MarketHours::isPreMarket()` checks
+
 ## Testing Recommendations
 
 When testing this fix, verify:
 
 1. **Pre-market rectangles** (orange, 180 alpha):
-   - Appear from 4:00 AM - 9:30 AM ET
+   - Appear from 4:00 AM - **9:30 AM** ET (not 10:00 AM!)
    - Align with bars during those hours
    - Span the correct index range
 
