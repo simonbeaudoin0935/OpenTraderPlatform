@@ -6,10 +6,13 @@
 #include <QMap>
 #include <QLoggingCategory>
 #include <QVBoxLayout>
+#include <QtConcurrent/QtConcurrent>
+#include <QFuture>
+#include <QFutureWatcher>
 
 #include "qcustomplot.h"
 #include "Bar.h"
-#include "TimeFrameSelector.h"
+#include "ChartToolbar.h"
 
 Q_DECLARE_LOGGING_CATEGORY(ChartLog)
 
@@ -44,6 +47,11 @@ public:
     void setSymbol(const QString& symbol);
     void clearSymbol();
 
+    /**
+     * @brief Populates the replay day dropdown with available dates from cache.
+     */
+    void populateAvailableReplayDays();
+
 signals:
     void requestMissingBars(QDateTime viewStartTimeRounded, QDateTime firstBarTime);
 
@@ -54,6 +62,8 @@ public slots:
 private slots:
     void onAxisRangeChanged();
     void onVolumeChartVisibilityChanged(bool visible);
+    void onReplayDayChanged(const QDate& date);
+    void onReplayTimeRangeQueryFinished();
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -70,6 +80,14 @@ private:
     // Configurable thresholds for axis label density (pixels per tick)
     static constexpr int MIN_PIXELS_PER_TICK_X = 40;
     static constexpr int MIN_PIXELS_PER_TICK_Y = 30;
+
+    /**
+     * @brief Queries the database for the first and last timestamps of a stock on a specific date.
+     * @param symbol The stock symbol to query
+     * @param date The date to query
+     * @return A tuple of QDateTime objects representing the first and last timestamps, and the bar count
+     */
+    std::tuple<QDateTime, QDateTime, int> queryStockTimeRangeForDate(const QString& symbol, const QDate& date);
 
     void redrawLastPriceLine();
     void maintainBarLimit();
@@ -120,9 +138,12 @@ private:
     QMap<QDateTime, int> timestampToIndex;  // Map from timestamp to index
 
     // Timeframe selector widget
-    TimeFrameSelector* timeframeSelector;
+    ChartToolbar* chartToolbar;
 
     bool currentGetBarsRequestInProcess = false;
+    
+    // Replay functionality
+    QFutureWatcher<std::tuple<QDateTime, QDateTime, int>>* replayTimeRangeWatcher;
     
     // Helper to convert index to time for axis labels
     QString indexToTimeString(double index) const;

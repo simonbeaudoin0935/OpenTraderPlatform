@@ -1,0 +1,446 @@
+#include "ChartToolbar.h"
+#include <QHBoxLayout>
+#include <QCheckBox>
+
+/**
+ * @brief Constructs a ChartToolbar widget.
+ */
+ChartToolbar::ChartToolbar(QWidget* parent)
+    : QWidget(parent) {
+
+    // Create the label
+    label = new QLabel("Timeframe:", this);
+    label->setStyleSheet("font-weight: bold;");
+
+    // Create the combobox
+    comboBox = new QComboBox(this);
+    comboBox->setMinimumWidth(80);
+    comboBox->setMaximumWidth(100);
+
+    // Create the auto checkbox
+    autoCheckBox = new QCheckBox("Auto", this);
+
+    // Create the volume visibility checkbox
+    volumeCheckBox = new QCheckBox("Volume", this);
+    volumeCheckBox->setChecked(true); // Volume visible by default
+
+    // Create replay controls
+    replayLabel = new QLabel("Replay:", this);
+    replayLabel->setStyleSheet("font-weight: bold;");
+
+    replayDayCombo = new QComboBox(this);
+    replayDayCombo->setMinimumWidth(100);
+    replayDayCombo->setMaximumWidth(120);
+
+    replayTimeEdit = new QTimeEdit(this);
+    replayTimeEdit->setDisplayFormat("hh:mm");
+    replayTimeEdit->setTime(QTime(9, 30)); // Default to 9:30 AM
+
+    playPauseButton = new QPushButton("Play", this);
+    playPauseButton->setCheckable(true);
+
+    // Populate with timeframe options
+    populateTimeFrames();
+
+    // Set default to 1 minute
+    setCurrentTimeFrame(TimeFrame::ONE_MINUTE);
+
+    // Create layout
+    QHBoxLayout* layout = new QHBoxLayout(this);
+    layout->setContentsMargins(5, 5, 5, 5);
+    layout->setSpacing(5);
+    layout->addWidget(label);
+    layout->addWidget(comboBox);
+    layout->addWidget(autoCheckBox);
+    layout->addWidget(volumeCheckBox);
+    layout->addStretch(); // Push replay widgets to the right
+    layout->addWidget(replayLabel);
+    layout->addWidget(replayDayCombo);
+    layout->addWidget(replayTimeEdit);
+    layout->addWidget(playPauseButton);
+
+    // Connect signals
+    connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &ChartToolbar::onComboBoxChanged);
+    connect(autoCheckBox, &QCheckBox::stateChanged,
+            this, &ChartToolbar::onAutoCheckBoxChanged);
+    connect(volumeCheckBox, &QCheckBox::stateChanged,
+            this, &ChartToolbar::onVolumeCheckBoxChanged);
+    connect(replayDayCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &ChartToolbar::onReplayDayChanged);
+    connect(replayTimeEdit, &QTimeEdit::timeChanged,
+            this, &ChartToolbar::onReplayTimeChanged);
+    connect(playPauseButton, &QPushButton::clicked,
+            this, &ChartToolbar::onPlayPauseClicked);
+
+    // Set a nice background and border
+    setStyleSheet(
+        "ChartToolbar {"
+        "    background-color: #2a2a2a;"
+        "    border: 1px solid #555;"
+        "    border-radius: 3px;"
+        "}"
+        "QLabel {"
+        "    color: #ffffff;"
+        "}"
+        "QComboBox {"
+        "    background-color: #3a3a3a;"
+        "    color: #ffffff;"
+        "    border: 1px solid #666;"
+        "    border-radius: 3px;"
+        "    padding: 2px;"
+        "}"
+        "QComboBox::drop-down {"
+        "    border: none;"
+        "}"
+        "QComboBox::down-arrow {"
+        "    image: url(down_arrow.png);"
+        "    width: 12px;"
+        "    height: 12px;"
+        "}"
+        "QComboBox QAbstractItemView {"
+        "    background-color: #3a3a3a;"
+        "    color: #ffffff;"
+        "    selection-background-color: #555;"
+        "    border: 1px solid #666;"
+        "}"
+        "QCheckBox {"
+        "    color: #ffffff;"
+        "}"
+        "QCheckBox::indicator {"
+        "    width: 13px;"
+        "    height: 13px;"
+        "}"
+        "QCheckBox::indicator:unchecked {"
+        "    border: 1px solid #666;"
+        "    background-color: #3a3a3a;"
+        "}"
+        "QCheckBox::indicator:checked {"
+        "    border: 1px solid #666;"
+        "    background-color: #555;"
+        "}"
+        "QTimeEdit {"
+        "    background-color: #3a3a3a;"
+        "    color: #ffffff;"
+        "    border: 1px solid #666;"
+        "    border-radius: 3px;"
+        "    padding: 2px;"
+        "}"
+        "QPushButton {"
+        "    background-color: #3a3a3a;"
+        "    color: #ffffff;"
+        "    border: 1px solid #666;"
+        "    border-radius: 3px;"
+        "    padding: 4px 8px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #555;"
+        "}"
+        "QPushButton:pressed {"
+        "    background-color: #666;"
+        "}"
+        "QPushButton:checked {"
+        "    background-color: #4a4a4a;"
+        "}"
+    );
+
+    // Scan and populate available replay days from cache
+    scanAndPopulateReplayDays();
+}
+
+/**
+ * @brief Gets the currently selected timeframe.
+ */
+TimeFrame ChartToolbar::getCurrentTimeFrame() const {
+    int currentIndex = comboBox->currentIndex();
+    if (currentIndex >= 0 && currentIndex < comboBox->count()) {
+        return static_cast<TimeFrame>(comboBox->itemData(currentIndex).toInt());
+    }
+    return TimeFrame::ONE_MINUTE; // Default fallback
+}
+
+/**
+ * @brief Sets the selected timeframe.
+ */
+void ChartToolbar::setCurrentTimeFrame(TimeFrame timeframe) {
+    for (int i = 0; i < comboBox->count(); ++i) {
+        if (static_cast<TimeFrame>(comboBox->itemData(i).toInt()) == timeframe) {
+            comboBox->setCurrentIndex(i);
+            break;
+        }
+    }
+}
+
+/**
+ * @brief Checks if auto timeframe selection is enabled.
+ */
+bool ChartToolbar::isAutoTimeFrameEnabled() const {
+    return autoCheckBox->isChecked();
+}
+
+/**
+ * @brief Sets the auto timeframe selection state.
+ */
+void ChartToolbar::setAutoTimeFrameEnabled(bool enabled) {
+    autoCheckBox->setChecked(enabled);
+}
+
+/**
+ * @brief Checks if volume chart is visible.
+ */
+bool ChartToolbar::isVolumeChartVisible() const {
+    return volumeCheckBox->isChecked();
+}
+
+/**
+ * @brief Sets the volume chart visibility state.
+ */
+void ChartToolbar::setVolumeChartVisible(bool visible) {
+    volumeCheckBox->setChecked(visible);
+}
+
+/**
+ * @brief Handles combobox selection changes.
+ */
+void ChartToolbar::onComboBoxChanged(int index) {
+    if (index >= 0 && index < comboBox->count()) {
+        TimeFrame selectedTimeFrame = static_cast<TimeFrame>(comboBox->itemData(index).toInt());
+        emit timeFrameChanged(selectedTimeFrame);
+    }
+}
+
+/**
+ * @brief Handles checkbox state changes.
+ */
+void ChartToolbar::onAutoCheckBoxChanged(int state) {
+    bool enabled = (state == Qt::Checked);
+    emit autoTimeFrameChanged(enabled);
+}
+
+/**
+ * @brief Handles volume chart visibility checkbox state changes.
+ */
+void ChartToolbar::onVolumeCheckBoxChanged(int state) {
+    bool visible = (state == Qt::Checked);
+    emit volumeChartVisibilityChanged(visible);
+}
+
+/**
+ * @brief Sets the available days for market replay.
+ */
+void ChartToolbar::setAvailableReplayDays(const QList<QDate>& days) {
+    replayDayCombo->clear();
+    for (const QDate& date : days) {
+        replayDayCombo->addItem(date.toString("yyyy-MM-dd"), date);
+    }
+    if (!days.isEmpty()) {
+        replayDayCombo->setCurrentIndex(0);
+    }
+}
+
+/**
+ * @brief Gets the currently selected replay day.
+ */
+QDate ChartToolbar::getSelectedReplayDay() const {
+    int currentIndex = replayDayCombo->currentIndex();
+    if (currentIndex >= 0 && currentIndex < replayDayCombo->count()) {
+        return replayDayCombo->itemData(currentIndex).toDate();
+    }
+    return QDate(); // Invalid date if no selection
+}
+
+/**
+ * @brief Sets the selected replay day.
+ */
+void ChartToolbar::setSelectedReplayDay(const QDate& date) {
+    for (int i = 0; i < replayDayCombo->count(); ++i) {
+        if (replayDayCombo->itemData(i).toDate() == date) {
+            replayDayCombo->setCurrentIndex(i);
+            break;
+        }
+    }
+}
+
+/**
+ * @brief Gets the replay start time.
+ */
+QTime ChartToolbar::getReplayStartTime() const {
+    return replayTimeEdit->time();
+}
+
+/**
+ * @brief Sets the replay start time.
+ */
+void ChartToolbar::setReplayStartTime(const QTime& time) {
+    replayTimeEdit->setTime(time);
+}
+
+/**
+ * @brief Checks if replay is currently playing.
+ */
+bool ChartToolbar::isReplayPlaying() const {
+    return playPauseButton->isChecked();
+}
+
+/**
+ * @brief Sets the replay play/pause state.
+ */
+void ChartToolbar::setReplayPlaying(bool playing) {
+    playPauseButton->setChecked(playing);
+    updatePlayPauseButton();
+}
+
+/**
+ * @brief Handles replay day combobox selection changes.
+ */
+void ChartToolbar::onReplayDayChanged(int index) {
+    if (index >= 0 && index < replayDayCombo->count()) {
+        QDate selectedDate = replayDayCombo->itemData(index).toDate();
+        emit replayDayChanged(selectedDate);
+    }
+}
+
+/**
+ * @brief Handles replay time edit changes.
+ */
+void ChartToolbar::onReplayTimeChanged(const QTime& time) {
+    emit replayStartTimeChanged(time);
+}
+
+/**
+ * @brief Handles play/pause button clicks.
+ */
+void ChartToolbar::onPlayPauseClicked() {
+    bool playing = playPauseButton->isChecked();
+    updatePlayPauseButton();
+    emit replayPlayPauseToggled(playing);
+}
+
+/**
+ * @brief Updates the play/pause button text based on current state.
+ */
+void ChartToolbar::updatePlayPauseButton() {
+    if (playPauseButton->isChecked()) {
+        playPauseButton->setText("Pause");
+    } else {
+        playPauseButton->setText("Play");
+    }
+}
+
+/**
+ * @brief Populates the combobox with timeframe options.
+ */
+void ChartToolbar::populateTimeFrames() {
+    // Clear existing items
+    comboBox->clear();
+
+    // Add timeframe options with their enum values as user data
+    comboBox->addItem("1m", static_cast<int>(TimeFrame::ONE_MINUTE));
+    comboBox->addItem("5m", static_cast<int>(TimeFrame::FIVE_MINUTES));
+    comboBox->addItem("15m", static_cast<int>(TimeFrame::FIFTEEN_MINUTES));
+    comboBox->addItem("30m", static_cast<int>(TimeFrame::THIRTY_MINUTES));
+    comboBox->addItem("1h", static_cast<int>(TimeFrame::ONE_HOUR));
+    comboBox->addItem("4h", static_cast<int>(TimeFrame::FOUR_HOURS));
+    comboBox->addItem("1d", static_cast<int>(TimeFrame::ONE_DAY));
+    comboBox->addItem("1w", static_cast<int>(TimeFrame::ONE_WEEK));
+    comboBox->addItem("1M", static_cast<int>(TimeFrame::ONE_MONTH));
+}
+
+/**
+ * @brief Scans the cache directory and populates available replay days.
+ */
+void ChartToolbar::scanAndPopulateReplayDays() {
+    QList<QDate> availableDates;
+
+    // Get the cache directory path
+    QString cacheDirPath = QDir::homePath() + "/.cache/L2Trader/RecordedLiveData/Bars";
+    QDir barsDir(cacheDirPath);
+
+    if (barsDir.exists()) {
+        // Get all files in the Bars directory
+        QStringList filters;
+        filters << "*"; // All files
+        QStringList fileList = barsDir.entryList(filters, QDir::Files);
+
+        // Extract dates from filenames
+        for (const QString& fileName : fileList) {
+            QDate date = extractDateFromFileName(fileName);
+            if (date.isValid() && !availableDates.contains(date)) {
+                availableDates.append(date);
+            }
+        }
+
+        // Sort dates in descending order (most recent first)
+        std::sort(availableDates.begin(), availableDates.end(), std::greater<QDate>());
+    }
+
+    // Populate the combo box with the found dates
+    setAvailableReplayDays(availableDates);
+}
+
+/**
+ * @brief Extracts date from a filename in the Bars directory.
+ */
+QDate ChartToolbar::extractDateFromFileName(const QString& fileName) {
+    // Handle RecordedLiveBars_YYYY-MM-DD.db format
+    if (fileName.startsWith("RecordedLiveBars_")) {
+        QString datePart = fileName.mid(18); // Skip "RecordedLiveBars_" (18 chars)
+        int dotIndex = datePart.indexOf('.');
+        if (dotIndex != -1) {
+            datePart = datePart.left(dotIndex); // Remove extension
+        }
+        QDate date = QDate::fromString(datePart, "yyyy-MM-dd");
+        if (date.isValid()) {
+            return date;
+        }
+    }
+
+    // Fallback: Try different common date formats that might be used in filenames
+    // Remove file extension if present
+    QString baseName = fileName;
+    int dotIndex = baseName.lastIndexOf('.');
+    if (dotIndex != -1) {
+        baseName = baseName.left(dotIndex);
+    }
+
+    // Try YYYY-MM-DD format
+    QDate date = QDate::fromString(baseName, "yyyy-MM-dd");
+    if (date.isValid()) {
+        return date;
+    }
+
+    // Try YYYYMMDD format
+    date = QDate::fromString(baseName, "yyyyMMdd");
+    if (date.isValid()) {
+        return date;
+    }
+
+    // Try DD-MM-YYYY format
+    date = QDate::fromString(baseName, "dd-MM-yyyy");
+    if (date.isValid()) {
+        return date;
+    }
+
+    // Try MM-DD-YYYY format
+    date = QDate::fromString(baseName, "MM-dd-yyyy");
+    if (date.isValid()) {
+        return date;
+    }
+
+    // If no standard format works, try to extract date components
+    // Look for patterns like 8 digits that could be a date
+    QRegularExpression dateRegex("(\\d{4})[-_]?(\\d{2})[-_]?(\\d{2})");
+    QRegularExpressionMatch match = dateRegex.match(baseName);
+    if (match.hasMatch()) {
+        int year = match.captured(1).toInt();
+        int month = match.captured(2).toInt();
+        int day = match.captured(3).toInt();
+        QDate extractedDate(year, month, day);
+        if (extractedDate.isValid()) {
+            return extractedDate;
+        }
+    }
+
+    // Return invalid date if no pattern matches
+    return QDate();
+}
