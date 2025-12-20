@@ -381,11 +381,12 @@ void StockPriceChart::updateSessionBackgrounds() {
         }
 
         // Draw rectangles for pre-market and after-hours sessions using known boundaries
-        // Pre-market: 4:00 AM - 9:30 AM ET
+        // NOTE: These times must match MarketHours class definitions:
+        //   - Pre-market: 4:00 AM - 9:30 AM ET (MarketHours::isPreMarket)
+        //   - After-hours: 4:00 PM - 8:00 PM ET (MarketHours::isAfterHours)
         QDateTime preMarketStart = QDateTime(currentDate, QTime(4, 0), nyZone);
         QDateTime preMarketEnd = QDateTime(currentDate, QTime(9, 30), nyZone);
         
-        // After-hours: 4:00 PM - 8:00 PM ET
         QDateTime afterHoursStart = QDateTime(currentDate, QTime(16, 0), nyZone);
         QDateTime afterHoursEnd = QDateTime(currentDate, QTime(20, 0), nyZone);
         
