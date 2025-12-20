@@ -28,6 +28,9 @@ ChartToolbar::ChartToolbar(QWidget* parent)
     replayLabel = new QLabel("Replay:", this);
     replayLabel->setStyleSheet("font-weight: bold;");
 
+    replayInfoLabel = new QLabel("", this);
+    replayInfoLabel->setStyleSheet("color: #cccccc; font-size: 12px;");
+
     replayDayCombo = new QComboBox(this);
     replayDayCombo->setMinimumWidth(100);
     replayDayCombo->setMaximumWidth(120);
@@ -55,6 +58,7 @@ ChartToolbar::ChartToolbar(QWidget* parent)
     layout->addWidget(volumeCheckBox);
     layout->addStretch(); // Push replay widgets to the right
     layout->addWidget(replayLabel);
+    layout->addWidget(replayInfoLabel);
     layout->addWidget(replayDayCombo);
     layout->addWidget(replayTimeEdit);
     layout->addWidget(playPauseButton);
@@ -443,4 +447,19 @@ QDate ChartToolbar::extractDateFromFileName(const QString& fileName) {
 
     // Return invalid date if no pattern matches
     return QDate();
+}
+
+/**
+ * @brief Updates the replay info label with time range and bar count.
+ */
+void ChartToolbar::updateReplayInfo(const QTime& startTime, const QTime& endTime, int barCount) {
+    if (startTime.isValid() && endTime.isValid() && barCount > 0) {
+        QString infoText = QString("%1-%2 (%3 bars)")
+                          .arg(startTime.toString("hh:mm"))
+                          .arg(endTime.toString("hh:mm"))
+                          .arg(barCount);
+        replayInfoLabel->setText(infoText);
+    } else {
+        replayInfoLabel->setText("No data");
+    }
 }

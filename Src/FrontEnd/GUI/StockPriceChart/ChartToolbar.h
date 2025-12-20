@@ -107,6 +107,14 @@ public:
     void setReplayPlaying(bool playing);
 
     /**
+     * @brief Updates the replay info label with time range and bar count.
+     * @param startTime The start time of available data.
+     * @param endTime The end time of available data.
+     * @param barCount The number of bars available.
+     */
+    void updateReplayInfo(const QTime& startTime, const QTime& endTime, int barCount);
+
+    /**
      * @brief Scans the cache directory and populates available replay days.
      * Looks for files in ~/.cache/L2Trader/RecordedLiveData/Bars/
      * and extracts dates from filenames.
@@ -193,6 +201,7 @@ private:
     QCheckBox* volumeCheckBox;  ///< Checkbox for volume chart visibility
 
     QLabel* replayLabel;       ///< Label showing "Replay:"
+    QLabel* replayInfoLabel;   ///< Label showing replay time range and bar count info
     QComboBox* replayDayCombo; ///< Dropdown for selecting replay day
     QTimeEdit* replayTimeEdit; ///< Time input for replay start time
     QPushButton* playPauseButton; ///< Play/pause button for replay

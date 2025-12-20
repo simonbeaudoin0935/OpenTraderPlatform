@@ -1097,10 +1097,18 @@ void StockPriceChart::onReplayTimeRangeQueryFinished() {
                         << "to" << std::get<1>(timeRangeResult).toString("yyyy-MM-dd hh:mm:ss t") 
                         << "(NY timezone) -" << std::get<2>(timeRangeResult) << "bars available";
         
-        // TODO: Update the time input widget with the available range
-        // For now, just log the information
+        // Update the toolbar with the time range and bar count info
+        QTime startTime = std::get<0>(timeRangeResult).time();
+        QTime endTime = std::get<1>(timeRangeResult).time();
+        int barCount = std::get<2>(timeRangeResult);
+        chartToolbar->updateReplayInfo(startTime, endTime, barCount);
+        
+        // Pre-fill the time input widget with the earliest available time
+        chartToolbar->setReplayStartTime(startTime);
     } else {
         qCWarning(ChartLog) << "No data found for" << m_symbol << "on selected date";
+        // Clear the info label when no data is found
+        chartToolbar->updateReplayInfo(QTime(), QTime(), 0);
     }
 }
 
