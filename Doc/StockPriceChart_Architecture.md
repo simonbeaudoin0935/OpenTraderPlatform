@@ -496,11 +496,15 @@ graph LR
 
 ### Mouse and Wheel Event Processing
 
+**Note:** When the mouse is positioned over the volume chart (bottom axis rect), the zoom behavior is modified to only zoom horizontally (time axis), preventing the volume bars from becoming disproportionately large or small. This applies to both default scrolling and Shift+Scroll.
+
 ```mermaid
 graph TD
     Start[Event Received] --> EventType{Event Type?}
     
-    EventType -->|wheelEvent| WheelMod{Modifiers?}
+    EventType -->|wheelEvent| CheckVolume{Mouse over<br/>Volume Chart?}
+    CheckVolume -->|Yes| VolumeZoom[handleHorizontalZoom<br/>for all cases except<br/>Shift+Ctrl and Alt]
+    CheckVolume -->|No| WheelMod{Modifiers?}
     EventType -->|MousePress| MouseBtn{Button?}
     EventType -->|MouseMove| IsPan{isPanning?}
     EventType -->|MouseRelease| RelBtn{Left Button?}
@@ -520,7 +524,8 @@ graph TD
     RelBtn -->|Yes & isPanning| EndPan[isPanning = false<br/>Reset cursor<br/>updateLastPriceLine]
     RelBtn -->|No| Ignore2[Ignore event]
     
-    VertPan --> UpdateLabel1[updatePriceLabelPosition]
+    VolumeZoom --> UpdateLabel1[updatePriceLabelPosition]
+    VertPan --> UpdateLabel1
     HorizPan --> UpdateLabel1
     HorizZoom --> UpdateLabel1
     VertZoom --> UpdateLabel1
