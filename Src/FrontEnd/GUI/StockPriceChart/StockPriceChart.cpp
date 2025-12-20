@@ -898,6 +898,10 @@ void StockPriceChart::wheelEvent(QWheelEvent* event)
         QPointF mousePos = m_customPlot->mapFromGlobal(event->globalPosition().toPoint());
         QCPAxisRect* axisRectAtMouse = m_customPlot->axisRectAt(mousePos);
         isOverVolumeChart = (axisRectAtMouse == m_volumeAxisRect);
+        
+        if (isOverVolumeChart) {
+            DEBUG << "Mouse wheel over volume chart - using horizontal-only zoom";
+        }
     }
 
     if ((event->modifiers() & Qt::ShiftModifier) && (event->modifiers() & Qt::ControlModifier)) {
