@@ -212,6 +212,11 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
                 this, &GUIFrontend::updateLiveLogDisplay, Qt::QueuedConnection);
     }
 
+    // Configure the splitter to make the bottom panel (with balances, positions, orders, order entry) as compact as possible
+    // Give the top widget (chart) a stretch factor of 1 and bottom widget a stretch factor of 0
+    ui->tradeTabSplitter->setStretchFactor(0, 1);  // tradeTopWidget gets stretch factor 1
+    ui->tradeTabSplitter->setStretchFactor(1, 0);  // tradeTabBottomWidget gets stretch factor 0 (minimum size)
+
     // NOTE: Don't restore the last displayed stock here - wait for authentication
     // It will be restored in onTradeStationAuthStateChanged() when authenticated
 }
