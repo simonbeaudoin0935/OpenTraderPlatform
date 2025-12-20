@@ -106,7 +106,6 @@ void MainAlgo::onSelectDisplayedStock(QString symbol)
 
     connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
             this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
-
 }
 
 BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDateTime first, QDateTime last)

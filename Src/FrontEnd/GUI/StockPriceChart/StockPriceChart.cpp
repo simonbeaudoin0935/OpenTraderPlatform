@@ -41,7 +41,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     m_customPlot->yAxis->setLabel("");
     
     // Apply dark theme
-    m_customPlot->setBackground(QBrush(QColor(45, 45, 50)));
+    m_customPlot->setBackground(QBrush(QColor(75, 75, 80)));
     m_customPlot->xAxis->setBasePen(QPen(QColor(220, 220, 220)));
     m_customPlot->yAxis->setBasePen(QPen(QColor(220, 220, 220)));
     m_customPlot->xAxis->setTickPen(QPen(QColor(220, 220, 220)));
@@ -69,7 +69,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     m_volumeAxisRect->setMargins(QMargins(0, 0, 0, 0));
     
     // Apply dark theme to volume axis rect
-    m_volumeAxisRect->setBackground(QBrush(QColor(45, 45, 50)));
+    m_volumeAxisRect->setBackground(QBrush(QColor(75, 75, 80)));
     m_volumeAxisRect->axis(QCPAxis::atBottom)->setBasePen(QPen(QColor(220, 220, 220)));
     m_volumeAxisRect->axis(QCPAxis::atLeft)->setBasePen(QPen(QColor(220, 220, 220)));
     m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickPen(QPen(QColor(220, 220, 220)));
@@ -261,8 +261,10 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         updateCandlestickData();
         updateVolumeData();
 
-        m_customPlot->xAxis->setRange(index - 30, index + 1);
+        updateSessionBackgrounds();
 
+        m_customPlot->xAxis->setRange(index - 30, index + 1);
+        
         double newPrice = bar.getClose();
         double padding = newPrice * 0.0002;
         double minRange = newPrice * 0.0005;
@@ -653,12 +655,44 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     
     currentGetBarsRequestInProcess = true;
 
-    DEBUG << "Requesting missing bars from"
-          << viewStartTimeRounded.toString(Qt::ISODate)
-          << "to"
-          << firstBarTime.toString(Qt::ISODate);
+    // Determine the appropriate time range to request
+    QTimeZone nyZone("America/New_York");
+    QDateTime firstBarInNY = firstBarTime.toTimeZone(nyZone);
+    QDateTime viewStartInNY = viewStartTimeRounded.toTimeZone(nyZone);
 
-    emit requestMissingBars(viewStartTimeRounded, firstBarTime);
+    DEBUG << "firstBarInNY:" << firstBarInNY << "viewStartInNY:" << viewStartInNY;
+    DEBUG << "firstBarInNY.date():" << firstBarInNY.date() << "viewStartInNY.date():" << viewStartInNY.date();
+    DEBUG << "Date comparison:" << (viewStartInNY.date() < firstBarInNY.date());
+
+    QDateTime requestStartTime;
+    QDateTime requestEndTime = firstBarTime;
+
+    if (viewStartInNY.date() < firstBarInNY.date()) {
+        // View extends to previous day(s) - request from start of the day containing viewStartTimeRounded
+        // to the end of the day before firstBarTime
+        QDateTime viewDayStart = QDateTime(viewStartInNY.date(), QTime(TRADING_START_HOUR, 0, 0), nyZone);
+        requestStartTime = viewDayStart.toTimeZone(firstBarTime.timeZone());
+        DEBUG << "Requesting previous day, viewDayStart:" << viewDayStart << "requestStartTime:" << requestStartTime;
+    } else {
+        // View extends within the same day - request from start of day to firstBarTime
+        QDateTime dayStart = QDateTime(firstBarInNY.date(), QTime(TRADING_START_HOUR, 0, 0), nyZone);
+        requestStartTime = dayStart.toTimeZone(firstBarTime.timeZone());
+        DEBUG << "Requesting same day, dayStart:" << dayStart << "requestStartTime:" << requestStartTime;
+    }
+
+    // Ensure we don't request invalid ranges
+    if (requestStartTime >= requestEndTime) {
+        DEBUG << "Invalid request range, skipping";
+        currentGetBarsRequestInProcess = false;
+        return;
+    }
+
+    DEBUG << "Requesting missing bars from"
+          << requestStartTime.toString(Qt::ISODate)
+          << "to"
+          << requestEndTime.toString(Qt::ISODate);
+
+    emit requestMissingBars(requestStartTime, requestEndTime);
 }
 
 /**
@@ -845,17 +879,17 @@ QDateTime StockPriceChart::getTimestampForIndex(int index) const {
  */
 void StockPriceChart::onAxisRangeChanged()
 {
+    if (indexToBar.isEmpty()) return;
+
     updateAxisLabelsDensity();
     redrawLastPriceLine();
     updateSessionBackgrounds();  // Update background colors when view changes
     
     // Check for missing bars when view extends beyond available data
-    if (!indexToBar.isEmpty()) {
-        double minIndex = m_customPlot->xAxis->range().lower;
-        if (minIndex < indexToBar.firstKey()) {
-            QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
-            checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
-        }
+    double minIndex = m_customPlot->xAxis->range().lower;
+    if (minIndex < indexToBar.firstKey()) {
+        QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
+        checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
     }
 }
 
