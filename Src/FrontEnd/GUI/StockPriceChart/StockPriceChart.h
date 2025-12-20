@@ -76,8 +76,8 @@ private:
     void handleVerticalPanning(QWheelEvent* event);
     void handleHorizontalPanning(QWheelEvent* event);
     void handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor);
-    void handleVerticalZoom(QWheelEvent* event, qreal zoomFactor);
-    void handleBothAxesZoom(QWheelEvent* event, qreal zoomFactor);
+    void handleVerticalZoom(QWheelEvent* event, bool isOverVolumeChart, qreal zoomFactor);
+    void handleBothAxesZoom(QWheelEvent* event, bool isOverVolumeChart, qreal zoomFactor);
     void checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime);
     QDateTime getTimestampForIndex(int index) const;
     
