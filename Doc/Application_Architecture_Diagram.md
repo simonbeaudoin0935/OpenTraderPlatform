@@ -3,16 +3,14 @@
 ```mermaid
 graph TD
     subgraph "Main Application"
-        MA[MainApp] -->|connects| TS[TSClient]
-        MA -->|connects| FMP[FMPClient]
-        MA -->|connects| MAL[MainAlgo]
-        MA -->|connects| AF[AppFrontend]
-        MA -->|connects| MM[MemoryMonitor]
+        MA[MainApp] -->|singleton| TS[TSClient]
+        MA -->|singleton| MAL[MainAlgo]
+        MA -->|creates| AF[AppFrontend]
+        MA -->|creates| MM[MemoryMonitor]
     end
 
     subgraph "External Data Sources"
-        TS -->|REST API| TS_API[TradeStation API]
-        FMP -->|REST API| FMP_API[FMP API]
+        TS -->|REST API & Streaming| TS_API[TradeStation API]
     end
 
     subgraph "Algorithm Core"
@@ -20,9 +18,8 @@ graph TD
         SI --> BC[BarCache]
         SI --> RUD[RunUpDetector]
         SI --> MDQR[MarketDepthQuoteReceiver]
-        MAL --> SS[StockScreener]
-        MAL --> BNF[BreakingNewsFetcher]
         MAL --> PR[PositionsReceiver]
+        MAL --> OR[OrdersReceiver]
     end
 
     subgraph "GUI Frontend"
@@ -31,37 +28,45 @@ graph TD
         GFW --> MDT[MarketDepthTable]
         GFW --> CT[CacheTab]
         GFW --> LT[LoggingTab]
+        GFW --> RT[RecorderTab]
         GFW --> PW[PositionWindow]
+        GFW --> OW[OrderWindow]
+        GFW --> BW[BalanceWindow]
+        GFW --> OEW[OrderEntryWidget]
     end
 
     %% Signal/Slot Connections
     TS -.->|authStateChanged| AF
     TS -.->|authStateChanged| MAL
-    TS -.->|getAccountsAsyncReceived| AF
     TS -.->|totalDataReceivedBytesIncreased| AF
-    FMP -.->|totalDataReceivedBytesIncreased| AF
+    TS -.->|openStreamCountChanged| AF
     MM -.->|memoryUsageUpdated| AF
 
+    MAL -.->|tradeStationAccountsReceived| AF
     MAL -.->|displayedStockReceivedNewBar| AF
     MAL -.->|displayedStockReceivedNewMarketDepthQuote| AF
     MAL -.->|receivedNewPosition| AF
-    MAL -.->|requestedMissingBarsDisplayedStockReceived| AF
+    MAL -.->|positionDeleted| AF
+    MAL -.->|receivedNewOrder| AF
+    MAL -.->|balanceUpdated| AF
 
-    AF -.->|requestMissingBars| MAL
+    GFW -.->|onSelectDisplayedStock| MAL
+    SPC -.->|requestMissingBars| GFW
+    GFW -.->|forwards to| MAL
 
     %% Internal Algorithm Connections
-    SS -.->|finished| MAL
-    BNF -.->|newNewsFound| MAL
     PR -.->|receivedNewPosition| MAL
-    BC -.->|newBar| RUD
-    BC -.->|newBar| MDQR
+    OR -.->|receivedNewOrder| MAL
 
     %% GUI Component Interactions
-    SPC -.->|requestMissingBars| AF
-    MDT -.->|data updates| GFW
-    CT -.->|cache info| GFW
-    LT -.->|logs| GFW
+    MDT -.->|displays data| GFW
+    CT -.->|cache management| GFW
+    LT -.->|log display| GFW
+    RT -.->|recording controls| GFW
     PW -.->|position data| GFW
+    OW -.->|order data| GFW
+    BW -.->|balance data| GFW
+    OEW -.->|order placement| GFW
 
     %% Styling
     classDef mainApp fill:#e1f5fe,stroke:#01579b,stroke-width:2px
@@ -71,9 +76,9 @@ graph TD
     classDef external fill:#fce4ec,stroke:#880e4f,stroke-width:2px
 
     class MA mainApp
-    class TS,TS_API,FMP,FMP_API clients
-    class MAL,SI,BC,RUD,MDQR,SS,BNF,PR algo
-    class AF,GFW,SPC,MDT,CT,LT,PW gui
+    class TS,TS_API clients
+    class MAL,SI,BC,RUD,MDQR,PR,OR algo
+    class AF,GFW,SPC,MDT,CT,LT,RT,PW,OW,BW,OEW gui
     class MM external
 ```
 
@@ -81,32 +86,50 @@ graph TD
 
 ### Authentication & Data Flow
 - **TSClient** ↔ **MainAlgo**: Authentication state changes trigger algorithm initialization
-- **TSClient** ↔ **AppFrontend**: Account data and authentication status updates UI
-- **FMPClient** ↔ **AppFrontend**: Financial data usage monitoring
+- **TSClient** ↔ **AppFrontend**: Authentication status and data usage updates UI
+- **TSClient**: REST API client and streaming data handler for TradeStation
 
 ### Market Data Pipeline
 - **MainAlgo** → **AppFrontend**: New bars and market depth quotes for display
-- **AppFrontend** → **MainAlgo**: Requests for missing historical data
-- **StockPriceChart** → **AppFrontend**: Zoom/pan requests trigger data fetching
+- **GUIFrontend** → **MainAlgo**: Symbol selection and missing bar requests
+- **StockPriceChart** → **GUIFrontend** → **MainAlgo**: Zoom/pan requests trigger historical data fetching via BarCache
 
 ### Internal Algorithm Communication
-- **StockScreener** → **MainAlgo**: Stock selection results
-- **BreakingNewsFetcher** → **MainAlgo**: News events for analysis
-- **PositionsReceiver** → **MainAlgo**: Real-time position updates
-- **BarCache** → **RunUpDetector/MarketDepthQuoteReceiver**: Bar data for analysis
+- **PositionsReceiver** → **MainAlgo**: Real-time position updates from stream
+- **OrdersReceiver** → **MainAlgo**: Real-time order updates from stream
+- **StockInstruments**: Contains BarCache, RunUpDetector, and MarketDepthQuoteReceiver per symbol
+- **BarCache**: Manages bar data with memory and SQLite caching
+
+### Trading Operations
+- **MainAlgo**: Manages balance polling via timer
+- **OrderEntryWidget** → **TSClient**: Order placement requests
+- **PositionsReceiver/OrdersReceiver**: Stream-based real-time updates
+- **BalanceWindow**: Displays account balance information
 
 ### GUI Updates
 - **MemoryMonitor** → **AppFrontend**: System resource monitoring
-- **MainAlgo** → **GUIFrontend**: Position updates and market data
-- **GUIFrontend** → **UI Components**: Data distribution to charts and tables
+- **MainAlgo** → **GUIFrontend**: Position, order, balance, and market data updates
+- **GUIFrontend** → **UI Components**: Data distribution to charts, tables, and widgets
 
 ## Architecture Overview
 
 The application follows a **Model-View-Controller** pattern with Qt's signal/slot mechanism:
 
-1. **Data Sources** (TSClient, FMPClient): Handle external API communications
-2. **Business Logic** (MainAlgo): Processes data and executes trading algorithms
+1. **Data Source** (TSClient): Handles TradeStation REST API and streaming connections
+   - Singleton pattern for centralized API access
+   - Runs in separate QThread for async operations
+   - OAuth 2.0 authentication with automatic token refresh
+2. **Business Logic** (MainAlgo): Processes market data and manages trading state
+   - Singleton pattern for centralized algorithm control
+   - Runs in separate QThread
+   - Per-symbol StockInstruments with BarCache, RunUpDetector, MarketDepthQuoteReceiver
+   - Manages PositionsReceiver and OrdersReceiver streams
+   - Balance polling with configurable timer
 3. **Presentation** (AppFrontend/GUIFrontend): Manages user interface and data visualization
+   - Runs in main GUI thread
+   - Multiple specialized windows and widgets for different views
+   - CacheTab, LoggingTab, RecorderTab for developer/debug features
 4. **Monitoring** (MemoryMonitor): System resource tracking
+   - Reports memory usage to frontend
 
-All components communicate asynchronously through Qt's signal/slot system, ensuring thread-safe data flow and loose coupling between modules.
+All components communicate asynchronously through Qt's signal/slot system, ensuring thread-safe data flow and loose coupling between modules. TSClient and MainAlgo are singletons accessed via `getInstance()` methods.
