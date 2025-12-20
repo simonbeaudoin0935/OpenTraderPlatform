@@ -380,56 +380,26 @@ void StockPriceChart::updateSessionBackgrounds() {
             continue;
         }
 
-        // Consolidate consecutive hours of the same session type into single rectangles
-        int hour = 0;
-        while (hour < 24) {
-            QDateTime hourStart = QDateTime(currentDate, QTime(hour, 0), nyZone);
-            
-            // Determine the session type for this hour
-            bool isPreMarket = MarketHours::isPreMarket(hourStart);
-            bool isAfterHours = MarketHours::isAfterHours(hourStart);
-            bool isRegularHours = MarketHours::isRegularHours(hourStart);
-            
-            // Find the end of this session by scanning forward
-            int sessionEndHour = hour;
-            while (sessionEndHour < 24) {
-                QDateTime testTime = QDateTime(currentDate, QTime(sessionEndHour, 0), nyZone);
-                bool sameSession = (isPreMarket && MarketHours::isPreMarket(testTime)) ||
-                                  (isAfterHours && MarketHours::isAfterHours(testTime)) ||
-                                  (isRegularHours && MarketHours::isRegularHours(testTime)) ||
-                                  (!isPreMarket && !isAfterHours && !isRegularHours && 
-                                   !MarketHours::isPreMarket(testTime) && 
-                                   !MarketHours::isAfterHours(testTime) && 
-                                   !MarketHours::isRegularHours(testTime));
-                
-                if (!sameSession) {
-                    break;
-                }
-                sessionEndHour++;
-            }
-            
-            // Create single rectangle for the entire session
-            QDateTime sessionStart = QDateTime(currentDate, QTime(hour, 0), nyZone);
-            QDateTime sessionEnd = sessionEndHour == 24 ? 
-                QDateTime(currentDate, QTime(23, 59, 59), nyZone) :
-                QDateTime(currentDate, QTime(sessionEndHour, 0), nyZone);
-            
-            // CRITICAL: Keep NY timezone to match bar timestamps stored in timestampToIndex map.
-            // QDateTime comparison in QMap is timezone-aware, so even if two QDateTime objects
-            // represent the same absolute time, they won't match if timezones differ.
-            // Draw one rectangle for the entire session
-            if (isPreMarket) {
-                drawBackgroundForTimeRange(sessionStart, sessionEnd,
-                                          QColor(255, 165, 0, 180), m_preMarketRects);  // More visible orange
-            }
-            else if (isAfterHours) {
-                drawBackgroundForTimeRange(sessionStart, sessionEnd,
-                                          QColor(138, 43, 226, 180), m_afterHoursRects);  // More visible violet
-            }
-            
-            // Move to the next session
-            hour = sessionEndHour;
-        }
+        // Draw rectangles for pre-market and after-hours sessions using known boundaries
+        // Pre-market: 4:00 AM - 9:30 AM ET
+        QDateTime preMarketStart = QDateTime(currentDate, QTime(4, 0), nyZone);
+        QDateTime preMarketEnd = QDateTime(currentDate, QTime(9, 30), nyZone);
+        
+        // After-hours: 4:00 PM - 8:00 PM ET
+        QDateTime afterHoursStart = QDateTime(currentDate, QTime(16, 0), nyZone);
+        QDateTime afterHoursEnd = QDateTime(currentDate, QTime(20, 0), nyZone);
+        
+        // CRITICAL: Keep NY timezone to match bar timestamps stored in timestampToIndex map.
+        // QDateTime comparison in QMap is timezone-aware, so even if two QDateTime objects
+        // represent the same absolute time, they won't match if timezones differ.
+        
+        // Draw pre-market rectangle
+        drawBackgroundForTimeRange(preMarketStart, preMarketEnd,
+                                  QColor(255, 165, 0, 180), m_preMarketRects);  // More visible orange
+        
+        // Draw after-hours rectangle
+        drawBackgroundForTimeRange(afterHoursStart, afterHoursEnd,
+                                  QColor(138, 43, 226, 180), m_afterHoursRects);  // More visible violet
         
         currentDate = currentDate.addDays(1);
     }
