@@ -49,18 +49,18 @@ classDiagram
 
     class Bar {
         -QDateTime timestamp
-        -double open
-        -double high
-        -double low
-        -double close
+        -float open
+        -float high
+        -float low
+        -float close
         -qint64 volume
         -BarStatus status
 
         +QDateTime getTimeStamp() const
-        +double getOpen() const
-        +double getHigh() const
-        +double getLow() const
-        +double getClose() const
+        +float getOpen() const
+        +float getHigh() const
+        +float getLow() const
+        +float getClose() const
         +qint64 getTotalVolume() const
         +BarStatus getBarStatus() const
         +bool getIsRealtime() const
