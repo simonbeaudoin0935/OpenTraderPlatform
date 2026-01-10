@@ -9,6 +9,9 @@
 #include <QPushButton>
 #include <QDir>
 #include <QRegularExpression>
+#include <QToolButton>
+#include <QMenu>
+#include <QWidgetAction>
 #include "Misc/TimeFrame.h"
 
 /**
@@ -115,6 +118,18 @@ public:
     void updateReplayInfo(const QTime& startTime, const QTime& endTime, int barCount);
 
     /**
+     * @brief Gets the current wheel scrolling ratio.
+     * @return The wheel scrolling ratio.
+     */
+    qreal getWheelRatio() const;
+
+    /**
+     * @brief Sets the wheel scrolling ratio.
+     * @param ratio The wheel scrolling ratio.
+     */
+    void setWheelRatio(qreal ratio);
+
+    /**
      * @brief Scans the cache directory and populates available replay days.
      * Looks for files in ~/.cache/L2Trader/RecordedLiveData/Bars/
      * and extracts dates from filenames.
@@ -158,6 +173,12 @@ signals:
      */
     void replayPlayPauseToggled(bool playing);
 
+    /**
+     * @brief Emitted when the wheel scrolling ratio changes.
+     * @param ratio The new wheel scrolling ratio (e.g., 0.5 for less sensitive, 2.0 for more sensitive).
+     */
+    void wheelRatioChanged(qreal ratio);
+
 private slots:
     /**
      * @brief Handles combobox selection changes.
@@ -194,6 +215,12 @@ private slots:
      */
     void onPlayPauseClicked();
 
+    /**
+     * @brief Handles wheel ratio combo box changes.
+     * @param index The index of the selected item.
+     */
+    void onWheelRatioChanged(int index);
+
 private:
     QComboBox* comboBox;  ///< The dropdown selection widget for timeframe
     QLabel* label;        ///< Label showing "Timeframe:"
@@ -205,6 +232,10 @@ private:
     QComboBox* replayDayCombo; ///< Dropdown for selecting replay day
     QTimeEdit* replayTimeEdit; ///< Time input for replay start time
     QPushButton* playPauseButton; ///< Play/pause button for replay
+
+    QToolButton* settingsButton; ///< Settings button with cog icon
+    QMenu* settingsMenu;         ///< Settings popup menu
+    QComboBox* wheelRatioCombo;  ///< Combo box for wheel scrolling ratio
 
     /**
      * @brief Populates the combobox with timeframe options.

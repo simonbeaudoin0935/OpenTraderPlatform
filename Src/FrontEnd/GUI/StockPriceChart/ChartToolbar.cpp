@@ -42,6 +42,36 @@ ChartToolbar::ChartToolbar(QWidget* parent)
     playPauseButton = new QPushButton("Play", this);
     playPauseButton->setCheckable(true);
 
+    // Create settings button with cog icon
+    settingsButton = new QToolButton(this);
+    settingsButton->setText("⚙"); // Unicode cog icon
+    settingsButton->setToolTip("Chart Settings");
+    settingsButton->setPopupMode(QToolButton::InstantPopup);
+
+    // Create settings menu
+    settingsMenu = new QMenu(this);
+    settingsButton->setMenu(settingsMenu);
+
+    // Create wheel ratio combo box
+    QWidgetAction* wheelRatioAction = new QWidgetAction(settingsMenu);
+    QWidget* wheelRatioWidget = new QWidget();
+    QHBoxLayout* wheelRatioLayout = new QHBoxLayout(wheelRatioWidget);
+    wheelRatioLayout->setContentsMargins(5, 5, 5, 5);
+    QLabel* wheelRatioLabel = new QLabel("Wheel Sensitivity:", wheelRatioWidget);
+    wheelRatioCombo = new QComboBox(wheelRatioWidget);
+    wheelRatioCombo->addItem("Very Low (0.1x)", 0.1);
+    wheelRatioCombo->addItem("Low (0.2x)", 0.2);
+    wheelRatioCombo->addItem("Medium-Low (0.5x)", 0.5);
+    wheelRatioCombo->addItem("Normal (1.0x)", 1.0);
+    wheelRatioCombo->addItem("High (1.5x)", 1.5);
+    wheelRatioCombo->addItem("Very High (2.0x)", 2.0);
+    wheelRatioCombo->setEditable(true);
+    wheelRatioCombo->setCurrentIndex(3); // Default to Normal
+    wheelRatioLayout->addWidget(wheelRatioLabel);
+    wheelRatioLayout->addWidget(wheelRatioCombo);
+    wheelRatioAction->setDefaultWidget(wheelRatioWidget);
+    settingsMenu->addAction(wheelRatioAction);
+
     // Populate with timeframe options
     populateTimeFrames();
 
@@ -62,6 +92,7 @@ ChartToolbar::ChartToolbar(QWidget* parent)
     layout->addWidget(replayDayCombo);
     layout->addWidget(replayTimeEdit);
     layout->addWidget(playPauseButton);
+    layout->addWidget(settingsButton); // Add settings button at the end
 
     // Connect signals
     connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -76,6 +107,10 @@ ChartToolbar::ChartToolbar(QWidget* parent)
             this, &ChartToolbar::onReplayTimeChanged);
     connect(playPauseButton, &QPushButton::clicked,
             this, &ChartToolbar::onPlayPauseClicked);
+    connect(wheelRatioCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &ChartToolbar::onWheelRatioChanged);
+    connect(wheelRatioCombo, &QComboBox::editTextChanged,
+            this, [this]() { onWheelRatioChanged(-1); }); // -1 to indicate custom text
 
     // Set a nice background and border
     setStyleSheet(
@@ -145,6 +180,31 @@ ChartToolbar::ChartToolbar(QWidget* parent)
         "}"
         "QPushButton:checked {"
         "    background-color: #4a4a4a;"
+        "}"
+        "QToolButton {"
+        "    background-color: #3a3a3a;"
+        "    color: #ffffff;"
+        "    border: 1px solid #666;"
+        "    border-radius: 3px;"
+        "    padding: 4px;"
+        "    font-size: 14px;"
+        "}"
+        "QToolButton:hover {"
+        "    background-color: #555;"
+        "}"
+        "QToolButton:pressed {"
+        "    background-color: #666;"
+        "}"
+        "QMenu {"
+        "    background-color: #3a3a3a;"
+        "    color: #ffffff;"
+        "    border: 1px solid #666;"
+        "}"
+        "QMenu::item {"
+        "    padding: 5px 20px;"
+        "}"
+        "QMenu::item:selected {"
+        "    background-color: #555;"
         "}"
     );
 
@@ -462,4 +522,71 @@ void ChartToolbar::updateReplayInfo(const QTime& startTime, const QTime& endTime
     } else {
         replayInfoLabel->setText("No data");
     }
+}
+
+/**
+ * @brief Gets the current wheel scrolling ratio.
+ */
+qreal ChartToolbar::getWheelRatio() const {
+    int index = wheelRatioCombo->currentIndex();
+    if (index >= 0 && index < wheelRatioCombo->count()) {
+        QVariant data = wheelRatioCombo->itemData(index);
+        if (data.isValid()) {
+            return data.toReal();
+        }
+    }
+    // Custom text
+    QString text = wheelRatioCombo->currentText();
+    bool ok;
+    qreal ratio = text.toDouble(&ok);
+    return ok && ratio > 0.0 ? ratio : 1.0;
+}
+
+/**
+ * @brief Sets the wheel scrolling ratio.
+ */
+void ChartToolbar::setWheelRatio(qreal ratio) {
+    for (int i = 0; i < wheelRatioCombo->count(); ++i) {
+        if (qFuzzyCompare(wheelRatioCombo->itemData(i).toReal(), ratio)) {
+            wheelRatioCombo->setCurrentIndex(i);
+            return;
+        }
+    }
+    // If exact match not found, set custom text
+    wheelRatioCombo->setCurrentText(QString::number(ratio, 'f', 2));
+}
+
+/**
+ * @brief Handles wheel ratio combo box changes.
+ */
+void ChartToolbar::onWheelRatioChanged(int index) {
+    qreal ratio = 1.0; // default
+    
+    if (index >= 0 && index < wheelRatioCombo->count()) {
+        // Check if it's a standard item
+        QVariant data = wheelRatioCombo->itemData(index);
+        if (data.isValid()) {
+            ratio = data.toReal();
+        } else {
+            // Custom value entered
+            QString text = wheelRatioCombo->itemText(index);
+            bool ok;
+            ratio = text.toDouble(&ok);
+            if (!ok || ratio <= 0.0) {
+                ratio = 1.0; // fallback
+                wheelRatioCombo->setCurrentText("1.0");
+            }
+        }
+    } else {
+        // Custom text entered
+        QString text = wheelRatioCombo->currentText();
+        bool ok;
+        ratio = text.toDouble(&ok);
+        if (!ok || ratio <= 0.0) {
+            ratio = 1.0; // fallback
+            wheelRatioCombo->setCurrentText("1.0");
+        }
+    }
+    
+    emit wheelRatioChanged(ratio);
 }

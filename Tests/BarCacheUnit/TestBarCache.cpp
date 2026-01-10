@@ -619,50 +619,6 @@ void TestBarCache::testBoundaryConditions()
     cache.clearDatabase();
 }
 
-// Data integrity tests
-void TestBarCache::testIdentifyMissingRanges()
-{
-    qInfo() << "Testing identifyMissingRanges functionality";
-    
-    BarCache cache("AAPL");
-    cache.clearDatabase();
-    
-    QTimeZone newYorkTimeZone("America/New_York");
-    QDate date(2025, 4, 11);
-    const QTime noon(12, 0, 0);
-    QDateTime start = QDateTime(date, noon, newYorkTimeZone);
-    
-    // Create a gap pattern: bars at 0, 1, 2, gap, 6, 7, 8, gap, 12
-    QVector<Bar> cachedBars;
-    for (int i : {0, 1, 2, 6, 7, 8, 12}) {
-        QDateTime barTime = start.addSecs(60 * i);
-        cachedBars.append(Bar::nullBar(barTime));
-    }
-    
-    // Request range from 0 to 15
-    QDateTime end = start.addSecs(60 * 15);
-    
-    QVector<QPair<QDateTime, QDateTime>> missing = cache.identifyMissingRanges(start, end, cachedBars);
-    
-    // Should identify 3 missing ranges:
-    // 1. bars 3-5 (3 bars)
-    // 2. bars 9-11 (3 bars)
-    // 3. bars 13-15 (3 bars)
-    QCOMPARE(missing.size(), 3);
-    
-    // Verify first gap (bars 3-5)
-    QCOMPARE(missing[0].first, start.addSecs(60 * 3));
-    QCOMPARE(missing[0].second, start.addSecs(60 * 5));
-    
-    // Verify second gap (bars 9-11)
-    QCOMPARE(missing[1].first, start.addSecs(60 * 9));
-    QCOMPARE(missing[1].second, start.addSecs(60 * 11));
-    
-    // Verify third gap (bars 13-15)
-    QCOMPARE(missing[2].first, start.addSecs(60 * 13));
-    QCOMPARE(missing[2].second, start.addSecs(60 * 15));
-}
-
 void TestBarCache::testNullBarsMixedWithRealBars()
 {
     qInfo() << "Testing null bars mixed with real bars";

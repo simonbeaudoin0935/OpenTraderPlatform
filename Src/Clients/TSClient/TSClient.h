@@ -93,13 +93,14 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/MarketData/operation/GetBars
      */
-    [[nodiscard]] QFuture<QVector<Bar>> getBars(const QString &symbol,
-                                          unsigned int interval = 1,
-                                          Bar::BarUnit unit = Bar::BarUnit::Daily,
-                                          unsigned int barsback = 1,
-                                          Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default,
-                                          QDateTime firstDate = QDateTime(),
-                                          QDateTime lastDate = QDateTime());
+    [[nodiscard]] QFuture<std::unique_ptr<QVector<Bar>>> getBars(
+        const QString &symbol,
+        unsigned int interval = 1,
+        Bar::BarUnit unit = Bar::BarUnit::Daily,
+        unsigned int barsback = 1,
+        Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default,
+        QDateTime firstDate = QDateTime(),
+        QDateTime lastDate = QDateTime());
 
 
     /*

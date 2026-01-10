@@ -11,7 +11,7 @@ Bar::BarStatus Bar::barStatusFromString(const QString &barStatus)
     } else if (barStatus == "Closed") {
         return BarStatus::Closed;
     } else {
-        Q_ASSERT(0);
+        Q_UNREACHABLE();
     }
 }
 
@@ -21,6 +21,7 @@ QString Bar::barStatusToString(BarStatus barStatus)
         case BarStatus::Open: return "Open";
         case BarStatus::Closed: return "Closed";
         case BarStatus::Null: return "Null";
+        case BarStatus::Uninitialized: return "Uninitialized";
         default: Q_UNREACHABLE();
     }
 }
@@ -29,46 +30,51 @@ QUrlQuery Bar::buildUrlQuery(unsigned int interval,
                              BarUnit unit,
                              unsigned int barsback,
                              BarSessionTemplate sessionTemplate,
-                             QDateTime firstDate,
-                             QDateTime lastDate)
+                             std::optional<QDateTime> firstDate,
+                             std::optional<QDateTime> lastDate)
 {
     QUrlQuery query;
     query.addQueryItem("interval", QString::number(interval));
-    query.addQueryItem("unit", [unit]() -> QString {
-        switch (unit) {
-        case Bar::BarUnit::Minute: return "Minute";
-        case Bar::BarUnit::Daily: return "Daily";
-        case Bar::BarUnit::Weekly: return "Weekly";
-        case Bar::BarUnit::Monthly: return "Monthly";
-        default: Q_UNREACHABLE();
-        }
-    }());
-    query.addQueryItem("sessiontemplate", [sessionTemplate]() -> QString {
-        switch (sessionTemplate) {
-        case Bar::BarSessionTemplate::USEQPre: return "USEQPre";
-        case Bar::BarSessionTemplate::USEQPost: return "USEQPost";
-        case Bar::BarSessionTemplate::USEPreAndPost: return "USEPreAndPost";
-        case Bar::BarSessionTemplate::USEQ24Hour: return "USEQ24Hour";
-        case Bar::BarSessionTemplate::Default: return "Default";
-        default: Q_UNREACHABLE();
-        }
-    }());
+    query.addQueryItem("unit",
+        [unit]() -> QString
+        {
+            switch (unit) {
+            case Bar::BarUnit::Minute: return "Minute";
+            case Bar::BarUnit::Daily: return "Daily";
+            case Bar::BarUnit::Weekly: return "Weekly";
+            case Bar::BarUnit::Monthly: return "Monthly";
+            default: Q_UNREACHABLE();
+            }
+        }());
+    query.addQueryItem("sessiontemplate",
+        [sessionTemplate]() -> QString
+        {
+            switch (sessionTemplate) {
+            case Bar::BarSessionTemplate::USEQPre: return "USEQPre";
+            case Bar::BarSessionTemplate::USEQPost: return "USEQPost";
+            case Bar::BarSessionTemplate::USEPreAndPost: return "USEPreAndPost";
+            case Bar::BarSessionTemplate::USEQ24Hour: return "USEQ24Hour";
+            case Bar::BarSessionTemplate::Default: return "Default";
+            default: Q_UNREACHABLE();
+            }
+        }());
 
-    if (firstDate != QDateTime() && lastDate != QDateTime()) {
+    if (firstDate.has_value() && lastDate.has_value()) {
         Q_ASSERT(barsback == 0);
-        Q_ASSERT(firstDate.secsTo(lastDate) >= 1);
-        query.addQueryItem("firstdate", firstDate.toString(Qt::ISODate));
-        query.addQueryItem("lastdate", lastDate.toString(Qt::ISODate));
-    } else if (firstDate == QDateTime() && lastDate == QDateTime()) {
+        Q_ASSERT(firstDate->secsTo(*lastDate) >= 1);
+        query.addQueryItem("firstdate", firstDate->toString(Qt::ISODate));
+        query.addQueryItem("lastdate", lastDate->toString(Qt::ISODate));
+    } else if (!firstDate.has_value() && !lastDate.has_value()) {
         // nothing to do, this is the case for a stream
         if (barsback > 0) {
             query.addQueryItem("barsback", QString::number(barsback));
         }
-} else {
-    Q_ASSERT(0);
-}
+    } else {
+        // only one of firstDate or lastDate is set - this is an error
+        Q_UNREACHABLE();
+    }
 
-return query;
+    return query;
 }
 
 Bar Bar::nullBar(QDateTime dateTime)

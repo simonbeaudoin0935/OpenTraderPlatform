@@ -45,7 +45,7 @@ public:
     void stopBalancePolling();
     [[nodiscard]] Balance getCurrentBalance() const;
 
-    BarCache::GetBarsResult_t requestMissingBarsDisplayedStock(QDateTime first, QDateTime last);
+    BarCache::GetBarsResult_t requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last);
 
 signals:
     void displayedStockReceivedNewBar(QString symbol, Bar bar);

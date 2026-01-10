@@ -11,7 +11,8 @@
 - Any .md file you create, place them in the Doc folder.
 - When you do structural changes, think about keeping the doc in Doc/ up to date.
   
-  
+- Everything time related must be in QDateTime/QTime/QDate with proper QTimeZone usage. Never use std::chrono or raw time_t/struct tm etc. The timezone is always NewYork since it is stock market related.
+
 ## High Level Details
 
 **Repository Summary**: L2Trader is a real-time algorithmic trading application built with Qt6 that monitors stock market data, executes trading strategies, and provides comprehensive market analysis tools. It connects to TradeStation APIs for live market data, Level 2 market depth visualization, and position tracking.

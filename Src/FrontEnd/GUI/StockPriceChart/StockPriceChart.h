@@ -57,7 +57,7 @@ signals:
 
 public slots:
     void addLiveBar(const QString& symbol, const Bar& bar);
-    void onRequestedMissingBarsReceived(const QVector<Bar>& bars);
+    void onRequestedMissingBarsReceived(const std::unique_ptr<QVector<Bar>>& barsPtr);
 
 private slots:
     void onAxisRangeChanged();
@@ -98,6 +98,7 @@ private:
     void handleBothAxesZoom(QWheelEvent* event, bool isOverVolumeChart, qreal zoomFactor);
     void checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime);
     QDateTime getTimestampForIndex(int index) const;
+    int getIndexForTimestamp(const QDateTime& timestamp) const;
     
     // Index-based positioning helpers
     void addHistoricalBarsToIndexMapping(const QVector<Bar>& bars);
@@ -110,10 +111,11 @@ private:
     void updateVolumeData();
     
     // Background rendering methods
-    void updateSessionBackgrounds();
+    void drawBackgroundsForReceivedBars(const QVector<Bar>& bars);
+    void drawBackgroundsForVisibleRange();
     void clearBackgroundRects();
-    void drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd,
-                                     const QColor& color, QList<QCPItemRect*>& rectList);
+    void drawFixedBackgroundRect(const QDateTime& rangeStart, const QDateTime& rangeEnd,
+                                 const QColor& color, QList<QCPItemRect*>& rectList);
     
     QString m_symbol;
     QCustomPlot* m_customPlot;
@@ -142,9 +144,14 @@ private:
 
     bool currentGetBarsRequestInProcess = false;
     
+    // Wheel zoom sensitivity ratio
+    qreal wheelZoomRatio = 1.0;
+    
     // Replay functionality
     QFutureWatcher<std::tuple<QDateTime, QDateTime, int>>* replayTimeRangeWatcher;
     
     // Helper to convert index to time for axis labels
     QString indexToTimeString(double index) const;
+
+    bool startedReceivingRealtimeBars = false;
 };

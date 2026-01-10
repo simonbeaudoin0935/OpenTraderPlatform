@@ -6,6 +6,7 @@
 #include "MainAlgo.h"
 #include "TSClient.h"
 #include "Logging.h"
+#include "Assume.h"
 
 #define LOGGING_CATEGORY MainAlgoLog
 
@@ -108,20 +109,15 @@ void MainAlgo::onSelectDisplayedStock(QString symbol)
             this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
 }
 
-BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDateTime first, QDateTime last)
+BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last)
 {
-    qCDebug(MainAlgoLog) << "Requested bars from current displayed stock cache: " << first << " to " << last;
+    DEBUG << "Requested bars from current displayed stock cache: " << first << " to " << last;
 
-    Q_ASSERT(first.timeZone() == QTimeZone("America/New_York"));
-    Q_ASSERT(last.timeZone() == QTimeZone("America/New_York"));
-    Q_ASSERT(first < last);
-    Q_ASSERT_X(currentDisplayedStockInstrument != nullptr, "Currently displayed stock instrument is null", "Bug if here");
+    OBJ_ASSUME_LT(first, last);
+    OBJ_ASSUME_DIFF(currentDisplayedStockInstrument, nullptr);
 
-    BarCache::GetBarsResult_t result = currentDisplayedStockInstrument->barCache.getBars(first, last);
-    
-    return result;
+    return currentDisplayedStockInstrument->barCache.getBars(date, first, last);
 }
-
 
 /*
  * This is the entry point that activates the chain of events after authentication state changes

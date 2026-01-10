@@ -17,8 +17,6 @@ void RunUpDetector::start(QDate startDate, qsizetype runUpWindowWidth)
     this->startDate = startDate;
     this->runUpWindowWidth = runUpWindowWidth;;
 
-    barCache->warmUpBarsOfDayUntilNow(startDate);
-
     QTime _6AM(6,0);
     QTime toTime = _6AM.addSecs(60 * (runUpWindowWidth - 1));
 

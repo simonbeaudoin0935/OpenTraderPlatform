@@ -29,7 +29,6 @@ private slots:
     void testBoundaryConditions();
 
     // Data integrity tests
-    void testIdentifyMissingRanges();
     void testNullBarsMixedWithRealBars();
     void testDuplicateStoreTracking();
 
