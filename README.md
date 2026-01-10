@@ -6,27 +6,27 @@ A real-time algorithmic trading application built with Qt6 that monitors stock m
 
 ## Overview
 
-L2Trader is a sophisticated trading platform that connects to TradeStation and Financial Modeling Prep (FMP) APIs to provide real-time market data analysis, Level 2 market depth visualization, automated stock screening, and breaking news monitoring. The application features both a rich GUI interface and a terminal-based mode for different use cases.
+L2Trader is a sophisticated trading platform that connects to the TradeStation API to provide real-time market data analysis, Level 2 market depth visualization, and position tracking. The application features a rich GUI interface with interactive charts and market depth displays.
 
 ## Key Features
 
-- **Real-Time Market Data**: Live streaming of stock prices, market depth (Level 2) quotes, and order book data
-- **Automated Stock Screening**: Filter stocks based on customizable criteria including price range, float, relative volume, and gap percentage
-- **Breaking News Monitoring**: Continuous monitoring and filtering of breaking news for selected stocks
+- **Real-Time Market Data**: Live streaming of stock prices, market depth (Level 2) quotes, and order book data via TradeStation API
+- **Stock Screening**: Filter stocks based on customizable criteria including price range, float, relative volume, and gap percentage
 - **Level 2 Market Depth**: Visual representation of bid/ask depth and order book imbalances
 - **Position Tracking**: Real-time monitoring of trading positions across multiple accounts
-- **Interactive Price Charts**: Candlestick charts with zoom/pan capabilities and market hours indicators
-- **Algorithmic Trading**: Run-up detection and pattern recognition algorithms
+- **Interactive Price Charts**: Candlestick charts using QCustomPlot with zoom/pan capabilities and market hours indicators
+- **Pattern Recognition**: Run-up detection and algorithmic trading signals
 - **Memory-Efficient Caching**: Smart bar data caching with SQLite persistence
+- **Live Data Recording**: Recorder application for capturing market data to SQLite databases
 - **Logging & Diagnostics**: Comprehensive logging system with runtime category controls
 
 ## Architecture
 
 L2Trader follows a modular Model-View-Controller architecture with Qt's signal/slot mechanism for asynchronous communication. The application consists of several key components:
 
-- **API Clients**: TradeStation and FMP REST clients for external data
-- **Algorithm Core**: MainAlgo coordinates stock screening, news fetching, and trading signals
-- **GUI Frontend**: Interactive charts, market depth tables, and configuration panels
+- **API Client**: TradeStation REST client for external market data
+- **Algorithm Core**: MainAlgo coordinates stock screening and trading signals
+- **GUI Frontend**: Interactive charts using QCustomPlot, market depth tables, and configuration panels
 - **Data Management**: Bar cache, position receiver, and market depth quote handler
 
 For detailed architecture diagrams, see:
@@ -40,16 +40,16 @@ For detailed architecture diagrams, see:
 
 ### Required Dependencies
 
-- **Qt 6.x**: Core, Network, SQL, Widgets, Charts, WebEngineWidgets
-- **C++17 compliant compiler**: GCC 7+ or Clang 5+
+- **Qt 6.x**: Core, Network, SQL, Widgets, WebEngineWidgets, PrintSupport
+- **C++20 compliant compiler**: GCC 7+ or Clang 5+
 - **CMake 3.16+**: Build system
 - **SQLite**: Database support (included with Qt SQL)
+- **QCustomPlot**: Charting library (included in repository)
 
 ### API Keys
 
 You will need API credentials for:
-- **TradeStation API**: For real-time market data and trading
-- **FMP API**: For financial data and stock screening
+- **TradeStation API**: For real-time market data and trading (OAuth-based authentication via Qt WebEngine)
 
 ## Installation
 
@@ -64,7 +64,7 @@ You will need API credentials for:
 2. **Install Qt dependencies**:
    ```bash
    # On Ubuntu/Debian
-   sudo apt-get install qt6-base-dev qt6-charts-dev qt6-webengine-dev libqt6sql6-sqlite cmake
+   sudo apt-get install qt6-base-dev qt6-webengine-dev libqt6sql6-sqlite cmake
 
    # On macOS with Homebrew
    brew install qt@6 cmake
@@ -74,7 +74,7 @@ You will need API credentials for:
    ```bash
    mkdir build
    cd build
-   cmake ..
+   cmake .. -DCMAKE_BUILD_TYPE=Release -DENABLE_GUI=ON
    cmake --build . --parallel
    ```
 
@@ -85,13 +85,15 @@ You will need API credentials for:
 
 ### Building with GUI Disabled
 
-For terminal-only mode, build without GUI support:
+For terminal-only mode without GUI dependencies:
 ```bash
 mkdir build
 cd build
-cmake .. -DENABLE_GUI=OFF
+cmake .. -DENABLE_GUI=OFF -DCMAKE_BUILD_TYPE=Release
 cmake --build . --parallel
 ```
+
+**Note**: The TUI (Terminal User Interface) frontend is currently a skeleton implementation and is not fully functional.
 
 ## Configuration
 
@@ -111,17 +113,9 @@ GapPercentage=5.0
 
 ### API Credentials
 
-Store your API credentials in `access_tokens.ini` (this file is gitignored for security):
+API credentials are managed through the application's OAuth authentication flow:
 
-```ini
-[TradeStation]
-api_key=your_tradestation_api_key
-api_secret=your_tradestation_api_secret
-refresh_token=your_refresh_token
-
-[FMP]
-api_key=your_fmp_api_key
-```
+- **TradeStation**: The application uses OAuth authentication via an embedded web browser (Qt WebEngine). When you first run the application, you'll be prompted to log in to TradeStation to authorize the app.
 
 ### Logging Configuration
 
@@ -137,7 +131,7 @@ The application uses Qt's logging categories for runtime control. Logs are store
 Launch the application with the GUI interface:
 
 ```bash
-./L2Trader
+./L2Trader --criterias=../Example_Config/selection_criteria.ini
 ```
 
 The GUI provides:
@@ -148,31 +142,36 @@ The GUI provides:
 
 ### Terminal Mode
 
-For headless operation, build the application without GUI support (see "Building with GUI Disabled" above). The terminal frontend will be used automatically when GUI is not compiled in.
+Terminal mode (TUI) is currently not fully implemented. Building with `-DENABLE_GUI=OFF` will create a console-only application, but the TUI frontend is a skeleton implementation with placeholder functionality.
 
 ### Recorder Mode
 
-The Recorder application captures live market data (bars and market depth) to SQLite databases for later analysis.
+The Recorder application captures live market data (bars and market depth) to SQLite databases for later analysis or replay.
 
 ```bash
-./Recorder --stock-csv=stocks.csv
+./Recorder --stock-csv=../Example_Config/nasdaq_screener.csv
 ```
 
 By default, data is written to `~/.cache/Recorder/RecordedLiveData/`. To specify a custom directory (e.g., external USB drive):
 
 ```bash
-./Recorder --stock-csv=stocks.csv --recorded-data-dir=/mnt/ssd
+./Recorder --stock-csv=../Example_Config/nasdaq_screener.csv --recorded-data-dir=/mnt/ssd
+```
+
+Alternatively, you can change the cache root directory (which will store data under `<dir>/Recorder/RecordedLiveData/`):
+
+```bash
+./Recorder --stock-csv=../Example_Config/nasdaq_screener.csv --cache-root-dir=/mnt/ssd
 ```
 
 ### Development Workflow
 
 The application automatically:
-1. Authenticates with TradeStation and FMP APIs
-2. Loads stock screening criteria
-3. Performs initial stock screening based on configured parameters
-4. Begins monitoring breaking news for screened stocks
-5. Streams real-time market data for selected instruments
-6. Updates charts and market depth displays in real-time
+1. Authenticates with TradeStation API via OAuth
+2. Loads stock screening criteria from configuration file
+3. Begins monitoring selected stocks
+4. Streams real-time market data for selected instruments
+5. Updates charts and market depth displays in real-time
 
 ## Development
 
@@ -180,16 +179,20 @@ The application automatically:
 
 ```
 L2Trader/
-├── src/
+├── Src/
 │   ├── Algo/              # Trading algorithms and stock screening
-│   ├── Clients/           # API clients (TradeStation, FMP)
-│   ├── Core/              # Main application and frontend
-│   ├── GUI/               # Qt widgets and UI components
-│   └── Misc/              # Utilities, logging, settings
+│   ├── Clients/           # API clients (TradeStation only)
+│   ├── Core/              # Main application logic
+│   ├── FrontEnd/          # GUI and TUI frontend implementations
+│   │   ├── GUI/           # Qt widgets, charts, and UI components
+│   │   └── TUI/           # Terminal UI (skeleton/placeholder)
+│   ├── Misc/              # Utilities, logging, settings
+│   └── Recorder/          # Recorder application for live data capture
 ├── Tests/                 # Unit tests
+├── qcustomplot/           # QCustomPlot charting library
 ├── Resources/             # Icons and resources
 ├── Example_Config/        # Example configuration files
-└── *.md                   # Architecture documentation
+└── Doc/                   # Architecture documentation
 ```
 
 ### Running Tests
@@ -199,12 +202,11 @@ Build and run the test suite:
 ```bash
 mkdir build
 cd build
-cmake .. -DBUILD_TESTS=ON
+cmake .. -DBUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build . --parallel
-ctest
+ctest --output-on-failure
 # Or run individual tests:
-./Tests/test_barcache
-./Tests/test_fmpclient
+./Tests/test_barcache --stock-csv=../Example_Config/nasdaq_screener.csv
 ./Tests/test_RunUpDetector
 ./Tests/test_tradestationclient
 ```
@@ -220,10 +222,14 @@ The project includes VSCode configuration in `.vscode/`. For Qt Creator:
 
 ### Code Style
 
-- C++17 standard
+- C++20 standard
 - Qt naming conventions for Qt classes
-- camelCase for methods and variables
+- Member variables: `m_` prefix
+- Global variables: `g_` prefix
+- Parameters: `p_` prefix
+- camelCase for methods and local variables
 - Header guards using `#pragma once`
+- Early return/exit style for error handling
 
 ## Contributing
 
@@ -238,8 +244,8 @@ Contributions are welcome! Please:
 ## Security
 
 - **Never commit API keys** to the repository
-- Store credentials in `access_tokens.ini` (gitignored)
-- Use secure token storage mechanisms
+- OAuth credentials are managed through TradeStation's authentication flow
+- Use secure token storage mechanisms (Qt WebEngine for OAuth)
 - Review API rate limits to avoid account suspension
 
 ## License
@@ -249,8 +255,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 - Built with Qt6 framework
+- Uses QCustomPlot for high-performance charting
 - Integrates with TradeStation API for market data
-- Uses Financial Modeling Prep (FMP) API for stock screening
 - Inspired by professional trading platforms and market analysis tools
 
 ## Support
