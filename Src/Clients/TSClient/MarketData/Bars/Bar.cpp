@@ -74,54 +74,60 @@ return query;
 Bar Bar::nullBar(QDateTime dateTime)
 {
     Bar bar = Bar();
-    bar.barStatus = BarStatus::Null;
-    bar.timeStamp = dateTime;
+    bar.m_flags = (static_cast<quint8>(BarStatus::Null) << BARSTATUS_SHIFT);
+    bar.m_timeStamp = dateTime;
 
     return bar;
 }
 
-Bar::Bar(QDateTime ts, double o, double h, double l, double c, qint64 vol) {
-    timeStamp = ts;
-    open = o;
-    high = h;
-    low = l;
-    close = c;
-    totalVolume = vol;
-    downTicks = 0;
-    downVolume = 0;
-    openInterest = 0;
-    isRealtime = false;
-    isEndOfHistory = false;
-    totalTicks = 0;
-    unchangedTicks = 0;
-    unchangedVolume = 0;
-    upTicks = 0;
-    upVolume = 0;
-    epoch = ts.toSecsSinceEpoch();
-    barStatus = BarStatus::Closed;
+Bar::Bar(QDateTime ts, float o, float h, float l, float c, qint64 vol) {
+    m_timeStamp = ts;
+    m_open = o;
+    m_high = h;
+    m_low = l;
+    m_close = c;
+    m_totalVolume = vol;
+    m_downTicks = 0;
+    m_downVolume = 0;
+    m_openInterest = 0.0f;
+    m_totalTicks = 0;
+    m_unchangedTicks = 0;
+    m_unchangedVolume = 0;
+    m_upTicks = 0;
+    m_upVolume = 0;
+    m_epoch = ts.toSecsSinceEpoch();
+    m_flags = (static_cast<quint8>(BarStatus::Closed) << BARSTATUS_SHIFT);
 }
 
 Bar::Bar(const QJsonObject& jsonObj) {
-    high = jsonObj["High"].toString().toDouble();
-    low = jsonObj["Low"].toString().toDouble();
-    open = jsonObj["Open"].toString().toDouble();
-    close = jsonObj["Close"].toString().toDouble();
-    timeStamp = QDateTime::fromString(jsonObj["TimeStamp"].toString(), Qt::ISODate).toTimeZone(QTimeZone("America/New_York"));
-    totalVolume = (quint64) jsonObj["TotalVolume"].toString().toInt();
-    downTicks =  (quint64) jsonObj["DownTicks"].toInt();
-    downVolume = (quint64) jsonObj["DownVolume"].toInt();
-    openInterest = jsonObj["OpenInterest"].toDouble();
-    isRealtime = jsonObj["IsRealtime"].toBool();
-    isEndOfHistory = jsonObj["IsEndOfHistory"].toBool();
-    totalTicks = (quint64) jsonObj["TotalTicks"].toInt();
-    unchangedTicks = (quint64) jsonObj["UnchangedTicks"].toInt();
-    unchangedVolume = (quint64) jsonObj["UnchangedVolume"].toInt();
-    upTicks = (quint64) jsonObj["UpTicks"].toInt();
-    upVolume = (quint64) jsonObj["UpVolume"].toInt();
-    epoch = jsonObj["Epoch"].toInteger();
-    barStatus = barStatusFromString(jsonObj["BarStatus"].toString());
+    m_high = static_cast<float>(jsonObj["High"].toString().toDouble());
+    m_low = static_cast<float>(jsonObj["Low"].toString().toDouble());
+    m_open = static_cast<float>(jsonObj["Open"].toString().toDouble());
+    m_close = static_cast<float>(jsonObj["Close"].toString().toDouble());
+    m_timeStamp = QDateTime::fromString(jsonObj["TimeStamp"].toString(), Qt::ISODate).toTimeZone(QTimeZone("America/New_York"));
+    m_totalVolume = (quint64) jsonObj["TotalVolume"].toString().toInt();
+    m_downTicks =  (quint64) jsonObj["DownTicks"].toInt();
+    m_downVolume = (quint64) jsonObj["DownVolume"].toInt();
+    m_openInterest = static_cast<float>(jsonObj["OpenInterest"].toDouble());
+    m_totalTicks = (quint64) jsonObj["TotalTicks"].toInt();
+    m_unchangedTicks = (quint64) jsonObj["UnchangedTicks"].toInt();
+    m_unchangedVolume = (quint64) jsonObj["UnchangedVolume"].toInt();
+    m_upTicks = (quint64) jsonObj["UpTicks"].toInt();
+    m_upVolume = (quint64) jsonObj["UpVolume"].toInt();
+    m_epoch = jsonObj["Epoch"].toInteger();
+    
+    // Initialize flags
+    m_flags = 0;
+    if (jsonObj["IsRealtime"].toBool()) {
+        m_flags |= FLAG_IS_REALTIME;
+    }
+    if (jsonObj["IsEndOfHistory"].toBool()) {
+        m_flags |= FLAG_IS_END_OF_HISTORY;
+    }
+    BarStatus status = barStatusFromString(jsonObj["BarStatus"].toString());
+    m_flags |= (static_cast<quint8>(status) << BARSTATUS_SHIFT);
 
-    qWarning()<<"bar created with timestamp "<<timeStamp;
+    qWarning()<<"bar created with timestamp "<<m_timeStamp;
 }
 
 bool Bar::isValid() const {
@@ -158,24 +164,24 @@ bool Bar::isValid() const {
 
 QString Bar::toJsonString() const {
     QJsonObject jsonObj;
-    jsonObj["High"] = high;
-    jsonObj["Low"] = low;
-    jsonObj["Open"] = open;
-    jsonObj["Close"] = close;
-    jsonObj["TimeStamp"] = timeStamp.toString();
-    jsonObj["TotalVolume"] = (qint64) totalVolume;
-    jsonObj["DownTicks"] = (qint64) downTicks;
-    jsonObj["DownVolume"] = (qint64) downVolume;
-    jsonObj["OpenInterest"] = openInterest;
-    jsonObj["IsRealtime"] = isRealtime;
-    jsonObj["IsEndOfHistory"] = isEndOfHistory;
-    jsonObj["TotalTicks"] = (qint64) totalTicks;
-    jsonObj["UnchangedTicks"] = (qint64) unchangedTicks;
-    jsonObj["UnchangedVolume"] = (qint64) unchangedVolume;
-    jsonObj["UpTicks"] = (qint64) upTicks;
-    jsonObj["UpVolume"] = (qint64) upVolume;
-    jsonObj["Epoch"] = epoch;
-    jsonObj["BarStatus"] = barStatusToString(barStatus);
+    jsonObj["High"] = static_cast<double>(m_high);
+    jsonObj["Low"] = static_cast<double>(m_low);
+    jsonObj["Open"] = static_cast<double>(m_open);
+    jsonObj["Close"] = static_cast<double>(m_close);
+    jsonObj["TimeStamp"] = m_timeStamp.toString();
+    jsonObj["TotalVolume"] = (qint64) m_totalVolume;
+    jsonObj["DownTicks"] = (qint64) m_downTicks;
+    jsonObj["DownVolume"] = (qint64) m_downVolume;
+    jsonObj["OpenInterest"] = static_cast<double>(m_openInterest);
+    jsonObj["IsRealtime"] = (m_flags & FLAG_IS_REALTIME) != 0;
+    jsonObj["IsEndOfHistory"] = (m_flags & FLAG_IS_END_OF_HISTORY) != 0;
+    jsonObj["TotalTicks"] = (qint64) m_totalTicks;
+    jsonObj["UnchangedTicks"] = (qint64) m_unchangedTicks;
+    jsonObj["UnchangedVolume"] = (qint64) m_unchangedVolume;
+    jsonObj["UpTicks"] = (qint64) m_upTicks;
+    jsonObj["UpVolume"] = (qint64) m_upVolume;
+    jsonObj["Epoch"] = m_epoch;
+    jsonObj["BarStatus"] = barStatusToString(getBarStatus());
     
     QJsonDocument doc(jsonObj);
     return QString(doc.toJson(QJsonDocument::Indented));
