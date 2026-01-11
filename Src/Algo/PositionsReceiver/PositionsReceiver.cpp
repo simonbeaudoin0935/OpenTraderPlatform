@@ -47,7 +47,7 @@ void PositionsReceiver::createPositionsStream()
             // We get here when the stream is gracefully closed by the receiving side.
             // This should never happen for the positions stream, its supposed to operate during
             // all the program execution.
-            CRITICAL << "Not supposed to voluntarly close the positions stream with TSClient::closeStream()";
+            CRITICAL << "Not supposed to voluntarily close the positions stream with TSClient::closeStream()";
             Q_ASSERT(false);
         }
     ).onFailed(this,

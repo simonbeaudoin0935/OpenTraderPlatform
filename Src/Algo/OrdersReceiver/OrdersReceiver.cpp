@@ -35,7 +35,7 @@ void OrdersReceiver::createOrdersStream()
             // We get here when the stream is gracefully closed by the receiving side.
             // This should never happen for the orders stream, its supposed to operate during
             // all the program execution.
-            CRITICAL << "Not supposed to voluntarly close the orders stream with TSClient::closeStream()";
+            CRITICAL << "Not supposed to voluntarily close the orders stream with TSClient::closeStream()";
             Q_ASSERT(false);
         }
     ).onFailed(this,
