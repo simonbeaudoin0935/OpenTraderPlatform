@@ -30,7 +30,8 @@ MainAlgo::MainAlgo()
 
     this->moveToThread(&thread);
 
-    connect(&thread, &QThread::started, this, &MainAlgo::onThreadStarted);
+    auto c1 = connect(&thread, &QThread::started, this, &MainAlgo::onThreadStarted, Qt::UniqueConnection);
+    Q_ASSERT(c1);
 
     {
         QString filePath = QDir::homePath() + "/Documents/results.txt";
