@@ -101,11 +101,13 @@ void MainAlgo::onSelectDisplayedStock(QString symbol)
     }
 
     // Redoo the plumbing we disconnected at the top of this function
-    connect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
-            this, &MainAlgo::displayedStockReceivedNewBar);
+    auto c1 = connect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
+            this, &MainAlgo::displayedStockReceivedNewBar, Qt::UniqueConnection);
+    Q_ASSERT(c1);
 
-    connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
-            this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
+    auto c2 = connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+            this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote, Qt::UniqueConnection);
+    Q_ASSERT(c2);
 }
 
 BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDateTime first, QDateTime last)

@@ -21,11 +21,14 @@ void OrdersReceiver::createOrdersStream()
     m_stream = TSClient::getInstance()->openStreamOrders(m_account);
     Q_CHECK_PTR(m_stream);
 
-    connect(m_stream, &StreamOrders::newOrderReceived, this, &OrdersReceiver::onReceivedNewOrder);
-    connect(m_stream, &StreamOrders::endSnapshotReceived, this,
+    auto c1 = connect(m_stream, &StreamOrders::newOrderReceived, this, &OrdersReceiver::onReceivedNewOrder, Qt::UniqueConnection);
+    Q_ASSERT(c1);
+    
+    auto c2 = connect(m_stream, &StreamOrders::endSnapshotReceived, this,
         [this](){
             INFO << "Received EndSnapshot for Orders stream";
-        });
+        }, Qt::UniqueConnection);
+    Q_ASSERT(c2);
 
     m_stream->future().then(this,
         [this](){

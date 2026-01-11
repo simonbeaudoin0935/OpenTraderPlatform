@@ -22,8 +22,9 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
 
     Q_CHECK_PTR(m_stream);
 
-    connect(m_stream, &StreamMarketDepthQuote::newMarketDepthQuoteReceived,
-            this, &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote);
+    auto c1 = connect(m_stream, &StreamMarketDepthQuote::newMarketDepthQuoteReceived,
+            this, &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote, Qt::UniqueConnection);
+    Q_ASSERT(c1);
     
     m_stream->future().then(this,
         [this](){

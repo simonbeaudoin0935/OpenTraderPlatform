@@ -13,7 +13,7 @@ PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
 {
     this->setObjectName("PositionReceiver");
     
-
+    createPositionsStream();
 }
 
 PositionsReceiver::~PositionsReceiver() {
@@ -29,12 +29,17 @@ void PositionsReceiver::createPositionsStream()
     m_stream = TSClient::getInstance()->openStreamPositions(m_account);
     Q_CHECK_PTR(m_stream);
 
-    connect(m_stream, &StreamPositions::newPositionReceived, this, &PositionsReceiver::onReceivedNewPosition);
-    connect(m_stream, &StreamPositions::positionDeleted, this, &PositionsReceiver::onPositionDeleted);
-    connect(m_stream, &StreamPositions::endSnapshotReceived, this,
+    auto c1 = connect(m_stream, &StreamPositions::newPositionReceived, this, &PositionsReceiver::onReceivedNewPosition, Qt::UniqueConnection);
+    Q_ASSERT(c1);
+    
+    auto c2 = connect(m_stream, &StreamPositions::positionDeleted, this, &PositionsReceiver::onPositionDeleted, Qt::UniqueConnection);
+    Q_ASSERT(c2);
+    
+    auto c3 = connect(m_stream, &StreamPositions::endSnapshotReceived, this,
         [this](){
             INFO << "Received EndSnapshot for Orders stream";
-        });
+        }, Qt::UniqueConnection);
+    Q_ASSERT(c3);
 
 
     m_stream->future().then(this,

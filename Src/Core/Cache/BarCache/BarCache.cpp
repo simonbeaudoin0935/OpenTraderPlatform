@@ -85,7 +85,8 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
         Q_CHECK_PTR(m_stream);
 
 
-        connect(m_stream, &StreamBars::newBarReceived, this, &BarCache::onReceivedNewLiveBar);
+        auto c1 = connect(m_stream, &StreamBars::newBarReceived, this, &BarCache::onReceivedNewLiveBar, Qt::UniqueConnection);
+        Q_ASSERT(c1);
 
         m_stream->future().then(this,
             [this](){
