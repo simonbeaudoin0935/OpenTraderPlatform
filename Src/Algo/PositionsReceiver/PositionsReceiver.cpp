@@ -37,7 +37,7 @@ void PositionsReceiver::createPositionsStream()
     
     auto c3 = connect(m_stream, &StreamPositions::endSnapshotReceived, this,
         [this](){
-            INFO << "Received EndSnapshot for Orders stream";
+            INFO << "Received EndSnapshot for Positions stream";
         }, Qt::UniqueConnection);
     Q_ASSERT(c3);
 
@@ -45,9 +45,9 @@ void PositionsReceiver::createPositionsStream()
     m_stream->future().then(this,
         [this](){
             // We get here when the stream is gracefully closed by the receiving side.
-            // This should never happen for the orders stream, its supposed to operate during
+            // This should never happen for the positions stream, its supposed to operate during
             // all the program execution.
-            CRITICAL << "Not supposed to voluntarly close the orders stream with TSClient::closeStream()";
+            CRITICAL << "Not supposed to voluntarly close the positions stream with TSClient::closeStream()";
             Q_ASSERT(false);
         }
     ).onFailed(this,
