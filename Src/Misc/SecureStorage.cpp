@@ -11,10 +11,6 @@
 
 Q_LOGGING_CATEGORY(secureStorage, "SecureStorage")
 
-#ifndef QT_KEYCHAIN_LIB
-#warning "QKeychain library not found, SecureStorage will use less secure QSettings fallback."
-#endif
-
 SecureStorage::SecureStorage(QObject* parent)
     : QObject(parent)
 {

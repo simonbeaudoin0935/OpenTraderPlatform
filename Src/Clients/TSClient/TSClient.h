@@ -1,5 +1,7 @@
 #pragma once
 
+#include <expected>
+
 #include <QObject>
 #include <QLoggingCategory>
 #include <QNetworkRequest>
@@ -50,23 +52,13 @@ class TSClient final : public QObject
     Q_OBJECT
 public:
 
-    class TimeoutException : public QException {
-    public:
-        void raise() const override { throw *this; }
-        TimeoutException *clone() const override { return new TimeoutException(*this); }
+    enum class Error : quint8
+    {
+        Timeout,
+        JSONError,
+        Other
     };
 
-    class JSONErrorException : public QException {
-    public:
-        void raise() const override { throw *this; }
-        JSONErrorException *clone() const override { return new JSONErrorException(*this); }
-    };
-
-    class OtherErrorException : public QException {
-    public:
-        void raise() const override { throw *this; }
-        OtherErrorException *clone() const override { return new OtherErrorException(*this); }
-    };
 
     // Singleton : Instance getter
     [[nodiscard]] static TSClient* getInstance();
@@ -86,14 +78,16 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/GetQuoteSnapshots
      */
-    [[nodiscard]] QFuture<QVector<Quote>> getQuoteSnapshots(const QStringList &symbols);
+    [[nodiscard]] QFuture<std::expected<QVector<Quote>, Error>>
+    getQuoteSnapshots(const QStringList &symbols);
 
     /*
      * Get Bars asynchronously
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/MarketData/operation/GetBars
      */
-    [[nodiscard]] QFuture<std::unique_ptr<QVector<Bar>>> getBars(
+    [[nodiscard]] QFuture<std::expected<std::unique_ptr<QVector<Bar>>, Error>>
+    getBars(
         const QString &symbol,
         unsigned int interval = 1,
         Bar::BarUnit unit = Bar::BarUnit::Daily,
@@ -108,28 +102,30 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
      */
-    [[nodiscard]] QFuture<QVector<Account>> getAccounts();
+    [[nodiscard]] QFuture<std::expected<QVector<Account>, Error>>
+    getAccounts();
 
     /*
      * Get Balances
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetBalances
      */
-    [[nodiscard]] QFuture<QVector<Balance>>  getBalances(const QStringList &accounts);
+    [[nodiscard]] QFuture<std::expected<QVector<Balance>, Error>>
+    getBalances(const QStringList &accounts);
  
     /*
      * Place order
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/PlaceOrder
      */
-    [[nodiscard]] QFuture<PlaceOrderResult> placeOrder(const PlaceOrderRequest &order);
+    [[nodiscard]] QFuture<std::expected<PlaceOrderResult, Error>> placeOrder(const PlaceOrderRequest &order);
 
     /*
      * Cancel order
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/CancelOrder
      */
-    [[nodiscard]] QFuture<CancelOrderResult> cancelOrder(const QString &orderID);
+    [[nodiscard]] QFuture<std::expected<CancelOrderResult, Error>> cancelOrder(const QString &orderID);
 
     /*
      * Creates a Bars Stream

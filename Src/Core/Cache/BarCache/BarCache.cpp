@@ -398,7 +398,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
                     storeBarsInCache(date, barsFromApiHolesFilled);
                     storeBarsInDatabase(date, barsFromApiHolesFilled);
 
-                    #warning bug here, we must return only the requested range, not the complete day
+                    //#warning bug here, we must return only the requested range, not the complete day
                     // For now we return the complete day - later we can slice to requested range only
                     promisePtr->addResult(std::move(barsFromApiHolesFilled));
                     promisePtr->finish();
@@ -470,7 +470,6 @@ BarCache::getBarsFromCache(const QDate &date, const QTime &start, const QTime &e
     return std::move(result);
 }
 
-#warning TODO fix
 void BarCache::storeBarInCache(const Bar& bar)
 {
     QDateTime dateTime = bar.getTimeStamp();

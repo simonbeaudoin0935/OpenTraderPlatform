@@ -7,12 +7,13 @@
 
 #define LOGGING_CATEGORY TSClientLog
 
-QFuture<QVector<Account>> TSClient::getAccounts()
+QFuture<std::expected<QVector<Account>, TSClient::Error>>
+TSClient::getAccounts()
 {
     DEBUG << "Fetching accounts";
 
-    QPromise<QVector<Account>> promise;
-    QFuture<QVector<Account>> future = promise.future();
+    QPromise<std::expected<QVector<Account>, TSClient::Error>> promise;
+    QFuture<std::expected<QVector<Account>, TSClient::Error>> future = promise.future();
 
     promise.start();
 
@@ -40,7 +41,7 @@ QFuture<QVector<Account>> TSClient::getAccounts()
                             if (parseError.error != QJsonParseError::NoError) {
                                 CRITICAL << "Failed to parse JSON:" << parseError.errorString();
                                 CRITICAL << "Content of the bad data : " << rawData;
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
@@ -48,7 +49,7 @@ QFuture<QVector<Account>> TSClient::getAccounts()
 
                             if(val == QJsonValue::Undefined) {
                                 CRITICAL << " : 'Accounts' field is missing in the response";
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
@@ -56,7 +57,7 @@ QFuture<QVector<Account>> TSClient::getAccounts()
 
                             if (accountsArray.isEmpty()) {
                                 CRITICAL << " : 'Accounts' array is empty in the response";
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
@@ -84,7 +85,7 @@ QFuture<QVector<Account>> TSClient::getAccounts()
                         case QNetworkReply::UnknownNetworkError:
                         {
                             CRITICAL << ": getAccounts(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
-                            promise.setException(TimeoutException());
+                            promise.addResult(std::unexpected(Error::Timeout));
                             break;
                         }
 
@@ -92,7 +93,7 @@ QFuture<QVector<Account>> TSClient::getAccounts()
                         default:
                         {
                             CRITICAL << ": getAccounts(): Error with reply: " << reply->errorString() << " : " << reply->error();
-                            promise.setException(OtherErrorException());
+                            promise.addResult(std::unexpected(Error::Other));
                             break;
                         }
                     };
@@ -109,15 +110,16 @@ QFuture<QVector<Account>> TSClient::getAccounts()
     return future;
 }
 
-QFuture<QVector<Balance>> TSClient::getBalances(const QStringList &accounts)
+QFuture<std::expected<QVector<Balance>, TSClient::Error>>
+TSClient::getBalances(const QStringList &accounts)
 {
     //DEBUG << "Fetching Balances";
     
     OBJ_ASSUME_FALSE(accounts.isEmpty());
     OBJ_ASSUME_TRUE(accounts.size() == 1); // FIXME For now only single account is supported
 
-    QPromise<QVector<Balance>> promise;
-    QFuture<QVector<Balance>> future = promise.future();
+    QPromise<std::expected<QVector<Balance>, TSClient::Error>> promise;
+    QFuture<std::expected<QVector<Balance>, TSClient::Error>> future = promise.future();
 
     promise.start();
 
@@ -147,7 +149,7 @@ QFuture<QVector<Balance>> TSClient::getBalances(const QStringList &accounts)
                             if (parseError.error != QJsonParseError::NoError) {
                                 qCCritical(TSClientLog) << "Failed to parse JSON:" << parseError.errorString();
                                 qCCritical(TSClientLog) << "Content of the bad data : " << rawData;
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
@@ -155,7 +157,7 @@ QFuture<QVector<Balance>> TSClient::getBalances(const QStringList &accounts)
 
                             if(val == QJsonValue::Undefined) {
                                 qCCritical(TSClientLog) << " : 'Balances' field is missing in the response";
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
@@ -163,7 +165,7 @@ QFuture<QVector<Balance>> TSClient::getBalances(const QStringList &accounts)
 
                             if (balancesArray.isEmpty()) {
                                 qCCritical(TSClientLog) << " : 'Balances' array is empty in the response";
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
@@ -183,7 +185,7 @@ QFuture<QVector<Balance>> TSClient::getBalances(const QStringList &accounts)
                         case QNetworkReply::UnknownNetworkError:
                         {
                             qCCritical(TSClientLog) << ": getBalances(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
-                            promise.setException(TimeoutException());
+                            promise.addResult(std::unexpected(Error::Timeout));
                             break;
                         }
 
@@ -191,7 +193,7 @@ QFuture<QVector<Balance>> TSClient::getBalances(const QStringList &accounts)
                         default:
                         {
                             qCCritical(TSClientLog) << ": getBalances(): Error with reply: " << reply->errorString() << " : " << reply->error();
-                            promise.setException(OtherErrorException());
+                            promise.addResult(std::unexpected(Error::Other));
                             break;
                         }
                     };
@@ -208,7 +210,8 @@ QFuture<QVector<Balance>> TSClient::getBalances(const QStringList &accounts)
     return future;
 }
 
-QFuture<std::unique_ptr<QVector<Bar>>> TSClient::getBars(
+QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>>
+TSClient::getBars(
     const QString &symbol,
     unsigned int interval,
     Bar::BarUnit unit,
