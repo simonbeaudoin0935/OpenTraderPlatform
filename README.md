@@ -41,7 +41,7 @@ For detailed architecture diagrams, see:
 ### Required Dependencies
 
 - **Qt 6.x**: Core, Network, SQL, Widgets, WebEngineWidgets, PrintSupport
-- **C++20 compliant compiler**: GCC 7+ or Clang 5+
+- **C++23 compliant compiler**: GCC 11+ or Clang 12+
 - **CMake 3.16+**: Build system
 - **SQLite**: Database support (included with Qt SQL)
 - **QCustomPlot**: Charting library (included in repository)
@@ -222,7 +222,7 @@ The project includes VSCode configuration in `.vscode/`. For Qt Creator:
 
 ### Code Style
 
-- C++20 standard
+- C++23 standard
 - Qt naming conventions for Qt classes
 - Member variables: `m_` prefix
 - Global variables: `g_` prefix
