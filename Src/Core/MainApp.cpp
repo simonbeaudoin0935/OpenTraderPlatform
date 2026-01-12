@@ -5,6 +5,22 @@
 #include "TUIFrontend.h"
 #endif
 
+bool MainApp::isInReplayMode = false;
+
+QDateTime MainApp::currentAppReplayTime = QDateTime::fromSecsSinceEpoch(0);
+
+// Get the current application time (real or replay)
+QDateTime MainApp::getCurrentAppTime()
+{
+    if (isInReplayMode) {
+        // Not implemented yet
+        Q_UNREACHABLE();
+        return currentAppReplayTime;
+    } else {
+        return QDateTime::currentDateTime().toTimeZone(QTimeZone("America/New_York"));
+    }
+}
+
 MainApp::MainApp() :
     tradeStationClient(TSClient::getInstance()),
     mainAlgo(MainAlgo::getInstance())

@@ -99,8 +99,8 @@ TSClient::TSClient() :
 
         int secondsToNextRefreshRequest = m_authToken.secondsToNextRefreshRequest();
 
-        // Logically if we are here this HAS to be t least 1s
-        Q_ASSERT(secondsToNextRefreshRequest > 1);
+        // Logically if we are here this HAS to be at least 1s
+        Q_ASSERT(secondsToNextRefreshRequest >= 1);
 
         DEBUG << "Initiating a refresh in " << secondsToNextRefreshRequest << "seconds";
 

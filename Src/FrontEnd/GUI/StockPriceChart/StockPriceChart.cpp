@@ -1,11 +1,14 @@
-#include "StockPriceChart.h"
-#include "MarketHours.h"
-#include "Logging.h"
 #include <QtSql/QSqlDatabase>
 #include <QtSql/QSqlQuery>
 #include <QtSql/QSqlError>
 #include <QStandardPaths>
 #include <QDir>
+
+#include "StockPriceChart.h"
+#include "MarketHours.h"
+#include "Misc/Settings.h"
+#include "Logging.h"
+#include "Assume.h"
 
 #define LOGGING_CATEGORY ChartLog
 #define CANDLESTICK_BODY_WIDTH 0.9 // 90% of available space
@@ -16,11 +19,12 @@ Q_LOGGING_CATEGORY(ChartLog, "Chart");
  * @brief Constructs a StockPriceChart widget using qcustomplot.
  */
 StockPriceChart::StockPriceChart(QWidget* parent)
-    : QWidget(parent) {
-
+    : QWidget(parent)
+{
     // Create the custom plot widget
     m_customPlot = new QCustomPlot(this);
     Q_CHECK_PTR(m_customPlot);
+    
     m_customPlot->installEventFilter(this);
     
     // Create candlestick chart
@@ -33,8 +37,8 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     m_candlesticks->setTwoColored(true);
     m_candlesticks->setBrushPositive(QColor(0, 180, 0));      // Green for up
     m_candlesticks->setBrushNegative(QColor(200, 0, 0));      // Red for down
-    m_candlesticks->setPenPositive(QPen(QColor(0, 0, 0)));
-    m_candlesticks->setPenNegative(QPen(QColor(0, 0, 0)));
+    m_candlesticks->setPenPositive(QPen(QColor(0, 180, 0)));
+    m_candlesticks->setPenNegative(QPen(QColor(200, 0, 0)));
 
     // Setup axes
     m_customPlot->xAxis->setLabel("");
@@ -165,6 +169,20 @@ StockPriceChart::StockPriceChart(QWidget* parent)
             this, &StockPriceChart::onVolumeChartVisibilityChanged);
     connect(chartToolbar, &ChartToolbar::replayDayChanged,
             this, &StockPriceChart::onReplayDayChanged);
+    connect(chartToolbar, &ChartToolbar::wheelRatioChanged,
+            this, [this](qreal ratio) { 
+                this->wheelZoomRatio = ratio; 
+                // Save to settings
+                Q_CHECK_PTR(appStateSettings);
+                appStateSettings->setValue("Chart/WheelZoomRatio", ratio);
+                appStateSettings->sync();
+            });
+
+    // Load wheel zoom ratio from settings
+    Q_CHECK_PTR(appStateSettings);
+    qreal savedRatio = appStateSettings->value("Chart/WheelZoomRatio", 1.0).toReal();
+    chartToolbar->setWheelRatio(savedRatio);
+    wheelZoomRatio = savedRatio;
 
     // Connect axis range change signals
     connect(m_customPlot->xAxis, QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
@@ -198,7 +216,7 @@ void StockPriceChart::setSymbol(const QString& symbol) {
  */
 void StockPriceChart::populateAvailableReplayDays() {
     QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
-    QString barsDir = QString("%1/L2Trader/RecordedLiveData/Bars").arg(cacheDir);
+    QString barsDir = QString("%1/RecordedLiveData/Bars").arg(cacheDir);
     
     QDir dir(barsDir);
     if (!dir.exists()) {
@@ -241,10 +259,21 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     WARNING << "Received bar for" << symbol 
             << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
             << "Status:" << Bar::barStatusToString(bar.getBarStatus())
+            << "isEndOfHistory:" << bar.getIsEndOfHistory()
             << "O:" << bar.getOpen()
             << "H:" << bar.getHigh()
             << "L:" << bar.getLow()
             << "C:" << bar.getClose();
+    
+    if (startedReceivingRealtimeBars == true) {
+        Q_ASSERT(bar.getIsRealtime());
+    } else {
+        if (bar.getIsEndOfHistory()) {
+            Q_ASSERT(!bar.getIsRealtime());
+            startedReceivingRealtimeBars = true;
+
+        }
+    }
 
     // Is this the first bar ever received for this chart
     if (indexToBar.size() == 0) [[unlikely]] {
@@ -261,8 +290,6 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         updateCandlestickData();
         updateVolumeData();
 
-        updateSessionBackgrounds();
-
         m_customPlot->xAxis->setRange(index - 30, index + 1);
         
         double newPrice = bar.getClose();
@@ -272,29 +299,67 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
                         newPrice + minRange/2 + padding);
 
         m_customPlot->replot();
+
+        // Draw background rectangles for the session
+        drawBackgroundsForReceivedBars({});
+
+        // Here we will fetch the bars from the beginning of the day up to this bar to fill in history
+        QDateTime first = QDateTime(bar.getTimeStamp().date(), QTime(TRADING_START_HOUR, 1, 0), QTimeZone("America/New_York"));
+        QDateTime last = bar.getTimeStamp();
+
+        currentGetBarsRequestInProcess = true;
+
+        emit requestMissingBars(first, last);
         return;
     }
 
-    Q_ASSERT(bar.getBarStatus() != Bar::BarStatus::Null);
 
-    if (bar.getBarStatus() == Bar::BarStatus::Closed 
-       || (bar.getBarStatus() == Bar::BarStatus::Open && m_latestBar.getBarStatus() == Bar::BarStatus::Closed)) {
-        // New bar starting
-        Q_ASSERT(bar.getTimeStamp() > m_latestBar.getTimeStamp());
+    switch(bar.getBarStatus())
+    {
+    case Bar::BarStatus::Null:
+        // Tradestation doesnt send 'null' bars, it is a construct that we created in this program
+        Q_ASSERT(false);
+        break;
 
-        const int newIndex = indexToBar.lastKey() + 1;
+    case Bar::BarStatus::Closed:
+        {
+            if (startedReceivingRealtimeBars) {
+//                Q_ASSERT(m_latestBar.getBarStatus() == Bar::BarStatus::Open);
+                // TradeStation sends a 'closed' bar to close the current candle. Therefore, its timestamp is the one
+                // from the current candle
+//                Q_ASSERT(bar.getTimeStamp() == m_latestBar.getTimeStamp());
+            } else {
+                Q_ASSERT(m_latestBar.getBarStatus() == Bar::BarStatus::Closed);
+                Q_ASSERT(bar.getTimeStamp() > m_latestBar.getTimeStamp());
+            }
 
-        timestampToIndex[bar.getTimeStamp()] = newIndex;
-        indexToBar[newIndex] = bar;
-        m_latestBar = bar;
-        m_latestBarIndex = newIndex;
-        
-        maintainBarLimit();
-    } else {
-        // Update existing bar
-        Q_ASSERT(bar.getTimeStamp() == m_latestBar.getTimeStamp());
-        indexToBar[m_latestBarIndex] = bar;
-        m_latestBar = bar;
+
+
+            const int newIndex = indexToBar.lastKey() + 1;
+
+            timestampToIndex[bar.getTimeStamp()] = newIndex;
+            indexToBar[newIndex] = bar;
+            m_latestBar = bar;
+            m_latestBarIndex = newIndex;
+        }
+        break;
+
+    case Bar::BarStatus::Open:
+        if (m_latestBar.getBarStatus() == Bar::BarStatus::Closed){
+            // New bar after previous one was closed
+
+            Q_ASSERT(bar.getTimeStamp() > m_latestBar.getTimeStamp());
+            break;
+        } else {
+            // Updating existing open bar
+            Q_ASSERT(bar.getTimeStamp() == m_latestBar.getTimeStamp());
+
+            indexToBar[m_latestBarIndex] = bar;
+            m_latestBar = bar;
+
+            break;
+        }
+        break;
     }
 
     // Update candlestick data
@@ -371,95 +436,125 @@ void StockPriceChart::updateVolumeData()
  * 
  * Only draws backgrounds for the currently visible time range.
  */
-void StockPriceChart::updateSessionBackgrounds() {
-    // Clear existing rectangles
+/**
+ * @brief Draws background rectangles for trading sessions based on received bars.
+ * 
+ * This is called once when bars are received, creating fixed rectangles that
+ * QCustomPlot will automatically clip to the visible range.
+ * 
+ * @param bars The bars that were just received (typically a complete day's worth)
+ */
+void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars) {
+    if (bars.isEmpty()) {
+        return;
+    }
+    
+    // Clear existing backgrounds since indices may have changed
     clearBackgroundRects();
     
-    if(indexToBar.isEmpty()) {
-        DEBUG << "No bars available for background drawing";
-        return;
-    }
-      
-    // Get the timestamps for visible range
-    int minIndex = static_cast<int>(m_customPlot->xAxis->range().lower);
-    int maxIndex = static_cast<int>(m_customPlot->xAxis->range().upper);
-    
-    DEBUG << "Updating session backgrounds for index range:" << minIndex << "to" << maxIndex;
-    
-    // Find bars at or after minIndex and at or before maxIndex
-    // Use the first and last available bars if visible range extends beyond data
-    auto minIt = indexToBar.lowerBound(minIndex);
-    if (minIt == indexToBar.end()) {
-        // No bars at or after minIndex, use the last available bar
-        if (!indexToBar.isEmpty()) {
-            minIt = indexToBar.end();
-            --minIt;
-        } else {
-            return;
-        }
-    }
-    
-    auto maxIt = indexToBar.upperBound(maxIndex);
-    if (maxIt == indexToBar.begin()) {
-        // No bars at or before maxIndex
-        DEBUG << "No bars in visible range";
-        return;
-    }
-    --maxIt;  // Get the last bar <= maxIndex
-    
-    QDateTime startTime = minIt.value().getTimeStamp();
-    QDateTime endTime = maxIt.value().getTimeStamp();
-    
-    DEBUG << "Time range:" << startTime.toString() << "to" << endTime.toString();
-    
-    // Convert times to NY timezone for date calculations
+    // Get all dates that have bars
     QTimeZone nyZone("America/New_York");
-    QDateTime nyStartTime = startTime.toTimeZone(nyZone);
-    QDateTime nyEndTime = endTime.toTimeZone(nyZone);
-
-    // Get all dates in the range, including the day before the start
-    QDate currentDate = nyStartTime.date().addDays(-1);  // Start from previous day
-    QDate endDate = nyEndTime.date();
-
-    // Create session boundaries for each day
-    while (currentDate <= endDate) {
-        // Create base time in NY timezone
-        QDateTime currentDateTime = QDateTime(currentDate, QTime(0, 0), nyZone);
-        QDateTime nextDayDateTime = QDateTime(currentDate.addDays(1), QTime(0, 0), nyZone);
-
-        // Handle weekends - show closed market background
-        if (currentDate.dayOfWeek() > 5) {  // Saturday = 6, Sunday = 7
-            currentDate = currentDate.addDays(1);
+    QSet<QDate> datesWithBars;
+    
+    for (const Bar& bar : indexToBar) {
+        QDateTime barTime = bar.getTimeStamp();
+        QDateTime nyTime = barTime.toTimeZone(nyZone);
+        QDate date = nyTime.date();
+        
+        // Skip weekends
+        if (date.dayOfWeek() > 5) {
             continue;
         }
-
-        // Draw rectangles for pre-market and after-hours sessions using known boundaries
-        // NOTE: These times must match MarketHours class definitions:
-        //   - Pre-market: 4:00 AM - 9:30 AM ET (MarketHours::isPreMarket)
-        //   - After-hours: 4:00 PM - 8:00 PM ET (MarketHours::isAfterHours)
-        QDateTime preMarketStart = QDateTime(currentDate, QTime(4, 0), nyZone);
-        QDateTime preMarketEnd = QDateTime(currentDate, QTime(9, 30), nyZone);
         
-        QDateTime afterHoursStart = QDateTime(currentDate, QTime(16, 0), nyZone);
-        QDateTime afterHoursEnd = QDateTime(currentDate, QTime(20, 0), nyZone);
-        
-        // CRITICAL: Keep NY timezone to match bar timestamps stored in timestampToIndex map.
-        // QDateTime comparison in QMap is timezone-aware, so even if two QDateTime objects
-        // represent the same absolute time, they won't match if timezones differ.
-        
-        // Draw pre-market rectangle
-        drawBackgroundForTimeRange(preMarketStart, preMarketEnd,
-                                  QColor(255, 165, 0, 180), m_preMarketRects);  // More visible orange
-        
-        // Draw after-hours rectangle
-        drawBackgroundForTimeRange(afterHoursStart, afterHoursEnd,
-                                  QColor(138, 43, 226, 180), m_afterHoursRects);  // More visible violet
-        
-        currentDate = currentDate.addDays(1);
+        datesWithBars.insert(date);
     }
     
-    DEBUG << "Created" << m_preMarketRects.size() << "pre-market rects,"
-          << m_afterHoursRects.size() << "after-hours rects,";
+    // Draw full session rectangles for all dates with bars
+    for (const QDate& date : datesWithBars) {
+        // Create pre-market and after-hours rectangles for this date
+        // Create times in NY timezone then convert to UTC for consistency with bar timestamps
+        QDateTime preMarketStartNY = QDateTime(date, QTime(4, 0), nyZone);
+        QDateTime preMarketEndNY = QDateTime(date, QTime(9, 30), nyZone);
+        QDateTime afterHoursStartNY = QDateTime(date, QTime(16, 0), nyZone);
+        QDateTime afterHoursEndNY = QDateTime(date, QTime(20, 0), nyZone);
+        
+        QDateTime preMarketStart = preMarketStartNY.toTimeZone(QTimeZone::utc());
+        QDateTime preMarketEnd = preMarketEndNY.toTimeZone(QTimeZone::utc());
+        QDateTime afterHoursStart = afterHoursStartNY.toTimeZone(QTimeZone::utc());
+        QDateTime afterHoursEnd = afterHoursEndNY.toTimeZone(QTimeZone::utc());
+        
+        // Draw pre-market rectangle (4am - 9:30am ET)
+        drawFixedBackgroundRect(preMarketStart, preMarketEnd, 
+                              QColor(255, 165, 0, 180), m_preMarketRects);
+        
+        // Draw after-hours rectangle (4pm - 8pm ET)
+        drawFixedBackgroundRect(afterHoursStart, afterHoursEnd, 
+                              QColor(138, 43, 226, 180), m_afterHoursRects);
+        
+        DEBUG << "Created background rectangles for date" << date.toString();
+    }
+}
+
+/**
+ * @brief Draws background rectangles for trading sessions visible in the current axis range.
+ */
+void StockPriceChart::drawBackgroundsForVisibleRange() {
+    if (indexToBar.isEmpty()) {
+        return;
+    }
+    
+    // Clear existing backgrounds
+    clearBackgroundRects();
+    
+    // Get the visible time range
+    double minIndex = m_customPlot->xAxis->range().lower;
+    double maxIndex = m_customPlot->xAxis->range().upper;
+    
+    QDateTime viewStart = getTimestampForIndex(static_cast<int>(minIndex));
+    QDateTime viewEnd = getTimestampForIndex(static_cast<int>(maxIndex));
+    
+    // Convert to NY timezone for session calculations
+    QTimeZone nyZone("America/New_York");
+    QDateTime nyViewStart = viewStart.toTimeZone(nyZone);
+    QDateTime nyViewEnd = viewEnd.toTimeZone(nyZone);
+    
+    // Find all dates that have bars in the visible range
+    QSet<QDate> visibleDates;
+    for (auto it = indexToBar.lowerBound(static_cast<int>(minIndex)); 
+         it != indexToBar.upperBound(static_cast<int>(maxIndex)); ++it) {
+        QDateTime barTime = it.value().getTimeStamp().toTimeZone(nyZone);
+        visibleDates.insert(barTime.date());
+    }
+    
+    // Draw backgrounds for visible dates
+    for (const QDate& date : visibleDates) {
+        // Skip weekends
+        if (date.dayOfWeek() > 5) {
+            continue;
+        }
+        
+        // Create pre-market and after-hours rectangles for this date
+        // Create times in NY timezone then convert to UTC for consistency with bar timestamps
+        QDateTime preMarketStartNY = QDateTime(date, QTime(4, 0), nyZone);
+        QDateTime preMarketEndNY = QDateTime(date, QTime(9, 30), nyZone);
+        QDateTime afterHoursStartNY = QDateTime(date, QTime(16, 0), nyZone);
+        QDateTime afterHoursEndNY = QDateTime(date, QTime(20, 0), nyZone);
+        
+        QDateTime preMarketStart = preMarketStartNY.toTimeZone(QTimeZone::utc());
+        QDateTime preMarketEnd = preMarketEndNY.toTimeZone(QTimeZone::utc());
+        QDateTime afterHoursStart = afterHoursStartNY.toTimeZone(QTimeZone::utc());
+        QDateTime afterHoursEnd = afterHoursEndNY.toTimeZone(QTimeZone::utc());
+        
+        // Draw pre-market rectangle (4am - 9:30am)
+        drawFixedBackgroundRect(preMarketStart, preMarketEnd, 
+                              QColor(255, 165, 0, 180), m_preMarketRects);
+        
+        // Draw after-hours rectangle (4pm - 8pm)
+        drawFixedBackgroundRect(afterHoursStart, afterHoursEnd, 
+                              QColor(138, 43, 226, 180), m_afterHoursRects);
+        
+        DEBUG << "Created background rectangles for visible date" << date.toString();
+    }
 }
 
 /**
@@ -490,92 +585,81 @@ void StockPriceChart::clearBackgroundRects() {
  * @param color The color for the background rectangle.
  * @param rectList The list to add the created rectangle to.
  */
-void StockPriceChart::drawBackgroundForTimeRange(const QDateTime& rangeStart, const QDateTime& rangeEnd,
-                                                   const QColor& color, QList<QCPItemRect*>& rectList) {
+/**
+ * @brief Draws a fixed background rectangle for a specific time range.
+ * 
+ * Creates a rectangle with fixed coordinates that spans the entire Y-axis.
+ * QCustomPlot will automatically handle clipping to the visible range.
+ * 
+ * @param rangeStart The start time of the range to highlight.
+ * @param rangeEnd The end time of the range to highlight.
+ * @param color The color for the background rectangle.
+ * @param rectList The list to add the created rectangle to.
+ */
+void StockPriceChart::drawFixedBackgroundRect(const QDateTime& rangeStart, const QDateTime& rangeEnd,
+                                               const QColor& color, QList<QCPItemRect*>& rectList) {
     if (indexToBar.isEmpty()) {
         return;
     }
     
-    // Get visible index range
-    qreal visibleMinIndex = m_customPlot->xAxis->range().lower;
-    qreal visibleMaxIndex = m_customPlot->xAxis->range().upper;
+    // Calculate indices for the time boundaries
+    qreal sessionStartIndex = static_cast<qreal>(getIndexForTimestamp(rangeStart));
+    qreal sessionEndIndex = static_cast<qreal>(getIndexForTimestamp(rangeEnd));
     
-    // Find first bar at or after rangeStart
-    auto startIt = timestampToIndex.lowerBound(rangeStart);
-    if (startIt == timestampToIndex.end()) {
-        // No bar at or after rangeStart - session is entirely before available data
-        DEBUG << "Time range" << rangeStart.toString("hh:mm") << "to" << rangeEnd.toString("hh:mm")
-              << "is before all available bars";
-        return;
-    }
+    // Create rectangle with fixed coordinates
+    QCPItemRect* rect = new QCPItemRect(m_customPlot);
+    Q_CHECK_PTR(rect);
     
-    // Find last bar at or before rangeEnd
-    auto endIt = timestampToIndex.upperBound(rangeEnd);
-    if (endIt == timestampToIndex.begin()) {
-        // No bar at or before rangeEnd - session is entirely after available data
-        DEBUG << "Time range" << rangeStart.toString("hh:mm") << "to" << rangeEnd.toString("hh:mm")
-              << "is after all available bars";
-        return;
-    }
-    --endIt;
+    // Set the rectangle to use plot coordinates
+    rect->topLeft->setType(QCPItemPosition::ptPlotCoords);
+    rect->bottomRight->setType(QCPItemPosition::ptPlotCoords);
+    rect->topLeft->setAxes(m_customPlot->xAxis, m_customPlot->yAxis);
+    rect->bottomRight->setAxes(m_customPlot->xAxis, m_customPlot->yAxis);
     
-    // Get the actual bar indices for this session
-    qreal sessionStartIndex = static_cast<qreal>(startIt.value());
-    qreal sessionEndIndex = static_cast<qreal>(endIt.value()) + 1.0;  // +1 to extend to end boundary of bar
+    // Set fixed X coordinates (index range) and full Y range
+    // Y coordinates will automatically adapt to axis range changes
+    rect->topLeft->setCoords(sessionStartIndex, 0);
+    rect->bottomRight->setCoords(sessionEndIndex, 0);
     
-    // Only draw if session intersects with visible area
-    if (sessionEndIndex <= visibleMinIndex || sessionStartIndex >= visibleMaxIndex) {
-        DEBUG << "Session range [" << sessionStartIndex << "," << sessionEndIndex 
-              << "] does not intersect visible range [" << visibleMinIndex << "," << visibleMaxIndex << "]";
-        return;
-    }
+    // Use axis rect ratio for Y to span full height
+    rect->topLeft->setTypeY(QCPItemPosition::ptAxisRectRatio);
+    rect->bottomRight->setTypeY(QCPItemPosition::ptAxisRectRatio);
+    rect->topLeft->setCoords(sessionStartIndex, 0);  // 0 = top of axis rect
+    rect->bottomRight->setCoords(sessionEndIndex, 1);  // 1 = bottom of axis rect
     
-    // Clip to visible range
-    qreal clippedStart = qMax(sessionStartIndex, visibleMinIndex);
-    qreal clippedEnd = qMin(sessionEndIndex, visibleMaxIndex);
+    rect->setPen(Qt::NoPen);
+    rect->setBrush(QBrush(color));
     
-    if (clippedStart < clippedEnd) {
-        QCPItemRect* rect = new QCPItemRect(m_customPlot);
-        Q_CHECK_PTR(rect);
-        
-        // Set the rectangle coordinates
-        rect->topLeft->setType(QCPItemPosition::ptPlotCoords);
-        rect->bottomRight->setType(QCPItemPosition::ptPlotCoords);
-        rect->topLeft->setAxes(m_customPlot->xAxis, m_customPlot->yAxis);
-        rect->bottomRight->setAxes(m_customPlot->xAxis, m_customPlot->yAxis);
-        rect->topLeft->setCoords(clippedStart, m_customPlot->yAxis->range().upper);
-        rect->bottomRight->setCoords(clippedEnd, m_customPlot->yAxis->range().lower);
-        
-        rect->setPen(Qt::NoPen);
-        rect->setBrush(QBrush(color));
-        
-        // Set layer to ensure rectangles are behind the data
-        rect->setLayer("background");
-        
-        DEBUG << "Created background rect from index" << clippedStart << "to" << clippedEnd
-              << "for time" << rangeStart.toString("hh:mm") << "-" << rangeEnd.toString("hh:mm")
-              << "with color" << color.name();
-        
-        rectList.append(rect);
-    } else {
-        DEBUG << "Clipped range invalid:" << clippedStart << ">=" << clippedEnd;
-    }
+    // Set layer to ensure rectangles are behind the data
+    rect->setLayer("background");
+    
+    DEBUG << "Created fixed background rect from index" << sessionStartIndex << "to" << sessionEndIndex
+          << "for time" << rangeStart.toString("hh:mm") << "-" << rangeEnd.toString("hh:mm")
+          << "with color" << color.name();
+    
+    rectList.append(rect);
 }
 
 /**
  * @brief Handles the response to a missing bars request.
  */
-void StockPriceChart::onRequestedMissingBarsReceived(const QVector<Bar>& bars) {
-    Q_ASSERT(currentGetBarsRequestInProcess == true);
+void StockPriceChart::onRequestedMissingBarsReceived(const std::unique_ptr<QVector<Bar>> &barsPtr) {
+    
+    qCritical() << "Received missing bars response with" << barsPtr->size() << "bars";
+    
+    //Q_ASSERT(currentGetBarsRequestInProcess == true);
     currentGetBarsRequestInProcess = false;
-    Q_ASSERT(!bars.isEmpty());
+    Q_ASSERT(!barsPtr->isEmpty());
 
-    addHistoricalBarsToIndexMapping(bars);
+    addHistoricalBarsToIndexMapping(*barsPtr);
     
     DEBUG << "After addHistoricalBarsToIndexMapping, index range:" 
           << QString("%1 to %2").arg(indexToBar.firstKey()).arg(indexToBar.lastKey());
 
     maintainBarLimit();
+    
+    // Draw background rectangles for the visible range
+    drawBackgroundsForVisibleRange();
     
     // Update candlestick data
     updateCandlestickData();
@@ -648,13 +732,6 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     DEBUG << "  Last :" << firstBarTime;
     DEBUG << "  First:" << viewStartTimeRounded;
     
-    if (currentGetBarsRequestInProcess) {
-        DEBUG << "current get bars request already in progress";
-        return;
-    }
-    
-    currentGetBarsRequestInProcess = true;
-
     // Determine the appropriate time range to request
     QTimeZone nyZone("America/New_York");
     QDateTime firstBarInNY = firstBarTime.toTimeZone(nyZone);
@@ -665,27 +742,37 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     DEBUG << "Date comparison:" << (viewStartInNY.date() < firstBarInNY.date());
 
     QDateTime requestStartTime;
-    QDateTime requestEndTime = firstBarTime;
+    QDateTime requestEndTime;
 
     if (viewStartInNY.date() < firstBarInNY.date()) {
-        // View extends to previous day(s) - request from start of the day containing viewStartTimeRounded
-        // to the end of the day before firstBarTime
-        QDateTime viewDayStart = QDateTime(viewStartInNY.date(), QTime(TRADING_START_HOUR, 0, 0), nyZone);
+        // View extends to previous day(s) - request the complete previous day only
+        // (we'll request additional days in subsequent calls if needed)
+        QDateTime viewDayStart = QDateTime(viewStartInNY.date(), QTime(TRADING_START_HOUR, 1, 0), nyZone);
+        QDateTime viewDayEnd = QDateTime(viewStartInNY.date(), QTime(TRADING_END_HOUR, 0, 0), nyZone);
         requestStartTime = viewDayStart.toTimeZone(firstBarTime.timeZone());
-        DEBUG << "Requesting previous day, viewDayStart:" << viewDayStart << "requestStartTime:" << requestStartTime;
+        requestEndTime = viewDayEnd.toTimeZone(firstBarTime.timeZone());
+        DEBUG << "Requesting previous day from" << viewDayStart << "to" << viewDayEnd;
     } else {
-        // View extends within the same day - request from start of day to firstBarTime
-        QDateTime dayStart = QDateTime(firstBarInNY.date(), QTime(TRADING_START_HOUR, 0, 0), nyZone);
+        // View extends within the same day - request from start of day to one minute before firstBarTime
+        QDateTime dayStart = QDateTime(firstBarInNY.date(), QTime(TRADING_START_HOUR, 1, 0), nyZone);
         requestStartTime = dayStart.toTimeZone(firstBarTime.timeZone());
+        requestEndTime = firstBarTime.addSecs(-60);
         DEBUG << "Requesting same day, dayStart:" << dayStart << "requestStartTime:" << requestStartTime;
     }
 
     // Ensure we don't request invalid ranges
     if (requestStartTime >= requestEndTime) {
         DEBUG << "Invalid request range, skipping";
-        currentGetBarsRequestInProcess = false;
         return;
     }
+
+    if (currentGetBarsRequestInProcess)
+    {
+        DEBUG << "current get bars request already in progress";
+        return;
+    }
+
+    currentGetBarsRequestInProcess = true;
 
     DEBUG << "Requesting missing bars from"
           << requestStartTime.toString(Qt::ISODate)
@@ -824,10 +911,16 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars) 
         const Bar& bar = *it;
         const QDateTime& timestamp = bar.getTimeStamp();
         
-        if (timestampToIndex.contains(timestamp)) {
-            DEBUG << "  Skipping duplicate timestamp" << timestamp.toString("hh:mm:ss");
-            continue;
-        }
+        DEBUG << "Received historical bar" 
+            << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
+            << "Status:" << Bar::barStatusToString(bar.getBarStatus())
+            << "isEndOfHistory:" << bar.getIsEndOfHistory()
+            << "O:" << bar.getOpen()
+            << "H:" << bar.getHigh()
+            << "L:" << bar.getLow()
+            << "C:" << bar.getClose();
+
+        //OBJ_ASSUME_TRUE(timestampToIndex.contains(timestamp));
         
         --minIndex;
         indexToBar[minIndex] = bar;
@@ -875,216 +968,66 @@ QDateTime StockPriceChart::getTimestampForIndex(int index) const {
 }
 
 /**
- * @brief Slot called when axis ranges change.
+ * @brief Gets the index corresponding to a timestamp.
  */
-void StockPriceChart::onAxisRangeChanged()
-{
-    if (indexToBar.isEmpty()) return;
-
-    updateAxisLabelsDensity();
-    redrawLastPriceLine();
-    updateSessionBackgrounds();  // Update background colors when view changes
-    
-    // Check for missing bars when view extends beyond available data
-    double minIndex = m_customPlot->xAxis->range().lower;
-    if (minIndex < indexToBar.firstKey()) {
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
-        checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
+int StockPriceChart::getIndexForTimestamp(const QDateTime& timestamp) const {
+    auto it = timestampToIndex.find(timestamp);
+    if (it != timestampToIndex.end()) {
+        return it.value();
     }
-}
-
-/**
- * @brief Slot called when volume chart visibility changes.
- */
-void StockPriceChart::onVolumeChartVisibilityChanged(bool visible)
-{
-    if (visible) {
-        // Show volume chart
-        m_volumeAxisRect->setMinimumSize(QSize(0, 0));
-        m_volumeAxisRect->setMaximumSize(QSize(QWIDGETSIZE_MAX, 100)); // Restore height
-        m_volumeAxisRect->setVisible(true);
-        // Restore spacing and margins
-        m_customPlot->plotLayout()->setRowSpacing(0);
-        m_volumeAxisRect->setAutoMargins(QCP::msLeft | QCP::msRight | QCP::msBottom);
-        m_volumeAxisRect->setMargins(QMargins(0, 0, 0, 0));
+    
+    Q_ASSERT(!indexToBar.isEmpty());
+    
+    QDateTime firstTime = indexToBar.first().getTimeStamp();
+    int firstIndex = indexToBar.firstKey();
+    
+    if (timestamp < firstTime) {
+        // Calculate minutes before first bar
+        qint64 minutesDiff = firstTime.toSecsSinceEpoch() - timestamp.toSecsSinceEpoch();
+        Q_ASSERT(minutesDiff % 60 == 0); // Should be exact minutes
+        int indexDiff = minutesDiff / 60;
+        return firstIndex - indexDiff;
+    }
+    
+    QDateTime lastTime = indexToBar.last().getTimeStamp();
+    int lastIndex = indexToBar.lastKey();
+    
+    if (timestamp > lastTime) {
+        // Calculate minutes after last bar
+        qint64 minutesDiff = timestamp.toSecsSinceEpoch() - lastTime.toSecsSinceEpoch();
+        Q_ASSERT(minutesDiff % 60 == 0); // Should be exact minutes
+        int indexDiff = minutesDiff / 60;
+        return lastIndex + indexDiff;
+    }
+    
+    // Timestamp is between existing bars - interpolate
+    auto lowerIt = timestampToIndex.lowerBound(timestamp);
+    if (lowerIt == timestampToIndex.begin()) {
+        // Should not happen since we checked < firstTime
+        return firstIndex;
+    } else if (lowerIt == timestampToIndex.end()) {
+        // Should not happen since we checked > lastTime
+        return lastIndex;
     } else {
-        // Hide volume chart by collapsing its height
-        m_volumeAxisRect->setMinimumSize(QSize(0, 0));
-        m_volumeAxisRect->setMaximumSize(QSize(QWIDGETSIZE_MAX, 0)); // Collapse height
-        m_volumeAxisRect->setVisible(false);
-    }
-    
-    // Force layout update
-    m_customPlot->plotLayout()->updateLayout();
-    // Replot to update layout
-    m_customPlot->replot();
-}
-
-/**
- * @brief Handles widget resize events.
- */
-void StockPriceChart::resizeEvent(QResizeEvent* event) {
-    QWidget::resizeEvent(event);
-    onAxisRangeChanged();
-}
-
-/**
- * @brief Event filter to intercept events from child widgets.
- */
-bool StockPriceChart::eventFilter(QObject* obj, QEvent* event) {
-    if (obj == m_customPlot && event->type() == QEvent::Wheel) {
-        wheelEvent(static_cast<QWheelEvent*>(event));
-        return true;
-    }
-    return QWidget::eventFilter(obj, event);
-}
-
-/**
- * @brief Handles mouse wheel events for zooming.
- */
-void StockPriceChart::wheelEvent(QWheelEvent* event) 
-{    
-    qreal zoomFactor = event->angleDelta().y() > 0 ? 0.9 : 1.1;
-
-    // Detect which axis rect the mouse is over
-    // Handle Qt version differences: Qt 5.14+ uses position() instead of pos()
-#if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
-    const QPointF mousePos = event->pos();
-#else
-    const QPointF mousePos = event->position();
-#endif
-    QCPAxisRect* axisRectUnderMouse = m_customPlot->axisRectAt(mousePos);
-    bool isOverVolumeChart = (axisRectUnderMouse == m_volumeAxisRect);
-
-    if ((event->modifiers() & Qt::ShiftModifier) && (event->modifiers() & Qt::ControlModifier)) {
-        handleVerticalPanning(event);
-    } else if (event->modifiers() & Qt::AltModifier) {
-        handleHorizontalPanning(event);
-    } else if (event->modifiers() & Qt::ControlModifier) {
-        handleHorizontalZoom(event, zoomFactor);
-    } else if (event->modifiers() & Qt::ShiftModifier) {
-        handleVerticalZoom(event, isOverVolumeChart, zoomFactor);
-    } else {
-        handleBothAxesZoom(event, isOverVolumeChart, zoomFactor);
-    }
-
-    event->accept();
-}
-
-void StockPriceChart::handleVerticalPanning(QWheelEvent* event) {
-    DEBUG << "Vertical panning with wheel";
-    
-    QCPRange range = m_customPlot->yAxis->range();
-    qreal priceRange = range.size();
-
-    qreal shiftAmount = priceRange * 0.03;
-    if (event->angleDelta().y() < 0) {
-        shiftAmount = -shiftAmount;
-    }
-
-    m_customPlot->yAxis->setRange(qMax(0.0, range.lower + shiftAmount), range.upper + shiftAmount);
-    m_customPlot->replot();
-}
-
-void StockPriceChart::handleHorizontalPanning(QWheelEvent* event) {
-    DEBUG << "Horizontal panning with wheel";
-
-    QCPRange range = m_customPlot->xAxis->range();
-    qreal indexRange = range.size();
-    qreal shiftAmount = indexRange * 0.05;
-    shiftAmount = -shiftAmount * (event->angleDelta().x() > 0 ? 1 : -1);
-
-    qreal newMin = range.lower + shiftAmount;
-    qreal newMax = range.upper + shiftAmount;
-    
-    if (!indexToBar.isEmpty() && newMin < indexToBar.firstKey()) {
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
-    }
-    
-    m_customPlot->xAxis->setRange(newMin, newMax);
-    m_customPlot->replot();
-}
-
-void StockPriceChart::handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor) {
-    Q_UNUSED(event);
-
-    QCPRange range = m_customPlot->xAxis->range();
-    qreal centerIndex = range.center();
-
-    qreal newSize = range.size() * zoomFactor;
-    qreal newMin = centerIndex - (newSize / 2);
-    qreal newMax = centerIndex + (newSize / 2);
-    
-    if (!indexToBar.isEmpty() && newMin < indexToBar.firstKey()) {
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMin));
-        checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
-    }
-
-    m_customPlot->xAxis->setRange(newMin, newMax);
-    m_customPlot->replot();
-}
-
-void StockPriceChart::handleVerticalZoom(QWheelEvent* event, bool isOverVolumeChart, qreal zoomFactor) {
-    Q_UNUSED(event);
-
-    if (isOverVolumeChart) {
-        // When over volume chart, only zoom the volume Y axis
-        // Keep lower bound at 0, only adjust upper bound
-        QCPRange range = m_volumeAxisRect->axis(QCPAxis::atLeft)->range();
-        qreal newMax = range.upper * zoomFactor;
-
-        m_volumeAxisRect->axis(QCPAxis::atLeft)->setRange(0.0, newMax);
-    } else {
-        // When over price chart, only zoom the price Y axis
-        QCPRange range = m_customPlot->yAxis->range();
-        qreal center = range.center();
-
-        qreal newSize = range.size() * zoomFactor;
-        qreal newMin = center - (newSize / 2);
-        qreal newMax = center + (newSize / 2);
-
-        m_customPlot->yAxis->setRange(qMax(0.0, newMin), newMax);
-    }
-    m_customPlot->replot();
-}
-
-void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, bool isOverVolumeChart, qreal zoomFactor) {
-    Q_UNUSED(event);
-
-    if (isOverVolumeChart) {
-        // When over volume chart, only zoom Y axis of volume chart
-        // Keep lower bound at 0, only adjust upper bound
-        QCPRange range = m_volumeAxisRect->axis(QCPAxis::atLeft)->range();
-        qreal newMax = range.upper * zoomFactor;
-
-        m_volumeAxisRect->axis(QCPAxis::atLeft)->setRange(0.0, newMax);
-    } else {
-        // When over price chart, zoom both axes
-        // X-axis zoom (this will automatically transfer to volume chart via connected signals)
-        QCPRange xRange = m_customPlot->xAxis->range();
-        qreal centerIndex = xRange.center();
-        qreal newXSize = xRange.size() * zoomFactor;
-        qreal newMinX = centerIndex - (newXSize / 2);
-        qreal newMaxX = centerIndex + (newXSize / 2);
+        // Interpolate between prev and next
+        auto prevIt = std::prev(lowerIt);
+        QDateTime prevTime = prevIt.key();
+        QDateTime nextTime = lowerIt.key();
+        int prevIndex = prevIt.value();
+        int nextIndex = lowerIt.value();
         
-        if (!indexToBar.isEmpty() && newMinX < indexToBar.firstKey()) {
-            QDateTime requestTime = getTimestampForIndex(static_cast<int>(newMinX));
-            checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
-        }
-
-        // Y-axis zoom (only for price chart)
-        QCPRange yRange = m_customPlot->yAxis->range();
-        qreal centerPrice = yRange.center();
-        qreal newYSize = yRange.size() * zoomFactor;
-        qreal newMinY = centerPrice - (newYSize / 2);
-        qreal newMaxY = centerPrice + (newYSize / 2);
-
-        m_customPlot->xAxis->setRange(newMinX, newMaxX);
-        m_customPlot->yAxis->setRange(qMax(0.0, newMinY), newMaxY);
+        qint64 totalSeconds = prevTime.secsTo(nextTime);
+        qint64 secondsFromPrev = prevTime.secsTo(timestamp);
+        
+        if (totalSeconds == 0) return prevIndex;
+        
+        double fraction = static_cast<double>(secondsFromPrev) / totalSeconds;
+        return prevIndex + static_cast<int>((nextIndex - prevIndex) * fraction);
     }
-    m_customPlot->replot();
 }
+
+
+
 
 /**
  * @brief Converts an index to a time string for axis labels.

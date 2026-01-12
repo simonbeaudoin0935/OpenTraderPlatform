@@ -1,17 +1,7 @@
 build/
 src/Misc/Logging_generated.h
 
-# WatchApp Android/Gradle artifacts
-WatchApp/.gradle/
-WatchApp/.idea/
-WatchApp/build/
-WatchApp/app/build/
-WatchApp/local.properties
-WatchApp/*.iml
-WatchApp/.DS_Store
-WatchApp/captures/
-WatchApp/.externalNativeBuild/
-WatchApp/.cxx/
+qcustomplot/examples/
 
 # Debian packaging artifacts
 debian/.debhelper/
@@ -21,5 +11,4 @@ debian/files
 debian/*.debhelper*
 debian/*.substvars
 debian/debhelper-build-stamp
-obj-*/
-_codeql_detected_source_root
+

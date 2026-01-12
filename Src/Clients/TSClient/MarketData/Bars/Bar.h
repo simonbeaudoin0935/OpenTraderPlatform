@@ -8,9 +8,16 @@
 
 class Bar {
 public:
-    enum class BarStatus { Open, Closed, Null};
+    enum class BarStatus : quint8
+    {
+        Uninitialized = 0,
+        Null,
+        Open,
+        Closed,
+    };
+
     enum class BarUnit { Minute, Daily, Weekly, Monthly };
-    enum class BarSessionTemplate { USEQPre, USEQPost, USEPreAndPost,USEQ24Hour, Default };
+    enum class BarSessionTemplate { USEQPre, USEQPost, USEPreAndPost, USEQ24Hour, Default };
 
     static BarStatus barStatusFromString(const QString & barStatus);
     static QString barStatusToString(BarStatus barStatus);
@@ -19,12 +26,11 @@ public:
                                    BarUnit unit,
                                    unsigned int barsback,
                                    BarSessionTemplate sessionTemplate,
-                                   QDateTime firstDate = QDateTime(),
-                                   QDateTime lastDate = QDateTime());
-
+                                   std::optional<QDateTime> firstDate = std::nullopt,
+                                   std::optional<QDateTime> lastDate = std::nullopt);
 
     // Default constructor
-    Bar() = default;
+    Bar() : m_flags(0) {}
     
     static Bar nullBar(QDateTime dateTime);
 

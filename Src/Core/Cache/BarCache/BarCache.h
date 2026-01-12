@@ -6,6 +6,8 @@
 #include <QSqlDatabase>
 #include <QFuture>
 
+#include <expected>
+
 #include "Bar.h"
 #include "StreamBars.h"
 #include "TSClient.h"
@@ -17,35 +19,31 @@ class BarCache : public QObject
     Q_OBJECT
 
 public:
-    // Trading hours constants (America/New_York timezone)
-    static constexpr int TRADING_START_HOUR = 6;   // 6:00 AM ET
-    static constexpr int TRADING_END_HOUR = 20;    // 8:00 PM ET (20:00)
-    static constexpr int MONDAY = 1;               // Qt::Monday
-    static constexpr int FRIDAY = 5;               // Qt::Friday
-    
+
     explicit BarCache(const QString &symbol, bool isStreaming = false, QObject *parent = nullptr);
     ~BarCache();
 
     const QString& getSymbol() const { return m_symbol;};
 
-    unsigned int getNumberOfBars() const { return m_barCacheOneMinute.size();};
 
-    bool warmUpBarsOfDayUntilNow(QDate date = QDateTime::currentDateTime().date());
+    typedef std::variant<std::unique_ptr<QVector<Bar>>,
+                         QFuture<std::unique_ptr<QVector<Bar>>>>
+            GetBarsResult_t;
 
     /*
      * Get Bars between two date-times
      *
      * @note : Both date-times must be in America/New_York timezone
      */
-    typedef std::variant<QVector<Bar>, QFuture<QVector<Bar>>> GetBarsResult_t;
-    GetBarsResult_t getBars(const QDateTime &first, const QDateTime &last);
-    
-    QVector<QPair<QDateTime, QDateTime>> identifyMissingRanges(const QDateTime &start, const QDateTime &end, const QVector<Bar>& cachedBars) const;
-    QVector<QPair<QDateTime, QDateTime>> splitIntoTradingDayRanges(const QDateTime &first, const QDateTime &last) const;
-
-    qsizetype getDuplicateStoreCount() const { return m_duplicateStoreCount; }
+    GetBarsResult_t getBars(const QDate &day, const QTime &first, const QTime &last) const;
 
     void clearDatabase();
+
+    // Trading hours constants (America/New_York timezone)
+    static inline const QTime TRADING_START_TIME = QTime(6, 1); // 6:01 AM ET
+    static inline const QTime TRADING_END_TIME = QTime(20, 0);  // 8:00 PM ET (20:00)
+
+    static constexpr unsigned int BARS_PER_DAY = 840; // From 6:01 AM to 8:00 PM, 1-minute bars
 
 signals:
     void receivedNewBar(QString symbol, Bar newBar);
@@ -55,25 +53,41 @@ private slots:
     void onReceivedNewLiveBar(Bar newBar);
 
 private:
+    void startStream();
+    
+    [[nodiscard]]
+    static constexpr QVector<std::tuple<QDate, QTime, QTime>> splitIntoTradingDayRanges(const QDateTime &first, const QDateTime &last) noexcept;
 
-    GetBarsResult_t getBarsInRange(const QDateTime &first, const QDateTime &last);
+    std::optional<std::unique_ptr<QVector<Bar>>>
+    getBarsFromCache(const QDate &date, const QTime &start, const QTime &end) const;
 
     void storeBarInCache(const Bar& bar);
-    void storeBarsInCache(const QVector<Bar>& bars);
-    void storeBarsInDatabase(const QVector<Bar>& bars);
 
-    QVector<Bar> getBarsFromCache(QDateTime start, QDateTime end) const;
-    QVector<Bar> getBarsFromDatabase(QDateTime start, QDateTime end) const;
+    // We take
+    void storeBarsInCache(const QDate &date, const std::unique_ptr<QVector<Bar>> &bars) const;
+
+    void storeBarsInDatabase(const QDate &date, const std::unique_ptr<QVector<Bar>> &bars) const;
+
+    std::optional<std::unique_ptr<QVector<Bar>>>
+    getBarsFromDatabase(QDate date, QTime start, QTime end) const;
 
     void handleReceivedAllPendingGetBarsRequests();
-    QVector<Bar> fillHolesOfReceivedRequest(const QDateTime& first, const QDateTime& last, const QVector<Bar>& barsFromAPI);
+    QVector<Bar> fillHolesOfReceivedRequest(const QDateTime& first, const QDateTime& last, const QVector<Bar>& barsFromAPI) const;
 
+    // Converts a QTime timestamp to the corresponding index in the daily bar cache vector
+    static size_t timeToIndex(const QTime& time);
 
-    QString m_symbol;
-    bool m_isStreaming;
-    QMap<QDateTime, Bar> m_barCacheOneMinute; // This is the in-memory cache of bars
-    mutable QReadWriteLock m_barCacheOneMinuteRwLock; // TODO study if this is really needed
+    // Converts a daily bar cache index to the corresponding bar timestamp (QTime)
+    static QTime indexToTime(size_t index);
+
+    QVector<Bar>& getOrCreateDayVector(const QDate& date);
+
+    const QString m_symbol;
+    const bool m_isStreaming;
     QSqlDatabase m_db;
-    StreamBars* m_stream = nullptr;
-    mutable quint64 m_duplicateStoreCount = 0;
+    QPointer<StreamBars> m_stream;
+
+    mutable QReadWriteLock m_barCacheRwLock; // Protects m_barCacheByDay
+    // Day-based storage: one QVector per trading day. Vector index maps to minute within trading day.
+    mutable QMap<QDate, QVector<Bar>> m_barCacheByDay;
 };

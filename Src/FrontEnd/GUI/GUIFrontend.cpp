@@ -103,15 +103,19 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     connect(ui->priceChart, &StockPriceChart::requestMissingBars,
         this, [this](QDateTime from, QDateTime to) mutable {
                 
-            BarCache::GetBarsResult_t result = MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from, to);
+            Q_ASSERT(from.date() == to.date()); // Currently only support same-day requests
 
-            if (std::holds_alternative<QVector<Bar>>(result)) {
+            qDebug() << "from " << from << " to " << to;
+
+            BarCache::GetBarsResult_t result = MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from.date(), from.time(), to.time());
+
+            if (std::holds_alternative<std::unique_ptr<QVector<Bar>>>(result)) {
                 // The barCache had the bars ready immediately
-                ui->priceChart->onRequestedMissingBarsReceived(std::move(std::get<QVector<Bar>>(result)));
+                ui->priceChart->onRequestedMissingBarsReceived(std::move(std::get<std::unique_ptr<QVector<Bar>>>(result)));
             } else {
-                QFuture<QVector<Bar>> future = std::move(std::get<QFuture<QVector<Bar>>>(result));
+                auto future = std::get<QFuture<std::unique_ptr<QVector<Bar>>>>(result);
 
-                future.then(this, [this](const QVector<Bar>& bars){
+                future.then(this, [this](std::unique_ptr<QVector<Bar>> bars){
                     ui->priceChart->onRequestedMissingBarsReceived(std::move(bars));
                 }).onFailed([](const TSClient::TimeoutException& e){
                     Q_UNUSED(e);

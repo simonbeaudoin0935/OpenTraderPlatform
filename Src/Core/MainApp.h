@@ -12,6 +12,13 @@ public:
 
     void start();
 
+    // Get the current application time (real or replay)
+    static QDateTime currentAppReplayTime;
+
+    static bool isInReplayMode;
+
+    static QDateTime getCurrentAppTime();
+
 private:
     TSClient* tradeStationClient;
     MainAlgo*    mainAlgo;
