@@ -103,24 +103,24 @@ void BarCache::startStream(){
     connect(m_stream, &StreamBars::newBarReceived, this, &BarCache::onReceivedNewLiveBar);
 
     m_stream->future().then(this,
-        [this]()
+        [this](std::optional<QString> error)
         {
-            CRITICAL << "Bars cache bar future finished, which should not happen";
-            Q_UNREACHABLE();
+            if (error.has_value()){
+                CRITICAL << "Bars cache bar future failed for" << m_symbol
+                         << "- Exception:" << error.value();
+
+                CRITICAL << "Restarting bars stream for symbol " << m_symbol;
+
+                // Turns out closeStream() is already done implicitely when the TSClient handles the stream error
+                // TSClient::getInstance()->closeStream(m_stream);
+
+                startStream();
+            } else {
+                CRITICAL << "Bars cache bar future finished, which should not happen";
+                Q_UNREACHABLE();
+            }
         }
-    ).onFailed(this,
-        [this](const std::exception &e)
-        {
-            CRITICAL << "Bars cache bar future failed for" << m_symbol
-                     << "- Exception:" << QString::fromStdString(e.what());
-
-            CRITICAL << "Restarting bars stream for symbol " << m_symbol;
-            
-            // Turns out closeStream() is already done implicitely when the TSClient handles the stream error
-            //TSClient::getInstance()->closeStream(m_stream);
-
-            startStream();
-        });
+    );
 }
 
 BarCache::~BarCache()
@@ -296,6 +296,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
     // The smaller increment in bar time is 1 minute, so we can safely assume seconds and milliseconds are zero
     OBJ_ASSUME_EQUAL(first.second(), 0);
     OBJ_ASSUME_EQUAL(last.second(), 0);
+    
     OBJ_ASSUME_EQUAL(first.msec(), 0);
     OBJ_ASSUME_EQUAL(last.msec(), 0);
 
@@ -385,50 +386,30 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
                 Bar::BarSessionTemplate::USEQ24Hour,
                 startDateTime,
                 endDayTime
-            
-            ).then(const_cast<BarCache*>(this),
-                [this, date, startDateTime, endDayTime, promisePtr](std::unique_ptr<QVector<Bar>> bars)
+            ).then(const_cast<BarCache *>(this),
+                [this, date, startDateTime, endDayTime, promisePtr]
+                (std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars)
                 {
-                    DEBUG << "Asynchronous getBars() from API completed for complete day" << date
-                          << "with" << bars->size() << "bars received";
+                    if (!bars.has_value()) {
+                        CRITICAL << "getBars() from API returned error for" << m_symbol
+                                 << "- Error:" << static_cast<int>(bars.error());
+                    } else {
+                        DEBUG << "Asynchronous getBars() from API completed for complete day" << date
+                              << "with" << bars.value()->size() << "bars received";
 
-                    std::unique_ptr<QVector<Bar>> barsFromApiHolesFilled = std::make_unique<QVector<Bar>>(fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars));
+                        std::unique_ptr<QVector<Bar>> barsFromApiHolesFilled = std::make_unique<QVector<Bar>>(fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars.value()));
 
-                    // Store the complete day in both cache and database
-                    storeBarsInCache(date, barsFromApiHolesFilled);
-                    storeBarsInDatabase(date, barsFromApiHolesFilled);
+                        // Store the complete day in both cache and database
+                        storeBarsInCache(date, barsFromApiHolesFilled);
+                        storeBarsInDatabase(date, barsFromApiHolesFilled);
 
-                    //#warning bug here, we must return only the requested range, not the complete day
-                    // For now we return the complete day - later we can slice to requested range only
-                    promisePtr->addResult(std::move(barsFromApiHolesFilled));
+                        // #warning bug here, we must return only the requested range, not the complete day
+                        //  For now we return the complete day - later we can slice to requested range only
+                        promisePtr->addResult(std::move(barsFromApiHolesFilled));
+                    }
                     promisePtr->finish();
-                }
 
-            ).onFailed(const_cast<BarCache*>(this),
-                [this, promisePtr](const TSClient::TimeoutException &e)
-                {
-                    Q_UNUSED(e);
-                    CRITICAL << "getBars() timed out for" << m_symbol;
-                    // Finish promise with no result - caller should handle empty future
-                    promisePtr->finish();
-                }
-
-            ).onFailed(const_cast<BarCache*>(this),
-                [this, promisePtr](const TSClient::JSONErrorException &e)
-                {
-                    Q_UNUSED(e);
-                    CRITICAL << "getBars() JSON error for" << m_symbol;
-                    promisePtr->finish();
-                }
-
-            ).onFailed(const_cast<BarCache*>(this),
-                [this, promisePtr](const TSClient::OtherErrorException &e)
-                {
-                    Q_UNUSED(e);
-                    CRITICAL << "getBars() other error for" << m_symbol;
-                    promisePtr->finish();
-                }
-            );
+                });
         });
 
     return future;
