@@ -75,7 +75,7 @@ void LiveStreamDB::startRecording() {
             QPointer<StreamBars> stream = TSClient::getInstance()->openStreamBars(symbol,
                                                                            1,
                                                                            Bar::BarUnit::Minute,
-                                                                           2,
+                                                                           0,
                                                                            Bar::BarSessionTemplate::USEQ24Hour);
             Q_ASSERT(stream != nullptr);
 
@@ -85,23 +85,26 @@ void LiveStreamDB::startRecording() {
                 });
 
             stream->future().then(this,
-                [this, symbol](){
-                    CRITICAL << "StreamBars Receiver future finished for " << symbol;
-                }
-            ).onFailed(this,
-                [this, symbol](const std::exception& e){
+                [this, symbol]
+                (std::optional<QString> error)
+                {
+                    if (error.has_value()){
+                        CRITICAL << "StreamBars Receiver failed for" << symbol
+                                 << "- Exception:" << error.value();
 
-                    CRITICAL << "StreamBars Receiver failed for" << symbol
-                             << "- Exception:" << QString::fromStdString(e.what());
+                        Q_ASSERT(false);
 
-                    Q_ASSERT(false);
+                        // TODO attempt to restart the stream
 
-                    //TODO attempt to restart the stream
-
-                    // if we have to know that is the source of the failure. 
-                    // if its an invalid symbol, then we dont restart
-                    // if its a timeout then we restart
-                    
+                        // if we have to know that is the source of the failure.
+                        // if its an invalid symbol, then we dont restart
+                        // if its a timeout then we restart
+                    } else {
+                        CRITICAL << "StreamBars Receiver future finished for " << symbol;
+                        
+                        //Should never happen
+                        Q_ASSERT(false);
+                    }
                 }
             );
 
@@ -117,17 +120,23 @@ void LiveStreamDB::startRecording() {
                 });
 
             stream->future().then(this,
-                [this, symbol](){
-                    CRITICAL << "StreamMarketDepthQuote Receiver future finished for " << symbol;
-                }
-            ).onFailed(this,
-                [this, symbol](const std::exception& e){
-                    CRITICAL << "StreamMarketDepthQuote Receiver failed for" << symbol
-                             << "- Exception:" << QString::fromStdString(e.what());
+                [this, symbol]
+                (std::optional<QString> error)
+                {
+                    if (error.has_value()){
+                        CRITICAL << "StreamMarketDepthQuote Receiver failed for" << symbol
+                                 << "- Exception:" << error.value();
 
-                    Q_ASSERT(false);
+                        Q_ASSERT(false);
 
-                    //TODO attempt to restart the stream
+                        //TODO attempt to restart the stream
+                    } else {
+
+                        CRITICAL << "StreamMarketDepthQuote Receiver future finished for " << symbol;
+                    
+                        //Should never happen
+                        Q_ASSERT(false);
+                    }
                 }
             );
 
@@ -136,7 +145,8 @@ void LiveStreamDB::startRecording() {
     }
 }
 
-void LiveStreamDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData) {
+void LiveStreamDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData)
+{
     qint64 epochMs = QDateTime::currentMSecsSinceEpoch();
 
     QString dataType = (streamType == StreamType::Bars) ? "bar" : "market depth quote";
@@ -196,14 +206,16 @@ void LiveStreamDB::onStreamErrorOccurred(QString errorMessage) {
 }
 */
 
-void LiveStreamDB::finalizeUnrecoveredTimeouts() {
+void LiveStreamDB::finalizeUnrecoveredTimeouts()
+{
     for (const QString& symbol : unrecoveredTimeouts) {
         unrecoveredTimeoutCounts[symbol]++;
     }
     unrecoveredTimeouts.clear();
 }
 
-void LiveStreamDB::attemptStreamRecovery(const QString& symbol) {
+void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
+{
     recoveryAttempts[symbol]++;
 
     qInfo() << "Attempting to recover stream for" << symbol << "(attempt #" << recoveryAttempts[symbol] << ")";
@@ -222,29 +234,36 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol) {
         QPointer<StreamBars> stream = TSClient::getInstance()->openStreamBars(symbol,
                                                                        1,
                                                                        Bar::BarUnit::Minute,
-                                                                       2,
+                                                                       0,
                                                                        Bar::BarSessionTemplate::USEQ24Hour);
         Q_ASSERT(stream != nullptr);
 
         QObject::connect(stream, &StreamBars::receivedNewRawData, this, 
-            [this, symbol](const QByteArray& rawData){
+            [this, symbol]
+            (const QByteArray& rawData)
+            {
                 onReceivedNewRawDataForStock(symbol, rawData);
             });
 
 
         stream->future().then(this,
-            [this, symbol](){
-                CRITICAL << "Bar Receiver Receiver future finished for " << symbol;
-            }
-        ).onFailed(this,
-            [this, symbol](const std::exception& e){
+            [this, symbol]
+            (std::optional<QString> error)
+            {
+                if (error.has_value()){
+                    CRITICAL << "Bar Receiver Receiver failed for" << symbol
+                             << "- Exception:" << error.value();
 
-                CRITICAL << "Bar Receiver Receiver failed for" << symbol
-                        << "- Exception:" << QString::fromStdString(e.what());
+                    Q_ASSERT(false);
 
-                Q_ASSERT(false);
+                    //TODO attempt to restart the stream
+                } else {
 
-                //TODO attempt to restart the stream
+                    CRITICAL << "Bar Receiver Receiver future finished for " << symbol;
+
+                    // should never happen
+                    Q_ASSERT(false);
+                }
             }
         );
 
@@ -266,22 +285,28 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol) {
         Q_CHECK_PTR(stream);
 
         QObject::connect(stream, &StreamMarketDepthQuote::receivedNewRawData, this, 
-            [this, symbol](const QByteArray& rawData){
+            [this, symbol]
+            (const QByteArray& rawData)
+            {
                 onReceivedNewRawDataForStock(symbol, rawData);
             });
 
         stream->future().then(this,
-            [this, symbol](){
-                CRITICAL << "Recorder Bar receiver bar future finished for " << symbol;
-            }
-        ).onFailed(this,
-            [this, symbol](const std::exception& e){
-                CRITICAL << "Recorder Bar receiver future failed for" << symbol
-                         << "- Exception:" << QString::fromStdString(e.what());
+            [this, symbol]
+            (std::optional<QString> error)
+            {
+                if (error.has_value()){
+                    CRITICAL << "Recorder Market Depth Quote receiver failed for" << symbol
+                             << "- Exception:" << error.value();
 
                     Q_ASSERT(false);
 
-                //TODO attempt to restart the stream
+                    //TODO attempt to restart the stream
+                } else {
+                    CRITICAL << "Recorder Bar receiver bar future finished for " << symbol;
+                    // should never happen
+                    Q_ASSERT(false);
+                }
             }
         );
 

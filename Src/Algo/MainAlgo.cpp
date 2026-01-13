@@ -140,18 +140,37 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
 
     // Now that the TSClient notified us that we are authenticated,
     // the first thing is to request the accounts.
-    QFuture<QVector<Account>> future = TSClient::getInstance()->getAccounts();
+    QFuture<std::expected<QVector<Account>, TSClient::Error>> future = TSClient::getInstance()->getAccounts();
 
-    future.then(this, [this](const QVector<Account>& results){
-        onReceivedAsyncGetAccounts(results);
-    }).onFailed(this, [this] (const QException& e){
-        CRITICAL << "getAccounts() failed" << QString::fromStdString(e.what());
-
-        QTimer::singleShot(1000, this, [this]() {
-            qCDebug(MainAlgoLog) << "Retrying getAccounts() after failure";
-            onTradeStationAuthStateChanged(true, "Re-auth after getAccounts() failure");
+    future.then(this,
+        [this](std::expected<QVector<Account>, TSClient::Error> results)
+        {
+            if (results.has_value()) {
+                qCDebug(MainAlgoLog) << "getAccounts() succeeded with" << results.value().size() << "accounts";
+                onReceivedAsyncGetAccounts(results.value());
+                return;
+            } else {
+                TSClient::Error error = results.error();
+                switch (error) {
+                    case TSClient::Error::Timeout:
+                        CRITICAL << "getAccounts() failed with Timeout error";
+                        break;
+                    case TSClient::Error::JSONError:
+                        CRITICAL << "getAccounts() failed with JSON error";
+                        break;
+                    case TSClient::Error::Other:
+                        CRITICAL << "getAccounts() failed with Other error";
+                        break;
+                    default:
+                        CRITICAL << "getAccounts() failed with Unknown error";
+                        break;
+                }
+                QTimer::singleShot(1000, this, [this]()
+                                   {
+                qCDebug(MainAlgoLog) << "Retrying getAccounts() after failure";
+                onTradeStationAuthStateChanged(true, "Re-auth after getAccounts() failure"); });
+            }
         });
-    });
 }
 
 
@@ -266,20 +285,33 @@ void MainAlgo::requestBalance()
     Q_ASSERT(!m_activeAccount.getAccountId().isEmpty());
 
 
-    QFuture<QVector<Balance>> balanceFuture = TSClient::getInstance()->getBalances(QStringList(m_activeAccount.getAccountId()));
+    QFuture<std::expected<QVector<Balance>, TSClient::Error>> balanceFuture = TSClient::getInstance()->getBalances(QStringList(m_activeAccount.getAccountId()));
 
-    balanceFuture.then(this, [this](const QVector<Balance>& results){
-        onBalanceReceived(results);
-    }).onFailed(this, [this] (const TSClient::TimeoutException& e){
-        Q_UNUSED(e);
-        Q_ASSERT_X(false, "Get balances request timed out", "Get balances request timed out");
-    }).onFailed(this, [this] (const TSClient::JSONErrorException& e){
-        Q_UNUSED(e);
-        Q_ASSERT_X(false, "Get balances request JSON error", "Get balances request JSON error");
-    }).onFailed(this, [this] (const TSClient::OtherErrorException& e){
-        Q_UNUSED(e);
-        Q_ASSERT_X(false, "Get balances request other error", "Get balances request other error");
-    });
+    balanceFuture.then(this,
+        [this](std::expected<QVector<Balance>, TSClient::Error> results)
+        {
+            if (results.has_value()) {
+                qCDebug(MainAlgoLog) << "getBalances() succeeded with" << results.value().size() << "balances";
+                onBalanceReceived(results.value());
+                return;
+            } else {
+                TSClient::Error error = results.error();
+                switch (error) {
+                    case TSClient::Error::Timeout:
+                        CRITICAL << "getBalances() failed with Timeout error";
+                        break;
+                    case TSClient::Error::JSONError:
+                        CRITICAL << "getBalances() failed with JSON error";
+                        break;
+                    case TSClient::Error::Other:
+                        CRITICAL << "getBalances() failed with Other error";
+                        break;
+                    default:
+                        CRITICAL << "getBalances() failed with Unknown error";
+                        break;
+                }
+            }
+        });
 }
 
 void MainAlgo::onBalanceReceived(const QVector<Balance>& results)

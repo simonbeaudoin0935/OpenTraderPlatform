@@ -25,9 +25,8 @@ public:
 
     const QString& getSymbol() const { return m_symbol;};
 
-
-    typedef std::variant<std::unique_ptr<QVector<Bar>>,
-                         QFuture<std::unique_ptr<QVector<Bar>>>>
+    typedef std::variant < std::unique_ptr<QVector<Bar>>,
+                           QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> >
             GetBarsResult_t;
 
     /*
