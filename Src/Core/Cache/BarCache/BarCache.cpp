@@ -329,23 +329,23 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
     // For database, we check if we have the complete day (6:01am to 8:00pm)
     // Use shared_ptr so the promise can be accessed by both .then() and .onFailed() handlers
     // in nested async operations without moving/invalidating it
-    auto promisePtr = std::make_shared<QPromise<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>>>();
-    promisePtr->start(); // Must start the promise before it can be used
-    QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> future = promisePtr->future();
+    QPromise<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> promise;
+    QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> future = promise.future();
+    promise.start(); // Must start the promise before it can be used
 
-    // Explicitely ignore return value of QtConcurrent::run to avoid compiler warning about unused return value
+        // Explicitely ignore return value of QtConcurrent::run to avoid compiler warning about unused return value
     // The reason why we ignore the returned QFuture is because we, as the side invoking this function, do not need
     // to track the completion of this asynchronous task ourselves - we return our own QFuture we created above to
     // the caller instead since we moved over our QPromise to the lambda for signaling later.
     (void) QtConcurrent::run(
-        [this, date, first, last, promisePtr]()
+        [this, date, first, last, promise = std::move(promise)]() mutable
         {
             std::optional<std::unique_ptr<QVector<Bar>>> dbBars = getBarsFromDatabase(date, first, last);
             
             // Check if we got the complete day from database
             if (dbBars.has_value())
             {
-                std::unique_ptr<QVector<Bar>>& dbBarsPtr = dbBars.value();
+                std::unique_ptr<QVector<Bar>> dbBarsPtr = std::move(dbBars.value());
                 const size_t expectedBarCount = first.secsTo(last) / 60 + 1;
 
                 // Happy path, got bars from database. Make absolutely sure that the number of bars is correct
@@ -357,8 +357,8 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
                 // Store the complete day in cache
                 storeBarsInCache(date, dbBarsPtr);
 
-                promisePtr->addResult(std::move(dbBarsPtr));
-                promisePtr->finish();
+                promise.addResult(std::move(dbBarsPtr));
+                promise.finish();
 
                 return;
             }
@@ -387,13 +387,13 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
                 startDateTime,
                 endDayTime
             ).then(const_cast<BarCache *>(this),
-                [this, date, startDateTime, endDayTime, promisePtr]
-                (std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars)
+                [this, date, startDateTime, endDayTime, promise = std::move(promise)]
+                (std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars) mutable
                 {
                     if (!bars.has_value()) {
                         CRITICAL << "getBars() from API returned error for" << m_symbol
                                  << "- Error:" << static_cast<int>(bars.error());
-                        promisePtr->addResult(std::unexpected(bars.error()));
+                        promise.addResult(std::unexpected(bars.error()));
                     } else {
                         DEBUG << "Asynchronous getBars() from API completed for complete day" << date
                               << "with" << bars.value()->size() << "bars received";
@@ -406,9 +406,9 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
 
                         // #warning bug here, we must return only the requested range, not the complete day
                         //  For now we return the complete day - later we can slice to requested range only
-                        promisePtr->addResult(std::move(barsFromApiHolesFilled));
+                        promise.addResult(std::move(barsFromApiHolesFilled));
                     }
-                    promisePtr->finish();
+                    promise.finish();
 
                 });
         });
