@@ -28,23 +28,18 @@ void OrdersReceiver::createOrdersStream()
         });
 
     m_stream->future().then(this,
-        [this](){
+        [this](std::optional<QString> error){
             // We get here when the stream is gracefully closed by the receiving side.
             // This should never happen for the orders stream, its supposed to operate during
             // all the program execution.
-            CRITICAL << "Not supposed to voluntarly close the orders stream with TSClient::closeStream()";
-            Q_ASSERT(false);
-        }
-    ).onFailed(this,
-        [this](const std::exception& e){
 
-            CRITICAL << "Orders Receiver future failed for" << m_account
-                     << "- Exception:" << QString::fromStdString(e.what());
+            if (error.has_value()) {
+                CRITICAL << "Orders stream for account" << m_account
+                         << "finished with error:" << error.value();
+            } else {
+                DEBUG << "Orders stream for account" << m_account << "finished without error";
+            }
 
-            // Since we are in the failed path, it means the stream on the other end
-            // will have called deleteLater() on itself after throwing an exception at us.
-            // Its safe to then just re-execute this function, since we don't have to worry amout
-            // freeing the current stream variable. 
             QTimer::singleShot(300, this, &OrdersReceiver::createOrdersStream);
         }
     );

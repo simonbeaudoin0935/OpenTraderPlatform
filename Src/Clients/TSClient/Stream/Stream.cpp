@@ -80,9 +80,7 @@ void Stream::onReplyFinished()
 
     m_heartbeatTimer.stop();
 
-    m_promise.setException(std::make_exception_ptr(
-        std::runtime_error(exceptionString.toStdString())    
-    ));
+    m_promise.addResult(exceptionString);
 
     // m_promise.finish() will be called in the destructor
     this->deleteLater();

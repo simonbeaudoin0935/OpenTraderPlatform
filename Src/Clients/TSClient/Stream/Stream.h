@@ -24,7 +24,7 @@ public:
     Stream(const Stream&) = delete;
     Stream& operator=(const Stream&) = delete;
 
-    QFuture<void> future() const { return m_future; }
+    QFuture<std::optional<QString>> future() const { return m_future; }
 
     static size_t getNumberOpenStream() { return s_numberOfStream; }
 
@@ -49,10 +49,8 @@ private slots:
 
 private:
 
-    QPromise<void> m_promise;
-    QFuture<void> m_future;
-
-
+    QPromise<std::optional<QString>> m_promise;
+    QFuture<std::optional<QString>> m_future;
 
     QByteArray   m_accumulatedData;
     void processRawData(const QByteArray& rawData);

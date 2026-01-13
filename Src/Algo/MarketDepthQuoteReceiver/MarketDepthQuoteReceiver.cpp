@@ -18,6 +18,7 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
 {
     DEBUG <<  "Starting Market Depth Quote stream for " << m_symbol;
 
+    Q_ASSERT(m_stream == nullptr);
     m_stream = TSClient::getInstance()->openStreamMarketDepthQuote(m_symbol, 10);
 
     Q_CHECK_PTR(m_stream);
@@ -26,19 +27,15 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
             this, &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote);
     
     m_stream->future().then(this,
-        [this](){
+        [this](std::optional<QString> error){
+            if (error.has_value()) {
+                CRITICAL << "Market Depth Quote stream for" << m_symbol
+                         << "finished with error:" << error.value();
+            } else {
+                DEBUG << "Market Depth Quote stream for" << m_symbol << "finished without error";
+            }
             WARNING << "Market Depth Quote future finished. This is ok if the TSClient::closeStream() is called";
-        }
-    ).onFailed(this,
-        [this](const std::exception& e){
 
-            CRITICAL << "Market Depth Quote Receiver future failed for" << m_symbol
-                     << "- Exception:" << QString::fromStdString(e.what());
-
-            // Since we are in the failed path, it means the stream on the other end
-            // will have called deleteLater() on itself after throwing an exception at us.
-            // Its safe to then just re-execute this function, since we don't have to worry amout
-            // freeing the current stream variable. 
             QTimer::singleShot(300, this, &MarketDepthQuoteReceiver::createMarketDepthQuoteStream);
         }
     );

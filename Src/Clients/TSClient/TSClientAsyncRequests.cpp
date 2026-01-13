@@ -233,9 +233,8 @@ TSClient::getBars(
 
     QNetworkRequest request = buildNetworkRequest(QString(ENDPOINT_GET_BARS).arg(symbol), query);
 
-
-    QPromise<std::unique_ptr<QVector<Bar>>> promise;
-    QFuture<std::unique_ptr<QVector<Bar>>> future = promise.future();
+    QPromise<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> promise;
+    QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> future = promise.future();
 
     promise.start();
 
@@ -263,7 +262,7 @@ TSClient::getBars(
                             if (parseError.error != QJsonParseError::NoError) {
                                 CRITICAL << "Failed to parse JSON:" << parseError.errorString();
                                 CRITICAL << "Content of the bad data : " << rawData;
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
@@ -271,14 +270,14 @@ TSClient::getBars(
 
                             if(val == QJsonValue::Undefined) {
                                 CRITICAL << " : 'Bars' field is missing in the response";
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
                             const QJsonArray barsArray = val.toArray();
                             if (barsArray.isEmpty()) {
                                 CRITICAL << " : 'Bars' array is empty in the response";
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
@@ -297,7 +296,7 @@ TSClient::getBars(
                         case QNetworkReply::UnknownNetworkError:
                         {
                             CRITICAL << ": getBars(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
-                            promise.setException(TimeoutException());
+                            promise.addResult(std::unexpected(Error::Timeout));
                             break;
                         }
 
@@ -315,7 +314,7 @@ TSClient::getBars(
                         default:
                         {
                             CRITICAL << ": getBars(): Error with reply: " << reply->errorString() << " : " << reply->error();
-                            promise.setException(OtherErrorException());
+                            promise.addResult(std::unexpected(Error::Other));
                             break;
                         }
                     };
@@ -332,8 +331,8 @@ TSClient::getBars(
     return future;
 }
 
-
-QFuture<QVector<Quote>> TSClient::getQuoteSnapshots(const QStringList &symbols)
+QFuture<std::expected<QVector<Quote>, TSClient::Error>> 
+TSClient::getQuoteSnapshots(const QStringList &symbols)
 {
     OBJ_ASSUME_FALSE(symbols.isEmpty());
     OBJ_ASSUME_TRUE(symbols.size() == 1); // For now only single account is supported
@@ -343,8 +342,8 @@ QFuture<QVector<Quote>> TSClient::getQuoteSnapshots(const QStringList &symbols)
 
     QNetworkRequest request = buildNetworkRequest(QString(ENDPOINT_GET_QUOTE_SNAPSHOTS).arg(symbol));
 
-    QPromise<QVector<Quote>> promise;
-    QFuture<QVector<Quote>> future = promise.future();
+    QPromise<std::expected<QVector<Quote>, TSClient::Error>> promise;
+    QFuture<std::expected<QVector<Quote>, TSClient::Error>> future = promise.future();
 
     promise.start();
 
@@ -372,19 +371,19 @@ QFuture<QVector<Quote>> TSClient::getQuoteSnapshots(const QStringList &symbols)
                             if (parseError.error != QJsonParseError::NoError) {
                                 CRITICAL << "Failed to parse JSON:" << parseError.errorString();
                                 CRITICAL << "Content of the bad data : " << rawData;
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
                             if (!doc.isArray()) {
                                 CRITICAL << " : JSON is not an array";
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
                             if (doc.array().isEmpty()) {
                                 CRITICAL << " : JSON is an empty array";
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
@@ -392,14 +391,14 @@ QFuture<QVector<Quote>> TSClient::getQuoteSnapshots(const QStringList &symbols)
 
                             if(val == QJsonValue::Undefined) {
                                 CRITICAL << " : 'Quotes' field is missing in the response";
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
                             const QJsonArray quotesArray = val.toArray();
                             if (quotesArray.isEmpty()) {
                                 CRITICAL << " : 'Quotes' array is empty in the response";
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
@@ -418,7 +417,7 @@ QFuture<QVector<Quote>> TSClient::getQuoteSnapshots(const QStringList &symbols)
                         case QNetworkReply::UnknownNetworkError:
                         {
                             CRITICAL << ": getQuoteSnapshots(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
-                            promise.setException(TimeoutException());
+                            promise.addResult(std::unexpected(Error::Timeout));
                             break;
                         }
 
@@ -426,7 +425,7 @@ QFuture<QVector<Quote>> TSClient::getQuoteSnapshots(const QStringList &symbols)
                         default:
                         {
                             CRITICAL << ": getQuoteSnapshots(): Error with reply: " << reply->errorString() << " : " << reply->error();
-                            promise.setException(OtherErrorException());
+                            promise.addResult(std::unexpected(Error::Other));
                             break;
                         }
                     };
@@ -443,7 +442,8 @@ QFuture<QVector<Quote>> TSClient::getQuoteSnapshots(const QStringList &symbols)
     return future;
 }
 
-QFuture<PlaceOrderResult> TSClient::placeOrder(const PlaceOrderRequest &order)
+QFuture<std::expected<PlaceOrderResult, TSClient::Error>>
+TSClient::placeOrder(const PlaceOrderRequest &order)
 {
     DEBUG << "Placing order async";
 
@@ -453,9 +453,8 @@ QFuture<PlaceOrderResult> TSClient::placeOrder(const PlaceOrderRequest &order)
 
     QByteArray postData = QJsonDocument(order.toJson()).toJson(QJsonDocument::Compact);
 
-
-    QPromise<PlaceOrderResult> promise;
-    QFuture<PlaceOrderResult> future = promise.future();
+    QPromise<std::expected<PlaceOrderResult, TSClient::Error>> promise;
+    QFuture<std::expected<PlaceOrderResult, TSClient::Error>> future = promise.future();
 
     promise.start();
 
@@ -483,13 +482,13 @@ QFuture<PlaceOrderResult> TSClient::placeOrder(const PlaceOrderRequest &order)
                             if (parseError.error != QJsonParseError::NoError) {
                                 CRITICAL << "Failed to parse JSON:" << parseError.errorString();
                                 CRITICAL << "Content of the bad data : " << rawData;
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
                             if (!doc.isObject()) {
                                 CRITICAL << " : JSON is not an object";
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
@@ -504,7 +503,7 @@ QFuture<PlaceOrderResult> TSClient::placeOrder(const PlaceOrderRequest &order)
                         case QNetworkReply::UnknownNetworkError:
                         {
                             CRITICAL << ": placeOrder(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
-                            promise.setException(TimeoutException());
+                            promise.addResult(std::unexpected(Error::Timeout));
                             break;
                         }
 
@@ -512,7 +511,7 @@ QFuture<PlaceOrderResult> TSClient::placeOrder(const PlaceOrderRequest &order)
                         default:
                         {
                             CRITICAL << ": placeOrder(): Error with reply: " << reply->errorString() << " : " << reply->error();
-                            promise.setException(OtherErrorException());
+                            promise.addResult(std::unexpected(Error::Other));
                             break;
                         }
                     };
@@ -529,7 +528,8 @@ QFuture<PlaceOrderResult> TSClient::placeOrder(const PlaceOrderRequest &order)
     return future;
 }
 
-QFuture<CancelOrderResult> TSClient::cancelOrder(const QString &orderID)
+QFuture<std::expected<CancelOrderResult, TSClient::Error>>
+TSClient::cancelOrder(const QString &orderID)
 {
     DEBUG << "Cancel order for orderID : " << orderID;
 
@@ -538,8 +538,8 @@ QFuture<CancelOrderResult> TSClient::cancelOrder(const QString &orderID)
 
     QNetworkRequest request = buildNetworkRequest(QString(ENDPOINT_CANCEL_ORDER).arg(orderID));
 
-    QPromise<CancelOrderResult> promise;
-    QFuture<CancelOrderResult> future = promise.future();
+    QPromise<std::expected<CancelOrderResult, TSClient::Error>> promise;
+    QFuture<std::expected<CancelOrderResult, TSClient::Error>> future = promise.future();
 
     promise.start();
 
@@ -567,13 +567,13 @@ QFuture<CancelOrderResult> TSClient::cancelOrder(const QString &orderID)
                             if (parseError.error != QJsonParseError::NoError) {
                                 CRITICAL << "Failed to parse JSON:" << parseError.errorString();
                                 CRITICAL << "Content of the bad data : " << rawData;
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
                             if (!doc.isObject()) {
                                 CRITICAL << " : JSON is not an object";
-                                promise.setException(JSONErrorException());
+                                promise.addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
                             
@@ -586,7 +586,7 @@ QFuture<CancelOrderResult> TSClient::cancelOrder(const QString &orderID)
                         case QNetworkReply::UnknownNetworkError:
                         {
                             CRITICAL << ": cancelOrder(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
-                            promise.setException(TimeoutException());
+                            promise.addResult(std::unexpected(Error::Timeout));
                             break;
                         }
 
@@ -594,7 +594,7 @@ QFuture<CancelOrderResult> TSClient::cancelOrder(const QString &orderID)
                         default:
                         {
                             CRITICAL << ": cancelOrder(): Error with reply: " << reply->errorString() << " : " << reply->error();
-                            promise.setException(OtherErrorException());
+                            promise.addResult(std::unexpected(Error::Other));
                             break;
                         }
                     };
