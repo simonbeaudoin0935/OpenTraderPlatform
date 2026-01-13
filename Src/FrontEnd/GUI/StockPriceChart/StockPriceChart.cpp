@@ -381,15 +381,17 @@ void StockPriceChart::updateCandlestickData()
     for (auto it = indexToBar.begin(); it != indexToBar.end(); ++it) {
         const int index = it.key();
         const Bar& bar = it.value();
+        const Bar::BarStatus status = bar.getBarStatus();
         
-        if (bar.getBarStatus() != Bar::BarStatus::Null) {
+        // Only include bars with valid status (Open or Closed) - skip Null and Uninitialized bars
+        if (status == Bar::BarStatus::Open || status == Bar::BarStatus::Closed) {
             QCPFinancialData data;
             data.key = index;  // Use index as the x-axis value
             data.open = bar.getOpen();
             data.high = bar.getHigh();
             data.low = bar.getLow();
             data.close = bar.getClose();
-            financialData.append(data);
+            financialData.append(std::move(data));
         }
     }
     
@@ -408,8 +410,10 @@ void StockPriceChart::updateVolumeData()
     for (auto it = indexToBar.begin(); it != indexToBar.end(); ++it) {
         const int index = it.key();
         const Bar& bar = it.value();
+        const Bar::BarStatus status = bar.getBarStatus();
         
-        if (bar.getBarStatus() != Bar::BarStatus::Null) {
+        // Only include bars with valid status (Open or Closed) - skip Null and Uninitialized bars
+        if (status == Bar::BarStatus::Open || status == Bar::BarStatus::Closed) {
             // Determine if bar is up or down based on close vs open
             bool isUp = bar.getClose() >= bar.getOpen();
             qint64 volume = bar.getTotalVolume();
