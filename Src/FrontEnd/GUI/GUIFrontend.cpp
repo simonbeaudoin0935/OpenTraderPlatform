@@ -113,20 +113,22 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
                 // The barCache had the bars ready immediately
                 ui->priceChart->onRequestedMissingBarsReceived(std::move(std::get<std::unique_ptr<QVector<Bar>>>(result)));
             } else {
-                auto future = std::get<QFuture<std::unique_ptr<QVector<Bar>>>>(result);
+                auto future = std::get<QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>>>(result);
 
-                future.then(this, [this](std::unique_ptr<QVector<Bar>> bars){
-                    ui->priceChart->onRequestedMissingBarsReceived(std::move(bars));
-                }).onFailed([](const TSClient::TimeoutException& e){
-                    Q_UNUSED(e);
-                    Q_ASSERT_X(false, "Get bars request timed out", "Get bars request timed out");
-                }).onFailed([](const TSClient::JSONErrorException& e){
-                    Q_UNUSED(e);
-                    Q_ASSERT_X(false, "Get bars request JSON error", "Get bars request JSON error");
-                }).onFailed([](const TSClient::OtherErrorException& e){
-                    Q_UNUSED(e);
-                    Q_ASSERT_X(false, "Get bars request other error", "Get bars request other error");
-                });
+                future.then(this,
+                    [this]
+                    (std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars)
+                    {
+                        if (bars.has_value()) {
+                            ui->priceChart->onRequestedMissingBarsReceived(std::move(bars.value()));
+                        } else {
+                            qCritical() << "Failed to get missing bars from BarCache - Error:" << static_cast<int>(bars.error());
+
+                            // TODO : retry logic?
+                            Q_ASSERT(false);
+                        }
+                    }
+                );
             }
         });
 
@@ -161,25 +163,40 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     });
 
     // Connect order window cancel order request
-    connect(ui->orderWindow, &OrderWindow::cancelOrderRequested, this, [this](const QString& orderId) {
-        qCDebug(GUIFrontendLog) << "Cancel order requested for order ID:" << orderId;
+    connect(ui->orderWindow, &OrderWindow::cancelOrderRequested, this,
+        [this]
+        (const QString& orderId)
+        {
+            qCDebug(GUIFrontendLog) << "Cancel order requested for order ID:" << orderId;
         
-        // Cancel the order using TSClient
-        auto cancelFuture = TSClient::getInstance()->cancelOrder(orderId);
+            // Cancel the order using TSClient
+            auto cancelFuture = TSClient::getInstance()->cancelOrder(orderId);
         
-        // Handle the result asynchronously
-        cancelFuture.then([this, orderId](const CancelOrderResult& result) {
-            if (!result.isError()) {
-                qCInfo(GUIFrontendLog) << "Order" << orderId << "cancelled successfully:" << result.getMessage();
-            } else {
-                qCWarning(GUIFrontendLog) << "Failed to cancel order" << orderId << ":" << result.getMessage();
-                // TODO: Show error message to user
-            }
-        }).onFailed([](const QException& e){
-            Q_UNUSED(e);
-            Q_ASSERT_X(false, "Cancel order request timed out", "Cancel order request timed out");
-        });
-    });
+            // Handle the result asynchronously
+            cancelFuture.then(this, 
+                [this, orderId]
+                (std::expected<CancelOrderResult, TSClient::Error> result)
+                {
+                    if (result.has_value()) {
+                        CancelOrderResult& cancelResult = result.value();
+
+                        qCInfo(GUIFrontendLog) << "Order" << orderId << "cancelled successfully.";
+
+                        if (cancelResult.isError()) {
+                            qCWarning(GUIFrontendLog) << "Failed to cancel order" << orderId << ":" << cancelResult.getMessage();
+                            // TODO: Show error message to user
+                            Q_ASSERT(false);
+                        } else {
+                            qCInfo(GUIFrontendLog) << "Order" << orderId << "cancelled successfully:" << cancelResult.getMessage();
+                        }
+                    } else {
+                        qCWarning(GUIFrontendLog) << "Failed to cancel order" << orderId << "- Error code:" << static_cast<int>(result.error());
+                        Q_ASSERT(false);
+                    }
+                }
+            );
+        }
+    );
 
     // Connect order entry widget
     ui->orderEntryWidget->setGUIFrontend(this);
@@ -712,39 +729,40 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
     qInfo() << "Placing order:" << order.toJsonString();
     
     // Submit order to TSClient
-    QFuture<PlaceOrderResult> future = TSClient::getInstance()->placeOrder(order);
-    
-    future.then(this, [this](const PlaceOrderResult& result) {
-        if (result.hasErrors()) {
-            QString errorMsg = "Order failed:\n";
-            for (const auto& error : result.getErrors()) {
-                errorMsg += error.getMessage() + "\n";
-                if (error.getError().has_value()) {
-                    errorMsg += "Error: " + error.getError().value() + "\n";
+    QFuture<std::expected<PlaceOrderResult, TSClient::Error>> future = TSClient::getInstance()->placeOrder(order);
+
+    future.then(this,
+        [this]
+        (std::expected<PlaceOrderResult, TSClient::Error> expected_result)
+        {
+            if (!expected_result.has_value()) {
+                QString errorMsg = "Order placement failed with error code: " + QString::number(static_cast<int>(expected_result.error()));
+                QMessageBox::critical(nullptr, "Order Error", errorMsg);
+                qCritical() << "Order placement failed with error code:" << static_cast<int>(expected_result.error());
+                return;
+            }
+
+            PlaceOrderResult& result = expected_result.value();
+        
+            if (result.hasErrors()) {
+                QString errorMsg = "Order failed:\n";
+                for (const auto& error : result.getErrors()) {
+                    errorMsg += error.getMessage() + "\n";
+                    if (error.getError().has_value()) {
+                        errorMsg += "Error: " + error.getError().value() + "\n";
+                    }
                 }
+                QMessageBox::critical(nullptr, "Order Error", errorMsg);
+                qCritical() << "Order placement failed:" << errorMsg;
+            } else {
+                QString successMsg = "Order(s) placed successfully:\n";
+                for (const auto& orderItem : result.getOrders()) {
+                    successMsg += "Order ID: " + orderItem.getOrderID() + "\n";
+                    successMsg += orderItem.getMessage() + "\n";
+                }
+                QMessageBox::information(nullptr, "Order Success", successMsg);
+                qInfo() << "Order placement successful:" << successMsg;
             }
-            QMessageBox::critical(nullptr, "Order Error", errorMsg);
-            qCritical() << "Order placement failed:" << errorMsg;
-        } else {
-            QString successMsg = "Order(s) placed successfully:\n";
-            for (const auto& orderItem : result.getOrders()) {
-                successMsg += "Order ID: " + orderItem.getOrderID() + "\n";
-                successMsg += orderItem.getMessage() + "\n";
-            }
-            QMessageBox::information(nullptr, "Order Success", successMsg);
-            qInfo() << "Order placement successful:" << successMsg;
         }
-    }).onFailed([](const TSClient::TimeoutException& e){
-        Q_UNUSED(e);
-        QMessageBox::critical(nullptr, "Order Error", "Order request timed out. Please try again.");
-        qCritical() << "Order placement timed out";
-    }).onFailed([](const TSClient::JSONErrorException& e){
-        Q_UNUSED(e);
-        QMessageBox::critical(nullptr, "Order Error", "Failed to parse order response from server.");
-        qCritical() << "Order placement JSON error";
-    }).onFailed([](const TSClient::OtherErrorException& e){
-        Q_UNUSED(e);
-        QMessageBox::critical(nullptr, "Order Error", "An error occurred while placing the order.");
-        qCritical() << "Order placement error";
-    });
+    );
 }

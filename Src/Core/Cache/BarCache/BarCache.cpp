@@ -329,10 +329,10 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
     // For database, we check if we have the complete day (6:01am to 8:00pm)
     // Use shared_ptr so the promise can be accessed by both .then() and .onFailed() handlers
     // in nested async operations without moving/invalidating it
-    auto promisePtr = std::make_shared<QPromise<std::unique_ptr<QVector<Bar>>>>();
+    auto promisePtr = std::make_shared<QPromise<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>>>();
     promisePtr->start(); // Must start the promise before it can be used
-    QFuture<std::unique_ptr<QVector<Bar>>> future = promisePtr->future();
-    
+    QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> future = promisePtr->future();
+
     // Explicitely ignore return value of QtConcurrent::run to avoid compiler warning about unused return value
     // The reason why we ignore the returned QFuture is because we, as the side invoking this function, do not need
     // to track the completion of this asynchronous task ourselves - we return our own QFuture we created above to
@@ -393,6 +393,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
                     if (!bars.has_value()) {
                         CRITICAL << "getBars() from API returned error for" << m_symbol
                                  << "- Error:" << static_cast<int>(bars.error());
+                        promisePtr->addResult(std::unexpected(bars.error()));
                     } else {
                         DEBUG << "Asynchronous getBars() from API completed for complete day" << date
                               << "with" << bars.value()->size() << "bars received";
