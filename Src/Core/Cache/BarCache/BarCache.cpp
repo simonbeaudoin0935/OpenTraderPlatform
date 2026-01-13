@@ -75,9 +75,9 @@ BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
                "low REAL, "
                "close REAL, "
                "volume INTEGER, "
+               "status INTEGER DEFAULT 0, "
                "PRIMARY KEY (date, [index]))");
 
-    
     if (query.lastError().isValid()) {
         CRITICAL << "Failed to create table:" << query.lastError().text();
 
@@ -556,7 +556,7 @@ BarCache::getBarsFromDatabase(QDate date, QTime start, QTime end) const
     OBJ_ASSUME_LT(indexStart, indexEnd);
 
     QSqlQuery query(m_db);
-    query.prepare("SELECT [index], open, high, low, close, volume FROM bars WHERE date = ? AND [index] >= ? AND [index] <= ? ORDER BY [index]");
+    query.prepare("SELECT [index], open, high, low, close, volume, status FROM bars WHERE date = ? AND [index] >= ? AND [index] <= ? ORDER BY [index]");
     query.addBindValue(date.toString("yyyy-MM-dd"));
     query.addBindValue(static_cast<int>(indexStart));
     query.addBindValue(static_cast<int>(indexEnd));
@@ -573,10 +573,11 @@ BarCache::getBarsFromDatabase(QDate date, QTime start, QTime end) const
             double low = query.value(3).toDouble();
             double close = query.value(4).toDouble();
             qint64 volume = query.value(5).toLongLong();
+            Bar::BarStatus status = static_cast<Bar::BarStatus>(query.value(6).toInt());
             
             Bar bar;
-            // Check if this is a null/void bar (all OHLC values and volume are 0)
-            if (open == 0.0 && high == 0.0 && low == 0.0 && close == 0.0 && volume == 0) {
+            // Use the stored status to determine if this is a null bar
+            if (status == Bar::BarStatus::Null) {
                 bar = Bar::nullBar(ts);
             } else {
                 bar = Bar(ts, open, high, low, close, volume);
@@ -606,7 +607,7 @@ void BarCache::storeBarsInDatabase(const QDate &date, const std::unique_ptr<QVec
     DEBUG << "Storing" << bars->size() << "bars in database for" << m_symbol;
     
     QSqlQuery query(m_db);
-    query.prepare("INSERT OR REPLACE INTO bars (date, [index], open, high, low, close, volume) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    query.prepare("INSERT OR REPLACE INTO bars (date, [index], open, high, low, close, volume, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
 
     int storedCount = 0;
     for (const Bar& bar : *bars) {
@@ -619,6 +620,7 @@ void BarCache::storeBarsInDatabase(const QDate &date, const std::unique_ptr<QVec
         query.addBindValue(bar.getLow());
         query.addBindValue(bar.getClose());
         query.addBindValue(bar.getTotalVolume());
+        query.addBindValue(static_cast<int>(bar.getBarStatus()));
         if (query.exec()) {
             storedCount++;
         } else {
