@@ -67,7 +67,7 @@ AuthWindow::~AuthWindow() = default;
 void AuthWindow::handleDialogFinished(int result)
 {
     if (result == QDialog::Accepted) {
-        emit authFinished(true, authToken, "Authentification successful");
+        emit authFinished(true, authToken, "Authentication successful");
     } else {
         emit authFinished(false, authToken, "Authentication cancelled or failed");
     }
