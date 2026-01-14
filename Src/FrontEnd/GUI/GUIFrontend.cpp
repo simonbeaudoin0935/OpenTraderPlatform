@@ -42,15 +42,19 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     
     // Add Ctrl+Q shortcut to quit the application
     m_quitShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::QuitApplication), mainWindow);
-    connect(m_quitShortcut, &QShortcut::activated, qApp, &QApplication::quit);
+    auto quitConnection = connect(m_quitShortcut, &QShortcut::activated, qApp, &QApplication::quit, Qt::UniqueConnection);
+    Q_ASSERT(quitConnection);
 
     // Add "i" shortcut to focus the stock symbol input box
     m_focusShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::FocusStockInput), mainWindow);
-    connect(m_focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); });
+    auto focusConnection = connect(m_focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); }, Qt::UniqueConnection);
+    Q_ASSERT(focusConnection);
     
     // Connect to shortcut changes to update active shortcuts
-    connect(&shortcutSettings, &ShortcutSettings::shortcutChanged,
-            this, &GUIFrontend::onShortcutChanged);
+    auto shortcutChangeConnection = connect(&shortcutSettings, &ShortcutSettings::shortcutChanged,
+            this, &GUIFrontend::onShortcutChanged, Qt::UniqueConnection);
+    Q_ASSERT(shortcutChangeConnection);
+
 
 
     // Create and setup TradeStation login button

@@ -75,11 +75,13 @@ void ShortcutsTab::populateShortcuts() {
         m_shortcutsFormLayout->addRow(settings.getShortcutName(id) + ":", rowWidget);
 
         // Connect signals
-        connect(keySequenceEdit, &QKeySequenceEdit::editingFinished,
-                this, [this, id]() { onShortcutChanged(id); });
+        auto keySequenceConnection = connect(keySequenceEdit, &QKeySequenceEdit::editingFinished,
+                this, [this, id]() { onShortcutChanged(id); }, Qt::UniqueConnection);
+        Q_ASSERT(keySequenceConnection);
         
-        connect(resetButton, &QPushButton::clicked,
-                this, [this, id]() { onResetButtonClicked(id); });
+        auto resetButtonConnection = connect(resetButton, &QPushButton::clicked,
+                this, [this, id]() { onResetButtonClicked(id); }, Qt::UniqueConnection);
+        Q_ASSERT(resetButtonConnection);
     }
 }
 
