@@ -4,8 +4,7 @@
 #include <QStandardPaths>
 #include <QFileInfo>
 #include <QDir>
-#include <QFutureSynchronizer>
-#include <QtConcurrent>
+#include <QPromise>
 #include <memory>
 
 #include "MainApp.h"
@@ -288,7 +287,7 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first, const 
  * @note Holes in the data (periods with no trading activity) are filled with null bars.
  * @warning Currently returns the complete day, not just the requested range (bug noted in code).
  */
-BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &first, const QTime &last) const
+BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &first, const QTime &last)
 {
     const QDateTime now = MainApp::getCurrentAppTime();
     const bool isCurrentDay = (date == now.date());
@@ -326,91 +325,82 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
     
     DEBUG << " m_barCacheByDay map doesn't contain bars  for day " << date << "checking database";
     
-    // For database, we check if we have the complete day (6:01am to 8:00pm)
-    // Use shared_ptr so the promise can be accessed by both .then() and .onFailed() handlers
-    // in nested async operations without moving/invalidating it
+    // Note: Database operations must run on the thread that created the connection (BarCache's thread).
+    // Since getBars() may be called from other threads (e.g., GUI thread), we need to be careful.
+    // For now, we do a synchronous DB check here - this works because SQLite with WAL mode
+    // supports concurrent readers. However, this is called from the GUI thread via 
+    // requestMissingBarsDisplayedStock, so the DB connection threading rules may be violated.
+    // TODO: Consider invoking this on BarCache's thread via QMetaObject::invokeMethod.
+    
+    std::optional<std::unique_ptr<QVector<Bar>>> dbBars = getBarsFromDatabase(date, first, last);
+    
+    // Check if we got the complete day from database
+    if (dbBars.has_value())
+    {
+        std::unique_ptr<QVector<Bar>> dbBarsPtr = std::move(dbBars.value());
+        const size_t expectedBarCount = first.secsTo(last) / 60 + 1;
+
+        // Happy path, got bars from database. Make absolutely sure that the number of bars is correct
+        // When using the getBarsFromDatabase(), if we get the vector back, it means we have the complete set of bars for the requested range
+        OBJ_ASSUME_EQUAL(dbBarsPtr->size(), expectedBarCount);
+
+        DEBUG << "Loaded complete day from database:" << dbBarsPtr->size() << "bars";
+
+        // Store the complete day in memory cache
+        storeBarsInCache(date, dbBarsPtr);
+
+        return std::move(dbBarsPtr);
+    }
+
+    // Database doesn't have complete day - fetch from API
+    DEBUG << " fetching from database failed, will fetch from API";
+
+    // Fetch the complete day (or up to now for current day) from API
+    QDateTime startDateTime = QDateTime(date, TRADING_START_TIME, QTimeZone("America/New_York"));
+
+    QDateTime endDayTime = QDateTime(date,
+                                     isCurrentDay ? now.time() : TRADING_END_TIME,
+                                     QTimeZone("America/New_York"));
+
+    DEBUG << "Fetching complete day from API:" << startDateTime << "to" << endDayTime;
+
+    // Create a promise/future pair for the result
     QPromise<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> promise;
     QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> future = promise.future();
-    promise.start(); // Must start the promise before it can be used
+    promise.start();
 
-        // Explicitely ignore return value of QtConcurrent::run to avoid compiler warning about unused return value
-    // The reason why we ignore the returned QFuture is because we, as the side invoking this function, do not need
-    // to track the completion of this asynchronous task ourselves - we return our own QFuture we created above to
-    // the caller instead since we moved over our QPromise to the lambda for signaling later.
-    (void) QtConcurrent::run(
-        [this, date, first, last, promise = std::move(promise)]() mutable
+    // Call the API and chain the result processing
+    TSClient::getInstance()->getBars(
+        m_symbol,
+        1,
+        Bar::BarUnit::Minute,
+        0,
+        Bar::BarSessionTemplate::USEQ24Hour,
+        startDateTime,
+        endDayTime
+    ).then(this,
+        [this, date, startDateTime, endDayTime, promise = std::move(promise)]
+        (std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars) mutable
         {
-            std::optional<std::unique_ptr<QVector<Bar>>> dbBars = getBarsFromDatabase(date, first, last);
-            
-            // Check if we got the complete day from database
-            if (dbBars.has_value())
-            {
-                std::unique_ptr<QVector<Bar>> dbBarsPtr = std::move(dbBars.value());
-                const size_t expectedBarCount = first.secsTo(last) / 60 + 1;
+            if (!bars.has_value()) {
+                CRITICAL << "getBars() from API returned error for" << m_symbol
+                         << "- Error:" << static_cast<int>(bars.error());
+                promise.addResult(std::unexpected(bars.error()));
+            } else {
+                DEBUG << "Asynchronous getBars() from API completed for complete day" << date
+                      << "with" << bars.value()->size() << "bars received";
 
-                // Happy path, got bars from database. Make absolutely sure that the number of bars is correct
-                // When using the getBarsFromDatabase(), if we get the vector back, it means we have the complete set of bars for the requested range
-                OBJ_ASSUME_EQUAL(dbBarsPtr->size(), expectedBarCount);
+                std::unique_ptr<QVector<Bar>> barsFromApiHolesFilled = std::make_unique<QVector<Bar>>(fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars.value()));
 
-                DEBUG << "Loaded complete day from database:" << dbBarsPtr->size() << "bars";
-        
-                // Store the complete day in cache
-                storeBarsInCache(date, dbBarsPtr);
+                // Store the complete day in both cache and database
+                storeBarsInCache(date, barsFromApiHolesFilled);
+                storeBarsInDatabase(date, barsFromApiHolesFilled);
 
-                promise.addResult(std::move(dbBarsPtr));
-                promise.finish();
-
-                return;
+                // #warning bug here, we must return only the requested range, not the complete day
+                //  For now we return the complete day - later we can slice to requested range only
+                promise.addResult(std::move(barsFromApiHolesFilled));
             }
-
-            // Database doesn't have complete day - fetch from API
-            DEBUG << " fetching from database failed";
-
-            // Fetch the complete day (or up to now for current day) from API
-            QDateTime startDateTime = QDateTime(date, TRADING_START_TIME, QTimeZone("America/New_York"));
-
-            const QDateTime now = MainApp::getCurrentAppTime();
-            const bool isCurrentDay = (date == now.date());
-
-            QDateTime endDayTime = QDateTime(date,
-                                             isCurrentDay ? now.time() : TRADING_END_TIME,
-                                             QTimeZone("America/New_York"));
-
-            DEBUG << "Fetching complete day from API:" << startDateTime << "to" << endDayTime;
-
-            TSClient::getInstance()->getBars(
-                m_symbol,
-                1,
-                Bar::BarUnit::Minute,
-                0,
-                Bar::BarSessionTemplate::USEQ24Hour,
-                startDateTime,
-                endDayTime
-            ).then(const_cast<BarCache *>(this),
-                [this, date, startDateTime, endDayTime, promise = std::move(promise)]
-                (std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars) mutable
-                {
-                    if (!bars.has_value()) {
-                        CRITICAL << "getBars() from API returned error for" << m_symbol
-                                 << "- Error:" << static_cast<int>(bars.error());
-                        promise.addResult(std::unexpected(bars.error()));
-                    } else {
-                        DEBUG << "Asynchronous getBars() from API completed for complete day" << date
-                              << "with" << bars.value()->size() << "bars received";
-
-                        std::unique_ptr<QVector<Bar>> barsFromApiHolesFilled = std::make_unique<QVector<Bar>>(fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars.value()));
-
-                        // Store the complete day in both cache and database
-                        storeBarsInCache(date, barsFromApiHolesFilled);
-                        storeBarsInDatabase(date, barsFromApiHolesFilled);
-
-                        // #warning bug here, we must return only the requested range, not the complete day
-                        //  For now we return the complete day - later we can slice to requested range only
-                        promise.addResult(std::move(barsFromApiHolesFilled));
-                    }
-                    promise.finish();
-
-                });
+            promise.finish();
         });
 
     return future;
@@ -483,7 +473,7 @@ void BarCache::storeBarInCache(const Bar& bar)
 }
 
 
-void BarCache::storeBarsInCache(const QDate& date, const std::unique_ptr<QVector<Bar>>& bars) const
+void BarCache::storeBarsInCache(const QDate& date, const std::unique_ptr<QVector<Bar>>& bars)
 {
     OBJ_ASSUME_FALSE(bars->isEmpty());
     OBJ_ASSUME_TRUE(bars->count() <= BARS_PER_DAY); // Max bars per day
@@ -500,8 +490,10 @@ void BarCache::storeBarsInCache(const QDate& date, const std::unique_ptr<QVector
 
         DEBUG << "Inserted full day in cache for" << date;
     } else {
-
-        OBJ_ASSUME_TRUE(m_barCacheByDay.contains(date));
+        // Partial day - need to create day vector if it doesn't exist
+        if (!m_barCacheByDay.contains(date)) {
+            m_barCacheByDay[date] = QVector<Bar>(BARS_PER_DAY);
+        }
 
         QVector<Bar> &dayVector = m_barCacheByDay[date];
 
@@ -580,6 +572,11 @@ BarCache::getBarsFromDatabase(QDate date, QTime start, QTime end) const
     return std::move(bars);
 }
 
+//#error the issue has to see with the fact that the function that checks for missing bars in the chart is not properly \
+//       protected against concurrent access - need to add locks around the access to the bar cache map, when I pan on the \
+ //      left and a day is already being fetched from the API for that day, then if the function tried to fetch again it will \
+ //      crap
+       
 void BarCache::storeBarsInDatabase(const QDate &date, const std::unique_ptr<QVector<Bar>> &bars) const
 {
     OBJ_ASSUME_TRUE(m_db.isOpen());

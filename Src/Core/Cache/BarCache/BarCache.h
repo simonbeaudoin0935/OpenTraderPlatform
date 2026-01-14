@@ -34,7 +34,7 @@ public:
      *
      * @note : Both date-times must be in America/New_York timezone
      */
-    GetBarsResult_t getBars(const QDate &day, const QTime &first, const QTime &last) const;
+    GetBarsResult_t getBars(const QDate &day, const QTime &first, const QTime &last);
 
     void clearDatabase();
 
@@ -62,8 +62,7 @@ private:
 
     void storeBarInCache(const Bar& bar);
 
-    // We take
-    void storeBarsInCache(const QDate &date, const std::unique_ptr<QVector<Bar>> &bars) const;
+    void storeBarsInCache(const QDate &date, const std::unique_ptr<QVector<Bar>> &bars);
 
     void storeBarsInDatabase(const QDate &date, const std::unique_ptr<QVector<Bar>> &bars) const;
 
@@ -86,7 +85,7 @@ private:
     QSqlDatabase m_db;
     QPointer<StreamBars> m_stream;
 
-    mutable QReadWriteLock m_barCacheRwLock; // Protects m_barCacheByDay
+    mutable QReadWriteLock m_barCacheRwLock; // Protects m_barCacheByDay, mutable for use in const methods
     // Day-based storage: one QVector per trading day. Vector index maps to minute within trading day.
-    mutable QMap<QDate, QVector<Bar>> m_barCacheByDay;
+    QMap<QDate, QVector<Bar>> m_barCacheByDay;
 };
