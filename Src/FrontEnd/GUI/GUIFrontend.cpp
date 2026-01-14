@@ -781,11 +781,9 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
     );
 }
 
-void GUIFrontend::onShortcutChanged(int p_id, const QKeySequence& p_newSequence) {
-    ShortcutSettings::ShortcutId shortcutId = static_cast<ShortcutSettings::ShortcutId>(p_id);
-    
+void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKeySequence& p_newSequence) {
     // Update the appropriate shortcut
-    switch (shortcutId) {
+    switch (p_id) {
         case ShortcutSettings::QuitApplication:
             Q_CHECK_PTR(m_quitShortcut);
             m_quitShortcut->setKey(p_newSequence);

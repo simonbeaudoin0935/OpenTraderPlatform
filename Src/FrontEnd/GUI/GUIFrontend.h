@@ -8,6 +8,7 @@
 
 #include "FrontEnd.h"
 #include "MainAlgo.h"
+#include "ShortcutSettings.h"
 
 // Forward declarations
 class PlaceOrderRequest;
@@ -47,7 +48,7 @@ private slots:
     void onLoggerVisibilityChanged(bool visible);
     void onLogDepthChanged(int maxLines);
     void onOrderPlaced(const PlaceOrderRequest& order);
-    void onShortcutChanged(int p_id, const QKeySequence& p_newSequence);
+    void onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKeySequence& p_newSequence);
 
 private:
     void setupDarkTheme(QMainWindow* mainWindow);
