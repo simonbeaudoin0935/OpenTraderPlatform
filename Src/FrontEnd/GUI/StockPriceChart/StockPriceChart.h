@@ -57,7 +57,7 @@ signals:
 
 public slots:
     void addLiveBar(const QString& symbol, const Bar& bar);
-    void onRequestedMissingBarsReceived(const std::unique_ptr<QVector<Bar>>& barsPtr);
+    void onRequestedMissingBarsReceived(const std::shared_ptr<QVector<Bar>> barsPtr);
 
 private slots:
     void onAxisRangeChanged();

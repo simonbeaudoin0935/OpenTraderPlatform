@@ -104,19 +104,16 @@ DatabaseThread::getBarsFromDatabase(const QString& symbol, QDate date, QTime sta
 }
 
 QFuture<int> DatabaseThread::storeBarsInDatabase(const QString& symbol, const QDate& date,
-                                                  const QVector<Bar>& bars)
+                                                 const std::shared_ptr<QVector<Bar>> bars)
 {
     QPromise<int> promise;
     QFuture<int> future = promise.future();
     promise.start();
 
-    // Copy the bars since we're crossing thread boundaries
-    QVector<Bar> barsCopy = bars;
-
     QMetaObject::invokeMethod(this,
-        [this, symbol, date, barsCopy = std::move(barsCopy), promise = std::move(promise)]() mutable
+        [this, symbol, date, barsPtr = std::move(bars), promise = std::move(promise)]() mutable
         {
-            int result = storeBarsInDatabaseInternal(symbol, date, barsCopy);
+            int result = storeBarsInDatabaseInternal(symbol, date, *barsPtr);
             promise.addResult(result);
             promise.finish();
         }, Qt::QueuedConnection);

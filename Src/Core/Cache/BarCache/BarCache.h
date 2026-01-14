@@ -25,7 +25,7 @@ public:
     const QString& getSymbol() const { return m_symbol;};
 
     typedef std::variant < std::unique_ptr<QVector<Bar>>,
-                           QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> >
+                           QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> >
             GetBarsResult_t;
 
     /*
@@ -61,7 +61,7 @@ private:
 
     void storeBarInCache(const Bar& bar);
 
-    void storeBarsInCache(const QDate &date, const std::unique_ptr<QVector<Bar>> &bars);
+    void storeBarsInCache(const QDate &date, const std::shared_ptr<QVector<Bar>> bars);
 
     void handleReceivedAllPendingGetBarsRequests();
     QVector<Bar> fillHolesOfReceivedRequest(const QDateTime& first, const QDateTime& last, const QVector<Bar>& barsFromAPI) const;
