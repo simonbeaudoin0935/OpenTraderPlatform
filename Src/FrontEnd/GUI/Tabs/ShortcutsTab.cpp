@@ -100,7 +100,7 @@ void ShortcutsTab::onShortcutChanged(ShortcutSettings::ShortcutId p_id) {
         widgets.statusLabel->setStyleSheet("QLabel { color: #4CAF50; font-size: 9px; }");
         
         // Clear status after 2 seconds
-        QTimer::singleShot(2000, this, [widgets]() mutable {
+        QTimer::singleShot(2000, this, [widgets]() {
             widgets.statusLabel->clear();
         });
     } else {
@@ -119,7 +119,7 @@ void ShortcutsTab::onShortcutChanged(ShortcutSettings::ShortcutId p_id) {
         widgets.statusLabel->setStyleSheet("QLabel { color: #f44336; font-size: 9px; }");
         
         // Clear status after 3 seconds
-        QTimer::singleShot(3000, this, [widgets]() mutable {
+        QTimer::singleShot(3000, this, [widgets]() {
             widgets.statusLabel->clear();
         });
     }
@@ -157,7 +157,7 @@ void ShortcutsTab::updateShortcutDisplay(ShortcutSettings::ShortcutId p_id) {
     widgets.statusLabel->setStyleSheet("QLabel { color: #2196F3; font-size: 9px; }");
     
     // Clear status after 2 seconds
-    QTimer::singleShot(2000, this, [widgets]() mutable {
+    QTimer::singleShot(2000, this, [widgets]() {
         widgets.statusLabel->clear();
     });
 }

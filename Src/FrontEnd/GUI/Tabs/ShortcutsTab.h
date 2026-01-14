@@ -8,7 +8,7 @@
 #include <QLabel>
 #include <QMap>
 
-#include "ShortcutSettings.h"
+#include "Misc/ShortcutSettings.h"
 
 class ShortcutsTab : public QWidget {
     Q_OBJECT
