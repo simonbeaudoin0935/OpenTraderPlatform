@@ -64,6 +64,7 @@ void ShortcutSettings::saveShortcut(ShortcutId p_id) {
     Q_CHECK_PTR(m_settings);
     QString key = getSettingsKey(p_id);
     m_settings->setValue(key, m_shortcuts[p_id].toString());
+    // Sync immediately to ensure persistence as per requirements
     m_settings->sync();
 }
 
@@ -98,20 +99,20 @@ bool ShortcutSettings::isShortcutInUse(const QKeySequence& p_sequence, ShortcutI
     return false;
 }
 
-void ShortcutSettings::resetToDefault(ShortcutId p_id) {
+bool ShortcutSettings::resetToDefault(ShortcutId p_id) {
     QKeySequence defaultSeq = getDefaultShortcut(p_id);
     
     // Check if default would conflict with another shortcut
     if (isShortcutInUse(defaultSeq, p_id)) {
         // If there's a conflict, we can't reset to default
-        // This is an edge case that shouldn't normally happen
-        return;
+        return false;
     }
     
     m_shortcuts[p_id] = defaultSeq;
     saveShortcut(p_id);
     
     emit shortcutChanged(p_id, defaultSeq);
+    return true;
 }
 
 QList<ShortcutSettings::ShortcutId> ShortcutSettings::getAllShortcutIds() const {

@@ -100,8 +100,10 @@ void ShortcutsTab::onShortcutChanged(ShortcutSettings::ShortcutId p_id) {
         widgets.statusLabel->setStyleSheet("QLabel { color: #4CAF50; font-size: 9px; }");
         
         // Clear status after 2 seconds
-        QTimer::singleShot(2000, this, [widgets]() {
-            widgets.statusLabel->clear();
+        QTimer::singleShot(2000, this, [this, p_id]() {
+            if (m_shortcutWidgets.contains(p_id)) {
+                m_shortcutWidgets[p_id].statusLabel->clear();
+            }
         });
     } else {
         // Failed - shortcut is already in use
@@ -119,8 +121,10 @@ void ShortcutsTab::onShortcutChanged(ShortcutSettings::ShortcutId p_id) {
         widgets.statusLabel->setStyleSheet("QLabel { color: #f44336; font-size: 9px; }");
         
         // Clear status after 3 seconds
-        QTimer::singleShot(3000, this, [widgets]() {
-            widgets.statusLabel->clear();
+        QTimer::singleShot(3000, this, [this, p_id]() {
+            if (m_shortcutWidgets.contains(p_id)) {
+                m_shortcutWidgets[p_id].statusLabel->clear();
+            }
         });
     }
 }
@@ -130,8 +134,8 @@ void ShortcutsTab::onResetButtonClicked(ShortcutSettings::ShortcutId p_id) {
     
     QKeySequence defaultSeq = settings.getDefaultShortcut(p_id);
     
-    // Check if default would conflict
-    if (settings.isShortcutInUse(defaultSeq, p_id)) {
+    // Attempt to reset to default
+    if (!settings.resetToDefault(p_id)) {
         QMessageBox::warning(
             this,
             "Cannot Reset",
@@ -142,7 +146,6 @@ void ShortcutsTab::onResetButtonClicked(ShortcutSettings::ShortcutId p_id) {
         return;
     }
     
-    settings.resetToDefault(p_id);
     updateShortcutDisplay(p_id);
 }
 
@@ -157,7 +160,11 @@ void ShortcutsTab::updateShortcutDisplay(ShortcutSettings::ShortcutId p_id) {
     widgets.statusLabel->setStyleSheet("QLabel { color: #2196F3; font-size: 9px; }");
     
     // Clear status after 2 seconds
-    QTimer::singleShot(2000, this, [widgets]() {
-        widgets.statusLabel->clear();
+    QTimer::singleShot(2000, this, [this, p_id]() {
+        if (m_shortcutWidgets.contains(p_id)) {
+            m_shortcutWidgets[p_id].statusLabel->clear();
+        }
+    });
+}
     });
 }

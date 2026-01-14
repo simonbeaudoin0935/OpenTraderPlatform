@@ -68,8 +68,9 @@ public:
     /**
      * @brief Reset a shortcut to its default value
      * @param p_id The shortcut identifier
+     * @return true if the reset was successful, false if it would create a conflict
      */
-    void resetToDefault(ShortcutId p_id);
+    bool resetToDefault(ShortcutId p_id);
 
     /**
      * @brief Get all shortcut IDs

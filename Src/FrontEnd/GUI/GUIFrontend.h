@@ -8,7 +8,7 @@
 
 #include "FrontEnd.h"
 #include "MainAlgo.h"
-#include "ShortcutSettings.h"
+#include "Misc/ShortcutSettings.h"
 
 // Forward declarations
 class PlaceOrderRequest;
