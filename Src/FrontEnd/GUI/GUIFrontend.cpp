@@ -17,8 +17,10 @@
 #include "Tabs/LoggingTab.h"
 #include "Tabs/CacheTab.h"
 #include "Tabs/RecorderTab.h"
+#include "Tabs/ShortcutsTab.h"
 #include "Misc/Logging.h"
 #include "Misc/Settings.h"
+#include "Misc/ShortcutSettings.h"
 
 Q_LOGGING_CATEGORY(GUIFrontendLog, "GUIFrontend")
 
@@ -35,13 +37,21 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     
     mainWindow->showMaximized();
 
+    // Initialize shortcuts from settings
+    ShortcutSettings& shortcutSettings = ShortcutSettings::getInstance();
+    
     // Add Ctrl+Q shortcut to quit the application
-    QShortcut *quitShortcut = new QShortcut(QKeySequence("Ctrl+Q"), mainWindow);
-    connect(quitShortcut, &QShortcut::activated, qApp, &QApplication::quit);
+    m_quitShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::QuitApplication), mainWindow);
+    connect(m_quitShortcut, &QShortcut::activated, qApp, &QApplication::quit);
 
     // Add "i" shortcut to focus the stock symbol input box
-    QShortcut *focusShortcut = new QShortcut(QKeySequence("i"), mainWindow);
-    connect(focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); });
+    m_focusShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::FocusStockInput), mainWindow);
+    connect(m_focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); });
+    
+    // Connect to shortcut changes to update active shortcuts
+    connect(&shortcutSettings, &ShortcutSettings::shortcutChanged,
+            this, &GUIFrontend::onShortcutChanged);
+
 
     // Create and setup TradeStation login button
     tradeStationLoginButton = new QPushButton("Login to TradeStation", ui->statusbar);
@@ -221,6 +231,10 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     // Set up the recorder tab
     RecorderTab* recorderTab = new RecorderTab();
     ui->tabWidget->addTab(recorderTab, "Recorder");
+
+    // Set up the shortcuts tab
+    ShortcutsTab* shortcutsTab = new ShortcutsTab();
+    ui->tabWidget->addTab(shortcutsTab, "Shortcuts");
 
     // Set up the live log display at the bottom
     if (ui->liveLogDisplay) {
@@ -765,4 +779,23 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
             }
         }
     );
+}
+
+void GUIFrontend::onShortcutChanged(int p_id, const QKeySequence& p_newSequence) {
+    ShortcutSettings::ShortcutId shortcutId = static_cast<ShortcutSettings::ShortcutId>(p_id);
+    
+    // Update the appropriate shortcut
+    switch (shortcutId) {
+        case ShortcutSettings::QuitApplication:
+            Q_CHECK_PTR(m_quitShortcut);
+            m_quitShortcut->setKey(p_newSequence);
+            qInfo() << "Updated quit application shortcut to:" << p_newSequence.toString();
+            break;
+            
+        case ShortcutSettings::FocusStockInput:
+            Q_CHECK_PTR(m_focusShortcut);
+            m_focusShortcut->setKey(p_newSequence);
+            qInfo() << "Updated focus stock input shortcut to:" << p_newSequence.toString();
+            break;
+    }
 }

@@ -3,6 +3,8 @@
 #include <QMainWindow>
 #include <QTimer>
 #include <QPushButton>
+#include <QShortcut>
+#include <QKeySequence>
 
 #include "FrontEnd.h"
 #include "MainAlgo.h"
@@ -45,6 +47,7 @@ private slots:
     void onLoggerVisibilityChanged(bool visible);
     void onLogDepthChanged(int maxLines);
     void onOrderPlaced(const PlaceOrderRequest& order);
+    void onShortcutChanged(int p_id, const QKeySequence& p_newSequence);
 
 private:
     void setupDarkTheme(QMainWindow* mainWindow);
@@ -59,6 +62,9 @@ private:
 
     Ui::GUIFrontend* ui;  // Pointer to the UI object
     QPushButton* tradeStationLoginButton;  // Login button in status bar
+    
+    QShortcut* m_quitShortcut;  // Quit application shortcut
+    QShortcut* m_focusShortcut;  // Focus stock input shortcut
 
     qsizetype TSClientDataUsage = 0;
     qint64 memoryUsage = 0;
