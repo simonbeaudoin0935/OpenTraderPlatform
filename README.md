@@ -40,7 +40,7 @@ For detailed architecture diagrams, see:
 
 ### Required Dependencies
 
-- **Qt 6.x**: Core, Network, SQL, Widgets, WebEngineWidgets, PrintSupport
+- **Qt 6.x**: Core, Network, SQL, Widgets, PrintSupport
 - **C++23 compliant compiler**: GCC 11+ or Clang 12+
 - **CMake 3.16+**: Build system
 - **SQLite**: Database support (included with Qt SQL)
@@ -49,7 +49,7 @@ For detailed architecture diagrams, see:
 ### API Keys
 
 You will need API credentials for:
-- **TradeStation API**: For real-time market data and trading (OAuth-based authentication via Qt WebEngine)
+- **TradeStation API**: For real-time market data and trading (OAuth-based authentication using system browser)
 
 ## Installation
 
@@ -64,7 +64,7 @@ You will need API credentials for:
 2. **Install Qt dependencies**:
    ```bash
    # On Ubuntu/Debian
-   sudo apt-get install qt6-base-dev qt6-webengine-dev libqt6sql6-sqlite cmake
+   sudo apt-get install qt6-base-dev libqt6sql6-sqlite cmake
 
    # On macOS with Homebrew
    brew install qt@6 cmake
@@ -115,7 +115,7 @@ GapPercentage=5.0
 
 API credentials are managed through the application's OAuth authentication flow:
 
-- **TradeStation**: The application uses OAuth authentication via an embedded web browser (Qt WebEngine). When you first run the application, you'll be prompted to log in to TradeStation to authorize the app.
+- **TradeStation**: The application uses OAuth authentication via your system's default web browser. When you first run the application, you'll be prompted to log in to TradeStation to authorize the app. Keep the authentication window open while completing the login in your browser.
 
 ### Logging Configuration
 
@@ -244,8 +244,8 @@ Contributions are welcome! Please:
 ## Security
 
 - **Never commit API keys** to the repository
-- OAuth credentials are managed through TradeStation's authentication flow
-- Use secure token storage mechanisms (Qt WebEngine for OAuth)
+- OAuth credentials are managed through TradeStation's authentication flow using your system browser
+- Use secure token storage mechanisms (QKeychain for OAuth tokens)
 - Review API rate limits to avoid account suspension
 
 ## License

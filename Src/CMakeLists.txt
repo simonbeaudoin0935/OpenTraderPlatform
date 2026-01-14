@@ -65,8 +65,6 @@ else()
         "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI/*.h"
     )
-    # Remove GUI-incompatible sources from Clients when GUI is disabled
-    list(FILTER CLIENTS_SOURCES EXCLUDE REGEX "AuthWindow\\.(cpp|h)$")
 endif()
 
 # Create a library with common sources
@@ -143,7 +141,6 @@ if(ENABLE_GUI)
         Qt6::Gui
         Qt6::Widgets
         Qt6::PrintSupport
-        Qt6::WebEngineWidgets
     )
 endif()
 

@@ -14,7 +14,7 @@ Install the required build dependencies:
 
 ```bash
 sudo apt-get install debhelper-compat qt6-base-dev qt6-charts-dev \
-                     qt6-webengine-dev libqt6sql6-sqlite \
+                     libqt6sql6-sqlite \
                      qtkeychain-qt6-dev libsecret-1-dev
 ```
 
@@ -74,7 +74,7 @@ The package properly designates this as a Qt6 application through:
 - Desktop file in `/usr/share/applications/`
 - Application icon in `/usr/share/pixmaps/`
 - Proper categorization in the application menu (Office > Finance)
-- Complete Qt6 module dependencies (core, gui, widgets, network, sql, charts, webengine)
+- Complete Qt6 module dependencies (core, gui, widgets, network, sql, charts)
 
 ### Installation and Deinstallation
 

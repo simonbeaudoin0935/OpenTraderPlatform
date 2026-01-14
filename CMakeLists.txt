@@ -17,7 +17,7 @@ option(ENABLE_GUI "Enable GUI support" ON)
 if(ENABLE_GUI)
     # Find Qt6 GUI packages
     # Note: Using qcustomplot instead of Qt Charts
-    find_package(Qt6 REQUIRED COMPONENTS Widgets WebEngineWidgets PrintSupport)
+    find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport)
     add_compile_definitions(GUI_ENABLED)
 else()
     # When building for TUI, we depend oon ncurses

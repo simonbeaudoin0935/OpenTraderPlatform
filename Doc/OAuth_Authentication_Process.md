@@ -71,7 +71,7 @@ sequenceDiagram
     participant User
     participant App as L2Trader App
     participant AuthWindow
-    participant Browser as Embedded Browser
+    participant SystemBrowser as System Web Browser
     participant LocalServer as Local HTTP Server
     participant TradeStation as TradeStation OAuth
     participant SecureStorage
@@ -100,19 +100,19 @@ sequenceDiagram
     
     AuthWindow->>AuthWindow: Generate random state (CSRF protection)
     
-    AuthWindow->>Browser: Load authorization URL
-    Note over Browser: URL includes: client_id, redirect_uri,<br/>response_type=code, scope, state
+    AuthWindow->>SystemBrowser: Open authorization URL (QDesktopServices)
+    Note over SystemBrowser: URL includes: client_id, redirect_uri,<br/>response_type=code, scope, state
     
-    Browser->>TradeStation: Navigate to authorization page
+    SystemBrowser->>TradeStation: Navigate to authorization page
     TradeStation->>User: Display login & consent page
     User->>TradeStation: Enter credentials & authorize
     
-    TradeStation->>Browser: Redirect to http://localhost:PORT/callback?code=XXX&state=YYY
-    Browser->>LocalServer: HTTP GET /callback?code=XXX&state=YYY
+    TradeStation->>SystemBrowser: Redirect to http://localhost:PORT/callback?code=XXX&state=YYY
+    SystemBrowser->>LocalServer: HTTP GET /callback?code=XXX&state=YYY
     
     LocalServer->>AuthWindow: Validate state matches expected value
     alt State validation successful
-        AuthWindow->>Browser: Display success page
+        AuthWindow->>SystemBrowser: Display success page
         AuthWindow->>TradeStation: POST /oauth/token<br/>(grant_type=authorization_code)
         Note over AuthWindow,TradeStation: Request body includes:<br/>client_id, client_secret,<br/>code, redirect_uri
         
@@ -130,7 +130,7 @@ sequenceDiagram
         App->>App: Schedule token refresh (1195s)
         App-->>User: Authentication complete
     else State validation failed
-        AuthWindow->>Browser: Display error (security issue)
+        AuthWindow->>SystemBrowser: Display error (security issue)
         AuthWindow->>App: Signal authentication failure
         App-->>User: Authentication failed
     end
@@ -431,21 +431,22 @@ static AuthToken loadFromSettings();                         // Load from secure
 - Scope must include all required permissions: `openid`, `profile`, `MarketData`, `ReadAccount`, `Trade`, `offline_access`
 
 #### AuthWindow
-Qt dialog for OAuth authentication flow with embedded browser and local HTTP server.
+Qt dialog for OAuth authentication flow using system browser and local HTTP server.
 
 **Key Features:**
-- Embedded QWebEngineView for authorization page
+- Uses system's default web browser via QDesktopServices::openUrl()
 - Local HTTP server for redirect URI handling
 - CSRF protection via random state parameter
 - Port auto-selection (8080-8089)
 - Credential prompting with optional persistence
 - Graceful error handling
+- Compatible with both GUI and TUI modes
 
 **Authentication Process:**
 1. Load or prompt for client credentials
 2. Start local HTTP server on available port
 3. Generate random state for CSRF protection
-4. Open TradeStation authorization page in embedded browser
+4. Open TradeStation authorization page in system's default browser
 5. Listen for redirect callback with authorization code
 6. Validate state parameter
 7. Exchange code for tokens

@@ -13,6 +13,8 @@
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QDialogButtonBox>
+#include <QLabel>
+#include <QDesktopServices>
 
 #include "AuthWindow.h"
 
@@ -25,7 +27,7 @@ AuthWindow::AuthWindow(QWidget *parent) : QDialog(parent)
     // Set dialog properties
     setWindowTitle("TradeStation Authentication");
     setModal(true);
-    setFixedSize(800, 800);
+    setMinimumSize(500, 200);
     setAttribute(Qt::WA_DeleteOnClose);  // Ensure dialog is deleted when closed
     
     // Connect dialog finished signal first
@@ -75,9 +77,19 @@ void AuthWindow::setupUi()
 {
     auto *layout = new QVBoxLayout(this);
     
-    // Create web view
-    webView = new QWebEngineView(this);
-    layout->addWidget(webView);
+    // Create status label with instructions
+    auto *statusLabel = new QLabel(this);
+    statusLabel->setWordWrap(true);
+    statusLabel->setAlignment(Qt::AlignCenter);
+    statusLabel->setText(
+        "<h2>TradeStation Authentication</h2>"
+        "<p>Your default web browser should open automatically with the TradeStation login page.</p>"
+        "<p><b>Please complete the authentication in your browser.</b></p>"
+        "<p>This window will close automatically once authentication is complete.</p>"
+        "<p><i>Note: Keep this window open while you complete the authentication.</i></p>"
+    );
+    statusLabel->setMargin(20);
+    layout->addWidget(statusLabel);
     
     // Add dialog buttons
     auto *buttonBox = new QDialogButtonBox(
@@ -184,10 +196,16 @@ void AuthWindow::startAuthorization()
                           .arg(clientToken.getClientId(), redirectUri, expectedState);
 
     qCDebug(TSAuthWindowLog) << "Authorization URL:" << authUrl;
-    qCDebug(TSAuthWindowLog) << "Loading URL in web view...";
+    qCDebug(TSAuthWindowLog) << "Opening URL in system browser...";
 
-    // Load the URL in the web view
-    webView->load(QUrl(authUrl));
+    // Open the URL in the system's default web browser
+    if (!QDesktopServices::openUrl(QUrl(authUrl))) {
+        qCWarning(TSAuthWindowLog) << "Failed to open system browser";
+        QMessageBox::warning(this, "Browser Error", 
+            "Failed to open your default web browser. Please copy the URL manually:\n\n" + authUrl);
+    } else {
+        qCDebug(TSAuthWindowLog) << "Successfully opened URL in system browser";
+    }
 }
 
 void AuthWindow::handleNewConnection()
@@ -312,7 +330,6 @@ void AuthWindow::handleCodeReceived(const QString& code)
 {
     qCDebug(TSAuthWindowLog) << "Authorization code received, initiating token exchange";
     exchangeCodeForTokens(code);
-    webView->hide();
 }
 
 void AuthWindow::exchangeCodeForTokens(const QString& code)

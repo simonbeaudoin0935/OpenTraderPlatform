@@ -5,7 +5,6 @@ Maintainer: Simon Beaudoin <29244395+simonbeaudoin0935@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13),
                qt6-base-dev,
                qt6-charts-dev,
-               qt6-webengine-dev,
                libqt6sql6-sqlite,
                qtkeychain-qt6-dev,
                libsecret-1-dev
