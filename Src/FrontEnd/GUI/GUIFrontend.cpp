@@ -150,18 +150,17 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
 
             BarCache::GetBarsResult_t result = MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from.date(), from.time(), to.time());
 
-            if (std::holds_alternative<std::unique_ptr<QVector<Bar>>>(result)) {
+            if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result)) {
                 // The barCache had the bars ready immediately
-                ui->priceChart->onRequestedMissingBarsReceived(std::move(std::get<std::unique_ptr<QVector<Bar>>>(result)));
+                ui->priceChart->onRequestedMissingBarsReceived(std::move(std::get<std::shared_ptr<QVector<Bar>>>(result)));
             } else {
-                auto future = std::get<QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>>>(result);
-
+                auto future = std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result);
                 future.then(this,
                     [this]
-                    (std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars)
+                    (std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error> bars)
                     {
                         if (bars.has_value()) {
-                            ui->priceChart->onRequestedMissingBarsReceived(std::move(bars.value()));
+                            ui->priceChart->onRequestedMissingBarsReceived(bars.value());
                         } else {
                             qCritical() << "Failed to get missing bars from BarCache - Error:" << static_cast<int>(bars.error());
 

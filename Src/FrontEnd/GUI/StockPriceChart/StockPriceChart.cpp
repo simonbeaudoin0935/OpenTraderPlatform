@@ -673,14 +673,6 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
 }
 
 /**
- * @brief Handles the response to a missing bars request (unique_ptr overload).
- */
-void StockPriceChart::onRequestedMissingBarsReceived(std::unique_ptr<QVector<Bar>> barsPtr) {
-    // Convert unique_ptr to shared_ptr and delegate
-    onRequestedMissingBarsReceived(std::shared_ptr<QVector<Bar>>(std::move(barsPtr)));
-}
-
-/**
  * @brief Maintains the maximum number of bars limit.
  */
 void StockPriceChart::maintainBarLimit()

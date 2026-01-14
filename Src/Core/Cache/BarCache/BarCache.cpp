@@ -289,32 +289,33 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
     // Using shared_ptr because the promise needs to survive across multiple nested async
     // continuations. Moving a QPromise into nested lambdas causes undefined behavior when
     // Qt's continuation machinery accesses the moved-from promise in the outer lambda.
-    auto promisePtr = std::make_shared<QPromise<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>>>();
-    QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> future = promisePtr->future();
-    promisePtr->start();
+    QPromise<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> promise;
+    QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> future = promise.future();
+    promise.start();
 
     // Query database via DatabaseThread (async, thread-safe)
     DatabaseThread::getInstance()->getBarsFromDatabase(m_symbol, date, first, last)
         .then(this,
-            [this, date, first, last, isCurrentDay, now, promisePtr]
+            [this, date, first, last, isCurrentDay, now, promise = std::move(promise)]
             (std::optional<std::unique_ptr<QVector<Bar>>> dbBars) mutable
             {
                 // Check if we got the complete day from database
                 if (dbBars.has_value())
                 {
-                    std::unique_ptr<QVector<Bar>> dbBarsPtr = std::move(dbBars.value());
+                    std::shared_ptr<QVector<Bar>> sp = std::move(dbBars.value());
+
                     const size_t expectedBarCount = first.secsTo(last) / 60 + 1;
 
                     // Happy path, got bars from database
-                    OBJ_ASSUME_EQUAL(dbBarsPtr->size(), expectedBarCount);
+                    OBJ_ASSUME_EQUAL(sp->size(), expectedBarCount);
 
-                    DEBUG << "Loaded complete day from database:" << dbBarsPtr->size() << "bars";
+                    DEBUG << "Loaded complete day from database:" << sp->size() << "bars";
 
                     // Store the complete day in memory cache
-                    storeBarsInCache(date, dbBarsPtr);
+                    storeBarsInCache(date, sp);
 
-                    promisePtr->addResult(std::move(dbBarsPtr));
-                    promisePtr->finish();
+                    promise.addResult(sp);
+                    promise.finish();
                     return;
                 }
 
@@ -338,32 +339,34 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
                     startDateTime,
                     endDayTime
                 ).then(this,
-                    [this, date, startDateTime, endDayTime, promisePtr]
+                    [this, date, startDateTime, endDayTime, promise = std::move(promise)]
                     (std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars) mutable
                     {
                         if (!bars.has_value()) {
                             CRITICAL << "getBars() from API returned error for" << m_symbol
                                      << "- Error:" << static_cast<int>(bars.error());
-                            promisePtr->addResult(std::unexpected(bars.error()));
+                            promise.addResult(std::unexpected(bars.error()));
                         } else {
                             DEBUG << "Asynchronous getBars() from API completed for complete day" << date
                                   << "with" << bars.value()->size() << "bars received";
 
-                            std::unique_ptr<QVector<Bar>> barsFromApiHolesFilled = 
-                                std::make_unique<QVector<Bar>>(fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars.value()));
+                            // Make this a shared_ptr so that a reference can be sent to the DatabaseThread and be worked on it
+                            // at the same time as we sent the other reference back to the caller
+                            std::shared_ptr<QVector<Bar>> barsFromApiHolesFilled = 
+                                std::make_shared<QVector<Bar>>(fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars.value()));
 
                             // Store the complete day in memory cache
                             storeBarsInCache(date, barsFromApiHolesFilled);
 
                             // Store in database via DatabaseThread (async, fire-and-forget for now)
-                            DatabaseThread::getInstance()->storeBarsInDatabase(m_symbol, date, *barsFromApiHolesFilled)
+                            DatabaseThread::getInstance()->storeBarsInDatabase(m_symbol, date, barsFromApiHolesFilled)
                                 .then(this, [this](int storedCount) {
                                     DEBUG << "Stored" << storedCount << "bars in database for" << m_symbol;
                                 });
 
-                            promisePtr->addResult(std::move(barsFromApiHolesFilled));
+                            promise.addResult(barsFromApiHolesFilled);
                         }
-                        promisePtr->finish();
+                        promise.finish();
                     });
             });
 
@@ -436,8 +439,7 @@ void BarCache::storeBarInCache(const Bar& bar)
     DEBUG << "Inserted bar in cache at index" << index << "for timestamp:" << bar.getTimeStamp();
 }
 
-
-void BarCache::storeBarsInCache(const QDate& date, const std::unique_ptr<QVector<Bar>>& bars)
+void BarCache::storeBarsInCache(const QDate &date, const std::shared_ptr<QVector<Bar>> bars)
 {
     OBJ_ASSUME_FALSE(bars->isEmpty());
     OBJ_ASSUME_TRUE(bars->count() <= BARS_PER_DAY); // Max bars per day
