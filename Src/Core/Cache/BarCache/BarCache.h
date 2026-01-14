@@ -3,7 +3,6 @@
 #include <QLoggingCategory>
 #include <QMap>
 #include <QReadWriteLock>
-#include <QSqlDatabase>
 #include <QFuture>
 
 #include <expected>
@@ -64,11 +63,6 @@ private:
 
     void storeBarsInCache(const QDate &date, const std::unique_ptr<QVector<Bar>> &bars);
 
-    void storeBarsInDatabase(const QDate &date, const std::unique_ptr<QVector<Bar>> &bars) const;
-
-    std::optional<std::unique_ptr<QVector<Bar>>>
-    getBarsFromDatabase(QDate date, QTime start, QTime end) const;
-
     void handleReceivedAllPendingGetBarsRequests();
     QVector<Bar> fillHolesOfReceivedRequest(const QDateTime& first, const QDateTime& last, const QVector<Bar>& barsFromAPI) const;
 
@@ -82,7 +76,7 @@ private:
 
     const QString m_symbol;
     const bool m_isStreaming;
-    QSqlDatabase m_db;
+    QString m_dbPath; // Path to the database file (managed by DatabaseThread)
     QPointer<StreamBars> m_stream;
 
     mutable QReadWriteLock m_barCacheRwLock; // Protects m_barCacheByDay, mutable for use in const methods

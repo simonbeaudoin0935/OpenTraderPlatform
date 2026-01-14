@@ -1,4 +1,5 @@
 #include "MainApp.h"
+#include "DatabaseThread.h"
 #ifdef GUI_ENABLED
 #include "GUIFrontend.h"
 #else
@@ -75,7 +76,10 @@ MainApp::MainApp() :
 
 void MainApp::start()
 {
-    // start the threads
+    // Start the database thread first (other threads may depend on it)
+    DatabaseThread::getInstance()->start();
+
+    // start the other threads
     tradeStationClient->start();
     mainAlgo->start();
 
