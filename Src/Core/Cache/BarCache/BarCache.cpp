@@ -285,15 +285,18 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
     
     DEBUG << " m_barCacheByDay map doesn't contain bars  for day " << date << "checking database";
     
-    // Create a promise/future pair for the final result
-    QPromise<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> promise;
-    QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> future = promise.future();
-    promise.start();
+    // Create a shared promise for the final result.
+    // Using shared_ptr because the promise needs to survive across multiple nested async
+    // continuations. Moving a QPromise into nested lambdas causes undefined behavior when
+    // Qt's continuation machinery accesses the moved-from promise in the outer lambda.
+    auto promisePtr = std::make_shared<QPromise<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>>>();
+    QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> future = promisePtr->future();
+    promisePtr->start();
 
     // Query database via DatabaseThread (async, thread-safe)
     DatabaseThread::getInstance()->getBarsFromDatabase(m_symbol, date, first, last)
         .then(this,
-            [this, date, first, last, isCurrentDay, now, promise = std::move(promise)]
+            [this, date, first, last, isCurrentDay, now, promisePtr]
             (std::optional<std::unique_ptr<QVector<Bar>>> dbBars) mutable
             {
                 // Check if we got the complete day from database
@@ -310,8 +313,8 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
                     // Store the complete day in memory cache
                     storeBarsInCache(date, dbBarsPtr);
 
-                    promise.addResult(std::move(dbBarsPtr));
-                    promise.finish();
+                    promisePtr->addResult(std::move(dbBarsPtr));
+                    promisePtr->finish();
                     return;
                 }
 
@@ -335,13 +338,13 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
                     startDateTime,
                     endDayTime
                 ).then(this,
-                    [this, date, startDateTime, endDayTime, promise = std::move(promise)]
+                    [this, date, startDateTime, endDayTime, promisePtr]
                     (std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars) mutable
                     {
                         if (!bars.has_value()) {
                             CRITICAL << "getBars() from API returned error for" << m_symbol
                                      << "- Error:" << static_cast<int>(bars.error());
-                            promise.addResult(std::unexpected(bars.error()));
+                            promisePtr->addResult(std::unexpected(bars.error()));
                         } else {
                             DEBUG << "Asynchronous getBars() from API completed for complete day" << date
                                   << "with" << bars.value()->size() << "bars received";
@@ -358,9 +361,9 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
                                     DEBUG << "Stored" << storedCount << "bars in database for" << m_symbol;
                                 });
 
-                            promise.addResult(std::move(barsFromApiHolesFilled));
+                            promisePtr->addResult(std::move(barsFromApiHolesFilled));
                         }
-                        promise.finish();
+                        promisePtr->finish();
                     });
             });
 
