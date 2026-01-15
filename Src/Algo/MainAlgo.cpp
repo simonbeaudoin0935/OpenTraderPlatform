@@ -128,8 +128,6 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reas
         if (!m_havePastSuccessfulExchanges) {
             qCritical(MainAlgoLog) << "Tradestation failed to authenticate. Reason : " << reason;
             qCritical(MainAlgoLog) << "Cannot proceed without authentication. Retrying";
-            // TODO relaunch a auth attempt
-            Q_ASSERT(false);
         } else {
             qCCritical(MainAlgoLog) << "Tradestation lost authentication. Reason : " << reason;
         }
