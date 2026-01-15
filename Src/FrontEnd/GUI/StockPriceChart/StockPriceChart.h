@@ -132,6 +132,7 @@ private:
     // Background rectangles for different market sessions
     QList<QCPItemRect*> m_preMarketRects;
     QList<QCPItemRect*> m_afterHoursRects;
+    QSet<QDate> m_datesWithBackgrounds;  // Track which dates already have backgrounds drawn
     // The double associatives maps indexToBar and timestampToIndex are used to avoid caring about
     // the time when the market is
     //QList<QCPItemRect*> m_closedMarketRects;

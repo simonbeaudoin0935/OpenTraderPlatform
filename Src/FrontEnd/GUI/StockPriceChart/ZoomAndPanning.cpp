@@ -13,8 +13,9 @@ void StockPriceChart::onAxisRangeChanged()
     updateAxisLabelsDensity();
     redrawLastPriceLine();
     
-    // Update session backgrounds for the current visible range
-    drawBackgroundsForVisibleRange();
+    // Note: Background rectangles are created once when bars are received,
+    // QCustomPlot handles clipping to visible range automatically.
+    // No need to recreate them on every axis change.
     
     // Check for missing bars when view extends beyond available data
     double minIndex = m_customPlot->xAxis->range().lower;
