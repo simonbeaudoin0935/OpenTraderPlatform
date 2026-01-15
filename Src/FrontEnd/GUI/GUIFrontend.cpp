@@ -42,7 +42,8 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     
     // Add Ctrl+Q shortcut to quit the application
     m_quitShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::QuitApplication), mainWindow);
-    auto quitConnection = connect(m_quitShortcut, &QShortcut::activated, qApp, &QApplication::quit, Qt::UniqueConnection);
+    // Note: Qt::UniqueConnection may not work reliably with qApp global pointer
+    auto quitConnection = connect(m_quitShortcut, &QShortcut::activated, qApp, &QApplication::quit);
     Q_ASSERT(quitConnection);
 
     // Add "i" shortcut to focus the stock symbol input box
