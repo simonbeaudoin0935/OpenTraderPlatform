@@ -261,6 +261,8 @@ void OrderEntryWidget::setSymbol(const QString& symbol) {
 void OrderEntryWidget::executeBuyOrder() {
     // Set trade action to Buy
     m_buyRadio->setChecked(true);
+    // Explicitly trigger the trade action change to update button appearance
+    onTradeActionChanged(static_cast<int>(TradeAction::Buy));
     // Submit the order
     onSubmitClicked();
 }
@@ -268,6 +270,8 @@ void OrderEntryWidget::executeBuyOrder() {
 void OrderEntryWidget::executeSellOrder() {
     // Set trade action to Sell
     m_sellRadio->setChecked(true);
+    // Explicitly trigger the trade action change to update button appearance
+    onTradeActionChanged(static_cast<int>(TradeAction::Sell));
     // Submit the order
     onSubmitClicked();
 }
@@ -275,6 +279,8 @@ void OrderEntryWidget::executeSellOrder() {
 void OrderEntryWidget::executeBuyToCoverOrder() {
     // Set trade action to Buy to Cover
     m_buyToCoverRadio->setChecked(true);
+    // Explicitly trigger the trade action change to update button appearance
+    onTradeActionChanged(static_cast<int>(TradeAction::BuyToCover));
     // Submit the order
     onSubmitClicked();
 }
@@ -282,6 +288,8 @@ void OrderEntryWidget::executeBuyToCoverOrder() {
 void OrderEntryWidget::executeSellToCoverOrder() {
     // Set trade action to Sell to Cover
     m_sellToCoverRadio->setChecked(true);
+    // Explicitly trigger the trade action change to update button appearance
+    onTradeActionChanged(static_cast<int>(TradeAction::SellToClose));
     // Submit the order
     onSubmitClicked();
 }

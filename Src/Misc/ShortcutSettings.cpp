@@ -37,6 +37,9 @@ QString ShortcutSettings::getSettingsKey(ShortcutId p_id) const {
         case ExecuteSellToCoverOrder:
             key += "ExecuteSellToCoverOrder";
             break;
+        case CancelAllOrders:
+            key += "CancelAllOrders";
+            break;
     }
     return key;
 }
@@ -55,6 +58,8 @@ QString ShortcutSettings::getShortcutName(ShortcutId p_id) const {
             return "Execute Buy to Cover Order";
         case ExecuteSellToCoverOrder:
             return "Execute Sell to Cover Order";
+        case CancelAllOrders:
+            return "Cancel All Orders";
         default:
             return "Unknown";
     }
@@ -74,6 +79,8 @@ QKeySequence ShortcutSettings::getDefaultShortcut(ShortcutId p_id) const {
             return QKeySequence("Ctrl+Shift+B");
         case ExecuteSellToCoverOrder:
             return QKeySequence("Ctrl+Shift+S");
+        case CancelAllOrders:
+            return QKeySequence("Ctrl+X");
         default:
             return QKeySequence();
     }
@@ -150,6 +157,7 @@ QList<ShortcutSettings::ShortcutId> ShortcutSettings::getAllShortcutIds() const 
         ExecuteBuyOrder,
         ExecuteSellOrder,
         ExecuteBuyToCoverOrder,
-        ExecuteSellToCoverOrder
+        ExecuteSellToCoverOrder,
+        CancelAllOrders
     };
 }

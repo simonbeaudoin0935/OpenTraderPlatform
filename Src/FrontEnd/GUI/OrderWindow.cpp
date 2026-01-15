@@ -356,3 +356,7 @@ void OrderWindow::onSymbolClicked(const QModelIndex& index) {
         }
     }
 }
+
+QStringList OrderWindow::getAllOrderIds() const {
+    return m_orderRowMap.keys();
+}

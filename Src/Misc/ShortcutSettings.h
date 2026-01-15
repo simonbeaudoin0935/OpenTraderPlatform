@@ -23,7 +23,8 @@ public:
         ExecuteBuyOrder,
         ExecuteSellOrder,
         ExecuteBuyToCoverOrder,
-        ExecuteSellToCoverOrder
+        ExecuteSellToCoverOrder,
+        CancelAllOrders
     };
     Q_ENUM(ShortcutId)
 

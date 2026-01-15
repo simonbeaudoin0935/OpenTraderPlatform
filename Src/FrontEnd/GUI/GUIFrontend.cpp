@@ -72,6 +72,11 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     auto sellToCoverConnection = connect(m_sellToCoverShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeSellToCoverOrder(); });
     Q_ASSERT(sellToCoverConnection);
     
+    // Add Ctrl+X shortcut to cancel all orders
+    m_cancelAllOrdersShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::CancelAllOrders), mainWindow);
+    auto cancelAllConnection = connect(m_cancelAllOrdersShortcut, &QShortcut::activated, [this]() { onCancelAllOrders(); });
+    Q_ASSERT(cancelAllConnection);
+    
     // Connect to shortcut changes to update active shortcuts
     auto shortcutChangeConnection = connect(&shortcutSettings, &ShortcutSettings::shortcutChanged,
             this, &GUIFrontend::onShortcutChanged, Qt::UniqueConnection);
@@ -854,5 +859,52 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
             m_sellToCoverShortcut->setKey(p_newSequence);
             qInfo() << "Updated execute sell to cover order shortcut to:" << p_newSequence.toString();
             break;
+            
+        case ShortcutSettings::CancelAllOrders:
+            Q_CHECK_PTR(m_cancelAllOrdersShortcut);
+            m_cancelAllOrdersShortcut->setKey(p_newSequence);
+            qInfo() << "Updated cancel all orders shortcut to:" << p_newSequence.toString();
+            break;
+    }
+}
+
+void GUIFrontend::onCancelAllOrders() {
+    // Get all order IDs from the order window
+    QStringList orderIds = ui->orderWindow->getAllOrderIds();
+    
+    if (orderIds.isEmpty()) {
+        qInfo() << "No orders to cancel";
+        return;
+    }
+    
+    // Confirm with user
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        nullptr,
+        "Cancel All Orders",
+        QString("Are you sure you want to cancel all %1 orders?").arg(orderIds.count()),
+        QMessageBox::Yes | QMessageBox::No
+    );
+    
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+    
+    qInfo() << "Cancelling" << orderIds.count() << "orders";
+    
+    // Cancel each order
+    for (const QString& orderId : orderIds) {
+        auto cancelFuture = TSClient::getInstance()->cancelOrder(orderId);
+        cancelFuture.then(
+            [this, orderId]
+            (std::expected<CancelOrderResult, TSClient::Error> result)
+            {
+                if (!result.has_value()) {
+                    qCritical() << "Failed to cancel order" << orderId << "with error code:" << static_cast<int>(result.error());
+                } else {
+                    CancelOrderResult& cancelResult = result.value();
+                    qInfo() << "Order" << orderId << "cancelled successfully:" << cancelResult.toJsonString();
+                }
+            }
+        );
     }
 }

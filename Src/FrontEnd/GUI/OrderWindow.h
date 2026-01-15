@@ -17,10 +17,14 @@ public:
 
 public slots:
     void updateOrder(const QString& account, const Order& order);
+    
+public:
+    QStringList getAllOrderIds() const;
 
 signals:
     void symbolClicked(const QString& symbol);
     void cancelOrderRequested(const QString& orderId);
+    void cancelAllOrdersRequested();
 
 private:
     void setupUI();

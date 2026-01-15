@@ -49,6 +49,7 @@ private slots:
     void onLogDepthChanged(int maxLines);
     void onOrderPlaced(const PlaceOrderRequest& order);
     void onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKeySequence& p_newSequence);
+    void onCancelAllOrders();
 
 private:
     void setupDarkTheme(QMainWindow* mainWindow);
@@ -70,6 +71,7 @@ private:
     QShortcut* m_sellShortcut;  // Execute sell order shortcut
     QShortcut* m_buyToCoverShortcut;  // Execute buy to cover order shortcut
     QShortcut* m_sellToCoverShortcut;  // Execute sell to cover order shortcut
+    QShortcut* m_cancelAllOrdersShortcut;  // Cancel all orders shortcut
 
     qsizetype TSClientDataUsage = 0;
     qint64 memoryUsage = 0;
