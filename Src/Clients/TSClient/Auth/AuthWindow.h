@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QDialog>
-#include <QWebEngineView>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QNetworkAccessManager>
@@ -43,7 +42,6 @@ private:
     AuthToken authToken;
     ClientToken clientToken;
 
-    QWebEngineView *webView = nullptr;
     QTcpServer *httpServer = nullptr;
     QNetworkAccessManager *networkManager = nullptr;
     

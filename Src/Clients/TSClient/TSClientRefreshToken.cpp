@@ -23,10 +23,25 @@ void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
     if (success) {
         bool stored = AuthToken::storeToSettings(token);
         Q_ASSERT(stored);
-        qDebug(TSClientLog) << Q_FUNC_INFO <<
+        
+        // Update the TSClient's auth token and API key
+        m_authToken = token;
+        m_apiKey = m_authToken.getAccessToken();
+        
+        // Schedule the next token refresh (20 minutes - 5 seconds)
+        int secondsToNextRefreshRequest = m_authToken.secondsToNextRefreshRequest();
+        Q_ASSERT(secondsToNextRefreshRequest > 1 && secondsToNextRefreshRequest <= 1195);
+        
+        qCDebug(TSClientLog) << "Programming the next refresh in " << secondsToNextRefreshRequest << " seconds";
+        
+        QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() {
+            refreshAccessToken();
+        });
+        
+        qCInfo(TSClientLog) << Q_FUNC_INFO <<
             "Auth successful : " << reason;
     } else {
-        qDebug(TSClientLog) << Q_FUNC_INFO <<
+        qCWarning(TSClientLog) << Q_FUNC_INFO <<
             "Auth unsucessful : " << reason;
     }
     emit authStateChanged(m_authenticated, reason);
