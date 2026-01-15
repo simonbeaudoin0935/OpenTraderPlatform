@@ -28,6 +28,7 @@ public:
     void setGUIFrontend(GUIFrontend* guiFrontend);
     
     bool isResultPopupEnabled() const { return m_resultPopupEnabled; }
+    bool isCancelAllConfirmationEnabled() const { return m_cancelAllConfirmationEnabled; }
 
 public slots:
     void setAccounts(const QList<Account>& accounts);
@@ -52,6 +53,7 @@ private slots:
     void saveTradeActionSetting(int id);
     void onConfirmationCheckBoxToggled(bool checked);
     void onResultPopupCheckBoxToggled(bool checked);
+    void onCancelAllConfirmationCheckBoxToggled(bool checked);
 
 private:
     void setupUI();
@@ -85,9 +87,11 @@ private:
     QMenu* m_settingsMenu;
     QCheckBox* m_confirmationCheckBox;
     QCheckBox* m_resultPopupCheckBox;
+    QCheckBox* m_cancelAllConfirmationCheckBox;
     
     bool m_confirmationEnabled;  // Whether to show confirmation dialog
     bool m_resultPopupEnabled;   // Whether to show result popup after order execution
+    bool m_cancelAllConfirmationEnabled;  // Whether to show confirmation dialog when cancelling all orders
 
     // Reference to GUIFrontend for account selection
     GUIFrontend* m_guiFrontend;

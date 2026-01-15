@@ -113,7 +113,7 @@ void OrderWindow::updateOrder(const QString& account, const Order& order) {
                         << "StopPrice:" << (order.getStopPrice().has_value() ? QString::number(order.getStopPrice().value()) : "not set");
     
     // Store or update the order object
-    m_orders[orderId] = order;
+    m_orders.insert(orderId, order);
     
     if (m_orderRowMap.contains(orderId)) {
         // Update existing order

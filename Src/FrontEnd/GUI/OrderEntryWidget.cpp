@@ -31,8 +31,10 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     , m_settingsMenu(new QMenu(this))
     , m_confirmationCheckBox(new QCheckBox("Enable Order Confirmation", this))
     , m_resultPopupCheckBox(new QCheckBox("Enable Result Popup", this))
+    , m_cancelAllConfirmationCheckBox(new QCheckBox("Enable Cancel All Confirmation", this))
     , m_confirmationEnabled(true)  // Default to enabled
     , m_resultPopupEnabled(true)   // Default to enabled
+    , m_cancelAllConfirmationEnabled(true)  // Default to enabled
 {
     setupUI();
     setupStyles();
@@ -77,6 +79,11 @@ void OrderEntryWidget::setupUI() {
     QWidgetAction* resultPopupAction = new QWidgetAction(m_settingsMenu);
     resultPopupAction->setDefaultWidget(m_resultPopupCheckBox);
     m_settingsMenu->addAction(resultPopupAction);
+    
+    m_cancelAllConfirmationCheckBox->setChecked(m_cancelAllConfirmationEnabled);
+    QWidgetAction* cancelAllConfirmationAction = new QWidgetAction(m_settingsMenu);
+    cancelAllConfirmationAction->setDefaultWidget(m_cancelAllConfirmationCheckBox);
+    m_settingsMenu->addAction(cancelAllConfirmationAction);
 
     // Create form layout for inputs
     QWidget* formWidget = new QWidget(this);
@@ -220,6 +227,11 @@ void OrderEntryWidget::setupUI() {
     auto c11 = connect(m_resultPopupCheckBox, &QCheckBox::toggled,
                        this, &OrderEntryWidget::onResultPopupCheckBoxToggled, Qt::UniqueConnection);
     Q_ASSERT(c11);
+    
+    // Connect cancel all confirmation checkbox
+    auto c12 = connect(m_cancelAllConfirmationCheckBox, &QCheckBox::toggled,
+                       this, &OrderEntryWidget::onCancelAllConfirmationCheckBoxToggled, Qt::UniqueConnection);
+    Q_ASSERT(c12);
 
     // Initialize visibility based on default order type
     updatePriceFieldsVisibility();
@@ -594,6 +606,10 @@ void OrderEntryWidget::loadSavedSettings() {
     // Load result popup enabled setting
     m_resultPopupEnabled = appStateSettings->value("OrderEntry/ResultPopupEnabled", true).toBool();
     m_resultPopupCheckBox->setChecked(m_resultPopupEnabled);
+    
+    // Load cancel all confirmation enabled setting
+    m_cancelAllConfirmationEnabled = appStateSettings->value("OrderEntry/CancelAllConfirmationEnabled", true).toBool();
+    m_cancelAllConfirmationCheckBox->setChecked(m_cancelAllConfirmationEnabled);
 }
 
 void OrderEntryWidget::saveOrderTypeSetting(int index) {
@@ -646,4 +662,12 @@ void OrderEntryWidget::onResultPopupCheckBoxToggled(bool checked) {
     appStateSettings->setValue("OrderEntry/ResultPopupEnabled", checked);
     appStateSettings->sync();
     qInfo() << "Order result popup" << (checked ? "enabled" : "disabled");
+}
+
+void OrderEntryWidget::onCancelAllConfirmationCheckBoxToggled(bool checked) {
+    m_cancelAllConfirmationEnabled = checked;
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("OrderEntry/CancelAllConfirmationEnabled", checked);
+    appStateSettings->sync();
+    qInfo() << "Cancel all orders confirmation" << (checked ? "enabled" : "disabled");
 }

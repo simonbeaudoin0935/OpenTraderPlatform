@@ -882,16 +882,19 @@ void GUIFrontend::onCancelAllOrders() {
         return;
     }
     
-    // Confirm with user
-    QMessageBox::StandardButton reply = QMessageBox::question(
-        nullptr,
-        "Cancel All Orders",
-        QString("Are you sure you want to cancel %1 cancellable order(s)?\n\nOnly orders that are queued, received, or sent will be cancelled.\nFilled, cancelled, and rejected orders will be skipped.").arg(orderIds.count()),
-        QMessageBox::Yes | QMessageBox::No
-    );
-    
-    if (reply != QMessageBox::Yes) {
-        return;
+    // Check if confirmation is enabled (controlled by OrderEntryWidget settings)
+    if (ui->orderEntryWidget->isCancelAllConfirmationEnabled()) {
+        // Confirm with user
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            nullptr,
+            "Cancel All Orders",
+            QString("Are you sure you want to cancel %1 cancellable order(s)?\n\nOnly orders that are queued, received, or sent will be cancelled.\nFilled, cancelled, and rejected orders will be skipped.").arg(orderIds.count()),
+            QMessageBox::Yes | QMessageBox::No
+        );
+        
+        if (reply != QMessageBox::Yes) {
+            return;
+        }
     }
     
     qInfo() << "Cancelling" << orderIds.count() << "cancellable orders";
