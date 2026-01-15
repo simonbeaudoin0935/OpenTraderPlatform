@@ -167,5 +167,3 @@ void ShortcutsTab::updateShortcutDisplay(ShortcutSettings::ShortcutId p_id) {
         }
     });
 }
-    });
-}
