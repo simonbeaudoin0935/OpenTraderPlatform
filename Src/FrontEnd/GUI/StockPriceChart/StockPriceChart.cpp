@@ -277,6 +277,8 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
     // Is this the first bar ever received for this chart
     if (indexToBar.size() == 0) [[unlikely]] {
+
+        WARNING << "received first bar ";
         const int index = 0;
 
         Q_ASSERT(timestampToIndex.size() == 0);
@@ -306,6 +308,13 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         // Here we will fetch the bars from the beginning of the day up to this bar to fill in history
         QDateTime first = QDateTime(bar.getTimeStamp().date(), QTime(TRADING_START_HOUR, 1, 0), QTimeZone("America/New_York"));
         QDateTime last = bar.getTimeStamp();
+
+        OBJ_ASSUME_FALSE(currentGetBarsRequestInProcess);
+
+        DEBUG << "Requesting whole day bars from"
+                << first.toString(Qt::ISODate)
+                << "to"
+                << last.toString(Qt::ISODate);
 
         currentGetBarsRequestInProcess = true;
 
@@ -649,10 +658,11 @@ void StockPriceChart::drawFixedBackgroundRect(const QDateTime& rangeStart, const
  */
 void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVector<Bar>> barsPtr) {
     
-    qCritical() << "Received missing bars response with" << barsPtr->size() << "bars";
+    DEBUG << "Received missing bars response with" << barsPtr->size() << "bars";
     
-    //Q_ASSERT(currentGetBarsRequestInProcess == true);
+    Q_ASSERT(currentGetBarsRequestInProcess == true);
     currentGetBarsRequestInProcess = false;
+
     Q_ASSERT(!barsPtr->isEmpty());
 
     addHistoricalBarsToIndexMapping(*barsPtr);
@@ -665,6 +675,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
     // Draw background rectangles for the visible range
     drawBackgroundsForVisibleRange();
     
+    //#warning TODO: optimize redraws
     // Update candlestick data
     updateCandlestickData();
     updateVolumeData();
@@ -715,6 +726,7 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     Q_UNUSED(viewEndTime);
 
     Q_ASSERT(!indexToBar.isEmpty());
+
 
     QDateTime viewStartTimeRounded = viewStartTime;
 
@@ -773,15 +785,16 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     if (currentGetBarsRequestInProcess)
     {
         DEBUG << "current get bars request already in progress";
+
         return;
     }
 
-    currentGetBarsRequestInProcess = true;
-
     DEBUG << "Requesting missing bars from"
-          << requestStartTime.toString(Qt::ISODate)
-          << "to"
-          << requestEndTime.toString(Qt::ISODate);
+            << requestStartTime.toString(Qt::ISODate)
+            << "to"
+            << requestEndTime.toString(Qt::ISODate);
+
+    currentGetBarsRequestInProcess = true;
 
     emit requestMissingBars(requestStartTime, requestEndTime);
 }

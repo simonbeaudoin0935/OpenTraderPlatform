@@ -133,7 +133,7 @@ Bar::Bar(const QJsonObject& jsonObj) {
     BarStatus status = barStatusFromString(jsonObj["BarStatus"].toString());
     m_flags |= (static_cast<quint8>(status) << BARSTATUS_SHIFT);
 
-    qWarning()<<"bar created with timestamp "<<m_timeStamp;
+    qDebug()<<"bar created from json with timestamp "<<m_timeStamp;
 }
 
 bool Bar::isValid() const {

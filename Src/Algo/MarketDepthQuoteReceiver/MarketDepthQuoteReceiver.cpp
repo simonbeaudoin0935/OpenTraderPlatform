@@ -120,7 +120,7 @@ double MarketDepthQuoteReceiver::calculateDepthWeightedPrice(const QVector<Marke
 
 void MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote(MarketDepthQuote marketDepthQuote)
 {
-    qCDebug(MarketDepthQuoteReceiverLog).noquote() << marketDepthQuote.toJsonString();
+    qCDebug(MarketDepthQuoteReceiverLog) << marketDepthQuote.toJsonString();
     
     // Calculate and log bid-ask imbalance
     double imbalance = calculateBidAskImbalance(marketDepthQuote);

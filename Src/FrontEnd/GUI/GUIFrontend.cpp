@@ -22,6 +22,8 @@
 #include "Misc/Settings.h"
 #include "Misc/ShortcutSettings.h"
 
+#define LOGGING_CATEGORY GUIFrontendLog
+
 Q_LOGGING_CATEGORY(GUIFrontendLog, "GUIFrontend")
 
 GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
@@ -31,6 +33,8 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     ui = new Ui::GUIFrontend();
     ui->setupUi(new QMainWindow());
     
+    this->setObjectName("GUIFrontend");
+
     QMainWindow* mainWindow = static_cast<QMainWindow*>(ui->centralwidget->parent());
     
     setupDarkTheme(mainWindow);
@@ -146,7 +150,7 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
                 
             Q_ASSERT(from.date() == to.date()); // Currently only support same-day requests
 
-            qDebug() << "from " << from << " to " << to;
+            DEBUG << "Request missing barsfrom " << from << " to " << to;
 
             BarCache::GetBarsResult_t result = MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from.date(), from.time(), to.time());
 
