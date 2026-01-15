@@ -20,6 +20,7 @@ public slots:
     
 public:
     QStringList getAllOrderIds() const;
+    QStringList getCancellableOrderIds() const;
 
 signals:
     void symbolClicked(const QString& symbol);
@@ -39,4 +40,5 @@ private:
 
     // Map to keep track of orders by their ID for updates
     QMap<QString, int> m_orderRowMap;  // Maps orderID to row index
+    QMap<QString, Order> m_orders;  // Store actual Order objects to check status
 };

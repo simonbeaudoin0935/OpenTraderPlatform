@@ -869,11 +869,16 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
 }
 
 void GUIFrontend::onCancelAllOrders() {
-    // Get all order IDs from the order window
-    QStringList orderIds = ui->orderWindow->getAllOrderIds();
+    // Get only cancellable order IDs from the order window (filters by status)
+    QStringList orderIds = ui->orderWindow->getCancellableOrderIds();
     
     if (orderIds.isEmpty()) {
-        qInfo() << "No orders to cancel";
+        qInfo() << "No cancellable orders found";
+        QMessageBox::information(
+            nullptr,
+            "Cancel All Orders",
+            "No orders available to cancel. All orders are either filled, cancelled, rejected, or in a non-cancellable state."
+        );
         return;
     }
     
@@ -881,7 +886,7 @@ void GUIFrontend::onCancelAllOrders() {
     QMessageBox::StandardButton reply = QMessageBox::question(
         nullptr,
         "Cancel All Orders",
-        QString("Are you sure you want to cancel all %1 orders?").arg(orderIds.count()),
+        QString("Are you sure you want to cancel %1 cancellable order(s)?\n\nOnly orders that are queued, received, or sent will be cancelled.\nFilled, cancelled, and rejected orders will be skipped.").arg(orderIds.count()),
         QMessageBox::Yes | QMessageBox::No
     );
     
@@ -889,7 +894,7 @@ void GUIFrontend::onCancelAllOrders() {
         return;
     }
     
-    qInfo() << "Cancelling" << orderIds.count() << "orders";
+    qInfo() << "Cancelling" << orderIds.count() << "cancellable orders";
     
     // Cancel each order
     for (const QString& orderId : orderIds) {
