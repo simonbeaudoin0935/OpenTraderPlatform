@@ -47,7 +47,8 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
 
     // Add "i" shortcut to focus the stock symbol input box
     m_focusShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::FocusStockInput), mainWindow);
-    auto focusConnection = connect(m_focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); }, Qt::UniqueConnection);
+    // Note: Qt::UniqueConnection cannot be used with lambda functions
+    auto focusConnection = connect(m_focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); });
     Q_ASSERT(focusConnection);
     
     // Connect to shortcut changes to update active shortcuts

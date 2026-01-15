@@ -75,12 +75,13 @@ void ShortcutsTab::populateShortcuts() {
         m_shortcutsFormLayout->addRow(settings.getShortcutName(id) + ":", rowWidget);
 
         // Connect signals
+        // Note: Qt::UniqueConnection cannot be used with lambda functions
         auto keySequenceConnection = connect(keySequenceEdit, &QKeySequenceEdit::editingFinished,
-                this, [this, id]() { onShortcutChanged(id); }, Qt::UniqueConnection);
+                this, [this, id]() { onShortcutChanged(id); });
         Q_ASSERT(keySequenceConnection);
         
         auto resetButtonConnection = connect(resetButton, &QPushButton::clicked,
-                this, [this, id]() { onResetButtonClicked(id); }, Qt::UniqueConnection);
+                this, [this, id]() { onResetButtonClicked(id); });
         Q_ASSERT(resetButtonConnection);
     }
 }
