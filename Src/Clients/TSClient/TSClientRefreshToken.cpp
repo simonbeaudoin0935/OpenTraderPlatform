@@ -38,10 +38,10 @@ void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
             refreshAccessToken();
         });
         
-        qDebug(TSClientLog) << Q_FUNC_INFO <<
+        qCInfo(TSClientLog) << Q_FUNC_INFO <<
             "Auth successful : " << reason;
     } else {
-        qDebug(TSClientLog) << Q_FUNC_INFO <<
+        qCWarning(TSClientLog) << Q_FUNC_INFO <<
             "Auth unsucessful : " << reason;
     }
     emit authStateChanged(m_authenticated, reason);
