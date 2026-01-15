@@ -52,6 +52,26 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     auto focusConnection = connect(m_focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); });
     Q_ASSERT(focusConnection);
     
+    // Add Ctrl+B shortcut to execute buy order
+    m_buyShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteBuyOrder), mainWindow);
+    auto buyConnection = connect(m_buyShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeBuyOrder(); });
+    Q_ASSERT(buyConnection);
+    
+    // Add Ctrl+S shortcut to execute sell order
+    m_sellShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteSellOrder), mainWindow);
+    auto sellConnection = connect(m_sellShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeSellOrder(); });
+    Q_ASSERT(sellConnection);
+    
+    // Add Ctrl+Shift+B shortcut to execute buy to cover order
+    m_buyToCoverShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteBuyToCoverOrder), mainWindow);
+    auto buyToCoverConnection = connect(m_buyToCoverShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeBuyToCoverOrder(); });
+    Q_ASSERT(buyToCoverConnection);
+    
+    // Add Ctrl+Shift+S shortcut to execute sell to cover order
+    m_sellToCoverShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteSellToCoverOrder), mainWindow);
+    auto sellToCoverConnection = connect(m_sellToCoverShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeSellToCoverOrder(); });
+    Q_ASSERT(sellToCoverConnection);
+    
     // Connect to shortcut changes to update active shortcuts
     auto shortcutChangeConnection = connect(&shortcutSettings, &ShortcutSettings::shortcutChanged,
             this, &GUIFrontend::onShortcutChanged, Qt::UniqueConnection);
@@ -800,6 +820,30 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
             Q_CHECK_PTR(m_focusShortcut);
             m_focusShortcut->setKey(p_newSequence);
             qInfo() << "Updated focus stock input shortcut to:" << p_newSequence.toString();
+            break;
+            
+        case ShortcutSettings::ExecuteBuyOrder:
+            Q_CHECK_PTR(m_buyShortcut);
+            m_buyShortcut->setKey(p_newSequence);
+            qInfo() << "Updated execute buy order shortcut to:" << p_newSequence.toString();
+            break;
+            
+        case ShortcutSettings::ExecuteSellOrder:
+            Q_CHECK_PTR(m_sellShortcut);
+            m_sellShortcut->setKey(p_newSequence);
+            qInfo() << "Updated execute sell order shortcut to:" << p_newSequence.toString();
+            break;
+            
+        case ShortcutSettings::ExecuteBuyToCoverOrder:
+            Q_CHECK_PTR(m_buyToCoverShortcut);
+            m_buyToCoverShortcut->setKey(p_newSequence);
+            qInfo() << "Updated execute buy to cover order shortcut to:" << p_newSequence.toString();
+            break;
+            
+        case ShortcutSettings::ExecuteSellToCoverOrder:
+            Q_CHECK_PTR(m_sellToCoverShortcut);
+            m_sellToCoverShortcut->setKey(p_newSequence);
+            qInfo() << "Updated execute sell to cover order shortcut to:" << p_newSequence.toString();
             break;
     }
 }

@@ -19,7 +19,11 @@ public:
     // Shortcut identifiers
     enum ShortcutId {
         QuitApplication,
-        FocusStockInput
+        FocusStockInput,
+        ExecuteBuyOrder,
+        ExecuteSellOrder,
+        ExecuteBuyToCoverOrder,
+        ExecuteSellToCoverOrder
     };
     Q_ENUM(ShortcutId)
 

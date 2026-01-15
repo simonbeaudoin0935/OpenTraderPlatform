@@ -66,6 +66,10 @@ private:
     
     QShortcut* m_quitShortcut;  // Quit application shortcut
     QShortcut* m_focusShortcut;  // Focus stock input shortcut
+    QShortcut* m_buyShortcut;  // Execute buy order shortcut
+    QShortcut* m_sellShortcut;  // Execute sell order shortcut
+    QShortcut* m_buyToCoverShortcut;  // Execute buy to cover order shortcut
+    QShortcut* m_sellToCoverShortcut;  // Execute sell to cover order shortcut
 
     qsizetype TSClientDataUsage = 0;
     qint64 memoryUsage = 0;

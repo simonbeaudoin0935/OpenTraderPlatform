@@ -27,6 +27,10 @@ public:
 public slots:
     void setAccounts(const QList<Account>& accounts);
     void setSymbol(const QString& symbol);
+    void executeBuyOrder();
+    void executeSellOrder();
+    void executeBuyToCoverOrder();
+    void executeSellToCoverOrder();
 
 signals:
     void orderPlaced(const PlaceOrderRequest& order);

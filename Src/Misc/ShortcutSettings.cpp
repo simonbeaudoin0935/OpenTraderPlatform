@@ -25,6 +25,18 @@ QString ShortcutSettings::getSettingsKey(ShortcutId p_id) const {
         case FocusStockInput:
             key += "FocusStockInput";
             break;
+        case ExecuteBuyOrder:
+            key += "ExecuteBuyOrder";
+            break;
+        case ExecuteSellOrder:
+            key += "ExecuteSellOrder";
+            break;
+        case ExecuteBuyToCoverOrder:
+            key += "ExecuteBuyToCoverOrder";
+            break;
+        case ExecuteSellToCoverOrder:
+            key += "ExecuteSellToCoverOrder";
+            break;
     }
     return key;
 }
@@ -35,6 +47,14 @@ QString ShortcutSettings::getShortcutName(ShortcutId p_id) const {
             return "Quit Application";
         case FocusStockInput:
             return "Focus Stock Input";
+        case ExecuteBuyOrder:
+            return "Execute Buy Order";
+        case ExecuteSellOrder:
+            return "Execute Sell Order";
+        case ExecuteBuyToCoverOrder:
+            return "Execute Buy to Cover Order";
+        case ExecuteSellToCoverOrder:
+            return "Execute Sell to Cover Order";
         default:
             return "Unknown";
     }
@@ -46,6 +66,14 @@ QKeySequence ShortcutSettings::getDefaultShortcut(ShortcutId p_id) const {
             return QKeySequence("Ctrl+Q");
         case FocusStockInput:
             return QKeySequence("i");
+        case ExecuteBuyOrder:
+            return QKeySequence("Ctrl+B");
+        case ExecuteSellOrder:
+            return QKeySequence("Ctrl+S");
+        case ExecuteBuyToCoverOrder:
+            return QKeySequence("Ctrl+Shift+B");
+        case ExecuteSellToCoverOrder:
+            return QKeySequence("Ctrl+Shift+S");
         default:
             return QKeySequence();
     }
@@ -116,5 +144,12 @@ bool ShortcutSettings::resetToDefault(ShortcutId p_id) {
 }
 
 QList<ShortcutSettings::ShortcutId> ShortcutSettings::getAllShortcutIds() const {
-    return { QuitApplication, FocusStockInput };
+    return { 
+        QuitApplication, 
+        FocusStockInput,
+        ExecuteBuyOrder,
+        ExecuteSellOrder,
+        ExecuteBuyToCoverOrder,
+        ExecuteSellToCoverOrder
+    };
 }

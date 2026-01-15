@@ -214,6 +214,35 @@ void OrderEntryWidget::setSymbol(const QString& symbol) {
     m_symbolInput->setText(symbol.toUpper());
 }
 
+void OrderEntryWidget::executeBuyOrder() {
+    // Set trade action to Buy
+    m_buyRadio->setChecked(true);
+    // Submit the order
+    onSubmitClicked();
+}
+
+void OrderEntryWidget::executeSellOrder() {
+    // Set trade action to Sell
+    m_sellRadio->setChecked(true);
+    // Submit the order
+    onSubmitClicked();
+}
+
+void OrderEntryWidget::executeBuyToCoverOrder() {
+    // Set trade action to Buy to Cover
+    m_buyToCoverRadio->setChecked(true);
+    // Submit the order
+    onSubmitClicked();
+}
+
+void OrderEntryWidget::executeSellToCoverOrder() {
+    // Set trade action to Sell to Cover
+    m_sellToCoverRadio->setChecked(true);
+    // Submit the order
+    onSubmitClicked();
+}
+
+
 void OrderEntryWidget::onOrderTypeChanged(int index) {
     Q_UNUSED(index);
     updatePriceFieldsVisibility();
