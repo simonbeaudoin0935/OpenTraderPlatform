@@ -278,6 +278,15 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     // Is this the first bar ever received for this chart
     if (indexToBar.size() == 0) [[unlikely]] {
 
+        // Sanity check: semaphore should be available (count == 1) for the first bar
+        OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.available() == 1);
+
+        // Important that this be aquired here to block further requests until we finish processing this first bar.
+        // the ->setRange() calls below trigger a checkForMissingBars() immediately due to the direct connection
+        // of the signal/slot
+        bool acquired = m_missingBarsRequestSemaphore.tryAcquire();
+        Q_ASSERT(acquired); // Should always succeed for first bar
+
         WARNING << "received first bar ";
         const int index = 0;
 
@@ -292,8 +301,12 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         updateCandlestickData();
         updateVolumeData();
 
+        WARNING << "received first bar 1";
+
         m_customPlot->xAxis->setRange(index - 30, index + 1);
-        
+
+        WARNING << "received first bar 1.1";
+
         double newPrice = bar.getClose();
         double padding = newPrice * 0.0002;
         double minRange = newPrice * 0.0005;
@@ -302,21 +315,27 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
         m_customPlot->replot();
 
+        WARNING << "received first bar 2";
+
         // Draw background rectangles for the session
         drawBackgroundsForReceivedBars({});
+
+        WARNING << "received first bar 3";
 
         // Here we will fetch the bars from the beginning of the day up to this bar to fill in history
         QDateTime first = QDateTime(bar.getTimeStamp().date(), QTime(TRADING_START_HOUR, 1, 0), QTimeZone("America/New_York"));
         QDateTime last = bar.getTimeStamp();
 
-        OBJ_ASSUME_FALSE(currentGetBarsRequestInProcess);
+        WARNING << "received first bar 4";
+
+        WARNING << "received first bar 5";
 
         DEBUG << "Requesting whole day bars from"
                 << first.toString(Qt::ISODate)
                 << "to"
                 << last.toString(Qt::ISODate);
 
-        currentGetBarsRequestInProcess = true;
+        WARNING << "received first bar 6";
 
         emit requestMissingBars(first, last);
         return;
@@ -660,8 +679,9 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
     
     DEBUG << "Received missing bars response with" << barsPtr->size() << "bars";
     
-    Q_ASSERT(currentGetBarsRequestInProcess == true);
-    currentGetBarsRequestInProcess = false;
+    // Sanity check: semaphore should be acquired (count == 0) when we receive the response
+    OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.available() == 0);
+    m_missingBarsRequestSemaphore.release();
 
     Q_ASSERT(!barsPtr->isEmpty());
 
@@ -725,8 +745,21 @@ void StockPriceChart::redrawLastPriceLine() {
 void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime) {
     Q_UNUSED(viewEndTime);
 
+    WARNING << "checkForMissingBars";
+
+    // Try to acquire the semaphore - if it fails, a request is already in progress
+    if (!m_missingBarsRequestSemaphore.tryAcquire())
+    {
+        DEBUG << "Missing bars request already in progress, skipping";
+        return;
+    }
+
     Q_ASSERT(!indexToBar.isEmpty());
 
+    DEBUG << "Check for missing bars for view range:"
+          << viewStartTime.toString(Qt::ISODate)
+          << "to"
+          << viewEndTime.toString(Qt::ISODate);
 
     QDateTime viewStartTimeRounded = viewStartTime;
 
@@ -782,19 +815,10 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
         return;
     }
 
-    if (currentGetBarsRequestInProcess)
-    {
-        DEBUG << "current get bars request already in progress";
-
-        return;
-    }
-
     DEBUG << "Requesting missing bars from"
             << requestStartTime.toString(Qt::ISODate)
             << "to"
             << requestEndTime.toString(Qt::ISODate);
-
-    currentGetBarsRequestInProcess = true;
 
     emit requestMissingBars(requestStartTime, requestEndTime);
 }

@@ -9,6 +9,7 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QFuture>
 #include <QFutureWatcher>
+#include <QSemaphore>
 
 #include "qcustomplot.h"
 #include "Bar.h"
@@ -142,7 +143,9 @@ private:
     // Timeframe selector widget
     ChartToolbar* chartToolbar;
 
-    bool currentGetBarsRequestInProcess = false;
+    // Binary semaphore to track if a missing bars request is in progress
+    // Initialized with count 1 (not acquired). Acquire before requesting, release when received.
+    QSemaphore m_missingBarsRequestSemaphore{1};
     
     // Wheel zoom sensitivity ratio
     qreal wheelZoomRatio = 1.0;
