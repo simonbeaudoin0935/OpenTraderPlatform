@@ -30,7 +30,9 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     , m_settingsButton(new QToolButton(this))
     , m_settingsMenu(new QMenu(this))
     , m_confirmationCheckBox(new QCheckBox("Enable Order Confirmation", this))
+    , m_resultPopupCheckBox(new QCheckBox("Enable Result Popup", this))
     , m_confirmationEnabled(true)  // Default to enabled
+    , m_resultPopupEnabled(true)   // Default to enabled
 {
     setupUI();
     setupStyles();
@@ -70,6 +72,11 @@ void OrderEntryWidget::setupUI() {
     QWidgetAction* confirmationAction = new QWidgetAction(m_settingsMenu);
     confirmationAction->setDefaultWidget(m_confirmationCheckBox);
     m_settingsMenu->addAction(confirmationAction);
+    
+    m_resultPopupCheckBox->setChecked(m_resultPopupEnabled);
+    QWidgetAction* resultPopupAction = new QWidgetAction(m_settingsMenu);
+    resultPopupAction->setDefaultWidget(m_resultPopupCheckBox);
+    m_settingsMenu->addAction(resultPopupAction);
 
     // Create form layout for inputs
     QWidget* formWidget = new QWidget(this);
@@ -208,6 +215,11 @@ void OrderEntryWidget::setupUI() {
     auto c10 = connect(m_confirmationCheckBox, &QCheckBox::toggled,
                        this, &OrderEntryWidget::onConfirmationCheckBoxToggled, Qt::UniqueConnection);
     Q_ASSERT(c10);
+    
+    // Connect result popup checkbox
+    auto c11 = connect(m_resultPopupCheckBox, &QCheckBox::toggled,
+                       this, &OrderEntryWidget::onResultPopupCheckBoxToggled, Qt::UniqueConnection);
+    Q_ASSERT(c11);
 
     // Initialize visibility based on default order type
     updatePriceFieldsVisibility();
@@ -570,6 +582,10 @@ void OrderEntryWidget::loadSavedSettings() {
     // Load confirmation enabled setting
     m_confirmationEnabled = appStateSettings->value("OrderEntry/ConfirmationEnabled", true).toBool();
     m_confirmationCheckBox->setChecked(m_confirmationEnabled);
+    
+    // Load result popup enabled setting
+    m_resultPopupEnabled = appStateSettings->value("OrderEntry/ResultPopupEnabled", true).toBool();
+    m_resultPopupCheckBox->setChecked(m_resultPopupEnabled);
 }
 
 void OrderEntryWidget::saveOrderTypeSetting(int index) {
@@ -614,4 +630,12 @@ void OrderEntryWidget::onConfirmationCheckBoxToggled(bool checked) {
     appStateSettings->setValue("OrderEntry/ConfirmationEnabled", checked);
     appStateSettings->sync();
     qInfo() << "Order confirmation" << (checked ? "enabled" : "disabled");
+}
+
+void OrderEntryWidget::onResultPopupCheckBoxToggled(bool checked) {
+    m_resultPopupEnabled = checked;
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("OrderEntry/ResultPopupEnabled", checked);
+    appStateSettings->sync();
+    qInfo() << "Order result popup" << (checked ? "enabled" : "disabled");
 }

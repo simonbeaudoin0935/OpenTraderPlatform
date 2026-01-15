@@ -775,9 +775,14 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
         [this]
         (std::expected<PlaceOrderResult, TSClient::Error> expected_result)
         {
+            // Check if result popups are enabled
+            bool showPopup = ui->orderEntryWidget->isResultPopupEnabled();
+            
             if (!expected_result.has_value()) {
                 QString errorMsg = "Order placement failed with error code: " + QString::number(static_cast<int>(expected_result.error()));
-                QMessageBox::critical(nullptr, "Order Error", errorMsg);
+                if (showPopup) {
+                    QMessageBox::critical(nullptr, "Order Error", errorMsg);
+                }
                 qCritical() << "Order placement failed with error code:" << static_cast<int>(expected_result.error());
                 return;
             }
@@ -792,7 +797,9 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
                         errorMsg += "Error: " + error.getError().value() + "\n";
                     }
                 }
-                QMessageBox::critical(nullptr, "Order Error", errorMsg);
+                if (showPopup) {
+                    QMessageBox::critical(nullptr, "Order Error", errorMsg);
+                }
                 qCritical() << "Order placement failed:" << errorMsg;
             } else {
                 QString successMsg = "Order(s) placed successfully:\n";
@@ -800,7 +807,9 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
                     successMsg += "Order ID: " + orderItem.getOrderID() + "\n";
                     successMsg += orderItem.getMessage() + "\n";
                 }
-                QMessageBox::information(nullptr, "Order Success", successMsg);
+                if (showPopup) {
+                    QMessageBox::information(nullptr, "Order Success", successMsg);
+                }
                 qInfo() << "Order placement successful:" << successMsg;
             }
         }

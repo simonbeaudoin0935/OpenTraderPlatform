@@ -26,6 +26,8 @@ public:
     ~OrderEntryWidget();
 
     void setGUIFrontend(GUIFrontend* guiFrontend);
+    
+    bool isResultPopupEnabled() const { return m_resultPopupEnabled; }
 
 public slots:
     void setAccounts(const QList<Account>& accounts);
@@ -49,6 +51,7 @@ private slots:
     void saveStopPriceSetting(double value);
     void saveTradeActionSetting(int id);
     void onConfirmationCheckBoxToggled(bool checked);
+    void onResultPopupCheckBoxToggled(bool checked);
 
 private:
     void setupUI();
@@ -81,8 +84,10 @@ private:
     QToolButton* m_settingsButton;
     QMenu* m_settingsMenu;
     QCheckBox* m_confirmationCheckBox;
+    QCheckBox* m_resultPopupCheckBox;
     
     bool m_confirmationEnabled;  // Whether to show confirmation dialog
+    bool m_resultPopupEnabled;   // Whether to show result popup after order execution
 
     // Reference to GUIFrontend for account selection
     GUIFrontend* m_guiFrontend;
