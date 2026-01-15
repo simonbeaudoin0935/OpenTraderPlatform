@@ -2,8 +2,10 @@
 #include <QVBoxLayout>
 #include <QFormLayout>
 #include <QGridLayout>
+#include <QHBoxLayout>
 #include <QMessageBox>
 #include <QGroupBox>
+#include <QWidgetAction>
 #include "GUIFrontend.h"
 #include "Misc/Settings.h"
 
@@ -25,6 +27,10 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     , m_submitButton(new QPushButton("Submit Order", this))
     , m_limitPriceLabel(new QLabel("Limit Price:", this))
     , m_stopPriceLabel(new QLabel("Stop Price:", this))
+    , m_settingsButton(new QToolButton(this))
+    , m_settingsMenu(new QMenu(this))
+    , m_confirmationCheckBox(new QCheckBox("Enable Order Confirmation", this))
+    , m_confirmationEnabled(true)  // Default to enabled
 {
     setupUI();
     setupStyles();
@@ -39,10 +45,31 @@ void OrderEntryWidget::setupUI() {
     mainLayout->setSpacing(0);
     mainLayout->setContentsMargins(0, 0, 0, 0);
 
-    // Setup header
+    // Setup header with settings button
+    QWidget* headerWidget = new QWidget(this);
+    QHBoxLayout* headerLayout = new QHBoxLayout(headerWidget);
+    headerLayout->setContentsMargins(0, 0, 0, 0);
+    headerLayout->setSpacing(0);
+    
     m_headerLabel->setFixedHeight(24);
     m_headerLabel->setAlignment(Qt::AlignCenter);
-    mainLayout->addWidget(m_headerLabel);
+    headerLayout->addWidget(m_headerLabel);
+    
+    // Setup settings button with cog icon
+    m_settingsButton->setText("⚙"); // Unicode cog icon
+    m_settingsButton->setToolTip("Order Entry Settings");
+    m_settingsButton->setPopupMode(QToolButton::InstantPopup);
+    m_settingsButton->setMenu(m_settingsMenu);
+    m_settingsButton->setFixedSize(24, 24);
+    headerLayout->addWidget(m_settingsButton);
+    
+    mainLayout->addWidget(headerWidget);
+    
+    // Setup settings menu
+    m_confirmationCheckBox->setChecked(m_confirmationEnabled);
+    QWidgetAction* confirmationAction = new QWidgetAction(m_settingsMenu);
+    confirmationAction->setDefaultWidget(m_confirmationCheckBox);
+    m_settingsMenu->addAction(confirmationAction);
 
     // Create form layout for inputs
     QWidget* formWidget = new QWidget(this);
@@ -176,6 +203,11 @@ void OrderEntryWidget::setupUI() {
     auto c9 = connect(m_tradeActionGroup, QOverload<int>::of(&QButtonGroup::idClicked),
                       this, &OrderEntryWidget::saveTradeActionSetting, Qt::UniqueConnection);
     Q_ASSERT(c9);
+    
+    // Connect confirmation checkbox
+    auto c10 = connect(m_confirmationCheckBox, &QCheckBox::toggled,
+                       this, &OrderEntryWidget::onConfirmationCheckBoxToggled, Qt::UniqueConnection);
+    Q_ASSERT(c10);
 
     // Initialize visibility based on default order type
     updatePriceFieldsVisibility();
@@ -450,49 +482,55 @@ void OrderEntryWidget::onSubmitClicked() {
 
     PlaceOrderRequest order = buildOrderRequest();
 
-    // Confirm order with user
-    QString actionText;
-    QRadioButton* checkedButton = qobject_cast<QRadioButton*>(m_tradeActionGroup->checkedButton());
-    if (checkedButton) {
-        actionText = checkedButton->text();
-    } else {
-        actionText = "Unknown";
+    // Check if confirmation is enabled
+    if (m_confirmationEnabled) {
+        // Confirm order with user
+        QString actionText;
+        QRadioButton* checkedButton = qobject_cast<QRadioButton*>(m_tradeActionGroup->checkedButton());
+        if (checkedButton) {
+            actionText = checkedButton->text();
+        } else {
+            actionText = "Unknown";
+        }
+        
+        QString confirmMessage = QString(
+            "Submit order:\n\n"
+            "Symbol: %1\n"
+            "Action: %2\n"
+            "Type: %3\n"
+            "Quantity: %4\n"
+        ).arg(
+            order.getSymbol(),
+            actionText,
+            m_orderTypeCombo->currentText(),
+            QString::number(order.getQuantity())
+        );
+
+        if (order.getLimitPrice().has_value()) {
+            confirmMessage += QString("Limit Price: $%1\n")
+                .arg(order.getLimitPrice().value(), 0, 'f', 2);
+        }
+
+        if (order.getStopPrice().has_value()) {
+            confirmMessage += QString("Stop Price: $%1\n")
+                .arg(order.getStopPrice().value(), 0, 'f', 2);
+        }
+
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            "Confirm Order",
+            confirmMessage,
+            QMessageBox::Yes | QMessageBox::No
+        );
+
+        if (reply != QMessageBox::Yes) {
+            return;  // User cancelled
+        }
     }
     
-    QString confirmMessage = QString(
-        "Submit order:\n\n"
-        "Symbol: %1\n"
-        "Action: %2\n"
-        "Type: %3\n"
-        "Quantity: %4\n"
-    ).arg(
-        order.getSymbol(),
-        actionText,
-        m_orderTypeCombo->currentText(),
-        QString::number(order.getQuantity())
-    );
-
-    if (order.getLimitPrice().has_value()) {
-        confirmMessage += QString("Limit Price: $%1\n")
-            .arg(order.getLimitPrice().value(), 0, 'f', 2);
-    }
-
-    if (order.getStopPrice().has_value()) {
-        confirmMessage += QString("Stop Price: $%1\n")
-            .arg(order.getStopPrice().value(), 0, 'f', 2);
-    }
-
-    QMessageBox::StandardButton reply = QMessageBox::question(
-        this,
-        "Confirm Order",
-        confirmMessage,
-        QMessageBox::Yes | QMessageBox::No
-    );
-
-    if (reply == QMessageBox::Yes) {
-        qInfo() << "Order submitted:" << order.toJsonString();
-        emit orderPlaced(order);
-    }
+    // Submit the order
+    qInfo() << "Order submitted:" << order.toJsonString();
+    emit orderPlaced(order);
 }
 
 void OrderEntryWidget::loadSavedSettings() {
@@ -528,6 +566,10 @@ void OrderEntryWidget::loadSavedSettings() {
     if (button) {
         button->setChecked(true);
     }
+    
+    // Load confirmation enabled setting
+    m_confirmationEnabled = appStateSettings->value("OrderEntry/ConfirmationEnabled", true).toBool();
+    m_confirmationCheckBox->setChecked(m_confirmationEnabled);
 }
 
 void OrderEntryWidget::saveOrderTypeSetting(int index) {
@@ -564,4 +606,12 @@ void OrderEntryWidget::saveTradeActionSetting(int id) {
     Q_CHECK_PTR(appStateSettings);
     appStateSettings->setValue("OrderEntry/TradeAction", id);
     appStateSettings->sync();
+}
+
+void OrderEntryWidget::onConfirmationCheckBoxToggled(bool checked) {
+    m_confirmationEnabled = checked;
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("OrderEntry/ConfirmationEnabled", checked);
+    appStateSettings->sync();
+    qInfo() << "Order confirmation" << (checked ? "enabled" : "disabled");
 }

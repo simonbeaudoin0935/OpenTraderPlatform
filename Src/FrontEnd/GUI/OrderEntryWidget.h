@@ -10,6 +10,9 @@
 #include <QRadioButton>
 #include <QButtonGroup>
 #include <QVector>
+#include <QToolButton>
+#include <QMenu>
+#include <QCheckBox>
 
 #include "Account.h"
 #include "PlaceOrder.h"
@@ -45,6 +48,7 @@ private slots:
     void saveLimitPriceSetting(double value);
     void saveStopPriceSetting(double value);
     void saveTradeActionSetting(int id);
+    void onConfirmationCheckBoxToggled(bool checked);
 
 private:
     void setupUI();
@@ -72,6 +76,13 @@ private:
     // Labels for price fields
     QLabel* m_limitPriceLabel;
     QLabel* m_stopPriceLabel;
+    
+    // Settings menu
+    QToolButton* m_settingsButton;
+    QMenu* m_settingsMenu;
+    QCheckBox* m_confirmationCheckBox;
+    
+    bool m_confirmationEnabled;  // Whether to show confirmation dialog
 
     // Reference to GUIFrontend for account selection
     GUIFrontend* m_guiFrontend;
