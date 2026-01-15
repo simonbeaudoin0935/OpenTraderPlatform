@@ -96,7 +96,7 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     m_volumeNeg->setWidth(CANDLESTICK_BODY_WIDTH);
     m_volumeNeg->setPen(Qt::NoPen);
     m_volumeNeg->setBrush(QColor(180, 90, 90));
-    
+
     // Interconnect x axis ranges of main and bottom axis rects (bidirectional for horizontal zoom)
     connect(m_customPlot->xAxis, QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
             m_volumeAxisRect->axis(QCPAxis::atBottom), QOverload<const QCPRange&>::of(&QCPAxis::setRange));
@@ -169,8 +169,9 @@ StockPriceChart::StockPriceChart(QWidget* parent)
             this, &StockPriceChart::onVolumeChartVisibilityChanged);
     connect(chartToolbar, &ChartToolbar::replayDayChanged,
             this, &StockPriceChart::onReplayDayChanged);
-    connect(chartToolbar, &ChartToolbar::wheelRatioChanged,
-            this, [this](qreal ratio) { 
+    connect(chartToolbar, &ChartToolbar::wheelRatioChanged, this,
+            [this](qreal ratio)
+            { 
                 this->wheelZoomRatio = ratio; 
                 // Save to settings
                 Q_CHECK_PTR(appStateSettings);
@@ -287,7 +288,8 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         bool acquired = m_missingBarsRequestSemaphore.tryAcquire();
         Q_ASSERT(acquired); // Should always succeed for first bar
 
-        WARNING << "received first bar ";
+        DEBUG << "Received first bar ";
+        
         const int index = 0;
 
         Q_ASSERT(timestampToIndex.size() == 0);
@@ -301,11 +303,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         updateCandlestickData();
         updateVolumeData();
 
-        WARNING << "received first bar 1";
-
         m_customPlot->xAxis->setRange(index - 30, index + 1);
-
-        WARNING << "received first bar 1.1";
 
         double newPrice = bar.getClose();
         double padding = newPrice * 0.0002;
@@ -315,27 +313,17 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
         m_customPlot->replot();
 
-        WARNING << "received first bar 2";
-
         // Draw background rectangles for the session
         drawBackgroundsForReceivedBars({});
-
-        WARNING << "received first bar 3";
 
         // Here we will fetch the bars from the beginning of the day up to this bar to fill in history
         QDateTime first = QDateTime(bar.getTimeStamp().date(), QTime(TRADING_START_HOUR, 1, 0), QTimeZone("America/New_York"));
         QDateTime last = bar.getTimeStamp();
 
-        WARNING << "received first bar 4";
-
-        WARNING << "received first bar 5";
-
         DEBUG << "Requesting whole day bars from"
                 << first.toString(Qt::ISODate)
                 << "to"
                 << last.toString(Qt::ISODate);
-
-        WARNING << "received first bar 6";
 
         emit requestMissingBars(first, last);
         return;
