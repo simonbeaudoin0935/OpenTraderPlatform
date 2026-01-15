@@ -3,6 +3,7 @@
 #include <QWidget>
 #include <QStandardItemModel>
 #include <QMap>
+#include <QHash>
 
 #include "Order.h"
 
@@ -40,5 +41,5 @@ private:
 
     // Map to keep track of orders by their ID for updates
     QMap<QString, int> m_orderRowMap;  // Maps orderID to row index
-    QMap<QString, Order> m_orders;  // Store actual Order objects to check status
+    QHash<QString, Order> m_orders;  // Store actual Order objects to check status (QHash used because Order lacks default constructor)
 };
