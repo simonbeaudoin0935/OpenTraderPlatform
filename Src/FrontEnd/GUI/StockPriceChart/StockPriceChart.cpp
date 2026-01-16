@@ -3,6 +3,7 @@
 #include <QtSql/QSqlError>
 #include <QStandardPaths>
 #include <QDir>
+#include <QtMath>
 
 #include "StockPriceChart.h"
 #include "MarketHours.h"
@@ -443,8 +444,44 @@ void StockPriceChart::updateVolumeData()
         }
     }
     
-    // Rescale volume axis to fit data
-    m_volumeAxisRect->axis(QCPAxis::atLeft)->rescale();
+    // Rescale volume axis to fit visible data
+    rescaleVolumeAxisToVisibleRange();
+}
+
+/**
+ * @brief Rescales the volume Y-axis based on the maximum volume of visible bars.
+ * 
+ * This ensures the highest volume bar in the visible range fills the full vertical height
+ * of the volume chart, providing optimal visual scaling.
+ */
+void StockPriceChart::rescaleVolumeAxisToVisibleRange()
+{
+    if (indexToBar.isEmpty()) {
+        return;
+    }
+
+    // Get the visible X range
+    const QCPRange xRange = m_customPlot->xAxis->range();
+    const int visibleStart = qMax(static_cast<int>(qFloor(xRange.lower)), indexToBar.firstKey());
+    const int visibleEnd = qMin(static_cast<int>(qCeil(xRange.upper)), indexToBar.lastKey());
+
+    // Find maximum volume in visible range
+    qint64 maxVolume = 0;
+    for (int i = visibleStart; i <= visibleEnd; ++i) {
+        if (indexToBar.contains(i)) {
+            const Bar& bar = indexToBar[i];
+            const Bar::BarStatus status = bar.getBarStatus();
+            if (status == Bar::BarStatus::Open || status == Bar::BarStatus::Closed) {
+                maxVolume = qMax(maxVolume, static_cast<qint64>(bar.getTotalVolume()));
+            }
+        }
+    }
+
+    if (maxVolume > 0) {
+        // Add small padding (5%) at the top for visual clarity
+        const double upperBound = maxVolume * 1.05;
+        m_volumeAxisRect->axis(QCPAxis::atLeft)->setRange(0.0, upperBound);
+    }
 }
 
 /**

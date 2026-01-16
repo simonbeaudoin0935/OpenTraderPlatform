@@ -110,6 +110,7 @@ private:
     void updateAxisLabelsDensity();
     void updateCandlestickData();
     void updateVolumeData();
+    void rescaleVolumeAxisToVisibleRange();
     
     // Background rendering methods
     void drawBackgroundsForReceivedBars(const QVector<Bar>& bars);

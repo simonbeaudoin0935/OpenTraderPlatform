@@ -12,6 +12,7 @@ void StockPriceChart::onAxisRangeChanged()
 
     updateAxisLabelsDensity();
     redrawLastPriceLine();
+    rescaleVolumeAxisToVisibleRange();
     
     // Note: Background rectangles are created once when bars are received,
     // QCustomPlot handles clipping to visible range automatically.
