@@ -295,7 +295,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
 
     // Query database via DatabaseThread (async, thread-safe)
     DatabaseThread::getInstance()->getBarsFromDatabase(m_symbol, date, first, last)
-        .then(this,
+        .then(this, // Execute in the thread of this BarCache object, aka the MainAlgo thread
             [this, date, first, last, isCurrentDay, now, promise = std::move(promise)]
             (std::optional<std::unique_ptr<QVector<Bar>>> dbBars) mutable
             {
@@ -342,6 +342,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
                     [this, date, startDateTime, endDayTime, promise = std::move(promise)]
                     (std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars) mutable
                     {
+/*
                         if (!bars.has_value()) {
                             CRITICAL << "getBars() from API returned error for" << m_symbol
                                      << "- Error:" << static_cast<int>(bars.error());
@@ -364,9 +365,12 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
                                     DEBUG << "Stored" << storedCount << "bars in database for" << m_symbol;
                                 });
 
-                            promise.addResult(barsFromApiHolesFilled);
+                            //promise.addResult(barsFromApiHolesFilled);
+
                         }
-                        promise.finish();
+*/
+                        //promise.finish();
+                        CRITICAL << "ANUS";
                     });
             });
 
@@ -442,7 +446,14 @@ void BarCache::storeBarInCache(const Bar& bar)
 void BarCache::storeBarsInCache(const QDate &date, const std::shared_ptr<QVector<Bar>> bars)
 {
     OBJ_ASSUME_FALSE(bars->isEmpty());
-    OBJ_ASSUME_TRUE(bars->count() <= BARS_PER_DAY); // Max bars per day
+    if (date < MainApp::getCurrentAppTime().date()) {
+        OBJ_ASSUME_EQUAL(bars->size(), BARS_PER_DAY);
+    } else {
+        OBJ_ASSUME_LTE(bars->size(),
+            MainApp::getCurrentAppTime().time() > TRADING_END_TIME ? BARS_PER_DAY :
+                               timeToIndex(MainApp::getCurrentAppTime().time()) +
+                           1);
+    }
     
     OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().date(), bars->last().getTimeStamp().date());
     OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().time(), TRADING_START_TIME);

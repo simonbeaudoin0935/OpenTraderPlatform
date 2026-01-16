@@ -88,6 +88,10 @@ void DatabaseThread::closeDatabase(const QString& symbol)
 QFuture<std::optional<std::unique_ptr<QVector<Bar>>>>
 DatabaseThread::getBarsFromDatabase(const QString& symbol, QDate date, QTime start, QTime end)
 {
+    // Make sure we're not called from the database thread itself, that
+    // would be illogical.
+    OBJ_ASSUME_FALSE(this->thread() == QThread::currentThread());
+
     QPromise<std::optional<std::unique_ptr<QVector<Bar>>>> promise;
     QFuture<std::optional<std::unique_ptr<QVector<Bar>>>> future = promise.future();
     promise.start();

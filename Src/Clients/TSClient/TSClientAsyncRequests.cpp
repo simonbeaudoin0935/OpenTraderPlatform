@@ -284,6 +284,8 @@ TSClient::getBars(
 
                             // Happiest path
                             std::unique_ptr<QVector<Bar>> results = std::make_unique<QVector<Bar>>();
+                            results->reserve(barsArray.size());
+                            
                             for (const QJsonValue &json: barsArray) {
                                 results->push_back(Bar(json.toObject()));
                             }

@@ -802,7 +802,7 @@ void StockPriceChart::redrawLastPriceLine() {
 void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime) {
     Q_UNUSED(viewEndTime);
 
-    WARNING << "checkForMissingBars";
+    //WARNING << "checkForMissingBars";
 
     // Try to acquire the semaphore - if it fails, a request is already in progress
     if (!m_missingBarsRequestSemaphore.tryAcquire())
@@ -1146,6 +1146,7 @@ void StockPriceChart::onReplayDayChanged(const QDate& date) {
 
     // Cancel any ongoing query
     if (replayTimeRangeWatcher->isRunning()) {
+        Q_ASSERT(false); // TO_DELETE
         replayTimeRangeWatcher->cancel();
     }
 
