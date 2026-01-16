@@ -13,7 +13,7 @@ PositionsReceiver::PositionsReceiver(const QString &account, QObject *parent) :
 {
     this->setObjectName("PositionReceiver");
     
-
+    createPositionsStream();
 }
 
 PositionsReceiver::~PositionsReceiver() {
