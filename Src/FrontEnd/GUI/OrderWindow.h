@@ -3,6 +3,7 @@
 #include <QWidget>
 #include <QStandardItemModel>
 #include <QMap>
+#include <QHash>
 
 #include "Order.h"
 
@@ -17,10 +18,15 @@ public:
 
 public slots:
     void updateOrder(const QString& account, const Order& order);
+    
+public:
+    QStringList getAllOrderIds() const;
+    QStringList getCancellableOrderIds() const;
 
 signals:
     void symbolClicked(const QString& symbol);
     void cancelOrderRequested(const QString& orderId);
+    void cancelAllOrdersRequested();
 
 private:
     void setupUI();
@@ -35,4 +41,5 @@ private:
 
     // Map to keep track of orders by their ID for updates
     QMap<QString, int> m_orderRowMap;  // Maps orderID to row index
+    QHash<QString, Order> m_orders;  // Store actual Order objects to check status (QHash used because Order lacks default constructor)
 };

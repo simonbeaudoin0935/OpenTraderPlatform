@@ -112,6 +112,9 @@ void OrderWindow::updateOrder(const QString& account, const Order& order) {
                         << "LimitPrice:" << (order.getLimitPrice().has_value() ? QString::number(order.getLimitPrice().value()) : "not set")
                         << "StopPrice:" << (order.getStopPrice().has_value() ? QString::number(order.getStopPrice().value()) : "not set");
     
+    // Store or update the order object
+    m_orders.insert(orderId, order);
+    
     if (m_orderRowMap.contains(orderId)) {
         // Update existing order
         // Note: Row indices are maintained across updates. Orders are not removed from the display,
@@ -355,4 +358,32 @@ void OrderWindow::onSymbolClicked(const QModelIndex& index) {
             emit symbolClicked(symbol);
         }
     }
+}
+
+QStringList OrderWindow::getAllOrderIds() const {
+    return m_orderRowMap.keys();
+}
+
+QStringList OrderWindow::getCancellableOrderIds() const {
+    QStringList cancellableIds;
+    
+    // Only include orders that are in a cancellable state
+    for (auto it = m_orders.constBegin(); it != m_orders.constEnd(); ++it) {
+        const Order& order = it.value();
+        OrderStatus status = order.getOrderStatus();
+        
+        // Only cancel orders that are queued, received, or sent
+        // Don't cancel filled, cancelled, rejected, expired, etc.
+        if (status == OrderStatus::DON ||   // Queued
+            status == OrderStatus::ACK ||   // Received
+            status == OrderStatus::OPN ||   // Sent
+            status == OrderStatus::FPR ||   // Partial Fill (Alive)
+            status == OrderStatus::CND ||   // Condition Met
+            status == OrderStatus::OSO ||   // OSO Order
+            status == OrderStatus::SUS) {   // Suspended
+            cancellableIds.append(it.key());
+        }
+    }
+    
+    return cancellableIds;
 }

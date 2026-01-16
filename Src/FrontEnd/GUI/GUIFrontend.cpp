@@ -17,8 +17,10 @@
 #include "Tabs/LoggingTab.h"
 #include "Tabs/CacheTab.h"
 #include "Tabs/RecorderTab.h"
+#include "Tabs/ShortcutsTab.h"
 #include "Misc/Logging.h"
 #include "Misc/Settings.h"
+#include "Misc/ShortcutSettings.h"
 
 Q_LOGGING_CATEGORY(GUIFrontendLog, "GUIFrontend")
 
@@ -35,13 +37,52 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     
     mainWindow->showMaximized();
 
+    // Initialize shortcuts from settings
+    ShortcutSettings& shortcutSettings = ShortcutSettings::getInstance();
+    
     // Add Ctrl+Q shortcut to quit the application
-    QShortcut *quitShortcut = new QShortcut(QKeySequence("Ctrl+Q"), mainWindow);
-    connect(quitShortcut, &QShortcut::activated, qApp, &QApplication::quit);
+    m_quitShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::QuitApplication), mainWindow);
+    // Note: Qt::UniqueConnection may not work reliably with qApp global pointer
+    auto quitConnection = connect(m_quitShortcut, &QShortcut::activated, qApp, &QApplication::quit);
+    Q_ASSERT(quitConnection);
 
     // Add "i" shortcut to focus the stock symbol input box
-    QShortcut *focusShortcut = new QShortcut(QKeySequence("i"), mainWindow);
-    connect(focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); });
+    m_focusShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::FocusStockInput), mainWindow);
+    // Note: Qt::UniqueConnection cannot be used with lambda functions
+    auto focusConnection = connect(m_focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); });
+    Q_ASSERT(focusConnection);
+    
+    // Add Ctrl+B shortcut to execute buy order
+    m_buyShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteBuyOrder), mainWindow);
+    auto buyConnection = connect(m_buyShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeBuyOrder(); });
+    Q_ASSERT(buyConnection);
+    
+    // Add Ctrl+S shortcut to execute sell order
+    m_sellShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteSellOrder), mainWindow);
+    auto sellConnection = connect(m_sellShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeSellOrder(); });
+    Q_ASSERT(sellConnection);
+    
+    // Add Ctrl+Shift+B shortcut to execute buy to cover order
+    m_buyToCoverShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteBuyToCoverOrder), mainWindow);
+    auto buyToCoverConnection = connect(m_buyToCoverShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeBuyToCoverOrder(); });
+    Q_ASSERT(buyToCoverConnection);
+    
+    // Add Ctrl+Shift+S shortcut to execute sell to cover order
+    m_sellToCoverShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteSellToCoverOrder), mainWindow);
+    auto sellToCoverConnection = connect(m_sellToCoverShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeSellToCoverOrder(); });
+    Q_ASSERT(sellToCoverConnection);
+    
+    // Add Ctrl+X shortcut to cancel all orders
+    m_cancelAllOrdersShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::CancelAllOrders), mainWindow);
+    auto cancelAllConnection = connect(m_cancelAllOrdersShortcut, &QShortcut::activated, [this]() { onCancelAllOrders(); });
+    Q_ASSERT(cancelAllConnection);
+    
+    // Connect to shortcut changes to update active shortcuts
+    auto shortcutChangeConnection = connect(&shortcutSettings, &ShortcutSettings::shortcutChanged,
+            this, &GUIFrontend::onShortcutChanged, Qt::UniqueConnection);
+    Q_ASSERT(shortcutChangeConnection);
+
+
 
     // Create and setup TradeStation login button
     tradeStationLoginButton = new QPushButton("Login to TradeStation", ui->statusbar);
@@ -221,6 +262,10 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     // Set up the recorder tab
     RecorderTab* recorderTab = new RecorderTab();
     ui->tabWidget->addTab(recorderTab, "Recorder");
+
+    // Set up the shortcuts tab
+    ShortcutsTab* shortcutsTab = new ShortcutsTab();
+    ui->tabWidget->addTab(shortcutsTab, "Shortcuts");
 
     // Set up the live log display at the bottom
     if (ui->liveLogDisplay) {
@@ -735,9 +780,14 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
         [this]
         (std::expected<PlaceOrderResult, TSClient::Error> expected_result)
         {
+            // Check if result popups are enabled
+            bool showPopup = ui->orderEntryWidget->isResultPopupEnabled();
+            
             if (!expected_result.has_value()) {
                 QString errorMsg = "Order placement failed with error code: " + QString::number(static_cast<int>(expected_result.error()));
-                QMessageBox::critical(nullptr, "Order Error", errorMsg);
+                if (showPopup) {
+                    QMessageBox::critical(nullptr, "Order Error", errorMsg);
+                }
                 qCritical() << "Order placement failed with error code:" << static_cast<int>(expected_result.error());
                 return;
             }
@@ -752,7 +802,9 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
                         errorMsg += "Error: " + error.getError().value() + "\n";
                     }
                 }
-                QMessageBox::critical(nullptr, "Order Error", errorMsg);
+                if (showPopup) {
+                    QMessageBox::critical(nullptr, "Order Error", errorMsg);
+                }
                 qCritical() << "Order placement failed:" << errorMsg;
             } else {
                 QString successMsg = "Order(s) placed successfully:\n";
@@ -760,9 +812,107 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
                     successMsg += "Order ID: " + orderItem.getOrderID() + "\n";
                     successMsg += orderItem.getMessage() + "\n";
                 }
-                QMessageBox::information(nullptr, "Order Success", successMsg);
+                if (showPopup) {
+                    QMessageBox::information(nullptr, "Order Success", successMsg);
+                }
                 qInfo() << "Order placement successful:" << successMsg;
             }
         }
     );
+}
+
+void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKeySequence& p_newSequence) {
+    // Update the appropriate shortcut
+    switch (p_id) {
+        case ShortcutSettings::QuitApplication:
+            Q_CHECK_PTR(m_quitShortcut);
+            m_quitShortcut->setKey(p_newSequence);
+            qInfo() << "Updated quit application shortcut to:" << p_newSequence.toString();
+            break;
+            
+        case ShortcutSettings::FocusStockInput:
+            Q_CHECK_PTR(m_focusShortcut);
+            m_focusShortcut->setKey(p_newSequence);
+            qInfo() << "Updated focus stock input shortcut to:" << p_newSequence.toString();
+            break;
+            
+        case ShortcutSettings::ExecuteBuyOrder:
+            Q_CHECK_PTR(m_buyShortcut);
+            m_buyShortcut->setKey(p_newSequence);
+            qInfo() << "Updated execute buy order shortcut to:" << p_newSequence.toString();
+            break;
+            
+        case ShortcutSettings::ExecuteSellOrder:
+            Q_CHECK_PTR(m_sellShortcut);
+            m_sellShortcut->setKey(p_newSequence);
+            qInfo() << "Updated execute sell order shortcut to:" << p_newSequence.toString();
+            break;
+            
+        case ShortcutSettings::ExecuteBuyToCoverOrder:
+            Q_CHECK_PTR(m_buyToCoverShortcut);
+            m_buyToCoverShortcut->setKey(p_newSequence);
+            qInfo() << "Updated execute buy to cover order shortcut to:" << p_newSequence.toString();
+            break;
+            
+        case ShortcutSettings::ExecuteSellToCoverOrder:
+            Q_CHECK_PTR(m_sellToCoverShortcut);
+            m_sellToCoverShortcut->setKey(p_newSequence);
+            qInfo() << "Updated execute sell to cover order shortcut to:" << p_newSequence.toString();
+            break;
+            
+        case ShortcutSettings::CancelAllOrders:
+            Q_CHECK_PTR(m_cancelAllOrdersShortcut);
+            m_cancelAllOrdersShortcut->setKey(p_newSequence);
+            qInfo() << "Updated cancel all orders shortcut to:" << p_newSequence.toString();
+            break;
+    }
+}
+
+void GUIFrontend::onCancelAllOrders() {
+    // Get only cancellable order IDs from the order window (filters by status)
+    QStringList orderIds = ui->orderWindow->getCancellableOrderIds();
+    
+    if (orderIds.isEmpty()) {
+        qInfo() << "No cancellable orders found";
+        QMessageBox::information(
+            nullptr,
+            "Cancel All Orders",
+            "No orders available to cancel. All orders are either filled, cancelled, rejected, or in a non-cancellable state."
+        );
+        return;
+    }
+    
+    // Check if confirmation is enabled (controlled by OrderEntryWidget settings)
+    if (ui->orderEntryWidget->isCancelAllConfirmationEnabled()) {
+        // Confirm with user
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            nullptr,
+            "Cancel All Orders",
+            QString("Are you sure you want to cancel %1 cancellable order(s)?\n\nOnly orders that are queued, received, or sent will be cancelled.\nFilled, cancelled, and rejected orders will be skipped.").arg(orderIds.count()),
+            QMessageBox::Yes | QMessageBox::No
+        );
+        
+        if (reply != QMessageBox::Yes) {
+            return;
+        }
+    }
+    
+    qInfo() << "Cancelling" << orderIds.count() << "cancellable orders";
+    
+    // Cancel each order
+    for (const QString& orderId : orderIds) {
+        auto cancelFuture = TSClient::getInstance()->cancelOrder(orderId);
+        cancelFuture.then(
+            [this, orderId]
+            (std::expected<CancelOrderResult, TSClient::Error> result)
+            {
+                if (!result.has_value()) {
+                    qCritical() << "Failed to cancel order" << orderId << "with error code:" << static_cast<int>(result.error());
+                } else {
+                    CancelOrderResult& cancelResult = result.value();
+                    qInfo() << "Order" << orderId << "cancelled successfully:" << cancelResult.toJsonString();
+                }
+            }
+        );
+    }
 }

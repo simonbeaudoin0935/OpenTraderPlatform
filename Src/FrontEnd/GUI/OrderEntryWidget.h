@@ -10,6 +10,9 @@
 #include <QRadioButton>
 #include <QButtonGroup>
 #include <QVector>
+#include <QToolButton>
+#include <QMenu>
+#include <QCheckBox>
 
 #include "Account.h"
 #include "PlaceOrder.h"
@@ -23,10 +26,17 @@ public:
     ~OrderEntryWidget();
 
     void setGUIFrontend(GUIFrontend* guiFrontend);
+    
+    bool isResultPopupEnabled() const { return m_resultPopupEnabled; }
+    bool isCancelAllConfirmationEnabled() const { return m_cancelAllConfirmationEnabled; }
 
 public slots:
     void setAccounts(const QList<Account>& accounts);
     void setSymbol(const QString& symbol);
+    void executeBuyOrder();
+    void executeSellOrder();
+    void executeBuyToCoverOrder();
+    void executeSellToCoverOrder();
 
 signals:
     void orderPlaced(const PlaceOrderRequest& order);
@@ -41,6 +51,9 @@ private slots:
     void saveLimitPriceSetting(double value);
     void saveStopPriceSetting(double value);
     void saveTradeActionSetting(int id);
+    void onConfirmationCheckBoxToggled(bool checked);
+    void onResultPopupCheckBoxToggled(bool checked);
+    void onCancelAllConfirmationCheckBoxToggled(bool checked);
 
 private:
     void setupUI();
@@ -68,6 +81,17 @@ private:
     // Labels for price fields
     QLabel* m_limitPriceLabel;
     QLabel* m_stopPriceLabel;
+    
+    // Settings menu
+    QToolButton* m_settingsButton;
+    QMenu* m_settingsMenu;
+    QCheckBox* m_confirmationCheckBox;
+    QCheckBox* m_resultPopupCheckBox;
+    QCheckBox* m_cancelAllConfirmationCheckBox;
+    
+    bool m_confirmationEnabled;  // Whether to show confirmation dialog
+    bool m_resultPopupEnabled;   // Whether to show result popup after order execution
+    bool m_cancelAllConfirmationEnabled;  // Whether to show confirmation dialog when cancelling all orders
 
     // Reference to GUIFrontend for account selection
     GUIFrontend* m_guiFrontend;
