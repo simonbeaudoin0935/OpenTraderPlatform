@@ -155,24 +155,9 @@ void TSClient::processNewAmountOfDataReceived(size_t bytesReceived)
 #ifdef UNIT_TESTING
 bool TSClient::isCleanedUp()
 {
-    bool isClean = true;
-
-    //pendingRequestsRWLock.lockForRead();
-    {
-        if (!m_pendingRequests.isEmpty()) {
-            qCWarning(RESTClientLog) << Q_FUNC_INFO << " : ********************* pendingRequests not empty ****************";
-            isClean = false;
-
-            size_t i = 0;
-            for (const auto& request : m_pendingRequests) {
-                qDebug() << "Request info #" << i;
-                qDebug() << "  RequestType  : " << request.type;
-                //qDebug() << "  Completed    : " << ((request.completed) ? "TRUE" : "FALSE");
-            }
-        }
-    }
-    //pendingRequestsRWLock.unlock();
-
-    return isClean;
+    // The pending requests tracking was removed from TSClient.
+    // The isCleanedUp() check is now primarily about verifying no open streams remain.
+    // For now, just check the stream count.
+    return Stream::getNumberOpenStream() == 0;
 }
 #endif
