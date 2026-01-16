@@ -551,18 +551,20 @@ void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars) {
         }
         
         // Create pre-market and after-hours rectangles for this date
-        // Create times in NY timezone then convert to UTC for consistency with bar timestamps
-        QDateTime preMarketStartNY = QDateTime(date, QTime(4, 0), nyZone);
+        // Note: Chart data only covers 6:01 AM to 8:00 PM, so we clamp the visual ranges
+        // Pre-market: 6:01 AM to 9:30 AM (data starts at 6:01, regular trading at 9:30)
+        // After-hours: 4:00 PM to 8:00 PM (regular trading ends at 4:00, data ends at 8:00)
+        QDateTime preMarketStartNY = QDateTime(date, QTime(TRADING_START_HOUR, 1), nyZone);  // 6:01 AM
         QDateTime preMarketEndNY = QDateTime(date, QTime(9, 30), nyZone);
         QDateTime afterHoursStartNY = QDateTime(date, QTime(16, 0), nyZone);
-        QDateTime afterHoursEndNY = QDateTime(date, QTime(20, 0), nyZone);
+        QDateTime afterHoursEndNY = QDateTime(date, QTime(TRADING_END_HOUR, 0), nyZone);  // 8:00 PM
         
         QDateTime preMarketStart = preMarketStartNY.toTimeZone(QTimeZone::utc());
         QDateTime preMarketEnd = preMarketEndNY.toTimeZone(QTimeZone::utc());
         QDateTime afterHoursStart = afterHoursStartNY.toTimeZone(QTimeZone::utc());
         QDateTime afterHoursEnd = afterHoursEndNY.toTimeZone(QTimeZone::utc());
         
-        // Draw pre-market rectangle (4am - 9:30am ET)
+        // Draw pre-market rectangle (6:01am - 9:30am ET)
         drawFixedBackgroundRect(preMarketStart, preMarketEnd, 
                               QColor(255, 165, 0, 180), m_preMarketRects);
         
@@ -613,22 +615,24 @@ void StockPriceChart::drawBackgroundsForVisibleRange() {
         }
         
         // Create pre-market and after-hours rectangles for this date
-        // Create times in NY timezone then convert to UTC for consistency with bar timestamps
-        QDateTime preMarketStartNY = QDateTime(date, QTime(4, 0), nyZone);
+        // Note: Chart data only covers 6:01 AM to 8:00 PM, so we clamp the visual ranges
+        // Pre-market: 6:01 AM to 9:30 AM (data starts at 6:01, regular trading at 9:30)
+        // After-hours: 4:00 PM to 8:00 PM (regular trading ends at 4:00, data ends at 8:00)
+        QDateTime preMarketStartNY = QDateTime(date, QTime(TRADING_START_HOUR, 1), nyZone);  // 6:01 AM
         QDateTime preMarketEndNY = QDateTime(date, QTime(9, 30), nyZone);
         QDateTime afterHoursStartNY = QDateTime(date, QTime(16, 0), nyZone);
-        QDateTime afterHoursEndNY = QDateTime(date, QTime(20, 0), nyZone);
+        QDateTime afterHoursEndNY = QDateTime(date, QTime(TRADING_END_HOUR, 0), nyZone);  // 8:00 PM
         
         QDateTime preMarketStart = preMarketStartNY.toTimeZone(QTimeZone::utc());
         QDateTime preMarketEnd = preMarketEndNY.toTimeZone(QTimeZone::utc());
         QDateTime afterHoursStart = afterHoursStartNY.toTimeZone(QTimeZone::utc());
         QDateTime afterHoursEnd = afterHoursEndNY.toTimeZone(QTimeZone::utc());
         
-        // Draw pre-market rectangle (4am - 9:30am)
+        // Draw pre-market rectangle (6:01am - 9:30am ET)
         drawFixedBackgroundRect(preMarketStart, preMarketEnd, 
                               QColor(255, 165, 0, 180), m_preMarketRects);
         
-        // Draw after-hours rectangle (4pm - 8pm)
+        // Draw after-hours rectangle (4pm - 8pm ET)
         drawFixedBackgroundRect(afterHoursStart, afterHoursEnd, 
                               QColor(138, 43, 226, 180), m_afterHoursRects);
         
