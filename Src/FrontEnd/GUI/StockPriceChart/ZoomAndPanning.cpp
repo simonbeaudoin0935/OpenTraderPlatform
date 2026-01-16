@@ -54,6 +54,20 @@ void StockPriceChart::onVolumeChartVisibilityChanged(bool visible)
 }
 
 /**
+ * @brief Slot called when volume auto-rescale state changes.
+ */
+void StockPriceChart::onVolumeAutoRescaleChanged(bool enabled)
+{
+    m_volumeAutoRescaleEnabled = enabled;
+    
+    if (enabled) {
+        // Immediately rescale to visible range
+        rescaleVolumeAxisToVisibleRange();
+        m_customPlot->replot();
+    }
+}
+
+/**
  * @brief Handles widget resize events.
  */
 void StockPriceChart::resizeEvent(QResizeEvent* event) {

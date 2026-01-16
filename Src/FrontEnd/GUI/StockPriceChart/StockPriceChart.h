@@ -63,6 +63,7 @@ public slots:
 private slots:
     void onAxisRangeChanged();
     void onVolumeChartVisibilityChanged(bool visible);
+    void onVolumeAutoRescaleChanged(bool enabled);
     void onReplayDayChanged(const QDate& date);
     void onReplayTimeRangeQueryFinished();
 
@@ -151,6 +152,9 @@ private:
     
     // Wheel zoom sensitivity ratio
     qreal wheelZoomRatio = 1.0;
+    
+    // Volume auto-rescale state
+    bool m_volumeAutoRescaleEnabled = true;
     
     // Replay functionality
     QFutureWatcher<std::tuple<QDateTime, QDateTime, int>>* replayTimeRangeWatcher;

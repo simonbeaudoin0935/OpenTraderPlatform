@@ -68,6 +68,18 @@ public:
     void setVolumeChartVisible(bool visible);
 
     /**
+     * @brief Checks if volume auto-rescale is enabled.
+     * @return True if volume Y-axis auto-rescales to visible range, false otherwise.
+     */
+    bool isVolumeAutoRescaleEnabled() const;
+
+    /**
+     * @brief Sets the volume auto-rescale state.
+     * @param enabled True to auto-rescale volume Y-axis to visible range, false to use full data range.
+     */
+    void setVolumeAutoRescaleEnabled(bool enabled);
+
+    /**
      * @brief Sets the available days for market replay.
      * @param days List of dates available for replay.
      */
@@ -156,6 +168,12 @@ signals:
     void volumeChartVisibilityChanged(bool visible);
 
     /**
+     * @brief Emitted when the volume auto-rescale state changes.
+     * @param enabled True if volume Y-axis should auto-rescale to visible range.
+     */
+    void volumeAutoRescaleChanged(bool enabled);
+
+    /**
      * @brief Emitted when the user selects a different replay day.
      * @param date The newly selected date for replay.
      */
@@ -199,6 +217,12 @@ private slots:
     void onVolumeCheckBoxChanged(int state);
 
     /**
+     * @brief Handles volume auto-rescale checkbox state changes.
+     * @param state The new state of the checkbox.
+     */
+    void onVolumeAutoRescaleCheckBoxChanged(int state);
+
+    /**
      * @brief Handles replay day combobox selection changes.
      * @param index The index of the selected item.
      */
@@ -226,6 +250,7 @@ private:
     QLabel* label;        ///< Label showing "Timeframe:"
     QCheckBox* autoCheckBox;  ///< Checkbox for auto timeframe selection
     QCheckBox* volumeCheckBox;  ///< Checkbox for volume chart visibility
+    QCheckBox* volumeAutoRescaleCheckBox;  ///< Checkbox for volume Y-axis auto-rescale to visible range
 
     QLabel* replayLabel;       ///< Label showing "Replay:"
     QLabel* replayInfoLabel;   ///< Label showing replay time range and bar count info

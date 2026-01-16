@@ -168,6 +168,8 @@ StockPriceChart::StockPriceChart(QWidget* parent)
     // Connect timeframe selector signals
     connect(chartToolbar, &ChartToolbar::volumeChartVisibilityChanged,
             this, &StockPriceChart::onVolumeChartVisibilityChanged);
+    connect(chartToolbar, &ChartToolbar::volumeAutoRescaleChanged,
+            this, &StockPriceChart::onVolumeAutoRescaleChanged);
     connect(chartToolbar, &ChartToolbar::replayDayChanged,
             this, &StockPriceChart::onReplayDayChanged);
     connect(chartToolbar, &ChartToolbar::wheelRatioChanged, this,
@@ -449,13 +451,20 @@ void StockPriceChart::updateVolumeData()
 }
 
 /**
- * @brief Rescales the volume Y-axis based on the maximum volume of visible bars.
+ * @brief Rescales the volume Y-axis based on the second highest volume of visible bars.
  * 
- * This ensures the highest volume bar in the visible range fills the full vertical height
- * of the volume chart, providing optimal visual scaling.
+ * Uses the second highest volume bar to determine the Y-axis range, which helps avoid
+ * erratic single high-volume bars from skewing the scale. If there's only one bar with
+ * volume, the highest is used instead.
+ * 
+ * Only performs rescaling if m_volumeAutoRescaleEnabled is true.
  */
 void StockPriceChart::rescaleVolumeAxisToVisibleRange()
 {
+    if (!m_volumeAutoRescaleEnabled) {
+        return;
+    }
+
     if (indexToBar.isEmpty()) {
         return;
     }
@@ -465,21 +474,32 @@ void StockPriceChart::rescaleVolumeAxisToVisibleRange()
     const int visibleStart = qMax(static_cast<int>(qFloor(xRange.lower)), indexToBar.firstKey());
     const int visibleEnd = qMin(static_cast<int>(qCeil(xRange.upper)), indexToBar.lastKey());
 
-    // Find maximum volume in visible range
-    qint64 maxVolume = 0;
+    // Track the two highest volumes
+    qint64 highestVolume = 0;
+    qint64 secondHighestVolume = 0;
+    
     for (int i = visibleStart; i <= visibleEnd; ++i) {
         if (indexToBar.contains(i)) {
             const Bar& bar = indexToBar[i];
             const Bar::BarStatus status = bar.getBarStatus();
             if (status == Bar::BarStatus::Open || status == Bar::BarStatus::Closed) {
-                maxVolume = qMax(maxVolume, static_cast<qint64>(bar.getTotalVolume()));
+                const qint64 volume = static_cast<qint64>(bar.getTotalVolume());
+                if (volume > highestVolume) {
+                    secondHighestVolume = highestVolume;
+                    highestVolume = volume;
+                } else if (volume > secondHighestVolume) {
+                    secondHighestVolume = volume;
+                }
             }
         }
     }
 
-    if (maxVolume > 0) {
+    // Use second highest if available, otherwise fall back to highest
+    const qint64 scaleVolume = (secondHighestVolume > 0) ? secondHighestVolume : highestVolume;
+
+    if (scaleVolume > 0) {
         // Add small padding (5%) at the top for visual clarity
-        const double upperBound = maxVolume * 1.05;
+        const double upperBound = scaleVolume * 1.05;
         m_volumeAxisRect->axis(QCPAxis::atLeft)->setRange(0.0, upperBound);
     }
 }
