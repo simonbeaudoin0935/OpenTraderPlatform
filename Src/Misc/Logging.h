@@ -5,7 +5,16 @@
 #include <QMap>
 #include <QSettings>
 #include <QObject>
+#include <QMetaEnum>
 
+namespace QtEnum
+{
+    template <typename Enum>
+    QString toString(Enum value)
+    {
+        return QMetaEnum::fromType<Enum>().valueToKey(static_cast<int>(value));
+    }
+}
 
 #define DEBUG    qCDebug(LOGGING_CATEGORY)    << this->objectName()
 #define INFO     qCInfo(LOGGING_CATEGORY)     << this->objectName()
