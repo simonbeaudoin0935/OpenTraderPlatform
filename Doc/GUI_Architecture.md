@@ -83,6 +83,7 @@ classDiagram
         -QTableView* tableView
         -QStandardItemModel* model
         -QMap<QString, int> positionRowMap
+        -QMap<QString, int> symbolRowMap
         +explicit PositionWindow(QWidget*)
         +~PositionWindow()
         +updatePosition(QString, Position)
