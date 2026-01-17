@@ -3,6 +3,7 @@
 #include <QHeaderView>
 #include <QVBoxLayout>
 #include <QLabel>
+#include <QtDebug>
 
 PositionWindow::PositionWindow(QWidget* parent)
     : QWidget(parent)
@@ -99,27 +100,61 @@ void PositionWindow::setupStyles() {
 
 void PositionWindow::updatePosition(const QString& account, const Position& position) {
     QString positionId = position.getPositionID();
+    QString symbol = position.getSymbol();
+    
+    Q_ASSERT(!positionId.isEmpty());
+    Q_ASSERT(!symbol.isEmpty());
     
     if (positionRowMap.contains(positionId)) {
-        // Update existing position
+        // Update existing position with the same positionID
         updatePositionRow(account, position);
+    } else if (symbolRowMap.contains(symbol)) {
+        // Reuse existing row for this symbol (handles reopening closed positions)
+        int row = symbolRowMap[symbol];
+        Q_ASSERT(row >= 0 && row < model->rowCount());
+        
+        // Remove old positionID mapping if it exists
+        QString oldPositionId = positionRowMap.key(row, QString());
+        if (!oldPositionId.isEmpty()) {
+            positionRowMap.remove(oldPositionId);
+        }
+        
+        // Update mappings with new positionID
+        positionRowMap[positionId] = row;
+        
+        // Update the row with new position data
+        QList<QStandardItem*> items = createRowItems(position);
+        for (int col = 0; col < items.size(); ++col) {
+            model->setItem(row, col, items[col]);
+        }
     } else {
-        // Add new position
+        // Add new position (first time seeing this symbol)
         QList<QStandardItem*> rowItems = createRowItems(position);
         model->appendRow(rowItems);
-        positionRowMap[positionId] = model->rowCount() - 1;
+        int newRow = model->rowCount() - 1;
+        positionRowMap[positionId] = newRow;
+        symbolRowMap[symbol] = newRow;
     }
 }
 
 void PositionWindow::updatePositionRow(const QString& account, const Position& position) {
     Q_UNUSED(account);
 
-    int row = positionRowMap[position.getPositionID()];
+    QString positionId = position.getPositionID();
+    Q_ASSERT(positionRowMap.contains(positionId));
+    
+    int row = positionRowMap[positionId];
+    Q_ASSERT(row >= 0 && row < model->rowCount());
+    
     QList<QStandardItem*> items = createRowItems(position);
     
     for (int col = 0; col < items.size(); ++col) {
         model->setItem(row, col, items[col]);
     }
+    
+    // Ensure symbolRowMap is up to date (in case symbol changed, though unlikely)
+    QString symbol = position.getSymbol();
+    symbolRowMap[symbol] = row;
 }
 
 QList<QStandardItem*> PositionWindow::createRowItems(const Position& position) {
@@ -172,10 +207,17 @@ void PositionWindow::onPositionDeleted(const QString& account, const QString& po
 
     if (positionRowMap.contains(positionID)) {
         int row = positionRowMap[positionID];
+        Q_ASSERT(row >= 0 && row < model->rowCount());
+        
         // Set quantity to 0 instead of removing the row
         auto quantityItem = new QStandardItem("0");
+        Q_CHECK_PTR(quantityItem);
         quantityItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
         model->setItem(row, 1, quantityItem);  // Column 1 is Quantity
+        
+        // Remove the positionID mapping (it won't be used anymore)
+        // but keep the symbolRowMap entry so we can reuse this row if the position is reopened
+        positionRowMap.remove(positionID);
     }
 }
 

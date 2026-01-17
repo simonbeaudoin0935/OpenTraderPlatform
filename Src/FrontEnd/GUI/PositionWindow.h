@@ -35,4 +35,7 @@ private:
 
     // Map to keep track of positions by their ID for updates
     QMap<QString, int> positionRowMap;  // Maps positionID to row index
+    
+    // Map to track which symbol is at which row (for reusing rows when reopening positions)
+    QMap<QString, int> symbolRowMap;  // Maps symbol to row index
 }; 
