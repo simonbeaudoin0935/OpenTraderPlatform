@@ -373,7 +373,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
             const bool isCurrentDay = (date == now.date());
 
             QDateTime endDayTime = QDateTime(date,
-                                             isCurrentDay ? now.time() : TRADING_END_TIME,
+                                             isCurrentDay && now.time() < TRADING_END_TIME ? now.time() : TRADING_END_TIME,
                                              QTimeZone("America/New_York"));
 
             DEBUG << "Fetching complete day from API:" << startDateTime << "to" << endDayTime;

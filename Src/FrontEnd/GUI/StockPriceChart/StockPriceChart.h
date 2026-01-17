@@ -90,7 +90,6 @@ private:
     std::tuple<QDateTime, QDateTime, int> queryStockTimeRangeForDate(const QString& symbol, const QDate& date);
 
     void redrawLastPriceLine();
-    void maintainBarLimit();
     void handleVerticalPanning(QWheelEvent* event);
     void handleHorizontalPanning(QWheelEvent* event);
     void handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor);

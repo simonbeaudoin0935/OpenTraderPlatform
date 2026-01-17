@@ -16,6 +16,17 @@
 #include <sstream>
 #include <mutex>
 
+// ANSI color codes
+#define RESET_COLOR   "\033[0m"
+#define RED_COLOR     "\033[31m"
+#define GREEN_COLOR   "\033[32m"
+#define YELLOW_COLOR  "\033[33m"
+#define BLUE_COLOR    "\033[34m"
+#define MAGENTA_COLOR "\033[35m"
+#define CYAN_COLOR    "\033[36m"
+#define WHITE_COLOR   "\033[37m"
+#define GRAY_COLOR    "\033[90m"
+
 // Mutex to protect log file and stdout access
 static std::recursive_mutex loggingMutex;
 
@@ -46,7 +57,7 @@ void crashHandler(int sig) {
         *logStream << QString::fromStdString(signalMsg);
         logStream->flush();
     }
-    std::cerr << signalMsg;
+    std::cerr << RED_COLOR << signalMsg << RESET_COLOR;
     
     printStackTrace();
     
@@ -171,17 +182,6 @@ void LoggingConfig::setInfoDisabled(bool disabled) {
     m_settings.sync();
 }
 
-// ANSI color codes
-#define RESET_COLOR "\033[0m"
-#define RED_COLOR "\033[31m"
-#define GREEN_COLOR "\033[32m"
-#define YELLOW_COLOR "\033[33m"
-#define BLUE_COLOR "\033[34m"
-#define MAGENTA_COLOR "\033[35m"
-#define CYAN_COLOR "\033[36m"
-#define WHITE_COLOR "\033[37m"
-#define GRAY_COLOR "\033[90m"
-
 void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {   
     QString colorCode;
@@ -269,9 +269,6 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
 
     std::cout << formattedMsg.toStdString() << std::endl;
     std::cout.flush();
-
-
-    
 
     LogBroadcaster::instance().broadcastLogMessage(htmlMsg);
 

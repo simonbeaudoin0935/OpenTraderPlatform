@@ -58,6 +58,7 @@ public:
         JSONError,
         Other
     };
+    Q_ENUM(Error)
 
 
     // Singleton : Instance getter

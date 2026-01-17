@@ -12,6 +12,8 @@
 #include <QDir>
 #include <QStandardPaths>
 
+class OrdersDatabase;
+
 class CacheTab : public QWidget {
     Q_OBJECT
 
@@ -23,6 +25,8 @@ private slots:
     void refreshCacheInfo();
     void clearSelectedCache();
     void clearAllCache();
+    void refreshOrdersDbInfo();
+    void clearOrdersDatabase();
 
 private:
     void setupUI();
@@ -35,4 +39,10 @@ private:
     QPushButton* clearAllButton;
     QLabel* totalSizeLabel;
     QTimer* refreshTimer;
+    
+    // Orders Database section
+    QLabel* ordersDbCountLabel;
+    QLabel* ordersDbSizeLabel;
+    QPushButton* ordersDbRefreshButton;
+    QPushButton* ordersDbClearButton;
 };

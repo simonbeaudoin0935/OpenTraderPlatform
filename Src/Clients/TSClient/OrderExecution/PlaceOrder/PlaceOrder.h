@@ -9,6 +9,7 @@
 
 // Enum for order types
 class OrderType {
+    Q_GADGET
 public:
     enum class Type {
         Market,
@@ -16,6 +17,7 @@ public:
         StopMarket,
         StopLimit
     };
+    Q_ENUM(Type)
 
     static QString toString(OrderType::Type type);
     static OrderType fromString(const QString &str);
