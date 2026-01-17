@@ -81,8 +81,8 @@ for FILE in $STAGED_FILES; do
         
         # Show a preview of the changes (first 10 lines of diff)
         echo -e "${YELLOW}    Preview of required changes:${NC}"
-        diff -u "$FILE" "$TMP_FILE" | head -15 | tail -n +3 | while read -r line; do
-            echo -e "${YELLOW}    $line${NC}"
+        diff -u "$FILE" "$TMP_FILE" | awk 'NR>=3 && NR<=15 {print "    " $0}' | while read -r line; do
+            echo -e "${YELLOW}$line${NC}"
         done
     else
         echo -e "${GREEN}  ✓ Formatting OK${NC}"
@@ -105,7 +105,7 @@ if [ $FORMATTING_ISSUES -gt 0 ] || [ $TRAILING_WHITESPACE_ISSUES -gt 0 ]; then
         echo ""
         echo "Or to format all staged files automatically:"
         echo ""
-        echo "  git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cpp|cc|cxx|h|hpp)$' | xargs uncrustify -c .uncrustify.cfg --no-backup --replace"
+        echo "  git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cpp|cc|cxx|h|hpp)$' | xargs -r uncrustify -c .uncrustify.cfg --no-backup --replace"
         echo ""
     fi
     
