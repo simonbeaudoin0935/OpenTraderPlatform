@@ -85,6 +85,12 @@ public:
     double getFilledPrice() const { return filledPrice; }
     QDateTime getOpenedDateTime() const { return openedDateTime; }
     QString getRouting() const { return routing; }
+    std::optional<QDateTime> getReceivedTime() const { return receivedTime; }
+    std::optional<QDateTime> getFilledTime() const { return filledTime; }
+
+    // Setters for tracking times
+    void setReceivedTime(const QDateTime& p_time) { receivedTime = p_time; }
+    void setFilledTime(const QDateTime& p_time) { filledTime = p_time; }
 
     QString accountID;
     std::optional<AdvancedOptions> advancedOptions;
@@ -126,6 +132,10 @@ public:
 
 
     bool isUpdate = false;                // Whether this order is an update
+
+    // Tracking times for order lifecycle
+    std::optional<QDateTime> receivedTime;  // When we first received this order
+    std::optional<QDateTime> filledTime;    // When this order was filled
 
 };
 

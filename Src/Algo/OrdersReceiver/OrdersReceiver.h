@@ -2,8 +2,11 @@
 
 #include <QObject>
 #include <QFutureWatcher>
+#include <QDateTime>
+#include <QMap>
 
 #include "StreamOrders.h"
+#include "OrdersDatabase.h"
 
 Q_DECLARE_LOGGING_CATEGORY(OrdersReceiverLog)
 
@@ -21,10 +24,17 @@ signals:
 
 private slots:
     void onReceivedNewOrder(Order order);
+    void onEndSnapshotReceived();
 
 private:
     QPointer<StreamOrders> m_stream = nullptr;
     QString m_account;
+    OrdersDatabase* m_database = nullptr;
+    bool m_receivedEndSnapshot = false;
+    
+    // Track orders for the initial snapshot validation
+    QMap<QString, QDateTime> m_snapshotOrders;  // orderID -> received time
 
     void createOrdersStream();
+    void validateSnapshotOrders();
 };

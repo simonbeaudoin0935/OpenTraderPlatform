@@ -30,7 +30,7 @@ void OrderWindow::setupUI() {
 
     // Setup model columns
     QStringList headers;
-    headers << "Order ID" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "DateTime" << "Status";
+    headers << "Order ID" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "DateTime" << "Filled Time" << "Status";
     m_model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -54,7 +54,9 @@ void OrderWindow::setupUI() {
     m_tableView->setColumnWidth(4, 70);  // Type
     m_tableView->setColumnWidth(5, 60);  // Limit
     m_tableView->setColumnWidth(6, 60);  // Stop
-    m_tableView->setColumnWidth(7, 100); // Status
+    m_tableView->setColumnWidth(7, 100); // DateTime
+    m_tableView->setColumnWidth(8, 100); // Filled Time
+    m_tableView->setColumnWidth(9, 100); // Status
 
     // Add widgets to layout
     mainLayout->addWidget(m_headerLabel);
@@ -256,6 +258,24 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     dateTimeItem->setToolTip(dateTimeStr);  // Show full datetime on hover
     items << dateTimeItem;
 
+    // Filled Time
+    QString filledTimeStr = "-";
+    if (order.getFilledTime().has_value()) {
+        QDateTime filledDateTime = MarketHours::toNewYorkTime(order.getFilledTime().value());
+        QString filledFullTimeStr = filledDateTime.toString("MM/dd/yyyy hh:mm:ss");
+        filledTimeStr = filledDateTime.toString("hh:mm:ss");
+        auto filledTimeItem = new QStandardItem(filledTimeStr);
+        Q_CHECK_PTR(filledTimeItem);
+        filledTimeItem->setTextAlignment(Qt::AlignCenter);
+        filledTimeItem->setToolTip(filledFullTimeStr);  // Show full datetime on hover
+        items << filledTimeItem;
+    } else {
+        auto filledTimeItem = new QStandardItem(filledTimeStr);
+        Q_CHECK_PTR(filledTimeItem);
+        filledTimeItem->setTextAlignment(Qt::AlignCenter);
+        items << filledTimeItem;
+    }
+
     // Status
     auto statusItem = new QStandardItem(order.getStatusDescription());
     Q_CHECK_PTR(statusItem);
@@ -339,7 +359,7 @@ void OrderWindow::onSymbolClicked(const QModelIndex& index) {
     QString orderId = orderIdItem->text();
     
     // Check if this row has "Received" or "Queued" status (last column)
-    QStandardItem* statusItem = m_model->item(index.row(), 8);  // Status column
+    QStandardItem* statusItem = m_model->item(index.row(), 9);  // Status column (now at index 9)
     bool isCancelableOrder = (statusItem != nullptr && 
                              (statusItem->text().contains("Received", Qt::CaseInsensitive) ||
                               statusItem->text().contains("Queued", Qt::CaseInsensitive)));
