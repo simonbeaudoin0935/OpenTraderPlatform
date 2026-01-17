@@ -3,7 +3,6 @@
 #include <QLoggingCategory>
 #include <QMap>
 #include <QReadWriteLock>
-#include <QSqlDatabase>
 #include <QFuture>
 
 #include <expected>
@@ -25,8 +24,8 @@ public:
 
     const QString& getSymbol() const { return m_symbol;};
 
-    typedef std::variant < std::unique_ptr<QVector<Bar>>,
-                           QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> >
+    typedef std::variant < std::shared_ptr<QVector<Bar>>,
+                           QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> >
             GetBarsResult_t;
 
     /*
@@ -34,7 +33,7 @@ public:
      *
      * @note : Both date-times must be in America/New_York timezone
      */
-    GetBarsResult_t getBars(const QDate &day, const QTime &first, const QTime &last) const;
+    GetBarsResult_t getBars(const QDate &day, const QTime &first, const QTime &last);
 
     void clearDatabase();
 
@@ -62,13 +61,7 @@ private:
 
     void storeBarInCache(const Bar& bar);
 
-    // We take
-    void storeBarsInCache(const QDate &date, const std::unique_ptr<QVector<Bar>> &bars) const;
-
-    void storeBarsInDatabase(const QDate &date, const std::unique_ptr<QVector<Bar>> &bars) const;
-
-    std::optional<std::unique_ptr<QVector<Bar>>>
-    getBarsFromDatabase(QDate date, QTime start, QTime end) const;
+    void storeBarsInCache(const QDate &date, const std::shared_ptr<QVector<Bar>> bars);
 
     void handleReceivedAllPendingGetBarsRequests();
     QVector<Bar> fillHolesOfReceivedRequest(const QDateTime& first, const QDateTime& last, const QVector<Bar>& barsFromAPI) const;
@@ -83,10 +76,10 @@ private:
 
     const QString m_symbol;
     const bool m_isStreaming;
-    QSqlDatabase m_db;
+    QString m_dbPath; // Path to the database file (managed by DatabaseThread)
     QPointer<StreamBars> m_stream;
 
-    mutable QReadWriteLock m_barCacheRwLock; // Protects m_barCacheByDay
+    mutable QReadWriteLock m_barCacheRwLock; // Protects m_barCacheByDay, mutable for use in const methods
     // Day-based storage: one QVector per trading day. Vector index maps to minute within trading day.
-    mutable QMap<QDate, QVector<Bar>> m_barCacheByDay;
+    QMap<QDate, QVector<Bar>> m_barCacheByDay;
 };

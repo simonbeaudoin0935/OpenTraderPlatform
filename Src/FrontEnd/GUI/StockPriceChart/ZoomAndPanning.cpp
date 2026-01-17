@@ -12,9 +12,11 @@ void StockPriceChart::onAxisRangeChanged()
 
     updateAxisLabelsDensity();
     redrawLastPriceLine();
+    rescaleVolumeAxisToVisibleRange();
     
-    // Update session backgrounds for the current visible range
-    drawBackgroundsForVisibleRange();
+    // Note: Background rectangles are created once when bars are received,
+    // QCustomPlot handles clipping to visible range automatically.
+    // No need to recreate them on every axis change.
     
     // Check for missing bars when view extends beyond available data
     double minIndex = m_customPlot->xAxis->range().lower;
@@ -49,6 +51,20 @@ void StockPriceChart::onVolumeChartVisibilityChanged(bool visible)
     m_customPlot->plotLayout()->updateLayout();
     // Replot to update layout
     m_customPlot->replot();
+}
+
+/**
+ * @brief Slot called when volume auto-rescale state changes.
+ */
+void StockPriceChart::onVolumeAutoRescaleChanged(bool enabled)
+{
+    m_volumeAutoRescaleEnabled = enabled;
+    
+    if (enabled) {
+        // Immediately rescale to visible range
+        rescaleVolumeAxisToVisibleRange();
+        m_customPlot->replot();
+    }
 }
 
 /**

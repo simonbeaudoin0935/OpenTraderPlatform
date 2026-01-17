@@ -2,204 +2,242 @@
 
 ## Overview
 
-The BarCache class provides efficient caching of 1-minute stock bars using a day-based storage approach. Each trading day (6am-8pm ET) is stored in a separate QVector, with bars indexed by their minute offset from 6am.
+The BarCache class provides efficient caching of 1-minute stock bars using a day-based storage approach. Each trading day (6:01am-8:00pm ET) is stored in a separate QVector, with bars indexed by their minute offset. Database operations are handled asynchronously via a dedicated `DatabaseThread` singleton.
 
 ## Key Design Principles
 
 1. **Day-Based Storage**: Uses `QMap<QDate, QVector<Bar>>` where each QVector represents one complete trading day
-2. **Complete Day Rule**: If a day exists in the cache, ALL bars for that day are available (except for current day streaming)
-3. **Index-Based Access**: Each bar's position in the vector corresponds to its minute offset from 6am (index 0 = 6:00am, index 840 = 8:00pm)
-4. **Pre-Allocated Vectors**: Day vectors are pre-allocated to 841 bars (6:00am to 8:00pm inclusive) for efficiency
+2. **Complete Day Rule**: If a day exists in the cache, ALL bars for that day are available. The exception is for the current day; for past days, if the date is in the QMap, it means the QVector of bars for that day will contain all 840 minute bars. Even for minutes where no trades happened, there will still be a 'null' bar for that minute. This is a design choice, so that an algorithm can iterate through all 840 bars and know it's stepping one minute at a time, and take action on whether or not the minute had any trades.
+3. **Index-Based Access**: Each bar's position in the vector corresponds to its minute offset (index 0 = 6:01am bar, index 839 = 8:00pm bar)
+4. **Pre-Allocated Vectors**: Day vectors are pre-allocated to 840 bars for efficiency
+5. **TradeStation Timestamp Quirk**: TradeStation timestamps minute bars at the **end** of the minute interval, not the beginning. This means:
+   - The first tradeable minute (06:00:00 to 06:00:59) is timestamped as **06:01** — there is no bar with timestamp 06:00
+   - The last bar of the day IS timestamped **20:00** (representing the 19:59:00 to 19:59:59 interval)
+   - Therefore, valid bar timestamps range from 06:01 to 20:00 inclusive (840 bars total)
+6. **Asynchronous Database Operations**: All database I/O is performed on a dedicated `DatabaseThread` to avoid blocking the main thread
+7. **Thread-Safe Access**: Memory cache is protected by `QReadWriteLock` for concurrent access
+
 
 ## Class Diagram
 
 ```mermaid
 classDiagram
     class BarCache {
-        -QString symbol
-        -bool isStreaming
-        -QMap<QDate, QVector<Bar>> barCacheByDay
-        -QReadWriteLock barCacheRwLock
-        -QSqlDatabase db
-        -StreamBars* streamBar
-        -quint64 duplicateStoreCount
+        -QString m_symbol
+        -bool m_isStreaming
+        -QString m_dbPath
+        -QPointer~StreamBars~ m_stream
+        -QReadWriteLock m_barCacheRwLock
+        -QMap~QDate, QVector~Bar~~ m_barCacheByDay
 
         +BarCache(QString symbol, bool isStreaming, QObject* parent)
         +~BarCache()
-        +QString getSymbol() const
-        +unsigned int getNumberOfBars() const
-        +bool warmUpBarsOfDayUntilNow(QDate)
-        +GetBarsResult_t getBars(QDateTime first, QDateTime last)
-        +qsizetype getDuplicateStoreCount() const
+        +const QString& getSymbol() const
+        +GetBarsResult_t getBars(QDate day, QTime first, QTime last)
         +void clearDatabase()
 
+        -void startStream()
+        -static size_t timeToIndex(QTime time)
+        -static QTime indexToTime(size_t index)
+        -QVector~Bar~& getOrCreateDayVector(QDate date)
+        -optional~unique_ptr~QVector~Bar~~~ getBarsFromCache(QDate, QTime, QTime) const
         -void storeBarInCache(const Bar& bar)
-        -void storeBarsInCache(const QVector<Bar>& bars)
-        -QVector<Bar> getBarsFromCache(QDateTime start, QDateTime end) const
-        -QVector<Bar> getBarsFromDatabase(QDateTime start, QDateTime end) const
-        -void storeBarsInDatabase(const QVector<Bar>& bars)
-        -size_t timeToIndex(QTime time)
-        -QTime indexToTime(size_t index)
-        -QVector<Bar>& getOrCreateDayVector(QDate date)
-        -const QVector<Bar>* getDayVector(QDate date) const
-        -void onReceivedNewBar(QString symbol, Bar newBar)
+        -void storeBarsInCache(QDate, shared_ptr~QVector~Bar~~)
+        -QVector~Bar~ fillHolesOfReceivedRequest(QDateTime, QDateTime, QVector~Bar~) const
+        -void onReceivedNewLiveBar(Bar newBar)
 
-        #signals
-        +receivedNewBar(QString symbol, Bar newBar)
+        +signals receivedNewBar(QString symbol, Bar newBar)
+
+        +TRADING_START_TIME$ QTime
+        +TRADING_END_TIME$ QTime
+        +BARS_PER_DAY$ unsigned int
     }
 
     class Bar {
-        -QDateTime timestamp
-        -float open
-        -float high
-        -float low
-        -float close
-        -qint64 volume
-        -BarStatus status
+        -QDateTime m_timeStamp
+        -float m_open
+        -float m_high
+        -float m_low
+        -float m_close
+        -quint64 m_totalVolume
+        -quint8 m_flags
 
         +QDateTime getTimeStamp() const
         +float getOpen() const
         +float getHigh() const
         +float getLow() const
         +float getClose() const
-        +qint64 getTotalVolume() const
+        +quint64 getTotalVolume() const
         +BarStatus getBarStatus() const
         +bool getIsRealtime() const
         +static Bar nullBar(QDateTime timestamp)
     }
 
+    class BarStatus {
+        <<enumeration>>
+        Uninitialized
+        Null
+        Open
+        Closed
+    }
+
     class StreamBars {
-        +signals
-        +receivedNewBar(QString symbol, Bar newBar)
+        +QFuture~optional~QString~~ future()
+        +signals newBarReceived(Bar newBar)
+    }
+
+    class DatabaseThread {
+        <<singleton>>
+        +static DatabaseThread* getInstance()
+        +void start()
+        +QFuture~bool~ openDatabase(QString symbol, QString dbPath)
+        +void closeDatabase(QString symbol)
+        +QFuture~optional~unique_ptr~QVector~Bar~~~~ getBarsFromDatabase(QString, QDate, QTime, QTime)
+        +QFuture~int~ storeBarsInDatabase(QString, QDate, shared_ptr~QVector~Bar~~)
+        +QFuture~bool~ clearDatabase(QString symbol)
     }
 
     class TSClient {
-        +static TSClient& getInstance()
-        +bool getBarsSync(QVector<Bar>& bars, QString symbol, int interval, BarUnit unit, int sessions, BarSessionTemplate template, QDateTime start, QDateTime end)
-        +StreamBars* openStreamBars(QString symbol, int interval, BarUnit unit, int sessions, BarSessionTemplate template)
-        +void closeStreamBars(StreamBars* stream)
+        <<singleton>>
+        +static TSClient* getInstance()
+        +QFuture~expected~unique_ptr~QVector~Bar~~, Error~~ getBars(...)
+        +StreamBars* openStreamBars(...)
+        +void closeStream(StreamBars* stream)
     }
 
-    BarCache --> HitType : uses
     BarCache --> Bar : contains
     BarCache --> StreamBars : manages
+    BarCache --> DatabaseThread : uses
     BarCache --> TSClient : uses
-    BarCache --> QSqlDatabase : uses
-    BarCache --> QReadWriteLock : uses
-    BarCache --> QMap : uses
+    Bar --> BarStatus : has
 ```
 
 ## Database Schema
 
+The database file is named `bars_cache_{symbol}.db` and is managed entirely by `DatabaseThread`.
+
 ```mermaid
 erDiagram
     BARS {
-        INTEGER timestamp PK
+        INTEGER timestamp PK "Unix epoch seconds"
         REAL open
         REAL high
         REAL low
         REAL close
         INTEGER volume
+        INTEGER status "BarStatus enum value"
     }
 ```
 
-## Sequence Diagram - getBarsInRange() Method (New Complete Day Logic)
+## Sequence Diagram - getBars() Method
 
 ```mermaid
 sequenceDiagram
     participant Client
     participant BarCache
     participant MemoryCache
-    participant Database
+    participant DatabaseThread
     participant TSClient
 
-    Client->>BarCache: getBarsInRange(first, last)
-    Note over BarCache: Assert single-day range
+    Client->>BarCache: getBars(date, first, last)
+    Note over BarCache: Assert: weekday, valid hours,<br/>not future date/time
     
-    BarCache->>MemoryCache: Check if day exists in cache
+    BarCache->>MemoryCache: getBarsFromCache(date, first, last)
     
-    alt Day exists in memory cache
-        MemoryCache-->>BarCache: Day vector found
-        BarCache->>BarCache: Extract requested range from day vector
-        BarCache-->>Client: Return bars (Complete HIT)
-    else Day not in memory
-        BarCache->>Database: getBarsFromDatabase(6am-8pm for day)
-        Database-->>BarCache: dbBars[]
+    alt Day exists and range is initialized
+        MemoryCache-->>BarCache: unique_ptr<QVector<Bar>>
+        BarCache-->>Client: Return bars immediately (variant holds shared_ptr)
+    else Cache miss (day missing or uninitialized bars)
+        MemoryCache-->>BarCache: std::nullopt
         
-        alt Complete day in database
-            BarCache->>MemoryCache: storeBarsInCache(complete day)
-            BarCache->>BarCache: Extract requested range
-            BarCache-->>Client: Return bars (Database HIT)
-        else Incomplete/Missing day in database
-            BarCache->>TSClient: Fetch complete day from API (6am-8pm)
-            TSClient-->>BarCache: Complete day bars[]
+        BarCache->>DatabaseThread: getBarsFromDatabase(symbol, date, first, last)
+        Note over BarCache: Returns QFuture - async
+        
+        DatabaseThread-->>BarCache: optional<unique_ptr<QVector<Bar>>>
+        
+        alt Database has complete range
+            BarCache->>MemoryCache: storeBarsInCache(date, bars)
+            BarCache-->>Client: Resolve QFuture with bars
+        else Database miss
+            Note over BarCache: Determine fetch range:<br/>Past day: 6:01am-8:00pm<br/>Current day: 6:01am to now
+            
+            BarCache->>TSClient: getBars(symbol, startDateTime, endDateTime)
+            TSClient-->>BarCache: expected<unique_ptr<QVector<Bar>>, Error>
+            
             BarCache->>BarCache: fillHolesOfReceivedRequest()
-            BarCache->>MemoryCache: storeBarsInCache(complete day)
-            BarCache->>Database: storeBarsInDatabase(complete day)
-            BarCache-->>Client: Return QFuture (API fetch in progress)
+            BarCache->>MemoryCache: storeBarsInCache(date, bars)
+            BarCache->>DatabaseThread: storeBarsInDatabase(symbol, date, bars)
+            Note over DatabaseThread: Fire-and-forget async storage
+            
+            BarCache-->>Client: Resolve QFuture with bars
         end
     end
 ```
 
-## Flowchart - New Complete Day Cache Logic
+## Flowchart - getBars() Logic
 
 ```mermaid
 flowchart TD
-    START(["getBarsInRange(first, last)"]) --> ASSERT["Assert: Single day range<br/>Trading hours: 6am-8pm"]
-    ASSERT --> CHECK_DAY["Check if day exists<br/>in memory cache"]
+    START(["getBars(date, first, last)"]) --> ASSERT["Assert preconditions:<br/>• Weekday (Mon-Fri)<br/>• 6:01am ≤ time ≤ 8:00pm<br/>• Not future date/time<br/>• Seconds/ms are zero"]
+    ASSERT --> CHECK_MEMORY["Check memory cache<br/>getBarsFromCache()"]
     
-    CHECK_DAY -->|"Day exists"| EXTRACT_MEMORY["Extract requested range<br/>from day vector"]
-    EXTRACT_MEMORY --> HIT["Return Complete HIT"]
+    CHECK_MEMORY -->|"Hit: all bars initialized"| RETURN_SYNC["Return shared_ptr<QVector<Bar>><br/>(synchronous)"]
     
-    CHECK_DAY -->|"Day missing"| CHECK_DB["Query database for<br/>complete day (6am-8pm)"]
-    CHECK_DB --> DB_COMPLETE{"Complete day<br/>in database?"}
+    CHECK_MEMORY -->|"Miss"| CHECK_DB["Query DatabaseThread<br/>(async)"]
     
-    DB_COMPLETE -->|"Yes"| LOAD_DAY["Load complete day<br/>into memory cache"]
-    LOAD_DAY --> EXTRACT_DB["Extract requested range"]
-    EXTRACT_DB --> DB_HIT["Return Database HIT"]
+    CHECK_DB --> DB_RESULT{"Database<br/>has data?"}
     
-    DB_COMPLETE -->|"No"| IS_TODAY{"Is this<br/>current day?"}
-    IS_TODAY -->|"Yes"| FETCH_PARTIAL["Fetch API: 6am to now"]
-    IS_TODAY -->|"No"| FETCH_FULL["Fetch API: 6am to 8pm"]
+    DB_RESULT -->|"Yes"| STORE_MEMORY["Store in memory cache"]
+    STORE_MEMORY --> RESOLVE_DB["Resolve QFuture<br/>with bars"]
     
-    FETCH_PARTIAL --> FILL_HOLES["Fill holes with null bars"]
+    DB_RESULT -->|"No"| DETERMINE_RANGE{"Current day?"}
+    
+    DETERMINE_RANGE -->|"Yes"| FETCH_PARTIAL["Fetch API: 6:01am to now"]
+    DETERMINE_RANGE -->|"No"| FETCH_FULL["Fetch API: 6:01am to 8:00pm"]
+    
+    FETCH_PARTIAL --> FILL_HOLES["fillHolesOfReceivedRequest()<br/>Insert null bars for gaps"]
     FETCH_FULL --> FILL_HOLES
     
-    FILL_HOLES --> STORE_BOTH["Store complete day in:<br/>- Memory cache<br/>- Database"]
-    STORE_BOTH --> ASYNC["Return QFuture<br/>(async fetch)"]
+    FILL_HOLES --> STORE_BOTH["Store in:<br/>• Memory cache (sync)<br/>• Database (async)"]
+    STORE_BOTH --> RESOLVE_API["Resolve QFuture<br/>with bars"]
     
-    HIT --> END(["End"])
-    DB_HIT --> END
-    ASYNC --> END
+    RETURN_SYNC --> END(["End"])
+    RESOLVE_DB --> END
+    RESOLVE_API --> END
 ```
 
 ## State Diagram - BarCache Lifecycle
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Created: BarCache(symbol, isStreaming)
-    Created --> DatabaseInitialized: Setup SQLite DB
-    DatabaseInitialized --> StreamInitialized: if isStreaming
-
-    Created --> DatabaseInitialized
-    DatabaseInitialized --> Ready
-
-    Ready --> Fetching: getBars() called
-    Fetching --> Ready: Bars returned
-
-    Ready --> Streaming: Real-time bars received
-    Streaming --> Ready: Bars stored
-
+    [*] --> Created: BarCache(symbol, isStreaming, parent)
+    
+    Created --> InitializingDB: Open database via DatabaseThread
+    
+    InitializingDB --> Ready: Database opened (async)
+    InitializingDB --> StreamStarted: if isStreaming
+    
+    StreamStarted --> Ready: Stream connected
+    
+    Ready --> Fetching: getBars() cache miss
+    Fetching --> Ready: Bars received & cached
+    
+    Ready --> Streaming: Live bar received
+    Streaming --> Ready: Bar stored in cache
+    
+    Ready --> StreamReconnecting: Stream error
+    StreamReconnecting --> Ready: Stream reconnected
+    
     Ready --> [*]: ~BarCache()
 
-    note right of DatabaseInitialized
-        Creates bars_cache_{symbol}.db
-        Creates bars table if needed
+    note right of Created
+        Sets up database path:
+        {cacheLocation}/bars_cache_{symbol}.db
     end note
 
-    note right of StreamInitialized
-        Connects to TSClient stream
-        Listens for new bars
+    note right of StreamStarted
+        Connects to TSClient::openStreamBars()
+        with auto-reconnect on failure
     end note
 ```
 
@@ -209,27 +247,32 @@ stateDiagram-v2
 graph TB
     subgraph "BarCache System"
         BC[BarCache]
-        MC["Memory Cache<br/>(QMap&lt;QDate, QVector&lt;Bar&gt;&gt;)<br/>Day-based storage"]
-        DB[("SQLite Database<br/>(bars_cache_{symbol}.db)")]
+        MC["Memory Cache<br/>(QMap&lt;QDate, QVector&lt;Bar&gt;&gt;)<br/>Protected by QReadWriteLock"]
         SB[StreamBars]
     end
+    
+    subgraph "Database Layer"
+        DBT["DatabaseThread<br/>(Singleton)"]
+        DB[("SQLite Database<br/>bars_cache_{symbol}.db")]
+    end
 
-    subgraph "External Dependencies"
-        TSC[TSClient]
+    subgraph "External API"
+        TSC["TSClient<br/>(Singleton)"]
         API["TradeStation API"]
     end
 
     BC --> MC
-    BC --> DB
+    BC --> DBT
     BC --> SB
+    DBT --> DB
     SB --> TSC
     TSC --> API
 
-    BC -.->|"1. Check if day exists"| MC
-    BC -.->|"2. Load complete day from DB"| DB
-    BC -.->|"3. Fetch complete day from API"| TSC
-    BC -.->|"Store complete day"| DB
-    BC -.->|"Cache complete day"| MC
+    BC -.->|"1. Check memory cache"| MC
+    BC -.->|"2. Query database (async)"| DBT
+    BC -.->|"3. Fetch from API (async)"| TSC
+    BC -.->|"Store bars (async)"| DBT
+    BC -.->|"Cache bars"| MC
     SB -.->|"Stream live bars"| BC
 ```
 
@@ -238,28 +281,67 @@ graph TB
 ### Memory Cache Structure
 - **Container**: `QMap<QDate, QVector<Bar>>`
 - **Key**: Trading date (QDate)
-- **Value**: Vector of 841 bars (one per minute, 6:00am-8:00pm inclusive)
-- **Index Mapping**: `index = (hour - 6) * 60 + minute`
-  - Index 0 = 6:00am
-  - Index 1 = 6:01am
+- **Value**: Vector of exactly 840 bars (6:01am to 8:00pm inclusive)
+- **Thread Safety**: Protected by `mutable QReadWriteLock m_barCacheRwLock`
+- **Index Mapping**: `index = (hour - 6) * 60 + minute - 1`
+  - Index 0 = 6:01am bar
+  - Index 1 = 6:02am bar
   - ...
-  - Index 839 = 7:59pm
-  - Index 840 = 8:00pm
+  - Index 509 = 2:30pm bar
+  - Index 839 = 8:00pm bar
 
 ### Complete Day Rule
-- **Invariant**: If a QDate exists in the map, ALL bars for that day must be present
-- **Exception**: Current day (streaming) may have partial data from 6am to now
+- **Invariant**: If a QDate exists in the map, the QVector is pre-allocated to 840 bars
+- **Uninitialized Detection**: Bars with `BarStatus::Uninitialized` indicate missing data (cache miss)
+- **Exception**: Current day (streaming) may have partial data from 6:01am to now
 - **Benefit**: Simplifies cache logic - no need to track partial day states
 
-### Index Calculation Example
+### Index Calculation (Current Implementation)
 ```cpp
-// Convert time to vector index
-QTime time(14, 30, 0);  // 2:30 PM
-size_t index = (14 - 6) * 60 + 30;  // = 8 * 60 + 30 = 510
+// Constants
+static inline const QTime TRADING_START_TIME = QTime(6, 1);  // 6:01 AM ET
+static inline const QTime TRADING_END_TIME = QTime(20, 0);   // 8:00 PM ET
+static constexpr unsigned int BARS_PER_DAY = 840;
 
-// Convert index back to time
-size_t index = 510;
-int hour = 6 + (510 / 60);  // = 6 + 8 = 14
-int minute = 510 % 60;       // = 30
-// Result: 14:30 (2:30 PM)
+// Convert time to vector index (0-839)
+size_t BarCache::timeToIndex(const QTime& time)
+{
+    // time must be between 6:01 AM and 8:00 PM inclusive
+    size_t minutesSince6AM = (time.hour() - 6) * 60 + time.minute();
+    size_t index = minutesSince6AM - 1;  // -1 because first bar is 6:01, not 6:00
+    return index;  // Range: 0 to 839
+}
+
+// Convert index back to bar timestamp
+QTime BarCache::indexToTime(size_t index)
+{
+    size_t adjustedMinutes = index + 1;  // +1 to offset back
+    int hour = 6 + (adjustedMinutes / 60);
+    int minute = adjustedMinutes % 60;
+    return QTime(hour, minute, 0);
+}
+
+// Examples:
+// timeToIndex(QTime(6, 1))   → 0    (first bar)
+// timeToIndex(QTime(14, 30)) → 509  (2:30 PM bar)
+// timeToIndex(QTime(20, 0))  → 839  (last bar)
 ```
+
+### Return Type: GetBarsResult_t
+
+The `getBars()` method returns a variant that can hold either:
+1. **Synchronous result**: `std::shared_ptr<QVector<Bar>>` - when data is in memory cache
+2. **Asynchronous result**: `QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>` - when data must be fetched from database or API
+
+```cpp
+typedef std::variant<
+    std::shared_ptr<QVector<Bar>>,
+    QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>
+> GetBarsResult_t;
+```
+
+### Bar Status States
+- **Uninitialized**: Default state, bar has never been set (cache miss indicator)
+- **Null**: Bar was set but represents a minute with no trading activity
+- **Open**: Live bar still being updated (current minute)
+- **Closed**: Complete bar, no more updates expected

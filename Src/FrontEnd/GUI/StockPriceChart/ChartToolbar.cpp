@@ -24,6 +24,11 @@ ChartToolbar::ChartToolbar(QWidget* parent)
     volumeCheckBox = new QCheckBox("Volume", this);
     volumeCheckBox->setChecked(true); // Volume visible by default
 
+    // Create the volume auto-rescale checkbox
+    volumeAutoRescaleCheckBox = new QCheckBox("Vol Auto-Scale", this);
+    volumeAutoRescaleCheckBox->setChecked(true); // Auto-rescale enabled by default
+    volumeAutoRescaleCheckBox->setToolTip("Auto-rescale volume Y-axis to visible bar range");
+
     // Create replay controls
     replayLabel = new QLabel("Replay:", this);
     replayLabel->setStyleSheet("font-weight: bold;");
@@ -86,6 +91,7 @@ ChartToolbar::ChartToolbar(QWidget* parent)
     layout->addWidget(comboBox);
     layout->addWidget(autoCheckBox);
     layout->addWidget(volumeCheckBox);
+    layout->addWidget(volumeAutoRescaleCheckBox);
     layout->addStretch(); // Push replay widgets to the right
     layout->addWidget(replayLabel);
     layout->addWidget(replayInfoLabel);
@@ -101,6 +107,8 @@ ChartToolbar::ChartToolbar(QWidget* parent)
             this, &ChartToolbar::onAutoCheckBoxChanged);
     connect(volumeCheckBox, &QCheckBox::stateChanged,
             this, &ChartToolbar::onVolumeCheckBoxChanged);
+    connect(volumeAutoRescaleCheckBox, &QCheckBox::stateChanged,
+            this, &ChartToolbar::onVolumeAutoRescaleCheckBoxChanged);
     connect(replayDayCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &ChartToolbar::onReplayDayChanged);
     connect(replayTimeEdit, &QTimeEdit::timeChanged,
@@ -264,6 +272,20 @@ void ChartToolbar::setVolumeChartVisible(bool visible) {
 }
 
 /**
+ * @brief Checks if volume auto-rescale is enabled.
+ */
+bool ChartToolbar::isVolumeAutoRescaleEnabled() const {
+    return volumeAutoRescaleCheckBox->isChecked();
+}
+
+/**
+ * @brief Sets the volume auto-rescale state.
+ */
+void ChartToolbar::setVolumeAutoRescaleEnabled(bool enabled) {
+    volumeAutoRescaleCheckBox->setChecked(enabled);
+}
+
+/**
  * @brief Handles combobox selection changes.
  */
 void ChartToolbar::onComboBoxChanged(int index) {
@@ -287,6 +309,14 @@ void ChartToolbar::onAutoCheckBoxChanged(int state) {
 void ChartToolbar::onVolumeCheckBoxChanged(int state) {
     bool visible = (state == Qt::Checked);
     emit volumeChartVisibilityChanged(visible);
+}
+
+/**
+ * @brief Handles volume auto-rescale checkbox state changes.
+ */
+void ChartToolbar::onVolumeAutoRescaleCheckBoxChanged(int state) {
+    bool enabled = (state == Qt::Checked);
+    emit volumeAutoRescaleChanged(enabled);
 }
 
 /**

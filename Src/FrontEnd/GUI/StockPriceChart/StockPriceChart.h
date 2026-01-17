@@ -9,6 +9,7 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QFuture>
 #include <QFutureWatcher>
+#include <QSemaphore>
 
 #include "qcustomplot.h"
 #include "Bar.h"
@@ -57,11 +58,12 @@ signals:
 
 public slots:
     void addLiveBar(const QString& symbol, const Bar& bar);
-    void onRequestedMissingBarsReceived(const std::unique_ptr<QVector<Bar>>& barsPtr);
+    void onRequestedMissingBarsReceived(const std::shared_ptr<QVector<Bar>> barsPtr);
 
 private slots:
     void onAxisRangeChanged();
     void onVolumeChartVisibilityChanged(bool visible);
+    void onVolumeAutoRescaleChanged(bool enabled);
     void onReplayDayChanged(const QDate& date);
     void onReplayTimeRangeQueryFinished();
 
@@ -108,6 +110,7 @@ private:
     void updateAxisLabelsDensity();
     void updateCandlestickData();
     void updateVolumeData();
+    void rescaleVolumeAxisToVisibleRange();
     
     // Background rendering methods
     void drawBackgroundsForReceivedBars(const QVector<Bar>& bars);
@@ -130,6 +133,7 @@ private:
     // Background rectangles for different market sessions
     QList<QCPItemRect*> m_preMarketRects;
     QList<QCPItemRect*> m_afterHoursRects;
+    QSet<QDate> m_datesWithBackgrounds;  // Track which dates already have backgrounds drawn
     // The double associatives maps indexToBar and timestampToIndex are used to avoid caring about
     // the time when the market is
     //QList<QCPItemRect*> m_closedMarketRects;
@@ -141,10 +145,15 @@ private:
     // Timeframe selector widget
     ChartToolbar* chartToolbar;
 
-    bool currentGetBarsRequestInProcess = false;
+    // Binary semaphore to track if a missing bars request is in progress
+    // Initialized with count 1 (not acquired). Acquire before requesting, release when received.
+    QSemaphore m_missingBarsRequestSemaphore{1};
     
     // Wheel zoom sensitivity ratio
     qreal wheelZoomRatio = 1.0;
+    
+    // Volume auto-rescale state
+    bool m_volumeAutoRescaleEnabled = true;
     
     // Replay functionality
     QFutureWatcher<std::tuple<QDateTime, QDateTime, int>>* replayTimeRangeWatcher;

@@ -5,8 +5,10 @@ project(L2Trader VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -fno-exceptions")
+# Disable exceptions - must define QT_NO_EXCEPTIONS for Qt headers to match
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -fno-exceptions")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+#add_compile_definitions(QT_NO_EXCEPTIONS)
 
 # Enable export of compile commands for IDE support
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

@@ -143,6 +143,7 @@ add_executable(test_RunUpDetector
 
 target_link_libraries(test_RunUpDetector PRIVATE
     Qt6::Core
+    Qt6::Concurrent
     Qt6::Network
     Qt6::Sql
     Qt6::Test
@@ -172,9 +173,14 @@ target_include_directories(test_RunUpDetector PRIVATE
     ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution/CancelOrder
     ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/OrderExecution/PlaceOrder
     ${CMAKE_SOURCE_DIR}/Src/Clients/TSClient/Stream
+    ${CMAKE_SOURCE_DIR}/Src/Core
     ${CMAKE_SOURCE_DIR}/Src/Core/Cache
     ${CMAKE_SOURCE_DIR}/Src/Core/Cache/BarCache
+    ${CMAKE_SOURCE_DIR}/Src/FrontEnd
     ${CMAKE_SOURCE_DIR}/Src/Algo
+    ${CMAKE_SOURCE_DIR}/Src/Algo/MarketDepthQuoteReceiver
+    ${CMAKE_SOURCE_DIR}/Src/Algo/OrdersReceiver
+    ${CMAKE_SOURCE_DIR}/Src/Algo/PositionsReceiver
     ${CMAKE_SOURCE_DIR}/Src/Algo/RunUpDetector
 )
 
@@ -188,17 +194,23 @@ file(GLOB_RECURSE RUNUPDETECTOR_TEST_CLIENTS_SOURCES
 file(GLOB_RECURSE RUNUPDETECTOR_TEST_CACHE_SOURCES 
     "${CMAKE_SOURCE_DIR}/Src/Core/Cache/*.cpp"
 )
+file(GLOB_RECURSE RUNUPDETECTOR_TEST_CORE_SOURCES 
+    "${CMAKE_SOURCE_DIR}/Src/Core/*.cpp"
+)
 file(GLOB_RECURSE RUNUPDETECTOR_TEST_ALGO_SOURCES 
     "${CMAKE_SOURCE_DIR}/Src/Algo/RunUpDetector/*.cpp"
 )
 
 # Exclude GUI-specific sources (both .cpp and .h)
 list(FILTER RUNUPDETECTOR_TEST_CLIENTS_SOURCES EXCLUDE REGEX "AuthWindow\\.(cpp|h)$")
+# Exclude Core sources that are not needed or cause GUI linkage issues
+list(FILTER RUNUPDETECTOR_TEST_CORE_SOURCES EXCLUDE REGEX "Cache/")
 
 target_sources(test_RunUpDetector PRIVATE
     ${RUNUPDETECTOR_TEST_MISC_SOURCES}
     ${RUNUPDETECTOR_TEST_CLIENTS_SOURCES}
     ${RUNUPDETECTOR_TEST_CACHE_SOURCES}
+    ${RUNUPDETECTOR_TEST_CORE_SOURCES}
     ${RUNUPDETECTOR_TEST_ALGO_SOURCES}
 )
 
