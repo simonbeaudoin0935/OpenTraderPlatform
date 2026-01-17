@@ -18,10 +18,8 @@ OrdersReceiver::OrdersReceiver(const QString &p_account, QObject *p_parent) :
     
     DEBUG <<  "Starting Orders stream for account " << p_account;
     
-    // Initialize the orders database
-    QString cacheDir = getCacheLocation();
-    QString dbPath = cacheDir + "/orders.db";
-    m_database = new OrdersDatabase(dbPath, this);
+    // Get the singleton database instance
+    m_database = OrdersDatabase::getInstance();
     Q_CHECK_PTR(m_database);
     
     if (!m_database->isOpen()) {

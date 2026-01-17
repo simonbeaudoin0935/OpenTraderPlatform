@@ -7,18 +7,31 @@
 #include <QJsonArray>
 #include <QDir>
 #include <QFileInfo>
+#include <QStandardPaths>
+#include <QCoreApplication>
 
 #include "Logging.h"
+#include "Settings.h"
 
 #define LOGGING_CATEGORY OrdersDatabaseLog
 Q_LOGGING_CATEGORY(OrdersDatabaseLog, "OrdersDatabase");
 
-// Static counter for unique connection names
-int OrdersDatabase::s_instanceCounter = 0;
+// Static singleton instance
+OrdersDatabase* OrdersDatabase::s_instance = nullptr;
+
+OrdersDatabase* OrdersDatabase::getInstance(QObject* p_parent) {
+    if (s_instance == nullptr) {
+        QString cacheDir = getCacheLocation();
+        QString dbPath = cacheDir + "/orders.db";
+        s_instance = new OrdersDatabase(dbPath, p_parent);
+    }
+    return s_instance;
+}
 
 OrdersDatabase::OrdersDatabase(const QString& p_dbPath, QObject* p_parent)
     : QObject(p_parent)
     , m_dbPath(p_dbPath)
+    , m_connectionName("OrdersDB")  // Use fixed connection name for singleton
 {
     setObjectName("OrdersDatabase");
 
@@ -31,9 +44,6 @@ OrdersDatabase::OrdersDatabase(const QString& p_dbPath, QObject* p_parent)
             return;
         }
     }
-
-    // Generate unique connection name
-    m_connectionName = QString("OrdersDB_%1").arg(++s_instanceCounter);
     
     m_db = QSqlDatabase::addDatabase("QSQLITE", m_connectionName);
     m_db.setDatabaseName(p_dbPath);
@@ -52,6 +62,7 @@ OrdersDatabase::~OrdersDatabase() {
         m_db.close();
     }
     QSqlDatabase::removeDatabase(m_connectionName);
+    s_instance = nullptr;
 }
 
 void OrdersDatabase::createTable() {

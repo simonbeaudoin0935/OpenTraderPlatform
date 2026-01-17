@@ -326,15 +326,14 @@ void CacheTab::refreshOrdersDbInfo() {
     qint64 dbSize = dbFileInfo.size();
     ordersDbSizeLabel->setText(QString("Database Size: %1").arg(formatFileSize(dbSize)));
     
-    // Get order count by opening the database
-    OrdersDatabase* tempDb = new OrdersDatabase(dbPath, this);
-    if (tempDb->isOpen()) {
-        int orderCount = tempDb->getOrderCount();
+    // Get order count using singleton instance
+    OrdersDatabase* db = OrdersDatabase::getInstance();
+    if (db && db->isOpen()) {
+        int orderCount = db->getOrderCount();
         ordersDbCountLabel->setText(QString("Order Count: %1").arg(orderCount));
     } else {
         ordersDbCountLabel->setText("Order Count: Error reading database");
     }
-    delete tempDb;
 }
 
 void CacheTab::clearOrdersDatabase() {
@@ -358,10 +357,10 @@ void CacheTab::clearOrdersDatabase() {
     );
     
     if (reply == QMessageBox::Yes) {
-        // Open database and clear it
-        OrdersDatabase* tempDb = new OrdersDatabase(dbPath, this);
-        if (tempDb->isOpen()) {
-            if (tempDb->clearAllOrders()) {
+        // Use singleton instance to clear database
+        OrdersDatabase* db = OrdersDatabase::getInstance();
+        if (db && db->isOpen()) {
+            if (db->clearAllOrders()) {
                 QMessageBox::information(this, "Success", "Orders database has been cleared.");
                 refreshOrdersDbInfo();
             } else {
@@ -370,6 +369,5 @@ void CacheTab::clearOrdersDatabase() {
         } else {
             QMessageBox::warning(this, "Error", "Failed to open orders database.");
         }
-        delete tempDb;
     }
 }

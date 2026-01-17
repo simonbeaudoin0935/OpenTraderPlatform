@@ -12,18 +12,30 @@
 Q_DECLARE_LOGGING_CATEGORY(OrdersDatabaseLog)
 
 /**
- * @brief Database for persisting order history
+ * @brief Database for persisting order history (Singleton)
  * 
  * This class manages a SQLite database that stores all orders received through
  * the orders stream, including their received and filled timestamps. This allows
  * the application to maintain order history across restarts.
+ * 
+ * This is a singleton class - use getInstance() to get the single instance.
  */
 class OrdersDatabase : public QObject {
     Q_OBJECT
 
 public:
-    explicit OrdersDatabase(const QString& p_dbPath, QObject* p_parent = nullptr);
+    /**
+     * @brief Get the singleton instance of OrdersDatabase
+     * @param p_parent Optional parent object (only used on first call)
+     * @return Pointer to the singleton instance
+     */
+    static OrdersDatabase* getInstance(QObject* p_parent = nullptr);
+
     ~OrdersDatabase();
+
+    // Delete copy constructor and assignment operator
+    OrdersDatabase(const OrdersDatabase&) = delete;
+    OrdersDatabase& operator=(const OrdersDatabase&) = delete;
 
     /**
      * @brief Insert a new order into the database
@@ -79,13 +91,15 @@ public:
     bool clearAllOrders();
 
 private:
+    explicit OrdersDatabase(const QString& p_dbPath, QObject* p_parent = nullptr);
+    
     void createTable();
     QString orderStatusToString(Order::Status p_status) const;
     QString orderTypeToString(OrderType::Type p_type) const;
 
     QSqlDatabase m_db;
     QString m_dbPath;
-    QString m_connectionName;  // Unique connection name for this instance
+    QString m_connectionName;
     
-    static int s_instanceCounter;  // Counter for generating unique connection names
+    static OrdersDatabase* s_instance;  // Singleton instance
 };
