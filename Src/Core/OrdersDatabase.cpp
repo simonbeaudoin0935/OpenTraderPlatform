@@ -248,3 +248,28 @@ QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersData
 bool OrdersDatabase::isOpen() const {
     return m_db.isOpen();
 }
+
+int OrdersDatabase::getOrderCount() const {
+    QSqlQuery query(m_db);
+    if (!query.exec("SELECT COUNT(*) FROM orders")) {
+        WARNING << "Failed to get order count:" << query.lastError().text();
+        return 0;
+    }
+    
+    if (query.next()) {
+        return query.value(0).toInt();
+    }
+    
+    return 0;
+}
+
+bool OrdersDatabase::clearAllOrders() {
+    QSqlQuery query(m_db);
+    if (!query.exec("DELETE FROM orders")) {
+        WARNING << "Failed to clear orders:" << query.lastError().text();
+        return false;
+    }
+    
+    INFO << "Cleared all orders from database";
+    return true;
+}

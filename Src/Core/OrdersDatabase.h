@@ -60,8 +60,28 @@ public:
      */
     bool isOpen() const;
 
+    /**
+     * @brief Get the total number of orders in the database
+     * @return Total order count
+     */
+    int getOrderCount() const;
+
+    /**
+     * @brief Get the database file path
+     * @return Database file path
+     */
+    QString getDatabasePath() const { return m_dbPath; }
+
+    /**
+     * @brief Clear all orders from the database
+     * @return true if successful, false otherwise
+     */
+    bool clearAllOrders();
+
 private:
     void createTable();
+    QString orderStatusToString(OrderStatus p_status) const;
+    QString orderTypeToString(OrderType::Type p_type) const;
 
     QSqlDatabase m_db;
     QString m_dbPath;
