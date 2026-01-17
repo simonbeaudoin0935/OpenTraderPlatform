@@ -125,7 +125,12 @@ bool OrdersDatabase::insertOrder(const Order& p_order, const QDateTime& p_receiv
     // Filled time is null for new orders
     query.addBindValue(QVariant(QVariant::String));
     
-    // Store the full order as JSON for reconstruction
+    // Store a minimal order representation in JSON
+    // Note: We don't need to store the complete order data because orders are
+    // received from the stream on every startup. We only store the minimal data
+    // needed to identify the order (OrderID, AccountID, Symbol, etc.) along with
+    // the timestamps in dedicated columns. The full order data will be restored
+    // from the stream when the application restarts.
     QJsonObject jsonObj;
     jsonObj["OrderID"] = p_order.getOrderID();
     jsonObj["AccountID"] = p_order.getAccountID();
