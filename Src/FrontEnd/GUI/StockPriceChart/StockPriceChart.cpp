@@ -659,8 +659,6 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::unique_ptr<QVect
     
     DEBUG << "After addHistoricalBarsToIndexMapping, index range:" 
           << QString("%1 to %2").arg(indexToBar.firstKey()).arg(indexToBar.lastKey());
-
-    maintainBarLimit();
     
     // Draw background rectangles for the visible range
     drawBackgroundsForVisibleRange();
@@ -670,18 +668,6 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::unique_ptr<QVect
     updateVolumeData();
     
     m_customPlot->replot();
-}
-
-/**
- * @brief Maintains the maximum number of bars limit.
- */
-void StockPriceChart::maintainBarLimit()
-{
-    int totalBars = indexToBar.size();
-    
-    if (totalBars > MAX_BARS) {
-        CRITICAL << "TODO: deal with this scenario where we have more than MAX_BARS bars!";
-    }
 }
 
 /**
