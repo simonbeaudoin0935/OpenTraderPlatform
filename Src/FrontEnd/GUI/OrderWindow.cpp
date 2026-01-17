@@ -160,7 +160,7 @@ void OrderWindow::updateOrderRow(const QString& account, const Order& order) {
 
 QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     QList<QStandardItem*> items;
-    bool isReceivedOrder = (order.getOrderStatus() == OrderStatus::ACK);
+    bool isReceivedOrder = (order.getOrderStatus() == Order::Status::ACK);
 
     // Order ID
     auto orderIdItem = new QStandardItem(order.getOrderID());
@@ -283,51 +283,51 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     
     // Color code status based on OrderStatus enum
     switch (order.getOrderStatus()) {
-        case OrderStatus::FLL:  // Filled
+        case Order::Status::FLL:  // Filled
             statusItem->setBackground(QColor("#D4EDDA"));  // Light green
             statusItem->setForeground(QColor("#155724"));  // Dark green text
             break;
-        case OrderStatus::FLP:  // Partial Fill (UROut)
-        case OrderStatus::FPR:  // Partial Fill (Alive)
+        case Order::Status::FLP:  // Partial Fill (UROut)
+        case Order::Status::FPR:  // Partial Fill (Alive)
             statusItem->setBackground(QColor("#F8F9FA"));  // Light gray
             statusItem->setForeground(QColor("#383D41"));  // Dark gray text
             break;
-        case OrderStatus::REJ:  // Rejected
-        case OrderStatus::RJC:  // Cancel Request Rejected
+        case Order::Status::REJ:  // Rejected
+        case Order::Status::RJC:  // Cancel Request Rejected
             statusItem->setBackground(QColor("#F8D7DA"));  // Light red
             statusItem->setForeground(QColor("#721C24"));  // Dark red text
             break;
-        case OrderStatus::CAN:  // Canceled
-        case OrderStatus::TSC:  // Trade Server Canceled
-        case OrderStatus::EXP:  // Expired
-        case OrderStatus::BRO:  // Broken
+        case Order::Status::CAN:  // Canceled
+        case Order::Status::TSC:  // Trade Server Canceled
+        case Order::Status::EXP:  // Expired
+        case Order::Status::BRO:  // Broken
             statusItem->setBackground(QColor("#F8D7DA"));  // Light red
             statusItem->setForeground(QColor("#721C24"));  // Dark red text
             break;
-        case OrderStatus::OPN:  // Sent
-        case OrderStatus::UCN:  // Cancel Sent
-        case OrderStatus::RSN:  // Replace Sent
+        case Order::Status::OPN:  // Sent
+        case Order::Status::UCN:  // Cancel Sent
+        case Order::Status::RSN:  // Replace Sent
             statusItem->setBackground(QColor("#FFF3CD"));  // Light yellow
             statusItem->setForeground(QColor("#856404"));  // Dark yellow text
             break;
-        case OrderStatus::DON:  // Queued
+        case Order::Status::DON:  // Queued
             // Button styling for queued orders
             statusItem->setBackground(QColor("#007BFF"));
             statusItem->setForeground(QColor("#FFFFFF"));
             statusItem->setText("Queued ❌");  // Add X emoji to make it look like a cancel button
             break;
-        case OrderStatus::ACK:  // Received
+        case Order::Status::ACK:  // Received
             // Button styling for received orders
             statusItem->setBackground(QColor("#007BFF"));
             statusItem->setForeground(QColor("#FFFFFF"));
             statusItem->setText("Received ❌");  // Add X emoji to make it look like a cancel button
             break;
-        case OrderStatus::LAT:  // Too Late to Cancel
-        case OrderStatus::OUT:  // UROut
-        case OrderStatus::UCH:  // Replaced
-        case OrderStatus::CND:  // Condition Met
-        case OrderStatus::OSO:  // OSO Order
-        case OrderStatus::SUS:  // Suspended
+        case Order::Status::LAT:  // Too Late to Cancel
+        case Order::Status::OUT:  // UROut
+        case Order::Status::UCH:  // Replaced
+        case Order::Status::CND:  // Condition Met
+        case Order::Status::OSO:  // OSO Order
+        case Order::Status::SUS:  // Suspended
         default:
             // Default color for other statuses
             statusItem->setBackground(QColor("#F8F9FA"));  // Light gray
@@ -337,7 +337,7 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     
     // Set tooltip with detailed status information
     QString tooltipText = order.getStatusDescription();
-    if (order.getOrderStatus() == OrderStatus::OUT) {
+    if (order.getOrderStatus() == Order::Status::OUT) {
         tooltipText = "Successfully Cancelled (UROut)\n\nThis order was cancelled successfully.";
     } else if (order.rejectReason.has_value() && !order.rejectReason.value().isEmpty()) {
         tooltipText += "\n\nReject Reason: " + order.rejectReason.value();
@@ -390,17 +390,17 @@ QStringList OrderWindow::getCancellableOrderIds() const {
     // Only include orders that are in a cancellable state
     for (auto it = m_orders.constBegin(); it != m_orders.constEnd(); ++it) {
         const Order& order = it.value();
-        OrderStatus status = order.getOrderStatus();
+        Order::Status status = order.getOrderStatus();
         
         // Only cancel orders that are queued, received, or sent
         // Don't cancel filled, cancelled, rejected, expired, etc.
-        if (status == OrderStatus::DON ||   // Queued
-            status == OrderStatus::ACK ||   // Received
-            status == OrderStatus::OPN ||   // Sent
-            status == OrderStatus::FPR ||   // Partial Fill (Alive)
-            status == OrderStatus::CND ||   // Condition Met
-            status == OrderStatus::OSO ||   // OSO Order
-            status == OrderStatus::SUS) {   // Suspended
+        if (status == Order::Status::DON ||   // Queued
+            status == Order::Status::ACK ||   // Received
+            status == Order::Status::OPN ||   // Sent
+            status == Order::Status::FPR ||   // Partial Fill (Alive)
+            status == Order::Status::CND ||   // Condition Met
+            status == Order::Status::OSO ||   // OSO Order
+            status == Order::Status::SUS) {   // Suspended
             cancellableIds.append(it.key());
         }
     }

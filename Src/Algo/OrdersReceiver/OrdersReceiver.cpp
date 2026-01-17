@@ -105,7 +105,7 @@ void OrdersReceiver::onReceivedNewOrder(Order order)
         std::optional<QDateTime> filledTime;
         
         // Only set filled time if the order is now filled AND doesn't already have a filled time
-        if (order.getOrderStatus() == OrderStatus::FLL) {
+        if (order.getOrderStatus() == Order::Status::FLL) {
             if (!order.getFilledTime().has_value()) {
                 // This order was just filled now
                 filledTime = currentTime;

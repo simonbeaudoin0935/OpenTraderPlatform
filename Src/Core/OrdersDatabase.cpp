@@ -93,8 +93,8 @@ bool OrdersDatabase::insertOrder(const Order& p_order, const QDateTime& p_receiv
     query.addBindValue(p_order.getSymbol());
     query.addBindValue(p_order.getQuantity());
     query.addBindValue(p_order.getTradeAction());
-    query.addBindValue(orderTypeToString(p_order.getOrderType().type));
-    query.addBindValue(orderStatusToString(p_order.getOrderStatus()));
+    query.addBindValue(QtEnum::toString(p_order.getOrderType().type));
+    query.addBindValue(QtEnum::toString(p_order.getOrderStatus()));
     query.addBindValue(p_order.getStatusDescription());
     
     // Handle optional limit and stop prices
@@ -158,7 +158,7 @@ bool OrdersDatabase::updateOrder(const Order& p_order, const std::optional<QDate
         "WHERE order_id = ?";
 
     query.prepare(updateQuery);
-    query.addBindValue(orderStatusToString(p_order.getOrderStatus()));
+    query.addBindValue(QtEnum::toString(p_order.getOrderStatus()));
     query.addBindValue(p_order.getStatusDescription());
     query.addBindValue(p_order.getFilledPrice());
     
@@ -247,40 +247,4 @@ QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersData
 
 bool OrdersDatabase::isOpen() const {
     return m_db.isOpen();
-}
-
-QString OrdersDatabase::orderStatusToString(OrderStatus p_status) const {
-    switch (p_status) {
-        case OrderStatus::ACK: return "ACK";
-        case OrderStatus::BRO: return "BRO";
-        case OrderStatus::CAN: return "CAN";
-        case OrderStatus::EXP: return "EXP";
-        case OrderStatus::FLL: return "FLL";
-        case OrderStatus::FLP: return "FLP";
-        case OrderStatus::FPR: return "FPR";
-        case OrderStatus::LAT: return "LAT";
-        case OrderStatus::OPN: return "OPN";
-        case OrderStatus::OUT: return "OUT";
-        case OrderStatus::REJ: return "REJ";
-        case OrderStatus::UCH: return "UCH";
-        case OrderStatus::UCN: return "UCN";
-        case OrderStatus::TSC: return "TSC";
-        case OrderStatus::RJC: return "RJC";
-        case OrderStatus::DON: return "DON";
-        case OrderStatus::RSN: return "RSN";
-        case OrderStatus::CND: return "CND";
-        case OrderStatus::OSO: return "OSO";
-        case OrderStatus::SUS: return "SUS";
-        default: return "UNKNOWN";
-    }
-}
-
-QString OrdersDatabase::orderTypeToString(OrderType::Type p_type) const {
-    switch (p_type) {
-        case OrderType::Type::Market: return "Market";
-        case OrderType::Type::Limit: return "Limit";
-        case OrderType::Type::StopMarket: return "StopMarket";
-        case OrderType::Type::StopLimit: return "StopLimit";
-        default: return "Unknown";
-    }
 }

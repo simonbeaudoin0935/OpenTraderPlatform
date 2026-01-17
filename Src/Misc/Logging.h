@@ -14,6 +14,18 @@ namespace QtEnum
     {
         return QMetaEnum::fromType<Enum>().valueToKey(static_cast<int>(value));
     }
+
+    template <typename Enum>
+    std::optional<Enum> fromString(QStringView str)
+    {
+        bool ok = false;
+        const QMetaEnum meta = QMetaEnum::fromType<Enum>();
+        int value = meta.keyToValue(str.toLatin1().constData(), &ok);
+        if (!ok)
+            return std::nullopt;
+        return static_cast<Enum>(value);
+    }
+
 }
 
 #define DEBUG    qCDebug(LOGGING_CATEGORY)    << this->objectName()
