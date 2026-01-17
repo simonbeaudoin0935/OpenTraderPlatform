@@ -61,16 +61,22 @@ You will need API credentials for:
    cd L2Trader
    ```
 
-2. **Install Qt dependencies**:
+2. **Install dependencies**:
    ```bash
    # On Ubuntu/Debian
-   sudo apt-get install qt6-base-dev libqt6sql6-sqlite cmake
+   sudo apt-get install qt6-base-dev libqt6sql6-sqlite cmake uncrustify
 
    # On macOS with Homebrew
-   brew install qt@6 cmake
+   brew install qt@6 cmake uncrustify
    ```
 
-3. **Build the application**:
+3. **Set up Git hooks** (optional but recommended for contributors):
+   ```bash
+   ./Utils/install-git-hooks.sh
+   ```
+   This installs a pre-commit hook that checks code formatting. See [Git Pre-Commit Hook documentation](Doc/Git_Pre_Commit_Hook.md) for details.
+
+4. **Build the application**:
    ```bash
    mkdir build
    cd build
@@ -78,7 +84,7 @@ You will need API credentials for:
    cmake --build . --parallel
    ```
 
-4. **Run the application**:
+5. **Run the application**:
    ```bash
    ./src/L2Trader
    ```
@@ -230,6 +236,15 @@ The project includes VSCode configuration in `.vscode/`. For Qt Creator:
 - camelCase for methods and local variables
 - Header guards using `#pragma once`
 - Early return/exit style for error handling
+- Indentation: 4 spaces (no tabs)
+- Line endings: Unix (LF)
+- Automatic formatting via Uncrustify (see `.uncrustify.cfg`)
+
+**Code Formatting**: Contributors should install the pre-commit hook to automatically check formatting before commits:
+```bash
+./Utils/install-git-hooks.sh
+```
+See [Git Pre-Commit Hook documentation](Doc/Git_Pre_Commit_Hook.md) for more information.
 
 ## Contributing
 
