@@ -24,6 +24,7 @@ public:
         BKO,    // Book only
         PSO     // Add liquidity
     };
+    Q_ENUM(Type)
 
     Type type;
     std::optional<double> pegval;
