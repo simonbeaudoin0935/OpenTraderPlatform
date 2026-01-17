@@ -1,6 +1,37 @@
 # L2Trader Utils
 
-This directory contains utility scripts for analyzing and working with L2Trader data.
+This directory contains utility scripts for analyzing and working with L2Trader data, and tools for developers.
+
+## install-git-hooks.sh
+
+Installs Git hooks to enforce code quality standards.
+
+### Usage
+
+```bash
+./install-git-hooks.sh
+```
+
+This script will:
+1. Check if Uncrustify is installed
+2. Install the pre-commit hook to `.git/hooks/`
+3. Make the hook executable
+
+The pre-commit hook automatically checks:
+- Code formatting using Uncrustify
+- Trailing whitespace in C++ files
+
+See [Git Pre-Commit Hook documentation](../Doc/Git_Pre_Commit_Hook.md) for more information.
+
+### Requirements
+
+- `uncrustify` (install with `sudo apt-get install uncrustify` on Ubuntu/Debian)
+
+## git-hooks/
+
+Contains Git hook scripts that can be installed using `install-git-hooks.sh`.
+
+- **pre-commit**: Validates code formatting before commits
 
 ## analyze_db.sh
 
