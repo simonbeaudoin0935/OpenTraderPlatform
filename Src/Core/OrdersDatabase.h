@@ -62,6 +62,8 @@ public:
 
 private:
     void createTable();
+    QString orderStatusToString(OrderStatus p_status) const;
+    QString orderTypeToString(OrderType::Type p_type) const;
 
     QSqlDatabase m_db;
     QString m_dbPath;

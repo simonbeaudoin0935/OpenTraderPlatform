@@ -32,6 +32,13 @@ OrdersReceiver::OrdersReceiver(const QString &p_account, QObject *p_parent) :
     auto existingOrders = m_database->loadAllOrders();
     INFO << "Loaded" << existingOrders.size() << "orders from database";
     
+    // Store the loaded order times for restoring when we receive them in the snapshot
+    for (auto it = existingOrders.constBegin(); it != existingOrders.constEnd(); ++it) {
+        const QString& orderId = it.key();
+        const auto& [order, receivedTime, filledTime] = it.value();
+        m_loadedOrderTimes[orderId] = std::make_tuple(receivedTime, filledTime);
+    }
+    
     createOrdersStream();
 }
 
@@ -73,21 +80,39 @@ void OrdersReceiver::onReceivedNewOrder(Order order)
         m_snapshotOrders[orderId] = currentTime;
     }
     
-    // Check if this is a new order or an update
-    bool orderExists = m_database->orderExists(orderId);
+    // Check if this order was loaded from the database
+    bool wasLoadedFromDB = m_loadedOrderTimes.contains(orderId);
     
-    if (!orderExists) {
+    // Check if this is a new order or an update
+    bool orderExistsInDB = m_database->orderExists(orderId);
+    
+    if (!orderExistsInDB) {
         // New order - set received time and store in database
         order.setReceivedTime(currentTime);
         m_database->insertOrder(order, currentTime);
         DEBUG << "Stored new order" << orderId << "in database";
     } else {
-        // Existing order - check if it was just filled
+        // Existing order - restore times from database if available
+        if (wasLoadedFromDB) {
+            const auto& [loadedReceivedTime, loadedFilledTime] = m_loadedOrderTimes[orderId];
+            order.setReceivedTime(loadedReceivedTime);
+            if (loadedFilledTime.has_value()) {
+                order.setFilledTime(loadedFilledTime.value());
+            }
+        }
+        
+        // Check if it was just filled
         std::optional<QDateTime> filledTime;
-        if (order.getOrderStatus() == OrderStatus::FLL && !order.getFilledTime().has_value()) {
-            filledTime = currentTime;
-            order.setFilledTime(currentTime);
-            INFO << "Order" << orderId << "was filled at" << currentTime.toString(Qt::ISODate);
+        
+        // Only set filled time if the order is now filled AND doesn't already have a filled time
+        if (order.getOrderStatus() == OrderStatus::FLL) {
+            if (!order.getFilledTime().has_value()) {
+                // This order was just filled now
+                filledTime = currentTime;
+                order.setFilledTime(currentTime);
+                INFO << "Order" << orderId << "was filled at" << currentTime.toString(Qt::ISODate);
+            }
+            // If it already has a filled time, we keep the existing one (from database)
         }
         
         // Update the order in the database

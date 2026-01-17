@@ -260,21 +260,21 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
 
     // Filled Time
     QString filledTimeStr = "-";
+    QString filledFullTimeStr;
+    
     if (order.getFilledTime().has_value()) {
         QDateTime filledDateTime = MarketHours::toNewYorkTime(order.getFilledTime().value());
-        QString filledFullTimeStr = filledDateTime.toString("MM/dd/yyyy hh:mm:ss");
+        filledFullTimeStr = filledDateTime.toString("MM/dd/yyyy hh:mm:ss");
         filledTimeStr = filledDateTime.toString("hh:mm:ss");
-        auto filledTimeItem = new QStandardItem(filledTimeStr);
-        Q_CHECK_PTR(filledTimeItem);
-        filledTimeItem->setTextAlignment(Qt::AlignCenter);
-        filledTimeItem->setToolTip(filledFullTimeStr);  // Show full datetime on hover
-        items << filledTimeItem;
-    } else {
-        auto filledTimeItem = new QStandardItem(filledTimeStr);
-        Q_CHECK_PTR(filledTimeItem);
-        filledTimeItem->setTextAlignment(Qt::AlignCenter);
-        items << filledTimeItem;
     }
+    
+    auto filledTimeItem = new QStandardItem(filledTimeStr);
+    Q_CHECK_PTR(filledTimeItem);
+    filledTimeItem->setTextAlignment(Qt::AlignCenter);
+    if (!filledFullTimeStr.isEmpty()) {
+        filledTimeItem->setToolTip(filledFullTimeStr);  // Show full datetime on hover
+    }
+    items << filledTimeItem;
 
     // Status
     auto statusItem = new QStandardItem(order.getStatusDescription());

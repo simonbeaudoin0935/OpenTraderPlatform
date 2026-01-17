@@ -93,54 +93,8 @@ bool OrdersDatabase::insertOrder(const Order& p_order, const QDateTime& p_receiv
     query.addBindValue(p_order.getSymbol());
     query.addBindValue(p_order.getQuantity());
     query.addBindValue(p_order.getTradeAction());
-    
-    // Convert order type to string
-    QString orderTypeStr;
-    switch (p_order.getOrderType().type) {
-        case OrderType::Type::Market:
-            orderTypeStr = "Market";
-            break;
-        case OrderType::Type::Limit:
-            orderTypeStr = "Limit";
-            break;
-        case OrderType::Type::StopMarket:
-            orderTypeStr = "StopMarket";
-            break;
-        case OrderType::Type::StopLimit:
-            orderTypeStr = "StopLimit";
-            break;
-        default:
-            orderTypeStr = "Unknown";
-            break;
-    }
-    query.addBindValue(orderTypeStr);
-    
-    // Convert order status to string
-    QString orderStatusStr;
-    switch (p_order.getOrderStatus()) {
-        case OrderStatus::ACK: orderStatusStr = "ACK"; break;
-        case OrderStatus::BRO: orderStatusStr = "BRO"; break;
-        case OrderStatus::CAN: orderStatusStr = "CAN"; break;
-        case OrderStatus::EXP: orderStatusStr = "EXP"; break;
-        case OrderStatus::FLL: orderStatusStr = "FLL"; break;
-        case OrderStatus::FLP: orderStatusStr = "FLP"; break;
-        case OrderStatus::FPR: orderStatusStr = "FPR"; break;
-        case OrderStatus::LAT: orderStatusStr = "LAT"; break;
-        case OrderStatus::OPN: orderStatusStr = "OPN"; break;
-        case OrderStatus::OUT: orderStatusStr = "OUT"; break;
-        case OrderStatus::REJ: orderStatusStr = "REJ"; break;
-        case OrderStatus::UCH: orderStatusStr = "UCH"; break;
-        case OrderStatus::UCN: orderStatusStr = "UCN"; break;
-        case OrderStatus::TSC: orderStatusStr = "TSC"; break;
-        case OrderStatus::RJC: orderStatusStr = "RJC"; break;
-        case OrderStatus::DON: orderStatusStr = "DON"; break;
-        case OrderStatus::RSN: orderStatusStr = "RSN"; break;
-        case OrderStatus::CND: orderStatusStr = "CND"; break;
-        case OrderStatus::OSO: orderStatusStr = "OSO"; break;
-        case OrderStatus::SUS: orderStatusStr = "SUS"; break;
-        default: orderStatusStr = "UNKNOWN"; break;
-    }
-    query.addBindValue(orderStatusStr);
+    query.addBindValue(orderTypeToString(p_order.getOrderType().type));
+    query.addBindValue(orderStatusToString(p_order.getOrderStatus()));
     query.addBindValue(p_order.getStatusDescription());
     
     // Handle optional limit and stop prices
@@ -199,33 +153,7 @@ bool OrdersDatabase::updateOrder(const Order& p_order, const std::optional<QDate
         "WHERE order_id = ?";
 
     query.prepare(updateQuery);
-    
-    // Convert order status to string
-    QString orderStatusStr;
-    switch (p_order.getOrderStatus()) {
-        case OrderStatus::ACK: orderStatusStr = "ACK"; break;
-        case OrderStatus::BRO: orderStatusStr = "BRO"; break;
-        case OrderStatus::CAN: orderStatusStr = "CAN"; break;
-        case OrderStatus::EXP: orderStatusStr = "EXP"; break;
-        case OrderStatus::FLL: orderStatusStr = "FLL"; break;
-        case OrderStatus::FLP: orderStatusStr = "FLP"; break;
-        case OrderStatus::FPR: orderStatusStr = "FPR"; break;
-        case OrderStatus::LAT: orderStatusStr = "LAT"; break;
-        case OrderStatus::OPN: orderStatusStr = "OPN"; break;
-        case OrderStatus::OUT: orderStatusStr = "OUT"; break;
-        case OrderStatus::REJ: orderStatusStr = "REJ"; break;
-        case OrderStatus::UCH: orderStatusStr = "UCH"; break;
-        case OrderStatus::UCN: orderStatusStr = "UCN"; break;
-        case OrderStatus::TSC: orderStatusStr = "TSC"; break;
-        case OrderStatus::RJC: orderStatusStr = "RJC"; break;
-        case OrderStatus::DON: orderStatusStr = "DON"; break;
-        case OrderStatus::RSN: orderStatusStr = "RSN"; break;
-        case OrderStatus::CND: orderStatusStr = "CND"; break;
-        case OrderStatus::OSO: orderStatusStr = "OSO"; break;
-        case OrderStatus::SUS: orderStatusStr = "SUS"; break;
-        default: orderStatusStr = "UNKNOWN"; break;
-    }
-    query.addBindValue(orderStatusStr);
+    query.addBindValue(orderStatusToString(p_order.getOrderStatus()));
     query.addBindValue(p_order.getStatusDescription());
     query.addBindValue(p_order.getFilledPrice());
     
@@ -314,4 +242,40 @@ QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersData
 
 bool OrdersDatabase::isOpen() const {
     return m_db.isOpen();
+}
+
+QString OrdersDatabase::orderStatusToString(OrderStatus p_status) const {
+    switch (p_status) {
+        case OrderStatus::ACK: return "ACK";
+        case OrderStatus::BRO: return "BRO";
+        case OrderStatus::CAN: return "CAN";
+        case OrderStatus::EXP: return "EXP";
+        case OrderStatus::FLL: return "FLL";
+        case OrderStatus::FLP: return "FLP";
+        case OrderStatus::FPR: return "FPR";
+        case OrderStatus::LAT: return "LAT";
+        case OrderStatus::OPN: return "OPN";
+        case OrderStatus::OUT: return "OUT";
+        case OrderStatus::REJ: return "REJ";
+        case OrderStatus::UCH: return "UCH";
+        case OrderStatus::UCN: return "UCN";
+        case OrderStatus::TSC: return "TSC";
+        case OrderStatus::RJC: return "RJC";
+        case OrderStatus::DON: return "DON";
+        case OrderStatus::RSN: return "RSN";
+        case OrderStatus::CND: return "CND";
+        case OrderStatus::OSO: return "OSO";
+        case OrderStatus::SUS: return "SUS";
+        default: return "UNKNOWN";
+    }
+}
+
+QString OrdersDatabase::orderTypeToString(OrderType::Type p_type) const {
+    switch (p_type) {
+        case OrderType::Type::Market: return "Market";
+        case OrderType::Type::Limit: return "Limit";
+        case OrderType::Type::StopMarket: return "StopMarket";
+        case OrderType::Type::StopLimit: return "StopLimit";
+        default: return "Unknown";
+    }
 }

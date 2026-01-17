@@ -34,6 +34,9 @@ private:
     
     // Track orders for the initial snapshot validation
     QMap<QString, QDateTime> m_snapshotOrders;  // orderID -> received time
+    
+    // Cache of loaded orders with their timestamps
+    QMap<QString, std::tuple<QDateTime, std::optional<QDateTime>>> m_loadedOrderTimes;  // orderID -> (receivedTime, filledTime)
 
     void createOrdersStream();
     void validateSnapshotOrders();
