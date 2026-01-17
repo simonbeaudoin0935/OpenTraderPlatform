@@ -85,4 +85,7 @@ private:
 
     QSqlDatabase m_db;
     QString m_dbPath;
+    QString m_connectionName;  // Unique connection name for this instance
+    
+    static int s_instanceCounter;  // Counter for generating unique connection names
 };

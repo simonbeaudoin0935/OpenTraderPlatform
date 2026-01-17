@@ -13,6 +13,9 @@
 #define LOGGING_CATEGORY OrdersDatabaseLog
 Q_LOGGING_CATEGORY(OrdersDatabaseLog, "OrdersDatabase");
 
+// Static counter for unique connection names
+int OrdersDatabase::s_instanceCounter = 0;
+
 OrdersDatabase::OrdersDatabase(const QString& p_dbPath, QObject* p_parent)
     : QObject(p_parent)
     , m_dbPath(p_dbPath)
@@ -29,7 +32,10 @@ OrdersDatabase::OrdersDatabase(const QString& p_dbPath, QObject* p_parent)
         }
     }
 
-    m_db = QSqlDatabase::addDatabase("QSQLITE", "OrdersDB");
+    // Generate unique connection name
+    m_connectionName = QString("OrdersDB_%1").arg(++s_instanceCounter);
+    
+    m_db = QSqlDatabase::addDatabase("QSQLITE", m_connectionName);
     m_db.setDatabaseName(p_dbPath);
 
     if (!m_db.open()) {
@@ -45,7 +51,7 @@ OrdersDatabase::~OrdersDatabase() {
     if (m_db.isOpen()) {
         m_db.close();
     }
-    QSqlDatabase::removeDatabase("OrdersDB");
+    QSqlDatabase::removeDatabase(m_connectionName);
 }
 
 void OrdersDatabase::createTable() {
