@@ -64,9 +64,8 @@ public:
     // Singleton : Instance getter
     [[nodiscard]] static TSClient* getInstance();
 
-    TSClient(const TSClient&) = delete; // Delete copy constructor
+    Q_DISABLE_COPY(TSClient) // Delete copy constructor and assignment operator
     TSClient(TSClient&&) = delete; // Delete move constructor
-    TSClient& operator=(const TSClient&) = delete; // Delete copy assignment
     TSClient& operator=(TSClient&&) = delete; // Delete move assignment
 
 

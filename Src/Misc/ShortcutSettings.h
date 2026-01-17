@@ -95,9 +95,7 @@ private:
     ShortcutSettings();
     ~ShortcutSettings() override = default;
 
-    // Delete copy constructor and assignment operator
-    ShortcutSettings(const ShortcutSettings&) = delete;
-    ShortcutSettings& operator=(const ShortcutSettings&) = delete;
+    Q_DISABLE_COPY(ShortcutSettings) // Delete copy constructor and assignment operator
 
     /**
      * @brief Load shortcuts from settings
