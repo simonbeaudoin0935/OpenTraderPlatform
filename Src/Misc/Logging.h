@@ -32,6 +32,8 @@ namespace QtEnum
 #define INFO     qCInfo(LOGGING_CATEGORY)     << this->objectName()
 #define WARNING  qCWarning(LOGGING_CATEGORY)  << this->objectName()
 #define CRITICAL qCCritical(LOGGING_CATEGORY) << this->objectName()
+#define FATAL    qFatal
+
 
 void initLogging();
 void reinstallColoredMessageHandler();
