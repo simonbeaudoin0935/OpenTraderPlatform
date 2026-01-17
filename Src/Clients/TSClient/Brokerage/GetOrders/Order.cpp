@@ -41,6 +41,7 @@ Order::Order(const QJsonObject &jsonObj, bool isUpdate_) :
 
     if (jsonObj.contains("AdvancedOptions")) {
         //TODO
+        qCritical() << "AdvancedOptions parsing not implemented yet";
     }
 
     // Parse timestamps
