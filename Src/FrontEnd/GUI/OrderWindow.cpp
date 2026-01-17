@@ -40,7 +40,7 @@ void OrderWindow::setupUI() {
     m_tableView->setSelectionMode(QAbstractItemView::NoSelection);
     m_tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_tableView->setAlternatingRowColors(true);
-    m_tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
     // Connect click signal
     auto c = connect(m_tableView, &QTableView::clicked, this, &OrderWindow::onSymbolClicked, Qt::UniqueConnection);
@@ -63,12 +63,16 @@ void OrderWindow::setupUI() {
     mainLayout->addWidget(m_headerLabel);
     mainLayout->addWidget(m_tableView);
 
-    // Set fixed width based on total column widths
+    // Set a reasonable maximum width to fit on screen, but allow the table to scroll horizontally
+    // Calculate total width for all columns
     int totalWidth = 0;
     for (int i = 0; i < headers.size(); ++i) {
         totalWidth += m_tableView->columnWidth(i);
     }
-    setFixedWidth(totalWidth);
+    
+    // Set maximum width to accommodate content, but widget can be smaller and scroll
+    setMaximumWidth(totalWidth + 20);  // Add padding for scrollbar
+    setMinimumWidth(400);  // Ensure minimum usable width
 }
 
 void OrderWindow::setupStyles() {
