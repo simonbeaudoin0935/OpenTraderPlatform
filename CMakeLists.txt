@@ -99,9 +99,11 @@ add_compile_definitions(
     GIT_BRANCH="${GIT_BRANCH}"
 )
 
-# Enable stack trace symbol resolution
+# Enable stack trace symbol resolution using C++23 stacktrace
+# No longer need -rdynamic flag as C++23 handles this internally
+# Library stdc++_libbacktrace is needed for stacktrace support
 if(UNIX AND NOT APPLE)
-    add_link_options(-rdynamic)
+    link_libraries(stdc++_libbacktrace)
 endif()
 
 # Add subdirectories

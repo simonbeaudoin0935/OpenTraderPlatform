@@ -289,25 +289,12 @@ void MainAlgo::requestBalance()
         [this](std::expected<QVector<Balance>, TSClient::Error> results)
         {
             if (results.has_value()) {
-                qCDebug(MainAlgoLog) << "getBalances() succeeded with" << results.value().size() << "balances";
+                // DEBUG << "getBalances() succeeded with" << results.value().size() << "balances";
                 onBalanceReceived(results.value());
                 return;
             } else {
-                TSClient::Error error = results.error();
-                switch (error) {
-                    case TSClient::Error::Timeout:
-                        CRITICAL << "getBalances() failed with Timeout error";
-                        break;
-                    case TSClient::Error::JSONError:
-                        CRITICAL << "getBalances() failed with JSON error";
-                        break;
-                    case TSClient::Error::Other:
-                        CRITICAL << "getBalances() failed with Other error";
-                        break;
-                    default:
-                        CRITICAL << "getBalances() failed with Unknown error";
-                        break;
-                }
+                // TODO do something smarter with errors
+                CRITICAL << "getBalances() failed with" << QtEnum::toString(results.error());
             }
         });
 }

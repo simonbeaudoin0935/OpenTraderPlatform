@@ -4,6 +4,7 @@
 #include <QDirIterator>
 #include <QStandardPaths>
 #include "Settings.h"
+#include "OrdersDatabase.h"
 
 CacheTab::CacheTab(QWidget* parent)
     : QWidget(parent),
@@ -12,14 +13,22 @@ CacheTab::CacheTab(QWidget* parent)
       clearSelectedButton(nullptr),
       clearAllButton(nullptr),
       totalSizeLabel(nullptr),
-      refreshTimer(nullptr)
+      refreshTimer(nullptr),
+      ordersDbCountLabel(nullptr),
+      ordersDbSizeLabel(nullptr),
+      ordersDbRefreshButton(nullptr),
+      ordersDbClearButton(nullptr)
 {
     setupUI();
     refreshCacheInfo();
+    refreshOrdersDbInfo();
 
     // Set up auto-refresh timer (every 30 seconds)
     refreshTimer = new QTimer(this);
-    connect(refreshTimer, &QTimer::timeout, this, &CacheTab::refreshCacheInfo);
+    connect(refreshTimer, &QTimer::timeout, this, [this]() {
+        refreshCacheInfo();
+        refreshOrdersDbInfo();
+    });
     refreshTimer->start(30000);
 }
 
@@ -74,10 +83,43 @@ void CacheTab::setupUI() {
 
     mainLayout->addWidget(cacheGroupBox);
 
+    // Orders Database section
+    QGroupBox* ordersDbGroupBox = new QGroupBox("Orders Database");
+    QVBoxLayout* ordersDbLayout = new QVBoxLayout(ordersDbGroupBox);
+
+    // Statistics
+    QHBoxLayout* ordersStatsLayout = new QHBoxLayout();
+    ordersDbCountLabel = new QLabel("Order Count: Calculating...");
+    ordersDbSizeLabel = new QLabel("Database Size: Calculating...");
+    
+    ordersStatsLayout->addWidget(ordersDbCountLabel);
+    ordersStatsLayout->addSpacing(20);
+    ordersStatsLayout->addWidget(ordersDbSizeLabel);
+    ordersStatsLayout->addStretch();
+    
+    ordersDbLayout->addLayout(ordersStatsLayout);
+
+    // Control buttons for Orders DB
+    QHBoxLayout* ordersDbButtonLayout = new QHBoxLayout();
+    
+    ordersDbRefreshButton = new QPushButton("Refresh");
+    ordersDbClearButton = new QPushButton("Clear Orders Database");
+    ordersDbClearButton->setStyleSheet("QPushButton { background-color: #FF4444; color: white; }");
+    
+    ordersDbButtonLayout->addWidget(ordersDbRefreshButton);
+    ordersDbButtonLayout->addStretch();
+    ordersDbButtonLayout->addWidget(ordersDbClearButton);
+    
+    ordersDbLayout->addLayout(ordersDbButtonLayout);
+    
+    mainLayout->addWidget(ordersDbGroupBox);
+
     // Connect signals
     connect(refreshButton, &QPushButton::clicked, this, &CacheTab::refreshCacheInfo);
     connect(clearSelectedButton, &QPushButton::clicked, this, &CacheTab::clearSelectedCache);
     connect(clearAllButton, &QPushButton::clicked, this, &CacheTab::clearAllCache);
+    connect(ordersDbRefreshButton, &QPushButton::clicked, this, &CacheTab::refreshOrdersDbInfo);
+    connect(ordersDbClearButton, &QPushButton::clicked, this, &CacheTab::clearOrdersDatabase);
 }
 
 void CacheTab::refreshCacheInfo() {
@@ -265,5 +307,67 @@ void CacheTab::clearAllCache() {
         }
 
         refreshCacheInfo();
+    }
+}
+
+void CacheTab::refreshOrdersDbInfo() {
+    QString cacheDir = getCacheLocation();
+    QString dbPath = cacheDir + "/orders.db";
+    
+    QFileInfo dbFileInfo(dbPath);
+    
+    if (!dbFileInfo.exists()) {
+        ordersDbCountLabel->setText("Order Count: N/A (database not created yet)");
+        ordersDbSizeLabel->setText("Database Size: 0 bytes");
+        return;
+    }
+    
+    // Get database size
+    qint64 dbSize = dbFileInfo.size();
+    ordersDbSizeLabel->setText(QString("Database Size: %1").arg(formatFileSize(dbSize)));
+    
+    // Get order count using singleton instance
+    OrdersDatabase* db = OrdersDatabase::getInstance();
+    if (db && db->isOpen()) {
+        int orderCount = db->getOrderCount();
+        ordersDbCountLabel->setText(QString("Order Count: %1").arg(orderCount));
+    } else {
+        ordersDbCountLabel->setText("Order Count: Error reading database");
+    }
+}
+
+void CacheTab::clearOrdersDatabase() {
+    QString cacheDir = getCacheLocation();
+    QString dbPath = cacheDir + "/orders.db";
+    
+    QFileInfo dbFileInfo(dbPath);
+    
+    if (!dbFileInfo.exists()) {
+        QMessageBox::information(this, "No Database", "Orders database does not exist.");
+        return;
+    }
+    
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this,
+        "Confirm Deletion",
+        "Are you sure you want to clear ALL orders from the database?\n\n"
+        "This will permanently delete all order history including received and filled timestamps.\n"
+        "This action cannot be undone.",
+        QMessageBox::Yes | QMessageBox::No
+    );
+    
+    if (reply == QMessageBox::Yes) {
+        // Use singleton instance to clear database
+        OrdersDatabase* db = OrdersDatabase::getInstance();
+        if (db && db->isOpen()) {
+            if (db->clearAllOrders()) {
+                QMessageBox::information(this, "Success", "Orders database has been cleared.");
+                refreshOrdersDbInfo();
+            } else {
+                QMessageBox::warning(this, "Error", "Failed to clear orders database.");
+            }
+        } else {
+            QMessageBox::warning(this, "Error", "Failed to open orders database.");
+        }
     }
 }

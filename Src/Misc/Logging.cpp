@@ -12,13 +12,20 @@
 
 #include <iostream>
 #include <csignal>
-#include <execinfo.h>
-#include <cxxabi.h>
-#include <dlfcn.h>
-#include <unistd.h>
-#include <cstdio>
-#include <cstring>
+#include <stacktrace>
+#include <sstream>
 #include <mutex>
+
+// ANSI color codes
+#define RESET_COLOR   "\033[0m"
+#define RED_COLOR     "\033[31m"
+#define GREEN_COLOR   "\033[32m"
+#define YELLOW_COLOR  "\033[33m"
+#define BLUE_COLOR    "\033[34m"
+#define MAGENTA_COLOR "\033[35m"
+#define CYAN_COLOR    "\033[36m"
+#define WHITE_COLOR   "\033[37m"
+#define GRAY_COLOR    "\033[90m"
 
 // Mutex to protect log file and stdout access
 static std::recursive_mutex loggingMutex;
@@ -50,7 +57,7 @@ void crashHandler(int sig) {
         *logStream << QString::fromStdString(signalMsg);
         logStream->flush();
     }
-    std::cerr << signalMsg;
+    std::cerr << RED_COLOR << signalMsg << RESET_COLOR;
     
     printStackTrace();
     
@@ -59,129 +66,41 @@ void crashHandler(int sig) {
     raise(sig);
 }
 
-// Function to demangle a single symbol
-std::string demangleSymbol(const char* mangledName) {
-    int status;
-    char* demangled = abi::__cxa_demangle(mangledName, nullptr, nullptr, &status);
-    if (status == 0 && demangled) {
-        std::string result = demangled;
-        free(demangled);
-        return result;
-    }
-    return mangledName;
-}
-
-// Function to print stack trace with better symbol resolution
+// Function to print stack trace using C++23 stacktrace API
 void printStackTrace()
 {
     std::lock_guard<std::recursive_mutex> lock(loggingMutex);
     
-    const int maxFrames = 64;
-    void* frames[maxFrames];
-    int numFrames = backtrace(frames, maxFrames);
-    char** symbols = backtrace_symbols(frames, maxFrames);
-
-    std::string stackTraceMsg = "\nStack trace (" + std::to_string(numFrames) + " frames):";
-
-    if (symbols) {
-        // Get executable path for addr2line
-        char exePath[1024];
-        ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
-        if (len != -1) {
-            exePath[len] = '\0';
-        } else {
-            exePath[0] = '\0';
-        }
-
-        for (int i = 0; i < numFrames; ++i) {
-            std::string frameMsg = "  #" + std::to_string(i) + " ";
-
-            // Always try addr2line first for better resolution
-            if (exePath[0] != '\0') {
-                char addr2lineCmd[2048];
-                snprintf(addr2lineCmd, sizeof(addr2lineCmd),
-                        "addr2line -f -C -i -e %s %p 2>/dev/null", exePath, frames[i]);
-
-                FILE* fp = popen(addr2lineCmd, "r");
-                if (fp) {
-                    char function[256] = {0};
-                    char fileInfo[256] = {0};
-
-                    if (fgets(function, sizeof(function), fp)) {
-                        function[strcspn(function, "\n")] = 0; // Remove newline
-                        if (fgets(fileInfo, sizeof(fileInfo), fp)) {
-                            fileInfo[strcspn(fileInfo, "\n")] = 0; // Remove newline
-
-                            // Check if we got valid information
-                            if (strcmp(function, "??") != 0 && strcmp(fileInfo, "??:0") != 0) {
-                                std::string funcName = demangleSymbol(function);
-                                frameMsg += funcName + " at " + fileInfo;
-                                pclose(fp);
-                                stackTraceMsg += "\n" + frameMsg;
-                                continue;
-                            }
-                        }
-                    }
-                    pclose(fp);
-                }
-            }
-
-            // Fallback to backtrace_symbols parsing
-            // Parse the backtrace_symbols output
-            // Format: "binary_path(+offset) [address]" or "binary_path(mangled_func+offset) [address]"
-            char* symbol = symbols[i];
-            char* leftParen = strchr(symbol, '(');
-            char* plus = leftParen ? strchr(leftParen, '+') : nullptr;
-            char* rightParen = plus ? strchr(plus, ')') : nullptr;
-
-            if (leftParen && plus && rightParen) {
-                // Extract binary path, function name, and offset
-                *leftParen = '\0';
-                *plus = '\0';
-                *rightParen = '\0';
-
-                const char* binaryPath = symbol;
-                const char* mangledFunc = leftParen + 1;
-                const char* offset = plus + 1;
-
-                // Check if this is our executable
-                if (strstr(binaryPath, QCoreApplication::applicationName().toUtf8().constData()) || strstr(binaryPath, "test_barcache")) {
-                    if (strlen(mangledFunc) > 0) {
-                        std::string funcName = demangleSymbol(mangledFunc);
-                        frameMsg += funcName + " in " + binaryPath;
-                        if (strlen(offset) > 0) {
-                            frameMsg += " +" + std::string(offset);
-                        }
-                    } else {
-                        frameMsg += std::string(binaryPath) + " +" + std::string(offset);
-                    }
-                } else {
-                    // Not our executable, use normal parsing
-                    std::string funcName = demangleSymbol(mangledFunc);
-                    frameMsg += funcName + " in " + binaryPath;
-                    if (strlen(offset) > 0) {
-                        frameMsg += " +" + std::string(offset);
-                    }
-                }
-            } else {
-                // Fallback for unparseable symbols
-                frameMsg += symbols[i];
-            }
-
-            stackTraceMsg += "\n" + frameMsg;
-        }
-        free(symbols);
+    // Capture current stacktrace
+    std::stacktrace trace = std::stacktrace::current();
+    
+    std::ostringstream stackTraceMsg;
+    stackTraceMsg << "\nStack trace (" << trace.size() << " frames):\n";
+    
+    // Convert stacktrace to string with proper formatting
+    for (size_t i = 0; i < trace.size(); ++i) {
+        const auto& entry = trace[i];
+        stackTraceMsg << "  #" << i << " ";
+        
+        // Get description which includes source file and line number when available
+        std::string description = std::to_string(entry);
+        
+        // The description format from std::stacktrace_entry is already quite good
+        // It includes function name, source file, and line number when debug info is available
+        stackTraceMsg << description << "\n";
     }
-
-    stackTraceMsg += "\n\nNote: If function names appear as '\?\?' or line numbers are missing, the executable may need debug symbols.";
-    stackTraceMsg += "\nEnsure CONFIG += debug is set in your .pro file and rebuild with -rdynamic flag.\n";
-
+    
+    stackTraceMsg << "\nNote: Stack trace quality depends on debug symbols being present in the binary.\n";
+    stackTraceMsg << "Build with CMAKE_BUILD_TYPE=Debug or RelWithDebInfo for best results.\n";
+    
+    std::string msg = stackTraceMsg.str();
+    
     // Write to both log file and stderr
     if (logStream) {
-        *logStream << QString::fromStdString(stackTraceMsg);
+        *logStream << QString::fromStdString(msg);
         logStream->flush();
     }
-    std::cerr << stackTraceMsg << std::endl;
+    std::cerr << msg << std::endl;
 }
 
 // LogBroadcaster implementation
@@ -262,17 +181,6 @@ void LoggingConfig::setInfoDisabled(bool disabled) {
     m_settings.setValue("Global/DisableInfo", disabled);
     m_settings.sync();
 }
-
-// ANSI color codes
-#define RESET_COLOR "\033[0m"
-#define RED_COLOR "\033[31m"
-#define GREEN_COLOR "\033[32m"
-#define YELLOW_COLOR "\033[33m"
-#define BLUE_COLOR "\033[34m"
-#define MAGENTA_COLOR "\033[35m"
-#define CYAN_COLOR "\033[36m"
-#define WHITE_COLOR "\033[37m"
-#define GRAY_COLOR "\033[90m"
 
 void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {   
@@ -361,9 +269,6 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
 
     std::cout << formattedMsg.toStdString() << std::endl;
     std::cout.flush();
-
-
-    
 
     LogBroadcaster::instance().broadcastLogMessage(htmlMsg);
 

@@ -5,8 +5,12 @@
 #include <optional>
 
 #include "PlaceOrder.h"
+#include "Logging.h"
 
-class AdvancedOptions {
+class AdvancedOptions
+{
+
+    Q_GADGET
 
 public:
     QString toString();
@@ -24,35 +28,12 @@ public:
         BKO,    // Book only
         PSO     // Add liquidity
     };
+    Q_ENUM(Type)
 
     Type type;
     std::optional<double> pegval;
     std::optional<double> shwqty;
     std::optional<double> dscpr;
-};
-
-// Enum for order status codes
-enum class OrderStatus {
-    ACK,  // Received
-    BRO,  // Broken
-    CAN,  // Canceled
-    EXP,  // Expired
-    FLL,  // Filled
-    FLP,  // Partial Fill (UROut)
-    FPR,  // Partial Fill (Alive)
-    LAT,  // Too Late to Cancel
-    OPN,  // Sent
-    OUT,  // UROut
-    REJ,  // Rejected
-    UCH,  // Replaced
-    UCN,  // Cancel Sent
-    TSC,  // Trade Server Canceled
-    RJC,  // Cancel Request Rejected
-    DON,  // Queued
-    RSN,  // Replace Sent
-    CND,  // Condition Met
-    OSO,  // OSO Order
-    SUS   // Suspended
 };
 
 struct ConditionalOrder {
@@ -64,9 +45,35 @@ struct Leg {
     // TODO
 };
 
-class Order {
-
+class Order
+{
+    Q_GADGET
 public:
+    // Enum for order status codes
+    enum class Status {
+        ACK,  // Received
+        BRO,  // Broken
+        CAN,  // Canceled
+        EXP,  // Expired
+        FLL,  // Filled
+        FLP,  // Partial Fill (UROut)
+        FPR,  // Partial Fill (Alive)
+        LAT,  // Too Late to Cancel
+        OPN,  // Sent
+        OUT,  // UROut
+        REJ,  // Rejected
+        UCH,  // Replaced
+        UCN,  // Cancel Sent
+        TSC,  // Trade Server Canceled
+        RJC,  // Cancel Request Rejected
+        DON,  // Queued
+        RSN,  // Replace Sent
+        CND,  // Condition Met
+        OSO,  // OSO Order
+        SUS   // Suspended
+    };
+    Q_ENUM(Status)
+
     Order(const QJsonObject& jsonObj, bool isUpdate = false);
     bool isValid();
     
@@ -75,7 +82,7 @@ public:
     QString getSymbol() const { return symbol; }
     QString getAccountID() const { return accountID; }
     QString getStatusDescription() const { return statusDescription; }
-    OrderStatus getOrderStatus() const { return orderStatus; }
+    Status getOrderStatus() const { return orderStatus; }
     QString getQuantity() const { return quantity; }
     QString getTradeAction() const { return tradeAction; }
     QString getDuration() const { return duration; }
@@ -85,6 +92,12 @@ public:
     double getFilledPrice() const { return filledPrice; }
     QDateTime getOpenedDateTime() const { return openedDateTime; }
     QString getRouting() const { return routing; }
+    std::optional<QDateTime> getReceivedTime() const { return receivedTime; }
+    std::optional<QDateTime> getFilledTime() const { return filledTime; }
+
+    // Setters for tracking times
+    void setReceivedTime(const QDateTime& p_time) { receivedTime = p_time; }
+    void setFilledTime(const QDateTime& p_time) { filledTime = p_time; }
 
     QString accountID;
     std::optional<AdvancedOptions> advancedOptions;
@@ -118,7 +131,7 @@ public:
     QString tradeAction;
 
     // status
-    OrderStatus orderStatus;
+    Status orderStatus;
     QString statusDescription;
     std::optional<double> stopPrice;
     TrailingStop trailingStop;
@@ -126,6 +139,10 @@ public:
 
 
     bool isUpdate = false;                // Whether this order is an update
+
+    // Tracking times for order lifecycle
+    std::optional<QDateTime> receivedTime;  // When we first received this order
+    std::optional<QDateTime> filledTime;    // When this order was filled
 
 };
 
