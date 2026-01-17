@@ -30,7 +30,7 @@ void OrderWindow::setupUI() {
 
     // Setup model columns
     QStringList headers;
-    headers << "Order ID" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "DateTime" << "Latency" << "Status";
+    headers << "Order ID" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "DateTime" << "Ack Latency" << "Fill Latency" << "Status";
     m_model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -55,8 +55,9 @@ void OrderWindow::setupUI() {
     m_tableView->setColumnWidth(5, 60);  // Limit
     m_tableView->setColumnWidth(6, 60);  // Stop
     m_tableView->setColumnWidth(7, 100); // DateTime
-    m_tableView->setColumnWidth(8, 100); // Latency (time to fill)
-    m_tableView->setColumnWidth(9, 100); // Status
+    m_tableView->setColumnWidth(8, 90);  // Ack Latency
+    m_tableView->setColumnWidth(9, 90);  // Fill Latency
+    m_tableView->setColumnWidth(10, 100); // Status
 
     // Add widgets to layout
     mainLayout->addWidget(m_headerLabel);
@@ -258,47 +259,76 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     dateTimeItem->setToolTip(dateTimeStr);  // Show full datetime on hover
     items << dateTimeItem;
 
-    // Filled Time - show latency from order placement to fill
-    QString filledTimeStr = "-";
-    QString filledFullTimeStr;
-    
-    if (order.getFilledTime().has_value() && order.getOpenedDateTime().isValid()) {
-        // Calculate latency in milliseconds
-        qint64 latencyMs = order.getOpenedDateTime().msecsTo(order.getFilledTime().value());
-        
-        // Format based on magnitude
+    // Helper lambda to format latency
+    auto formatLatency = [](qint64 latencyMs) -> QString {
         if (latencyMs < 0) {
-            filledTimeStr = "Invalid";
+            return "Invalid";
         } else if (latencyMs < 1000) {
             // Less than 1 second - show milliseconds
-            filledTimeStr = QString("%1 ms").arg(latencyMs);
+            return QString("%1 ms").arg(latencyMs);
         } else if (latencyMs < 60000) {
             // Less than 1 minute - show seconds with decimal
             double latencySec = latencyMs / 1000.0;
-            filledTimeStr = QString("%1 s").arg(latencySec, 0, 'f', 2);
+            return QString("%1 s").arg(latencySec, 0, 'f', 2);
         } else {
             // 1 minute or more - show minutes and seconds
             int minutes = latencyMs / 60000;
             int seconds = (latencyMs % 60000) / 1000;
-            filledTimeStr = QString("%1m %2s").arg(minutes).arg(seconds);
+            return QString("%1m %2s").arg(minutes).arg(seconds);
         }
+    };
+
+    // Ack Latency - show latency from order placement to acknowledgment
+    QString ackLatencyStr = "-";
+    QString ackTooltipStr;
+    
+    if (order.getReceivedTime().has_value() && order.getOpenedDateTime().isValid()) {
+        // Calculate acknowledgment latency in milliseconds
+        qint64 ackLatencyMs = order.getOpenedDateTime().msecsTo(order.getReceivedTime().value());
+        ackLatencyStr = formatLatency(ackLatencyMs);
+        
+        // Tooltip shows full details
+        QDateTime receivedDateTime = MarketHours::toNewYorkTime(order.getReceivedTime().value());
+        QDateTime openedDateTime = MarketHours::toNewYorkTime(order.getOpenedDateTime());
+        ackTooltipStr = QString("Opened: %1\nAcknowledged: %2\nLatency: %3 ms")
+            .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
+            .arg(receivedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
+            .arg(ackLatencyMs);
+    }
+    
+    auto ackLatencyItem = new QStandardItem(ackLatencyStr);
+    Q_CHECK_PTR(ackLatencyItem);
+    ackLatencyItem->setTextAlignment(Qt::AlignCenter);
+    if (!ackTooltipStr.isEmpty()) {
+        ackLatencyItem->setToolTip(ackTooltipStr);
+    }
+    items << ackLatencyItem;
+
+    // Fill Latency - show latency from order placement to fill
+    QString fillLatencyStr = "-";
+    QString fillTooltipStr;
+    
+    if (order.getFilledTime().has_value() && order.getOpenedDateTime().isValid()) {
+        // Calculate fill latency in milliseconds
+        qint64 fillLatencyMs = order.getOpenedDateTime().msecsTo(order.getFilledTime().value());
+        fillLatencyStr = formatLatency(fillLatencyMs);
         
         // Tooltip shows full details
         QDateTime filledDateTime = MarketHours::toNewYorkTime(order.getFilledTime().value());
         QDateTime openedDateTime = MarketHours::toNewYorkTime(order.getOpenedDateTime());
-        filledFullTimeStr = QString("Opened: %1\nFilled: %2\nLatency: %3 ms")
+        fillTooltipStr = QString("Opened: %1\nFilled: %2\nLatency: %3 ms")
             .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
             .arg(filledDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
-            .arg(latencyMs);
+            .arg(fillLatencyMs);
     }
     
-    auto filledTimeItem = new QStandardItem(filledTimeStr);
-    Q_CHECK_PTR(filledTimeItem);
-    filledTimeItem->setTextAlignment(Qt::AlignCenter);
-    if (!filledFullTimeStr.isEmpty()) {
-        filledTimeItem->setToolTip(filledFullTimeStr);  // Show full details on hover
+    auto fillLatencyItem = new QStandardItem(fillLatencyStr);
+    Q_CHECK_PTR(fillLatencyItem);
+    fillLatencyItem->setTextAlignment(Qt::AlignCenter);
+    if (!fillTooltipStr.isEmpty()) {
+        fillLatencyItem->setToolTip(fillTooltipStr);
     }
-    items << filledTimeItem;
+    items << fillLatencyItem;
 
     // Status
     auto statusItem = new QStandardItem(order.getStatusDescription());
@@ -383,7 +413,7 @@ void OrderWindow::onSymbolClicked(const QModelIndex& index) {
     QString orderId = orderIdItem->text();
     
     // Check if this row has "Received" or "Queued" status (last column)
-    QStandardItem* statusItem = m_model->item(index.row(), 9);  // Status column (now at index 9)
+    QStandardItem* statusItem = m_model->item(index.row(), 10);  // Status column (now at index 10)
     bool isCancelableOrder = (statusItem != nullptr && 
                              (statusItem->text().contains("Received", Qt::CaseInsensitive) ||
                               statusItem->text().contains("Queued", Qt::CaseInsensitive)));
