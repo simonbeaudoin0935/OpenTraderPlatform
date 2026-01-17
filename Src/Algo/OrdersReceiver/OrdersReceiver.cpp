@@ -4,6 +4,7 @@
 #include "Settings.h"
 
 #include <QDir>
+#include <QTimer>
 
 #define LOGGING_CATEGORY OrdersReceiverLog
 Q_LOGGING_CATEGORY(OrdersReceiverLog, "OrdersReceiver");

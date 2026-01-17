@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QDir>
+#include <QFileInfo>
 
 #include "Logging.h"
 
@@ -113,7 +114,33 @@ bool OrdersDatabase::insertOrder(const Order& p_order, const QDateTime& p_receiv
             break;
     }
     query.addBindValue(orderTypeStr);
-    query.addBindValue(p_order.getStatusDescription());
+    
+    // Convert order status to string
+    QString orderStatusStr;
+    switch (p_order.getOrderStatus()) {
+        case OrderStatus::ACK: orderStatusStr = "ACK"; break;
+        case OrderStatus::BRO: orderStatusStr = "BRO"; break;
+        case OrderStatus::CAN: orderStatusStr = "CAN"; break;
+        case OrderStatus::EXP: orderStatusStr = "EXP"; break;
+        case OrderStatus::FLL: orderStatusStr = "FLL"; break;
+        case OrderStatus::FLP: orderStatusStr = "FLP"; break;
+        case OrderStatus::FPR: orderStatusStr = "FPR"; break;
+        case OrderStatus::LAT: orderStatusStr = "LAT"; break;
+        case OrderStatus::OPN: orderStatusStr = "OPN"; break;
+        case OrderStatus::OUT: orderStatusStr = "OUT"; break;
+        case OrderStatus::REJ: orderStatusStr = "REJ"; break;
+        case OrderStatus::UCH: orderStatusStr = "UCH"; break;
+        case OrderStatus::UCN: orderStatusStr = "UCN"; break;
+        case OrderStatus::TSC: orderStatusStr = "TSC"; break;
+        case OrderStatus::RJC: orderStatusStr = "RJC"; break;
+        case OrderStatus::DON: orderStatusStr = "DON"; break;
+        case OrderStatus::RSN: orderStatusStr = "RSN"; break;
+        case OrderStatus::CND: orderStatusStr = "CND"; break;
+        case OrderStatus::OSO: orderStatusStr = "OSO"; break;
+        case OrderStatus::SUS: orderStatusStr = "SUS"; break;
+        default: orderStatusStr = "UNKNOWN"; break;
+    }
+    query.addBindValue(orderStatusStr);
     query.addBindValue(p_order.getStatusDescription());
     
     // Handle optional limit and stop prices
@@ -131,7 +158,14 @@ bool OrdersDatabase::insertOrder(const Order& p_order, const QDateTime& p_receiv
     
     query.addBindValue(p_order.getFilledPrice());
     query.addBindValue(p_order.getOpenedDateTime().toString(Qt::ISODate));
-    query.addBindValue(p_order.closedDateTime.toString(Qt::ISODate));
+    
+    // Handle closed datetime (might not be set)
+    if (p_order.closedDateTime.isValid()) {
+        query.addBindValue(p_order.closedDateTime.toString(Qt::ISODate));
+    } else {
+        query.addBindValue(QVariant(QVariant::String));
+    }
+    
     query.addBindValue(p_receivedTime.toString(Qt::ISODate));
     
     // Filled time is null for new orders
@@ -165,10 +199,42 @@ bool OrdersDatabase::updateOrder(const Order& p_order, const std::optional<QDate
         "WHERE order_id = ?";
 
     query.prepare(updateQuery);
-    query.addBindValue(p_order.getStatusDescription());
+    
+    // Convert order status to string
+    QString orderStatusStr;
+    switch (p_order.getOrderStatus()) {
+        case OrderStatus::ACK: orderStatusStr = "ACK"; break;
+        case OrderStatus::BRO: orderStatusStr = "BRO"; break;
+        case OrderStatus::CAN: orderStatusStr = "CAN"; break;
+        case OrderStatus::EXP: orderStatusStr = "EXP"; break;
+        case OrderStatus::FLL: orderStatusStr = "FLL"; break;
+        case OrderStatus::FLP: orderStatusStr = "FLP"; break;
+        case OrderStatus::FPR: orderStatusStr = "FPR"; break;
+        case OrderStatus::LAT: orderStatusStr = "LAT"; break;
+        case OrderStatus::OPN: orderStatusStr = "OPN"; break;
+        case OrderStatus::OUT: orderStatusStr = "OUT"; break;
+        case OrderStatus::REJ: orderStatusStr = "REJ"; break;
+        case OrderStatus::UCH: orderStatusStr = "UCH"; break;
+        case OrderStatus::UCN: orderStatusStr = "UCN"; break;
+        case OrderStatus::TSC: orderStatusStr = "TSC"; break;
+        case OrderStatus::RJC: orderStatusStr = "RJC"; break;
+        case OrderStatus::DON: orderStatusStr = "DON"; break;
+        case OrderStatus::RSN: orderStatusStr = "RSN"; break;
+        case OrderStatus::CND: orderStatusStr = "CND"; break;
+        case OrderStatus::OSO: orderStatusStr = "OSO"; break;
+        case OrderStatus::SUS: orderStatusStr = "SUS"; break;
+        default: orderStatusStr = "UNKNOWN"; break;
+    }
+    query.addBindValue(orderStatusStr);
     query.addBindValue(p_order.getStatusDescription());
     query.addBindValue(p_order.getFilledPrice());
-    query.addBindValue(p_order.closedDateTime.toString(Qt::ISODate));
+    
+    // Handle closed datetime (might not be set)
+    if (p_order.closedDateTime.isValid()) {
+        query.addBindValue(p_order.closedDateTime.toString(Qt::ISODate));
+    } else {
+        query.addBindValue(QVariant(QVariant::String));
+    }
     
     if (p_filledTime.has_value()) {
         query.addBindValue(p_filledTime.value().toString(Qt::ISODate));
