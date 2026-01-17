@@ -446,13 +446,14 @@ void BarCache::storeBarInCache(const Bar& bar)
 void BarCache::storeBarsInCache(const QDate &date, const std::shared_ptr<QVector<Bar>> bars)
 {
     OBJ_ASSUME_FALSE(bars->isEmpty());
+
     if (date < MainApp::getCurrentAppTime().date()) {
         OBJ_ASSUME_EQUAL(bars->size(), BARS_PER_DAY);
     } else {
         OBJ_ASSUME_LTE(bars->size(),
-            MainApp::getCurrentAppTime().time() > TRADING_END_TIME ? BARS_PER_DAY :
-                               timeToIndex(MainApp::getCurrentAppTime().time()) +
-                           1);
+                       MainApp::getCurrentAppTime().time() > TRADING_END_TIME
+                        ? BARS_PER_DAY :
+                          timeToIndex(MainApp::getCurrentAppTime().time()) + 1);
     }
     
     OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().date(), bars->last().getTimeStamp().date());
