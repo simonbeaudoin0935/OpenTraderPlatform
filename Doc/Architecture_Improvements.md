@@ -229,7 +229,7 @@ private:
 
 #### 2.2 Incomplete Copy Prevention
 
-**Current:** Manually deleted copy constructors/operators, but not using Qt's `Q_DISABLE_COPY` macro.
+**Current:** Manually deleted copy constructors/operators, but not using Qt's convenience macros.
 
 **Example (TSClient.h:66-69):**
 ```cpp
@@ -239,22 +239,24 @@ TSClient& operator=(const TSClient&) = delete;
 TSClient& operator=(TSClient&&) = delete;
 ```
 
-**Recommendation:** Use Qt's macro for consistency:
+**Recommendation:** Use Qt's macros for consistency:
 
 ```cpp
 class TSClient {
-    Q_DISABLE_COPY(TSClient)
-    // This expands to:
+    Q_DISABLE_COPY_MOVE(TSClient)
+    // This expands to (Qt 6.0+):
     // TSClient(const TSClient &) = delete;
     // TSClient &operator=(const TSClient &) = delete;
+    // TSClient(TSClient &&) = delete;
+    // TSClient &operator=(TSClient &&) = delete;
 ```
 
-**Note:** For move semantics, add separately if needed:
-```cpp
-Q_DISABLE_COPY(TSClient)
-TSClient(TSClient&&) = delete;
-TSClient& operator=(TSClient&&) = delete;
-```
+**Qt provides three macros:**
+- `Q_DISABLE_COPY(Class)` - Disables copy operations only
+- `Q_DISABLE_MOVE(Class)` - Disables move operations only (Qt 5.13+)
+- `Q_DISABLE_COPY_MOVE(Class)` - Disables both copy and move operations (Qt 6.0+)
+
+**For singletons, use `Q_DISABLE_COPY_MOVE`** since they should neither be copied nor moved.
 
 #### 2.3 Unnecessary Singleton Usage
 
