@@ -152,9 +152,16 @@ void PositionWindow::updatePositionRow(const QString& account, const Position& p
         model->setItem(row, col, items[col]);
     }
     
-    // Ensure symbolRowMap is up to date (in case symbol changed, though unlikely)
-    QString symbol = position.getSymbol();
-    symbolRowMap[symbol] = row;
+    // Update symbolRowMap and handle potential symbol changes
+    QString newSymbol = position.getSymbol();
+    QString oldSymbol = symbolRowMap.key(row, QString());
+    
+    if (!oldSymbol.isEmpty() && oldSymbol != newSymbol) {
+        // Symbol changed (unlikely but possible) - remove old mapping
+        symbolRowMap.remove(oldSymbol);
+    }
+    
+    symbolRowMap[newSymbol] = row;
 }
 
 QList<QStandardItem*> PositionWindow::createRowItems(const Position& position) {
@@ -211,7 +218,6 @@ void PositionWindow::onPositionDeleted(const QString& account, const QString& po
         
         // Set quantity to 0 instead of removing the row
         auto quantityItem = new QStandardItem("0");
-        Q_CHECK_PTR(quantityItem);
         quantityItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
         model->setItem(row, 1, quantityItem);  // Column 1 is Quantity
         
