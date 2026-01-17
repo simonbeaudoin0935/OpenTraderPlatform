@@ -2,6 +2,7 @@
 #include "TSClient.h"
 #include "Logging.h"
 #include "Settings.h"
+#include "MainApp.h"
 
 #include <QDir>
 #include <QTimer>
@@ -70,7 +71,7 @@ void OrdersReceiver::createOrdersStream()
 
 void OrdersReceiver::onReceivedNewOrder(Order order)
 {
-    QDateTime currentTime = QDateTime::currentDateTimeUtc();
+    QDateTime currentTime = MainApp::getCurrentAppTime();
     QString orderId = order.getOrderID();
     
     qCDebug(OrdersReceiverLog).noquote() << "New order for account (" << m_account << ") : OrderID=" << orderId;

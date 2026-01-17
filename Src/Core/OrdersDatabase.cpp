@@ -237,7 +237,7 @@ QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersData
         QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonDataStr.toUtf8());
         if (jsonDoc.isObject()) {
             Order order(jsonDoc.object());
-            orders[orderId] = std::make_tuple(order, receivedTime, filledTime);
+            orders.insert(orderId, std::make_tuple(order, receivedTime, filledTime));
         }
     }
     
