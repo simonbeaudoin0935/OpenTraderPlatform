@@ -101,13 +101,13 @@ bool OrdersDatabase::insertOrder(const Order& p_order, const QDateTime& p_receiv
     if (p_order.getLimitPrice().has_value()) {
         query.addBindValue(p_order.getLimitPrice().value());
     } else {
-        query.addBindValue(QVariant(QVariant::Double));
+        query.addBindValue(QVariant());  // NULL value for SQL
     }
     
     if (p_order.getStopPrice().has_value()) {
         query.addBindValue(p_order.getStopPrice().value());
     } else {
-        query.addBindValue(QVariant(QVariant::Double));
+        query.addBindValue(QVariant());  // NULL value for SQL
     }
     
     query.addBindValue(p_order.getFilledPrice());
@@ -117,13 +117,13 @@ bool OrdersDatabase::insertOrder(const Order& p_order, const QDateTime& p_receiv
     if (p_order.closedDateTime.isValid()) {
         query.addBindValue(p_order.closedDateTime.toString(Qt::ISODate));
     } else {
-        query.addBindValue(QVariant(QVariant::String));
+        query.addBindValue(QVariant());  // NULL value for SQL
     }
     
     query.addBindValue(p_receivedTime.toString(Qt::ISODate));
     
     // Filled time is null for new orders
-    query.addBindValue(QVariant(QVariant::String));
+    query.addBindValue(QVariant());  // NULL value for SQL
     
     // Store a minimal order representation in JSON
     // Note: We don't need to store the complete order data because orders are
@@ -166,13 +166,13 @@ bool OrdersDatabase::updateOrder(const Order& p_order, const std::optional<QDate
     if (p_order.closedDateTime.isValid()) {
         query.addBindValue(p_order.closedDateTime.toString(Qt::ISODate));
     } else {
-        query.addBindValue(QVariant(QVariant::String));
+        query.addBindValue(QVariant());  // NULL value for SQL
     }
     
     if (p_filledTime.has_value()) {
         query.addBindValue(p_filledTime.value().toString(Qt::ISODate));
     } else {
-        query.addBindValue(QVariant(QVariant::String));
+        query.addBindValue(QVariant());  // NULL value for SQL
     }
     
     // Update JSON data
