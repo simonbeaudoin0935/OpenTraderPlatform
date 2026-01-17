@@ -30,7 +30,7 @@ void OrderWindow::setupUI() {
 
     // Setup model columns
     QStringList headers;
-    headers << "Order ID" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "DateTime" << "Filled Time" << "Status";
+    headers << "Order ID" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "DateTime" << "Latency" << "Status";
     m_model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -55,7 +55,7 @@ void OrderWindow::setupUI() {
     m_tableView->setColumnWidth(5, 60);  // Limit
     m_tableView->setColumnWidth(6, 60);  // Stop
     m_tableView->setColumnWidth(7, 100); // DateTime
-    m_tableView->setColumnWidth(8, 100); // Filled Time
+    m_tableView->setColumnWidth(8, 100); // Latency (time to fill)
     m_tableView->setColumnWidth(9, 100); // Status
 
     // Add widgets to layout
@@ -258,21 +258,45 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     dateTimeItem->setToolTip(dateTimeStr);  // Show full datetime on hover
     items << dateTimeItem;
 
-    // Filled Time
+    // Filled Time - show latency from order placement to fill
     QString filledTimeStr = "-";
     QString filledFullTimeStr;
     
-    if (order.getFilledTime().has_value()) {
+    if (order.getFilledTime().has_value() && order.getOpenedDateTime().isValid()) {
+        // Calculate latency in milliseconds
+        qint64 latencyMs = order.getOpenedDateTime().msecsTo(order.getFilledTime().value());
+        
+        // Format based on magnitude
+        if (latencyMs < 0) {
+            filledTimeStr = "Invalid";
+        } else if (latencyMs < 1000) {
+            // Less than 1 second - show milliseconds
+            filledTimeStr = QString("%1 ms").arg(latencyMs);
+        } else if (latencyMs < 60000) {
+            // Less than 1 minute - show seconds with decimal
+            double latencySec = latencyMs / 1000.0;
+            filledTimeStr = QString("%1 s").arg(latencySec, 0, 'f', 2);
+        } else {
+            // 1 minute or more - show minutes and seconds
+            int minutes = latencyMs / 60000;
+            int seconds = (latencyMs % 60000) / 1000;
+            filledTimeStr = QString("%1m %2s").arg(minutes).arg(seconds);
+        }
+        
+        // Tooltip shows full details
         QDateTime filledDateTime = MarketHours::toNewYorkTime(order.getFilledTime().value());
-        filledFullTimeStr = filledDateTime.toString("MM/dd/yyyy hh:mm:ss");
-        filledTimeStr = filledDateTime.toString("hh:mm:ss");
+        QDateTime openedDateTime = MarketHours::toNewYorkTime(order.getOpenedDateTime());
+        filledFullTimeStr = QString("Opened: %1\nFilled: %2\nLatency: %3 ms")
+            .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
+            .arg(filledDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
+            .arg(latencyMs);
     }
     
     auto filledTimeItem = new QStandardItem(filledTimeStr);
     Q_CHECK_PTR(filledTimeItem);
     filledTimeItem->setTextAlignment(Qt::AlignCenter);
     if (!filledFullTimeStr.isEmpty()) {
-        filledTimeItem->setToolTip(filledFullTimeStr);  // Show full datetime on hover
+        filledTimeItem->setToolTip(filledFullTimeStr);  // Show full details on hover
     }
     items << filledTimeItem;
 
