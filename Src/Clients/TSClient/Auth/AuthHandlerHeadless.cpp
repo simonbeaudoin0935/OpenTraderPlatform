@@ -21,9 +21,11 @@ QString AuthHandlerHeadless::readLine(const QString& prompt, bool isPassword)
     
     QString input;
     if (isPassword) {
-        // For password input, we can't easily mask input in a cross-platform way
-        // without additional dependencies, so we'll just warn the user
-        m_stdout << "(Note: input will be visible)\n";
+        // Note: Implementing proper password masking in a cross-platform way
+        // without additional dependencies is complex. For now, we warn the user.
+        // Future enhancement: Use platform-specific terminal APIs for masking
+        // (e.g., termios on Unix, _getch on Windows)
+        m_stdout << "(Warning: input will be visible on screen)\n";
         m_stdout.flush();
     }
     

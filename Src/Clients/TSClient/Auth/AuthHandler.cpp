@@ -223,7 +223,8 @@ void AuthHandler::handleSocketReadyRead()
     }
 
     // Parse query parameters
-    QUrl url("http://localhost" + path);
+    const QString baseUrl = "http://localhost";
+    QUrl url(baseUrl + path);
     QUrlQuery query(url.query());
 
     QString code = query.queryItemValue("code");

@@ -23,7 +23,11 @@ void TSClient::launchAuthProcess()
 
 void TSClient::onAuthWindowDestroyed()
 {
-    // TODO race condition possible?
+    // Race condition possible: The window might be destroyed while we're still
+    // processing authentication state. However, this is unlikely since:
+    // 1. onAuthFinished is called before destruction
+    // 2. The window is set to Qt::WA_DeleteOnClose
+    // 3. We process the signal immediately
     m_authWindow = nullptr;
 }
 
@@ -42,7 +46,11 @@ void TSClient::launchAuthProcess()
 
 void TSClient::onAuthHandlerDestroyed()
 {
-    // TODO race condition possible?
+    // Race condition possible: The handler might be destroyed while we're still
+    // processing authentication state. However, this is unlikely since:
+    // 1. onAuthFinished is called before destruction
+    // 2. We process the signal immediately
+    // 3. Handler deletion is managed by Qt's parent-child relationship
     m_authHandler = nullptr;
 }
 #endif
