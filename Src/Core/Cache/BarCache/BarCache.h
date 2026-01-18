@@ -54,7 +54,7 @@ private:
     void startStream();
     
     [[nodiscard]]
-    static constexpr QVector<std::tuple<QDate, QTime, QTime>> splitIntoTradingDayRanges(const QDateTime &first, const QDateTime &last) noexcept;
+    static constexpr QVector<std::tuple<QDate, QTime, QTime>> splitIntoTradingDayRanges(const QDateTime &first, const QDateTime &last);
 
     std::optional<std::unique_ptr<QVector<Bar>>>
     getBarsFromCache(const QDate &date, const QTime &start, const QTime &end) const;

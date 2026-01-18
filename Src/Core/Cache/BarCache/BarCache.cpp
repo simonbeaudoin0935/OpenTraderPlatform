@@ -53,9 +53,9 @@ void BarCache::startStream(){
     DEBUG << "Starting bars stream for symbol " << m_symbol;
 
     m_stream = TSClient::getInstance()->openStreamBars(m_symbol,
-                                                       1,
+                                                       1, /* Interval: 1 bar */
                                                        Bar::BarUnit::Minute,
-                                                       3,
+                                                       0, /* Barsback: 0 bars */
                                                        Bar::BarSessionTemplate::USEQ24Hour);
     Q_CHECK_PTR(m_stream);
 
@@ -508,7 +508,7 @@ void BarCache::clearDatabase()
         });
 }
 
-constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDayRanges(const QDateTime &first, const QDateTime &last) noexcept
+constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDayRanges(const QDateTime &first, const QDateTime &last)
 {
     Q_ASSERT(first.timeZone() == QTimeZone("America/New_York"));
     Q_ASSERT(last.timeZone() == QTimeZone("America/New_York"));
