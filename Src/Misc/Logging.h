@@ -7,33 +7,56 @@
 #include <QObject>
 #include <QMetaEnum>
 
+#include "Assume.h"
+
+#define DEBUG    qCDebug(LOGGING_CATEGORY)    << this->objectName()
+#define sDEBUG   qCDebug(LOGGING_CATEGORY)    << __FUNCTION__
+
+#define INFO     qCInfo(LOGGING_CATEGORY)     << this->objectName()
+#define sINFO    qCInfo(LOGGING_CATEGORY)     << __FUNCTION__
+
+#define WARNING  qCWarning(LOGGING_CATEGORY)  << this->objectName()
+#define sWARNING qCWarning(LOGGING_CATEGORY) << __FUNCTION__
+
+#define CRITICAL qCCritical(LOGGING_CATEGORY) << this->objectName()
+#define sCRITICAL qCCritical(LOGGING_CATEGORY) << __FUNCTION__
+
+#define FATAL    qFatal()
+
 namespace QtEnum
 {
+    // Converts an enum value to its string representation
+    // @note Works only for enums registered with Q_ENUM
+    // @note Assumes the enum value is valid; asserts if not
     template <typename Enum>
     QString toString(Enum value)
     {
-        return QMetaEnum::fromType<Enum>().valueToKey(static_cast<int>(value));
+        const QMetaEnum meta = QMetaEnum::fromType<Enum>();
+
+        const char* keyPtr = meta.valueToKey(static_cast<int>(value));
+        ASSUME_TRUE(keyPtr != nullptr);
+
+        return QString(keyPtr);
     }
 
+    // Converts a string to the corresponding enum value
+    // @note Assumes the string is valid; asserts if not
     template <typename Enum>
-    std::optional<Enum> fromString(QStringView str)
+    Enum fromString(QStringView str)
     {
         bool ok = false;
         const QMetaEnum meta = QMetaEnum::fromType<Enum>();
+
         int value = meta.keyToValue(str.toLatin1().constData(), &ok);
-        if (!ok)
-            return std::nullopt;
+        if (!ok) {
+            qCritical() << "QtEnum::fromString: Invalid enum string:" << str << "for enum type" << meta.name();
+            ASSUME_TRUE(false);
+        }
+        
+
         return static_cast<Enum>(value);
     }
-
 }
-
-#define DEBUG    qCDebug(LOGGING_CATEGORY)    << this->objectName()
-#define INFO     qCInfo(LOGGING_CATEGORY)     << this->objectName()
-#define WARNING  qCWarning(LOGGING_CATEGORY)  << this->objectName()
-#define CRITICAL qCCritical(LOGGING_CATEGORY) << this->objectName()
-#define FATAL    qFatal
-
 
 void initLogging();
 void reinstallColoredMessageHandler();
