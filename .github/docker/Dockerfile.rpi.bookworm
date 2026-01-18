@@ -17,18 +17,16 @@ RUN apt-get update && apt-get install -y \
     git \
     tree \
     cmake \
-    make \
+    ccache \
+    uncrustify \
     build-essential \
     debhelper-compat \
     crossbuild-essential-arm64 \
     qt6-base-dev:arm64 \
     qt6-base-private-dev:arm64 \
-    qt6-charts-dev:arm64 \
-    qt6-webengine-dev:arm64 \
     libqt6sql6-sqlite:arm64 \
     qtkeychain-qt6-dev:arm64 \
     libsecret-1-dev:arm64 \
-    ccache \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
