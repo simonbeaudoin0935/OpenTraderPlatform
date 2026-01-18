@@ -97,6 +97,28 @@ You will need API credentials for:
    ./src/L2Trader
    ```
 
+### Building with Sanitizers (for development)
+
+For enhanced debugging and code quality validation:
+
+**UndefinedBehaviorSanitizer (UBSan)**:
+```bash
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DENABLE_UBSAN=ON
+cmake --build . --parallel
+```
+
+**AddressSanitizer (ASan)**:
+```bash
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DENABLE_ASAN=ON
+cmake --build . --parallel
+```
+
+See [Code Quality Tools documentation](Doc/Code_Quality_Tools.md) for more information on sanitizers and other code quality tools.
+
 ### Building with GUI Disabled
 
 For terminal-only mode without GUI dependencies:
