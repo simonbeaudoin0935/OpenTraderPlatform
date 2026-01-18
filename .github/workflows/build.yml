@@ -91,6 +91,77 @@ jobs:
     - name: Build all targets
       run: cmake --build build $PARALLEL_JOBS
 
+  build-with-ubsan:
+    runs-on: [self-hosted, Linux, X64]
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set number of parallel jobs
+      run: echo "PARALLEL_JOBS=-j$(nproc)" >> $GITHUB_ENV
+
+    - name: Show CMake version
+      run: cmake --version
+    
+    - name: Create build directory
+      run: mkdir -p build-ubsan
+
+    - name: Configure with CMake (UBSan enabled)
+      run: cmake -S . -B build-ubsan -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=ON -DENABLE_UBSAN=ON
+
+    - name: Build all targets with UBSan
+      run: cmake --build build-ubsan $PARALLEL_JOBS
+
+  run-barcache-test-ubsan:
+    runs-on: [self-hosted, Linux, X64]
+    needs: [build-with-ubsan]
+
+    steps:
+    - name: Run BarCache unit test with UBSan
+      run: ./build-ubsan/Tests/test_barcache --stock-csv=Example_Config/nasdaq_screener.csv
+
+  run-tsclient-test-ubsan:
+    runs-on: [self-hosted, Linux, X64]
+    needs: [build-with-ubsan]
+
+    steps:
+    - name: Run TSClient unit test with UBSan
+      run: ./build-ubsan/Tests/test_tradestationclient
+
+  run-runupdetector-test-ubsan:
+    runs-on: [self-hosted, Linux, X64]
+    needs: [build-with-ubsan]
+
+    steps:
+    - name: Run RunUpDetector unit test with UBSan
+      run: ./build-ubsan/Tests/test_RunUpDetector
+
+  run-recorder-integration-test-ubsan:
+    runs-on: [self-hosted, Linux, X64]
+    needs: [build-with-ubsan]
+
+    steps:
+    - name: Run Recorder integration test with UBSan
+      run: |
+        rm -f $HOME/.local/state/Recorder/logs/Recorder_*.log.ansi
+        ./build-ubsan/Tests/test_recorder_integration
+
+    - name: Display Recorder log
+      if: always()
+      run: |
+        LOG_FILE=$(ls -t $HOME/.local/state/Recorder/logs/Recorder_*.log.ansi | head -1)
+        echo "Log file: $LOG_FILE"
+        if [ -f "$LOG_FILE" ]; then
+          echo "=== Recorder Log ==="
+          cat "$LOG_FILE"
+        else
+          echo "No log file found"
+        fi
+
   run-barcache-test:
     runs-on: [self-hosted, Linux, X64]
     needs: [build-main]
