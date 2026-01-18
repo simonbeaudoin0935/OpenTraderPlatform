@@ -14,6 +14,58 @@ on:
         type: boolean
 
 jobs:
+  check-formatting:
+    runs-on: ubuntu-24.04
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uncrustify
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y uncrustify
+
+    - name: Check code formatting
+      run: |
+        echo "Checking code formatting with Uncrustify..."
+        FAILED_FILES=()
+        
+        # Find all C++ source and header files
+        FILES=$(find Src Tests -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cc" -o -name "*.cxx" \))
+        
+        for file in $FILES; do
+          if ! uncrustify -c .uncrustify.cfg --check "$file" > /dev/null 2>&1; then
+            FAILED_FILES+=("$file")
+            echo "❌ $file needs formatting"
+          fi
+        done
+        
+        if [ ${#FAILED_FILES[@]} -ne 0 ]; then
+          echo ""
+          echo "================================================"
+          echo "Code formatting check FAILED"
+          echo "================================================"
+          echo ""
+          echo "The following files need to be formatted:"
+          for file in "${FAILED_FILES[@]}"; do
+            echo "  - $file"
+          done
+          echo ""
+          echo "To fix formatting issues, run:"
+          echo "  uncrustify -c .uncrustify.cfg --no-backup --replace <file>"
+          echo ""
+          echo "Or format all files:"
+          echo "  find Src Tests -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) -exec uncrustify -c .uncrustify.cfg --no-backup --replace {} \;"
+          exit 1
+        fi
+        
+        echo ""
+        echo "✅ All files are properly formatted!"
+
   build-main:
     runs-on: [self-hosted, Linux, X64]
     if: |
