@@ -14,10 +14,16 @@ on:
     branches:
       - main
       - development
+    paths:
+      - '.github/workflows/container-build-and-upload.yml'
+      - '.github/docker/**'
 
   push:
     branches:
       - main
+    paths:
+      - '.github/workflows/container-build-and-upload.yml'
+      - '.github/docker/**'
 
   workflow_dispatch:
 
@@ -27,54 +33,8 @@ permissions:
 
 jobs:
 
-  # Check if this PR changes files in the docker/ folder. If not, there is no point in building and pushing a new image.
-  check-if-build-needed:
-    runs-on: ubuntu-latest
-    outputs:
-      build-needed: ${{ steps.set-output.outputs.build-needed }}
-    steps:
-
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{github.head_ref}}
-          fetch-depth: 0
-
-      - name: Check if build is needed
-        id: set-output
-        run: |
-          echo "build-needed=false" >> $GITHUB_OUTPUT
-          
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
-            echo "Changed files: $CHANGED_FILES"
-            if [[ $CHANGED_FILES == *".github/docker/"* ]]; then
-              echo "Build IS needed as .github/docker/ folder changed."
-              echo "build-needed=true" >> $GITHUB_OUTPUT
-            else
-              echo "Build is NOT needed as .github/docker/ folder did not change."
-              echo "build-needed=false" >> $GITHUB_OUTPUT
-            fi
-
-          elif [[ "${{ github.event_name }}" == "push" ]]; then
-            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }})
-            echo "Changed files: $CHANGED_FILES"
-            if [[ $CHANGED_FILES == *".github/docker/"* ]]; then
-              echo "Build IS needed as .github/docker/ folder changed."
-              echo "build-needed=true" >> $GITHUB_OUTPUT
-            else
-              echo "Build is NOT needed as .github/docker/ folder did not change."
-              echo "build-needed=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "Build is needed for schedule or workflow_dispatch."
-            echo "build-needed=true" >> $GITHUB_OUTPUT
-          fi
-
   # Build the amd64 natively on ubuntu-latest which is an x86_64 host
   build-image-amd64-noble:
-    needs: check-if-build-needed
-    if: needs.check-if-build-needed.outputs.build-needed == 'true'
     runs-on: ubuntu-24.04
     steps:
 
@@ -87,15 +47,13 @@ jobs:
 
       # Don't push to GHCR if build was triggered by a PR
       - name: Push to GHCR
-        if: ${{ github.event_name != 'pull_request' }}
+        if: ${{ github.event_name == 'push' }}
         run: |
           echo ${{ secrets.TOKEN_GHCR }} | docker login ghcr.io -u ${{ vars.USERNAME }} --password-stdin
           docker push ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
 
   # Build the RPI cross-compilation container on ubuntu-latest (amd64)
   build-image-rpi-bookworm:
-    needs: check-if-build-needed
-    if: needs.check-if-build-needed.outputs.build-needed == 'true'
     runs-on: ubuntu-latest
     steps:
 
@@ -108,7 +66,7 @@ jobs:
 
       # Don't push to GHCR if build was triggered by a PR
       - name: Push to GHCR
-        if: ${{ github.event_name != 'pull_request' }}
+        if: ${{ github.event_name == 'push' }}
         run: |
           echo ${{ secrets.TOKEN_GHCR }} | docker login ghcr.io -u ${{ vars.USERNAME }} --password-stdin
           docker push ghcr.io/${{ vars.USERNAME }}/l2trader-builder:rpi-bookworm
