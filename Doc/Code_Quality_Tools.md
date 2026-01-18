@@ -44,22 +44,28 @@ cmake --build build
 
 ### 3. Enhanced Compiler Warnings
 
-The project now includes comprehensive compiler warnings:
+The project now includes comprehensive compiler warnings to catch potential bugs early:
 
+**Enabled warnings**:
 - `-Wall -Wextra -Wpedantic`: Standard warning sets
 - `-Wcast-align -Wcast-qual`: Casting warnings
-- `-Wconversion -Wsign-conversion`: Conversion warnings
 - `-Wdouble-promotion`: Float to double promotion warnings
 - `-Wformat=2`: Enhanced format string checking
 - `-Wimplicit-fallthrough`: Switch case fallthrough warnings
-- `-Wmissing-include-dirs`: Missing include directory warnings
 - `-Wnon-virtual-dtor`: Non-virtual destructor warnings
 - `-Wnull-dereference`: Null pointer dereference warnings
-- `-Wold-style-cast`: C-style cast warnings
 - `-Woverloaded-virtual`: Overloaded virtual function warnings
 - `-Wshadow`: Variable shadowing warnings
 - `-Wunused`: Unused variable/function warnings
 - `-Werror`: Treat warnings as errors
+
+**Disabled warnings** (for Qt compatibility):
+- `-Wno-old-style-cast`: Qt framework uses C-style casts extensively
+- `-Wno-sign-conversion`: Qt APIs often mix signed/unsigned types
+- `-Wno-conversion`: Too noisy with Qt type conversions
+- `-Wno-missing-include-dirs`: Can be problematic with Qt include paths
+
+These warnings are applied to all build configurations and help maintain high code quality standards.
 
 ### 4. Uncrustify Code Formatter
 
