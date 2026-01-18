@@ -26,14 +26,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{github.head_ref}}      
+          ref: ${{github.head_ref}}
 
       - name: Set number of parallel jobs
         run: echo "PARALLEL_JOBS=-j$(nproc)" >> $GITHUB_ENV
 
       - name: Show CMake version
         run: cmake --version
-    
+
       - name: Create build directory
         run: mkdir -p build
 

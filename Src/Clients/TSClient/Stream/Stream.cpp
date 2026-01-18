@@ -11,9 +11,7 @@ Q_LOGGING_CATEGORY(LOGGING_CATEGORY, "Stream")
 size_t Stream::s_numberOfStream = 0;
 
 
-Stream::Stream(QNetworkReply * reply, QObject *parent) :
-    QObject(parent),
-    m_networkReply(reply)
+Stream::Stream(QNetworkReply* reply, QObject* parent) : QObject(parent), m_networkReply(reply)
 {
     Q_CHECK_PTR(reply);
     Q_CHECK_PTR(parent);
@@ -74,7 +72,8 @@ void Stream::onReplyFinished()
     // 1) In the previous readyRead() call, we detected an error object in the stream and marked m_isInError = true
     // 2) The heartbeat timer timed out and aborted the network reply
     // 3) There is a network error reported by QNetworkReply (timeout, disconnection, etc )
-    QString exceptionString = "Timeout: " + (m_receivedTimeoutError ? QString("true"):QString("false")) + " JSON Error: " + m_jsonErrorString + ". Network error: " + m_networkReply->errorString();
+    QString exceptionString = "Timeout: " + (m_receivedTimeoutError ? QString("true") : QString("false")) +
+                              " JSON Error: " + m_jsonErrorString + ". Network error: " + m_networkReply->errorString();
 
     CRITICAL << "exceptionString: " << exceptionString;
 
@@ -97,7 +96,6 @@ void Stream::onHeartbeatTimerTimeout()
     // which will take care of further destruction and promise finalization
     m_networkReply->abort();
 }
-
 
 
 void Stream::onReplyReadyRead()
@@ -125,21 +123,24 @@ void Stream::processRawData(const QByteArray& rawData)
     m_accumulatedData.append(rawData);
 
     emit receivedNewRawData(rawData);
-    
+
     // Decode and parse one JSON document at a time, as long as we have complete objects (newline delimited)
-    for(int delimiterPos = m_accumulatedData.indexOf('\n'); delimiterPos != -1; delimiterPos = m_accumulatedData.indexOf('\n'))
+    for (int delimiterPos = m_accumulatedData.indexOf('\n'); delimiterPos != -1;
+         delimiterPos = m_accumulatedData.indexOf('\n'))
     {
         // TODO optimize to avoid copy
         const QByteArray jsonData = m_accumulatedData.left(delimiterPos + 1);
-        m_accumulatedData.remove(0, delimiterPos + 1); // Remove extracted data from buffer
+        m_accumulatedData.remove(0,
+                                 delimiterPos + 1); // Remove extracted data from buffer
 
         QJsonParseError parseError;
         const QJsonDocument doc = QJsonDocument::fromJson(jsonData, &parseError);
 
-        if (parseError.error != QJsonParseError::NoError) {
+        if (parseError.error != QJsonParseError::NoError)
+        {
             CRITICAL << "Failed to parse JSON:" << parseError.errorString();
             DEBUG << "Raw data : " << jsonData;
-                        
+
             // Skip this malformed object and continue processing further data, hopefully we can resync on good objects
             continue;
         }
@@ -157,23 +158,26 @@ void Stream::processJsonDoc(const QJsonDocument& doc)
     const QJsonObject jsonObj = doc.object();
 
     // All types of stream have in common this heartbeat object
-    if (jsonObj.contains("Heartbeat")) {
+    if (jsonObj.contains("Heartbeat"))
+    {
 
         // Here, we just test that the heartbeat object is well formed, we don't actually care about the timestamp
         // We will kick the watchdog timer anyway
-        if (jsonObj.contains("Timestamp") == false) [[unlikely]]{
+        if (jsonObj.contains("Timestamp") == false) [[unlikely]]
+        {
             CRITICAL << " received malformed heartbeat object without Timestamp field";
         }
 
         m_heartbeatTimer.start(m_heartbeatTimeoutMS);
         //DEBUG << "received heartbeat";
-        return;;
+        return;
+        ;
     }
 
     // Each type of stream may have its own error object, so we delegate to derived classes
     // to handle error objects as they see fit.
 
     // Happy path, process the object
-    // Delegate to derived class for processing    
+    // Delegate to derived class for processing
     processJsonObject(jsonObj);
 }

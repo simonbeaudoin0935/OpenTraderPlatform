@@ -15,11 +15,13 @@ OrderWindow::OrderWindow(QWidget* p_parent)
     setupStyles();
 }
 
-OrderWindow::~OrderWindow() {
+OrderWindow::~OrderWindow()
+{
     // Qt will handle deletion of child widgets
 }
 
-void OrderWindow::setupUI() {
+void OrderWindow::setupUI()
+{
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(0);
     mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -30,7 +32,8 @@ void OrderWindow::setupUI() {
 
     // Setup model columns
     QStringList headers;
-    headers << "Order ID" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "DateTime" << "Ack Latency" << "Fill Latency" << "Status";
+    headers << "Order ID" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "DateTime" << "Ack Latency"
+            << "Fill Latency" << "Status";
     m_model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -47,17 +50,23 @@ void OrderWindow::setupUI() {
     Q_ASSERT(c);
 
     // Set column widths
-    m_tableView->setColumnWidth(0, 100); // Order ID
-    m_tableView->setColumnWidth(1, 70);  // Symbol
-    m_tableView->setColumnWidth(2, 80);  // Action
-    m_tableView->setColumnWidth(3, 50);  // Quantity
-    m_tableView->setColumnWidth(4, 70);  // Type
-    m_tableView->setColumnWidth(5, 60);  // Limit
-    m_tableView->setColumnWidth(6, 60);  // Stop
-    m_tableView->setColumnWidth(7, 100); // DateTime
-    m_tableView->setColumnWidth(8, 90);  // Ack Latency
-    m_tableView->setColumnWidth(9, 90);  // Fill Latency
-    m_tableView->setColumnWidth(10, 100); // Status
+    m_tableView->setColumnWidth(0,
+                                100);   // Order ID
+    m_tableView->setColumnWidth(1, 70); // Symbol
+    m_tableView->setColumnWidth(2, 80); // Action
+    m_tableView->setColumnWidth(3,
+                                50);    // Quantity
+    m_tableView->setColumnWidth(4, 70); // Type
+    m_tableView->setColumnWidth(5, 60); // Limit
+    m_tableView->setColumnWidth(6, 60); // Stop
+    m_tableView->setColumnWidth(7,
+                                100); // DateTime
+    m_tableView->setColumnWidth(8,
+                                90); // Ack Latency
+    m_tableView->setColumnWidth(9,
+                                90); // Fill Latency
+    m_tableView->setColumnWidth(10,
+                                100); // Status
 
     // Add widgets to layout
     mainLayout->addWidget(m_headerLabel);
@@ -66,104 +75,111 @@ void OrderWindow::setupUI() {
     // Set a reasonable maximum width to fit on screen, but allow the table to scroll horizontally
     // Calculate total width for all columns
     int totalWidth = 0;
-    for (int i = 0; i < headers.size(); ++i) {
+    for (int i = 0; i < headers.size(); ++i)
+    {
         totalWidth += m_tableView->columnWidth(i);
     }
-    
+
     // Set maximum width to accommodate content, but widget can be smaller and scroll
-    setMaximumWidth(totalWidth + 20);  // Add padding for scrollbar
-    setMinimumWidth(400);  // Ensure minimum usable width
+    setMaximumWidth(totalWidth + 20); // Add padding for scrollbar
+    setMinimumWidth(400);             // Ensure minimum usable width
 }
 
-void OrderWindow::setupStyles() {
+void OrderWindow::setupStyles()
+{
     // Style the header label
-    m_headerLabel->setStyleSheet(
-        "QLabel {"
-        "   background-color: #2D2D2D;"
-        "   color: #FFFFFF;"
-        "   padding: 4px;"
-        "   border-bottom: 1px solid #3D3D3D;"
-        "}"
-    );
+    m_headerLabel->setStyleSheet("QLabel {"
+                                 "   background-color: #2D2D2D;"
+                                 "   color: #FFFFFF;"
+                                 "   padding: 4px;"
+                                 "   border-bottom: 1px solid #3D3D3D;"
+                                 "}");
 
     // Style the table
-    m_tableView->setStyleSheet(
-        "QTableView {"
-        "   alternate-background-color: #1C1C1C;"
-        "   background-color: #242424;"
-        "   color: white;"
-        "   gridline-color: #3D3D3D;"
-        "}"
-        "QTableView::item:selected {"
-        "   background-color: #2C539E;"
-        "}"
-        "QHeaderView::section {"
-        "   background-color: #2D2D2D;"
-        "   color: white;"
-        "   border: none;"
-        "   border-right: 1px solid #3D3D3D;"
-        "   padding: 4px;"
-        "}"
-    );
+    m_tableView->setStyleSheet("QTableView {"
+                               "   alternate-background-color: #1C1C1C;"
+                               "   background-color: #242424;"
+                               "   color: white;"
+                               "   gridline-color: #3D3D3D;"
+                               "}"
+                               "QTableView::item:selected {"
+                               "   background-color: #2C539E;"
+                               "}"
+                               "QHeaderView::section {"
+                               "   background-color: #2D2D2D;"
+                               "   color: white;"
+                               "   border: none;"
+                               "   border-right: 1px solid #3D3D3D;"
+                               "   padding: 4px;"
+                               "}");
 }
 
-void OrderWindow::updateOrder(const QString& account, const Order& order) {
+void OrderWindow::updateOrder(const QString& account, const Order& order)
+{
     Q_UNUSED(account);
     QString orderId = order.getOrderID();
-    
-    qDebug() << "OrderWindow::updateOrder called for order ID:" << orderId 
-                        << "Symbol:" << order.getSymbol()
-                        << "Quantity:" << order.getQuantity()
-                        << "TradeAction:" << order.getTradeAction()
-                        << "OrderType:" << static_cast<int>(order.getOrderType().type)
-                        << "LimitPrice:" << (order.getLimitPrice().has_value() ? QString::number(order.getLimitPrice().value()) : "not set")
-                        << "StopPrice:" << (order.getStopPrice().has_value() ? QString::number(order.getStopPrice().value()) : "not set");
-    
+
+    qDebug() << "OrderWindow::updateOrder called for order ID:" << orderId << "Symbol:" << order.getSymbol()
+             << "Quantity:" << order.getQuantity() << "TradeAction:" << order.getTradeAction()
+             << "OrderType:" << static_cast<int>(order.getOrderType().type) << "LimitPrice:"
+             << (order.getLimitPrice().has_value() ? QString::number(order.getLimitPrice().value()) : "not set")
+             << "StopPrice:"
+             << (order.getStopPrice().has_value() ? QString::number(order.getStopPrice().value()) : "not set");
+
     // Store or update the order object
     m_orders.insert(orderId, order);
-    
-    if (m_orderRowMap.contains(orderId)) {
+
+    if (m_orderRowMap.contains(orderId))
+    {
         // Update existing order
         // Note: Row indices are maintained across updates. Orders are not removed from the display,
         // only updated in place. If order removal is needed in the future, consider implementing
         // a cleanup mechanism that rebuilds the map after row removal.
         updateOrderRow(account, order);
-    } else {
+    }
+    else
+    {
         // Add new order at the top (latest first)
         // Shift all existing row indices down by 1
-        for (auto& rowIndex : m_orderRowMap) {
+        for (auto& rowIndex: m_orderRowMap)
+        {
             rowIndex++;
         }
-        
+
         QList<QStandardItem*> rowItems = createRowItems(order);
         m_model->insertRow(0, rowItems);
         m_orderRowMap[orderId] = 0;
     }
 }
 
-void OrderWindow::updateOrderRow(const QString& account, const Order& order) {
+void OrderWindow::updateOrderRow(const QString& account, const Order& order)
+{
     Q_UNUSED(account);
 
     QString orderId = order.getOrderID();
-    if (!m_orderRowMap.contains(orderId)) {
+    if (!m_orderRowMap.contains(orderId))
+    {
         qWarning() << "OrderWindow::updateOrderRow: Order ID not found in map:" << orderId;
         return;
     }
 
     int row = m_orderRowMap[orderId];
-    if (row < 0 || row >= m_model->rowCount()) {
+    if (row < 0 || row >= m_model->rowCount())
+    {
         qWarning() << "OrderWindow::updateOrderRow: Invalid row index:" << row;
         return;
     }
 
     QList<QStandardItem*> items = createRowItems(order);
-    
-    for (int col = 0; col < items.size(); ++col) {
+
+    for (int col = 0; col < items.size(); ++col)
+    {
         m_model->setItem(row, col, items[col]);
     }
 }
 
-QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
+QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
+{
     QList<QStandardItem*> items;
     bool isReceivedOrder = (order.getOrderStatus() == Order::Status::ACK);
 
@@ -184,9 +200,12 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     Q_CHECK_PTR(actionItem);
     actionItem->setTextAlignment(Qt::AlignCenter);
     // Color code buy/sell
-    if (order.getTradeAction().contains("Buy", Qt::CaseInsensitive)) {
+    if (order.getTradeAction().contains("Buy", Qt::CaseInsensitive))
+    {
         actionItem->setForeground(QColor(Qt::green));
-    } else if (order.getTradeAction().contains("Sell", Qt::CaseInsensitive)) {
+    }
+    else if (order.getTradeAction().contains("Sell", Qt::CaseInsensitive))
+    {
         actionItem->setForeground(QColor(Qt::red));
     }
     items << actionItem;
@@ -199,22 +218,23 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
 
     // Order Type
     QString orderTypeStr;
-    switch (order.getOrderType().type) {
-        case OrderType::Type::Market:
-            orderTypeStr = "Market";
-            break;
-        case OrderType::Type::Limit:
-            orderTypeStr = "Limit";
-            break;
-        case OrderType::Type::StopMarket:
-            orderTypeStr = "StopMkt";
-            break;
-        case OrderType::Type::StopLimit:
-            orderTypeStr = "StopLmt";
-            break;
-        default:
-            orderTypeStr = "Unknown";
-            break;
+    switch (order.getOrderType().type)
+    {
+    case OrderType::Type::Market:
+        orderTypeStr = "Market";
+        break;
+    case OrderType::Type::Limit:
+        orderTypeStr = "Limit";
+        break;
+    case OrderType::Type::StopMarket:
+        orderTypeStr = "StopMkt";
+        break;
+    case OrderType::Type::StopLimit:
+        orderTypeStr = "StopLmt";
+        break;
+    default:
+        orderTypeStr = "Unknown";
+        break;
     }
     auto typeItem = new QStandardItem(orderTypeStr);
     Q_CHECK_PTR(typeItem);
@@ -223,13 +243,17 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
 
     // Limit Price
     QString limitPriceStr = "-";
-    if (order.getOrderType().type == OrderType::Type::Limit || 
-        order.getOrderType().type == OrderType::Type::StopLimit) {
+    if (order.getOrderType().type == OrderType::Type::Limit || order.getOrderType().type == OrderType::Type::StopLimit)
+    {
         auto limitPriceOpt = order.getLimitPrice();
-        if (limitPriceOpt.has_value() && limitPriceOpt.value() > 0) {
+        if (limitPriceOpt.has_value() && limitPriceOpt.value() > 0)
+        {
             limitPriceStr = QString::number(limitPriceOpt.value(), 'f', 2);
-        } else if (limitPriceOpt.has_value()) {
-            limitPriceStr = QString::number(limitPriceOpt.value(), 'f', 2);  // Show even if 0
+        }
+        else if (limitPriceOpt.has_value())
+        {
+            limitPriceStr = QString::number(limitPriceOpt.value(), 'f',
+                                            2); // Show even if 0
         }
     }
     auto limitItem = new QStandardItem(limitPriceStr);
@@ -239,13 +263,18 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
 
     // Stop Price
     QString stopPriceStr = "-";
-    if (order.getOrderType().type == OrderType::Type::StopMarket || 
-        order.getOrderType().type == OrderType::Type::StopLimit) {
+    if (order.getOrderType().type == OrderType::Type::StopMarket ||
+        order.getOrderType().type == OrderType::Type::StopLimit)
+    {
         auto stopPriceOpt = order.getStopPrice();
-        if (stopPriceOpt.has_value() && stopPriceOpt.value() > 0) {
+        if (stopPriceOpt.has_value() && stopPriceOpt.value() > 0)
+        {
             stopPriceStr = QString::number(stopPriceOpt.value(), 'f', 2);
-        } else if (stopPriceOpt.has_value()) {
-            stopPriceStr = QString::number(stopPriceOpt.value(), 'f', 2);  // Show even if 0
+        }
+        else if (stopPriceOpt.has_value())
+        {
+            stopPriceStr = QString::number(stopPriceOpt.value(), 'f',
+                                           2); // Show even if 0
         }
     }
     auto stopItem = new QStandardItem(stopPriceStr);
@@ -260,21 +289,29 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     auto dateTimeItem = new QStandardItem(timeOnlyStr);
     Q_CHECK_PTR(dateTimeItem);
     dateTimeItem->setTextAlignment(Qt::AlignCenter);
-    dateTimeItem->setToolTip(dateTimeStr);  // Show full datetime on hover
+    dateTimeItem->setToolTip(dateTimeStr); // Show full datetime on hover
     items << dateTimeItem;
 
     // Helper lambda to format latency
-    auto formatLatency = [](qint64 latencyMs) -> QString {
-        if (latencyMs < 0) {
+    auto formatLatency = [](qint64 latencyMs) -> QString
+    {
+        if (latencyMs < 0)
+        {
             return "Invalid";
-        } else if (latencyMs < 1000) {
+        }
+        else if (latencyMs < 1000)
+        {
             // Less than 1 second - show milliseconds
             return QString("%1 ms").arg(latencyMs);
-        } else if (latencyMs < 60000) {
+        }
+        else if (latencyMs < 60000)
+        {
             // Less than 1 minute - show seconds with decimal
             double latencySec = latencyMs / 1000.0;
             return QString("%1 s").arg(latencySec, 0, 'f', 2);
-        } else {
+        }
+        else
+        {
             // 1 minute or more - show minutes and seconds
             int minutes = latencyMs / 60000;
             int seconds = (latencyMs % 60000) / 1000;
@@ -285,25 +322,27 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     // Ack Latency - show latency from order placement to acknowledgment
     QString ackLatencyStr = "-";
     QString ackTooltipStr;
-    
-    if (order.getReceivedTime().has_value() && order.getOpenedDateTime().isValid()) {
+
+    if (order.getReceivedTime().has_value() && order.getOpenedDateTime().isValid())
+    {
         // Calculate acknowledgment latency in milliseconds
         qint64 ackLatencyMs = order.getOpenedDateTime().msecsTo(order.getReceivedTime().value());
         ackLatencyStr = formatLatency(ackLatencyMs);
-        
+
         // Tooltip shows full details
         QDateTime receivedDateTime = MarketHours::toNewYorkTime(order.getReceivedTime().value());
         QDateTime openedDateTime = MarketHours::toNewYorkTime(order.getOpenedDateTime());
         ackTooltipStr = QString("Opened: %1\nAcknowledged: %2\nLatency: %3 ms")
-            .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
-            .arg(receivedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
-            .arg(ackLatencyMs);
+                            .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
+                            .arg(receivedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
+                            .arg(ackLatencyMs);
     }
-    
+
     auto ackLatencyItem = new QStandardItem(ackLatencyStr);
     Q_CHECK_PTR(ackLatencyItem);
     ackLatencyItem->setTextAlignment(Qt::AlignCenter);
-    if (!ackTooltipStr.isEmpty()) {
+    if (!ackTooltipStr.isEmpty())
+    {
         ackLatencyItem->setToolTip(ackTooltipStr);
     }
     items << ackLatencyItem;
@@ -311,25 +350,27 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     // Fill Latency - show latency from order placement to fill
     QString fillLatencyStr = "-";
     QString fillTooltipStr;
-    
-    if (order.getFilledTime().has_value() && order.getOpenedDateTime().isValid()) {
+
+    if (order.getFilledTime().has_value() && order.getOpenedDateTime().isValid())
+    {
         // Calculate fill latency in milliseconds
         qint64 fillLatencyMs = order.getOpenedDateTime().msecsTo(order.getFilledTime().value());
         fillLatencyStr = formatLatency(fillLatencyMs);
-        
+
         // Tooltip shows full details
         QDateTime filledDateTime = MarketHours::toNewYorkTime(order.getFilledTime().value());
         QDateTime openedDateTime = MarketHours::toNewYorkTime(order.getOpenedDateTime());
         fillTooltipStr = QString("Opened: %1\nFilled: %2\nLatency: %3 ms")
-            .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
-            .arg(filledDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
-            .arg(fillLatencyMs);
+                             .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
+                             .arg(filledDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
+                             .arg(fillLatencyMs);
     }
-    
+
     auto fillLatencyItem = new QStandardItem(fillLatencyStr);
     Q_CHECK_PTR(fillLatencyItem);
     fillLatencyItem->setTextAlignment(Qt::AlignCenter);
-    if (!fillTooltipStr.isEmpty()) {
+    if (!fillTooltipStr.isEmpty())
+    {
         fillLatencyItem->setToolTip(fillTooltipStr);
     }
     items << fillLatencyItem;
@@ -338,130 +379,143 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order) {
     auto statusItem = new QStandardItem(order.getStatusDescription());
     Q_CHECK_PTR(statusItem);
     statusItem->setTextAlignment(Qt::AlignCenter);
-    
+
     // Color code status based on OrderStatus enum
-    switch (order.getOrderStatus()) {
-        case Order::Status::FLL:  // Filled
-            statusItem->setBackground(QColor("#D4EDDA"));  // Light green
-            statusItem->setForeground(QColor("#155724"));  // Dark green text
-            break;
-        case Order::Status::FLP:  // Partial Fill (UROut)
-        case Order::Status::FPR:  // Partial Fill (Alive)
-            statusItem->setBackground(QColor("#F8F9FA"));  // Light gray
-            statusItem->setForeground(QColor("#383D41"));  // Dark gray text
-            break;
-        case Order::Status::REJ:  // Rejected
-        case Order::Status::RJC:  // Cancel Request Rejected
-            statusItem->setBackground(QColor("#F8D7DA"));  // Light red
-            statusItem->setForeground(QColor("#721C24"));  // Dark red text
-            break;
-        case Order::Status::CAN:  // Canceled
-        case Order::Status::TSC:  // Trade Server Canceled
-        case Order::Status::EXP:  // Expired
-        case Order::Status::BRO:  // Broken
-            statusItem->setBackground(QColor("#F8D7DA"));  // Light red
-            statusItem->setForeground(QColor("#721C24"));  // Dark red text
-            break;
-        case Order::Status::OPN:  // Sent
-        case Order::Status::UCN:  // Cancel Sent
-        case Order::Status::RSN:  // Replace Sent
-            statusItem->setBackground(QColor("#FFF3CD"));  // Light yellow
-            statusItem->setForeground(QColor("#856404"));  // Dark yellow text
-            break;
-        case Order::Status::DON:  // Queued
-            // Button styling for queued orders
-            statusItem->setBackground(QColor("#007BFF"));
-            statusItem->setForeground(QColor("#FFFFFF"));
-            statusItem->setText("Queued ❌");  // Add X emoji to make it look like a cancel button
-            break;
-        case Order::Status::ACK:  // Received
-            // Button styling for received orders
-            statusItem->setBackground(QColor("#007BFF"));
-            statusItem->setForeground(QColor("#FFFFFF"));
-            statusItem->setText("Received ❌");  // Add X emoji to make it look like a cancel button
-            break;
-        case Order::Status::LAT:  // Too Late to Cancel
-        case Order::Status::OUT:  // UROut
-        case Order::Status::UCH:  // Replaced
-        case Order::Status::CND:  // Condition Met
-        case Order::Status::OSO:  // OSO Order
-        case Order::Status::SUS:  // Suspended
-        default:
-            // Default color for other statuses
-            statusItem->setBackground(QColor("#F8F9FA"));  // Light gray
-            statusItem->setForeground(QColor("#383D41"));  // Dark gray text
-            break;
+    switch (order.getOrderStatus())
+    {
+    case Order::Status::FLL:                          // Filled
+        statusItem->setBackground(QColor("#D4EDDA")); // Light green
+        statusItem->setForeground(QColor("#155724")); // Dark green text
+        break;
+    case Order::Status::FLP:                          // Partial Fill (UROut)
+    case Order::Status::FPR:                          // Partial Fill (Alive)
+        statusItem->setBackground(QColor("#F8F9FA")); // Light gray
+        statusItem->setForeground(QColor("#383D41")); // Dark gray text
+        break;
+    case Order::Status::REJ:                          // Rejected
+    case Order::Status::RJC:                          // Cancel Request Rejected
+        statusItem->setBackground(QColor("#F8D7DA")); // Light red
+        statusItem->setForeground(QColor("#721C24")); // Dark red text
+        break;
+    case Order::Status::CAN:                          // Canceled
+    case Order::Status::TSC:                          // Trade Server Canceled
+    case Order::Status::EXP:                          // Expired
+    case Order::Status::BRO:                          // Broken
+        statusItem->setBackground(QColor("#F8D7DA")); // Light red
+        statusItem->setForeground(QColor("#721C24")); // Dark red text
+        break;
+    case Order::Status::OPN:                          // Sent
+    case Order::Status::UCN:                          // Cancel Sent
+    case Order::Status::RSN:                          // Replace Sent
+        statusItem->setBackground(QColor("#FFF3CD")); // Light yellow
+        statusItem->setForeground(QColor("#856404")); // Dark yellow text
+        break;
+    case Order::Status::DON: // Queued
+        // Button styling for queued orders
+        statusItem->setBackground(QColor("#007BFF"));
+        statusItem->setForeground(QColor("#FFFFFF"));
+        statusItem->setText("Queued ❌"); // Add X emoji to make it look like a cancel button
+        break;
+    case Order::Status::ACK: // Received
+        // Button styling for received orders
+        statusItem->setBackground(QColor("#007BFF"));
+        statusItem->setForeground(QColor("#FFFFFF"));
+        statusItem->setText("Received ❌"); // Add X emoji to make it look like a cancel button
+        break;
+    case Order::Status::LAT: // Too Late to Cancel
+    case Order::Status::OUT: // UROut
+    case Order::Status::UCH: // Replaced
+    case Order::Status::CND: // Condition Met
+    case Order::Status::OSO: // OSO Order
+    case Order::Status::SUS: // Suspended
+    default:
+        // Default color for other statuses
+        statusItem->setBackground(QColor("#F8F9FA")); // Light gray
+        statusItem->setForeground(QColor("#383D41")); // Dark gray text
+        break;
     }
-    
+
     // Set tooltip with detailed status information
     QString tooltipText = order.getStatusDescription();
-    if (order.getOrderStatus() == Order::Status::OUT) {
+    if (order.getOrderStatus() == Order::Status::OUT)
+    {
         tooltipText = "Successfully Cancelled (UROut)\n\nThis order was cancelled successfully.";
-    } else if (order.rejectReason.has_value() && !order.rejectReason.value().isEmpty()) {
+    }
+    else if (order.rejectReason.has_value() && !order.rejectReason.value().isEmpty())
+    {
         tooltipText += "\n\nReject Reason: " + order.rejectReason.value();
     }
     statusItem->setToolTip(tooltipText);
-    
+
     items << statusItem;
 
     return items;
 }
 
-void OrderWindow::onSymbolClicked(const QModelIndex& index) {
+void OrderWindow::onSymbolClicked(const QModelIndex& index)
+{
     // Get the order ID from the first column of the clicked row
     QStandardItem* orderIdItem = m_model->item(index.row(), 0);
-    if (orderIdItem == nullptr) {
+    if (orderIdItem == nullptr)
+    {
         return;
     }
-    
+
     QString orderId = orderIdItem->text();
-    
+
     // Check if this row has "Received" or "Queued" status (last column)
-    QStandardItem* statusItem = m_model->item(index.row(), 10);  // Status column (now at index 10)
-    bool isCancelableOrder = (statusItem != nullptr && 
-                             (statusItem->text().contains("Received", Qt::CaseInsensitive) ||
-                              statusItem->text().contains("Queued", Qt::CaseInsensitive)));
-    
-    if (isCancelableOrder) {
+    QStandardItem* statusItem = m_model->item(index.row(),
+                                              10); // Status column (now at index 10)
+    bool isCancelableOrder = (statusItem != nullptr && (statusItem->text().contains("Received", Qt::CaseInsensitive) ||
+                                                        statusItem->text().contains("Queued", Qt::CaseInsensitive)));
+
+    if (isCancelableOrder)
+    {
         // This is a cancelable order - emit cancel signal
         emit cancelOrderRequested(orderId);
         return;
     }
-    
+
     // Otherwise, handle symbol clicks (only on Symbol column)
-    if (index.column() == 1) {  // Symbol column
+    if (index.column() == 1)
+    { // Symbol column
         QStandardItem* symbolItem = m_model->item(index.row(), 1);
-        if (symbolItem != nullptr) {
+        if (symbolItem != nullptr)
+        {
             QString symbol = symbolItem->text();
             emit symbolClicked(symbol);
         }
     }
 }
 
-QStringList OrderWindow::getAllOrderIds() const {
+QStringList OrderWindow::getAllOrderIds() const
+{
     return m_orderRowMap.keys();
 }
 
-QStringList OrderWindow::getCancellableOrderIds() const {
+QStringList OrderWindow::getCancellableOrderIds() const
+{
     QStringList cancellableIds;
-    
+
     // Only include orders that are in a cancellable state
-    for (auto it = m_orders.constBegin(); it != m_orders.constEnd(); ++it) {
+    for (auto it = m_orders.constBegin(); it != m_orders.constEnd(); ++it)
+    {
         const Order& order = it.value();
         Order::Status status = order.getOrderStatus();
-        
+
         // Only cancel orders that are queued, received, or sent
         // Don't cancel filled, cancelled, rejected, expired, etc.
-        if (status == Order::Status::DON ||   // Queued
-            status == Order::Status::ACK ||   // Received
-            status == Order::Status::OPN ||   // Sent
-            status == Order::Status::FPR ||   // Partial Fill (Alive)
-            status == Order::Status::CND ||   // Condition Met
-            status == Order::Status::OSO ||   // OSO Order
-            status == Order::Status::SUS) {   // Suspended
+        if (status == Order::Status::DON || // Queued
+            status == Order::Status::ACK || // Received
+            status == Order::Status::OPN || // Sent
+            status == Order::Status::FPR || // Partial Fill (Alive)
+            status == Order::Status::CND || // Condition Met
+            status == Order::Status::OSO || // OSO Order
+            status == Order::Status::SUS)
+        { // Suspended
             cancellableIds.append(it.key());
         }
     }
-    
+
     return cancellableIds;
 }

@@ -35,7 +35,7 @@ class DatabaseThread final : public QObject
 {
     Q_OBJECT
 
-public:
+  public:
     // Singleton: Instance getter
     [[nodiscard]] static DatabaseThread* getInstance();
 
@@ -82,8 +82,8 @@ public:
      * @param bars Vector of bars to store
      * @return QFuture that resolves to the number of bars successfully stored
      */
-    [[nodiscard]] QFuture<int> storeBarsInDatabase(const QString& symbol, const QDate& date,
-                                                   const std::shared_ptr<QVector<Bar>> bars);
+    [[nodiscard]] QFuture<int>
+    storeBarsInDatabase(const QString& symbol, const QDate& date, const std::shared_ptr<QVector<Bar>> bars);
 
     /**
      * @brief Clear all bars from a symbol's database.
@@ -92,10 +92,10 @@ public:
      */
     [[nodiscard]] QFuture<bool> clearDatabase(const QString& symbol);
 
-private slots:
+  private slots:
     void onThreadStarted();
 
-private:
+  private:
     static DatabaseThread* m_instance;
 
     explicit DatabaseThread();
@@ -104,13 +104,12 @@ private:
     // Internal implementations that run on the database thread
     bool openDatabaseInternal(const QString& symbol, const QString& dbPath);
     void closeDatabaseInternal(const QString& symbol);
-    
+
     std::optional<std::unique_ptr<QVector<Bar>>>
     getBarsFromDatabaseInternal(const QString& symbol, QDate date, QTime start, QTime end);
-    
-    int storeBarsInDatabaseInternal(const QString& symbol, const QDate& date,
-                                     const QVector<Bar>& bars);
-    
+
+    int storeBarsInDatabaseInternal(const QString& symbol, const QDate& date, const QVector<Bar>& bars);
+
     bool clearDatabaseInternal(const QString& symbol);
 
     // Helper to convert time to index (same logic as BarCache)
@@ -118,7 +117,7 @@ private:
     static QTime indexToTime(size_t index);
 
     QThread m_thread;
-    
+
     // Map of symbol -> database connection
     // Only accessed from the database thread
     QMap<QString, QSqlDatabase> m_databases;

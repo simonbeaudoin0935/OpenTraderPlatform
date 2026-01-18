@@ -14,14 +14,15 @@
 // Forward declarations
 class LiveStreamDB;
 
-class RecorderTab : public QWidget {
+class RecorderTab : public QWidget
+{
     Q_OBJECT
 
-public:
+  public:
     explicit RecorderTab(QWidget* p_parent = nullptr);
     ~RecorderTab() override;
 
-private slots:
+  private slots:
     void onStartRecording();
     void onStopRecording();
     void refreshRecorderStats();
@@ -29,7 +30,7 @@ private slots:
     void onBrowseButtonClicked();
     void onCsvFilePathChanged(const QString& p_text);
 
-private:
+  private:
     void setupUI();
     void updateStatsDisplay();
     QString formatFileSize(qint64 p_bytes) const;

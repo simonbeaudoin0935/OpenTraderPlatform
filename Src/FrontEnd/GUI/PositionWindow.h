@@ -9,20 +9,21 @@
 class QTableView;
 class QLabel;
 
-class PositionWindow : public QWidget {
+class PositionWindow : public QWidget
+{
     Q_OBJECT
-public:
+  public:
     explicit PositionWindow(QWidget* parent = nullptr);
     ~PositionWindow();
 
-public slots:
+  public slots:
     void updatePosition(const QString& account, const Position& position);
     void onPositionDeleted(const QString& account, const QString& positionID);
 
-signals:
+  signals:
     void symbolClicked(const QString& symbol);
 
-private:
+  private:
     void setupUI();
     void setupStyles();
     void updatePositionRow(const QString& account, const Position& position);
@@ -34,5 +35,5 @@ private:
     QLabel* headerLabel;
 
     // Map to keep track of positions by their ID for updates
-    QMap<QString, int> positionRowMap;  // Maps positionID to row index
-}; 
+    QMap<QString, int> positionRowMap; // Maps positionID to row index
+};

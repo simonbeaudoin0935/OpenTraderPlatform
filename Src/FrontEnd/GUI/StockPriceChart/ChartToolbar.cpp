@@ -5,8 +5,8 @@
 /**
  * @brief Constructs a ChartToolbar widget.
  */
-ChartToolbar::ChartToolbar(QWidget* parent)
-    : QWidget(parent) {
+ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
+{
 
     // Create the label
     label = new QLabel("Timeframe:", this);
@@ -101,120 +101,121 @@ ChartToolbar::ChartToolbar(QWidget* parent)
     layout->addWidget(settingsButton); // Add settings button at the end
 
     // Connect signals
-    connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &ChartToolbar::onComboBoxChanged);
-    connect(autoCheckBox, &QCheckBox::stateChanged,
-            this, &ChartToolbar::onAutoCheckBoxChanged);
-    connect(volumeCheckBox, &QCheckBox::stateChanged,
-            this, &ChartToolbar::onVolumeCheckBoxChanged);
-    connect(volumeAutoRescaleCheckBox, &QCheckBox::stateChanged,
-            this, &ChartToolbar::onVolumeAutoRescaleCheckBoxChanged);
-    connect(replayDayCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &ChartToolbar::onReplayDayChanged);
-    connect(replayTimeEdit, &QTimeEdit::timeChanged,
-            this, &ChartToolbar::onReplayTimeChanged);
-    connect(playPauseButton, &QPushButton::clicked,
-            this, &ChartToolbar::onPlayPauseClicked);
-    connect(wheelRatioCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &ChartToolbar::onWheelRatioChanged);
-    connect(wheelRatioCombo, &QComboBox::editTextChanged,
-            this, [this]() { onWheelRatioChanged(-1); }); // -1 to indicate custom text
+    connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ChartToolbar::onComboBoxChanged);
+    connect(autoCheckBox, &QCheckBox::stateChanged, this, &ChartToolbar::onAutoCheckBoxChanged);
+    connect(volumeCheckBox, &QCheckBox::stateChanged, this, &ChartToolbar::onVolumeCheckBoxChanged);
+    connect(volumeAutoRescaleCheckBox,
+            &QCheckBox::stateChanged,
+            this,
+            &ChartToolbar::onVolumeAutoRescaleCheckBoxChanged);
+    connect(replayDayCombo,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            &ChartToolbar::onReplayDayChanged);
+    connect(replayTimeEdit, &QTimeEdit::timeChanged, this, &ChartToolbar::onReplayTimeChanged);
+    connect(playPauseButton, &QPushButton::clicked, this, &ChartToolbar::onPlayPauseClicked);
+    connect(wheelRatioCombo,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            &ChartToolbar::onWheelRatioChanged);
+    connect(wheelRatioCombo,
+            &QComboBox::editTextChanged,
+            this,
+            [this]() { onWheelRatioChanged(-1); }); // -1 to indicate custom text
 
     // Set a nice background and border
-    setStyleSheet(
-        "ChartToolbar {"
-        "    background-color: #2a2a2a;"
-        "    border: 1px solid #555;"
-        "    border-radius: 3px;"
-        "}"
-        "QLabel {"
-        "    color: #ffffff;"
-        "}"
-        "QComboBox {"
-        "    background-color: #3a3a3a;"
-        "    color: #ffffff;"
-        "    border: 1px solid #666;"
-        "    border-radius: 3px;"
-        "    padding: 2px;"
-        "}"
-        "QComboBox::drop-down {"
-        "    border: none;"
-        "}"
-        "QComboBox::down-arrow {"
-        "    image: url(down_arrow.png);"
-        "    width: 12px;"
-        "    height: 12px;"
-        "}"
-        "QComboBox QAbstractItemView {"
-        "    background-color: #3a3a3a;"
-        "    color: #ffffff;"
-        "    selection-background-color: #555;"
-        "    border: 1px solid #666;"
-        "}"
-        "QCheckBox {"
-        "    color: #ffffff;"
-        "}"
-        "QCheckBox::indicator {"
-        "    width: 13px;"
-        "    height: 13px;"
-        "}"
-        "QCheckBox::indicator:unchecked {"
-        "    border: 1px solid #666;"
-        "    background-color: #3a3a3a;"
-        "}"
-        "QCheckBox::indicator:checked {"
-        "    border: 1px solid #666;"
-        "    background-color: #555;"
-        "}"
-        "QTimeEdit {"
-        "    background-color: #3a3a3a;"
-        "    color: #ffffff;"
-        "    border: 1px solid #666;"
-        "    border-radius: 3px;"
-        "    padding: 2px;"
-        "}"
-        "QPushButton {"
-        "    background-color: #3a3a3a;"
-        "    color: #ffffff;"
-        "    border: 1px solid #666;"
-        "    border-radius: 3px;"
-        "    padding: 4px 8px;"
-        "}"
-        "QPushButton:hover {"
-        "    background-color: #555;"
-        "}"
-        "QPushButton:pressed {"
-        "    background-color: #666;"
-        "}"
-        "QPushButton:checked {"
-        "    background-color: #4a4a4a;"
-        "}"
-        "QToolButton {"
-        "    background-color: #3a3a3a;"
-        "    color: #ffffff;"
-        "    border: 1px solid #666;"
-        "    border-radius: 3px;"
-        "    padding: 4px;"
-        "    font-size: 14px;"
-        "}"
-        "QToolButton:hover {"
-        "    background-color: #555;"
-        "}"
-        "QToolButton:pressed {"
-        "    background-color: #666;"
-        "}"
-        "QMenu {"
-        "    background-color: #3a3a3a;"
-        "    color: #ffffff;"
-        "    border: 1px solid #666;"
-        "}"
-        "QMenu::item {"
-        "    padding: 5px 20px;"
-        "}"
-        "QMenu::item:selected {"
-        "    background-color: #555;"
-        "}"
-    );
+    setStyleSheet("ChartToolbar {"
+                  "    background-color: #2a2a2a;"
+                  "    border: 1px solid #555;"
+                  "    border-radius: 3px;"
+                  "}"
+                  "QLabel {"
+                  "    color: #ffffff;"
+                  "}"
+                  "QComboBox {"
+                  "    background-color: #3a3a3a;"
+                  "    color: #ffffff;"
+                  "    border: 1px solid #666;"
+                  "    border-radius: 3px;"
+                  "    padding: 2px;"
+                  "}"
+                  "QComboBox::drop-down {"
+                  "    border: none;"
+                  "}"
+                  "QComboBox::down-arrow {"
+                  "    image: url(down_arrow.png);"
+                  "    width: 12px;"
+                  "    height: 12px;"
+                  "}"
+                  "QComboBox QAbstractItemView {"
+                  "    background-color: #3a3a3a;"
+                  "    color: #ffffff;"
+                  "    selection-background-color: #555;"
+                  "    border: 1px solid #666;"
+                  "}"
+                  "QCheckBox {"
+                  "    color: #ffffff;"
+                  "}"
+                  "QCheckBox::indicator {"
+                  "    width: 13px;"
+                  "    height: 13px;"
+                  "}"
+                  "QCheckBox::indicator:unchecked {"
+                  "    border: 1px solid #666;"
+                  "    background-color: #3a3a3a;"
+                  "}"
+                  "QCheckBox::indicator:checked {"
+                  "    border: 1px solid #666;"
+                  "    background-color: #555;"
+                  "}"
+                  "QTimeEdit {"
+                  "    background-color: #3a3a3a;"
+                  "    color: #ffffff;"
+                  "    border: 1px solid #666;"
+                  "    border-radius: 3px;"
+                  "    padding: 2px;"
+                  "}"
+                  "QPushButton {"
+                  "    background-color: #3a3a3a;"
+                  "    color: #ffffff;"
+                  "    border: 1px solid #666;"
+                  "    border-radius: 3px;"
+                  "    padding: 4px 8px;"
+                  "}"
+                  "QPushButton:hover {"
+                  "    background-color: #555;"
+                  "}"
+                  "QPushButton:pressed {"
+                  "    background-color: #666;"
+                  "}"
+                  "QPushButton:checked {"
+                  "    background-color: #4a4a4a;"
+                  "}"
+                  "QToolButton {"
+                  "    background-color: #3a3a3a;"
+                  "    color: #ffffff;"
+                  "    border: 1px solid #666;"
+                  "    border-radius: 3px;"
+                  "    padding: 4px;"
+                  "    font-size: 14px;"
+                  "}"
+                  "QToolButton:hover {"
+                  "    background-color: #555;"
+                  "}"
+                  "QToolButton:pressed {"
+                  "    background-color: #666;"
+                  "}"
+                  "QMenu {"
+                  "    background-color: #3a3a3a;"
+                  "    color: #ffffff;"
+                  "    border: 1px solid #666;"
+                  "}"
+                  "QMenu::item {"
+                  "    padding: 5px 20px;"
+                  "}"
+                  "QMenu::item:selected {"
+                  "    background-color: #555;"
+                  "}");
 
     // Scan and populate available replay days from cache
     scanAndPopulateReplayDays();
@@ -223,9 +224,11 @@ ChartToolbar::ChartToolbar(QWidget* parent)
 /**
  * @brief Gets the currently selected timeframe.
  */
-TimeFrame ChartToolbar::getCurrentTimeFrame() const {
+TimeFrame ChartToolbar::getCurrentTimeFrame() const
+{
     int currentIndex = comboBox->currentIndex();
-    if (currentIndex >= 0 && currentIndex < comboBox->count()) {
+    if (currentIndex >= 0 && currentIndex < comboBox->count())
+    {
         return static_cast<TimeFrame>(comboBox->itemData(currentIndex).toInt());
     }
     return TimeFrame::ONE_MINUTE; // Default fallback
@@ -234,9 +237,12 @@ TimeFrame ChartToolbar::getCurrentTimeFrame() const {
 /**
  * @brief Sets the selected timeframe.
  */
-void ChartToolbar::setCurrentTimeFrame(TimeFrame timeframe) {
-    for (int i = 0; i < comboBox->count(); ++i) {
-        if (static_cast<TimeFrame>(comboBox->itemData(i).toInt()) == timeframe) {
+void ChartToolbar::setCurrentTimeFrame(TimeFrame timeframe)
+{
+    for (int i = 0; i < comboBox->count(); ++i)
+    {
+        if (static_cast<TimeFrame>(comboBox->itemData(i).toInt()) == timeframe)
+        {
             comboBox->setCurrentIndex(i);
             break;
         }
@@ -246,50 +252,58 @@ void ChartToolbar::setCurrentTimeFrame(TimeFrame timeframe) {
 /**
  * @brief Checks if auto timeframe selection is enabled.
  */
-bool ChartToolbar::isAutoTimeFrameEnabled() const {
+bool ChartToolbar::isAutoTimeFrameEnabled() const
+{
     return autoCheckBox->isChecked();
 }
 
 /**
  * @brief Sets the auto timeframe selection state.
  */
-void ChartToolbar::setAutoTimeFrameEnabled(bool enabled) {
+void ChartToolbar::setAutoTimeFrameEnabled(bool enabled)
+{
     autoCheckBox->setChecked(enabled);
 }
 
 /**
  * @brief Checks if volume chart is visible.
  */
-bool ChartToolbar::isVolumeChartVisible() const {
+bool ChartToolbar::isVolumeChartVisible() const
+{
     return volumeCheckBox->isChecked();
 }
 
 /**
  * @brief Sets the volume chart visibility state.
  */
-void ChartToolbar::setVolumeChartVisible(bool visible) {
+void ChartToolbar::setVolumeChartVisible(bool visible)
+{
     volumeCheckBox->setChecked(visible);
 }
 
 /**
  * @brief Checks if volume auto-rescale is enabled.
  */
-bool ChartToolbar::isVolumeAutoRescaleEnabled() const {
+bool ChartToolbar::isVolumeAutoRescaleEnabled() const
+{
     return volumeAutoRescaleCheckBox->isChecked();
 }
 
 /**
  * @brief Sets the volume auto-rescale state.
  */
-void ChartToolbar::setVolumeAutoRescaleEnabled(bool enabled) {
+void ChartToolbar::setVolumeAutoRescaleEnabled(bool enabled)
+{
     volumeAutoRescaleCheckBox->setChecked(enabled);
 }
 
 /**
  * @brief Handles combobox selection changes.
  */
-void ChartToolbar::onComboBoxChanged(int index) {
-    if (index >= 0 && index < comboBox->count()) {
+void ChartToolbar::onComboBoxChanged(int index)
+{
+    if (index >= 0 && index < comboBox->count())
+    {
         TimeFrame selectedTimeFrame = static_cast<TimeFrame>(comboBox->itemData(index).toInt());
         emit timeFrameChanged(selectedTimeFrame);
     }
@@ -298,7 +312,8 @@ void ChartToolbar::onComboBoxChanged(int index) {
 /**
  * @brief Handles checkbox state changes.
  */
-void ChartToolbar::onAutoCheckBoxChanged(int state) {
+void ChartToolbar::onAutoCheckBoxChanged(int state)
+{
     bool enabled = (state == Qt::Checked);
     emit autoTimeFrameChanged(enabled);
 }
@@ -306,7 +321,8 @@ void ChartToolbar::onAutoCheckBoxChanged(int state) {
 /**
  * @brief Handles volume chart visibility checkbox state changes.
  */
-void ChartToolbar::onVolumeCheckBoxChanged(int state) {
+void ChartToolbar::onVolumeCheckBoxChanged(int state)
+{
     bool visible = (state == Qt::Checked);
     emit volumeChartVisibilityChanged(visible);
 }
@@ -314,7 +330,8 @@ void ChartToolbar::onVolumeCheckBoxChanged(int state) {
 /**
  * @brief Handles volume auto-rescale checkbox state changes.
  */
-void ChartToolbar::onVolumeAutoRescaleCheckBoxChanged(int state) {
+void ChartToolbar::onVolumeAutoRescaleCheckBoxChanged(int state)
+{
     bool enabled = (state == Qt::Checked);
     emit volumeAutoRescaleChanged(enabled);
 }
@@ -322,12 +339,15 @@ void ChartToolbar::onVolumeAutoRescaleCheckBoxChanged(int state) {
 /**
  * @brief Sets the available days for market replay.
  */
-void ChartToolbar::setAvailableReplayDays(const QList<QDate>& days) {
+void ChartToolbar::setAvailableReplayDays(const QList<QDate>& days)
+{
     replayDayCombo->clear();
-    for (const QDate& date : days) {
+    for (const QDate& date: days)
+    {
         replayDayCombo->addItem(date.toString("yyyy-MM-dd"), date);
     }
-    if (!days.isEmpty()) {
+    if (!days.isEmpty())
+    {
         replayDayCombo->setCurrentIndex(0);
     }
 }
@@ -335,9 +355,11 @@ void ChartToolbar::setAvailableReplayDays(const QList<QDate>& days) {
 /**
  * @brief Gets the currently selected replay day.
  */
-QDate ChartToolbar::getSelectedReplayDay() const {
+QDate ChartToolbar::getSelectedReplayDay() const
+{
     int currentIndex = replayDayCombo->currentIndex();
-    if (currentIndex >= 0 && currentIndex < replayDayCombo->count()) {
+    if (currentIndex >= 0 && currentIndex < replayDayCombo->count())
+    {
         return replayDayCombo->itemData(currentIndex).toDate();
     }
     return QDate(); // Invalid date if no selection
@@ -346,9 +368,12 @@ QDate ChartToolbar::getSelectedReplayDay() const {
 /**
  * @brief Sets the selected replay day.
  */
-void ChartToolbar::setSelectedReplayDay(const QDate& date) {
-    for (int i = 0; i < replayDayCombo->count(); ++i) {
-        if (replayDayCombo->itemData(i).toDate() == date) {
+void ChartToolbar::setSelectedReplayDay(const QDate& date)
+{
+    for (int i = 0; i < replayDayCombo->count(); ++i)
+    {
+        if (replayDayCombo->itemData(i).toDate() == date)
+        {
             replayDayCombo->setCurrentIndex(i);
             break;
         }
@@ -358,28 +383,32 @@ void ChartToolbar::setSelectedReplayDay(const QDate& date) {
 /**
  * @brief Gets the replay start time.
  */
-QTime ChartToolbar::getReplayStartTime() const {
+QTime ChartToolbar::getReplayStartTime() const
+{
     return replayTimeEdit->time();
 }
 
 /**
  * @brief Sets the replay start time.
  */
-void ChartToolbar::setReplayStartTime(const QTime& time) {
+void ChartToolbar::setReplayStartTime(const QTime& time)
+{
     replayTimeEdit->setTime(time);
 }
 
 /**
  * @brief Checks if replay is currently playing.
  */
-bool ChartToolbar::isReplayPlaying() const {
+bool ChartToolbar::isReplayPlaying() const
+{
     return playPauseButton->isChecked();
 }
 
 /**
  * @brief Sets the replay play/pause state.
  */
-void ChartToolbar::setReplayPlaying(bool playing) {
+void ChartToolbar::setReplayPlaying(bool playing)
+{
     playPauseButton->setChecked(playing);
     updatePlayPauseButton();
 }
@@ -387,8 +416,10 @@ void ChartToolbar::setReplayPlaying(bool playing) {
 /**
  * @brief Handles replay day combobox selection changes.
  */
-void ChartToolbar::onReplayDayChanged(int index) {
-    if (index >= 0 && index < replayDayCombo->count()) {
+void ChartToolbar::onReplayDayChanged(int index)
+{
+    if (index >= 0 && index < replayDayCombo->count())
+    {
         QDate selectedDate = replayDayCombo->itemData(index).toDate();
         emit replayDayChanged(selectedDate);
     }
@@ -397,14 +428,16 @@ void ChartToolbar::onReplayDayChanged(int index) {
 /**
  * @brief Handles replay time edit changes.
  */
-void ChartToolbar::onReplayTimeChanged(const QTime& time) {
+void ChartToolbar::onReplayTimeChanged(const QTime& time)
+{
     emit replayStartTimeChanged(time);
 }
 
 /**
  * @brief Handles play/pause button clicks.
  */
-void ChartToolbar::onPlayPauseClicked() {
+void ChartToolbar::onPlayPauseClicked()
+{
     bool playing = playPauseButton->isChecked();
     updatePlayPauseButton();
     emit replayPlayPauseToggled(playing);
@@ -413,10 +446,14 @@ void ChartToolbar::onPlayPauseClicked() {
 /**
  * @brief Updates the play/pause button text based on current state.
  */
-void ChartToolbar::updatePlayPauseButton() {
-    if (playPauseButton->isChecked()) {
+void ChartToolbar::updatePlayPauseButton()
+{
+    if (playPauseButton->isChecked())
+    {
         playPauseButton->setText("Pause");
-    } else {
+    }
+    else
+    {
         playPauseButton->setText("Play");
     }
 }
@@ -424,7 +461,8 @@ void ChartToolbar::updatePlayPauseButton() {
 /**
  * @brief Populates the combobox with timeframe options.
  */
-void ChartToolbar::populateTimeFrames() {
+void ChartToolbar::populateTimeFrames()
+{
     // Clear existing items
     comboBox->clear();
 
@@ -443,23 +481,27 @@ void ChartToolbar::populateTimeFrames() {
 /**
  * @brief Scans the cache directory and populates available replay days.
  */
-void ChartToolbar::scanAndPopulateReplayDays() {
+void ChartToolbar::scanAndPopulateReplayDays()
+{
     QList<QDate> availableDates;
 
     // Get the cache directory path
     QString cacheDirPath = QDir::homePath() + "/.cache/L2Trader/RecordedLiveData/Bars";
     QDir barsDir(cacheDirPath);
 
-    if (barsDir.exists()) {
+    if (barsDir.exists())
+    {
         // Get all files in the Bars directory
         QStringList filters;
         filters << "*"; // All files
         QStringList fileList = barsDir.entryList(filters, QDir::Files);
 
         // Extract dates from filenames
-        for (const QString& fileName : fileList) {
+        for (const QString& fileName: fileList)
+        {
             QDate date = extractDateFromFileName(fileName);
-            if (date.isValid() && !availableDates.contains(date)) {
+            if (date.isValid() && !availableDates.contains(date))
+            {
                 availableDates.append(date);
             }
         }
@@ -475,16 +517,20 @@ void ChartToolbar::scanAndPopulateReplayDays() {
 /**
  * @brief Extracts date from a filename in the Bars directory.
  */
-QDate ChartToolbar::extractDateFromFileName(const QString& fileName) {
+QDate ChartToolbar::extractDateFromFileName(const QString& fileName)
+{
     // Handle RecordedLiveBars_YYYY-MM-DD.db format
-    if (fileName.startsWith("RecordedLiveBars_")) {
+    if (fileName.startsWith("RecordedLiveBars_"))
+    {
         QString datePart = fileName.mid(18); // Skip "RecordedLiveBars_" (18 chars)
         int dotIndex = datePart.indexOf('.');
-        if (dotIndex != -1) {
+        if (dotIndex != -1)
+        {
             datePart = datePart.left(dotIndex); // Remove extension
         }
         QDate date = QDate::fromString(datePart, "yyyy-MM-dd");
-        if (date.isValid()) {
+        if (date.isValid())
+        {
             return date;
         }
     }
@@ -493,31 +539,36 @@ QDate ChartToolbar::extractDateFromFileName(const QString& fileName) {
     // Remove file extension if present
     QString baseName = fileName;
     int dotIndex = baseName.lastIndexOf('.');
-    if (dotIndex != -1) {
+    if (dotIndex != -1)
+    {
         baseName = baseName.left(dotIndex);
     }
 
     // Try YYYY-MM-DD format
     QDate date = QDate::fromString(baseName, "yyyy-MM-dd");
-    if (date.isValid()) {
+    if (date.isValid())
+    {
         return date;
     }
 
     // Try YYYYMMDD format
     date = QDate::fromString(baseName, "yyyyMMdd");
-    if (date.isValid()) {
+    if (date.isValid())
+    {
         return date;
     }
 
     // Try DD-MM-YYYY format
     date = QDate::fromString(baseName, "dd-MM-yyyy");
-    if (date.isValid()) {
+    if (date.isValid())
+    {
         return date;
     }
 
     // Try MM-DD-YYYY format
     date = QDate::fromString(baseName, "MM-dd-yyyy");
-    if (date.isValid()) {
+    if (date.isValid())
+    {
         return date;
     }
 
@@ -525,12 +576,14 @@ QDate ChartToolbar::extractDateFromFileName(const QString& fileName) {
     // Look for patterns like 8 digits that could be a date
     QRegularExpression dateRegex("(\\d{4})[-_]?(\\d{2})[-_]?(\\d{2})");
     QRegularExpressionMatch match = dateRegex.match(baseName);
-    if (match.hasMatch()) {
+    if (match.hasMatch())
+    {
         int year = match.captured(1).toInt();
         int month = match.captured(2).toInt();
         int day = match.captured(3).toInt();
         QDate extractedDate(year, month, day);
-        if (extractedDate.isValid()) {
+        if (extractedDate.isValid())
+        {
             return extractedDate;
         }
     }
@@ -542,14 +595,16 @@ QDate ChartToolbar::extractDateFromFileName(const QString& fileName) {
 /**
  * @brief Updates the replay info label with time range and bar count.
  */
-void ChartToolbar::updateReplayInfo(const QTime& startTime, const QTime& endTime, int barCount) {
-    if (startTime.isValid() && endTime.isValid() && barCount > 0) {
-        QString infoText = QString("%1-%2 (%3 bars)")
-                          .arg(startTime.toString("hh:mm"))
-                          .arg(endTime.toString("hh:mm"))
-                          .arg(barCount);
+void ChartToolbar::updateReplayInfo(const QTime& startTime, const QTime& endTime, int barCount)
+{
+    if (startTime.isValid() && endTime.isValid() && barCount > 0)
+    {
+        QString infoText =
+            QString("%1-%2 (%3 bars)").arg(startTime.toString("hh:mm")).arg(endTime.toString("hh:mm")).arg(barCount);
         replayInfoLabel->setText(infoText);
-    } else {
+    }
+    else
+    {
         replayInfoLabel->setText("No data");
     }
 }
@@ -557,11 +612,14 @@ void ChartToolbar::updateReplayInfo(const QTime& startTime, const QTime& endTime
 /**
  * @brief Gets the current wheel scrolling ratio.
  */
-qreal ChartToolbar::getWheelRatio() const {
+qreal ChartToolbar::getWheelRatio() const
+{
     int index = wheelRatioCombo->currentIndex();
-    if (index >= 0 && index < wheelRatioCombo->count()) {
+    if (index >= 0 && index < wheelRatioCombo->count())
+    {
         QVariant data = wheelRatioCombo->itemData(index);
-        if (data.isValid()) {
+        if (data.isValid())
+        {
             return data.toReal();
         }
     }
@@ -575,9 +633,12 @@ qreal ChartToolbar::getWheelRatio() const {
 /**
  * @brief Sets the wheel scrolling ratio.
  */
-void ChartToolbar::setWheelRatio(qreal ratio) {
-    for (int i = 0; i < wheelRatioCombo->count(); ++i) {
-        if (qFuzzyCompare(wheelRatioCombo->itemData(i).toReal(), ratio)) {
+void ChartToolbar::setWheelRatio(qreal ratio)
+{
+    for (int i = 0; i < wheelRatioCombo->count(); ++i)
+    {
+        if (qFuzzyCompare(wheelRatioCombo->itemData(i).toReal(), ratio))
+        {
             wheelRatioCombo->setCurrentIndex(i);
             return;
         }
@@ -589,34 +650,43 @@ void ChartToolbar::setWheelRatio(qreal ratio) {
 /**
  * @brief Handles wheel ratio combo box changes.
  */
-void ChartToolbar::onWheelRatioChanged(int index) {
+void ChartToolbar::onWheelRatioChanged(int index)
+{
     qreal ratio = 1.0; // default
-    
-    if (index >= 0 && index < wheelRatioCombo->count()) {
+
+    if (index >= 0 && index < wheelRatioCombo->count())
+    {
         // Check if it's a standard item
         QVariant data = wheelRatioCombo->itemData(index);
-        if (data.isValid()) {
+        if (data.isValid())
+        {
             ratio = data.toReal();
-        } else {
+        }
+        else
+        {
             // Custom value entered
             QString text = wheelRatioCombo->itemText(index);
             bool ok;
             ratio = text.toDouble(&ok);
-            if (!ok || ratio <= 0.0) {
+            if (!ok || ratio <= 0.0)
+            {
                 ratio = 1.0; // fallback
                 wheelRatioCombo->setCurrentText("1.0");
             }
         }
-    } else {
+    }
+    else
+    {
         // Custom text entered
         QString text = wheelRatioCombo->currentText();
         bool ok;
         ratio = text.toDouble(&ok);
-        if (!ok || ratio <= 0.0) {
+        if (!ok || ratio <= 0.0)
+        {
             ratio = 1.0; // fallback
             wheelRatioCombo->setCurrentText("1.0");
         }
     }
-    
+
     emit wheelRatioChanged(ratio);
 }

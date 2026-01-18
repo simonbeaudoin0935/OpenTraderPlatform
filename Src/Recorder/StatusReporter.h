@@ -9,17 +9,18 @@
 
 class LiveStreamDB;
 
-class StatusReporter {
-public:
+class StatusReporter
+{
+  public:
     StatusReporter(LiveStreamDB* barsDB, LiveStreamDB* marketDepthDB);
-    
+
     void printStatus();
 
-private:
+  private:
     LiveStreamDB* m_barsDB;
     LiveStreamDB* m_marketDepthDB;
     QDateTime m_startTime;
-    
+
     void printStreamStatus();
     void printErrorStats(const QString& streamType, LiveStreamDB* db);
     void printRecoveryStats(const QString& streamType, LiveStreamDB* db);

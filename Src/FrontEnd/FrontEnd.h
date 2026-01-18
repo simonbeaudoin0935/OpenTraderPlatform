@@ -10,13 +10,14 @@
 #include "MarketDepthQuote.h"
 #include "Balance.h"
 
-class FrontEnd : public QObject {
+class FrontEnd : public QObject
+{
     Q_OBJECT
-public:
+  public:
     explicit FrontEnd(QObject* parent = nullptr) : QObject(parent) {}
     virtual ~FrontEnd() = default;
 
-signals:
+  signals:
     void tradeStationAuthStateChanged(bool isAuthenticated, QString reason);
     void tradeStationAccountsReceived(QVector<Account> results);
 
@@ -29,9 +30,13 @@ signals:
     void balanceUpdated(Balance balance);
 
     void currentHighlightedStockBarReceived(QString symbol, Bar bar);
-    void currentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP);
+    void currentHighlightedReceivedNewMarketDepthQuote(QString symbol,
+                                                       MarketDepthQuote quote,
+                                                       double bidAskImbalance,
+                                                       double bidDWP,
+                                                       double askDWP);
 
-public slots:
+  public slots:
 
     // Usage update
     virtual void onTSClientDataUsageUpdate(qsizetype newDataUsage) = 0;
@@ -45,5 +50,9 @@ public slots:
     virtual void onBalanceUpdated(Balance balance) = 0;
 
     virtual void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) = 0;
-    virtual void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP) = 0;
+    virtual void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol,
+                                                                 MarketDepthQuote quote,
+                                                                 double bidAskImbalance,
+                                                                 double bidDWP,
+                                                                 double askDWP) = 0;
 };

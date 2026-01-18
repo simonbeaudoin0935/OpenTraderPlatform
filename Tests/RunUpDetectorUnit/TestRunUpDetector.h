@@ -2,9 +2,10 @@
 
 #include <QObject>
 
-class TestRunUpDetector : public QObject {
+class TestRunUpDetector : public QObject
+{
     Q_OBJECT
-private slots:
+  private slots:
     void initTestCase_data();
     void initTestCase();
     void init();
@@ -12,5 +13,5 @@ private slots:
 
     void testPriorDayAfterMarket();
 
-private:
+  private:
 };

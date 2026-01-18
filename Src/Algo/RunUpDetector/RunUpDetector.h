@@ -6,7 +6,8 @@
 #include <QTimeZone>
 #include "BarCache.h"
 
-struct stats {
+struct stats
+{
     double averageVolumePerBar = 0;
     double averagePriceChangePerBar = 0;
     double maxVolumeChange = 0;
@@ -18,21 +19,21 @@ struct stats {
 class RunUpDetector : public QObject
 {
     Q_OBJECT
-public:
-    explicit RunUpDetector(BarCache *barCache, QObject *parent = nullptr);
+  public:
+    explicit RunUpDetector(BarCache* barCache, QObject* parent = nullptr);
 
     void computeStatsOnLastAfterMarket();
 
     void computeNextCandle();
 
-public slots:
+  public slots:
     void start(QDate startDate, qsizetype runUpWindowWidth = 20);
-signals:
+  signals:
 
-private:
+  private:
     const QTimeZone NYTZ;
 
-    BarCache *barCache;
+    BarCache* barCache;
     QQueue<Bar> deque;
     struct stats afterMarketStats;
     QDate startDate;

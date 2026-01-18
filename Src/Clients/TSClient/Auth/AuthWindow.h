@@ -20,14 +20,14 @@ class AuthWindow : public QDialog
 {
     Q_OBJECT
 
-public:
-    explicit AuthWindow(QWidget *parent = nullptr);
+  public:
+    explicit AuthWindow(QWidget* parent = nullptr);
     ~AuthWindow() override;
 
-signals:
+  signals:
     void authFinished(bool success, AuthToken token, QString reason);
 
-private slots:
+  private slots:
     void handleNewConnection();
     void handleSocketReadyRead();
     void handleCodeReceived(const QString& code);
@@ -37,14 +37,13 @@ private slots:
     void handleSocketStateChanged(QAbstractSocket::SocketState socketState);
     void handleDialogFinished(int result);
 
-private:
-
+  private:
     AuthToken authToken;
     ClientToken clientToken;
 
-    QTcpServer *httpServer = nullptr;
-    QNetworkAccessManager *networkManager = nullptr;
-    
+    QTcpServer* httpServer = nullptr;
+    QNetworkAccessManager* networkManager = nullptr;
+
     QString redirectUri;
     QString expectedState;
 

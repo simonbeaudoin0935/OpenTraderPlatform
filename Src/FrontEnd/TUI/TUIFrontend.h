@@ -5,12 +5,13 @@
 // Forward declaration
 class MainAlgo;
 
-class TUIFrontend : public FrontEnd {
+class TUIFrontend : public FrontEnd
+{
     Q_OBJECT
-public:
+  public:
     explicit TUIFrontend(MainAlgo* mainAlgo, QObject* parent = nullptr);
 
-public slots:
+  public slots:
 
     // Usage update
     void onTSClientDataUsageUpdate(qsizetype newDataUsage) override;
@@ -23,9 +24,13 @@ public slots:
     void onNewOrderReceived(QString account, Order order) override;
     void onBalanceUpdated(Balance balance) override;
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
-    void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP) override;
+    void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol,
+                                                         MarketDepthQuote quote,
+                                                         double bidAskImbalance,
+                                                         double bidDWP,
+                                                         double askDWP) override;
     void onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars) override;
 
-private:
+  private:
     MainAlgo* mainAlgo;
 };

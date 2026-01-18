@@ -9,16 +9,17 @@
  * Defines the supported time intervals for displaying candlestick charts.
  * Each timeframe represents the duration of each bar/candlestick in the chart.
  */
-enum class TimeFrame {
+enum class TimeFrame
+{
     ONE_MINUTE = 1,
     FIVE_MINUTES = 5,
     FIFTEEN_MINUTES = 15,
     THIRTY_MINUTES = 30,
     ONE_HOUR = 60,
     FOUR_HOURS = 240,
-    ONE_DAY = 1440,      // 24 * 60 minutes
-    ONE_WEEK = 10080,    // 7 * 24 * 60 minutes
-    ONE_MONTH = 43200    // 30 * 24 * 60 minutes (approximate)
+    ONE_DAY = 1440,   // 24 * 60 minutes
+    ONE_WEEK = 10080, // 7 * 24 * 60 minutes
+    ONE_MONTH = 43200 // 30 * 24 * 60 minutes (approximate)
 };
 
 /**

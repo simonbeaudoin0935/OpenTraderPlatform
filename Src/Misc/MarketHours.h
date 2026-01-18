@@ -17,14 +17,16 @@
  * DST begins on the second Sunday in March at 2:00 AM
  * DST ends on the first Sunday in November at 2:00 AM
  */
-class MarketHours {
-public:
+class MarketHours
+{
+  public:
     // Market session types
-    enum class Session {
-        PreMarket,      // 4:00 AM - 9:30 AM ET
-        RegularHours,   // 9:30 AM - 4:00 PM ET
-        AfterHours,     // 4:00 PM - 8:00 PM ET
-        Closed          // 8:00 PM - 4:00 AM ET
+    enum class Session
+    {
+        PreMarket,    // 4:00 AM - 9:30 AM ET
+        RegularHours, // 9:30 AM - 4:00 PM ET
+        AfterHours,   // 4:00 PM - 8:00 PM ET
+        Closed        // 8:00 PM - 4:00 AM ET
     };
 
     // Static methods to check market status
@@ -60,8 +62,9 @@ public:
 
     // Session visibility methods
     static bool isSessionVisible(const QDateTime& startTime, const QDateTime& endTime, Session session);
-    static QPair<QDateTime, QDateTime> getVisibleSessionRange(const QDateTime& startTime, const QDateTime& endTime, Session session);
+    static QPair<QDateTime, QDateTime>
+    getVisibleSessionRange(const QDateTime& startTime, const QDateTime& endTime, Session session);
 
-private:
+  private:
     static const QTimeZone nyZone;
 };

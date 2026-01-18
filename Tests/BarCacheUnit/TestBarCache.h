@@ -2,9 +2,10 @@
 
 #include <QObject>
 
-class TestBarCache : public QObject {
+class TestBarCache : public QObject
+{
     Q_OBJECT
-private slots:
+  private slots:
     void initTestCase_data();
     void initTestCase();
     void init();
@@ -35,5 +36,6 @@ private slots:
     // Metrics validation tests
     void testHitTypeAccuracy();
     void testMetricsTracking();
-private:
+
+  private:
 };

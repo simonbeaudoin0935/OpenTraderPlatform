@@ -10,25 +10,26 @@
 class QTableView;
 class QLabel;
 
-class OrderWindow : public QWidget {
+class OrderWindow : public QWidget
+{
     Q_OBJECT
-public:
+  public:
     explicit OrderWindow(QWidget* p_parent = nullptr);
     ~OrderWindow();
 
-public slots:
+  public slots:
     void updateOrder(const QString& account, const Order& order);
-    
-public:
+
+  public:
     QStringList getAllOrderIds() const;
     QStringList getCancellableOrderIds() const;
 
-signals:
+  signals:
     void symbolClicked(const QString& symbol);
     void cancelOrderRequested(const QString& orderId);
     void cancelAllOrdersRequested();
 
-private:
+  private:
     void setupUI();
     void setupStyles();
     void updateOrderRow(const QString& account, const Order& order);
@@ -40,6 +41,7 @@ private:
     QLabel* m_headerLabel;
 
     // Map to keep track of orders by their ID for updates
-    QMap<QString, int> m_orderRowMap;  // Maps orderID to row index
-    QHash<QString, Order> m_orders;  // Store actual Order objects to check status (QHash used because Order lacks default constructor)
+    QMap<QString, int> m_orderRowMap; // Maps orderID to row index
+    QHash<QString, Order>
+        m_orders; // Store actual Order objects to check status (QHash used because Order lacks default constructor)
 };

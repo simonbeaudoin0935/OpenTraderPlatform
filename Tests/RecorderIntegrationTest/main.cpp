@@ -12,7 +12,7 @@ class TestRecorderIntegration : public QObject
 {
     Q_OBJECT
 
-private slots:
+  private slots:
     void testRecorderNoCriticalLogs();
     void testRecordedDataDirOption();
 };
@@ -37,10 +37,13 @@ void TestRecorderIntegration::testRecorderNoCriticalLogs()
 {
     // Path to the recorder binary
     QString recorderPath;
-    if (QFile::exists("/usr/bin/l2trader-recorder")) {
+    if (QFile::exists("/usr/bin/l2trader-recorder"))
+    {
         qInfo() << "Using installed recorder binary.";
         recorderPath = "/usr/bin/l2trader-recorder";
-    } else {
+    }
+    else
+    {
         qInfo() << "Using development recorder binary.";
         recorderPath = QCoreApplication::applicationDirPath() + "/../../L2Trader_Recorder/src/L2Trader_Recorder";
     }
@@ -50,7 +53,7 @@ void TestRecorderIntegration::testRecorderNoCriticalLogs()
     args << "--criterias=/home/simon/Documents/L2Trader/Example_Config/selection_criteria.ini"
          << "--cache-root-dir=/tmp/l2trader_test_cache"
          << "--stock-csv=/home/simon/Documents/L2Trader/Example_Config/nasdaq_screener_mini.csv";
-        
+
     QProcess process;
     process.start(recorderPath, args);
 
@@ -59,21 +62,27 @@ void TestRecorderIntegration::testRecorderNoCriticalLogs()
     bool hasCrit = false;
     QString buffer;
 
-     connect(&process, &QProcess::readyReadStandardOutput, [&]() {
-        buffer += process.readAllStandardOutput();
-        int pos;
-        while ((pos = buffer.indexOf('\n')) != -1) {
-            QString line = buffer.left(pos);
-            buffer = buffer.mid(pos + 1);
-            if (line.contains("CRIT")) {
-                hasCrit = true;
-                qCritical() << "Found CRIT message:" << line;
-            }
-            if (line.contains("WARN")) {
-                qWarning() << "Found WARN message:" << line;
-            }
-        }
-    });
+    connect(&process,
+            &QProcess::readyReadStandardOutput,
+            [&]()
+            {
+                buffer += process.readAllStandardOutput();
+                int pos;
+                while ((pos = buffer.indexOf('\n')) != -1)
+                {
+                    QString line = buffer.left(pos);
+                    buffer = buffer.mid(pos + 1);
+                    if (line.contains("CRIT"))
+                    {
+                        hasCrit = true;
+                        qCritical() << "Found CRIT message:" << line;
+                    }
+                    if (line.contains("WARN"))
+                    {
+                        qWarning() << "Found WARN message:" << line;
+                    }
+                }
+            });
 
     // Run for 20 seconds
     QTimer timer;
@@ -84,12 +93,15 @@ void TestRecorderIntegration::testRecorderNoCriticalLogs()
     loop.exec();
 
     // Process any remaining buffer
-    if (!buffer.isEmpty()) {
-        if (buffer.contains("CRIT")) {
+    if (!buffer.isEmpty())
+    {
+        if (buffer.contains("CRIT"))
+        {
             hasCrit = true;
             qCritical() << "Found CRIT message:" << buffer;
         }
-        if (buffer.contains("WARN")) {
+        if (buffer.contains("WARN"))
+        {
             qWarning() << "Found WARN message:" << buffer;
         }
     }
@@ -113,17 +125,21 @@ void TestRecorderIntegration::testRecordedDataDirOption()
     // Create a temporary directory for testing
     QString testDir = "/tmp/l2trader_recorded_data_test";
     QDir dir(testDir);
-    if (dir.exists()) {
+    if (dir.exists())
+    {
         dir.removeRecursively();
     }
     dir.mkpath(".");
 
     // Path to the recorder binary
     QString recorderPath;
-    if (QFile::exists("/usr/bin/l2trader-recorder")) {
+    if (QFile::exists("/usr/bin/l2trader-recorder"))
+    {
         qInfo() << "Using installed recorder binary.";
         recorderPath = "/usr/bin/l2trader-recorder";
-    } else {
+    }
+    else
+    {
         qInfo() << "Using development recorder binary.";
         recorderPath = QCoreApplication::applicationDirPath() + "/../../L2Trader_Recorder/src/L2Trader_Recorder";
     }
@@ -133,7 +149,7 @@ void TestRecorderIntegration::testRecordedDataDirOption()
     args << "--criterias=/home/simon/Documents/L2Trader/Example_Config/selection_criteria.ini"
          << "--recorded-data-dir=" + testDir
          << "--stock-csv=/home/simon/Documents/L2Trader/Example_Config/nasdaq_screener_mini.csv";
-        
+
     QProcess process;
     process.start(recorderPath, args);
 

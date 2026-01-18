@@ -14,11 +14,13 @@ PositionWindow::PositionWindow(QWidget* parent)
     setupStyles();
 }
 
-PositionWindow::~PositionWindow() {
+PositionWindow::~PositionWindow()
+{
     // Qt will handle deletion of child widgets
 }
 
-void PositionWindow::setupUI() {
+void PositionWindow::setupUI()
+{
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(0);
     mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -45,13 +47,14 @@ void PositionWindow::setupUI() {
     connect(tableView, &QTableView::clicked, this, &PositionWindow::onSymbolClicked);
 
     // Set column widths
-    tableView->setColumnWidth(0, 70);  // Symbol
-    tableView->setColumnWidth(1, 70);  // Quantity
-    tableView->setColumnWidth(2, 70);  // Avg Price
-    tableView->setColumnWidth(3, 70);  // Last
-    tableView->setColumnWidth(4, 70);  // P/L
-    tableView->setColumnWidth(5, 70);  // P/L %
-    tableView->setColumnWidth(6, 90);  // Market Value
+    tableView->setColumnWidth(0, 70); // Symbol
+    tableView->setColumnWidth(1, 70); // Quantity
+    tableView->setColumnWidth(2, 70); // Avg Price
+    tableView->setColumnWidth(3, 70); // Last
+    tableView->setColumnWidth(4, 70); // P/L
+    tableView->setColumnWidth(5, 70); // P/L %
+    tableView->setColumnWidth(6,
+                              90); // Market Value
 
     // Add widgets to layout
     mainLayout->addWidget(headerLabel);
@@ -59,51 +62,53 @@ void PositionWindow::setupUI() {
 
     // Set fixed width based on total column widths
     int totalWidth = 0;
-    for (int i = 0; i < headers.size(); ++i) {
+    for (int i = 0; i < headers.size(); ++i)
+    {
         totalWidth += tableView->columnWidth(i);
     }
     setFixedWidth(totalWidth);
 }
 
-void PositionWindow::setupStyles() {
+void PositionWindow::setupStyles()
+{
     // Style the header label
-    headerLabel->setStyleSheet(
-        "QLabel {"
-        "   background-color: #2D2D2D;"
-        "   color: #FFFFFF;"
-        "   padding: 4px;"
-        "   border-bottom: 1px solid #3D3D3D;"
-        "}"
-    );
+    headerLabel->setStyleSheet("QLabel {"
+                               "   background-color: #2D2D2D;"
+                               "   color: #FFFFFF;"
+                               "   padding: 4px;"
+                               "   border-bottom: 1px solid #3D3D3D;"
+                               "}");
 
     // Style the table
-    tableView->setStyleSheet(
-        "QTableView {"
-        "   alternate-background-color: #1C1C1C;"
-        "   background-color: #242424;"
-        "   color: white;"
-        "   gridline-color: #3D3D3D;"
-        "}"
-        "QTableView::item:selected {"
-        "   background-color: #2C539E;"
-        "}"
-        "QHeaderView::section {"
-        "   background-color: #2D2D2D;"
-        "   color: white;"
-        "   border: none;"
-        "   border-right: 1px solid #3D3D3D;"
-        "   padding: 4px;"
-        "}"
-    );
+    tableView->setStyleSheet("QTableView {"
+                             "   alternate-background-color: #1C1C1C;"
+                             "   background-color: #242424;"
+                             "   color: white;"
+                             "   gridline-color: #3D3D3D;"
+                             "}"
+                             "QTableView::item:selected {"
+                             "   background-color: #2C539E;"
+                             "}"
+                             "QHeaderView::section {"
+                             "   background-color: #2D2D2D;"
+                             "   color: white;"
+                             "   border: none;"
+                             "   border-right: 1px solid #3D3D3D;"
+                             "   padding: 4px;"
+                             "}");
 }
 
-void PositionWindow::updatePosition(const QString& account, const Position& position) {
+void PositionWindow::updatePosition(const QString& account, const Position& position)
+{
     QString positionId = position.getPositionID();
-    
-    if (positionRowMap.contains(positionId)) {
+
+    if (positionRowMap.contains(positionId))
+    {
         // Update existing position
         updatePositionRow(account, position);
-    } else {
+    }
+    else
+    {
         // Add new position
         QList<QStandardItem*> rowItems = createRowItems(position);
         model->appendRow(rowItems);
@@ -111,18 +116,21 @@ void PositionWindow::updatePosition(const QString& account, const Position& posi
     }
 }
 
-void PositionWindow::updatePositionRow(const QString& account, const Position& position) {
+void PositionWindow::updatePositionRow(const QString& account, const Position& position)
+{
     Q_UNUSED(account);
 
     int row = positionRowMap[position.getPositionID()];
     QList<QStandardItem*> items = createRowItems(position);
-    
-    for (int col = 0; col < items.size(); ++col) {
+
+    for (int col = 0; col < items.size(); ++col)
+    {
         model->setItem(row, col, items[col]);
     }
 }
 
-QList<QStandardItem*> PositionWindow::createRowItems(const Position& position) {
+QList<QStandardItem*> PositionWindow::createRowItems(const Position& position)
+{
     QList<QStandardItem*> items;
 
     // Symbol
@@ -167,20 +175,25 @@ QList<QStandardItem*> PositionWindow::createRowItems(const Position& position) {
     return items;
 }
 
-void PositionWindow::onPositionDeleted(const QString& account, const QString& positionID) {
+void PositionWindow::onPositionDeleted(const QString& account, const QString& positionID)
+{
     Q_UNUSED(account);
 
-    if (positionRowMap.contains(positionID)) {
+    if (positionRowMap.contains(positionID))
+    {
         int row = positionRowMap[positionID];
         // Set quantity to 0 instead of removing the row
         auto quantityItem = new QStandardItem("0");
         quantityItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        model->setItem(row, 1, quantityItem);  // Column 1 is Quantity
+        model->setItem(row, 1,
+                       quantityItem); // Column 1 is Quantity
     }
 }
 
-void PositionWindow::onSymbolClicked(const QModelIndex& index) {
-    if (index.column() == 0) {  // Only handle clicks on the Symbol column
+void PositionWindow::onSymbolClicked(const QModelIndex& index)
+{
+    if (index.column() == 0)
+    { // Only handle clicks on the Symbol column
         QString symbol = model->item(index.row(), 0)->text();
         emit symbolClicked(symbol);
     }
