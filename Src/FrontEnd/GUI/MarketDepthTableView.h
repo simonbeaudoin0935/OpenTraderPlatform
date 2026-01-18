@@ -2,9 +2,10 @@
 
 #include <QTableView>
 
-class MarketDepthTableView : public QTableView {
+class MarketDepthTableView : public QTableView
+{
     Q_OBJECT
-public:
+  public:
     explicit MarketDepthTableView(QWidget* parent = nullptr);
     void setTopMargin(int margin);
-}; 
+};

@@ -11,34 +11,27 @@ Q_LOGGING_CATEGORY(TSAuthTokenLog, "TSClient.token.auth")
 
 // Initialize static constants
 const QString AuthToken::EXPECTED_TOKEN_TYPE = "Bearer";
-const QStringList AuthToken::EXPECTED_SCOPES = {
-    "openid",
-    "offline_access",
-    "profile",
-    "MarketData",
-    "Matrix",
-    "ReadAccount",
-    "Trade"
-};
+const QStringList AuthToken::EXPECTED_SCOPES =
+    {"openid", "offline_access", "profile", "MarketData", "Matrix", "ReadAccount", "Trade"};
 
-AuthToken::AuthToken(const QString &accessToken,
-                    const QString &refreshToken,
-                    const QString &idToken,
-                    const QString &tokenType,
-                    const QString &scope,
-                    int expiresIn,
-                    QDateTime receivedAt)
-    : accessToken(accessToken),
-      refreshToken(refreshToken),
-      idToken(idToken),
-      tokenType(tokenType),
-      scope(scope),
-      expiresIn(expiresIn),
-      receivedAt(receivedAt)
+AuthToken::AuthToken(const QString& accessToken,
+                     const QString& refreshToken,
+                     const QString& idToken,
+                     const QString& tokenType,
+                     const QString& scope,
+                     int expiresIn,
+                     QDateTime receivedAt)
+    : accessToken(accessToken)
+    , refreshToken(refreshToken)
+    , idToken(idToken)
+    , tokenType(tokenType)
+    , scope(scope)
+    , expiresIn(expiresIn)
+    , receivedAt(receivedAt)
 {
 }
 
-AuthToken AuthToken::receiveAuthToken(const QJsonObject &json)
+AuthToken AuthToken::receiveAuthToken(const QJsonObject& json)
 {
     AuthToken token;
     token.accessToken = json["access_token"].toString();
@@ -54,41 +47,37 @@ AuthToken AuthToken::receiveAuthToken(const QJsonObject &json)
 
 bool AuthToken::isValid() const
 {
-    return !accessToken.isEmpty() &&
-           !refreshToken.isEmpty() &&
-           !idToken.isEmpty() &&
-           validateTokenType(tokenType) &&
-           validateScope(scope) &&
-           validateExpiresIn(expiresIn);
+    return !accessToken.isEmpty() && !refreshToken.isEmpty() && !idToken.isEmpty() && validateTokenType(tokenType) &&
+           validateScope(scope) && validateExpiresIn(expiresIn);
 }
 
 bool AuthToken::isValidRefreshedToken() const
 {
     return !accessToken.isEmpty() &&
            refreshToken.isEmpty() && // *** Note here we expect the refresh token to be empty when refreshed
-           !idToken.isEmpty() &&
-           validateTokenType(tokenType) &&
-           validateScope(scope) &&
-           validateExpiresIn(expiresIn);
+           !idToken.isEmpty() && validateTokenType(tokenType) && validateScope(scope) && validateExpiresIn(expiresIn);
 }
 
-int AuthToken::secondsUntilExpiration() {
+int AuthToken::secondsUntilExpiration()
+{
     QDateTime expirationDate = receivedAt.addSecs(expiresIn);
-    QDateTime currentTime    = QDateTime::currentDateTime();
+    QDateTime currentTime = QDateTime::currentDateTime();
 
     return currentTime.secsTo(expirationDate);
 }
 
-int AuthToken::secondsToNextRefreshRequest() {
+int AuthToken::secondsToNextRefreshRequest()
+{
     QDateTime expirationDate = receivedAt.addSecs(expiresIn);
-    QDateTime currentTime    = QDateTime::currentDateTime();
+    QDateTime currentTime = QDateTime::currentDateTime();
 
     return currentTime.secsTo(expirationDate) - EXPIRY_BUFFER_SECONDS;
 }
 
 bool AuthToken::isExpired() const
 {
-    if (!receivedAt.isValid()) {
+    if (!receivedAt.isValid())
+    {
         return true;
     }
 
@@ -113,35 +102,38 @@ QJsonObject AuthToken::toJson() const
 QString AuthToken::toString() const
 {
     return QString("\n"
-                  "  Access Token: [REDACTED]\n"
-                  "  Refresh Token: [REDACTED]\n"
-                  "  ID Token: [REDACTED]\n"
-                  "  Token Type: %1\n"
-                  "  Scope: %2\n"
-                  "  Received at: %3\n"
-                  "  Expires in: %4 seconds")
+                   "  Access Token: [REDACTED]\n"
+                   "  Refresh Token: [REDACTED]\n"
+                   "  ID Token: [REDACTED]\n"
+                   "  Token Type: %1\n"
+                   "  Scope: %2\n"
+                   "  Received at: %3\n"
+                   "  Expires in: %4 seconds")
         .arg(tokenType)
         .arg(scope)
         .arg(receivedAt.toString(Qt::ISODate))
         .arg(QString::number(expiresIn));
 }
 
-bool AuthToken::validateScope(const QString &scope)
+bool AuthToken::validateScope(const QString& scope)
 {
-    if (scope.isEmpty()) {
+    if (scope.isEmpty())
+    {
         return false;
     }
 
     QStringList scopes = scope.split(" ", Qt::SkipEmptyParts);
-    for (const QString &expectedScope : EXPECTED_SCOPES) {
-        if (!scopes.contains(expectedScope)) {
+    for (const QString& expectedScope: EXPECTED_SCOPES)
+    {
+        if (!scopes.contains(expectedScope))
+        {
             return false;
         }
     }
     return true;
 }
 
-bool AuthToken::validateTokenType(const QString &tokenType)
+bool AuthToken::validateTokenType(const QString& tokenType)
 {
     return tokenType == EXPECTED_TOKEN_TYPE;
 }
@@ -157,8 +149,7 @@ AuthToken AuthToken::loadFromSettings()
     SecureStorage storage;
 
     // Load metadata from regular QSettings
-    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
-                      "L2Trader", "TradeStationTokens");
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "L2Trader", "TradeStationTokens");
     settings.setFallbacksEnabled(false);
 
     token.tokenType = settings.value("Tokens/token_type").toString();
@@ -167,28 +158,31 @@ AuthToken AuthToken::loadFromSettings()
     token.receivedAt = QDateTime::fromString(settings.value("Tokens/received_at").toString(), Qt::ISODate);
 
     // Load sensitive tokens from SecureStorage synchronously
-    QMap<QString, QString> secureTokens = storage.retrieveValuesSync("TradeStation", {"access_token", "refresh_token", "id_token"});
+    QMap<QString, QString> secureTokens =
+        storage.retrieveValuesSync("TradeStation", {"access_token", "refresh_token", "id_token"});
 
     token.accessToken = secureTokens.value("access_token");
     token.refreshToken = secureTokens.value("refresh_token");
     token.idToken = secureTokens.value("id_token");
 
-    if (token.isValid()) {
+    if (token.isValid())
+    {
         qCInfo(TSAuthTokenLog) << "Credentials loaded successfully from secure storage";
-    } else {
+    }
+    else
+    {
         qCWarning(TSAuthTokenLog) << "No credentials found in secure storage";
     }
 
     return token;
 }
 
-bool AuthToken::storeToSettings(const AuthToken &token)
+bool AuthToken::storeToSettings(const AuthToken& token)
 {
     SecureStorage storage;
 
     // Store metadata in regular QSettings
-    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
-                      "L2Trader", "TradeStationTokens");
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "L2Trader", "TradeStationTokens");
     settings.setFallbacksEnabled(false);
 
     settings.setValue("Tokens/token_type", token.tokenType);
@@ -207,14 +201,18 @@ bool AuthToken::storeToSettings(const AuthToken &token)
     // Force an immediate write to disk for QSettings
     settings.sync();
 
-    if (settings.status() != QSettings::NoError) {
+    if (settings.status() != QSettings::NoError)
+    {
         qWarning() << "Failed to store token metadata: settings error" << settings.status();
         success = false;
     }
 
-    if (success) {
+    if (success)
+    {
         qDebug() << "Auth token stored successfully (secure tokens in SecureStorage, metadata in QSettings)";
-    } else {
+    }
+    else
+    {
         qWarning() << "Failed to store auth token";
     }
 
@@ -226,8 +224,7 @@ void AuthToken::clearSettings()
     SecureStorage storage;
 
     // Clear metadata from regular QSettings
-    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
-                      "L2Trader", "TradeStationTokens");
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, "L2Trader", "TradeStationTokens");
     settings.setFallbacksEnabled(false);
 
     settings.remove("Tokens/token_type");
@@ -242,4 +239,4 @@ void AuthToken::clearSettings()
     settings.sync();
 
     qDebug() << "Auth token settings cleared (secure tokens from SecureStorage, metadata from QSettings)";
-} 
+}

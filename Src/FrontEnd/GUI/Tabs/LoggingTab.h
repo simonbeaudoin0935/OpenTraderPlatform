@@ -6,25 +6,26 @@
 #include <QMap>
 #include <QSpinBox>
 
-class LoggingTab : public QWidget {
+class LoggingTab : public QWidget
+{
     Q_OBJECT
 
-public:
+  public:
     explicit LoggingTab(QWidget* parent = nullptr);
     ~LoggingTab() override = default;
 
-signals:
+  signals:
     void loggerVisibilityChanged(bool visible);
     void logDepthChanged(int maxLines);
 
-private slots:
+  private slots:
     void onCategoryCheckBoxToggled(bool checked);
     void onLoggerVisibilityToggled(bool checked);
     void onLogDepthValueChanged(int value);
     void onGlobalDebugDisableToggled(bool checked);
     void onGlobalInfoDisableToggled(bool checked);
 
-private:
+  private:
     void setupUI();
     void populateCategoryCheckboxes();
 

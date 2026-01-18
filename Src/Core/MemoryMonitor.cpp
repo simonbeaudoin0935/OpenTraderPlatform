@@ -11,42 +11,54 @@
 #include <fstream>
 #endif
 
-MemoryMonitor::MemoryMonitor(QObject* parent) : QObject(parent), timer(new QTimer(this)) {
+MemoryMonitor::MemoryMonitor(QObject* parent) : QObject(parent), timer(new QTimer(this))
+{
     connect(timer, &QTimer::timeout, this, &MemoryMonitor::updateMemoryUsage);
 }
 
-MemoryMonitor::~MemoryMonitor() {
+MemoryMonitor::~MemoryMonitor()
+{
     stopMonitoring();
     delete timer;
 }
 
-void MemoryMonitor::startMonitoring(int intervalMs) {
-    if (!timer->isActive()) {
+void MemoryMonitor::startMonitoring(int intervalMs)
+{
+    if (!timer->isActive())
+    {
         timer->start(intervalMs);
         updateMemoryUsage(); // Initial update
     }
 }
 
-void MemoryMonitor::stopMonitoring() {
-    if (timer->isActive()) {
+void MemoryMonitor::stopMonitoring()
+{
+    if (timer->isActive())
+    {
         timer->stop();
     }
 }
 
-void MemoryMonitor::updateMemoryUsage() {
+void MemoryMonitor::updateMemoryUsage()
+{
     qint64 memoryUsed = getProcessMemoryUsage();
-    if (memoryUsed >= 0) {
+    if (memoryUsed >= 0)
+    {
         emit memoryUsageUpdated(memoryUsed);
-    } else {
+    }
+    else
+    {
         qDebug() << "Failed to retrieve memory usage";
     }
 }
 
-qint64 MemoryMonitor::getProcessMemoryUsage() {
+qint64 MemoryMonitor::getProcessMemoryUsage()
+{
 #ifdef Q_OS_WIN
     PROCESS_MEMORY_COUNTERS pmc;
     HANDLE hProcess = GetCurrentProcess();
-    if (GetProcessMemoryInfo(hProcess, &pmc, sizeof(pmc))) {
+    if (GetProcessMemoryInfo(hProcess, &pmc, sizeof(pmc)))
+    {
         return pmc.WorkingSetSize; // Physical memory currently used by the process (in bytes)
     }
     return -1; // Error
@@ -54,7 +66,8 @@ qint64 MemoryMonitor::getProcessMemoryUsage() {
 
 #ifdef Q_OS_LINUX
     std::ifstream statFile("/proc/self/stat");
-    if (!statFile.is_open()) {
+    if (!statFile.is_open())
+    {
         return -1;
     }
 
@@ -64,12 +77,14 @@ qint64 MemoryMonitor::getProcessMemoryUsage() {
 
     // /proc/self/stat fields are space-separated; RSS (resident set size) is the 24th field (1-based index)
     QStringList fields = QString::fromStdString(line).split(' ', Qt::SkipEmptyParts);
-    if (fields.size() >= 24) {
+    if (fields.size() >= 24)
+    {
         bool ok;
         qint64 rssPages = fields[23].toLongLong(&ok); // RSS in pages
-        if (ok) {
+        if (ok)
+        {
             long pageSize = sysconf(_SC_PAGESIZE); // Get system page size in bytes
-            return rssPages * pageSize; // Convert to bytes
+            return rssPages * pageSize;            // Convert to bytes
         }
     }
     return -1; // Error

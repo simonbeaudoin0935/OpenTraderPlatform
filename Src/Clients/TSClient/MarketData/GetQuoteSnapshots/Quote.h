@@ -6,40 +6,127 @@
 
 class Quote
 {
-public:
+  public:
     Quote();
     explicit Quote(const QJsonObject& json);
 
     // Getters
-    QString getSymbol() const { return m_symbol; }
-    double getOpen() const { return m_open; }
-    double getHigh() const { return m_high; }
-    double getLow() const { return m_low; }
-    double getPreviousClose() const { return m_previousClose; }
-    double getLast() const { return m_last; }
-    double getAsk() const { return m_ask; }
-    unsigned int getAskSize() const { return m_askSize; }
-    double getBid() const { return m_bid; }
-    unsigned int getBidSize() const { return m_bidSize; }
-    double getNetChange() const { return m_netChange; }
-    double getNetChangePct() const { return m_netChangePct; }
-    double getHigh52Week() const { return m_high52Week; }
-    QDateTime getHigh52WeekTimestamp() const { return m_high52WeekTimestamp; }
-    double getLow52Week() const { return m_low52Week; }
-    QDateTime getLow52WeekTimestamp() const { return m_low52WeekTimestamp; }
-    unsigned long long getVolume() const { return m_volume; }
-    unsigned long long getPreviousVolume() const { return m_previousVolume; }
-    double getClose() const { return m_close; }
-    unsigned int getDailyOpenInterest() const { return m_dailyOpenInterest; }
-    QDateTime getTradeTime() const { return m_tradeTime; }
-    unsigned int getTickSizeTier() const { return m_tickSizeTier; }
-    bool isDelayed() const { return m_isDelayed; }
-    bool isHardToBorrow() const { return m_isHardToBorrow; }
-    bool isBats() const { return m_isBats; }
-    bool isHalted() const { return m_isHalted; }
-    unsigned int getLastSize() const { return m_lastSize; }
-    QString getLastVenue() const { return m_lastVenue; }
-    double getVWAP() const { return m_vwap; }
+    QString getSymbol() const
+    {
+        return m_symbol;
+    }
+    double getOpen() const
+    {
+        return m_open;
+    }
+    double getHigh() const
+    {
+        return m_high;
+    }
+    double getLow() const
+    {
+        return m_low;
+    }
+    double getPreviousClose() const
+    {
+        return m_previousClose;
+    }
+    double getLast() const
+    {
+        return m_last;
+    }
+    double getAsk() const
+    {
+        return m_ask;
+    }
+    unsigned int getAskSize() const
+    {
+        return m_askSize;
+    }
+    double getBid() const
+    {
+        return m_bid;
+    }
+    unsigned int getBidSize() const
+    {
+        return m_bidSize;
+    }
+    double getNetChange() const
+    {
+        return m_netChange;
+    }
+    double getNetChangePct() const
+    {
+        return m_netChangePct;
+    }
+    double getHigh52Week() const
+    {
+        return m_high52Week;
+    }
+    QDateTime getHigh52WeekTimestamp() const
+    {
+        return m_high52WeekTimestamp;
+    }
+    double getLow52Week() const
+    {
+        return m_low52Week;
+    }
+    QDateTime getLow52WeekTimestamp() const
+    {
+        return m_low52WeekTimestamp;
+    }
+    unsigned long long getVolume() const
+    {
+        return m_volume;
+    }
+    unsigned long long getPreviousVolume() const
+    {
+        return m_previousVolume;
+    }
+    double getClose() const
+    {
+        return m_close;
+    }
+    unsigned int getDailyOpenInterest() const
+    {
+        return m_dailyOpenInterest;
+    }
+    QDateTime getTradeTime() const
+    {
+        return m_tradeTime;
+    }
+    unsigned int getTickSizeTier() const
+    {
+        return m_tickSizeTier;
+    }
+    bool isDelayed() const
+    {
+        return m_isDelayed;
+    }
+    bool isHardToBorrow() const
+    {
+        return m_isHardToBorrow;
+    }
+    bool isBats() const
+    {
+        return m_isBats;
+    }
+    bool isHalted() const
+    {
+        return m_isHalted;
+    }
+    unsigned int getLastSize() const
+    {
+        return m_lastSize;
+    }
+    QString getLastVenue() const
+    {
+        return m_lastVenue;
+    }
+    double getVWAP() const
+    {
+        return m_vwap;
+    }
 
     // Validation
     bool isValid() const;
@@ -49,7 +136,7 @@ public:
     QString toJsonString() const;
     void fromJson(const QJsonObject& json);
 
-private:
+  private:
     QString m_symbol;
     double m_open = 0.0;
     double m_high = 0.0;

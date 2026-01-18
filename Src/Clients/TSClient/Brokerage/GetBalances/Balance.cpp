@@ -2,7 +2,7 @@
 
 #include "Balance.h"
 
-Balance::Balance(const QJsonObject &jsonObj)
+Balance::Balance(const QJsonObject& jsonObj)
 {
     accountID = jsonObj["AccountID"].toString();
     accountType = AccountType(jsonObj["AccountType"].toString());

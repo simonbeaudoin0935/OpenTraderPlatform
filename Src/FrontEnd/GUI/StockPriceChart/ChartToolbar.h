@@ -21,10 +21,11 @@
  * Provides controls for selecting chart timeframe intervals, auto timeframe,
  * volume chart visibility, and market replay functionality.
  */
-class ChartToolbar : public QWidget {
+class ChartToolbar : public QWidget
+{
     Q_OBJECT
 
-public:
+  public:
     /**
      * @brief Constructs a ChartToolbar widget.
      * @param parent The parent widget.
@@ -148,7 +149,7 @@ public:
      */
     void scanAndPopulateReplayDays();
 
-signals:
+  signals:
     /**
      * @brief Emitted when the user selects a different timeframe.
      * @param timeframe The newly selected TimeFrame.
@@ -197,7 +198,7 @@ signals:
      */
     void wheelRatioChanged(qreal ratio);
 
-private slots:
+  private slots:
     /**
      * @brief Handles combobox selection changes.
      * @param index The index of the selected item.
@@ -245,17 +246,17 @@ private slots:
      */
     void onWheelRatioChanged(int index);
 
-private:
-    QComboBox* comboBox;  ///< The dropdown selection widget for timeframe
-    QLabel* label;        ///< Label showing "Timeframe:"
-    QCheckBox* autoCheckBox;  ///< Checkbox for auto timeframe selection
-    QCheckBox* volumeCheckBox;  ///< Checkbox for volume chart visibility
-    QCheckBox* volumeAutoRescaleCheckBox;  ///< Checkbox for volume Y-axis auto-rescale to visible range
+  private:
+    QComboBox* comboBox;                  ///< The dropdown selection widget for timeframe
+    QLabel* label;                        ///< Label showing "Timeframe:"
+    QCheckBox* autoCheckBox;              ///< Checkbox for auto timeframe selection
+    QCheckBox* volumeCheckBox;            ///< Checkbox for volume chart visibility
+    QCheckBox* volumeAutoRescaleCheckBox; ///< Checkbox for volume Y-axis auto-rescale to visible range
 
-    QLabel* replayLabel;       ///< Label showing "Replay:"
-    QLabel* replayInfoLabel;   ///< Label showing replay time range and bar count info
-    QComboBox* replayDayCombo; ///< Dropdown for selecting replay day
-    QTimeEdit* replayTimeEdit; ///< Time input for replay start time
+    QLabel* replayLabel;          ///< Label showing "Replay:"
+    QLabel* replayInfoLabel;      ///< Label showing replay time range and bar count info
+    QComboBox* replayDayCombo;    ///< Dropdown for selecting replay day
+    QTimeEdit* replayTimeEdit;    ///< Time input for replay start time
     QPushButton* playPauseButton; ///< Play/pause button for replay
 
     QToolButton* settingsButton; ///< Settings button with cog icon

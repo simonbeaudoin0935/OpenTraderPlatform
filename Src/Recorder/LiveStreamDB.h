@@ -11,11 +11,13 @@
 
 Q_DECLARE_LOGGING_CATEGORY(LiveStreamDBLog)
 
-class LiveStreamDB : public QObject {
+class LiveStreamDB : public QObject
+{
     Q_OBJECT
 
-public:
-    enum class StreamType {
+  public:
+    enum class StreamType
+    {
         Bars,
         MarketDepthQuotes
     };
@@ -26,23 +28,38 @@ public:
     bool isOpen() const;
     void startRecording();
 
-    QMap<QString, int> getRecoveredTimeouts() const { return recoveredTimeouts; }
-    QMap<QString, int> getUnrecoveredTimeoutCounts() const { return unrecoveredTimeoutCounts; }
-    QMap<QString, int> getRecoveryAttempts() const { return recoveryAttempts; }
-    QMap<QString, int> getSuccessfulRecoveries() const { return successfulRecoveries; }
+    QMap<QString, int> getRecoveredTimeouts() const
+    {
+        return recoveredTimeouts;
+    }
+    QMap<QString, int> getUnrecoveredTimeoutCounts() const
+    {
+        return unrecoveredTimeoutCounts;
+    }
+    QMap<QString, int> getRecoveryAttempts() const
+    {
+        return recoveryAttempts;
+    }
+    QMap<QString, int> getSuccessfulRecoveries() const
+    {
+        return successfulRecoveries;
+    }
 
     int getRecordCount() const;
     int getActiveStreamCount() const;
-    int getTotalConfiguredStreams() const { return stockTickers.size(); }
+    int getTotalConfiguredStreams() const
+    {
+        return stockTickers.size();
+    }
 
     void finalizeUnrecoveredTimeouts();
     void attemptStreamRecovery(const QString& symbol);
 
-private slots:
+  private slots:
     void onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData);
 
 
-private:
+  private:
     bool storeData(const QString& stock, qint64 epochMs, const QByteArray& rawData);
 
     StreamType streamType;

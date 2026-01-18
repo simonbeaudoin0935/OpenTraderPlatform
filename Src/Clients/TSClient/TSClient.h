@@ -30,18 +30,18 @@
 
 Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 
-#define ENDPOINT_GET_QUOTE_SNAPSHOTS       "marketdata/quotes/%1"
-#define ENDPOINT_GET_BARS                  "marketdata/barcharts/%1"
-#define ENDPOINT_STREAM_BARS               "marketdata/stream/barcharts/%1"
+#define ENDPOINT_GET_QUOTE_SNAPSHOTS "marketdata/quotes/%1"
+#define ENDPOINT_GET_BARS "marketdata/barcharts/%1"
+#define ENDPOINT_STREAM_BARS "marketdata/stream/barcharts/%1"
 #define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes/%1"
 
-#define ENDPOINT_GET_ACCOUNTS              "brokerage/accounts"
-#define ENDPOINT_GET_BALANCES              "brokerage/accounts/%1/balances"
-#define ENDPOINT_STREAM_ORDERS             "brokerage/stream/accounts/%1/orders"
-#define ENDPOINT_STREAM_POSITIONS          "brokerage/stream/accounts/%1/positions"
+#define ENDPOINT_GET_ACCOUNTS "brokerage/accounts"
+#define ENDPOINT_GET_BALANCES "brokerage/accounts/%1/balances"
+#define ENDPOINT_STREAM_ORDERS "brokerage/stream/accounts/%1/orders"
+#define ENDPOINT_STREAM_POSITIONS "brokerage/stream/accounts/%1/positions"
 
-#define ENDPOINT_PLACE_ORDER               "orderexecution/orders"
-#define ENDPOINT_CANCEL_ORDER              "orderexecution/orders/%1"
+#define ENDPOINT_PLACE_ORDER "orderexecution/orders"
+#define ENDPOINT_CANCEL_ORDER "orderexecution/orders/%1"
 
 // This is a singleton
 
@@ -50,8 +50,7 @@ Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 class TSClient final : public QObject
 {
     Q_OBJECT
-public:
-
+  public:
     enum class Error : quint8
     {
         Timeout,
@@ -64,14 +63,16 @@ public:
     // Singleton : Instance getter
     [[nodiscard]] static TSClient* getInstance();
 
-    TSClient(const TSClient&) = delete; // Delete copy constructor
-    TSClient(TSClient&&) = delete; // Delete move constructor
+    TSClient(const TSClient&) = delete;            // Delete copy constructor
+    TSClient(TSClient&&) = delete;                 // Delete move constructor
     TSClient& operator=(const TSClient&) = delete; // Delete copy assignment
-    TSClient& operator=(TSClient&&) = delete; // Delete move assignment
+    TSClient& operator=(TSClient&&) = delete;      // Delete move assignment
 
 
-    void start() { m_thread->start(); };
-
+    void start()
+    {
+        m_thread->start();
+    };
 
 
     /*
@@ -79,8 +80,7 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/GetQuoteSnapshots
      */
-    [[nodiscard]] QFuture<std::expected<QVector<Quote>, Error>>
-    getQuoteSnapshots(const QStringList &symbols);
+    [[nodiscard]] QFuture<std::expected<QVector<Quote>, Error>> getQuoteSnapshots(const QStringList& symbols);
 
     /*
      * Get Bars asynchronously
@@ -88,14 +88,13 @@ public:
      * @doc : https://api.tradestation.com/docs/specification#tag/MarketData/operation/GetBars
      */
     [[nodiscard]] QFuture<std::expected<std::unique_ptr<QVector<Bar>>, Error>>
-    getBars(
-        const QString &symbol,
-        unsigned int interval = 1,
-        Bar::BarUnit unit = Bar::BarUnit::Daily,
-        unsigned int barsback = 1,
-        Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default,
-        QDateTime firstDate = QDateTime(),
-        QDateTime lastDate = QDateTime());
+    getBars(const QString& symbol,
+            unsigned int interval = 1,
+            Bar::BarUnit unit = Bar::BarUnit::Daily,
+            unsigned int barsback = 1,
+            Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default,
+            QDateTime firstDate = QDateTime(),
+            QDateTime lastDate = QDateTime());
 
 
     /*
@@ -103,41 +102,40 @@ public:
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetAccounts
      */
-    [[nodiscard]] QFuture<std::expected<QVector<Account>, Error>>
-    getAccounts();
+    [[nodiscard]] QFuture<std::expected<QVector<Account>, Error>> getAccounts();
 
     /*
      * Get Balances
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/GetBalances
      */
-    [[nodiscard]] QFuture<std::expected<QVector<Balance>, Error>>
-    getBalances(const QStringList &accounts);
- 
+    [[nodiscard]] QFuture<std::expected<QVector<Balance>, Error>> getBalances(const QStringList& accounts);
+
     /*
      * Place order
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/PlaceOrder
      */
-    [[nodiscard]] QFuture<std::expected<PlaceOrderResult, Error>> placeOrder(const PlaceOrderRequest &order);
+    [[nodiscard]] QFuture<std::expected<PlaceOrderResult, Error>> placeOrder(const PlaceOrderRequest& order);
 
     /*
      * Cancel order
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/Order-Execution/operation/CancelOrder
      */
-    [[nodiscard]] QFuture<std::expected<CancelOrderResult, Error>> cancelOrder(const QString &orderID);
+    [[nodiscard]] QFuture<std::expected<CancelOrderResult, Error>> cancelOrder(const QString& orderID);
 
     /*
      * Creates a Bars Stream
      *
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/StreamBars
      */
-    [[nodiscard]] QPointer<StreamBars> openStreamBars(const QString &symbol,
-                               unsigned int interval = 1,
-                               Bar::BarUnit unit = Bar::BarUnit::Daily,
-                               unsigned int barsback = 1,
-                               Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default);
+    [[nodiscard]] QPointer<StreamBars>
+    openStreamBars(const QString& symbol,
+                   unsigned int interval = 1,
+                   Bar::BarUnit unit = Bar::BarUnit::Daily,
+                   unsigned int barsback = 1,
+                   Bar::BarSessionTemplate sessionTemplate = Bar::BarSessionTemplate::Default);
 
     /*
      * Creates a MarketDepthQuote Stream
@@ -145,7 +143,8 @@ public:
      * @return : nullptr if the stream could not be created
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/StreamMarketDepthQuotes
      */
-    [[nodiscard]] QPointer<StreamMarketDepthQuote> openStreamMarketDepthQuote(const QString &symbol, unsigned int depth = 20);
+    [[nodiscard]] QPointer<StreamMarketDepthQuote> openStreamMarketDepthQuote(const QString& symbol,
+                                                                              unsigned int depth = 20);
 
     /*
      * Creates a StreaOrders Stream
@@ -153,7 +152,7 @@ public:
      * @return : nullptr if the stream could not be created
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/StreamOrders
      */
-    [[nodiscard]] QPointer<StreamOrders> openStreamOrders(const QString &account);
+    [[nodiscard]] QPointer<StreamOrders> openStreamOrders(const QString& account);
 
     /*
      * Creates a StreamPositions Stream
@@ -161,38 +160,50 @@ public:
      * @return : nullptr if the stream could not be created
      * @doc : https://api.tradestation.com/docs/specification#tag/Brokerage/operation/StreamPositions
      */
-    [[nodiscard]] QPointer<StreamPositions> openStreamPositions(const QString &account, bool changes = false);
-    
+    [[nodiscard]] QPointer<StreamPositions> openStreamPositions(const QString& account, bool changes = false);
+
     void closeStream(Stream* stream);
 
-    [[nodiscard]] qsizetype getTotalDataReceivedBytes() const { return m_totalDataReceivedBytes; };
+    [[nodiscard]] qsizetype getTotalDataReceivedBytes() const
+    {
+        return m_totalDataReceivedBytes;
+    };
     [[nodiscard]] bool isCleanedUp();
-    [[nodiscard]] size_t getStreamCount() const { return Stream::getNumberOpenStream(); }
-    [[nodiscard]] bool isAuthenticated() const { return m_authenticated; }
-    [[nodiscard]] bool isAuthInProgress() const { return m_authInProgress; }
+    [[nodiscard]] size_t getStreamCount() const
+    {
+        return Stream::getNumberOpenStream();
+    }
+    [[nodiscard]] bool isAuthenticated() const
+    {
+        return m_authenticated;
+    }
+    [[nodiscard]] bool isAuthInProgress() const
+    {
+        return m_authInProgress;
+    }
 
-public slots:
-    #ifdef GUI_ENABLED
+  public slots:
+#ifdef GUI_ENABLED
     // Authentication methods
     void launchAuthProcess();
-    #endif
+#endif
 
-signals:
+  signals:
     // Emited at basically every new message
     void totalDataReceivedBytesIncreased(qsizetype dataSize);
-    
+
     void openStreamCountChanged(size_t count);
 
     void authStateChanged(bool isAuthenticated, QString reason);
 
-private slots:
+  private slots:
 
-    #ifdef GUI_ENABLED
+#ifdef GUI_ENABLED
     void onAuthFinished(bool success, AuthToken token, QString reason);
     void onAuthWindowDestroyed();
-    #endif
+#endif
 
-private:
+  private:
     static TSClient* m_instance; // Singleton instance
 
     virtual ~TSClient(); // Delete destructor
@@ -200,30 +211,32 @@ private:
     explicit TSClient(); // Singleton : private constructor
 
     void processNewAmountOfDataReceived(size_t bytesReceived);
-    [[nodiscard]] QNetworkRequest buildNetworkRequest(const QString &endpoint, const QUrlQuery &query = QUrlQuery()) const;
+    [[nodiscard]] QNetworkRequest buildNetworkRequest(const QString& endpoint,
+                                                      const QUrlQuery& query = QUrlQuery()) const;
 
 
     // Auth and refresh stuff implemented in TSClientRefreshToken.cpp
     [[nodiscard]] static QNetworkRequest buildRefreshTokenRequest();
-    [[nodiscard]] static QByteArray buildRefreshTokenQuery(const QString &clientId, const QString &clientSecret, const QString &refreshToken);                                       
+    [[nodiscard]] static QByteArray
+    buildRefreshTokenQuery(const QString& clientId, const QString& clientSecret, const QString& refreshToken);
     void refreshAccessToken();
 
     // tokens
-    AuthToken   m_authToken;
+    AuthToken m_authToken;
     ClientToken m_clientToken;
 
-    bool m_authenticated     = false;  // Track authentication state
-    bool m_refreshInProgress = false;  // Track if authentication process is in progress
-    bool m_authInProgress    = false;  // Track if authentication process is in progress
+    bool m_authenticated = false;     // Track authentication state
+    bool m_refreshInProgress = false; // Track if authentication process is in progress
+    bool m_authInProgress = false;    // Track if authentication process is in progress
 
     QUrl m_baseUrl;
-    
+
     qsizetype m_totalDataReceivedBytes = 0;
     QString m_apiKey;
-    QThread *m_thread;
-    QNetworkAccessManager *m_networkManager;
+    QThread* m_thread;
+    QNetworkAccessManager* m_networkManager;
 
 #ifdef GUI_ENABLED
-    AuthWindow* m_authWindow = nullptr;  // Authentication window
+    AuthWindow* m_authWindow = nullptr; // Authentication window
 #endif
 };

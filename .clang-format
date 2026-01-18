@@ -1,6 +1,7 @@
 BasedOnStyle: LLVM
 ColumnLimit: 120
 AllowAllArgumentsOnNextLine: false
+AllowAllConstructorInitializersOnNextLine: true
 BinPackArguments: false
 AllowAllParametersOfDeclarationOnNextLine: false
 BinPackParameters: false
@@ -27,6 +28,7 @@ AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
 AlwaysBreakTemplateDeclarations: false
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
+BreakConstructorInitializersBeforeComma: true
 ConstructorInitializerIndentWidth: 4
 ContinuationIndentWidth: 4
 Cpp11BracedListStyle: true

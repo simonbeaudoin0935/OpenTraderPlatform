@@ -21,7 +21,7 @@ class SecureStorage : public QObject
 {
     Q_OBJECT
 
-public:
+  public:
     explicit SecureStorage(QObject* parent = nullptr);
     ~SecureStorage();
 
@@ -32,8 +32,10 @@ public:
      * @param value The value to store
      * @param callback Callback function called with success status
      */
-    void storeValue(const QString& service, const QString& key, const QString& value,
-                   std::function<void(bool)> callback = nullptr);
+    void storeValue(const QString& service,
+                    const QString& key,
+                    const QString& value,
+                    std::function<void(bool)> callback = nullptr);
 
     /**
      * @brief Retrieve a value securely (async)
@@ -41,8 +43,7 @@ public:
      * @param key The key name
      * @param callback Callback function called with the retrieved value (empty if not found)
      */
-    void retrieveValue(const QString& service, const QString& key,
-                      std::function<void(const QString&)> callback);
+    void retrieveValue(const QString& service, const QString& key, std::function<void(const QString&)> callback);
 
     /**
      * @brief Delete a stored value (async)
@@ -50,8 +51,7 @@ public:
      * @param key The key name
      * @param callback Callback function called with success status
      */
-    void deleteValue(const QString& service, const QString& key,
-                    std::function<void(bool)> callback = nullptr);
+    void deleteValue(const QString& service, const QString& key, std::function<void(bool)> callback = nullptr);
 
     /**
      * @brief Store multiple values securely (synchronous)
@@ -86,7 +86,7 @@ public:
      */
     static bool isSecureStorageAvailable();
 
-private:
+  private:
 #ifdef QT_KEYCHAIN_LIB
     void handleStoreFinished(QKeychain::Job* job, std::function<void(bool)> callback);
     void handleReadFinished(QKeychain::Job* job, std::function<void(const QString&)> callback);
@@ -94,12 +94,13 @@ private:
 #endif
 
     // Fallback methods using QSettings (less secure)
-    void storeValueFallback(const QString& service, const QString& key, const QString& value,
-                           std::function<void(bool)> callback);
-    void retrieveValueFallback(const QString& service, const QString& key,
-                              std::function<void(const QString&)> callback);
-    void deleteValueFallback(const QString& service, const QString& key,
+    void storeValueFallback(const QString& service,
+                            const QString& key,
+                            const QString& value,
                             std::function<void(bool)> callback);
+    void
+    retrieveValueFallback(const QString& service, const QString& key, std::function<void(const QString&)> callback);
+    void deleteValueFallback(const QString& service, const QString& key, std::function<void(bool)> callback);
 
     // Simple obfuscation methods (NOT secure encryption)
     static QString obfuscateValue(const QString& value);

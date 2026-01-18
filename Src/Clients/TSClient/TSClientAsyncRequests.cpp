@@ -8,8 +8,7 @@
 
 #define LOGGING_CATEGORY TSClientLog
 
-QFuture<std::expected<QVector<Account>, TSClient::Error>>
-TSClient::getAccounts()
+QFuture<std::expected<QVector<Account>, TSClient::Error>> TSClient::getAccounts()
 {
     DEBUG << "Fetching accounts";
 
@@ -18,28 +17,32 @@ TSClient::getAccounts()
 
     promisePtr->start();
 
-    QMetaObject::invokeMethod(this,
+    QMetaObject::invokeMethod(
+        this,
         [this, promisePtr]() mutable
         {
-            QNetworkReply *reply = m_networkManager->get(buildNetworkRequest(ENDPOINT_GET_ACCOUNTS));
+            QNetworkReply* reply = m_networkManager->get(buildNetworkRequest(ENDPOINT_GET_ACCOUNTS));
             Q_CHECK_PTR(reply);
 
-            connect(reply, &QNetworkReply::finished, this,
-                [this, reply, promisePtr]() mutable
-                {
-                    QByteArray rawData = reply->readAll();
-        
-                    processNewAmountOfDataReceived(rawData.size());
-
-                    switch (reply->error())
+            connect(reply,
+                    &QNetworkReply::finished,
+                    this,
+                    [this, reply, promisePtr]() mutable
                     {
+                        QByteArray rawData = reply->readAll();
+
+                        processNewAmountOfDataReceived(rawData.size());
+
+                        switch (reply->error())
+                        {
                         // Happy path
                         case QNetworkReply::NoError:
                         {
                             QJsonParseError parseError;
                             QJsonDocument doc = QJsonDocument::fromJson(rawData, &parseError);
 
-                            if (parseError.error != QJsonParseError::NoError) {
+                            if (parseError.error != QJsonParseError::NoError)
+                            {
                                 CRITICAL << "Failed to parse JSON:" << parseError.errorString();
                                 CRITICAL << "Content of the bad data : " << rawData;
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
@@ -48,7 +51,8 @@ TSClient::getAccounts()
 
                             const QJsonValue val = doc["Accounts"];
 
-                            if(val == QJsonValue::Undefined) {
+                            if (val == QJsonValue::Undefined)
+                            {
                                 CRITICAL << " : 'Accounts' field is missing in the response";
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
@@ -56,7 +60,8 @@ TSClient::getAccounts()
 
                             const QJsonArray accountsArray = val.toArray();
 
-                            if (accountsArray.isEmpty()) {
+                            if (accountsArray.isEmpty())
+                            {
                                 CRITICAL << " : 'Accounts' array is empty in the response";
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
@@ -64,7 +69,8 @@ TSClient::getAccounts()
 
                             // Happiest path
                             QVector<Account> results;
-                            for (const QJsonValue &json: accountsArray) {
+                            for (const QJsonValue& json: accountsArray)
+                            {
                                 results.push_back(Account(json.toObject()));
                             }
 
@@ -80,12 +86,13 @@ TSClient::getAccounts()
                             promisePtr->addResult(results);
                             break;
                         }
-        
+
                         // timeout
                         case QNetworkReply::HostNotFoundError:
                         case QNetworkReply::UnknownNetworkError:
                         {
-                            CRITICAL << ": getAccounts(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
+                            CRITICAL << ": getAccounts(): Timeout with the reply: " << reply->errorString() << " : "
+                                     << reply->error();
                             promisePtr->addResult(std::unexpected(Error::Timeout));
                             break;
                         }
@@ -93,29 +100,28 @@ TSClient::getAccounts()
                         // other errors
                         default:
                         {
-                            CRITICAL << ": getAccounts(): Error with reply: " << reply->errorString() << " : " << reply->error();
+                            CRITICAL << ": getAccounts(): Error with reply: " << reply->errorString() << " : "
+                                     << reply->error();
                             promisePtr->addResult(std::unexpected(Error::Other));
                             break;
                         }
-                    };
-        
-                    promisePtr->finish();   // always finish exactly once
-                    reply->deleteLater();
-                }
-            );
+                        };
 
-        DEBUG << "Sent getAccounts() to Network Manager";
+                        promisePtr->finish(); // always finish exactly once
+                        reply->deleteLater();
+                    });
 
-    }, Qt::QueuedConnection);
+            DEBUG << "Sent getAccounts() to Network Manager";
+        },
+        Qt::QueuedConnection);
 
     return future;
 }
 
-QFuture<std::expected<QVector<Balance>, TSClient::Error>>
-TSClient::getBalances(const QStringList &accounts)
+QFuture<std::expected<QVector<Balance>, TSClient::Error>> TSClient::getBalances(const QStringList& accounts)
 {
     //DEBUG << "Fetching Balances";
-    
+
     OBJ_ASSUME_FALSE(accounts.isEmpty());
     OBJ_ASSUME_TRUE(accounts.size() == 1); // FIXME For now only single account is supported
 
@@ -126,28 +132,33 @@ TSClient::getBalances(const QStringList &accounts)
 
     QString account = accounts.at(0);
 
-    QMetaObject::invokeMethod(this,
+    QMetaObject::invokeMethod(
+        this,
         [this, account, promisePtr]() mutable
         {
-            QNetworkReply *reply = m_networkManager->get(buildNetworkRequest(QString(ENDPOINT_GET_BALANCES).arg(account)));
+            QNetworkReply* reply =
+                m_networkManager->get(buildNetworkRequest(QString(ENDPOINT_GET_BALANCES).arg(account)));
             Q_CHECK_PTR(reply);
 
-            connect(reply, &QNetworkReply::finished, this,
-                [this, reply, promisePtr]() mutable
-                {
-                    QByteArray rawData = reply->readAll();
-        
-                    processNewAmountOfDataReceived(rawData.size());
-
-                    switch (reply->error())
+            connect(reply,
+                    &QNetworkReply::finished,
+                    this,
+                    [this, reply, promisePtr]() mutable
                     {
+                        QByteArray rawData = reply->readAll();
+
+                        processNewAmountOfDataReceived(rawData.size());
+
+                        switch (reply->error())
+                        {
                         // Happy path
                         case QNetworkReply::NoError:
                         {
                             QJsonParseError parseError;
                             QJsonDocument doc = QJsonDocument::fromJson(rawData, &parseError);
 
-                            if (parseError.error != QJsonParseError::NoError) {
+                            if (parseError.error != QJsonParseError::NoError)
+                            {
                                 qCCritical(TSClientLog) << "Failed to parse JSON:" << parseError.errorString();
                                 qCCritical(TSClientLog) << "Content of the bad data : " << rawData;
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
@@ -156,7 +167,8 @@ TSClient::getBalances(const QStringList &accounts)
 
                             const QJsonValue val = doc["Balances"];
 
-                            if(val == QJsonValue::Undefined) {
+                            if (val == QJsonValue::Undefined)
+                            {
                                 qCCritical(TSClientLog) << " : 'Balances' field is missing in the response";
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
@@ -164,7 +176,8 @@ TSClient::getBalances(const QStringList &accounts)
 
                             const QJsonArray balancesArray = val.toArray();
 
-                            if (balancesArray.isEmpty()) {
+                            if (balancesArray.isEmpty())
+                            {
                                 qCCritical(TSClientLog) << " : 'Balances' array is empty in the response";
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
@@ -172,7 +185,8 @@ TSClient::getBalances(const QStringList &accounts)
 
                             // Happiest path
                             QVector<Balance> results;
-                            for (const QJsonValue &json: balancesArray) {
+                            for (const QJsonValue& json: balancesArray)
+                            {
                                 results.push_back(Balance(json.toObject()));
                             }
 
@@ -180,12 +194,14 @@ TSClient::getBalances(const QStringList &accounts)
                             promisePtr->addResult(results);
                             break;
                         }
-            
+
                         // timeout
                         case QNetworkReply::HostNotFoundError:
                         case QNetworkReply::UnknownNetworkError:
                         {
-                            qCCritical(TSClientLog) << ": getBalances(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
+                            qCCritical(TSClientLog)
+                                << ": getBalances(): Timeout with the reply: " << reply->errorString() << " : "
+                                << reply->error();
                             promisePtr->addResult(std::unexpected(Error::Timeout));
                             break;
                         }
@@ -193,42 +209,48 @@ TSClient::getBalances(const QStringList &accounts)
                         // other errors
                         default:
                         {
-                            qCCritical(TSClientLog) << ": getBalances(): Error with reply: " << reply->errorString() << " : " << reply->error();
+                            qCCritical(TSClientLog) << ": getBalances(): Error with reply: " << reply->errorString()
+                                                    << " : " << reply->error();
                             promisePtr->addResult(std::unexpected(Error::Other));
                             break;
                         }
-                    };
-        
-                    promisePtr->finish();   // always finish exactly once
-                    reply->deleteLater();
-                }
-            );
+                        };
 
-        //DEBUG << "Sent getBalances() to Network Manager";
+                        promisePtr->finish(); // always finish exactly once
+                        reply->deleteLater();
+                    });
 
-    }, Qt::QueuedConnection);
+            //DEBUG << "Sent getBalances() to Network Manager";
+        },
+        Qt::QueuedConnection);
 
     return future;
 }
 
 QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>>
-TSClient::getBars(
-    const QString &symbol,
-    unsigned int interval,
-    Bar::BarUnit unit,
-    unsigned int barsback,
-    Bar::BarSessionTemplate sessionTemplate,
-    QDateTime firstDate,
-    QDateTime lastDate)
+TSClient::getBars(const QString& symbol,
+                  unsigned int interval,
+                  Bar::BarUnit unit,
+                  unsigned int barsback,
+                  Bar::BarSessionTemplate sessionTemplate,
+                  QDateTime firstDate,
+                  QDateTime lastDate)
 {
     DEBUG << "Fetching Bars for symbols : " << symbol;
 
     OBJ_ASSUME_FALSE(symbol.isEmpty());
     // Interval that each bar will consist of - for minute bars, the number of minutes aggregated in a single bar. For bar units other than minute, value must be 1.
-    if (unit == Bar::BarUnit::Minute) {OBJ_ASSUME_TRUE(interval >= 1);}
-    else { OBJ_ASSUME_TRUE(interval == 1);}
+    if (unit == Bar::BarUnit::Minute)
+    {
+        OBJ_ASSUME_TRUE(interval >= 1);
+    }
+    else
+    {
+        OBJ_ASSUME_TRUE(interval == 1);
+    }
     OBJ_ASSUME_TRUE(barsback <= 57600);
-    if (barsback > 0) OBJ_ASSUME_TRUE(firstDate == QDateTime());
+    if (barsback > 0)
+        OBJ_ASSUME_TRUE(firstDate == QDateTime());
 
     QUrlQuery query = Bar::buildUrlQuery(interval, unit, barsback, sessionTemplate, firstDate, lastDate);
 
@@ -239,28 +261,32 @@ TSClient::getBars(
 
     promisePtr->start();
 
-    QMetaObject::invokeMethod(this,
+    QMetaObject::invokeMethod(
+        this,
         [this, request = std::move(request), promisePtr]() mutable
         {
-            QNetworkReply *reply = m_networkManager->get(request);
+            QNetworkReply* reply = m_networkManager->get(request);
             Q_CHECK_PTR(reply);
 
-            connect(reply, &QNetworkReply::finished, this,
-                [this, reply, promisePtr]() mutable
-                {
-                    QByteArray rawData = reply->readAll();
-        
-                    processNewAmountOfDataReceived(rawData.size());
-
-                    switch (reply->error())
+            connect(reply,
+                    &QNetworkReply::finished,
+                    this,
+                    [this, reply, promisePtr]() mutable
                     {
+                        QByteArray rawData = reply->readAll();
+
+                        processNewAmountOfDataReceived(rawData.size());
+
+                        switch (reply->error())
+                        {
                         // Happy path
                         case QNetworkReply::NoError:
                         {
                             QJsonParseError parseError;
                             QJsonDocument doc = QJsonDocument::fromJson(rawData, &parseError);
 
-                            if (parseError.error != QJsonParseError::NoError) {
+                            if (parseError.error != QJsonParseError::NoError)
+                            {
                                 CRITICAL << "Failed to parse JSON:" << parseError.errorString();
                                 CRITICAL << "Content of the bad data : " << rawData;
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
@@ -269,14 +295,16 @@ TSClient::getBars(
 
                             const QJsonValue val = doc["Bars"];
 
-                            if(val == QJsonValue::Undefined) {
+                            if (val == QJsonValue::Undefined)
+                            {
                                 CRITICAL << " : 'Bars' field is missing in the response";
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
                             const QJsonArray barsArray = val.toArray();
-                            if (barsArray.isEmpty()) {
+                            if (barsArray.isEmpty())
+                            {
                                 CRITICAL << " : 'Bars' array is empty in the response";
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
@@ -285,20 +313,22 @@ TSClient::getBars(
                             // Happiest path
                             std::unique_ptr<QVector<Bar>> results = std::make_unique<QVector<Bar>>();
                             results->reserve(barsArray.size());
-                            
-                            for (const QJsonValue &json: barsArray) {
+
+                            for (const QJsonValue& json: barsArray)
+                            {
                                 results->push_back(Bar(json.toObject()));
                             }
 
                             promisePtr->addResult(std::move(results));
                             break;
                         }
-            
+
                         // timeout
                         case QNetworkReply::HostNotFoundError:
                         case QNetworkReply::UnknownNetworkError:
                         {
-                            CRITICAL << ": getBars(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
+                            CRITICAL << ": getBars(): Timeout with the reply: " << reply->errorString() << " : "
+                                     << reply->error();
                             promisePtr->addResult(std::unexpected(Error::Timeout));
                             break;
                         }
@@ -312,30 +342,29 @@ TSClient::getBars(
                             promisePtr->addResult(std::move(results));
                             break;
                         }
-                        
+
                         // other errors
                         default:
                         {
-                            CRITICAL << ": getBars(): Error with reply: " << reply->errorString() << " : " << reply->error();
+                            CRITICAL << ": getBars(): Error with reply: " << reply->errorString() << " : "
+                                     << reply->error();
                             promisePtr->addResult(std::unexpected(Error::Other));
                             break;
                         }
-                    };
-        
-                    promisePtr->finish();   // always finish exactly once
-                    reply->deleteLater();
-                }
-            );
+                        };
 
-        DEBUG << "Sent getBars() to Network Manager";
+                        promisePtr->finish(); // always finish exactly once
+                        reply->deleteLater();
+                    });
 
-    }, Qt::QueuedConnection);
+            DEBUG << "Sent getBars() to Network Manager";
+        },
+        Qt::QueuedConnection);
 
     return future;
 }
 
-QFuture<std::expected<QVector<Quote>, TSClient::Error>> 
-TSClient::getQuoteSnapshots(const QStringList &symbols)
+QFuture<std::expected<QVector<Quote>, TSClient::Error>> TSClient::getQuoteSnapshots(const QStringList& symbols)
 {
     OBJ_ASSUME_FALSE(symbols.isEmpty());
     OBJ_ASSUME_TRUE(symbols.size() == 1); // For now only single account is supported
@@ -350,41 +379,47 @@ TSClient::getQuoteSnapshots(const QStringList &symbols)
 
     promisePtr->start();
 
-    QMetaObject::invokeMethod(this,
+    QMetaObject::invokeMethod(
+        this,
         [this, request = std::move(request), promisePtr]() mutable
         {
-            QNetworkReply *reply = m_networkManager->get(request);
+            QNetworkReply* reply = m_networkManager->get(request);
             Q_CHECK_PTR(reply);
 
-            connect(reply, &QNetworkReply::finished, this,
-                [this, reply, promisePtr]() mutable
-                {
-                    QByteArray rawData = reply->readAll();
-        
-                    processNewAmountOfDataReceived(rawData.size());
-
-                    switch (reply->error())
+            connect(reply,
+                    &QNetworkReply::finished,
+                    this,
+                    [this, reply, promisePtr]() mutable
                     {
+                        QByteArray rawData = reply->readAll();
+
+                        processNewAmountOfDataReceived(rawData.size());
+
+                        switch (reply->error())
+                        {
                         // Happy path
                         case QNetworkReply::NoError:
                         {
                             QJsonParseError parseError;
                             QJsonDocument doc = QJsonDocument::fromJson(rawData, &parseError);
 
-                            if (parseError.error != QJsonParseError::NoError) {
+                            if (parseError.error != QJsonParseError::NoError)
+                            {
                                 CRITICAL << "Failed to parse JSON:" << parseError.errorString();
                                 CRITICAL << "Content of the bad data : " << rawData;
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
-                            if (!doc.isArray()) {
+                            if (!doc.isArray())
+                            {
                                 CRITICAL << " : JSON is not an array";
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
-                            if (doc.array().isEmpty()) {
+                            if (doc.array().isEmpty())
+                            {
                                 CRITICAL << " : JSON is an empty array";
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
@@ -392,14 +427,16 @@ TSClient::getQuoteSnapshots(const QStringList &symbols)
 
                             const QJsonValue val = doc["Quotes"];
 
-                            if(val == QJsonValue::Undefined) {
+                            if (val == QJsonValue::Undefined)
+                            {
                                 CRITICAL << " : 'Quotes' field is missing in the response";
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
                             const QJsonArray quotesArray = val.toArray();
-                            if (quotesArray.isEmpty()) {
+                            if (quotesArray.isEmpty())
+                            {
                                 CRITICAL << " : 'Quotes' array is empty in the response";
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
@@ -407,19 +444,21 @@ TSClient::getQuoteSnapshots(const QStringList &symbols)
 
                             // Happiest path
                             QVector<Quote> results;
-                            for (const QJsonValue &json: quotesArray) {
+                            for (const QJsonValue& json: quotesArray)
+                            {
                                 results.push_back(Quote(json.toObject()));
                             }
 
                             promisePtr->addResult(results);
                             break;
                         }
-            
+
                         // timeout
                         case QNetworkReply::HostNotFoundError:
                         case QNetworkReply::UnknownNetworkError:
                         {
-                            CRITICAL << ": getQuoteSnapshots(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
+                            CRITICAL << ": getQuoteSnapshots(): Timeout with the reply: " << reply->errorString()
+                                     << " : " << reply->error();
                             promisePtr->addResult(std::unexpected(Error::Timeout));
                             break;
                         }
@@ -427,26 +466,25 @@ TSClient::getQuoteSnapshots(const QStringList &symbols)
                         // other errors
                         default:
                         {
-                            CRITICAL << ": getQuoteSnapshots(): Error with reply: " << reply->errorString() << " : " << reply->error();
+                            CRITICAL << ": getQuoteSnapshots(): Error with reply: " << reply->errorString() << " : "
+                                     << reply->error();
                             promisePtr->addResult(std::unexpected(Error::Other));
                             break;
                         }
-                    };
-        
-                    promisePtr->finish();   // always finish exactly once
-                    reply->deleteLater();
-                }
-            );
+                        };
 
-        DEBUG << "Sent getBars() to Network Manager";
+                        promisePtr->finish(); // always finish exactly once
+                        reply->deleteLater();
+                    });
 
-    }, Qt::QueuedConnection);
+            DEBUG << "Sent getBars() to Network Manager";
+        },
+        Qt::QueuedConnection);
 
     return future;
 }
 
-QFuture<std::expected<PlaceOrderResult, TSClient::Error>>
-TSClient::placeOrder(const PlaceOrderRequest &order)
+QFuture<std::expected<PlaceOrderResult, TSClient::Error>> TSClient::placeOrder(const PlaceOrderRequest& order)
 {
     DEBUG << "Placing order async";
 
@@ -461,35 +499,40 @@ TSClient::placeOrder(const PlaceOrderRequest &order)
 
     promisePtr->start();
 
-    QMetaObject::invokeMethod(this,
+    QMetaObject::invokeMethod(
+        this,
         [this, request = std::move(request), postData = std::move(postData), promisePtr]() mutable
         {
-            QNetworkReply *reply = m_networkManager->post(request, postData);
+            QNetworkReply* reply = m_networkManager->post(request, postData);
             Q_CHECK_PTR(reply);
 
-            connect(reply, &QNetworkReply::finished, this,
-                [this, reply, promisePtr]() mutable
-                {
-                    QByteArray rawData = reply->readAll();
-        
-                    processNewAmountOfDataReceived(rawData.size());
-
-                    switch (reply->error())
+            connect(reply,
+                    &QNetworkReply::finished,
+                    this,
+                    [this, reply, promisePtr]() mutable
                     {
+                        QByteArray rawData = reply->readAll();
+
+                        processNewAmountOfDataReceived(rawData.size());
+
+                        switch (reply->error())
+                        {
                         // Happy path
                         case QNetworkReply::NoError:
                         {
                             QJsonParseError parseError;
                             QJsonDocument doc = QJsonDocument::fromJson(rawData, &parseError);
 
-                            if (parseError.error != QJsonParseError::NoError) {
+                            if (parseError.error != QJsonParseError::NoError)
+                            {
                                 CRITICAL << "Failed to parse JSON:" << parseError.errorString();
                                 CRITICAL << "Content of the bad data : " << rawData;
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
-                            if (!doc.isObject()) {
+                            if (!doc.isObject())
+                            {
                                 CRITICAL << " : JSON is not an object";
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
@@ -505,7 +548,8 @@ TSClient::placeOrder(const PlaceOrderRequest &order)
                         case QNetworkReply::HostNotFoundError:
                         case QNetworkReply::UnknownNetworkError:
                         {
-                            CRITICAL << ": placeOrder(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
+                            CRITICAL << ": placeOrder(): Timeout with the reply: " << reply->errorString() << " : "
+                                     << reply->error();
                             promisePtr->addResult(std::unexpected(Error::Timeout));
                             break;
                         }
@@ -513,26 +557,25 @@ TSClient::placeOrder(const PlaceOrderRequest &order)
                         // other errors
                         default:
                         {
-                            CRITICAL << ": placeOrder(): Error with reply: " << reply->errorString() << " : " << reply->error();
+                            CRITICAL << ": placeOrder(): Error with reply: " << reply->errorString() << " : "
+                                     << reply->error();
                             promisePtr->addResult(std::unexpected(Error::Other));
                             break;
                         }
-                    };
-        
-                    promisePtr->finish();   // always finish exactly once
-                    reply->deleteLater();
-                }
-            );
+                        };
 
-        DEBUG << "Sent placeOrder() to Network Manager";
+                        promisePtr->finish(); // always finish exactly once
+                        reply->deleteLater();
+                    });
 
-    }, Qt::QueuedConnection);
+            DEBUG << "Sent placeOrder() to Network Manager";
+        },
+        Qt::QueuedConnection);
 
     return future;
 }
 
-QFuture<std::expected<CancelOrderResult, TSClient::Error>>
-TSClient::cancelOrder(const QString &orderID)
+QFuture<std::expected<CancelOrderResult, TSClient::Error>> TSClient::cancelOrder(const QString& orderID)
 {
     DEBUG << "Cancel order for orderID : " << orderID;
 
@@ -546,49 +589,55 @@ TSClient::cancelOrder(const QString &orderID)
 
     promisePtr->start();
 
-    QMetaObject::invokeMethod(this,
+    QMetaObject::invokeMethod(
+        this,
         [this, request = std::move(request), promisePtr]() mutable
         {
-            QNetworkReply *reply = m_networkManager->deleteResource(request);
+            QNetworkReply* reply = m_networkManager->deleteResource(request);
             Q_CHECK_PTR(reply);
 
-            connect(reply, &QNetworkReply::finished, this,
-                [this, reply, promisePtr]() mutable
-                {
-                    QByteArray rawData = reply->readAll();
-        
-                    processNewAmountOfDataReceived(rawData.size());
-
-                    switch (reply->error())
+            connect(reply,
+                    &QNetworkReply::finished,
+                    this,
+                    [this, reply, promisePtr]() mutable
                     {
+                        QByteArray rawData = reply->readAll();
+
+                        processNewAmountOfDataReceived(rawData.size());
+
+                        switch (reply->error())
+                        {
                         // Happy path
                         case QNetworkReply::NoError:
                         {
                             QJsonParseError parseError;
                             QJsonDocument doc = QJsonDocument::fromJson(rawData, &parseError);
 
-                            if (parseError.error != QJsonParseError::NoError) {
+                            if (parseError.error != QJsonParseError::NoError)
+                            {
                                 CRITICAL << "Failed to parse JSON:" << parseError.errorString();
                                 CRITICAL << "Content of the bad data : " << rawData;
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
 
-                            if (!doc.isObject()) {
+                            if (!doc.isObject())
+                            {
                                 CRITICAL << " : JSON is not an object";
                                 promisePtr->addResult(std::unexpected(Error::JSONError));
                                 break;
                             }
-                            
+
                             promisePtr->addResult(CancelOrderResult(doc.object()));
                             break;
                         }
-            
+
                         // timeout
                         case QNetworkReply::HostNotFoundError:
                         case QNetworkReply::UnknownNetworkError:
                         {
-                            CRITICAL << ": cancelOrder(): Timeout with the reply: " << reply->errorString() << " : " << reply->error();
+                            CRITICAL << ": cancelOrder(): Timeout with the reply: " << reply->errorString() << " : "
+                                     << reply->error();
                             promisePtr->addResult(std::unexpected(Error::Timeout));
                             break;
                         }
@@ -596,20 +645,20 @@ TSClient::cancelOrder(const QString &orderID)
                         // other errors
                         default:
                         {
-                            CRITICAL << ": cancelOrder(): Error with reply: " << reply->errorString() << " : " << reply->error();
+                            CRITICAL << ": cancelOrder(): Error with reply: " << reply->errorString() << " : "
+                                     << reply->error();
                             promisePtr->addResult(std::unexpected(Error::Other));
                             break;
                         }
-                    };
-        
-                    promisePtr->finish();   // always finish exactly once
-                    reply->deleteLater();
-                }
-            );
+                        };
 
-        DEBUG << "Sent cancelOrder() to Network Manager";
+                        promisePtr->finish(); // always finish exactly once
+                        reply->deleteLater();
+                    });
 
-    }, Qt::QueuedConnection);
+            DEBUG << "Sent cancelOrder() to Network Manager";
+        },
+        Qt::QueuedConnection);
 
     return future;
 }

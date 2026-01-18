@@ -7,7 +7,8 @@
 #include "Settings.h"
 #include "Logging.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[])
+{
     QCoreApplication app(argc, argv);
 
     QCoreApplication::setApplicationName("BarCacheUnit");
@@ -17,8 +18,8 @@ int main(int argc, char *argv[]) {
     parseArguments(app.arguments());
 
     // Initialize app state settings (not used by tests, but needed for linking)
-    appStateSettings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
-                                      QCoreApplication::applicationName(), "AppState");
+    appStateSettings =
+        new QSettings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::applicationName(), "AppState");
     appStateSettings->setFallbacksEnabled(false);
 
     // Initialize logging (opens file and installs handler)
@@ -33,5 +34,6 @@ int main(int argc, char *argv[]) {
     QThread::currentThread()->setObjectName("MainThread");
 
     TestBarCache test;
-    return QTest::qExec(&test, argc=0, argv); //FIXME need to put 0 here to avoid passing our arguments
-} 
+    return QTest::qExec(&test, argc = 0,
+                        argv); //FIXME need to put 0 here to avoid passing our arguments
+}

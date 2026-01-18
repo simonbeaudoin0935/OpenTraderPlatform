@@ -17,23 +17,25 @@ class BarCache : public QObject
 {
     Q_OBJECT
 
-public:
-
-    explicit BarCache(const QString &symbol, bool isStreaming = false, QObject *parent = nullptr);
+  public:
+    explicit BarCache(const QString& symbol, bool isStreaming = false, QObject* parent = nullptr);
     ~BarCache();
 
-    const QString& getSymbol() const { return m_symbol;};
+    const QString& getSymbol() const
+    {
+        return m_symbol;
+    };
 
-    typedef std::variant < std::shared_ptr<QVector<Bar>>,
-                           QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> >
-            GetBarsResult_t;
+    typedef std::variant<std::shared_ptr<QVector<Bar>>,
+                         QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>
+        GetBarsResult_t;
 
     /*
      * Get Bars between two date-times
      *
      * @note : Both date-times must be in America/New_York timezone
      */
-    GetBarsResult_t getBars(const QDate &day, const QTime &first, const QTime &last);
+    GetBarsResult_t getBars(const QDate& day, const QTime& first, const QTime& last);
 
     void clearDatabase();
 
@@ -43,28 +45,30 @@ public:
 
     static constexpr unsigned int BARS_PER_DAY = 840; // From 6:01 AM to 8:00 PM, 1-minute bars
 
-signals:
+  signals:
     void receivedNewBar(QString symbol, Bar newBar);
 
-private slots:
+  private slots:
 
     void onReceivedNewLiveBar(Bar newBar);
 
-private:
+  private:
     void startStream();
-    
+
     [[nodiscard]]
-    static constexpr QVector<std::tuple<QDate, QTime, QTime>> splitIntoTradingDayRanges(const QDateTime &first, const QDateTime &last);
+    static constexpr QVector<std::tuple<QDate, QTime, QTime>> splitIntoTradingDayRanges(const QDateTime& first,
+                                                                                        const QDateTime& last);
 
     std::optional<std::unique_ptr<QVector<Bar>>>
-    getBarsFromCache(const QDate &date, const QTime &start, const QTime &end) const;
+    getBarsFromCache(const QDate& date, const QTime& start, const QTime& end) const;
 
     void storeBarInCache(const Bar& bar);
 
-    void storeBarsInCache(const QDate &date, const std::shared_ptr<QVector<Bar>> bars);
+    void storeBarsInCache(const QDate& date, const std::shared_ptr<QVector<Bar>> bars);
 
     void handleReceivedAllPendingGetBarsRequests();
-    QVector<Bar> fillHolesOfReceivedRequest(const QDateTime& first, const QDateTime& last, const QVector<Bar>& barsFromAPI) const;
+    QVector<Bar>
+    fillHolesOfReceivedRequest(const QDateTime& first, const QDateTime& last, const QVector<Bar>& barsFromAPI) const;
 
     // Converts a QTime timestamp to the corresponding index in the daily bar cache vector
     static size_t timeToIndex(const QTime& time);

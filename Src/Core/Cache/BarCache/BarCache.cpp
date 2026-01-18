@@ -16,40 +16,46 @@
 #define LOGGING_CATEGORY BarCacheLog
 Q_LOGGING_CATEGORY(BarCacheLog, "BarCache")
 
-BarCache::BarCache(const QString &symbol, bool isStreaming, QObject *parent):
-    QObject(parent),
-    m_symbol(symbol),
-    m_isStreaming(isStreaming)
+BarCache::BarCache(const QString& symbol, bool isStreaming, QObject* parent)
+    : QObject(parent), m_symbol(symbol), m_isStreaming(isStreaming)
 {
     Q_ASSERT(parent != nullptr);
-    
+
     this->setObjectName("BarCache::" + symbol);
 
     // Set up database path - one database file per symbol
     QString cacheLocation = getCacheLocation();
     m_dbPath = cacheLocation + "/bars_cache_" + symbol + ".db";
-    
+
     DEBUG << "Cache location:" << cacheLocation;
     DEBUG << "Using database file:" << m_dbPath;
 
     // Open database via DatabaseThread (async, thread-safe)
     // We don't wait for the result here - operations will queue until ready
-    DatabaseThread::getInstance()->openDatabase(m_symbol, m_dbPath)
-        .then(this, [this](bool success) {
-            if (success) {
-                INFO << "Database opened successfully for" << m_symbol;
-            } else {
-                CRITICAL << "Failed to open database for" << m_symbol;
-            }
-        });
+    DatabaseThread::getInstance()
+        ->openDatabase(m_symbol, m_dbPath)
+        .then(this,
+              [this](bool success)
+              {
+                  if (success)
+                  {
+                      INFO << "Database opened successfully for" << m_symbol;
+                  }
+                  else
+                  {
+                      CRITICAL << "Failed to open database for" << m_symbol;
+                  }
+              });
 
-    if (isStreaming) {
+    if (isStreaming)
+    {
         startStream();
     }
 }
 
 
-void BarCache::startStream(){
+void BarCache::startStream()
+{
     DEBUG << "Starting bars stream for symbol " << m_symbol;
 
     m_stream = TSClient::getInstance()->openStreamBars(m_symbol,
@@ -62,31 +68,34 @@ void BarCache::startStream(){
     connect(m_stream, &StreamBars::newBarReceived, this, &BarCache::onReceivedNewLiveBar);
 
     m_stream->future().then(this,
-        [this](std::optional<QString> error)
-        {
-            if (error.has_value()){
-                CRITICAL << "Bars cache bar future failed for" << m_symbol
-                         << "- Exception:" << error.value();
+                            [this](std::optional<QString> error)
+                            {
+                                if (error.has_value())
+                                {
+                                    CRITICAL << "Bars cache bar future failed for" << m_symbol
+                                             << "- Exception:" << error.value();
 
-                CRITICAL << "Restarting bars stream for symbol " << m_symbol;
+                                    CRITICAL << "Restarting bars stream for symbol " << m_symbol;
 
-                // Turns out closeStream() is already done implicitely when the TSClient handles the stream error
-                // TSClient::getInstance()->closeStream(m_stream);
+                                    // Turns out closeStream() is already done implicitely when the TSClient handles the stream error
+                                    // TSClient::getInstance()->closeStream(m_stream);
 
-                startStream();
-            } else {
-                CRITICAL << "Bars cache bar future finished, which should not happen";
-                Q_UNREACHABLE();
-            }
-        }
-    );
+                                    startStream();
+                                }
+                                else
+                                {
+                                    CRITICAL << "Bars cache bar future finished, which should not happen";
+                                    Q_UNREACHABLE();
+                                }
+                            });
 }
 
 BarCache::~BarCache()
 {
-    if (m_isStreaming) {
+    if (m_isStreaming)
+    {
         Q_CHECK_PTR(m_stream);
-        
+
         TSClient::getInstance()->closeStream(m_stream);
     }
 
@@ -130,7 +139,8 @@ size_t BarCache::timeToIndex(const QTime& time)
     // Adjust by -1 because first bar is timestamped at 6:01 (index 0)
     size_t index = minutesSince6AM - 1;
 
-    ASSUME_LT(index, BARS_PER_DAY); // 0 ≤ index ≤ 839
+    ASSUME_LT(index,
+              BARS_PER_DAY); // 0 ≤ index ≤ 839
 
     return index;
 }
@@ -170,8 +180,9 @@ QVector<Bar>& BarCache::getOrCreateDayVector(const QDate& date)
     ASSUME_LTE(date.dayOfWeek(), Qt::Friday);
 
     // NOTE: Caller must already hold m_barCacheRwLock write lock
-    
-    if (!m_barCacheByDay.contains(date)) {
+
+    if (!m_barCacheByDay.contains(date))
+    {
         DEBUG << "m_barCacheByDay map doesn't contain day " << date << ", creating new vector.";
 
         // Pre-allocate to full capacity with uninitialized bars by default ctor of Bar
@@ -181,8 +192,10 @@ QVector<Bar>& BarCache::getOrCreateDayVector(const QDate& date)
     return m_barCacheByDay[date];
 }
 
-QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first, const QDateTime& last, const QVector<Bar>& barsFromAPI) const
-{   
+QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first,
+                                                  const QDateTime& last,
+                                                  const QVector<Bar>& barsFromAPI) const
+{
     OBJ_ASSUME_EQUAL(first.date(), last.date());
     OBJ_ASSUME_GTE(first.date().dayOfWeek(), Qt::Monday);
     OBJ_ASSUME_LTE(first.date().dayOfWeek(), Qt::Friday);
@@ -192,29 +205,37 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first, const 
     // Account for bar holes where no activity happened
     QVector<Bar> resultBars;
     int voidBarsCreated = 0;
-    
+
     qsizetype i = 0;
-            
-    for (QDateTime expectedTime = first; expectedTime <= last; expectedTime = expectedTime.addSecs(60)) {
+
+    for (QDateTime expectedTime = first; expectedTime <= last; expectedTime = expectedTime.addSecs(60))
+    {
         Bar bar;
-                
-        if (i >= barsFromAPI.size()) {
+
+        if (i >= barsFromAPI.size())
+        {
             bar = Bar::nullBar(expectedTime);
             voidBarsCreated++;
-        } else {
-            if (expectedTime == barsFromAPI[i].getTimeStamp()) {
+        }
+        else
+        {
+            if (expectedTime == barsFromAPI[i].getTimeStamp())
+            {
                 bar = barsFromAPI[i];
                 i++;
-            } else {
+            }
+            else
+            {
                 bar = Bar::nullBar(expectedTime);
                 voidBarsCreated++;
             }
         }
-                
+
         resultBars.append(bar);
     }
-        
-    if (voidBarsCreated > 0) {
+
+    if (voidBarsCreated > 0)
+    {
         DEBUG << "Created" << voidBarsCreated << "void bars to account for periods with no trading activity";
     }
 
@@ -247,7 +268,7 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first, const 
  * @note Holes in the data (periods with no trading activity) are filled with null bars.
  * @warning Currently returns the complete day, not just the requested range (bug noted in code).
  */
-BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &first, const QTime &last)
+BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& first, const QTime& last)
 {
     const QDateTime now = MainApp::getCurrentAppTime();
     const bool isCurrentDay = (date == now.date());
@@ -255,7 +276,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
     // The smaller increment in bar time is 1 minute, so we can safely assume seconds and milliseconds are zero
     OBJ_ASSUME_EQUAL(first.second(), 0);
     OBJ_ASSUME_EQUAL(last.second(), 0);
-    
+
     OBJ_ASSUME_EQUAL(first.msec(), 0);
     OBJ_ASSUME_EQUAL(last.msec(), 0);
 
@@ -266,9 +287,12 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
     OBJ_ASSUME_LTE(last, TRADING_END_TIME);
 
     // Assume we are not requesting future dates/times
-    OBJ_ASSUME_LTE(date, now.date()); // Can't request bars for future dates
-    if (isCurrentDay) {
-        OBJ_ASSUME_LTE(last, now.time()); // Can't request bars for later today than now
+    OBJ_ASSUME_LTE(date,
+                   now.date()); // Can't request bars for future dates
+    if (isCurrentDay)
+    {
+        OBJ_ASSUME_LTE(last,
+                       now.time()); // Can't request bars for later today than now
     }
 
     DEBUG << "getBarsInDay() called for day" << date << "and time range" << first << "to" << last;
@@ -282,9 +306,9 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
 
         return std::move(barsFromCache.value());
     }
-    
+
     DEBUG << " m_barCacheByDay map doesn't contain bars  for day " << date << "checking database";
-    
+
     // Create a shared promise for the final result.
     // Using shared_ptr because the promise needs to survive across multiple nested async
     // continuations. Moving a QPromise into nested lambdas causes undefined behavior when
@@ -294,55 +318,61 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
     promise.start();
 
     // Query database via DatabaseThread (async, thread-safe)
-    DatabaseThread::getInstance()->getBarsFromDatabase(m_symbol, date, first, last)
+    DatabaseThread::getInstance()
+        ->getBarsFromDatabase(m_symbol,
+                              date,
+                              first,
+                              last)
         .then(this, // Execute in the thread of this BarCache object, aka the MainAlgo thread
-            [this, date, first, last, isCurrentDay, now, promise = std::move(promise)]
-            (std::optional<std::unique_ptr<QVector<Bar>>> dbBars) mutable
-            {
-                // Check if we got the complete day from database
-                if (dbBars.has_value())
-                {
-                    std::shared_ptr<QVector<Bar>> sp = std::move(dbBars.value());
+              [this, date, first, last, isCurrentDay, now, promise = std::move(promise)](
+                  std::optional<std::unique_ptr<QVector<Bar>>> dbBars) mutable
+              {
+                  // Check if we got the complete day from database
+                  if (dbBars.has_value())
+                  {
+                      std::shared_ptr<QVector<Bar>> sp = std::move(dbBars.value());
 
-                    const size_t expectedBarCount = first.secsTo(last) / 60 + 1;
+                      const size_t expectedBarCount = first.secsTo(last) / 60 + 1;
 
-                    // Happy path, got bars from database
-                    OBJ_ASSUME_EQUAL(sp->size(), expectedBarCount);
+                      // Happy path, got bars from database
+                      OBJ_ASSUME_EQUAL(sp->size(), expectedBarCount);
 
-                    DEBUG << "Loaded complete day from database:" << sp->size() << "bars";
+                      DEBUG << "Loaded complete day from database:" << sp->size() << "bars";
 
-                    // Store the complete day in memory cache
-                    storeBarsInCache(date, sp);
+                      // Store the complete day in memory cache
+                      storeBarsInCache(date, sp);
 
-                    promise.addResult(sp);
-                    promise.finish();
-                    return;
-                }
+                      promise.addResult(sp);
+                      promise.finish();
+                      return;
+                  }
 
-                // Database doesn't have complete day - fetch from API
-                DEBUG << "Database miss, fetching from API";
+                  // Database doesn't have complete day - fetch from API
+                  DEBUG << "Database miss, fetching from API";
 
-                QDateTime startDateTime = QDateTime(date, TRADING_START_TIME, QTimeZone("America/New_York"));
-                QDateTime endDayTime = QDateTime(date,
-                                                 !isCurrentDay ? TRADING_END_TIME : now.time() > TRADING_END_TIME ? TRADING_END_TIME: now.time(),
-                                                 QTimeZone("America/New_York"));
+                  QDateTime startDateTime = QDateTime(date, TRADING_START_TIME, QTimeZone("America/New_York"));
+                  QDateTime endDayTime = QDateTime(date,
+                                                   !isCurrentDay                   ? TRADING_END_TIME
+                                                   : now.time() > TRADING_END_TIME ? TRADING_END_TIME
+                                                                                   : now.time(),
+                                                   QTimeZone("America/New_York"));
 
-                DEBUG << "Fetching complete day from API:" << startDateTime << "to" << endDayTime;
+                  DEBUG << "Fetching complete day from API:" << startDateTime << "to" << endDayTime;
 
-                // Call the API and chain the result processing
-                TSClient::getInstance()->getBars(
-                    m_symbol,
-                    1,
-                    Bar::BarUnit::Minute,
-                    0,
-                    Bar::BarSessionTemplate::USEQ24Hour,
-                    startDateTime,
-                    endDayTime
-                ).then(this,
-                    [this, date, startDateTime, endDayTime, promise = std::move(promise)]
-                    (std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars) mutable
-                    {
-/*
+                  // Call the API and chain the result processing
+                  TSClient::getInstance()
+                      ->getBars(m_symbol,
+                                1,
+                                Bar::BarUnit::Minute,
+                                0,
+                                Bar::BarSessionTemplate::USEQ24Hour,
+                                startDateTime,
+                                endDayTime)
+                      .then(this,
+                            [this, date, startDateTime, endDayTime, promise = std::move(promise)](
+                                std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars) mutable
+                            {
+                                /*
                         if (!bars.has_value()) {
                             CRITICAL << "getBars() from API returned error for" << m_symbol
                                      << "- Error:" << static_cast<int>(bars.error());
@@ -369,17 +399,17 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate &date, const QTime &firs
 
                         }
 */
-                        //promise.finish();
-                        CRITICAL << "ANUS";
-                    });
-            });
+                                //promise.finish();
+                                CRITICAL << "ANUS";
+                            });
+              });
 
     return future;
 }
 
 
 std::optional<std::unique_ptr<QVector<Bar>>>
-BarCache::getBarsFromCache(const QDate &date, const QTime &start, const QTime &end) const
+BarCache::getBarsFromCache(const QDate& date, const QTime& start, const QTime& end) const
 {
     QReadLocker locker(&m_barCacheRwLock);
 
@@ -387,12 +417,12 @@ BarCache::getBarsFromCache(const QDate &date, const QTime &start, const QTime &e
     {
         DEBUG << "m_barCacheByDay map doesn't contain day " << date;
         return std::nullopt;
-    }    
+    }
 
     DEBUG << "m_barCacheByDay map contains day " << date;
 
     // Day exists in cache - extract the requested range
-    const QVector<Bar> &dayVector = m_barCacheByDay[date];
+    const QVector<Bar>& dayVector = m_barCacheByDay[date];
 
     // a day vector is always pre-allocated to 840 bars
     OBJ_ASSUME_EQUAL(dayVector.size(), BARS_PER_DAY);
@@ -400,8 +430,10 @@ BarCache::getBarsFromCache(const QDate &date, const QTime &start, const QTime &e
     std::unique_ptr<QVector<Bar>> result = std::make_unique<QVector<Bar>>();
     result->reserve((start.secsTo(end) / 60) + 1);
 
-    for (size_t index = timeToIndex(start); index <= timeToIndex(end); ++index) {
-        if (dayVector[index].getBarStatus() == Bar::BarStatus::Uninitialized) {
+    for (size_t index = timeToIndex(start); index <= timeToIndex(end); ++index)
+    {
+        if (dayVector[index].getBarStatus() == Bar::BarStatus::Uninitialized)
+        {
             // Missing bar in cache - treat as cache miss
             DEBUG << "Bar at index" << index << "for day" << date << "is uninitialized in cache";
             return std::nullopt;
@@ -424,16 +456,20 @@ void BarCache::storeBarInCache(const Bar& bar)
 
     QWriteLocker locker(&m_barCacheRwLock);
 
-    
-    QVector<Bar> &dayVector = getOrCreateDayVector(date);
 
-    
+    QVector<Bar>& dayVector = getOrCreateDayVector(date);
+
+
     // Check if we're overwriting an existing bar (only if the index existed before resize)
-    if (bar.getIsRealtime()) {
-        if (bar.getBarStatus() == Bar::BarStatus::Closed){
+    if (bar.getIsRealtime())
+    {
+        if (bar.getBarStatus() == Bar::BarStatus::Closed)
+        {
             DEBUG << "Real time cache insertion; received the closing bar";
         }
-    } else {
+    }
+    else
+    {
         OBJ_ASSUME_TRUE(dayVector[index].getBarStatus() == Bar::BarStatus::Uninitialized);
     }
 
@@ -443,40 +479,47 @@ void BarCache::storeBarInCache(const Bar& bar)
     DEBUG << "Inserted bar in cache at index" << index << "for timestamp:" << bar.getTimeStamp();
 }
 
-void BarCache::storeBarsInCache(const QDate &date, const std::shared_ptr<QVector<Bar>> bars)
+void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector<Bar>> bars)
 {
     OBJ_ASSUME_FALSE(bars->isEmpty());
 
-    if (date < MainApp::getCurrentAppTime().date()) {
+    if (date < MainApp::getCurrentAppTime().date())
+    {
         OBJ_ASSUME_EQUAL(bars->size(), BARS_PER_DAY);
-    } else {
+    }
+    else
+    {
         OBJ_ASSUME_LTE(bars->size(),
                        MainApp::getCurrentAppTime().time() > TRADING_END_TIME
-                        ? BARS_PER_DAY :
-                          timeToIndex(MainApp::getCurrentAppTime().time()) + 1);
+                           ? BARS_PER_DAY
+                           : timeToIndex(MainApp::getCurrentAppTime().time()) + 1);
     }
-    
+
     OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().date(), bars->last().getTimeStamp().date());
     OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().time(), TRADING_START_TIME);
     OBJ_ASSUME_LTE(bars->last().getTimeStamp().time(), TRADING_END_TIME);
-    
+
     QWriteLocker locker(&m_barCacheRwLock);
-            
-    if (bars->size() == BARS_PER_DAY) {
+
+    if (bars->size() == BARS_PER_DAY)
+    {
         // Full day
         m_barCacheByDay.insert(date, *bars);
 
         DEBUG << "Inserted full day in cache for" << date;
-    } else {
+    }
+    else
+    {
         // Partial day - need to create day vector if it doesn't exist
-        if (!m_barCacheByDay.contains(date)) {
+        if (!m_barCacheByDay.contains(date))
+        {
             m_barCacheByDay[date] = QVector<Bar>(BARS_PER_DAY);
         }
 
-        QVector<Bar> &dayVector = m_barCacheByDay[date];
+        QVector<Bar>& dayVector = m_barCacheByDay[date];
 
         // Insert/overwrite bars into existing day vector
-        for (const Bar &bar : *bars)
+        for (const Bar& bar: *bars)
         {
             size_t index = timeToIndex(bar.getTimeStamp().time());
             dayVector[index] = bar;
@@ -484,7 +527,6 @@ void BarCache::storeBarsInCache(const QDate &date, const std::shared_ptr<QVector
 
         DEBUG << "Inserted partial day in cache for" << date << "with" << bars->size() << "bars";
     }
-    
 }
 
 void BarCache::onReceivedNewLiveBar(Bar newBar)
@@ -497,18 +539,25 @@ void BarCache::onReceivedNewLiveBar(Bar newBar)
 void BarCache::clearDatabase()
 {
     INFO << "Clearing all bars from database for" << m_symbol;
-    
-    DatabaseThread::getInstance()->clearDatabase(m_symbol)
-        .then(this, [this](bool success) {
-            if (success) {
-                INFO << "Successfully cleared database for" << m_symbol;
-            } else {
-                WARNING << "Failed to clear database for" << m_symbol;
-            }
-        });
+
+    DatabaseThread::getInstance()->clearDatabase(m_symbol).then(this,
+                                                                [this](bool success)
+                                                                {
+                                                                    if (success)
+                                                                    {
+                                                                        INFO << "Successfully cleared database for"
+                                                                             << m_symbol;
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        WARNING << "Failed to clear database for"
+                                                                                << m_symbol;
+                                                                    }
+                                                                });
 }
 
-constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDayRanges(const QDateTime &first, const QDateTime &last)
+constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDayRanges(const QDateTime& first,
+                                                                                       const QDateTime& last)
 {
     Q_ASSERT(first.timeZone() == QTimeZone("America/New_York"));
     Q_ASSERT(last.timeZone() == QTimeZone("America/New_York"));
@@ -521,15 +570,17 @@ constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDay
 
     QVector<std::tuple<QDate, QTime, QTime>> ranges;
 
-    for (QDate date = first.date(); date <= last.date(); date = date.addDays(1)) {
+    for (QDate date = first.date(); date <= last.date(); date = date.addDays(1))
+    {
 
         // Skip weekends
-        if (date.dayOfWeek() > Qt::Friday) {
+        if (date.dayOfWeek() > Qt::Friday)
+        {
             continue;
         }
 
         QTime dayTimeStart = (date == first.date()) ? first.time() : TRADING_START_TIME;
-        QTime dayTimeEnd   = (date == last.date())  ? last.time()  : TRADING_END_TIME;
+        QTime dayTimeEnd = (date == last.date()) ? last.time() : TRADING_END_TIME;
 
         std::tuple<QDate, QTime, QTime> range = std::make_tuple(date, dayTimeStart, dayTimeEnd);
 

@@ -10,23 +10,25 @@
 
 #include "Misc/ShortcutSettings.h"
 
-class ShortcutsTab : public QWidget {
+class ShortcutsTab : public QWidget
+{
     Q_OBJECT
 
-public:
+  public:
     explicit ShortcutsTab(QWidget* parent = nullptr);
     ~ShortcutsTab() override = default;
 
-private slots:
+  private slots:
     void onShortcutChanged(ShortcutSettings::ShortcutId p_id);
     void onResetButtonClicked(ShortcutSettings::ShortcutId p_id);
 
-private:
+  private:
     void setupUI();
     void populateShortcuts();
     void updateShortcutDisplay(ShortcutSettings::ShortcutId p_id);
 
-    struct ShortcutWidgets {
+    struct ShortcutWidgets
+    {
         QKeySequenceEdit* keySequenceEdit;
         QPushButton* resetButton;
         QLabel* statusLabel;

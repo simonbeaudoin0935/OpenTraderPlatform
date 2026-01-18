@@ -2,5 +2,4 @@
 
 #include <QStringList>
 
-void parseArguments(const QStringList &args);
-
+void parseArguments(const QStringList& args);

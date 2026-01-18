@@ -5,9 +5,7 @@
 
 #include "Quote.h"
 
-Quote::Quote()
-{
-}
+Quote::Quote() {}
 
 Quote::Quote(const QJsonObject& json)
 {
@@ -17,28 +15,33 @@ Quote::Quote(const QJsonObject& json)
 bool Quote::isValid() const
 {
     // Check if symbol is not empty
-    if (m_symbol.isEmpty()) {
+    if (m_symbol.isEmpty())
+    {
         return false;
     }
 
     // Check if prices are non-negative
-    if (m_open < 0 || m_high < 0 || m_low < 0 || m_previousClose < 0 || 
-        m_last < 0 || m_ask < 0 || m_bid < 0 || m_close < 0) {
+    if (m_open < 0 || m_high < 0 || m_low < 0 || m_previousClose < 0 || m_last < 0 || m_ask < 0 || m_bid < 0 ||
+        m_close < 0)
+    {
         return false;
     }
 
     // Check if high is greater than or equal to low
-    if (m_high < m_low) {
+    if (m_high < m_low)
+    {
         return false;
     }
 
     // Check if timestamps are valid
-    if (!m_tradeTime.isValid() || !m_high52WeekTimestamp.isValid() || !m_low52WeekTimestamp.isValid()) {
+    if (!m_tradeTime.isValid() || !m_high52WeekTimestamp.isValid() || !m_low52WeekTimestamp.isValid())
+    {
         return false;
     }
 
     // Check if 52-week high is greater than or equal to 52-week low
-    if (m_high52Week < m_low52Week) {
+    if (m_high52Week < m_low52Week)
+    {
         return false;
     }
 
@@ -70,18 +73,18 @@ QJsonObject Quote::toJson() const
     json["DailyOpenInterest"] = QString::number(m_dailyOpenInterest);
     json["TradeTime"] = m_tradeTime.toString(Qt::ISODate);
     json["TickSizeTier"] = QString::number(m_tickSizeTier);
-    
+
     QJsonObject marketFlags;
     marketFlags["IsDelayed"] = m_isDelayed;
     marketFlags["IsHardToBorrow"] = m_isHardToBorrow;
     marketFlags["IsBats"] = m_isBats;
     marketFlags["IsHalted"] = m_isHalted;
     json["MarketFlags"] = marketFlags;
-    
+
     json["LastSize"] = QString::number(m_lastSize);
     json["LastVenue"] = m_lastVenue;
     json["VWAP"] = QString::number(m_vwap, 'f', 2);
-    
+
     return json;
 }
 
@@ -115,13 +118,13 @@ void Quote::fromJson(const QJsonObject& json)
     m_dailyOpenInterest = json["DailyOpenInterest"].toString().toUInt();
     m_tradeTime = QDateTime::fromString(json["TradeTime"].toString(), Qt::ISODate);
     m_tickSizeTier = json["TickSizeTier"].toString().toUInt();
-    
+
     QJsonObject marketFlags = json["MarketFlags"].toObject();
     m_isDelayed = marketFlags["IsDelayed"].toBool();
     m_isHardToBorrow = marketFlags["IsHardToBorrow"].toBool();
     m_isBats = marketFlags["IsBats"].toBool();
     m_isHalted = marketFlags["IsHalted"].toBool();
-    
+
     m_lastSize = json["LastSize"].toString().toUInt();
     m_lastVenue = json["LastVenue"].toString();
     m_vwap = json["VWAP"].toString().toDouble();

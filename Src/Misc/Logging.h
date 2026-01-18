@@ -9,91 +9,92 @@
 
 #include "Assume.h"
 
-#define DEBUG    qCDebug(LOGGING_CATEGORY)    << this->objectName()
-#define sDEBUG   qCDebug(LOGGING_CATEGORY)    << __FUNCTION__
+#define DEBUG qCDebug(LOGGING_CATEGORY) << this->objectName()
+#define sDEBUG qCDebug(LOGGING_CATEGORY) << __FUNCTION__
 
-#define INFO     qCInfo(LOGGING_CATEGORY)     << this->objectName()
-#define sINFO    qCInfo(LOGGING_CATEGORY)     << __FUNCTION__
+#define INFO qCInfo(LOGGING_CATEGORY) << this->objectName()
+#define sINFO qCInfo(LOGGING_CATEGORY) << __FUNCTION__
 
-#define WARNING  qCWarning(LOGGING_CATEGORY)  << this->objectName()
+#define WARNING qCWarning(LOGGING_CATEGORY) << this->objectName()
 #define sWARNING qCWarning(LOGGING_CATEGORY) << __FUNCTION__
 
 #define CRITICAL qCCritical(LOGGING_CATEGORY) << this->objectName()
 #define sCRITICAL qCCritical(LOGGING_CATEGORY) << __FUNCTION__
 
-#define FATAL    qFatal()
+#define FATAL qFatal()
 
 namespace QtEnum
 {
-    // Converts an enum value to its string representation
-    // @note Works only for enums registered with Q_ENUM
-    // @note Assumes the enum value is valid; asserts if not
-    template <typename Enum>
-    QString toString(Enum value)
-    {
-        const QMetaEnum meta = QMetaEnum::fromType<Enum>();
+// Converts an enum value to its string representation
+// @note Works only for enums registered with Q_ENUM
+// @note Assumes the enum value is valid; asserts if not
+template<typename Enum> QString toString(Enum value)
+{
+    const QMetaEnum meta = QMetaEnum::fromType<Enum>();
 
-        const char* keyPtr = meta.valueToKey(static_cast<int>(value));
-        ASSUME_TRUE(keyPtr != nullptr);
+    const char* keyPtr = meta.valueToKey(static_cast<int>(value));
+    ASSUME_TRUE(keyPtr != nullptr);
 
-        return QString(keyPtr);
-    }
-
-    // Converts a string to the corresponding enum value
-    // @note Assumes the string is valid; asserts if not
-    template <typename Enum>
-    Enum fromString(QStringView str)
-    {
-        bool ok = false;
-        const QMetaEnum meta = QMetaEnum::fromType<Enum>();
-
-        int value = meta.keyToValue(str.toLatin1().constData(), &ok);
-        if (!ok) {
-            qCritical() << "QtEnum::fromString: Invalid enum string:" << str << "for enum type" << meta.name();
-            ASSUME_TRUE(false);
-        }
-        
-
-        return static_cast<Enum>(value);
-    }
+    return QString(keyPtr);
 }
+
+// Converts a string to the corresponding enum value
+// @note Assumes the string is valid; asserts if not
+template<typename Enum> Enum fromString(QStringView str)
+{
+    bool ok = false;
+    const QMetaEnum meta = QMetaEnum::fromType<Enum>();
+
+    int value = meta.keyToValue(str.toLatin1().constData(), &ok);
+    if (!ok)
+    {
+        qCritical() << "QtEnum::fromString: Invalid enum string:" << str << "for enum type" << meta.name();
+        ASSUME_TRUE(false);
+    }
+
+
+    return static_cast<Enum>(value);
+}
+} // namespace QtEnum
 
 void initLogging();
 void reinstallColoredMessageHandler();
 
 // Singleton to broadcast log messages to GUI
-class LogBroadcaster : public QObject {
+class LogBroadcaster : public QObject
+{
     Q_OBJECT
-public:
+  public:
     static LogBroadcaster& instance();
 
     void broadcastLogMessage(const QString& message);
 
-signals:
+  signals:
     void logMessageReceived(const QString& message);
 
-private:
+  private:
     LogBroadcaster() : QObject(nullptr) {}
     ~LogBroadcaster() = default;
     LogBroadcaster(const LogBroadcaster&) = delete;
     LogBroadcaster& operator=(const LogBroadcaster&) = delete;
 };
 
-class LoggingConfig {
-public:
+class LoggingConfig
+{
+  public:
     static LoggingConfig& instance();
 
     bool isCategoryEnabled(const QString& category) const;
     void setCategoryEnabled(const QString& category, bool enabled);
     QStringList getCategories() const;
     void writeConfigToDisk();
-    
+
     bool isDebugDisabled() const;
     void setDebugDisabled(bool disabled);
     bool isInfoDisabled() const;
     void setInfoDisabled(bool disabled);
 
-private:
+  private:
     LoggingConfig();
     ~LoggingConfig() = default;
     LoggingConfig(const LoggingConfig&) = delete;

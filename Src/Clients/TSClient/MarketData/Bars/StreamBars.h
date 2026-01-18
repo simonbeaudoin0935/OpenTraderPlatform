@@ -7,17 +7,20 @@ class StreamBars final : public Stream
 {
     Q_OBJECT
 
-public:
-    explicit StreamBars(const QString &symbol, QNetworkReply * reply, QObject *parent = nullptr);
-    ~StreamBars() {};
+  public:
+    explicit StreamBars(const QString& symbol, QNetworkReply* reply, QObject* parent = nullptr);
+    ~StreamBars(){};
     StreamBars(const StreamBars&) = delete;
     StreamBars& operator=(const StreamBars&) = delete;
 
-    QString getSymbol() const { return m_symbol; }
-signals:
+    QString getSymbol() const
+    {
+        return m_symbol;
+    }
+  signals:
     void newBarReceived(Bar bar);
-    
-private:
+
+  private:
     void processJsonObject(const QJsonObject& jsonObj) override;
     QString m_symbol;
 };
