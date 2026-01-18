@@ -85,11 +85,29 @@ if [ $FORMATTING_ISSUES -gt 0 ]; then
     exit 1
 fi
 
-# If there are trailing whitespace issues, warn but don't block
+# Check YAML files for trailing whitespace
+STAGED_YAML_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(yml|yaml)$' || true)
+
+YAML_WHITESPACE_ISSUES=0
+
+for FILE in $STAGED_YAML_FILES; do
+    if grep -q '[[:space:]]$' "$FILE"; then
+        echo -e "${RED}Trailing whitespace found in YAML file $FILE${NC}"
+        YAML_WHITESPACE_ISSUES=$((YAML_WHITESPACE_ISSUES + 1))
+    fi
+done
+
+if [ $YAML_WHITESPACE_ISSUES -gt 0 ]; then
+    echo -e "${RED}Found $YAML_WHITESPACE_ISSUES YAML file(s) with trailing whitespace.${NC}"
+    echo "Please remove trailing whitespace from YAML files and try again."
+    exit 1
+fi
+
+# If there are trailing whitespace issues in C++ files, warn but don't block
 if [ $TRAILING_WHITESPACE_ISSUES -gt 0 ]; then
-    echo -e "${YELLOW}Warning: Found $TRAILING_WHITESPACE_ISSUES file(s) with trailing whitespace.${NC}"
+    echo -e "${YELLOW}Warning: Found $TRAILING_WHITESPACE_ISSUES C++ file(s) with trailing whitespace.${NC}"
     echo "Consider removing trailing whitespace before committing."
 fi
 
-echo -e "${GREEN}All staged C++ files are properly formatted!${NC}"
+echo -e "${GREEN}All staged C++ files are properly formatted and YAML files have no trailing whitespace!${NC}"
 exit 0

@@ -1,5 +1,5 @@
 name: Run clang-format
-description: An action to run clang-format on source code files.
+description: An action to run clang-format on source code files and check YAML files for trailing whitespace.
 
 runs:
   using: "composite"
@@ -41,4 +41,38 @@ runs:
         fi
 
         echo ""
-        echo "✅ All files are properly formatted!"
+        echo "✅ All C++ files are properly formatted!"
+
+    - name: Check YAML files for trailing whitespace
+      shell: bash
+      run: |
+        echo "Checking YAML files for trailing whitespace..."
+        FAILED_FILES=()
+
+        # Find all YAML files
+        YAML_FILES=$(find . -type f \( -name "*.yml" -o -name "*.yaml" \))
+
+        for file in $YAML_FILES; do
+          if grep -q '[[:space:]]$' "$file"; then
+            FAILED_FILES+=("$file")
+            echo "❌ $file has trailing whitespace"
+          fi
+        done
+
+        if [ ${#FAILED_FILES[@]} -ne 0 ]; then
+          echo ""
+          echo "================================================"
+          echo "YAML trailing whitespace check FAILED"
+          echo "================================================"
+          echo ""
+          echo "The following files have trailing whitespace:"
+          for file in "${FAILED_FILES[@]}"; do
+            echo "  - $file"
+          done
+          echo ""
+          echo "To fix, remove trailing whitespace from these files."
+          exit 1
+        fi
+
+        echo ""
+        echo "✅ All YAML files are clean!"

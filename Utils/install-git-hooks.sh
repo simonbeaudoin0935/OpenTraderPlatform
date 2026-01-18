@@ -71,7 +71,7 @@ if [ -f "$HOOK_DEST" ] && [ -x "$HOOK_DEST" ]; then
     echo ""
     echo "The hook will automatically:"
     echo "  • Check code formatting with clang-format"
-    echo "  • Detect trailing whitespace"
+    echo "  • Detect trailing whitespace in C++ and YAML files"
     echo "  • Prevent commits with formatting issues"
     echo ""
     echo "To temporarily bypass the hook (not recommended):"
