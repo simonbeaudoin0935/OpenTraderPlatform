@@ -1,5 +1,11 @@
 #include "TSClient.h"
 
+#ifdef GUI_ENABLED
+#include "AuthWindow.h"
+#else
+#include "AuthHandlerHeadless.h"
+#endif
+
 
 #ifdef GUI_ENABLED
 // Launches a pop up. We will receive a signal when the process finishes
@@ -12,8 +18,34 @@ void TSClient::launchAuthProcess()
     m_authWindow = new AuthWindow();
     connect(m_authWindow, &AuthWindow::authFinished, this, &TSClient::onAuthFinished);
     connect(m_authWindow, &QObject::destroyed, this, &TSClient::onAuthWindowDestroyed);
-    m_authWindow->show();
+    m_authWindow->startAuthenticationDialog();
 }
+
+void TSClient::onAuthWindowDestroyed()
+{
+    // TODO race condition possible?
+    m_authWindow = nullptr;
+}
+
+#else
+// Launches headless authentication. We will receive a signal when the process finishes
+void TSClient::launchAuthProcess()
+{
+    Q_ASSERT(m_authInProgress == false);
+
+    m_authInProgress = true;
+    m_authHandler = new AuthHandlerHeadless(this);
+    connect(m_authHandler, &AuthHandler::authFinished, this, &TSClient::onAuthFinished);
+    connect(m_authHandler, &QObject::destroyed, this, &TSClient::onAuthHandlerDestroyed);
+    m_authHandler->startAuthentication();
+}
+
+void TSClient::onAuthHandlerDestroyed()
+{
+    // TODO race condition possible?
+    m_authHandler = nullptr;
+}
+#endif
 
 void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
 {
@@ -46,13 +78,6 @@ void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
     }
     emit authStateChanged(m_authenticated, reason);
 }
-
-void TSClient::onAuthWindowDestroyed()
-{
-    // TODO race contition possible?
-    m_authWindow = nullptr;
-}
-#endif
 
 
 QNetworkRequest TSClient::buildRefreshTokenRequest()

@@ -26,6 +26,8 @@
 
 #ifdef GUI_ENABLED
 #include "AuthWindow.h"
+#else
+#include "AuthHandler.h"
 #endif
 
 Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
@@ -172,10 +174,8 @@ public:
     [[nodiscard]] bool isAuthInProgress() const { return m_authInProgress; }
 
 public slots:
-    #ifdef GUI_ENABLED
     // Authentication methods
     void launchAuthProcess();
-    #endif
 
 signals:
     // Emited at basically every new message
@@ -187,10 +187,13 @@ signals:
 
 private slots:
 
-    #ifdef GUI_ENABLED
     void onAuthFinished(bool success, AuthToken token, QString reason);
+    
+#ifdef GUI_ENABLED
     void onAuthWindowDestroyed();
-    #endif
+#else
+    void onAuthHandlerDestroyed();
+#endif
 
 private:
     static TSClient* m_instance; // Singleton instance
@@ -224,6 +227,8 @@ private:
     QNetworkAccessManager *m_networkManager;
 
 #ifdef GUI_ENABLED
-    AuthWindow* m_authWindow = nullptr;  // Authentication window
+    AuthWindow* m_authWindow = nullptr;  // Authentication window for GUI
+#else
+    AuthHandler* m_authHandler = nullptr;  // Authentication handler for TUI
 #endif
 };
