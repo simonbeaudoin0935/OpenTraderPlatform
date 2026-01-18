@@ -1,6 +1,7 @@
 #pragma once
 
 #include <expected>
+#include <memory>
 
 #include <QObject>
 #include <QLoggingCategory>
@@ -220,10 +221,10 @@ private:
     
     qsizetype m_totalDataReceivedBytes = 0;
     QString m_apiKey;
-    QThread *m_thread;
-    QNetworkAccessManager *m_networkManager;
+    std::unique_ptr<QThread> m_thread;
+    QNetworkAccessManager *m_networkManager;  // Qt-parented, automatically deleted
 
 #ifdef GUI_ENABLED
-    AuthWindow* m_authWindow = nullptr;  // Authentication window
+    AuthWindow* m_authWindow = nullptr;  // Authentication window (Qt-parented when created)
 #endif
 };

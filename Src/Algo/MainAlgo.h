@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <QLoggingCategory>
 #include <QObject>
 #include <QFile>

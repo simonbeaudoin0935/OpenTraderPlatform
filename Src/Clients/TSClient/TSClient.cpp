@@ -39,12 +39,12 @@ TSClient::~TSClient()
 
 TSClient::TSClient() :
     QObject(),
-    m_thread(new QThread()),
+    m_thread(std::make_unique<QThread>()),
     m_networkManager(new QNetworkAccessManager(this)),
     m_authenticated(false),
     m_refreshInProgress(false)
 {
-    this->moveToThread(m_thread);
+    this->moveToThread(m_thread.get());
 
     m_baseUrl.setScheme(BASE_URL_SCHEME);
     m_baseUrl.setHost(BASE_URL_HOST_SIMULATION);

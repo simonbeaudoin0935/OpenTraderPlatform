@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <QMainWindow>
 #include <QTimer>
 #include <QPushButton>
