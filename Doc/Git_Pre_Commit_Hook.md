@@ -134,18 +134,29 @@ If Uncrustify suggests changes you disagree with:
 
 ## Integration with CI/CD
 
-While the pre-commit hook catches issues locally, the CI/CD pipeline should also validate formatting to ensure all commits meet standards, even if developers bypass the hook.
+The CI/CD pipeline includes automated formatting checks to ensure all commits meet standards, even if developers bypass the pre-commit hook.
 
-Consider adding a formatting check to `.github/workflows/build.yml`:
+A formatting check job runs on every pull request and push to main in `.github/workflows/build.yml`:
 
 ```yaml
-- name: Check code formatting
-  run: |
-    FILES=$(find Src Tests -name "*.cpp" -o -name "*.h" -o -name "*.hpp")
-    for file in $FILES; do
-      uncrustify -c .uncrustify.cfg --check "$file" || exit 1
-    done
+check-formatting:
+  runs-on: ubuntu-24.04
+  steps:
+  - uses: actions/checkout@v4
+  - name: Install uncrustify
+    run: sudo apt-get install -y uncrustify
+  - name: Check code formatting
+    run: |
+      FILES=$(find Src Tests -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \))
+      for file in $FILES; do
+        uncrustify -c .uncrustify.cfg --check "$file" || exit 1
+      done
 ```
+
+This ensures that:
+- All PRs are checked for formatting compliance
+- Merges to main maintain code quality standards
+- Team members are notified of formatting issues in CI
 
 ## Benefits
 
