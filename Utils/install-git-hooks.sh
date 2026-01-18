@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Install Git hooks for L2Trader repository
-# This script sets up the pre-commit hook for code formatting
+# This script sets up the pre-commit hook for code formatting with clang-format
 #
 
 # Colors for output
@@ -26,15 +26,15 @@ echo "L2Trader Git Hooks Installer"
 echo "=============================="
 echo ""
 
-# Check if uncrustify is installed
-if ! command -v uncrustify &> /dev/null; then
-    echo -e "${YELLOW}Warning: uncrustify is not installed.${NC}"
-    echo "The pre-commit hook requires uncrustify to be installed."
+# Check if clang-format is installed
+if ! command -v clang-format &> /dev/null; then
+    echo -e "${YELLOW}Warning: clang-format is not installed.${NC}"
+    echo "The pre-commit hook requires clang-format to be installed."
     echo ""
-    echo "To install uncrustify:"
-    echo "  Ubuntu/Debian: sudo apt-get install uncrustify"
-    echo "  macOS:         brew install uncrustify"
-    echo "  Arch Linux:    sudo pacman -S uncrustify"
+    echo "To install clang-format:"
+    echo "  Ubuntu/Debian: sudo apt-get install clang-format"
+    echo "  macOS:         brew install clang-format"
+    echo "  Arch Linux:    sudo pacman -S clang-format"
     echo ""
     read -p "Continue with installation anyway? (y/N) " -n 1 -r
     echo
@@ -70,8 +70,8 @@ if [ -f "$HOOK_DEST" ] && [ -x "$HOOK_DEST" ]; then
     echo -e "${GREEN}✓ Pre-commit hook installed successfully!${NC}"
     echo ""
     echo "The hook will automatically:"
-    echo "  • Check code formatting with Uncrustify"
-    echo "  • Detect trailing whitespace"
+    echo "  • Check code formatting with clang-format"
+    echo "  • Detect trailing whitespace in C++ and YAML files"
     echo "  • Prevent commits with formatting issues"
     echo ""
     echo "To temporarily bypass the hook (not recommended):"

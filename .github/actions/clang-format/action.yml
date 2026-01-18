@@ -1,0 +1,78 @@
+name: Run clang-format
+description: An action to run clang-format on source code files and check YAML files for trailing whitespace.
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: Run clang-format
+      shell: bash
+      run: |
+        echo "Checking code formatting with clang-format..."
+        FAILED_FILES=()
+
+        # Find all C++ source and header files
+        FILES=$(find Src Tests -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cc" -o -name "*.cxx" \))
+
+        for file in $FILES; do
+          if ! clang-format --dry-run --Werror "$file" > /dev/null 2>&1; then
+            FAILED_FILES+=("$file")
+            echo "❌ $file needs formatting"
+          fi
+        done
+
+        if [ ${#FAILED_FILES[@]} -ne 0 ]; then
+          echo ""
+          echo "================================================"
+          echo "Code formatting check FAILED"
+          echo "================================================"
+          echo ""
+          echo "The following files need to be formatted:"
+          for file in "${FAILED_FILES[@]}"; do
+            echo "  - $file"
+          done
+          echo ""
+          echo "To fix formatting issues, run:"
+          echo "  clang-format -i <file>"
+          echo ""
+          echo "Or format all files:"
+          echo "  find Src Tests -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) -exec clang-format -i {} \;"
+          exit 1
+        fi
+
+        echo ""
+        echo "✅ All C++ files are properly formatted!"
+
+    - name: Check YAML files for trailing whitespace
+      shell: bash
+      run: |
+        echo "Checking YAML files for trailing whitespace..."
+        FAILED_FILES=()
+
+        # Find all YAML files
+        YAML_FILES=$(find . -type f \( -name "*.yml" -o -name "*.yaml" \))
+
+        for file in $YAML_FILES; do
+          if grep -q '[[:space:]]$' "$file"; then
+            FAILED_FILES+=("$file")
+            echo "❌ $file has trailing whitespace"
+          fi
+        done
+
+        if [ ${#FAILED_FILES[@]} -ne 0 ]; then
+          echo ""
+          echo "================================================"
+          echo "YAML trailing whitespace check FAILED"
+          echo "================================================"
+          echo ""
+          echo "The following files have trailing whitespace:"
+          for file in "${FAILED_FILES[@]}"; do
+            echo "  - $file"
+          done
+          echo ""
+          echo "To fix, remove trailing whitespace from these files."
+          exit 1
+        fi
+
+        echo ""
+        echo "✅ All YAML files are clean!"
