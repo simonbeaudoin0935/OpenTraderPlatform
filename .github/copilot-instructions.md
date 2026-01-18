@@ -2,7 +2,9 @@
 
 - DO NOT TRY TO BUILD THE PROJECT UNLESS SPECIFICALLY ASKED OTHERWISE, for some reason you Copilot crash during the build. 
 - DO NOT ADD _codeql_build_dir to .gitignore, do not commit that ever
-- Prioritize adding Q_ASSERT/Q_ASSERT_X where it makes sense instead of trying to add runtime logic for things that should always be true.
+
+## General Coding Guidelines
+- When generating code, use the ASSUME macros from Src/Misc/Assume.h for assertions instead of Q_ASSERT or similar, to ensure consistency and proper no-op behavior in release builds.
 - When creating connections between signal and slots, prioritize using a Qt::UniqueConnection and asserting that the connection made was indeed unique and not a double. It should be extremely rare, if not never, that we should authorize multiple same connections.
 - When creating new functions with return values, if it makes no sense to ignore the return value, add the [[nodiscard]] guards to make sure we get notified if we don't use the return value of a function. This should be the default for every new function that returns a value in fact, and you should only take it out when truly its not a big deal to not check the value, but this should in practice be rare.
 - When using the 'new' operator or any function that returns a dynamically allocated object, you should always check the pointer with Q_CHECK_PTR() and make sure we continue with a valid pointer. An example of such function which returns an allocated object is QNetworkManager->get(networkRequest) were the doc says "Posts a request to obtain the contents of the target request and returns a new QNetworkReply object opened for reading which emits the readyRead() signal whenever new data arrives."
@@ -18,11 +20,11 @@
 **Repository Summary**: L2Trader is a real-time algorithmic trading application built with Qt6 that monitors stock market data, executes trading strategies, and provides comprehensive market analysis tools. It connects to TradeStation APIs for live market data, Level 2 market depth visualization, and position tracking.
 
 **Repository Information**:
-- **Outputs**: Outputs the L2Trader main application, a companion app called Recorder made to record the market live data, and some Unit Test binaries
+- **Outputs**: Outputs the L2Trader main application
 - **Size**: ~50+ source files, ~10k+ lines of code
 - **Type**: C++ desktop application with GUI and TUI modes (Although, the TUI boiletplace is in place, but not implemented yet. This will be in the last things I do, don't bother touching it)
-- **Languages**: C++17, QML (minimal), CMake, Shell scripts
-- **Frameworks**: Qt6 (Core, Network, SQL, Widgets, Charts, WebEngineWidgets)
+- **Languages**: C++23, QML (minimal), CMake, Shell scripts
+- **Frameworks**: Qt6 (Core, Network, SQL, Widgets)
 - **Target Runtimes**: Linux (Ubuntu 24.04), cross-platform (X86_64, ARM64)
 - **Build System**: CMake 3.16+
 - **Testing**: Qt Test framework with unit tests
@@ -33,7 +35,7 @@
 ### Prerequisites
 - **Qt6**: Version 6.4.2+ (CI uses 6.4.2 because it is what Ubuntu 24.04 uses)
 - **CMake**: 3.16+
-- **Compiler**: GCC 7+ or Clang 5+ with C++17 support
+- **Compiler**: GCC 7+ or Clang 5+ with C++23 support
 - **SQLite**: For database functionality
 - **Git**: For version control
 
@@ -41,7 +43,7 @@
 No bootstrap required. The repository is ready to build after cloning.
 
 ### Build Speed Optimization
-The building in the github workflow uses 'ccache' to speed up the building process. The ~/.cache/ccache folder from previosu runs is caches with the github's cache action and retreived in subsequent builds.
+The building in the github workflow uses 'ccache' to speed up the building process. The ~/.cache/ccache folder from previous runs is caches with the github's cache action and retreived in subsequent builds.
 
 ### Build Process
 Always run commands in the repository root directory.
