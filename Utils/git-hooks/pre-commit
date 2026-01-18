@@ -106,7 +106,16 @@ fi
 # If there are trailing whitespace issues in C++ files, warn but don't block
 if [ $TRAILING_WHITESPACE_ISSUES -gt 0 ]; then
     echo -e "${YELLOW}Warning: Found $TRAILING_WHITESPACE_ISSUES C++ file(s) with trailing whitespace.${NC}"
-    echo "Consider removing trailing whitespace before committing."
+    echo "Removing trailing whitespace automatically..."
+    
+    for FILE in $STAGED_FILES; do
+        if [ -f "$FILE" ] && grep -q '[[:space:]]$' "$FILE"; then
+            sed -i 's/[[:space:]]*$//' "$FILE"
+            git add "$FILE"
+        fi
+    done
+    
+    echo -e "${GREEN}Trailing whitespace removed and files re-staged.${NC}"
 fi
 
 echo -e "${GREEN}All staged C++ files are properly formatted and YAML files have no trailing whitespace!${NC}"
