@@ -75,16 +75,6 @@ for FILE in $STAGED_FILES; do
     fi
 done
 
-# If there are formatting issues, offer to fix them
-if [ $FORMATTING_ISSUES -gt 0 ]; then
-    echo -e "${YELLOW}Found $FORMATTING_ISSUES file(s) with formatting issues.${NC}"
-    echo "Run the following to fix:"
-    echo "  find Src -name \"*.cpp\" -o -name \"*.h\" | xargs clang-format -i"
-    echo ""
-    echo -e "${RED}Commit aborted. Please fix formatting issues and try again.${NC}"
-    exit 1
-fi
-
 # Check YAML files for trailing whitespace
 STAGED_YAML_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(yml|yaml)$' || true)
 
@@ -100,6 +90,16 @@ done
 if [ $YAML_WHITESPACE_ISSUES -gt 0 ]; then
     echo -e "${RED}Found $YAML_WHITESPACE_ISSUES YAML file(s) with trailing whitespace.${NC}"
     echo "Please remove trailing whitespace from YAML files and try again."
+    exit 1
+fi
+
+# If there are formatting issues, offer to fix them
+if [ $FORMATTING_ISSUES -gt 0 ]; then
+    echo -e "${YELLOW}Found $FORMATTING_ISSUES file(s) with formatting issues.${NC}"
+    echo "Run the following to fix:"
+    echo "  find Src -name \"*.cpp\" -o -name \"*.h\" | xargs clang-format -i"
+    echo ""
+    echo -e "${RED}Commit aborted. Please fix formatting issues and try again.${NC}"
     exit 1
 fi
 
