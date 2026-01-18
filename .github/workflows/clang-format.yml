@@ -1,4 +1,4 @@
-name: Uncrustify
+name: clang-format
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  uncrustify:
+  clang-format:
     runs-on: ubuntu-24.04
 
     defaults:
@@ -26,10 +26,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{github.head_ref}}      
+          ref: ${{github.head_ref}}
 
-      - name: Uncrustify
-        uses: ./.github/actions/uncrustify
+      - name: clang-format
+        uses: ./.github/actions/clang-format
         if: |
           github.event_name == 'push' ||
           github.event_name == 'workflow_dispatch' ||

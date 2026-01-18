@@ -1,26 +1,26 @@
-name: Run Uncrustify
-descrtiption: An action to run Uncrustify on source code files.
+name: Run clang-format
+description: An action to run clang-format on source code files.
 
 runs:
   using: "composite"
-  
+
   steps:
-    - name: Run Uncrustify
+    - name: Run clang-format
       shell: bash
       run: |
-        echo "Checking code formatting with Uncrustify..."
+        echo "Checking code formatting with clang-format..."
         FAILED_FILES=()
-        
+
         # Find all C++ source and header files
         FILES=$(find Src Tests -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cc" -o -name "*.cxx" \))
-        
+
         for file in $FILES; do
-          if ! uncrustify -c .uncrustify.cfg --check "$file" > /dev/null 2>&1; then
+          if ! clang-format --dry-run --Werror "$file" > /dev/null 2>&1; then
             FAILED_FILES+=("$file")
             echo "❌ $file needs formatting"
           fi
         done
-        
+
         if [ ${#FAILED_FILES[@]} -ne 0 ]; then
           echo ""
           echo "================================================"
@@ -33,12 +33,12 @@ runs:
           done
           echo ""
           echo "To fix formatting issues, run:"
-          echo "  uncrustify -c .uncrustify.cfg --no-backup --replace <file>"
+          echo "  clang-format -i <file>"
           echo ""
           echo "Or format all files:"
-          echo "  find Src Tests -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) -exec uncrustify -c .uncrustify.cfg --no-backup --replace {} \;"
+          echo "  find Src Tests -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) -exec clang-format -i {} \;"
           exit 1
         fi
-        
+
         echo ""
         echo "✅ All files are properly formatted!"
