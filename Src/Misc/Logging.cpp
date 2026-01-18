@@ -271,11 +271,6 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext &context, con
     std::cout.flush();
 
     LogBroadcaster::instance().broadcastLogMessage(htmlMsg);
-
-    // Print stack trace for fatal messages
-    if (type == QtFatalMsg) {
-        printStackTrace();
-    }
 }
 
 void initLogging()
