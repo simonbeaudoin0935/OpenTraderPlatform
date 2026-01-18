@@ -1,0 +1,36 @@
+name: Uncrustify
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  uncrustify:
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{github.head_ref}}      
+
+      - name: Uncrustify
+        uses: ./.github/actions/uncrustify
+        if: |
+          github.event_name == 'push' ||
+          github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'pull_request' && github.event.pull_request.draft == false)

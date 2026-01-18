@@ -28,13 +28,6 @@ jobs:
         with:
           ref: ${{github.head_ref}}      
 
-      - name: Uncrustify
-        uses: ./.github/actions/uncrustify
-        if: |
-          github.event_name == 'push' ||
-          github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
-
       - name: Set number of parallel jobs
         run: echo "PARALLEL_JOBS=-j$(nproc)" >> $GITHUB_ENV
 
