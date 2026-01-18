@@ -63,12 +63,20 @@ You will need API credentials for:
 
 2. **Install dependencies**:
    ```bash
-   # On Ubuntu/Debian
-   sudo apt-get install qt6-base-dev libqt6sql6-sqlite cmake uncrustify
+   # On Ubuntu/Debian - Essential packages
+   sudo apt-get install qt6-base-dev libqt6sql6-sqlite cmake
 
-   # On macOS with Homebrew
-   brew install qt@6 cmake uncrustify
+   # On Ubuntu/Debian - Optional packages (recommended for development)
+   sudo apt-get install uncrustify ccache
+
+   # On macOS with Homebrew - Essential packages
+   brew install qt@6 cmake
+
+   # On macOS with Homebrew - Optional packages (recommended for development)
+   brew install uncrustify ccache
    ```
+   
+   **Note**: `uncrustify` is needed for the pre-commit formatting hook. `ccache` speeds up rebuilds significantly.
 
 3. **Set up Git hooks** (optional but recommended for contributors):
    ```bash
