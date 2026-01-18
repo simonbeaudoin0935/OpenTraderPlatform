@@ -62,16 +62,16 @@ private:
 
     static QString bytesToString(qint64 bytes);
 
-    Ui::GUIFrontend* ui;  // Pointer to the UI object
-    QPushButton* tradeStationLoginButton;  // Login button in status bar
+    std::unique_ptr<Ui::GUIFrontend> m_ui;  // Pointer to the UI object
+    QPushButton* tradeStationLoginButton;  // Login button in status bar (Qt-parented)
     
-    QShortcut* m_quitShortcut;  // Quit application shortcut
-    QShortcut* m_focusShortcut;  // Focus stock input shortcut
-    QShortcut* m_buyShortcut;  // Execute buy order shortcut
-    QShortcut* m_sellShortcut;  // Execute sell order shortcut
-    QShortcut* m_buyToCoverShortcut;  // Execute buy to cover order shortcut
-    QShortcut* m_sellToCoverShortcut;  // Execute sell to cover order shortcut
-    QShortcut* m_cancelAllOrdersShortcut;  // Cancel all orders shortcut
+    QShortcut* m_quitShortcut;  // Quit application shortcut (Qt-parented)
+    QShortcut* m_focusShortcut;  // Focus stock input shortcut (Qt-parented)
+    QShortcut* m_buyShortcut;  // Execute buy order shortcut (Qt-parented)
+    QShortcut* m_sellShortcut;  // Execute sell order shortcut (Qt-parented)
+    QShortcut* m_buyToCoverShortcut;  // Execute buy to cover order shortcut (Qt-parented)
+    QShortcut* m_sellToCoverShortcut;  // Execute sell to cover order shortcut (Qt-parented)
+    QShortcut* m_cancelAllOrdersShortcut;  // Cancel all orders shortcut (Qt-parented)
 
     qsizetype TSClientDataUsage = 0;
     qint64 memoryUsage = 0;

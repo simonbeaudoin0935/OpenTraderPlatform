@@ -49,11 +49,10 @@ MainAlgo::MainAlgo()
         }
 
         // Create a QTextStream attached to the file
-
-        algoLogFile =  new QTextStream(&file);
+        m_algoLogFile = std::make_unique<QTextStream>(&file);
 
         // Optional: Set encoding (UTF-8 is default in modern Qt)
-        algoLogFile->setEncoding(QStringConverter::Utf8);
+        m_algoLogFile->setEncoding(QStringConverter::Utf8);
     }
 }
 
@@ -81,31 +80,30 @@ void MainAlgo::onSelectDisplayedStock(QString symbol)
 
     
     // If there is a current selected stock for display, disconnect its receivedNew* signals from the main algo emition
-    if (currentDisplayedStockInstrument != nullptr) {
-        Q_ASSERT_X(currentDisplayedStockInstrument->symbol != symbol, "MainAlgo::onSelectDisplayedStock", "Selecting the same stock as currently selected. No action taken.");
+    if (m_currentDisplayedStockInstrument != nullptr) {
+        Q_ASSERT_X(m_currentDisplayedStockInstrument->symbol != symbol, "MainAlgo::onSelectDisplayedStock", "Selecting the same stock as currently selected. No action taken.");
 
-        disconnect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
+        disconnect(&m_currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
                    this, &MainAlgo::displayedStockReceivedNewBar);
 
-        disconnect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+        disconnect(&m_currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
                    this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
     }
 
     // Change the stock selected pointer to the new selected stock
-    if (stockInstruments.contains(symbol)) {
-        currentDisplayedStockInstrument = stockInstruments[symbol];
+    if (m_stockInstruments.contains(symbol)) {
+        m_currentDisplayedStockInstrument = m_stockInstruments[symbol].get();
     } else {
-        currentDisplayedStockInstrument = new StockInstruments(symbol);
-        Q_CHECK_PTR(currentDisplayedStockInstrument);
-
-        stockInstruments.insert(symbol, currentDisplayedStockInstrument);
+        auto stockInstrument = std::make_unique<StockInstruments>(symbol);
+        m_currentDisplayedStockInstrument = stockInstrument.get();
+        m_stockInstruments.insert(symbol, std::move(stockInstrument));
     }
 
     // Redoo the plumbing we disconnected at the top of this function
-    connect(&currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
+    connect(&m_currentDisplayedStockInstrument->barCache, &BarCache::receivedNewBar,
             this, &MainAlgo::displayedStockReceivedNewBar);
 
-    connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+    connect(&m_currentDisplayedStockInstrument->marketDepthQuoteReceiver, &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
             this, &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
 }
 
@@ -114,9 +112,9 @@ BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date,
     DEBUG << "Requested bars from current displayed stock cache: " << first << " to " << last;
 
     OBJ_ASSUME_LT(first, last);
-    OBJ_ASSUME_DIFF(currentDisplayedStockInstrument, nullptr);
+    OBJ_ASSUME_DIFF(m_currentDisplayedStockInstrument, nullptr);
 
-    return currentDisplayedStockInstrument->barCache.getBars(date, first, last);
+    return m_currentDisplayedStockInstrument->barCache.getBars(date, first, last);
 }
 
 /*
@@ -189,21 +187,20 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
     if (positionStreamStarted) {
         qCDebug(MainAlgoLog) << "Position stream already started, skipping initialization";
     } else {
-        m_positionReceiver = new PositionsReceiver(m_activeAccount.getAccountId());
-        Q_CHECK_PTR(m_positionReceiver);
+        m_positionReceiver = std::make_unique<PositionsReceiver>(m_activeAccount.getAccountId(), this);
         positionStreamStarted = true;
 
-        auto c1 = connect(m_positionReceiver, &PositionsReceiver::receivedNewPosition,
+        auto c1 = connect(m_positionReceiver.get(), &PositionsReceiver::receivedNewPosition,
                 this, &MainAlgo::receivedNewPosition,
                 Qt::UniqueConnection);
         Q_ASSERT(c1);
 
-        auto c2 = connect(m_positionReceiver, &PositionsReceiver::receivedNewPosition,
+        auto c2 = connect(m_positionReceiver.get(), &PositionsReceiver::receivedNewPosition,
                 this, &MainAlgo::onReceivedNewPosition,
                 Qt::UniqueConnection);
         Q_ASSERT(c2);
 
-        auto c3 = connect(m_positionReceiver, &PositionsReceiver::positionDeleted,
+        auto c3 = connect(m_positionReceiver.get(), &PositionsReceiver::positionDeleted,
                 this, &MainAlgo::onPositionDeleted,
                 Qt::UniqueConnection);
         Q_ASSERT(c3);
@@ -213,11 +210,10 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
     if (orderStreamStarted) {
         qCDebug(MainAlgoLog) << "Order stream already started, skipping initialization";
     } else {
-        m_orderReceiver = new OrdersReceiver(m_activeAccount.getAccountId());
-        Q_CHECK_PTR(m_orderReceiver);
+        m_orderReceiver = std::make_unique<OrdersReceiver>(m_activeAccount.getAccountId(), this);
         orderStreamStarted = true;
 
-        auto c3 = connect(m_orderReceiver, &OrdersReceiver::receivedNewOrder,
+        auto c3 = connect(m_orderReceiver.get(), &OrdersReceiver::receivedNewOrder,
                 this, &MainAlgo::receivedNewOrder,
                 Qt::UniqueConnection);
         Q_ASSERT(c3);

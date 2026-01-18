@@ -28,14 +28,14 @@ Q_LOGGING_CATEGORY(GUIFrontendLog, "GUIFrontend")
 
 GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     FrontEnd(parent),
-    mainAlgo(mainAlgo)
+    mainAlgo(mainAlgo),
+    m_ui(std::make_unique<Ui::GUIFrontend>())
 {
-    ui = new Ui::GUIFrontend();
-    ui->setupUi(new QMainWindow());
+    m_ui->setupUi(new QMainWindow());
     
     this->setObjectName("GUIFrontend");
 
-    QMainWindow* mainWindow = static_cast<QMainWindow*>(ui->centralwidget->parent());
+    QMainWindow* mainWindow = static_cast<QMainWindow*>(m_ui->centralwidget->parent());
     
     setupDarkTheme(mainWindow);
     
@@ -53,27 +53,27 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     // Add "i" shortcut to focus the stock symbol input box
     m_focusShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::FocusStockInput), mainWindow);
     // Note: Qt::UniqueConnection cannot be used with lambda functions
-    auto focusConnection = connect(m_focusShortcut, &QShortcut::activated, [this]() { ui->stockSymbolInput->clear(); ui->stockSymbolInput->setFocus(); });
+    auto focusConnection = connect(m_focusShortcut, &QShortcut::activated, [this]() { m_ui->stockSymbolInput->clear(); m_ui->stockSymbolInput->setFocus(); });
     Q_ASSERT(focusConnection);
     
     // Add Ctrl+B shortcut to execute buy order
     m_buyShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteBuyOrder), mainWindow);
-    auto buyConnection = connect(m_buyShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeBuyOrder(); });
+    auto buyConnection = connect(m_buyShortcut, &QShortcut::activated, [this]() { m_ui->orderEntryWidget->executeBuyOrder(); });
     Q_ASSERT(buyConnection);
     
     // Add Ctrl+S shortcut to execute sell order
     m_sellShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteSellOrder), mainWindow);
-    auto sellConnection = connect(m_sellShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeSellOrder(); });
+    auto sellConnection = connect(m_sellShortcut, &QShortcut::activated, [this]() { m_ui->orderEntryWidget->executeSellOrder(); });
     Q_ASSERT(sellConnection);
     
     // Add Ctrl+Shift+B shortcut to execute buy to cover order
     m_buyToCoverShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteBuyToCoverOrder), mainWindow);
-    auto buyToCoverConnection = connect(m_buyToCoverShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeBuyToCoverOrder(); });
+    auto buyToCoverConnection = connect(m_buyToCoverShortcut, &QShortcut::activated, [this]() { m_ui->orderEntryWidget->executeBuyToCoverOrder(); });
     Q_ASSERT(buyToCoverConnection);
     
     // Add Ctrl+Shift+S shortcut to execute sell to cover order
     m_sellToCoverShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteSellToCoverOrder), mainWindow);
-    auto sellToCoverConnection = connect(m_sellToCoverShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeSellToCoverOrder(); });
+    auto sellToCoverConnection = connect(m_sellToCoverShortcut, &QShortcut::activated, [this]() { m_ui->orderEntryWidget->executeSellToCoverOrder(); });
     Q_ASSERT(sellToCoverConnection);
     
     // Add Ctrl+X shortcut to cancel all orders
@@ -89,10 +89,10 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
 
 
     // Create and setup TradeStation login button
-    tradeStationLoginButton = new QPushButton("Login to TradeStation", ui->statusbar);
+    tradeStationLoginButton = new QPushButton("Login to TradeStation", m_ui->statusbar);
     tradeStationLoginButton->setFlat(true);  // Make it look like a status bar item
     tradeStationLoginButton->setStyleSheet("QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
-    ui->statusbar->addPermanentWidget(tradeStationLoginButton);
+    m_ui->statusbar->addPermanentWidget(tradeStationLoginButton);
 
     // Connect TradeStation login button click to launch auth process
     connect(tradeStationLoginButton, &QPushButton::clicked,
@@ -145,7 +145,7 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
 
     // When the chart requests missing bars, inside the lambda we call the main algo to get the bars from the displayed stock's bar cache
     // The result can be either immediate (QVector<Bar>) or asynchronous (QFuture<QVector<Bar>>)
-    connect(ui->priceChart, &StockPriceChart::requestMissingBars,
+    connect(m_ui->priceChart, &StockPriceChart::requestMissingBars,
         this, [this](QDateTime from, QDateTime to) mutable {
                 
             Q_ASSERT(from.date() == to.date()); // Currently only support same-day requests
@@ -156,7 +156,7 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
 
             if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result)) {
                 // The barCache had the bars ready immediately
-                ui->priceChart->onRequestedMissingBarsReceived(std::move(std::get<std::shared_ptr<QVector<Bar>>>(result)));
+                m_ui->priceChart->onRequestedMissingBarsReceived(std::move(std::get<std::shared_ptr<QVector<Bar>>>(result)));
             } else {
                 auto future = std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result);
                 future.then(this,
@@ -164,7 +164,7 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
                     (std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error> bars)
                     {
                         if (bars.has_value()) {
-                            ui->priceChart->onRequestedMissingBarsReceived(bars.value());
+                            m_ui->priceChart->onRequestedMissingBarsReceived(bars.value());
                         } else {
                             qCritical() << "Failed to get missing bars from BarCache - Error:" << static_cast<int>(bars.error());
 
@@ -177,37 +177,37 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
         });
 
     // Connect the stock symbol input to its slot
-    connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GUIFrontend::onNewDisplayedStockSelection);
+    connect(m_ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GUIFrontend::onNewDisplayedStockSelection);
 
     // Make the stock symbol input convert text to uppercase
-    connect(ui->stockSymbolInput, &QLineEdit::textChanged, [this](const QString &text) {
+    connect(m_ui->stockSymbolInput, &QLineEdit::textChanged, [this](const QString &text) {
         QString upper = text.toUpper();
         if (upper != text) {
-            int pos = ui->stockSymbolInput->cursorPosition();
-            ui->stockSymbolInput->blockSignals(true);
-            ui->stockSymbolInput->setText(upper);
-            ui->stockSymbolInput->setCursorPosition(pos);
-            ui->stockSymbolInput->blockSignals(false);
+            int pos = m_ui->stockSymbolInput->cursorPosition();
+            m_ui->stockSymbolInput->blockSignals(true);
+            m_ui->stockSymbolInput->setText(upper);
+            m_ui->stockSymbolInput->setCursorPosition(pos);
+            m_ui->stockSymbolInput->blockSignals(false);
         }
     });
 
     // Center the text in the stock symbol input
-    ui->stockSymbolInput->setAlignment(Qt::AlignCenter);
+    m_ui->stockSymbolInput->setAlignment(Qt::AlignCenter);
 
     // Connect position window symbol click
-    connect(ui->positionWindow, &PositionWindow::symbolClicked, this, [this](const QString& symbol) {
-        ui->stockSymbolInput->setText(symbol);
-        ui->stockSymbolInput->returnPressed();  // Simulate Enter key press
+    connect(m_ui->positionWindow, &PositionWindow::symbolClicked, this, [this](const QString& symbol) {
+        m_ui->stockSymbolInput->setText(symbol);
+        m_ui->stockSymbolInput->returnPressed();  // Simulate Enter key press
     });
 
     // Connect order window symbol click
-    connect(ui->orderWindow, &OrderWindow::symbolClicked, this, [this](const QString& symbol) {
-        ui->stockSymbolInput->setText(symbol);
-        ui->stockSymbolInput->returnPressed();  // Simulate Enter key press
+    connect(m_ui->orderWindow, &OrderWindow::symbolClicked, this, [this](const QString& symbol) {
+        m_ui->stockSymbolInput->setText(symbol);
+        m_ui->stockSymbolInput->returnPressed();  // Simulate Enter key press
     });
 
     // Connect order window cancel order request
-    connect(ui->orderWindow, &OrderWindow::cancelOrderRequested, this,
+    connect(m_ui->orderWindow, &OrderWindow::cancelOrderRequested, this,
         [this]
         (const QString& orderId)
         {
@@ -243,14 +243,14 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
     );
 
     // Connect order entry widget
-    ui->orderEntryWidget->setGUIFrontend(this);
-    auto orderEntryConnection = connect(ui->orderEntryWidget, &OrderEntryWidget::orderPlaced,
+    m_ui->orderEntryWidget->setGUIFrontend(this);
+    auto orderEntryConnection = connect(m_ui->orderEntryWidget, &OrderEntryWidget::orderPlaced,
                       this, &GUIFrontend::onOrderPlaced, Qt::UniqueConnection);
     Q_ASSERT(orderEntryConnection);
 
     // Set up the logging tab
     LoggingTab* loggingTab = new LoggingTab();
-    ui->tabWidget->addTab(loggingTab, "Logging");
+    m_ui->tabWidget->addTab(loggingTab, "Logging");
 
     // Connect logging tab signals
     connect(loggingTab, &LoggingTab::loggerVisibilityChanged,
@@ -260,21 +260,21 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
 
     // Set up the cache tab
     CacheTab* cacheTab = new CacheTab();
-    ui->tabWidget->addTab(cacheTab, "Cache");
+    m_ui->tabWidget->addTab(cacheTab, "Cache");
 
     // Set up the recorder tab
     RecorderTab* recorderTab = new RecorderTab();
-    ui->tabWidget->addTab(recorderTab, "Recorder");
+    m_ui->tabWidget->addTab(recorderTab, "Recorder");
 
     // Set up the shortcuts tab
     ShortcutsTab* shortcutsTab = new ShortcutsTab();
-    ui->tabWidget->addTab(shortcutsTab, "Shortcuts");
+    m_ui->tabWidget->addTab(shortcutsTab, "Shortcuts");
 
     // Set up the live log display at the bottom
-    if (ui->liveLogDisplay) {
+    if (m_ui->liveLogDisplay) {
         QFont font("Monospace");
         font.setPointSize(9);
-        ui->liveLogDisplay->setFont(font);
+        m_ui->liveLogDisplay->setFont(font);
         
         // Connect to the log broadcaster
         connect(&LogBroadcaster::instance(), &LogBroadcaster::logMessageReceived,
@@ -283,16 +283,14 @@ GUIFrontend::GUIFrontend(MainAlgo *mainAlgo, QObject* parent) :
 
     // Configure the splitter to make the bottom panel (with balances, positions, orders, order entry) as compact as possible
     // Give the top widget (chart) a stretch factor of 1 and bottom widget a stretch factor of 0
-    ui->tradeTabSplitter->setStretchFactor(0, 1);  // tradeTopWidget gets stretch factor 1
-    ui->tradeTabSplitter->setStretchFactor(1, 0);  // tradeTabBottomWidget gets stretch factor 0 (minimum size)
+    m_ui->tradeTabSplitter->setStretchFactor(0, 1);  // tradeTopWidget gets stretch factor 1
+    m_ui->tradeTabSplitter->setStretchFactor(1, 0);  // tradeTabBottomWidget gets stretch factor 0 (minimum size)
 
     // NOTE: Don't restore the last displayed stock here - wait for authentication
     // It will be restored in onTradeStationAuthStateChanged() when authenticated
 }
 
-GUIFrontend::~GUIFrontend() {
-    delete ui;
-}
+GUIFrontend::~GUIFrontend() = default;
 
 void GUIFrontend::setupDarkTheme(QMainWindow* mainWindow) {
     // Define the dark theme palette
@@ -450,7 +448,7 @@ void GUIFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
     QString usageTS  = bytesToString(newDataUsage);
     QString usageMemory = bytesToString(memoryUsage);
 
-    ui->statusbar->showMessage("TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(streamCount));
+    m_ui->statusbar->showMessage("TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(streamCount));
 }
 
 void GUIFrontend::onTradeStationAccountsReceived(QVector<Account> results)
@@ -458,30 +456,30 @@ void GUIFrontend::onTradeStationAccountsReceived(QVector<Account> results)
     m_accounts = results;  // Store accounts
     
     for (const Account& account : results) {
-        ui->logDisplay->append("  ID:" + account.getAccountId());
-        ui->logDisplay->append("  Type:" + AccountType::accountTypeToString(account.getAccountType().type));
-        ui->logDisplay->append("  Status:" + account.getStatus());
-        ui->logDisplay->append("  Currency:" + account.getCurrency());
+        m_ui->logDisplay->append("  ID:" + account.getAccountId());
+        m_ui->logDisplay->append("  Type:" + AccountType::accountTypeToString(account.getAccountType().type));
+        m_ui->logDisplay->append("  Status:" + account.getStatus());
+        m_ui->logDisplay->append("  Currency:" + account.getCurrency());
 
         // Check AccountDetail if it exists
         const auto& detail = account.getAccountDetail();
         if (detail.has_value()) {
-            ui->logDisplay->append("  Account Detail:");
-            ui->logDisplay->append("    Stock Locate Eligible:" + QString::number(detail->isStockLocateEligible));
-            ui->logDisplay->append("    Enrolled in RegT Program:" + QString::number(detail->enrolledInRegTProgram));
-            ui->logDisplay->append("    Requires Buying Power Warning:" + QString::number(detail->requiresBuyingPowerWarning));
-            ui->logDisplay->append("    Day Trading Qualified:" + QString::number(detail->dayTradingQualified));
-            ui->logDisplay->append("    Option Approval Level:" + QString::number(detail->optionApprovalLevel));
-            ui->logDisplay->append("    Pattern Day Trader:" + QString::number(detail->patternDayTrader));
+            m_ui->logDisplay->append("  Account Detail:");
+            m_ui->logDisplay->append("    Stock Locate Eligible:" + QString::number(detail->isStockLocateEligible));
+            m_ui->logDisplay->append("    Enrolled in RegT Program:" + QString::number(detail->enrolledInRegTProgram));
+            m_ui->logDisplay->append("    Requires Buying Power Warning:" + QString::number(detail->requiresBuyingPowerWarning));
+            m_ui->logDisplay->append("    Day Trading Qualified:" + QString::number(detail->dayTradingQualified));
+            m_ui->logDisplay->append("    Option Approval Level:" + QString::number(detail->optionApprovalLevel));
+            m_ui->logDisplay->append("    Pattern Day Trader:" + QString::number(detail->patternDayTrader));
         } else {
-            ui->logDisplay->append("  No Account Detail available");
+            m_ui->logDisplay->append("  No Account Detail available");
         }
     }
     
     // Populate account selector
-    ui->accountSelector->clear();
+    m_ui->accountSelector->clear();
     for (const Account& account : results) {
-        ui->accountSelector->addItem(
+        m_ui->accountSelector->addItem(
             QString("%1 (%2)").arg(account.getAccountId(), AccountType::accountTypeToString(account.getAccountType().type)),
             account.getAccountId()
         );
@@ -489,17 +487,17 @@ void GUIFrontend::onTradeStationAccountsReceived(QVector<Account> results)
     
     // Set default to last account (as requested)
     if (!results.isEmpty()) {
-        ui->accountSelector->setCurrentIndex(results.size() - 1);
+        m_ui->accountSelector->setCurrentIndex(results.size() - 1);
     }
     
     // Pass accounts to order entry widget (for submit button enabling)
-    ui->orderEntryWidget->setAccounts(results);
+    m_ui->orderEntryWidget->setAccounts(results);
 }
 
 QString GUIFrontend::getSelectedAccountId() const
 {
-    if (ui->accountSelector->currentIndex() >= 0 && ui->accountSelector->currentIndex() < m_accounts.size()) {
-        return m_accounts[ui->accountSelector->currentIndex()].getAccountId();
+    if (m_ui->accountSelector->currentIndex() >= 0 && m_ui->accountSelector->currentIndex() < m_accounts.size()) {
+        return m_accounts[m_ui->accountSelector->currentIndex()].getAccountId();
     }
     return QString();  // Return empty string if no valid selection
 }
@@ -511,7 +509,7 @@ void GUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
     QString usageTS  = bytesToString(TSClientDataUsage);
     QString usageMemory = bytesToString(newDataUsage);
 
-    ui->statusbar->showMessage("TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(streamCount));
+    m_ui->statusbar->showMessage("TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(streamCount));
 }
 
 void GUIFrontend::onStreamCountUpdate(int count)
@@ -521,39 +519,39 @@ void GUIFrontend::onStreamCountUpdate(int count)
     QString usageTS  = bytesToString(TSClientDataUsage);
     QString usageMemory = bytesToString(memoryUsage);
 
-    ui->statusbar->showMessage("TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(count));
+    m_ui->statusbar->showMessage("TS usage : " + usageTS + " - Memory usage : " + usageMemory + " - Streams : " + QString::number(count));
 }
 
 void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 {
-    ui->priceChart->addLiveBar(symbol, bar);
+    m_ui->priceChart->addLiveBar(symbol, bar);
 }
 
 void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP)
 {
     Q_UNUSED(symbol);
 
-    ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks());
-    ui->marketDepthTable->updateDWP(bidDWP, askDWP);
+    m_ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks());
+    m_ui->marketDepthTable->updateDWP(bidDWP, askDWP);
 
     // Update the BAI gauge with the bid-ask imbalance
-    ui->baiGauge->setValue(bidAskImbalance);
+    m_ui->baiGauge->setValue(bidAskImbalance);
 }
 
 void GUIFrontend::onNewPositionReceived(QString account, Position position) {
-    ui->positionWindow->updatePosition(account, position);
+    m_ui->positionWindow->updatePosition(account, position);
 }
 
 void GUIFrontend::onPositionDeleted(QString account, QString positionID) {
-    ui->positionWindow->onPositionDeleted(account, positionID);
+    m_ui->positionWindow->onPositionDeleted(account, positionID);
 }
 
 void GUIFrontend::onNewOrderReceived(QString account, Order order) {
-    ui->orderWindow->updateOrder(account, order);
+    m_ui->orderWindow->updateOrder(account, order);
 }
 
 void GUIFrontend::onBalanceUpdated(Balance balance) {
-    ui->balanceWindow->updateBalance(balance);
+    m_ui->balanceWindow->updateBalance(balance);
 }
 
 void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason) {
@@ -585,7 +583,7 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
         }
     }
 
-    ui->logDisplay->append(log);
+    m_ui->logDisplay->append(log);
     isFirstTime = false;
 }
 
@@ -628,7 +626,7 @@ bool GUIFrontend::isValidStockSymbol(const QString& symbol) const {
 
 void GUIFrontend::onNewDisplayedStockSelection()
 {
-    QString symbol = ui->stockSymbolInput->text().toUpper();
+    QString symbol = m_ui->stockSymbolInput->text().toUpper();
 
     // Validate the stock symbol
     if (!isValidStockSymbol(symbol)) {
@@ -639,13 +637,13 @@ void GUIFrontend::onNewDisplayedStockSelection()
                            "- Must not contain leading or trailing spaces\n"
                            "- Must be 1-10 characters long\n"
                            "- Can only contain letters, numbers, dots (.), hyphens (-), and slashes (/)");
-        ui->stockSymbolInput->setFocus();
-        ui->stockSymbolInput->selectAll();
+        m_ui->stockSymbolInput->setFocus();
+        m_ui->stockSymbolInput->selectAll();
         return;
     }
 
     // Update the input field to show the uppercase symbol
-    ui->stockSymbolInput->setText(symbol);
+    m_ui->stockSymbolInput->setText(symbol);
 
     // Display the stock
     displayStock(symbol);
@@ -654,7 +652,7 @@ void GUIFrontend::onNewDisplayedStockSelection()
     saveLastDisplayedStock(symbol);
 
     // Clear focus from the input box after processing
-    ui->stockSymbolInput->clearFocus();
+    m_ui->stockSymbolInput->clearFocus();
 }
 
 void GUIFrontend::displayStock(const QString& symbol) {
@@ -665,11 +663,11 @@ void GUIFrontend::displayStock(const QString& symbol) {
 
     currentlyDisplayedSymbol = symbol;
 
-    ui->priceChart->clearSymbol();
-    ui->priceChart->setSymbol(symbol);
+    m_ui->priceChart->clearSymbol();
+    m_ui->priceChart->setSymbol(symbol);
 
     // Update the order entry widget with the new symbol
-    ui->orderEntryWidget->setSymbol(symbol);
+    m_ui->orderEntryWidget->setSymbol(symbol);
 
     QMetaObject::invokeMethod(mainAlgo,
                               "onSelectDisplayedStock",
@@ -678,17 +676,17 @@ void GUIFrontend::displayStock(const QString& symbol) {
 }
 
 void GUIFrontend::updateLiveLogDisplay(const QString& message) {
-    if (!ui->liveLogDisplay) {
+    if (!m_ui->liveLogDisplay) {
         return;
     }
 
     // Check if the user is currently at the bottom of the log
-    bool wasAtBottom = ui->liveLogDisplay->verticalScrollBar()->value() == ui->liveLogDisplay->verticalScrollBar()->maximum();
+    bool wasAtBottom = m_ui->liveLogDisplay->verticalScrollBar()->value() == m_ui->liveLogDisplay->verticalScrollBar()->maximum();
 
-    ui->liveLogDisplay->append(message);
+    m_ui->liveLogDisplay->append(message);
 
     // Enforce max log lines
-    QTextDocument* doc = ui->liveLogDisplay->document();
+    QTextDocument* doc = m_ui->liveLogDisplay->document();
     int lineCount = doc->lineCount();
 
     if (lineCount > maxLiveLogLines) {
@@ -708,15 +706,15 @@ void GUIFrontend::updateLiveLogDisplay(const QString& message) {
 
     // Only auto-scroll to bottom if the user was already at the bottom
     if (wasAtBottom) {
-        QTextCursor cursor = ui->liveLogDisplay->textCursor();
+        QTextCursor cursor = m_ui->liveLogDisplay->textCursor();
         cursor.movePosition(QTextCursor::End);
-        ui->liveLogDisplay->setTextCursor(cursor);
+        m_ui->liveLogDisplay->setTextCursor(cursor);
     }
 }
 
 void GUIFrontend::onLoggerVisibilityChanged(bool visible) {
-    if (ui->liveLogDisplay) {
-        ui->liveLogDisplay->setVisible(visible);
+    if (m_ui->liveLogDisplay) {
+        m_ui->liveLogDisplay->setVisible(visible);
     }
 }
 
@@ -724,8 +722,8 @@ void GUIFrontend::onLogDepthChanged(int maxLines) {
     maxLiveLogLines = maxLines;
     
     // Trim current log display if needed
-    if (ui->liveLogDisplay) {
-        QTextDocument* doc = ui->liveLogDisplay->document();
+    if (m_ui->liveLogDisplay) {
+        QTextDocument* doc = m_ui->liveLogDisplay->document();
         int lineCount = doc->lineCount();
         
         if (lineCount > maxLiveLogLines) {
@@ -767,7 +765,7 @@ void GUIFrontend::restoreLastDisplayedStock() {
     qInfo() << "Restoring last displayed stock:" << lastSymbol;
     
     // Set the symbol in the input box (uppercase)
-    ui->stockSymbolInput->setText(lastSymbol);
+    m_ui->stockSymbolInput->setText(lastSymbol);
     
     // Display the stock without saving again
     displayStock(lastSymbol);
@@ -784,7 +782,7 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order) {
         (std::expected<PlaceOrderResult, TSClient::Error> expected_result)
         {
             // Check if result popups are enabled
-            bool showPopup = ui->orderEntryWidget->isResultPopupEnabled();
+            bool showPopup = m_ui->orderEntryWidget->isResultPopupEnabled();
             
             if (!expected_result.has_value()) {
                 QString errorMsg = "Order placement failed with error code: " + QString::number(static_cast<int>(expected_result.error()));
@@ -873,7 +871,7 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
 
 void GUIFrontend::onCancelAllOrders() {
     // Get only cancellable order IDs from the order window (filters by status)
-    QStringList orderIds = ui->orderWindow->getCancellableOrderIds();
+    QStringList orderIds = m_ui->orderWindow->getCancellableOrderIds();
     
     if (orderIds.isEmpty()) {
         qInfo() << "No cancellable orders found";
@@ -886,7 +884,7 @@ void GUIFrontend::onCancelAllOrders() {
     }
     
     // Check if confirmation is enabled (controlled by OrderEntryWidget settings)
-    if (ui->orderEntryWidget->isCancelAllConfirmationEnabled()) {
+    if (m_ui->orderEntryWidget->isCancelAllConfirmationEnabled()) {
         // Confirm with user
         QMessageBox::StandardButton reply = QMessageBox::question(
             nullptr,

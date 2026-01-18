@@ -81,15 +81,15 @@ private:
 
     QThread thread;
 
-    QMap<QString, StockInstruments*> stockInstruments;
-    StockInstruments* currentDisplayedStockInstrument = nullptr;
+    QMap<QString, std::unique_ptr<StockInstruments>> m_stockInstruments;
+    StockInstruments* m_currentDisplayedStockInstrument = nullptr;
 
-    PositionsReceiver* m_positionReceiver = nullptr;
-    OrdersReceiver* m_orderReceiver = nullptr;
+    std::unique_ptr<PositionsReceiver> m_positionReceiver;
+    std::unique_ptr<OrdersReceiver> m_orderReceiver;
     bool positionStreamStarted = false;
     bool orderStreamStarted = false;
 
-    QTextStream *algoLogFile;
+    std::unique_ptr<QTextStream> m_algoLogFile;
     QFile file;
 
     bool m_havePastSuccessfulExchanges = false;
@@ -97,7 +97,7 @@ private:
     Account m_activeAccount;
     Balance m_currentBalance;
 
-    QTimer* m_balancePollingTimer;
+    QTimer* m_balancePollingTimer;  // Qt-parented in onThreadStarted
 
     bool m_balancePollingStarted = false;
 };

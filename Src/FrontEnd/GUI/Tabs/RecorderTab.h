@@ -58,8 +58,8 @@ private:
     bool m_isRecording;
     bool m_isAuthenticated;
     QDateTime m_startTime;
-    LiveStreamDB* m_liveBarsDB;
-    LiveStreamDB* m_liveMarketDepthQuoteDB;
+    std::unique_ptr<LiveStreamDB> m_liveBarsDB;
+    std::unique_ptr<LiveStreamDB> m_liveMarketDepthQuoteDB;
     QStringList m_stockTickers;
     QString m_stockCsvFilePath;
 };

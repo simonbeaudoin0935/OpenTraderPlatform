@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "TSClient.h"
 #include "FrontEnd.h"
 #include "MainAlgo.h"
@@ -20,8 +22,8 @@ public:
     static QDateTime getCurrentAppTime();
 
 private:
-    TSClient* tradeStationClient;
-    MainAlgo*    mainAlgo;
-    FrontEnd* appFrontend;
+    TSClient* tradeStationClient;  // Singleton, not owned
+    MainAlgo* mainAlgo;  // Singleton, not owned
+    std::unique_ptr<FrontEnd> m_appFrontend;
     MemoryMonitor memoryMonitor;
 };

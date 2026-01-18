@@ -19,6 +19,6 @@ private slots:
     void updateMemoryUsage(); // Slot to query and emit memory usage
 
 private:
-    QTimer* timer;
+    QTimer* timer;  // Qt-parented, automatically deleted
     qint64 getProcessMemoryUsage(); // Platform-specific memory query
 };

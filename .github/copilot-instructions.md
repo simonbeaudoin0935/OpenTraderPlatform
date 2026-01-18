@@ -5,13 +5,122 @@
 - Prioritize adding Q_ASSERT/Q_ASSERT_X where it makes sense instead of trying to add runtime logic for things that should always be true.
 - When creating connections between signal and slots, prioritize using a Qt::UniqueConnection and asserting that the connection made was indeed unique and not a double. It should be extremely rare, if not never, that we should authorize multiple same connections.
 - When creating new functions with return values, if it makes no sense to ignore the return value, add the [[nodiscard]] guards to make sure we get notified if we don't use the return value of a function. This should be the default for every new function that returns a value in fact, and you should only take it out when truly its not a big deal to not check the value, but this should in practice be rare.
-- When using the 'new' operator or any function that returns a dynamically allocated object, you should always check the pointer with Q_CHECK_PTR() and make sure we continue with a valid pointer. An example of such function which returns an allocated object is QNetworkManager->get(networkRequest) were the doc says "Posts a request to obtain the contents of the target request and returns a new QNetworkReply object opened for reading which emits the readyRead() signal whenever new data arrives."
 - with memebr variables of classes, use a prefix "m_". for global variables, use "g_", for parameters, use "p_"
 - Use a early exit style of coding. Handle error/non-happy cases first with return, continue, break, or throw. Then write the main ("happy") logic with minimal indentation
 - Any .md file you create, place them in the Doc folder.
 - When you do structural changes, think about keeping the doc in Doc/ up to date.
   
 - Everything time related must be in QDateTime/QTime/QDate with proper QTimeZone usage. Never use std::chrono or raw time_t/struct tm etc. The timezone is always NewYork since it is stock market related.
+
+## Smart Pointer and Memory Management Guidelines
+
+This project uses smart pointers extensively to manage memory safely. Follow these guidelines when working with pointers:
+
+### When to Use Qt Parent-Child Ownership (Raw Pointers)
+**ALWAYS use raw pointers with Qt parent-child ownership for:**
+- QWidget and derived classes (when added to layouts or have a parent widget)
+- QObject and derived classes that have a parent QObject
+- QLayout and derived classes (automatically owned by the widget they're set on)
+- Any Qt object passed to a parent in the constructor or via setParent()
+
+**Example:**
+```cpp
+// Correct: Qt parent-child ownership
+m_button = new QPushButton("Click", this);  // 'this' is the parent
+QVBoxLayout* layout = new QVBoxLayout(this);  // layout owned by widget
+```
+
+**Note:** Qt automatically deletes child objects when the parent is destroyed. Do NOT wrap these in smart pointers.
+
+### When to Use QPointer
+**Use QPointer for:**
+- Observing Qt objects that may be deleted by their parent or elsewhere
+- Stream objects (StreamBars, StreamOrders, StreamPositions, StreamMarketDepthQuote)
+- Any QObject pointer where you need to detect if the object has been deleted
+- Optional references to Qt objects where ownership is unclear
+
+**Example:**
+```cpp
+QPointer<StreamBars> m_stream;  // Can detect when stream is deleted
+if (m_stream) {
+    // Safe to use
+}
+```
+
+### When to Use std::unique_ptr
+**Use std::unique_ptr for:**
+- Non-Qt objects with exclusive ownership
+- Objects that should not be copied
+- Factory-created objects
+- Member variables that own resources
+- RAII wrappers
+- Any dynamically allocated non-Qt object that has a single clear owner
+
+**Example:**
+```cpp
+std::unique_ptr<QVector<Bar>> m_data;  // Exclusive ownership
+std::unique_ptr<MyNonQtClass> m_resource;  // Non-Qt object
+
+// Factory pattern
+std::unique_ptr<Parser> createParser() {
+    return std::make_unique<Parser>();
+}
+```
+
+### When to Use std::shared_ptr
+**Use std::shared_ptr for:**
+- Objects with shared ownership across multiple components
+- Data that needs to be accessed by multiple asynchronous operations
+- Cache entries that may be referenced from multiple places
+- Objects passed between threads where ownership is shared
+- Data in async callbacks that may outlive the caller
+
+**Example:**
+```cpp
+std::shared_ptr<QVector<Bar>> m_sharedData;  // Multiple owners
+QFuture<std::expected<std::shared_ptr<QVector<Bar>>, Error>> future;
+```
+
+### When to Use std::weak_ptr
+**Use std::weak_ptr for:**
+- Breaking circular references with std::shared_ptr
+- Observing std::shared_ptr-managed objects without affecting lifetime
+- Cache entries that shouldn't prevent deletion
+- Optional references to shared objects
+
+**Example:**
+```cpp
+std::weak_ptr<CachedData> m_cacheEntry;  // Doesn't prevent deletion
+if (auto locked = m_cacheEntry.lock()) {
+    // Use locked shared_ptr
+}
+```
+
+### Migration from Raw Pointers
+When converting existing raw pointers to smart pointers:
+1. **Identify ownership**: Who owns the object and when should it be deleted?
+2. **Check Qt parent-child**: If it's a QObject with a parent, keep it as a raw pointer
+3. **Single owner → std::unique_ptr**: If one entity owns it exclusively
+4. **Multiple owners → std::shared_ptr**: If ownership is shared
+5. **Observer → QPointer or std::weak_ptr**: If you just need to observe
+
+### Do NOT Use Raw Pointers For
+- Dynamically allocated non-Qt objects without a Qt parent
+- Objects that need manual delete calls in destructors
+- Factory-created objects
+- Singleton instances (except when necessary for Qt meta-object system)
+
+### NEVER Do
+- Mix raw pointers with smart pointers for the same object (choose one ownership model)
+- Use smart pointers for Qt objects with parent-child relationships
+- Use delete on objects managed by smart pointers
+- Store raw pointers extracted from smart pointers long-term (use weak_ptr or QPointer instead)
+- Use new without immediately wrapping in std::make_unique/std::make_shared (for non-Qt objects)
+
+### Checking Pointers
+- For raw pointers returned from Qt/external APIs: Use Q_CHECK_PTR() to verify allocation success
+- For smart pointers: Check with if (ptr) or if (ptr != nullptr) before dereferencing
+- For QPointer: Always check if (ptr) before using, as the object may have been deleted
 
 ## High Level Details
 
