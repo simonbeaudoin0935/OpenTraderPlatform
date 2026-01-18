@@ -1,7 +1,6 @@
 {
     "version": "2.0.0",
     "tasks": [
-
         {
             "label": "clean",
             "type": "shell",
@@ -20,9 +19,6 @@
                 "panel": "shared"
             }
         },
-
-
-
         {
             "label": "configure",
             "type": "shell",
@@ -66,9 +62,53 @@
                 "panel": "shared"
             },
             "problemMatcher": "$gcc"
+        },
+        {
+            "label": "configure-ubsan",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build/UBSan",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DENABLE_GUI=ON",
+                "-DBUILD_TESTS=ON",
+                "-DENABLE_UBSAN=ON"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "configure-asan",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build/ASan",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DENABLE_GUI=ON",
+                "-DBUILD_TESTS=ON",
+                "-DENABLE_ASAN=ON"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
         }, 
-
-    
         {
             "label": "build",
             "type": "shell",
@@ -109,9 +149,46 @@
             "problemMatcher": "$gcc",
             "dependsOn": ["configure-all"]
         },
-
-
-
+        {
+            "label": "build-ubsan",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/UBSan",
+                "--parallel",
+                "3"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": ["configure-ubsan"]
+        },
+        {
+            "label": "build-asan",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/ASan",
+                "--parallel",
+                "3"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": ["configure-asan"]
+        },
         {
             "label": "run",
             "type": "shell",
@@ -128,7 +205,39 @@
             },
             "dependsOn": ["build"]
         },
-       {
+        {
+            "label": "run-ubsan",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/UBSan/Src/L2Trader",
+            "args": [
+                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-ubsan"]
+        },
+        {
+            "label": "run-asan",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/ASan/Src/L2Trader",
+            "args": [
+                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-asan"]
+        },
+        {
             "label": "run-barcache-test",
             "type": "shell",
             "command": "${workspaceFolder}/build/All/Tests/test_barcache",
@@ -144,6 +253,40 @@
                 "panel": "shared"
             },
             "dependsOn": ["build-all"]
+        },
+        {
+            "label": "run-barcache-test-ubsan",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/UBSan/Tests/test_barcache",
+            "args": [
+                "--cache-root-dir=/tmp/l2trader_test_cache",
+                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-ubsan"]
+        },
+        {
+            "label": "run-barcache-test-asan",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/ASan/Tests/test_barcache",
+            "args": [
+                "--cache-root-dir=/tmp/l2trader_test_cache",
+                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-asan"]
         },
         {
             "label": "run-fmpclient-test",
@@ -178,6 +321,38 @@
             "dependsOn": ["build-all"]
         },
         {
+            "label": "run-tsclient-test-ubsan",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/UBSan/Tests/test_tradestationclient",
+            "args": [
+                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-ubsan"]
+        },
+        {
+            "label": "run-tsclient-test-asan",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/ASan/Tests/test_tradestationclient",
+            "args": [
+                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-asan"]
+        },
+        {
             "label": "run-runupdetector-test",
             "type": "shell",
             "command": "${workspaceFolder}/build/Tests/test_RunUpDetector",
@@ -192,6 +367,38 @@
                 "panel": "shared"
             },
             "dependsOn": ["build-all"]
+        },
+        {
+            "label": "run-runupdetector-test-ubsan",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/UBSan/Tests/test_RunUpDetector",
+            "args": [
+                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-ubsan"]
+        },
+        {
+            "label": "run-runupdetector-test-asan",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/ASan/Tests/test_RunUpDetector",
+            "args": [
+                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-asan"]
         }
     ]
 }
