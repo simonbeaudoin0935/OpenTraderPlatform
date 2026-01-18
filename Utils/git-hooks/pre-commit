@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Pre-commit hook that runs Uncrustify on staged C++ files
+# Pre-commit hook that runs clang-format on staged C++ files
 # Ensures code formatting and checks for trailing whitespace
 #
 
@@ -13,21 +13,21 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Check if uncrustify is installed
-if ! command -v uncrustify &> /dev/null; then
-    echo -e "${RED}Error: uncrustify is not installed.${NC}"
-    echo "Please install uncrustify: sudo apt-get install uncrustify"
-    echo "Or on macOS: brew install uncrustify"
+# Check if clang-format is installed
+if ! command -v clang-format &> /dev/null; then
+    echo -e "${RED}Error: clang-format is not installed.${NC}"
+    echo "Please install clang-format: sudo apt-get install clang-format"
+    echo "Or on macOS: brew install clang-format"
     exit 1
 fi
 
 # Get the root directory of the git repository
 REPO_ROOT=$(git rev-parse --show-toplevel)
-UNCRUSTIFY_CONFIG="${REPO_ROOT}/.uncrustify.cfg"
+CLANG_FORMAT_CONFIG="${REPO_ROOT}/.clang-format"
 
-# Check if uncrustify config exists
-if [ ! -f "$UNCRUSTIFY_CONFIG" ]; then
-    echo -e "${RED}Error: Uncrustify config file not found at $UNCRUSTIFY_CONFIG${NC}"
+# Check if clang-format config exists
+if [ ! -f "$CLANG_FORMAT_CONFIG" ]; then
+    echo -e "${RED}Error: clang-format config file not found at $CLANG_FORMAT_CONFIG${NC}"
     exit 1
 fi
 
@@ -39,7 +39,7 @@ if [ -z "$STAGED_FILES" ]; then
     exit 0
 fi
 
-echo -e "${YELLOW}Running Uncrustify on staged C++ files...${NC}"
+echo -e "${YELLOW}Running clang-format on staged C++ files...${NC}"
 
 FORMATTING_ISSUES=0
 TRAILING_WHITESPACE_ISSUES=0
@@ -48,81 +48,48 @@ TRAILING_WHITESPACE_ISSUES=0
 TMP_DIR=$(mktemp -d)
 trap "rm -rf $TMP_DIR" EXIT
 
-# Check each staged file
 for FILE in $STAGED_FILES; do
-    # Skip deleted files
+    # Skip files that don't exist (might be deleted)
     if [ ! -f "$FILE" ]; then
         continue
     fi
-    
-    echo "Checking $FILE..."
-    
+
+    # Format the file and compare
+    FORMATTED_FILE="$TMP_DIR/$(basename "$FILE")"
+    clang-format "$FILE" > "$FORMATTED_FILE"
+
+    if ! diff -q "$FILE" "$FORMATTED_FILE" > /dev/null; then
+        echo -e "${RED}Formatting issue in $FILE${NC}"
+        FORMATTING_ISSUES=$((FORMATTING_ISSUES + 1))
+
+        # Show diff
+        echo "Differences:"
+        diff -u "$FILE" "$FORMATTED_FILE" | head -20
+        echo ""
+    fi
+
     # Check for trailing whitespace
-    if grep -n '[[:space:]]$' "$FILE" > /dev/null; then
-        echo -e "${RED}  ✗ Trailing whitespace found${NC}"
-        grep -n '[[:space:]]$' "$FILE" | head -5 | while read -r line; do
-            echo -e "${YELLOW}    Line: $line${NC}"
-        done
+    if grep -q '[[:space:]]$' "$FILE"; then
+        echo -e "${RED}Trailing whitespace found in $FILE${NC}"
         TRAILING_WHITESPACE_ISSUES=$((TRAILING_WHITESPACE_ISSUES + 1))
-    fi
-    
-    # Run uncrustify to check formatting
-    TMP_FILE="${TMP_DIR}/$(basename $FILE)"
-    if ! uncrustify -c "$UNCRUSTIFY_CONFIG" -f "$FILE" -o "$TMP_FILE" --no-backup -q; then
-        echo -e "${RED}  ✗ Uncrustify failed${NC}"
-        FORMATTING_ISSUES=$((FORMATTING_ISSUES + 1))
-        continue
-    fi
-    
-    # Compare the original and formatted files
-    if ! diff -q "$FILE" "$TMP_FILE" > /dev/null; then
-        echo -e "${RED}  ✗ File needs formatting${NC}"
-        FORMATTING_ISSUES=$((FORMATTING_ISSUES + 1))
-        
-        # Show a preview of the changes (first 10 lines of diff)
-        echo -e "${YELLOW}    Preview of required changes:${NC}"
-        diff -u "$FILE" "$TMP_FILE" | awk 'NR>=3 && NR<=15 {print "    " $0}' | while read -r line; do
-            echo -e "${YELLOW}$line${NC}"
-        done
-    else
-        echo -e "${GREEN}  ✓ Formatting OK${NC}"
     fi
 done
 
-# Report results
-echo ""
-if [ $FORMATTING_ISSUES -gt 0 ] || [ $TRAILING_WHITESPACE_ISSUES -gt 0 ]; then
-    echo -e "${RED}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${RED}║  Commit aborted: Code formatting issues detected              ║${NC}"
-    echo -e "${RED}╚════════════════════════════════════════════════════════════════╝${NC}"
+# If there are formatting issues, offer to fix them
+if [ $FORMATTING_ISSUES -gt 0 ]; then
+    echo -e "${YELLOW}Found $FORMATTING_ISSUES file(s) with formatting issues.${NC}"
+    echo "Run the following to fix:"
+    echo "  find Src -name \"*.cpp\" -o -name \"*.h\" | xargs clang-format -i"
     echo ""
-    
-    if [ $FORMATTING_ISSUES -gt 0 ]; then
-        echo -e "${YELLOW}Files with formatting issues: $FORMATTING_ISSUES${NC}"
-        echo "To fix formatting, run:"
-        echo ""
-        echo "  uncrustify -c .uncrustify.cfg --no-backup --replace <file>"
-        echo ""
-        echo "Or to format all staged files automatically:"
-        echo ""
-        echo "  git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cpp|cc|cxx|h|hpp)$' | xargs -r uncrustify -c .uncrustify.cfg --no-backup --replace"
-        echo ""
-    fi
-    
-    if [ $TRAILING_WHITESPACE_ISSUES -gt 0 ]; then
-        echo -e "${YELLOW}Files with trailing whitespace: $TRAILING_WHITESPACE_ISSUES${NC}"
-        echo "To remove trailing whitespace, run:"
-        echo ""
-        echo "  sed -i 's/[[:space:]]*$//' <file>"
-        echo ""
-    fi
-    
-    echo "After fixing issues, stage your changes again with 'git add' and retry the commit."
+    echo -e "${RED}Commit aborted. Please fix formatting issues and try again.${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║  All checks passed! Proceeding with commit...                 ║${NC}"
-echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
+# If there are trailing whitespace issues, warn but don't block
+if [ $TRAILING_WHITESPACE_ISSUES -gt 0 ]; then
+    echo -e "${YELLOW}Warning: Found $TRAILING_WHITESPACE_ISSUES file(s) with trailing whitespace.${NC}"
+    echo "Consider removing trailing whitespace before committing."
+fi
 
+echo -e "${GREEN}All staged C++ files are properly formatted!${NC}"
 exit 0
