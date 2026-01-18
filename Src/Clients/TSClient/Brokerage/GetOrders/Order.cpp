@@ -88,8 +88,7 @@ Order::Order(const QJsonObject &jsonObj, bool isUpdate_) :
     // Parse status code and convert to enum
     QString statusCode = jsonObj["Status"].toString();
 
-    // TODO: Handle unknown status codes gracefully
-    orderStatus = QtEnum::fromString<Order::Status>(statusCode).value_or(Order::Status::ACK);
+    orderStatus = QtEnum::fromString<Order::Status>(statusCode);
     
     // Parse display fields from Legs array
     if (jsonObj.contains("Legs") && jsonObj["Legs"].isArray()) {
