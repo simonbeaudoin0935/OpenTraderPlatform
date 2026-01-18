@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y \
     tree \
     cmake \
     ccache \
-    uncrustify \
+    clang-format \
     build-essential \
     debhelper-compat \
     crossbuild-essential-arm64 \
