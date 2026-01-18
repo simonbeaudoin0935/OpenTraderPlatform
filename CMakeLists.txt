@@ -11,33 +11,52 @@ option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
 # Option to enable AddressSanitizer
 option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
 
-# Compiler warnings
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Wall -Wextra -Wpedantic")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wcast-align -Wcast-qual")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wnon-virtual-dtor")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wnull-dereference -Woverloaded-virtual")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wshadow -Wunused")
-
-# Disable some warnings that are too noisy or incompatible with Qt
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-old-style-cast") # Qt uses C-style casts extensively
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-conversion") # Qt APIs often mix signed/unsigned
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-conversion") # Too noisy with Qt
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-missing-include-dirs") # Can be problematic with Qt paths
-
-# Enable sanitizers if requested
-if(ENABLE_UBSAN)
-    message(STATUS "UndefinedBehaviorSanitizer enabled")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined -fno-sanitize-recover=all")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=undefined")
+# Check for incompatible sanitizer options
+if(ENABLE_UBSAN AND ENABLE_ASAN)
+    message(FATAL_ERROR "Cannot enable both UBSan and ASan simultaneously. Please choose only one.")
 endif()
 
-if(ENABLE_ASAN)
-    message(STATUS "AddressSanitizer enabled")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=address")
+# Compiler warnings (GCC and Clang only)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(
+        -Werror
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wcast-align
+        -Wcast-qual
+        -Wdouble-promotion
+        -Wformat=2
+        -Wimplicit-fallthrough
+        -Wnon-virtual-dtor
+        -Wnull-dereference
+        -Woverloaded-virtual
+        -Wshadow
+        -Wunused
+    )
+
+    # Disable some warnings that are too noisy or incompatible with Qt
+    add_compile_options(
+        -Wno-old-style-cast      # Qt uses C-style casts extensively
+        -Wno-sign-conversion     # Qt APIs often mix signed/unsigned
+        -Wno-conversion          # Too noisy with Qt
+        -Wno-missing-include-dirs # Can be problematic with Qt paths
+    )
+endif()
+
+# Enable sanitizers if requested (GCC and Clang only)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    if(ENABLE_UBSAN)
+        message(STATUS "UndefinedBehaviorSanitizer enabled")
+        add_compile_options(-fsanitize=undefined -fno-sanitize-recover=all)
+        add_link_options(-fsanitize=undefined)
+    endif()
+
+    if(ENABLE_ASAN)
+        message(STATUS "AddressSanitizer enabled")
+        add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+        add_link_options(-fsanitize=address)
+    endif()
 endif()
 
 # Disable exceptions - must define QT_NO_EXCEPTIONS for Qt headers to match
