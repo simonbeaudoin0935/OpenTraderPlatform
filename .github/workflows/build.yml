@@ -93,6 +93,8 @@ jobs:
 
   build-with-ubsan:
     runs-on: [self-hosted, Linux, X64]
+    permissions:
+      contents: read
     if: |
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
@@ -119,6 +121,7 @@ jobs:
   run-barcache-test-ubsan:
     runs-on: [self-hosted, Linux, X64]
     needs: [build-with-ubsan]
+    permissions: {}
 
     steps:
     - name: Run BarCache unit test with UBSan
@@ -127,6 +130,7 @@ jobs:
   run-tsclient-test-ubsan:
     runs-on: [self-hosted, Linux, X64]
     needs: [build-with-ubsan]
+    permissions: {}
 
     steps:
     - name: Run TSClient unit test with UBSan
@@ -135,6 +139,7 @@ jobs:
   run-runupdetector-test-ubsan:
     runs-on: [self-hosted, Linux, X64]
     needs: [build-with-ubsan]
+    permissions: {}
 
     steps:
     - name: Run RunUpDetector unit test with UBSan
@@ -143,6 +148,7 @@ jobs:
   run-recorder-integration-test-ubsan:
     runs-on: [self-hosted, Linux, X64]
     needs: [build-with-ubsan]
+    permissions: {}
 
     steps:
     - name: Run Recorder integration test with UBSan
