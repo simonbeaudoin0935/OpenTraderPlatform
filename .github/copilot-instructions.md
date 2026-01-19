@@ -75,36 +75,15 @@ When executing a Premium Request after being assigned an issue on GitHub and you
 
 4. **Build all targets**:
    ```bash
-   cmake --build . --parallel
+   cmake --build . -j2
    ```
-   - Uses all available CPU cores
-   - Takes ~2-5 minutes depending on hardware and ccache's cached runs.
-   - Builds main application, tests, and recorder
+   - Uses 2 cores
 
-#### Regulat Local prompts in VSCode
+#### Regular Local prompts in VSCode
 When executing a local prompt in VSCode, instead use the tasks defined in .vscode/tasks.json to build the project.
 Use :
-- build-all : This builds everything, takes more time
-- build-main-only : This to just build the main app, handy to quickly verifying syntax
+- build : This builds everything
 
-### Test Execution
-Tests must be built first (include `-DBUILD_TESTS=ON` in cmake configure, or the build-all vscode task).
-
-1. **Run all tests**:
-   ```bash
-   cd build
-   ctest --output-on-failure
-   ```
-   - Takes ~30-60 seconds
-   - Excludes FMPClientTest (requires API key)
-   - Individual test executables are in `build/Tests/`
-
-2. **Run specific tests**:
-   ```bash
-   ./Tests/test_barcache --stock-csv=../Example_Config/nasdaq_screener.csv
-   ./Tests/test_RunUpDetector
-   ./Tests/test_tradestationclient
-   ```
 
 ### Run Application
 1. **GUI Mode** (default):
