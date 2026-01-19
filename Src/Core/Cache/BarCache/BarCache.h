@@ -64,7 +64,7 @@ class BarCache : public QObject
 
     void storeBarInCache(const Bar& bar);
 
-    void storeBarsInCache(const QDate& date, const std::shared_ptr<QVector<Bar>> bars);
+    void storeBarsInCache(const QDate& date, std::shared_ptr<QVector<Bar>> bars);
 
     void handleReceivedAllPendingGetBarsRequests();
     QVector<Bar>

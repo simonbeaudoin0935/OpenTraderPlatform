@@ -42,14 +42,13 @@ class AccountType
     {
         if (str == "Cash")
             return Type::Cash;
-        else if (str == "Margin")
+        if (str == "Margin")
             return Type::Margin;
-        else if (str == "Futures")
+        if (str == "Futures")
             return Type::Futures;
-        else if (str == "DVP")
+        if (str == "DVP")
             return Type::DVP;
-        else
-            Q_ASSERT(0);
+        Q_ASSERT(0);
     }
 
     Type type;

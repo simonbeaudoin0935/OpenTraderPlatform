@@ -169,7 +169,7 @@ class TSClient final : public QObject
         return m_totalDataReceivedBytes;
     };
     [[nodiscard]] bool isCleanedUp();
-    [[nodiscard]] size_t getStreamCount() const
+    [[nodiscard]] static size_t getStreamCount()
     {
         return Stream::getNumberOpenStream();
     }

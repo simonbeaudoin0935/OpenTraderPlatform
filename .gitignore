@@ -1,5 +1,6 @@
 build/
 src/Misc/Logging_generated.h
+compile_commands.json
 
 qcustomplot/examples/
 
