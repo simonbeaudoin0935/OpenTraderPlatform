@@ -480,11 +480,11 @@ void StockPriceChart::updateVolumeData()
 
 /**
  * @brief Rescales the volume Y-axis based on the second highest volume of visible bars.
- * 
+ *
  * Uses the second highest volume bar to determine the Y-axis range, which helps avoid
  * erratic single high-volume bars from skewing the scale. If there's only one bar with
  * volume, the highest is used instead.
- * 
+ *
  * Only performs rescaling if m_volumeAutoRescaleEnabled is true.
  */
 void StockPriceChart::rescaleVolumeAxisToVisibleRange()
@@ -543,19 +543,19 @@ void StockPriceChart::rescaleVolumeAxisToVisibleRange()
 
 /**
  * @brief Updates the background colors for different market sessions.
- * 
+ *
  * Draws colored background rectangles to indicate:
  * - Pre-market hours (brownish/orange)
  * - After-hours (blueish/violet)
- * 
+ *
  * Only draws backgrounds for the currently visible time range.
  */
 /**
  * @brief Draws background rectangles for trading sessions based on received bars.
- * 
+ *
  * This is called once when bars are received, creating fixed rectangles that
  * QCustomPlot will automatically clip to the visible range.
- * 
+ *
  * @param bars The bars that were just received (typically a complete day's worth)
  */
 void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
@@ -624,7 +624,7 @@ void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
 
 /**
  * @brief Draws background rectangles for trading sessions based on all loaded bars.
- * 
+ *
  * Only creates backgrounds for dates that don't already have them.
  * QCustomPlot handles clipping to the visible range automatically.
  */
@@ -717,10 +717,10 @@ void StockPriceChart::clearBackgroundRects()
 
 /**
  * @brief Draws a background rectangle for a specific time range.
- * 
+ *
  * Creates a colored background rectangle covering the bars that fall within
  * the specified time range, clipped to the currently visible area.
- * 
+ *
  * @param rangeStart The start time of the range to highlight.
  * @param rangeEnd The end time of the range to highlight.
  * @param color The color for the background rectangle.
@@ -728,10 +728,10 @@ void StockPriceChart::clearBackgroundRects()
  */
 /**
  * @brief Draws a fixed background rectangle for a specific time range.
- * 
+ *
  * Creates a rectangle with fixed coordinates that spans the entire Y-axis.
  * QCustomPlot will automatically handle clipping to the visible range.
- * 
+ *
  * @param rangeStart The start time of the range to highlight.
  * @param rangeEnd The end time of the range to highlight.
  * @param color The color for the background rectangle.

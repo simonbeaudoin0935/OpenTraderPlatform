@@ -141,34 +141,34 @@ sequenceDiagram
 
     Client->>BarCache: getBars(date, first, last)
     Note over BarCache: Assert: weekday, valid hours,<br/>not future date/time
-    
+
     BarCache->>MemoryCache: getBarsFromCache(date, first, last)
-    
+
     alt Day exists and range is initialized
         MemoryCache-->>BarCache: unique_ptr<QVector<Bar>>
         BarCache-->>Client: Return bars immediately (variant holds shared_ptr)
     else Cache miss (day missing or uninitialized bars)
         MemoryCache-->>BarCache: std::nullopt
-        
+
         BarCache->>DatabaseThread: getBarsFromDatabase(symbol, date, first, last)
         Note over BarCache: Returns QFuture - async
-        
+
         DatabaseThread-->>BarCache: optional<unique_ptr<QVector<Bar>>>
-        
+
         alt Database has complete range
             BarCache->>MemoryCache: storeBarsInCache(date, bars)
             BarCache-->>Client: Resolve QFuture with bars
         else Database miss
             Note over BarCache: Determine fetch range:<br/>Past day: 6:01am-8:00pm<br/>Current day: 6:01am to now
-            
+
             BarCache->>TSClient: getBars(symbol, startDateTime, endDateTime)
             TSClient-->>BarCache: expected<unique_ptr<QVector<Bar>>, Error>
-            
+
             BarCache->>BarCache: fillHolesOfReceivedRequest()
             BarCache->>MemoryCache: storeBarsInCache(date, bars)
             BarCache->>DatabaseThread: storeBarsInDatabase(symbol, date, bars)
             Note over DatabaseThread: Fire-and-forget async storage
-            
+
             BarCache-->>Client: Resolve QFuture with bars
         end
     end
@@ -180,27 +180,27 @@ sequenceDiagram
 flowchart TD
     START(["getBars(date, first, last)"]) --> ASSERT["Assert preconditions:<br/>• Weekday (Mon-Fri)<br/>• 6:01am ≤ time ≤ 8:00pm<br/>• Not future date/time<br/>• Seconds/ms are zero"]
     ASSERT --> CHECK_MEMORY["Check memory cache<br/>getBarsFromCache()"]
-    
+
     CHECK_MEMORY -->|"Hit: all bars initialized"| RETURN_SYNC["Return shared_ptr<QVector<Bar>><br/>(synchronous)"]
-    
+
     CHECK_MEMORY -->|"Miss"| CHECK_DB["Query DatabaseThread<br/>(async)"]
-    
+
     CHECK_DB --> DB_RESULT{"Database<br/>has data?"}
-    
+
     DB_RESULT -->|"Yes"| STORE_MEMORY["Store in memory cache"]
     STORE_MEMORY --> RESOLVE_DB["Resolve QFuture<br/>with bars"]
-    
+
     DB_RESULT -->|"No"| DETERMINE_RANGE{"Current day?"}
-    
+
     DETERMINE_RANGE -->|"Yes"| FETCH_PARTIAL["Fetch API: 6:01am to now"]
     DETERMINE_RANGE -->|"No"| FETCH_FULL["Fetch API: 6:01am to 8:00pm"]
-    
+
     FETCH_PARTIAL --> FILL_HOLES["fillHolesOfReceivedRequest()<br/>Insert null bars for gaps"]
     FETCH_FULL --> FILL_HOLES
-    
+
     FILL_HOLES --> STORE_BOTH["Store in:<br/>• Memory cache (sync)<br/>• Database (async)"]
     STORE_BOTH --> RESOLVE_API["Resolve QFuture<br/>with bars"]
-    
+
     RETURN_SYNC --> END(["End"])
     RESOLVE_DB --> END
     RESOLVE_API --> END
@@ -211,23 +211,23 @@ flowchart TD
 ```mermaid
 stateDiagram-v2
     [*] --> Created: BarCache(symbol, isStreaming, parent)
-    
+
     Created --> InitializingDB: Open database via DatabaseThread
-    
+
     InitializingDB --> Ready: Database opened (async)
     InitializingDB --> StreamStarted: if isStreaming
-    
+
     StreamStarted --> Ready: Stream connected
-    
+
     Ready --> Fetching: getBars() cache miss
     Fetching --> Ready: Bars received & cached
-    
+
     Ready --> Streaming: Live bar received
     Streaming --> Ready: Bar stored in cache
-    
+
     Ready --> StreamReconnecting: Stream error
     StreamReconnecting --> Ready: Stream reconnected
-    
+
     Ready --> [*]: ~BarCache()
 
     note right of Created
@@ -250,7 +250,7 @@ graph TB
         MC["Memory Cache<br/>(QMap&lt;QDate, QVector&lt;Bar&gt;&gt;)<br/>Protected by QReadWriteLock"]
         SB[StreamBars]
     end
-    
+
     subgraph "Database Layer"
         DBT["DatabaseThread<br/>(Singleton)"]
         DB[("SQLite Database<br/>bars_cache_{symbol}.db")]

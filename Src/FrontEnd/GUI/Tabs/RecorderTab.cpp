@@ -563,7 +563,7 @@ void RecorderTab::updateErrorTable() {
     // Process Bars errors
     auto barsErrors = m_liveBarsDB->getErrorCounters();
     QMap<Stream::StreamError, int> barsErrorTypeCounts;
-    
+
     for (auto symbolIt = barsErrors.begin(); symbolIt != barsErrors.end(); ++symbolIt) {
         for (auto errorIt = symbolIt.value().begin(); errorIt != symbolIt.value().end(); ++errorIt) {
             barsErrorTypeCounts[errorIt.key()] += errorIt.value();
@@ -580,20 +580,20 @@ void RecorderTab::updateErrorTable() {
         if (it.key() == Stream::StreamError::Timeout) {
             auto recovered = m_liveBarsDB->getRecoveredTimeouts();
             auto unrecovered = m_liveBarsDB->getUnrecoveredTimeoutCounts();
-            
+
             int totalRecovered = 0;
             int totalUnrecovered = 0;
-            
+
             for (auto rit = recovered.begin(); rit != recovered.end(); ++rit) {
                 totalRecovered += rit.value();
             }
             for (auto uit = unrecovered.begin(); uit != unrecovered.end(); ++uit) {
                 totalUnrecovered += uit.value();
             }
-            
+
             int totalTimeouts = totalRecovered + totalUnrecovered;
             double recoveryRate = totalTimeouts > 0 ? (static_cast<double>(totalRecovered) / totalTimeouts) * 100.0 : 0.0;
-            
+
             m_errorTable->setItem(row, 3, new QTableWidgetItem(QString::number(totalRecovered)));
             m_errorTable->setItem(row, 4, new QTableWidgetItem(QString("%1%").arg(recoveryRate, 0, 'f', 1)));
         } else {
@@ -607,7 +607,7 @@ void RecorderTab::updateErrorTable() {
     // Process Market Depth errors
     auto depthErrors = m_liveMarketDepthQuoteDB->getErrorCounters();
     QMap<Stream::StreamError, int> depthErrorTypeCounts;
-    
+
     for (auto symbolIt = depthErrors.begin(); symbolIt != depthErrors.end(); ++symbolIt) {
         for (auto errorIt = symbolIt.value().begin(); errorIt != symbolIt.value().end(); ++errorIt) {
             depthErrorTypeCounts[errorIt.key()] += errorIt.value();
@@ -624,20 +624,20 @@ void RecorderTab::updateErrorTable() {
         if (it.key() == Stream::StreamError::Timeout) {
             auto recovered = m_liveMarketDepthQuoteDB->getRecoveredTimeouts();
             auto unrecovered = m_liveMarketDepthQuoteDB->getUnrecoveredTimeoutCounts();
-            
+
             int totalRecovered = 0;
             int totalUnrecovered = 0;
-            
+
             for (auto rit = recovered.begin(); rit != recovered.end(); ++rit) {
                 totalRecovered += rit.value();
             }
             for (auto uit = unrecovered.begin(); uit != unrecovered.end(); ++uit) {
                 totalUnrecovered += uit.value();
             }
-            
+
             int totalTimeouts = totalRecovered + totalUnrecovered;
             double recoveryRate = totalTimeouts > 0 ? (static_cast<double>(totalRecovered) / totalTimeouts) * 100.0 : 0.0;
-            
+
             m_errorTable->setItem(row, 3, new QTableWidgetItem(QString::number(totalRecovered)));
             m_errorTable->setItem(row, 4, new QTableWidgetItem(QString("%1%").arg(recoveryRate, 0, 'f', 1)));
         } else {

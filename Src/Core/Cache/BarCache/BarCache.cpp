@@ -383,7 +383,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
 
                             // Make this a shared_ptr so that a reference can be sent to the DatabaseThread and be worked on it
                             // at the same time as we sent the other reference back to the caller
-                            std::shared_ptr<QVector<Bar>> barsFromApiHolesFilled = 
+                            std::shared_ptr<QVector<Bar>> barsFromApiHolesFilled =
                                 std::make_shared<QVector<Bar>>(fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars.value()));
 
                             // Store the complete day in memory cache

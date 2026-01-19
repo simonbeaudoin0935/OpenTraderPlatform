@@ -8,7 +8,7 @@
 
 /**
  * @brief Singleton class to manage application shortcuts
- * 
+ *
  * This class handles loading, saving, and validating keyboard shortcuts.
  * Shortcuts are persisted to disk immediately when changed.
  */

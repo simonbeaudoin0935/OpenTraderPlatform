@@ -75,7 +75,7 @@ You will need API credentials for:
    # On macOS with Homebrew - Optional packages (recommended for development)
    brew install uncrustify ccache
    ```
-   
+
    **Note**: `uncrustify` is needed for the pre-commit formatting hook. `ccache` speeds up rebuilds significantly.
 
 3. **Set up Git hooks** (optional but recommended for contributors):

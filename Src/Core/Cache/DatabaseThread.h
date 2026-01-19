@@ -17,16 +17,16 @@ Q_DECLARE_LOGGING_CATEGORY(DatabaseThreadLog)
 
 /**
  * @brief Singleton thread dedicated to all database operations.
- * 
+ *
  * This class ensures all QSqlDatabase operations happen on the same thread
  * that created the connection, as required by Qt's threading model.
- * 
+ *
  * Usage pattern:
  * 1. Call getInstance() to get the singleton
  * 2. Call start() once at application startup
  * 3. Use openDatabase() to create a connection for a symbol
  * 4. Use getBarsFromDatabase() and storeBarsInDatabase() for data operations
- * 
+ *
  * All public methods are thread-safe and can be called from any thread.
  * The actual work is executed on the dedicated database thread via
  * QMetaObject::invokeMethod with Qt::QueuedConnection.

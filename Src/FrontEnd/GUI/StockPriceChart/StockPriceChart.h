@@ -20,7 +20,7 @@ Q_DECLARE_LOGGING_CATEGORY(ChartLog)
 /**
  * @class StockPriceChart
  * @brief A chart widget that displays stock price data using candlesticks via qcustomplot.
- * 
+ *
  * This chart displays bars continuously without gaps for closed market periods.
  * It uses an index-based positioning system where each bar is assigned a sequential
  * index (0, 1, 2, ...) for continuous display, while maintaining mappings to actual
@@ -28,7 +28,7 @@ Q_DECLARE_LOGGING_CATEGORY(ChartLog)
  * - Last bar Friday 7:59pm → next to Monday 4:00am (no weekend gap)
  * - Last bar 7:59pm → next to next day 4:00am (no overnight gap)
  * - Only 4am-8pm ET trading hours on weekdays
- * 
+ *
  * Uses qcustomplot library for rendering instead of Qt Charts.
  */
 class StockPriceChart : public QWidget

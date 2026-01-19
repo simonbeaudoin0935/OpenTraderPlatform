@@ -183,8 +183,8 @@ bool Bar::isValid() const
     }
 
     // Check numeric fields for valid values
-    if (downTicks < 0 || downVolume < 0 || totalTicks < 0 || 
-        unchangedTicks < 0 || unchangedVolume < 0 || upTicks < 0 || 
+    if (downTicks < 0 || downVolume < 0 || totalTicks < 0 ||
+        unchangedTicks < 0 || unchangedVolume < 0 || upTicks < 0 ||
         upVolume < 0 || epoch <= 0) {
         return false;
     }
