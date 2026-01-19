@@ -19,7 +19,7 @@ MemoryMonitor::MemoryMonitor(QObject* parent) : QObject(parent), timer(new QTime
 MemoryMonitor::~MemoryMonitor()
 {
     stopMonitoring();
-    delete timer;
+    // timer is automatically deleted by Qt parent-child ownership (parent is 'this')
 }
 
 void MemoryMonitor::startMonitoring(int intervalMs)
