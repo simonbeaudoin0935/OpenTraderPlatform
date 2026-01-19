@@ -2,6 +2,8 @@ build/
 Src/Misc/Logging_generated.h
 compile_commands.json
 
+_codeql_build_dir/
+
 qcustomplot/examples/
 
 # Debian packaging artifacts
