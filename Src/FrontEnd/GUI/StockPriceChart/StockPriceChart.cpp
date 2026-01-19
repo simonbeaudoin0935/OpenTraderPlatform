@@ -10,6 +10,7 @@
 #include "Misc/Settings.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "Misc/SqlQueries.h"
 
 #define LOGGING_CATEGORY ChartLog
 #define CANDLESTICK_BODY_WIDTH 0.9 // 90% of available space
@@ -1322,8 +1323,7 @@ std::tuple<QDateTime, QDateTime, int> StockPriceChart::queryStockTimeRangeForDat
 
     // Query for min, max timestamps and count for the symbol
     QSqlQuery query(db);
-    query.prepare("SELECT MIN(epochMs), MAX(epochMs), COUNT(*) FROM bars "
-                  "WHERE stockTicker = ? AND epochMs >= ? AND epochMs <= ?");
+    query.prepare(SqlQueries::SELECT_STOCK_TIME_RANGE);
     query.addBindValue(symbol);
     query.addBindValue(startEpochMs);
     query.addBindValue(endEpochMs);

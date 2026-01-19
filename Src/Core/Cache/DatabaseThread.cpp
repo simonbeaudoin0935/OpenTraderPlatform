@@ -8,6 +8,7 @@
 #include "DatabaseThread.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "Misc/SqlQueries.h"
 
 #define LOGGING_CATEGORY DatabaseThreadLog
 
@@ -193,16 +194,7 @@ bool DatabaseThread::openDatabaseInternal(const QString& symbol, const QString& 
 
     // Create table if not exists
     QSqlQuery query(db);
-    bool success = query.exec("CREATE TABLE IF NOT EXISTS bars ("
-                              "date TEXT, "
-                              "[index] INTEGER, "
-                              "open REAL, "
-                              "high REAL, "
-                              "low REAL, "
-                              "close REAL, "
-                              "volume INTEGER, "
-                              "status INTEGER DEFAULT 0, "
-                              "PRIMARY KEY (date, [index]))");
+    bool success = query.exec(SqlQueries::CREATE_BAR_CACHE_TABLE);
 
     if (!success)
     {
@@ -271,9 +263,7 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
     Q_ASSERT(indexStart < indexEnd);
 
     QSqlQuery query(db);
-    query.prepare("SELECT [index], open, high, low, close, volume, status "
-                  "FROM bars WHERE date = ? AND [index] >= ? AND [index] <= ? "
-                  "ORDER BY [index]");
+    query.prepare(SqlQueries::SELECT_BARS_BY_DATE_AND_INDEX);
     query.addBindValue(date.toString("yyyy-MM-dd"));
     query.addBindValue(static_cast<int>(indexStart));
     query.addBindValue(static_cast<int>(indexEnd));
@@ -352,9 +342,7 @@ int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDa
     DEBUG << "Storing" << bars.size() << "bars in database for" << symbol;
 
     QSqlQuery query(db);
-    query.prepare("INSERT OR REPLACE INTO bars "
-                  "(date, [index], open, high, low, close, volume, status) "
-                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    query.prepare(SqlQueries::INSERT_OR_REPLACE_BAR);
 
     int storedCount = 0;
     for (const Bar& bar: bars)
@@ -407,7 +395,7 @@ bool DatabaseThread::clearDatabaseInternal(const QString& symbol)
     INFO << "Clearing all bars from database for" << symbol;
 
     QSqlQuery query(db);
-    if (query.exec("DELETE FROM bars"))
+    if (query.exec(SqlQueries::DELETE_ALL_BARS))
     {
         INFO << "Successfully cleared database for" << symbol;
         return true;

@@ -3,7 +3,7 @@
 #include <QDebug>
 
 #include "LiveStreamDB.h"
-#include "SqlQueries.h"
+#include "Misc/SqlQueries.h"
 #include "TSClient.h"
 #include "Logging.h"
 
@@ -348,7 +348,7 @@ int LiveStreamDB::getRecordCount() const
 {
     QSqlQuery query(db);
     QString tableName = (streamType == StreamType::Bars) ? "bars" : "market_depth_quotes";
-    query.prepare(QString("SELECT COUNT(*) FROM %1").arg(tableName));
+    query.prepare(SqlQueries::SELECT_COUNT_FROM_TABLE.arg(tableName));
     if (query.exec() && query.next())
     {
         return query.value(0).toInt();
