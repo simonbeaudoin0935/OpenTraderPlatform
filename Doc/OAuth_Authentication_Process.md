@@ -592,6 +592,159 @@ The authentication system can be tested through:
 
 ---
 
+## GUI vs TUI Mode Support
+
+The authentication system now supports both GUI and TUI (Text User Interface) modes, allowing the application to run in headless environments without a graphical interface.
+
+### Architecture Overview
+
+The authentication logic has been refactored into a layered architecture:
+
+```
+AuthHandler (Base Class)
+├── Core OAuth logic (HTTP server, token exchange)
+├── Protected virtual methods for UI interaction
+└── Used by both GUI and TUI implementations
+
+AuthWindow (GUI Mode)
+├── QDialog-based GUI implementation
+├── GUIAuthHandler (inner class inherits AuthHandler)
+└── Uses QInputDialog, QMessageBox, QDesktopServices
+
+HeadlessAuthHandler (TUI Mode)
+├── Console-based implementation
+├── Inherits from AuthHandler
+└── Uses stdin/stdout for user interaction
+```
+
+### Build Configuration
+
+The mode is controlled at compile time using CMake options:
+
+```bash
+# Build with GUI support (default)
+cmake -DENABLE_GUI=ON ..
+
+# Build for TUI/headless mode
+cmake -DENABLE_GUI=OFF ..
+```
+
+When `GUI_ENABLED` is defined, the GUI authentication path is used. Otherwise, the headless handler is used.
+
+### GUI Mode Authentication
+
+**User Experience:**
+1. Application displays a Qt dialog window
+2. If credentials are missing, QInputDialog prompts for Client ID and Secret
+3. System web browser automatically opens to TradeStation login page
+4. After authentication, dialog shows success message and closes
+
+**Implementation:**
+```cpp
+#ifdef GUI_ENABLED
+AuthWindow* m_authWindow = new AuthWindow();
+connect(m_authWindow, &AuthWindow::authFinished, this, &TSClient::onAuthFinished);
+m_authWindow->show();
+#endif
+```
+
+### TUI Mode Authentication
+
+**User Experience:**
+1. Console prompts for Client ID (visible input)
+2. Console prompts for Client Secret (hidden input on Unix systems)
+3. Authentication URL is displayed in the terminal
+4. User manually copies URL to web browser
+5. After authentication, callback is received by local HTTP server
+6. Success/failure message displayed in console
+
+**Example Output:**
+```
+=== TradeStation API Credentials Setup ===
+
+Please enter your TradeStation API credentials.
+
+Enter your Client ID: my-client-id-123
+Enter your Client Secret (input will be hidden): ********
+
+Would you like to save these credentials for future use? (y/N): y
+Credentials will be saved.
+
+=== TradeStation Authentication Required ===
+
+Please complete the authentication in your web browser.
+Copy and paste the following URL into your browser:
+
+https://signin.tradestation.com/authorize?response_type=code&client_id=...
+
+Waiting for authentication callback...
+(Keep this application running until authentication is complete)
+```
+
+**Implementation:**
+```cpp
+#ifndef GUI_ENABLED
+HeadlessAuthHandler* m_authHandler = new HeadlessAuthHandler();
+connect(m_authHandler, &HeadlessAuthHandler::authFinished, this, &TSClient::onAuthFinished);
+m_authHandler->startAuthentication();
+#endif
+```
+
+### Key Differences
+
+| Feature | GUI Mode | TUI Mode |
+|---------|----------|----------|
+| Credential Input | QInputDialog | stdin with termios |
+| Password Masking | QLineEdit::Password | termios echo disable |
+| Browser Launch | Automatic (QDesktopServices) | Manual URL copy-paste |
+| Error Display | QMessageBox | stderr output |
+| Save Prompt | QMessageBox::question | stdin y/N prompt |
+| Dependencies | Qt Widgets | Qt Core only |
+
+### Shared Core Logic
+
+Both modes share the same core OAuth implementation:
+
+- **HTTP Server**: Local server on localhost:8080-8089
+- **CSRF Protection**: Random state generation and validation
+- **Token Exchange**: POST to TradeStation OAuth endpoint
+- **Token Storage**: Secure storage via QKeychain/encrypted fallback
+- **Token Refresh**: Automatic refresh scheduling
+
+### Implementation Files
+
+**Base Classes:**
+- `Src/Clients/TSClient/Auth/AuthHandler.h/cpp` - Core OAuth logic
+
+**GUI Implementation:**
+- `Src/Clients/TSClient/Auth/AuthWindow.h/cpp` - GUI dialog and handler
+
+**TUI Implementation:**
+- `Src/Clients/TSClient/Auth/HeadlessAuthHandler.h/cpp` - Console-based handler
+
+**Integration:**
+- `Src/Clients/TSClient/TSClient.h` - Mode selection at compile time
+- `Src/Clients/TSClient/TSClientRefreshToken.cpp` - Authentication launching
+
+### Security Considerations for TUI Mode
+
+1. **Password Input**: On Unix systems, terminal echo is disabled during secret input using termios
+2. **Non-Unix Systems**: Displays warning that input will be visible
+3. **Manual URL Handling**: User must manually open browser, reducing automatic attack surface
+4. **Same CSRF Protection**: State validation works identically in both modes
+5. **Same Storage Security**: Uses identical QKeychain secure storage
+
+### Future Enhancements
+
+Potential improvements for TUI mode:
+- Support for Windows secure console input
+- ASCII art progress indicators
+- Color-coded output for better UX
+- QR code generation for mobile browser authentication
+- SSH port forwarding instructions for remote server deployments
+
+---
+
 ## Summary
 
 The L2Trader OAuth implementation provides robust, secure authentication with TradeStation's API using industry-standard OAuth 2.0 practices. Key features include:
@@ -600,8 +753,9 @@ The L2Trader OAuth implementation provides robust, secure authentication with Tr
 - ✅ Automatic token refresh before expiration
 - ✅ Platform-native secure storage via QKeychain
 - ✅ CSRF protection with state validation
-- ✅ User-friendly authentication UI
+- ✅ User-friendly authentication UI in both GUI and TUI modes
+- ✅ Headless/console mode support for server deployments
 - ✅ Graceful error handling and recovery
 - ✅ Comprehensive logging for debugging
 
-The system balances security, usability, and reliability to ensure uninterrupted access to TradeStation's trading platform.
+The system balances security, usability, and reliability to ensure uninterrupted access to TradeStation's trading platform in both graphical and headless environments.
