@@ -1,0 +1,37 @@
+name: Copilot Setup Steps
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set number of parallel jobs
+        run: echo "PARALLEL_JOBS=-j$(nproc)" >> $GITHUB_ENV
+
+      - name: Show CMake version
+        run: cmake --version
+
+      - name: Create build directory
+        run: mkdir -p build
+
+      - name: Configure with CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF -DENABLE_UBSAN=OFF -DENABLE_ASAN=OFF
+
+      - name: Build all targets
+        run: cmake --build build $PARALLEL_JOBS
