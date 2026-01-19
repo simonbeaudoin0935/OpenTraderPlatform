@@ -28,4 +28,4 @@ jobs:
       run: cppcheck --enable=all --std=c++23 --language=c++ --platform=unix64 --suppress=missingIncludeSystem Src/
 
     - name: Run clang-tidy
-      run: find Src/ -name "*.cpp" -o -name "*.h" | xargs clang-tidy --checks=-*,clang-analyzer-*,bugprone-*,performance-*,readability-* --warnings-as-errors=-* || true
+      run: find Src/ -name "*.cpp" -o -name "*.h" | xargs clang-tidy --checks=-*,clang-analyzer-*,bugprone-*,performance-*,readability-* --warnings-as-errors=-*
