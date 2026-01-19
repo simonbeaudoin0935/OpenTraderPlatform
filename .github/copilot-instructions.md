@@ -66,8 +66,9 @@ When executing a Premium Request after being assigned an issue on GitHub and you
 
 3. **Configure with CMake**:
    ```bash
-   cmake -S .. -B . -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=ON
+   cmake -S .. -B . -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF
    ```
+   - Dont build the tests
    - This generates Makefiles in the current directory
    - Takes ~10-15 seconds
    - Required flags: `-DENABLE_GUI=ON` for GUI build, `-DBUILD_TESTS=ON` for tests
