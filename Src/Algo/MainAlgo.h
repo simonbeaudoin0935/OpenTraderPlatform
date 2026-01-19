@@ -22,7 +22,7 @@ class StockInstruments : public QObject
 {
 
   public:
-    explicit StockInstruments(const QString& symbol);
+    explicit StockInstruments(const QString& p_symbol);
     ~StockInstruments();
 
     QString symbol;

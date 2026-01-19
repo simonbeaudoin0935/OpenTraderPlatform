@@ -16,13 +16,13 @@ class AuthToken
     AuthToken() : expiresIn(0) {}
 
     // Constructor from individual fields
-    AuthToken(const QString& accessToken,
-              const QString& refreshToken,
-              const QString& idToken,
-              const QString& tokenType,
-              const QString& scope,
-              int expiresIn,
-              QDateTime receivedAt);
+    AuthToken(const QString& p_accessToken,
+              const QString& p_refreshToken,
+              const QString& p_idToken,
+              const QString& p_tokenType,
+              const QString& p_scope,
+              int p_expiresIn,
+              QDateTime p_receivedAt);
 
     // Copy constructor
     AuthToken(const AuthToken& other) = default;

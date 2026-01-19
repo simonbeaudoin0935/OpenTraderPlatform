@@ -19,7 +19,7 @@ class AccountType
 
     AccountType(){};
 
-    AccountType(const QString& type) : type(stringToAccountType(type)) {}
+    AccountType(const QString& p_type) : type(stringToAccountType(p_type)) {}
 
     static QString accountTypeToString(Type type)
     {

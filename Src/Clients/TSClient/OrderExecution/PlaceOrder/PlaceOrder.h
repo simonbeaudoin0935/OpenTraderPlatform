@@ -119,7 +119,7 @@ class TimeInForce
 {
   public:
     // Constructor
-    TimeInForce(OrderDuration duration);
+    TimeInForce(OrderDuration p_duration);
 
     // Setters
     void setDuration(OrderDuration value);

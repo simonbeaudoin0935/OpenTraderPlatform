@@ -41,7 +41,7 @@ OrderType OrderType::fromString(const QString& str)
 }
 
 // TimeInForce implementation
-TimeInForce::TimeInForce(OrderDuration duration) : duration(duration) {}
+TimeInForce::TimeInForce(OrderDuration p_duration) : duration(p_duration) {}
 
 void TimeInForce::setDuration(OrderDuration value)
 {

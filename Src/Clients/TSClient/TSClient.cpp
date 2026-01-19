@@ -39,10 +39,10 @@ TSClient::~TSClient()
 
 TSClient::TSClient()
     : QObject()
-    , m_thread(new QThread())
-    , m_networkManager(new QNetworkAccessManager(this))
     , m_authenticated(false)
     , m_refreshInProgress(false)
+    , m_thread(new QThread())
+    , m_networkManager(new QNetworkAccessManager(this))
 {
     this->moveToThread(m_thread);
 
