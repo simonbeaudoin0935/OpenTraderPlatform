@@ -122,11 +122,17 @@ void PositionWindow::updatePosition(const QString& account, const Position& posi
                 QStandardItem* symbolItem = model->item(row, 0);   // Column 0 is Symbol
                 QStandardItem* quantityItem = model->item(row, 1); // Column 1 is Quantity
 
-                if (symbolItem && quantityItem && symbolItem->text() == symbol && quantityItem->text() == "0")
+                if (symbolItem && quantityItem && symbolItem->text() == symbol)
                 {
-                    existingRowWithZeroQty = row;
-                    oldPositionIdToRemove = it.key();
-                    break;
+                    // Compare numerical value to handle different string formats (0, 0.0, 0.00)
+                    bool conversionOk = false;
+                    double quantity = quantityItem->text().toDouble(&conversionOk);
+                    if (conversionOk && quantity == 0.0)
+                    {
+                        existingRowWithZeroQty = row;
+                        oldPositionIdToRemove = it.key();
+                        break;
+                    }
                 }
             }
         }
