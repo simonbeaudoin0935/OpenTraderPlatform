@@ -10,8 +10,8 @@
 #define LOGGING_CATEGORY LiveStreamDBLog
 Q_LOGGING_CATEGORY(LiveStreamDBLog, "LiveStreamDB");
 
-LiveStreamDB::LiveStreamDB(StreamType type, const QString& dbPath, QStringList& stockTickers)
-    : streamType(type), stockTickers(stockTickers)
+LiveStreamDB::LiveStreamDB(StreamType type, const QString& dbPath, QStringList& p_stockTickers)
+    : streamType(type), stockTickers(p_stockTickers)
 {
     QString connectionName = (type == StreamType::Bars) ? "LiveBarsDB" : "LiveMarketDepthQuoteDB";
 

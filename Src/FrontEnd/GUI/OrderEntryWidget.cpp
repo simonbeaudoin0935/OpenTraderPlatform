@@ -11,7 +11,6 @@
 
 OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     : QWidget(p_parent)
-    , m_guiFrontend(nullptr)
     , m_headerLabel(new QLabel("ORDER ENTRY", this))
     , m_symbolInput(new QLineEdit(this))
     , m_buyRadio(new QRadioButton("Buy", this))
@@ -35,6 +34,7 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     , m_confirmationEnabled(true)          // Default to enabled
     , m_resultPopupEnabled(true)           // Default to enabled
     , m_cancelAllConfirmationEnabled(true) // Default to enabled
+    , m_guiFrontend(nullptr)
 {
     setupUI();
     setupStyles();

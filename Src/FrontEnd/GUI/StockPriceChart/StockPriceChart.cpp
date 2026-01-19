@@ -351,6 +351,11 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
     switch (bar.getBarStatus())
     {
+    case Bar::BarStatus::Uninitialized:
+        // Should not receive uninitialized bars
+        Q_ASSERT(false);
+        break;
+
     case Bar::BarStatus::Null:
         // Tradestation doesnt send 'null' bars, it is a construct that we created in this program
         Q_ASSERT(false);
@@ -427,13 +432,13 @@ void StockPriceChart::updateCandlestickData()
         // Only include bars with valid status (Open or Closed) - skip Null and Uninitialized bars
         if (status == Bar::BarStatus::Open || status == Bar::BarStatus::Closed)
         {
-            QCPFinancialData data;
-            data.key = index; // Use index as the x-axis value
-            data.open = bar.getOpen();
-            data.high = bar.getHigh();
-            data.low = bar.getLow();
-            data.close = bar.getClose();
-            financialData.append(std::move(data));
+            QCPFinancialData barData;
+            barData.key = index; // Use index as the x-axis value
+            barData.open = bar.getOpen();
+            barData.high = bar.getHigh();
+            barData.low = bar.getLow();
+            barData.close = bar.getClose();
+            financialData.append(std::move(barData));
         }
     }
 

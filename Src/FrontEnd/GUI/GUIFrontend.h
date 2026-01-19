@@ -25,7 +25,7 @@ class GUIFrontend : public FrontEnd
 {
     Q_OBJECT
   public:
-    explicit GUIFrontend(MainAlgo* mainAlgo, QObject* parent = nullptr);
+    explicit GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent = nullptr);
     ~GUIFrontend() override;
 
   public slots:
