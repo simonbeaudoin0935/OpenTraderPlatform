@@ -1,18 +1,26 @@
 #include "TSClient.h"
 
 
-#ifdef GUI_ENABLED
-// Launches a pop up. We will receive a signal when the process finishes
+// Launches authentication UI (GUI dialog or TUI console prompts)
+// We will receive a signal when the process finishes
 void TSClient::launchAuthProcess()
 {
 
     Q_ASSERT(m_authInProgress == false);
 
     m_authInProgress = true;
-    m_authWindow = new AuthWindow();
-    connect(m_authWindow, &AuthWindow::authFinished, this, &TSClient::onAuthFinished);
-    connect(m_authWindow, &QObject::destroyed, this, &TSClient::onAuthWindowDestroyed);
-    m_authWindow->show();
+
+#ifdef GUI_ENABLED
+    m_authHandler = new GUIAuthHandler();
+    connect(m_authHandler, &GUIAuthHandler::authFinished, this, &TSClient::onAuthFinished);
+    connect(m_authHandler, &QObject::destroyed, this, &TSClient::onAuthHandlerDestroyed);
+    m_authHandler->show();
+#else
+    m_authHandler = new TUIAuthHandler();
+    connect(m_authHandler, &TUIAuthHandler::authFinished, this, &TSClient::onAuthFinished);
+    connect(m_authHandler, &QObject::destroyed, this, &TSClient::onAuthHandlerDestroyed);
+    m_authHandler->startAuthentication();
+#endif
 }
 
 void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
@@ -46,12 +54,11 @@ void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
     emit authStateChanged(m_authenticated, reason);
 }
 
-void TSClient::onAuthWindowDestroyed()
+void TSClient::onAuthHandlerDestroyed()
 {
-    // TODO race contition possible?
-    m_authWindow = nullptr;
+    // TODO race condition possible?
+    m_authHandler = nullptr;
 }
-#endif
 
 
 QNetworkRequest TSClient::buildRefreshTokenRequest()

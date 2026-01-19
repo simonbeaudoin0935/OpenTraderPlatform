@@ -28,7 +28,7 @@ LiveStreamDB::LiveStreamDB(StreamType type, const QString& dbPath, QStringList& 
 
     QSqlQuery query(db);
     QString tableQuery = (type == StreamType::Bars) ? LiveStreamDBQueries::CREATE_BARS_TABLE
-                                                     : LiveStreamDBQueries::CREATE_MARKET_DEPTH_QUOTES_TABLE;
+                                                    : LiveStreamDBQueries::CREATE_MARKET_DEPTH_QUOTES_TABLE;
     query.exec(tableQuery);
     if (query.lastError().isValid())
     {
@@ -59,8 +59,8 @@ bool LiveStreamDB::storeData(const QString& stock, qint64 timestamp, const QByte
     stockSequences[stock] = stockSeq;
 
     QSqlQuery query(db);
-    QString insertQuery =
-        (streamType == StreamType::Bars) ? LiveStreamDBQueries::INSERT_BAR : LiveStreamDBQueries::INSERT_MARKET_DEPTH_QUOTE;
+    QString insertQuery = (streamType == StreamType::Bars) ? LiveStreamDBQueries::INSERT_BAR
+                                                           : LiveStreamDBQueries::INSERT_MARKET_DEPTH_QUOTE;
     query.prepare(insertQuery);
     query.addBindValue(stock);
     query.addBindValue(stockSeq);
