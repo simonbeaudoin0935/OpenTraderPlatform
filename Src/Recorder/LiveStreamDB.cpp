@@ -3,7 +3,7 @@
 #include <QDebug>
 
 #include "LiveStreamDB.h"
-#include "SqlQueries.h"
+#include "SQL/LiveStreamDBQueries.h"
 #include "TSClient.h"
 #include "Logging.h"
 
@@ -27,8 +27,8 @@ LiveStreamDB::LiveStreamDB(StreamType type, const QString& dbPath, QStringList& 
     }
 
     QSqlQuery query(db);
-    QString tableQuery =
-        (type == StreamType::Bars) ? SqlQueries::CREATE_BARS_TABLE : SqlQueries::CREATE_MARKET_DEPTH_QUOTES_TABLE;
+    QString tableQuery = (type == StreamType::Bars) ? LiveStreamDBQueries::CREATE_BARS_TABLE
+                                                     : LiveStreamDBQueries::CREATE_MARKET_DEPTH_QUOTES_TABLE;
     query.exec(tableQuery);
     if (query.lastError().isValid())
     {
@@ -60,7 +60,7 @@ bool LiveStreamDB::storeData(const QString& stock, qint64 timestamp, const QByte
 
     QSqlQuery query(db);
     QString insertQuery =
-        (streamType == StreamType::Bars) ? SqlQueries::INSERT_BAR : SqlQueries::INSERT_MARKET_DEPTH_QUOTE;
+        (streamType == StreamType::Bars) ? LiveStreamDBQueries::INSERT_BAR : LiveStreamDBQueries::INSERT_MARKET_DEPTH_QUOTE;
     query.prepare(insertQuery);
     query.addBindValue(stock);
     query.addBindValue(stockSeq);
@@ -348,7 +348,7 @@ int LiveStreamDB::getRecordCount() const
 {
     QSqlQuery query(db);
     QString tableName = (streamType == StreamType::Bars) ? "bars" : "market_depth_quotes";
-    query.prepare(QString("SELECT COUNT(*) FROM %1").arg(tableName));
+    query.prepare(LiveStreamDBQueries::SELECT_COUNT_FROM_TABLE.arg(tableName));
     if (query.exec() && query.next())
     {
         return query.value(0).toInt();

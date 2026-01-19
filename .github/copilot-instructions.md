@@ -21,6 +21,14 @@ see the action .github/actions/clang-format/action.yml to understand how to call
   
 - Everything time related must be in QDateTime/QTime/QDate with proper QTimeZone usage. Never use std::chrono or raw time_t/struct tm etc. The timezone is always NewYork since it is stock market related.
 
+## SQL Queries
+- **ALL** SQL queries must be defined as constants in dedicated header files in the `Src/SQL/` folder. Never write SQL queries directly in implementation files.
+- Each class that uses SQL queries should have its own header file in `Src/SQL/` (e.g., `OrdersDatabaseQueries.h`, `LiveStreamDBQueries.h`).
+- When you need to add a new SQL query, add it to the appropriate header file in `Src/SQL/` with a descriptive name and appropriate comments indicating its purpose.
+- Each query file should have its own namespace matching the class name (e.g., `OrdersDatabaseQueries`, `LiveStreamDBQueries`).
+- Use the queries by including `SQL/<ClassName>Queries.h` and referencing them via the namespace (e.g., `OrdersDatabaseQueries::CREATE_ORDERS_TABLE`).
+- This organization makes SQL queries easy to find, maintain, and update without hunting through the entire codebase.
+
 ## High Level Details
 
 **Repository Summary**: L2Trader is a real-time algorithmic trading application built with Qt6 that monitors stock market data, executes trading strategies, and provides comprehensive market analysis tools. It connects to TradeStation APIs for live market data, Level 2 market depth visualization, and position tracking.
