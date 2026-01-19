@@ -1,21 +1,14 @@
 #pragma once
 
 #include <QDialog>
-#include <QTcpServer>
-#include <QTcpSocket>
-#include <QNetworkAccessManager>
-#include <QJsonObject>
 #include <QLoggingCategory>
 #include <QTimer>
-#include <QSettings>
-#include <QInputDialog>
-#include <QMessageBox>
 
-#include "AuthToken.h"
-#include "ClientToken.h"
+#include "AuthHandler.h"
 
 Q_DECLARE_LOGGING_CATEGORY(TSAuthWindowLog)
 
+// GUI-based authentication handler using Qt dialogs
 class AuthWindow : public QDialog
 {
     Q_OBJECT
@@ -28,40 +21,27 @@ class AuthWindow : public QDialog
     void authFinished(bool success, AuthToken token, QString reason);
 
   private slots:
-    void handleNewConnection();
-    void handleSocketReadyRead();
-    void handleCodeReceived(const QString& code);
-    void handleTokenResponse(const QJsonObject& response);
-    void handleTokenError(const QString& error);
-    void handleSocketError(QAbstractSocket::SocketError socketError);
-    void handleSocketStateChanged(QAbstractSocket::SocketState socketState);
     void handleDialogFinished(int result);
+    void handleAuthHandlerFinished(bool success, AuthToken token, QString reason);
 
   private:
-    AuthToken authToken;
-    ClientToken clientToken;
+    // GUI-specific authentication handler
+    class GUIAuthHandler : public AuthHandler
+    {
+      public:
+        explicit GUIAuthHandler(AuthWindow* window);
 
-    QTcpServer* httpServer = nullptr;
-    QNetworkAccessManager* networkManager = nullptr;
+      protected:
+        bool promptForCredentials(QString& clientId, QString& clientSecret) override;
+        void showAuthUrl(const QString& authUrl) override;
+        void showError(const QString& title, const QString& message) override;
 
-    QString redirectUri;
-    QString expectedState;
+      private:
+        AuthWindow* m_window;
+    };
 
-    // Server configuration
-    static const quint16 DEFAULT_PORT = 8080;
-    static const quint16 MAX_PORT_ATTEMPTS = 10;
-    quint16 currentPort = DEFAULT_PORT;
+    GUIAuthHandler* m_authHandler = nullptr;
 
-    // Instance-specific UI and server functions
+    // UI setup
     void setupUi();
-    void startAuthorization();
-    void startHttpServer();
-    bool tryBindPort(quint16 port);
-    void updateRedirectUri(quint16 port);
-    void exchangeCodeForTokens(const QString& code);
-    bool parseTokenResponse(const QJsonObject& response);
-    QString generateRandomState();
-
-    // Credential management
-    bool promptForCredentials();
 };

@@ -26,6 +26,8 @@
 
 #ifdef GUI_ENABLED
 #include "AuthWindow.h"
+#else
+#include "HeadlessAuthHandler.h"
 #endif
 
 Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
@@ -183,10 +185,8 @@ class TSClient final : public QObject
     }
 
   public slots:
-#ifdef GUI_ENABLED
     // Authentication methods
     void launchAuthProcess();
-#endif
 
   signals:
     // Emited at basically every new message
@@ -197,10 +197,12 @@ class TSClient final : public QObject
     void authStateChanged(bool isAuthenticated, QString reason);
 
   private slots:
+    void onAuthFinished(bool success, AuthToken token, QString reason);
 
 #ifdef GUI_ENABLED
-    void onAuthFinished(bool success, AuthToken token, QString reason);
     void onAuthWindowDestroyed();
+#else
+    void onAuthHandlerDestroyed();
 #endif
 
   private:
@@ -238,5 +240,8 @@ class TSClient final : public QObject
 
 #ifdef GUI_ENABLED
     AuthWindow* m_authWindow = nullptr; // Authentication window
+#else
+    HeadlessAuthHandler* m_authHandler = nullptr; // Headless authentication handler
+#endif
 #endif
 };
