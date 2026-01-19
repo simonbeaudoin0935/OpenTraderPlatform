@@ -24,6 +24,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Generate compilation database
+      run: |
+        mkdir -p build
+        cd build
+        cmake -S .. -B . -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        cd ..
+        ln -sf build/compile_commands.json .
+
     - name: Run cppcheck
       run: cppcheck --enable=all --std=c++23 --language=c++ --platform=unix64 --suppress=missingIncludeSystem Src/
 

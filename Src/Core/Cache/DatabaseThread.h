@@ -83,7 +83,7 @@ class DatabaseThread final : public QObject
      * @return QFuture that resolves to the number of bars successfully stored
      */
     [[nodiscard]] QFuture<int>
-    storeBarsInDatabase(const QString& symbol, const QDate& date, const std::shared_ptr<QVector<Bar>> bars);
+    storeBarsInDatabase(const QString& symbol, const QDate& date, std::shared_ptr<QVector<Bar>> bars);
 
     /**
      * @brief Clear all bars from a symbol's database.

@@ -52,7 +52,7 @@ class MarketDepthLevel
     QString side;        // Required, "Bid" or "Ask"
     QString price;       // Required
     QString size;        // Required
-    int orderCount;      // Required
+    int orderCount = 0;  // Required
     QString name;        // Required
 };
 

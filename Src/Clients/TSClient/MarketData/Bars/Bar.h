@@ -44,7 +44,7 @@ class Bar
                                    std::optional<QDateTime> lastDate = std::nullopt);
 
     // Default constructor
-    Bar() : m_flags(0) {}
+    Bar() : m_high(0.0f), m_low(0.0f), m_open(0.0f), m_close(0.0f), m_openInterest(0), m_flags(0) {}
 
     static Bar nullBar(QDateTime dateTime);
 

@@ -38,8 +38,7 @@ TSClient::~TSClient()
 }
 
 TSClient::TSClient()
-    : QObject()
-    , m_authenticated(false)
+    : m_authenticated(false)
     , m_refreshInProgress(false)
     , m_thread(new QThread())
     , m_networkManager(new QNetworkAccessManager(this))
@@ -146,7 +145,7 @@ void TSClient::processNewAmountOfDataReceived(size_t bytesReceived)
     }
     else
     {
-        m_totalDataReceivedBytes += bytesReceived;
+        m_totalDataReceivedBytes += static_cast<qsizetype>(bytesReceived);
 
         //DEBUG << "Received " << bytesReceived << " bytes, total now " << m_totalDataReceivedBytes << " bytes";
         emit totalDataReceivedBytesIncreased(m_totalDataReceivedBytes);

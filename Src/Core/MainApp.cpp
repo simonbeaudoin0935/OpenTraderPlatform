@@ -19,10 +19,7 @@ QDateTime MainApp::getCurrentAppTime()
         Q_UNREACHABLE();
         return currentAppReplayTime;
     }
-    else
-    {
-        return QDateTime::currentDateTime().toTimeZone(QTimeZone("America/New_York"));
-    }
+    return QDateTime::currentDateTime().toTimeZone(QTimeZone("America/New_York"));
 }
 
 MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainAlgo::getInstance())
