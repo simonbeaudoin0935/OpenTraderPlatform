@@ -171,6 +171,20 @@ Updates are triggered by:
 
 All updates call `refreshDisplay()` which redraws all windows.
 
+### Logging
+
+To avoid interfering with the ncurses display, the TUI uses a different logging output strategy than the GUI:
+
+- **GUI Mode**: Logs are written to both stdout and a log widget in the UI
+- **TUI Mode**: Logs are written to stderr instead of stdout, allowing ncurses to maintain exclusive control of stdout for the terminal UI
+
+This means when running the TUI:
+- The ncurses interface appears on stdout (your terminal display)
+- Application logs appear on stderr (can be redirected separately)
+- Example: `./L2Trader 2>logs.txt` redirects logs to a file while keeping the TUI visible
+
+All logs are also written to a timestamped log file in `~/.local/state/L2Trader/logs/` regardless of the output mode.
+
 ## Limitations
 
 The current TUI implementation is minimal and does not support:
@@ -241,13 +255,19 @@ Since the TUI requires a terminal and cannot easily be automated, testing should
 
 1. Build TUI version
 2. Run in terminal: `./build/Src/L2Trader --criterias=Example_Config/selection_criteria.ini`
-3. Authenticate with TradeStation
-4. Observe orders and positions display
-5. Test keyboard shortcuts (q, r, ?)
-6. Test terminal resize
-7. Verify colors display correctly
+3. To redirect logs to a file and keep TUI clean: `./build/Src/L2Trader --criterias=Example_Config/selection_criteria.ini 2>app.log`
+4. Authenticate with TradeStation
+5. Observe orders and positions display
+6. Test keyboard shortcuts (q, r, ?)
+7. Test terminal resize
+8. Verify colors display correctly
+
+**Note**: Logs are written to stderr in TUI mode, so use `2>` to redirect them to a file if needed.
 
 ## Troubleshooting
+
+### Logs interfere with display
+If you see log messages overwriting the TUI, ensure you're running the TUI build (not GUI build). The TUI should automatically write logs to stderr. You can redirect stderr to hide logs: `./L2Trader 2>/dev/null` or save them: `./L2Trader 2>app.log`
 
 ### Terminal doesn't support colors
 The TUI will still work but without color highlighting. Check `has_colors()` return value.
