@@ -85,6 +85,13 @@ add_library(L2TraderCommon STATIC
 # Add dependency on logging generation
 add_dependencies(L2TraderCommon generate_logging)
 
+# Disable strict warnings for third-party qcustomplot code
+if(QCUSTOMPLOT_SOURCES)
+    set_source_files_properties(${QCUSTOMPLOT_SOURCES} PROPERTIES
+        COMPILE_FLAGS "-Wno-error -Wno-shadow -Wno-double-promotion"
+    )
+endif()
+
 # Set include directories for the library
 target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}

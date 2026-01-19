@@ -20,14 +20,14 @@ class RunUpDetector : public QObject
 {
     Q_OBJECT
   public:
-    explicit RunUpDetector(BarCache* barCache, QObject* parent = nullptr);
+    explicit RunUpDetector(BarCache* p_barCache, QObject* parent = nullptr);
 
     void computeStatsOnLastAfterMarket();
 
     void computeNextCandle();
 
   public slots:
-    void start(QDate startDate, qsizetype runUpWindowWidth = 20);
+    void start(QDate p_startDate, qsizetype p_runUpWindowWidth = 20);
   signals:
 
   private:

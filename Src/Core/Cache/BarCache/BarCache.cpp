@@ -332,7 +332,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                   {
                       std::shared_ptr<QVector<Bar>> sp = std::move(dbBars.value());
 
-                      const size_t expectedBarCount = first.secsTo(last) / 60 + 1;
+                      const qsizetype expectedBarCount = first.secsTo(last) / 60 + 1;
 
                       // Happy path, got bars from database
                       OBJ_ASSUME_EQUAL(sp->size(), expectedBarCount);
@@ -370,7 +370,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                 endDayTime)
                       .then(this,
                             [this, date, startDateTime, endDayTime, promise = std::move(promise)](
-                                std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars) mutable
+                                std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> /* bars */) mutable
                             {
                                 /*
                         if (!bars.has_value()) {
@@ -442,7 +442,7 @@ BarCache::getBarsFromCache(const QDate& date, const QTime& start, const QTime& e
     }
 
     DEBUG << "Loaded complete day from memory cache:" << date << "with" << result->size() << "bars";
-    return std::move(result);
+    return result;
 }
 
 void BarCache::storeBarInCache(const Bar& bar)
@@ -490,9 +490,9 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
     else
     {
         OBJ_ASSUME_LTE(bars->size(),
-                       MainApp::getCurrentAppTime().time() > TRADING_END_TIME
+                       static_cast<qsizetype>(MainApp::getCurrentAppTime().time() > TRADING_END_TIME
                            ? BARS_PER_DAY
-                           : timeToIndex(MainApp::getCurrentAppTime().time()) + 1);
+                           : timeToIndex(MainApp::getCurrentAppTime().time()) + 1));
     }
 
     OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().date(), bars->last().getTimeStamp().date());

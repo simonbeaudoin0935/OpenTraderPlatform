@@ -22,7 +22,7 @@ class LiveStreamDB : public QObject
         MarketDepthQuotes
     };
 
-    LiveStreamDB(StreamType type, const QString& dbPath, QStringList& stockTickers);
+    LiveStreamDB(StreamType type, const QString& dbPath, QStringList& p_stockTickers);
     ~LiveStreamDB();
 
     bool isOpen() const;

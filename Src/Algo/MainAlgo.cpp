@@ -360,13 +360,13 @@ void MainAlgo::onBalanceReceived(const QVector<Balance>& results)
     // TODO save this balance figure and act on it
 }
 
-StockInstruments::StockInstruments(const QString& symbol)
-    : symbol(symbol)
-    , barCache(symbol, true, this)
+StockInstruments::StockInstruments(const QString& p_symbol)
+    : symbol(p_symbol)
+    , barCache(p_symbol, true, this)
     , runUpDetector(&barCache, this)
-    , marketDepthQuoteReceiver(symbol, this)
+    , marketDepthQuoteReceiver(p_symbol, this)
 {
-    this->setObjectName("StockInstrument::" + symbol);
+    this->setObjectName("StockInstrument::" + p_symbol);
 
     qDebug() << this->objectName() << "New instance";
 }

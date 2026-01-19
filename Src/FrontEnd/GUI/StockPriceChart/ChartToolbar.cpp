@@ -617,10 +617,10 @@ qreal ChartToolbar::getWheelRatio() const
     int index = wheelRatioCombo->currentIndex();
     if (index >= 0 && index < wheelRatioCombo->count())
     {
-        QVariant data = wheelRatioCombo->itemData(index);
-        if (data.isValid())
+        QVariant itemData = wheelRatioCombo->itemData(index);
+        if (itemData.isValid())
         {
-            return data.toReal();
+            return itemData.toReal();
         }
     }
     // Custom text
@@ -657,10 +657,10 @@ void ChartToolbar::onWheelRatioChanged(int index)
     if (index >= 0 && index < wheelRatioCombo->count())
     {
         // Check if it's a standard item
-        QVariant data = wheelRatioCombo->itemData(index);
-        if (data.isValid())
+        QVariant itemData = wheelRatioCombo->itemData(index);
+        if (itemData.isValid())
         {
-            ratio = data.toReal();
+            ratio = itemData.toReal();
         }
         else
         {

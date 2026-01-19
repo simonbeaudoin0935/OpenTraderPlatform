@@ -2,21 +2,21 @@
 
 Q_LOGGING_CATEGORY(RunUpDetectorLog, "RunUpDetector")
 
-RunUpDetector::RunUpDetector(BarCache* barCache, QObject* parent)
-    : QObject(parent), NYTZ("America/New_York"), barCache(barCache)
+RunUpDetector::RunUpDetector(BarCache* p_barCache, QObject* parent)
+    : QObject(parent), NYTZ("America/New_York"), barCache(p_barCache)
 {
 }
 
-void RunUpDetector::start(QDate startDate, qsizetype runUpWindowWidth)
+void RunUpDetector::start(QDate p_startDate, qsizetype p_runUpWindowWidth)
 {
-    Q_ASSERT(startDate.dayOfWeek() <= 5);
+    Q_ASSERT(p_startDate.dayOfWeek() <= 5);
 
-    this->startDate = startDate;
-    this->runUpWindowWidth = runUpWindowWidth;
+    this->startDate = p_startDate;
+    this->runUpWindowWidth = p_runUpWindowWidth;
     ;
 
     QTime _6AM(6, 0);
-    QTime toTime = _6AM.addSecs(60 * (runUpWindowWidth - 1));
+    QTime toTime = _6AM.addSecs(60 * (p_runUpWindowWidth - 1));
 
 
     QDateTime fromDate = QDateTime(startDate, _6AM, NYTZ);

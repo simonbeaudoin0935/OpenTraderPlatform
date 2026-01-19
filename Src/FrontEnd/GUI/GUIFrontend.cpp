@@ -26,7 +26,7 @@
 
 Q_LOGGING_CATEGORY(GUIFrontendLog, "GUIFrontend")
 
-GUIFrontend::GUIFrontend(MainAlgo* mainAlgo, QObject* parent) : FrontEnd(parent), mainAlgo(mainAlgo)
+GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(parent), mainAlgo(p_mainAlgo)
 {
     ui = new Ui::GUIFrontend();
     ui->setupUi(new QMainWindow());

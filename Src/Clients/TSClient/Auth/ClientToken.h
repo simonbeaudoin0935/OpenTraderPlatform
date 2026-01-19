@@ -16,7 +16,7 @@ class ClientToken
     ClientToken() {}
 
     // Constructor from individual fields
-    ClientToken(const QString& clientId, const QString& clientSecret);
+    ClientToken(const QString& p_clientId, const QString& p_clientSecret);
 
     // Getters
     QString getClientId() const

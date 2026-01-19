@@ -14,20 +14,20 @@ const QString AuthToken::EXPECTED_TOKEN_TYPE = "Bearer";
 const QStringList AuthToken::EXPECTED_SCOPES =
     {"openid", "offline_access", "profile", "MarketData", "Matrix", "ReadAccount", "Trade"};
 
-AuthToken::AuthToken(const QString& accessToken,
-                     const QString& refreshToken,
-                     const QString& idToken,
-                     const QString& tokenType,
-                     const QString& scope,
-                     int expiresIn,
-                     QDateTime receivedAt)
-    : accessToken(accessToken)
-    , refreshToken(refreshToken)
-    , idToken(idToken)
-    , tokenType(tokenType)
-    , scope(scope)
-    , expiresIn(expiresIn)
-    , receivedAt(receivedAt)
+AuthToken::AuthToken(const QString& p_accessToken,
+                     const QString& p_refreshToken,
+                     const QString& p_idToken,
+                     const QString& p_tokenType,
+                     const QString& p_scope,
+                     int p_expiresIn,
+                     QDateTime p_receivedAt)
+    : accessToken(p_accessToken)
+    , refreshToken(p_refreshToken)
+    , idToken(p_idToken)
+    , tokenType(p_tokenType)
+    , scope(p_scope)
+    , expiresIn(p_expiresIn)
+    , receivedAt(p_receivedAt)
 {
 }
 

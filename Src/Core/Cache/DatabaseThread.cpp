@@ -322,7 +322,7 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
         return std::nullopt;
     }
 
-    return std::move(bars);
+    return bars;
 }
 
 int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDate& date, const QVector<Bar>& bars)

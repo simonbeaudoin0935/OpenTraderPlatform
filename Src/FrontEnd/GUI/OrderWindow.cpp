@@ -181,7 +181,7 @@ void OrderWindow::updateOrderRow(const QString& account, const Order& order)
 QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
 {
     QList<QStandardItem*> items;
-    bool isReceivedOrder = (order.getOrderStatus() == Order::Status::ACK);
+    [[maybe_unused]] bool isReceivedOrder = (order.getOrderStatus() == Order::Status::ACK);
 
     // Order ID
     auto orderIdItem = new QStandardItem(order.getOrderID());

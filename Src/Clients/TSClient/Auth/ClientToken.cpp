@@ -8,8 +8,8 @@
 
 Q_LOGGING_CATEGORY(tsClientToken, "TSClient.token.client")
 
-ClientToken::ClientToken(const QString& clientId, const QString& clientSecret)
-    : clientId(clientId), clientSecret(clientSecret)
+ClientToken::ClientToken(const QString& p_clientId, const QString& p_clientSecret)
+    : clientId(p_clientId), clientSecret(p_clientSecret)
 {
 }
 
