@@ -57,13 +57,13 @@ void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
 #ifdef GUI_ENABLED
 void TSClient::onAuthWindowDestroyed()
 {
-    // TODO race contition possible?
+    // TODO race condition possible?
     m_authWindow = nullptr;
 }
 #else
 void TSClient::onAuthHandlerDestroyed()
 {
-    // TODO race contition possible?
+    // TODO race condition possible?
     m_authHandler = nullptr;
 }
 #endif

@@ -203,14 +203,7 @@ void AuthHandler::handleNewConnection()
     qCDebug(TSAuthHandlerLog) << "  Peer Port:" << socket->peerPort();
 
     connect(socket, &QTcpSocket::readyRead, this, &AuthHandler::handleSocketReadyRead);
-    connect(socket,
-            &QTcpSocket::disconnected,
-            socket,
-            [socket]()
-            {
-                qCDebug(TSAuthHandlerLog) << "Connection closed";
-                socket->deleteLater();
-            });
+    connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
     connect(socket, &QTcpSocket::errorOccurred, this, &AuthHandler::handleSocketError);
     connect(socket, &QTcpSocket::stateChanged, this, &AuthHandler::handleSocketStateChanged);
 }
