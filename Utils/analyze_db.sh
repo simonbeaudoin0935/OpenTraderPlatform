@@ -43,6 +43,15 @@ echo "Database Type: $DB_TYPE"
 echo "Table Name: $TABLE_NAME"
 echo
 
+# Check if the table has the expected columns
+COLUMNS=$(sqlite3 "$DB_FILE" "PRAGMA table_info($TABLE_NAME);" | awk -F'|' '{print $2}')
+
+if ! echo "$COLUMNS" | grep -q stockTicker; then
+    echo "Error: This database does not appear to be a $DB_TYPE database. The '$TABLE_NAME' table is missing the 'stockTicker' column."
+    echo "This might be a BarCache database instead. The script is designed for LiveBarsDB and LiveMarketDepthQuoteDB."
+    exit 1
+fi
+
 # Get total number of stocks
 TOTAL_STOCKS=$(sqlite3 "$DB_FILE" "SELECT COUNT(DISTINCT stockTicker) FROM $TABLE_NAME;")
 echo "Total number of stocks: $TOTAL_STOCKS"
