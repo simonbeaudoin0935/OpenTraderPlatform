@@ -19,7 +19,12 @@ void TSClient::launchAuthProcess()
     m_authHandler = new TUIAuthHandler();
     connect(m_authHandler, &TUIAuthHandler::authFinished, this, &TSClient::onAuthFinished);
     connect(m_authHandler, &QObject::destroyed, this, &TSClient::onAuthHandlerDestroyed);
-    m_authHandler->startAuthentication();
+    bool authStarted = m_authHandler->startAuthentication();
+    if (!authStarted)
+    {
+        qCritical(TSClientLog) << "Failed to start authentication process";
+        m_authInProgress = false;
+    }
 #endif
 }
 

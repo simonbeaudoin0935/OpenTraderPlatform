@@ -120,6 +120,7 @@ QString MarketHours::getFormattedTimeET(const QDateTime& localTime)
     return nyTime.toString("hh:mm:ss AP") + " ET";
 }
 
+#ifdef GUI_ENABLED
 QColor MarketHours::getSessionColor(Session session)
 {
     switch (session)
@@ -158,6 +159,7 @@ QColor MarketHours::getClosedColor()
 {
     return QColor(40, 40, 40, 100); // Dark gray
 }
+#endif
 
 bool MarketHours::isSessionVisible(const QDateTime& startTime, const QDateTime& endTime, Session session)
 {

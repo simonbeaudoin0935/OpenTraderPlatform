@@ -88,7 +88,7 @@ if(ENABLE_GUI)
     add_compile_definitions(GUI_ENABLED)
 else()
     # When building for TUI, we depend on ncurses
-    find_packages(Curses REQUIRED)
+    find_package(Curses REQUIRED)
 endif()
 
 # Find Qt6 core packages

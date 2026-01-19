@@ -1,7 +1,7 @@
 #include "TUIFrontend.h"
 #include <QDebug>
 
-TUIFrontend::TUIFrontend(MainAlgo* mainAlgo, QObject* parent) : FrontEnd(parent), mainAlgo(mainAlgo) {}
+TUIFrontend::TUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(parent), mainAlgo(p_mainAlgo) {}
 
 void TUIFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
 {
@@ -63,9 +63,4 @@ void TUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
     Q_UNUSED(bidAskImbalance);
     Q_UNUSED(bidDWP);
     Q_UNUSED(askDWP);
-}
-
-void TUIFrontend::onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars)
-{
-    Q_UNUSED(bars);
 }

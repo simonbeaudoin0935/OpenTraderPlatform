@@ -9,7 +9,7 @@ class TUIFrontend : public FrontEnd
 {
     Q_OBJECT
   public:
-    explicit TUIFrontend(MainAlgo* mainAlgo, QObject* parent = nullptr);
+    explicit TUIFrontend(MainAlgo* p_mainAlgo, QObject* parent = nullptr);
 
   public slots:
 
@@ -29,7 +29,6 @@ class TUIFrontend : public FrontEnd
                                                          double bidAskImbalance,
                                                          double bidDWP,
                                                          double askDWP) override;
-    void onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars) override;
 
   private:
     MainAlgo* mainAlgo;
