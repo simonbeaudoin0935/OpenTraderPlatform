@@ -6,6 +6,9 @@
 
 The project has a `copilot-setup-steps.yml` workflow that installs all necessary dependencies. After the setup steps complete, you can build the project following the instructions in the "Build Instructions" section below.
 
+When you are done building, make sure that the code passes the clang-formatter.
+see the action .github/actions/clang-format/action.yml to understand how to call the formatter on the project. If you have to, run the formatter and commit the changes.
+
 ## General Coding Guidelines
 - When generating code, use the ASSUME macros from Src/Misc/Assume.h for assertions instead of Q_ASSERT or similar, to ensure consistency and proper no-op behavior in release builds.
 - When creating connections between signal and slots, prioritize using a Qt::UniqueConnection and asserting that the connection made was indeed unique and not a double. It should be extremely rare, if not never, that we should authorize multiple same connections.
