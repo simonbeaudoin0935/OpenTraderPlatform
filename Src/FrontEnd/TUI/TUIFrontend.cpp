@@ -2,6 +2,7 @@
 #include "PlaceOrder.h"
 #include <QCoreApplication>
 #include <QDebug>
+#include <cmath>
 #include <locale.h>
 
 TUIFrontend::TUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(parent), mainAlgo(p_mainAlgo) {}
@@ -120,7 +121,7 @@ void TUIFrontend::displayOrders()
 
     // Display header
     wattron(m_orderWin, COLOR_PAIR(1) | A_BOLD);
-    mvwprintw(m_orderWin, 0, 2, " ORDERS (%zu) ", static_cast<size_t>(m_orders.size()));
+    mvwprintw(m_orderWin, 0, 2, " ORDERS (%lld) ", static_cast<long long>(m_orders.size()));
     wattroff(m_orderWin, COLOR_PAIR(1) | A_BOLD);
 
     // Display column headers
@@ -229,7 +230,7 @@ void TUIFrontend::displayPositions()
 
     // Display header
     wattron(m_positionWin, COLOR_PAIR(1) | A_BOLD);
-    mvwprintw(m_positionWin, 0, 2, " POSITIONS (%zu) ", static_cast<size_t>(m_positions.size()));
+    mvwprintw(m_positionWin, 0, 2, " POSITIONS (%lld) ", static_cast<long long>(m_positions.size()));
     wattroff(m_positionWin, COLOR_PAIR(1) | A_BOLD);
 
     // Display column headers
@@ -263,7 +264,9 @@ void TUIFrontend::displayPositions()
         double last = pos.getLast().toDouble();
         int quantity = pos.getQuantity().toInt();
         double pl = (last - avgPrice) * quantity;
-        double plPercent = avgPrice != 0.0 ? ((last - avgPrice) / avgPrice * 100.0) : 0.0;
+        // Use epsilon for floating point comparison to avoid division by zero
+        constexpr double epsilon = 1e-9;
+        double plPercent = (std::abs(avgPrice) > epsilon) ? ((last - avgPrice) / avgPrice * 100.0) : 0.0;
         double marketValue = last * quantity;
 
         // Color based on P/L
@@ -311,8 +314,8 @@ void TUIFrontend::displayStatusBar()
               0,
               2,
               "Data: %lld KB | Memory: %lld KB | Streams: %d",
-              m_dataUsage / 1024,
-              m_memoryUsage / 1024,
+              static_cast<long long>(m_dataUsage / 1024),
+              static_cast<long long>(m_memoryUsage / 1024),
               m_streamCount);
 
     wattroff(m_statusWin, COLOR_PAIR(4));
