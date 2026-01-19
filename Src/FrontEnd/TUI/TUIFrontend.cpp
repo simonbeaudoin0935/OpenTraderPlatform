@@ -1,55 +1,413 @@
 #include "TUIFrontend.h"
+#include "PlaceOrder.h"
+#include <QCoreApplication>
 #include <QDebug>
+#include <locale.h>
 
-TUIFrontend::TUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(parent), mainAlgo(p_mainAlgo) {}
+TUIFrontend::TUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) 
+    : FrontEnd(parent), mainAlgo(p_mainAlgo) 
+{
+}
+
+TUIFrontend::~TUIFrontend()
+{
+    cleanup();
+}
+
+void TUIFrontend::initialize()
+{
+    if (m_initialized)
+    {
+        return;
+    }
+
+    // Set locale for proper character encoding
+    setlocale(LC_ALL, "");
+
+    // Initialize ncurses
+    initscr();              // Initialize the screen
+    cbreak();               // Disable line buffering
+    noecho();               // Don't echo input characters
+    keypad(stdscr, TRUE);   // Enable special keys
+    nodelay(stdscr, TRUE);  // Non-blocking input
+    curs_set(0);            // Hide cursor
+
+    // Enable colors if supported
+    if (has_colors())
+    {
+        start_color();
+        use_default_colors();
+        
+        // Define color pairs
+        init_pair(1, COLOR_WHITE, COLOR_BLUE);    // Header
+        init_pair(2, COLOR_GREEN, -1);            // Positive P/L
+        init_pair(3, COLOR_RED, -1);              // Negative P/L
+        init_pair(4, COLOR_YELLOW, -1);           // Status bar
+        init_pair(5, COLOR_CYAN, -1);             // Help text
+    }
+
+    setupWindows();
+
+    // Setup input notifier for keyboard input
+    m_inputNotifier = new QSocketNotifier(STDIN_FILENO, QSocketNotifier::Read, this);
+    connect(m_inputNotifier, &QSocketNotifier::activated, this, &TUIFrontend::handleInput);
+
+    m_initialized = true;
+    refreshDisplay();
+}
+
+void TUIFrontend::setupWindows()
+{
+    int maxY, maxX;
+    getmaxyx(stdscr, maxY, maxX);
+
+    // Calculate window sizes
+    int orderHeight = maxY / 2;
+    int positionHeight = maxY / 2 - 3; // Leave room for status bar and help
+    int statusHeight = 1;
+    int helpHeight = 2;
+
+    // Create windows
+    m_orderWin = newwin(orderHeight, maxX, 0, 0);
+    m_positionWin = newwin(positionHeight, maxX, orderHeight, 0);
+    m_statusWin = newwin(statusHeight, maxX, orderHeight + positionHeight, 0);
+    m_helpWin = newwin(helpHeight, maxX, orderHeight + positionHeight + statusHeight, 0);
+
+    // Enable scrolling for order and position windows
+    scrollok(m_orderWin, TRUE);
+    scrollok(m_positionWin, TRUE);
+}
+
+void TUIFrontend::cleanup()
+{
+    if (m_initialized)
+    {
+        if (m_orderWin) delwin(m_orderWin);
+        if (m_positionWin) delwin(m_positionWin);
+        if (m_statusWin) delwin(m_statusWin);
+        if (m_helpWin) delwin(m_helpWin);
+        
+        endwin();
+        m_initialized = false;
+    }
+}
+
+void TUIFrontend::refreshDisplay()
+{
+    if (!m_initialized)
+    {
+        return;
+    }
+
+    displayOrders();
+    displayPositions();
+    displayStatusBar();
+    displayHelp();
+    
+    doupdate();
+}
+
+void TUIFrontend::displayOrders()
+{
+    if (!m_orderWin)
+    {
+        return;
+    }
+
+    werase(m_orderWin);
+    box(m_orderWin, 0, 0);
+
+    // Display header
+    wattron(m_orderWin, COLOR_PAIR(1) | A_BOLD);
+    mvwprintw(m_orderWin, 0, 2, " ORDERS (%zu) ", static_cast<size_t>(m_orders.size()));
+    wattroff(m_orderWin, COLOR_PAIR(1) | A_BOLD);
+
+    // Display column headers
+    mvwprintw(m_orderWin, 1, 2, "%-12s %-8s %-6s %-6s %-8s %-8s %-20s %-15s",
+              "Order ID", "Symbol", "Action", "Qty", "Type", "Price", "DateTime", "Status");
+
+    // Display orders (most recent first)
+    int row = 2;
+    int maxRows = getmaxy(m_orderWin) - 3;
+    
+    QList<QString> orderIds = m_orders.keys();
+    for (int i = orderIds.size() - 1; i >= 0 && row < maxRows; --i, ++row)
+    {
+        auto it = m_orders.constFind(orderIds[i]);
+        if (it == m_orders.constEnd())
+        {
+            continue;
+        }
+        const Order& order = it.value();
+        
+        QString priceStr;
+        if (order.getLimitPrice().has_value())
+        {
+            priceStr = QString::number(order.getLimitPrice().value(), 'f', 2);
+        }
+        else if (order.getStopPrice().has_value())
+        {
+            priceStr = QString::number(order.getStopPrice().value(), 'f', 2);
+        }
+        else
+        {
+            priceStr = "Market";
+        }
+
+        QString statusStr;
+        switch (order.getOrderStatus())
+        {
+            case Order::Status::ACK: statusStr = "Acknowledged"; break;
+            case Order::Status::DON: statusStr = "Done"; break;
+            case Order::Status::FLL: statusStr = "Filled"; break;
+            case Order::Status::FPR: statusStr = "Part Filled"; break;
+            case Order::Status::OPN: statusStr = "Open"; break;
+            case Order::Status::OUT: statusStr = "Sent"; break;
+            case Order::Status::REJ: statusStr = "Rejected"; break;
+            case Order::Status::UCN: statusStr = "Canceling"; break;
+            case Order::Status::CAN: statusStr = "Canceled"; break;
+            default: statusStr = "Unknown"; break;
+        }
+
+        mvwprintw(m_orderWin, row, 2, "%-12s %-8s %-6s %-6s %-8s %-8s %-20s %-15s",
+                  order.getOrderID().left(12).toStdString().c_str(),
+                  order.getSymbol().toStdString().c_str(),
+                  order.getTradeAction().toStdString().c_str(),
+                  order.getQuantity().toStdString().c_str(),
+                  OrderType::toString(order.getOrderType().type).left(8).toStdString().c_str(),
+                  priceStr.left(8).toStdString().c_str(),
+                  order.getOpenedDateTime().toString("MM/dd hh:mm:ss").toStdString().c_str(),
+                  statusStr.left(15).toStdString().c_str());
+    }
+
+    wnoutrefresh(m_orderWin);
+}
+
+void TUIFrontend::displayPositions()
+{
+    if (!m_positionWin)
+    {
+        return;
+    }
+
+    werase(m_positionWin);
+    box(m_positionWin, 0, 0);
+
+    // Display header
+    wattron(m_positionWin, COLOR_PAIR(1) | A_BOLD);
+    mvwprintw(m_positionWin, 0, 2, " POSITIONS (%zu) ", static_cast<size_t>(m_positions.size()));
+    wattroff(m_positionWin, COLOR_PAIR(1) | A_BOLD);
+
+    // Display column headers
+    mvwprintw(m_positionWin, 1, 2, "%-8s %-10s %-12s %-12s %-12s %-10s %-12s",
+              "Symbol", "Quantity", "Avg Price", "Last", "P/L", "P/L %", "Market Val");
+
+    // Display positions
+    int row = 2;
+    int maxRows = getmaxy(m_positionWin) - 3;
+    
+    QList<QString> posIds = m_positions.keys();
+    for (int i = 0; i < posIds.size() && row < maxRows; ++i, ++row)
+    {
+        auto it = m_positions.constFind(posIds[i]);
+        if (it == m_positions.constEnd())
+        {
+            continue;
+        }
+        const Position& pos = it.value();
+        
+        double avgPrice = pos.getAveragePrice().toDouble();
+        double last = pos.getLast().toDouble();
+        int quantity = pos.getQuantity().toInt();
+        double pl = (last - avgPrice) * quantity;
+        double plPercent = avgPrice != 0.0 ? ((last - avgPrice) / avgPrice * 100.0) : 0.0;
+        double marketValue = last * quantity;
+
+        // Color based on P/L
+        if (pl > 0)
+        {
+            wattron(m_positionWin, COLOR_PAIR(2)); // Green for profit
+        }
+        else if (pl < 0)
+        {
+            wattron(m_positionWin, COLOR_PAIR(3)); // Red for loss
+        }
+
+        mvwprintw(m_positionWin, row, 2, "%-8s %-10s %-12s %-12s %-12s %-10s %-12s",
+                  pos.getSymbol().toStdString().c_str(),
+                  QString::number(quantity).toStdString().c_str(),
+                  QString::number(avgPrice, 'f', 2).toStdString().c_str(),
+                  QString::number(last, 'f', 2).toStdString().c_str(),
+                  QString::number(pl, 'f', 2).toStdString().c_str(),
+                  QString("%1%").arg(plPercent, 0, 'f', 2).toStdString().c_str(),
+                  QString::number(marketValue, 'f', 2).toStdString().c_str());
+
+        if (pl != 0)
+        {
+            wattroff(m_positionWin, COLOR_PAIR(pl > 0 ? 2 : 3));
+        }
+    }
+
+    wnoutrefresh(m_positionWin);
+}
+
+void TUIFrontend::displayStatusBar()
+{
+    if (!m_statusWin)
+    {
+        return;
+    }
+
+    werase(m_statusWin);
+    wattron(m_statusWin, COLOR_PAIR(4));
+    
+    mvwprintw(m_statusWin, 0, 2, "Data: %lld KB | Memory: %lld KB | Streams: %d",
+              m_dataUsage / 1024, m_memoryUsage / 1024, m_streamCount);
+    
+    wattroff(m_statusWin, COLOR_PAIR(4));
+    wnoutrefresh(m_statusWin);
+}
+
+void TUIFrontend::displayHelp()
+{
+    if (!m_helpWin)
+    {
+        return;
+    }
+
+    werase(m_helpWin);
+    wattron(m_helpWin, COLOR_PAIR(5));
+    
+    mvwprintw(m_helpWin, 0, 2, "Keyboard Shortcuts:");
+    mvwprintw(m_helpWin, 1, 2, "q/Q: Quit | r/R: Refresh | ?: Help");
+    
+    wattroff(m_helpWin, COLOR_PAIR(5));
+    wnoutrefresh(m_helpWin);
+}
+
+void TUIFrontend::handleInput()
+{
+    int ch = getch();
+    
+    if (ch == ERR)
+    {
+        return; // No input available
+    }
+
+    switch (ch)
+    {
+        case 'q':
+        case 'Q':
+            handleQuitShortcut();
+            break;
+        case 'r':
+        case 'R':
+            handleRefreshShortcut();
+            break;
+        case '?':
+            // Could implement a detailed help screen here
+            refreshDisplay();
+            break;
+        case KEY_RESIZE:
+            // Handle terminal resize
+            endwin();
+            refresh();
+            setupWindows();
+            refreshDisplay();
+            break;
+        default:
+            break;
+    }
+}
+
+void TUIFrontend::handleQuitShortcut()
+{
+    cleanup();
+    QCoreApplication::quit();
+}
+
+void TUIFrontend::handleRefreshShortcut()
+{
+    refreshDisplay();
+}
 
 void TUIFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
 {
-    Q_UNUSED(newDataUsage);
+    m_dataUsage = newDataUsage;
+    if (m_initialized)
+    {
+        displayStatusBar();
+        doupdate();
+    }
 }
 
 void TUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
 {
-    Q_UNUSED(newDataUsage);
+    m_memoryUsage = newDataUsage;
+    if (m_initialized)
+    {
+        displayStatusBar();
+        doupdate();
+    }
 }
 
 void TUIFrontend::onStreamCountUpdate(int count)
 {
-    Q_UNUSED(count);
+    m_streamCount = count;
+    if (m_initialized)
+    {
+        displayStatusBar();
+        doupdate();
+    }
 }
 
 void TUIFrontend::onTradeStationAccountsReceived(QVector<Account> results)
 {
     Q_UNUSED(results);
+    // Could display account info in status bar or separate window
 }
 
 void TUIFrontend::onNewPositionReceived(QString account, Position position)
 {
     Q_UNUSED(account);
-    Q_UNUSED(position);
+    m_positions.insert(position.getPositionID(), position);
+    if (m_initialized)
+    {
+        refreshDisplay();
+    }
 }
 
 void TUIFrontend::onPositionDeleted(QString account, QString positionID)
 {
     Q_UNUSED(account);
-    Q_UNUSED(positionID);
+    m_positions.remove(positionID);
+    if (m_initialized)
+    {
+        refreshDisplay();
+    }
 }
 
 void TUIFrontend::onNewOrderReceived(QString account, Order order)
 {
     Q_UNUSED(account);
-    Q_UNUSED(order);
+    m_orders.insert(order.getOrderID(), order);
+    if (m_initialized)
+    {
+        refreshDisplay();
+    }
 }
 
 void TUIFrontend::onBalanceUpdated(Balance balance)
 {
     Q_UNUSED(balance);
+    // Could display balance info in status bar
 }
 
 void TUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 {
     Q_UNUSED(symbol);
     Q_UNUSED(bar);
+    // Not applicable for minimal TUI
 }
 
 void TUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol,
@@ -63,4 +421,5 @@ void TUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
     Q_UNUSED(bidAskImbalance);
     Q_UNUSED(bidDWP);
     Q_UNUSED(askDWP);
+    // Not applicable for minimal TUI
 }

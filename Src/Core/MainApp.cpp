@@ -89,4 +89,9 @@ void MainApp::start()
     mainAlgo->start();
 
     memoryMonitor.startMonitoring(500);
+
+#ifndef GUI_ENABLED
+    // Initialize TUI after everything is set up
+    static_cast<TUIFrontend*>(appFrontend)->initialize();
+#endif
 }
