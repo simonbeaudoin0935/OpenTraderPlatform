@@ -1,0 +1,103 @@
+{
+	"BUILD_DIR" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests/test_recorder_integration_autogen",
+	"CMAKE_BINARY_DIR" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir",
+	"CMAKE_CURRENT_BINARY_DIR" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests",
+	"CMAKE_CURRENT_SOURCE_DIR" : "/home/runner/work/L2Trader/L2Trader/Tests",
+	"CMAKE_EXECUTABLE" : "/usr/local/bin/cmake",
+	"CMAKE_LIST_FILES" : [ "/home/runner/work/L2Trader/L2Trader/Tests/CMakeLists.txt" ],
+	"CMAKE_SOURCE_DIR" : "/home/runner/work/L2Trader/L2Trader",
+	"CROSS_CONFIG" : false,
+	"DEP_FILE" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests/test_recorder_integration_autogen/deps",
+	"DEP_FILE_RULE_NAME" : "test_recorder_integration_autogen/timestamp",
+	"HEADERS" : [],
+	"HEADER_EXTENSIONS" : [ "h", "hh", "h++", "hm", "hpp", "hxx", "in", "txx" ],
+	"INCLUDE_DIR" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests/test_recorder_integration_autogen/include",
+	"MOC_COMPILATION_FILE" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests/test_recorder_integration_autogen/mocs_compilation.cpp",
+	"MOC_DEFINITIONS" : 
+	[
+		"GIT_BRANCH=\"copilot/make-tui-viable\"",
+		"GIT_HASH=\"8c76cee\"",
+		"GIT_TAG=\"unknown\"",
+		"QT_CORE_LIB",
+		"QT_NO_DEBUG",
+		"QT_TESTCASE_BUILDDIR=\"/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests\"",
+		"QT_TESTCASE_SOURCEDIR=\"/home/runner/work/L2Trader/L2Trader/Tests\"",
+		"QT_TESTLIB_LIB",
+		"UNIT_TESTING"
+	],
+	"MOC_DEPEND_FILTERS" : 
+	[
+		[
+			"Q_PLUGIN_METADATA",
+			"[\n][ \t]*Q_PLUGIN_METADATA[ \t]*\\([^\\)]*FILE[ \t]*\"([^\"]+)\""
+		]
+	],
+	"MOC_INCLUDES" : 
+	[
+		"/usr/include/x86_64-linux-gnu/qt6/QtCore",
+		"/usr/include/x86_64-linux-gnu/qt6",
+		"/usr/lib/x86_64-linux-gnu/qt6/mkspecs/linux-g++",
+		"/usr/include/x86_64-linux-gnu/qt6/QtTest",
+		"/usr/include/c++/13",
+		"/usr/include/x86_64-linux-gnu/c++/13",
+		"/usr/include/c++/13/backward",
+		"/usr/lib/gcc/x86_64-linux-gnu/13/include",
+		"/usr/local/include",
+		"/usr/include/x86_64-linux-gnu",
+		"/usr/include"
+	],
+	"MOC_MACRO_NAMES" : 
+	[
+		"Q_OBJECT",
+		"Q_GADGET",
+		"Q_GADGET_EXPORT",
+		"Q_NAMESPACE",
+		"Q_NAMESPACE_EXPORT"
+	],
+	"MOC_OPTIONS" : [],
+	"MOC_PATH_PREFIX" : false,
+	"MOC_PREDEFS_CMD" : 
+	[
+		"/home/runner/work/L2Trader/.codeql-scratch/dbs/cpp/working/autobuild/bin/c++",
+		"-std=gnu++23",
+		"-dM",
+		"-E",
+		"-c",
+		"/usr/local/share/cmake-3.31/Modules/CMakeCXXCompilerABI.cpp"
+	],
+	"MOC_PREDEFS_FILE" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests/test_recorder_integration_autogen/moc_predefs.h",
+	"MOC_RELAXED_MODE" : false,
+	"MOC_SKIP" : 
+	[
+		"/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests/test_RunUpDetector_autogen/mocs_compilation.cpp",
+		"/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests/test_barcache_autogen/mocs_compilation.cpp",
+		"/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests/test_tradestationclient_autogen/mocs_compilation.cpp"
+	],
+	"MULTI_CONFIG" : false,
+	"PARALLEL" : 1,
+	"PARSE_CACHE_FILE" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests/CMakeFiles/test_recorder_integration_autogen.dir/ParseCache.txt",
+	"QT_MOC_EXECUTABLE" : "/usr/lib/qt6/libexec/moc",
+	"QT_UIC_EXECUTABLE" : "/usr/lib/qt6/libexec/uic",
+	"QT_VERSION_MAJOR" : 6,
+	"QT_VERSION_MINOR" : 4,
+	"SETTINGS_FILE" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests/CMakeFiles/test_recorder_integration_autogen.dir/AutogenUsed.txt",
+	"SOURCES" : 
+	[
+		[
+			"/home/runner/work/L2Trader/L2Trader/Tests/RecorderIntegrationTest/main.cpp",
+			"MU",
+			null
+		]
+	],
+	"UIC_OPTIONS" : [],
+	"UIC_SEARCH_PATHS" : [],
+	"UIC_SKIP" : 
+	[
+		"/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests/test_RunUpDetector_autogen/mocs_compilation.cpp",
+		"/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests/test_barcache_autogen/mocs_compilation.cpp",
+		"/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Tests/test_tradestationclient_autogen/mocs_compilation.cpp"
+	],
+	"UIC_UI_FILES" : [],
+	"USE_BETTER_GRAPH" : false,
+	"VERBOSITY" : 0
+}
