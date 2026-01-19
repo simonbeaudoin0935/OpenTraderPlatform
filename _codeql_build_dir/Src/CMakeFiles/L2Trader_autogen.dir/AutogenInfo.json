@@ -1,0 +1,150 @@
+{
+	"BUILD_DIR" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src/L2Trader_autogen",
+	"CMAKE_BINARY_DIR" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir",
+	"CMAKE_CURRENT_BINARY_DIR" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src",
+	"CMAKE_CURRENT_SOURCE_DIR" : "/home/runner/work/L2Trader/L2Trader/Src",
+	"CMAKE_EXECUTABLE" : "/usr/local/bin/cmake",
+	"CMAKE_LIST_FILES" : 
+	[
+		"/home/runner/work/L2Trader/L2Trader/Src/CMakeLists.txt",
+		"/home/runner/work/L2Trader/L2Trader/Resources/Resources.qrc"
+	],
+	"CMAKE_SOURCE_DIR" : "/home/runner/work/L2Trader/L2Trader",
+	"CROSS_CONFIG" : false,
+	"DEP_FILE" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src/L2Trader_autogen/deps",
+	"DEP_FILE_RULE_NAME" : "L2Trader_autogen/timestamp",
+	"HEADERS" : [],
+	"HEADER_EXTENSIONS" : [ "h", "hh", "h++", "hm", "hpp", "hxx", "in", "txx" ],
+	"INCLUDE_DIR" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src/L2Trader_autogen/include",
+	"MOC_COMPILATION_FILE" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src/L2Trader_autogen/mocs_compilation.cpp",
+	"MOC_DEFINITIONS" : 
+	[
+		"GIT_BRANCH=\"copilot/fix-reopening-position-widget\"",
+		"GIT_HASH=\"8b82b54\"",
+		"GIT_TAG=\"unknown\"",
+		"GUI_ENABLED",
+		"QT_CONCURRENT_LIB",
+		"QT_CORE_LIB",
+		"QT_GUI_LIB",
+		"QT_NETWORK_LIB",
+		"QT_NO_DEBUG",
+		"QT_PRINTSUPPORT_LIB",
+		"QT_SQL_LIB",
+		"QT_WIDGETS_LIB"
+	],
+	"MOC_DEPEND_FILTERS" : 
+	[
+		[
+			"Q_PLUGIN_METADATA",
+			"[\n][ \t]*Q_PLUGIN_METADATA[ \t]*\\([^\\)]*FILE[ \t]*\"([^\"]+)\""
+		]
+	],
+	"MOC_INCLUDES" : 
+	[
+		"/home/runner/work/L2Trader/L2Trader/Src",
+		"/home/runner/work/L2Trader/L2Trader/Src/Misc",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/Auth",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/Brokerage",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/Brokerage/GetAccounts",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/Brokerage/GetBalances",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/Brokerage/GetOrders",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/Brokerage/StreamOrders",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/Brokerage/StreamPositions",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/MarketData",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/MarketData/Bars",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/MarketData/GetQuoteSnapshots",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/MarketData/MockStream",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/MarketData/StreamMarketDepthQuote",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/MarketData/StreamQuote",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/OrderExecution",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/OrderExecution/CancelOrder",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/OrderExecution/PlaceOrder",
+		"/home/runner/work/L2Trader/L2Trader/Src/Clients/TSClient/Stream",
+		"/home/runner/work/L2Trader/L2Trader/Src/Algo",
+		"/home/runner/work/L2Trader/L2Trader/Src/Algo/BreakingNewsFetcher",
+		"/home/runner/work/L2Trader/L2Trader/Src/Algo/MarketDepthQuoteReceiver",
+		"/home/runner/work/L2Trader/L2Trader/Src/Algo/PositionsReceiver",
+		"/home/runner/work/L2Trader/L2Trader/Src/Algo/OrdersReceiver",
+		"/home/runner/work/L2Trader/L2Trader/Src/Algo/RunUpDetector",
+		"/home/runner/work/L2Trader/L2Trader/Src/Algo/StockScreener",
+		"/home/runner/work/L2Trader/L2Trader/Src/Core",
+		"/home/runner/work/L2Trader/L2Trader/Src/Core/Cache",
+		"/home/runner/work/L2Trader/L2Trader/Src/Core/Cache/BarCache",
+		"/home/runner/work/L2Trader/L2Trader/Src/FrontEnd",
+		"/home/runner/work/L2Trader/L2Trader/Src/FrontEnd/GUI",
+		"/home/runner/work/L2Trader/L2Trader/Src/FrontEnd/GUI/Gauge",
+		"/home/runner/work/L2Trader/L2Trader/Src/FrontEnd/GUI/StockPriceChart",
+		"/home/runner/work/L2Trader/L2Trader/Src/FrontEnd/GUI/Tabs",
+		"/home/runner/work/L2Trader/L2Trader/Src/FrontEnd/TUI",
+		"/home/runner/work/L2Trader/L2Trader/Src/Recorder",
+		"/home/runner/work/L2Trader/L2Trader/qcustomplot",
+		"/usr/include/x86_64-linux-gnu/qt6/QtCore",
+		"/usr/include/x86_64-linux-gnu/qt6",
+		"/usr/lib/x86_64-linux-gnu/qt6/mkspecs/linux-g++",
+		"/usr/include/x86_64-linux-gnu/qt6/QtNetwork",
+		"/usr/include/x86_64-linux-gnu/qt6/QtSql",
+		"/usr/include/x86_64-linux-gnu/qt6/QtConcurrent",
+		"/usr/include/x86_64-linux-gnu/qt6/QtGui",
+		"/usr/include/x86_64-linux-gnu/qt6/QtWidgets",
+		"/usr/include/x86_64-linux-gnu/qt6/QtPrintSupport",
+		"/usr/include",
+		"/usr/include/c++/13",
+		"/usr/include/x86_64-linux-gnu/c++/13",
+		"/usr/include/c++/13/backward",
+		"/usr/lib/gcc/x86_64-linux-gnu/13/include",
+		"/usr/local/include",
+		"/usr/include/x86_64-linux-gnu"
+	],
+	"MOC_MACRO_NAMES" : 
+	[
+		"Q_OBJECT",
+		"Q_GADGET",
+		"Q_GADGET_EXPORT",
+		"Q_NAMESPACE",
+		"Q_NAMESPACE_EXPORT"
+	],
+	"MOC_OPTIONS" : [],
+	"MOC_PATH_PREFIX" : false,
+	"MOC_PREDEFS_CMD" : 
+	[
+		"/home/runner/work/L2Trader/.codeql-scratch/dbs/cpp/working/autobuild/bin/c++",
+		"-std=gnu++23",
+		"-dM",
+		"-E",
+		"-c",
+		"/usr/local/share/cmake-3.31/Modules/CMakeCXXCompilerABI.cpp"
+	],
+	"MOC_PREDEFS_FILE" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src/L2Trader_autogen/moc_predefs.h",
+	"MOC_RELAXED_MODE" : false,
+	"MOC_SKIP" : 
+	[
+		"/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src/L2TraderCommon_autogen/KO6KE3RLSJ/qrc_Resources.cpp",
+		"/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src/L2TraderCommon_autogen/include/FrontEnd/GUI/ui_GUIFrontend.h",
+		"/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src/L2TraderCommon_autogen/mocs_compilation.cpp"
+	],
+	"MULTI_CONFIG" : false,
+	"PARALLEL" : 1,
+	"PARSE_CACHE_FILE" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src/CMakeFiles/L2Trader_autogen.dir/ParseCache.txt",
+	"QT_MOC_EXECUTABLE" : "/usr/lib/qt6/libexec/moc",
+	"QT_UIC_EXECUTABLE" : "/usr/lib/qt6/libexec/uic",
+	"QT_VERSION_MAJOR" : 6,
+	"QT_VERSION_MINOR" : 4,
+	"SETTINGS_FILE" : "/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src/CMakeFiles/L2Trader_autogen.dir/AutogenUsed.txt",
+	"SOURCES" : 
+	[
+		[ "/home/runner/work/L2Trader/L2Trader/Src/main.cpp", "MU", null ]
+	],
+	"UIC_OPTIONS" : [],
+	"UIC_SEARCH_PATHS" : [],
+	"UIC_SKIP" : 
+	[
+		"/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src/L2TraderCommon_autogen/KO6KE3RLSJ/qrc_Resources.cpp",
+		"/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src/L2TraderCommon_autogen/include/FrontEnd/GUI/ui_GUIFrontend.h",
+		"/home/runner/work/L2Trader/L2Trader/_codeql_build_dir/Src/L2TraderCommon_autogen/mocs_compilation.cpp"
+	],
+	"UIC_UI_FILES" : [],
+	"USE_BETTER_GRAPH" : false,
+	"VERBOSITY" : 0
+}
