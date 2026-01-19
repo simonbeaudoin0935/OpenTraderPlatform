@@ -119,9 +119,9 @@ bool OrdersDatabase::insertOrder(const Order& p_order, const QDateTime& p_receiv
     query.addBindValue(p_order.getOpenedDateTime().toString(Qt::ISODate));
 
     // Handle closed datetime (might not be set)
-    if (p_order.closedDateTime.isValid())
+    if (p_order.getClosedDateTime().isValid())
     {
-        query.addBindValue(p_order.closedDateTime.toString(Qt::ISODate));
+        query.addBindValue(p_order.getClosedDateTime().toString(Qt::ISODate));
     }
     else
     {
@@ -167,9 +167,9 @@ bool OrdersDatabase::updateOrder(const Order& p_order, const std::optional<QDate
     query.addBindValue(p_order.getFilledPrice());
 
     // Handle closed datetime (might not be set)
-    if (p_order.closedDateTime.isValid())
+    if (p_order.getClosedDateTime().isValid())
     {
-        query.addBindValue(p_order.closedDateTime.toString(Qt::ISODate));
+        query.addBindValue(p_order.getClosedDateTime().toString(Qt::ISODate));
     }
     else
     {
@@ -242,7 +242,9 @@ QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersData
         QString orderId = query.value(0).toString();
         QString receivedTimeStr = query.value(1).toString();
         QString filledTimeStr = query.value(2).toString();
-        QString jsonDataStr = query.value(3).toString();
+        QString statusStr = query.value(3).toString();
+        QString orderTypeStr = query.value(4).toString();
+        QString jsonDataStr = query.value(5).toString();
 
         QDateTime receivedTime = QDateTime::fromString(receivedTimeStr, Qt::ISODate);
         std::optional<QDateTime> filledTime;
@@ -255,7 +257,10 @@ QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersData
         QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonDataStr.toUtf8());
         if (jsonDoc.isObject())
         {
-            Order order(jsonDoc.object());
+            QJsonObject jsonObj = jsonDoc.object();
+            jsonObj["Status"] = statusStr;
+            jsonObj["OrderType"] = orderTypeStr;
+            Order order(jsonObj);
             orders.insert(orderId, std::make_tuple(order, receivedTime, filledTime));
         }
     }

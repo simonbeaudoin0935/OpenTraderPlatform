@@ -36,7 +36,8 @@ const QString UPDATE_ORDER = "UPDATE orders SET "
 
 const QString SELECT_ORDER_EXISTS = "SELECT COUNT(*) FROM orders WHERE order_id = ?";
 
-const QString SELECT_ALL_ORDERS = "SELECT order_id, received_time, filled_time, json_data FROM orders";
+const QString SELECT_ALL_ORDERS =
+    "SELECT order_id, received_time, filled_time, status, order_type, json_data FROM orders";
 
 const QString SELECT_ORDER_COUNT = "SELECT COUNT(*) FROM orders";
 

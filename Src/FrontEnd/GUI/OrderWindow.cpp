@@ -441,9 +441,9 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
     {
         tooltipText = "Successfully Cancelled (UROut)\n\nThis order was cancelled successfully.";
     }
-    else if (order.rejectReason.has_value() && !order.rejectReason.value().isEmpty())
+    else if (order.getRejectReason().has_value() && !order.getRejectReason().value().isEmpty())
     {
-        tooltipText += "\n\nReject Reason: " + order.rejectReason.value();
+        tooltipText += "\n\nReject Reason: " + order.getRejectReason().value();
     }
     statusItem->setToolTip(tooltipText);
 
