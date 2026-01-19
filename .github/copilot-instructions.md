@@ -1,7 +1,10 @@
 # Copilot Instructions for L2Trader Repository
 
-- DO NOT TRY TO BUILD THE PROJECT UNLESS SPECIFICALLY ASKED OTHERWISE, for some reason you Copilot crash during the build. 
 - DO NOT ADD _codeql_build_dir to .gitignore, do not commit that ever
+
+## Building the Project
+
+The project has a `copilot-setup-steps.yml` workflow that installs all necessary dependencies. After the setup steps complete, you can build the project following the instructions in the "Build Instructions" section below.
 
 ## General Coding Guidelines
 - When generating code, use the ASSUME macros from Src/Misc/Assume.h for assertions instead of Q_ASSERT or similar, to ensure consistency and proper no-op behavior in release builds.
