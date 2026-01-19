@@ -75,7 +75,7 @@ void MainAlgo::onThreadStarted()
     connect(m_balancePollingTimer, &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
 }
 
-void MainAlgo::onSelectDisplayedStock(QString symbol)
+void MainAlgo::onSelectDisplayedStock(const QString& symbol)
 {
     // Make sure that this method gets Qt::InvokeMethod'ed if called from another thread
     Q_ASSERT(QThread::currentThread() == &thread);
@@ -137,7 +137,7 @@ BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date,
 /*
  * This is the entry point that activates the chain of events after authentication state changes
  */
-void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
+void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, const QString& reason)
 {
     if (!isAuthenticated)
     {
@@ -275,20 +275,20 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
     emit tradeStationAccountsReceived(results);
 }
 
-void MainAlgo::onReceivedNewPosition(QString account, Position position)
+void MainAlgo::onReceivedNewPosition(const QString& account, Position position)
 {
     Q_UNUSED(account);
     qCDebug(MainAlgoLog) << "Received new position:" << position.toJsonString();
 }
 
-void MainAlgo::onPositionDeleted(QString account, QString positionID)
+void MainAlgo::onPositionDeleted(const QString& account, const QString& positionID)
 {
     Q_UNUSED(account);
     qCDebug(MainAlgoLog) << "Position deleted:" << positionID;
     emit positionDeleted(account, positionID);
 }
 
-void MainAlgo::onReceivedNewOrder(QString account, Order order)
+void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
 {
     Q_UNUSED(account);
     Q_UNUSED(order);

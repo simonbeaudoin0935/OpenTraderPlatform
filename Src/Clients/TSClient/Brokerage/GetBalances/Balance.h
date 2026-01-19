@@ -55,12 +55,12 @@ class Balance
     QString accountID;
     AccountType accountType;
     //Balance detail
-    double buyingPower;
-    double cashBalance;
-    double comission;
+    double buyingPower = 0.0;
+    double cashBalance = 0.0;
+    double comission = 0.0;
     //currency details
-    double equity;
-    double marketValue;
-    double todaysProfitLoss;
-    double unclearedDeposit;
+    double equity = 0.0;
+    double marketValue = 0.0;
+    double todaysProfitLoss = 0.0;
+    double unclearedDeposit = 0.0;
 };

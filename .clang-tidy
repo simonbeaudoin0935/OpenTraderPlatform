@@ -9,7 +9,11 @@ Checks: '-*,clang-analyzer-*,bugprone-*,performance-*,readability-*,
   -readability-braces-around-statements,
   -readability-redundant-access-specifiers,
   -readability-uppercase-literal-suffix,
-  -performance-enum-size'
+  -readability-convert-member-functions-to-static,
+  -readability-make-member-function-const,
+  -readability-function-cognitive-complexity,
+  -performance-enum-size,
+  -performance-unnecessary-value-param'
 
 # Warnings are not treated as errors
 WarningsAsErrors: ''

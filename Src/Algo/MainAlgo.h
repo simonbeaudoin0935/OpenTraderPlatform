@@ -63,15 +63,15 @@ class MainAlgo final : public QObject
     void balanceUpdated(Balance balance);
 
   public slots:
-    void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
-    void onSelectDisplayedStock(QString symbol);
+    void onTradeStationAuthStateChanged(bool isAuthenticated, const QString& reason);
+    void onSelectDisplayedStock(const QString& symbol);
 
   private slots:
     void onThreadStarted();
 
-    void onReceivedNewPosition(QString account, Position position);
-    void onPositionDeleted(QString account, QString positionID);
-    void onReceivedNewOrder(QString account, Order order);
+    void onReceivedNewPosition(const QString& account, Position position);
+    void onPositionDeleted(const QString& account, const QString& positionID);
+    void onReceivedNewOrder(const QString& account, Order order);
 
     void onReceivedAsyncGetAccounts(const QVector<Account>& results);
 
