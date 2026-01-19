@@ -101,6 +101,7 @@ void PositionWindow::setupStyles()
 void PositionWindow::updatePosition(const QString& account, const Position& position)
 {
     QString positionId = position.getPositionID();
+    QString symbol = position.getSymbol();
 
     if (positionRowMap.contains(positionId))
     {
@@ -109,10 +110,41 @@ void PositionWindow::updatePosition(const QString& account, const Position& posi
     }
     else
     {
-        // Add new position
-        QList<QStandardItem*> rowItems = createRowItems(position);
-        model->appendRow(rowItems);
-        positionRowMap[positionId] = model->rowCount() - 1;
+        // Check if there's an existing row with 0 quantity for this symbol (closed position being reopened)
+        int existingRowWithZeroQty = -1;
+        QString oldPositionIdToRemove;
+
+        for (auto it = positionRowMap.constBegin(); it != positionRowMap.constEnd(); ++it)
+        {
+            int row = it.value();
+            if (row < model->rowCount())
+            {
+                QStandardItem* symbolItem = model->item(row, 0);   // Column 0 is Symbol
+                QStandardItem* quantityItem = model->item(row, 1); // Column 1 is Quantity
+
+                if (symbolItem && quantityItem && symbolItem->text() == symbol && quantityItem->text() == "0")
+                {
+                    existingRowWithZeroQty = row;
+                    oldPositionIdToRemove = it.key();
+                    break;
+                }
+            }
+        }
+
+        if (existingRowWithZeroQty >= 0)
+        {
+            // Reuse the existing row with 0 quantity
+            positionRowMap.remove(oldPositionIdToRemove);
+            positionRowMap[positionId] = existingRowWithZeroQty;
+            updatePositionRow(account, position);
+        }
+        else
+        {
+            // Add new position
+            QList<QStandardItem*> rowItems = createRowItems(position);
+            model->appendRow(rowItems);
+            positionRowMap[positionId] = model->rowCount() - 1;
+        }
     }
 }
 
