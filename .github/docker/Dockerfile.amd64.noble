@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     cmake \
     ccache \
     clang-format \
+    cppcheck \
     debhelper-compat \
     qt6-base-private-dev \
     qt6-base-dev \
