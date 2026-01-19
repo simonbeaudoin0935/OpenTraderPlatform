@@ -86,9 +86,7 @@ void AuthWindow::setupUi()
 }
 
 // GUIAuthHandler implementation
-AuthWindow::GUIAuthHandler::GUIAuthHandler(AuthWindow* window) : AuthHandler(window), m_window(window)
-{
-}
+AuthWindow::GUIAuthHandler::GUIAuthHandler(AuthWindow* window) : AuthHandler(window), m_window(window) {}
 
 bool AuthWindow::GUIAuthHandler::promptForCredentials(QString& clientId, QString& clientSecret)
 {

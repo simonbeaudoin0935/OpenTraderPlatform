@@ -243,5 +243,4 @@ class TSClient final : public QObject
 #else
     HeadlessAuthHandler* m_authHandler = nullptr; // Headless authentication handler
 #endif
-#endif
 };
