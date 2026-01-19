@@ -37,23 +37,23 @@ const QString SELECT_COUNT_FROM_TABLE = "SELECT COUNT(*) FROM %1";
 // ============================================================================
 
 const QString CREATE_ORDERS_TABLE = "CREATE TABLE IF NOT EXISTS orders ("
-                                   "order_id TEXT PRIMARY KEY, "
-                                   "account_id TEXT NOT NULL, "
-                                   "symbol TEXT NOT NULL, "
-                                   "quantity TEXT NOT NULL, "
-                                   "trade_action TEXT NOT NULL, "
-                                   "order_type TEXT NOT NULL, "
-                                   "status TEXT NOT NULL, "
-                                   "status_description TEXT, "
-                                   "limit_price REAL, "
-                                   "stop_price REAL, "
-                                   "filled_price REAL, "
-                                   "opened_datetime TEXT, "
-                                   "closed_datetime TEXT, "
-                                   "received_time TEXT NOT NULL, "
-                                   "filled_time TEXT, "
-                                   "json_data TEXT NOT NULL"
-                                   ")";
+                                    "order_id TEXT PRIMARY KEY, "
+                                    "account_id TEXT NOT NULL, "
+                                    "symbol TEXT NOT NULL, "
+                                    "quantity TEXT NOT NULL, "
+                                    "trade_action TEXT NOT NULL, "
+                                    "order_type TEXT NOT NULL, "
+                                    "status TEXT NOT NULL, "
+                                    "status_description TEXT, "
+                                    "limit_price REAL, "
+                                    "stop_price REAL, "
+                                    "filled_price REAL, "
+                                    "opened_datetime TEXT, "
+                                    "closed_datetime TEXT, "
+                                    "received_time TEXT NOT NULL, "
+                                    "filled_time TEXT, "
+                                    "json_data TEXT NOT NULL"
+                                    ")";
 
 const QString INSERT_ORDER = "INSERT INTO orders ("
                              "order_id, account_id, symbol, quantity, trade_action, order_type, "
@@ -89,10 +89,9 @@ const QString CREATE_BAR_CACHE_TABLE = "CREATE TABLE IF NOT EXISTS bars ("
                                        "status INTEGER DEFAULT 0, "
                                        "PRIMARY KEY (date, [index]))";
 
-const QString SELECT_BARS_BY_DATE_AND_INDEX =
-    "SELECT [index], open, high, low, close, volume, status "
-    "FROM bars WHERE date = ? AND [index] >= ? AND [index] <= ? "
-    "ORDER BY [index]";
+const QString SELECT_BARS_BY_DATE_AND_INDEX = "SELECT [index], open, high, low, close, volume, status "
+                                              "FROM bars WHERE date = ? AND [index] >= ? AND [index] <= ? "
+                                              "ORDER BY [index]";
 
 const QString INSERT_OR_REPLACE_BAR = "INSERT OR REPLACE INTO bars "
                                       "(date, [index], open, high, low, close, volume, status) "
