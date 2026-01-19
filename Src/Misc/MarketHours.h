@@ -6,14 +6,14 @@
 
 /**
  * @brief Utility class to handle market hours in Eastern Time (ET)
- * 
+ *
  * All times are handled in Eastern Time (ET) and automatically adjust for
  * Daylight Saving Time (DST). Market hours are:
  * - Pre-Market:     4:00 AM - 9:30 AM ET
  * - Regular Hours:  9:30 AM - 4:00 PM ET
  * - After Hours:    4:00 PM - 8:00 PM ET
  * - Closed:         8:00 PM - 4:00 AM ET and weekends
- * 
+ *
  * DST begins on the second Sunday in March at 2:00 AM
  * DST ends on the first Sunday in November at 2:00 AM
  */

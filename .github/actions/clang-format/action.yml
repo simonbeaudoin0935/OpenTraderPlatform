@@ -50,7 +50,14 @@ runs:
         FAILED_FILES=()
 
         # Find all source files (C++, headers, CMake, YAML, shell scripts, Python, etc.)
-        SOURCE_FILES=$(find Src Tests . -maxdepth 1 -type f \( \
+        SOURCE_FILES=$(find Src Tests -type f \( \
+          -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cc" -o -name "*.cxx" -o -name "*.c" -o \
+          -name "*.cmake" -o -name "CMakeLists.txt" -o \
+          -name "*.yml" -o -name "*.yaml" -o \
+          -name "*.sh" -o -name "*.py" -o \
+          -name "*.md" -o -name "*.txt" \
+        \) && \
+        find . -maxdepth 1 -type f \( \
           -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cc" -o -name "*.cxx" -o -name "*.c" -o \
           -name "*.cmake" -o -name "CMakeLists.txt" -o \
           -name "*.yml" -o -name "*.yaml" -o \

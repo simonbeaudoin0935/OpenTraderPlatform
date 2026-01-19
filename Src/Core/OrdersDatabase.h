@@ -13,11 +13,11 @@ Q_DECLARE_LOGGING_CATEGORY(OrdersDatabaseLog)
 
 /**
  * @brief Database for persisting order history (Singleton)
- * 
+ *
  * This class manages a SQLite database that stores all orders received through
  * the orders stream, including their received and filled timestamps. This allows
  * the application to maintain order history across restarts.
- * 
+ *
  * This is a singleton class - use getInstance() to get the single instance.
  */
 class OrdersDatabase : public QObject
