@@ -22,11 +22,12 @@ see the action .github/actions/clang-format/action.yml to understand how to call
 - Everything time related must be in QDateTime/QTime/QDate with proper QTimeZone usage. Never use std::chrono or raw time_t/struct tm etc. The timezone is always NewYork since it is stock market related.
 
 ## SQL Queries
-- **ALL** SQL queries must be defined as constants in the centralized `Src/Misc/SqlQueries.h` file. Never write SQL queries directly in implementation files.
-- When you need to add a new SQL query, add it to `Src/Misc/SqlQueries.h` with a descriptive name and appropriate comments indicating its purpose.
-- Group related queries together in the SqlQueries namespace (e.g., all orders-related queries together, all bars-related queries together).
-- Use the queries by including `Misc/SqlQueries.h` and referencing them via the `SqlQueries::` namespace (e.g., `SqlQueries::CREATE_ORDERS_TABLE`).
-- This centralization makes SQL queries easy to find, maintain, and update without hunting through the entire codebase.
+- **ALL** SQL queries must be defined as constants in dedicated header files in the `Src/SQL/` folder. Never write SQL queries directly in implementation files.
+- Each class that uses SQL queries should have its own header file in `Src/SQL/` (e.g., `OrdersDatabaseQueries.h`, `LiveStreamDBQueries.h`).
+- When you need to add a new SQL query, add it to the appropriate header file in `Src/SQL/` with a descriptive name and appropriate comments indicating its purpose.
+- Each query file should have its own namespace matching the class name (e.g., `OrdersDatabaseQueries`, `LiveStreamDBQueries`).
+- Use the queries by including `SQL/<ClassName>Queries.h` and referencing them via the namespace (e.g., `OrdersDatabaseQueries::CREATE_ORDERS_TABLE`).
+- This organization makes SQL queries easy to find, maintain, and update without hunting through the entire codebase.
 
 ## High Level Details
 
