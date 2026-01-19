@@ -4,10 +4,7 @@
 #include <QDebug>
 #include <locale.h>
 
-TUIFrontend::TUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) 
-    : FrontEnd(parent), mainAlgo(p_mainAlgo) 
-{
-}
+TUIFrontend::TUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(parent), mainAlgo(p_mainAlgo) {}
 
 TUIFrontend::~TUIFrontend()
 {
@@ -25,25 +22,25 @@ void TUIFrontend::initialize()
     setlocale(LC_ALL, "");
 
     // Initialize ncurses
-    initscr();              // Initialize the screen
-    cbreak();               // Disable line buffering
-    noecho();               // Don't echo input characters
-    keypad(stdscr, TRUE);   // Enable special keys
-    nodelay(stdscr, TRUE);  // Non-blocking input
-    curs_set(0);            // Hide cursor
+    initscr();             // Initialize the screen
+    cbreak();              // Disable line buffering
+    noecho();              // Don't echo input characters
+    keypad(stdscr, TRUE);  // Enable special keys
+    nodelay(stdscr, TRUE); // Non-blocking input
+    curs_set(0);           // Hide cursor
 
     // Enable colors if supported
     if (has_colors())
     {
         start_color();
         use_default_colors();
-        
+
         // Define color pairs
-        init_pair(1, COLOR_WHITE, COLOR_BLUE);    // Header
-        init_pair(2, COLOR_GREEN, -1);            // Positive P/L
-        init_pair(3, COLOR_RED, -1);              // Negative P/L
-        init_pair(4, COLOR_YELLOW, -1);           // Status bar
-        init_pair(5, COLOR_CYAN, -1);             // Help text
+        init_pair(1, COLOR_WHITE, COLOR_BLUE); // Header
+        init_pair(2, COLOR_GREEN, -1);         // Positive P/L
+        init_pair(3, COLOR_RED, -1);           // Negative P/L
+        init_pair(4, COLOR_YELLOW, -1);        // Status bar
+        init_pair(5, COLOR_CYAN, -1);          // Help text
     }
 
     setupWindows();
@@ -82,11 +79,15 @@ void TUIFrontend::cleanup()
 {
     if (m_initialized)
     {
-        if (m_orderWin) delwin(m_orderWin);
-        if (m_positionWin) delwin(m_positionWin);
-        if (m_statusWin) delwin(m_statusWin);
-        if (m_helpWin) delwin(m_helpWin);
-        
+        if (m_orderWin)
+            delwin(m_orderWin);
+        if (m_positionWin)
+            delwin(m_positionWin);
+        if (m_statusWin)
+            delwin(m_statusWin);
+        if (m_helpWin)
+            delwin(m_helpWin);
+
         endwin();
         m_initialized = false;
     }
@@ -103,7 +104,7 @@ void TUIFrontend::refreshDisplay()
     displayPositions();
     displayStatusBar();
     displayHelp();
-    
+
     doupdate();
 }
 
@@ -123,13 +124,23 @@ void TUIFrontend::displayOrders()
     wattroff(m_orderWin, COLOR_PAIR(1) | A_BOLD);
 
     // Display column headers
-    mvwprintw(m_orderWin, 1, 2, "%-12s %-8s %-6s %-6s %-8s %-8s %-20s %-15s",
-              "Order ID", "Symbol", "Action", "Qty", "Type", "Price", "DateTime", "Status");
+    mvwprintw(m_orderWin,
+              1,
+              2,
+              "%-12s %-8s %-6s %-6s %-8s %-8s %-20s %-15s",
+              "Order ID",
+              "Symbol",
+              "Action",
+              "Qty",
+              "Type",
+              "Price",
+              "DateTime",
+              "Status");
 
     // Display orders (most recent first)
     int row = 2;
     int maxRows = getmaxy(m_orderWin) - 3;
-    
+
     QList<QString> orderIds = m_orders.keys();
     for (int i = orderIds.size() - 1; i >= 0 && row < maxRows; --i, ++row)
     {
@@ -139,7 +150,7 @@ void TUIFrontend::displayOrders()
             continue;
         }
         const Order& order = it.value();
-        
+
         QString priceStr;
         if (order.getLimitPrice().has_value())
         {
@@ -157,19 +168,42 @@ void TUIFrontend::displayOrders()
         QString statusStr;
         switch (order.getOrderStatus())
         {
-            case Order::Status::ACK: statusStr = "Acknowledged"; break;
-            case Order::Status::DON: statusStr = "Done"; break;
-            case Order::Status::FLL: statusStr = "Filled"; break;
-            case Order::Status::FPR: statusStr = "Part Filled"; break;
-            case Order::Status::OPN: statusStr = "Open"; break;
-            case Order::Status::OUT: statusStr = "Sent"; break;
-            case Order::Status::REJ: statusStr = "Rejected"; break;
-            case Order::Status::UCN: statusStr = "Canceling"; break;
-            case Order::Status::CAN: statusStr = "Canceled"; break;
-            default: statusStr = "Unknown"; break;
+        case Order::Status::ACK:
+            statusStr = "Acknowledged";
+            break;
+        case Order::Status::DON:
+            statusStr = "Done";
+            break;
+        case Order::Status::FLL:
+            statusStr = "Filled";
+            break;
+        case Order::Status::FPR:
+            statusStr = "Part Filled";
+            break;
+        case Order::Status::OPN:
+            statusStr = "Open";
+            break;
+        case Order::Status::OUT:
+            statusStr = "Sent";
+            break;
+        case Order::Status::REJ:
+            statusStr = "Rejected";
+            break;
+        case Order::Status::UCN:
+            statusStr = "Canceling";
+            break;
+        case Order::Status::CAN:
+            statusStr = "Canceled";
+            break;
+        default:
+            statusStr = "Unknown";
+            break;
         }
 
-        mvwprintw(m_orderWin, row, 2, "%-12s %-8s %-6s %-6s %-8s %-8s %-20s %-15s",
+        mvwprintw(m_orderWin,
+                  row,
+                  2,
+                  "%-12s %-8s %-6s %-6s %-8s %-8s %-20s %-15s",
                   order.getOrderID().left(12).toStdString().c_str(),
                   order.getSymbol().toStdString().c_str(),
                   order.getTradeAction().toStdString().c_str(),
@@ -199,13 +233,22 @@ void TUIFrontend::displayPositions()
     wattroff(m_positionWin, COLOR_PAIR(1) | A_BOLD);
 
     // Display column headers
-    mvwprintw(m_positionWin, 1, 2, "%-8s %-10s %-12s %-12s %-12s %-10s %-12s",
-              "Symbol", "Quantity", "Avg Price", "Last", "P/L", "P/L %", "Market Val");
+    mvwprintw(m_positionWin,
+              1,
+              2,
+              "%-8s %-10s %-12s %-12s %-12s %-10s %-12s",
+              "Symbol",
+              "Quantity",
+              "Avg Price",
+              "Last",
+              "P/L",
+              "P/L %",
+              "Market Val");
 
     // Display positions
     int row = 2;
     int maxRows = getmaxy(m_positionWin) - 3;
-    
+
     QList<QString> posIds = m_positions.keys();
     for (int i = 0; i < posIds.size() && row < maxRows; ++i, ++row)
     {
@@ -215,7 +258,7 @@ void TUIFrontend::displayPositions()
             continue;
         }
         const Position& pos = it.value();
-        
+
         double avgPrice = pos.getAveragePrice().toDouble();
         double last = pos.getLast().toDouble();
         int quantity = pos.getQuantity().toInt();
@@ -233,7 +276,10 @@ void TUIFrontend::displayPositions()
             wattron(m_positionWin, COLOR_PAIR(3)); // Red for loss
         }
 
-        mvwprintw(m_positionWin, row, 2, "%-8s %-10s %-12s %-12s %-12s %-10s %-12s",
+        mvwprintw(m_positionWin,
+                  row,
+                  2,
+                  "%-8s %-10s %-12s %-12s %-12s %-10s %-12s",
                   pos.getSymbol().toStdString().c_str(),
                   QString::number(quantity).toStdString().c_str(),
                   QString::number(avgPrice, 'f', 2).toStdString().c_str(),
@@ -260,10 +306,15 @@ void TUIFrontend::displayStatusBar()
 
     werase(m_statusWin);
     wattron(m_statusWin, COLOR_PAIR(4));
-    
-    mvwprintw(m_statusWin, 0, 2, "Data: %lld KB | Memory: %lld KB | Streams: %d",
-              m_dataUsage / 1024, m_memoryUsage / 1024, m_streamCount);
-    
+
+    mvwprintw(m_statusWin,
+              0,
+              2,
+              "Data: %lld KB | Memory: %lld KB | Streams: %d",
+              m_dataUsage / 1024,
+              m_memoryUsage / 1024,
+              m_streamCount);
+
     wattroff(m_statusWin, COLOR_PAIR(4));
     wnoutrefresh(m_statusWin);
 }
@@ -277,10 +328,10 @@ void TUIFrontend::displayHelp()
 
     werase(m_helpWin);
     wattron(m_helpWin, COLOR_PAIR(5));
-    
+
     mvwprintw(m_helpWin, 0, 2, "Keyboard Shortcuts:");
     mvwprintw(m_helpWin, 1, 2, "q/Q: Quit | r/R: Refresh | ?: Help");
-    
+
     wattroff(m_helpWin, COLOR_PAIR(5));
     wnoutrefresh(m_helpWin);
 }
@@ -288,7 +339,7 @@ void TUIFrontend::displayHelp()
 void TUIFrontend::handleInput()
 {
     int ch = getch();
-    
+
     if (ch == ERR)
     {
         return; // No input available
@@ -296,27 +347,27 @@ void TUIFrontend::handleInput()
 
     switch (ch)
     {
-        case 'q':
-        case 'Q':
-            handleQuitShortcut();
-            break;
-        case 'r':
-        case 'R':
-            handleRefreshShortcut();
-            break;
-        case '?':
-            // Could implement a detailed help screen here
-            refreshDisplay();
-            break;
-        case KEY_RESIZE:
-            // Handle terminal resize
-            endwin();
-            refresh();
-            setupWindows();
-            refreshDisplay();
-            break;
-        default:
-            break;
+    case 'q':
+    case 'Q':
+        handleQuitShortcut();
+        break;
+    case 'r':
+    case 'R':
+        handleRefreshShortcut();
+        break;
+    case '?':
+        // Could implement a detailed help screen here
+        refreshDisplay();
+        break;
+    case KEY_RESIZE:
+        // Handle terminal resize
+        endwin();
+        refresh();
+        setupWindows();
+        refreshDisplay();
+        break;
+    default:
+        break;
     }
 }
 

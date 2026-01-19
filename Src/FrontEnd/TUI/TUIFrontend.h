@@ -64,7 +64,7 @@ class TUIFrontend : public FrontEnd
     // Data storage
     QHash<QString, Order> m_orders; // QHash used because Order lacks default constructor
     QHash<QString, Position> m_positions;
-    
+
     // Status info
     qsizetype m_dataUsage = 0;
     qsizetype m_memoryUsage = 0;
