@@ -1,5 +1,5 @@
 name: Run clang-format
-description: An action to run clang-format on source code files and check YAML files for trailing whitespace.
+description: An action to run clang-format on source code files and check all source files for trailing whitespace.
 
 runs:
   using: "composite"
@@ -43,16 +43,22 @@ runs:
         echo ""
         echo "✅ All C++ files are properly formatted!"
 
-    - name: Check YAML files for trailing whitespace
+    - name: Check source files for trailing whitespace
       shell: bash
       run: |
-        echo "Checking YAML files for trailing whitespace..."
+        echo "Checking source files for trailing whitespace..."
         FAILED_FILES=()
 
-        # Find all YAML files
-        YAML_FILES=$(find . -type f \( -name "*.yml" -o -name "*.yaml" \))
+        # Find all source files (C++, headers, CMake, YAML, shell scripts, Python, etc.)
+        SOURCE_FILES=$(find Src Tests . -maxdepth 1 -type f \( \
+          -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cc" -o -name "*.cxx" -o -name "*.c" -o \
+          -name "*.cmake" -o -name "CMakeLists.txt" -o \
+          -name "*.yml" -o -name "*.yaml" -o \
+          -name "*.sh" -o -name "*.py" -o \
+          -name "*.md" -o -name "*.txt" \
+        \))
 
-        for file in $YAML_FILES; do
+        for file in $SOURCE_FILES; do
           if grep -q '[[:space:]]$' "$file"; then
             FAILED_FILES+=("$file")
             echo "❌ $file has trailing whitespace"
@@ -62,7 +68,7 @@ runs:
         if [ ${#FAILED_FILES[@]} -ne 0 ]; then
           echo ""
           echo "================================================"
-          echo "YAML trailing whitespace check FAILED"
+          echo "Trailing whitespace check FAILED"
           echo "================================================"
           echo ""
           echo "The following files have trailing whitespace:"
@@ -75,4 +81,4 @@ runs:
         fi
 
         echo ""
-        echo "✅ All YAML files are clean!"
+        echo "✅ All source files are clean!"
