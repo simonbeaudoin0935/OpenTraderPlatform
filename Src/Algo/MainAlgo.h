@@ -6,6 +6,7 @@
 #include <QMap>
 #include <QTimer>
 #include <QVector>
+#include <memory>
 
 #include "RunUpDetector.h"
 #include "MarketDepthQuoteReceiver.h"
@@ -22,7 +23,7 @@ class StockInstruments : public QObject
 {
 
   public:
-    explicit StockInstruments(const QString& p_symbol);
+    explicit StockInstruments(const QString& p_symbol, QObject* p_parent = nullptr);
     ~StockInstruments();
 
     QString symbol;
@@ -89,8 +90,8 @@ class MainAlgo final : public QObject
     QMap<QString, StockInstruments*> stockInstruments;
     StockInstruments* currentDisplayedStockInstrument = nullptr;
 
-    PositionsReceiver* m_positionReceiver = nullptr;
-    OrdersReceiver* m_orderReceiver = nullptr;
+    std::unique_ptr<PositionsReceiver> m_positionReceiver;
+    std::unique_ptr<OrdersReceiver> m_orderReceiver;
     bool positionStreamStarted = false;
     bool orderStreamStarted = false;
 

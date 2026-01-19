@@ -106,7 +106,7 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
     }
     else
     {
-        currentDisplayedStockInstrument = new StockInstruments(symbol);
+        currentDisplayedStockInstrument = new StockInstruments(symbol, this); // Pass 'this' as parent
         Q_CHECK_PTR(currentDisplayedStockInstrument);
 
         stockInstruments.insert(symbol, currentDisplayedStockInstrument);
@@ -220,25 +220,25 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
     }
     else
     {
-        m_positionReceiver = new PositionsReceiver(m_activeAccount.getAccountId());
+        m_positionReceiver = std::make_unique<PositionsReceiver>(m_activeAccount.getAccountId());
         Q_CHECK_PTR(m_positionReceiver);
         positionStreamStarted = true;
 
-        auto c1 = connect(m_positionReceiver,
+        auto c1 = connect(m_positionReceiver.get(),
                           &PositionsReceiver::receivedNewPosition,
                           this,
                           &MainAlgo::receivedNewPosition,
                           Qt::UniqueConnection);
         Q_ASSERT(c1);
 
-        auto c2 = connect(m_positionReceiver,
+        auto c2 = connect(m_positionReceiver.get(),
                           &PositionsReceiver::receivedNewPosition,
                           this,
                           &MainAlgo::onReceivedNewPosition,
                           Qt::UniqueConnection);
         Q_ASSERT(c2);
 
-        auto c3 = connect(m_positionReceiver,
+        auto c3 = connect(m_positionReceiver.get(),
                           &PositionsReceiver::positionDeleted,
                           this,
                           &MainAlgo::onPositionDeleted,
@@ -253,18 +253,18 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
     }
     else
     {
-        m_orderReceiver = new OrdersReceiver(m_activeAccount.getAccountId());
+        m_orderReceiver = std::make_unique<OrdersReceiver>(m_activeAccount.getAccountId());
         Q_CHECK_PTR(m_orderReceiver);
         orderStreamStarted = true;
 
-        auto c3 = connect(m_orderReceiver,
+        auto c3 = connect(m_orderReceiver.get(),
                           &OrdersReceiver::receivedNewOrder,
                           this,
                           &MainAlgo::receivedNewOrder,
                           Qt::UniqueConnection);
         Q_ASSERT(c3);
 
-        auto c4 = connect(m_orderReceiver,
+        auto c4 = connect(m_orderReceiver.get(),
                           &OrdersReceiver::receivedNewOrder,
                           this,
                           &MainAlgo::onReceivedNewOrder,
@@ -360,8 +360,9 @@ void MainAlgo::onBalanceReceived(const QVector<Balance>& results)
     // TODO save this balance figure and act on it
 }
 
-StockInstruments::StockInstruments(const QString& p_symbol)
-    : symbol(p_symbol)
+StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
+    : QObject(p_parent)
+    , symbol(p_symbol)
     , barCache(p_symbol, true, this)
     , runUpDetector(&barCache, this)
     , marketDepthQuoteReceiver(p_symbol, this)
