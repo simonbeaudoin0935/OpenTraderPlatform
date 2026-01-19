@@ -1,4 +1,4 @@
-#include "HeadlessAuthHandler.h"
+#include "TUIAuthHandler.h"
 
 #include <QTextStream>
 #include <QCoreApplication>
@@ -9,12 +9,12 @@
 #include <unistd.h>
 #endif
 
-HeadlessAuthHandler::HeadlessAuthHandler(QObject* parent) : AuthHandler(parent)
+TUIAuthHandler::TUIAuthHandler(QObject* parent) : AuthHandler(parent)
 {
-    qCDebug(TSAuthHandlerLog) << "Initializing HeadlessAuthHandler for TUI mode";
+    qCDebug(TSAuthHandlerLog) << "Initializing TUIAuthHandler for TUI mode";
 }
 
-bool HeadlessAuthHandler::promptForCredentials(QString& clientId, QString& clientSecret)
+bool TUIAuthHandler::promptForCredentials(QString& clientId, QString& clientSecret)
 {
     std::cout << "\n=== TradeStation API Credentials Setup ===\n" << std::endl;
     std::cout << "Please enter your TradeStation API credentials." << std::endl;
@@ -60,7 +60,7 @@ bool HeadlessAuthHandler::promptForCredentials(QString& clientId, QString& clien
     return true;
 }
 
-void HeadlessAuthHandler::showAuthUrl(const QString& authUrl)
+void TUIAuthHandler::showAuthUrl(const QString& authUrl)
 {
     std::cout << "\n=== TradeStation Authentication Required ===\n" << std::endl;
     std::cout << "Please complete the authentication in your web browser." << std::endl;
@@ -70,21 +70,21 @@ void HeadlessAuthHandler::showAuthUrl(const QString& authUrl)
     std::cout << "(Keep this application running until authentication is complete)\n" << std::endl;
 }
 
-void HeadlessAuthHandler::showError(const QString& title, const QString& message)
+void TUIAuthHandler::showError(const QString& title, const QString& message)
 {
     std::cerr << "\n*** ERROR: " << title.toStdString() << " ***" << std::endl;
     std::cerr << message.toStdString() << std::endl;
     std::cerr << std::endl;
 }
 
-void HeadlessAuthHandler::showServerError(const QString& errorMsg)
+void TUIAuthHandler::showServerError(const QString& errorMsg)
 {
     std::cerr << "\n*** SERVER ERROR ***" << std::endl;
     std::cerr << errorMsg.toStdString() << std::endl;
     std::cerr << std::endl;
 }
 
-QString HeadlessAuthHandler::readLineFromStdin(bool hideInput)
+QString TUIAuthHandler::readLineFromStdin(bool hideInput)
 {
 #ifdef Q_OS_UNIX
     if (hideInput)

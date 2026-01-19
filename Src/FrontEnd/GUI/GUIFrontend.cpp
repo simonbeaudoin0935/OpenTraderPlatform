@@ -117,7 +117,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             this,
             []()
             {
-                // AuthWindow is modal, so it's impossible to click the button while authentication is in progress
+                // GUIAuthHandler is modal, so it's impossible to click the button while authentication is in progress
                 Q_ASSERT(TSClient::getInstance()->isAuthInProgress() == false);
                 TSClient::getInstance()->launchAuthProcess();
             });

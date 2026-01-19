@@ -6,16 +6,16 @@
 
 #include "AuthHandler.h"
 
-Q_DECLARE_LOGGING_CATEGORY(TSAuthWindowLog)
+Q_DECLARE_LOGGING_CATEGORY(TSGUIAuthHandlerLog)
 
 // GUI-based authentication handler using Qt dialogs
-class AuthWindow : public QDialog
+class GUIAuthHandler : public QDialog
 {
     Q_OBJECT
 
   public:
-    explicit AuthWindow(QWidget* parent = nullptr);
-    ~AuthWindow() override;
+    explicit GUIAuthHandler(QWidget* parent = nullptr);
+    ~GUIAuthHandler() override;
 
   signals:
     void authFinished(bool success, AuthToken token, QString reason);
@@ -25,11 +25,11 @@ class AuthWindow : public QDialog
     void handleAuthHandlerFinished(bool success, AuthToken token, QString reason);
 
   private:
-    // GUI-specific authentication handler
-    class GUIAuthHandler : public AuthHandler
+    // GUI-specific authentication handler implementation
+    class Impl : public AuthHandler
     {
       public:
-        explicit GUIAuthHandler(AuthWindow* window);
+        explicit Impl(GUIAuthHandler* window);
 
       protected:
         bool promptForCredentials(QString& clientId, QString& clientSecret) override;
@@ -37,10 +37,10 @@ class AuthWindow : public QDialog
         void showError(const QString& title, const QString& message) override;
 
       private:
-        AuthWindow* m_window;
+        GUIAuthHandler* m_window;
     };
 
-    GUIAuthHandler* m_authHandler = nullptr;
+    Impl* m_authHandler = nullptr;
 
     // UI setup
     void setupUi();

@@ -15,7 +15,7 @@ static const char* logging_categories[] = {
     "Stream",
     "TSClient",
     "TSClient.authhandler",
-    "TSClient.authwindow",
+    "TSClient.guiauthhandler",
     "TSClient.token.auth",
     "TSClient.token.client",
 };

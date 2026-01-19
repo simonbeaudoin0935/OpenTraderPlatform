@@ -25,9 +25,9 @@
 #include "Stream.h"
 
 #ifdef GUI_ENABLED
-#include "AuthWindow.h"
+#include "GUIAuthHandler.h"
 #else
-#include "HeadlessAuthHandler.h"
+#include "TUIAuthHandler.h"
 #endif
 
 Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
@@ -198,12 +198,7 @@ class TSClient final : public QObject
 
   private slots:
     void onAuthFinished(bool success, AuthToken token, QString reason);
-
-#ifdef GUI_ENABLED
-    void onAuthWindowDestroyed();
-#else
     void onAuthHandlerDestroyed();
-#endif
 
   private:
     static TSClient* m_instance; // Singleton instance
@@ -239,8 +234,8 @@ class TSClient final : public QObject
     QNetworkAccessManager* m_networkManager;
 
 #ifdef GUI_ENABLED
-    AuthWindow* m_authWindow = nullptr; // Authentication window
+    GUIAuthHandler* m_authHandler = nullptr; // GUI authentication handler
 #else
-    HeadlessAuthHandler* m_authHandler = nullptr; // Headless authentication handler
+    TUIAuthHandler* m_authHandler = nullptr; // TUI authentication handler
 #endif
 };

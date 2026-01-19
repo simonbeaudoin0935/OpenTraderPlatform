@@ -611,7 +611,7 @@ AuthWindow (GUI Mode)
 ├── GUIAuthHandler (inner class inherits AuthHandler)
 └── Uses QInputDialog, QMessageBox, QDesktopServices
 
-HeadlessAuthHandler (TUI Mode)
+TUIAuthHandler (TUI Mode)
 ├── Console-based implementation
 ├── Inherits from AuthHandler
 └── Uses stdin/stdout for user interaction
@@ -684,8 +684,8 @@ Waiting for authentication callback...
 **Implementation:**
 ```cpp
 #ifndef GUI_ENABLED
-HeadlessAuthHandler* m_authHandler = new HeadlessAuthHandler();
-connect(m_authHandler, &HeadlessAuthHandler::authFinished, this, &TSClient::onAuthFinished);
+TUIAuthHandler* m_authHandler = new TUIAuthHandler();
+connect(m_authHandler, &TUIAuthHandler::authFinished, this, &TSClient::onAuthFinished);
 m_authHandler->startAuthentication();
 #endif
 ```
@@ -720,7 +720,7 @@ Both modes share the same core OAuth implementation:
 - `Src/Clients/TSClient/Auth/AuthWindow.h/cpp` - GUI dialog and handler
 
 **TUI Implementation:**
-- `Src/Clients/TSClient/Auth/HeadlessAuthHandler.h/cpp` - Console-based handler
+- `Src/Clients/TSClient/Auth/TUIAuthHandler.h/cpp` - Console-based handler
 
 **Integration:**
 - `Src/Clients/TSClient/TSClient.h` - Mode selection at compile time

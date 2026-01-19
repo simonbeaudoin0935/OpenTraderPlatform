@@ -3,15 +3,15 @@
 #include "AuthHandler.h"
 #include <iostream>
 
-// Headless authentication handler for TUI/console mode
+// TUI authentication handler for console mode
 // Uses stdin/stdout for user interaction instead of GUI dialogs
-class HeadlessAuthHandler : public AuthHandler
+class TUIAuthHandler : public AuthHandler
 {
     Q_OBJECT
 
   public:
-    explicit HeadlessAuthHandler(QObject* parent = nullptr);
-    ~HeadlessAuthHandler() override = default;
+    explicit TUIAuthHandler(QObject* parent = nullptr);
+    ~TUIAuthHandler() override = default;
 
   protected:
     // Override virtual methods for console-based interaction

@@ -6,13 +6,13 @@
 #include <QLabel>
 #include <QDesktopServices>
 
-#include "AuthWindow.h"
+#include "GUIAuthHandler.h"
 
-Q_LOGGING_CATEGORY(TSAuthWindowLog, "TSClient.authwindow")
+Q_LOGGING_CATEGORY(TSGUIAuthHandlerLog, "TSClient.guiauthhandler")
 
-AuthWindow::AuthWindow(QWidget* parent) : QDialog(parent)
+GUIAuthHandler::GUIAuthHandler(QWidget* parent) : QDialog(parent)
 {
-    qCDebug(TSAuthWindowLog) << "Initializing TradeStation Auth Window";
+    qCDebug(TSGUIAuthHandlerLog) << "Initializing TradeStation Auth Window";
 
     // Set dialog properties
     setWindowTitle("TradeStation Authentication");
@@ -21,32 +21,32 @@ AuthWindow::AuthWindow(QWidget* parent) : QDialog(parent)
     setAttribute(Qt::WA_DeleteOnClose); // Ensure dialog is deleted when closed
 
     // Connect dialog finished signal
-    connect(this, &QDialog::finished, this, &AuthWindow::handleDialogFinished);
+    connect(this, &QDialog::finished, this, &GUIAuthHandler::handleDialogFinished);
 
     // Setup UI
     setupUi();
 
     // Create and start authentication handler
-    m_authHandler = new GUIAuthHandler(this);
-    connect(m_authHandler, &AuthHandler::authFinished, this, &AuthWindow::handleAuthHandlerFinished);
+    m_authHandler = new Impl(this);
+    connect(m_authHandler, &AuthHandler::authFinished, this, &GUIAuthHandler::handleAuthHandlerFinished);
 
     // Start authentication process
     if (!m_authHandler->startAuthentication())
     {
-        qCDebug(TSAuthWindowLog) << "Failed to start authentication process";
+        qCDebug(TSGUIAuthHandlerLog) << "Failed to start authentication process";
         QTimer::singleShot(0, this, &QDialog::reject);
     }
 }
 
-AuthWindow::~AuthWindow() = default;
+GUIAuthHandler::~GUIAuthHandler() = default;
 
-void AuthWindow::handleDialogFinished(int result)
+void GUIAuthHandler::handleDialogFinished(int result)
 {
     Q_UNUSED(result)
     // Cleanup is handled automatically by Qt's parent-child relationships
 }
 
-void AuthWindow::handleAuthHandlerFinished(bool success, AuthToken token, QString reason)
+void GUIAuthHandler::handleAuthHandlerFinished(bool success, AuthToken token, QString reason)
 {
     // Forward the signal and close the dialog
     emit authFinished(success, token, reason);
@@ -61,7 +61,7 @@ void AuthWindow::handleAuthHandlerFinished(bool success, AuthToken token, QStrin
     }
 }
 
-void AuthWindow::setupUi()
+void GUIAuthHandler::setupUi()
 {
     auto* layout = new QVBoxLayout(this);
 
@@ -85,10 +85,10 @@ void AuthWindow::setupUi()
     setLayout(layout);
 }
 
-// GUIAuthHandler implementation
-AuthWindow::GUIAuthHandler::GUIAuthHandler(AuthWindow* window) : AuthHandler(window), m_window(window) {}
+// Impl implementation
+GUIAuthHandler::Impl::Impl(GUIAuthHandler* window) : AuthHandler(window), m_window(window) {}
 
-bool AuthWindow::GUIAuthHandler::promptForCredentials(QString& clientId, QString& clientSecret)
+bool GUIAuthHandler::Impl::promptForCredentials(QString& clientId, QString& clientSecret)
 {
     bool ok;
     QInputDialog dialog(m_window);
@@ -101,7 +101,7 @@ bool AuthWindow::GUIAuthHandler::promptForCredentials(QString& clientId, QString
 
     if (!ok || clientId.isEmpty())
     {
-        qCDebug(TSAuthWindowLog) << "User cancelled Client ID input";
+        qCDebug(TSGUIAuthHandlerLog) << "User cancelled Client ID input";
         return false;
     }
 
@@ -113,7 +113,7 @@ bool AuthWindow::GUIAuthHandler::promptForCredentials(QString& clientId, QString
 
     if (!ok || clientSecret.isEmpty())
     {
-        qCDebug(TSAuthWindowLog) << "User cancelled Client Secret input";
+        qCDebug(TSGUIAuthHandlerLog) << "User cancelled Client Secret input";
         return false;
     }
 
@@ -129,32 +129,32 @@ bool AuthWindow::GUIAuthHandler::promptForCredentials(QString& clientId, QString
 
     if (saveChoice != QMessageBox::Yes)
     {
-        qCDebug(TSAuthWindowLog) << "User chose not to save credentials";
+        qCDebug(TSGUIAuthHandlerLog) << "User chose not to save credentials";
         ClientToken::clearSettings(); // Clear any existing credentials
     }
 
     return true;
 }
 
-void AuthWindow::GUIAuthHandler::showAuthUrl(const QString& authUrl)
+void GUIAuthHandler::Impl::showAuthUrl(const QString& authUrl)
 {
-    qCDebug(TSAuthWindowLog) << "Opening URL in system browser...";
+    qCDebug(TSGUIAuthHandlerLog) << "Opening URL in system browser...";
 
     // Open the URL in the system's default web browser
     if (!QDesktopServices::openUrl(QUrl(authUrl)))
     {
-        qCWarning(TSAuthWindowLog) << "Failed to open system browser";
+        qCWarning(TSGUIAuthHandlerLog) << "Failed to open system browser";
         QMessageBox::warning(m_window,
                              "Browser Error",
                              "Failed to open your default web browser. Please copy the URL manually:\n\n" + authUrl);
     }
     else
     {
-        qCDebug(TSAuthWindowLog) << "Successfully opened URL in system browser";
+        qCDebug(TSGUIAuthHandlerLog) << "Successfully opened URL in system browser";
     }
 }
 
-void AuthWindow::GUIAuthHandler::showError(const QString& title, const QString& message)
+void GUIAuthHandler::Impl::showError(const QString& title, const QString& message)
 {
     QMessageBox::warning(m_window, title, message);
 }

@@ -11,13 +11,13 @@ void TSClient::launchAuthProcess()
     m_authInProgress = true;
 
 #ifdef GUI_ENABLED
-    m_authWindow = new AuthWindow();
-    connect(m_authWindow, &AuthWindow::authFinished, this, &TSClient::onAuthFinished);
-    connect(m_authWindow, &QObject::destroyed, this, &TSClient::onAuthWindowDestroyed);
-    m_authWindow->show();
+    m_authHandler = new GUIAuthHandler();
+    connect(m_authHandler, &GUIAuthHandler::authFinished, this, &TSClient::onAuthFinished);
+    connect(m_authHandler, &QObject::destroyed, this, &TSClient::onAuthHandlerDestroyed);
+    m_authHandler->show();
 #else
-    m_authHandler = new HeadlessAuthHandler();
-    connect(m_authHandler, &HeadlessAuthHandler::authFinished, this, &TSClient::onAuthFinished);
+    m_authHandler = new TUIAuthHandler();
+    connect(m_authHandler, &TUIAuthHandler::authFinished, this, &TSClient::onAuthFinished);
     connect(m_authHandler, &QObject::destroyed, this, &TSClient::onAuthHandlerDestroyed);
     m_authHandler->startAuthentication();
 #endif
@@ -54,19 +54,11 @@ void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
     emit authStateChanged(m_authenticated, reason);
 }
 
-#ifdef GUI_ENABLED
-void TSClient::onAuthWindowDestroyed()
-{
-    // TODO race condition possible?
-    m_authWindow = nullptr;
-}
-#else
 void TSClient::onAuthHandlerDestroyed()
 {
     // TODO race condition possible?
     m_authHandler = nullptr;
 }
-#endif
 
 
 QNetworkRequest TSClient::buildRefreshTokenRequest()
