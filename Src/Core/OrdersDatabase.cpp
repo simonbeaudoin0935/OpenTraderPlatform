@@ -119,9 +119,9 @@ bool OrdersDatabase::insertOrder(const Order& p_order, const QDateTime& p_receiv
     query.addBindValue(p_order.getOpenedDateTime().toString(Qt::ISODate));
 
     // Handle closed datetime (might not be set)
-    if (p_order.closedDateTime.isValid())
+    if (p_order.getClosedDateTime().isValid())
     {
-        query.addBindValue(p_order.closedDateTime.toString(Qt::ISODate));
+        query.addBindValue(p_order.getClosedDateTime().toString(Qt::ISODate));
     }
     else
     {
@@ -167,9 +167,9 @@ bool OrdersDatabase::updateOrder(const Order& p_order, const std::optional<QDate
     query.addBindValue(p_order.getFilledPrice());
 
     // Handle closed datetime (might not be set)
-    if (p_order.closedDateTime.isValid())
+    if (p_order.getClosedDateTime().isValid())
     {
-        query.addBindValue(p_order.closedDateTime.toString(Qt::ISODate));
+        query.addBindValue(p_order.getClosedDateTime().toString(Qt::ISODate));
     }
     else
     {
