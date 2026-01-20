@@ -1,7 +1,5 @@
 #include <QThread>
 #include <QTimer>
-#include <QTextStream>
-#include <QDir>
 
 #include "MainAlgo.h"
 #include "TSClient.h"
@@ -33,29 +31,6 @@ MainAlgo::MainAlgo()
     this->moveToThread(&thread);
 
     connect(&thread, &QThread::started, this, &MainAlgo::onThreadStarted);
-
-    {
-        QString filePath = QDir::homePath() + "/Documents/results.txt";
-
-        // Create QFile object
-        file.setFileName(filePath);
-
-        // Open the file in the desired mode
-        QIODevice::OpenMode mode = QIODevice::Text | QIODevice::Append;
-
-        if (!file.open(mode))
-        {
-            qCDebug(MainAlgoLog) << "Failed to open file for writing:" << filePath << "Error:" << file.errorString();
-            Q_UNREACHABLE();
-        }
-
-        // Create a QTextStream attached to the file
-
-        algoLogFile = new QTextStream(&file);
-
-        // Optional: Set encoding (UTF-8 is default in modern Qt)
-        algoLogFile->setEncoding(QStringConverter::Utf8);
-    }
 }
 
 MainAlgo::~MainAlgo()
