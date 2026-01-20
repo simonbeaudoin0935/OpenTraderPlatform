@@ -287,12 +287,17 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
     OBJ_ASSUME_LTE(last, TRADING_END_TIME);
 
     // Assume we are not requesting future dates/times
-    OBJ_ASSUME_LTE(date,
-                   now.date()); // Can't request bars for future dates
+    OBJ_ASSUME_LTE(date, now.date()); // Can't request bars for future dates
+
     if (isCurrentDay)
     {
-        OBJ_ASSUME_LTE(last,
-                       now.time()); // Can't request bars for later today than now
+        // Round now.time() up to the next minute boundary because TradeStation
+        // timestamps bars with their closing time (e.g., at 11:17:33, the current
+        // bar covering 11:17:00-11:17:59 will be timestamped 11:18:00 when it closes)
+        QTime nowRoundedUp = (now.time().second() == 0 && now.time().msec() == 0)
+                                 ? now.time()
+                                 : QTime(now.time().hour(), now.time().minute(), 0, 0).addSecs(60);
+        OBJ_ASSUME_LTE(last, nowRoundedUp); // Can't request bars for later today than now
     }
 
     DEBUG << "getBarsInDay() called for day" << date << "and time range" << first << "to" << last;

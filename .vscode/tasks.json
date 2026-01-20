@@ -234,9 +234,8 @@
         {
             "label": "run-tui",
             "type": "shell",
-            "command": "${workspaceFolder}/build/TUI/Src/L2Trader",
+            "command": "${workspaceFolder}/build/TUI/Src/L2Trader 2>/dev/null",
             "args": [
-                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
             ],
             "group": "test",
             "presentation": {
