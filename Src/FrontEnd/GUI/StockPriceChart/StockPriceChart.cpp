@@ -287,7 +287,25 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
     if (startedReceivingRealtimeBars == true)
     {
-        Q_ASSERT(bar.getIsRealtime());
+        if (bar.getIsRealtime() == false)
+        {
+            size_t index = BarCache::timeToIndex(bar.getTimeStamp().time());
+            if (index == 839)
+            {
+                WARNING << "We received a double of the last bar of the day for symbol" << m_symbol
+                        << "at timestamp:" << bar.getTimeStamp()
+                        << "- Experimentally, this has proven to be possible from the API."
+                           " It seems to be a little glitch from their side when the app sits idle after hours.";
+            }
+            else
+            {
+                CRITICAL
+                    << "Inserting historical bar into cache at index" << index << "for timestamp:" << bar.getTimeStamp()
+                    << "but that slot was uninitialized. This should not happen as historical bars should be bulk inserted.";
+
+                Q_UNREACHABLE();
+            }
+        }
     }
     else
     {
