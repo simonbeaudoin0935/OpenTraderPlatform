@@ -753,7 +753,8 @@ void TUIFrontend::requestMissingBarsForDay(const Bar& firstBar)
                             m_fetchedDayBars = bars.value();
                             if (m_fetchedDayBars)
                             {
-                                qInfo() << "TUI received" << m_fetchedDayBars->size() << "historical bars asynchronously";
+                                qInfo() << "TUI received" << m_fetchedDayBars->size()
+                                        << "historical bars asynchronously";
                             }
                             else
                             {
