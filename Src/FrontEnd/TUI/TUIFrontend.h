@@ -2,8 +2,11 @@
 
 #include "FrontEnd.h"
 #include "Bar.h"
+#include "BarCache.h"
 #include <QMap>
 #include <QSocketNotifier>
+#include <QVector>
+#include <memory>
 #include <ncurses.h>
 
 // ncurses defines a 'timeout' macro that conflicts with Qt's QTimer::timeout
@@ -66,6 +69,9 @@ class TUIFrontend : public FrontEnd
     void displayStock(const QString& symbol);
     [[nodiscard]] bool isValidStockSymbol(const QString& symbol) const;
 
+    // Bar fetching
+    void requestMissingBarsForDay(const Bar& firstBar);
+
     MainAlgo* mainAlgo;
 
     // ncurses windows
@@ -83,6 +89,10 @@ class TUIFrontend : public FrontEnd
     QString m_currentSymbol;
     Bar m_lastBar;
     bool m_hasLastBar = false;
+    bool m_hasReceivedFirstBar = false;
+
+    // Storage for fetched historical bars (triggered on first bar reception)
+    std::shared_ptr<QVector<Bar>> m_fetchedDayBars;
 
     // Status info
     qsizetype m_dataUsage = 0;

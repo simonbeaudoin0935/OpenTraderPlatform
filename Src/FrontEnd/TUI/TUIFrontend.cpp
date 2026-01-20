@@ -5,6 +5,7 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QMetaObject>
+#include <QTimeZone>
 #include <cmath>
 #include <locale.h>
 
@@ -576,6 +577,15 @@ void TUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
     m_lastBar = bar;
     m_hasLastBar = true;
 
+    // On receiving the first bar, request all bars from the beginning of the day
+    // This mimics the GUI behavior to trigger the same code path for testing
+    if (!m_hasReceivedFirstBar)
+    {
+        m_hasReceivedFirstBar = true;
+        qInfo() << "TUI received first bar for" << symbol << "- requesting day's historical bars";
+        requestMissingBarsForDay(bar);
+    }
+
     if (m_initialized)
     {
         displayLastPrice();
@@ -639,6 +649,8 @@ void TUIFrontend::displayStock(const QString& symbol)
     // Update our tracked symbol
     m_currentSymbol = symbol;
     m_hasLastBar = false;
+    m_hasReceivedFirstBar = false;
+    m_fetchedDayBars.reset();
 
     // Save the symbol for restoration on next startup
     saveLastDisplayedStock(symbol);
@@ -699,5 +711,45 @@ void TUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, const QSt
             m_hasRestoredLastStock = true;
             restoreLastDisplayedStock();
         }
+    }
+}
+
+void TUIFrontend::requestMissingBarsForDay(const Bar& firstBar)
+{
+    // Trading hours constants (America/New_York timezone)
+    static constexpr int TRADING_START_HOUR = 6;
+
+    // Request bars from the beginning of the trading day (6:01 AM) to the first received bar
+    QDateTime first =
+        QDateTime(firstBar.getTimeStamp().date(), QTime(TRADING_START_HOUR, 1, 0), QTimeZone("America/New_York"));
+    QDateTime last = firstBar.getTimeStamp();
+
+    qInfo() << "TUI requesting missing bars from" << first.toString(Qt::ISODate) << "to" << last.toString(Qt::ISODate);
+
+    BarCache::GetBarsResult_t result =
+        MainAlgo::getInstance()->requestMissingBarsDisplayedStock(first.date(), first.time(), last.time());
+
+    if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
+    {
+        // The barCache had the bars ready immediately
+        m_fetchedDayBars = std::get<std::shared_ptr<QVector<Bar>>>(result);
+        qInfo() << "TUI received" << m_fetchedDayBars->size() << "historical bars immediately";
+    }
+    else
+    {
+        auto future = std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result);
+        future.then(this,
+                    [this](std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error> bars)
+                    {
+                        if (bars.has_value())
+                        {
+                            m_fetchedDayBars = bars.value();
+                            qInfo() << "TUI received" << m_fetchedDayBars->size() << "historical bars asynchronously";
+                        }
+                        else
+                        {
+                            qCritical() << "TUI failed to get missing bars - Error:" << static_cast<int>(bars.error());
+                        }
+                    });
     }
 }
