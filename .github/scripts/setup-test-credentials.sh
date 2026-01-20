@@ -5,14 +5,25 @@ set -e
 # This script creates the necessary INI files with expired tokens
 # that will be refreshed during the test suite execution
 
-# Check if all required environment variables are set
-if [ -z "$ACCESS_TOKEN" ] || [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || \
-   [ -z "$ID_TOKEN" ] || [ -z "$REFRESH_TOKEN" ] || [ -z "$EXPIRES_IN" ] || \
-   [ -z "$RECEIVED_AT" ] || [ -z "$SCOPE" ] || [ -z "$TOKEN_TYPE" ]; then
-    echo "Error: Missing required environment variables"
-    echo "Required: ACCESS_TOKEN, CLIENT_ID, CLIENT_SECRET, ID_TOKEN, REFRESH_TOKEN, EXPIRES_IN, RECEIVED_AT, SCOPE, TOKEN_TYPE"
+# Usage: setup-test-credentials.sh <ACCESS_TOKEN> <CLIENT_ID> <CLIENT_SECRET> <ID_TOKEN> <REFRESH_TOKEN> <EXPIRES_IN> <RECEIVED_AT> <SCOPE> <TOKEN_TYPE>
+
+# Check if all required arguments are provided
+if [ "$#" -ne 9 ]; then
+    echo "Error: Invalid number of arguments"
+    echo "Usage: $0 <ACCESS_TOKEN> <CLIENT_ID> <CLIENT_SECRET> <ID_TOKEN> <REFRESH_TOKEN> <EXPIRES_IN> <RECEIVED_AT> <SCOPE> <TOKEN_TYPE>"
     exit 1
 fi
+
+# Assign arguments to variables
+ACCESS_TOKEN="$1"
+CLIENT_ID="$2"
+CLIENT_SECRET="$3"
+ID_TOKEN="$4"
+REFRESH_TOKEN="$5"
+EXPIRES_IN="$6"
+RECEIVED_AT="$7"
+SCOPE="$8"
+TOKEN_TYPE="$9"
 
 # Determine config directory
 CONFIG_DIR="${HOME}/.config/L2Trader"
