@@ -392,9 +392,9 @@ void RecorderTab::onStartRecording()
     QString barsDbPath = barsPath + "/RecordedLiveBars_" + dateStr + ".db";
     QString marketDepthDbPath = marketDepthPath + "/RecordedLiveMarketDepthQuotes_" + dateStr + ".db";
 
-    m_liveBarsDB = new LiveStreamDB(LiveStreamDB::StreamType::Bars, barsDbPath, m_stockTickers);
+    m_liveBarsDB = std::make_unique<LiveStreamDB>(LiveStreamDB::StreamType::Bars, barsDbPath, m_stockTickers);
     m_liveMarketDepthQuoteDB =
-        new LiveStreamDB(LiveStreamDB::StreamType::MarketDepthQuotes, marketDepthDbPath, m_stockTickers);
+        std::make_unique<LiveStreamDB>(LiveStreamDB::StreamType::MarketDepthQuotes, marketDepthDbPath, m_stockTickers);
 
     // Start recording
     m_liveBarsDB->startRecording();
@@ -433,15 +433,13 @@ void RecorderTab::onStopRecording()
     if (m_liveBarsDB)
     {
         m_liveBarsDB->finalizeUnrecoveredTimeouts();
-        delete m_liveBarsDB;
-        m_liveBarsDB = nullptr;
+        m_liveBarsDB.reset();
     }
 
     if (m_liveMarketDepthQuoteDB)
     {
         m_liveMarketDepthQuoteDB->finalizeUnrecoveredTimeouts();
-        delete m_liveMarketDepthQuoteDB;
-        m_liveMarketDepthQuoteDB = nullptr;
+        m_liveMarketDepthQuoteDB.reset();
     }
 
     // Update state

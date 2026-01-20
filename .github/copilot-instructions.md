@@ -18,8 +18,68 @@ see the action .github/actions/clang-format/action.yml to understand how to call
 - Use a early exit style of coding. Handle error/non-happy cases first with return, continue, break, or throw. Then write the main ("happy") logic with minimal indentation
 - Any .md file you create, place them in the Doc folder.
 - When you do structural changes, think about keeping the doc in Doc/ up to date.
-  
+
 - Everything time related must be in QDateTime/QTime/QDate with proper QTimeZone usage. Never use std::chrono or raw time_t/struct tm etc. The timezone is always NewYork since it is stock market related.
+
+## Composition Over Pointers
+- **PREFER** composition (direct member objects) over pointers when designing classes.
+- If an object can be owned directly by a class and doesn't need polymorphism or optional lifetime, make it a direct member rather than a pointer.
+- Example of good composition: `class MyClass { BarCache m_cache; RunUpDetector m_detector; };` instead of `class MyClass { BarCache* m_cache; RunUpDetector* m_detector; };`
+- Use pointers (raw or smart) only when necessary:
+  - Polymorphism is required (base class pointers to derived objects)
+  - Object lifetime needs to extend beyond the containing class
+  - Object is optional (may or may not exist)
+  - Object is very large and copying would be expensive
+  - Forward declaration is needed to break circular dependencies
+  - Qt parent-child ownership is being used
+- Composition provides better encapsulation, eliminates null checks, and makes ownership clear at compile-time.
+
+## Smart Pointer Usage
+This project uses smart pointers throughout to ensure proper memory management and prevent memory leaks. Follow these guidelines:
+
+### Qt Objects with Parent-Child Ownership
+- **DO NOT** use smart pointers for Qt objects (QWidget, QTimer, QLayout, etc.) that have a parent specified in their constructor.
+- Qt's parent-child ownership system automatically manages memory: when a parent is deleted, it deletes all its children.
+- Example: `new QTimer(this)` - the `this` pointer makes the timer a child, so no smart pointer needed.
+- Example: `new QVBoxLayout(parentWidget)` - the layout is owned by the parent widget.
+
+### QPointer for Qt Objects That May Be Deleted
+- **USE** `QPointer<T>` for Qt objects that may be deleted independently or whose lifetime you don't control.
+- `QPointer` automatically becomes null when the pointed-to object is deleted.
+- Primary use case: Holding references to stream objects (StreamBars, StreamOrders, StreamPositions, StreamMarketDepthQuote).
+- Example: `QPointer<StreamBars> m_stream;` - the stream may close/delete itself on error.
+
+### std::unique_ptr for Exclusive Ownership
+- **USE** `std::unique_ptr<T>` for objects with exclusive ownership that are NOT Qt objects with parents.
+- Use for non-Qt objects, or Qt objects without parents that need explicit lifetime management.
+- Prefer `std::make_unique<T>()` for construction.
+- Use `std::move()` when transferring ownership.
+- Example: `std::unique_ptr<QVector<Bar>>` for owned data containers.
+- Example: Database objects without Qt parent-child relationships.
+
+### std::shared_ptr for Shared Ownership
+- **USE** `std::shared_ptr<T>` when multiple owners need to share ownership of an object.
+- Use for data that needs to be shared across asynchronous operations or multiple components.
+- Prefer `std::make_shared<T>()` for construction.
+- Primary use case: Bar data vectors shared between cache, API calls, and UI components.
+- Example: `std::shared_ptr<QVector<Bar>>` passed to callbacks and UI.
+
+### std::weak_ptr for Non-Owning References
+- **USE** `std::weak_ptr<T>` when you need to observe a `std::shared_ptr` without extending its lifetime.
+- Prevents circular reference issues with `std::shared_ptr`.
+- Always check if the weak_ptr is still valid with `lock()` before using.
+
+### When NOT to Use Smart Pointers
+- Qt objects with parents (use raw pointers, Qt manages them).
+- Function parameters (use raw pointers or references for non-owning access).
+- Stack-allocated objects (no pointers needed).
+- QStandardItem and similar Qt model items added to models (model takes ownership).
+
+### General Rules
+- **NEVER** use raw `new` without a corresponding smart pointer or Qt parent.
+- **NEVER** manually `delete` objects managed by smart pointers or Qt parent-child relationships.
+- When in doubt, prefer `std::unique_ptr` for non-Qt objects.
+- Document the ownership semantics clearly when the pattern is not obvious.
 
 ## SQL Queries
 - **ALL** SQL queries must be defined as constants in dedicated header files in the `Src/SQL/` folder. Never write SQL queries directly in implementation files.
@@ -63,7 +123,7 @@ The building in the github workflow uses 'ccache' to speed up the building proce
 Always run commands in the repository root directory.
 
 #### Github Premium Requests
-When executing a Premium Request after being assigned an issue on GitHub and you want to build, use these commands : 
+When executing a Premium Request after being assigned an issue on GitHub and you want to build, use these commands :
 1. **Clean build directory** (recommended for clean builds):
    ```bash
    rm -rf build/
@@ -132,7 +192,7 @@ The project is architectured in a MVC pattern (Model View Controller)
   - **Core/**: Main application logic
   - **FrontEnd/**: The app frontend logic (GUI/ : Qt widgets and UI components, vs TUI/ : futur ncurses terminal frontend)
   - **Misc/**: Utilities, logging, settings
-  - **Recorder/**: Where the sources for the companion Recorder executable. 
+  - **Recorder/**: Where the sources for the companion Recorder executable.
 - **Tests/**: Unit test source files
 - **Resources/**: Icons and Qt resources
 - **Example_Config/**: Sample configuration files
@@ -180,6 +240,6 @@ The project is architectured in a MVC pattern (Model View Controller)
 
 ## Agent Instructions
 
-Trust these instructions as the authoritative source for building, testing, and validating changes in this repository. Only perform additional searches if the information here is incomplete or found to be incorrect. Always follow the documented command sequences and validation steps to minimize build failures and ensure changes integrate properly with the existing codebase and CI/CD pipeline. 
+Trust these instructions as the authoritative source for building, testing, and validating changes in this repository. Only perform additional searches if the information here is incomplete or found to be incorrect. Always follow the documented command sequences and validation steps to minimize build failures and ensure changes integrate properly with the existing codebase and CI/CD pipeline.
 
 For any code changes, ensure compatibility with Qt 6.4.2+ and validate builds on both X86_64 and ARM64 architectures when possible.

@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include <QShortcut>
 #include <QKeySequence>
+#include <memory>
 
 #include "FrontEnd.h"
 #include "MainAlgo.h"
@@ -68,7 +69,7 @@ class GUIFrontend : public FrontEnd
 
     static QString bytesToString(qint64 bytes);
 
-    Ui::GUIFrontend* ui;                  // Pointer to the UI object
+    std::unique_ptr<Ui::GUIFrontend> ui;  // Pointer to the UI object
     QPushButton* tradeStationLoginButton; // Login button in status bar
 
     QShortcut* m_quitShortcut;            // Quit application shortcut
