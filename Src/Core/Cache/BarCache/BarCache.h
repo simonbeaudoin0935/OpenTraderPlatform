@@ -39,6 +39,12 @@ class BarCache : public QObject
 
     void clearDatabase();
 
+    // Converts a QTime timestamp to the corresponding index in the daily bar cache vector
+    static size_t timeToIndex(const QTime& time);
+
+    // Converts a daily bar cache index to the corresponding bar timestamp (QTime)
+    static QTime indexToTime(size_t index);
+
     // Trading hours constants (America/New_York timezone)
     static inline const QTime TRADING_START_TIME = QTime(6, 1); // 6:01 AM ET
     static inline const QTime TRADING_END_TIME = QTime(20, 0);  // 8:00 PM ET (20:00)
@@ -69,12 +75,6 @@ class BarCache : public QObject
     void handleReceivedAllPendingGetBarsRequests();
     QVector<Bar>
     fillHolesOfReceivedRequest(const QDateTime& first, const QDateTime& last, const QVector<Bar>& barsFromAPI) const;
-
-    // Converts a QTime timestamp to the corresponding index in the daily bar cache vector
-    static size_t timeToIndex(const QTime& time);
-
-    // Converts a daily bar cache index to the corresponding bar timestamp (QTime)
-    static QTime indexToTime(size_t index);
 
     QVector<Bar>& getOrCreateDayVector(const QDate& date);
 

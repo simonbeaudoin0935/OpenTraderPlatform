@@ -11,6 +11,7 @@
 #include "Logging.h"
 #include "Assume.h"
 #include "SQL/StockPriceChartQueries.h"
+#include "BarCache.h"
 
 #define LOGGING_CATEGORY ChartLog
 #define CANDLESTICK_BODY_WIDTH 0.9 // 90% of available space
