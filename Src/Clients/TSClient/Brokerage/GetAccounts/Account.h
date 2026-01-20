@@ -4,6 +4,8 @@
 #include <QJsonObject>
 #include <optional>
 
+#include "Assume.h"
+
 
 class AccountType
 {
@@ -48,7 +50,7 @@ class AccountType
             return Type::Futures;
         if (str == "DVP")
             return Type::DVP;
-        Q_ASSERT(0);
+        ASSUME_TRUE(false);
     }
 
     Type type;

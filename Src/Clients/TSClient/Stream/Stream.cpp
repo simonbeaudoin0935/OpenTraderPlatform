@@ -4,6 +4,7 @@
 
 #include "Stream.h"
 #include "Logging.h"
+#include "Assume.h"
 
 #define LOGGING_CATEGORY StreamLog
 Q_LOGGING_CATEGORY(LOGGING_CATEGORY, "Stream")
@@ -22,13 +23,13 @@ Stream::Stream(QNetworkReply* reply, QObject* parent) : QObject(parent), m_netwo
 
     QMetaObject::Connection c;
     c = connect(m_networkReply, &QNetworkReply::readyRead, this, &Stream::onReplyReadyRead);
-    Q_ASSERT(c);
+    OBJ_ASSUME_TRUE(c);
     c = connect(m_networkReply, &QNetworkReply::finished, this, &Stream::onReplyFinished);
-    Q_ASSERT(c);
+    OBJ_ASSUME_TRUE(c);
 
     m_heartbeatTimer.setSingleShot(true);
     c = connect(&m_heartbeatTimer, &QTimer::timeout, this, &Stream::onHeartbeatTimerTimeout);
-    Q_ASSERT(c);
+    OBJ_ASSUME_TRUE(c);
 
     // Creating a Stream implies that we expect data to start flowing in because the QNetworkReply
     // that was passed has been obtained after the HTTP x request, so we start the heartbeat timer now
@@ -42,9 +43,8 @@ Stream::~Stream()
 {
     WARNING << "Stream destroyed ";
 
-    Q_ASSERT_X(QThread::currentThread() == this->thread(),
-               "Stream::~Stream",
-               "Stream must be destroyed in the same thread where it was created");
+    // Stream must be destroyed in the same thread where it was created
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), this->thread());
 
     s_numberOfStream--;
 
@@ -66,7 +66,7 @@ void Stream::onReplyFinished()
     Q_CHECK_PTR(m_networkReply);
 
     // Because we listen to readyRead(), it WILL have been called before and therefore finishing there should be no more data
-    Q_ASSERT(m_networkReply->readAll().size() == 0);
+    OBJ_ASSUME_EQUAL(m_networkReply->readAll().size(), 0);
 
     // Theres 3 ways to get here:
     // 1) In the previous readyRead() call, we detected an error object in the stream and marked m_isInError = true
@@ -103,7 +103,7 @@ void Stream::onReplyReadyRead()
     const QByteArray rawData = m_networkReply->readAll();
 
     // Something is very wrong if we get a readyRead signal but no data
-    Q_ASSERT(rawData.size() > 0);
+    OBJ_ASSUME_GT(rawData.size(), 0);
 
     emit newAmountOfDataReceived(rawData.size());
 

@@ -13,6 +13,7 @@
 #include "Logging.h"
 #include "Settings.h"
 #include "SQL/OrdersDatabaseQueries.h"
+#include "Assume.h"
 
 #define LOGGING_CATEGORY OrdersDatabaseLog
 Q_LOGGING_CATEGORY(OrdersDatabaseLog, "OrdersDatabase");
@@ -78,7 +79,8 @@ void OrdersDatabase::createTable()
     if (!query.exec(OrdersDatabaseQueries::CREATE_ORDERS_TABLE))
     {
         CRITICAL << "Failed to create orders table:" << query.lastError().text();
-        Q_ASSERT_X(false, "OrdersDatabase::createTable", "Failed to create orders table");
+        // Failed to create orders table
+        OBJ_ASSUME_FALSE(true);
     }
 }
 

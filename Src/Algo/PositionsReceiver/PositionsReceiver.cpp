@@ -1,6 +1,7 @@
 #include "PositionsReceiver.h"
 #include "TSClient.h"
 #include "Logging.h"
+#include "Assume.h"
 
 #include <QFutureWatcher>
 
@@ -16,7 +17,7 @@ PositionsReceiver::PositionsReceiver(const QString& account, QObject* parent) : 
 
 PositionsReceiver::~PositionsReceiver()
 {
-    Q_ASSERT(m_stream != nullptr);
+    OBJ_ASSUME_TRUE(m_stream != nullptr);
 
     TSClient::getInstance()->closeStream(m_stream);
 }

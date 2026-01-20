@@ -9,6 +9,8 @@
 #include <QRandomGenerator>
 #include <QTimer>
 
+#include "Assume.h"
+
 Q_LOGGING_CATEGORY(secureStorage, "SecureStorage")
 
 SecureStorage::SecureStorage(QObject* parent) : QObject(parent) {}
@@ -42,7 +44,8 @@ void SecureStorage::retrieveValue(const QString& service,
                                   const QString& key,
                                   std::function<void(const QString&)> callback)
 {
-    Q_ASSERT_X(callback, "retrieveValue", "Callback is required for retrieveValue");
+    // Callback is required for retrieveValue
+    OBJ_ASSUME_TRUE(callback);
 
 #ifdef QT_KEYCHAIN_LIB
     if (isSecureStorageAvailable())
@@ -92,9 +95,12 @@ bool SecureStorage::isSecureStorageAvailable()
 
 bool SecureStorage::storeValuesSync(const QString& service, const QMap<QString, QString>& keyValues, int timeoutMs)
 {
-    Q_ASSERT_X(!service.isEmpty(), "storeValuesSync", "Service name cannot be empty");
-    Q_ASSERT_X(!keyValues.isEmpty(), "storeValuesSync", "Key-value map cannot be empty");
-    Q_ASSERT_X(timeoutMs > 0, "storeValuesSync", "Timeout must be positive");
+    // Service name cannot be empty
+    OBJ_ASSUME_FALSE(service.isEmpty());
+    // Key-value map cannot be empty
+    OBJ_ASSUME_FALSE(keyValues.isEmpty());
+    // Timeout must be positive
+    OBJ_ASSUME_GT(timeoutMs, 0);
 
     if (keyValues.isEmpty())
     {
@@ -142,9 +148,8 @@ bool SecureStorage::storeValuesSync(const QString& service, const QMap<QString, 
 
         loop.exec();
 
-        Q_ASSERT_X(completedOperations >= totalOperations,
-                   "storeValuesSync",
-                   "All store operations should have completed");
+        // All store operations should have completed
+        OBJ_ASSUME_GTE(completedOperations, totalOperations);
         return success && (completedOperations >= totalOperations);
     }
 #endif
@@ -153,8 +158,10 @@ bool SecureStorage::storeValuesSync(const QString& service, const QMap<QString, 
     bool success = true;
     for (auto it = keyValues.constBegin(); it != keyValues.constEnd(); ++it)
     {
-        Q_ASSERT_X(!it.key().isEmpty(), "storeValuesSync", "Key cannot be empty");
-        Q_ASSERT_X(!it.value().isEmpty(), "storeValuesSync", "Value cannot be empty");
+        // Key cannot be empty
+        OBJ_ASSUME_FALSE(it.key().isEmpty());
+        // Value cannot be empty
+        OBJ_ASSUME_FALSE(it.value().isEmpty());
 
         QSettings settings(QSettings::IniFormat, QSettings::UserScope, "L2Trader", "SecureStorage");
         settings.setFallbacksEnabled(false);
@@ -182,9 +189,12 @@ bool SecureStorage::storeValuesSync(const QString& service, const QMap<QString, 
 
 QMap<QString, QString> SecureStorage::retrieveValuesSync(const QString& service, const QStringList& keys, int timeoutMs)
 {
-    Q_ASSERT_X(!service.isEmpty(), "retrieveValuesSync", "Service name cannot be empty");
-    Q_ASSERT_X(!keys.isEmpty(), "retrieveValuesSync", "Keys list cannot be empty");
-    Q_ASSERT_X(timeoutMs > 0, "retrieveValuesSync", "Timeout must be positive");
+    // Service name cannot be empty
+    OBJ_ASSUME_FALSE(service.isEmpty());
+    // Keys list cannot be empty
+    OBJ_ASSUME_FALSE(keys.isEmpty());
+    // Timeout must be positive
+    OBJ_ASSUME_GT(timeoutMs, 0);
 
     QMap<QString, QString> results;
     if (keys.isEmpty())
@@ -237,7 +247,8 @@ QMap<QString, QString> SecureStorage::retrieveValuesSync(const QString& service,
     // Fallback to synchronous QSettings operations
     for (const QString& key: keys)
     {
-        Q_ASSERT_X(!key.isEmpty(), "retrieveValuesSync", "Key cannot be empty");
+        // Key cannot be empty
+        OBJ_ASSUME_FALSE(key.isEmpty());
 
         QSettings settings(QSettings::IniFormat, QSettings::UserScope, "L2Trader", "SecureStorage");
         settings.setFallbacksEnabled(false);
@@ -255,9 +266,12 @@ QMap<QString, QString> SecureStorage::retrieveValuesSync(const QString& service,
 
 bool SecureStorage::deleteValuesSync(const QString& service, const QStringList& keys, int timeoutMs)
 {
-    Q_ASSERT_X(!service.isEmpty(), "deleteValuesSync", "Service name cannot be empty");
-    Q_ASSERT_X(!keys.isEmpty(), "deleteValuesSync", "Keys list cannot be empty");
-    Q_ASSERT_X(timeoutMs > 0, "deleteValuesSync", "Timeout must be positive");
+    // Service name cannot be empty
+    OBJ_ASSUME_FALSE(service.isEmpty());
+    // Keys list cannot be empty
+    OBJ_ASSUME_FALSE(keys.isEmpty());
+    // Timeout must be positive
+    OBJ_ASSUME_GT(timeoutMs, 0);
 
     if (keys.isEmpty())
     {
@@ -304,9 +318,8 @@ bool SecureStorage::deleteValuesSync(const QString& service, const QStringList& 
 
         loop.exec();
 
-        Q_ASSERT_X(completedOperations >= totalOperations,
-                   "deleteValuesSync",
-                   "All delete operations should have completed");
+        // All delete operations should have completed
+        OBJ_ASSUME_GTE(completedOperations, totalOperations);
         return success && (completedOperations >= totalOperations);
     }
 #endif
@@ -315,7 +328,8 @@ bool SecureStorage::deleteValuesSync(const QString& service, const QStringList& 
     bool success = true;
     for (const QString& key: keys)
     {
-        Q_ASSERT_X(!key.isEmpty(), "deleteValuesSync", "Key cannot be empty");
+        // Key cannot be empty
+        OBJ_ASSUME_FALSE(key.isEmpty());
 
         QSettings settings(QSettings::IniFormat, QSettings::UserScope, "L2Trader", "SecureStorage");
         settings.setFallbacksEnabled(false);
@@ -338,7 +352,7 @@ bool SecureStorage::deleteValuesSync(const QString& service, const QStringList& 
 void SecureStorage::handleStoreFinished(QKeychain::Job* job, std::function<void(bool)> callback)
 {
     auto* writeJob = qobject_cast<QKeychain::WritePasswordJob*>(job);
-    Q_ASSERT(writeJob);
+    OBJ_ASSUME_TRUE(writeJob);
 
     bool success = (writeJob->error() == QKeychain::NoError);
     if (!success)
@@ -359,7 +373,7 @@ void SecureStorage::handleStoreFinished(QKeychain::Job* job, std::function<void(
 void SecureStorage::handleReadFinished(QKeychain::Job* job, std::function<void(const QString&)> callback)
 {
     auto* readJob = qobject_cast<QKeychain::ReadPasswordJob*>(job);
-    Q_ASSERT(readJob);
+    OBJ_ASSUME_TRUE(readJob);
 
     QString value;
     if (readJob->error() == QKeychain::NoError)
@@ -382,7 +396,7 @@ void SecureStorage::handleReadFinished(QKeychain::Job* job, std::function<void(c
 void SecureStorage::handleDeleteFinished(QKeychain::Job* job, std::function<void(bool)> callback)
 {
     auto* deleteJob = qobject_cast<QKeychain::DeletePasswordJob*>(job);
-    Q_ASSERT(deleteJob);
+    OBJ_ASSUME_TRUE(deleteJob);
 
     bool success = (deleteJob->error() == QKeychain::NoError);
     if (!success)
@@ -432,7 +446,8 @@ void SecureStorage::retrieveValueFallback(const QString& service,
                                           const QString& key,
                                           std::function<void(const QString&)> callback)
 {
-    Q_ASSERT_X(callback, "retrieveValueFallback", "Callback is required for retrieveValueFallback");
+    // Callback is required for retrieveValueFallback
+    OBJ_ASSUME_TRUE(callback);
 
     QSettings settings(QSettings::IniFormat, QSettings::UserScope, "L2Trader", "SecureStorage");
     settings.setFallbacksEnabled(false);
@@ -489,9 +504,8 @@ QString SecureStorage::obfuscateValue(const QString& value)
     QString result = QString::fromUtf8(data.toBase64());
 
     // Assert round-trip works correctly
-    Q_ASSERT_X(deobfuscateValue(result) == value,
-               "obfuscateValue",
-               "Obfuscation round-trip should preserve original value");
+    // Obfuscation round-trip should preserve original value
+    OBJ_ASSUME_EQUAL(deobfuscateValue(result), value);
 
     return result;
 }

@@ -3,6 +3,7 @@
 #include <QObject>
 
 #include "StreamMarketDepthQuote.h"
+#include "Assume.h"
 
 Q_DECLARE_LOGGING_CATEGORY(MarketDepthQuoteReceiverLog)
 
@@ -24,7 +25,7 @@ class MarketDepthQuoteReceiver : public QObject
     }
     void setDepthWeightedPriceLevel(unsigned int level)
     {
-        Q_ASSERT(level > 0);
+        ASSUME_GT(level, 0u);
         depthWeightedPriceLevel = qMax(1u, level);
     }
 
@@ -35,7 +36,7 @@ class MarketDepthQuoteReceiver : public QObject
     }
     void setBidAskImbalanceLevel(unsigned int level)
     {
-        Q_ASSERT(level > 0);
+        ASSUME_GT(level, 0u);
         bidAskImbalanceLevel = qMax(1u, level);
     }
 

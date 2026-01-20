@@ -1,4 +1,5 @@
 #include "RunUpDetector.h"
+#include "Assume.h"
 
 Q_LOGGING_CATEGORY(RunUpDetectorLog, "RunUpDetector")
 
@@ -9,7 +10,7 @@ RunUpDetector::RunUpDetector(BarCache* p_barCache, QObject* parent)
 
 void RunUpDetector::start(QDate p_startDate, qsizetype p_runUpWindowWidth)
 {
-    Q_ASSERT(p_startDate.dayOfWeek() <= 5);
+    OBJ_ASSUME_LTE(p_startDate.dayOfWeek(), 5);
 
     this->startDate = p_startDate;
     this->runUpWindowWidth = p_runUpWindowWidth;
@@ -24,7 +25,7 @@ void RunUpDetector::start(QDate p_startDate, qsizetype p_runUpWindowWidth)
 
     QVector<Bar> bars = QVector<Bar>(); //barCache->getBars(fromDate, toDate);
 
-    Q_ASSERT(bars.size() == runUpWindowWidth);
+    OBJ_ASSUME_EQUAL(bars.size(), runUpWindowWidth);
 
     for (auto& bar: bars)
     {
@@ -79,7 +80,7 @@ void RunUpDetector::computeNextCandle()
 
     QVector<Bar> bars = QVector<Bar>(); // barCache->getBars(fromDate, toDate);
 
-    Q_ASSERT(bars.size() == 1);
+    OBJ_ASSUME_EQUAL(bars.size(), 1);
 
     Bar bar = bars.first();
 
@@ -87,7 +88,7 @@ void RunUpDetector::computeNextCandle()
 
     deque.dequeue();
 
-    Q_ASSERT(deque.size() == runUpWindowWidth);
+    OBJ_ASSUME_EQUAL(deque.size(), runUpWindowWidth);
 
     timestampLastBarEnqued = bars.first().getTimeStamp();
 
@@ -103,7 +104,7 @@ void RunUpDetector::detectRunUp()
 
     QList<Bar> barList = deque.toList();
 
-    Q_ASSERT(barList.size() >= (windowBars + volumeLookback));
+    OBJ_ASSUME_GTE(barList.size(), (windowBars + volumeLookback));
 
     // Find valid bars in the window (last windowBars non-void bars)
     QList<int> validIndices;
