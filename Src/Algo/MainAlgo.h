@@ -37,7 +37,7 @@ class MainAlgo final : public QObject
   public:
     // Singleton : Instance getter  and delete copy and assignment
     static MainAlgo* getInstance();
-    
+
     Q_DISABLE_COPY(MainAlgo) // Delete copy constructor and assignment operator
 
     void start();
