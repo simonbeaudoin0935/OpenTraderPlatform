@@ -28,6 +28,7 @@ jobs:
         with:
           ref: ${{github.head_ref}}
 
+      # Check the formatting first as to not waste resources building if the code is not properly formatted.
       - name: clang-format
         uses: ./.github/actions/clang-format
 
