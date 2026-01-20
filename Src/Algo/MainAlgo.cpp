@@ -220,25 +220,25 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
     }
     else
     {
-        m_positionReceiver = std::make_unique<PositionsReceiver>(m_activeAccount.getAccountId());
+        m_positionReceiver = new PositionsReceiver(m_activeAccount.getAccountId(), this);
         Q_CHECK_PTR(m_positionReceiver);
         positionStreamStarted = true;
 
-        auto c1 = connect(m_positionReceiver.get(),
+        auto c1 = connect(m_positionReceiver,
                           &PositionsReceiver::receivedNewPosition,
                           this,
                           &MainAlgo::receivedNewPosition,
                           Qt::UniqueConnection);
         Q_ASSERT(c1);
 
-        auto c2 = connect(m_positionReceiver.get(),
+        auto c2 = connect(m_positionReceiver,
                           &PositionsReceiver::receivedNewPosition,
                           this,
                           &MainAlgo::onReceivedNewPosition,
                           Qt::UniqueConnection);
         Q_ASSERT(c2);
 
-        auto c3 = connect(m_positionReceiver.get(),
+        auto c3 = connect(m_positionReceiver,
                           &PositionsReceiver::positionDeleted,
                           this,
                           &MainAlgo::onPositionDeleted,
@@ -253,18 +253,18 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
     }
     else
     {
-        m_orderReceiver = std::make_unique<OrdersReceiver>(m_activeAccount.getAccountId());
+        m_orderReceiver = new OrdersReceiver(m_activeAccount.getAccountId(), this);
         Q_CHECK_PTR(m_orderReceiver);
         orderStreamStarted = true;
 
-        auto c3 = connect(m_orderReceiver.get(),
+        auto c3 = connect(m_orderReceiver,
                           &OrdersReceiver::receivedNewOrder,
                           this,
                           &MainAlgo::receivedNewOrder,
                           Qt::UniqueConnection);
         Q_ASSERT(c3);
 
-        auto c4 = connect(m_orderReceiver.get(),
+        auto c4 = connect(m_orderReceiver,
                           &OrdersReceiver::receivedNewOrder,
                           this,
                           &MainAlgo::onReceivedNewOrder,

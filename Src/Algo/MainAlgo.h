@@ -6,7 +6,6 @@
 #include <QMap>
 #include <QTimer>
 #include <QVector>
-#include <memory>
 
 #include "RunUpDetector.h"
 #include "MarketDepthQuoteReceiver.h"
@@ -90,8 +89,8 @@ class MainAlgo final : public QObject
     QMap<QString, StockInstruments*> stockInstruments;
     StockInstruments* currentDisplayedStockInstrument = nullptr;
 
-    std::unique_ptr<PositionsReceiver> m_positionReceiver;
-    std::unique_ptr<OrdersReceiver> m_orderReceiver;
+    PositionsReceiver* m_positionReceiver = nullptr; // Qt parent-child ownership (parent is 'this')
+    OrdersReceiver* m_orderReceiver = nullptr;       // Qt parent-child ownership (parent is 'this')
     bool positionStreamStarted = false;
     bool orderStreamStarted = false;
 

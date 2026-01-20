@@ -140,10 +140,9 @@ connect(m_positionReceiver.get(), &PositionsReceiver::signal,
 ```
 
 **Files converted to use std::unique_ptr**:
-- `Src/FrontEnd/GUI/GUIFrontend.h/cpp` (ui member)
-- `Src/FrontEnd/GUI/Tabs/RecorderTab.h/cpp` (database members)
-- `Src/Recorder/main.cpp` (LiveStreamDB objects)
-- `Src/Algo/MainAlgo.h/cpp` (receiver members)
+- `Src/FrontEnd/GUI/GUIFrontend.h/cpp` (ui member - not a QObject)
+- `Src/FrontEnd/GUI/Tabs/RecorderTab.h/cpp` (database members - optional lifetime)
+- `Src/Recorder/main.cpp` (LiveStreamDB objects - local variables in main)
 
 ### std::shared_ptr for Shared Ownership
 
@@ -190,28 +189,42 @@ if (auto sharedPtr = weakPtr.lock()) {
 
 1. **.github/copilot-instructions.md**
    - Added comprehensive smart pointer guidelines
+   - Added composition over pointers preference
 
 2. **Src/FrontEnd/GUI/GUIFrontend.h/cpp**
    - Converted `Ui::GUIFrontend* ui` to `std::unique_ptr<Ui::GUIFrontend> ui`
    - Removed manual `delete ui` from destructor
+   - **Why unique_ptr**: Ui::GUIFrontend is not a QObject, always needed, but can't be composed
 
 3. **Src/FrontEnd/GUI/Tabs/RecorderTab.h/cpp**
    - Converted `LiveStreamDB* m_liveBarsDB` to `std::unique_ptr<LiveStreamDB> m_liveBarsDB`
    - Converted `LiveStreamDB* m_liveMarketDepthQuoteDB` to `std::unique_ptr<LiveStreamDB> m_liveMarketDepthQuoteDB`
    - Changed cleanup from `delete` to `.reset()`
+   - **Why unique_ptr**: Optional lifetime - only exist when recording is active
 
 4. **Src/Recorder/main.cpp**
    - Converted LiveStreamDB allocations to `std::unique_ptr`
    - Maintain raw pointers for signal handler (signal handlers cannot use smart pointers)
+   - **Why unique_ptr**: Local variables in main() that persist for app lifetime
 
 5. **Src/Core/MemoryMonitor.cpp**
    - Removed redundant `delete timer` (Qt manages it via parent-child)
 
 6. **Src/Algo/MainAlgo.h/cpp**
-   - Converted `PositionsReceiver* m_positionReceiver` to `std::unique_ptr<PositionsReceiver> m_positionReceiver`
-   - Converted `OrdersReceiver* m_orderReceiver` to `std::unique_ptr<OrdersReceiver> m_orderReceiver`
+   - Changed `PositionsReceiver* m_positionReceiver` and `OrdersReceiver* m_orderReceiver` to use Qt parent-child ownership
+   - Pass `this` (MainAlgo) as parent to receivers, allowing Qt to manage their lifetime
    - Fixed `StockInstruments` to use Qt parent-child relationship (passes MainAlgo as parent)
-   - Updated all connection calls to use `.get()` when accessing receivers
+   - **Why parent-child**: QObjects that persist once created, parent is available
+
+### Decision Criteria Summary
+
+The conversion followed these principles in order of preference:
+
+1. **Composition first**: Use direct member objects when object lifetime matches container (e.g., StockInstruments members)
+2. **Qt parent-child**: Use for QObjects with a parent available (e.g., MainAlgo receivers)
+3. **std::unique_ptr**: Use for exclusive ownership when composition/parent-child don't apply (e.g., optional objects, non-QObjects)
+4. **std::shared_ptr**: Use only when multiple owners truly need shared ownership (e.g., Bar vectors)
+5. **QPointer**: Use for observing QObjects whose lifetime is uncertain (e.g., stream objects)
 
 ## When NOT to Use Smart Pointers
 
