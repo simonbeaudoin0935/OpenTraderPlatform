@@ -370,37 +370,42 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                 endDayTime)
                       .then(this,
                             [this, date, startDateTime, endDayTime, promise = std::move(promise)](
-                                std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> /* bars */) mutable
+                                std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars) mutable
                             {
-                                /*
-                        if (!bars.has_value()) {
-                            CRITICAL << "getBars() from API returned error for" << m_symbol
-                                     << "- Error:" << static_cast<int>(bars.error());
-                            promise.addResult(std::unexpected(bars.error()));
-                        } else {
-                            DEBUG << "Asynchronous getBars() from API completed for complete day" << date
-                                  << "with" << bars.value()->size() << "bars received";
+                                if (!bars.has_value())
+                                {
+                                    CRITICAL << "getBars() from API returned error for" << m_symbol
+                                             << "- Error:" << static_cast<int>(bars.error());
+                                    promise.addResult(std::unexpected(bars.error()));
+                                }
+                                else
+                                {
+                                    DEBUG << "Asynchronous getBars() from API completed for complete day" << date
+                                          << "with" << bars.value()->size() << "bars received";
 
-                            // Make this a shared_ptr so that a reference can be sent to the DatabaseThread and be worked on it
-                            // at the same time as we sent the other reference back to the caller
-                            std::shared_ptr<QVector<Bar>> barsFromApiHolesFilled =
-                                std::make_shared<QVector<Bar>>(fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars.value()));
+                                    // Make this a shared_ptr so that a reference can be sent to the DatabaseThread and be worked on it
+                                    // at the same time as we sent the other reference back to the caller
+                                    std::shared_ptr<QVector<Bar>> barsFromApiHolesFilled =
+                                        std::make_shared<QVector<Bar>>(
+                                            fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars.value()));
 
-                            // Store the complete day in memory cache
-                            storeBarsInCache(date, barsFromApiHolesFilled);
+                                    // Store the complete day in memory cache
+                                    storeBarsInCache(date, barsFromApiHolesFilled);
 
-                            // Store in database via DatabaseThread (async, fire-and-forget for now)
-                            DatabaseThread::getInstance()->storeBarsInDatabase(m_symbol, date, barsFromApiHolesFilled)
-                                .then(this, [this](int storedCount) {
-                                    DEBUG << "Stored" << storedCount << "bars in database for" << m_symbol;
-                                });
+                                    // Store in database via DatabaseThread (async, fire-and-forget for now)
+                                    DatabaseThread::getInstance()
+                                        ->storeBarsInDatabase(m_symbol, date, barsFromApiHolesFilled)
+                                        .then(this,
+                                              [this](int storedCount) {
+                                                  DEBUG << "Stored" << storedCount << "bars in database for"
+                                                        << m_symbol;
+                                              });
 
-                            //promise.addResult(barsFromApiHolesFilled);
+                                    promise.addResult(barsFromApiHolesFilled);
+                                }
+                                promise.finish();
 
-                        }
-*/
-                                //promise.finish();
-                                CRITICAL << "ANUS";
+                                INFO << "Completed fetching bars from API for day" << date;
                             });
               });
 
