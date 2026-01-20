@@ -10,21 +10,21 @@ Q_DECLARE_LOGGING_CATEGORY(PositionsReceiverLog)
 class PositionsReceiver : public QObject
 {
     Q_OBJECT
-public:
-    explicit PositionsReceiver(const QString &account, QObject *parent = nullptr);
+  public:
+    explicit PositionsReceiver(const QString& account, QObject* parent = nullptr);
     ~PositionsReceiver();
-    void stopStream(const QString &account);
+    void stopStream(const QString& account);
     void stopStream(const char* account);
 
-signals:
+  signals:
     void receivedNewPosition(QString account, Position position);
     void positionDeleted(QString account, QString positionID);
 
-private slots:
+  private slots:
     void onReceivedNewPosition(Position position);
     void onPositionDeleted(QString positionID);
 
-private:
+  private:
     QPointer<StreamPositions> m_stream = nullptr;
     QString m_account;
 

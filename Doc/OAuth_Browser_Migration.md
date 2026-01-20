@@ -26,11 +26,11 @@ The new implementation uses `QDesktopServices::openUrl()` to launch the system's
 
 ### Code Changes
 
-#### AuthWindow.h
+#### GUIAuthHandler.h
 - Removed: `#include <QWebEngineView>`
 - Removed: `QWebEngineView *webView = nullptr;` member variable
 
-#### AuthWindow.cpp
+#### GUIAuthHandler.cpp
 - Added: `#include <QDesktopServices>` and `#include <QLabel>`
 - Modified `setupUi()`: Replaced embedded browser with informational label
 - Modified `startAuthorization()`: Changed from `webView->load()` to `QDesktopServices::openUrl()`
@@ -44,14 +44,14 @@ The new implementation uses `QDesktopServices::openUrl()` to launch the system's
 
 #### Src/CMakeLists.txt
 - Removed: `Qt6::WebEngineWidgets` from GUI link libraries
-- Removed: `list(FILTER CLIENTS_SOURCES EXCLUDE REGEX "AuthWindow\\.(cpp|h)$")` 
-  - AuthWindow is now compatible with TUI mode
+- Removed: `list(FILTER CLIENTS_SOURCES EXCLUDE REGEX "GUIAuthHandler\\.(cpp|h)$")` 
+  - GUIAuthHandler is now compatible with TUI mode
 
 ### Documentation Changes
 
 #### OAuth_Authentication_Process.md
 - Updated sequence diagram: Changed "Embedded Browser" to "System Web Browser"
-- Updated AuthWindow description: Removed QWebEngineView references
+- Updated GUIAuthHandler description: Removed QWebEngineView references
 - Added note about GUI and TUI compatibility
 
 #### README.md
@@ -164,7 +164,7 @@ If you have a local development environment with the old code:
    # sudo apt remove qt6-webengine-dev  # (if no other apps need it)
    ```
 
-3. **No code changes required**: If you have custom branches, they should merge cleanly as the changes are localized to AuthWindow
+3. **No code changes required**: If you have custom branches, they should merge cleanly as the changes are localized to GUIAuthHandler
 
 ## Future Enhancements
 

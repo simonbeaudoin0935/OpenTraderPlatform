@@ -7,7 +7,7 @@
 
 class MainApp
 {
-public:
+  public:
     MainApp();
 
     void start();
@@ -19,9 +19,9 @@ public:
 
     static QDateTime getCurrentAppTime();
 
-private:
+  private:
     TSClient* tradeStationClient;
-    MainAlgo*    mainAlgo;
+    MainAlgo* mainAlgo;
     FrontEnd* appFrontend;
     MemoryMonitor memoryMonitor;
 };

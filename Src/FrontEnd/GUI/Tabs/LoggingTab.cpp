@@ -8,18 +8,19 @@
 #include "Misc/Logging.h"
 
 LoggingTab::LoggingTab(QWidget* parent)
-    : QWidget(parent),
-      categoryCheckBoxLayout(nullptr),
-      loggerVisibilityCheckBox(nullptr),
-      logDepthSpinBox(nullptr),
-      globalDebugDisableCheckBox(nullptr),
-      globalInfoDisableCheckBox(nullptr)
+    : QWidget(parent)
+    , categoryCheckBoxLayout(nullptr)
+    , loggerVisibilityCheckBox(nullptr)
+    , logDepthSpinBox(nullptr)
+    , globalDebugDisableCheckBox(nullptr)
+    , globalInfoDisableCheckBox(nullptr)
 {
     setupUI();
     populateCategoryCheckboxes();
 }
 
-void LoggingTab::setupUI() {
+void LoggingTab::setupUI()
+{
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
     // Logger Widget Controls section
@@ -28,7 +29,7 @@ void LoggingTab::setupUI() {
 
     // Visibility checkbox
     loggerVisibilityCheckBox = new QCheckBox("Show Logger Widget");
-    loggerVisibilityCheckBox->setChecked(true);  // Default to visible
+    loggerVisibilityCheckBox->setChecked(true); // Default to visible
     connect(loggerVisibilityCheckBox, &QCheckBox::toggled, this, &LoggingTab::onLoggerVisibilityToggled);
     loggerControlsLayout->addWidget(loggerVisibilityCheckBox);
 
@@ -38,7 +39,7 @@ void LoggingTab::setupUI() {
     logDepthSpinBox = new QSpinBox();
     logDepthSpinBox->setMinimum(100);
     logDepthSpinBox->setMaximum(10000);
-    logDepthSpinBox->setValue(1000);  // Default value
+    logDepthSpinBox->setValue(1000); // Default value
     logDepthSpinBox->setSingleStep(100);
     connect(logDepthSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &LoggingTab::onLogDepthValueChanged);
     logDepthLayout->addWidget(logDepthLabel);
@@ -78,11 +79,14 @@ void LoggingTab::setupUI() {
     mainLayout->addWidget(categoryGroupBox);
 }
 
-void LoggingTab::populateCategoryCheckboxes() {
+void LoggingTab::populateCategoryCheckboxes()
+{
     // Clear existing checkboxes
     QLayoutItem* item;
-    while ((item = categoryCheckBoxLayout->takeAt(0)) != nullptr) {
-        if (item->widget()) {
+    while ((item = categoryCheckBoxLayout->takeAt(0)) != nullptr)
+    {
+        if (item->widget())
+        {
             delete item->widget();
         }
         delete item;
@@ -91,7 +95,8 @@ void LoggingTab::populateCategoryCheckboxes() {
 
     // Populate category checkboxes
     QStringList categories = LoggingConfig::instance().getCategories();
-    for (const QString& category : categories) {
+    for (const QString& category: categories)
+    {
         QCheckBox* checkBox = new QCheckBox(category);
         checkBox->setChecked(LoggingConfig::instance().isCategoryEnabled(category));
         checkBox->setProperty("category", category);
@@ -106,9 +111,11 @@ void LoggingTab::populateCategoryCheckboxes() {
     categoryCheckBoxLayout->addStretch();
 }
 
-void LoggingTab::onCategoryCheckBoxToggled(bool checked) {
+void LoggingTab::onCategoryCheckBoxToggled(bool checked)
+{
     QCheckBox* checkBox = qobject_cast<QCheckBox*>(sender());
-    if (checkBox) {
+    if (checkBox)
+    {
         QString category = checkBox->property("category").toString();
         LoggingConfig::instance().setCategoryEnabled(category, checked);
 
@@ -117,20 +124,24 @@ void LoggingTab::onCategoryCheckBoxToggled(bool checked) {
     }
 }
 
-void LoggingTab::onLoggerVisibilityToggled(bool checked) {
+void LoggingTab::onLoggerVisibilityToggled(bool checked)
+{
     emit loggerVisibilityChanged(checked);
 }
 
-void LoggingTab::onLogDepthValueChanged(int value) {
+void LoggingTab::onLogDepthValueChanged(int value)
+{
     emit logDepthChanged(value);
 }
 
-void LoggingTab::onGlobalDebugDisableToggled(bool checked) {
+void LoggingTab::onGlobalDebugDisableToggled(bool checked)
+{
     LoggingConfig::instance().setDebugDisabled(checked);
     qInfo() << "Global debug messages" << (checked ? "disabled" : "enabled");
 }
 
-void LoggingTab::onGlobalInfoDisableToggled(bool checked) {
+void LoggingTab::onGlobalInfoDisableToggled(bool checked)
+{
     LoggingConfig::instance().setInfoDisabled(checked);
     qInfo() << "Global info messages" << (checked ? "disabled" : "enabled");
 }

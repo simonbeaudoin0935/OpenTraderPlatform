@@ -10,24 +10,23 @@
 #include "Logging.h"
 
 static TSClient* client;
-static BarCache *barCache;
+static BarCache* barCache;
 static RunUpDetector* detector;
 
 //static const QString symbol = "TIVC";
 //static const QDate   date(2025, 4, 3); // Wednesday April 3rd
 
 static const QString symbol = "UPXI";
-static const QDate   date(2025, 4, 21); // Wednesday April 3rd
+static const QDate date(2025, 4, 21); // Wednesday April 3rd
 
 // will be called to create a global test data table.
-void TestRunUpDetector::initTestCase_data()
-{
-}
+void TestRunUpDetector::initTestCase_data() {}
 
 // will be called before the first test function is executed.
-void TestRunUpDetector::initTestCase() {
+void TestRunUpDetector::initTestCase()
+{
 
-        // manually expire the token to force a refresh on startup
+    // manually expire the token to force a refresh on startup
     {
         AuthToken savedAuthToken = AuthToken::loadFromSettings();
 
@@ -41,23 +40,26 @@ void TestRunUpDetector::initTestCase() {
         // The first thing we are going to test is that the client is able to
         // start with an expired token and refresh it.
         // If the present token is not expired, we will artificially set it to expired
-        if(!savedAuthToken.isExpired()) {
+        if (!savedAuthToken.isExpired())
+        {
             qInfo() << "Token is not expired, setting it to expired";
 
             AuthToken expiredToken = AuthToken(savedAuthToken.getAccessToken(),
-                                            savedAuthToken.getRefreshToken(),
-                                            savedAuthToken.getIdToken(),
-                                            savedAuthToken.getTokenType(),
-                                            savedAuthToken.getScope(),
-                                            savedAuthToken.getExpiresIn(),
-                                            QDateTime::currentDateTime().addSecs(-3600));
+                                               savedAuthToken.getRefreshToken(),
+                                               savedAuthToken.getIdToken(),
+                                               savedAuthToken.getTokenType(),
+                                               savedAuthToken.getScope(),
+                                               savedAuthToken.getExpiresIn(),
+                                               QDateTime::currentDateTime().addSecs(-3600));
 
             QVERIFY(AuthToken::storeToSettings(expiredToken));
-        } else {
+        }
+        else
+        {
             qInfo() << "Token is expired, no need to set it to expired";
         }
     }
-    
+
     qInfo() << "Start of test suite";
 
     QThread::currentThread()->setObjectName("UnitTestThread");
@@ -66,7 +68,8 @@ void TestRunUpDetector::initTestCase() {
 
     bool triggered;
 
-    QSignalSpy authStateSpy(client, &TSClient::authStateChanged); // Create signal spies to monitor authentication signals
+    QSignalSpy authStateSpy(client,
+                            &TSClient::authStateChanged); // Create signal spies to monitor authentication signals
 
     QVERIFY(client->isCleanedUp());
     QVERIFY(!client->isAuthenticated());
@@ -96,7 +99,7 @@ void TestRunUpDetector::initTestCase() {
     QCOMPARE(authStateSpy.count(), 1);
 
     // Authentication completed
-    bool success   = authStateSpy.first().at(0).toBool();
+    bool success = authStateSpy.first().at(0).toBool();
     QString reason = authStateSpy.first().at(1).toString();
 
     qInfo() << "Refresh reply : " << reason;
@@ -125,24 +128,22 @@ void TestRunUpDetector::init()
     // Reinstall our custom colored message handler before each test to ensure
     // proper colored output during test execution.
     reinstallColoredMessageHandler();
-    
+
     QLoggingCategory::setFilterRules("TSClient.debug=true");
     QLoggingCategory::setFilterRules("BarCache.debug=true");
 }
 
 // Will be called after every test function.
-void TestRunUpDetector::cleanup() {
-
-}
+void TestRunUpDetector::cleanup() {}
 
 void TestRunUpDetector::testPriorDayAfterMarket()
 {
-    detector->start(date,30);
+    detector->start(date, 30);
 
-    for(size_t i = 0; i != 200; i++) {
+    for (size_t i = 0; i != 200; i++)
+    {
         detector->computeNextCandle();
     }
 
     QTest::qWait(5000);
 }
-

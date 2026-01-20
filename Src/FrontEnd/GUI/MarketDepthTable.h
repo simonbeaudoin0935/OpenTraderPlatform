@@ -8,9 +8,10 @@
 class QLabel;
 class MarketDepthTableView;
 
-class MarketDepthTable : public QWidget {
+class MarketDepthTable : public QWidget
+{
     Q_OBJECT
-public:
+  public:
     explicit MarketDepthTable(QWidget* parent = nullptr);
     ~MarketDepthTable();
 
@@ -18,7 +19,7 @@ public:
     void updateData(const QVector<MarketDepthLevel>& bids, const QVector<MarketDepthLevel>& asks);
     void updateDWP(double bidDWP, double askDWP);
 
-private:
+  private:
     void setupUI();
     void setupStyles();
     void setMarketDepthItem(QStandardItem* item, const MarketDepthLevel& level, const QString& field, int rowIndex);
@@ -31,4 +32,4 @@ private:
     QLabel* dwpLabel;
     QLabel* bidDWPLabel;
     QLabel* askDWPLabel;
-}; 
+};

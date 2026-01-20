@@ -8,16 +8,17 @@
 class QTableView;
 class QLabel;
 
-class BalanceWindow : public QWidget {
+class BalanceWindow : public QWidget
+{
     Q_OBJECT
-public:
+  public:
     explicit BalanceWindow(QWidget* parent = nullptr);
     ~BalanceWindow();
 
-public slots:
+  public slots:
     void updateBalance(const Balance& balance);
 
-private:
+  private:
     void setupUI();
     void setupStyles();
     void updateBalanceData(const Balance& balance);
@@ -25,4 +26,4 @@ private:
     QTableView* tableView;
     QStandardItemModel* model;
     QLabel* headerLabel;
-}; 
+};

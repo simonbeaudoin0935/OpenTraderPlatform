@@ -8,16 +8,18 @@
 
 /**
  * @brief Singleton class to manage application shortcuts
- * 
+ *
  * This class handles loading, saving, and validating keyboard shortcuts.
  * Shortcuts are persisted to disk immediately when changed.
  */
-class ShortcutSettings : public QObject {
+class ShortcutSettings : public QObject
+{
     Q_OBJECT
 
-public:
+  public:
     // Shortcut identifiers
-    enum ShortcutId {
+    enum ShortcutId
+    {
         QuitApplication,
         FocusStockInput,
         ExecuteBuyOrder,
@@ -83,7 +85,7 @@ public:
      */
     QList<ShortcutId> getAllShortcutIds() const;
 
-signals:
+  signals:
     /**
      * @brief Emitted when a shortcut is changed
      * @param p_id The shortcut that was changed
@@ -91,7 +93,7 @@ signals:
      */
     void shortcutChanged(ShortcutId p_id, const QKeySequence& p_newSequence);
 
-private:
+  private:
     ShortcutSettings();
     ~ShortcutSettings() override = default;
 

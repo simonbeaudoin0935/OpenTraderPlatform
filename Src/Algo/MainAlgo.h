@@ -18,10 +18,11 @@
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
 
-class StockInstruments : public QObject{
+class StockInstruments : public QObject
+{
 
-public:
-    explicit StockInstruments(const QString &symbol);
+  public:
+    explicit StockInstruments(const QString& p_symbol, QObject* p_parent = nullptr);
     ~StockInstruments();
 
     QString symbol;
@@ -33,7 +34,7 @@ public:
 class MainAlgo final : public QObject
 {
     Q_OBJECT
-public:
+  public:
     // Singleton : Instance getter  and delete copy and assignment
     static MainAlgo* getInstance();
     
@@ -47,9 +48,13 @@ public:
 
     BarCache::GetBarsResult_t requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last);
 
-signals:
+  signals:
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
-    void displayedStockReceivedNewMarketDepthQuote(QString symbol, MarketDepthQuote quote, double bidAskImbalance, double bidDWP, double askDWP);
+    void displayedStockReceivedNewMarketDepthQuote(QString symbol,
+                                                   MarketDepthQuote quote,
+                                                   double bidAskImbalance,
+                                                   double bidDWP,
+                                                   double askDWP);
 
     void receivedNewPosition(QString account, Position position);
     void positionDeleted(QString account, QString positionID);
@@ -57,16 +62,16 @@ signals:
     void tradeStationAccountsReceived(QVector<Account> accounts);
     void balanceUpdated(Balance balance);
 
-public slots:
-    void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
-    void onSelectDisplayedStock(QString symbol);
+  public slots:
+    void onTradeStationAuthStateChanged(bool isAuthenticated, const QString& reason);
+    void onSelectDisplayedStock(const QString& symbol);
 
-private slots:
+  private slots:
     void onThreadStarted();
 
-    void onReceivedNewPosition(QString account, Position position);
-    void onPositionDeleted(QString account, QString positionID);
-    void onReceivedNewOrder(QString account, Order order);
+    void onReceivedNewPosition(const QString& account, Position position);
+    void onPositionDeleted(const QString& account, const QString& positionID);
+    void onReceivedNewOrder(const QString& account, Order order);
 
     void onReceivedAsyncGetAccounts(const QVector<Account>& results);
 
@@ -74,9 +79,9 @@ private slots:
     void requestBalance();
 
 
-private:
+  private:
     static MainAlgo* m_instance;
-     explicit MainAlgo(); // Singleton : private constructor
+    explicit MainAlgo(); // Singleton : private constructor
     ~MainAlgo();
 
     QThread thread;
@@ -84,12 +89,12 @@ private:
     QMap<QString, StockInstruments*> stockInstruments;
     StockInstruments* currentDisplayedStockInstrument = nullptr;
 
-    PositionsReceiver* m_positionReceiver = nullptr;
-    OrdersReceiver* m_orderReceiver = nullptr;
+    PositionsReceiver* m_positionReceiver = nullptr; // Qt parent-child ownership (parent is 'this')
+    OrdersReceiver* m_orderReceiver = nullptr;       // Qt parent-child ownership (parent is 'this')
     bool positionStreamStarted = false;
     bool orderStreamStarted = false;
 
-    QTextStream *algoLogFile;
+    QTextStream* algoLogFile;
     QFile file;
 
     bool m_havePastSuccessfulExchanges = false;

@@ -9,22 +9,23 @@
 
 Q_DECLARE_LOGGING_CATEGORY(TSAuthTokenLog);
 
-class AuthToken {
-public:
+class AuthToken
+{
+  public:
     // Default constructor with empty values
     AuthToken() : expiresIn(0) {}
 
     // Constructor from individual fields
-    AuthToken(const QString &accessToken,
-             const QString &refreshToken,
-             const QString &idToken,
-             const QString &tokenType,
-             const QString &scope,
-             int expiresIn,
-             QDateTime receivedAt);
+    AuthToken(const QString& p_accessToken,
+              const QString& p_refreshToken,
+              const QString& p_idToken,
+              const QString& p_tokenType,
+              const QString& p_scope,
+              int p_expiresIn,
+              QDateTime p_receivedAt);
 
     // Copy constructor
-    AuthToken(const AuthToken &other) = default;
+    AuthToken(const AuthToken& other) = default;
 
     // Constructor from JSON response like this :
     // {
@@ -36,40 +37,65 @@ public:
     //     "expires_in": 1200
     // }
     // SETS THE RECEIVED AT TIME TO THE CURRENT TIME
-    static AuthToken receiveAuthToken(const QJsonObject &json);
+    static AuthToken receiveAuthToken(const QJsonObject& json);
 
     // Getters
-    QString getAccessToken() const { return accessToken; }
-    QString getRefreshToken() const { return refreshToken; }
-    QString getIdToken() const { return idToken; }
-    QString getTokenType() const { return tokenType; }
-    QString getScope() const { return scope; }
-    int getExpiresIn() const { return expiresIn; }
-    QDateTime getReceivedAt() const { return receivedAt; }
+    QString getAccessToken() const
+    {
+        return accessToken;
+    }
+    QString getRefreshToken() const
+    {
+        return refreshToken;
+    }
+    QString getIdToken() const
+    {
+        return idToken;
+    }
+    QString getTokenType() const
+    {
+        return tokenType;
+    }
+    QString getScope() const
+    {
+        return scope;
+    }
+    int getExpiresIn() const
+    {
+        return expiresIn;
+    }
+    QDateTime getReceivedAt() const
+    {
+        return receivedAt;
+    }
 
     // Setters
-    void setRefreshToken(const QString &token) {refreshToken = token; }
+    void setRefreshToken(const QString& token)
+    {
+        refreshToken = token;
+    }
 
     // Utility methods
     int secondsUntilExpiration(); // Gives the number of seconds until expiration
-    int secondsToNextRefreshRequest(); // Gives the number of seconds until the next refhesh should be performed (takes into account the 5s margin)
+    int
+    secondsToNextRefreshRequest(); // Gives the number of seconds until the next refhesh should be performed (takes into account the 5s margin)
     bool isValid() const;
     bool isValidRefreshedToken() const;
     bool isExpired() const;
     QJsonObject toJson() const;
-    QString toString() const;  // For debugging/logging
+    QString toString() const; // For debugging/logging
 
     // Settings methods
     static AuthToken loadFromSettings();
-    static bool storeToSettings(const AuthToken &token);
+    static bool storeToSettings(const AuthToken& token);
     static void clearSettings();
 
     // Static validation methods
-    static bool validateScope(const QString &scope);
-    static bool validateTokenType(const QString &tokenType);
+    static bool validateScope(const QString& scope);
+    static bool validateTokenType(const QString& tokenType);
     static bool validateExpiresIn(int expiresIn);
 
-private:
+  private:
     QString accessToken;
     QString refreshToken;
     QString idToken;
@@ -78,10 +104,10 @@ private:
     int expiresIn;
     QDateTime receivedAt;
 
-    static constexpr int EXPIRY_BUFFER_SECONDS = 5;  // Buffer time before actual expiry
+    static constexpr int EXPIRY_BUFFER_SECONDS = 5; // Buffer time before actual expiry
     static const QString EXPECTED_TOKEN_TYPE;
     static constexpr int EXPECTED_EXPIRES_IN = 1200;
-    static const QStringList EXPECTED_SCOPES;  // Still needs to be defined in cpp due to QStringList
+    static const QStringList EXPECTED_SCOPES; // Still needs to be defined in cpp due to QStringList
 };
 
-#endif // AUTHTOKEN_H 
+#endif // AUTHTOKEN_H

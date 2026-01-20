@@ -10,28 +10,40 @@ add_custom_command(
 add_custom_target(generate_logging DEPENDS ${LOGGING_GENERATED_H})
 
 # Collect all source files from subdirectories
-file(GLOB_RECURSE MISC_SOURCES 
+file(GLOB_RECURSE MISC_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Misc/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Misc/*.h"
 )
 
-file(GLOB_RECURSE CLIENTS_SOURCES 
+# Remove GUI-specific shortcut settings from TUI builds
+if(NOT ENABLE_GUI)
+    list(FILTER MISC_SOURCES EXCLUDE REGEX "ShortcutSettings\\.(cpp|h)$")
+endif()
+
+file(GLOB_RECURSE CLIENTS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Clients/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Clients/*.h"
 )
 
-file(GLOB_RECURSE ALGO_SOURCES 
+# Remove GUI-specific or TUI-specific auth handlers based on build mode
+if(ENABLE_GUI)
+    list(FILTER CLIENTS_SOURCES EXCLUDE REGEX "TUIAuthHandler\\.(cpp|h)$")
+else()
+    list(FILTER CLIENTS_SOURCES EXCLUDE REGEX "GUIAuthHandler\\.(cpp|h)$")
+endif()
+
+file(GLOB_RECURSE ALGO_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Algo/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Algo/*.h"
 )
 
-file(GLOB_RECURSE CORE_SOURCES 
+file(GLOB_RECURSE CORE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Core/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Core/*.h"
 )
 
 # Recorder sources (excluding the standalone main.cpp)
-file(GLOB RECORDER_SOURCES 
+file(GLOB RECORDER_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/RecorderLogic.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/LiveStreamDB.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/StatusReporter.cpp"
@@ -39,7 +51,7 @@ file(GLOB RECORDER_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/*.h"
 )
 
-file(GLOB FRONTEND_SOURCES 
+file(GLOB FRONTEND_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/*.h"
 )
 
@@ -48,7 +60,7 @@ set(GUI_SOURCES "")
 set(TUI_SOURCES "")
 set(QCUSTOMPLOT_SOURCES "")
 if(ENABLE_GUI)
-    file(GLOB_RECURSE GUI_SOURCES 
+    file(GLOB_RECURSE GUI_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/*.h"
     )
@@ -61,7 +73,7 @@ if(ENABLE_GUI)
         "${CMAKE_SOURCE_DIR}/qcustomplot/qcustomplot.h"
     )
 else()
-    file(GLOB_RECURSE TUI_SOURCES 
+    file(GLOB_RECURSE TUI_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI/*.h"
     )
@@ -84,6 +96,13 @@ add_library(L2TraderCommon STATIC
 
 # Add dependency on logging generation
 add_dependencies(L2TraderCommon generate_logging)
+
+# Disable strict warnings for third-party qcustomplot code
+if(QCUSTOMPLOT_SOURCES)
+    set_source_files_properties(${QCUSTOMPLOT_SOURCES} PROPERTIES
+        COMPILE_FLAGS "-Wno-error -Wno-shadow -Wno-double-promotion"
+    )
+endif()
 
 # Set include directories for the library
 target_include_directories(L2TraderCommon PUBLIC
@@ -141,6 +160,13 @@ if(ENABLE_GUI)
         Qt6::Gui
         Qt6::Widgets
         Qt6::PrintSupport
+    )
+else()
+    target_link_libraries(L2TraderCommon PUBLIC
+        ${CURSES_LIBRARIES}
+    )
+    target_include_directories(L2TraderCommon PUBLIC
+        ${CURSES_INCLUDE_DIRS}
     )
 endif()
 

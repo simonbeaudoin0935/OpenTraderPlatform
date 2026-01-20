@@ -17,7 +17,7 @@
 
 #include <iostream>
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     APPLICATION app(argc, argv);
 
@@ -36,14 +36,14 @@ int main(int argc, char *argv[])
     qInfo() << "Version:" << version;
 
 #ifdef GUI_ENABLED
-    app.setWindowIcon(QIcon(":/Icons/L2T.png"));
+    QApplication::setWindowIcon(QIcon(":/Icons/L2T.png"));
 #endif
 
-    parseArguments(app.arguments());
+    parseArguments(QCoreApplication::arguments());
 
     // Initialize app state settings for persistent UI state
-    appStateSettings = new QSettings(QSettings::IniFormat, QSettings::UserScope,
-                                      QCoreApplication::applicationName(), "AppState");
+    appStateSettings =
+        new QSettings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::applicationName(), "AppState");
     appStateSettings->setFallbacksEnabled(false);
 
     qInfo() << "Cache root directory:" << getCacheLocation();
@@ -52,5 +52,5 @@ int main(int argc, char *argv[])
 
     mainApp.start();
 
-    return app.exec();
+    return QCoreApplication::exec();
 }

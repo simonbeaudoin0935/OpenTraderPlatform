@@ -2,19 +2,84 @@ cmake_minimum_required(VERSION 3.16)
 
 project(L2Trader VERSION 1.0.0 LANGUAGES CXX)
 
+# Extensive usage of C++23 features
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Disable exceptions - must define QT_NO_EXCEPTIONS for Qt headers to match
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -fno-exceptions")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+# Option to enable/disable GUI
+option(ENABLE_GUI "Enable GUI support" ON)
+
+# Option to enable UndefinedBehaviorSanitizer
+option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
+
+# Option to enable AddressSanitizer
+option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+
+# Option to build tests
+option(BUILD_TESTS "Build tests" ON)
+
+# Check for incompatible sanitizer options
+if(ENABLE_UBSAN AND ENABLE_ASAN)
+    message(FATAL_ERROR "Cannot enable both UBSan and ASan simultaneously. Please choose only one.")
+endif()
+
+# Mandate GCC and Clang only
+if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    message(FATAL_ERROR "Only GCC and Clang compilers are supported.")
+endif()
+
+# Enable strict compiler warnings, and treat warnings as errors
+add_compile_options(
+    -Werror
+    -Wall
+    -Wextra
+    -Wpedantic
+    -Wcast-align
+    -Wcast-qual
+    -Wdouble-promotion
+    -Wformat=2
+    -Wimplicit-fallthrough
+    -Wnon-virtual-dtor
+    -Wnull-dereference
+    -Woverloaded-virtual
+    -Wshadow
+    -Wunused
+)
+
+# Disable some warnings that are too noisy or incompatible with Qt
+add_compile_options(
+    -Wno-old-style-cast      # Qt uses C-style casts extensively
+    -Wno-sign-conversion     # Qt APIs often mix signed/unsigned
+    -Wno-conversion          # Too noisy with Qt
+    -Wno-missing-include-dirs # Can be problematic with Qt paths
+)
+
+# Enable sanitizers if requested (GCC and Clang only)
+if(ENABLE_UBSAN)
+    message(STATUS "UndefinedBehaviorSanitizer enabled")
+    add_compile_options(-fsanitize=undefined -fno-sanitize-recover=all)
+    add_link_options(-fsanitize=undefined)
+endif()
+
+if(ENABLE_ASAN)
+    message(STATUS "AddressSanitizer enabled")
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address)
+endif()
+
+# Disable exceptions for this project. Now, this is separate from
+# the Qt library itself being built with exceptions disabled.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
+
+# Here, we do not define QT_NO_EXCEPTIONS, because we do not know
+# if the Qt library was built with exceptions disabled or not.
+# We can have the project built with exceptions disabled,
+# while still using a Qt library built with exceptions enabled.
 #add_compile_definitions(QT_NO_EXCEPTIONS)
 
 # Enable export of compile commands for IDE support
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Option to enable/disable GUI
-option(ENABLE_GUI "Enable GUI support" ON)
 
 if(ENABLE_GUI)
     # Find Qt6 GUI packages
@@ -22,15 +87,12 @@ if(ENABLE_GUI)
     find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport)
     add_compile_definitions(GUI_ENABLED)
 else()
-    # When building for TUI, we depend oon ncurses
-    find_packages(Curses REQUIRED)
+    # When building for TUI, we depend on ncurses
+    find_package(Curses REQUIRED)
 endif()
 
-# Option to build tests
-option(BUILD_TESTS "Build tests" ON)
-
-# Find Qt6 coore packages
-find_package(Qt6 REQUIRED COMPONENTS Core Network Sql Test Concurrent)
+# Find Qt6 core packages
+find_package(Qt6 REQUIRED COMPONENTS Core Network Sql Concurrent)
 
 # Configure ccache for faster rebuilds
 find_program(CCACHE_PROGRAM ccache)
@@ -110,6 +172,7 @@ endif()
 add_subdirectory(Src)
 
 if(BUILD_TESTS)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
     enable_testing()
     add_subdirectory(Tests)
 endif()

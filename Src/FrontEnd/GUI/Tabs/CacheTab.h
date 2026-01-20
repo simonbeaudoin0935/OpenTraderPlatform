@@ -14,21 +14,22 @@
 
 class OrdersDatabase;
 
-class CacheTab : public QWidget {
+class CacheTab : public QWidget
+{
     Q_OBJECT
 
-public:
+  public:
     explicit CacheTab(QWidget* parent = nullptr);
     ~CacheTab() override = default;
 
-private slots:
+  private slots:
     void refreshCacheInfo();
     void clearSelectedCache();
     void clearAllCache();
     void refreshOrdersDbInfo();
     void clearOrdersDatabase();
 
-private:
+  private:
     void setupUI();
     void populateCacheTable();
     QString formatFileSize(qint64 bytes) const;
@@ -39,7 +40,7 @@ private:
     QPushButton* clearAllButton;
     QLabel* totalSizeLabel;
     QTimer* refreshTimer;
-    
+
     // Orders Database section
     QLabel* ordersDbCountLabel;
     QLabel* ordersDbSizeLabel;

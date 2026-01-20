@@ -24,7 +24,8 @@ void TestTSClient::initTestCase_data()
     // The first thing we are going to test is that the client is able to
     // start with an expired token and refresh it.
     // If the present token is not expired, we will artificially set it to expired
-    if(!savedAuthToken.isExpired()) {
+    if (!savedAuthToken.isExpired())
+    {
         qInfo() << "Token is not expired, setting it to expired";
 
         AuthToken expiredToken = AuthToken(savedAuthToken.getAccessToken(),
@@ -36,7 +37,9 @@ void TestTSClient::initTestCase_data()
                                            QDateTime::currentDateTime().addSecs(-3600));
 
         QVERIFY(AuthToken::storeToSettings(expiredToken));
-    } else {
+    }
+    else
+    {
         qInfo() << "Token is expired, no need to set it to expired";
     }
 
@@ -44,7 +47,8 @@ void TestTSClient::initTestCase_data()
 }
 
 // will be called before the first test function is executed.
-void TestTSClient::initTestCase() {
+void TestTSClient::initTestCase()
+{
     QLoggingCategory::setFilterRules("TSClient.debug=true");
 
     qInfo() << "Start of test suite";
@@ -63,7 +67,7 @@ void TestTSClient::init()
     // Reinstall our custom colored message handler before each test to ensure
     // proper colored output during test execution.
     reinstallColoredMessageHandler();
-    
+
     // Make sure the debug prints are enabled
     QLoggingCategory::setFilterRules("TSClient.debug=true");
 
@@ -72,9 +76,7 @@ void TestTSClient::init()
 }
 
 // Will be called after every test function.
-void TestTSClient::cleanup() {
-
-}
+void TestTSClient::cleanup() {}
 
 // This test HAS to be the first, because we want to test the refresh logic, which launches when
 // calling client->start() only. Since we use the same singleton instance throughout the whole test
@@ -83,7 +85,8 @@ void TestTSClient::testRefreshSyncAccessToken()
 {
     bool triggered;
 
-    QSignalSpy authStateSpy(client, &TSClient::authStateChanged); // Create signal spies to monitor authentication signals
+    QSignalSpy authStateSpy(client,
+                            &TSClient::authStateChanged); // Create signal spies to monitor authentication signals
 
     QVERIFY(client->isCleanedUp());
     QVERIFY(!client->isAuthenticated());
@@ -113,7 +116,7 @@ void TestTSClient::testRefreshSyncAccessToken()
     QCOMPARE(authStateSpy.count(), 1);
 
     // Authentication completed
-    bool success   = authStateSpy.first().at(0).toBool();
+    bool success = authStateSpy.first().at(0).toBool();
     QString reason = authStateSpy.first().at(1).toString();
 
     qInfo() << "Refresh reply : " << reason;
@@ -161,7 +164,8 @@ void TestTSClient::testGetAccountsAsync()
 
     const QVector<Account> results = arg.value<QVector<Account>>();
     // Verify each account has valid data
-    for (const Account& account : results) {
+    for (const Account& account: results)
+    {
 
         QVERIFY(account.isValid());
 
@@ -200,7 +204,8 @@ void TestTSClient::testGetBalancesAsync()
 
     const QVector<Balance> results = arg.value<QVector<Balance>>();
     // Verify each account has valid data
-    for (const Balance& balance: results) {
+    for (const Balance& balance: results)
+    {
 
         qDebug().noquote() << "* balance info *\n" << balance.toJsonString();
     }
@@ -217,7 +222,8 @@ void TestTSClient::testGetQuoteSnapshotsAsync()
 
 void TestTSClient::testPlaceOrderAsync()
 {
-    if (!MarketHours::isRegularHours()) {
+    if (!MarketHours::isRegularHours())
+    {
         QSKIP("Test skipped because market is not open");
     }
 
@@ -271,9 +277,12 @@ void TestTSClient::testPlaceOrderAsync()
 
     qDebug().noquote() << "* PlaceOrderResult info *\n" << result.toJsonString();
 
-    if (MarketHours::isRegularHours()) {
+    if (MarketHours::isRegularHours())
+    {
         QVERIFY(result.isAllSuccessful());
-    } else {
+    }
+    else
+    {
         QVERIFY(result.hasErrors());
         QVERIFY(result.getErrors().first().getError().has_value());
         QVERIFY(result.getErrors().first().getMessage() == "Order failed. Reason: No Day orders after 4:00PM Eastern");
@@ -287,14 +296,15 @@ void TestTSClient::testPlaceOrderAsync()
 
 void TestTSClient::testCancelOrderAsync()
 {
-    if (!MarketHours::isRegularHours()) {
+    if (!MarketHours::isRegularHours())
+    {
         QSKIP("Test skipped because market is not open");
     }
 
     QString symbol = "AAPL";
     double lastAsk;
 
-    #warning fixme, replace the commented out sync versions and use the async ones with signal spies
+#warning fixme, replace the commented out sync versions and use the async ones with signal spies
     {
         QVector<QuoteSnapshot> quoteResults;
         //bool success = client->getQuoteSnapshotsSync(symbol, quoteResults);
@@ -329,8 +339,8 @@ void TestTSClient::testCancelOrderAsync()
 
     QString orderID;
 
-    // Place the order
-    #warning fixme, replace the commented out sync versions and use the async ones with signal spies
+// Place the order
+#warning fixme, replace the commented out sync versions and use the async ones with signal spies
     {
         PlaceOrderResult orderResult;
         //bool success = client->placeOrderSync(orderRequest, orderResult);
@@ -394,7 +404,8 @@ void TestTSClient::testFetchingMoreThanMaximumPerMinute()
     {
         qInfo() << "Expect a couple of 'Error with the reply' :";
         // Launch max + 1 as fast as possible
-        for(size_t i = 0; i != APIMaxCallsPerMinute + 1; i++) {
+        for (size_t i = 0; i != APIMaxCallsPerMinute + 1; i++)
+        {
             // TODO: Add actual API call when we implement endpoints
         }
 
@@ -427,7 +438,8 @@ void TestTSClient::testGetBarsAsync()
         // Get the date for the previous day
         QDate previousDay = now.date().addDays(-1);
 
-        while(previousDay.dayOfWeek() > 4) previousDay = previousDay.addDays(-1);
+        while (previousDay.dayOfWeek() > 4)
+            previousDay = previousDay.addDays(-1);
 
         // Create a QDateTime for previous day at 4:00 PM in New York time zone
         QTimeZone newYorkTimeZone("America/New_York");
@@ -469,15 +481,13 @@ void TestTSClient::testGetBarsAsync()
 
     int minutesDifference = fourPM.secsTo(eightPM) / 60;
 
-    QCOMPARE_GE(receivedBars.count(), minutesDifference - 20); // Give a 20 bars leeway
+    QCOMPARE_GE(receivedBars.count(),
+                minutesDifference - 20); // Give a 20 bars leeway
 
     QVERIFY(client->isCleanedUp());
 }
 
-void TestTSClient::testStreamBars()
-{
-
-}
+void TestTSClient::testStreamBars() {}
 
 void TestTSClient::testStreamBarsRecording()
 {
@@ -487,11 +497,7 @@ void TestTSClient::testStreamBarsRecording()
 
     QVERIFY(client->isCleanedUp());
 
-    streamBars = client->openStreamBars(symbol,
-                                        1,
-                                        Bar::BarUnit::Minute,
-                                        0,
-                                        Bar::BarSessionTemplate::USEQ24Hour);
+    streamBars = client->openStreamBars(symbol, 1, Bar::BarUnit::Minute, 0, Bar::BarSessionTemplate::USEQ24Hour);
     QVERIFY(streamBars != nullptr);
 
     QString dir = QString("/home/simon/Documents/L2T/Stream-Recordings");
@@ -501,7 +507,8 @@ void TestTSClient::testStreamBarsRecording()
     qDebug() << "Waiting 5 seconds to let Stream Bars data pile up...";
 
     // Let this thread's event loop run a bit to receive some market depth quotes
-    for (size_t i = countdown; i != 0; i--) {
+    for (size_t i = countdown; i != 0; i--)
+    {
         qDebug() << "Countdown : " << i << " seconds";
 
         QTest::qWait(1000);
@@ -517,7 +524,8 @@ void TestTSClient::testStreamBarsRecording()
         qDebug() << "Received " << signalSpy.count() << " StreamBars bars";
 
         // Validate every signal received
-        for (const QList<QVariant>& signal :  signalSpy) {
+        for (const QList<QVariant>& signal: signalSpy)
+        {
             QVERIFY(signal.size() == 2); // Two argument to StreamBar::receiveNewBar
 
             // Convert QVariant to Bar (bar is second argument)
@@ -563,7 +571,8 @@ void TestTSClient::testStreamMarketDepthQuote()
     qDebug() << "Waiting 5 seconds to let Level 2 data pile up...";
 
     // Let this thread's event loop run a bit to receive some market depth quotes
-    for (size_t i = 5; i != 0; i--) {
+    for (size_t i = 5; i != 0; i--)
+    {
         qDebug() << "Countdown : " << i << " seconds";
 
         QTest::qWait(1000);
@@ -579,7 +588,8 @@ void TestTSClient::testStreamMarketDepthQuote()
         qDebug() << "Received " << signalSpy.count() << "Market Depth quotes";
 
         // Validate every signal received
-        for (const QList<QVariant>& signal :  signalSpy) {
+        for (const QList<QVariant>& signal: signalSpy)
+        {
             QVERIFY(signal.size() == 2); // Two argument to StreamMarketDepthQuote::receiveNewQuote
 
             // Convert QVariant to MarketDepthQuote
@@ -602,7 +612,6 @@ void TestTSClient::testStreamMarketDepthQuote()
                 // Verify all the ask quotes
                 //QVERIFY(quote.getAsks()...)
             }
-
         }
     }
 
@@ -611,7 +620,8 @@ void TestTSClient::testStreamMarketDepthQuote()
 
 void TestTSClient::testStreamOrders()
 {
-    if (!MarketHours::isRegularHours()) {
+    if (!MarketHours::isRegularHours())
+    {
         QSKIP("Test skipped because market is not open");
     }
 
@@ -631,7 +641,7 @@ void TestTSClient::testStreamOrders()
 
     double lastAsk;
 
-    #warning fixme, replace the commented out sync versions and use the async ones with signal spies
+#warning fixme, replace the commented out sync versions and use the async ones with signal spies
     {
         QVector<QuoteSnapshot> quoteResults;
         //bool success = client->getQuoteSnapshotsSync(symbol, quoteResults);
@@ -653,7 +663,7 @@ void TestTSClient::testStreamOrders()
         orderRequest.setSymbol("AAPL");
         orderRequest.setTradeAction(TradeAction::Buy);
         orderRequest.setRoute("Intelligent");
-        orderRequest.setLimitPrice(lastAsk-0.05); // set ridiculous low price
+        orderRequest.setLimitPrice(lastAsk - 0.05); // set ridiculous low price
 
         // Set up time in force
         TimeInForce timeInForce(OrderDuration::DayPlus);
@@ -665,8 +675,8 @@ void TestTSClient::testStreamOrders()
 
     QString orderID;
 
-    // Place the order
-    #warning fixme, replace the commented out sync versions and use the async ones with signal spies
+// Place the order
+#warning fixme, replace the commented out sync versions and use the async ones with signal spies
     {
         PlaceOrderResult orderResult;
         //bool success = client->placeOrderSync(orderRequest, orderResult);
@@ -688,7 +698,6 @@ void TestTSClient::testStreamOrders()
 
     QTest::qWait(50000);
     QVERIFY(client->isCleanedUp());
-
 }
 
 void TestTSClient::testStreamPositions()
@@ -696,61 +705,58 @@ void TestTSClient::testStreamPositions()
     QSKIP("Not implemented");
 }
 
-void TestTSClient::testMockStreamBars()
-{
-
-}
+void TestTSClient::testMockStreamBars() {}
 
 void TestTSClient::testStreamCount()
 {
     QString symbol1 = "AAPL";
     QString symbol2 = "MSFT";
-    
+
     QVERIFY(client->isCleanedUp());
-    
+
     // Initial stream count should be 0
     QCOMPARE(client->getStreamCount(), 0);
-    
+
     qDebug() << "Initial stream count:" << client->getStreamCount();
-    
+
     // Open first stream
     StreamBars* stream1 = client->openStreamBars(symbol1, 1, Bar::BarUnit::Minute, 0);
     QVERIFY(stream1 != nullptr);
     QCOMPARE(client->getStreamCount(), 1);
-    
+
     qDebug() << "Stream count after opening first BarStream:" << client->getStreamCount();
-    
+
     // Open second stream
     StreamMarketDepthQuote* stream2 = client->openStreamMarketDepthQuote(symbol2);
     QVERIFY(stream2 != nullptr);
     QCOMPARE(client->getStreamCount(), 2);
-    
+
     qDebug() << "Stream count after opening MarketDepthQuote stream:" << client->getStreamCount();
-    
+
     // Open third stream
     StreamBars* stream3 = client->openStreamBars(symbol2, 1, Bar::BarUnit::Minute, 0);
     QVERIFY(stream3 != nullptr);
     QCOMPARE(client->getStreamCount(), 3);
-    
+
     qDebug() << "Stream count after opening third stream:" << client->getStreamCount();
-    
+
     // Close first stream
     client->closeStreamBars(stream1);
     QCOMPARE(client->getStreamCount(), 2);
-    
+
     qDebug() << "Stream count after closing first stream:" << client->getStreamCount();
-    
+
     // Close second stream
     client->closeStreamMarketDepthQuote(stream2);
     QCOMPARE(client->getStreamCount(), 1);
-    
+
     qDebug() << "Stream count after closing second stream:" << client->getStreamCount();
-    
+
     // Close third stream
     client->closeStreamBars(stream3);
     QCOMPARE(client->getStreamCount(), 0);
-    
+
     qDebug() << "Final stream count:" << client->getStreamCount();
-    
+
     QVERIFY(client->isCleanedUp());
 }

@@ -9,13 +9,31 @@ on:
 
 jobs:
   lint:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
 
     steps:
     - uses: actions/checkout@v4
 
+    - name: Generate compilation database
+      run: |
+        mkdir -p build
+        cd build
+        cmake -S .. -B . -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        cd ..
+        ln -sf build/compile_commands.json .
+
     - name: Run cppcheck
-      run: cppcheck --enable=all --std=c++17 --language=c++ --platform=unix64 --suppress=missingIncludeSystem --suppress=unusedFunction src/
+      run: cppcheck --enable=all --std=c++23 --language=c++ --platform=unix64 --suppress=missingIncludeSystem Src/
 
     - name: Run clang-tidy
-      run: find src/ -name "*.cpp" -o -name "*.h" | xargs clang-tidy --checks=-*,clang-analyzer-*,bugprone-*,performance-*,readability-* --warnings-as-errors=-* || true
+      run: find Src/ -name "*.cpp" -o -name "*.h" | xargs clang-tidy --checks=-*,clang-analyzer-*,bugprone-*,performance-*,readability-* --warnings-as-errors=-*

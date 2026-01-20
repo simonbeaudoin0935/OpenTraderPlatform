@@ -8,6 +8,7 @@
 #include "DatabaseThread.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "SQL/DatabaseThreadQueries.h"
 
 #define LOGGING_CATEGORY DatabaseThreadLog
 
@@ -18,7 +19,8 @@ DatabaseThread* DatabaseThread::m_instance = nullptr;
 
 DatabaseThread* DatabaseThread::getInstance()
 {
-    if (m_instance == nullptr) {
+    if (m_instance == nullptr)
+    {
         qCDebug(DatabaseThreadLog) << "Singleton instance created";
         m_instance = new DatabaseThread();
     }
@@ -36,7 +38,8 @@ DatabaseThread::DatabaseThread() : QObject()
 DatabaseThread::~DatabaseThread()
 {
     // Close all database connections
-    for (const QString& connectionName : m_databases.keys()) {
+    for (const QString& connectionName: m_databases.keys())
+    {
         m_databases[connectionName].close();
     }
     m_databases.clear();
@@ -65,24 +68,22 @@ QFuture<bool> DatabaseThread::openDatabase(const QString& symbol, const QString&
     QFuture<bool> future = promise.future();
     promise.start();
 
-    QMetaObject::invokeMethod(this,
+    QMetaObject::invokeMethod(
+        this,
         [this, symbol, dbPath, promise = std::move(promise)]() mutable
         {
             bool result = openDatabaseInternal(symbol, dbPath);
             promise.addResult(result);
             promise.finish();
-        }, Qt::QueuedConnection);
+        },
+        Qt::QueuedConnection);
 
     return future;
 }
 
 void DatabaseThread::closeDatabase(const QString& symbol)
 {
-    QMetaObject::invokeMethod(this,
-        [this, symbol]()
-        {
-            closeDatabaseInternal(symbol);
-        }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(this, [this, symbol]() { closeDatabaseInternal(symbol); }, Qt::QueuedConnection);
 }
 
 QFuture<std::optional<std::unique_ptr<QVector<Bar>>>>
@@ -96,31 +97,35 @@ DatabaseThread::getBarsFromDatabase(const QString& symbol, QDate date, QTime sta
     QFuture<std::optional<std::unique_ptr<QVector<Bar>>>> future = promise.future();
     promise.start();
 
-    QMetaObject::invokeMethod(this,
+    QMetaObject::invokeMethod(
+        this,
         [this, symbol, date, start, end, promise = std::move(promise)]() mutable
         {
             auto result = getBarsFromDatabaseInternal(symbol, date, start, end);
             promise.addResult(std::move(result));
             promise.finish();
-        }, Qt::QueuedConnection);
+        },
+        Qt::QueuedConnection);
 
     return future;
 }
 
-QFuture<int> DatabaseThread::storeBarsInDatabase(const QString& symbol, const QDate& date,
-                                                 const std::shared_ptr<QVector<Bar>> bars)
+QFuture<int>
+DatabaseThread::storeBarsInDatabase(const QString& symbol, const QDate& date, const std::shared_ptr<QVector<Bar>> bars)
 {
     QPromise<int> promise;
     QFuture<int> future = promise.future();
     promise.start();
 
-    QMetaObject::invokeMethod(this,
+    QMetaObject::invokeMethod(
+        this,
         [this, symbol, date, barsPtr = std::move(bars), promise = std::move(promise)]() mutable
         {
             int result = storeBarsInDatabaseInternal(symbol, date, *barsPtr);
             promise.addResult(result);
             promise.finish();
-        }, Qt::QueuedConnection);
+        },
+        Qt::QueuedConnection);
 
     return future;
 }
@@ -131,13 +136,15 @@ QFuture<bool> DatabaseThread::clearDatabase(const QString& symbol)
     QFuture<bool> future = promise.future();
     promise.start();
 
-    QMetaObject::invokeMethod(this,
+    QMetaObject::invokeMethod(
+        this,
         [this, symbol, promise = std::move(promise)]() mutable
         {
             bool result = clearDatabaseInternal(symbol);
             promise.addResult(result);
             promise.finish();
-        }, Qt::QueuedConnection);
+        },
+        Qt::QueuedConnection);
 
     return future;
 }
@@ -153,15 +160,18 @@ bool DatabaseThread::openDatabaseInternal(const QString& symbol, const QString& 
     QString connectionName = "BarCache_" + symbol;
 
     // Check if already open
-    if (m_databases.contains(symbol)) {
+    if (m_databases.contains(symbol))
+    {
         DEBUG << "Database already open for symbol" << symbol;
         return true;
     }
 
     // Create directory if needed
     QFileInfo dbInfo(dbPath);
-    if (!dbInfo.dir().exists()) {
-        if (!dbInfo.dir().mkpath(".")) {
+    if (!dbInfo.dir().exists())
+    {
+        if (!dbInfo.dir().mkpath("."))
+        {
             CRITICAL << "Failed to create cache directory:" << dbInfo.absolutePath();
             return false;
         }
@@ -176,25 +186,18 @@ bool DatabaseThread::openDatabaseInternal(const QString& symbol, const QString& 
     QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connectionName);
     db.setDatabaseName(dbPath);
 
-    if (!db.open()) {
+    if (!db.open())
+    {
         CRITICAL << "Failed to open database for" << symbol << ":" << db.lastError().text();
         return false;
     }
 
     // Create table if not exists
     QSqlQuery query(db);
-    bool success = query.exec("CREATE TABLE IF NOT EXISTS bars ("
-                              "date TEXT, "
-                              "[index] INTEGER, "
-                              "open REAL, "
-                              "high REAL, "
-                              "low REAL, "
-                              "close REAL, "
-                              "volume INTEGER, "
-                              "status INTEGER DEFAULT 0, "
-                              "PRIMARY KEY (date, [index]))");
+    bool success = query.exec(DatabaseThreadQueries::CREATE_BAR_CACHE_TABLE);
 
-    if (!success) {
+    if (!success)
+    {
         CRITICAL << "Failed to create table:" << query.lastError().text();
         db.close();
         QSqlDatabase::removeDatabase(connectionName);
@@ -203,9 +206,12 @@ bool DatabaseThread::openDatabaseInternal(const QString& symbol, const QString& 
 
     m_databases.insert(symbol, db);
 
-    if (dbFileExisted) {
+    if (dbFileExisted)
+    {
         INFO << "Opened existing database for symbol" << symbol << "at" << dbPath;
-    } else {
+    }
+    else
+    {
         INFO << "Created new database for symbol" << symbol << "at" << dbPath;
     }
 
@@ -216,7 +222,8 @@ void DatabaseThread::closeDatabaseInternal(const QString& symbol)
 {
     Q_ASSERT(QThread::currentThread() == &m_thread);
 
-    if (!m_databases.contains(symbol)) {
+    if (!m_databases.contains(symbol))
+    {
         WARNING << "No database connection for symbol" << symbol;
         return;
     }
@@ -234,14 +241,16 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
 {
     Q_ASSERT(QThread::currentThread() == &m_thread);
 
-    if (!m_databases.contains(symbol)) {
+    if (!m_databases.contains(symbol))
+    {
         CRITICAL << "No database connection for symbol" << symbol;
         return std::nullopt;
     }
 
     QSqlDatabase& db = m_databases[symbol];
 
-    if (!db.isOpen()) {
+    if (!db.isOpen())
+    {
         CRITICAL << "Database not open for symbol" << symbol;
         return std::nullopt;
     }
@@ -254,17 +263,17 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
     Q_ASSERT(indexStart < indexEnd);
 
     QSqlQuery query(db);
-    query.prepare("SELECT [index], open, high, low, close, volume, status "
-                  "FROM bars WHERE date = ? AND [index] >= ? AND [index] <= ? "
-                  "ORDER BY [index]");
+    query.prepare(DatabaseThreadQueries::SELECT_BARS_BY_DATE_AND_INDEX);
     query.addBindValue(date.toString("yyyy-MM-dd"));
     query.addBindValue(static_cast<int>(indexStart));
     query.addBindValue(static_cast<int>(indexEnd));
 
     std::unique_ptr<QVector<Bar>> bars = std::make_unique<QVector<Bar>>();
 
-    if (query.exec()) {
-        while (query.next()) {
+    if (query.exec())
+    {
+        while (query.next())
+        {
             int index = query.value(0).toInt();
             QTime time = indexToTime(static_cast<size_t>(index));
             QDateTime ts(date, time, QTimeZone("America/New_York"));
@@ -276,49 +285,56 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
             Bar::BarStatus status = static_cast<Bar::BarStatus>(query.value(6).toInt());
 
             Bar bar;
-            if (status == Bar::BarStatus::Null) {
+            if (status == Bar::BarStatus::Null)
+            {
                 bar = Bar::nullBar(ts);
-            } else {
+            }
+            else
+            {
                 bar = Bar(ts, open, high, low, close, volume);
             }
 
             bars->append(bar);
         }
         INFO << "Loaded" << bars->size() << "bars from database for" << symbol;
-    } else {
+    }
+    else
+    {
         WARNING << "Database query failed for" << symbol << ":" << query.lastError().text();
         return std::nullopt;
     }
 
     size_t expectedCount = indexEnd - indexStart + 1;
-    if (bars->size() != static_cast<qsizetype>(expectedCount)) {
-        DEBUG << "Database does not have complete set of bars for" << symbol
-              << "on date" << date << "- expected"
+    if (bars->size() != static_cast<qsizetype>(expectedCount))
+    {
+        DEBUG << "Database does not have complete set of bars for" << symbol << "on date" << date << "- expected"
               << expectedCount << "bars but got" << bars->size();
         return std::nullopt;
     }
 
-    return std::move(bars);
+    return bars;
 }
 
-int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDate& date,
-                                                 const QVector<Bar>& bars)
+int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDate& date, const QVector<Bar>& bars)
 {
     Q_ASSERT(QThread::currentThread() == &m_thread);
 
-    if (!m_databases.contains(symbol)) {
+    if (!m_databases.contains(symbol))
+    {
         CRITICAL << "No database connection for symbol" << symbol;
         return 0;
     }
 
     QSqlDatabase& db = m_databases[symbol];
 
-    if (!db.isOpen()) {
+    if (!db.isOpen())
+    {
         CRITICAL << "Database not open for symbol" << symbol;
         return 0;
     }
 
-    if (bars.isEmpty()) {
+    if (bars.isEmpty())
+    {
         WARNING << "Attempted to store empty bars vector for" << symbol;
         return 0;
     }
@@ -326,12 +342,11 @@ int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDa
     DEBUG << "Storing" << bars.size() << "bars in database for" << symbol;
 
     QSqlQuery query(db);
-    query.prepare("INSERT OR REPLACE INTO bars "
-                  "(date, [index], open, high, low, close, volume, status) "
-                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    query.prepare(DatabaseThreadQueries::INSERT_OR_REPLACE_BAR);
 
     int storedCount = 0;
-    for (const Bar& bar : bars) {
+    for (const Bar& bar: bars)
+    {
         QString dateStr = date.toString("yyyy-MM-dd");
         size_t index = timeToIndex(bar.getTimeStamp().time());
 
@@ -344,11 +359,13 @@ int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDa
         query.addBindValue(bar.getTotalVolume());
         query.addBindValue(static_cast<int>(bar.getBarStatus()));
 
-        if (query.exec()) {
+        if (query.exec())
+        {
             storedCount++;
-        } else {
-            WARNING << "Failed to store bar in database for" << symbol
-                    << "at" << bar.getTimeStamp().toString() << ":"
+        }
+        else
+        {
+            WARNING << "Failed to store bar in database for" << symbol << "at" << bar.getTimeStamp().toString() << ":"
                     << query.lastError().text();
         }
     }
@@ -361,14 +378,16 @@ bool DatabaseThread::clearDatabaseInternal(const QString& symbol)
 {
     Q_ASSERT(QThread::currentThread() == &m_thread);
 
-    if (!m_databases.contains(symbol)) {
+    if (!m_databases.contains(symbol))
+    {
         CRITICAL << "No database connection for symbol" << symbol;
         return false;
     }
 
     QSqlDatabase& db = m_databases[symbol];
 
-    if (!db.isOpen()) {
+    if (!db.isOpen())
+    {
         CRITICAL << "Database not open for symbol" << symbol;
         return false;
     }
@@ -376,10 +395,13 @@ bool DatabaseThread::clearDatabaseInternal(const QString& symbol)
     INFO << "Clearing all bars from database for" << symbol;
 
     QSqlQuery query(db);
-    if (query.exec("DELETE FROM bars")) {
+    if (query.exec(DatabaseThreadQueries::DELETE_ALL_BARS))
+    {
         INFO << "Successfully cleared database for" << symbol;
         return true;
-    } else {
+    }
+    else
+    {
         WARNING << "Failed to clear database for" << symbol << ":" << query.lastError().text();
         return false;
     }

@@ -2,7 +2,8 @@
 
 #include "Position.h"
 
-Position::Position(const QJsonObject& jsonObj, bool isUpdate_) : isUpdate(isUpdate_) {
+Position::Position(const QJsonObject& jsonObj, bool isUpdate_) : isUpdate(isUpdate_)
+{
     accountID = jsonObj["AccountID"].toString();
     assetType = jsonObj["AssetType"].toString();
     averagePrice = jsonObj["AveragePrice"].toString();
@@ -11,11 +12,12 @@ Position::Position(const QJsonObject& jsonObj, bool isUpdate_) : isUpdate(isUpda
     conversionRate = jsonObj["ConversionRate"].toString();
     deleted = jsonObj["Deleted"].toBool(false);
     dayTradeRequirement = jsonObj["DayTradeRequirement"].toString();
-    
-    if (jsonObj.contains("ExpirationDate")) {
+
+    if (jsonObj.contains("ExpirationDate"))
+    {
         expirationDate = QDateTime::fromString(jsonObj["ExpirationDate"].toString(), Qt::ISODate);
     }
-    
+
     initialRequirement = jsonObj["InitialRequirement"].toString();
     maintenanceMargin = jsonObj["MaintenanceMargin"].toString();
     last = jsonObj["Last"].toString();
@@ -33,35 +35,36 @@ Position::Position(const QJsonObject& jsonObj, bool isUpdate_) : isUpdate(isUpda
     unrealizedProfitLossQty = jsonObj["UnrealizedProfitLossQty"].toString();
 }
 
-bool Position::isValid() const {
+bool Position::isValid() const
+{
     // Check required fields
-    if (accountID.isEmpty() || assetType.isEmpty() || averagePrice.isEmpty() ||
-        bid.isEmpty() || ask.isEmpty() || conversionRate.isEmpty() ||
-        dayTradeRequirement.isEmpty() || initialRequirement.isEmpty() ||
-        maintenanceMargin.isEmpty() || last.isEmpty() || longShort.isEmpty() ||
-        markToMarketPrice.isEmpty() || marketValue.isEmpty() || positionID.isEmpty() ||
-        quantity.isEmpty() || symbol.isEmpty() || !timestamp.isValid() ||
-        todaysProfitLoss.isEmpty() || totalCost.isEmpty() ||
-        unrealizedProfitLoss.isEmpty() || unrealizedProfitLossPercent.isEmpty() ||
-        unrealizedProfitLossQty.isEmpty()) {
+    if (accountID.isEmpty() || assetType.isEmpty() || averagePrice.isEmpty() || bid.isEmpty() || ask.isEmpty() ||
+        conversionRate.isEmpty() || dayTradeRequirement.isEmpty() || initialRequirement.isEmpty() ||
+        maintenanceMargin.isEmpty() || last.isEmpty() || longShort.isEmpty() || markToMarketPrice.isEmpty() ||
+        marketValue.isEmpty() || positionID.isEmpty() || quantity.isEmpty() || symbol.isEmpty() ||
+        !timestamp.isValid() || todaysProfitLoss.isEmpty() || totalCost.isEmpty() || unrealizedProfitLoss.isEmpty() ||
+        unrealizedProfitLossPercent.isEmpty() || unrealizedProfitLossQty.isEmpty())
+    {
         return false;
     }
 
     // Validate asset type
-    if (assetType != "STOCK" && assetType != "STOCKOPTION" && 
-        assetType != "FUTURE" && assetType != "INDEXOPTION") {
+    if (assetType != "STOCK" && assetType != "STOCKOPTION" && assetType != "FUTURE" && assetType != "INDEXOPTION")
+    {
         return false;
     }
 
     // Validate position direction
-    if (longShort != "Long" && longShort != "Short") {
+    if (longShort != "Long" && longShort != "Short")
+    {
         return false;
     }
 
     return true;
 }
 
-QString Position::toJsonString() const {
+QString Position::toJsonString() const
+{
     QJsonObject jsonObj;
     jsonObj["AccountID"] = accountID;
     jsonObj["AssetType"] = assetType;
@@ -69,11 +72,13 @@ QString Position::toJsonString() const {
     jsonObj["Bid"] = bid;
     jsonObj["Ask"] = ask;
     jsonObj["ConversionRate"] = conversionRate;
-    if (deleted) {
+    if (deleted)
+    {
         jsonObj["Deleted"] = deleted;
     }
     jsonObj["DayTradeRequirement"] = dayTradeRequirement;
-    if (expirationDate.isValid()) {
+    if (expirationDate.isValid())
+    {
         jsonObj["ExpirationDate"] = expirationDate.toString(Qt::ISODate);
     }
     jsonObj["InitialRequirement"] = initialRequirement;
@@ -91,8 +96,8 @@ QString Position::toJsonString() const {
     jsonObj["UnrealizedProfitLoss"] = unrealizedProfitLoss;
     jsonObj["UnrealizedProfitLossPercent"] = unrealizedProfitLossPercent;
     jsonObj["UnrealizedProfitLossQty"] = unrealizedProfitLossQty;
-    jsonObj["IsUpdate"] = isUpdate;  // Include the update flag in JSON output
+    jsonObj["IsUpdate"] = isUpdate; // Include the update flag in JSON output
 
     QJsonDocument doc(jsonObj);
     return doc.toJson(QJsonDocument::Compact);
-} 
+}

@@ -19,18 +19,25 @@
 
 class GUIFrontend;
 
-class OrderEntryWidget : public QWidget {
+class OrderEntryWidget : public QWidget
+{
     Q_OBJECT
-public:
+  public:
     explicit OrderEntryWidget(QWidget* p_parent = nullptr);
     ~OrderEntryWidget();
 
     void setGUIFrontend(GUIFrontend* guiFrontend);
-    
-    bool isResultPopupEnabled() const { return m_resultPopupEnabled; }
-    bool isCancelAllConfirmationEnabled() const { return m_cancelAllConfirmationEnabled; }
 
-public slots:
+    bool isResultPopupEnabled() const
+    {
+        return m_resultPopupEnabled;
+    }
+    bool isCancelAllConfirmationEnabled() const
+    {
+        return m_cancelAllConfirmationEnabled;
+    }
+
+  public slots:
     void setAccounts(const QList<Account>& accounts);
     void setSymbol(const QString& symbol);
     void executeBuyOrder();
@@ -38,10 +45,10 @@ public slots:
     void executeBuyToCoverOrder();
     void executeSellToCoverOrder();
 
-signals:
+  signals:
     void orderPlaced(const PlaceOrderRequest& order);
 
-private slots:
+  private slots:
     void onOrderTypeChanged(int index);
     void onTradeActionChanged(int id);
     void onSubmitClicked();
@@ -55,7 +62,7 @@ private slots:
     void onResultPopupCheckBoxToggled(bool checked);
     void onCancelAllConfirmationCheckBoxToggled(bool checked);
 
-private:
+  private:
     void setupUI();
     void setupStyles();
     void updatePriceFieldsVisibility();
@@ -81,17 +88,17 @@ private:
     // Labels for price fields
     QLabel* m_limitPriceLabel;
     QLabel* m_stopPriceLabel;
-    
+
     // Settings menu
     QToolButton* m_settingsButton;
     QMenu* m_settingsMenu;
     QCheckBox* m_confirmationCheckBox;
     QCheckBox* m_resultPopupCheckBox;
     QCheckBox* m_cancelAllConfirmationCheckBox;
-    
-    bool m_confirmationEnabled;  // Whether to show confirmation dialog
-    bool m_resultPopupEnabled;   // Whether to show result popup after order execution
-    bool m_cancelAllConfirmationEnabled;  // Whether to show confirmation dialog when cancelling all orders
+
+    bool m_confirmationEnabled;          // Whether to show confirmation dialog
+    bool m_resultPopupEnabled;           // Whether to show result popup after order execution
+    bool m_cancelAllConfirmationEnabled; // Whether to show confirmation dialog when cancelling all orders
 
     // Reference to GUIFrontend for account selection
     GUIFrontend* m_guiFrontend;

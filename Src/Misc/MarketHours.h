@@ -2,29 +2,33 @@
 
 #include <QDateTime>
 #include <QTimeZone>
+#ifdef GUI_ENABLED
 #include <QColor>
+#endif
 
 /**
  * @brief Utility class to handle market hours in Eastern Time (ET)
- * 
+ *
  * All times are handled in Eastern Time (ET) and automatically adjust for
  * Daylight Saving Time (DST). Market hours are:
  * - Pre-Market:     4:00 AM - 9:30 AM ET
  * - Regular Hours:  9:30 AM - 4:00 PM ET
  * - After Hours:    4:00 PM - 8:00 PM ET
  * - Closed:         8:00 PM - 4:00 AM ET and weekends
- * 
+ *
  * DST begins on the second Sunday in March at 2:00 AM
  * DST ends on the first Sunday in November at 2:00 AM
  */
-class MarketHours {
-public:
+class MarketHours
+{
+  public:
     // Market session types
-    enum class Session {
-        PreMarket,      // 4:00 AM - 9:30 AM ET
-        RegularHours,   // 9:30 AM - 4:00 PM ET
-        AfterHours,     // 4:00 PM - 8:00 PM ET
-        Closed          // 8:00 PM - 4:00 AM ET
+    enum class Session
+    {
+        PreMarket,    // 4:00 AM - 9:30 AM ET
+        RegularHours, // 9:30 AM - 4:00 PM ET
+        AfterHours,   // 4:00 PM - 8:00 PM ET
+        Closed        // 8:00 PM - 4:00 AM ET
     };
 
     // Static methods to check market status
@@ -51,17 +55,20 @@ public:
     static int getUTCOffset(const QDateTime& localTime = QDateTime::currentDateTime());
     static QString getTimeZoneAbbreviation(const QDateTime& localTime = QDateTime::currentDateTime());
 
-    // Background color methods
+#ifdef GUI_ENABLED
+    // Background color methods (GUI only)
     static QColor getSessionColor(Session session);
     static QColor getPreMarketColor();
     static QColor getRegularHoursColor();
     static QColor getAfterHoursColor();
     static QColor getClosedColor();
+#endif
 
     // Session visibility methods
     static bool isSessionVisible(const QDateTime& startTime, const QDateTime& endTime, Session session);
-    static QPair<QDateTime, QDateTime> getVisibleSessionRange(const QDateTime& startTime, const QDateTime& endTime, Session session);
+    static QPair<QDateTime, QDateTime>
+    getVisibleSessionRange(const QDateTime& startTime, const QDateTime& endTime, Session session);
 
-private:
+  private:
     static const QTimeZone nyZone;
 };

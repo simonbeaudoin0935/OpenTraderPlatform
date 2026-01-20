@@ -2,14 +2,14 @@
 
 #include <QObject>
 
-class TestTSClient : public QObject {
+class TestTSClient : public QObject
+{
     Q_OBJECT
-private slots:
+  private slots:
     void initTestCase_data();
     void initTestCase();
     void init();
     void cleanup();
-
 
 
     void testGetAccountsAsync();
@@ -39,7 +39,7 @@ private slots:
     //TODO should perhaps implement a max-per-minute limiter to queue the exceeding requests
     //     for the next minute instead of having them fail
 
-private:
+  private:
     // Needs to be first
     void testRefreshSyncAccessToken();
 

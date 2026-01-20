@@ -4,25 +4,36 @@
 
 #include "Bar.h"
 
-Bar::BarStatus Bar::barStatusFromString(const QString &barStatus)
+Bar::BarStatus Bar::barStatusFromString(const QString& barStatus)
 {
-    if (barStatus == "Open") {
+    if (barStatus == "Open")
+    {
         return BarStatus::Open;
-    } else if (barStatus == "Closed") {
+    }
+    else if (barStatus == "Closed")
+    {
         return BarStatus::Closed;
-    } else {
+    }
+    else
+    {
         Q_UNREACHABLE();
     }
 }
 
 QString Bar::barStatusToString(BarStatus barStatus)
 {
-    switch (barStatus) {
-        case BarStatus::Open: return "Open";
-        case BarStatus::Closed: return "Closed";
-        case BarStatus::Null: return "Null";
-        case BarStatus::Uninitialized: return "Uninitialized";
-        default: Q_UNREACHABLE();
+    switch (barStatus)
+    {
+    case BarStatus::Open:
+        return "Open";
+    case BarStatus::Closed:
+        return "Closed";
+    case BarStatus::Null:
+        return "Null";
+    case BarStatus::Uninitialized:
+        return "Uninitialized";
+    default:
+        Q_UNREACHABLE();
     }
 }
 
@@ -36,40 +47,59 @@ QUrlQuery Bar::buildUrlQuery(unsigned int interval,
     QUrlQuery query;
     query.addQueryItem("interval", QString::number(interval));
     query.addQueryItem("unit",
-        [unit]() -> QString
-        {
-            switch (unit) {
-            case Bar::BarUnit::Minute: return "Minute";
-            case Bar::BarUnit::Daily: return "Daily";
-            case Bar::BarUnit::Weekly: return "Weekly";
-            case Bar::BarUnit::Monthly: return "Monthly";
-            default: Q_UNREACHABLE();
-            }
-        }());
+                       [unit]() -> QString
+                       {
+                           switch (unit)
+                           {
+                           case Bar::BarUnit::Minute:
+                               return "Minute";
+                           case Bar::BarUnit::Daily:
+                               return "Daily";
+                           case Bar::BarUnit::Weekly:
+                               return "Weekly";
+                           case Bar::BarUnit::Monthly:
+                               return "Monthly";
+                           default:
+                               Q_UNREACHABLE();
+                           }
+                       }());
     query.addQueryItem("sessiontemplate",
-        [sessionTemplate]() -> QString
-        {
-            switch (sessionTemplate) {
-            case Bar::BarSessionTemplate::USEQPre: return "USEQPre";
-            case Bar::BarSessionTemplate::USEQPost: return "USEQPost";
-            case Bar::BarSessionTemplate::USEPreAndPost: return "USEPreAndPost";
-            case Bar::BarSessionTemplate::USEQ24Hour: return "USEQ24Hour";
-            case Bar::BarSessionTemplate::Default: return "Default";
-            default: Q_UNREACHABLE();
-            }
-        }());
+                       [sessionTemplate]() -> QString
+                       {
+                           switch (sessionTemplate)
+                           {
+                           case Bar::BarSessionTemplate::USEQPre:
+                               return "USEQPre";
+                           case Bar::BarSessionTemplate::USEQPost:
+                               return "USEQPost";
+                           case Bar::BarSessionTemplate::USEPreAndPost:
+                               return "USEPreAndPost";
+                           case Bar::BarSessionTemplate::USEQ24Hour:
+                               return "USEQ24Hour";
+                           case Bar::BarSessionTemplate::Default:
+                               return "Default";
+                           default:
+                               Q_UNREACHABLE();
+                           }
+                       }());
 
-    if (firstDate.has_value() && lastDate.has_value()) {
+    if (firstDate.has_value() && lastDate.has_value())
+    {
         Q_ASSERT(barsback == 0);
         Q_ASSERT(firstDate->secsTo(*lastDate) >= 1);
         query.addQueryItem("firstdate", firstDate->toString(Qt::ISODate));
         query.addQueryItem("lastdate", lastDate->toString(Qt::ISODate));
-    } else if (!firstDate.has_value() && !lastDate.has_value()) {
+    }
+    else if (!firstDate.has_value() && !lastDate.has_value())
+    {
         // nothing to do, this is the case for a stream
-        if (barsback > 0) {
+        if (barsback > 0)
+        {
             query.addQueryItem("barsback", QString::number(barsback));
         }
-    } else {
+    }
+    else
+    {
         // only one of firstDate or lastDate is set - this is an error
         Q_UNREACHABLE();
     }
@@ -86,7 +116,8 @@ Bar Bar::nullBar(QDateTime dateTime)
     return bar;
 }
 
-Bar::Bar(QDateTime ts, float o, float h, float l, float c, qint64 vol) {
+Bar::Bar(QDateTime ts, float o, float h, float l, float c, qint64 vol)
+{
     m_timeStamp = ts;
     m_open = o;
     m_high = h;
@@ -105,40 +136,45 @@ Bar::Bar(QDateTime ts, float o, float h, float l, float c, qint64 vol) {
     m_flags = (static_cast<quint8>(BarStatus::Closed) << BARSTATUS_SHIFT);
 }
 
-Bar::Bar(const QJsonObject& jsonObj) {
+Bar::Bar(const QJsonObject& jsonObj)
+{
     m_high = static_cast<float>(jsonObj["High"].toString().toDouble());
     m_low = static_cast<float>(jsonObj["Low"].toString().toDouble());
     m_open = static_cast<float>(jsonObj["Open"].toString().toDouble());
     m_close = static_cast<float>(jsonObj["Close"].toString().toDouble());
-    m_timeStamp = QDateTime::fromString(jsonObj["TimeStamp"].toString(), Qt::ISODate).toTimeZone(QTimeZone("America/New_York"));
-    m_totalVolume = (quint64) jsonObj["TotalVolume"].toString().toInt();
-    m_downTicks =  (quint64) jsonObj["DownTicks"].toInt();
-    m_downVolume = (quint64) jsonObj["DownVolume"].toInt();
+    m_timeStamp =
+        QDateTime::fromString(jsonObj["TimeStamp"].toString(), Qt::ISODate).toTimeZone(QTimeZone("America/New_York"));
+    m_totalVolume = (quint64)jsonObj["TotalVolume"].toString().toInt();
+    m_downTicks = (quint64)jsonObj["DownTicks"].toInt();
+    m_downVolume = (quint64)jsonObj["DownVolume"].toInt();
     m_openInterest = static_cast<float>(jsonObj["OpenInterest"].toDouble());
-    m_totalTicks = (quint64) jsonObj["TotalTicks"].toInt();
-    m_unchangedTicks = (quint64) jsonObj["UnchangedTicks"].toInt();
-    m_unchangedVolume = (quint64) jsonObj["UnchangedVolume"].toInt();
-    m_upTicks = (quint64) jsonObj["UpTicks"].toInt();
-    m_upVolume = (quint64) jsonObj["UpVolume"].toInt();
+    m_totalTicks = (quint64)jsonObj["TotalTicks"].toInt();
+    m_unchangedTicks = (quint64)jsonObj["UnchangedTicks"].toInt();
+    m_unchangedVolume = (quint64)jsonObj["UnchangedVolume"].toInt();
+    m_upTicks = (quint64)jsonObj["UpTicks"].toInt();
+    m_upVolume = (quint64)jsonObj["UpVolume"].toInt();
     m_epoch = jsonObj["Epoch"].toInteger();
-    
+
     // Initialize flags
     m_flags = 0;
-    if (jsonObj["IsRealtime"].toBool()) {
+    if (jsonObj["IsRealtime"].toBool())
+    {
         m_flags |= FLAG_IS_REALTIME;
     }
-    if (jsonObj["IsEndOfHistory"].toBool()) {
+    if (jsonObj["IsEndOfHistory"].toBool())
+    {
         m_flags |= FLAG_IS_END_OF_HISTORY;
     }
     BarStatus status = barStatusFromString(jsonObj["BarStatus"].toString());
     m_flags |= (static_cast<quint8>(status) << BARSTATUS_SHIFT);
 
-    qDebug()<<"bar created from json with timestamp "<<m_timeStamp;
+    qDebug() << "bar created from json with timestamp " << m_timeStamp;
 }
 
-bool Bar::isValid() const {
+bool Bar::isValid() const
+{
 
-/*
+    /*
     // Check that all required fields are present and have valid values
     if (high.isEmpty() || low.isEmpty() || open.isEmpty() || close.isEmpty() ||
         timeStamp.isEmpty() || totalVolume.isEmpty() || openInterest.isEmpty() ||
@@ -147,8 +183,8 @@ bool Bar::isValid() const {
     }
 
     // Check numeric fields for valid values
-    if (downTicks < 0 || downVolume < 0 || totalTicks < 0 || 
-        unchangedTicks < 0 || unchangedVolume < 0 || upTicks < 0 || 
+    if (downTicks < 0 || downVolume < 0 || totalTicks < 0 ||
+        unchangedTicks < 0 || unchangedVolume < 0 || upTicks < 0 ||
         upVolume < 0 || epoch <= 0) {
         return false;
     }
@@ -168,27 +204,28 @@ bool Bar::isValid() const {
     return true;
 }
 
-QString Bar::toJsonString() const {
+QString Bar::toJsonString() const
+{
     QJsonObject jsonObj;
     jsonObj["High"] = static_cast<double>(m_high);
     jsonObj["Low"] = static_cast<double>(m_low);
     jsonObj["Open"] = static_cast<double>(m_open);
     jsonObj["Close"] = static_cast<double>(m_close);
     jsonObj["TimeStamp"] = m_timeStamp.toString();
-    jsonObj["TotalVolume"] = (qint64) m_totalVolume;
-    jsonObj["DownTicks"] = (qint64) m_downTicks;
-    jsonObj["DownVolume"] = (qint64) m_downVolume;
+    jsonObj["TotalVolume"] = (qint64)m_totalVolume;
+    jsonObj["DownTicks"] = (qint64)m_downTicks;
+    jsonObj["DownVolume"] = (qint64)m_downVolume;
     jsonObj["OpenInterest"] = static_cast<double>(m_openInterest);
     jsonObj["IsRealtime"] = (m_flags & FLAG_IS_REALTIME) != 0;
     jsonObj["IsEndOfHistory"] = (m_flags & FLAG_IS_END_OF_HISTORY) != 0;
-    jsonObj["TotalTicks"] = (qint64) m_totalTicks;
-    jsonObj["UnchangedTicks"] = (qint64) m_unchangedTicks;
-    jsonObj["UnchangedVolume"] = (qint64) m_unchangedVolume;
-    jsonObj["UpTicks"] = (qint64) m_upTicks;
-    jsonObj["UpVolume"] = (qint64) m_upVolume;
+    jsonObj["TotalTicks"] = (qint64)m_totalTicks;
+    jsonObj["UnchangedTicks"] = (qint64)m_unchangedTicks;
+    jsonObj["UnchangedVolume"] = (qint64)m_unchangedVolume;
+    jsonObj["UpTicks"] = (qint64)m_upTicks;
+    jsonObj["UpVolume"] = (qint64)m_upVolume;
     jsonObj["Epoch"] = m_epoch;
     jsonObj["BarStatus"] = barStatusToString(getBarStatus());
-    
+
     QJsonDocument doc(jsonObj);
     return QString(doc.toJson(QJsonDocument::Indented));
 }

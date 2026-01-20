@@ -8,25 +8,21 @@
 
 Q_LOGGING_CATEGORY(tsClientToken, "TSClient.token.client")
 
-ClientToken::ClientToken(const QString &clientId,
-                       const QString &clientSecret)
-    : clientId(clientId),
-      clientSecret(clientSecret)
+ClientToken::ClientToken(const QString& p_clientId, const QString& p_clientSecret)
+    : clientId(p_clientId), clientSecret(p_clientSecret)
 {
 }
 
 bool ClientToken::isValid() const
 {
-    return !clientId.isEmpty() &&
-           !clientSecret.isEmpty() &&
-           validateClientId(clientId) &&
+    return !clientId.isEmpty() && !clientSecret.isEmpty() && validateClientId(clientId) &&
            validateClientSecret(clientSecret);
 }
 
 QString ClientToken::toString() const
 {
     return QString("Client ID: [REDACTED]\n"
-                  "Client Secret: [REDACTED]");
+                   "Client Secret: [REDACTED]");
 }
 
 ClientToken ClientToken::loadFromSettings()
@@ -40,16 +36,19 @@ ClientToken ClientToken::loadFromSettings()
     token.clientId = credentials.value("client_id");
     token.clientSecret = credentials.value("client_secret");
 
-    if (token.clientId.isEmpty() || token.clientSecret.isEmpty()) {
+    if (token.clientId.isEmpty() || token.clientSecret.isEmpty())
+    {
         qCWarning(tsClientToken) << "No credentials found in secure storage";
-    } else {
+    }
+    else
+    {
         qCInfo(tsClientToken) << "Credentials loaded successfully from secure storage";
     }
 
     return token;
 }
 
-bool ClientToken::storeToSettings(const ClientToken &token)
+bool ClientToken::storeToSettings(const ClientToken& token)
 {
     SecureStorage storage;
 
@@ -60,9 +59,12 @@ bool ClientToken::storeToSettings(const ClientToken &token)
 
     bool success = storage.storeValuesSync("TradeStation", credentials);
 
-    if (success) {
+    if (success)
+    {
         qCDebug(tsClientToken) << "Credentials stored successfully in secure storage";
-    } else {
+    }
+    else
+    {
         qCWarning(tsClientToken) << "Failed to store credentials in secure storage";
     }
 
@@ -79,20 +81,22 @@ void ClientToken::clearSettings()
     qCDebug(tsClientToken) << "Credential settings cleared from secure storage";
 }
 
-bool ClientToken::validateClientId(const QString &clientId)
+bool ClientToken::validateClientId(const QString& clientId)
 {
-    if (clientId.isEmpty()) {
+    if (clientId.isEmpty())
+    {
         qCWarning(tsClientToken) << "Client ID is empty";
         return false;
     }
     return true;
 }
 
-bool ClientToken::validateClientSecret(const QString &clientSecret)
+bool ClientToken::validateClientSecret(const QString& clientSecret)
 {
-    if (clientSecret.isEmpty()) {
+    if (clientSecret.isEmpty())
+    {
         qCWarning(tsClientToken) << "Client Secret is empty";
         return false;
     }
     return true;
-} 
+}

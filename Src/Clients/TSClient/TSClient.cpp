@@ -14,18 +14,18 @@
 
 Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
 
-#define BASE_URL_SCHEME                "https"
-#define BASE_URL_HOST_SIMULATION       "sim-api.tradestation.com"
-#define BASE_URL_HOST_VERSION          "/v3/"
-
+#define BASE_URL_SCHEME "https"
+#define BASE_URL_HOST_SIMULATION "sim-api.tradestation.com"
+#define BASE_URL_HOST_VERSION "/v3/"
 
 
 // Initialize static member outside class
 TSClient* TSClient::m_instance = nullptr;
-    
+
 TSClient* TSClient::getInstance()
 {
-    if (m_instance == nullptr) {
+    if (m_instance == nullptr)
+    {
         qCDebug(TSClientLog) << "Singleton instance created";
         m_instance = new TSClient();
     }
@@ -37,12 +37,11 @@ TSClient::~TSClient()
     Q_ASSERT(false); // Destructor should never be called for singleton
 }
 
-TSClient::TSClient() :
-    QObject(),
-    m_thread(new QThread()),
-    m_networkManager(new QNetworkAccessManager(this)),
-    m_authenticated(false),
-    m_refreshInProgress(false)
+TSClient::TSClient()
+    : m_authenticated(false)
+    , m_refreshInProgress(false)
+    , m_thread(new QThread())
+    , m_networkManager(new QNetworkAccessManager(this))
 {
     this->moveToThread(m_thread);
 
@@ -51,14 +50,16 @@ TSClient::TSClient() :
     m_baseUrl.setPath(BASE_URL_HOST_VERSION);
 
     m_thread->setObjectName("TSClientThread");
-    
+
     m_clientToken = ClientToken::loadFromSettings();
     m_authToken = AuthToken::loadFromSettings();
-    
+
 
     // If the token is invalid/absent, we need to perform an authentification with the popup
-    if (!m_clientToken.isValid() || !m_authToken.isValid()) {
-        qCWarning(TSClientLog) << Q_FUNC_INFO <<"Auth token or Client token is invalid/absent, will need an authentification process";
+    if (!m_clientToken.isValid() || !m_authToken.isValid())
+    {
+        qCWarning(TSClientLog) << Q_FUNC_INFO
+                               << "Auth token or Client token is invalid/absent, will need an authentification process";
 
         // Schedule an emition for when the event loop is started
         // TODO I have removed this because it crashed the main algo thread. I think an emit of stat
@@ -71,19 +72,19 @@ TSClient::TSClient() :
 
     // If the token is valid but expired, we don't need to perform an authentification, we can
     // just perform a refresh
-    else if (m_authToken.isValid() && m_authToken.isExpired()) {
+    else if (m_authToken.isValid() && m_authToken.isExpired())
+    {
 
         INFO << "Auth token is valid but expired, perform a refresh now.";
 
         // Schedule a refresh for when the thread starts
-        QTimer::singleShot(0, this, [this]() {
-            refreshAccessToken();
-        });
+        QTimer::singleShot(0, this, [this]() { refreshAccessToken(); });
     }
 
     // If the token is valid and not expired (has at least 5s left in it,
     // start using it
-    else if (m_authToken.isValid() && !m_authToken.isExpired()) {
+    else if (m_authToken.isValid() && !m_authToken.isExpired())
+    {
 
         m_authenticated = true;
 
@@ -95,7 +96,7 @@ TSClient::TSClient() :
         // Compare against 4 just in case we are at 5 seconds left
         Q_ASSERT(secsUntilExpiration > 4);
 
-        INFO << "Auth token is valid and already not expired, still has " << secsUntilExpiration  << "second left to it";
+        INFO << "Auth token is valid and already not expired, still has " << secsUntilExpiration << "second left to it";
 
         int secondsToNextRefreshRequest = m_authToken.secondsToNextRefreshRequest();
 
@@ -105,21 +106,18 @@ TSClient::TSClient() :
         DEBUG << "Initiating a refresh in " << secondsToNextRefreshRequest << "seconds";
 
         // Launch a request in X seconds from now.
-        QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() {
-            refreshAccessToken();
-        });
+        QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() { refreshAccessToken(); });
 
         // Schedule an emition for when the event loop is started
-        QTimer::singleShot(0, this, [this]() {
-            emit authStateChanged(true, "Auth token valid and not expired");
-        });
-
-    } else {
+        QTimer::singleShot(0, this, [this]() { emit authStateChanged(true, "Auth token valid and not expired"); });
+    }
+    else
+    {
         Q_UNREACHABLE();
     }
 }
 
-QNetworkRequest TSClient::buildNetworkRequest(const QString &endpoint, const QUrlQuery &query) const
+QNetworkRequest TSClient::buildNetworkRequest(const QString& endpoint, const QUrlQuery& query) const
 {
     Q_ASSERT(!m_baseUrl.isEmpty());
     Q_ASSERT(!m_apiKey.isEmpty());
@@ -141,10 +139,13 @@ QNetworkRequest TSClient::buildNetworkRequest(const QString &endpoint, const QUr
 
 void TSClient::processNewAmountOfDataReceived(size_t bytesReceived)
 {
-    if (bytesReceived == 0) {
+    if (bytesReceived == 0)
+    {
         CRITICAL << "No data received in this readyRead/finished";
-    } else {
-        m_totalDataReceivedBytes += bytesReceived;
+    }
+    else
+    {
+        m_totalDataReceivedBytes += static_cast<qsizetype>(bytesReceived);
 
         //DEBUG << "Received " << bytesReceived << " bytes, total now " << m_totalDataReceivedBytes << " bytes";
         emit totalDataReceivedBytesIncreased(m_totalDataReceivedBytes);

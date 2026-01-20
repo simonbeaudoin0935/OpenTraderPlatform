@@ -10,16 +10,19 @@ CancelOrderResult::CancelOrderResult(const QJsonObject& jsonObj)
     message = jsonObj["Message"].toString();
 
     // Error field is optional
-    if (jsonObj.contains("Error")) {
+    if (jsonObj.contains("Error"))
+    {
         error = jsonObj["Error"].toString();
     }
 }
 
-QString CancelOrderResult::toJsonString() const {
+QString CancelOrderResult::toJsonString() const
+{
     QJsonObject jsonObj;
     jsonObj["OrderID"] = orderID;
     jsonObj["Message"] = message;
-    if (error.has_value()) {
+    if (error.has_value())
+    {
         jsonObj["Error"] = error.value();
     }
 
