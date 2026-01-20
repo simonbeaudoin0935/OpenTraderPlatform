@@ -48,35 +48,35 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
     QObject::connect(mainAlgo,
                      &MainAlgo::tradeStationAccountsReceived,
                      appFrontend,
-                     &FrontEnd::tradeStationAccountsReceived);
+                     &FrontEnd::onTradeStationAccountsReceived);
 
     // Connect TradeStation data usage updates to frontend
     QObject::connect(tradeStationClient,
                      &TSClient::totalDataReceivedBytesIncreased,
                      appFrontend,
-                     &FrontEnd::tradeStationDataUsageUpdated);
+                     &FrontEnd::onTSClientDataUsageUpdate);
 
     // Connect TradeStation stream count updates to frontend
-    QObject::connect(tradeStationClient, &TSClient::openStreamCountChanged, appFrontend, &FrontEnd::streamCountUpdated);
+    QObject::connect(tradeStationClient, &TSClient::openStreamCountChanged, appFrontend, &FrontEnd::onStreamCountUpdate);
 
     QObject::connect(mainAlgo,
                      &MainAlgo::displayedStockReceivedNewBar,
                      appFrontend,
-                     &FrontEnd::currentHighlightedStockBarReceived);
+                     &FrontEnd::onCurrentHighlightedStockBarReceived);
 
     QObject::connect(mainAlgo,
                      &MainAlgo::displayedStockReceivedNewMarketDepthQuote,
                      appFrontend,
-                     &FrontEnd::currentHighlightedReceivedNewMarketDepthQuote);
+                     &FrontEnd::onCurrentHighlightedReceivedNewMarketDepthQuote);
 
 
-    QObject::connect(mainAlgo, &MainAlgo::receivedNewPosition, appFrontend, &FrontEnd::newPositionReceived);
+    QObject::connect(mainAlgo, &MainAlgo::receivedNewPosition, appFrontend, &FrontEnd::onNewPositionReceived);
 
-    QObject::connect(mainAlgo, &MainAlgo::positionDeleted, appFrontend, &FrontEnd::positionDeleted);
+    QObject::connect(mainAlgo, &MainAlgo::positionDeleted, appFrontend, &FrontEnd::onPositionDeleted);
 
-    QObject::connect(mainAlgo, &MainAlgo::receivedNewOrder, appFrontend, &FrontEnd::newOrderReceived);
+    QObject::connect(mainAlgo, &MainAlgo::receivedNewOrder, appFrontend, &FrontEnd::onNewOrderReceived);
 
-    QObject::connect(mainAlgo, &MainAlgo::balanceUpdated, appFrontend, &FrontEnd::balanceUpdated);
+    QObject::connect(mainAlgo, &MainAlgo::balanceUpdated, appFrontend, &FrontEnd::onBalanceUpdated);
 }
 
 void MainApp::start()
@@ -89,4 +89,9 @@ void MainApp::start()
     mainAlgo->start();
 
     memoryMonitor.startMonitoring(500);
+
+#ifndef GUI_ENABLED
+    // Initialize TUI after everything is set up
+    static_cast<TUIFrontend*>(appFrontend)->initialize();
+#endif
 }
