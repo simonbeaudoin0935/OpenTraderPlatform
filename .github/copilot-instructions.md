@@ -49,6 +49,15 @@
    ```
    - Takes ~2-5 minutes
 
+## Run Application
+1. **TUI Mode** (default):
+   ```bash
+   ./build/TUI/Src/L2Trader
+   ```
+
+   The stdout is the ncurses TUI interface. The stderr is the logging output. Therefore, you can 
+   either redirect stderr to a file or a separate terminal to see the logs, or dump stderr to /dev/null if you don't care about logs in live and can check log file later in ~/.local/share/L2Trader/logs/
+
 ## General Coding Guidelines
 - Use the ASSUME macros from Src/Misc/Assume.h for assertions instead of Q_ASSERT or similar, to ensure consistency and proper no-op behavior in release builds.
 
@@ -160,17 +169,11 @@ This project uses smart pointers throughout to ensure proper memory management a
 - **SQLite**: For database functionality
 - **Git**: For version control
 
-### Bootstrap
-No bootstrap required. The repository is ready to build after cloning.
-
 ### Build Speed Optimization
 The building in the github workflow uses 'ccache' to speed up the building process. The ~/.cache/ccache folder from previous runs is caches with the github's cache action and retreived in subsequent builds.
 
 ### Build Process
 Always run commands in the repository root directory.
-
-#### Github Premium Requests
-When executing a Premium Request after being assigned an issue on GitHub and you want to build, use these commands :
 
 
 #### Regular Local prompts in VSCode
@@ -179,16 +182,7 @@ Use :
 - build : This builds everything
 
 
-### Run Application
-1. **GUI Mode** (default):
-   ```bash
-   ./src/L2Trader --criterias=../Example_Config/selection_criteria.ini
-   ```
 
-2. **Recorder Mode**:
-   ```bash
-   ./src/Recorder --criterias=../Example_Config/selection_criteria.ini --cache-root-dir=/tmp/cache
-   ```
 
 ### Lint and Validation
 No dedicated linting tools configured. Code follows Qt coding conventions.
