@@ -46,7 +46,7 @@ MainAlgo::MainAlgo()
         if (!file.open(mode))
         {
             qCDebug(MainAlgoLog) << "Failed to open file for writing:" << filePath << "Error:" << file.errorString();
-            Q_ASSERT(0);
+            OBJ_ASSUME_FALSE(true);
         }
 
         // Create a QTextStream attached to the file
@@ -78,15 +78,14 @@ void MainAlgo::onThreadStarted()
 void MainAlgo::onSelectDisplayedStock(const QString& symbol)
 {
     // Make sure that this method gets Qt::InvokeMethod'ed if called from another thread
-    Q_ASSERT(QThread::currentThread() == &thread);
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
 
 
     // If there is a current selected stock for display, disconnect its receivedNew* signals from the main algo emition
     if (currentDisplayedStockInstrument != nullptr)
     {
-        Q_ASSERT_X(currentDisplayedStockInstrument->symbol != symbol,
-                   "MainAlgo::onSelectDisplayedStock",
-                   "Selecting the same stock as currently selected. No action taken.");
+        // Selecting the same stock as currently selected. No action taken.
+        OBJ_ASSUME_DIFF(currentDisplayedStockInstrument->symbol, symbol);
 
         disconnect(&currentDisplayedStockInstrument->barCache,
                    &BarCache::receivedNewBar,
@@ -229,21 +228,21 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
                           this,
                           &MainAlgo::receivedNewPosition,
                           Qt::UniqueConnection);
-        Q_ASSERT(c1);
+        OBJ_ASSUME_TRUE(c1);
 
         auto c2 = connect(m_positionReceiver,
                           &PositionsReceiver::receivedNewPosition,
                           this,
                           &MainAlgo::onReceivedNewPosition,
                           Qt::UniqueConnection);
-        Q_ASSERT(c2);
+        OBJ_ASSUME_TRUE(c2);
 
         auto c3 = connect(m_positionReceiver,
                           &PositionsReceiver::positionDeleted,
                           this,
                           &MainAlgo::onPositionDeleted,
                           Qt::UniqueConnection);
-        Q_ASSERT(c3);
+        OBJ_ASSUME_TRUE(c3);
     }
 
     // Only initialize order stream once
@@ -262,14 +261,14 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
                           this,
                           &MainAlgo::receivedNewOrder,
                           Qt::UniqueConnection);
-        Q_ASSERT(c3);
+        OBJ_ASSUME_TRUE(c3);
 
         auto c4 = connect(m_orderReceiver,
                           &OrdersReceiver::receivedNewOrder,
                           this,
                           &MainAlgo::onReceivedNewOrder,
                           Qt::UniqueConnection);
-        Q_ASSERT(c4);
+        OBJ_ASSUME_TRUE(c4);
     }
 
     emit tradeStationAccountsReceived(results);
@@ -298,7 +297,7 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
 
 void MainAlgo::startBalancePolling()
 {
-    Q_ASSERT(QThread::currentThread() == &thread);
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
 
     m_balancePollingTimer->start(5000); // 5 seconds
     requestBalance();                   // initial request
@@ -307,7 +306,7 @@ void MainAlgo::startBalancePolling()
 
 void MainAlgo::stopBalancePolling()
 {
-    Q_ASSERT(QThread::currentThread() == &thread);
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
 
     m_balancePollingTimer->stop();
     qCDebug(MainAlgoLog) << "Stopped balance polling";
@@ -320,9 +319,9 @@ void MainAlgo::stopBalancePolling()
 
 void MainAlgo::requestBalance()
 {
-    Q_ASSERT(QThread::currentThread() == &thread);
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
 
-    Q_ASSERT(!m_activeAccount.getAccountId().isEmpty());
+    OBJ_ASSUME_FALSE(m_activeAccount.getAccountId().isEmpty());
 
 
     QFuture<std::expected<QVector<Balance>, TSClient::Error>> balanceFuture =
@@ -347,8 +346,8 @@ void MainAlgo::requestBalance()
 
 void MainAlgo::onBalanceReceived(const QVector<Balance>& results)
 {
-    Q_ASSERT(QThread::currentThread() == &thread);
-    Q_ASSERT(results.size() == 1);
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+    OBJ_ASSUME_EQUAL(results.size(), 1);
 
 
     m_currentBalance = results.at(0);

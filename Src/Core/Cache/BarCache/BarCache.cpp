@@ -19,7 +19,7 @@ Q_LOGGING_CATEGORY(BarCacheLog, "BarCache")
 BarCache::BarCache(const QString& symbol, bool isStreaming, QObject* parent)
     : QObject(parent), m_symbol(symbol), m_isStreaming(isStreaming)
 {
-    Q_ASSERT(parent != nullptr);
+    OBJ_ASSUME_DIFF(parent, nullptr);
 
     this->setObjectName("BarCache::" + symbol);
 
@@ -576,13 +576,13 @@ void BarCache::clearDatabase()
 constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDayRanges(const QDateTime& first,
                                                                                        const QDateTime& last)
 {
-    Q_ASSERT(first.timeZone() == QTimeZone("America/New_York"));
-    Q_ASSERT(last.timeZone() == QTimeZone("America/New_York"));
-    Q_ASSERT(first < last);
+    OBJ_ASSUME_EQUAL(first.timeZone(), QTimeZone("America/New_York"));
+    OBJ_ASSUME_EQUAL(last.timeZone(), QTimeZone("America/New_York"));
+    OBJ_ASSUME_LT(first, last);
 
     // Ensure range is within trading hours
-    Q_ASSERT(first.time() >= TRADING_START_TIME);
-    Q_ASSERT(last.time() <= TRADING_END_TIME);
+    OBJ_ASSUME_GTE(first.time(), TRADING_START_TIME);
+    OBJ_ASSUME_LTE(last.time(), TRADING_END_TIME);
 
 
     QVector<std::tuple<QDate, QTime, QTime>> ranges;

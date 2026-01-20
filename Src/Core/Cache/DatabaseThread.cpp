@@ -155,7 +155,7 @@ QFuture<bool> DatabaseThread::clearDatabase(const QString& symbol)
 
 bool DatabaseThread::openDatabaseInternal(const QString& symbol, const QString& dbPath)
 {
-    Q_ASSERT(QThread::currentThread() == &m_thread);
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
 
     QString connectionName = "BarCache_" + symbol;
 
@@ -220,7 +220,7 @@ bool DatabaseThread::openDatabaseInternal(const QString& symbol, const QString& 
 
 void DatabaseThread::closeDatabaseInternal(const QString& symbol)
 {
-    Q_ASSERT(QThread::currentThread() == &m_thread);
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
 
     if (!m_databases.contains(symbol))
     {
@@ -239,7 +239,7 @@ void DatabaseThread::closeDatabaseInternal(const QString& symbol)
 std::optional<std::unique_ptr<QVector<Bar>>>
 DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, QTime start, QTime end)
 {
-    Q_ASSERT(QThread::currentThread() == &m_thread);
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
 
     if (!m_databases.contains(symbol))
     {
@@ -260,7 +260,7 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
     size_t indexStart = timeToIndex(start);
     size_t indexEnd = timeToIndex(end);
 
-    Q_ASSERT(indexStart < indexEnd);
+    OBJ_ASSUME_LT(indexStart, indexEnd);
 
     QSqlQuery query(db);
     query.prepare(DatabaseThreadQueries::SELECT_BARS_BY_DATE_AND_INDEX);
@@ -317,7 +317,7 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
 
 int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDate& date, const QVector<Bar>& bars)
 {
-    Q_ASSERT(QThread::currentThread() == &m_thread);
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
 
     if (!m_databases.contains(symbol))
     {
@@ -376,7 +376,7 @@ int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDa
 
 bool DatabaseThread::clearDatabaseInternal(const QString& symbol)
 {
-    Q_ASSERT(QThread::currentThread() == &m_thread);
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
 
     if (!m_databases.contains(symbol))
     {
@@ -413,19 +413,19 @@ bool DatabaseThread::clearDatabaseInternal(const QString& symbol)
 
 size_t DatabaseThread::timeToIndex(const QTime& time)
 {
-    Q_ASSERT(time >= TRADING_START_TIME);
-    Q_ASSERT(time <= TRADING_END_TIME);
+    OBJ_ASSUME_GTE(time, TRADING_START_TIME);
+    OBJ_ASSUME_LTE(time, TRADING_END_TIME);
 
     size_t minutesSince6AM = (time.hour() - TRADING_START_TIME.hour()) * 60 + time.minute();
     size_t index = minutesSince6AM - 1;
 
-    Q_ASSERT(index < BARS_PER_DAY);
+    OBJ_ASSUME_LT(index, BARS_PER_DAY);
     return index;
 }
 
 QTime DatabaseThread::indexToTime(size_t index)
 {
-    Q_ASSERT(index < BARS_PER_DAY);
+    OBJ_ASSUME_LT(index, BARS_PER_DAY);
 
     size_t adjustedMinutes = index + 1;
     int hour = TRADING_START_TIME.hour() + (adjustedMinutes / 60);

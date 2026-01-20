@@ -278,8 +278,8 @@ void StockPriceChart::populateAvailableReplayDays()
 void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 {
     // Its a bug if we receive a new bar for a different symbol than current
-    Q_ASSERT(symbol == m_symbol);
-    Q_ASSERT(bar.isValid());
+    OBJ_ASSUME_EQUAL(symbol, m_symbol);
+    OBJ_ASSUME_TRUE(bar.isValid());
 
     WARNING << "Received bar for" << symbol << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
             << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "isEndOfHistory:" << bar.getIsEndOfHistory()
@@ -287,13 +287,13 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
     if (startedReceivingRealtimeBars == true)
     {
-        Q_ASSERT(bar.getIsRealtime());
+        OBJ_ASSUME_TRUE(bar.getIsRealtime());
     }
     else
     {
         if (bar.getIsEndOfHistory())
         {
-            Q_ASSERT(!bar.getIsRealtime());
+            OBJ_ASSUME_FALSE(bar.getIsRealtime());
             startedReceivingRealtimeBars = true;
         }
     }
@@ -309,13 +309,13 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         // the ->setRange() calls below trigger a checkForMissingBars() immediately due to the direct connection
         // of the signal/slot
         bool acquired = m_missingBarsRequestSemaphore.tryAcquire();
-        Q_ASSERT(acquired); // Should always succeed for first bar
+        OBJ_ASSUME_TRUE(acquired); // Should always succeed for first bar
 
         DEBUG << "Received first bar ";
 
         const int index = 0;
 
-        Q_ASSERT(timestampToIndex.size() == 0);
+        OBJ_ASSUME_EQUAL(timestampToIndex.size(), 0);
 
         timestampToIndex[bar.getTimeStamp()] = index;
         indexToBar[index] = bar;
@@ -354,12 +354,12 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     {
     case Bar::BarStatus::Uninitialized:
         // Should not receive uninitialized bars
-        Q_ASSERT(false);
+        OBJ_ASSUME_FALSE(true);
         break;
 
     case Bar::BarStatus::Null:
         // Tradestation doesnt send 'null' bars, it is a construct that we created in this program
-        Q_ASSERT(false);
+        OBJ_ASSUME_FALSE(true);
         break;
 
     case Bar::BarStatus::Closed:
@@ -369,12 +369,12 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
             //                Q_ASSERT(m_latestBar.getBarStatus() == Bar::BarStatus::Open);
             // TradeStation sends a 'closed' bar to close the current candle. Therefore, its timestamp is the one
             // from the current candle
-            //                Q_ASSERT(bar.getTimeStamp() == m_latestBar.getTimeStamp());
+            //                OBJ_ASSUME_EQUAL(bar.getTimeStamp(), m_latestBar.getTimeStamp());
         }
         else
         {
-            Q_ASSERT(m_latestBar.getBarStatus() == Bar::BarStatus::Closed);
-            Q_ASSERT(bar.getTimeStamp() > m_latestBar.getTimeStamp());
+            OBJ_ASSUME_EQUAL(m_latestBar.getBarStatus(), Bar::BarStatus::Closed);
+            OBJ_ASSUME_GT(bar.getTimeStamp(), m_latestBar.getTimeStamp());
         }
 
 
@@ -392,13 +392,13 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         {
             // New bar after previous one was closed
 
-            Q_ASSERT(bar.getTimeStamp() > m_latestBar.getTimeStamp());
+            OBJ_ASSUME_GT(bar.getTimeStamp(), m_latestBar.getTimeStamp());
             break;
         }
         else
         {
             // Updating existing open bar
-            Q_ASSERT(bar.getTimeStamp() == m_latestBar.getTimeStamp());
+            OBJ_ASSUME_EQUAL(bar.getTimeStamp(), m_latestBar.getTimeStamp());
 
             indexToBar[m_latestBarIndex] = bar;
             m_latestBar = bar;
@@ -804,7 +804,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
     OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.available() == 0);
     m_missingBarsRequestSemaphore.release();
 
-    Q_ASSERT(!barsPtr->isEmpty());
+    OBJ_ASSUME_FALSE(barsPtr->isEmpty());
 
     addHistoricalBarsToIndexMapping(*barsPtr);
 
@@ -864,7 +864,7 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
         return;
     }
 
-    Q_ASSERT(!indexToBar.isEmpty());
+    OBJ_ASSUME_FALSE(indexToBar.isEmpty());
 
     DEBUG << "Check for missing bars for view range:" << viewStartTime.toString(Qt::ISODate) << "to"
           << viewEndTime.toString(Qt::ISODate);
@@ -1074,8 +1074,8 @@ void StockPriceChart::updateAxisLabelsDensity()
  */
 void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars)
 {
-    Q_ASSERT(!bars.isEmpty());
-    Q_ASSERT(!indexToBar.isEmpty());
+    OBJ_ASSUME_FALSE(bars.isEmpty());
+    OBJ_ASSUME_FALSE(indexToBar.isEmpty());
 
     int minIndex = indexToBar.firstKey();
 
@@ -1116,7 +1116,7 @@ QDateTime StockPriceChart::getTimestampForIndex(int index) const
         return it.value().getTimeStamp();
     }
 
-    Q_ASSERT(!indexToBar.isEmpty());
+    OBJ_ASSUME_FALSE(indexToBar.isEmpty());
 
     if (index < 0)
     {
@@ -1154,7 +1154,7 @@ int StockPriceChart::getIndexForTimestamp(const QDateTime& timestamp) const
         return it.value();
     }
 
-    Q_ASSERT(!indexToBar.isEmpty());
+    OBJ_ASSUME_FALSE(indexToBar.isEmpty());
 
     QDateTime firstTime = indexToBar.first().getTimeStamp();
     int firstIndex = indexToBar.firstKey();
@@ -1163,7 +1163,7 @@ int StockPriceChart::getIndexForTimestamp(const QDateTime& timestamp) const
     {
         // Calculate minutes before first bar
         qint64 minutesDiff = firstTime.toSecsSinceEpoch() - timestamp.toSecsSinceEpoch();
-        Q_ASSERT(minutesDiff % 60 == 0); // Should be exact minutes
+        OBJ_ASSUME_EQUAL(minutesDiff % 60, 0); // Should be exact minutes
         int indexDiff = minutesDiff / 60;
         return firstIndex - indexDiff;
     }
@@ -1175,7 +1175,7 @@ int StockPriceChart::getIndexForTimestamp(const QDateTime& timestamp) const
     {
         // Calculate minutes after last bar
         qint64 minutesDiff = timestamp.toSecsSinceEpoch() - lastTime.toSecsSinceEpoch();
-        Q_ASSERT(minutesDiff % 60 == 0); // Should be exact minutes
+        OBJ_ASSUME_EQUAL(minutesDiff % 60, 0); // Should be exact minutes
         int indexDiff = minutesDiff / 60;
         return lastIndex + indexDiff;
     }
@@ -1236,7 +1236,7 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
     // Cancel any ongoing query
     if (replayTimeRangeWatcher->isRunning())
     {
-        Q_ASSERT(false); // TO_DELETE
+        OBJ_ASSUME_FALSE(true); // TO_DELETE
         replayTimeRangeWatcher->cancel();
     }
 

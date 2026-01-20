@@ -8,6 +8,7 @@
 #include <QWidgetAction>
 #include "GUIFrontend.h"
 #include "Misc/Settings.h"
+#include "Assume.h"
 
 OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     : QWidget(p_parent)
@@ -188,18 +189,18 @@ void OrderEntryWidget::setupUI()
                       this,
                       &OrderEntryWidget::onOrderTypeChanged,
                       Qt::UniqueConnection);
-    Q_ASSERT(c1);
+    OBJ_ASSUME_TRUE(c1);
 
     auto c2 = connect(m_tradeActionGroup,
                       QOverload<int>::of(&QButtonGroup::idClicked),
                       this,
                       &OrderEntryWidget::onTradeActionChanged,
                       Qt::UniqueConnection);
-    Q_ASSERT(c2);
+    OBJ_ASSUME_TRUE(c2);
 
     auto c3 =
         connect(m_submitButton, &QPushButton::clicked, this, &OrderEntryWidget::onSubmitClicked, Qt::UniqueConnection);
-    Q_ASSERT(c3);
+    OBJ_ASSUME_TRUE(c3);
 
     // Connect settings save signals
     auto c4 = connect(m_orderTypeCombo,
@@ -207,42 +208,42 @@ void OrderEntryWidget::setupUI()
                       this,
                       &OrderEntryWidget::saveOrderTypeSetting,
                       Qt::UniqueConnection);
-    Q_ASSERT(c4);
+    OBJ_ASSUME_TRUE(c4);
 
     auto c5 = connect(m_durationCombo,
                       QOverload<int>::of(&QComboBox::currentIndexChanged),
                       this,
                       &OrderEntryWidget::saveDurationSetting,
                       Qt::UniqueConnection);
-    Q_ASSERT(c5);
+    OBJ_ASSUME_TRUE(c5);
 
     auto c6 = connect(m_quantityInput,
                       QOverload<int>::of(&QSpinBox::valueChanged),
                       this,
                       &OrderEntryWidget::saveQuantitySetting,
                       Qt::UniqueConnection);
-    Q_ASSERT(c6);
+    OBJ_ASSUME_TRUE(c6);
 
     auto c7 = connect(m_limitPriceInput,
                       QOverload<double>::of(&QDoubleSpinBox::valueChanged),
                       this,
                       &OrderEntryWidget::saveLimitPriceSetting,
                       Qt::UniqueConnection);
-    Q_ASSERT(c7);
+    OBJ_ASSUME_TRUE(c7);
 
     auto c8 = connect(m_stopPriceInput,
                       QOverload<double>::of(&QDoubleSpinBox::valueChanged),
                       this,
                       &OrderEntryWidget::saveStopPriceSetting,
                       Qt::UniqueConnection);
-    Q_ASSERT(c8);
+    OBJ_ASSUME_TRUE(c8);
 
     auto c9 = connect(m_tradeActionGroup,
                       QOverload<int>::of(&QButtonGroup::idClicked),
                       this,
                       &OrderEntryWidget::saveTradeActionSetting,
                       Qt::UniqueConnection);
-    Q_ASSERT(c9);
+    OBJ_ASSUME_TRUE(c9);
 
     // Connect confirmation checkbox
     auto c10 = connect(m_confirmationCheckBox,
@@ -250,7 +251,7 @@ void OrderEntryWidget::setupUI()
                        this,
                        &OrderEntryWidget::onConfirmationCheckBoxToggled,
                        Qt::UniqueConnection);
-    Q_ASSERT(c10);
+    OBJ_ASSUME_TRUE(c10);
 
     // Connect result popup checkbox
     auto c11 = connect(m_resultPopupCheckBox,
@@ -258,7 +259,7 @@ void OrderEntryWidget::setupUI()
                        this,
                        &OrderEntryWidget::onResultPopupCheckBoxToggled,
                        Qt::UniqueConnection);
-    Q_ASSERT(c11);
+    OBJ_ASSUME_TRUE(c11);
 
     // Connect cancel all confirmation checkbox
     auto c12 = connect(m_cancelAllConfirmationCheckBox,
@@ -266,7 +267,7 @@ void OrderEntryWidget::setupUI()
                        this,
                        &OrderEntryWidget::onCancelAllConfirmationCheckBoxToggled,
                        Qt::UniqueConnection);
-    Q_ASSERT(c12);
+    OBJ_ASSUME_TRUE(c12);
 
     // Initialize visibility based on default order type
     updatePriceFieldsVisibility();
@@ -454,7 +455,7 @@ void OrderEntryWidget::updatePriceFieldsVisibility()
 bool OrderEntryWidget::validateInputs()
 {
     // Check GUIFrontend reference
-    Q_ASSERT(m_guiFrontend);
+    OBJ_ASSUME_TRUE(m_guiFrontend);
 
     // Check account selected
     QString accountID = m_guiFrontend->getSelectedAccountId();
@@ -513,7 +514,7 @@ PlaceOrderRequest OrderEntryWidget::buildOrderRequest()
     PlaceOrderRequest request;
 
     // Check GUIFrontend reference
-    Q_ASSERT(m_guiFrontend);
+    OBJ_ASSUME_TRUE(m_guiFrontend);
 
     // Get account from GUIFrontend
     QString accountID = m_guiFrontend->getSelectedAccountId();
