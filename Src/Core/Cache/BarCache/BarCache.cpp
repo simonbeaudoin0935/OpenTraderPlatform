@@ -576,13 +576,13 @@ void BarCache::clearDatabase()
 constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDayRanges(const QDateTime& first,
                                                                                        const QDateTime& last)
 {
-    OBJ_ASSUME_EQUAL(first.timeZone(), QTimeZone("America/New_York"));
-    OBJ_ASSUME_EQUAL(last.timeZone(), QTimeZone("America/New_York"));
-    OBJ_ASSUME_LT(first, last);
+    ASSUME_EQUAL(first.timeZone(), QTimeZone("America/New_York"));
+    ASSUME_EQUAL(last.timeZone(), QTimeZone("America/New_York"));
+    ASSUME_LT(first, last);
 
     // Ensure range is within trading hours
-    OBJ_ASSUME_GTE(first.time(), TRADING_START_TIME);
-    OBJ_ASSUME_LTE(last.time(), TRADING_END_TIME);
+    ASSUME_GTE(first.time(), TRADING_START_TIME);
+    ASSUME_LTE(last.time(), TRADING_END_TIME);
 
 
     QVector<std::tuple<QDate, QTime, QTime>> ranges;

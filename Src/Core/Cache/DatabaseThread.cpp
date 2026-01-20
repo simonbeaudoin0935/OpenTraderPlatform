@@ -413,19 +413,19 @@ bool DatabaseThread::clearDatabaseInternal(const QString& symbol)
 
 size_t DatabaseThread::timeToIndex(const QTime& time)
 {
-    OBJ_ASSUME_GTE(time, TRADING_START_TIME);
-    OBJ_ASSUME_LTE(time, TRADING_END_TIME);
+    ASSUME_GTE(time, TRADING_START_TIME);
+    ASSUME_LTE(time, TRADING_END_TIME);
 
     size_t minutesSince6AM = (time.hour() - TRADING_START_TIME.hour()) * 60 + time.minute();
     size_t index = minutesSince6AM - 1;
 
-    OBJ_ASSUME_LT(index, BARS_PER_DAY);
+    ASSUME_LT(index, BARS_PER_DAY);
     return index;
 }
 
 QTime DatabaseThread::indexToTime(size_t index)
 {
-    OBJ_ASSUME_LT(index, BARS_PER_DAY);
+    ASSUME_LT(index, BARS_PER_DAY);
 
     size_t adjustedMinutes = index + 1;
     int hour = TRADING_START_TIME.hour() + (adjustedMinutes / 60);

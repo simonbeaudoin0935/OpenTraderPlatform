@@ -505,7 +505,7 @@ QString SecureStorage::obfuscateValue(const QString& value)
 
     // Assert round-trip works correctly
     // Obfuscation round-trip should preserve original value
-    OBJ_ASSUME_EQUAL(deobfuscateValue(result), value);
+    ASSUME_EQUAL(deobfuscateValue(result), value);
 
     return result;
 }

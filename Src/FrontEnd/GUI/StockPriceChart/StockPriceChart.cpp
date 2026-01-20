@@ -373,7 +373,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         }
         else
         {
-            OBJ_ASSUME_EQUAL(m_latestBar.getBarStatus(), Bar::BarStatus::Closed);
+            OBJ_ASSUME_TRUE(m_latestBar.getBarStatus() == Bar::BarStatus::Closed);
             OBJ_ASSUME_GT(bar.getTimeStamp(), m_latestBar.getTimeStamp());
         }
 
