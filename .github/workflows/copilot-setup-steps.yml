@@ -2,6 +2,7 @@ name: "Copilot Setup Steps"
 
 # Automatically run the setup steps when they are changed to allow for easy validation, and
 # allow manual testing through the repository's "Actions" tab
+# Last updated: 2026-01-20 - Added credentials verification step
 on:
   workflow_dispatch:
   push:
