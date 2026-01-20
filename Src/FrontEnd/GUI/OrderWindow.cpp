@@ -4,6 +4,7 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include "Misc/MarketHours.h"
+#include "Assume.h"
 
 OrderWindow::OrderWindow(QWidget* p_parent)
     : QWidget(p_parent)
@@ -47,7 +48,7 @@ void OrderWindow::setupUI()
 
     // Connect click signal
     auto c = connect(m_tableView, &QTableView::clicked, this, &OrderWindow::onSymbolClicked, Qt::UniqueConnection);
-    Q_ASSERT(c);
+    OBJ_ASSUME_TRUE(c);
 
     // Set column widths
     m_tableView->setColumnWidth(0,
