@@ -30,10 +30,10 @@ void TUIFrontend::initialize()
     keypad(stdscr, TRUE);  // Enable special keys
     nodelay(stdscr, TRUE); // Non-blocking input
     curs_set(0);           // Hide cursor
-    
+
     // Prevent terminal scrolling
-    scrollok(stdscr, FALSE);  // Disable scrolling on stdscr
-    idlok(stdscr, FALSE);     // Disable hardware scrolling
+    scrollok(stdscr, FALSE); // Disable scrolling on stdscr
+    idlok(stdscr, FALSE);    // Disable hardware scrolling
 
     // Enable colors if supported
     if (has_colors())
