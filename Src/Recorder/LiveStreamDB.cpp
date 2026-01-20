@@ -74,7 +74,7 @@ bool LiveStreamDB::storeData(const QString& stock, qint64 timestamp, const QByte
 
         // Assert for now because storing should not fail, maybe handle more gracefully much later
         // Database insert failed
-        OBJ_ASSUME_FALSE(true);
+        Q_UNREACHABLE();
 
         return false;
     }
@@ -108,7 +108,7 @@ void LiveStreamDB::startRecording()
                                           CRITICAL << "StreamBars Receiver failed for" << symbol
                                                    << "- Exception:" << error.value();
 
-                                          OBJ_ASSUME_FALSE(true);
+                                          Q_UNREACHABLE();
 
                                           // TODO attempt to restart the stream
 
@@ -121,7 +121,7 @@ void LiveStreamDB::startRecording()
                                           CRITICAL << "StreamBars Receiver future finished for " << symbol;
 
                                           //Should never happen
-                                          OBJ_ASSUME_FALSE(true);
+                                          Q_UNREACHABLE();
                                       }
                                   });
 
@@ -149,7 +149,7 @@ void LiveStreamDB::startRecording()
                                           CRITICAL << "StreamMarketDepthQuote Receiver failed for" << symbol
                                                    << "- Exception:" << error.value();
 
-                                          OBJ_ASSUME_FALSE(true);
+                                          Q_UNREACHABLE();
 
                                           //TODO attempt to restart the stream
                                       }
@@ -159,7 +159,7 @@ void LiveStreamDB::startRecording()
                                           CRITICAL << "StreamMarketDepthQuote Receiver future finished for " << symbol;
 
                                           //Should never happen
-                                          OBJ_ASSUME_FALSE(true);
+                                          Q_UNREACHABLE();
                                       }
                                   });
 
@@ -280,7 +280,7 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                                       CRITICAL << "Bar Receiver Receiver failed for" << symbol
                                                << "- Exception:" << error.value();
 
-                                      OBJ_ASSUME_FALSE(true);
+                                      Q_UNREACHABLE();
 
                                       //TODO attempt to restart the stream
                                   }
@@ -290,7 +290,7 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                                       CRITICAL << "Bar Receiver Receiver future finished for " << symbol;
 
                                       // should never happen
-                                      OBJ_ASSUME_FALSE(true);
+                                      Q_UNREACHABLE();
                                   }
                               });
 
@@ -328,7 +328,7 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                                       CRITICAL << "Recorder Market Depth Quote receiver failed for" << symbol
                                                << "- Exception:" << error.value();
 
-                                      OBJ_ASSUME_FALSE(true);
+                                      Q_UNREACHABLE();
 
                                       //TODO attempt to restart the stream
                                   }
@@ -336,7 +336,7 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                                   {
                                       CRITICAL << "Recorder Bar receiver bar future finished for " << symbol;
                                       // should never happen
-                                      OBJ_ASSUME_FALSE(true);
+                                      Q_UNREACHABLE();
                                   }
                               });
 

@@ -80,7 +80,7 @@ void OrdersDatabase::createTable()
     {
         CRITICAL << "Failed to create orders table:" << query.lastError().text();
         // Failed to create orders table
-        OBJ_ASSUME_FALSE(true);
+        Q_UNREACHABLE();
     }
 }
 

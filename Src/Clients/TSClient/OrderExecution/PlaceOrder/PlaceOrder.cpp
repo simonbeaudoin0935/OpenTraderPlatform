@@ -19,7 +19,7 @@ QString OrderType::toString(OrderType::Type type)
     case Type::StopLimit:
         return "StopLimit";
     default:
-        ASSUME_FALSE(true); // Should never reach here
+        Q_UNREACHABLE();
     }
 }
 
@@ -36,7 +36,7 @@ OrderType OrderType::fromString(const QString& str)
     else if (str == "StopLimit")
         orderType.type = Type::StopLimit;
     else
-        ASSUME_FALSE(true); // Invalid order type string
+        Q_UNREACHABLE();
 
     return orderType;
 }

@@ -202,7 +202,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                                     << static_cast<int>(bars.error());
 
                                         // TODO : retry logic?
-                                        OBJ_ASSUME_FALSE(true);
+                                        Q_UNREACHABLE();
                                     }
                                 });
                 }
@@ -276,7 +276,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                               qCWarning(GUIFrontendLog) << "Failed to cancel order" << orderId << ":"
                                                                         << cancelResult.getMessage();
                                               // TODO: Show error message to user
-                                              OBJ_ASSUME_FALSE(true);
+                                              Q_UNREACHABLE();
                                           }
                                           else
                                           {
@@ -290,7 +290,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                           qCWarning(GUIFrontendLog)
                                               << "Failed to cancel order" << orderId
                                               << "- Error code:" << static_cast<int>(result.error());
-                                          OBJ_ASSUME_FALSE(true);
+                                          Q_UNREACHABLE();
                                       }
                                   });
             });

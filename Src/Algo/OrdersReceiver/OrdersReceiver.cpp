@@ -25,7 +25,7 @@ OrdersReceiver::OrdersReceiver(const QString& p_account, QObject* p_parent) : QO
     {
         CRITICAL << "Failed to open orders database";
         // Failed to open orders database
-        OBJ_ASSUME_FALSE(true);
+        Q_UNREACHABLE();
     }
 
     // Load existing orders from database

@@ -36,7 +36,7 @@ TSClient* TSClient::getInstance()
 TSClient::~TSClient()
 {
     // Destructor should never be called for singleton
-    ASSUME_TRUE(false);
+    Q_UNREACHABLE();
 }
 
 TSClient::TSClient()

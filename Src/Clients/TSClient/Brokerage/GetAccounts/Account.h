@@ -50,7 +50,7 @@ class AccountType
             return Type::Futures;
         if (str == "DVP")
             return Type::DVP;
-        ASSUME_TRUE(false);
+        Q_UNREACHABLE();
     }
 
     Type type;

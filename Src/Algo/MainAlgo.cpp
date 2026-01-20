@@ -46,7 +46,7 @@ MainAlgo::MainAlgo()
         if (!file.open(mode))
         {
             qCDebug(MainAlgoLog) << "Failed to open file for writing:" << filePath << "Error:" << file.errorString();
-            OBJ_ASSUME_FALSE(true);
+            Q_UNREACHABLE();
         }
 
         // Create a QTextStream attached to the file

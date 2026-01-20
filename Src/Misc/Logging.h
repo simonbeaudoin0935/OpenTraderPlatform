@@ -49,7 +49,7 @@ template<typename Enum> Enum fromString(QStringView str)
     if (!ok)
     {
         qCritical() << "QtEnum::fromString: Invalid enum string:" << str << "for enum type" << meta.name();
-        ASSUME_TRUE(false);
+        Q_UNREACHABLE();
     }
 
 

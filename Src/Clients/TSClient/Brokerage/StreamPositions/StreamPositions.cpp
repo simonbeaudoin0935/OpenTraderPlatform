@@ -29,7 +29,7 @@ void StreamPositions::processJsonObject(const QJsonObject& jsonObj)
         {
             WARNING << "Received GoAway status for account" << m_accountID;
             // TODO handle this properly
-            OBJ_ASSUME_TRUE(false);
+            Q_UNREACHABLE();
         }
         else
         {

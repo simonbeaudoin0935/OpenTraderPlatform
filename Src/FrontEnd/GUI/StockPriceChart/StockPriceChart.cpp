@@ -354,12 +354,12 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     {
     case Bar::BarStatus::Uninitialized:
         // Should not receive uninitialized bars
-        OBJ_ASSUME_FALSE(true);
+        Q_UNREACHABLE();
         break;
 
     case Bar::BarStatus::Null:
         // Tradestation doesnt send 'null' bars, it is a construct that we created in this program
-        OBJ_ASSUME_FALSE(true);
+        Q_UNREACHABLE();
         break;
 
     case Bar::BarStatus::Closed:
@@ -1236,7 +1236,7 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
     // Cancel any ongoing query
     if (replayTimeRangeWatcher->isRunning())
     {
-        OBJ_ASSUME_FALSE(true); // TO_DELETE
+        Q_UNREACHABLE(); // TO_DELETE
         replayTimeRangeWatcher->cancel();
     }
 
