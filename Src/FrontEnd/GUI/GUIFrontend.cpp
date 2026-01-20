@@ -866,7 +866,7 @@ void GUIFrontend::onLogDepthChanged(int maxLines)
 void GUIFrontend::saveLastDisplayedStock(const QString& symbol)
 {
     Q_CHECK_PTR(appStateSettings);
-    appStateSettings->setValue("GUI/LastDisplayedStock", symbol);
+    appStateSettings->setValue("UI/LastDisplayedStock", symbol);
     appStateSettings->sync();
     qInfo() << "Saved last displayed stock:" << symbol;
 }
@@ -874,7 +874,7 @@ void GUIFrontend::saveLastDisplayedStock(const QString& symbol)
 void GUIFrontend::restoreLastDisplayedStock()
 {
     Q_CHECK_PTR(appStateSettings);
-    QString lastSymbol = appStateSettings->value("GUI/LastDisplayedStock").toString().toUpper();
+    QString lastSymbol = appStateSettings->value("UI/LastDisplayedStock").toString().toUpper();
 
     if (lastSymbol.isEmpty())
     {

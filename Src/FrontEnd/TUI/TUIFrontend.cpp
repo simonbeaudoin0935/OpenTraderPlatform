@@ -1,11 +1,22 @@
 #include "TUIFrontend.h"
+#include "MainAlgo.h"
 #include "PlaceOrder.h"
+#include "Settings.h"
 #include <QCoreApplication>
 #include <QDebug>
+#include <QMetaObject>
 #include <cmath>
 #include <locale.h>
 
-TUIFrontend::TUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(parent), mainAlgo(p_mainAlgo) {}
+TUIFrontend::TUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(parent), mainAlgo(p_mainAlgo)
+{
+    // Connect internal signal to slot for handling auth state changes
+    connect(this,
+            &FrontEnd::tradeStationAuthStateChanged,
+            this,
+            &TUIFrontend::onTradeStationAuthStateChanged,
+            Qt::DirectConnection);
+}
 
 TUIFrontend::~TUIFrontend()
 {
@@ -65,20 +76,24 @@ void TUIFrontend::setupWindows()
     getmaxyx(stdscr, maxY, maxX);
 
     // Calculate window sizes
-    int orderHeight = maxY / 2;
-    int positionHeight = maxY / 2 - 3; // Leave room for status bar and help
+    // Layout: Orders (top half) | Positions + LastPrice (bottom half) | Status | Help
+    int orderHeight = maxY / 2 - 2;
+    int lastPriceHeight = 6;                             // Fixed height for last price window
+    int positionHeight = maxY / 2 - lastPriceHeight - 3; // Leave room for status bar and help
     int statusHeight = 1;
     int helpHeight = 2;
 
     // Create windows
     m_orderWin = newwin(orderHeight, maxX, 0, 0);
     m_positionWin = newwin(positionHeight, maxX, orderHeight, 0);
-    m_statusWin = newwin(statusHeight, maxX, orderHeight + positionHeight, 0);
-    m_helpWin = newwin(helpHeight, maxX, orderHeight + positionHeight + statusHeight, 0);
+    m_lastPriceWin = newwin(lastPriceHeight, maxX, orderHeight + positionHeight, 0);
+    m_statusWin = newwin(statusHeight, maxX, orderHeight + positionHeight + lastPriceHeight, 0);
+    m_helpWin = newwin(helpHeight, maxX, orderHeight + positionHeight + lastPriceHeight + statusHeight, 0);
 
     // Disable scrolling for all windows to prevent terminal scroll issues
     scrollok(m_orderWin, FALSE);
     scrollok(m_positionWin, FALSE);
+    scrollok(m_lastPriceWin, FALSE);
     scrollok(m_statusWin, FALSE);
     scrollok(m_helpWin, FALSE);
 }
@@ -91,6 +106,8 @@ void TUIFrontend::cleanup()
             delwin(m_orderWin);
         if (m_positionWin)
             delwin(m_positionWin);
+        if (m_lastPriceWin)
+            delwin(m_lastPriceWin);
         if (m_statusWin)
             delwin(m_statusWin);
         if (m_helpWin)
@@ -110,6 +127,7 @@ void TUIFrontend::refreshDisplay()
 
     displayOrders();
     displayPositions();
+    displayLastPrice();
     displayStatusBar();
     displayHelp();
 
@@ -307,6 +325,90 @@ void TUIFrontend::displayPositions()
     wnoutrefresh(m_positionWin);
 }
 
+void TUIFrontend::displayLastPrice()
+{
+    if (!m_lastPriceWin)
+    {
+        return;
+    }
+
+    werase(m_lastPriceWin);
+    box(m_lastPriceWin, 0, 0);
+
+    // Display header with symbol
+    wattron(m_lastPriceWin, COLOR_PAIR(1) | A_BOLD);
+    if (m_currentSymbol.isEmpty())
+    {
+        mvwprintw(m_lastPriceWin, 0, 2, " LAST PRICE (No Stock Selected) ");
+    }
+    else
+    {
+        mvwprintw(m_lastPriceWin, 0, 2, " LAST PRICE [%s] ", m_currentSymbol.toStdString().c_str());
+    }
+    wattroff(m_lastPriceWin, COLOR_PAIR(1) | A_BOLD);
+
+    if (!m_hasLastBar || m_currentSymbol.isEmpty())
+    {
+        mvwprintw(m_lastPriceWin, 2, 4, "Waiting for live data...");
+        wnoutrefresh(m_lastPriceWin);
+        return;
+    }
+
+    // Get bar data - cast to double to avoid float-to-double conversion warnings
+    double open = static_cast<double>(m_lastBar.getOpen());
+    double high = static_cast<double>(m_lastBar.getHigh());
+    double low = static_cast<double>(m_lastBar.getLow());
+    double close = static_cast<double>(m_lastBar.getClose());
+    quint64 volume = m_lastBar.getTotalVolume();
+    QDateTime timestamp = m_lastBar.getTimestamp();
+    Bar::BarStatus status = m_lastBar.getBarStatus();
+
+    // Calculate price change
+    double change = close - open;
+    double changePercent = (std::abs(open) > 1e-9) ? (change / open * 100.0) : 0.0;
+
+    // Display close price prominently
+    int colorPair = (change >= 0) ? 2 : 3; // Green for positive, red for negative
+    wattron(m_lastPriceWin, COLOR_PAIR(colorPair) | A_BOLD);
+    mvwprintw(m_lastPriceWin, 1, 4, "CLOSE: $%.2f  (%+.2f / %+.2f%%)", close, change, changePercent);
+    wattroff(m_lastPriceWin, COLOR_PAIR(colorPair) | A_BOLD);
+
+    // Display OHLV on second line
+    mvwprintw(m_lastPriceWin,
+              2,
+              4,
+              "O: $%.2f  H: $%.2f  L: $%.2f  Vol: %llu",
+              open,
+              high,
+              low,
+              static_cast<unsigned long long>(volume));
+
+    // Display timestamp and status on third line
+    QString statusStr;
+    switch (status)
+    {
+    case Bar::BarStatus::Open:
+        statusStr = "LIVE";
+        break;
+    case Bar::BarStatus::Closed:
+        statusStr = "CLOSED";
+        break;
+    default:
+        statusStr = "---";
+        break;
+    }
+
+    QString timeStr = timestamp.toString("hh:mm:ss");
+    mvwprintw(m_lastPriceWin,
+              3,
+              4,
+              "Time: %s  Status: %s",
+              timeStr.toStdString().c_str(),
+              statusStr.toStdString().c_str());
+
+    wnoutrefresh(m_lastPriceWin);
+}
+
 void TUIFrontend::displayStatusBar()
 {
     if (!m_statusWin)
@@ -466,9 +568,19 @@ void TUIFrontend::onBalanceUpdated(Balance balance)
 
 void TUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 {
-    Q_UNUSED(symbol);
-    Q_UNUSED(bar);
-    // Not applicable for minimal TUI
+    if (symbol != m_currentSymbol)
+    {
+        return; // Ignore bars for symbols we're not tracking
+    }
+
+    m_lastBar = bar;
+    m_hasLastBar = true;
+
+    if (m_initialized)
+    {
+        displayLastPrice();
+        doupdate();
+    }
 }
 
 void TUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol,
@@ -483,4 +595,109 @@ void TUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
     Q_UNUSED(bidDWP);
     Q_UNUSED(askDWP);
     // Not applicable for minimal TUI
+}
+
+void TUIFrontend::saveLastDisplayedStock(const QString& symbol)
+{
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("UI/LastDisplayedStock", symbol);
+    appStateSettings->sync();
+    qInfo() << "Saved last displayed stock:" << symbol;
+}
+
+void TUIFrontend::restoreLastDisplayedStock()
+{
+    Q_CHECK_PTR(appStateSettings);
+    QString lastSymbol = appStateSettings->value("UI/LastDisplayedStock").toString().toUpper();
+
+    if (lastSymbol.isEmpty())
+    {
+        qInfo() << "No previously displayed stock to restore";
+        return;
+    }
+
+    if (!isValidStockSymbol(lastSymbol))
+    {
+        qWarning() << "Previously saved stock symbol is invalid:" << lastSymbol;
+        return;
+    }
+
+    qInfo() << "Restoring last displayed stock:" << lastSymbol;
+
+    // Display the stock
+    displayStock(lastSymbol);
+}
+
+void TUIFrontend::displayStock(const QString& symbol)
+{
+    if (symbol == m_currentSymbol)
+    {
+        qWarning() << "Symbol" << symbol << "is already the currently displayed symbol";
+        return;
+    }
+
+    // Update our tracked symbol
+    m_currentSymbol = symbol;
+    m_hasLastBar = false;
+
+    // Save the symbol for restoration on next startup
+    saveLastDisplayedStock(symbol);
+
+    // Notify MainAlgo to start streaming bars for this symbol
+    QMetaObject::invokeMethod(mainAlgo, "onSelectDisplayedStock", Qt::QueuedConnection, Q_ARG(QString, symbol));
+
+    // Update the display
+    if (m_initialized)
+    {
+        displayLastPrice();
+        doupdate();
+    }
+}
+
+bool TUIFrontend::isValidStockSymbol(const QString& symbol) const
+{
+    // Check that symbol is not empty
+    if (symbol.isEmpty())
+    {
+        return false;
+    }
+
+    // Check for leading or trailing whitespace
+    if (symbol != symbol.trimmed())
+    {
+        return false;
+    }
+
+    // Check length (1-10 characters)
+    if (symbol.length() < 1 || symbol.length() > 10)
+    {
+        return false;
+    }
+
+    // Check for valid characters (letters, numbers, dots, hyphens, slashes)
+    for (const QChar& c: symbol)
+    {
+        if (!c.isLetterOrNumber() && c != '.' && c != '-' && c != '/')
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void TUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, const QString& reason)
+{
+    Q_UNUSED(reason);
+
+    if (isAuthenticated)
+    {
+        // Restore the last displayed stock now that we're authenticated
+        // Only do this once on the first successful authentication
+        if (!m_hasRestoredLastStock)
+        {
+            m_hasRestoredLastStock = true;
+            restoreLastDisplayedStock();
+        }
+    }
 }

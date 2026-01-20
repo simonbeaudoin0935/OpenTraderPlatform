@@ -1,9 +1,14 @@
 #pragma once
 
 #include "FrontEnd.h"
+#include "Bar.h"
 #include <QMap>
 #include <QSocketNotifier>
 #include <ncurses.h>
+
+// ncurses defines a 'timeout' macro that conflicts with Qt's QTimer::timeout
+// Undefine it here to prevent conflicts
+#undef timeout
 
 // Forward declaration
 class MainAlgo;
@@ -39,12 +44,14 @@ class TUIFrontend : public FrontEnd
 
   private slots:
     void handleInput();
+    void onTradeStationAuthStateChanged(bool isAuthenticated, const QString& reason);
 
   private:
     void setupWindows();
     void refreshDisplay();
     void displayOrders();
     void displayPositions();
+    void displayLastPrice();
     void displayStatusBar();
     void displayHelp();
     void cleanup();
@@ -53,17 +60,29 @@ class TUIFrontend : public FrontEnd
     void handleQuitShortcut();
     void handleRefreshShortcut();
 
+    // Stock selection management
+    void saveLastDisplayedStock(const QString& symbol);
+    void restoreLastDisplayedStock();
+    void displayStock(const QString& symbol);
+    [[nodiscard]] bool isValidStockSymbol(const QString& symbol) const;
+
     MainAlgo* mainAlgo;
 
     // ncurses windows
     WINDOW* m_orderWin = nullptr;
     WINDOW* m_positionWin = nullptr;
+    WINDOW* m_lastPriceWin = nullptr;
     WINDOW* m_statusWin = nullptr;
     WINDOW* m_helpWin = nullptr;
 
     // Data storage
     QHash<QString, Order> m_orders; // QHash used because Order lacks default constructor
     QHash<QString, Position> m_positions;
+
+    // Current displayed stock info
+    QString m_currentSymbol;
+    Bar m_lastBar;
+    bool m_hasLastBar = false;
 
     // Status info
     qsizetype m_dataUsage = 0;
@@ -73,4 +92,5 @@ class TUIFrontend : public FrontEnd
     // Input handling
     QSocketNotifier* m_inputNotifier = nullptr;
     bool m_initialized = false;
+    bool m_hasRestoredLastStock = false;
 };
