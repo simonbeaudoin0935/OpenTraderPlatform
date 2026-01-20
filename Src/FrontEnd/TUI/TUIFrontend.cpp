@@ -733,7 +733,14 @@ void TUIFrontend::requestMissingBarsForDay(const Bar& firstBar)
     {
         // The barCache had the bars ready immediately
         m_fetchedDayBars = std::get<std::shared_ptr<QVector<Bar>>>(result);
-        qInfo() << "TUI received" << m_fetchedDayBars->size() << "historical bars immediately";
+        if (m_fetchedDayBars)
+        {
+            qInfo() << "TUI received" << m_fetchedDayBars->size() << "historical bars immediately";
+        }
+        else
+        {
+            qWarning() << "TUI received null bar data immediately";
+        }
     }
     else
     {
@@ -744,7 +751,14 @@ void TUIFrontend::requestMissingBarsForDay(const Bar& firstBar)
                         if (bars.has_value())
                         {
                             m_fetchedDayBars = bars.value();
-                            qInfo() << "TUI received" << m_fetchedDayBars->size() << "historical bars asynchronously";
+                            if (m_fetchedDayBars)
+                            {
+                                qInfo() << "TUI received" << m_fetchedDayBars->size() << "historical bars asynchronously";
+                            }
+                            else
+                            {
+                                qWarning() << "TUI received null bar data asynchronously";
+                            }
                         }
                         else
                         {
