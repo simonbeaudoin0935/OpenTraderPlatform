@@ -3,6 +3,7 @@
 #include "RecorderUtils.h"
 #include "Settings.h"
 #include "TSClient.h"
+#include "Assume.h"
 
 #include <QHeaderView>
 #include <QMessageBox>
@@ -170,19 +171,23 @@ void RecorderTab::setupUI()
 
     isConnectionUnique =
         connect(m_startButton, &QPushButton::clicked, this, &RecorderTab::onStartRecording, Qt::UniqueConnection);
-    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "Start button connection should be unique");
+    // Start button connection should be unique
+    OBJ_ASSUME_TRUE(isConnectionUnique);
 
     isConnectionUnique =
         connect(m_stopButton, &QPushButton::clicked, this, &RecorderTab::onStopRecording, Qt::UniqueConnection);
-    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "Stop button connection should be unique");
+    // Stop button connection should be unique
+    OBJ_ASSUME_TRUE(isConnectionUnique);
 
     isConnectionUnique =
         connect(m_refreshButton, &QPushButton::clicked, this, &RecorderTab::refreshRecorderStats, Qt::UniqueConnection);
-    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "Refresh button connection should be unique");
+    // Refresh button connection should be unique
+    OBJ_ASSUME_TRUE(isConnectionUnique);
 
     isConnectionUnique =
         connect(m_browseButton, &QPushButton::clicked, this, &RecorderTab::onBrowseButtonClicked, Qt::UniqueConnection);
-    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "Browse button connection should be unique");
+    // Browse button connection should be unique
+    OBJ_ASSUME_TRUE(isConnectionUnique);
 
     // Connect CSV file input text changes to update internal path
     isConnectionUnique = connect(m_stockCsvFileInput,
@@ -190,7 +195,8 @@ void RecorderTab::setupUI()
                                  this,
                                  &RecorderTab::onCsvFilePathChanged,
                                  Qt::UniqueConnection);
-    Q_ASSERT_X(isConnectionUnique, "RecorderTab::setupUI", "CSV file input connection should be unique");
+    // CSV file input connection should be unique
+    OBJ_ASSUME_TRUE(isConnectionUnique);
 }
 
 void RecorderTab::onBrowseButtonClicked()

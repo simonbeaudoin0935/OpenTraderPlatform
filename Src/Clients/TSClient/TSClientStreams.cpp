@@ -1,11 +1,13 @@
 #include "TSClient.h"
 #include "Logging.h"
+#include "Assume.h"
 
 #define LOGGING_CATEGORY TSClientLog
 
 QPointer<StreamPositions> TSClient::openStreamPositions(const QString& accountID, bool changes)
 {
-    Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
+    // normal account numbers have 8 digits, sim have additional letters
+    OBJ_ASSUME_GTE(accountID.length(), 8);
 
     DEBUG << "Opening StreamPositions for account " << accountID << " with changes=" << changes;
 
@@ -27,7 +29,7 @@ QPointer<StreamPositions> TSClient::openStreamPositions(const QString& accountID
             Q_CHECK_PTR(stream);
 
             auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
-            Q_ASSERT(c);
+            OBJ_ASSUME_TRUE(c);
 
             // Emit signal that stream count has changed
             emit openStreamCountChanged(Stream::getNumberOpenStream());
@@ -40,7 +42,8 @@ QPointer<StreamPositions> TSClient::openStreamPositions(const QString& accountID
 
 QPointer<StreamOrders> TSClient::openStreamOrders(const QString& accountID)
 {
-    Q_ASSERT(accountID.length() >= 8); // normal account numbers have 8 digits, sim have additional letters
+    // normal account numbers have 8 digits, sim have additional letters
+    OBJ_ASSUME_GTE(accountID.length(), 8);
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamOrders for account " << accountID;
 
@@ -61,7 +64,7 @@ QPointer<StreamOrders> TSClient::openStreamOrders(const QString& accountID)
             Q_CHECK_PTR(stream);
 
             auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
-            Q_ASSERT(c);
+            OBJ_ASSUME_TRUE(c);
 
             // Emit signal that stream count has changed
             emit openStreamCountChanged(Stream::getNumberOpenStream());
@@ -82,13 +85,13 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString& symbol,
     // Interval that each bar will consist of - for minute bars, the number of minutes aggregated in a single bar. For bar units other than minute, value must be 1.
     if (unit == Bar::BarUnit::Minute)
     {
-        Q_ASSERT(interval >= 1);
+        OBJ_ASSUME_GTE(interval, 1u);
     }
     else
     {
-        Q_ASSERT(interval == 1);
+        OBJ_ASSUME_EQUAL(interval, 1u);
     }
-    Q_ASSERT(barsback <= 57600);
+    OBJ_ASSUME_LTE(barsback, 57600u);
 
     const QString endpoint = QString(ENDPOINT_STREAM_BARS).arg(symbol);
 
@@ -109,7 +112,7 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString& symbol,
             Q_CHECK_PTR(stream);
 
             auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
-            Q_ASSERT(c);
+            OBJ_ASSUME_TRUE(c);
 
             // Emit signal that stream count has changed
             emit openStreamCountChanged(Stream::getNumberOpenStream());
@@ -122,7 +125,8 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString& symbol,
 
 QPointer<StreamMarketDepthQuote> TSClient::openStreamMarketDepthQuote(const QString& symbol, unsigned int depth)
 {
-    Q_ASSERT(depth >= 1 && depth <= 20);
+    OBJ_ASSUME_GTE(depth, 1u);
+    OBJ_ASSUME_LTE(depth, 20u);
 
     QUrlQuery query;
     query.addQueryItem("maxlevels", QString::number(depth));
@@ -145,7 +149,7 @@ QPointer<StreamMarketDepthQuote> TSClient::openStreamMarketDepthQuote(const QStr
             Q_CHECK_PTR(stream);
 
             auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
-            Q_ASSERT(c);
+            OBJ_ASSUME_TRUE(c);
 
             // Emit signal that stream count has changed
             emit openStreamCountChanged(Stream::getNumberOpenStream());
@@ -158,7 +162,7 @@ QPointer<StreamMarketDepthQuote> TSClient::openStreamMarketDepthQuote(const QStr
 
 void TSClient::closeStream(Stream* const stream)
 {
-    Q_ASSERT(stream != nullptr);
+    OBJ_ASSUME_DIFF(stream, nullptr);
 
     QMetaObject::invokeMethod(
         this,

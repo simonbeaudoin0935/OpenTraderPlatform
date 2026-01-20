@@ -23,6 +23,7 @@
 #include "Balance.h"
 
 #include "Stream.h"
+#include "Assume.h"
 
 #ifdef GUI_ENABLED
 #include "GUIAuthHandler.h"

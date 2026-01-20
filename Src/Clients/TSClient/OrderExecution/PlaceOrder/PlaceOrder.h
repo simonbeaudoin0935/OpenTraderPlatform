@@ -7,6 +7,8 @@
 #include <QVector>
 #include <QMetaType>
 
+#include "Assume.h"
+
 // Enum for order types
 class OrderType
 {
@@ -145,7 +147,8 @@ class MarketActivationRule
   public:
     void setRuleType(const QString& value)
     {
-        Q_ASSERT_X(value == "Price", "MarketActivationRule", "Currently only Price is supported for RuleType");
+        // Currently only Price is supported for RuleType
+        ASSUME_EQUAL(value, QString("Price"));
         ruleType = value;
     }
     void setSymbol(const QString& value)

@@ -3,6 +3,7 @@
 #include "Logging.h"
 #include "Settings.h"
 #include "MainApp.h"
+#include "Assume.h"
 
 #include <QDir>
 #include <QTimer>
@@ -23,7 +24,8 @@ OrdersReceiver::OrdersReceiver(const QString& p_account, QObject* p_parent) : QO
     if (!m_database->isOpen())
     {
         CRITICAL << "Failed to open orders database";
-        Q_ASSERT_X(false, "OrdersReceiver::OrdersReceiver", "Failed to open orders database");
+        // Failed to open orders database
+        Q_UNREACHABLE();
     }
 
     // Load existing orders from database

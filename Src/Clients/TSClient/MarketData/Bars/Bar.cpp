@@ -3,6 +3,7 @@
 #include <QDebug>
 
 #include "Bar.h"
+#include "Assume.h"
 
 Bar::BarStatus Bar::barStatusFromString(const QString& barStatus)
 {
@@ -85,8 +86,8 @@ QUrlQuery Bar::buildUrlQuery(unsigned int interval,
 
     if (firstDate.has_value() && lastDate.has_value())
     {
-        Q_ASSERT(barsback == 0);
-        Q_ASSERT(firstDate->secsTo(*lastDate) >= 1);
+        ASSUME_EQUAL(barsback, 0u);
+        ASSUME_GTE(firstDate->secsTo(*lastDate), 1);
         query.addQueryItem("firstdate", firstDate->toString(Qt::ISODate));
         query.addQueryItem("lastdate", lastDate->toString(Qt::ISODate));
     }

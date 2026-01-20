@@ -6,6 +6,7 @@
 #include "SQL/LiveStreamDBQueries.h"
 #include "TSClient.h"
 #include "Logging.h"
+#include "Assume.h"
 
 #define LOGGING_CATEGORY LiveStreamDBLog
 Q_LOGGING_CATEGORY(LiveStreamDBLog, "LiveStreamDB");
@@ -72,7 +73,8 @@ bool LiveStreamDB::storeData(const QString& stock, qint64 timestamp, const QByte
         WARNING << "Failed to store" << dataType << "for" << stock << ":" << query.lastError().text();
 
         // Assert for now because storing should not fail, maybe handle more gracefully much later
-        Q_ASSERT_X(false, "LiveStreamDB::storeData", "Database insert failed");
+        // Database insert failed
+        Q_UNREACHABLE();
 
         return false;
     }
@@ -90,7 +92,7 @@ void LiveStreamDB::startRecording()
                                                                                   Bar::BarUnit::Minute,
                                                                                   0,
                                                                                   Bar::BarSessionTemplate::USEQ24Hour);
-            Q_ASSERT(stream != nullptr);
+            OBJ_ASSUME_TRUE(stream != nullptr);
 
             QObject::connect(stream,
                              &StreamBars::receivedNewRawData,
@@ -106,7 +108,7 @@ void LiveStreamDB::startRecording()
                                           CRITICAL << "StreamBars Receiver failed for" << symbol
                                                    << "- Exception:" << error.value();
 
-                                          Q_ASSERT(false);
+                                          Q_UNREACHABLE();
 
                                           // TODO attempt to restart the stream
 
@@ -119,7 +121,7 @@ void LiveStreamDB::startRecording()
                                           CRITICAL << "StreamBars Receiver future finished for " << symbol;
 
                                           //Should never happen
-                                          Q_ASSERT(false);
+                                          Q_UNREACHABLE();
                                       }
                                   });
 
@@ -130,7 +132,7 @@ void LiveStreamDB::startRecording()
             QPointer<StreamMarketDepthQuote> stream =
                 TSClient::getInstance()->openStreamMarketDepthQuote(symbol,
                                                                     10); // depth 10
-            Q_ASSERT(stream != nullptr);
+            OBJ_ASSUME_TRUE(stream != nullptr);
 
 
             QObject::connect(stream,
@@ -147,7 +149,7 @@ void LiveStreamDB::startRecording()
                                           CRITICAL << "StreamMarketDepthQuote Receiver failed for" << symbol
                                                    << "- Exception:" << error.value();
 
-                                          Q_ASSERT(false);
+                                          Q_UNREACHABLE();
 
                                           //TODO attempt to restart the stream
                                       }
@@ -157,7 +159,7 @@ void LiveStreamDB::startRecording()
                                           CRITICAL << "StreamMarketDepthQuote Receiver future finished for " << symbol;
 
                                           //Should never happen
-                                          Q_ASSERT(false);
+                                          Q_UNREACHABLE();
                                       }
                                   });
 
@@ -262,7 +264,7 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                                                                               Bar::BarUnit::Minute,
                                                                               0,
                                                                               Bar::BarSessionTemplate::USEQ24Hour);
-        Q_ASSERT(stream != nullptr);
+        OBJ_ASSUME_TRUE(stream != nullptr);
 
         QObject::connect(stream,
                          &StreamBars::receivedNewRawData,
@@ -278,7 +280,7 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                                       CRITICAL << "Bar Receiver Receiver failed for" << symbol
                                                << "- Exception:" << error.value();
 
-                                      Q_ASSERT(false);
+                                      Q_UNREACHABLE();
 
                                       //TODO attempt to restart the stream
                                   }
@@ -288,7 +290,7 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                                       CRITICAL << "Bar Receiver Receiver future finished for " << symbol;
 
                                       // should never happen
-                                      Q_ASSERT(false);
+                                      Q_UNREACHABLE();
                                   }
                               });
 
@@ -326,7 +328,7 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                                       CRITICAL << "Recorder Market Depth Quote receiver failed for" << symbol
                                                << "- Exception:" << error.value();
 
-                                      Q_ASSERT(false);
+                                      Q_UNREACHABLE();
 
                                       //TODO attempt to restart the stream
                                   }
@@ -334,7 +336,7 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                                   {
                                       CRITICAL << "Recorder Bar receiver bar future finished for " << symbol;
                                       // should never happen
-                                      Q_ASSERT(false);
+                                      Q_UNREACHABLE();
                                   }
                               });
 

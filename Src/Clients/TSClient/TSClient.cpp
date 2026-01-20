@@ -9,6 +9,7 @@
 
 #include "TSClient.h"
 #include "Logging.h"
+#include "Assume.h"
 
 #define LOGGING_CATEGORY TSClientLog
 
@@ -34,7 +35,8 @@ TSClient* TSClient::getInstance()
 
 TSClient::~TSClient()
 {
-    Q_ASSERT(false); // Destructor should never be called for singleton
+    // Destructor should never be called for singleton
+    Q_UNREACHABLE();
 }
 
 TSClient::TSClient()
@@ -94,14 +96,14 @@ TSClient::TSClient()
 
         // Logically if we got here, there HAS to be at least 5 seconds left.
         // Compare against 4 just in case we are at 5 seconds left
-        Q_ASSERT(secsUntilExpiration > 4);
+        ASSUME_GT(secsUntilExpiration, 4);
 
         INFO << "Auth token is valid and already not expired, still has " << secsUntilExpiration << "second left to it";
 
         int secondsToNextRefreshRequest = m_authToken.secondsToNextRefreshRequest();
 
         // Logically if we are here this HAS to be at least 1s
-        Q_ASSERT(secondsToNextRefreshRequest >= 1);
+        ASSUME_GTE(secondsToNextRefreshRequest, 1);
 
         DEBUG << "Initiating a refresh in " << secondsToNextRefreshRequest << "seconds";
 
@@ -119,10 +121,11 @@ TSClient::TSClient()
 
 QNetworkRequest TSClient::buildNetworkRequest(const QString& endpoint, const QUrlQuery& query) const
 {
-    Q_ASSERT(!m_baseUrl.isEmpty());
-    Q_ASSERT(!m_apiKey.isEmpty());
-    Q_ASSERT(!endpoint.isEmpty());
-    Q_ASSERT(!endpoint.contains(QRegularExpression("%\\d+"))); // Ensure no unformatted parameters remain
+    OBJ_ASSUME_FALSE(m_baseUrl.isEmpty());
+    OBJ_ASSUME_FALSE(m_apiKey.isEmpty());
+    OBJ_ASSUME_FALSE(endpoint.isEmpty());
+    // Ensure no unformatted parameters remain
+    OBJ_ASSUME_FALSE(endpoint.contains(QRegularExpression("%\\d+")));
 
     QUrl url(m_baseUrl);
 

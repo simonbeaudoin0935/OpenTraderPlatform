@@ -4,6 +4,7 @@
 #include <QJsonArray>
 
 #include "TSClient.h"
+#include "Assume.h"
 
 QString OrderType::toString(OrderType::Type type)
 {
@@ -18,7 +19,7 @@ QString OrderType::toString(OrderType::Type type)
     case Type::StopLimit:
         return "StopLimit";
     default:
-        Q_ASSERT(0);
+        Q_UNREACHABLE();
     }
 }
 
@@ -35,7 +36,7 @@ OrderType OrderType::fromString(const QString& str)
     else if (str == "StopLimit")
         orderType.type = Type::StopLimit;
     else
-        Q_ASSERT(0);
+        Q_UNREACHABLE();
 
     return orderType;
 }
@@ -177,7 +178,8 @@ void PlaceOrderRequest::setLimitPrice(const double& value)
 void PlaceOrderRequest::setOrderConfirmID(const QString& value)
 {
     // Check length is between 1 and 22 characters
-    Q_ASSERT(value.length() >= 1 && value.length() <= 22);
+    ASSUME_GTE(value.length(), 1);
+    ASSUME_LTE(value.length(), 22);
 
     // Check that all characters are digits
     bool allDigits = true;
@@ -189,7 +191,7 @@ void PlaceOrderRequest::setOrderConfirmID(const QString& value)
             break;
         }
     }
-    Q_ASSERT(allDigits);
+    ASSUME_TRUE(allDigits);
 
     orderConfirmID = value;
 }

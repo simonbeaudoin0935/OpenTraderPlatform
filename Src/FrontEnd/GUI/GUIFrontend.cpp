@@ -10,6 +10,7 @@
 #include <QTextCursor>
 #include <QScrollBar>
 #include <QRegularExpression>
+#include "Assume.h"
 
 #include "TSClient.h"
 #include "GUIFrontend.h"
@@ -21,6 +22,7 @@
 #include "Misc/Logging.h"
 #include "Misc/Settings.h"
 #include "Misc/ShortcutSettings.h"
+#include "Assume.h"
 
 #define LOGGING_CATEGORY GUIFrontendLog
 
@@ -46,7 +48,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_quitShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::QuitApplication), mainWindow);
     // Note: Qt::UniqueConnection may not work reliably with qApp global pointer
     auto quitConnection = connect(m_quitShortcut, &QShortcut::activated, qApp, &QApplication::quit);
-    Q_ASSERT(quitConnection);
+    OBJ_ASSUME_TRUE(quitConnection);
 
     // Add "i" shortcut to focus the stock symbol input box
     m_focusShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::FocusStockInput), mainWindow);
@@ -58,19 +60,19 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                        ui->stockSymbolInput->clear();
                                        ui->stockSymbolInput->setFocus();
                                    });
-    Q_ASSERT(focusConnection);
+    OBJ_ASSUME_TRUE(focusConnection);
 
     // Add Ctrl+B shortcut to execute buy order
     m_buyShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteBuyOrder), mainWindow);
     auto buyConnection =
         connect(m_buyShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeBuyOrder(); });
-    Q_ASSERT(buyConnection);
+    OBJ_ASSUME_TRUE(buyConnection);
 
     // Add Ctrl+S shortcut to execute sell order
     m_sellShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteSellOrder), mainWindow);
     auto sellConnection =
         connect(m_sellShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeSellOrder(); });
-    Q_ASSERT(sellConnection);
+    OBJ_ASSUME_TRUE(sellConnection);
 
     // Add Ctrl+Shift+B shortcut to execute buy to cover order
     m_buyToCoverShortcut =
@@ -78,7 +80,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     auto buyToCoverConnection = connect(m_buyToCoverShortcut,
                                         &QShortcut::activated,
                                         [this]() { ui->orderEntryWidget->executeBuyToCoverOrder(); });
-    Q_ASSERT(buyToCoverConnection);
+    OBJ_ASSUME_TRUE(buyToCoverConnection);
 
     // Add Ctrl+Shift+S shortcut to execute sell to cover order
     m_sellToCoverShortcut =
@@ -86,14 +88,14 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     auto sellToCoverConnection = connect(m_sellToCoverShortcut,
                                          &QShortcut::activated,
                                          [this]() { ui->orderEntryWidget->executeSellToCoverOrder(); });
-    Q_ASSERT(sellToCoverConnection);
+    OBJ_ASSUME_TRUE(sellToCoverConnection);
 
     // Add Ctrl+X shortcut to cancel all orders
     m_cancelAllOrdersShortcut =
         new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::CancelAllOrders), mainWindow);
     auto cancelAllConnection =
         connect(m_cancelAllOrdersShortcut, &QShortcut::activated, [this]() { onCancelAllOrders(); });
-    Q_ASSERT(cancelAllConnection);
+    OBJ_ASSUME_TRUE(cancelAllConnection);
 
     // Connect to shortcut changes to update active shortcuts
     auto shortcutChangeConnection = connect(&shortcutSettings,
@@ -101,7 +103,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                             this,
                                             &GUIFrontend::onShortcutChanged,
                                             Qt::UniqueConnection);
-    Q_ASSERT(shortcutChangeConnection);
+    OBJ_ASSUME_TRUE(shortcutChangeConnection);
 
 
     // Create and setup TradeStation login button
@@ -118,7 +120,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             []()
             {
                 // GUIAuthHandler is modal, so it's impossible to click the button while authentication is in progress
-                Q_ASSERT(TSClient::getInstance()->isAuthInProgress() == false);
+                ASSUME_FALSE(TSClient::getInstance()->isAuthInProgress());
                 TSClient::getInstance()->launchAuthProcess();
             });
 
@@ -170,7 +172,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             this,
             [this](QDateTime from, QDateTime to) mutable
             {
-                Q_ASSERT(from.date() == to.date()); // Currently only support same-day requests
+                OBJ_ASSUME_EQUAL(from.date(), to.date()); // Currently only support same-day requests
 
                 DEBUG << "Request missing barsfrom " << from << " to " << to;
 
@@ -200,7 +202,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                                     << static_cast<int>(bars.error());
 
                                         // TODO : retry logic?
-                                        Q_ASSERT(false);
+                                        Q_UNREACHABLE();
                                     }
                                 });
                 }
@@ -274,7 +276,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                               qCWarning(GUIFrontendLog) << "Failed to cancel order" << orderId << ":"
                                                                         << cancelResult.getMessage();
                                               // TODO: Show error message to user
-                                              Q_ASSERT(false);
+                                              Q_UNREACHABLE();
                                           }
                                           else
                                           {
@@ -288,7 +290,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                           qCWarning(GUIFrontendLog)
                                               << "Failed to cancel order" << orderId
                                               << "- Error code:" << static_cast<int>(result.error());
-                                          Q_ASSERT(false);
+                                          Q_UNREACHABLE();
                                       }
                                   });
             });
@@ -300,7 +302,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                         this,
                                         &GUIFrontend::onOrderPlaced,
                                         Qt::UniqueConnection);
-    Q_ASSERT(orderEntryConnection);
+    OBJ_ASSUME_TRUE(orderEntryConnection);
 
     // Set up the logging tab
     LoggingTab* loggingTab = new LoggingTab();

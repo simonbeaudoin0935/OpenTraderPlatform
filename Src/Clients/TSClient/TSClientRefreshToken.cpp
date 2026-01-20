@@ -6,7 +6,7 @@
 void TSClient::launchAuthProcess()
 {
 
-    Q_ASSERT(m_authInProgress == false);
+    OBJ_ASSUME_FALSE(m_authInProgress);
 
     m_authInProgress = true;
 
@@ -36,7 +36,7 @@ void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
     if (success)
     {
         bool stored = AuthToken::storeToSettings(token);
-        Q_ASSERT(stored);
+        OBJ_ASSUME_TRUE(stored);
 
         // Update the TSClient's auth token and API key
         m_authToken = token;
@@ -44,7 +44,8 @@ void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
 
         // Schedule the next token refresh (20 minutes - 5 seconds)
         int secondsToNextRefreshRequest = m_authToken.secondsToNextRefreshRequest();
-        Q_ASSERT(secondsToNextRefreshRequest > 1 && secondsToNextRefreshRequest <= 1195);
+        OBJ_ASSUME_GT(secondsToNextRefreshRequest, 1);
+        OBJ_ASSUME_LTE(secondsToNextRefreshRequest, 1195);
 
         qCDebug(TSClientLog) << "Programming the next refresh in " << secondsToNextRefreshRequest << " seconds";
 
@@ -92,13 +93,14 @@ TSClient::buildRefreshTokenQuery(const QString& clientId, const QString& clientS
 
 void TSClient::refreshAccessToken()
 {
-    Q_ASSERT_X(QThread::currentThread() == m_thread,
-               qPrintable(QThread::currentThread()->objectName()),
-               "Only TSClient thread can call this function");
-    Q_ASSERT_X(m_authInProgress == false, Q_FUNC_INFO, "Auth process is ongoing, cannot refresh token");
-    Q_ASSERT_X(m_refreshInProgress == false, Q_FUNC_INFO, "A refresh token is already in progress");
-    Q_ASSERT(m_authToken.isValid());
-    Q_ASSERT(m_clientToken.isValid());
+    // Only TSClient thread can call this function
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), m_thread);
+    // Auth process is ongoing, cannot refresh token
+    OBJ_ASSUME_FALSE(m_authInProgress);
+    // A refresh token is already in progress
+    OBJ_ASSUME_FALSE(m_refreshInProgress);
+    OBJ_ASSUME_TRUE(m_authToken.isValid());
+    OBJ_ASSUME_TRUE(m_clientToken.isValid());
     // Note we don't check if authToken is expired, as it can be logically both
 
     m_refreshInProgress = true;
@@ -183,7 +185,8 @@ void TSClient::refreshAccessToken()
                 {
                     int secondsToNextRefreshRequest = m_authToken.secondsToNextRefreshRequest();
                     // Logically if we are here this HAS to be t least 1s
-                    Q_ASSERT(secondsToNextRefreshRequest > 1 && secondsToNextRefreshRequest <= 1195);
+                    OBJ_ASSUME_GT(secondsToNextRefreshRequest, 1);
+                    OBJ_ASSUME_LTE(secondsToNextRefreshRequest, 1195);
 
                     qCDebug(TSClientLog) << "Programming the next refresh in " << secondsToNextRefreshRequest
                                          << " seconds";
@@ -230,7 +233,7 @@ void TSClient::refreshAccessToken()
             m_refreshInProgress = false;
             reply->deleteLater();
         });
-    Q_ASSERT(b);
+    OBJ_ASSUME_TRUE(b);
 
     qCDebug(TSClientLog) << "Sent refreshAccessToken() to Network Manager";
 

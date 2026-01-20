@@ -1,6 +1,7 @@
 #include "MarketDepthQuoteReceiver.h"
 #include "TSClient.h"
 #include "Logging.h"
+#include "Assume.h"
 
 #define LOGGING_CATEGORY MarketDepthQuoteReceiverLog
 Q_LOGGING_CATEGORY(LOGGING_CATEGORY, "MarketDepthQuoteReceiver")
@@ -17,7 +18,7 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
 {
     DEBUG << "Starting Market Depth Quote stream for " << m_symbol;
 
-    Q_ASSERT(m_stream == nullptr);
+    OBJ_ASSUME_EQUAL(m_stream, nullptr);
     m_stream = TSClient::getInstance()->openStreamMarketDepthQuote(m_symbol, 10);
 
     Q_CHECK_PTR(m_stream);
@@ -48,7 +49,7 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
 
 MarketDepthQuoteReceiver::~MarketDepthQuoteReceiver()
 {
-    Q_ASSERT(m_stream != nullptr);
+    OBJ_ASSUME_TRUE(m_stream != nullptr);
 
     TSClient::getInstance()->closeStream(m_stream);
 }

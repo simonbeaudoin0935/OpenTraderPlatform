@@ -3,6 +3,7 @@
 #include <QHBoxLayout>
 #include <QMessageBox>
 #include <QTimer>
+#include "Assume.h"
 
 ShortcutsTab::ShortcutsTab(QWidget* parent) : QWidget(parent), m_shortcutsFormLayout(nullptr)
 {
@@ -77,11 +78,11 @@ void ShortcutsTab::populateShortcuts()
         // Note: Qt::UniqueConnection cannot be used with lambda functions
         auto keySequenceConnection =
             connect(keySequenceEdit, &QKeySequenceEdit::editingFinished, this, [this, id]() { onShortcutChanged(id); });
-        Q_ASSERT(keySequenceConnection);
+        OBJ_ASSUME_TRUE(keySequenceConnection);
 
         auto resetButtonConnection =
             connect(resetButton, &QPushButton::clicked, this, [this, id]() { onResetButtonClicked(id); });
-        Q_ASSERT(resetButtonConnection);
+        OBJ_ASSUME_TRUE(resetButtonConnection);
     }
 }
 
@@ -89,7 +90,7 @@ void ShortcutsTab::onShortcutChanged(ShortcutSettings::ShortcutId p_id)
 {
     ShortcutSettings& settings = ShortcutSettings::getInstance();
 
-    Q_ASSERT(m_shortcutWidgets.contains(p_id));
+    OBJ_ASSUME_TRUE(m_shortcutWidgets.contains(p_id));
     ShortcutWidgets& widgets = m_shortcutWidgets[p_id];
 
     QKeySequence newSequence = widgets.keySequenceEdit->keySequence();
@@ -165,7 +166,7 @@ void ShortcutsTab::updateShortcutDisplay(ShortcutSettings::ShortcutId p_id)
 {
     ShortcutSettings& settings = ShortcutSettings::getInstance();
 
-    Q_ASSERT(m_shortcutWidgets.contains(p_id));
+    OBJ_ASSUME_TRUE(m_shortcutWidgets.contains(p_id));
     ShortcutWidgets& widgets = m_shortcutWidgets[p_id];
 
     widgets.keySequenceEdit->setKeySequence(settings.getShortcut(p_id));

@@ -1,6 +1,7 @@
 #include "StreamPositions.h"
 #include "TSClient.h"
 #include "Logging.h"
+#include "Assume.h"
 
 #define LOGGING_CATEGORY StreamLog
 
@@ -27,7 +28,8 @@ void StreamPositions::processJsonObject(const QJsonObject& jsonObj)
         else if (statusStr == "GoAway")
         {
             WARNING << "Received GoAway status for account" << m_accountID;
-            Q_ASSERT(false); // TODO handle this properly
+            // TODO handle this properly
+            Q_UNREACHABLE();
         }
         else
         {
