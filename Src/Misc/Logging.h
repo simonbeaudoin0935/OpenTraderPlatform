@@ -75,8 +75,8 @@ class LogBroadcaster : public QObject
   private:
     LogBroadcaster() : QObject(nullptr) {}
     ~LogBroadcaster() = default;
-    LogBroadcaster(const LogBroadcaster&) = delete;
-    LogBroadcaster& operator=(const LogBroadcaster&) = delete;
+
+    Q_DISABLE_COPY(LogBroadcaster) // Delete copy constructor and assignment operator
 };
 
 class LoggingConfig
@@ -97,8 +97,8 @@ class LoggingConfig
   private:
     LoggingConfig();
     ~LoggingConfig() = default;
-    LoggingConfig(const LoggingConfig&) = delete;
-    LoggingConfig& operator=(const LoggingConfig&) = delete;
+
+    Q_DISABLE_COPY(LoggingConfig) // Delete copy constructor and assignment operator
 
     QMap<QString, bool> m_categoryEnabled;
     QStringList m_categories;
