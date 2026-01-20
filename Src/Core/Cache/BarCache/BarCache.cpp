@@ -397,14 +397,13 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                     // Store the complete day in memory cache
                                     storeBarsInCache(date, barsFromApiHolesFilled);
 
-                                    // Store in database via DatabaseThread (async, fire-and-forget for now)
-                                    DatabaseThread::getInstance()
-                                        ->storeBarsInDatabase(m_symbol, date, barsFromApiHolesFilled)
-                                        .then(this,
-                                              [this](int storedCount) {
-                                                  DEBUG << "Stored" << storedCount << "bars in database for"
-                                                        << m_symbol;
-                                              });
+                                    // Store in database via DatabaseThread (async, fire-and-forget)
+                                    // Note: We intentionally don't wait for the result or attach continuations
+                                    // to avoid lifetime/threading issues
+                                    [[maybe_unused]] auto dbFuture =
+                                        DatabaseThread::getInstance()->storeBarsInDatabase(m_symbol,
+                                                                                           date,
+                                                                                           barsFromApiHolesFilled);
 
                                     promise.addResult(barsFromApiHolesFilled);
                                 }
