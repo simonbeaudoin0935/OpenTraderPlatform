@@ -18,7 +18,7 @@ see the action .github/actions/clang-format/action.yml to understand how to call
 - Use a early exit style of coding. Handle error/non-happy cases first with return, continue, break, or throw. Then write the main ("happy") logic with minimal indentation
 - Any .md file you create, place them in the Doc folder.
 - When you do structural changes, think about keeping the doc in Doc/ up to date.
-  
+
 - Everything time related must be in QDateTime/QTime/QDate with proper QTimeZone usage. Never use std::chrono or raw time_t/struct tm etc. The timezone is always NewYork since it is stock market related.
 
 ## Composition Over Pointers
@@ -123,7 +123,7 @@ The building in the github workflow uses 'ccache' to speed up the building proce
 Always run commands in the repository root directory.
 
 #### Github Premium Requests
-When executing a Premium Request after being assigned an issue on GitHub and you want to build, use these commands : 
+When executing a Premium Request after being assigned an issue on GitHub and you want to build, use these commands :
 1. **Clean build directory** (recommended for clean builds):
    ```bash
    rm -rf build/
@@ -192,7 +192,7 @@ The project is architectured in a MVC pattern (Model View Controller)
   - **Core/**: Main application logic
   - **FrontEnd/**: The app frontend logic (GUI/ : Qt widgets and UI components, vs TUI/ : futur ncurses terminal frontend)
   - **Misc/**: Utilities, logging, settings
-  - **Recorder/**: Where the sources for the companion Recorder executable. 
+  - **Recorder/**: Where the sources for the companion Recorder executable.
 - **Tests/**: Unit test source files
 - **Resources/**: Icons and Qt resources
 - **Example_Config/**: Sample configuration files
@@ -240,6 +240,6 @@ The project is architectured in a MVC pattern (Model View Controller)
 
 ## Agent Instructions
 
-Trust these instructions as the authoritative source for building, testing, and validating changes in this repository. Only perform additional searches if the information here is incomplete or found to be incorrect. Always follow the documented command sequences and validation steps to minimize build failures and ensure changes integrate properly with the existing codebase and CI/CD pipeline. 
+Trust these instructions as the authoritative source for building, testing, and validating changes in this repository. Only perform additional searches if the information here is incomplete or found to be incorrect. Always follow the documented command sequences and validation steps to minimize build failures and ensure changes integrate properly with the existing codebase and CI/CD pipeline.
 
 For any code changes, ensure compatibility with Qt 6.4.2+ and validate builds on both X86_64 and ARM64 architectures when possible.

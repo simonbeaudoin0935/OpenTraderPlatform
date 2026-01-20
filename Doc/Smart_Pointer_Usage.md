@@ -135,7 +135,7 @@ m_liveBarsDB.reset();
 
 **Passing to Qt connections**:
 ```cpp
-connect(m_positionReceiver.get(), &PositionsReceiver::signal, 
+connect(m_positionReceiver.get(), &PositionsReceiver::signal,
         this, &MainAlgo::slot, Qt::UniqueConnection);
 ```
 
