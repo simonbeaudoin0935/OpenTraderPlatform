@@ -28,7 +28,7 @@ Q_LOGGING_CATEGORY(GUIFrontendLog, "GUIFrontend")
 
 GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(parent), mainAlgo(p_mainAlgo)
 {
-    ui = new Ui::GUIFrontend();
+    ui = std::make_unique<Ui::GUIFrontend>();
     ui->setupUi(new QMainWindow());
 
     this->setObjectName("GUIFrontend");
@@ -350,7 +350,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
 
 GUIFrontend::~GUIFrontend()
 {
-    delete ui;
+    // ui is automatically deleted by std::unique_ptr
 }
 
 void GUIFrontend::setupDarkTheme(QMainWindow* mainWindow)

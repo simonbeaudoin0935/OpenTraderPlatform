@@ -67,8 +67,14 @@ if(ENABLE_ASAN)
     add_link_options(-fsanitize=address)
 endif()
 
-# Disable exceptions - must define QT_NO_EXCEPTIONS for Qt headers to match
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
+# Disable exceptions for this project. Now, this is separate from
+# the Qt library itself being built with exceptions disabled.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
+
+# Here, we do not define QT_NO_EXCEPTIONS, because we do not know
+# if the Qt library was built with exceptions disabled or not.
+# We can have the project built with exceptions disabled,
+# while still using a Qt library built with exceptions enabled.
 #add_compile_definitions(QT_NO_EXCEPTIONS)
 
 # Enable export of compile commands for IDE support
@@ -82,7 +88,7 @@ if(ENABLE_GUI)
     add_compile_definitions(GUI_ENABLED)
 else()
     # When building for TUI, we depend on ncurses
-    find_packages(Curses REQUIRED)
+    find_package(Curses REQUIRED)
 endif()
 
 # Find Qt6 core packages

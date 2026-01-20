@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <unistd.h>
+#include <memory>
 
 #include "ArgumentParser.h"
 #include "Logging.h"
@@ -20,7 +21,7 @@
 
 #include <QtGlobal>
 
-// Global pointers for signal handler
+// Global pointers for signal handler (raw pointers needed for signal handler access)
 LiveStreamDB* g_liveBarsDB = nullptr;
 LiveStreamDB* g_liveMarketDepthQuoteDB = nullptr;
 
@@ -195,7 +196,7 @@ int main(int argc, char* argv[])
 
     QString dateStr = QDate::currentDate().toString("yyyy-MM-dd");
     QString barsDbPath = recordedDataPath + "/Bars/RecordedLiveBars_" + dateStr + ".db";
-    LiveStreamDB* liveBarsDB = new LiveStreamDB(LiveStreamDB::StreamType::Bars, barsDbPath, stockTickers);
+    auto liveBarsDB = std::make_unique<LiveStreamDB>(LiveStreamDB::StreamType::Bars, barsDbPath, stockTickers);
 
     liveBarsDB->startRecording();
 
@@ -203,19 +204,19 @@ int main(int argc, char* argv[])
 
     QString marketDepthDbPath =
         recordedDataPath + "/MarketDepthQuotes/RecordedLiveMarketDepthQuotes_" + dateStr + ".db";
-    LiveStreamDB* liveMarketDepthQuoteDB =
-        new LiveStreamDB(LiveStreamDB::StreamType::MarketDepthQuotes, marketDepthDbPath, stockTickers);
+    auto liveMarketDepthQuoteDB =
+        std::make_unique<LiveStreamDB>(LiveStreamDB::StreamType::MarketDepthQuotes, marketDepthDbPath, stockTickers);
 
     liveMarketDepthQuoteDB->startRecording();
 
     qInfo() << "------ Recorder for Market Depth Quotes started - recording market data...";
 
-    // Set global pointers for signal handler
-    g_liveBarsDB = liveBarsDB;
-    g_liveMarketDepthQuoteDB = liveMarketDepthQuoteDB;
+    // Set global raw pointers for signal handler (signal handlers can't use smart pointers)
+    g_liveBarsDB = liveBarsDB.get();
+    g_liveMarketDepthQuoteDB = liveMarketDepthQuoteDB.get();
 
     // Create status reporter
-    StatusReporter statusReporter(liveBarsDB, liveMarketDepthQuoteDB);
+    StatusReporter statusReporter(liveBarsDB.get(), liveMarketDepthQuoteDB.get());
 
     // Set up status timer (every 10 seconds)
     QTimer* statusTimer = new QTimer(&app);

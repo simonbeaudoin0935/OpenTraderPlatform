@@ -190,6 +190,64 @@
             "dependsOn": ["configure-asan"]
         },
         {
+            "label": "configure-tui",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build/TUI",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DENABLE_GUI=OFF",
+                "-DBUILD_TESTS=OFF"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "build-tui",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/TUI",
+                "--parallel",
+                "3"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": ["configure-tui"]
+        },
+        {
+            "label": "run-tui",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/TUI/Src/L2Trader",
+            "args": [
+                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build-tui"]
+        },
+        {
             "label": "run",
             "type": "shell",
             "command": "${workspaceFolder}/build/Src/L2Trader",

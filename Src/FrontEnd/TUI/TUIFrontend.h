@@ -1,6 +1,9 @@
 #pragma once
 
 #include "FrontEnd.h"
+#include <QMap>
+#include <QSocketNotifier>
+#include <ncurses.h>
 
 // Forward declaration
 class MainAlgo;
@@ -9,7 +12,11 @@ class TUIFrontend : public FrontEnd
 {
     Q_OBJECT
   public:
-    explicit TUIFrontend(MainAlgo* mainAlgo, QObject* parent = nullptr);
+    explicit TUIFrontend(MainAlgo* p_mainAlgo, QObject* parent = nullptr);
+    ~TUIFrontend() override;
+
+    // Initialize ncurses and display
+    void initialize();
 
   public slots:
 
@@ -29,8 +36,41 @@ class TUIFrontend : public FrontEnd
                                                          double bidAskImbalance,
                                                          double bidDWP,
                                                          double askDWP) override;
-    void onRequestedMissingBarsDisplayedStockReceived(QVector<Bar> bars) override;
+
+  private slots:
+    void handleInput();
 
   private:
+    void setupWindows();
+    void refreshDisplay();
+    void displayOrders();
+    void displayPositions();
+    void displayStatusBar();
+    void displayHelp();
+    void cleanup();
+
+    // Keyboard shortcut handlers
+    void handleQuitShortcut();
+    void handleRefreshShortcut();
+
     MainAlgo* mainAlgo;
+
+    // ncurses windows
+    WINDOW* m_orderWin = nullptr;
+    WINDOW* m_positionWin = nullptr;
+    WINDOW* m_statusWin = nullptr;
+    WINDOW* m_helpWin = nullptr;
+
+    // Data storage
+    QHash<QString, Order> m_orders; // QHash used because Order lacks default constructor
+    QHash<QString, Position> m_positions;
+
+    // Status info
+    qsizetype m_dataUsage = 0;
+    qsizetype m_memoryUsage = 0;
+    int m_streamCount = 0;
+
+    // Input handling
+    QSocketNotifier* m_inputNotifier = nullptr;
+    bool m_initialized = false;
 };

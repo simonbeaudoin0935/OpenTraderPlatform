@@ -18,6 +18,7 @@ L2Trader is a sophisticated trading platform that connects to the TradeStation A
 - **Pattern Recognition**: Run-up detection and algorithmic trading signals
 - **Memory-Efficient Caching**: Smart bar data caching with SQLite persistence
 - **Live Data Recording**: Recorder application for capturing market data to SQLite databases
+- **Dual Frontend Support**: Choose between full-featured GUI (Qt) or lightweight TUI (ncurses) for headless servers
 - **Logging & Diagnostics**: Comprehensive logging system with runtime category controls
 
 ## Architecture
@@ -26,7 +27,9 @@ L2Trader follows a modular Model-View-Controller architecture with Qt's signal/s
 
 - **API Client**: TradeStation REST client for external market data
 - **Algorithm Core**: MainAlgo coordinates stock screening and trading signals
-- **GUI Frontend**: Interactive charts using QCustomPlot, market depth tables, and configuration panels
+- **Frontend**: Dual frontend support
+  - **GUI**: Interactive charts using QCustomPlot, market depth tables, and configuration panels
+  - **TUI**: Lightweight ncurses-based terminal interface for headless monitoring
 - **Data Management**: Bar cache, position receiver, and market depth quote handler
 
 For detailed architecture diagrams, see:
@@ -119,9 +122,9 @@ cmake --build . --parallel
 
 See [Code Quality Tools documentation](Doc/Code_Quality_Tools.md) for more information on sanitizers and other code quality tools.
 
-### Building with GUI Disabled
+### Building with GUI Disabled (TUI Mode)
 
-For terminal-only mode without GUI dependencies:
+For terminal-only mode using ncurses without GUI dependencies:
 ```bash
 mkdir build
 cd build
@@ -129,7 +132,7 @@ cmake .. -DENABLE_GUI=OFF -DCMAKE_BUILD_TYPE=Release
 cmake --build . --parallel
 ```
 
-**Note**: The TUI (Terminal User Interface) frontend is currently a skeleton implementation and is not fully functional.
+The TUI (Terminal User Interface) provides a minimal ncurses-based interface for monitoring orders and positions. See [TUI Implementation documentation](Doc/TUI_Implementation.md) for details on features and keyboard shortcuts.
 
 ## Configuration
 

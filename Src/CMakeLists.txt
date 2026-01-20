@@ -15,10 +15,22 @@ file(GLOB_RECURSE MISC_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Misc/*.h"
 )
 
+# Remove GUI-specific shortcut settings from TUI builds
+if(NOT ENABLE_GUI)
+    list(FILTER MISC_SOURCES EXCLUDE REGEX "ShortcutSettings\\.(cpp|h)$")
+endif()
+
 file(GLOB_RECURSE CLIENTS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Clients/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Clients/*.h"
 )
+
+# Remove GUI-specific or TUI-specific auth handlers based on build mode
+if(ENABLE_GUI)
+    list(FILTER CLIENTS_SOURCES EXCLUDE REGEX "TUIAuthHandler\\.(cpp|h)$")
+else()
+    list(FILTER CLIENTS_SOURCES EXCLUDE REGEX "GUIAuthHandler\\.(cpp|h)$")
+endif()
 
 file(GLOB_RECURSE ALGO_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Algo/*.cpp"
@@ -148,6 +160,13 @@ if(ENABLE_GUI)
         Qt6::Gui
         Qt6::Widgets
         Qt6::PrintSupport
+    )
+else()
+    target_link_libraries(L2TraderCommon PUBLIC
+        ${CURSES_LIBRARIES}
+    )
+    target_include_directories(L2TraderCommon PUBLIC
+        ${CURSES_INCLUDE_DIRS}
     )
 endif()
 

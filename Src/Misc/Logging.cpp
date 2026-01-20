@@ -302,8 +302,15 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext& context, con
         return;
     }
 
+#ifdef GUI_ENABLED
+    // GUI mode: write to stdout as normal
     std::cout << formattedMsg.toStdString() << std::endl;
     std::cout.flush();
+#else
+    // TUI mode: write to stderr to avoid interfering with ncurses on stdout
+    std::cerr << formattedMsg.toStdString() << std::endl;
+    std::cerr.flush();
+#endif
 
     LogBroadcaster::instance().broadcastLogMessage(htmlMsg);
 }
