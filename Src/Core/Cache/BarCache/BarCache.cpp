@@ -375,8 +375,18 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                 endDayTime)
                       .then(this,
                             [this, date, startDateTime, endDayTime, promise = std::move(promise)](
-                                std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars) mutable
+                                std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars
+                                [[maybe_unused]]) mutable
                             {
+                                // TEST 1: Just call promise.finish() to see if that causes the crash
+                                promise.finish();
+
+                                // Suppress unused variable warnings
+                                (void)date;
+                                (void)startDateTime;
+                                (void)endDayTime;
+
+                                /* COMMENTED OUT FOR DEBUGGING - Testing if segfault happens regardless of continuation content
                                 if (!bars.has_value())
                                 {
                                     CRITICAL << "getBars() from API returned error for" << m_symbol
@@ -410,6 +420,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                 promise.finish();
 
                                 INFO << "Completed fetching bars from API for day" << date;
+                                */
                             });
               });
 
