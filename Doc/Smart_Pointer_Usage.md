@@ -4,6 +4,60 @@
 
 This document describes the smart pointer usage patterns adopted throughout the L2Trader codebase to ensure proper memory management and prevent memory leaks.
 
+## Composition Over Pointers
+
+**PREFER composition (direct member objects) over pointers** when designing classes. This is a fundamental design principle in the L2Trader codebase.
+
+### When to Use Composition
+
+Use direct member objects instead of pointers when:
+- The object has a clear owner (the containing class)
+- Polymorphism is not needed
+- The object's lifetime matches the containing class
+- The object is not optional
+
+**Good example**:
+```cpp
+class StockInstruments : public QObject
+{
+    QString symbol;
+    BarCache barCache;                      // Composition - direct member
+    RunUpDetector runUpDetector;            // Composition - direct member
+    MarketDepthQuoteReceiver marketDepthQuoteReceiver; // Composition - direct member
+};
+```
+
+**Avoid**:
+```cpp
+class StockInstruments : public QObject
+{
+    QString symbol;
+    BarCache* barCache;                     // Pointer - unnecessary indirection
+    RunUpDetector* runUpDetector;           // Pointer - unnecessary indirection
+    MarketDepthQuoteReceiver* marketDepthQuoteReceiver; // Pointer - unnecessary indirection
+};
+```
+
+### Benefits of Composition
+
+1. **No null checks needed** - The object always exists
+2. **Automatic lifetime management** - No manual cleanup required
+3. **Clear ownership** - Compiler enforces ownership at compile-time
+4. **Better encapsulation** - Members are initialized in constructor initializer list
+5. **More efficient** - No heap allocation overhead
+6. **Simpler code** - No pointer dereferences needed
+
+### When Pointers Are Necessary
+
+Use pointers (raw or smart) only when:
+- **Polymorphism is required** - Base class pointers to derived objects
+- **Object lifetime extends beyond container** - Object needs to outlive the containing class
+- **Object is optional** - May or may not exist (use `std::optional` as alternative)
+- **Object is very large** - Copying would be expensive
+- **Forward declaration needed** - To break circular dependencies
+- **Qt parent-child ownership** - Following Qt's memory management model
+- **Dynamic collections** - Objects managed in containers like maps
+
 ## Smart Pointer Types and Usage
 
 ### Qt Parent-Child Ownership (No Smart Pointers Needed)

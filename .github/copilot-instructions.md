@@ -21,6 +21,19 @@ see the action .github/actions/clang-format/action.yml to understand how to call
   
 - Everything time related must be in QDateTime/QTime/QDate with proper QTimeZone usage. Never use std::chrono or raw time_t/struct tm etc. The timezone is always NewYork since it is stock market related.
 
+## Composition Over Pointers
+- **PREFER** composition (direct member objects) over pointers when designing classes.
+- If an object can be owned directly by a class and doesn't need polymorphism or optional lifetime, make it a direct member rather than a pointer.
+- Example of good composition: `class MyClass { BarCache m_cache; RunUpDetector m_detector; };` instead of `class MyClass { BarCache* m_cache; RunUpDetector* m_detector; };`
+- Use pointers (raw or smart) only when necessary:
+  - Polymorphism is required (base class pointers to derived objects)
+  - Object lifetime needs to extend beyond the containing class
+  - Object is optional (may or may not exist)
+  - Object is very large and copying would be expensive
+  - Forward declaration is needed to break circular dependencies
+  - Qt parent-child ownership is being used
+- Composition provides better encapsulation, eliminates null checks, and makes ownership clear at compile-time.
+
 ## Smart Pointer Usage
 This project uses smart pointers throughout to ensure proper memory management and prevent memory leaks. Follow these guidelines:
 
