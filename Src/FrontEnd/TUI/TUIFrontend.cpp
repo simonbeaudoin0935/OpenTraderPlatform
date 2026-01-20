@@ -26,9 +26,14 @@ void TUIFrontend::initialize()
     initscr();             // Initialize the screen
     cbreak();              // Disable line buffering
     noecho();              // Don't echo input characters
+    nonl();                // Disable newline translation to prevent scrolling issues
     keypad(stdscr, TRUE);  // Enable special keys
     nodelay(stdscr, TRUE); // Non-blocking input
     curs_set(0);           // Hide cursor
+    
+    // Prevent terminal scrolling
+    scrollok(stdscr, FALSE);  // Disable scrolling on stdscr
+    idlok(stdscr, FALSE);     // Disable hardware scrolling
 
     // Enable colors if supported
     if (has_colors())
@@ -71,9 +76,11 @@ void TUIFrontend::setupWindows()
     m_statusWin = newwin(statusHeight, maxX, orderHeight + positionHeight, 0);
     m_helpWin = newwin(helpHeight, maxX, orderHeight + positionHeight + statusHeight, 0);
 
-    // Enable scrolling for order and position windows
-    scrollok(m_orderWin, TRUE);
-    scrollok(m_positionWin, TRUE);
+    // Disable scrolling for all windows to prevent terminal scroll issues
+    scrollok(m_orderWin, FALSE);
+    scrollok(m_positionWin, FALSE);
+    scrollok(m_statusWin, FALSE);
+    scrollok(m_helpWin, FALSE);
 }
 
 void TUIFrontend::cleanup()

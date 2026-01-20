@@ -149,6 +149,16 @@ The TUI uses Qt's event loop for input handling:
 
 This integration allows the TUI to work seamlessly with Qt's event loop and signals/slots.
 
+### Terminal Scrolling Prevention
+
+To prevent mouse wheel scrolling from interfering with the ncurses display:
+- `scrollok(stdscr, FALSE)` - Disables scrolling on the main screen
+- `idlok(stdscr, FALSE)` - Disables hardware scrolling
+- `nonl()` - Disables newline translation that can cause scrolling
+- Individual windows also have scrolling disabled with `scrollok(window, FALSE)`
+
+This ensures the display remains static and doesn't get misaligned when terminal scroll events occur.
+
 ### Color Scheme
 
 If terminal supports colors (checked via `has_colors()`):
@@ -265,6 +275,13 @@ Since the TUI requires a terminal and cannot easily be automated, testing should
 **Note**: Logs are written to stderr in TUI mode, so use `2>` to redirect them to a file if needed.
 
 ## Troubleshooting
+
+### Mouse wheel scrolling erases display
+The TUI has been configured to prevent terminal scrolling that can interfere with the ncurses display. If you still experience issues with mouse wheel events:
+- The display is designed to be static (not scrollable)
+- All content is shown within the available terminal space
+- If you need to see more data, resize your terminal to be larger
+- Press 'r' to force a refresh if the display becomes corrupted
 
 ### Logs interfere with display
 If you see log messages overwriting the TUI, ensure you're running the TUI build (not GUI build). The TUI should automatically write logs to stderr. You can redirect stderr to hide logs: `./L2Trader 2>/dev/null` or save them: `./L2Trader 2>app.log`
