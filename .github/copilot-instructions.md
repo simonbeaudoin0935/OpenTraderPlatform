@@ -77,6 +77,24 @@
 
 - Everything time related must be in QDateTime/QTime/QDate with proper QTimeZone usage. Never use std::chrono or raw time_t/struct tm etc. The timezone is always NewYork since it is stock market related.
 
+## Threading Patterns
+- **ALWAYS** use stack-allocated QThread member variables, never heap-allocated pointers.
+- **Pattern**: `QThread m_thread;` (member variable), NOT `QThread* m_thread;` (pointer with new)
+- **Rationale**: Stack allocation is simpler, avoids memory leaks, and thread lifetime is automatically tied to object lifetime.
+- **Thread Lifecycle**: Implement proper cleanup in destructors with quit/wait/terminate pattern:
+  ```cpp
+  ~MyClass() {
+      m_thread.quit();
+      if (!m_thread.wait(5000)) {
+          qWarning() << "Thread did not finish, terminating";
+          m_thread.terminate();
+          m_thread.wait();
+      }
+  }
+  ```
+- **Consistency**: This pattern is used throughout the codebase (TSClient, MainAlgo, DatabaseThread).
+- See Doc/Architecture_Improvements.md section 1.1 for historical context.
+
 ## Composition Over Pointers
 - **PREFER** composition (direct member objects) over pointers when designing classes.
 - If an object can be owned directly by a class and doesn't need polymorphism or optional lifetime, make it a direct member rather than a pointer.
