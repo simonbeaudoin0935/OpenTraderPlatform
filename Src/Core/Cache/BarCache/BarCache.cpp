@@ -366,7 +366,6 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
 
                   // Call the API and chain the result processing
 
-                  // copilot : for test purposes, I commented out the then continuation
                   TSClient::getInstance()
                       ->getBars(m_symbol,
                                 1,
@@ -387,8 +386,8 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                 }
                                 else
                                 {
-                                    DEBUG << "Asynchronous getBars() from API completed for complete day" << date
-                                          << "with" << bars.value()->size() << "bars received";
+                                    INFO << "Asynchronous getBars() from API completed for complete day" << date
+                                         << "with" << bars.value()->size() << "bars received";
 
                                     // Shared_ptr is already provided by TSClient, so we can use it directly
                                     std::shared_ptr<QVector<Bar>> barsFromApiHolesFilled =
@@ -400,7 +399,8 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
 
                                     // Store in database via DatabaseThread (async, fire-and-forget)
                                     // Note: We intentionally don't wait for the result or attach continuations
-                                    // to avoid lifetime/threading issues
+                                    // to avoid lifetime/threading issues. The shared_ptr ensures the bars stay alive,
+                                    // and destroyed then the DatabaseThread processes them.
                                     [[maybe_unused]] auto dbFuture =
                                         DatabaseThread::getInstance()->storeBarsInDatabase(m_symbol,
                                                                                            date,
