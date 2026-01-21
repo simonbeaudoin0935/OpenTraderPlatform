@@ -70,7 +70,7 @@ class TSClient final : public QObject
 
     void start()
     {
-        m_thread->start();
+        m_thread.start();
     };
 
 
@@ -227,7 +227,7 @@ class TSClient final : public QObject
 
     qsizetype m_totalDataReceivedBytes = 0;
     QString m_apiKey;
-    QThread* m_thread;
+    QThread m_thread;
     QNetworkAccessManager* m_networkManager;
 
 #ifdef GUI_ENABLED

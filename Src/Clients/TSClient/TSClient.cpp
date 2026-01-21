@@ -35,23 +35,29 @@ TSClient* TSClient::getInstance()
 
 TSClient::~TSClient()
 {
-    // Destructor should never be called for singleton
-    Q_UNREACHABLE();
+    qCDebug(TSClientLog) << "TSClient shutting down";
+
+    // Request thread to stop
+    m_thread.quit();
+
+    // Wait for thread to finish (with timeout)
+    if (!m_thread.wait(5000))
+    {
+        qCWarning(TSClientLog) << "TSClient thread did not finish within timeout, terminating";
+        m_thread.terminate();
+        m_thread.wait();
+    }
 }
 
 TSClient::TSClient()
-    : m_authenticated(false)
-    , m_refreshInProgress(false)
-    , m_thread(new QThread())
-    , m_networkManager(new QNetworkAccessManager(this))
+    : m_authenticated(false), m_refreshInProgress(false), m_networkManager(new QNetworkAccessManager(this))
 {
-    this->moveToThread(m_thread);
+    m_thread.setObjectName("TSClientThread");
+    this->moveToThread(&m_thread);
 
     m_baseUrl.setScheme(BASE_URL_SCHEME);
     m_baseUrl.setHost(BASE_URL_HOST_SIMULATION);
     m_baseUrl.setPath(BASE_URL_HOST_VERSION);
-
-    m_thread->setObjectName("TSClientThread");
 
     m_clientToken = ClientToken::loadFromSettings();
     m_authToken = AuthToken::loadFromSettings();

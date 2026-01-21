@@ -46,65 +46,37 @@ this->moveToThread(&thread)
 
 ### Issues Identified
 
-#### 1.1 Inconsistent Thread Ownership Pattern
+#### 1.1 Thread Lifecycle Management
 
-**Problem:** TSClient uses a heap-allocated QThread (`new QThread()`), while MainAlgo uses a stack-allocated member variable (`QThread thread`).
-
-**Risk:** 
-- Inconsistency makes the codebase harder to maintain
-- TSClient's heap-allocated thread is never deleted (memory leak)
-- Different patterns may confuse developers about best practices
-
-**Recommendation:**
-```cpp
-// Prefer stack allocation for clarity and automatic cleanup
-class TSClient {
-private:
-    QThread m_thread; // Stack allocation
-};
-
-// In constructor:
-m_thread.setObjectName("TSClientThread");
-this->moveToThread(&m_thread);
-```
-
-**Rationale:** Stack allocation is simpler, avoids memory leaks, and the thread lifetime is tied to the object lifetime.
-
-#### 1.2 Thread Lifecycle Management
+**Status:** ✅ Implemented (PR #XXX)
 
 **Problem:** No explicit shutdown mechanism for worker threads.
 
-**Current Code:**
+**Current Code (FIXED):**
 ```cpp
-// TSClient.cpp:36-38
+// TSClient.cpp - Now properly implements cleanup
 TSClient::~TSClient()
 {
-    Q_ASSERT(false); // Destructor should never be called for singleton
-}
-```
-
-**Issues:**
-- Threads may not terminate gracefully on application exit
-- No mechanism to wait for threads to finish processing
-- Resources may not be properly cleaned up
-
-**Recommendation:**
-```cpp
-TSClient::~TSClient()
-{
+    qCDebug(TSClientLog) << "TSClient shutting down";
+    
     // Request thread to stop
     m_thread.quit();
     
     // Wait for thread to finish (with timeout)
     if (!m_thread.wait(5000)) {
-        qWarning() << "TSClient thread did not finish within timeout, terminating";
+        qCWarning(TSClientLog) << "TSClient thread did not finish within timeout, terminating";
         m_thread.terminate();
         m_thread.wait();
     }
 }
 ```
 
-#### 1.3 Thread Affinity Checks
+**Implementation Notes:**
+- Changed TSClient from heap-allocated QThread to stack-allocated (consistency with MainAlgo and DatabaseThread)
+- Added proper thread lifecycle management with quit/wait/terminate pattern
+- Thread lifetime now properly tied to object lifetime
+
+#### 1.2 Thread Affinity Checks
 
 **Current:** Some thread assertions exist but not comprehensive.
 
@@ -126,7 +98,7 @@ Q_ASSERT(QThread::currentThread() == &thread);
                Q_FUNC_INFO, "Must be called from MainAlgo thread")
 ```
 
-#### 1.4 Lock Granularity in BarCache
+#### 1.3 Lock Granularity in BarCache
 
 **Current:** Single QReadWriteLock protects entire m_barCacheByDay map.
 
@@ -155,7 +127,7 @@ mutable QReadWriteLock m_mapLock; // Only for map modifications
 - **Con:** More complex code, higher memory overhead
 - **Verdict:** Implement only if profiling shows lock contention
 
-### 1.5 Signal-Slot Thread Safety
+### 1.4 Signal-Slot Thread Safety
 
 **Current:** Heavy reliance on Qt's signal-slot mechanism for cross-thread communication (good!).
 
