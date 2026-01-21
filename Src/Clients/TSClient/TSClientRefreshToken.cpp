@@ -94,7 +94,7 @@ TSClient::buildRefreshTokenQuery(const QString& clientId, const QString& clientS
 void TSClient::refreshAccessToken()
 {
     // Only TSClient thread can call this function
-    OBJ_ASSUME_EQUAL(QThread::currentThread(), m_thread);
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
     // Auth process is ongoing, cannot refresh token
     OBJ_ASSUME_FALSE(m_authInProgress);
     // A refresh token is already in progress
