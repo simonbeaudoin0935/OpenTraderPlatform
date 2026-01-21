@@ -256,8 +256,8 @@ void StockPriceChart::populateAvailableReplayDays()
     for (const QString& dbFile: dbFiles)
     {
         // Extract date from filename (format: RecordedLiveBars_YYYY-MM-DD.db)
-        QString dateStr = dbFile.mid(18,
-                                     10); // Skip "RecordedLiveBars_" (18 chars) and take 10 chars for date
+        QString dateStr = dbFile.mid(17,
+                                     10); // Skip "RecordedLiveBars_" (17 chars) and take 10 chars for date
         QDate date = QDate::fromString(dateStr, "yyyy-MM-dd");
         if (date.isValid())
         {
