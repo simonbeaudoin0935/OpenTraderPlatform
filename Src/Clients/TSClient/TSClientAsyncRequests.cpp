@@ -227,7 +227,7 @@ QFuture<std::expected<QVector<Balance>, TSClient::Error>> TSClient::getBalances(
     return future;
 }
 
-QFuture<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>>
+QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>
 TSClient::getBars(const QString& symbol,
                   unsigned int interval,
                   Bar::BarUnit unit,
@@ -256,7 +256,7 @@ TSClient::getBars(const QString& symbol,
 
     QNetworkRequest request = buildNetworkRequest(QString(ENDPOINT_GET_BARS).arg(symbol), query);
 
-    QPromise<std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>> promise;
+    QPromise<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> promise;
     auto future = promise.future();
 
     promise.start();
@@ -311,7 +311,7 @@ TSClient::getBars(const QString& symbol,
                             }
 
                             // Happiest path
-                            std::unique_ptr<QVector<Bar>> results = std::make_unique<QVector<Bar>>();
+                            std::shared_ptr<QVector<Bar>> results = std::make_shared<QVector<Bar>>();
                             results->reserve(barsArray.size());
 
                             for (const QJsonValue& json: barsArray)
@@ -319,7 +319,7 @@ TSClient::getBars(const QString& symbol,
                                 results->push_back(Bar(json.toObject()));
                             }
 
-                            promise.addResult(std::move(results));
+                            promise.addResult(results);
                             break;
                         }
 
@@ -337,9 +337,9 @@ TSClient::getBars(const QString& symbol,
                         {
                             // This is not really an error, it just means there are no bars in the requested range
                             // empty vector
-                            std::unique_ptr<QVector<Bar>> results = std::make_unique<QVector<Bar>>();
+                            std::shared_ptr<QVector<Bar>> results = std::make_shared<QVector<Bar>>();
 
-                            promise.addResult(std::move(results));
+                            promise.addResult(results);
                             break;
                         }
 

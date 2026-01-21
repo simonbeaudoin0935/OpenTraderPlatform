@@ -367,36 +367,18 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                   // Call the API and chain the result processing
 
                   // copilot : for test purposes, I commented out the then continuation
-                  [[maybe_unused]] auto yo = TSClient::getInstance()->getBars(m_symbol,
-                                                                              1,
-                                                                              Bar::BarUnit::Minute,
-                                                                              0,
-                                                                              Bar::BarSessionTemplate::USEQ24Hour,
-                                                                              startDateTime,
-                                                                              endDayTime);
-
-                  /* copilot:I just added a new test. The segfault happens when I have this continuation here, and it doesnt if it commented
-           out like it is right now
-
-                  yo.then(this, [] (auto bars) {
-                      Q_UNUSED(bars);
-                      qWarning() << "Inside getBars() continuation";
-                  });
-*/
-
-                  //copilot : The segfault does not happen if I comment out this continuation
-                  /*
-                  .then(this,
-                        [this, date, startDateTime, endDayTime](
-                            std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>&& bars
-                            [[maybe_unused]]) mutable
-                        {
-
-                    //copilit: In the previous test, we tried commenting this block out only, but it did not work
-                    //         So now we comment the whole continuation above out, and it works. So we proved that its
-                    //         not this content of the continuation not this content of the continuation that is causing the segfault
-                    //         its having the above continuation at all that is causing the segfault.
-
+                  TSClient::getInstance()
+                      ->getBars(m_symbol,
+                                1,
+                                Bar::BarUnit::Minute,
+                                0,
+                                Bar::BarSessionTemplate::USEQ24Hour,
+                                startDateTime,
+                                endDayTime)
+                      .then(this,
+                            [this, date, startDateTime, endDayTime, promise = std::move(promise)](
+                                std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& bars) mutable
+                            {
                                 if (!bars.has_value())
                                 {
                                     CRITICAL << "getBars() from API returned error for" << m_symbol
@@ -408,8 +390,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                     DEBUG << "Asynchronous getBars() from API completed for complete day" << date
                                           << "with" << bars.value()->size() << "bars received";
 
-                                    // Make this a shared_ptr so that a reference can be sent to the DatabaseThread and be worked on it
-                                    // at the same time as we sent the other reference back to the caller
+                                    // Shared_ptr is already provided by TSClient, so we can use it directly
                                     std::shared_ptr<QVector<Bar>> barsFromApiHolesFilled =
                                         std::make_shared<QVector<Bar>>(
                                             fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars.value()));
@@ -430,9 +411,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                 promise.finish();
 
                                 INFO << "Completed fetching bars from API for day" << date;
-
-                    });
-*/
+                            });
               });
 
     return future;

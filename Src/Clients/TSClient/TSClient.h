@@ -86,7 +86,7 @@ class TSClient final : public QObject
      *
      * @doc : https://api.tradestation.com/docs/specification#tag/MarketData/operation/GetBars
      */
-    [[nodiscard]] QFuture<std::expected<std::unique_ptr<QVector<Bar>>, Error>>
+    [[nodiscard]] QFuture<std::expected<std::shared_ptr<QVector<Bar>>, Error>>
     getBars(const QString& symbol,
             unsigned int interval = 1,
             Bar::BarUnit unit = Bar::BarUnit::Daily,
