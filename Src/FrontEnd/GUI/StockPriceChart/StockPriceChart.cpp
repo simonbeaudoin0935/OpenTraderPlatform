@@ -6,6 +6,7 @@
 #include <QtMath>
 
 #include "StockPriceChart.h"
+#include "IndexToTimeTicker.h"
 #include "MarketHours.h"
 #include "Misc/Settings.h"
 #include "Logging.h"
@@ -110,10 +111,9 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
             QOverload<const QCPRange&>::of(&QCPAxis::setRange));
 
     // Configure axes of both main and bottom axis rect
-    QSharedPointer<QCPAxisTickerDateTime> dateTimeTicker(new QCPAxisTickerDateTime);
-    dateTimeTicker->setDateTimeSpec(Qt::UTC);
-    dateTimeTicker->setDateTimeFormat("hh:mm");
-    m_volumeAxisRect->axis(QCPAxis::atBottom)->setTicker(dateTimeTicker);
+    // Note: Custom time ticker is set up later when first bar is received,
+    // because it needs indexToBar to be populated to convert indices to timestamps.
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabels(false); // Hide until we have data
     m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabelRotation(15);
     m_customPlot->xAxis->setBasePen(Qt::NoPen);
     m_customPlot->xAxis->setTickLabels(false);
@@ -331,6 +331,14 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         OBJ_ASSUME_TRUE(acquired); // Should always succeed for first bar
 
         DEBUG << "Received first bar ";
+
+        // Now that we have the first bar, we can set up the custom time ticker
+        // that converts index values to time labels
+        QSharedPointer<IndexToTimeTicker> indexToTimeTicker(new IndexToTimeTicker);
+        indexToTimeTicker->setTimeFormat("hh:mm");
+        indexToTimeTicker->setIndexToTimestampFunction([this](int index) { return this->getTimestampForIndex(index); });
+        m_volumeAxisRect->axis(QCPAxis::atBottom)->setTicker(indexToTimeTicker);
+        m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabels(true);
 
         const int index = 0;
 
