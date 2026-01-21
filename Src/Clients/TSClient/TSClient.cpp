@@ -33,6 +33,16 @@ TSClient* TSClient::getInstance()
     return m_instance;
 }
 
+void TSClient::destroyInstance()
+{
+    if (m_instance != nullptr)
+    {
+        qCDebug(TSClientLog) << "Destroying singleton instance";
+        delete m_instance;
+        m_instance = nullptr;
+    }
+}
+
 TSClient::~TSClient()
 {
     qCDebug(TSClientLog) << "TSClient shutting down";

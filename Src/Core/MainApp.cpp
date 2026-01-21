@@ -25,6 +25,16 @@ MainApp* MainApp::getInstance()
     return m_instance;
 }
 
+void MainApp::destroyInstance()
+{
+    if (m_instance != nullptr)
+    {
+        qInfo() << "Destroying MainApp singleton instance";
+        delete m_instance;
+        m_instance = nullptr;
+    }
+}
+
 // Get the current application time (real or replay)
 QDateTime MainApp::getCurrentAppTime()
 {
@@ -144,4 +154,23 @@ void MainApp::shutdown()
     // Now quit the application - destructors will be called automatically
     // when the MainApp object goes out of scope in main()
     QCoreApplication::quit();
+}
+
+void MainApp::cleanupSingletons()
+{
+    qInfo() << "Cleaning up singletons";
+
+    // Delete MainApp singleton first (which will delete the frontend)
+    MainApp::destroyInstance();
+
+    // Delete MainAlgo singleton (which will stop its thread)
+    MainAlgo::destroyInstance();
+
+    // Delete TSClient singleton (which will stop its thread)
+    TSClient::destroyInstance();
+
+    // Delete DatabaseThread singleton (which will stop its thread)
+    DatabaseThread::destroyInstance();
+
+    qInfo() << "All singletons cleaned up";
 }

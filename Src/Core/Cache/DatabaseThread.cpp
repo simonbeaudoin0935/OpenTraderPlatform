@@ -27,6 +27,16 @@ DatabaseThread* DatabaseThread::getInstance()
     return m_instance;
 }
 
+void DatabaseThread::destroyInstance()
+{
+    if (m_instance != nullptr)
+    {
+        qCDebug(DatabaseThreadLog) << "Destroying singleton instance";
+        delete m_instance;
+        m_instance = nullptr;
+    }
+}
+
 DatabaseThread::DatabaseThread() : QObject()
 {
     m_thread.setObjectName("DatabaseThread");

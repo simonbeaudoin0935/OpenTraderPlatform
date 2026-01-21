@@ -52,5 +52,12 @@ int main(int argc, char* argv[])
 
     mainApp->start();
 
-    return QCoreApplication::exec();
+    int exitCode = QCoreApplication::exec();
+
+    // Cleanup all singletons for proper resource deallocation
+    // This is important for valgrind memory leak detection
+    qInfo() << "Application event loop exited, cleaning up singletons";
+    MainApp::cleanupSingletons();
+
+    return exitCode;
 }

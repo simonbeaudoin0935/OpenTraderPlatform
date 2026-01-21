@@ -11,6 +11,12 @@ class MainApp
     // Singleton: Instance getter
     static MainApp* getInstance();
 
+    // Singleton: Destroy instance (for cleanup)
+    static void destroyInstance();
+
+    // Cleanup all singletons (call before exiting for proper cleanup)
+    static void cleanupSingletons();
+
     // Delete copy/move constructors and assignment operators
     MainApp(const MainApp&) = delete;
     MainApp(MainApp&&) = delete;
