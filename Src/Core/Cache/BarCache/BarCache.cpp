@@ -319,7 +319,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
     // continuations. Moving a QPromise into nested lambdas causes undefined behavior when
     // Qt's continuation machinery accesses the moved-from promise in the outer lambda.
     QPromise<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> promise;
-    QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> future = promise.future();
+    auto future = promise.future();
     promise.start();
 
     // Query database via DatabaseThread (async, thread-safe)
@@ -330,7 +330,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                               last)
         .then(this, // Execute in the thread of this BarCache object, aka the MainAlgo thread
               [this, date, first, last, isCurrentDay, now, promise = std::move(promise)](
-                  std::optional<std::unique_ptr<QVector<Bar>>> dbBars) mutable
+                  std::optional<std::unique_ptr<QVector<Bar>>>&& dbBars) mutable
               {
                   // Check if we got the complete day from database
                   if (dbBars.has_value())
@@ -375,7 +375,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                 endDayTime)
                       .then(this,
                             [this, date, startDateTime, endDayTime, promise = std::move(promise)](
-                                std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars
+                                std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>&& bars
                                 [[maybe_unused]]) mutable
                             {
                                 // TEST 1: Just call promise.finish() to see if that causes the crash
@@ -386,6 +386,9 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                 (void)date;
                                 (void)startDateTime;
                                 (void)endDayTime;
+
+                                INFO << "Completed fetching bars from API for day" << date;
+
 
                                 /* COMMENTED OUT FOR DEBUGGING - Testing if segfault happens regardless of continuation content
                                 if (!bars.has_value())
@@ -517,7 +520,7 @@ void BarCache::storeBarInCache(const Bar& bar)
     DEBUG << "Inserted bar in cache at index" << index << "for timestamp:" << bar.getTimeStamp();
 }
 
-void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector<Bar>> bars)
+void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector<Bar>>& bars)
 {
     OBJ_ASSUME_FALSE(bars->isEmpty());
 

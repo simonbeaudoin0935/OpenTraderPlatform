@@ -182,29 +182,33 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                 if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
                 {
                     // The barCache had the bars ready immediately
-                    ui->priceChart->onRequestedMissingBarsReceived(
-                        std::move(std::get<std::shared_ptr<QVector<Bar>>>(result)));
+                    ui->priceChart->onRequestedMissingBarsReceived(std::get<std::shared_ptr<QVector<Bar>>>(result));
+                }
+                else if (std::holds_alternative<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(
+                             result))
+                {
+                    std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result).then(
+                        this,
+                        [this](std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& bars)
+                        {
+                            if (bars.has_value())
+                            {
+                                qInfo() << "Successfully retrieved missing bars from BarCache";
+                                ui->priceChart->onRequestedMissingBarsReceived(bars.value());
+                            }
+                            else
+                            {
+                                qCritical() << "Failed to get missing bars from BarCache - Error:"
+                                            << QtEnum::toString(bars.error());
+
+                                // TODO : retry logic?
+                                //Q_UNREACHABLE();
+                            }
+                        });
                 }
                 else
                 {
-                    auto future =
-                        std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result);
-                    future.then(this,
-                                [this](std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error> bars)
-                                {
-                                    if (bars.has_value())
-                                    {
-                                        ui->priceChart->onRequestedMissingBarsReceived(bars.value());
-                                    }
-                                    else
-                                    {
-                                        qCritical() << "Failed to get missing bars from BarCache - Error:"
-                                                    << static_cast<int>(bars.error());
-
-                                        // TODO : retry logic?
-                                        Q_UNREACHABLE();
-                                    }
-                                });
+                    Q_UNREACHABLE();
                 }
             });
 
