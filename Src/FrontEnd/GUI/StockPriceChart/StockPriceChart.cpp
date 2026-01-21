@@ -1155,7 +1155,12 @@ QDateTime StockPriceChart::getTimestampForIndex(int index) const
         return it.value().getTimeStamp();
     }
 
-    OBJ_ASSUME_FALSE(indexToBar.isEmpty());
+    // If indexToBar is empty (e.g., after clearSymbol()), return invalid QDateTime
+    // The IndexToTimeTicker will handle this gracefully by displaying the index as a number
+    if (indexToBar.isEmpty())
+    {
+        return QDateTime();
+    }
 
     if (index < 0)
     {
