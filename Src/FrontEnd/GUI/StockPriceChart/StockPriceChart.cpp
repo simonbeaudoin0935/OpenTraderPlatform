@@ -416,10 +416,13 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
         // Now that we have the first bar, we can set up the custom time ticker
         // that converts index values to time labels
-        QSharedPointer<IndexToTimeTicker> indexToTimeTicker(new IndexToTimeTicker);
-        indexToTimeTicker->setTimeFormat("hh:mm");
-        indexToTimeTicker->setIndexToTimestampFunction([this](int index) { return this->getTimestampForIndex(index); });
-        m_volumeAxisRect->axis(QCPAxis::atBottom)->setTicker(indexToTimeTicker);
+        m_indexToTimeTicker = QSharedPointer<IndexToTimeTicker>(new IndexToTimeTicker);
+        m_indexToTimeTicker->setTimeFormat("hh:mm");
+        m_indexToTimeTicker->setIndexToTimestampFunction([this](int index)
+                                                         { return this->getTimestampForIndex(index); });
+
+        // Set ticker on volume chart by default (since it's visible by default)
+        m_volumeAxisRect->axis(QCPAxis::atBottom)->setTicker(qSharedPointerCast<QCPAxisTicker>(m_indexToTimeTicker));
         m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabels(true);
 
         // Also set the same ticker on main chart's X-axis so grid lines align with nice times

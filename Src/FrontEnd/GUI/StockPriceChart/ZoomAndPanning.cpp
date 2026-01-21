@@ -1,4 +1,5 @@
 #include "StockPriceChart.h"
+#include "IndexToTimeTicker.h"
 #include "Logging.h"
 
 #define LOGGING_CATEGORY ChartLog
@@ -53,6 +54,14 @@ void StockPriceChart::onVolumeChartVisibilityChanged(bool visible)
         m_customPlot->plotLayout()->setRowSpacing(0);
         m_volumeAxisRect->setAutoMargins(QCP::msLeft | QCP::msRight | QCP::msBottom);
         m_volumeAxisRect->setMargins(QMargins(0, 0, 0, 0));
+
+        // Move ticker to volume chart and hide from main chart
+        if (m_indexToTimeTicker)
+        {
+            m_volumeAxisRect->axis(QCPAxis::atBottom)->setTicker(qSharedPointerCast<QCPAxisTicker>(m_indexToTimeTicker));
+            m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabels(true);
+            m_customPlot->xAxis->setTickLabels(false);
+        }
     }
     else
     {
@@ -61,6 +70,15 @@ void StockPriceChart::onVolumeChartVisibilityChanged(bool visible)
         m_volumeAxisRect->setMaximumSize(QSize(QWIDGETSIZE_MAX,
                                                0)); // Collapse height
         m_volumeAxisRect->setVisible(false);
+
+        // Move ticker to main chart when volume is hidden
+        if (m_indexToTimeTicker)
+        {
+            m_customPlot->xAxis->setTicker(qSharedPointerCast<QCPAxisTicker>(m_indexToTimeTicker));
+            m_customPlot->xAxis->setTickLabels(true);
+            m_customPlot->xAxis->setTickLabelRotation(15);
+            m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabels(false);
+        }
     }
 
     // Force layout update

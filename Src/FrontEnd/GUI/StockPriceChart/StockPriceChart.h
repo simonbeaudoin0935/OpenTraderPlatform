@@ -144,6 +144,9 @@ class StockPriceChart : public QWidget
     QCPBars* m_volumePos;
     QCPBars* m_volumeNeg;
 
+    // Shared time ticker for X-axis labels
+    QSharedPointer<class IndexToTimeTicker> m_indexToTimeTicker;
+
     // Background rectangles for different market sessions
     QList<QCPItemRect*> m_earlyPreMarketRects;
     QList<QCPItemRect*> m_preMarketRects;
