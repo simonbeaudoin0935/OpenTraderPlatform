@@ -365,32 +365,30 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                   DEBUG << "Fetching complete day from API:" << startDateTime << "to" << endDayTime;
 
                   // Call the API and chain the result processing
-                  TSClient::getInstance()
-                      ->getBars(m_symbol,
-                                1,
-                                Bar::BarUnit::Minute,
-                                0,
-                                Bar::BarSessionTemplate::USEQ24Hour,
-                                startDateTime,
-                                endDayTime)
+
+                  // copilot : for test purposes, I commented out the then continuation
+                  [[maybe_unused]] auto yo = TSClient::getInstance()->getBars(m_symbol,
+                                                                              1,
+                                                                              Bar::BarUnit::Minute,
+                                                                              0,
+                                                                              Bar::BarSessionTemplate::USEQ24Hour,
+                                                                              startDateTime,
+                                                                              endDayTime);
+
+
+                  //copilot : The segfault does not happen if I comment out this continuation
+                  /*
                       .then(this,
                             [this, date, startDateTime, endDayTime, promise = std::move(promise)](
                                 std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>&& bars
                                 [[maybe_unused]]) mutable
                             {
-                                // TEST 1: Just call promise.finish() to see if that causes the crash
-                                promise.addResult(std::unexpected(TSClient::Error::Other));
-                                promise.finish();
 
-                                // Suppress unused variable warnings
-                                (void)date;
-                                (void)startDateTime;
-                                (void)endDayTime;
+                    //copilit: In the previous test, we tried commenting this block out only, but it did not work
+                    //         So now we comment the whole continuation above out, and it works. So we proved that its
+                    //         not this content of the continuation not this content of the continuation that is causing the segfault
+                    //         its having the above continuation at all that is causing the segfault.
 
-                                INFO << "Completed fetching bars from API for day" << date;
-
-
-                                /* COMMENTED OUT FOR DEBUGGING - Testing if segfault happens regardless of continuation content
                                 if (!bars.has_value())
                                 {
                                     CRITICAL << "getBars() from API returned error for" << m_symbol
@@ -424,8 +422,8 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                 promise.finish();
 
                                 INFO << "Completed fetching bars from API for day" << date;
-                                */
                             });
+*/
               });
 
     return future;
