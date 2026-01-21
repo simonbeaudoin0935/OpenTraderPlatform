@@ -59,15 +59,6 @@ class BarCache : public QObject
     void onReceivedNewLiveBar(Bar newBar);
 
   private:
-    // Per-day cache entry with its own lock for better concurrency
-    struct DayCacheEntry
-    {
-        QVector<Bar> bars;
-        mutable QReadWriteLock lock;
-
-        DayCacheEntry() : bars(BARS_PER_DAY) {}
-    };
-
     void startStream();
 
     [[nodiscard]]
@@ -85,14 +76,14 @@ class BarCache : public QObject
     QVector<Bar>
     fillHolesOfReceivedRequest(const QDateTime& first, const QDateTime& last, const QVector<Bar>& barsFromAPI) const;
 
-    std::shared_ptr<DayCacheEntry> getOrCreateDayEntry(const QDate& date);
+    QVector<Bar>& getOrCreateDayVector(const QDate& date);
 
     const QString m_symbol;
     const bool m_isStreaming;
     QString m_dbPath; // Path to the database file (managed by DatabaseThread)
     QPointer<StreamBars> m_stream;
 
-    mutable QReadWriteLock m_mapLock; // Only protects map structure modifications, mutable for use in const methods
-    // Day-based storage: one entry per trading day with per-day locking for better concurrency
-    QMap<QDate, std::shared_ptr<DayCacheEntry>> m_barCacheByDay;
+    mutable QReadWriteLock m_barCacheRwLock; // Protects m_barCacheByDay, mutable for use in const methods
+    // Day-based storage: one QVector per trading day. Vector index maps to minute within trading day.
+    QMap<QDate, QVector<Bar>> m_barCacheByDay;
 };

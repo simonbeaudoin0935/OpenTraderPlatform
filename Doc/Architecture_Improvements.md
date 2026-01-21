@@ -100,41 +100,32 @@ Q_ASSERT(QThread::currentThread() == &thread);
 
 #### 1.3 Lock Granularity in BarCache
 
-**Status:** ✅ Implemented
+**Current:** Single QReadWriteLock protects entire m_barCacheByDay map.
 
-**Previous:** Single QReadWriteLock protected entire m_barCacheByDay map.
-
-**Code (FIXED):**
+**Code:**
 ```cpp
-// BarCache.h - Now uses per-day locking for better concurrency
-struct DayCacheEntry
-{
-    QVector<Bar> bars;
-    mutable QReadWriteLock lock;
-    
-    DayCacheEntry() : bars(BARS_PER_DAY) {}
-};
-
-mutable QReadWriteLock m_mapLock; // Only protects map structure modifications
-QMap<QDate, std::shared_ptr<DayCacheEntry>> m_barCacheByDay;
+// BarCache.h:89-91
+mutable QReadWriteLock m_barCacheRwLock; // Protects m_barCacheByDay
+mutable QMap<QDate, QVector<Bar>> m_barCacheByDay;
 ```
 
-**Issue (RESOLVED):** Lock contention when multiple symbols needed different days' data simultaneously.
+**Issue:** Lock contention when multiple symbols need different days' data simultaneously.
 
-**Implementation Notes:**
-- Changed from single lock protecting entire map to per-day locks
-- Map-level lock (`m_mapLock`) now only protects map structure modifications (insert/remove entries)
-- Each day's data has its own lock in the `DayCacheEntry` structure
-- Methods updated to use two-phase locking:
-  1. Acquire map lock to get/create day entry (returns shared_ptr)
-  2. Release map lock
-  3. Acquire day-specific lock for data access
-- This provides better concurrency when multiple threads access different trading days
+**Recommendation:** Consider per-day locking for better concurrency:
 
-**Benefits:**
-- Reduced lock contention for concurrent access to different days
-- Multiple threads can read/write different days simultaneously
-- Better scalability for multi-symbol scenarios
+```cpp
+struct DayCacheEntry {
+    QVector<Bar> bars;
+    mutable QReadWriteLock lock;
+};
+mutable QMap<QDate, std::shared_ptr<DayCacheEntry>> m_barCacheByDay;
+mutable QReadWriteLock m_mapLock; // Only for map modifications
+```
+
+**Trade-offs:**
+- **Pro:** Better concurrency, reduced lock contention
+- **Con:** More complex code, higher memory overhead
+- **Verdict:** Implement only if profiling shows lock contention
 
 ### 1.4 Signal-Slot Thread Safety
 

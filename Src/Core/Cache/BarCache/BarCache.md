@@ -27,8 +27,8 @@ classDiagram
         -bool m_isStreaming
         -QString m_dbPath
         -QPointer~StreamBars~ m_stream
-        -QReadWriteLock m_mapLock
-        -QMap~QDate, shared_ptr~DayCacheEntry~~ m_barCacheByDay
+        -QReadWriteLock m_barCacheRwLock
+        -QMap~QDate, QVector~Bar~~ m_barCacheByDay
 
         +BarCache(QString symbol, bool isStreaming, QObject* parent)
         +~BarCache()
@@ -279,15 +279,10 @@ graph TB
 ## Storage Architecture
 
 ### Memory Cache Structure
-- **Container**: `QMap<QDate, std::shared_ptr<DayCacheEntry>>`
+- **Container**: `QMap<QDate, QVector<Bar>>`
 - **Key**: Trading date (QDate)
-- **Value**: Shared pointer to DayCacheEntry containing:
-  - Vector of exactly 840 bars (6:01am to 8:00pm inclusive)
-  - Per-day QReadWriteLock for granular thread safety
-- **Thread Safety**: 
-  - Map structure protected by `mutable QReadWriteLock m_mapLock` (only for map modifications)
-  - Each day's data protected by its own `QReadWriteLock` in the DayCacheEntry
-  - This per-day locking provides better concurrency when multiple threads access different days
+- **Value**: Vector of exactly 840 bars (6:01am to 8:00pm inclusive)
+- **Thread Safety**: Protected by `mutable QReadWriteLock m_barCacheRwLock`
 - **Index Mapping**: `index = (hour - 6) * 60 + minute - 1`
   - Index 0 = 6:01am bar
   - Index 1 = 6:02am bar
