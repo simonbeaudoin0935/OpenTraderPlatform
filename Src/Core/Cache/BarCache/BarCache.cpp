@@ -173,20 +173,20 @@ QTime BarCache::indexToTime(size_t index)
     return QTime(hour, minute, 0);
 }
 
-// Get or create a day vector for a given date
-QVector<Bar>& BarCache::getOrCreateDayVector(const QDate& date)
+// Get or create a day cache entry for a given date
+std::shared_ptr<BarCache::DayCacheEntry> BarCache::getOrCreateDayEntry(const QDate& date)
 {
     ASSUME_GTE(date.dayOfWeek(), Qt::Monday);
     ASSUME_LTE(date.dayOfWeek(), Qt::Friday);
 
-    // NOTE: Caller must already hold m_barCacheRwLock write lock
+    // NOTE: Caller must already hold m_mapLock write lock
 
     if (!m_barCacheByDay.contains(date))
     {
-        DEBUG << "m_barCacheByDay map doesn't contain day " << date << ", creating new vector.";
+        DEBUG << "m_barCacheByDay map doesn't contain day " << date << ", creating new entry.";
 
-        // Pre-allocate to full capacity with uninitialized bars by default ctor of Bar
-        m_barCacheByDay[date] = QVector<Bar>(BARS_PER_DAY);
+        // Create new entry with pre-allocated vector
+        m_barCacheByDay[date] = std::make_shared<DayCacheEntry>();
     }
 
     return m_barCacheByDay[date];
@@ -437,18 +437,28 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
 std::optional<std::unique_ptr<QVector<Bar>>>
 BarCache::getBarsFromCache(const QDate& date, const QTime& start, const QTime& end) const
 {
-    QReadLocker locker(&m_barCacheRwLock);
-
-    if (!m_barCacheByDay.contains(date))
+    // First check if the date exists in the map (requires map-level read lock)
+    std::shared_ptr<DayCacheEntry> dayEntry;
     {
-        DEBUG << "m_barCacheByDay map doesn't contain day " << date;
-        return std::nullopt;
+        QReadLocker mapLocker(&m_mapLock);
+
+        if (!m_barCacheByDay.contains(date))
+        {
+            DEBUG << "m_barCacheByDay map doesn't contain day " << date;
+            return std::nullopt;
+        }
+
+        // Get the day entry while holding map lock
+        dayEntry = m_barCacheByDay[date];
     }
+    // Map lock is released here, but we have a shared_ptr to the entry
 
     DEBUG << "m_barCacheByDay map contains day " << date;
 
-    // Day exists in cache - extract the requested range
-    const QVector<Bar>& dayVector = m_barCacheByDay[date];
+    // Now lock only this specific day's data for reading
+    QReadLocker dayLocker(&dayEntry->lock);
+
+    const QVector<Bar>& dayVector = dayEntry->bars;
 
     // a day vector is always pre-allocated to 840 bars
     OBJ_ASSUME_EQUAL(dayVector.size(), BARS_PER_DAY);
@@ -480,11 +490,18 @@ void BarCache::storeBarInCache(const Bar& bar)
     // Calculate the index for this bar in the day's vector
     size_t index = timeToIndex(time);
 
-    QWriteLocker locker(&m_barCacheRwLock);
+    // Get or create the day entry with map-level write lock
+    std::shared_ptr<DayCacheEntry> dayEntry;
+    {
+        QWriteLocker mapLocker(&m_mapLock);
+        dayEntry = getOrCreateDayEntry(date);
+    }
+    // Map lock released, now we have a shared_ptr to the entry
 
+    // Lock only this specific day's data for writing
+    QWriteLocker dayLocker(&dayEntry->lock);
 
-    QVector<Bar>& dayVector = getOrCreateDayVector(date);
-
+    QVector<Bar>& dayVector = dayEntry->bars;
 
     // Check if we're overwriting an existing bar (only if the index existed before resize)
     if (bar.getIsRealtime())
@@ -542,30 +559,37 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
     OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().time(), TRADING_START_TIME);
     OBJ_ASSUME_LTE(bars->last().getTimeStamp().time(), TRADING_END_TIME);
 
-    QWriteLocker locker(&m_barCacheRwLock);
+    // Get or create the day entry with map-level write lock
+    std::shared_ptr<DayCacheEntry> dayEntry;
+    {
+        QWriteLocker mapLocker(&m_mapLock);
+
+        if (!m_barCacheByDay.contains(date))
+        {
+            m_barCacheByDay[date] = std::make_shared<DayCacheEntry>();
+        }
+
+        dayEntry = m_barCacheByDay[date];
+    }
+    // Map lock released, now we have a shared_ptr to the entry
+
+    // Lock only this specific day's data for writing
+    QWriteLocker dayLocker(&dayEntry->lock);
 
     if (bars->size() == BARS_PER_DAY)
     {
-        // Full day
-        m_barCacheByDay.insert(date, *bars);
+        // Full day - replace entire vector
+        dayEntry->bars = *bars;
 
         DEBUG << "Inserted full day in cache for" << date;
     }
     else
     {
-        // Partial day - need to create day vector if it doesn't exist
-        if (!m_barCacheByDay.contains(date))
-        {
-            m_barCacheByDay[date] = QVector<Bar>(BARS_PER_DAY);
-        }
-
-        QVector<Bar>& dayVector = m_barCacheByDay[date];
-
-        // Insert/overwrite bars into existing day vector
+        // Partial day - insert/overwrite bars into existing day vector
         for (const Bar& bar: *bars)
         {
             size_t index = timeToIndex(bar.getTimeStamp().time());
-            dayVector[index] = bar;
+            dayEntry->bars[index] = bar;
         }
 
         DEBUG << "Inserted partial day in cache for" << date << "with" << bars->size() << "bars";
