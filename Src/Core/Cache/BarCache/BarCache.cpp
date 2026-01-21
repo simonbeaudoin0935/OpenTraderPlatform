@@ -379,6 +379,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                 [[maybe_unused]]) mutable
                             {
                                 // TEST 1: Just call promise.finish() to see if that causes the crash
+                                promise.addResult(std::unexpected(TSClient::Error::Other));
                                 promise.finish();
 
                                 // Suppress unused variable warnings
