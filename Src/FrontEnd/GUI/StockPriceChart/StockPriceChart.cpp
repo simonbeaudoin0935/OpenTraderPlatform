@@ -416,7 +416,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
         // Now that we have the first bar, we can set up the custom time ticker
         // that converts index values to time labels
-        m_indexToTimeTicker = QSharedPointer<IndexToTimeTicker>(new IndexToTimeTicker);
+        m_indexToTimeTicker = QSharedPointer<IndexToTimeTicker>::create();
         m_indexToTimeTicker->setTimeFormat("hh:mm");
         m_indexToTimeTicker->setIndexToTimestampFunction([this](int index)
                                                          { return this->getTimestampForIndex(index); });
