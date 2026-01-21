@@ -375,14 +375,22 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                                                               startDateTime,
                                                                               endDayTime);
 
+                  /* copilot:I just added a new test. The segfault happens when I have this continuation here, and it doesnt if it commented
+           out like it is right now
+
+                  yo.then(this, [] (auto bars) {
+                      Q_UNUSED(bars);
+                      qWarning() << "Inside getBars() continuation";
+                  });
+*/
 
                   //copilot : The segfault does not happen if I comment out this continuation
                   /*
-                      .then(this,
-                            [this, date, startDateTime, endDayTime, promise = std::move(promise)](
-                                std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>&& bars
-                                [[maybe_unused]]) mutable
-                            {
+                  .then(this,
+                        [this, date, startDateTime, endDayTime](
+                            std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error>&& bars
+                            [[maybe_unused]]) mutable
+                        {
 
                     //copilit: In the previous test, we tried commenting this block out only, but it did not work
                     //         So now we comment the whole continuation above out, and it works. So we proved that its
@@ -422,7 +430,8 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                 promise.finish();
 
                                 INFO << "Completed fetching bars from API for day" << date;
-                            });
+
+                    });
 */
               });
 
