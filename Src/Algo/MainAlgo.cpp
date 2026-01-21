@@ -35,7 +35,22 @@ MainAlgo::MainAlgo()
 
 MainAlgo::~MainAlgo()
 {
+    qDebug() << "MainAlgo destructor - stopping thread";
+
     stopBalancePolling();
+
+    // Request thread to stop
+    thread.quit();
+
+    // Wait for thread to finish (with timeout)
+    if (!thread.wait(5000))
+    {
+        qWarning() << "MainAlgo thread did not finish within timeout, terminating";
+        thread.terminate();
+        thread.wait();
+    }
+
+    qDebug() << "MainAlgo thread stopped";
 }
 
 void MainAlgo::start()

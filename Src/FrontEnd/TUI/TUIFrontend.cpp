@@ -1,5 +1,6 @@
 #include "TUIFrontend.h"
 #include "MainAlgo.h"
+#include "MainApp.h"
 #include "PlaceOrder.h"
 #include "Settings.h"
 #include "CONSTANTS.h"
@@ -488,7 +489,7 @@ void TUIFrontend::handleInput()
 void TUIFrontend::handleQuitShortcut()
 {
     cleanup();
-    QCoreApplication::quit();
+    MainApp::getInstance()->shutdown();
 }
 
 void TUIFrontend::handleRefreshShortcut()

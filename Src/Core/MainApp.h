@@ -8,9 +8,17 @@
 class MainApp
 {
   public:
-    MainApp();
+    // Singleton: Instance getter
+    static MainApp* getInstance();
+
+    // Delete copy/move constructors and assignment operators
+    MainApp(const MainApp&) = delete;
+    MainApp(MainApp&&) = delete;
+    MainApp& operator=(const MainApp&) = delete;
+    MainApp& operator=(MainApp&&) = delete;
 
     void start();
+    void shutdown();
 
     // Get the current application time (real or replay)
     static QDateTime currentAppReplayTime;
@@ -20,6 +28,11 @@ class MainApp
     static QDateTime getCurrentAppTime();
 
   private:
+    MainApp();
+    ~MainApp();
+
+    static MainApp* m_instance;
+
     TSClient* tradeStationClient;
     MainAlgo* mainAlgo;
     FrontEnd* appFrontend;

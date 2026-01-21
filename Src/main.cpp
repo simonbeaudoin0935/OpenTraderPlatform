@@ -48,9 +48,9 @@ int main(int argc, char* argv[])
 
     qInfo() << "Cache root directory:" << getCacheLocation();
 
-    MainApp mainApp;
+    MainApp* mainApp = MainApp::getInstance();
 
-    mainApp.start();
+    mainApp->start();
 
     return QCoreApplication::exec();
 }
