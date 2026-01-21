@@ -1,7 +1,6 @@
 #pragma once
 #include <QLoggingCategory>
 #include <QObject>
-#include <QFile>
 #include <QThread>
 #include <QMap>
 #include <QTimer>
@@ -93,9 +92,6 @@ class MainAlgo final : public QObject
     OrdersReceiver* m_orderReceiver = nullptr;       // Qt parent-child ownership (parent is 'this')
     bool positionStreamStarted = false;
     bool orderStreamStarted = false;
-
-    QTextStream* algoLogFile;
-    QFile file;
 
     bool m_havePastSuccessfulExchanges = false;
 

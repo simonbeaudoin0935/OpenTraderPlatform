@@ -59,7 +59,8 @@ class StockPriceChart : public QWidget
 
   public slots:
     void addLiveBar(const QString& symbol, const Bar& bar);
-    void onRequestedMissingBarsReceived(const std::shared_ptr<QVector<Bar>> barsPtr);
+    void onRequestedMissingBarsReceived(const std::shared_ptr<QVector<Bar>>& barsPtr);
+    void onRequestedMissingBarsFailed();
 
   private slots:
     void onAxisRangeChanged();
@@ -103,7 +104,7 @@ class StockPriceChart : public QWidget
     int getIndexForTimestamp(const QDateTime& timestamp) const;
 
     // Index-based positioning helpers
-    void addHistoricalBarsToIndexMapping(const QVector<Bar>& bars);
+    void addHistoricalBarsToIndexMapping(const std::shared_ptr<QVector<Bar>>& bars);
 
     QDateTime getPreviousTradingMinute(const QDateTime& timestamp) const;
     QDateTime adjustToValidTradingTime(const QDateTime& timestamp) const;

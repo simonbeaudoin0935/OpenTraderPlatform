@@ -294,9 +294,25 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
         // Round now.time() up to the next minute boundary because TradeStation
         // timestamps bars with their closing time (e.g., at 11:17:33, the current
         // bar covering 11:17:00-11:17:59 will be timestamped 11:18:00 when it closes)
-        QTime nowRoundedUp = (now.time().second() == 0 && now.time().msec() == 0)
-                                 ? now.time()
-                                 : QTime(now.time().hour(), now.time().minute(), 0, 0).addSecs(60);
+        QTime nowRoundedUp;
+        if (now.time().second() == 0 && now.time().msec() == 0)
+        {
+            nowRoundedUp = now.time();
+        }
+        else
+        {
+            // Use QDateTime to properly handle day boundary crossings
+            QDateTime nowRoundedUpDateTime =
+                QDateTime(now.date(), QTime(now.time().hour(), now.time().minute(), 0, 0), now.timeZone()).addSecs(60);
+            nowRoundedUp = nowRoundedUpDateTime.time();
+
+            // If we wrapped to the next day, that means current time is very late (like 23:59)
+            // In this case, we should cap it at the trading end time since we can't have bars beyond trading hours
+            if (nowRoundedUpDateTime.date() > now.date())
+            {
+                nowRoundedUp = TRADING_END_TIME;
+            }
+        }
         OBJ_ASSUME_LTE(last, nowRoundedUp); // Can't request bars for later today than now
     }
 
@@ -319,7 +335,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
     // continuations. Moving a QPromise into nested lambdas causes undefined behavior when
     // Qt's continuation machinery accesses the moved-from promise in the outer lambda.
     QPromise<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> promise;
-    QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> future = promise.future();
+    auto future = promise.future();
     promise.start();
 
     // Query database via DatabaseThread (async, thread-safe)
@@ -330,7 +346,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                               last)
         .then(this, // Execute in the thread of this BarCache object, aka the MainAlgo thread
               [this, date, first, last, isCurrentDay, now, promise = std::move(promise)](
-                  std::optional<std::unique_ptr<QVector<Bar>>> dbBars) mutable
+                  std::optional<std::unique_ptr<QVector<Bar>>>&& dbBars) mutable
               {
                   // Check if we got the complete day from database
                   if (dbBars.has_value())
@@ -365,6 +381,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                   DEBUG << "Fetching complete day from API:" << startDateTime << "to" << endDayTime;
 
                   // Call the API and chain the result processing
+
                   TSClient::getInstance()
                       ->getBars(m_symbol,
                                 1,
@@ -375,7 +392,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                 endDayTime)
                       .then(this,
                             [this, date, startDateTime, endDayTime, promise = std::move(promise)](
-                                std::expected<std::unique_ptr<QVector<Bar>>, TSClient::Error> bars) mutable
+                                std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& bars) mutable
                             {
                                 if (!bars.has_value())
                                 {
@@ -385,11 +402,10 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                 }
                                 else
                                 {
-                                    DEBUG << "Asynchronous getBars() from API completed for complete day" << date
-                                          << "with" << bars.value()->size() << "bars received";
+                                    INFO << "Asynchronous getBars() from API completed for complete day" << date
+                                         << "with" << bars.value()->size() << "bars received";
 
-                                    // Make this a shared_ptr so that a reference can be sent to the DatabaseThread and be worked on it
-                                    // at the same time as we sent the other reference back to the caller
+                                    // Shared_ptr is already provided by TSClient, so we can use it directly
                                     std::shared_ptr<QVector<Bar>> barsFromApiHolesFilled =
                                         std::make_shared<QVector<Bar>>(
                                             fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars.value()));
@@ -397,14 +413,14 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                     // Store the complete day in memory cache
                                     storeBarsInCache(date, barsFromApiHolesFilled);
 
-                                    // Store in database via DatabaseThread (async, fire-and-forget for now)
-                                    DatabaseThread::getInstance()
-                                        ->storeBarsInDatabase(m_symbol, date, barsFromApiHolesFilled)
-                                        .then(this,
-                                              [this](int storedCount) {
-                                                  DEBUG << "Stored" << storedCount << "bars in database for"
-                                                        << m_symbol;
-                                              });
+                                    // Store in database via DatabaseThread (async, fire-and-forget)
+                                    // Note: We intentionally don't wait for the result or attach continuations
+                                    // to avoid lifetime/threading issues. The shared_ptr ensures the bars stay alive,
+                                    // and destroyed then the DatabaseThread processes them.
+                                    [[maybe_unused]] auto dbFuture =
+                                        DatabaseThread::getInstance()->storeBarsInDatabase(m_symbol,
+                                                                                           date,
+                                                                                           barsFromApiHolesFilled);
 
                                     promise.addResult(barsFromApiHolesFilled);
                                 }
@@ -506,7 +522,7 @@ void BarCache::storeBarInCache(const Bar& bar)
     DEBUG << "Inserted bar in cache at index" << index << "for timestamp:" << bar.getTimeStamp();
 }
 
-void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector<Bar>> bars)
+void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector<Bar>>& bars)
 {
     OBJ_ASSUME_FALSE(bars->isEmpty());
 

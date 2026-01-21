@@ -719,10 +719,15 @@ void TUIFrontend::requestMissingBarsForDay(const Bar& firstBar)
     // Trading hours constants (America/New_York timezone)
     static constexpr int TRADING_START_HOUR = 6;
 
-    // Request bars from the beginning of the trading day (6:01 AM) to the first received bar
+    // Request bars from the beginning of the trading day (6:01 AM) to now
+    // Use current time instead of firstBar timestamp to avoid requesting future bars
     QDateTime first =
         QDateTime(firstBar.getTimeStamp().date(), QTime(TRADING_START_HOUR, 1, 0), QTimeZone("America/New_York"));
-    QDateTime last = firstBar.getTimeStamp();
+    QDateTime last = QDateTime::currentDateTime().toTimeZone(QTimeZone("America/New_York"));
+
+    // Truncate to minute boundary (BarCache expects seconds and milliseconds to be 0)
+    QTime lastTime(last.time().hour(), last.time().minute(), 0, 0);
+    last.setTime(lastTime);
 
     qInfo() << "TUI requesting missing bars from" << first.toString(Qt::ISODate) << "to" << last.toString(Qt::ISODate);
 
@@ -733,7 +738,14 @@ void TUIFrontend::requestMissingBarsForDay(const Bar& firstBar)
     {
         // The barCache had the bars ready immediately
         m_fetchedDayBars = std::get<std::shared_ptr<QVector<Bar>>>(result);
-        qInfo() << "TUI received" << m_fetchedDayBars->size() << "historical bars immediately";
+        if (m_fetchedDayBars)
+        {
+            qInfo() << "TUI received" << m_fetchedDayBars->size() << "historical bars immediately";
+        }
+        else
+        {
+            qWarning() << "TUI received null bar data immediately";
+        }
     }
     else
     {
@@ -744,7 +756,15 @@ void TUIFrontend::requestMissingBarsForDay(const Bar& firstBar)
                         if (bars.has_value())
                         {
                             m_fetchedDayBars = bars.value();
-                            qInfo() << "TUI received" << m_fetchedDayBars->size() << "historical bars asynchronously";
+                            if (m_fetchedDayBars)
+                            {
+                                qInfo() << "TUI received" << m_fetchedDayBars->size()
+                                        << "historical bars asynchronously";
+                            }
+                            else
+                            {
+                                qWarning() << "TUI received null bar data asynchronously";
+                            }
                         }
                         else
                         {

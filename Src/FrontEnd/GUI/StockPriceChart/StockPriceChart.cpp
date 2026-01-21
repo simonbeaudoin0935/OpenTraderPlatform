@@ -814,7 +814,7 @@ void StockPriceChart::drawFixedBackgroundRect(const QDateTime& rangeStart,
 /**
  * @brief Handles the response to a missing bars request.
  */
-void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVector<Bar>> barsPtr)
+void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVector<Bar>>& barsPtr)
 {
 
     DEBUG << "Received missing bars response with" << barsPtr->size() << "bars";
@@ -825,7 +825,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
 
     OBJ_ASSUME_FALSE(barsPtr->isEmpty());
 
-    addHistoricalBarsToIndexMapping(*barsPtr);
+    addHistoricalBarsToIndexMapping(barsPtr);
 
     DEBUG << "After addHistoricalBarsToIndexMapping, index range:"
           << QString("%1 to %2").arg(indexToBar.firstKey()).arg(indexToBar.lastKey());
@@ -839,6 +839,18 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
     updateVolumeData();
 
     m_customPlot->replot();
+}
+
+/**
+ * @brief Handles the failure of a missing bars request.
+ */
+void StockPriceChart::onRequestedMissingBarsFailed()
+{
+    DEBUG << "Missing bars request failed, releasing semaphore";
+
+    // Sanity check: semaphore should be acquired (count == 0) when we receive the failure notification
+    OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.available() == 0);
+    m_missingBarsRequestSemaphore.release();
 }
 
 /**
@@ -1091,16 +1103,16 @@ void StockPriceChart::updateAxisLabelsDensity()
 /**
  * @brief Adds historical bars to the index mapping using negative indices.
  */
-void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars)
+void StockPriceChart::addHistoricalBarsToIndexMapping(const std::shared_ptr<QVector<Bar>>& bars)
 {
-    OBJ_ASSUME_FALSE(bars.isEmpty());
+    OBJ_ASSUME_FALSE(bars->isEmpty());
     OBJ_ASSUME_FALSE(indexToBar.isEmpty());
 
     int minIndex = indexToBar.firstKey();
 
-    DEBUG << "addHistoricalBarsToIndexMapping: adding" << bars.size() << "bars, starting minIndex:" << minIndex;
+    DEBUG << "addHistoricalBarsToIndexMapping: adding" << bars->size() << "bars, starting minIndex:" << minIndex;
 
-    for (auto it = bars.rbegin(); it != bars.rend(); ++it)
+    for (auto it = bars->rbegin(); it != bars->rend(); ++it)
     {
         const Bar& bar = *it;
         const QDateTime& timestamp = bar.getTimeStamp();
@@ -1115,7 +1127,7 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const QVector<Bar>& bars)
         indexToBar[minIndex] = bar;
         timestampToIndex[timestamp] = minIndex;
 
-        if (it - bars.rbegin() >= bars.size() - 3 || minIndex >= -3)
+        if (it - bars->rbegin() >= bars->size() - 3 || minIndex >= -3)
         {
             DEBUG << "  Assigned index" << minIndex << "to timestamp" << timestamp.toString("hh:mm:ss");
         }
