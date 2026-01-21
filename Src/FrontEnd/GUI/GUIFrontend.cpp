@@ -10,6 +10,7 @@
 #include <QTextCursor>
 #include <QScrollBar>
 #include <QRegularExpression>
+#include <QTimer>
 #include "Assume.h"
 
 #include "TSClient.h"
@@ -165,55 +166,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
 
     connect(this, &FrontEnd::balanceUpdated, this, &GUIFrontend::onBalanceUpdated, Qt::DirectConnection);
 
-    // When the chart requests missing bars, inside the lambda we call the main algo to get the bars from the displayed stock's bar cache
-    // The result can be either immediate (QVector<Bar>) or asynchronous (QFuture<QVector<Bar>>)
-    connect(
-        ui->priceChart,
-        &StockPriceChart::requestMissingBars,
-        this,
-        [this](QDateTime from, QDateTime to) mutable
-        {
-            OBJ_ASSUME_EQUAL(from.date(), to.date()); // Currently only support same-day requests
-
-            DEBUG << "Request missing barsfrom " << from << " to " << to;
-
-            BarCache::GetBarsResult_t result =
-                MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from.date(), from.time(), to.time());
-
-            if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
-            {
-                // The barCache had the bars ready immediately
-                ui->priceChart->onRequestedMissingBarsReceived(std::get<std::shared_ptr<QVector<Bar>>>(result));
-            }
-            else if (std::holds_alternative<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(
-                         result))
-            {
-                std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result).then(
-                    this,
-                    [this](std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& bars)
-                    {
-                        if (bars.has_value())
-                        {
-                            qInfo() << "Successfully retrieved missing bars from BarCache";
-                            ui->priceChart->onRequestedMissingBarsReceived(bars.value());
-                        }
-                        else
-                        {
-                            qCritical() << "Failed to get missing bars from BarCache - Error:"
-                                        << QtEnum::toString(bars.error());
-
-                            // TODO : retry logic?
-                            // Here we need to do like i did in some other part of the code. We need to factorialize this hole lambda
-                            // into a function that can be called both from here and from the TSClient error handling code.
-                            Q_UNREACHABLE();
-                        }
-                    });
-            }
-            else
-            {
-                Q_UNREACHABLE();
-            }
-        });
+    // When the chart requests missing bars, call the extracted method to handle the request
+    connect(ui->priceChart, &StockPriceChart::requestMissingBars, this, &GUIFrontend::requestMissingBarsFromCache);
 
     // Connect the stock symbol input to its slot
     connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GUIFrontend::onNewDisplayedStockSelection);
@@ -1068,5 +1022,56 @@ void GUIFrontend::onCancelAllOrders()
                     qInfo() << "Order" << orderId << "cancelled successfully:" << cancelResult.toJsonString();
                 }
             });
+    }
+}
+
+void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDateTime& to)
+{
+    OBJ_ASSUME_EQUAL(from.date(), to.date()); // Currently only support same-day requests
+
+    DEBUG << "Request missing bars from " << from << " to " << to;
+
+    BarCache::GetBarsResult_t result =
+        MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from.date(), from.time(), to.time());
+
+    if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
+    {
+        // The barCache had the bars ready immediately
+        ui->priceChart->onRequestedMissingBarsReceived(std::get<std::shared_ptr<QVector<Bar>>>(result));
+    }
+    else if (std::holds_alternative<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result))
+    {
+        std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result).then(
+            this,
+            [this, from, to](std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& bars)
+            {
+                if (bars.has_value())
+                {
+                    qInfo() << "Successfully retrieved missing bars from BarCache";
+                    ui->priceChart->onRequestedMissingBarsReceived(bars.value());
+                }
+                else
+                {
+                    qCritical() << "Failed to get missing bars from BarCache - Error:"
+                                << QtEnum::toString(bars.error());
+
+                    // Notify the chart that the request failed so it can release the semaphore
+                    ui->priceChart->onRequestedMissingBarsFailed();
+
+                    // Retry after 1 second using the same pattern as TSClient error handling
+                    QTimer::singleShot(1000,
+                                       this,
+                                       [this, from, to]()
+                                       {
+                                           qInfo() << "Retrying missing bars request from" << from << "to" << to;
+                                           requestMissingBarsFromCache(from, to);
+                                       });
+                }
+            });
+    }
+    else
+    {
+        qCritical() << "Unexpected result type from requestMissingBarsDisplayedStock";
+        ui->priceChart->onRequestedMissingBarsFailed();
     }
 }

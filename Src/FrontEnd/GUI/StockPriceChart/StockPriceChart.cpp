@@ -842,6 +842,18 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
 }
 
 /**
+ * @brief Handles the failure of a missing bars request.
+ */
+void StockPriceChart::onRequestedMissingBarsFailed()
+{
+    DEBUG << "Missing bars request failed, releasing semaphore";
+
+    // Sanity check: semaphore should be acquired (count == 0) when we receive the failure notification
+    OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.available() == 0);
+    m_missingBarsRequestSemaphore.release();
+}
+
+/**
  * @brief Updates the horizontal last price line.
  */
 void StockPriceChart::redrawLastPriceLine()

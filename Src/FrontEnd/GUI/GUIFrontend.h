@@ -60,6 +60,7 @@ class GUIFrontend : public FrontEnd
 
   private:
     void setupDarkTheme(QMainWindow* mainWindow);
+    void requestMissingBarsFromCache(const QDateTime& from, const QDateTime& to);
     bool isValidStockSymbol(const QString& symbol) const;
     void displayStock(const QString& symbol);
     void saveLastDisplayedStock(const QString& symbol);

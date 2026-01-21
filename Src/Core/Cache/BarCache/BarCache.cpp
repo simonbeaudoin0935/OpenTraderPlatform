@@ -294,9 +294,25 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
         // Round now.time() up to the next minute boundary because TradeStation
         // timestamps bars with their closing time (e.g., at 11:17:33, the current
         // bar covering 11:17:00-11:17:59 will be timestamped 11:18:00 when it closes)
-        QTime nowRoundedUp = (now.time().second() == 0 && now.time().msec() == 0)
-                                 ? now.time()
-                                 : QTime(now.time().hour(), now.time().minute(), 0, 0).addSecs(60);
+        QTime nowRoundedUp;
+        if (now.time().second() == 0 && now.time().msec() == 0)
+        {
+            nowRoundedUp = now.time();
+        }
+        else
+        {
+            // Use QDateTime to properly handle day boundary crossings
+            QDateTime nowRoundedUpDateTime =
+                QDateTime(now.date(), QTime(now.time().hour(), now.time().minute(), 0, 0), now.timeZone()).addSecs(60);
+            nowRoundedUp = nowRoundedUpDateTime.time();
+
+            // If we wrapped to the next day, that means current time is very late (like 23:59)
+            // In this case, we should cap it at the trading end time since we can't have bars beyond trading hours
+            if (nowRoundedUpDateTime.date() > now.date())
+            {
+                nowRoundedUp = TRADING_END_TIME;
+            }
+        }
         OBJ_ASSUME_LTE(last, nowRoundedUp); // Can't request bars for later today than now
     }
 

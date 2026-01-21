@@ -110,6 +110,7 @@ DatabaseThread::getBarsFromDatabase(const QString& symbol, QDate date, QTime sta
     return future;
 }
 
+[[nodiscard]]
 QFuture<int>
 DatabaseThread::storeBarsInDatabase(const QString& symbol, const QDate& date, const std::shared_ptr<QVector<Bar>> bars)
 {

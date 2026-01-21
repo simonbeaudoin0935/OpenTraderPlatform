@@ -60,6 +60,7 @@ class StockPriceChart : public QWidget
   public slots:
     void addLiveBar(const QString& symbol, const Bar& bar);
     void onRequestedMissingBarsReceived(const std::shared_ptr<QVector<Bar>>& barsPtr);
+    void onRequestedMissingBarsFailed();
 
   private slots:
     void onAxisRangeChanged();
