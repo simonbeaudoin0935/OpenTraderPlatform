@@ -30,7 +30,8 @@ The GUI testing is integrated into the main build workflow (`.github/workflows/b
 
 2. **Test-GUI Job**:
    - Downloads the GUI executable artifact from the build job
-   - Runs the GUI test script (Xvfb, xdotool, and x11-utils are pre-installed in the container)
+   - Installs Xvfb, xdotool, and x11-utils (GUI testing tools)
+   - Runs the GUI test script
 
 #### Test Script Steps
 

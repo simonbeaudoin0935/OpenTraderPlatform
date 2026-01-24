@@ -59,11 +59,16 @@ if [ -n "$WINDOW_ID" ]; then
     
     # Wait for application to exit (with timeout)
     echo "Waiting for application to exit..."
-    timeout 10s tail --pid=$APP_PID -f /dev/null || true
+    TIMEOUT=10
+    ELAPSED=0
+    while kill -0 $APP_PID 2>/dev/null && [ $ELAPSED -lt $TIMEOUT ]; do
+        sleep 1
+        ELAPSED=$((ELAPSED + 1))
+    done
     
     # Check if process exited
     if kill -0 $APP_PID 2>/dev/null; then
-        echo "Application did not exit after Ctrl+Q, killing it"
+        echo "Application did not exit after Ctrl+Q within ${TIMEOUT}s, killing it"
         kill $APP_PID
         wait $APP_PID 2>/dev/null || true
         EXIT_CODE=$?
