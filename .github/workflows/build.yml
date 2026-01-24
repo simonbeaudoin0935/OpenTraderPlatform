@@ -122,7 +122,11 @@ jobs:
           sleep 2
           
           # Verify display is available
-          xdpyinfo -display :99 > /dev/null 2>&1 || { echo "Display :99 not available"; exit 1; }
+          xdpyinfo -display :99 > /dev/null 2>&1 || { 
+            echo "Display :99 not available"
+            kill $XVFB_PID 2>/dev/null || true
+            exit 1
+          }
           
           # Start the GUI application in background
           ./gui-build/L2Trader &
@@ -159,7 +163,7 @@ jobs:
               EXIT_CODE=$?
             fi
           else
-            echo "Window not found, application may have crashed"
+            echo "Window not found, application may have crashed or failed to start"
             wait $APP_PID 2>/dev/null || true
             EXIT_CODE=$?
           fi
