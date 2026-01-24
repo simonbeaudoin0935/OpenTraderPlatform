@@ -73,12 +73,12 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
                    &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
 
         // Clean up the previous stock instrument to free resources (streams, database connections)
+        // Use deleteLater() instead of delete to allow pending callbacks to complete safely
         QString oldSymbol = currentDisplayedStockInstrument->symbol;
-        StockInstruments* oldInstrument = currentDisplayedStockInstrument;
-        currentDisplayedStockInstrument = nullptr;
         stockInstruments.remove(oldSymbol);
-        delete oldInstrument;
-        qDebug() << "Cleaned up StockInstrument for" << oldSymbol;
+        currentDisplayedStockInstrument->deleteLater();
+        currentDisplayedStockInstrument = nullptr;
+        qDebug() << "Scheduled cleanup for StockInstrument:" << oldSymbol;
     }
 
     // Change the stock selected pointer to the new selected stock
