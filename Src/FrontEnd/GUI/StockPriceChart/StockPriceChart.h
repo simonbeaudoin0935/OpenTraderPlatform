@@ -109,6 +109,7 @@ class StockPriceChart : public QWidget
     QDateTime getPreviousTradingMinute(const QDateTime& timestamp) const;
     QDateTime adjustToValidTradingTime(const QDateTime& timestamp) const;
     QDate getPreviousFriday(const QDate& date) const;
+    QDate getNextTradingDay(const QDate& date) const;
     void updateAxisLabelsDensity();
     void updateCandlestickData();
     void updateVolumeData();

@@ -648,10 +648,20 @@ void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
         // Draw after-hours rectangle (4pm - 8pm ET)
         drawFixedBackgroundRect(afterHoursStart, afterHoursEnd, QColor(138, 43, 226, 180), m_afterHoursRects);
 
+        // Draw the next trading day's pre-market rectangle to show the junction
+        QDate nextTradingDay = getNextTradingDay(date);
+        QDateTime nextPreMarketStartNY = QDateTime(nextTradingDay, QTime(TRADING_START_HOUR, 1), nyZone);
+        QDateTime nextPreMarketEndNY = QDateTime(nextTradingDay, QTime(9, 30), nyZone);
+        QDateTime nextPreMarketStart = nextPreMarketStartNY.toTimeZone(QTimeZone::utc());
+        QDateTime nextPreMarketEnd = nextPreMarketEndNY.toTimeZone(QTimeZone::utc());
+
+        drawFixedBackgroundRect(nextPreMarketStart, nextPreMarketEnd, QColor(255, 165, 0, 180), m_preMarketRects);
+
         // Mark this date as having backgrounds
         m_datesWithBackgrounds.insert(date);
 
-        DEBUG << "Created background rectangles for date" << date.toString();
+        DEBUG << "Created background rectangles for date" << date.toString() << "and next day premarket for"
+              << nextTradingDay.toString();
     }
 }
 
@@ -718,10 +728,20 @@ void StockPriceChart::drawBackgroundsForVisibleRange()
         // Draw after-hours rectangle (4pm - 8pm ET)
         drawFixedBackgroundRect(afterHoursStart, afterHoursEnd, QColor(138, 43, 226, 180), m_afterHoursRects);
 
+        // Draw the next trading day's pre-market rectangle to show the junction
+        QDate nextTradingDay = getNextTradingDay(date);
+        QDateTime nextPreMarketStartNY = QDateTime(nextTradingDay, QTime(TRADING_START_HOUR, 1), nyZone);
+        QDateTime nextPreMarketEndNY = QDateTime(nextTradingDay, QTime(9, 30), nyZone);
+        QDateTime nextPreMarketStart = nextPreMarketStartNY.toTimeZone(QTimeZone::utc());
+        QDateTime nextPreMarketEnd = nextPreMarketEndNY.toTimeZone(QTimeZone::utc());
+
+        drawFixedBackgroundRect(nextPreMarketStart, nextPreMarketEnd, QColor(255, 165, 0, 180), m_preMarketRects);
+
         // Mark this date as having backgrounds
         m_datesWithBackgrounds.insert(date);
 
-        DEBUG << "Created background rectangles for date" << date.toString();
+        DEBUG << "Created background rectangles for date" << date.toString() << "and next day premarket for"
+              << nextTradingDay.toString();
     }
 }
 
@@ -1106,6 +1126,31 @@ QDate StockPriceChart::getPreviousFriday(const QDate& date) const
     else
     {
         return date.addDays(-(dayOfWeek + 2));
+    }
+}
+
+/**
+ * @brief Gets the next trading day after the given date, skipping weekends.
+ * @param date The date to start from
+ * @return The next trading day (Monday if date is Friday, otherwise next day)
+ */
+QDate StockPriceChart::getNextTradingDay(const QDate& date) const
+{
+    int dayOfWeek = date.dayOfWeek();
+    if (dayOfWeek == FRIDAY)
+    {
+        // Friday -> Monday (skip weekend)
+        return date.addDays(3);
+    }
+    else if (dayOfWeek < FRIDAY)
+    {
+        // Monday-Thursday -> next day
+        return date.addDays(1);
+    }
+    else
+    {
+        // Saturday/Sunday -> Monday
+        return date.addDays(8 - dayOfWeek);
     }
 }
 
