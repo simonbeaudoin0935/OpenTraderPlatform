@@ -31,14 +31,9 @@ BarCache::BarCache(const QString& symbol, bool isStreaming, QObject* parent)
     QDir dir;
     if (!dir.exists(barsDir))
     {
-        if (!dir.mkpath(barsDir))
-        {
-            CRITICAL << "Failed to create Bars directory:" << barsDir;
-        }
-        else
-        {
-            DEBUG << "Created Bars directory:" << barsDir;
-        }
+        bool dirCreated = dir.mkpath(barsDir);
+        ASSUME_TRUE(dirCreated);
+        DEBUG << "Created Bars directory:" << barsDir;
     }
 
     m_dbPath = barsDir + "/" + symbol + ".db";
