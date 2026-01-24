@@ -23,11 +23,23 @@ BarCache::BarCache(const QString& symbol, bool isStreaming, QObject* parent)
 
     this->setObjectName("BarCache::" + symbol);
 
-    // Set up database path - one database file per symbol
+    // Set up database path - one database file per symbol in Bars subdirectory
     QString cacheLocation = getCacheLocation();
-    m_dbPath = cacheLocation + "/bars_cache_" + symbol + ".db";
+    QString barsDir = cacheLocation + "/" + BARS_CACHE_SUBDIR;
+
+    // Create Bars directory if it doesn't exist
+    QDir dir;
+    if (!dir.exists(barsDir))
+    {
+        bool dirCreated = dir.mkpath(barsDir);
+        ASSUME_TRUE(dirCreated);
+        DEBUG << "Created Bars directory:" << barsDir;
+    }
+
+    m_dbPath = barsDir + "/" + symbol + ".db";
 
     DEBUG << "Cache location:" << cacheLocation;
+    DEBUG << "Bars directory:" << barsDir;
     DEBUG << "Using database file:" << m_dbPath;
 
     // Open database via DatabaseThread (async, thread-safe)

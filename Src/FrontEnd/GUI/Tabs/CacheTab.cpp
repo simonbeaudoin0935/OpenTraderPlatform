@@ -147,41 +147,45 @@ void CacheTab::populateCacheTable()
         return;
     }
 
-    // Find all cache files
-    QStringList filters;
-    filters << "bars_cache_*.db"; // Bar cache files
-    // Add more filters for other cache categories as they are implemented
-
     qint64 totalSize = 0;
     int row = 0;
 
-    // Scan for bar cache files
-    QStringList barCacheFiles = dir.entryList(filters, QDir::Files);
+    // Scan for bar cache files in Bars subdirectory
+    QString barsDir = cacheDir + "/" + BARS_CACHE_SUBDIR;
+    QDir barsDirObj(barsDir);
 
-    for (const QString& fileName: barCacheFiles)
+    if (barsDirObj.exists())
     {
-        QFileInfo fileInfo(dir.absoluteFilePath(fileName));
+        QStringList filters;
+        filters << "*.db"; // All .db files in Bars directory
 
-        cacheTable->insertRow(row);
+        QStringList barCacheFiles = barsDirObj.entryList(filters, QDir::Files);
 
-        // Category
-        QTableWidgetItem* categoryItem = new QTableWidgetItem("Bar Data");
-        categoryItem->setData(Qt::UserRole,
-                              fileInfo.absoluteFilePath()); // Store full path
-        cacheTable->setItem(row, 0, categoryItem);
+        for (const QString& fileName: barCacheFiles)
+        {
+            QFileInfo fileInfo(barsDirObj.absoluteFilePath(fileName));
 
-        // File Name
-        cacheTable->setItem(row, 1, new QTableWidgetItem(fileName));
+            cacheTable->insertRow(row);
 
-        // Size
-        qint64 fileSize = fileInfo.size();
-        totalSize += fileSize;
-        cacheTable->setItem(row, 2, new QTableWidgetItem(formatFileSize(fileSize)));
+            // Category
+            QTableWidgetItem* categoryItem = new QTableWidgetItem("Bar Data");
+            categoryItem->setData(Qt::UserRole,
+                                  fileInfo.absoluteFilePath()); // Store full path
+            cacheTable->setItem(row, 0, categoryItem);
 
-        // Last Modified
-        cacheTable->setItem(row, 3, new QTableWidgetItem(fileInfo.lastModified().toString("yyyy-MM-dd hh:mm:ss")));
+            // File Name
+            cacheTable->setItem(row, 1, new QTableWidgetItem(fileName));
 
-        row++;
+            // Size
+            qint64 fileSize = fileInfo.size();
+            totalSize += fileSize;
+            cacheTable->setItem(row, 2, new QTableWidgetItem(formatFileSize(fileSize)));
+
+            // Last Modified
+            cacheTable->setItem(row, 3, new QTableWidgetItem(fileInfo.lastModified().toString("yyyy-MM-dd hh:mm:ss")));
+
+            row++;
+        }
     }
 
     // Update total size
@@ -298,19 +302,24 @@ void CacheTab::clearAllCache()
         return;
     }
 
-    // Find all cache files
-    QStringList filters;
-    filters << "bars_cache_*.db"; // Bar cache files
-    // Add more filters for other cache categories as they are implemented
-
     QStringList filesToDelete;
     qint64 totalSize = 0;
 
-    for (const QString& fileName: dir.entryList(filters, QDir::Files))
+    // Scan for bar cache files in Bars subdirectory
+    QString barsDir = cacheDir + "/" + BARS_CACHE_SUBDIR;
+    QDir barsDirObj(barsDir);
+
+    if (barsDirObj.exists())
     {
-        QFileInfo fileInfo(dir.absoluteFilePath(fileName));
-        filesToDelete.append(fileName);
-        totalSize += fileInfo.size();
+        QStringList filters;
+        filters << "*.db"; // All .db files in Bars directory
+
+        for (const QString& fileName: barsDirObj.entryList(filters, QDir::Files))
+        {
+            QFileInfo fileInfo(barsDirObj.absoluteFilePath(fileName));
+            filesToDelete.append(barsDirObj.absoluteFilePath(fileName));
+            totalSize += fileInfo.size();
+        }
     }
 
     if (filesToDelete.isEmpty())
@@ -332,13 +341,12 @@ void CacheTab::clearAllCache()
     if (reply == QMessageBox::Yes)
     {
         bool allDeleted = true;
-        for (const QString& fileName: filesToDelete)
+        for (const QString& filePath: filesToDelete)
         {
-            QString filePath = dir.absoluteFilePath(fileName);
             QFile file(filePath);
             if (!file.remove())
             {
-                QMessageBox::warning(this, "Deletion Failed", QString("Failed to delete file: %1").arg(fileName));
+                QMessageBox::warning(this, "Deletion Failed", QString("Failed to delete file: %1").arg(filePath));
                 allDeleted = false;
             }
         }
