@@ -88,7 +88,11 @@ void Stream::onReplyFinished()
 
     m_heartbeatTimer.stop();
 
-    m_promise.addResult(exceptionString);
+    // During shutdown, don't try to add results to the promise as the QFuture context may be destroyed
+    if (!s_isShuttingDown)
+    {
+        m_promise.addResult(exceptionString);
+    }
 
     // m_promise.finish() will be called in the destructor
     this->deleteLater();
