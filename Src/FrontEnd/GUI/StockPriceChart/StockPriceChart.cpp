@@ -649,19 +649,12 @@ void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
         drawFixedBackgroundRect(afterHoursStart, afterHoursEnd, QColor(138, 43, 226, 180), m_afterHoursRects);
 
         // Draw the next trading day's pre-market rectangle to show the junction
-        QDate nextTradingDay = getNextTradingDay(date);
-        QDateTime nextPreMarketStartNY = QDateTime(nextTradingDay, QTime(TRADING_START_HOUR, 1), nyZone);
-        QDateTime nextPreMarketEndNY = QDateTime(nextTradingDay, QTime(9, 30), nyZone);
-        QDateTime nextPreMarketStart = nextPreMarketStartNY.toTimeZone(QTimeZone::utc());
-        QDateTime nextPreMarketEnd = nextPreMarketEndNY.toTimeZone(QTimeZone::utc());
-
-        drawFixedBackgroundRect(nextPreMarketStart, nextPreMarketEnd, QColor(255, 165, 0, 180), m_preMarketRects);
+        drawNextDayPremarketRect(date, nyZone);
 
         // Mark this date as having backgrounds
         m_datesWithBackgrounds.insert(date);
 
-        DEBUG << "Created background rectangles for date" << date.toString() << "and next day premarket for"
-              << nextTradingDay.toString();
+        DEBUG << "Created background rectangles for date" << date.toString();
     }
 }
 
@@ -729,19 +722,12 @@ void StockPriceChart::drawBackgroundsForVisibleRange()
         drawFixedBackgroundRect(afterHoursStart, afterHoursEnd, QColor(138, 43, 226, 180), m_afterHoursRects);
 
         // Draw the next trading day's pre-market rectangle to show the junction
-        QDate nextTradingDay = getNextTradingDay(date);
-        QDateTime nextPreMarketStartNY = QDateTime(nextTradingDay, QTime(TRADING_START_HOUR, 1), nyZone);
-        QDateTime nextPreMarketEndNY = QDateTime(nextTradingDay, QTime(9, 30), nyZone);
-        QDateTime nextPreMarketStart = nextPreMarketStartNY.toTimeZone(QTimeZone::utc());
-        QDateTime nextPreMarketEnd = nextPreMarketEndNY.toTimeZone(QTimeZone::utc());
-
-        drawFixedBackgroundRect(nextPreMarketStart, nextPreMarketEnd, QColor(255, 165, 0, 180), m_preMarketRects);
+        drawNextDayPremarketRect(date, nyZone);
 
         // Mark this date as having backgrounds
         m_datesWithBackgrounds.insert(date);
 
-        DEBUG << "Created background rectangles for date" << date.toString() << "and next day premarket for"
-              << nextTradingDay.toString();
+        DEBUG << "Created background rectangles for date" << date.toString();
     }
 }
 
@@ -837,6 +823,28 @@ void StockPriceChart::drawFixedBackgroundRect(const QDateTime& rangeStart,
           << rangeStart.toString("hh:mm") << "-" << rangeEnd.toString("hh:mm") << "with color" << color.name();
 
     rectList.append(rect);
+}
+
+/**
+ * @brief Draws the premarket rectangle for the next trading day after the given date.
+ *
+ * This helps visualize the junction between the aftermarket of one day and the
+ * premarket of the next trading day.
+ *
+ * @param date The current trading day
+ * @param nyZone The New York timezone
+ */
+void StockPriceChart::drawNextDayPremarketRect(const QDate& date, const QTimeZone& nyZone)
+{
+    QDate nextTradingDay = getNextTradingDay(date);
+    QDateTime nextPreMarketStartNY = QDateTime(nextTradingDay, QTime(TRADING_START_HOUR, 1), nyZone);
+    QDateTime nextPreMarketEndNY = QDateTime(nextTradingDay, QTime(9, 30), nyZone);
+    QDateTime nextPreMarketStart = nextPreMarketStartNY.toTimeZone(QTimeZone::utc());
+    QDateTime nextPreMarketEnd = nextPreMarketEndNY.toTimeZone(QTimeZone::utc());
+
+    drawFixedBackgroundRect(nextPreMarketStart, nextPreMarketEnd, QColor(255, 165, 0, 180), m_preMarketRects);
+
+    DEBUG << "Created next day premarket rectangle for" << nextTradingDay.toString();
 }
 
 /**

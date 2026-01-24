@@ -123,6 +123,7 @@ class StockPriceChart : public QWidget
                                  const QDateTime& rangeEnd,
                                  const QColor& color,
                                  QList<QCPItemRect*>& rectList);
+    void drawNextDayPremarketRect(const QDate& date, const QTimeZone& nyZone);
 
     QString m_symbol;
     QCustomPlot* m_customPlot;
