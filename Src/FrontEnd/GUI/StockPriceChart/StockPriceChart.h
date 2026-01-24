@@ -149,8 +149,8 @@ class StockPriceChart : public QWidget
     // Timeframe selector widget
     ChartToolbar* chartToolbar;
 
-    // Binary semaphore to track if a missing bars request is in progress
-    // Initialized with count 1 (not acquired). Acquire before requesting, release when received.
+    // Binary semaphore to prevent rapid duplicate missing bars requests
+    // Initialized with count 1 (not acquired). Acquire before checking, release after emitting request.
     QSemaphore m_missingBarsRequestSemaphore{1};
 
     // Wheel zoom sensitivity ratio

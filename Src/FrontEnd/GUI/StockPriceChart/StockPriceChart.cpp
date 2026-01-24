@@ -373,6 +373,9 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         DEBUG << "Requesting whole day bars from" << first.toString(Qt::ISODate) << "to" << last.toString(Qt::ISODate);
 
         emit requestMissingBars(first, last);
+
+        // Release semaphore immediately after emitting to allow chart responsiveness
+        m_missingBarsRequestSemaphore.release();
         return;
     }
 
@@ -827,10 +830,6 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
 
     DEBUG << "Received missing bars response with" << barsPtr->size() << "bars";
 
-    // Sanity check: semaphore should be acquired (count == 0) when we receive the response
-    OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.available() == 0);
-    m_missingBarsRequestSemaphore.release();
-
     OBJ_ASSUME_FALSE(barsPtr->isEmpty());
 
     addHistoricalBarsToIndexMapping(barsPtr);
@@ -854,11 +853,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
  */
 void StockPriceChart::onRequestedMissingBarsFailed()
 {
-    DEBUG << "Missing bars request failed, releasing semaphore";
-
-    // Sanity check: semaphore should be acquired (count == 0) when we receive the failure notification
-    OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.available() == 0);
-    m_missingBarsRequestSemaphore.release();
+    DEBUG << "Missing bars request failed";
 }
 
 /**
@@ -973,6 +968,11 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
           << requestEndTime.toString(Qt::ISODate);
 
     emit requestMissingBars(requestStartTime, requestEndTime);
+
+    // Release semaphore immediately after emitting the signal to allow chart to remain responsive
+    // during async bar fetching. This prevents the chart from freezing while waiting for
+    // database/API responses, allowing continued panning operations.
+    m_missingBarsRequestSemaphore.release();
 }
 
 /**
