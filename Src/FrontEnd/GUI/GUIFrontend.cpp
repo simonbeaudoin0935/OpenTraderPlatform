@@ -1022,12 +1022,7 @@ void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDate
         // Defer processing to the event loop to avoid blocking the UI thread during panning.
         // This ensures the chart remains responsive even when loading large amounts of cached data.
         auto bars = std::get<std::shared_ptr<QVector<Bar>>>(result);
-        QTimer::singleShot(0,
-                           this,
-                           [this, bars]()
-                           {
-                               ui->priceChart->onRequestedMissingBarsReceived(bars);
-                           });
+        QTimer::singleShot(0, this, [this, bars]() { ui->priceChart->onRequestedMissingBarsReceived(bars); });
     }
     else if (std::holds_alternative<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result))
     {
