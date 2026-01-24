@@ -11,6 +11,7 @@
 Q_LOGGING_CATEGORY(LOGGING_CATEGORY, "Stream")
 
 size_t Stream::s_numberOfStream = 0;
+bool Stream::s_isShuttingDown = false;
 
 
 Stream::Stream(QNetworkReply* reply, QObject* parent) : QObject(parent), m_networkReply(reply)
@@ -59,7 +60,7 @@ Stream::~Stream()
     // Note: During application shutdown, QPromise::finish() may assert if the QFuture's context has been
     // destroyed. Since QPromise will be destroyed anyway, we can skip finishing it during shutdown.
     // The promise destructor will handle cleanup.
-    if (!QCoreApplication::closingDown())
+    if (!s_isShuttingDown)
     {
         m_promise.finish();
     }

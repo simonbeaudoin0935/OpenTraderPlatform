@@ -1,6 +1,7 @@
 #include "MainApp.h"
 #include "DatabaseThread.h"
 #include "Logging.h"
+#include "Stream.h"
 #include <QCoreApplication>
 #ifdef GUI_ENABLED
 #include "GUIFrontend.h"
@@ -158,6 +159,9 @@ void MainApp::shutdown()
 void MainApp::cleanupSingletons()
 {
     qInfo() << "Cleaning up singletons";
+
+    // Set shutdown flag to prevent Stream destructors from finishing promises
+    Stream::setShuttingDown(true);
 
     // Delete MainApp singleton first (which will delete the frontend)
     MainApp::destroyInstance();
