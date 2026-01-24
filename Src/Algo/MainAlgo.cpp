@@ -74,9 +74,10 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
 
         // Clean up the previous stock instrument to free resources (streams, database connections)
         QString oldSymbol = currentDisplayedStockInstrument->symbol;
-        stockInstruments.remove(oldSymbol);
-        delete currentDisplayedStockInstrument;
+        StockInstruments* oldInstrument = currentDisplayedStockInstrument;
         currentDisplayedStockInstrument = nullptr;
+        stockInstruments.remove(oldSymbol);
+        delete oldInstrument;
         qDebug() << "Cleaned up StockInstrument for" << oldSymbol;
     }
 
