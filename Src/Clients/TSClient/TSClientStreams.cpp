@@ -166,7 +166,7 @@ void TSClient::closeStream(Stream* const stream)
 
     QMetaObject::invokeMethod(
         this,
-        [this, stream]()  // Capture stream by value, not by reference
+        [this, stream]() // Capture stream by value, not by reference
         {
             // Deleting the stream will also close the associated QNetworkReply
             delete stream;

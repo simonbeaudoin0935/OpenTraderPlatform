@@ -94,7 +94,7 @@ BarCache::~BarCache()
 {
     // Note: Stream cleanup is handled by TSClient. Calling closeStream() from destructor
     // can cause race conditions with pending .then() callbacks when using deleteLater().
-    
+
     // Close database connection via DatabaseThread
     DatabaseThread::getInstance()->closeDatabase(m_symbol);
 

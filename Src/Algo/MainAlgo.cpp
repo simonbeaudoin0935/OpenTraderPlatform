@@ -75,7 +75,7 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         // Clean up the previous stock instrument to free resources (streams, database connections)
         QString oldSymbol = currentDisplayedStockInstrument->symbol;
         QPointer<StockInstruments> oldInstrument = currentDisplayedStockInstrument;
-        
+
         // Close streams BEFORE scheduling deletion to avoid race conditions with .then() callbacks
         if (oldInstrument->barCache.getStream())
         {
@@ -85,12 +85,12 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         {
             TSClient::getInstance()->closeStream(oldInstrument->marketDepthQuoteReceiver.getStream());
         }
-        
+
         currentDisplayedStockInstrument = nullptr;
-        
+
         int removed = stockInstruments.remove(oldSymbol);
         OBJ_ASSUME_EQUAL(removed, 1); // Should always remove exactly one entry
-        
+
         // Schedule deletion after streams are closed
         oldInstrument->deleteLater();
         qDebug() << "Scheduled cleanup for StockInstrument:" << oldSymbol;
