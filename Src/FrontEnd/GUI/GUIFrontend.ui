@@ -64,7 +64,7 @@
          </sizepolicy>
         </property>
         <property name="text">
-         <string>ℹ</string>
+         <string>🛈</string>
         </property>
         <property name="toolTip">
          <string>Show account information</string>

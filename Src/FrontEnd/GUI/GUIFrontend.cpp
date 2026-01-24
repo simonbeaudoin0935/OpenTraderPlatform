@@ -587,14 +587,12 @@ void GUIFrontend::onBalanceUpdated(Balance balance)
 void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
 {
     static bool isFirstTime = true;
-    QString log;
 
     if (isAuthenticated)
     {
         tradeStationLoginButton->setText("TradeStation Connected");
         tradeStationLoginButton->setStyleSheet(
             "QPushButton { background-color: #E6FFE6; color: #4CAF50; padding: 2px 6px; border-radius: 3px; }");
-        log += "TradeStation Client AUTHENTICATED : " + reason;
 
         // Restore the last displayed stock now that we're authenticated
         // Only do this once on the first successful authentication
@@ -620,11 +618,9 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
             tradeStationLoginButton->setText("Login Failed: " + reason);
             tradeStationLoginButton->setStyleSheet(
                 "QPushButton { background-color: #FFE6E6; color: #f44336; padding: 2px 6px; border-radius: 3px; }");
-            log += "TradeStation Client UN-AUTHENTICATED : " + reason;
         }
     }
 
-    ui->logDisplay->append(log);
     isFirstTime = false;
 }
 
