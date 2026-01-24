@@ -12,6 +12,7 @@ echo ""
 command -v Xvfb >/dev/null 2>&1 || { echo "Error: Xvfb is not installed. Install with: sudo apt-get install xvfb"; exit 1; }
 command -v xdotool >/dev/null 2>&1 || { echo "Error: xdotool is not installed. Install with: sudo apt-get install xdotool"; exit 1; }
 command -v xdpyinfo >/dev/null 2>&1 || { echo "Error: xdpyinfo is not installed. Install with: sudo apt-get install x11-utils"; exit 1; }
+command -v import >/dev/null 2>&1 || { echo "Warning: imagemagick is not installed. Screenshots will be skipped. Install with: sudo apt-get install imagemagick"; }
 
 # Check if L2Trader executable exists
 if [ ! -f "./build/GUI/Src/L2Trader" ]; then
@@ -52,6 +53,14 @@ WINDOW_ID=$(xdotool search --sync --onlyvisible --class "L2Trader" 2>/dev/null |
 
 if [ -n "$WINDOW_ID" ]; then
     echo "Found window ID: $WINDOW_ID"
+    
+    # Take a screenshot before sending Ctrl+Q (if imagemagick is available)
+    if command -v import >/dev/null 2>&1; then
+        mkdir -p screenshots
+        import -window root screenshots/gui-test-before-quit.png
+        echo "Screenshot saved to screenshots/gui-test-before-quit.png"
+    fi
+    
     # Send Ctrl+Q directly to the window (no activation needed in Xvfb)
     echo "Sending Ctrl+Q to window..."
     xdotool key --window "$WINDOW_ID" ctrl+q

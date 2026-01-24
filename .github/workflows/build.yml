@@ -109,11 +109,6 @@ jobs:
           name: l2trader-gui-${{ github.sha }}
           path: ./gui-build
 
-      - name: Install GUI testing dependencies
-        run: |
-          apt-get update
-          apt-get install -y xvfb xdotool x11-utils
-
       - name: Make executable runnable
         run: chmod +x ./gui-build/L2Trader
 
@@ -146,6 +141,12 @@ jobs:
           
           if [ -n "$WINDOW_ID" ]; then
             echo "Found window ID: $WINDOW_ID"
+            
+            # Take a screenshot before sending Ctrl+Q
+            mkdir -p screenshots
+            import -window root screenshots/gui-test-before-quit.png
+            echo "Screenshot saved to screenshots/gui-test-before-quit.png"
+            
             # Send Ctrl+Q directly to the window (no activation needed in Xvfb)
             xdotool key --window "$WINDOW_ID" ctrl+q
             
@@ -186,3 +187,11 @@ jobs:
             echo "GUI test failed with exit code $EXIT_CODE"
             exit 1
           fi
+
+      - name: Upload screenshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: gui-test-screenshot-${{ github.sha }}
+          path: screenshots/
+          retention-days: 7

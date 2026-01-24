@@ -18,6 +18,8 @@ As L2Trader has moved into integration phase, unit tests alone are insufficient 
 
 3. **x11-utils**: Provides utilities like `xdpyinfo` for querying and verifying X11 display information.
 
+4. **ImageMagick**: Provides the `import` command for capturing screenshots of the virtual display.
+
 ### Test Workflow
 
 The GUI testing is integrated into the main build workflow (`.github/workflows/build.yml`) as a separate job that runs after the build job completes.
@@ -30,8 +32,10 @@ The GUI testing is integrated into the main build workflow (`.github/workflows/b
 
 2. **Test-GUI Job**:
    - Downloads the GUI executable artifact from the build job
-   - Installs Xvfb, xdotool, and x11-utils (GUI testing tools)
+   - Uses Docker container with pre-installed GUI testing tools (Xvfb, xdotool, x11-utils, ImageMagick)
    - Runs the GUI test script
+   - Captures a screenshot before sending Ctrl+Q
+   - Uploads the screenshot as an artifact
 
 #### Test Script Steps
 
@@ -40,10 +44,12 @@ The GUI testing is integrated into the main build workflow (`.github/workflows/b
 3. **Launch Application**: Start L2Trader in the background
 4. **Wait for Startup**: Allow 5 seconds for the application to initialize and create its window
 5. **Find Window**: Use `xdotool search` to locate the L2Trader window by class name
-6. **Send Ctrl+Q**: Send the keyboard shortcut directly to the window (note: window activation is skipped as Xvfb doesn't include a window manager with `_NET_ACTIVE_WINDOW` support)
-7. **Wait for Exit**: Monitor the application process for up to 10 seconds
-8. **Verify Exit Code**: Check that the application exited cleanly (exit code 0 or 143)
-9. **Cleanup**: Terminate the Xvfb process
+6. **Capture Screenshot**: Use ImageMagick's `import` command to capture the virtual display
+7. **Send Ctrl+Q**: Send the keyboard shortcut directly to the window (note: window activation is skipped as Xvfb doesn't include a window manager with `_NET_ACTIVE_WINDOW` support)
+8. **Wait for Exit**: Monitor the application process for up to 10 seconds
+9. **Verify Exit Code**: Check that the application exited cleanly (exit code 0 or 143)
+10. **Upload Screenshot**: Save the screenshot as a workflow artifact for inspection
+11. **Cleanup**: Terminate the Xvfb process
 
 ### Exit Code Interpretation
 
@@ -60,7 +66,7 @@ A convenience script is provided for local testing: `Utils/test-gui.sh`
 ### Prerequisites
 
 ```bash
-sudo apt-get install xvfb xdotool x11-utils
+sudo apt-get install xvfb xdotool x11-utils imagemagick
 ```
 
 ### Running Locally
@@ -79,14 +85,28 @@ The script will:
 - Check for required dependencies
 - Verify the L2Trader executable exists
 - Run the same test sequence as the CI workflow
+- Capture a screenshot (if ImageMagick is available) saved to `screenshots/gui-test-before-quit.png`
 - Report success or failure
+
+## Screenshot Artifacts
+
+The test workflow captures a screenshot of the virtual display immediately before sending the Ctrl+Q command. This screenshot is uploaded as a GitHub Actions artifact with:
+- **Name**: `gui-test-screenshot-<commit-sha>`
+- **Retention**: 7 days
+- **Content**: PNG image showing the application window state
+
+The screenshot allows visual inspection of:
+- Window appearance and layout
+- Application startup success
+- Any visible errors or warnings in the UI
+- Widget rendering and positioning
 
 ## Limitations and Future Improvements
 
 ### Current Limitations
 
 1. **Single Test Case**: Currently only tests application startup and Ctrl+Q quit
-2. **No Visual Verification**: Cannot verify UI rendering or layout
+2. **Single Screenshot**: Only one screenshot is captured before quit
 3. **Limited Interaction**: Only simulates one keyboard shortcut
 4. **No Error Detection**: Cannot detect UI errors or warnings in dialogs
 

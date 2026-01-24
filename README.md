@@ -258,7 +258,7 @@ mkdir -p build/GUI
 cmake -S . -B build/GUI -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF
 cmake --build build/GUI -j$(nproc)
 
-# Run GUI test with Xvfb (requires xvfb, xdotool, and x11-utils)
+# Run GUI test with Xvfb (requires xvfb, xdotool, x11-utils, and imagemagick)
 ./Utils/test-gui.sh
 ```
 
