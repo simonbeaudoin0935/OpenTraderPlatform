@@ -241,24 +241,43 @@ QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersData
 
     while (query.next())
     {
-        // Extract all fields from query
-        int col = 0;
-        QString orderId = query.value(col++).toString();
-        QString accountId = query.value(col++).toString();
-        QString symbol = query.value(col++).toString();
-        QString quantity = query.value(col++).toString();
-        QString tradeAction = query.value(col++).toString();
-        QString orderTypeStr = query.value(col++).toString();
-        QString statusStr = query.value(col++).toString();
-        QString statusDescription = query.value(col++).toString();
-        QVariant limitPriceVar = query.value(col++);
-        QVariant stopPriceVar = query.value(col++);
-        QVariant filledPriceVar = query.value(col++);
-        QString openedDateTimeStr = query.value(col++).toString();
-        QString closedDateTimeStr = query.value(col++).toString();
-        QString receivedTimeStr = query.value(col++).toString();
-        QString filledTimeStr = query.value(col++).toString();
-        QString jsonDataStr = query.value(col++).toString();
+        // Extract all fields from query - columns match the order in SELECT_ALL_ORDERS
+        enum Columns
+        {
+            COL_ORDER_ID = 0,
+            COL_ACCOUNT_ID,
+            COL_SYMBOL,
+            COL_QUANTITY,
+            COL_TRADE_ACTION,
+            COL_ORDER_TYPE,
+            COL_STATUS,
+            COL_STATUS_DESCRIPTION,
+            COL_LIMIT_PRICE,
+            COL_STOP_PRICE,
+            COL_FILLED_PRICE,
+            COL_OPENED_DATETIME,
+            COL_CLOSED_DATETIME,
+            COL_RECEIVED_TIME,
+            COL_FILLED_TIME,
+            COL_JSON_DATA
+        };
+
+        QString orderId = query.value(COL_ORDER_ID).toString();
+        QString accountId = query.value(COL_ACCOUNT_ID).toString();
+        QString symbol = query.value(COL_SYMBOL).toString();
+        QString quantity = query.value(COL_QUANTITY).toString();
+        QString tradeAction = query.value(COL_TRADE_ACTION).toString();
+        QString orderTypeStr = query.value(COL_ORDER_TYPE).toString();
+        QString statusStr = query.value(COL_STATUS).toString();
+        QString statusDescription = query.value(COL_STATUS_DESCRIPTION).toString();
+        QVariant limitPriceVar = query.value(COL_LIMIT_PRICE);
+        QVariant stopPriceVar = query.value(COL_STOP_PRICE);
+        QVariant filledPriceVar = query.value(COL_FILLED_PRICE);
+        QString openedDateTimeStr = query.value(COL_OPENED_DATETIME).toString();
+        QString closedDateTimeStr = query.value(COL_CLOSED_DATETIME).toString();
+        QString receivedTimeStr = query.value(COL_RECEIVED_TIME).toString();
+        QString filledTimeStr = query.value(COL_FILLED_TIME).toString();
+        QString jsonDataStr = query.value(COL_JSON_DATA).toString();
 
         QDateTime receivedTime = QDateTime::fromString(receivedTimeStr, Qt::ISODate);
         std::optional<QDateTime> filledTime;
@@ -312,6 +331,7 @@ QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersData
     }
 
     INFO << "Loaded" << orders.size() << "orders from database";
+
     return orders;
 }
 
