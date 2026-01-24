@@ -236,7 +236,7 @@ L2Trader/
 
 ### Running Tests
 
-Build and run the test suite:
+Build and run the unit test suite:
 
 ```bash
 mkdir build
@@ -249,6 +249,21 @@ ctest --output-on-failure
 ./Tests/test_RunUpDetector
 ./Tests/test_tradestationclient
 ```
+
+For GUI integration testing:
+
+```bash
+# Build the GUI version
+mkdir -p build/GUI
+cmake -S . -B build/GUI -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF
+cmake --build build/GUI -j$(nproc)
+
+# Run GUI test with Xvfb (requires xvfb, xdotool, x11-utils, and imagemagick)
+./Utils/test-gui.sh
+```
+
+See [Doc/GUI_Testing.md](Doc/GUI_Testing.md) for more details on GUI testing.
+
 
 ### IDE Setup
 
