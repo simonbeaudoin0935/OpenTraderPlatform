@@ -921,7 +921,8 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 
     if (viewStartTimeRounded >= firstBarTime)
     {
-        // View is within available bars
+        // View is within available bars - release semaphore before returning
+        m_missingBarsRequestSemaphore.release();
         return;
     }
 
@@ -963,7 +964,8 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     // Ensure we don't request invalid ranges
     if (requestStartTime >= requestEndTime)
     {
-        DEBUG << "Invalid request range, skipping";
+        DEBUG << "Invalid request range, skipping - releasing semaphore";
+        m_missingBarsRequestSemaphore.release();
         return;
     }
 
@@ -990,6 +992,17 @@ void StockPriceChart::clearSymbol()
     m_latestBar = Bar();
 
     m_priceLabel->setVisible(false);
+
+    // Reset state flags for new symbol
+    startedReceivingRealtimeBars = false;
+
+    // Reset semaphore to available state (1) for new symbol
+    // If it was acquired (count == 0), release it; if already available, do nothing
+    if (m_missingBarsRequestSemaphore.available() == 0)
+    {
+        DEBUG << "Releasing semaphore during clearSymbol - previous request was in-flight";
+        m_missingBarsRequestSemaphore.release();
+    }
 
     m_customPlot->xAxis->setRange(0, 30);
     m_customPlot->yAxis->setRange(0, 100);
