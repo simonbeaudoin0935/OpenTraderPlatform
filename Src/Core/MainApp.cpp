@@ -27,12 +27,10 @@ MainApp* MainApp::getInstance()
 
 void MainApp::destroyInstance()
 {
-    if (m_instance != nullptr)
-    {
-        qInfo() << "Destroying MainApp singleton instance";
-        delete m_instance;
-        m_instance = nullptr;
-    }
+    ASSUME_TRUE(m_instance != nullptr);
+    qInfo() << "Destroying MainApp singleton instance";
+    delete m_instance;
+    m_instance = nullptr;
 }
 
 // Get the current application time (real or replay)

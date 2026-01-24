@@ -1,6 +1,7 @@
 #include <QJsonObject>
 #include <QMetaEnum>
 #include <QNetworkReply>
+#include <QCoreApplication>
 
 #include "Stream.h"
 #include "Logging.h"
@@ -55,7 +56,14 @@ Stream::~Stream()
     // or maybe the user of the stream is destroying it because he wants to stop it.
     // In any case, we must finish the promise to mark the stream as finished, and if there was an error, we
     // must have already set the exception in the promise.
-    m_promise.finish();
+    // Note: During application shutdown, QPromise::finish() may assert if the QFuture's context has been
+    // destroyed. Since QPromise will be destroyed anyway, we can skip finishing it during shutdown.
+    // The promise destructor will handle cleanup.
+    if (!QCoreApplication::closingDown())
+    {
+        m_promise.finish();
+    }
+
     m_heartbeatTimer.stop();
 }
 

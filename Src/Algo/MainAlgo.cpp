@@ -25,12 +25,10 @@ MainAlgo* MainAlgo::getInstance()
 
 void MainAlgo::destroyInstance()
 {
-    if (m_instance != nullptr)
-    {
-        qCDebug(MainAlgoLog) << "Destroying singleton instance";
-        delete m_instance;
-        m_instance = nullptr;
-    }
+    ASSUME_TRUE(m_instance != nullptr);
+    qCDebug(MainAlgoLog) << "Destroying singleton instance";
+    delete m_instance;
+    m_instance = nullptr;
 }
 
 
