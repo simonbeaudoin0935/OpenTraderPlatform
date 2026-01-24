@@ -125,6 +125,16 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                 TSClient::getInstance()->launchAuthProcess();
             });
 
+    // Setup account info button - hide initially until accounts are loaded
+    m_accountInfoButton = ui->accountInfoButton;
+    m_accountInfoButton->setVisible(false);
+    auto accountInfoConnection = connect(m_accountInfoButton,
+                                         &QPushButton::clicked,
+                                         this,
+                                         &GUIFrontend::onAccountInfoButtonClicked,
+                                         Qt::UniqueConnection);
+    OBJ_ASSUME_TRUE(accountInfoConnection);
+
     // Connect app frontend signals and slots
     connect(this,
             &FrontEnd::tradeStationAuthStateChanged,
@@ -481,32 +491,6 @@ void GUIFrontend::onTradeStationAccountsReceived(QVector<Account> results)
 {
     m_accounts = results; // Store accounts
 
-    for (const Account& account: results)
-    {
-        ui->logDisplay->append("  ID:" + account.getAccountId());
-        ui->logDisplay->append("  Type:" + AccountType::accountTypeToString(account.getAccountType().type));
-        ui->logDisplay->append("  Status:" + account.getStatus());
-        ui->logDisplay->append("  Currency:" + account.getCurrency());
-
-        // Check AccountDetail if it exists
-        const auto& detail = account.getAccountDetail();
-        if (detail.has_value())
-        {
-            ui->logDisplay->append("  Account Detail:");
-            ui->logDisplay->append("    Stock Locate Eligible:" + QString::number(detail->isStockLocateEligible));
-            ui->logDisplay->append("    Enrolled in RegT Program:" + QString::number(detail->enrolledInRegTProgram));
-            ui->logDisplay->append("    Requires Buying Power Warning:" +
-                                   QString::number(detail->requiresBuyingPowerWarning));
-            ui->logDisplay->append("    Day Trading Qualified:" + QString::number(detail->dayTradingQualified));
-            ui->logDisplay->append("    Option Approval Level:" + QString::number(detail->optionApprovalLevel));
-            ui->logDisplay->append("    Pattern Day Trader:" + QString::number(detail->patternDayTrader));
-        }
-        else
-        {
-            ui->logDisplay->append("  No Account Detail available");
-        }
-    }
-
     // Populate account selector
     ui->accountSelector->clear();
     for (const Account& account: results)
@@ -521,6 +505,8 @@ void GUIFrontend::onTradeStationAccountsReceived(QVector<Account> results)
     if (!results.isEmpty())
     {
         ui->accountSelector->setCurrentIndex(results.size() - 1);
+        // Show the info button now that we have accounts
+        m_accountInfoButton->setVisible(true);
     }
 
     // Pass accounts to order entry widget (for submit button enabling)
@@ -601,14 +587,12 @@ void GUIFrontend::onBalanceUpdated(Balance balance)
 void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
 {
     static bool isFirstTime = true;
-    QString log;
 
     if (isAuthenticated)
     {
         tradeStationLoginButton->setText("TradeStation Connected");
         tradeStationLoginButton->setStyleSheet(
             "QPushButton { background-color: #E6FFE6; color: #4CAF50; padding: 2px 6px; border-radius: 3px; }");
-        log += "TradeStation Client AUTHENTICATED : " + reason;
 
         // Restore the last displayed stock now that we're authenticated
         // Only do this once on the first successful authentication
@@ -634,11 +618,9 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
             tradeStationLoginButton->setText("Login Failed: " + reason);
             tradeStationLoginButton->setStyleSheet(
                 "QPushButton { background-color: #FFE6E6; color: #f44336; padding: 2px 6px; border-radius: 3px; }");
-            log += "TradeStation Client UN-AUTHENTICATED : " + reason;
         }
     }
 
-    ui->logDisplay->append(log);
     isFirstTime = false;
 }
 
@@ -1073,5 +1055,49 @@ void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDate
     {
         qCritical() << "Unexpected result type from requestMissingBarsDisplayedStock";
         ui->priceChart->onRequestedMissingBarsFailed();
+    }
+}
+
+QString GUIFrontend::formatAccountInfo(const Account& account) const
+{
+    QString info;
+    info += "<b>Account Information</b><br><br>";
+    info += "<b>ID:</b> " + account.getAccountId() + "<br>";
+    info += "<b>Type:</b> " + AccountType::accountTypeToString(account.getAccountType().type) + "<br>";
+    info += "<b>Status:</b> " + account.getStatus() + "<br>";
+    info += "<b>Currency:</b> " + account.getCurrency() + "<br>";
+
+    // Check AccountDetail if it exists
+    const auto& detail = account.getAccountDetail();
+    if (detail.has_value())
+    {
+        info += "<br><b>Account Details:</b><br>";
+        info += "  Stock Locate Eligible: " + QString(detail->isStockLocateEligible ? "Yes" : "No") + "<br>";
+        info += "  Enrolled in RegT Program: " + QString(detail->enrolledInRegTProgram ? "Yes" : "No") + "<br>";
+        info +=
+            "  Requires Buying Power Warning: " + QString(detail->requiresBuyingPowerWarning ? "Yes" : "No") + "<br>";
+        info += "  Day Trading Qualified: " + QString(detail->dayTradingQualified ? "Yes" : "No") + "<br>";
+        info += "  Option Approval Level: " + QString::number(detail->optionApprovalLevel) + "<br>";
+        info += "  Pattern Day Trader: " + QString(detail->patternDayTrader ? "Yes" : "No") + "<br>";
+    }
+
+    return info;
+}
+
+void GUIFrontend::onAccountInfoButtonClicked()
+{
+    int currentIndex = ui->accountSelector->currentIndex();
+    if (currentIndex >= 0 && currentIndex < m_accounts.size())
+    {
+        const Account& account = m_accounts[currentIndex];
+        QString info = formatAccountInfo(account);
+
+        // Show information in a message box
+        QMessageBox msgBox;
+        msgBox.setWindowTitle("Account Information");
+        msgBox.setTextFormat(Qt::RichText);
+        msgBox.setText(info);
+        msgBox.setIcon(QMessageBox::Information);
+        msgBox.exec();
     }
 }

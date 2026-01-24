@@ -50,6 +50,28 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="accountInfoButton">
+        <property name="maximumWidth">
+         <number>30</number>
+        </property>
+        <property name="maximumHeight">
+         <number>30</number>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>🛈</string>
+        </property>
+        <property name="toolTip">
+         <string>Show account information</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <spacer name="topControlsSpacer">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
@@ -244,14 +266,6 @@
                <property name="childrenCollapsible">
                 <bool>true</bool>
                </property>
-               <widget class="QTextEdit" name="logDisplay">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                  <horstretch>1</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-               </widget>
                <widget class="BalanceWindow" name="balanceWindow" native="true">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
