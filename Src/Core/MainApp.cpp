@@ -147,7 +147,8 @@ void MainApp::shutdown()
     // MainAlgo should stop before TSClient since it depends on it
     if (mainAlgo)
     {
-        mainAlgo->stopBalancePolling();
+        // stopBalancePolling must be called on MainAlgo's thread
+        QMetaObject::invokeMethod(mainAlgo, &MainAlgo::stopBalancePolling, Qt::BlockingQueuedConnection);
         qInfo() << "MainAlgo balance polling stopped";
     }
 

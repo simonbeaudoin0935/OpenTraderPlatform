@@ -47,7 +47,14 @@ MainAlgo::~MainAlgo()
 {
     qDebug() << "MainAlgo destructor - stopping thread";
 
-    stopBalancePolling();
+    // Stop balance polling timer if it exists
+    // Note: We're in the destructor, so we can't use QMetaObject::invokeMethod
+    // since the thread might already be stopping. Just stop the timer directly.
+    if (m_balancePollingTimer && m_balancePollingTimer->isActive())
+    {
+        m_balancePollingTimer->stop();
+        qDebug() << "Stopped balance polling timer in destructor";
+    }
 
     // Request thread to stop
     thread.quit();
