@@ -135,14 +135,6 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                          Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(accountInfoConnection);
 
-    // Connect account selector change signal
-    auto accountSelectorConnection = connect(ui->accountSelector,
-                                             QOverload<int>::of(&QComboBox::currentIndexChanged),
-                                             this,
-                                             &GUIFrontend::onAccountSelectionChanged,
-                                             Qt::UniqueConnection);
-    OBJ_ASSUME_TRUE(accountSelectorConnection);
-
     // Connect app frontend signals and slots
     connect(this,
             &FrontEnd::tradeStationAuthStateChanged,
@@ -1112,13 +1104,4 @@ void GUIFrontend::onAccountInfoButtonClicked()
         msgBox.setIcon(QMessageBox::Information);
         msgBox.exec();
     }
-}
-
-void GUIFrontend::onAccountSelectionChanged(int index)
-{
-    // This slot is called when the user changes the account selection
-    // The tooltip will be updated when the user clicks the info button
-    // We don't need to do anything here for now, but we have this slot
-    // in case we want to add functionality later
-    Q_UNUSED(index);
 }

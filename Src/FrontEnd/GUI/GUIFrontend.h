@@ -58,7 +58,6 @@ class GUIFrontend : public FrontEnd
     void onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKeySequence& p_newSequence);
     void onCancelAllOrders();
     void onAccountInfoButtonClicked();
-    void onAccountSelectionChanged(int index);
 
   private:
     void setupDarkTheme(QMainWindow* mainWindow);
