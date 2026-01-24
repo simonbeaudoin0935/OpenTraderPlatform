@@ -103,11 +103,6 @@ jobs:
           name: l2trader-gui-${{ github.sha }}
           path: ./gui-build
 
-      - name: Install test dependencies
-        run: |
-          apt-get update
-          apt-get install -y xvfb xdotool x11-utils
-
       - name: Make executable runnable
         run: chmod +x ./gui-build/L2Trader
 
