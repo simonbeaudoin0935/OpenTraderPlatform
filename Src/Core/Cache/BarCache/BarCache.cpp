@@ -103,9 +103,6 @@ BarCache::~BarCache()
     DatabaseThread::getInstance()->closeDatabase(m_symbol);
 
     DEBUG << "Destroyed";
-
-    // TODO deal with scenario where we would destroy a barcache
-    Q_UNREACHABLE();
 }
 
 /**

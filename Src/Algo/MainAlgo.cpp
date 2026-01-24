@@ -71,6 +71,13 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
                    &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
                    this,
                    &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
+
+        // Clean up the previous stock instrument to free resources (streams, database connections)
+        QString oldSymbol = currentDisplayedStockInstrument->symbol;
+        stockInstruments.remove(oldSymbol);
+        delete currentDisplayedStockInstrument;
+        currentDisplayedStockInstrument = nullptr;
+        qDebug() << "Cleaned up StockInstrument for" << oldSymbol;
     }
 
     // Change the stock selected pointer to the new selected stock
