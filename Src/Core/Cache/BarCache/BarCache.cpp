@@ -92,6 +92,7 @@ void BarCache::startStream()
 
 BarCache::~BarCache()
 {
+    // Properly clean up resources when switching stocks or shutting down
     if (m_isStreaming)
     {
         Q_CHECK_PTR(m_stream);
