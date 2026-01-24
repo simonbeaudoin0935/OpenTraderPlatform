@@ -1,6 +1,7 @@
 #pragma once
 #include <QLoggingCategory>
 #include <QObject>
+#include <QPointer>
 #include <QThread>
 #include <QMap>
 #include <QTimer>
@@ -85,8 +86,8 @@ class MainAlgo final : public QObject
 
     QThread thread;
 
-    QMap<QString, StockInstruments*> stockInstruments;
-    StockInstruments* currentDisplayedStockInstrument = nullptr;
+    QMap<QString, QPointer<StockInstruments>> stockInstruments;
+    QPointer<StockInstruments> currentDisplayedStockInstrument;
 
     PositionsReceiver* m_positionReceiver = nullptr; // Qt parent-child ownership (parent is 'this')
     OrdersReceiver* m_orderReceiver = nullptr;       // Qt parent-child ownership (parent is 'this')

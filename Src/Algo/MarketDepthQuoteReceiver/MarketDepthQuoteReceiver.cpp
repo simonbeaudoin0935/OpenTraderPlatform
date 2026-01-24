@@ -49,9 +49,8 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
 
 MarketDepthQuoteReceiver::~MarketDepthQuoteReceiver()
 {
-    OBJ_ASSUME_TRUE(m_stream != nullptr);
-
-    TSClient::getInstance()->closeStream(m_stream);
+    // Note: Stream cleanup is handled by TSClient. Calling closeStream() from destructor
+    // can cause race conditions with pending .then() callbacks when using deleteLater().
 }
 
 // Calculate Bid-Ask Imbalance (BAI)

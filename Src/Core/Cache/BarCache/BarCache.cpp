@@ -92,20 +92,13 @@ void BarCache::startStream()
 
 BarCache::~BarCache()
 {
-    if (m_isStreaming)
-    {
-        Q_CHECK_PTR(m_stream);
-
-        TSClient::getInstance()->closeStream(m_stream);
-    }
+    // Note: Stream cleanup is handled by TSClient. Calling closeStream() from destructor
+    // can cause race conditions with pending .then() callbacks when using deleteLater().
 
     // Close database connection via DatabaseThread
     DatabaseThread::getInstance()->closeDatabase(m_symbol);
 
     DEBUG << "Destroyed";
-
-    // TODO deal with scenario where we would destroy a barcache
-    Q_UNREACHABLE();
 }
 
 /**
