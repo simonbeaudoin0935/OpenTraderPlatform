@@ -26,6 +26,11 @@ class BarCache : public QObject
         return m_symbol;
     };
 
+    QPointer<StreamBars> getStream() const
+    {
+        return m_stream;
+    }
+
     typedef std::variant<std::shared_ptr<QVector<Bar>>,
                          QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>
         GetBarsResult_t;

@@ -40,6 +40,11 @@ class MarketDepthQuoteReceiver : public QObject
         bidAskImbalanceLevel = qMax(1u, level);
     }
 
+    QPointer<StreamMarketDepthQuote> getStream() const
+    {
+        return m_stream;
+    }
+
   signals:
     void receivedNewMarketDepthQuote(QString symbol,
                                      MarketDepthQuote marketDepthQuote,
