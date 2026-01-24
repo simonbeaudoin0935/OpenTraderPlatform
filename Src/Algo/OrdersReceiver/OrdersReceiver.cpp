@@ -33,11 +33,23 @@ OrdersReceiver::OrdersReceiver(const QString& p_account, QObject* p_parent) : QO
     INFO << "Loaded" << existingOrders.size() << "orders from database";
 
     // Store the loaded order times for restoring when we receive them in the snapshot
+    // Also emit these orders to populate the UI on startup
     for (auto it = existingOrders.constBegin(); it != existingOrders.constEnd(); ++it)
     {
         const QString& orderId = it.key();
-        const auto& [order, receivedTime, filledTime] = it.value();
+        const auto& [orderConst, receivedTime, filledTime] = it.value();
         m_loadedOrderTimes[orderId] = std::make_tuple(receivedTime, filledTime);
+
+        // Make a mutable copy of the order to set timestamps
+        Order order = orderConst;
+        order.setReceivedTime(receivedTime);
+        if (filledTime.has_value())
+        {
+            order.setFilledTime(filledTime.value());
+        }
+
+        // Emit the order to populate the UI
+        emit receivedNewOrder(m_account, order);
     }
 
     createOrdersStream();

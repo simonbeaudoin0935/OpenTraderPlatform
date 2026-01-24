@@ -241,12 +241,24 @@ QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersData
 
     while (query.next())
     {
-        QString orderId = query.value(0).toString();
-        QString receivedTimeStr = query.value(1).toString();
-        QString filledTimeStr = query.value(2).toString();
-        QString statusStr = query.value(3).toString();
-        QString orderTypeStr = query.value(4).toString();
-        QString jsonDataStr = query.value(5).toString();
+        // Extract all fields from query
+        int col = 0;
+        QString orderId = query.value(col++).toString();
+        QString accountId = query.value(col++).toString();
+        QString symbol = query.value(col++).toString();
+        QString quantity = query.value(col++).toString();
+        QString tradeAction = query.value(col++).toString();
+        QString orderTypeStr = query.value(col++).toString();
+        QString statusStr = query.value(col++).toString();
+        QString statusDescription = query.value(col++).toString();
+        QVariant limitPriceVar = query.value(col++);
+        QVariant stopPriceVar = query.value(col++);
+        QVariant filledPriceVar = query.value(col++);
+        QString openedDateTimeStr = query.value(col++).toString();
+        QString closedDateTimeStr = query.value(col++).toString();
+        QString receivedTimeStr = query.value(col++).toString();
+        QString filledTimeStr = query.value(col++).toString();
+        QString jsonDataStr = query.value(col++).toString();
 
         QDateTime receivedTime = QDateTime::fromString(receivedTimeStr, Qt::ISODate);
         std::optional<QDateTime> filledTime;
@@ -255,16 +267,48 @@ QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersData
             filledTime = QDateTime::fromString(filledTimeStr, Qt::ISODate);
         }
 
-        // Reconstruct the Order object from JSON
+        // Reconstruct the Order object from stored fields
+        // Start with the minimal JSON that was stored
         QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonDataStr.toUtf8());
+        QJsonObject jsonObj;
         if (jsonDoc.isObject())
         {
-            QJsonObject jsonObj = jsonDoc.object();
-            jsonObj["Status"] = statusStr;
-            jsonObj["OrderType"] = orderTypeStr;
-            Order order(jsonObj);
-            orders.insert(orderId, std::make_tuple(order, receivedTime, filledTime));
+            jsonObj = jsonDoc.object();
         }
+
+        // Add all the fields needed to reconstruct the Order
+        jsonObj["OrderID"] = orderId;
+        jsonObj["AccountID"] = accountId;
+        jsonObj["Symbol"] = symbol;
+        jsonObj["Quantity"] = quantity;
+        jsonObj["TradeAction"] = tradeAction;
+        jsonObj["OrderType"] = orderTypeStr;
+        jsonObj["Status"] = statusStr;
+        jsonObj["StatusDescription"] = statusDescription;
+
+        if (!limitPriceVar.isNull())
+        {
+            jsonObj["LimitPrice"] = limitPriceVar.toDouble();
+        }
+        if (!stopPriceVar.isNull())
+        {
+            jsonObj["StopPrice"] = stopPriceVar.toDouble();
+        }
+        if (!filledPriceVar.isNull())
+        {
+            jsonObj["FilledPrice"] = filledPriceVar.toDouble();
+        }
+        if (!openedDateTimeStr.isEmpty())
+        {
+            jsonObj["OpenedDateTime"] = openedDateTimeStr;
+        }
+        if (!closedDateTimeStr.isEmpty())
+        {
+            jsonObj["ClosedDateTime"] = closedDateTimeStr;
+        }
+
+        Order order(jsonObj);
+        orders.insert(orderId, std::make_tuple(order, receivedTime, filledTime));
     }
 
     INFO << "Loaded" << orders.size() << "orders from database";
