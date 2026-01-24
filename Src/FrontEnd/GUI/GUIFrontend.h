@@ -57,6 +57,8 @@ class GUIFrontend : public FrontEnd
     void onOrderPlaced(const PlaceOrderRequest& order);
     void onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKeySequence& p_newSequence);
     void onCancelAllOrders();
+    void onAccountInfoButtonClicked();
+    void onAccountSelectionChanged(int index);
 
   private:
     void setupDarkTheme(QMainWindow* mainWindow);
@@ -65,6 +67,7 @@ class GUIFrontend : public FrontEnd
     void displayStock(const QString& symbol);
     void saveLastDisplayedStock(const QString& symbol);
     void restoreLastDisplayedStock();
+    QString formatAccountInfo(const Account& account) const;
     MainAlgo* mainAlgo;
     QString currentlyDisplayedSymbol;
 
@@ -72,6 +75,7 @@ class GUIFrontend : public FrontEnd
 
     std::unique_ptr<Ui::GUIFrontend> ui;  // Pointer to the UI object
     QPushButton* tradeStationLoginButton; // Login button in status bar
+    QPushButton* m_accountInfoButton;     // Info button for account details
 
     QShortcut* m_quitShortcut;            // Quit application shortcut
     QShortcut* m_focusShortcut;           // Focus stock input shortcut
