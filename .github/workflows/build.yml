@@ -146,8 +146,7 @@ jobs:
           
           if [ -n "$WINDOW_ID" ]; then
             echo "Found window ID: $WINDOW_ID"
-            # Activate the window and send Ctrl+Q
-            xdotool windowactivate --sync "$WINDOW_ID"
+            # Send Ctrl+Q directly to the window (no activation needed in Xvfb)
             xdotool key --window "$WINDOW_ID" ctrl+q
             
             # Wait for application to exit (with timeout)

@@ -52,9 +52,8 @@ WINDOW_ID=$(xdotool search --sync --onlyvisible --class "L2Trader" 2>/dev/null |
 
 if [ -n "$WINDOW_ID" ]; then
     echo "Found window ID: $WINDOW_ID"
-    # Activate the window and send Ctrl+Q
+    # Send Ctrl+Q directly to the window (no activation needed in Xvfb)
     echo "Sending Ctrl+Q to window..."
-    xdotool windowactivate --sync "$WINDOW_ID"
     xdotool key --window "$WINDOW_ID" ctrl+q
     
     # Wait for application to exit (with timeout)

@@ -40,7 +40,7 @@ The GUI testing is integrated into the main build workflow (`.github/workflows/b
 3. **Launch Application**: Start L2Trader in the background
 4. **Wait for Startup**: Allow 5 seconds for the application to initialize and create its window
 5. **Find Window**: Use `xdotool search` to locate the L2Trader window by class name
-6. **Send Ctrl+Q**: Simulate the Quit keyboard shortcut to the application window
+6. **Send Ctrl+Q**: Send the keyboard shortcut directly to the window (note: window activation is skipped as Xvfb doesn't include a window manager with `_NET_ACTIVE_WINDOW` support)
 7. **Wait for Exit**: Monitor the application process for up to 10 seconds
 8. **Verify Exit Code**: Check that the application exited cleanly (exit code 0 or 143)
 9. **Cleanup**: Terminate the Xvfb process
@@ -145,6 +145,14 @@ If Xvfb cannot initialize:
 - Check for port conflicts on display :99
 - Verify Xvfb package is installed correctly
 - Try a different display number (e.g., :100)
+
+### Window Manager Errors
+
+If you see errors like "Your windowmanager claims not to support _NET_ACTIVE_WINDOW":
+- This is expected with Xvfb alone (no window manager)
+- The test sends keyboard input directly to the window without activation
+- Window activation (`xdotool windowactivate`) is not needed for basic keyboard input
+- If you need full window management features, install a lightweight WM like `openbox` or `xvwm`
 
 ## Implementation Details
 
