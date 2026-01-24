@@ -11,6 +11,9 @@ jobs:
   build:
     runs-on: ubuntu-24.04
 
+    permissions:
+      contents: read
+
     defaults:
       run:
         shell: bash
@@ -80,6 +83,9 @@ jobs:
   test-gui:
     runs-on: ubuntu-24.04
     needs: build
+    
+    permissions:
+      contents: read
     
     defaults:
       run:
