@@ -25,7 +25,7 @@ BarCache::BarCache(const QString& symbol, bool isStreaming, QObject* parent)
 
     // Set up database path - one database file per symbol in Bars subdirectory
     QString cacheLocation = getCacheLocation();
-    QString barsDir = cacheLocation + "/Bars";
+    QString barsDir = cacheLocation + "/" + BARS_CACHE_SUBDIR;
 
     // Create Bars directory if it doesn't exist
     QDir dir;
