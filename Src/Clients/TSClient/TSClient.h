@@ -24,6 +24,7 @@
 
 #include "Stream.h"
 #include "Assume.h"
+#include "CONSTANTS.h"
 
 #ifdef GUI_ENABLED
 #include "GUIAuthHandler.h"
@@ -32,19 +33,6 @@
 #endif
 
 Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
-
-#define ENDPOINT_GET_QUOTE_SNAPSHOTS "marketdata/quotes/%1"
-#define ENDPOINT_GET_BARS "marketdata/barcharts/%1"
-#define ENDPOINT_STREAM_BARS "marketdata/stream/barcharts/%1"
-#define ENDPOINT_STREAM_MARKET_DEPTH_QUOTE "marketdata/stream/marketdepth/quotes/%1"
-
-#define ENDPOINT_GET_ACCOUNTS "brokerage/accounts"
-#define ENDPOINT_GET_BALANCES "brokerage/accounts/%1/balances"
-#define ENDPOINT_STREAM_ORDERS "brokerage/stream/accounts/%1/orders"
-#define ENDPOINT_STREAM_POSITIONS "brokerage/stream/accounts/%1/positions"
-
-#define ENDPOINT_PLACE_ORDER "orderexecution/orders"
-#define ENDPOINT_CANCEL_ORDER "orderexecution/orders/%1"
 
 // This is a singleton
 

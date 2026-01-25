@@ -414,22 +414,22 @@ bool DatabaseThread::clearDatabaseInternal(const QString& symbol)
 
 size_t DatabaseThread::timeToIndex(const QTime& time)
 {
-    ASSUME_GTE(time, TRADING_START_TIME);
-    ASSUME_LTE(time, TRADING_END_TIME);
+    ASSUME_GTE(time, TradingHours::TRADING_START_TIME);
+    ASSUME_LTE(time, TradingHours::TRADING_END_TIME);
 
-    size_t minutesSince6AM = (time.hour() - TRADING_START_TIME.hour()) * 60 + time.minute();
+    size_t minutesSince6AM = (time.hour() - TradingHours::TRADING_START_TIME.hour()) * 60 + time.minute();
     size_t index = minutesSince6AM - 1;
 
-    ASSUME_LT(index, BARS_PER_DAY);
+    ASSUME_LT(index, TradingHours::BARS_PER_DAY);
     return index;
 }
 
 QTime DatabaseThread::indexToTime(size_t index)
 {
-    ASSUME_LT(index, BARS_PER_DAY);
+    ASSUME_LT(index, TradingHours::BARS_PER_DAY);
 
     size_t adjustedMinutes = index + 1;
-    int hour = TRADING_START_TIME.hour() + (adjustedMinutes / 60);
+    int hour = TradingHours::TRADING_START_TIME.hour() + (adjustedMinutes / 60);
     int minute = adjustedMinutes % 60;
 
     return QTime(hour, minute, 0);

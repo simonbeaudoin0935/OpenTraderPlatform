@@ -10,6 +10,7 @@
 #include "Bar.h"
 #include "StreamBars.h"
 #include "TSClient.h"
+#include "CONSTANTS.h"
 
 Q_DECLARE_LOGGING_CATEGORY(BarCacheLog)
 
@@ -49,12 +50,6 @@ class BarCache : public QObject
 
     // Converts a daily bar cache index to the corresponding bar timestamp (QTime)
     static QTime indexToTime(size_t index);
-
-    // Trading hours constants (America/New_York timezone)
-    static inline const QTime TRADING_START_TIME = QTime(6, 1); // 6:01 AM ET
-    static inline const QTime TRADING_END_TIME = QTime(20, 0);  // 8:00 PM ET (20:00)
-
-    static constexpr unsigned int BARS_PER_DAY = 840; // From 6:01 AM to 8:00 PM, 1-minute bars
 
   signals:
     void receivedNewBar(QString symbol, Bar newBar);

@@ -6,6 +6,8 @@
 #include <QMetaType>
 #include <QUrlQuery>
 
+#include "CONSTANTS.h"
+
 class Bar
 {
   public:
@@ -93,11 +95,11 @@ class Bar
     }
     bool getIsRealtime() const
     {
-        return (m_flags & FLAG_IS_REALTIME) != 0;
+        return (m_flags & BarFlags::FLAG_IS_REALTIME) != 0;
     }
     bool getIsEndOfHistory() const
     {
-        return (m_flags & FLAG_IS_END_OF_HISTORY) != 0;
+        return (m_flags & BarFlags::FLAG_IS_END_OF_HISTORY) != 0;
     }
     quint64 getTotalTicks() const
     {
@@ -125,7 +127,7 @@ class Bar
     }
     BarStatus getBarStatus() const
     {
-        return static_cast<BarStatus>((m_flags >> 2) & 0x03);
+        return static_cast<BarStatus>((m_flags >> BarFlags::BARSTATUS_SHIFT) & 0x03);
     }
     QDateTime getTimestamp() const
     {
@@ -144,12 +146,6 @@ class Bar
     }
 
   private:
-    // Bit flags for BarStatus (2 bits) and boolean fields (2 bits)
-    static constexpr quint8 FLAG_IS_REALTIME = 0x01;       // bit 0
-    static constexpr quint8 FLAG_IS_END_OF_HISTORY = 0x02; // bit 1
-    static constexpr quint8 BARSTATUS_SHIFT = 2;           // bits 2-3 for BarStatus
-    static constexpr quint8 BARSTATUS_MASK = 0x0C;         // bits 2-3 mask
-
     // Members ordered by size (largest to smallest) to minimize padding
     QDateTime m_timeStamp;     // 8 bytes (pointer to shared data)
     quint64 m_totalVolume;     // 8 bytes

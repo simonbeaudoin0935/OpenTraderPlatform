@@ -14,6 +14,7 @@
 #include "qcustomplot.h"
 #include "Bar.h"
 #include "ChartToolbar.h"
+#include "CONSTANTS.h"
 
 Q_DECLARE_LOGGING_CATEGORY(ChartLog)
 
@@ -36,13 +37,6 @@ class StockPriceChart : public QWidget
     Q_OBJECT
 
   public:
-    // Trading hours constants (America/New_York timezone)
-    static constexpr int TRADING_START_HOUR = 6;   // 6:00 AM ET
-    static constexpr int TRADING_END_HOUR = 20;    // 8:00 PM ET (20:00)
-    static constexpr int LAST_TRADING_MINUTE = 59; // Last bar is at 7:59 PM
-    static constexpr int MONDAY = 1;               // Qt::Monday
-    static constexpr int FRIDAY = 5;               // Qt::Friday
-
     explicit StockPriceChart(QWidget* parent = nullptr);
     ~StockPriceChart() override;
 
@@ -75,15 +69,9 @@ class StockPriceChart : public QWidget
     bool eventFilter(QObject* obj, QEvent* event) override;
 
   private:
-    static const int MAX_BARS = 1000;
-
     // Track the current open bar
     Bar m_latestBar;
     int m_latestBarIndex = -1;
-
-    // Configurable thresholds for axis label density (pixels per tick)
-    static constexpr int MIN_PIXELS_PER_TICK_X = 40;
-    static constexpr int MIN_PIXELS_PER_TICK_Y = 30;
 
     /**
      * @brief Queries the database for the first and last timestamps of a stock on a specific date.

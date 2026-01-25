@@ -12,6 +12,7 @@
 #include <memory>
 
 #include "Bar.h"
+#include "CONSTANTS.h"
 
 Q_DECLARE_LOGGING_CATEGORY(DatabaseThreadLog)
 
@@ -121,9 +122,4 @@ class DatabaseThread final : public QObject
     // Map of symbol -> database connection
     // Only accessed from the database thread
     QMap<QString, QSqlDatabase> m_databases;
-
-    // Trading hours constants (same as BarCache)
-    static inline const QTime TRADING_START_TIME = QTime(6, 1);
-    static inline const QTime TRADING_END_TIME = QTime(20, 0);
-    static constexpr size_t BARS_PER_DAY = 840;
 };

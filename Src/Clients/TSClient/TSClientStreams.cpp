@@ -14,7 +14,7 @@ QPointer<StreamPositions> TSClient::openStreamPositions(const QString& accountID
     QUrlQuery query;
     query.addQueryItem("changes", changes ? "true" : "false");
 
-    QNetworkRequest request = buildNetworkRequest(QString(ENDPOINT_STREAM_POSITIONS).arg(accountID), query);
+    QNetworkRequest request = buildNetworkRequest(QString(TSClientEndpoints::STREAM_POSITIONS).arg(accountID), query);
 
     QPointer<StreamPositions> stream;
 
@@ -47,7 +47,7 @@ QPointer<StreamOrders> TSClient::openStreamOrders(const QString& accountID)
 
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamOrders for account " << accountID;
 
-    const QString endpoint = QString(ENDPOINT_STREAM_ORDERS).arg(accountID);
+    const QString endpoint = QString(TSClientEndpoints::STREAM_ORDERS).arg(accountID);
 
     QNetworkRequest request = buildNetworkRequest(endpoint);
 
@@ -93,7 +93,7 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString& symbol,
     }
     OBJ_ASSUME_LTE(barsback, 57600u);
 
-    const QString endpoint = QString(ENDPOINT_STREAM_BARS).arg(symbol);
+    const QString endpoint = QString(TSClientEndpoints::STREAM_BARS).arg(symbol);
 
     QUrlQuery query = Bar::buildUrlQuery(interval, unit, barsback, sessionTemplate);
 
@@ -134,7 +134,8 @@ QPointer<StreamMarketDepthQuote> TSClient::openStreamMarketDepthQuote(const QStr
     qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamMarketDepthQuote";
 
 
-    QNetworkRequest request = buildNetworkRequest(QString(ENDPOINT_STREAM_MARKET_DEPTH_QUOTE).arg(symbol), query);
+    QNetworkRequest request =
+        buildNetworkRequest(QString(TSClientEndpoints::STREAM_MARKET_DEPTH_QUOTE).arg(symbol), query);
 
     QPointer<StreamMarketDepthQuote> stream;
 

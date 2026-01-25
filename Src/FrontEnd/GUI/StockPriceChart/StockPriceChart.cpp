@@ -15,7 +15,7 @@
 #include "BarCache.h"
 
 #define LOGGING_CATEGORY ChartLog
-#define CANDLESTICK_BODY_WIDTH 0.9 // 90% of available space
+
 
 Q_LOGGING_CATEGORY(ChartLog, "Chart");
 
@@ -36,7 +36,7 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
 
     m_candlesticks->setName("Candlestick");
     m_candlesticks->setChartStyle(QCPFinancial::csCandlestick);
-    m_candlesticks->setWidth(CANDLESTICK_BODY_WIDTH);
+    m_candlesticks->setWidth(ChartConstants::CANDLESTICK_BODY_WIDTH);
     m_candlesticks->setTwoColored(true);
     m_candlesticks->setBrushPositive(QColor(0, 180, 0)); // Green for up
     m_candlesticks->setBrushNegative(QColor(200, 0, 0)); // Red for down
@@ -93,10 +93,10 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_volumeNeg = new QCPBars(m_volumeAxisRect->axis(QCPAxis::atBottom), m_volumeAxisRect->axis(QCPAxis::atLeft));
     Q_CHECK_PTR(m_volumeNeg);
 
-    m_volumePos->setWidth(CANDLESTICK_BODY_WIDTH);
+    m_volumePos->setWidth(ChartConstants::CANDLESTICK_BODY_WIDTH);
     m_volumePos->setPen(Qt::NoPen);
     m_volumePos->setBrush(QColor(100, 180, 110));
-    m_volumeNeg->setWidth(CANDLESTICK_BODY_WIDTH);
+    m_volumeNeg->setWidth(ChartConstants::CANDLESTICK_BODY_WIDTH);
     m_volumeNeg->setPen(Qt::NoPen);
     m_volumeNeg->setBrush(QColor(180, 90, 90));
 
@@ -366,8 +366,9 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         drawBackgroundsForReceivedBars({});
 
         // Here we will fetch the bars from the beginning of the day up to this bar to fill in history
-        QDateTime first =
-            QDateTime(bar.getTimeStamp().date(), QTime(TRADING_START_HOUR, 1, 0), QTimeZone("America/New_York"));
+        QDateTime first = QDateTime(bar.getTimeStamp().date(),
+                                    QTime(TradingHours::TRADING_START_HOUR, 1, 0),
+                                    QTimeZone("America/New_York"));
         QDateTime last = bar.getTimeStamp();
 
         DEBUG << "Requesting whole day bars from" << first.toString(Qt::ISODate) << "to" << last.toString(Qt::ISODate);
@@ -630,11 +631,11 @@ void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
         // Note: Chart data only covers 6:01 AM to 8:00 PM, so we clamp the visual ranges
         // Pre-market: 6:01 AM to 9:30 AM (data starts at 6:01, regular trading at 9:30)
         // After-hours: 4:00 PM to 8:00 PM (regular trading ends at 4:00, data ends at 8:00)
-        QDateTime preMarketStartNY = QDateTime(date, QTime(TRADING_START_HOUR, 1),
+        QDateTime preMarketStartNY = QDateTime(date, QTime(TradingHours::TRADING_START_HOUR, 1),
                                                nyZone); // 6:01 AM
         QDateTime preMarketEndNY = QDateTime(date, QTime(9, 30), nyZone);
         QDateTime afterHoursStartNY = QDateTime(date, QTime(16, 0), nyZone);
-        QDateTime afterHoursEndNY = QDateTime(date, QTime(TRADING_END_HOUR, 0),
+        QDateTime afterHoursEndNY = QDateTime(date, QTime(TradingHours::TRADING_END_HOUR, 0),
                                               nyZone); // 8:00 PM
 
         QDateTime preMarketStart = preMarketStartNY.toTimeZone(QTimeZone::utc());
@@ -700,11 +701,11 @@ void StockPriceChart::drawBackgroundsForVisibleRange()
         // Note: Chart data only covers 6:01 AM to 8:00 PM, so we clamp the visual ranges
         // Pre-market: 6:01 AM to 9:30 AM (data starts at 6:01, regular trading at 9:30)
         // After-hours: 4:00 PM to 8:00 PM (regular trading ends at 4:00, data ends at 8:00)
-        QDateTime preMarketStartNY = QDateTime(date, QTime(TRADING_START_HOUR, 1),
+        QDateTime preMarketStartNY = QDateTime(date, QTime(TradingHours::TRADING_START_HOUR, 1),
                                                nyZone); // 6:01 AM
         QDateTime preMarketEndNY = QDateTime(date, QTime(9, 30), nyZone);
         QDateTime afterHoursStartNY = QDateTime(date, QTime(16, 0), nyZone);
-        QDateTime afterHoursEndNY = QDateTime(date, QTime(TRADING_END_HOUR, 0),
+        QDateTime afterHoursEndNY = QDateTime(date, QTime(TradingHours::TRADING_END_HOUR, 0),
                                               nyZone); // 8:00 PM
 
         QDateTime preMarketStart = preMarketStartNY.toTimeZone(QTimeZone::utc());
@@ -946,8 +947,8 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     {
         // View extends to previous day(s) - request the complete previous day only
         // (we'll request additional days in subsequent calls if needed)
-        QDateTime viewDayStart = QDateTime(viewStartInNY.date(), QTime(TRADING_START_HOUR, 1, 0), nyZone);
-        QDateTime viewDayEnd = QDateTime(viewStartInNY.date(), QTime(TRADING_END_HOUR, 0, 0), nyZone);
+        QDateTime viewDayStart = QDateTime(viewStartInNY.date(), QTime(TradingHours::TRADING_START_HOUR, 1, 0), nyZone);
+        QDateTime viewDayEnd = QDateTime(viewStartInNY.date(), QTime(TradingHours::TRADING_END_HOUR, 0, 0), nyZone);
         requestStartTime = viewDayStart.toTimeZone(firstBarTime.timeZone());
         requestEndTime = viewDayEnd.toTimeZone(firstBarTime.timeZone());
         DEBUG << "Requesting previous day from" << viewDayStart << "to" << viewDayEnd;
@@ -955,7 +956,7 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     else
     {
         // View extends within the same day - request from start of day to one minute before firstBarTime
-        QDateTime dayStart = QDateTime(firstBarInNY.date(), QTime(TRADING_START_HOUR, 1, 0), nyZone);
+        QDateTime dayStart = QDateTime(firstBarInNY.date(), QTime(TradingHours::TRADING_START_HOUR, 1, 0), nyZone);
         requestStartTime = dayStart.toTimeZone(firstBarTime.timeZone());
         requestEndTime = firstBarTime.addSecs(-60);
         DEBUG << "Requesting same day, dayStart:" << dayStart << "requestStartTime:" << requestStartTime;
@@ -1022,31 +1023,38 @@ QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) 
     QTime time = previousMinute.time();
     int dayOfWeek = previousMinute.date().dayOfWeek();
 
-    if (dayOfWeek >= MONDAY && dayOfWeek <= FRIDAY)
+    if (dayOfWeek >= TradingHours::MONDAY && dayOfWeek <= TradingHours::FRIDAY)
     {
-        if (time < QTime(TRADING_START_HOUR, 0, 0))
+        if (time < QTime(TradingHours::TRADING_START_HOUR, 0, 0))
         {
-            QDateTime result = QDateTime(previousMinute.date().addDays(-1),
-                                         QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0),
-                                         nyZone);
-            if (result.date().dayOfWeek() > FRIDAY)
+            QDateTime result =
+                QDateTime(previousMinute.date().addDays(-1),
+                          QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
+                          nyZone);
+            if (result.date().dayOfWeek() > TradingHours::FRIDAY)
             {
                 QDate friday = getPreviousFriday(result.date());
-                result = QDateTime(friday, QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), nyZone);
+                result = QDateTime(friday,
+                                   QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
+                                   nyZone);
             }
             return result.toTimeZone(timestamp.timeZone());
         }
-        else if (time >= QTime(TRADING_END_HOUR, 0, 0))
+        else if (time >= QTime(TradingHours::TRADING_END_HOUR, 0, 0))
         {
             DEBUG << "Unexpected: getPreviousTradingMinute called with time after 8PM:" << nyTime;
-            return QDateTime(previousMinute.date(), QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), nyZone)
+            return QDateTime(previousMinute.date(),
+                             QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
+                             nyZone)
                 .toTimeZone(timestamp.timeZone());
         }
     }
     else
     {
         QDate friday = getPreviousFriday(previousMinute.date());
-        return QDateTime(friday, QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), nyZone)
+        return QDateTime(friday,
+                         QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
+                         nyZone)
             .toTimeZone(timestamp.timeZone());
     }
 
@@ -1063,26 +1071,32 @@ QDateTime StockPriceChart::adjustToValidTradingTime(const QDateTime& timestamp) 
     QTime time = nyTime.time();
     int dayOfWeek = nyTime.date().dayOfWeek();
 
-    if (dayOfWeek > FRIDAY)
+    if (dayOfWeek > TradingHours::FRIDAY)
     {
         QDate friday = getPreviousFriday(nyTime.date());
-        return QDateTime(friday, QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), nyZone)
+        return QDateTime(friday,
+                         QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
+                         nyZone)
             .toTimeZone(timestamp.timeZone());
     }
 
-    if (time < QTime(TRADING_START_HOUR, 0, 0))
+    if (time < QTime(TradingHours::TRADING_START_HOUR, 0, 0))
     {
         QDate previousDay = nyTime.date().addDays(-1);
-        if (previousDay.dayOfWeek() > FRIDAY)
+        if (previousDay.dayOfWeek() > TradingHours::FRIDAY)
         {
             previousDay = getPreviousFriday(previousDay);
         }
-        return QDateTime(previousDay, QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), nyZone)
+        return QDateTime(previousDay,
+                         QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
+                         nyZone)
             .toTimeZone(timestamp.timeZone());
     }
-    else if (time >= QTime(TRADING_END_HOUR, 0, 0))
+    else if (time >= QTime(TradingHours::TRADING_END_HOUR, 0, 0))
     {
-        return QDateTime(nyTime.date(), QTime(TRADING_END_HOUR - 1, LAST_TRADING_MINUTE, 0), nyZone)
+        return QDateTime(nyTime.date(),
+                         QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
+                         nyZone)
             .toTimeZone(timestamp.timeZone());
     }
 
@@ -1095,13 +1109,13 @@ QDateTime StockPriceChart::adjustToValidTradingTime(const QDateTime& timestamp) 
 QDate StockPriceChart::getPreviousFriday(const QDate& date) const
 {
     int dayOfWeek = date.dayOfWeek();
-    if (dayOfWeek == FRIDAY)
+    if (dayOfWeek == TradingHours::FRIDAY)
     {
         return date;
     }
-    else if (dayOfWeek > FRIDAY)
+    else if (dayOfWeek > TradingHours::FRIDAY)
     {
-        return date.addDays(-(dayOfWeek - FRIDAY));
+        return date.addDays(-(dayOfWeek - TradingHours::FRIDAY));
     }
     else
     {

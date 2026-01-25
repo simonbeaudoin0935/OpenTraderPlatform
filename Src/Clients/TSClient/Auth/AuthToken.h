@@ -7,6 +7,8 @@
 #include <QSettings>
 #include <QLoggingCategory>
 
+#include "CONSTANTS.h"
+
 Q_DECLARE_LOGGING_CATEGORY(TSAuthTokenLog);
 
 class AuthToken
@@ -103,11 +105,6 @@ class AuthToken
     QString scope;
     int expiresIn;
     QDateTime receivedAt;
-
-    static constexpr int EXPIRY_BUFFER_SECONDS = 5; // Buffer time before actual expiry
-    static const QString EXPECTED_TOKEN_TYPE;
-    static constexpr int EXPECTED_EXPIRES_IN = 1200;
-    static const QStringList EXPECTED_SCOPES; // Still needs to be defined in cpp due to QStringList
 };
 
 #endif // AUTHTOKEN_H

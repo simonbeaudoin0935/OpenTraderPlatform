@@ -151,7 +151,7 @@ void CacheTab::populateCacheTable()
     int row = 0;
 
     // Scan for bar cache files in Bars subdirectory
-    QString barsDir = cacheDir + "/" + BARS_CACHE_SUBDIR;
+    QString barsDir = cacheDir + "/" + FileSystemConstants::BARS_CACHE_SUBDIR;
     QDir barsDirObj(barsDir);
 
     if (barsDirObj.exists())
@@ -306,7 +306,7 @@ void CacheTab::clearAllCache()
     qint64 totalSize = 0;
 
     // Scan for bar cache files in Bars subdirectory
-    QString barsDir = cacheDir + "/" + BARS_CACHE_SUBDIR;
+    QString barsDir = cacheDir + "/" + FileSystemConstants::BARS_CACHE_SUBDIR;
     QDir barsDirObj(barsDir);
 
     if (barsDirObj.exists())

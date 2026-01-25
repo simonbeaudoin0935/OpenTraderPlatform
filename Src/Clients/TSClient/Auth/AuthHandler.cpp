@@ -100,10 +100,10 @@ void AuthHandler::startHttpServer()
     }
 
     // Try to bind to default port first
-    m_currentPort = DEFAULT_PORT;
+    m_currentPort = AuthConstants::DEFAULT_AUTH_PORT;
     bool serverStarted = false;
 
-    for (quint16 portAttempt = 0; portAttempt < MAX_PORT_ATTEMPTS && !serverStarted; ++portAttempt)
+    for (quint16 portAttempt = 0; portAttempt < AuthConstants::MAX_PORT_ATTEMPTS && !serverStarted; ++portAttempt)
     {
         quint16 portToTry = m_currentPort + portAttempt;
         qCDebug(TSAuthHandlerLog) << "Attempting to start server on port" << portToTry;
@@ -122,7 +122,8 @@ void AuthHandler::startHttpServer()
 
     if (!serverStarted)
     {
-        QString errorMsg = QString("Failed to find available port after %1 attempts").arg(MAX_PORT_ATTEMPTS);
+        QString errorMsg =
+            QString("Failed to find available port after %1 attempts").arg(AuthConstants::MAX_PORT_ATTEMPTS);
         qCDebug(TSAuthHandlerLog) << errorMsg;
         showServerError(errorMsg);
         return;

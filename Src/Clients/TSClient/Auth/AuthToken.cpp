@@ -6,13 +6,9 @@
 
 #include "AuthToken.h"
 #include "SecureStorage.h"
+#include "CONSTANTS.h"
 
 Q_LOGGING_CATEGORY(TSAuthTokenLog, "TSClient.token.auth")
-
-// Initialize static constants
-const QString AuthToken::EXPECTED_TOKEN_TYPE = "Bearer";
-const QStringList AuthToken::EXPECTED_SCOPES =
-    {"openid", "offline_access", "profile", "MarketData", "Matrix", "ReadAccount", "Trade"};
 
 AuthToken::AuthToken(const QString& p_accessToken,
                      const QString& p_refreshToken,
@@ -71,7 +67,7 @@ int AuthToken::secondsToNextRefreshRequest()
     QDateTime expirationDate = receivedAt.addSecs(expiresIn);
     QDateTime currentTime = QDateTime::currentDateTime();
 
-    return currentTime.secsTo(expirationDate) - EXPIRY_BUFFER_SECONDS;
+    return currentTime.secsTo(expirationDate) - AuthConstants::EXPIRY_BUFFER_SECONDS;
 }
 
 bool AuthToken::isExpired() const
@@ -84,7 +80,7 @@ bool AuthToken::isExpired() const
     QDateTime currentTime = QDateTime::currentDateTime();
     int secondsSinceReceived = receivedAt.secsTo(currentTime);
 
-    return secondsSinceReceived >= (expiresIn - EXPIRY_BUFFER_SECONDS);
+    return secondsSinceReceived >= (expiresIn - AuthConstants::EXPIRY_BUFFER_SECONDS);
 }
 
 QJsonObject AuthToken::toJson() const
@@ -123,7 +119,7 @@ bool AuthToken::validateScope(const QString& scope)
     }
 
     QStringList scopes = scope.split(" ", Qt::SkipEmptyParts);
-    for (const QString& expectedScope: EXPECTED_SCOPES)
+    for (const QString& expectedScope: AuthConstants::EXPECTED_SCOPES)
     {
         if (!scopes.contains(expectedScope))
         {
@@ -135,12 +131,12 @@ bool AuthToken::validateScope(const QString& scope)
 
 bool AuthToken::validateTokenType(const QString& tokenType)
 {
-    return tokenType == EXPECTED_TOKEN_TYPE;
+    return tokenType == AuthConstants::EXPECTED_TOKEN_TYPE;
 }
 
 bool AuthToken::validateExpiresIn(int expiresIn)
 {
-    return expiresIn == EXPECTED_EXPIRES_IN;
+    return expiresIn == AuthConstants::EXPECTED_EXPIRES_IN;
 }
 
 AuthToken AuthToken::loadFromSettings()
