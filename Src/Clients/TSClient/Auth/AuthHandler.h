@@ -10,6 +10,7 @@
 
 #include "AuthToken.h"
 #include "ClientToken.h"
+#include "CONSTANTS.h"
 
 Q_DECLARE_LOGGING_CATEGORY(TSAuthHandlerLog)
 
@@ -63,9 +64,7 @@ class AuthHandler : public QObject
     QNetworkAccessManager* m_networkManager = nullptr;
 
     // Server configuration
-    static const quint16 DEFAULT_PORT = 8080;
-    static const quint16 MAX_PORT_ATTEMPTS = 10;
-    quint16 m_currentPort = DEFAULT_PORT;
+    quint16 m_currentPort = AuthConstants::DEFAULT_AUTH_PORT;
 
     // Core OAuth logic methods
     bool loadOrPromptCredentials();

@@ -111,7 +111,7 @@ QUrlQuery Bar::buildUrlQuery(unsigned int interval,
 Bar Bar::nullBar(QDateTime dateTime)
 {
     Bar bar = Bar();
-    bar.m_flags = (static_cast<quint8>(BarStatus::Null) << BARSTATUS_SHIFT);
+    bar.m_flags = (static_cast<quint8>(BarStatus::Null) << BarFlags::BARSTATUS_SHIFT);
     bar.m_timeStamp = dateTime;
 
     return bar;
@@ -134,7 +134,7 @@ Bar::Bar(QDateTime ts, float o, float h, float l, float c, qint64 vol)
     m_upTicks = 0;
     m_upVolume = 0;
     m_epoch = ts.toSecsSinceEpoch();
-    m_flags = (static_cast<quint8>(BarStatus::Closed) << BARSTATUS_SHIFT);
+    m_flags = (static_cast<quint8>(BarStatus::Closed) << BarFlags::BARSTATUS_SHIFT);
 }
 
 Bar::Bar(const QJsonObject& jsonObj)
@@ -160,14 +160,14 @@ Bar::Bar(const QJsonObject& jsonObj)
     m_flags = 0;
     if (jsonObj["IsRealtime"].toBool())
     {
-        m_flags |= FLAG_IS_REALTIME;
+        m_flags |= BarFlags::FLAG_IS_REALTIME;
     }
     if (jsonObj["IsEndOfHistory"].toBool())
     {
-        m_flags |= FLAG_IS_END_OF_HISTORY;
+        m_flags |= BarFlags::FLAG_IS_END_OF_HISTORY;
     }
     BarStatus status = barStatusFromString(jsonObj["BarStatus"].toString());
-    m_flags |= (static_cast<quint8>(status) << BARSTATUS_SHIFT);
+    m_flags |= (static_cast<quint8>(status) << BarFlags::BARSTATUS_SHIFT);
 
     qDebug() << "bar created from json with timestamp " << m_timeStamp;
 }
@@ -217,8 +217,8 @@ QString Bar::toJsonString() const
     jsonObj["DownTicks"] = (qint64)m_downTicks;
     jsonObj["DownVolume"] = (qint64)m_downVolume;
     jsonObj["OpenInterest"] = static_cast<double>(m_openInterest);
-    jsonObj["IsRealtime"] = (m_flags & FLAG_IS_REALTIME) != 0;
-    jsonObj["IsEndOfHistory"] = (m_flags & FLAG_IS_END_OF_HISTORY) != 0;
+    jsonObj["IsRealtime"] = (m_flags & BarFlags::FLAG_IS_REALTIME) != 0;
+    jsonObj["IsEndOfHistory"] = (m_flags & BarFlags::FLAG_IS_END_OF_HISTORY) != 0;
     jsonObj["TotalTicks"] = (qint64)m_totalTicks;
     jsonObj["UnchangedTicks"] = (qint64)m_unchangedTicks;
     jsonObj["UnchangedVolume"] = (qint64)m_unchangedVolume;

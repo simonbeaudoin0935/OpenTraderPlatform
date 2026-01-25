@@ -2,6 +2,7 @@
 #include "MainAlgo.h"
 #include "PlaceOrder.h"
 #include "Settings.h"
+#include "CONSTANTS.h"
 #include <QCoreApplication>
 #include <QDebug>
 #include <QMetaObject>
@@ -716,13 +717,11 @@ void TUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, const QSt
 
 void TUIFrontend::requestMissingBarsForDay(const Bar& firstBar)
 {
-    // Trading hours constants (America/New_York timezone)
-    static constexpr int TRADING_START_HOUR = 6;
-
     // Request bars from the beginning of the trading day (6:01 AM) to now
     // Use current time instead of firstBar timestamp to avoid requesting future bars
-    QDateTime first =
-        QDateTime(firstBar.getTimeStamp().date(), QTime(TRADING_START_HOUR, 1, 0), QTimeZone("America/New_York"));
+    QDateTime first = QDateTime(firstBar.getTimeStamp().date(),
+                                QTime(TradingHours::TRADING_START_HOUR, 1, 0),
+                                QTimeZone("America/New_York"));
     QDateTime last = QDateTime::currentDateTime().toTimeZone(QTimeZone("America/New_York"));
 
     // Truncate to minute boundary (BarCache expects seconds and milliseconds to be 0)

@@ -77,6 +77,20 @@
 
 - Everything time related must be in QDateTime/QTime/QDate with proper QTimeZone usage. Never use std::chrono or raw time_t/struct tm etc. The timezone is always NewYork since it is stock market related.
 
+## Constants Management
+- **ALL** application constants must be defined in `Src/Misc/CONSTANTS.h` organized into appropriate namespaces.
+- **NEVER** define constants inline in source files or individual header files unless they are truly private implementation details.
+- When adding a new constant, determine the appropriate namespace in CONSTANTS.h:
+  - `TradingHours` - Trading hours, timing, and timezone constants
+  - `TSClientEndpoints` - TradeStation API endpoint URLs
+  - `AuthConstants` - Authentication and token-related constants
+  - `ChartConstants` - Chart display and rendering constants
+  - `BarFlags` - Bit flags for Bar status encoding
+  - `FileSystemConstants` - File paths and directory names
+- If a suitable namespace doesn't exist, create a new one with appropriate documentation.
+- Use constants from CONSTANTS.h by including the header and referencing them via namespace (e.g., `TradingHours::TRADING_START_TIME`, `TSClientEndpoints::GET_BARS`).
+- This centralization makes constants easy to find, maintain, and update without searching through the entire codebase.
+
 ## Threading Patterns
 - **ALWAYS** use stack-allocated QThread member variables, never heap-allocated pointers.
 - **Pattern**: `QThread m_thread;` (member variable), NOT `QThread* m_thread;` (pointer with new)

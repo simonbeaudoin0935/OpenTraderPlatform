@@ -21,7 +21,7 @@ QFuture<std::expected<QVector<Account>, TSClient::Error>> TSClient::getAccounts(
         this,
         [this, promise = std::move(promise)]() mutable
         {
-            QNetworkReply* reply = m_networkManager->get(buildNetworkRequest(ENDPOINT_GET_ACCOUNTS));
+            QNetworkReply* reply = m_networkManager->get(buildNetworkRequest(TSClientEndpoints::GET_ACCOUNTS));
             Q_CHECK_PTR(reply);
 
             connect(reply,
@@ -137,7 +137,7 @@ QFuture<std::expected<QVector<Balance>, TSClient::Error>> TSClient::getBalances(
         [this, account, promise = std::move(promise)]() mutable
         {
             QNetworkReply* reply =
-                m_networkManager->get(buildNetworkRequest(QString(ENDPOINT_GET_BALANCES).arg(account)));
+                m_networkManager->get(buildNetworkRequest(QString(TSClientEndpoints::GET_BALANCES).arg(account)));
             Q_CHECK_PTR(reply);
 
             connect(reply,
@@ -254,7 +254,7 @@ TSClient::getBars(const QString& symbol,
 
     QUrlQuery query = Bar::buildUrlQuery(interval, unit, barsback, sessionTemplate, firstDate, lastDate);
 
-    QNetworkRequest request = buildNetworkRequest(QString(ENDPOINT_GET_BARS).arg(symbol), query);
+    QNetworkRequest request = buildNetworkRequest(QString(TSClientEndpoints::GET_BARS).arg(symbol), query);
 
     QPromise<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> promise;
     auto future = promise.future();
@@ -372,7 +372,7 @@ QFuture<std::expected<QVector<Quote>, TSClient::Error>> TSClient::getQuoteSnapsh
 
     DEBUG << "Fetching quotes for symbols : " << symbols;
 
-    QNetworkRequest request = buildNetworkRequest(QString(ENDPOINT_GET_QUOTE_SNAPSHOTS).arg(symbol));
+    QNetworkRequest request = buildNetworkRequest(QString(TSClientEndpoints::GET_QUOTE_SNAPSHOTS).arg(symbol));
 
     QPromise<std::expected<QVector<Quote>, TSClient::Error>> promise;
     auto future = promise.future();
@@ -490,7 +490,7 @@ QFuture<std::expected<PlaceOrderResult, TSClient::Error>> TSClient::placeOrder(c
 
     OBJ_ASSUME_TRUE(order.isValid());
 
-    QNetworkRequest request = buildNetworkRequest(ENDPOINT_PLACE_ORDER);
+    QNetworkRequest request = buildNetworkRequest(TSClientEndpoints::PLACE_ORDER);
 
     QByteArray postData = QJsonDocument(order.toJson()).toJson(QJsonDocument::Compact);
 
@@ -582,7 +582,7 @@ QFuture<std::expected<CancelOrderResult, TSClient::Error>> TSClient::cancelOrder
     OBJ_ASSUME_FALSE(orderID.isEmpty());
     OBJ_ASSUME_TRUE(QRegularExpression("^[0-9]+$").match(orderID).hasMatch());
 
-    QNetworkRequest request = buildNetworkRequest(QString(ENDPOINT_CANCEL_ORDER).arg(orderID));
+    QNetworkRequest request = buildNetworkRequest(QString(TSClientEndpoints::CANCEL_ORDER).arg(orderID));
 
     QPromise<std::expected<CancelOrderResult, TSClient::Error>> promise;
     auto future = promise.future();

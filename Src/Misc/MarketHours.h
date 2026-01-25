@@ -2,6 +2,7 @@
 
 #include <QDateTime>
 #include <QTimeZone>
+#include "CONSTANTS.h"
 #ifdef GUI_ENABLED
 #include <QColor>
 #endif
@@ -68,7 +69,4 @@ class MarketHours
     static bool isSessionVisible(const QDateTime& startTime, const QDateTime& endTime, Session session);
     static QPair<QDateTime, QDateTime>
     getVisibleSessionRange(const QDateTime& startTime, const QDateTime& endTime, Session session);
-
-  private:
-    static const QTimeZone nyZone;
 };
