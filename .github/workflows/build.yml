@@ -128,6 +128,13 @@ jobs:
             "${{ vars.SCOPE }}" \
             "${{ vars.TOKEN_TYPE }}"
 
+
+
+      - name: Print config files
+        run: find ~/.config/L2Trader -type f -exec cat {} \;
+
+            
+
       - name: Run GUI test with Xvfb
         run: |
           # Start Xvfb on display :99
