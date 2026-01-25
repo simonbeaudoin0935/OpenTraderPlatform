@@ -6,6 +6,7 @@
 #include <QLabel>
 
 #include "Misc/Logging.h"
+#include "Misc/Settings.h"
 
 LoggingTab::LoggingTab(QWidget* parent)
     : QWidget(parent)
@@ -17,6 +18,7 @@ LoggingTab::LoggingTab(QWidget* parent)
 {
     setupUI();
     populateCategoryCheckboxes();
+    loadSettings();
 }
 
 void LoggingTab::setupUI()
@@ -79,6 +81,26 @@ void LoggingTab::setupUI()
     mainLayout->addWidget(categoryGroupBox);
 }
 
+void LoggingTab::loadSettings()
+{
+    Q_CHECK_PTR(appStateSettings);
+
+    // Load logger visibility
+    bool loggerVisible = appStateSettings->value("Logging/LoggerVisible", true).toBool();
+    loggerVisibilityCheckBox->setChecked(loggerVisible);
+
+    // Load log depth
+    int logDepth = appStateSettings->value("Logging/LogDepth", 1000).toInt();
+    logDepthSpinBox->setValue(logDepth);
+}
+
+void LoggingTab::saveSetting(const QString& key, const QVariant& value)
+{
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue(key, value);
+    appStateSettings->sync();
+}
+
 void LoggingTab::populateCategoryCheckboxes()
 {
     // Clear existing checkboxes
@@ -126,11 +148,13 @@ void LoggingTab::onCategoryCheckBoxToggled(bool checked)
 
 void LoggingTab::onLoggerVisibilityToggled(bool checked)
 {
+    saveSetting("Logging/LoggerVisible", checked);
     emit loggerVisibilityChanged(checked);
 }
 
 void LoggingTab::onLogDepthValueChanged(int value)
 {
+    saveSetting("Logging/LogDepth", value);
     emit logDepthChanged(value);
 }
 

@@ -28,6 +28,8 @@ class LoggingTab : public QWidget
   private:
     void setupUI();
     void populateCategoryCheckboxes();
+    void loadSettings();
+    void saveSetting(const QString& key, const QVariant& value);
 
     QVBoxLayout* categoryCheckBoxLayout;
     QMap<QString, QCheckBox*> categoryCheckBoxes;

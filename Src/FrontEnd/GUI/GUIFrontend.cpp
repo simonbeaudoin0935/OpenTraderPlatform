@@ -283,6 +283,17 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     connect(loggingTab, &LoggingTab::loggerVisibilityChanged, this, &GUIFrontend::onLoggerVisibilityChanged);
     connect(loggingTab, &LoggingTab::logDepthChanged, this, &GUIFrontend::onLogDepthChanged);
 
+    // Set initial logger visibility and log depth based on persisted settings
+    if (ui->liveLogDisplay)
+    {
+        Q_CHECK_PTR(appStateSettings);
+        bool loggerVisible = appStateSettings->value("Logging/LoggerVisible", true).toBool();
+        ui->liveLogDisplay->setVisible(loggerVisible);
+
+        int logDepth = appStateSettings->value("Logging/LogDepth", 1000).toInt();
+        maxLiveLogLines = logDepth;
+    }
+
     // Set up the cache tab
     CacheTab* cacheTab = new CacheTab();
     ui->tabWidget->addTab(cacheTab, "Cache");
