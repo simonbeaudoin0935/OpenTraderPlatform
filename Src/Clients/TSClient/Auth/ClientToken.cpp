@@ -39,6 +39,8 @@ ClientToken ClientToken::loadFromSettings()
     if (token.clientId.isEmpty() || token.clientSecret.isEmpty())
     {
         qCWarning(tsClientToken) << "No credentials found in secure storage";
+        qCDebug(tsClientToken) << "Debug: clientId empty:" << token.clientId.isEmpty()
+                               << "clientSecret empty:" << token.clientSecret.isEmpty();
     }
     else
     {
@@ -86,8 +88,10 @@ bool ClientToken::validateClientId(const QString& clientId)
     if (clientId.isEmpty())
     {
         qCWarning(tsClientToken) << "Client ID is empty";
+        qCDebug(tsClientToken) << "Debug: clientId length:" << clientId.length();
         return false;
     }
+    qCDebug(tsClientToken) << "Debug: clientId length:" << clientId.length();
     return true;
 }
 
@@ -96,7 +100,9 @@ bool ClientToken::validateClientSecret(const QString& clientSecret)
     if (clientSecret.isEmpty())
     {
         qCWarning(tsClientToken) << "Client Secret is empty";
+        qCDebug(tsClientToken) << "Debug: clientSecret length:" << clientSecret.length();
         return false;
     }
+    qCDebug(tsClientToken) << "Debug: clientSecret length:" << clientSecret.length();
     return true;
 }

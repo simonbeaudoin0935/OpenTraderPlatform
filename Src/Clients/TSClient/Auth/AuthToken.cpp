@@ -168,6 +168,14 @@ AuthToken AuthToken::loadFromSettings()
     else
     {
         qCWarning(TSAuthTokenLog) << "No credentials found in secure storage";
+        qCDebug(TSAuthTokenLog) << "Debug: accessToken empty:" << token.accessToken.isEmpty()
+                                << "refreshToken empty:" << token.refreshToken.isEmpty()
+                                << "idToken empty:" << token.idToken.isEmpty()
+                                << "tokenType valid:" << validateTokenType(token.tokenType)
+                                << "scope valid:" << validateScope(token.scope)
+                                << "expiresIn valid:" << validateExpiresIn(token.expiresIn)
+                                << "(tokenType=" << token.tokenType << ", scope=" << token.scope
+                                << ", expiresIn=" << token.expiresIn << ")";
     }
 
     return token;
