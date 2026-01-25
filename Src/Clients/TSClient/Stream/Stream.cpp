@@ -1,6 +1,7 @@
 #include <QJsonObject>
 #include <QMetaEnum>
 #include <QNetworkReply>
+#include <QCoreApplication>
 
 #include "Stream.h"
 #include "Logging.h"
@@ -10,6 +11,7 @@
 Q_LOGGING_CATEGORY(LOGGING_CATEGORY, "Stream")
 
 size_t Stream::s_numberOfStream = 0;
+bool Stream::s_isShuttingDown = false;
 
 
 Stream::Stream(QNetworkReply* reply, QObject* parent) : QObject(parent), m_networkReply(reply)
@@ -55,7 +57,14 @@ Stream::~Stream()
     // or maybe the user of the stream is destroying it because he wants to stop it.
     // In any case, we must finish the promise to mark the stream as finished, and if there was an error, we
     // must have already set the exception in the promise.
-    m_promise.finish();
+    // Note: During application shutdown, QPromise::finish() may assert if the QFuture's context has been
+    // destroyed. Since QPromise will be destroyed anyway, we can skip finishing it during shutdown.
+    // The promise destructor will handle cleanup.
+    if (!s_isShuttingDown)
+    {
+        m_promise.finish();
+    }
+
     m_heartbeatTimer.stop();
 }
 
@@ -79,7 +88,11 @@ void Stream::onReplyFinished()
 
     m_heartbeatTimer.stop();
 
-    m_promise.addResult(exceptionString);
+    // During shutdown, don't try to add results to the promise as the QFuture context may be destroyed
+    if (!s_isShuttingDown)
+    {
+        m_promise.addResult(exceptionString);
+    }
 
     // m_promise.finish() will be called in the destructor
     this->deleteLater();

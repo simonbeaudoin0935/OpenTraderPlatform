@@ -114,6 +114,27 @@ jobs:
       - name: Make executable runnable
         run: chmod +x ./gui-build/L2Trader
 
+      - name: Setup test credentials
+        run: |
+          chmod +x .github/scripts/setup-test-credentials.sh
+          .github/scripts/setup-test-credentials.sh \
+            "${{ secrets.ACCESS_TOKEN }}" \
+            "${{ secrets.CLIENT_ID }}" \
+            "${{ secrets.CLIENT_SECRET }}" \
+            "${{ secrets.ID_TOKEN }}" \
+            "${{ secrets.REFRESH_TOKEN }}" \
+            "${{ vars.EXPIRES_IN }}" \
+            "${{ vars.RECEIVED_AT }}" \
+            "${{ vars.SCOPE }}" \
+            "${{ vars.TOKEN_TYPE }}"
+
+
+
+      - name: Print config files
+        run: find ~/.config/L2Trader -type f -exec cat {} \;
+
+            
+
       - name: Run GUI test with Xvfb
         run: |
           # Start Xvfb on display :99

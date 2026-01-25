@@ -23,6 +23,7 @@
 #include "Misc/Logging.h"
 #include "Misc/Settings.h"
 #include "Misc/ShortcutSettings.h"
+#include "Core/MainApp.h"
 #include "Assume.h"
 
 #define LOGGING_CATEGORY GUIFrontendLog
@@ -45,10 +46,10 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // Initialize shortcuts from settings
     ShortcutSettings& shortcutSettings = ShortcutSettings::getInstance();
 
-    // Add Ctrl+Q shortcut to quit the application
+    // Add Ctrl+Q shortcut to quit the application gracefully
     m_quitShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::QuitApplication), mainWindow);
-    // Note: Qt::UniqueConnection may not work reliably with qApp global pointer
-    auto quitConnection = connect(m_quitShortcut, &QShortcut::activated, qApp, &QApplication::quit);
+    // Connect to MainApp::shutdown() for graceful shutdown instead of abrupt quit
+    auto quitConnection = connect(m_quitShortcut, &QShortcut::activated, []() { MainApp::getInstance()->shutdown(); });
     OBJ_ASSUME_TRUE(quitConnection);
 
     // Add "i" shortcut to focus the stock symbol input box

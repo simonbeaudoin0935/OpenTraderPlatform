@@ -40,6 +40,9 @@ class DatabaseThread final : public QObject
     // Singleton: Instance getter
     [[nodiscard]] static DatabaseThread* getInstance();
 
+    // Singleton: Destroy instance (for cleanup)
+    static void destroyInstance();
+
     // Delete copy/move constructors and assignment operators
     DatabaseThread(const DatabaseThread&) = delete;
     DatabaseThread(DatabaseThread&&) = delete;

@@ -54,6 +54,9 @@ class TSClient final : public QObject
     // Singleton : Instance getter
     [[nodiscard]] static TSClient* getInstance();
 
+    // Singleton : Destroy instance (for cleanup)
+    static void destroyInstance();
+
     Q_DISABLE_COPY_MOVE(TSClient) // Delete copy and move constructors/operators
 
     void start()

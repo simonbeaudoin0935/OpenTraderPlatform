@@ -1,5 +1,8 @@
 #include "MainApp.h"
 #include "DatabaseThread.h"
+#include "Logging.h"
+#include "Stream.h"
+#include <QCoreApplication>
 #ifdef GUI_ENABLED
 #include "GUIFrontend.h"
 #else
@@ -9,6 +12,27 @@
 bool MainApp::isInReplayMode = false;
 
 QDateTime MainApp::currentAppReplayTime = QDateTime::fromSecsSinceEpoch(0);
+
+// Initialize static member
+MainApp* MainApp::m_instance = nullptr;
+
+MainApp* MainApp::getInstance()
+{
+    if (m_instance == nullptr)
+    {
+        qInfo() << "MainApp singleton instance created";
+        m_instance = new MainApp();
+    }
+    return m_instance;
+}
+
+void MainApp::destroyInstance()
+{
+    ASSUME_TRUE(m_instance != nullptr);
+    qInfo() << "Destroying MainApp singleton instance";
+    delete m_instance;
+    m_instance = nullptr;
+}
 
 // Get the current application time (real or replay)
 QDateTime MainApp::getCurrentAppTime()
@@ -82,6 +106,17 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
     QObject::connect(mainAlgo, &MainAlgo::balanceUpdated, appFrontend, &FrontEnd::onBalanceUpdated);
 }
 
+MainApp::~MainApp()
+{
+    qInfo() << "MainApp destructor - cleaning up";
+
+    // Delete the frontend first
+    delete appFrontend;
+    appFrontend = nullptr;
+
+    // The singletons will be cleaned up by their own destructors
+}
+
 void MainApp::start()
 {
     // Start the database thread first (other threads may depend on it)
@@ -97,4 +132,48 @@ void MainApp::start()
     // Initialize TUI after everything is set up
     static_cast<TUIFrontend*>(appFrontend)->initialize();
 #endif
+}
+
+void MainApp::shutdown()
+{
+    qInfo() << "MainApp shutdown initiated - stopping all threads and cleaning up";
+
+    // Stop memory monitoring first
+    memoryMonitor.stopMonitoring();
+    qInfo() << "Memory monitor stopped";
+
+    // Stop threads in reverse order of startup
+    // MainAlgo should stop before TSClient since it depends on it
+    if (mainAlgo)
+    {
+        // stopBalancePolling must be called on MainAlgo's thread
+        QMetaObject::invokeMethod(mainAlgo, &MainAlgo::stopBalancePolling, Qt::BlockingQueuedConnection);
+        qInfo() << "MainAlgo balance polling stopped";
+    }
+
+    // Now quit the application - destructors will be called automatically
+    // when the MainApp object goes out of scope in main()
+    QCoreApplication::quit();
+}
+
+void MainApp::cleanupSingletons()
+{
+    qInfo() << "Cleaning up singletons";
+
+    // Set shutdown flag to prevent Stream destructors from finishing promises
+    Stream::setShuttingDown(true);
+
+    // Delete MainApp singleton first (which will delete the frontend)
+    MainApp::destroyInstance();
+
+    // Delete MainAlgo singleton (which will stop its thread)
+    MainAlgo::destroyInstance();
+
+    // Delete TSClient singleton (which will stop its thread)
+    TSClient::destroyInstance();
+
+    // Delete DatabaseThread singleton (which will stop its thread)
+    DatabaseThread::destroyInstance();
+
+    qInfo() << "All singletons cleaned up";
 }
