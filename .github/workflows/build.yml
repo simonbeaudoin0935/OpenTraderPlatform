@@ -217,4 +217,4 @@ jobs:
         with:
           name: gui-test-screenshot-${{ github.sha }}
           path: screenshots/
-          retention-days: 7
+          retention-days: 2

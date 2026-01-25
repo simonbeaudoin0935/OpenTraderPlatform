@@ -86,7 +86,7 @@ inline constexpr int EXPIRY_BUFFER_SECONDS = 5;  // Buffer time before actual ex
 
 // Expected OAuth scopes
 inline const QStringList EXPECTED_SCOPES =
-    {"openid", "profile", "MarketData", "ReadAccount", "Trade", "Crypto", "OptionSpreads"};
+    {"openid", "profile", "MarketData", "ReadAccount", "Trade", "Matrix", "offline_access"};
 
 // Auth handler server configuration
 inline constexpr quint16 DEFAULT_AUTH_PORT = 8080;
