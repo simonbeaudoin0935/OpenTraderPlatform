@@ -630,13 +630,14 @@ void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
         // Create pre-market and after-hours rectangles for this date
         // Note: Chart data only covers 6:01 AM to 8:00 PM, so we clamp the visual ranges
         // Pre-market: 6:01 AM to 9:30 AM (data starts at 6:01, regular trading at 9:30)
-        // After-hours: 4:00 PM to 8:00 PM (regular trading ends at 4:00, data ends at 8:00)
+        // After-hours: 4:00 PM to 8:01 PM (regular trading ends at 4:00, data ends at 8:00, extended to 8:01 to cover the 8:00 bar)
         QDateTime preMarketStartNY = QDateTime(date, QTime(TradingHours::TRADING_START_HOUR, 1),
                                                nyZone); // 6:01 AM
         QDateTime preMarketEndNY = QDateTime(date, QTime(9, 30), nyZone);
         QDateTime afterHoursStartNY = QDateTime(date, QTime(16, 0), nyZone);
-        QDateTime afterHoursEndNY = QDateTime(date, QTime(TradingHours::TRADING_END_HOUR, 0),
-                                              nyZone); // 8:00 PM
+        QDateTime afterHoursEndNY = QDateTime(date,
+                                              QTime(TradingHours::TRADING_END_HOUR, 1),
+                                              nyZone); // 8:01 PM to cover the 8:00 PM bar
 
         QDateTime preMarketStart = preMarketStartNY.toTimeZone(QTimeZone::utc());
         QDateTime preMarketEnd = preMarketEndNY.toTimeZone(QTimeZone::utc());
@@ -646,7 +647,7 @@ void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
         // Draw pre-market rectangle (6:01am - 9:30am ET)
         drawFixedBackgroundRect(preMarketStart, preMarketEnd, QColor(255, 165, 0, 180), m_preMarketRects);
 
-        // Draw after-hours rectangle (4pm - 8pm ET)
+        // Draw after-hours rectangle (4pm - 8:01pm ET to cover the 8:00pm bar)
         drawFixedBackgroundRect(afterHoursStart, afterHoursEnd, QColor(138, 43, 226, 180), m_afterHoursRects);
 
         // Mark this date as having backgrounds
@@ -700,13 +701,14 @@ void StockPriceChart::drawBackgroundsForVisibleRange()
         // Create pre-market and after-hours rectangles for this date
         // Note: Chart data only covers 6:01 AM to 8:00 PM, so we clamp the visual ranges
         // Pre-market: 6:01 AM to 9:30 AM (data starts at 6:01, regular trading at 9:30)
-        // After-hours: 4:00 PM to 8:00 PM (regular trading ends at 4:00, data ends at 8:00)
+        // After-hours: 4:00 PM to 8:01 PM (regular trading ends at 4:00, data ends at 8:00, extended to 8:01 to cover the 8:00 bar)
         QDateTime preMarketStartNY = QDateTime(date, QTime(TradingHours::TRADING_START_HOUR, 1),
                                                nyZone); // 6:01 AM
         QDateTime preMarketEndNY = QDateTime(date, QTime(9, 30), nyZone);
         QDateTime afterHoursStartNY = QDateTime(date, QTime(16, 0), nyZone);
-        QDateTime afterHoursEndNY = QDateTime(date, QTime(TradingHours::TRADING_END_HOUR, 0),
-                                              nyZone); // 8:00 PM
+        QDateTime afterHoursEndNY = QDateTime(date,
+                                              QTime(TradingHours::TRADING_END_HOUR, 1),
+                                              nyZone); // 8:01 PM to cover the 8:00 PM bar
 
         QDateTime preMarketStart = preMarketStartNY.toTimeZone(QTimeZone::utc());
         QDateTime preMarketEnd = preMarketEndNY.toTimeZone(QTimeZone::utc());
@@ -716,7 +718,7 @@ void StockPriceChart::drawBackgroundsForVisibleRange()
         // Draw pre-market rectangle (6:01am - 9:30am ET)
         drawFixedBackgroundRect(preMarketStart, preMarketEnd, QColor(255, 165, 0, 180), m_preMarketRects);
 
-        // Draw after-hours rectangle (4pm - 8pm ET)
+        // Draw after-hours rectangle (4pm - 8:01pm ET to cover the 8:00pm bar)
         drawFixedBackgroundRect(afterHoursStart, afterHoursEnd, QColor(138, 43, 226, 180), m_afterHoursRects);
 
         // Mark this date as having backgrounds
