@@ -113,70 +113,6 @@ BarCache::~BarCache()
     DEBUG << "Destroyed";
 }
 
-/**
- * @brief Converts a QTime timestamp to the corresponding index in the daily bar cache vector.
- *
- * TradeStation timestamps 1-minute bars using the **closing time** of the interval.
- * For extended hours trading (6:00 AM – 8:00 PM ET):
- *   - The first bar (covering 6:00:00 – 6:00:59) is timestamped 6:01 AM
- *   - The last bar  (covering 7:59:00 – 7:59:59) is timestamped 8:00 PM
- *
- * Therefore, valid bar timestamps range from 6:01 AM to 8:00 PM inclusive.
- * The cache vector is pre-allocated with exactly 840 elements (14 hours × 60 minutes),
- * where index 0 corresponds to the 6:01 AM bar and index 839 to the 8:00 PM bar.
- *
- * @param time The timestamp of the bar (must be a valid bar close time)
- * @return size_t The zero-based index in the daily cache vector (0 to 839)
- *
- * @pre time is a valid 1-minute bar close time in extended hours:
- *      - 6:01 AM ≤ time ≤ 8:00 PM
- * @note The function asserts on invalid inputs in debug builds.
- */
-size_t BarCache::timeToIndex(const QTime& time)
-{
-    // Validate: must be between 6:01 AM and 8:00 PM inclusive
-    ASSUME_GTE(time, TradingHours::TRADING_START_TIME);
-    ASSUME_LTE(time, TradingHours::TRADING_END_TIME);
-
-    // Total minutes since 6:00 AM
-    size_t minutesSince6AM = (time.hour() - TradingHours::TRADING_START_TIME.hour()) * 60 + time.minute();
-
-    // Adjust by -1 because first bar is timestamped at 6:01 (index 0)
-    size_t index = minutesSince6AM - 1;
-
-    ASSUME_LT(index,
-              TradingHours::BARS_PER_DAY); // 0 ≤ index ≤ 839
-
-    return index;
-}
-
-/**
- * @brief Converts a daily bar cache index to the corresponding bar timestamp (QTime).
- *
- * The timestamp returned is the **close time** of the 1-minute bar, as used by TradeStation.
- * For extended hours (6:00 AM – 8:00 PM ET):
- *   - index 0   → 6:01 AM  (bar covering 6:00:00 – 6:00:59)
- *   - index 839 → 8:00 PM (bar covering 7:59:00 – 7:59:59)
- *
- * @param index Zero-based index in the daily cache vector (0 to 839)
- * @return QTime The timestamp (close time) of the bar
- *
- * @pre index < TradingHours::BARS_PER_DAY (840)
- * @note Returned times are always valid bar timestamps: 6:01 AM to 8:00 PM inclusive.
- */
-QTime BarCache::indexToTime(size_t index)
-{
-    ASSUME_LT(index, TradingHours::BARS_PER_DAY);
-
-    // Add 1 to offset the fact that index 0 = 6:01, not 6:00
-    size_t adjustedMinutes = index + 1;
-
-    int hour = TradingHours::TRADING_START_TIME.hour() + (adjustedMinutes / 60);
-    int minute = adjustedMinutes % 60;
-
-    // At index 839: adjustedMinutes = 840 → 840 / 60 = 14 hours → 6 + 14 = 20 (8 PM), minute = 0
-    return QTime(hour, minute, 0);
-}
 
 // Get or create a day vector for a given date
 QVector<Bar>& BarCache::getOrCreateDayVector(const QDate& date)
@@ -191,7 +127,7 @@ QVector<Bar>& BarCache::getOrCreateDayVector(const QDate& date)
         DEBUG << "m_barCacheByDay map doesn't contain day " << date << ", creating new vector.";
 
         // Pre-allocate to full capacity with uninitialized bars by default ctor of Bar
-        m_barCacheByDay[date] = QVector<Bar>(TradingHours::BARS_PER_DAY);
+        m_barCacheByDay[date] = QVector<Bar>(BarsConstants::MINUTE_BARS_PER_DAY);
     }
 
     return m_barCacheByDay[date];
@@ -204,8 +140,8 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first,
     OBJ_ASSUME_EQUAL(first.date(), last.date());
     OBJ_ASSUME_GTE(first.date().dayOfWeek(), Qt::Monday);
     OBJ_ASSUME_LTE(first.date().dayOfWeek(), Qt::Friday);
-    OBJ_ASSUME_GTE(first.time(), TradingHours::TRADING_START_TIME);
-    OBJ_ASSUME_LTE(last.time(), TradingHours::TRADING_END_TIME);
+    OBJ_ASSUME_GTE(first.time(), TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION);
+    OBJ_ASSUME_LTE(last.time(), TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
 
     // Account for bar holes where no activity happened
     QVector<Bar> resultBars;
@@ -288,8 +224,8 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
     // Assume monday-friday and between 6:01am-8:00pm
     OBJ_ASSUME_GTE(date.dayOfWeek(), Qt::Monday);
     OBJ_ASSUME_LTE(date.dayOfWeek(), Qt::Friday);
-    OBJ_ASSUME_GTE(first, TradingHours::TRADING_START_TIME);
-    OBJ_ASSUME_LTE(last, TradingHours::TRADING_END_TIME);
+    OBJ_ASSUME_GTE(first, TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION);
+    OBJ_ASSUME_LTE(last, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
 
     // Assume we are not requesting future dates/times
     OBJ_ASSUME_LTE(date, now.date()); // Can't request bars for future dates
@@ -315,7 +251,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
             // In this case, we should cap it at the trading end time since we can't have bars beyond trading hours
             if (nowRoundedUpDateTime.date() > now.date())
             {
-                nowRoundedUp = TradingHours::TRADING_END_TIME;
+                nowRoundedUp = TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;
             }
         }
         OBJ_ASSUME_LTE(last, nowRoundedUp); // Can't request bars for later today than now
@@ -349,93 +285,109 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                               date,
                               first,
                               last)
-        .then(this, // Execute in the thread of this BarCache object, aka the MainAlgo thread
-              [this, date, first, last, isCurrentDay, now, promise = std::move(promise)](
-                  std::optional<std::unique_ptr<QVector<Bar>>>&& dbBars) mutable
-              {
-                  // Check if we got the complete day from database
-                  if (dbBars.has_value())
-                  {
-                      std::shared_ptr<QVector<Bar>> sp = std::move(dbBars.value());
+        .then(
+            this, // Execute in the thread of this BarCache object, aka the MainAlgo thread
+            [this, date, first, last, isCurrentDay, now, promise = std::move(promise)](
+                std::optional<std::unique_ptr<QVector<Bar>>>&& dbBars) mutable
+            {
+                // Check if we got the complete day from database
+                if (dbBars.has_value())
+                {
+                    std::shared_ptr<QVector<Bar>> sp = std::move(dbBars.value());
 
-                      const qsizetype expectedBarCount = first.secsTo(last) / 60 + 1;
+                    const qsizetype expectedBarCount = first.secsTo(last) / 60 + 1;
 
-                      // Happy path, got bars from database
-                      OBJ_ASSUME_EQUAL(sp->size(), expectedBarCount);
+                    // Happy path, got bars from database
+                    OBJ_ASSUME_EQUAL(sp->size(), expectedBarCount);
 
-                      DEBUG << "Loaded complete day from database:" << sp->size() << "bars";
+                    DEBUG << "Loaded complete day from database:" << sp->size() << "bars";
 
-                      // Store the complete day in memory cache
-                      storeBarsInCache(date, sp);
+                    // Store the complete day in memory cache
+                    storeBarsInCache(date, sp);
 
-                      promise.addResult(sp);
-                      promise.finish();
-                      return;
-                  }
+                    promise.addResult(sp);
+                    promise.finish();
+                    return;
+                }
 
-                  // Database doesn't have complete day - fetch from API
-                  DEBUG << "Database miss, fetching from API";
+                // Database doesn't have complete day - fetch from API
+                DEBUG << "Database miss, fetching from API";
 
-                  QDateTime startDateTime =
-                      QDateTime(date, TradingHours::TRADING_START_TIME, QTimeZone("America/New_York"));
-                  QDateTime endDayTime =
-                      QDateTime(date,
-                                !isCurrentDay                                 ? TradingHours::TRADING_END_TIME
-                                : now.time() > TradingHours::TRADING_END_TIME ? TradingHours::TRADING_END_TIME
-                                                                              : now.time(),
-                                QTimeZone("America/New_York"));
-
-                  DEBUG << "Fetching complete day from API:" << startDateTime << "to" << endDayTime;
-
-                  // Call the API and chain the result processing
-
-                  TSClient::getInstance()
-                      ->getBars(m_symbol,
-                                1,
-                                Bar::BarUnit::Minute,
-                                0,
-                                Bar::BarSessionTemplate::USEQ24Hour,
-                                startDateTime,
-                                endDayTime)
-                      .then(this,
-                            [this, date, startDateTime, endDayTime, promise = std::move(promise)](
-                                std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& bars) mutable
+                QDateTime startDateTime =
+                    QDateTime(date, TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION, TradingHours::MARKET_TIMEZONE);
+                QDateTime endDayTime = QDateTime(
+                    date,
+                    [now, isCurrentDay]() -> QTime
+                    {
+                        if (isCurrentDay)
+                        {
+                            if (now.time() > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION)
                             {
-                                if (!bars.has_value())
-                                {
-                                    CRITICAL << "getBars() from API returned error for" << m_symbol
-                                             << "- Error:" << static_cast<int>(bars.error());
-                                    promise.addResult(std::unexpected(bars.error()));
-                                }
-                                else
-                                {
-                                    INFO << "Asynchronous getBars() from API completed for complete day" << date
-                                         << "with" << bars.value()->size() << "bars received";
+                                return TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;
+                            }
+                            else
+                            {
+                                return now.time();
+                            }
+                        }
+                        else
+                        {
+                            return TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;
+                        }
+                    }(),
+                    TradingHours::MARKET_TIMEZONE);
 
-                                    // Shared_ptr is already provided by TSClient, so we can use it directly
-                                    std::shared_ptr<QVector<Bar>> barsFromApiHolesFilled =
-                                        std::make_shared<QVector<Bar>>(
-                                            fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars.value()));
 
-                                    // Store the complete day in memory cache
-                                    storeBarsInCache(date, barsFromApiHolesFilled);
+                DEBUG << "Fetching complete day from API:" << startDateTime << "to" << endDayTime;
 
-                                    // Store in database via DatabaseThread (async, fire-and-forget)
-                                    // Note: We intentionally don't wait for the result or attach continuations
-                                    // to avoid lifetime/threading issues. The shared_ptr ensures the bars stay alive,
-                                    // and destroyed then the DatabaseThread processes them.
-                                    [[maybe_unused]] auto dbFuture =
-                                        DatabaseThread::getInstance()->storeBarsInDatabase(m_symbol,
-                                                                                           date,
-                                                                                           barsFromApiHolesFilled);
+                // Call the API and chain the result processing
 
-                                    promise.addResult(barsFromApiHolesFilled);
-                                }
-                                promise.finish();
+                TSClient::getInstance()
+                    ->getBars(m_symbol,
+                              1,
+                              Bar::BarUnit::Minute,
+                              0,
+                              Bar::BarSessionTemplate::USEQ24Hour,
+                              startDateTime,
+                              endDayTime)
+                    .then(this,
+                          [this, date, startDateTime, endDayTime, promise = std::move(promise)](
+                              std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& bars) mutable
+                          {
+                              if (!bars.has_value())
+                              {
+                                  CRITICAL << "getBars() from API returned error for" << m_symbol
+                                           << "- Error:" << static_cast<int>(bars.error());
+                                  promise.addResult(std::unexpected(bars.error()));
+                              }
+                              else
+                              {
+                                  INFO << "Asynchronous getBars() from API completed for complete day" << date << "with"
+                                       << bars.value()->size() << "bars received";
 
-                                INFO << "Completed fetching bars from API for day" << date;
-                            });
-              });
+                                  // Shared_ptr is already provided by TSClient, so we can use it directly
+                                  std::shared_ptr<QVector<Bar>> barsFromApiHolesFilled = std::make_shared<QVector<Bar>>(
+                                      fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars.value()));
+
+                                  // Store the complete day in memory cache
+                                  storeBarsInCache(date, barsFromApiHolesFilled);
+
+                                  // Store in database via DatabaseThread (async, fire-and-forget)
+                                  // Note: We intentionally don't wait for the result or attach continuations
+                                  // to avoid lifetime/threading issues. The shared_ptr ensures the bars stay alive,
+                                  // and destroyed then the DatabaseThread processes them.
+                                  [[maybe_unused]] auto dbFuture =
+                                      DatabaseThread::getInstance()->storeBarsInDatabase(m_symbol,
+                                                                                         date,
+                                                                                         barsFromApiHolesFilled);
+
+                                  promise.addResult(barsFromApiHolesFilled);
+                              }
+                              promise.finish();
+
+                              INFO << "Completed fetching bars from API for day" << date;
+                          });
+            });
 
     return future;
 }
@@ -458,7 +410,7 @@ BarCache::getBarsFromCache(const QDate& date, const QTime& start, const QTime& e
     const QVector<Bar>& dayVector = m_barCacheByDay[date];
 
     // a day vector is always pre-allocated to 840 bars
-    OBJ_ASSUME_EQUAL(dayVector.size(), TradingHours::BARS_PER_DAY);
+    OBJ_ASSUME_EQUAL(dayVector.size(), BarsConstants::MINUTE_BARS_PER_DAY);
 
     std::unique_ptr<QVector<Bar>> result = std::make_unique<QVector<Bar>>();
     result->reserve((start.secsTo(end) / 60) + 1);
@@ -535,23 +487,24 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
 
     if (date < MainApp::getCurrentAppTime().date())
     {
-        OBJ_ASSUME_EQUAL(bars->size(), TradingHours::BARS_PER_DAY);
+        OBJ_ASSUME_EQUAL(bars->size(), BarsConstants::MINUTE_BARS_PER_DAY);
     }
     else
     {
         OBJ_ASSUME_LTE(bars->size(),
-                       static_cast<qsizetype>(MainApp::getCurrentAppTime().time() > TradingHours::TRADING_END_TIME
-                                                  ? TradingHours::BARS_PER_DAY
+                       static_cast<qsizetype>(MainApp::getCurrentAppTime().time() >
+                                                      TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION
+                                                  ? BarsConstants::MINUTE_BARS_PER_DAY
                                                   : timeToIndex(MainApp::getCurrentAppTime().time()) + 1));
     }
 
     OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().date(), bars->last().getTimeStamp().date());
-    OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().time(), TradingHours::TRADING_START_TIME);
-    OBJ_ASSUME_LTE(bars->last().getTimeStamp().time(), TradingHours::TRADING_END_TIME);
+    OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().time(), TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION);
+    OBJ_ASSUME_LTE(bars->last().getTimeStamp().time(), TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
 
     QWriteLocker locker(&m_barCacheRwLock);
 
-    if (bars->size() == TradingHours::BARS_PER_DAY)
+    if (bars->size() == BarsConstants::MINUTE_BARS_PER_DAY)
     {
         // Full day
         m_barCacheByDay.insert(date, *bars);
@@ -563,7 +516,7 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
         // Partial day - need to create day vector if it doesn't exist
         if (!m_barCacheByDay.contains(date))
         {
-            m_barCacheByDay[date] = QVector<Bar>(TradingHours::BARS_PER_DAY);
+            m_barCacheByDay[date] = QVector<Bar>(BarsConstants::MINUTE_BARS_PER_DAY);
         }
 
         QVector<Bar>& dayVector = m_barCacheByDay[date];
@@ -614,8 +567,8 @@ constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDay
     ASSUME_LT(first, last);
 
     // Ensure range is within trading hours
-    ASSUME_GTE(first.time(), TradingHours::TRADING_START_TIME);
-    ASSUME_LTE(last.time(), TradingHours::TRADING_END_TIME);
+    ASSUME_GTE(first.time(), TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION);
+    ASSUME_LTE(last.time(), TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
 
 
     QVector<std::tuple<QDate, QTime, QTime>> ranges;
@@ -629,8 +582,8 @@ constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDay
             continue;
         }
 
-        QTime dayTimeStart = (date == first.date()) ? first.time() : TradingHours::TRADING_START_TIME;
-        QTime dayTimeEnd = (date == last.date()) ? last.time() : TradingHours::TRADING_END_TIME;
+        QTime dayTimeStart = (date == first.date()) ? first.time() : TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION;
+        QTime dayTimeEnd = (date == last.date()) ? last.time() : TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;
 
         std::tuple<QDate, QTime, QTime> range = std::make_tuple(date, dayTimeStart, dayTimeEnd);
 

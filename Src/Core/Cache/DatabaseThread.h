@@ -116,10 +116,6 @@ class DatabaseThread final : public QObject
 
     bool clearDatabaseInternal(const QString& symbol);
 
-    // Helper to convert time to index (same logic as BarCache)
-    static size_t timeToIndex(const QTime& time);
-    static QTime indexToTime(size_t index);
-
     QThread m_thread;
 
     // Map of symbol -> database connection

@@ -367,8 +367,9 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
         // Here we will fetch the bars from the beginning of the day up to this bar to fill in history
         QDateTime first = QDateTime(bar.getTimeStamp().date(),
-                                    QTime(TradingHours::TRADING_START_HOUR, 1, 0),
-                                    QTimeZone("America/New_York"));
+                                    TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION,
+                                    TradingHours::MARKET_TIMEZONE);
+
         QDateTime last = bar.getTimeStamp();
 
         DEBUG << "Requesting whole day bars from" << first.toString(Qt::ISODate) << "to" << last.toString(Qt::ISODate);
@@ -594,28 +595,14 @@ void StockPriceChart::rescaleVolumeAxisToVisibleRange()
  */
 void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
 {
-    if (bars.isEmpty())
+    OBJ_ASSUME_FALSE(bars.isEmpty());
+
+    QSet<QDate> datesToDrawRectancles;
+
+    // Go through all received bars to find unique dates
+    for (const Bar& bar: bars)
     {
-        return;
-    }
-
-    // Get all dates that have bars
-    QTimeZone nyZone("America/New_York");
-    QSet<QDate> datesWithBars;
-
-    for (const Bar& bar: indexToBar)
-    {
-        QDateTime barTime = bar.getTimeStamp();
-        QDateTime nyTime = barTime.toTimeZone(nyZone);
-        QDate date = nyTime.date();
-
-        // Skip weekends
-        if (date.dayOfWeek() > 5)
-        {
-            continue;
-        }
-
-        datesWithBars.insert(date);
+        OBJ_ASSUME_TRUE(bar.getTimeStamp().timeZone() == MarketHours::MARKET_TIMEZONE);
     }
 
     // Draw full session rectangles only for dates that don't already have backgrounds
@@ -627,28 +614,19 @@ void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
             continue;
         }
 
-        // Create pre-market and after-hours rectangles for this date
-        // Note: Chart data only covers 6:01 AM to 8:00 PM, so we clamp the visual ranges
-        // Pre-market: 6:01 AM to 9:30 AM (data starts at 6:01, regular trading at 9:30)
-        // After-hours: 4:00 PM to 8:01 PM (regular trading ends at 4:00, data ends at 8:00, extended to 8:01 to cover the 8:00 bar)
-        QDateTime preMarketStartNY = QDateTime(date, QTime(TradingHours::TRADING_START_HOUR, 1),
-                                               nyZone); // 6:01 AM
-        QDateTime preMarketEndNY = QDateTime(date, QTime(9, 30), nyZone);
-        QDateTime afterHoursStartNY = QDateTime(date, QTime(16, 0), nyZone);
-        QDateTime afterHoursEndNY = QDateTime(date,
-                                              QTime(TradingHours::TRADING_END_HOUR, 1),
-                                              nyZone); // 8:01 PM to cover the 8:00 PM bar
-
-        QDateTime preMarketStart = preMarketStartNY.toTimeZone(QTimeZone::utc());
-        QDateTime preMarketEnd = preMarketEndNY.toTimeZone(QTimeZone::utc());
-        QDateTime afterHoursStart = afterHoursStartNY.toTimeZone(QTimeZone::utc());
-        QDateTime afterHoursEnd = afterHoursEndNY.toTimeZone(QTimeZone::utc());
-
         // Draw pre-market rectangle (6:01am - 9:30am ET)
-        drawFixedBackgroundRect(preMarketStart, preMarketEnd, QColor(255, 165, 0, 180), m_preMarketRects);
+        drawFixedBackgroundRect(date,
+                                TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION,
+                                TradingHours::TIME_LAST_CANDLE_PRE_MARKET_SESSION,
+                                QColor(255, 165, 0, 180),
+                                m_preMarketRects);
 
-        // Draw after-hours rectangle (4pm - 8:01pm ET to cover the 8:00pm bar)
-        drawFixedBackgroundRect(afterHoursStart, afterHoursEnd, QColor(138, 43, 226, 180), m_afterHoursRects);
+        // Draw after-hours rectangle (4pm - 8:00pm ET)
+        drawFixedBackgroundRect(date,
+                                TradingHours::TIME_FIRST_CANDLE_AFTER_MARKET_SESSION,
+                                TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
+                                QColor(138, 43, 226, 180),
+                                m_afterHoursRects);
 
         // Mark this date as having backgrounds
         m_datesWithBackgrounds.insert(date);
@@ -671,7 +649,7 @@ void StockPriceChart::drawBackgroundsForVisibleRange()
     }
 
     // Get all dates that have bars
-    QTimeZone nyZone("America/New_York");
+    QTimeZone nyZone = TradingHours::NY_TIMEZONE;
     QSet<QDate> datesWithBars;
 
     for (const Bar& bar: indexToBar)
@@ -701,14 +679,13 @@ void StockPriceChart::drawBackgroundsForVisibleRange()
         // Create pre-market and after-hours rectangles for this date
         // Note: Chart data only covers 6:01 AM to 8:00 PM, so we clamp the visual ranges
         // Pre-market: 6:01 AM to 9:30 AM (data starts at 6:01, regular trading at 9:30)
-        // After-hours: 4:00 PM to 8:01 PM (regular trading ends at 4:00, data ends at 8:00, extended to 8:01 to cover the 8:00 bar)
-        QDateTime preMarketStartNY = QDateTime(date, QTime(TradingHours::TRADING_START_HOUR, 1),
+        // After-hours: 4:00 PM to 8:00 PM (regular trading ends at 4:00, data ends at 8:00)
+        QDateTime preMarketStartNY = QDateTime(date, TradingHours::TRADING_START_TIME,
                                                nyZone); // 6:01 AM
-        QDateTime preMarketEndNY = QDateTime(date, QTime(9, 30), nyZone);
-        QDateTime afterHoursStartNY = QDateTime(date, QTime(16, 0), nyZone);
-        QDateTime afterHoursEndNY = QDateTime(date,
-                                              QTime(TradingHours::TRADING_END_HOUR, 1),
-                                              nyZone); // 8:01 PM to cover the 8:00 PM bar
+        QDateTime preMarketEndNY = QDateTime(date, TradingHours::REGULAR_MARKET_OPEN, nyZone);
+        QDateTime afterHoursStartNY = QDateTime(date, TradingHours::REGULAR_MARKET_CLOSE, nyZone);
+        QDateTime afterHoursEndNY = QDateTime(date, TradingHours::TRADING_END_TIME,
+                                              nyZone); // 8:00 PM
 
         QDateTime preMarketStart = preMarketStartNY.toTimeZone(QTimeZone::utc());
         QDateTime preMarketEnd = preMarketEndNY.toTimeZone(QTimeZone::utc());
@@ -718,7 +695,7 @@ void StockPriceChart::drawBackgroundsForVisibleRange()
         // Draw pre-market rectangle (6:01am - 9:30am ET)
         drawFixedBackgroundRect(preMarketStart, preMarketEnd, QColor(255, 165, 0, 180), m_preMarketRects);
 
-        // Draw after-hours rectangle (4pm - 8:01pm ET to cover the 8:00pm bar)
+        // Draw after-hours rectangle (4pm - 8:00pm ET)
         drawFixedBackgroundRect(afterHoursStart, afterHoursEnd, QColor(138, 43, 226, 180), m_afterHoursRects);
 
         // Mark this date as having backgrounds
@@ -752,17 +729,6 @@ void StockPriceChart::clearBackgroundRects()
 }
 
 /**
- * @brief Draws a background rectangle for a specific time range.
- *
- * Creates a colored background rectangle covering the bars that fall within
- * the specified time range, clipped to the currently visible area.
- *
- * @param rangeStart The start time of the range to highlight.
- * @param rangeEnd The end time of the range to highlight.
- * @param color The color for the background rectangle.
- * @param rectList The list to add the created rectangle to.
- */
-/**
  * @brief Draws a fixed background rectangle for a specific time range.
  *
  * Creates a rectangle with fixed coordinates that spans the entire Y-axis.
@@ -773,15 +739,13 @@ void StockPriceChart::clearBackgroundRects()
  * @param color The color for the background rectangle.
  * @param rectList The list to add the created rectangle to.
  */
-void StockPriceChart::drawFixedBackgroundRect(const QDateTime& rangeStart,
-                                              const QDateTime& rangeEnd,
+void StockPriceChart::drawFixedBackgroundRect(const QDate& date,
+                                              const QTime& rangeStart,
+                                              const QTime& rangeEnd,
                                               const QColor& color,
                                               QList<QCPItemRect*>& rectList)
 {
-    if (indexToBar.isEmpty())
-    {
-        return;
-    }
+    OBJ_ASSUME_FALSE(indexToBar.isEmpty());
 
     // Calculate indices for the time boundaries
     qreal sessionStartIndex = static_cast<qreal>(getIndexForTimestamp(rangeStart));
@@ -897,8 +861,6 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 {
     Q_UNUSED(viewEndTime);
 
-    //WARNING << "checkForMissingBars";
-
     // Try to acquire the semaphore - if it fails, a request is already in progress
     if (!m_missingBarsRequestSemaphore.tryAcquire())
     {
@@ -920,7 +882,8 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     // Adjust to valid trading hours
     viewStartTimeRounded = adjustToValidTradingTime(viewStartTimeRounded);
 
-    QDateTime firstBarTime = timestampToIndex.firstKey();
+    const QDateTime firstBarTime = timestampToIndex.firstKey();
+    OBJ_ASSUME_TRUE(firstBarTime.timeZone() == TradingHours::MARKET_TIMEZONE);
 
     if (viewStartTimeRounded >= firstBarTime)
     {
@@ -932,48 +895,35 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     DEBUG << "Chart view extends beyond available bars:";
     DEBUG << "  Last :" << firstBarTime;
     DEBUG << "  First:" << viewStartTimeRounded;
-
-    // Determine the appropriate time range to request
-    QTimeZone nyZone("America/New_York");
-    QDateTime firstBarInNY = firstBarTime.toTimeZone(nyZone);
-    QDateTime viewStartInNY = viewStartTimeRounded.toTimeZone(nyZone);
-
-    DEBUG << "firstBarInNY:" << firstBarInNY << "viewStartInNY:" << viewStartInNY;
-    DEBUG << "firstBarInNY.date():" << firstBarInNY.date() << "viewStartInNY.date():" << viewStartInNY.date();
-    DEBUG << "Date comparison:" << (viewStartInNY.date() < firstBarInNY.date());
+    DEBUG << "firstBarInNY:" << firstBarTime << "viewStartInNY:" << viewStartTimeRounded;
+    DEBUG << "firstBarInNY.date():" << firstBarTime.date() << "viewStartInNY.date():" << viewStartTimeRounded.date();
+    DEBUG << "Date comparison:" << (viewStartTimeRounded.date() < firstBarTime.date());
 
     QDateTime requestStartTime;
     QDateTime requestEndTime;
 
-    if (viewStartInNY.date() < firstBarInNY.date())
+    if (viewStartTimeRounded.date() < firstBarTime.date())
     {
-        // View extends to previous day(s) - request the complete previous day only
-        // (we'll request additional days in subsequent calls if needed)
-        QDateTime viewDayStart = QDateTime(viewStartInNY.date(), QTime(TradingHours::TRADING_START_HOUR, 1, 0), nyZone);
-        QDateTime viewDayEnd = QDateTime(viewStartInNY.date(), QTime(TradingHours::TRADING_END_HOUR, 0, 0), nyZone);
-        requestStartTime = viewDayStart.toTimeZone(firstBarTime.timeZone());
-        requestEndTime = viewDayEnd.toTimeZone(firstBarTime.timeZone());
-        DEBUG << "Requesting previous day from" << viewDayStart << "to" << viewDayEnd;
+        requestStartTime = viewStartTimeRounded;
+        requestStartTime.setTime(TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION);
+
+        requestEndTime = viewStartTimeRounded;
+        requestEndTime.setTime(TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
+
+        DEBUG << "Requesting previous day from" << requestStartTime << "to" << requestEndTime;
     }
     else
     {
-        // View extends within the same day - request from start of day to one minute before firstBarTime
-        QDateTime dayStart = QDateTime(firstBarInNY.date(), QTime(TradingHours::TRADING_START_HOUR, 1, 0), nyZone);
-        requestStartTime = dayStart.toTimeZone(firstBarTime.timeZone());
-        requestEndTime = firstBarTime.addSecs(-60);
-        DEBUG << "Requesting same day, dayStart:" << dayStart << "requestStartTime:" << requestStartTime;
+        requestStartTime = firstBarTime;
+        requestStartTime.setTime(TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION);
+
+        requestEndTime = firstBarTime;
+        requestEndTime = requestEndTime.addSecs(-60);
+
+        DEBUG << "Requesting for same day from" << requestStartTime << "to" << requestEndTime;
     }
 
-    // Ensure we don't request invalid ranges
-    if (requestStartTime >= requestEndTime)
-    {
-        DEBUG << "Invalid request range, skipping - releasing semaphore";
-        m_missingBarsRequestSemaphore.release();
-        return;
-    }
-
-    DEBUG << "Requesting missing bars from" << requestStartTime.toString(Qt::ISODate) << "to"
-          << requestEndTime.toString(Qt::ISODate);
+    OBJ_ASSUME_LT(requestStartTime, requestEndTime);
 
     emit requestMissingBars(requestStartTime, requestEndTime);
 }
@@ -1015,6 +965,14 @@ void StockPriceChart::clearSymbol()
 
 /**
  * @brief Gets the previous valid trading minute.
+ *
+ * This function calculates the trading minute immediately preceding the given timestamp.
+ * It handles timezone conversion to New York time, adjusts for weekends by rolling back
+ * to the previous Friday, and ensures the result falls within valid trading hours
+ * (6:00 AM to 8:00 PM ET on weekdays).
+ *
+ * @param timestamp The reference timestamp (in any timezone)
+ * @return The previous trading minute as a QDateTime in the same timezone as the input
  */
 QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) const
 {

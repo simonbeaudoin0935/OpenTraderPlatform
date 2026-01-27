@@ -3,7 +3,7 @@
 
 QDateTime MarketHours::toNewYorkTime(const QDateTime& localTime)
 {
-    return localTime.toTimeZone(TradingHours::NY_TIMEZONE);
+    return localTime.toTimeZone(TradingHours::MARKET_TIMEZONE);
 }
 
 MarketHours::Session MarketHours::getCurrentSession()
@@ -118,47 +118,6 @@ QString MarketHours::getFormattedTimeET(const QDateTime& localTime)
     return nyTime.toString("hh:mm:ss AP") + " ET";
 }
 
-#ifdef GUI_ENABLED
-QColor MarketHours::getSessionColor(Session session)
-{
-    switch (session)
-    {
-    case Session::PreMarket:
-        return getPreMarketColor();
-    case Session::RegularHours:
-        return getRegularHoursColor();
-    case Session::AfterHours:
-        return getAfterHoursColor();
-    case Session::Closed:
-        return getClosedColor();
-    default:
-        return QColor(0, 0, 0, 0); // Transparent
-    }
-}
-
-QColor MarketHours::getPreMarketColor()
-{
-    return QColor(255, 200, 150,
-                  100); // Light orange
-}
-
-QColor MarketHours::getRegularHoursColor()
-{
-    return QColor(0, 0, 0, 0); // Transparent
-}
-
-QColor MarketHours::getAfterHoursColor()
-{
-    return QColor(230, 230, 255,
-                  100); // Light purple
-}
-
-QColor MarketHours::getClosedColor()
-{
-    return QColor(40, 40, 40, 100); // Dark gray
-}
-#endif
-
 bool MarketHours::isSessionVisible(const QDateTime& startTime, const QDateTime& endTime, Session session)
 {
     auto [visibleStart, visibleEnd] = getVisibleSessionRange(startTime, endTime, session);
@@ -184,8 +143,8 @@ MarketHours::getVisibleSessionRange(const QDateTime& startTime, const QDateTime&
         {
             if (currentDate.dayOfWeek() > 5)
             { // Saturday or Sunday
-                QDateTime dayStart = QDateTime(currentDate, QTime(0, 0), TradingHours::NY_TIMEZONE);
-                QDateTime dayEnd = QDateTime(currentDate.addDays(1), QTime(0, 0), TradingHours::NY_TIMEZONE);
+                QDateTime dayStart = QDateTime(currentDate, QTime(0, 0), TradingHours::MARKET_TIMEZONE);
+                QDateTime dayEnd = QDateTime(currentDate.addDays(1), QTime(0, 0), TradingHours::MARKET_TIMEZONE);
 
                 if (dayStart < nyEndTime && dayEnd > nyStartTime)
                 {
@@ -205,9 +164,10 @@ MarketHours::getVisibleSessionRange(const QDateTime& startTime, const QDateTime&
         { // Weekday
             for (int hour = 0; hour < 24; hour++)
             {
-                QDateTime hourStart = QDateTime(currentDate, QTime(hour, 0), TradingHours::NY_TIMEZONE);
-                QDateTime hourEnd = hour == 23 ? QDateTime(currentDate, QTime(23, 59, 59), TradingHours::NY_TIMEZONE)
-                                               : QDateTime(currentDate, QTime(hour + 1, 0), TradingHours::NY_TIMEZONE);
+                QDateTime hourStart = QDateTime(currentDate, QTime(hour, 0), TradingHours::MARKET_TIMEZONE);
+                QDateTime hourEnd = hour == 23
+                                        ? QDateTime(currentDate, QTime(23, 59, 59), TradingHours::MARKET_TIMEZONE)
+                                        : QDateTime(currentDate, QTime(hour + 1, 0), TradingHours::MARKET_TIMEZONE);
 
                 if (getSessionForDateTime(hourStart) == session)
                 {

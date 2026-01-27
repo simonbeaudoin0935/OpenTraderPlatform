@@ -49,7 +49,7 @@ IncludeIsMainRegex: '(Test)?$'
 IndentCaseLabels: false
 IndentWrappedFunctionNames: false
 MaxEmptyLinesToKeep: 2
-NamespaceIndentation: None
+NamespaceIndentation: All
 PenaltyBreakBeforeFirstCallParameter: 19
 PenaltyBreakComment: 300
 PenaltyBreakFirstLessLess: 120

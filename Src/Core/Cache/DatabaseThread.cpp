@@ -9,6 +9,7 @@
 #include "Logging.h"
 #include "Assume.h"
 #include "SQL/DatabaseThreadQueries.h"
+#include "CONSTANTS.h"
 
 #define LOGGING_CATEGORY DatabaseThreadLog
 
@@ -266,8 +267,8 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
 
     DEBUG << "Checking database cache for" << symbol << "at date" << date << "from" << start << "to" << end;
 
-    size_t indexStart = timeToIndex(start);
-    size_t indexEnd = timeToIndex(end);
+    size_t indexStart = BarConstants::timeToIndex(start);
+    size_t indexEnd = BarConstants::timeToIndex(end);
 
     OBJ_ASSUME_LT(indexStart, indexEnd);
 
@@ -414,31 +415,4 @@ bool DatabaseThread::clearDatabaseInternal(const QString& symbol)
         WARNING << "Failed to clear database for" << symbol << ":" << query.lastError().text();
         return false;
     }
-}
-
-// ============================================================================
-// Helper functions
-// ============================================================================
-
-size_t DatabaseThread::timeToIndex(const QTime& time)
-{
-    ASSUME_GTE(time, TradingHours::TRADING_START_TIME);
-    ASSUME_LTE(time, TradingHours::TRADING_END_TIME);
-
-    size_t minutesSince6AM = (time.hour() - TradingHours::TRADING_START_TIME.hour()) * 60 + time.minute();
-    size_t index = minutesSince6AM - 1;
-
-    ASSUME_LT(index, TradingHours::BARS_PER_DAY);
-    return index;
-}
-
-QTime DatabaseThread::indexToTime(size_t index)
-{
-    ASSUME_LT(index, TradingHours::BARS_PER_DAY);
-
-    size_t adjustedMinutes = index + 1;
-    int hour = TradingHours::TRADING_START_TIME.hour() + (adjustedMinutes / 60);
-    int minute = adjustedMinutes % 60;
-
-    return QTime(hour, minute, 0);
 }

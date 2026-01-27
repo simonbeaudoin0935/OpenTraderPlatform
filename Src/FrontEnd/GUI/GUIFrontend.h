@@ -17,7 +17,7 @@ class PlaceOrderRequest;
 // Forward declare the generated UI class
 namespace Ui
 {
-class GUIFrontend;
+    class GUIFrontend;
 }
 
 Q_DECLARE_LOGGING_CATEGORY(GUIFrontendLog)
