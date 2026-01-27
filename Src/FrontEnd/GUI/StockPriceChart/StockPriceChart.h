@@ -104,7 +104,6 @@ class StockPriceChart : public QWidget
 
     // Background rendering methods
     void drawBackgroundsForReceivedBars(const QVector<Bar>& bars);
-    void drawBackgroundsForVisibleRange();
     void clearBackgroundRects();
     void drawFixedBackgroundRect(const QDate& date,
                                  const QTime& rangeStart,

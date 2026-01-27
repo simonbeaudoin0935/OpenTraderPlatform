@@ -267,8 +267,8 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
 
     DEBUG << "Checking database cache for" << symbol << "at date" << date << "from" << start << "to" << end;
 
-    size_t indexStart = BarConstants::timeToIndex(start);
-    size_t indexEnd = BarConstants::timeToIndex(end);
+    size_t indexStart = BarsConstants::timeToIndex(start);
+    size_t indexEnd = BarsConstants::timeToIndex(end);
 
     OBJ_ASSUME_LT(indexStart, indexEnd);
 
@@ -285,7 +285,7 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
         while (query.next())
         {
             int index = query.value(0).toInt();
-            QTime time = indexToTime(static_cast<size_t>(index));
+            QTime time = BarsConstants::indexToTime(static_cast<size_t>(index));
             QDateTime ts(date, time, QTimeZone("America/New_York"));
             double open = query.value(1).toDouble();
             double high = query.value(2).toDouble();
@@ -358,7 +358,7 @@ int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDa
     for (const Bar& bar: bars)
     {
         QString dateStr = date.toString("yyyy-MM-dd");
-        size_t index = timeToIndex(bar.getTimeStamp().time());
+        size_t index = BarsConstants::timeToIndex(bar.getTimeStamp().time());
 
         query.addBindValue(dateStr);
         query.addBindValue(static_cast<int>(index));

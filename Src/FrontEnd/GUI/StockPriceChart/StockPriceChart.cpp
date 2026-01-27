@@ -7,7 +7,6 @@
 
 #include "StockPriceChart.h"
 #include "IndexToTimeTicker.h"
-#include "MarketHours.h"
 #include "Misc/Settings.h"
 #include "Logging.h"
 #include "Assume.h"
@@ -290,7 +289,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     {
         if (bar.getIsRealtime() == false)
         {
-            size_t index = BarCache::timeToIndex(bar.getTimeStamp().time());
+            size_t index = BarsConstants::timeToIndex(bar.getTimeStamp().time());
             if (index == 839)
             {
                 WARNING << "We received a double of the last bar of the day for symbol" << m_symbol
@@ -363,7 +362,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         m_customPlot->replot();
 
         // Draw background rectangles for the session
-        drawBackgroundsForReceivedBars({});
+        drawBackgroundsForReceivedBars(QVector<Bar>{bar});
 
         // Here we will fetch the bars from the beginning of the day up to this bar to fill in history
         QDateTime first = QDateTime(bar.getTimeStamp().date(),
@@ -602,11 +601,13 @@ void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
     // Go through all received bars to find unique dates
     for (const Bar& bar: bars)
     {
-        OBJ_ASSUME_TRUE(bar.getTimeStamp().timeZone() == MarketHours::MARKET_TIMEZONE);
+        OBJ_ASSUME_TRUE(bar.getTimeStamp().timeZone() == TradingHours::MARKET_TIMEZONE);
+
+        datesToDrawRectancles.insert(bar.getTimeStamp().date());
     }
 
     // Draw full session rectangles only for dates that don't already have backgrounds
-    for (const QDate& date: datesWithBars)
+    for (const QDate& date: datesToDrawRectancles)
     {
         // Skip if we already have backgrounds for this date
         if (m_datesWithBackgrounds.contains(date))
@@ -627,76 +628,6 @@ void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
                                 TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
                                 QColor(138, 43, 226, 180),
                                 m_afterHoursRects);
-
-        // Mark this date as having backgrounds
-        m_datesWithBackgrounds.insert(date);
-
-        DEBUG << "Created background rectangles for date" << date.toString();
-    }
-}
-
-/**
- * @brief Draws background rectangles for trading sessions based on all loaded bars.
- *
- * Only creates backgrounds for dates that don't already have them.
- * QCustomPlot handles clipping to the visible range automatically.
- */
-void StockPriceChart::drawBackgroundsForVisibleRange()
-{
-    if (indexToBar.isEmpty())
-    {
-        return;
-    }
-
-    // Get all dates that have bars
-    QTimeZone nyZone = TradingHours::NY_TIMEZONE;
-    QSet<QDate> datesWithBars;
-
-    for (const Bar& bar: indexToBar)
-    {
-        QDateTime barTime = bar.getTimeStamp();
-        QDateTime nyTime = barTime.toTimeZone(nyZone);
-        QDate date = nyTime.date();
-
-        // Skip weekends
-        if (date.dayOfWeek() > 5)
-        {
-            continue;
-        }
-
-        datesWithBars.insert(date);
-    }
-
-    // Draw backgrounds only for dates that don't already have them
-    for (const QDate& date: datesWithBars)
-    {
-        // Skip if we already have backgrounds for this date
-        if (m_datesWithBackgrounds.contains(date))
-        {
-            continue;
-        }
-
-        // Create pre-market and after-hours rectangles for this date
-        // Note: Chart data only covers 6:01 AM to 8:00 PM, so we clamp the visual ranges
-        // Pre-market: 6:01 AM to 9:30 AM (data starts at 6:01, regular trading at 9:30)
-        // After-hours: 4:00 PM to 8:00 PM (regular trading ends at 4:00, data ends at 8:00)
-        QDateTime preMarketStartNY = QDateTime(date, TradingHours::TRADING_START_TIME,
-                                               nyZone); // 6:01 AM
-        QDateTime preMarketEndNY = QDateTime(date, TradingHours::REGULAR_MARKET_OPEN, nyZone);
-        QDateTime afterHoursStartNY = QDateTime(date, TradingHours::REGULAR_MARKET_CLOSE, nyZone);
-        QDateTime afterHoursEndNY = QDateTime(date, TradingHours::TRADING_END_TIME,
-                                              nyZone); // 8:00 PM
-
-        QDateTime preMarketStart = preMarketStartNY.toTimeZone(QTimeZone::utc());
-        QDateTime preMarketEnd = preMarketEndNY.toTimeZone(QTimeZone::utc());
-        QDateTime afterHoursStart = afterHoursStartNY.toTimeZone(QTimeZone::utc());
-        QDateTime afterHoursEnd = afterHoursEndNY.toTimeZone(QTimeZone::utc());
-
-        // Draw pre-market rectangle (6:01am - 9:30am ET)
-        drawFixedBackgroundRect(preMarketStart, preMarketEnd, QColor(255, 165, 0, 180), m_preMarketRects);
-
-        // Draw after-hours rectangle (4pm - 8:00pm ET)
-        drawFixedBackgroundRect(afterHoursStart, afterHoursEnd, QColor(138, 43, 226, 180), m_afterHoursRects);
 
         // Mark this date as having backgrounds
         m_datesWithBackgrounds.insert(date);
@@ -746,10 +677,14 @@ void StockPriceChart::drawFixedBackgroundRect(const QDate& date,
                                               QList<QCPItemRect*>& rectList)
 {
     OBJ_ASSUME_FALSE(indexToBar.isEmpty());
+    OBJ_ASSUME_TRUE(date.dayOfWeek() >= Qt::Monday && date.dayOfWeek() <= Qt::Friday);
+
+    QDateTime rangeStartDT(date, rangeStart, TradingHours::MARKET_TIMEZONE);
+    QDateTime rangeEndDT(date, rangeEnd, TradingHours::MARKET_TIMEZONE);
 
     // Calculate indices for the time boundaries
-    qreal sessionStartIndex = static_cast<qreal>(getIndexForTimestamp(rangeStart));
-    qreal sessionEndIndex = static_cast<qreal>(getIndexForTimestamp(rangeEnd));
+    qreal sessionStartIndex = static_cast<qreal>(getIndexForTimestamp(rangeStartDT));
+    qreal sessionEndIndex = static_cast<qreal>(getIndexForTimestamp(rangeEndDT));
 
     // Create rectangle with fixed coordinates
     QCPItemRect* rect = new QCPItemRect(m_customPlot);
@@ -806,7 +741,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
           << QString("%1 to %2").arg(indexToBar.firstKey()).arg(indexToBar.lastKey());
 
     // Draw background rectangles for the visible range
-    drawBackgroundsForVisibleRange();
+    drawBackgroundsForReceivedBars(*barsPtr);
 
     //#warning TODO: optimize redraws
     // Update candlestick data
@@ -976,46 +911,41 @@ void StockPriceChart::clearSymbol()
  */
 QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) const
 {
-    QTimeZone nyZone("America/New_York");
-    QDateTime nyTime = timestamp.toTimeZone(nyZone);
-    QDateTime previousMinute = nyTime.addSecs(-60);
+    OBJ_ASSUME_TRUE(timestamp.timeZone() == TradingHours::MARKET_TIMEZONE);
+
+    QDateTime previousMinute = timestamp.addSecs(-60);
 
     QTime time = previousMinute.time();
     int dayOfWeek = previousMinute.date().dayOfWeek();
 
     if (dayOfWeek >= TradingHours::MONDAY && dayOfWeek <= TradingHours::FRIDAY)
     {
-        if (time < QTime(TradingHours::TRADING_START_HOUR, 0, 0))
+        if (time < TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION)
         {
-            QDateTime result =
-                QDateTime(previousMinute.date().addDays(-1),
-                          QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
-                          nyZone);
+            QDateTime result = QDateTime(previousMinute.date().addDays(-1),
+                                         TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
+                                         TradingHours::MARKET_TIMEZONE);
             if (result.date().dayOfWeek() > TradingHours::FRIDAY)
             {
                 QDate friday = getPreviousFriday(result.date());
                 result = QDateTime(friday,
-                                   QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
-                                   nyZone);
+                                   TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
+                                   TradingHours::MARKET_TIMEZONE);
             }
             return result.toTimeZone(timestamp.timeZone());
         }
-        else if (time >= QTime(TradingHours::TRADING_END_HOUR, 0, 0))
+        else if (time >= TradingHours::TIME_FIRST_CANDLE_AFTER_MARKET_SESSION)
         {
-            DEBUG << "Unexpected: getPreviousTradingMinute called with time after 8PM:" << nyTime;
+            DEBUG << "Unexpected: getPreviousTradingMinute called with time after 8PM:" << time;
             return QDateTime(previousMinute.date(),
-                             QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
-                             nyZone)
-                .toTimeZone(timestamp.timeZone());
+                             TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
+                             TradingHours::MARKET_TIMEZONE);
         }
     }
     else
     {
         QDate friday = getPreviousFriday(previousMinute.date());
-        return QDateTime(friday,
-                         QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
-                         nyZone)
-            .toTimeZone(timestamp.timeZone());
+        return QDateTime(friday, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION, TradingHours::MARKET_TIMEZONE);
     }
 
     return previousMinute.toTimeZone(timestamp.timeZone());
@@ -1026,38 +956,33 @@ QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) 
  */
 QDateTime StockPriceChart::adjustToValidTradingTime(const QDateTime& timestamp) const
 {
-    QTimeZone nyZone("America/New_York");
-    QDateTime nyTime = timestamp.toTimeZone(nyZone);
-    QTime time = nyTime.time();
-    int dayOfWeek = nyTime.date().dayOfWeek();
+    OBJ_ASSUME_TRUE(timestamp.timeZone() == TradingHours::MARKET_TIMEZONE);
+
+    QTime time = timestamp.time();
+    int dayOfWeek = timestamp.date().dayOfWeek();
 
     if (dayOfWeek > TradingHours::FRIDAY)
     {
-        QDate friday = getPreviousFriday(nyTime.date());
-        return QDateTime(friday,
-                         QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
-                         nyZone)
-            .toTimeZone(timestamp.timeZone());
+        QDate friday = getPreviousFriday(timestamp.date());
+        return QDateTime(friday, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION, TradingHours::MARKET_TIMEZONE);
     }
 
-    if (time < QTime(TradingHours::TRADING_START_HOUR, 0, 0))
+    if (time < TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION)
     {
-        QDate previousDay = nyTime.date().addDays(-1);
+        QDate previousDay = timestamp.date().addDays(-1);
         if (previousDay.dayOfWeek() > TradingHours::FRIDAY)
         {
             previousDay = getPreviousFriday(previousDay);
         }
         return QDateTime(previousDay,
-                         QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
-                         nyZone)
-            .toTimeZone(timestamp.timeZone());
+                         TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
+                         TradingHours::MARKET_TIMEZONE);
     }
-    else if (time >= QTime(TradingHours::TRADING_END_HOUR, 0, 0))
+    else if (time >= TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION)
     {
-        return QDateTime(nyTime.date(),
-                         QTime(TradingHours::TRADING_END_HOUR - 1, TradingHours::LAST_TRADING_MINUTE, 0),
-                         nyZone)
-            .toTimeZone(timestamp.timeZone());
+        return QDateTime(timestamp.date(),
+                         TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
+                         TradingHours::MARKET_TIMEZONE);
     }
 
     return timestamp;

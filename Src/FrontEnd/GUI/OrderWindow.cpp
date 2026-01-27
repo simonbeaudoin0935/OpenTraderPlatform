@@ -1,10 +1,11 @@
-#include "OrderWindow.h"
 #include <QTableView>
 #include <QHeaderView>
 #include <QVBoxLayout>
 #include <QLabel>
-#include "Misc/MarketHours.h"
+
+#include "OrderWindow.h"
 #include "Assume.h"
+#include "CONSTANTS.h"
 
 OrderWindow::OrderWindow(QWidget* p_parent)
     : QWidget(p_parent)
@@ -284,9 +285,13 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
     items << stopItem;
 
     // DateTime
-    QDateTime nyDateTime = MarketHours::toNewYorkTime(order.getOpenedDateTime());
-    QString dateTimeStr = nyDateTime.toString("MM/dd/yyyy hh:mm:ss");
-    QString timeOnlyStr = nyDateTime.toString("hh:mm:ss");
+    QDateTime orderDT = order.getOpenedDateTime();
+
+    OBJ_ASSUME_EQUAL(orderDT.timeZone(), TradingHours::MARKET_TIMEZONE);
+
+    QString dateTimeStr = orderDT.toString("MM/dd/yyyy hh:mm:ss");
+    QString timeOnlyStr = orderDT.toString("hh:mm:ss");
+
     auto dateTimeItem = new QStandardItem(timeOnlyStr);
     Q_CHECK_PTR(dateTimeItem);
     dateTimeItem->setTextAlignment(Qt::AlignCenter);
@@ -331,8 +336,8 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
         ackLatencyStr = formatLatency(ackLatencyMs);
 
         // Tooltip shows full details
-        QDateTime receivedDateTime = MarketHours::toNewYorkTime(order.getReceivedTime().value());
-        QDateTime openedDateTime = MarketHours::toNewYorkTime(order.getOpenedDateTime());
+        QDateTime receivedDateTime = order.getReceivedTime().value();
+        QDateTime openedDateTime = order.getOpenedDateTime();
         ackTooltipStr = QString("Opened: %1\nAcknowledged: %2\nLatency: %3 ms")
                             .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
                             .arg(receivedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
@@ -359,8 +364,12 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
         fillLatencyStr = formatLatency(fillLatencyMs);
 
         // Tooltip shows full details
-        QDateTime filledDateTime = MarketHours::toNewYorkTime(order.getFilledTime().value());
-        QDateTime openedDateTime = MarketHours::toNewYorkTime(order.getOpenedDateTime());
+        QDateTime filledDateTime = order.getFilledTime().value();
+        QDateTime openedDateTime = order.getOpenedDateTime();
+
+        OBJ_ASSUME_TRUE(filledDateTime.timeZone() == TradingHours::MARKET_TIMEZONE);
+        OBJ_ASSUME_TRUE(openedDateTime.timeZone() == TradingHours::MARKET_TIMEZONE);
+
         fillTooltipStr = QString("Opened: %1\nFilled: %2\nLatency: %3 ms")
                              .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
                              .arg(filledDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))

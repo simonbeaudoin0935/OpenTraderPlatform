@@ -415,7 +415,7 @@ BarCache::getBarsFromCache(const QDate& date, const QTime& start, const QTime& e
     std::unique_ptr<QVector<Bar>> result = std::make_unique<QVector<Bar>>();
     result->reserve((start.secsTo(end) / 60) + 1);
 
-    for (size_t index = timeToIndex(start); index <= timeToIndex(end); ++index)
+    for (size_t index = BarsConstants::timeToIndex(start); index <= BarsConstants::timeToIndex(end); ++index)
     {
         if (dayVector[index].getBarStatus() == Bar::BarStatus::Uninitialized)
         {
@@ -437,7 +437,7 @@ void BarCache::storeBarInCache(const Bar& bar)
     QTime time = dateTime.time();
 
     // Calculate the index for this bar in the day's vector
-    size_t index = timeToIndex(time);
+    size_t index = BarsConstants::timeToIndex(time);
 
     QWriteLocker locker(&m_barCacheRwLock);
 
@@ -457,7 +457,7 @@ void BarCache::storeBarInCache(const Bar& bar)
     {
         if (dayVector[index].getBarStatus() != Bar::BarStatus::Uninitialized)
         {
-            if (timeToIndex(bar.getTimeStamp().time()) == 839)
+            if (BarsConstants::timeToIndex(bar.getTimeStamp().time()) == 839)
             {
                 WARNING << "We received a double of the last bar of the day for symbol" << m_symbol
                         << "at timestamp:" << bar.getTimeStamp()
@@ -492,10 +492,10 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
     else
     {
         OBJ_ASSUME_LTE(bars->size(),
-                       static_cast<qsizetype>(MainApp::getCurrentAppTime().time() >
-                                                      TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION
-                                                  ? BarsConstants::MINUTE_BARS_PER_DAY
-                                                  : timeToIndex(MainApp::getCurrentAppTime().time()) + 1));
+                       static_cast<qsizetype>(
+                           MainApp::getCurrentAppTime().time() > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION
+                               ? BarsConstants::MINUTE_BARS_PER_DAY
+                               : BarsConstants::timeToIndex(MainApp::getCurrentAppTime().time()) + 1));
     }
 
     OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().date(), bars->last().getTimeStamp().date());
@@ -524,7 +524,7 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
         // Insert/overwrite bars into existing day vector
         for (const Bar& bar: *bars)
         {
-            size_t index = timeToIndex(bar.getTimeStamp().time());
+            size_t index = BarsConstants::timeToIndex(bar.getTimeStamp().time());
             dayVector[index] = bar;
         }
 
