@@ -391,7 +391,6 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
     : QObject(p_parent)
     , symbol(p_symbol)
     , barCache(p_symbol, true, this)
-    , runUpDetector(&barCache, this)
     , marketDepthQuoteReceiver(p_symbol, this)
 {
     this->setObjectName("StockInstrument::" + p_symbol);

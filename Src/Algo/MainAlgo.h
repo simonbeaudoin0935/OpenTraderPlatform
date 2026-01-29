@@ -7,7 +7,6 @@
 #include <QTimer>
 #include <QVector>
 
-#include "RunUpDetector.h"
 #include "MarketDepthQuoteReceiver.h"
 #include "PositionsReceiver.h"
 #include "OrdersReceiver.h"
@@ -27,7 +26,6 @@ class StockInstruments : public QObject
 
     QString symbol;
     BarCache barCache;
-    RunUpDetector runUpDetector;
     MarketDepthQuoteReceiver marketDepthQuoteReceiver;
 };
 

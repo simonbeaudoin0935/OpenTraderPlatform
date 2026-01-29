@@ -136,20 +136,6 @@ The TUI (Terminal User Interface) provides a minimal ncurses-based interface for
 
 ## Configuration
 
-### Selection Criteria
-
-Create a `selection_criteria.ini` file to define stock screening parameters. See `Example_Config/selection_criteria.ini` for reference:
-
-```ini
-[Criterias]
-PriceRangeLow=2.00
-PriceRangeHigh=10.00
-PreferedFloat=20000000
-MaxFloat=100000000
-RelativeVolume=5.0
-GapPercentage=5.0
-```
-
 ### API Credentials
 
 API credentials are managed through the application's OAuth authentication flow:
@@ -170,7 +156,7 @@ The application uses Qt's logging categories for runtime control. Logs are store
 Launch the application with the GUI interface:
 
 ```bash
-./L2Trader --criterias=../Example_Config/selection_criteria.ini
+./L2Trader
 ```
 
 The GUI provides:

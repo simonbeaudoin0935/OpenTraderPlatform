@@ -250,9 +250,7 @@
             "label": "run",
             "type": "shell",
             "command": "${workspaceFolder}/build/Src/L2Trader",
-            "args": [
-                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
-            ],
+            "args": [],
             "group": "test",
             "presentation": {
                 "echo": true,
@@ -266,9 +264,7 @@
             "label": "run-ubsan",
             "type": "shell",
             "command": "${workspaceFolder}/build/UBSan/Src/L2Trader",
-            "args": [
-                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
-            ],
+            "args": [],
             "group": "test",
             "presentation": {
                 "echo": true,
@@ -282,9 +278,7 @@
             "label": "run-asan",
             "type": "shell",
             "command": "${workspaceFolder}/build/ASan/Src/L2Trader",
-            "args": [
-                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
-            ],
+            "args": [],
             "group": "test",
             "presentation": {
                 "echo": true,

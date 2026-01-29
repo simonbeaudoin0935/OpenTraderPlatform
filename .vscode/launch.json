@@ -6,9 +6,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/Src/L2Trader",
-            "args": [
-                "--criterias=${workspaceFolder}/Example_Config/selection_criteria.ini"
-            ],
+            "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
