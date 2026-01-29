@@ -51,6 +51,12 @@ file(GLOB RECORDER_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/*.h"
 )
 
+# Strategy plugin system sources
+file(GLOB_RECURSE STRATEGY_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/*.h"
+)
+
 file(GLOB FRONTEND_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/*.h"
 )
@@ -86,6 +92,7 @@ add_library(L2TraderCommon STATIC
     ${ALGO_SOURCES}
     ${CORE_SOURCES}
     ${RECORDER_SOURCES}
+    ${STRATEGY_SOURCES}
     ${FRONTEND_SOURCES}
     ${GUI_SOURCES}
     ${TUI_SOURCES}
@@ -143,6 +150,7 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Tabs
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI
     ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
+    ${CMAKE_CURRENT_SOURCE_DIR}/Strategy
     ${CMAKE_SOURCE_DIR}/qcustomplot
 )
 
@@ -152,6 +160,7 @@ target_link_libraries(L2TraderCommon PUBLIC
     Qt6::Network
     Qt6::Sql
     Qt6::Concurrent
+    dl
 )
 
 if(ENABLE_GUI)
