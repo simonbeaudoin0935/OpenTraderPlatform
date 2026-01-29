@@ -3,6 +3,7 @@
 
 #include "Order.h"
 #include "Logging.h"
+#include "CONSTANTS.h"
 
 OrderNS::AdvancedOptions::AdvancedOptions(const QString& str)
 {
@@ -57,17 +58,19 @@ Order::Order(const QJsonObject& jsonObj, bool isUpdate_) : m_isUpdate(isUpdate_)
 
     if (jsonObj.contains("AdvancedOptions"))
     {
-        //TODO
+        // TODO parse advanced options properly
         qCritical() << "AdvancedOptions parsing not implemented yet";
     }
 
     if (jsonObj.contains("ClosedDateTime"))
     {
-        m_closedDateTime = QDateTime::fromString(jsonObj["ClosedDateTime"].toString(), Qt::ISODate);
+        m_closedDateTime = QDateTime::fromString(jsonObj["ClosedDateTime"].toString(), Qt::ISODate)
+                               .toTimeZone(TradingHours::MARKET_TIMEZONE);
     }
     if (jsonObj.contains("OpenedDateTime"))
     {
-        m_openedDateTime = QDateTime::fromString(jsonObj["OpenedDateTime"].toString(), Qt::ISODate);
+        m_openedDateTime = QDateTime::fromString(jsonObj["OpenedDateTime"].toString(), Qt::ISODate)
+                               .toTimeZone(TradingHours::MARKET_TIMEZONE);
     }
 
     // Parse numeric fields

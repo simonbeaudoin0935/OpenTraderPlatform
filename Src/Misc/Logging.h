@@ -25,36 +25,36 @@
 
 namespace QtEnum
 {
-// Converts an enum value to its string representation
-// @note Works only for enums registered with Q_ENUM
-// @note Assumes the enum value is valid; asserts if not
-template<typename Enum> QString toString(Enum value)
-{
-    const QMetaEnum meta = QMetaEnum::fromType<Enum>();
-
-    const char* keyPtr = meta.valueToKey(static_cast<int>(value));
-    ASSUME_TRUE(keyPtr != nullptr);
-
-    return QString(keyPtr);
-}
-
-// Converts a string to the corresponding enum value
-// @note Assumes the string is valid; asserts if not
-template<typename Enum> Enum fromString(QStringView str)
-{
-    bool ok = false;
-    const QMetaEnum meta = QMetaEnum::fromType<Enum>();
-
-    int value = meta.keyToValue(str.toLatin1().constData(), &ok);
-    if (!ok)
+    // Converts an enum value to its string representation
+    // @note Works only for enums registered with Q_ENUM
+    // @note Assumes the enum value is valid; asserts if not
+    template<typename Enum> QString toString(Enum value)
     {
-        qCritical() << "QtEnum::fromString: Invalid enum string:" << str << "for enum type" << meta.name();
-        Q_UNREACHABLE();
+        const QMetaEnum meta = QMetaEnum::fromType<Enum>();
+
+        const char* keyPtr = meta.valueToKey(static_cast<int>(value));
+        ASSUME_TRUE(keyPtr != nullptr);
+
+        return QString(keyPtr);
     }
 
+    // Converts a string to the corresponding enum value
+    // @note Assumes the string is valid; asserts if not
+    template<typename Enum> Enum fromString(QStringView str)
+    {
+        bool ok = false;
+        const QMetaEnum meta = QMetaEnum::fromType<Enum>();
 
-    return static_cast<Enum>(value);
-}
+        int value = meta.keyToValue(str.toLatin1().constData(), &ok);
+        if (!ok)
+        {
+            qCritical() << "QtEnum::fromString: Invalid enum string:" << str << "for enum type" << meta.name();
+            Q_UNREACHABLE();
+        }
+
+
+        return static_cast<Enum>(value);
+    }
 } // namespace QtEnum
 
 void initLogging();
