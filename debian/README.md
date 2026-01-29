@@ -53,7 +53,6 @@ The main application package that includes:
 
 Unit test package that includes:
 - `/usr/lib/l2trader/tests/test_barcache` - BarCache unit tests
-- `/usr/lib/l2trader/tests/test_runupdetector` - RunUpDetector unit tests
 - `/usr/lib/l2trader/tests/test_tradestationclient` - TSClient unit tests
 
 ## Key Features

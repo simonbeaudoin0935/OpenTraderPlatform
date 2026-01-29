@@ -232,7 +232,6 @@ cmake --build . --parallel
 ctest --output-on-failure
 # Or run individual tests:
 ./Tests/test_barcache --stock-csv=../Example_Config/nasdaq_screener.csv
-./Tests/test_RunUpDetector
 ./Tests/test_tradestationclient
 ```
 

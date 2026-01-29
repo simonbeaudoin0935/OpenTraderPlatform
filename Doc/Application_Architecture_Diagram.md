@@ -16,7 +16,6 @@ graph TD
     subgraph "Algorithm Core"
         MAL --> SI[StockInstruments]
         SI --> BC[BarCache]
-        SI --> RUD[RunUpDetector]
         SI --> MDQR[MarketDepthQuoteReceiver]
         MAL --> PR[PositionsReceiver]
         MAL --> OR[OrdersReceiver]
@@ -97,7 +96,7 @@ graph TD
 ### Internal Algorithm Communication
 - **PositionsReceiver** → **MainAlgo**: Real-time position updates from stream
 - **OrdersReceiver** → **MainAlgo**: Real-time order updates from stream
-- **StockInstruments**: Contains BarCache, RunUpDetector, and MarketDepthQuoteReceiver per symbol
+- **StockInstruments**: Contains BarCache and MarketDepthQuoteReceiver per symbol
 - **BarCache**: Manages bar data with memory and SQLite caching
 
 ### Trading Operations
@@ -122,7 +121,7 @@ The application follows a **Model-View-Controller** pattern with Qt's signal/slo
 2. **Business Logic** (MainAlgo): Processes market data and manages trading state
    - Singleton pattern for centralized algorithm control
    - Runs in separate QThread
-   - Per-symbol StockInstruments with BarCache, RunUpDetector, MarketDepthQuoteReceiver
+   - Per-symbol StockInstruments with BarCache and MarketDepthQuoteReceiver
    - Manages PositionsReceiver and OrdersReceiver streams
    - Balance polling with configurable timer
 3. **Presentation** (AppFrontend/GUIFrontend): Manages user interface and data visualization

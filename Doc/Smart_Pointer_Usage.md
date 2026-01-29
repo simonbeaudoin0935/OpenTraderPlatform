@@ -22,7 +22,6 @@ class StockInstruments : public QObject
 {
     QString symbol;
     BarCache barCache;                      // Composition - direct member
-    RunUpDetector runUpDetector;            // Composition - direct member
     MarketDepthQuoteReceiver marketDepthQuoteReceiver; // Composition - direct member
 };
 ```
@@ -33,7 +32,6 @@ class StockInstruments : public QObject
 {
     QString symbol;
     BarCache* barCache;                     // Pointer - unnecessary indirection
-    RunUpDetector* runUpDetector;           // Pointer - unnecessary indirection
     MarketDepthQuoteReceiver* marketDepthQuoteReceiver; // Pointer - unnecessary indirection
 };
 ```

@@ -168,7 +168,6 @@ jsonObj["High"] = static_cast<double>(m_high);
 ### No Changes Required
 - ✅ No changes needed in `BarCache.cpp` - works with both float and double
 - ✅ No changes needed in `StockPriceChart.cpp` - automatic float-to-double conversion
-- ✅ No changes needed in `RunUpDetector.cpp` - already uses explicit double casts
 - ✅ No changes needed in database schema
 
 ## Precision Analysis
