@@ -374,6 +374,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         DEBUG << "Requesting whole day bars from" << first.toString(Qt::ISODate) << "to" << last.toString(Qt::ISODate);
 
         emit requestMissingBars(first, last);
+
         return;
     }
 
@@ -686,6 +687,9 @@ void StockPriceChart::drawFixedBackgroundRect(const QDate& date,
     qreal sessionStartIndex = static_cast<qreal>(getIndexForTimestamp(rangeStartDT));
     qreal sessionEndIndex = static_cast<qreal>(getIndexForTimestamp(rangeEndDT));
 
+    sessionStartIndex -= 0.5; // Make start index inclusive of the first candle
+    sessionEndIndex += 0.5;   // Make end index inclusive of the last candle
+
     // Create rectangle with fixed coordinates
     QCPItemRect* rect = new QCPItemRect(m_customPlot);
     Q_CHECK_PTR(rect);
@@ -948,7 +952,8 @@ QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) 
         return QDateTime(friday, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION, TradingHours::MARKET_TIMEZONE);
     }
 
-    return previousMinute.toTimeZone(timestamp.timeZone());
+    OBJ_ASSUME_DIFF(previousMinute.time(), QTime(6, 0, 0));
+    return previousMinute;
 }
 
 /**
