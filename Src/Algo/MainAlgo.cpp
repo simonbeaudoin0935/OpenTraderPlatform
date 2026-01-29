@@ -388,10 +388,7 @@ void MainAlgo::onBalanceReceived(const QVector<Balance>& results)
 }
 
 StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
-    : QObject(p_parent)
-    , symbol(p_symbol)
-    , barCache(p_symbol, true, this)
-    , marketDepthQuoteReceiver(p_symbol, this)
+    : QObject(p_parent), symbol(p_symbol), barCache(p_symbol, true, this), marketDepthQuoteReceiver(p_symbol, this)
 {
     this->setObjectName("StockInstrument::" + p_symbol);
 
