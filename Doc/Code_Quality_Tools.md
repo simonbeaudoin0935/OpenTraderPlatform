@@ -193,7 +193,7 @@ endif()
 ```bash
 valgrind --leak-check=full --show-leak-kinds=all \
   --track-origins=yes --verbose \
-  ./build/src/L2Trader --criterias=Example_Config/selection_criteria.ini
+  ./build/src/L2Trader
 ```
 
 **Note**: Very slow (10-50x overhead), best for targeted debugging sessions.

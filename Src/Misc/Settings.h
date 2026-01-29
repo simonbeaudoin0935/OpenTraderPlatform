@@ -5,7 +5,6 @@
 
 #include "CONSTANTS.h"
 
-extern QSettings* criteriaSettings;
 extern QSettings* appStateSettings;
 
 extern QString cacheRootDir;

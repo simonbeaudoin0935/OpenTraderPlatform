@@ -264,8 +264,8 @@ Code that differs between GUI and TUI:
 Since the TUI requires a terminal and cannot easily be automated, testing should be done manually:
 
 1. Build TUI version
-2. Run in terminal: `./build/Src/L2Trader --criterias=Example_Config/selection_criteria.ini`
-3. To redirect logs to a file and keep TUI clean: `./build/Src/L2Trader --criterias=Example_Config/selection_criteria.ini 2>app.log`
+2. Run in terminal: `./build/Src/L2Trader`
+3. To redirect logs to a file and keep TUI clean: `./build/Src/L2Trader 2>app.log`
 4. Authenticate with TradeStation
 5. Observe orders and positions display
 6. Test keyboard shortcuts (q, r, ?)
