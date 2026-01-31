@@ -31,6 +31,9 @@ struct StrategyConfig
     double riskLimit;    ///< Maximum loss per trade
 };
 
+// Forward declaration
+class MainAlgo;
+
 /// @brief High-level SDK provided to strategies
 /// Strategies use this to place orders, query positions, and log messages.
 /// All methods are thread-safe - strategies call them from their own QThread
@@ -40,7 +43,13 @@ class StrategySDK : public QObject
     Q_OBJECT
 
   public:
-    virtual ~StrategySDK() = default;
+    /// @brief Create SDK instance for a strategy
+    /// @param p_mainAlgo Pointer to MainAlgo dispatcher
+    /// @param p_strategyID Unique ID of the strategy using this SDK
+    /// @param p_config Strategy configuration
+    /// @note Lives on strategy's dedicated QThread
+    explicit StrategySDK(MainAlgo* p_mainAlgo, const QString& p_strategyID, const StrategyConfig& p_config);
+    ~StrategySDK() override = default;
 
     /// @brief Place an order (async)
     /// Strategy populates a PlaceOrderRequest with desired order details.
@@ -49,43 +58,47 @@ class StrategySDK : public QObject
     /// @return QFuture that resolves to PlaceOrderResult on success, or TSClient::Error on failure
     /// @note Returns immediately without blocking. Check future for result when ready.
     [[nodiscard]]
-    virtual QFuture<std::expected<PlaceOrderResult, TSClient::Error>>
-    placeOrder(const PlaceOrderRequest& orderRequest) = 0;
+    QFuture<std::expected<PlaceOrderResult, TSClient::Error>> placeOrder(const PlaceOrderRequest& orderRequest);
 
     /// @brief Cancel an order (async)
     /// @param orderID ID of order to cancel (as QString matching TSClient)
     /// @return QFuture that resolves to CancelOrderResult on success, or TSClient::Error on failure
     [[nodiscard]]
-    virtual QFuture<std::expected<CancelOrderResult, TSClient::Error>> cancelOrder(const QString& orderID) = 0;
+    QFuture<std::expected<CancelOrderResult, TSClient::Error>> cancelOrder(const QString& orderID);
 
     /// @brief Get current positions for this strategy (thread-safe)
     /// @return Vector of positions currently held by this strategy
     [[nodiscard]]
-    virtual QVector<Position> getPositions() const = 0;
+    QVector<Position> getPositions() const;
 
     /// @brief Get current orders for this strategy (thread-safe)
     /// @return Vector of active orders placed by this strategy
     [[nodiscard]]
-    virtual QVector<Order> getOrders() const = 0;
+    QVector<Order> getOrders() const;
 
     /// @brief Get current account balance (thread-safe)
     /// @return Account balance in dollars
     [[nodiscard]]
-    virtual double getAccountBalance() const = 0;
+    double getAccountBalance() const;
 
     /// @brief Log a message (thread-safe)
     /// Logs are captured per-strategy and can be viewed in the Strategies tab.
     /// @param message Log message
     /// @param level Log level (Debug, Info, Warning, Error)
-    virtual void log(const QString& message, LogLevel level = LogLevel::Info) = 0;
+    void log(const QString& message, LogLevel level = LogLevel::Info);
 
     /// @brief Get strategy configuration (thread-safe)
     /// @return Reference to strategy config passed at initialization
     [[nodiscard]]
-    virtual const StrategyConfig& getConfig() const = 0;
+    const StrategyConfig& getConfig() const;
 
     /// @brief Get strategy name (thread-safe)
     /// @return Strategy name from config
     [[nodiscard]]
-    virtual const QString& getStrategyName() const = 0;
+    const QString& getStrategyName() const;
+
+  private:
+    MainAlgo* m_mainAlgo;
+    QString m_strategyID;
+    StrategyConfig m_config;
 };

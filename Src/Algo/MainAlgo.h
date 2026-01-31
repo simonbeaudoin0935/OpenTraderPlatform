@@ -6,6 +6,8 @@
 #include <QMap>
 #include <QTimer>
 #include <QVector>
+#include <memory>
+#include <atomic>
 
 #include "MarketDepthQuoteReceiver.h"
 #include "PositionsReceiver.h"
@@ -15,6 +17,8 @@
 #include "Balance.h"
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
+
+class StrategyManager;
 
 
 class StockInstruments : public QObject
@@ -48,6 +52,25 @@ class MainAlgo final : public QObject
     [[nodiscard]] Balance getCurrentBalance() const;
 
     BarCache::GetBarsResult_t requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last);
+
+    /*
+     * Strategy order management - called by StrategySDK
+     * All methods should be called via QMetaObject::invokeMethod with Qt::QueuedConnection
+     */
+
+    /// @brief Get next unique requestId for strategy order tracking
+    /// @return Next requestId (thread-safe atomic increment)
+    [[nodiscard]] uint64_t getNextRequestId();
+
+    /// @brief Process a strategy placeOrder request (MainAlgo thread)
+    /// @param p_requestId Unique request ID from StrategySDK
+    /// @param p_strategyID ID of strategy placing the order
+    /// @param p_orderRequest The order details
+    void processPlaceOrder(uint64_t p_requestId, const QString& p_strategyID, const PlaceOrderRequest& p_orderRequest);
+
+    /// @brief Called when TSClient placeOrder future resolves
+    /// Routes result to strategy and emits GUI signal if displayed stock
+    void onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOrderResult, TSClient::Error>& p_result);
 
   signals:
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
@@ -103,4 +126,11 @@ class MainAlgo final : public QObject
     QTimer* m_balancePollingTimer;
 
     bool m_balancePollingStarted = false;
+
+    // Strategy order tracking - all accessed from MainAlgo thread
+    std::unique_ptr<StrategyManager> m_strategyManager;
+    std::atomic<uint64_t> m_requestIdCounter{0};
+    QMap<uint64_t, QFuture<std::expected<PlaceOrderResult, TSClient::Error>>> m_pendingOrderFutures;
+    QMap<uint64_t, QString> m_requestIdToStrategyId; // Temporary mapping until OrderID known
+    QMap<QString, QString> m_orderMappings;          // OrderID → StrategyID (permanent)
 };

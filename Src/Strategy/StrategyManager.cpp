@@ -1,4 +1,5 @@
 #include "StrategyManager.h"
+#include "StrategySDK.h"
 #include "../Algo/MainAlgo.h"
 #include <QUuid>
 #include <QDebug>
@@ -6,59 +7,80 @@
 Q_DECLARE_LOGGING_CATEGORY(StrategyManagerLog)
 Q_LOGGING_CATEGORY(StrategyManagerLog, "StrategyManager", QtWarningMsg)
 
-// StrategySDKImpl implementation
-StrategySDKImpl::StrategySDKImpl(StrategyManager* p_manager) : mp_manager(p_manager) {}
-
-QFuture<std::expected<PlaceOrderResult, TSClient::Error>> StrategySDKImpl::placeOrder(const PlaceOrderRequest& p_order)
+// StrategySDK implementation
+StrategySDK::StrategySDK(MainAlgo* p_mainAlgo, const QString& p_strategyID, const StrategyConfig& p_config)
+    : QObject(nullptr), m_mainAlgo(p_mainAlgo), m_strategyID(p_strategyID), m_config(p_config)
 {
-    Q_UNUSED(p_order);
+}
+
+QFuture<std::expected<PlaceOrderResult, TSClient::Error>> StrategySDK::placeOrder(const PlaceOrderRequest& p_order)
+{
+    if (!m_mainAlgo)
+    {
+        return QtFuture::makeReadyFuture(
+            std::expected<PlaceOrderResult, TSClient::Error>(std::unexpected(TSClient::Error::Other)));
+    }
+
+    uint64_t requestId = m_mainAlgo->getNextRequestId();
+
+    QMetaObject::invokeMethod(
+        m_mainAlgo,
+        [this, requestId, p_order]() { m_mainAlgo->processPlaceOrder(requestId, m_strategyID, p_order); },
+        Qt::QueuedConnection);
+
+    // TODO: Return a future that will be resolved when onOrderResolved is called
+    // For now, return empty error future as placeholder
     return QtFuture::makeReadyFuture(
         std::expected<PlaceOrderResult, TSClient::Error>(std::unexpected(TSClient::Error::Other)));
 }
 
-QFuture<std::expected<CancelOrderResult, TSClient::Error>> StrategySDKImpl::cancelOrder(const QString& p_orderID)
+QFuture<std::expected<CancelOrderResult, TSClient::Error>> StrategySDK::cancelOrder(const QString& p_orderID)
 {
     Q_UNUSED(p_orderID);
     return QtFuture::makeReadyFuture(
         std::expected<CancelOrderResult, TSClient::Error>(std::unexpected(TSClient::Error::Other)));
 }
 
-QVector<Position> StrategySDKImpl::getPositions() const
+QVector<Position> StrategySDK::getPositions() const
 {
     return QVector<Position>();
 }
 
-QVector<Order> StrategySDKImpl::getOrders() const
+QVector<Order> StrategySDK::getOrders() const
 {
     return QVector<Order>();
 }
 
-double StrategySDKImpl::getAccountBalance() const
+double StrategySDK::getAccountBalance() const
 {
     return 0.0;
 }
 
-void StrategySDKImpl::log(const QString& p_message, LogLevel p_level)
+void StrategySDK::log(const QString& p_message, LogLevel p_level)
 {
     Q_UNUSED(p_level);
-    qInfo(StrategyManagerLog) << "Strategy log:" << p_message;
+    qInfo(StrategyManagerLog) << "Strategy [" << m_strategyID << "]:" << p_message;
 }
 
-const StrategyConfig& StrategySDKImpl::getConfig() const
+const StrategyConfig& StrategySDK::getConfig() const
 {
-    static const StrategyConfig dummy{};
-    return dummy;
+    return m_config;
 }
 
-const QString& StrategySDKImpl::getStrategyName() const
+const QString& StrategySDK::getStrategyName() const
 {
-    static const QString dummy;
-    return dummy;
+    return m_config.name;
 }
 
-StrategyManager* StrategyManager::s_instance = nullptr;
+// StrategyManager implementation
 
-StrategyManager::StrategyManager() : QObject(nullptr) {}
+StrategyManager::StrategyManager(MainAlgo* p_mainAlgo) : QObject(nullptr), m_mainAlgo(p_mainAlgo)
+{
+    if (!m_mainAlgo)
+    {
+        qWarning(StrategyManagerLog) << "StrategyManager created with null MainAlgo";
+    }
+}
 
 StrategyManager::~StrategyManager()
 {
@@ -73,39 +95,9 @@ StrategyManager::~StrategyManager()
     }
 }
 
-StrategyManager* StrategyManager::getInstance()
-{
-    if (!s_instance)
-    {
-        s_instance = new StrategyManager();
-    }
-    return s_instance;
-}
-
-void StrategyManager::destroyInstance()
-{
-    if (s_instance)
-    {
-        delete s_instance;
-        s_instance = nullptr;
-    }
-}
-
-void StrategyManager::initialize(MainAlgo* p_mainAlgo)
-{
-    if (!p_mainAlgo)
-    {
-        qWarning(StrategyManagerLog) << "StrategyManager::initialize called with "
-                                        "null MainAlgo";
-        return;
-    }
-    mp_mainAlgo = p_mainAlgo;
-    qInfo(StrategyManagerLog) << "StrategyManager initialized with MainAlgo";
-}
-
 std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConfig& p_config)
 {
-    if (!mp_mainAlgo)
+    if (!m_mainAlgo)
     {
         return std::unexpected("StrategyManager not initialized with MainAlgo");
     }
@@ -124,7 +116,7 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
     auto plugin = pluginResult.value();
     QString strategyID = generateStrategyID();
 
-    auto p_sdk = new StrategySDKImpl(this);
+    auto p_sdk = new StrategySDK(m_mainAlgo, strategyID, p_config);
 
     Strategy* p_strategy = plugin.createFn(p_config, p_sdk);
     if (!p_strategy)
@@ -328,7 +320,7 @@ const StrategyManager::StrategyInstance* StrategyManager::findStrategy(const QSt
 
 void StrategyManager::connectStrategyToDataSources(StrategyInstance* p_instance)
 {
-    if (!p_instance || !mp_mainAlgo)
+    if (!p_instance || !m_mainAlgo)
     {
         return;
     }

@@ -2,6 +2,7 @@
 #include <QTimer>
 
 #include "MainAlgo.h"
+#include "StrategyManager.h"
 #include "TSClient.h"
 #include "Logging.h"
 #include "Assume.h"
@@ -39,11 +40,17 @@ MainAlgo::MainAlgo()
     this->moveToThread(&thread);
 
     connect(&thread, &QThread::started, this, &MainAlgo::onThreadStarted);
+
+    // Create StrategyManager - owned by this MainAlgo
+    m_strategyManager = std::make_unique<StrategyManager>(this);
 }
 
 MainAlgo::~MainAlgo()
 {
     qDebug() << "MainAlgo destructor - stopping thread";
+
+    // StrategyManager will be destroyed automatically via unique_ptr
+    m_strategyManager.reset();
 
     // Stop balance polling timer if it exists
     // Note: We're in the destructor, so we can't use QMetaObject::invokeMethod
@@ -398,4 +405,92 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
 StockInstruments::~StockInstruments()
 {
     qDebug() << this->objectName() << "Deleted instance";
+}
+
+uint64_t MainAlgo::getNextRequestId()
+{
+    // Thread-safe atomic increment returns the old value, so we need pre-increment semantics
+    // Actually ++operator does pre-increment by default for atomic
+    return ++m_requestIdCounter;
+}
+
+void MainAlgo::processPlaceOrder(uint64_t p_requestId,
+                                 const QString& p_strategyID,
+                                 const PlaceOrderRequest& p_orderRequest)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+
+    // TODO: Add validation logic here (risk limits, portfolio constraints, etc.)
+
+    // Store temporary mapping: requestId -> strategyID (will be replaced with OrderID -> strategyID when ACK received)
+    m_requestIdToStrategyId[p_requestId] = p_strategyID;
+
+    // Call TSClient to place the order
+    QFuture<std::expected<PlaceOrderResult, TSClient::Error>> future =
+        TSClient::getInstance()->placeOrder(p_orderRequest);
+
+    // Store the future for tracking
+    m_pendingOrderFutures[p_requestId] = future;
+
+    // Attach continuation to detect resolution
+    future.then(
+        [this, p_requestId](std::expected<PlaceOrderResult, TSClient::Error> result)
+        {
+            // Capture result and call onOrderResolved
+            // Use QMetaObject::invokeMethod to ensure we're on MainAlgo thread
+            QMetaObject::invokeMethod(
+                this,
+                [this, p_requestId, result]() { onOrderResolved(p_requestId, result); },
+                Qt::QueuedConnection);
+        });
+
+    qCDebug(MainAlgoLog) << "Processing placeOrder: requestId=" << p_requestId << "strategyID=" << p_strategyID;
+}
+
+void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOrderResult, TSClient::Error>& p_result)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+
+    // Remove from pending futures
+    m_pendingOrderFutures.remove(p_requestId);
+
+    // Look up which strategy placed this order
+    auto strategyIt = m_requestIdToStrategyId.find(p_requestId);
+    if (strategyIt == m_requestIdToStrategyId.end())
+    {
+        qCWarning(MainAlgoLog) << "onOrderResolved: requestId not found:" << p_requestId;
+        return;
+    }
+
+    QString strategyID = *strategyIt;
+    m_requestIdToStrategyId.remove(p_requestId);
+
+    if (p_result.has_value())
+    {
+        // Order was successfully placed
+        PlaceOrderResult result = p_result.value();
+
+        qCDebug(MainAlgoLog) << "Order placed successfully: strategyID=" << strategyID
+                             << "successful=" << result.isAllSuccessful();
+
+        // TODO: Extract OrderID from result.getOrders() and create permanent mapping
+        // For now, just create placeholder mapping
+        // const auto& orders = result.getOrders();
+        // for (const auto& order : orders)
+        // {
+        //     m_orderMappings[order.orderId] = strategyID;
+        // }
+
+        // TODO: Emit GUI signal if this order is for the displayed stock
+        // TODO: Route order result to strategy via SDK
+    }
+    else
+    {
+        // Order placement failed
+        TSClient::Error error = p_result.error();
+        qCWarning(MainAlgoLog) << "Order placement failed: requestId=" << p_requestId << "strategyID=" << strategyID
+                               << "error=" << QtEnum::toString(error);
+
+        // TODO: Route error to strategy via SDK
+    }
 }

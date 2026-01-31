@@ -14,38 +14,9 @@
 class MainAlgo;
 
 /*
- * StrategySDKImpl - Concrete implementation of StrategySDK
- * Delegates SDK method calls to StrategyManager
- * Lives on strategy's dedicated QThread
- */
-class StrategySDKImpl : public StrategySDK
-{
-    Q_OBJECT
-
-  public:
-    explicit StrategySDKImpl(class StrategyManager* p_manager);
-
-    QFuture<std::expected<PlaceOrderResult, TSClient::Error>> placeOrder(const PlaceOrderRequest& p_order) override;
-
-    QFuture<std::expected<CancelOrderResult, TSClient::Error>> cancelOrder(const QString& p_orderID) override;
-
-    QVector<Position> getPositions() const override;
-    QVector<Order> getOrders() const override;
-    double getAccountBalance() const override;
-
-    void log(const QString& p_message, LogLevel p_level = LogLevel::Info) override;
-
-    const StrategyConfig& getConfig() const override;
-    const QString& getStrategyName() const override;
-
-  private:
-    class StrategyManager* mp_manager;
-};
-
-/*
  * StrategyManager - Orchestrates strategy plugin lifecycle and execution
  *
- * Singleton that manages:
+ * Owned by MainAlgo via std::unique_ptr. Manages:
  * - Loading/unloading strategy .so plugins
  * - Creating StrategySDK instances per strategy
  * - Spawning dedicated QThread per strategy
@@ -64,19 +35,12 @@ class StrategyManager final : public QObject
     Q_OBJECT
 
   public:
-    // Singleton access
-    static StrategyManager* getInstance();
-    static void destroyInstance();
+    /// @brief Create StrategyManager
+    /// @param p_mainAlgo MainAlgo dispatcher instance (for routing operations)
+    explicit StrategyManager(MainAlgo* p_mainAlgo);
+    ~StrategyManager();
 
     Q_DISABLE_COPY(StrategyManager)
-
-    /*
-     * Initialize StrategyManager with reference to MainAlgo
-     * Must be called before loadStrategy()
-     *
-     * @param p_mainAlgo - MainAlgo singleton instance (for connecting signals)
-     */
-    void initialize(MainAlgo* p_mainAlgo);
 
     /*
      * Load and initialize a strategy plugin
@@ -174,12 +138,7 @@ class StrategyManager final : public QObject
         QVector<QString> monitoredSymbols;   // Symbols being watched
     };
 
-    StrategyManager();
-    ~StrategyManager();
-
-    static StrategyManager* s_instance;
-
-    MainAlgo* mp_mainAlgo = nullptr;
+    MainAlgo* m_mainAlgo;
     QMap<QString, StrategyInstance*> m_strategies;
 
     /*
