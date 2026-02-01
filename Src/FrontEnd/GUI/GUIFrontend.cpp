@@ -296,6 +296,10 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
         maxLiveLogLines = logDepth;
     }
 
+    // Set up the strategies tab (second tab)
+    StrategiesTab* strategiesTab = new StrategiesTab(mainAlgo);
+    ui->tabWidget->addTab(strategiesTab, "Strategies");
+
     // Set up the cache tab
     CacheTab* cacheTab = new CacheTab();
     ui->tabWidget->addTab(cacheTab, "Cache");
@@ -307,10 +311,6 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // Set up the shortcuts tab
     ShortcutsTab* shortcutsTab = new ShortcutsTab();
     ui->tabWidget->addTab(shortcutsTab, "Shortcuts");
-
-    // Set up the strategies tab
-    StrategiesTab* strategiesTab = new StrategiesTab(mainAlgo);
-    ui->tabWidget->addTab(strategiesTab, "Strategies");
 
     // Set up the live log display at the bottom
     if (ui->liveLogDisplay)
