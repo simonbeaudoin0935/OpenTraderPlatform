@@ -133,7 +133,7 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
 
         // Schedule deletion after streams are closed
         oldInstrument->deleteLater();
-        qDebug() << "Scheduled cleanup for StockInstrument:" << oldSymbol;
+        DEBUG << "Scheduled cleanup for StockInstrument:" << oldSymbol;
     }
 
     // Change the stock selected pointer to the new selected stock
@@ -180,17 +180,17 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, const QStrin
     {
         if (!m_havePastSuccessfulExchanges)
         {
-            qCritical(MainAlgoLog) << "Tradestation failed to authenticate. Reason : " << reason;
-            qCritical(MainAlgoLog) << "Cannot proceed without authentication. Retrying";
+            CRITICAL << "Tradestation failed to authenticate. Reason : " << reason;
+            CRITICAL << "Cannot proceed without authentication. Retrying";
         }
         else
         {
-            qCCritical(MainAlgoLog) << "Tradestation lost authentication. Reason : " << reason;
+            CRITICAL << "Tradestation lost authentication. Reason : " << reason;
         }
         return;
     }
 
-    qCDebug(MainAlgoLog) << "Tradestation authenticated successfully : " << reason;
+    DEBUG << "Tradestation authenticated successfully : " << reason;
 
     // Now that the TSClient notified us that we are authenticated,
     // the first thing is to request the accounts.
@@ -201,7 +201,7 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, const QStrin
                 {
                     if (results.has_value())
                     {
-                        qCDebug(MainAlgoLog) << "getAccounts() succeeded with" << results.value().size() << "accounts";
+                        DEBUG << "getAccounts() succeeded with" << results.value().size() << "accounts";
                         onReceivedAsyncGetAccounts(results.value());
                         return;
                     }
@@ -227,7 +227,7 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, const QStrin
                                            this,
                                            [this]()
                                            {
-                                               qCDebug(MainAlgoLog) << "Retrying getAccounts() after failure";
+                                               DEBUG << "Retrying getAccounts() after failure";
                                                onTradeStationAuthStateChanged(true,
                                                                               "Re-auth after getAccounts() failure");
                                            });
@@ -253,7 +253,7 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
     // Only initialize position stream once
     if (positionStreamStarted)
     {
-        qCDebug(MainAlgoLog) << "Position stream already started, skipping initialization";
+        DEBUG << "Position stream already started, skipping initialization";
     }
     else
     {
@@ -286,7 +286,7 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
     // Only initialize order stream once
     if (orderStreamStarted)
     {
-        qCDebug(MainAlgoLog) << "Order stream already started, skipping initialization";
+        DEBUG << "Order stream already started, skipping initialization";
     }
     else
     {
@@ -315,13 +315,13 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
 void MainAlgo::onReceivedNewPosition(const QString& account, Position position)
 {
     Q_UNUSED(account);
-    qCDebug(MainAlgoLog) << "Received new position:" << position.toJsonString();
+    DEBUG << "Received new position:" << position.toJsonString();
 }
 
 void MainAlgo::onPositionDeleted(const QString& account, const QString& positionID)
 {
     Q_UNUSED(account);
-    qCDebug(MainAlgoLog) << "Position deleted:" << positionID;
+    DEBUG << "Position deleted:" << positionID;
     emit positionDeleted(account, positionID);
 }
 
@@ -339,7 +339,7 @@ void MainAlgo::startBalancePolling()
 
     m_balancePollingTimer->start(5000); // 5 seconds
     requestBalance();                   // initial request
-    qCDebug(MainAlgoLog) << "Started balance polling";
+    DEBUG << "Started balance polling";
 }
 
 void MainAlgo::stopBalancePolling()
@@ -347,7 +347,7 @@ void MainAlgo::stopBalancePolling()
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
 
     m_balancePollingTimer->stop();
-    qCDebug(MainAlgoLog) << "Stopped balance polling";
+    DEBUG << "Stopped balance polling";
 }
 
 [[nodiscard]] Balance MainAlgo::getCurrentBalance() const
@@ -402,12 +402,12 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
 {
     this->setObjectName("StockInstrument::" + p_symbol);
 
-    qDebug() << this->objectName() << "New instance";
+    DEBUG << "New instance";
 }
 
 StockInstruments::~StockInstruments()
 {
-    qDebug() << this->objectName() << "Deleted instance";
+    DEBUG << "Deleted instance";
 }
 
 uint64_t MainAlgo::getNextRequestId()
@@ -441,7 +441,7 @@ void MainAlgo::processPlaceOrder(uint64_t p_requestId,
                 [this, p_requestId](std::expected<PlaceOrderResult, TSClient::Error> result)
                 { onOrderResolved(p_requestId, result); });
 
-    qCDebug(MainAlgoLog) << "Processing placeOrder: requestId=" << p_requestId << "strategyID=" << p_strategyID;
+    DEBUG << "Processing placeOrder: requestId=" << p_requestId << "strategyID=" << p_strategyID;
 }
 
 void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOrderResult, TSClient::Error>& p_result)
@@ -455,7 +455,7 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
     auto strategyIt = m_requestIdToStrategyId.find(p_requestId);
     if (strategyIt == m_requestIdToStrategyId.end())
     {
-        qCWarning(MainAlgoLog) << "onOrderResolved: requestId not found:" << p_requestId;
+        WARNING << "onOrderResolved: requestId not found:" << p_requestId;
         return;
     }
 
@@ -467,8 +467,7 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
         // Order was successfully placed
         PlaceOrderResult result = p_result.value();
 
-        qCDebug(MainAlgoLog) << "Order placed successfully: strategyID=" << strategyID
-                             << "successful=" << result.isAllSuccessful();
+        DEBUG << "Order placed successfully: strategyID=" << strategyID << "successful=" << result.isAllSuccessful();
 
         // TODO: Extract OrderID from result.getOrders() and create permanent mapping
         // For now, just create placeholder mapping
@@ -485,8 +484,8 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
     {
         // Order placement failed
         TSClient::Error error = p_result.error();
-        qCWarning(MainAlgoLog) << "Order placement failed: requestId=" << p_requestId << "strategyID=" << strategyID
-                               << "error=" << QtEnum::toString(error);
+        WARNING << "Order placement failed: requestId=" << p_requestId << "strategyID=" << strategyID
+                << "error=" << QtEnum::toString(error);
 
         // TODO: Route error to strategy via SDK
     }
