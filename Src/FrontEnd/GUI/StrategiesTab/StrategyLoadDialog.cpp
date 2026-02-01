@@ -137,10 +137,28 @@ void StrategyLoadDialog::updatePreview(const QString& configPath)
 
 void StrategyLoadDialog::onLoadClicked()
 {
+    qDebug() << "[StrategyLoadDialog] Load button clicked";
+    qDebug() << "[StrategyLoadDialog] Selected config path:" << m_selectedConfigPath;
+
     if (!m_selectedConfigPath.isEmpty())
     {
+        qDebug() << "[StrategyLoadDialog] Loading config from:" << m_selectedConfigPath;
         m_selectedConfig = StrategyConfigLoader::loadConfig(m_selectedConfigPath);
-        accept();
+
+        if (m_selectedConfig.has_value())
+        {
+            qDebug() << "[StrategyLoadDialog] Config loaded successfully:" << m_selectedConfig.value().name;
+            qDebug() << "[StrategyLoadDialog] Calling accept()";
+            accept();
+        }
+        else
+        {
+            qWarning() << "[StrategyLoadDialog] Failed to load config from file";
+        }
+    }
+    else
+    {
+        qWarning() << "[StrategyLoadDialog] No config path selected";
     }
 }
 

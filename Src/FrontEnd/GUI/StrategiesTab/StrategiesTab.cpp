@@ -160,24 +160,38 @@ void StrategiesTab::onLoadStrategyClicked()
 {
     // Show load strategy dialog
     auto dialog = std::make_unique<StrategyLoadDialog>(this);
+    qDebug() << "[StrategiesTab] Load Strategy dialog opened";
+
     if (dialog->exec() == QDialog::Accepted)
     {
+        qDebug() << "[StrategiesTab] Dialog accepted";
         auto config = dialog->getSelectedConfig();
         if (config.has_value())
         {
+            qDebug() << "[StrategiesTab] Config loaded:" << config.value().name;
+            qDebug() << "[StrategiesTab] Plugin path:" << config.value().soPath;
+
             // Load the strategy using StrategyManager
             auto result = m_strategyManager->loadStrategy(config.value());
             if (result.has_value())
             {
                 // Success - the strategyLoaded signal will update UI
-                qDebug() << "Strategy loaded:" << result.value();
+                qDebug() << "[StrategiesTab] Strategy loaded successfully, ID:" << result.value();
             }
             else
             {
                 // Show error message
-                qWarning() << "Failed to load strategy:" << result.error();
+                qWarning() << "[StrategiesTab] Failed to load strategy:" << result.error();
             }
         }
+        else
+        {
+            qWarning() << "[StrategiesTab] Dialog accepted but no config selected";
+        }
+    }
+    else
+    {
+        qDebug() << "[StrategiesTab] Dialog cancelled";
     }
 }
 
