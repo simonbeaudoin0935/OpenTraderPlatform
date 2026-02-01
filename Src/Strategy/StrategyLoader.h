@@ -6,7 +6,7 @@
 #include <expected>
 #include <dlfcn.h>
 
-#include "Strategy.h"
+#include "StrategyBase.h"
 #include "StrategySDK.h"
 
 /*
@@ -34,8 +34,8 @@ class StrategyLoader final
     };
 
     // Factory function signatures that strategy plugins must export
-    using CreateStrategyFn = Strategy* (*)(const StrategyConfig& config, StrategySDK* p_sdk);
-    using DestroyStrategyFn = void (*)(Strategy* strategy);
+    using CreateStrategyFn = StrategyBase* (*)(const StrategyConfig& config, StrategySDK* p_sdk);
+    using DestroyStrategyFn = void (*)(StrategyBase* strategy);
     using GetVersionFn = const char* (*)();
 
     struct LoadedPlugin
@@ -54,9 +54,9 @@ class StrategyLoader final
      *
      * Expected .so exports:
      *   extern "C" const char* getStrategyAPIVersion();
-     *   extern "C" Strategy* createStrategy(const StrategyConfig& config,
+     *   extern "C" StrategyBase* createStrategy(const StrategyConfig& config,
      * StrategySDK* sdk);
-     *   extern "C" void destroyStrategy(Strategy* strategy);
+     *   extern "C" void destroyStrategy(StrategyBase* strategy);
      */
     [[nodiscard]] static std::expected<LoadedPlugin, Error> loadPlugin(const QString& p_soPath);
 

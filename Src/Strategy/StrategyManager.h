@@ -7,7 +7,7 @@
 #include <memory>
 #include <expected>
 
-#include "Strategy.h"
+#include "StrategyBase.h"
 #include "StrategySDK.h"
 #include "StrategyLoader.h"
 
@@ -87,7 +87,7 @@ class StrategyManager final : public QObject
     /*
      * Get strategy instance by ID (for direct callback routing)
      */
-    [[nodiscard]] Strategy* getStrategy(const QString& p_strategyID) const;
+    [[nodiscard]] StrategyBase* getStrategy(const QString& p_strategyID) const;
 
   public slots:
     /*
@@ -143,7 +143,7 @@ class StrategyManager final : public QObject
         QString strategyID;                  // Unique ID for this instance
         StrategyConfig config;               // Configuration
         StrategyLoader::LoadedPlugin plugin; // Loaded .so plugin
-        Strategy* p_strategy;                // Strategy instance
+        StrategyBase* p_strategy;            // Strategy instance
         StrategySDK* p_sdk;                  // SDK instance
         QThread m_thread;                    // Dedicated thread
         QVector<QString> monitoredSymbols;   // Symbols being watched

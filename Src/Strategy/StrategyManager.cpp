@@ -127,13 +127,16 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
 
     auto p_sdk = new StrategySDK(m_mainAlgo, strategyID, p_config);
 
-    Strategy* p_strategy = plugin.createFn(p_config, p_sdk);
+    StrategyBase* p_strategy = plugin.createFn(p_config, p_sdk);
     if (!p_strategy)
     {
         delete p_sdk;
         StrategyLoader::unloadPlugin(plugin);
         return std::unexpected("Failed to create strategy instance for: " + p_config.name);
     }
+
+    // Set SDK reference in strategy
+    p_strategy->setSdk(p_sdk);
 
     auto instance = new StrategyInstance();
     instance->strategyID = strategyID;
@@ -146,6 +149,11 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
     p_sdk->moveToThread(&instance->m_thread);
 
     connectStrategyToDataSources(instance);
+
+    // Connect thread started signal to call onStart on the strategy thread
+    QObject::connect(&instance->m_thread,
+                     &QThread::started,
+                     [instance]() { instance->p_strategy->onStart(instance->p_sdk); });
 
     instance->m_thread.start();
 
@@ -168,12 +176,21 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
 
     disconnectStrategyFromDataSources(instance);
 
+    // Signal thread to quit
     instance->m_thread.quit();
+
+    // Wait for thread to finish gracefully
     if (!instance->m_thread.wait(5000))
     {
         qWarning(StrategyManagerLog) << "Strategy thread did not finish, terminating";
         instance->m_thread.terminate();
         instance->m_thread.wait();
+    }
+
+    // Call onStop after thread has stopped
+    if (instance->p_strategy)
+    {
+        instance->p_strategy->onStop();
     }
 
     if (instance->plugin.destroyFn && instance->p_strategy)
@@ -327,7 +344,7 @@ const StrategyManager::StrategyInstance* StrategyManager::findStrategy(const QSt
     return nullptr;
 }
 
-Strategy* StrategyManager::getStrategy(const QString& p_strategyID) const
+StrategyBase* StrategyManager::getStrategy(const QString& p_strategyID) const
 {
     auto instance = findStrategy(p_strategyID);
     return instance ? instance->p_strategy : nullptr;
