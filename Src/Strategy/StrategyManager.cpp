@@ -189,6 +189,8 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
 
     m_strategies[strategyID] = instance;
 
+    emit strategyLoaded(strategyID, p_config.name);
+
     return strategyID;
 }
 
@@ -257,6 +259,9 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
     delete m_strategies.take(p_strategyID);
 
     qInfo(StrategyManagerLog) << "Successfully unloaded strategy:" << p_strategyID;
+
+    emit strategyUnloaded(p_strategyID);
+
     return "";
 }
 

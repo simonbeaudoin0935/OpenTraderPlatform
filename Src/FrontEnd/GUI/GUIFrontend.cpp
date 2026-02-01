@@ -20,6 +20,7 @@
 #include "Tabs/CacheTab.h"
 #include "Tabs/RecorderTab.h"
 #include "Tabs/ShortcutsTab.h"
+#include "StrategiesTab/StrategiesTab.h"
 #include "Misc/Logging.h"
 #include "Misc/Settings.h"
 #include "Misc/ShortcutSettings.h"
@@ -306,6 +307,10 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // Set up the shortcuts tab
     ShortcutsTab* shortcutsTab = new ShortcutsTab();
     ui->tabWidget->addTab(shortcutsTab, "Shortcuts");
+
+    // Set up the strategies tab
+    StrategiesTab* strategiesTab = new StrategiesTab(mainAlgo);
+    ui->tabWidget->addTab(strategiesTab, "Strategies");
 
     // Set up the live log display at the bottom
     if (ui->liveLogDisplay)

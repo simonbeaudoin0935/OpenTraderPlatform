@@ -76,6 +76,12 @@ class MainAlgo final : public QObject
     /// Routes result to strategy and emits GUI signal if displayed stock
     void onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOrderResult, TSClient::Error>& p_result);
 
+    /// @brief Get the StrategyManager instance
+    [[nodiscard]] StrategyManager* getStrategyManager() const
+    {
+        return m_strategyManager.get();
+    }
+
   signals:
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
     void displayedStockReceivedNewMarketDepthQuote(QString symbol,

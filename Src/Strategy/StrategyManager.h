@@ -234,6 +234,28 @@ class StrategyManager final : public QObject
      */
     void onMainAlgoBalanceUpdated(const Balance& p_balance);
 
+  signals:
+    /*
+     * Emitted when a strategy is successfully loaded
+     * strategyID: unique ID for this strategy instance
+     * name: strategy name from config
+     */
+    void strategyLoaded(const QString& strategyID, const QString& name);
+
+    /*
+     * Emitted when a strategy is unloaded
+     * strategyID: unique ID of the strategy being removed
+     */
+    void strategyUnloaded(const QString& strategyID);
+
+    /*
+     * Emitted when strategy status changes
+     * strategyID: unique ID of the strategy
+     * isRunning: true if running, false if stopped/error
+     * errorMessage: non-empty if there's an error
+     */
+    void strategyStatusChanged(const QString& strategyID, bool isRunning, const QString& errorMessage);
+
   private:
     struct StrategyInstance
     {
