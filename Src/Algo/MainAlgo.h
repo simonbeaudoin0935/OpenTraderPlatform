@@ -123,7 +123,7 @@ class MainAlgo final : public QObject
     Account m_activeAccount;
     Balance m_currentBalance;
 
-    QTimer* m_balancePollingTimer;
+    std::unique_ptr<QTimer> m_balancePollingTimer;
 
     bool m_balancePollingStarted = false;
 

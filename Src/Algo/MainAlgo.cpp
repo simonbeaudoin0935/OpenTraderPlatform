@@ -18,7 +18,6 @@ MainAlgo* MainAlgo::getInstance()
 {
     if (m_instance == nullptr)
     {
-        qCDebug(MainAlgoLog) << "Singleton instance created";
         m_instance = new MainAlgo();
     }
     return m_instance;
@@ -27,7 +26,7 @@ MainAlgo* MainAlgo::getInstance()
 void MainAlgo::destroyInstance()
 {
     ASSUME_TRUE(m_instance != nullptr);
-    qCDebug(MainAlgoLog) << "Destroying singleton instance";
+
     delete m_instance;
     m_instance = nullptr;
 }
@@ -39,15 +38,19 @@ MainAlgo::MainAlgo()
 
     this->moveToThread(&thread);
 
+    this->setObjectName("MainAlgo");
+
     connect(&thread, &QThread::started, this, &MainAlgo::onThreadStarted);
 
     // Create StrategyManager - owned by this MainAlgo
     m_strategyManager = std::make_unique<StrategyManager>(this);
+
+    DEBUG << "Singleton instance created";
 }
 
 MainAlgo::~MainAlgo()
 {
-    qDebug() << "MainAlgo destructor - stopping thread";
+    DEBUG << "MainAlgo destructor - stopping thread";
 
     // StrategyManager will be destroyed automatically via unique_ptr
     m_strategyManager.reset();
@@ -58,7 +61,7 @@ MainAlgo::~MainAlgo()
     if (m_balancePollingTimer && m_balancePollingTimer->isActive())
     {
         m_balancePollingTimer->stop();
-        qDebug() << "Stopped balance polling timer in destructor";
+        DEBUG << "Stopped balance polling timer in destructor";
     }
 
     // Request thread to stop
@@ -67,12 +70,12 @@ MainAlgo::~MainAlgo()
     // Wait for thread to finish (with timeout)
     if (!thread.wait(5000))
     {
-        qWarning() << "MainAlgo thread did not finish within timeout, terminating";
+        CRITICAL << "MainAlgo thread did not finish within timeout, terminating";
         thread.terminate();
         thread.wait();
     }
 
-    qDebug() << "MainAlgo thread stopped";
+    DEBUG << "Destroyed singleton instance";
 }
 
 void MainAlgo::start()
@@ -82,9 +85,9 @@ void MainAlgo::start()
 
 void MainAlgo::onThreadStarted()
 {
-    m_balancePollingTimer = new QTimer(this);
+    m_balancePollingTimer = std::make_unique<QTimer>(this);
 
-    connect(m_balancePollingTimer, &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
+    connect(m_balancePollingTimer.get(), &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
 }
 
 void MainAlgo::onSelectDisplayedStock(const QString& symbol)
