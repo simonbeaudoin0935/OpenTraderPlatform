@@ -13,6 +13,7 @@
 #include "StrategyConfig.h"
 #include "StrategyConfigLoader.h"
 #include "StrategyRegistry.h"
+#include "StrategyLogger.h"
 #include "Balance.h"
 
 class MainAlgo;
@@ -158,6 +159,16 @@ class StrategyManager final : public QObject
         return m_registry.get();
     }
 
+    /*
+     * Get strategy logger by strategy ID
+     */
+    [[nodiscard]] StrategyLogger* getStrategyLogger(const QString& p_strategyID);
+
+    /*
+     * Get strategy logger (const version)
+     */
+    [[nodiscard]] const StrategyLogger* getStrategyLogger(const QString& p_strategyID) const;
+
   public slots:
     /*
      * Called when MainAlgo receives a new bar
@@ -225,14 +236,15 @@ class StrategyManager final : public QObject
   private:
     struct StrategyInstance
     {
-        QString strategyID;                  // Unique ID for this instance
-        StrategyConfig config;               // Configuration
-        StrategyLoader::LoadedPlugin plugin; // Loaded .so plugin
-        StrategyBase* p_strategy;            // Strategy instance
-        StrategySDK* p_sdk;                  // SDK instance
-        StrategyCallbackAdapter* p_adapter;  // Callback adapter (lives on strategy thread)
-        QThread m_thread;                    // Dedicated thread
-        QVector<QString> monitoredSymbols;   // Symbols being watched
+        QString strategyID;                       // Unique ID for this instance
+        StrategyConfig config;                    // Configuration
+        StrategyLoader::LoadedPlugin plugin;      // Loaded .so plugin
+        StrategyBase* p_strategy;                 // Strategy instance
+        StrategySDK* p_sdk;                       // SDK instance
+        StrategyCallbackAdapter* p_adapter;       // Callback adapter (lives on strategy thread)
+        QThread m_thread;                         // Dedicated thread
+        QVector<QString> monitoredSymbols;        // Symbols being watched
+        std::unique_ptr<StrategyLogger> p_logger; // Strategy logger (owned)
     };
 
     MainAlgo* m_mainAlgo;

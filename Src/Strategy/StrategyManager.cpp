@@ -142,6 +142,9 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
     // Create callback adapter that will live on strategy's thread
     auto p_adapter = new StrategyCallbackAdapter(p_strategy, p_config.symbols);
 
+    // Create strategy logger
+    auto p_logger = std::make_unique<StrategyLogger>(p_config.name);
+
     auto instance = new StrategyInstance();
     instance->strategyID = strategyID;
     instance->config = p_config;
@@ -149,6 +152,7 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
     instance->p_strategy = p_strategy;
     instance->p_sdk = p_sdk;
     instance->p_adapter = p_adapter;
+    instance->p_logger = std::move(p_logger);
     instance->monitoredSymbols = p_config.symbols;
 
     p_sdk->moveToThread(&instance->m_thread);
@@ -425,4 +429,16 @@ void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_inst
     QObject::disconnect(m_mainAlgo, nullptr, p_instance->p_adapter, nullptr);
 
     qInfo(StrategyManagerLog) << "Disconnected strategy from data sources:" << p_instance->strategyID;
+}
+
+StrategyLogger* StrategyManager::getStrategyLogger(const QString& p_strategyID)
+{
+    auto instance = findStrategy(p_strategyID);
+    return instance && instance->p_logger ? instance->p_logger.get() : nullptr;
+}
+
+const StrategyLogger* StrategyManager::getStrategyLogger(const QString& p_strategyID) const
+{
+    auto instance = findStrategy(p_strategyID);
+    return instance && instance->p_logger ? instance->p_logger.get() : nullptr;
 }
