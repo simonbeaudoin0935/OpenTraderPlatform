@@ -45,5 +45,4 @@ Description: Unit tests for L2Trader
  This package contains unit tests for the L2Trader application:
   * BarCache unit tests
   * FMPClient unit tests
-  * RunUpDetector unit tests
   * TSClient unit tests

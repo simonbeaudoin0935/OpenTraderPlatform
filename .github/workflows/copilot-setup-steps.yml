@@ -76,11 +76,3 @@ jobs:
             "${{ vars.RECEIVED_AT }}" \
             "${{ vars.SCOPE }}" \
             "${{ vars.TOKEN_TYPE }}"
-
-      - name: Check credentials files
-        run: |
-          echo "=== Checking TradeStationTokens.ini ==="
-          cat ~/.config/L2Trader/TradeStationTokens.ini
-          echo ""
-          echo "=== Checking SecureStorage.ini ==="
-          cat ~/.config/L2Trader/SecureStorage.ini

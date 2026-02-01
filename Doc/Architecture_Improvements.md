@@ -732,7 +732,6 @@ private:
 
 Tests exist in `Tests/` directory:
 - BarCacheUnit
-- RunUpDetectorUnit
 - TSClientUnit
 - RecorderIntegrationTest
 

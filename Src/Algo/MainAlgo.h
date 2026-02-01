@@ -7,7 +7,6 @@
 #include <QTimer>
 #include <QVector>
 
-#include "RunUpDetector.h"
 #include "MarketDepthQuoteReceiver.h"
 #include "PositionsReceiver.h"
 #include "OrdersReceiver.h"
@@ -27,7 +26,6 @@ class StockInstruments : public QObject
 
     QString symbol;
     BarCache barCache;
-    RunUpDetector runUpDetector;
     MarketDepthQuoteReceiver marketDepthQuoteReceiver;
 };
 
@@ -37,6 +35,9 @@ class MainAlgo final : public QObject
   public:
     // Singleton : Instance getter  and delete copy and assignment
     static MainAlgo* getInstance();
+
+    // Singleton : Destroy instance (for cleanup)
+    static void destroyInstance();
 
     Q_DISABLE_COPY(MainAlgo) // Delete copy constructor and assignment operator
 

@@ -11,45 +11,45 @@
 namespace OrderNS
 {
 
-class AdvancedOptions
-{
-    Q_GADGET
-
-  public:
-    QString toString();
-
-    AdvancedOptions(const QString& str);
-
-    enum class Type
+    class AdvancedOptions
     {
-        CND,    // Activation rule
-        AON,    // All or None
-        TRL,    // Trailing stop
-        SHWQTY, // Show only
-        DSCPR,  // Discretionary price
-        NON,    // Non-display
-        PEGVAL, // Peg value
-        BKO,    // Book only
-        PSO     // Add liquidity
+        Q_GADGET
+
+      public:
+        QString toString();
+
+        AdvancedOptions(const QString& str);
+
+        enum class Type
+        {
+            CND,    // Activation rule
+            AON,    // All or None
+            TRL,    // Trailing stop
+            SHWQTY, // Show only
+            DSCPR,  // Discretionary price
+            NON,    // Non-display
+            PEGVAL, // Peg value
+            BKO,    // Book only
+            PSO     // Add liquidity
+        };
+        Q_ENUM(Type)
+
+        Type type;
+        std::optional<double> pegval;
+        std::optional<double> shwqty;
+        std::optional<double> dscpr;
     };
-    Q_ENUM(Type)
 
-    Type type;
-    std::optional<double> pegval;
-    std::optional<double> shwqty;
-    std::optional<double> dscpr;
-};
+    struct ConditionalOrder
+    {
+        QString orderID;
+        QString relationship;
+    };
 
-struct ConditionalOrder
-{
-    QString orderID;
-    QString relationship;
-};
-
-struct Leg
-{
-    // TODO
-};
+    struct Leg
+    {
+        // TODO
+    };
 
 } // namespace OrderNS
 

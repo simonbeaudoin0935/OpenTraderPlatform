@@ -50,8 +50,7 @@ void TestRecorderIntegration::testRecorderNoCriticalLogs()
 
     // Args
     QStringList args;
-    args << "--criterias=/home/simon/Documents/L2Trader/Example_Config/selection_criteria.ini"
-         << "--cache-root-dir=/tmp/l2trader_test_cache"
+    args << "--cache-root-dir=/tmp/l2trader_test_cache"
          << "--stock-csv=/home/simon/Documents/L2Trader/Example_Config/nasdaq_screener_mini.csv";
 
     QProcess process;
@@ -146,8 +145,7 @@ void TestRecorderIntegration::testRecordedDataDirOption()
 
     // Args with custom recorded data directory
     QStringList args;
-    args << "--criterias=/home/simon/Documents/L2Trader/Example_Config/selection_criteria.ini"
-         << "--recorded-data-dir=" + testDir
+    args << "--recorded-data-dir=" + testDir
          << "--stock-csv=/home/simon/Documents/L2Trader/Example_Config/nasdaq_screener_mini.csv";
 
     QProcess process;

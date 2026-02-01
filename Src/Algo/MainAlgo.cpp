@@ -23,6 +23,14 @@ MainAlgo* MainAlgo::getInstance()
     return m_instance;
 }
 
+void MainAlgo::destroyInstance()
+{
+    ASSUME_TRUE(m_instance != nullptr);
+    qCDebug(MainAlgoLog) << "Destroying singleton instance";
+    delete m_instance;
+    m_instance = nullptr;
+}
+
 
 MainAlgo::MainAlgo()
 {
@@ -35,7 +43,29 @@ MainAlgo::MainAlgo()
 
 MainAlgo::~MainAlgo()
 {
-    stopBalancePolling();
+    qDebug() << "MainAlgo destructor - stopping thread";
+
+    // Stop balance polling timer if it exists
+    // Note: We're in the destructor, so we can't use QMetaObject::invokeMethod
+    // since the thread might already be stopping. Just stop the timer directly.
+    if (m_balancePollingTimer && m_balancePollingTimer->isActive())
+    {
+        m_balancePollingTimer->stop();
+        qDebug() << "Stopped balance polling timer in destructor";
+    }
+
+    // Request thread to stop
+    thread.quit();
+
+    // Wait for thread to finish (with timeout)
+    if (!thread.wait(5000))
+    {
+        qWarning() << "MainAlgo thread did not finish within timeout, terminating";
+        thread.terminate();
+        thread.wait();
+    }
+
+    qDebug() << "MainAlgo thread stopped";
 }
 
 void MainAlgo::start()
@@ -358,11 +388,7 @@ void MainAlgo::onBalanceReceived(const QVector<Balance>& results)
 }
 
 StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
-    : QObject(p_parent)
-    , symbol(p_symbol)
-    , barCache(p_symbol, true, this)
-    , runUpDetector(&barCache, this)
-    , marketDepthQuoteReceiver(p_symbol, this)
+    : QObject(p_parent), symbol(p_symbol), barCache(p_symbol, true, this), marketDepthQuoteReceiver(p_symbol, this)
 {
     this->setObjectName("StockInstrument::" + p_symbol);
 

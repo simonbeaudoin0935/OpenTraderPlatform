@@ -9,6 +9,7 @@
 #include "Logging.h"
 #include "Assume.h"
 #include "SQL/DatabaseThreadQueries.h"
+#include "CONSTANTS.h"
 
 #define LOGGING_CATEGORY DatabaseThreadLog
 
@@ -25,6 +26,14 @@ DatabaseThread* DatabaseThread::getInstance()
         m_instance = new DatabaseThread();
     }
     return m_instance;
+}
+
+void DatabaseThread::destroyInstance()
+{
+    ASSUME_TRUE(m_instance != nullptr);
+    qCDebug(DatabaseThreadLog) << "Destroying singleton instance";
+    delete m_instance;
+    m_instance = nullptr;
 }
 
 DatabaseThread::DatabaseThread() : QObject()
@@ -258,8 +267,8 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
 
     DEBUG << "Checking database cache for" << symbol << "at date" << date << "from" << start << "to" << end;
 
-    size_t indexStart = timeToIndex(start);
-    size_t indexEnd = timeToIndex(end);
+    size_t indexStart = BarsConstants::timeToIndex(start);
+    size_t indexEnd = BarsConstants::timeToIndex(end);
 
     OBJ_ASSUME_LT(indexStart, indexEnd);
 
@@ -276,7 +285,7 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
         while (query.next())
         {
             int index = query.value(0).toInt();
-            QTime time = indexToTime(static_cast<size_t>(index));
+            QTime time = BarsConstants::indexToTime(static_cast<size_t>(index));
             QDateTime ts(date, time, QTimeZone("America/New_York"));
             double open = query.value(1).toDouble();
             double high = query.value(2).toDouble();
@@ -349,7 +358,7 @@ int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDa
     for (const Bar& bar: bars)
     {
         QString dateStr = date.toString("yyyy-MM-dd");
-        size_t index = timeToIndex(bar.getTimeStamp().time());
+        size_t index = BarsConstants::timeToIndex(bar.getTimeStamp().time());
 
         query.addBindValue(dateStr);
         query.addBindValue(static_cast<int>(index));
@@ -406,31 +415,4 @@ bool DatabaseThread::clearDatabaseInternal(const QString& symbol)
         WARNING << "Failed to clear database for" << symbol << ":" << query.lastError().text();
         return false;
     }
-}
-
-// ============================================================================
-// Helper functions
-// ============================================================================
-
-size_t DatabaseThread::timeToIndex(const QTime& time)
-{
-    ASSUME_GTE(time, TradingHours::TRADING_START_TIME);
-    ASSUME_LTE(time, TradingHours::TRADING_END_TIME);
-
-    size_t minutesSince6AM = (time.hour() - TradingHours::TRADING_START_TIME.hour()) * 60 + time.minute();
-    size_t index = minutesSince6AM - 1;
-
-    ASSUME_LT(index, TradingHours::BARS_PER_DAY);
-    return index;
-}
-
-QTime DatabaseThread::indexToTime(size_t index)
-{
-    ASSUME_LT(index, TradingHours::BARS_PER_DAY);
-
-    size_t adjustedMinutes = index + 1;
-    int hour = TradingHours::TRADING_START_TIME.hour() + (adjustedMinutes / 60);
-    int minute = adjustedMinutes % 60;
-
-    return QTime(hour, minute, 0);
 }

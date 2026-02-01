@@ -31,6 +31,12 @@ class Stream : public QObject
         return s_numberOfStream;
     }
 
+    // Called by MainApp before starting shutdown sequence
+    static void setShuttingDown(bool shuttingDown)
+    {
+        s_isShuttingDown = shuttingDown;
+    }
+
   signals:
     void newAmountOfDataReceived(size_t bytes);
     void receivedNewRawData(const QByteArray& rawData);
@@ -65,4 +71,5 @@ class Stream : public QObject
     QTimer m_heartbeatTimer;
 
     static size_t s_numberOfStream;
+    static bool s_isShuttingDown;
 };

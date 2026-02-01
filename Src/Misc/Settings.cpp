@@ -3,7 +3,6 @@
 #include <QStandardPaths>
 #include <QCoreApplication>
 
-QSettings* criteriaSettings;
 QSettings* appStateSettings;
 
 QString cacheRootDir;

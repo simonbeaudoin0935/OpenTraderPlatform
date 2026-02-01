@@ -40,6 +40,9 @@ class DatabaseThread final : public QObject
     // Singleton: Instance getter
     [[nodiscard]] static DatabaseThread* getInstance();
 
+    // Singleton: Destroy instance (for cleanup)
+    static void destroyInstance();
+
     // Delete copy/move constructors and assignment operators
     DatabaseThread(const DatabaseThread&) = delete;
     DatabaseThread(DatabaseThread&&) = delete;
@@ -112,10 +115,6 @@ class DatabaseThread final : public QObject
     int storeBarsInDatabaseInternal(const QString& symbol, const QDate& date, const QVector<Bar>& bars);
 
     bool clearDatabaseInternal(const QString& symbol);
-
-    // Helper to convert time to index (same logic as BarCache)
-    static size_t timeToIndex(const QTime& time);
-    static QTime indexToTime(size_t index);
 
     QThread m_thread;
 
