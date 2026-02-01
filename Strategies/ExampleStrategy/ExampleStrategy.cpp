@@ -96,6 +96,11 @@ void ExampleStrategy::onError(const std::string& p_error)
 // Factory functions for plugin loading
 extern "C"
 {
+    const char* getStrategyAPIVersion()
+    {
+        return "1.0.0";
+    }
+
     StrategyBase* createStrategy(const StrategyConfig& p_config, StrategySDK* p_sdk)
     {
         return new ExampleStrategy(p_config, p_sdk);
