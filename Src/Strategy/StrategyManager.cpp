@@ -312,6 +312,44 @@ qint64 StrategyManager::getStrategyThreadId(const QString& p_strategyID) const
     return 0;
 }
 
+double StrategyManager::getStrategyBalance(const QString& p_strategyID) const
+{
+    const auto* instance = findStrategy(p_strategyID);
+    if (instance && instance->p_sdk)
+    {
+        // StrategySDK tracks balance via onBalanceUpdated callbacks
+        // For now, return 0 as a placeholder (would need to store in SDK or Strategy)
+        return 0.0; // TODO: Track balance in StrategySDK
+    }
+    return 0.0;
+}
+
+QVector<Order> StrategyManager::getStrategyRecentOrders(const QString& p_strategyID, int limit) const
+{
+    const auto* instance = findStrategy(p_strategyID);
+    if (instance && instance->p_sdk)
+    {
+        QVector<Order> allOrders = instance->p_sdk->getOrders();
+        if (allOrders.size() > limit)
+        {
+            // Return most recent 'limit' orders
+            return QVector<Order>(allOrders.end() - limit, allOrders.end());
+        }
+        return allOrders;
+    }
+    return QVector<Order>();
+}
+
+QVector<Position> StrategyManager::getStrategyOpenPositions(const QString& p_strategyID) const
+{
+    const auto* instance = findStrategy(p_strategyID);
+    if (instance && instance->p_sdk)
+    {
+        return instance->p_sdk->getPositions();
+    }
+    return QVector<Position>();
+}
+
 void StrategyManager::onBarReceived(const QString& p_symbol, const Bar& p_bar)
 {
     for (auto* instance: m_strategies)
@@ -397,6 +435,8 @@ void StrategyManager::onBalanceUpdated(double p_newBalance)
         if (instance && instance->p_strategy)
         {
             instance->p_strategy->onBalanceUpdated(p_newBalance);
+            // Emit signal for UI updates
+            emit strategyBalanceUpdated(instance->strategyID, p_newBalance);
         }
     }
 }

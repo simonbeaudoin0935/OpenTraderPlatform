@@ -182,6 +182,24 @@ class StrategyManager final : public QObject
      */
     [[nodiscard]] qint64 getStrategyThreadId(const QString& p_strategyID) const;
 
+    /*
+     * Get current balance for a strategy
+     * Returns 0 if strategy not found
+     */
+    [[nodiscard]] double getStrategyBalance(const QString& p_strategyID) const;
+
+    /*
+     * Get recent orders for a strategy (last 20)
+     * Returns empty vector if strategy not found
+     */
+    [[nodiscard]] QVector<Order> getStrategyRecentOrders(const QString& p_strategyID, int limit = 20) const;
+
+    /*
+     * Get open positions for a strategy
+     * Returns empty vector if strategy not found
+     */
+    [[nodiscard]] QVector<Position> getStrategyOpenPositions(const QString& p_strategyID) const;
+
   public slots:
     /*
      * Called when MainAlgo receives a new bar
@@ -267,6 +285,13 @@ class StrategyManager final : public QObject
      * errorMessage: non-empty if there's an error
      */
     void strategyStatusChanged(const QString& strategyID, bool isRunning, const QString& errorMessage);
+
+    /*
+     * Emitted when a strategy's balance updates
+     * strategyID: unique ID of the strategy
+     * newBalance: updated account balance for this strategy
+     */
+    void strategyBalanceUpdated(const QString& strategyID, double newBalance);
 
   private:
     struct StrategyInstance

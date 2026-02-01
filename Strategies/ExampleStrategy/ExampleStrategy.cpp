@@ -2,10 +2,13 @@
 
 ExampleStrategy::ExampleStrategy(const StrategyConfig& p_config, StrategySDK* p_sdk) : m_barCount(0), m_lastBalance(0.0)
 {
+    Q_UNUSED(p_config);
+    Q_UNUSED(p_sdk);
 }
 
 void ExampleStrategy::onStart(StrategySDK* p_sdk)
 {
+    Q_UNUSED(p_sdk);
     log(QString("[ExampleStrategy] Strategy started"));
     m_barCount = 0;
 }
