@@ -46,6 +46,8 @@ class StrategyDetailsPanel : public QWidget
     void onLogsLevelFilterChanged(int index);
     void onExportLogs();
     void onClearLogs();
+    void onStopStrategy();
+    void onStartStrategy();
 
   private:
     void setupUI();
@@ -72,6 +74,7 @@ class StrategyDetailsPanel : public QWidget
     QComboBox* m_logsLevelFilter;
     QTextEdit* m_logsDisplay;
     QLabel* m_logsStatsLabel;
+    QPushButton* m_startButton;
     QPushButton* m_stopButton;
     QPushButton* m_viewLogsButton;
     QPushButton* m_exportLogsButton;

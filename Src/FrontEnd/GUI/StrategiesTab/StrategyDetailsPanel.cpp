@@ -152,8 +152,15 @@ void StrategyDetailsPanel::setupUI()
 
     // Control buttons
     auto buttonLayout = new QHBoxLayout();
+
+    m_startButton = new QPushButton("Start");
+    m_startButton->setMaximumWidth(60);
+    connect(m_startButton, &QPushButton::clicked, this, &StrategyDetailsPanel::onStartStrategy);
+    buttonLayout->addWidget(m_startButton);
+
     m_stopButton = new QPushButton("Stop");
     m_stopButton->setMaximumWidth(60);
+    connect(m_stopButton, &QPushButton::clicked, this, &StrategyDetailsPanel::onStopStrategy);
     buttonLayout->addWidget(m_stopButton);
 
     m_exportLogsButton = new QPushButton("Export");
@@ -212,6 +219,7 @@ void StrategyDetailsPanel::clearStrategy()
     m_positionsDisplay->clear();
     m_logsDisplay->clear();
     m_logsStatsLabel->setText("");
+    m_startButton->setEnabled(false);
     m_stopButton->setEnabled(false);
     m_exportLogsButton->setEnabled(false);
     m_clearLogsButton->setEnabled(false);
@@ -234,6 +242,9 @@ void StrategyDetailsPanel::updateDisplay()
 
     // Update status
     m_statusLabel->setText(isRunning ? "Status: RUNNING" : "Status: STOPPED");
+
+    // Update button states
+    m_startButton->setEnabled(!isRunning);
     m_stopButton->setEnabled(isRunning);
 
     // Update balance display
@@ -524,4 +535,32 @@ void StrategyDetailsPanel::onClearLogs()
         logger->clear();
         updateLogs();
     }
+}
+
+void StrategyDetailsPanel::onStopStrategy()
+{
+    if (m_currentStrategyID.isEmpty())
+    {
+        return;
+    }
+
+    QString error = m_strategyManager->unloadStrategy(m_currentStrategyID);
+    if (!error.isEmpty())
+    {
+        QMessageBox::critical(this, "Error", QString("Failed to stop strategy: %1").arg(error));
+        return;
+    }
+
+    // Strategy unloaded successfully, clear display
+    m_currentStrategyID = "";
+    clearStrategy();
+}
+
+void StrategyDetailsPanel::onStartStrategy()
+{
+    // Start button would be for resuming a paused strategy (Phase 4.7+)
+    // For now, this is a placeholder as strategies auto-start when loaded
+    QMessageBox::information(this,
+                             "Info",
+                             "Strategy auto-starts when loaded.\n\nUse 'Load Strategy' to add new strategies.");
 }
