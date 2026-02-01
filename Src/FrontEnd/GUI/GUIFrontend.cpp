@@ -277,6 +277,10 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                         Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(orderEntryConnection);
 
+    // Set up the strategies tab (second tab)
+    StrategiesTab* strategiesTab = new StrategiesTab(mainAlgo);
+    ui->tabWidget->addTab(strategiesTab, "Strategies");
+
     // Set up the logging tab
     LoggingTab* loggingTab = new LoggingTab();
     ui->tabWidget->addTab(loggingTab, "Logging");
@@ -295,10 +299,6 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
         int logDepth = appStateSettings->value("Logging/LogDepth", 1000).toInt();
         maxLiveLogLines = logDepth;
     }
-
-    // Set up the strategies tab (second tab)
-    StrategiesTab* strategiesTab = new StrategiesTab(mainAlgo);
-    ui->tabWidget->addTab(strategiesTab, "Strategies");
 
     // Set up the cache tab
     CacheTab* cacheTab = new CacheTab();
