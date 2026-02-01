@@ -69,6 +69,7 @@ class StrategyTile : public QWidget
     std::unique_ptr<QTimer> m_refreshTimer;
 
     // UI components
+    QFrame* m_contentFrame;
     QLabel* m_titleLabel;
     QLabel* m_symbolsLabel;
     QLabel* m_statusLabel;
