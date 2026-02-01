@@ -436,16 +436,10 @@ void MainAlgo::processPlaceOrder(uint64_t p_requestId,
     m_pendingOrderFutures[p_requestId] = future;
 
     // Attach continuation to detect resolution
-    future.then(
-        [this, p_requestId](std::expected<PlaceOrderResult, TSClient::Error> result)
-        {
-            // Capture result and call onOrderResolved
-            // Use QMetaObject::invokeMethod to ensure we're on MainAlgo thread
-            QMetaObject::invokeMethod(
-                this,
-                [this, p_requestId, result]() { onOrderResolved(p_requestId, result); },
-                Qt::QueuedConnection);
-        });
+    // Pass 'this' as context so continuation runs on MainAlgo thread
+    future.then(this,
+                [this, p_requestId](std::expected<PlaceOrderResult, TSClient::Error> result)
+                { onOrderResolved(p_requestId, result); });
 
     qCDebug(MainAlgoLog) << "Processing placeOrder: requestId=" << p_requestId << "strategyID=" << p_strategyID;
 }
