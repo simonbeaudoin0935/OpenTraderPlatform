@@ -32,7 +32,6 @@ class StrategyLoadDialog : public QDialog
     void onConfigSelected(QListWidgetItem* item);
     void onLoadClicked();
     void onCancelClicked();
-    void refreshConfigList();
 
   private:
     void setupUI();
