@@ -88,6 +88,45 @@ void MainAlgo::onThreadStarted()
     m_balancePollingTimer = std::make_unique<QTimer>(this);
 
     connect(m_balancePollingTimer.get(), &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
+
+    // Connect MainAlgo signals to StrategyManager for data broadcasting
+    if (m_strategyManager)
+    {
+        // Bars: route to strategies monitoring the symbol
+        connect(this,
+                &MainAlgo::displayedStockReceivedNewBar,
+                m_strategyManager.get(),
+                &StrategyManager::onBarReceived,
+                Qt::QueuedConnection);
+
+        // Market depth quotes: route to strategies monitoring the symbol
+        connect(this,
+                &MainAlgo::displayedStockReceivedNewMarketDepthQuote,
+                m_strategyManager.get(),
+                &StrategyManager::onMarketDepthReceived,
+                Qt::QueuedConnection);
+
+        // Orders: route only to strategy that placed the order
+        connect(this,
+                &MainAlgo::receivedNewOrder,
+                m_strategyManager.get(),
+                &StrategyManager::onMainAlgoOrderUpdated,
+                Qt::QueuedConnection);
+
+        // Positions: route only to strategy that placed the order
+        connect(this,
+                &MainAlgo::receivedNewPosition,
+                m_strategyManager.get(),
+                &StrategyManager::onMainAlgoPositionUpdated,
+                Qt::QueuedConnection);
+
+        // Balance: broadcast to all strategies
+        connect(this,
+                &MainAlgo::balanceUpdated,
+                m_strategyManager.get(),
+                &StrategyManager::onMainAlgoBalanceUpdated,
+                Qt::QueuedConnection);
+    }
 }
 
 void MainAlgo::onSelectDisplayedStock(const QString& symbol)

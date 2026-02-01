@@ -13,6 +13,7 @@
 #include "StrategyConfig.h"
 #include "StrategyConfigLoader.h"
 #include "StrategyRegistry.h"
+#include "Balance.h"
 
 class MainAlgo;
 
@@ -177,6 +178,11 @@ class StrategyManager final : public QObject
     void onOrderUpdated(const Order& p_order);
 
     /*
+     * Called when MainAlgo receives a new order (ignores account parameter)
+     */
+    void onMainAlgoOrderUpdated(const QString& p_account, const Order& p_order);
+
+    /*
       * Called when an order is filled
       * Routes to strategy that placed the order
       */
@@ -201,9 +207,20 @@ class StrategyManager final : public QObject
     void onPositionUpdated(const Position& p_position);
 
     /*
-     * Called when balance is updated
+     * Called when MainAlgo receives a new position (ignores account parameter)
+     */
+    void onMainAlgoPositionUpdated(const QString& p_account, const Position& p_position);
+
+    /*
+     * Called when balance is updated (double version for strategies)
      */
     void onBalanceUpdated(double p_newBalance);
+
+    /*
+     * Called when MainAlgo receives balance update (from TSClient)
+     * Converts Balance object to double and broadcasts to strategies
+     */
+    void onMainAlgoBalanceUpdated(const Balance& p_balance);
 
   private:
     struct StrategyInstance

@@ -319,6 +319,12 @@ void StrategyManager::onPositionUpdated(const Position& p_position)
     }
 }
 
+void StrategyManager::onMainAlgoPositionUpdated(const QString& p_account, const Position& p_position)
+{
+    Q_UNUSED(p_account);
+    onPositionUpdated(p_position);
+}
+
 void StrategyManager::onBalanceUpdated(double p_newBalance)
 {
     for (auto* instance: m_strategies)
@@ -328,6 +334,13 @@ void StrategyManager::onBalanceUpdated(double p_newBalance)
             instance->p_strategy->onBalanceUpdated(p_newBalance);
         }
     }
+}
+
+void StrategyManager::onMainAlgoBalanceUpdated(const Balance& p_balance)
+{
+    // Extract balance value and route to all strategies
+    double balance = p_balance.getEquity();
+    onBalanceUpdated(balance);
 }
 
 QString StrategyManager::generateStrategyID()
@@ -372,6 +385,12 @@ void StrategyManager::onOrderUpdated(const Order& p_order)
             instance->p_strategy->onOrderUpdated(p_order);
         }
     }
+}
+
+void StrategyManager::onMainAlgoOrderUpdated(const QString& p_account, const Order& p_order)
+{
+    Q_UNUSED(p_account);
+    onOrderUpdated(p_order);
 }
 
 void StrategyManager::connectStrategyToDataSources(StrategyInstance* p_instance)
