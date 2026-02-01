@@ -10,6 +10,8 @@
 #include "StrategyBase.h"
 #include "StrategySDK.h"
 #include "StrategyLoader.h"
+#include "StrategyConfig.h"
+#include "StrategyConfigLoader.h"
 
 class MainAlgo;
 

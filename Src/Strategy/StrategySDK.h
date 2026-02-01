@@ -13,6 +13,7 @@
 #include "CancelOrder.h"
 #include "TSClient.h"
 #include "StrategyOrderValidator.h"
+#include "StrategyConfig.h"
 
 /// @brief Log level enumeration
 enum class LogLevel
@@ -21,16 +22,6 @@ enum class LogLevel
     Info,
     Warning,
     Error
-};
-
-/// @brief Strategy configuration passed to strategy on creation
-struct StrategyConfig
-{
-    QString name;        ///< Strategy name
-    QString soPath;      ///< Path to .so file (for info only)
-    QStringList symbols; ///< Symbols to monitor
-    int positionSize;    ///< Default position size (shares)
-    double riskLimit;    ///< Maximum loss per trade
 };
 
 // Forward declaration
