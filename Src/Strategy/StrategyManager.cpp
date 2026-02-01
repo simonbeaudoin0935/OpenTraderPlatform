@@ -21,17 +21,26 @@ QFuture<std::expected<PlaceOrderResult, TSClient::Error>> StrategySDK::placeOrde
             std::expected<PlaceOrderResult, TSClient::Error>(std::unexpected(TSClient::Error::Other)));
     }
 
+    // Validate order before sending to MainAlgo
+    if (!StrategyOrderValidator::validateOrder(m_strategyID, p_order))
+    {
+        return QtFuture::makeReadyFuture(
+            std::expected<PlaceOrderResult, TSClient::Error>(std::unexpected(TSClient::Error::RejectedByValidator)));
+    }
+
     uint64_t requestId = m_mainAlgo->getNextRequestId();
+
+    // Create a promise that will be resolved when order ACK is received
+    auto promise = std::make_shared<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>();
+    QFuture<std::expected<PlaceOrderResult, TSClient::Error>> future = promise->future();
 
     QMetaObject::invokeMethod(
         m_mainAlgo,
-        [this, requestId, p_order]() { m_mainAlgo->processPlaceOrder(requestId, m_strategyID, p_order); },
+        [this, requestId, p_order, promise]()
+        { m_mainAlgo->processPlaceOrder(requestId, m_strategyID, p_order, promise); },
         Qt::QueuedConnection);
 
-    // TODO: Return a future that will be resolved when onOrderResolved is called
-    // For now, return empty error future as placeholder
-    return QtFuture::makeReadyFuture(
-        std::expected<PlaceOrderResult, TSClient::Error>(std::unexpected(TSClient::Error::Other)));
+    return future;
 }
 
 QFuture<std::expected<CancelOrderResult, TSClient::Error>> StrategySDK::cancelOrder(const QString& p_orderID)
@@ -316,6 +325,25 @@ const StrategyManager::StrategyInstance* StrategyManager::findStrategy(const QSt
         return it.value();
     }
     return nullptr;
+}
+
+Strategy* StrategyManager::getStrategy(const QString& p_strategyID) const
+{
+    auto instance = findStrategy(p_strategyID);
+    return instance ? instance->p_strategy : nullptr;
+}
+
+void StrategyManager::onOrderUpdated(const Order& p_order)
+{
+    // Broadcast to all strategies for now
+    // TODO: Later, route only to the strategy that placed the order
+    for (auto* instance: m_strategies)
+    {
+        if (instance && instance->p_strategy)
+        {
+            instance->p_strategy->onOrderUpdated(p_order);
+        }
+    }
 }
 
 void StrategyManager::connectStrategyToDataSources(StrategyInstance* p_instance)

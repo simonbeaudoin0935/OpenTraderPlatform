@@ -5,12 +5,14 @@
 #include <QFuture>
 #include <QVector>
 #include <expected>
+#include <QPromise>
 
 #include "Order.h"
 #include "Position.h"
 #include "PlaceOrder.h"
 #include "CancelOrder.h"
 #include "TSClient.h"
+#include "StrategyOrderValidator.h"
 
 /// @brief Log level enumeration
 enum class LogLevel

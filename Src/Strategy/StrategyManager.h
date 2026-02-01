@@ -84,6 +84,11 @@ class StrategyManager final : public QObject
      */
     [[nodiscard]] bool isStrategyRunning(const QString& p_strategyID) const;
 
+    /*
+     * Get strategy instance by ID (for direct callback routing)
+     */
+    [[nodiscard]] Strategy* getStrategy(const QString& p_strategyID) const;
+
   public slots:
     /*
      * Called when MainAlgo receives a new bar
@@ -98,21 +103,27 @@ class StrategyManager final : public QObject
     void onMarketDepthReceived(const QString& p_symbol, const MarketDepthQuote& p_quote);
 
     /*
-     * Called when an order is filled
+     * Called when an order is updated (any status change)
      * Routes to strategy that placed the order
      */
+    void onOrderUpdated(const Order& p_order);
+
+    /*
+      * Called when an order is filled
+      * Routes to strategy that placed the order
+      */
     void onOrderFilled(const Order& p_order);
 
     /*
-     * Called when an order is cancelled
-     * Routes to strategy that placed the order
-     */
+      * Called when an order is cancelled
+      * Routes to strategy that placed the order
+      */
     void onOrderCancelled(const Order& p_order);
 
     /*
-     * Called when an order is rejected
-     * Routes to strategy that placed the order
-     */
+      * Called when an order is rejected
+      * Routes to strategy that placed the order
+      */
     void onOrderRejected(const Order& p_order, const QString& p_reason);
 
     /*

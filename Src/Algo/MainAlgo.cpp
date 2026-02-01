@@ -328,9 +328,21 @@ void MainAlgo::onPositionDeleted(const QString& account, const QString& position
 void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
 {
     Q_UNUSED(account);
-    Q_UNUSED(order);
 
-    // TODO
+    // Lookup which strategy placed this order
+    auto strategyIt = m_orderMappings.find(order.getOrderID());
+    if (strategyIt != m_orderMappings.end())
+    {
+        // This order belongs to a strategy - route it to that strategy
+        QString strategyID = *strategyIt;
+        if (m_strategyManager)
+        {
+            QMetaObject::invokeMethod(
+                m_strategyManager.get(),
+                [this, order]() { m_strategyManager->onOrderUpdated(order); },
+                Qt::QueuedConnection);
+        }
+    }
 }
 
 void MainAlgo::startBalancePolling()
@@ -419,21 +431,20 @@ uint64_t MainAlgo::getNextRequestId()
 
 void MainAlgo::processPlaceOrder(uint64_t p_requestId,
                                  const QString& p_strategyID,
-                                 const PlaceOrderRequest& p_orderRequest)
+                                 const PlaceOrderRequest& p_orderRequest,
+                                 std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>> p_promise)
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
-
-    // TODO: Add validation logic here (risk limits, portfolio constraints, etc.)
 
     // Store temporary mapping: requestId -> strategyID (will be replaced with OrderID -> strategyID when ACK received)
     m_requestIdToStrategyId[p_requestId] = p_strategyID;
 
+    // Store the promise for resolution when order is acknowledged
+    m_pendingOrderPromises[p_requestId] = p_promise;
+
     // Call TSClient to place the order
     QFuture<std::expected<PlaceOrderResult, TSClient::Error>> future =
         TSClient::getInstance()->placeOrder(p_orderRequest);
-
-    // Store the future for tracking
-    m_pendingOrderFutures[p_requestId] = future;
 
     // Attach continuation to detect resolution
     // Pass 'this' as context so continuation runs on MainAlgo thread
@@ -448,8 +459,11 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
 
-    // Remove from pending futures
-    m_pendingOrderFutures.remove(p_requestId);
+    // Look up and remove the promise
+    auto promiseIt = m_pendingOrderPromises.find(p_requestId);
+    OBJ_ASSUME_FALSE(promiseIt == m_pendingOrderPromises.end());
+    auto promise = *promiseIt;
+    m_pendingOrderPromises.erase(promiseIt);
 
     // Look up which strategy placed this order
     auto strategyIt = m_requestIdToStrategyId.find(p_requestId);
@@ -460,6 +474,9 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
 
     QString strategyID = *strategyIt;
     m_requestIdToStrategyId.remove(p_requestId);
+
+    // Resolve the promise with the result
+    promise->addResult(p_result);
 
     if (p_result.has_value())
     {

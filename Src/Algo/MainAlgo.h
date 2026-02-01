@@ -66,7 +66,11 @@ class MainAlgo final : public QObject
     /// @param p_requestId Unique request ID from StrategySDK
     /// @param p_strategyID ID of strategy placing the order
     /// @param p_orderRequest The order details
-    void processPlaceOrder(uint64_t p_requestId, const QString& p_strategyID, const PlaceOrderRequest& p_orderRequest);
+    /// @param p_promise Promise to resolve when order ACK is received
+    void processPlaceOrder(uint64_t p_requestId,
+                           const QString& p_strategyID,
+                           const PlaceOrderRequest& p_orderRequest,
+                           std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>> p_promise);
 
     /// @brief Called when TSClient placeOrder future resolves
     /// Routes result to strategy and emits GUI signal if displayed stock
@@ -130,7 +134,7 @@ class MainAlgo final : public QObject
     // Strategy order tracking - all accessed from MainAlgo thread
     std::unique_ptr<StrategyManager> m_strategyManager;
     std::atomic<uint64_t> m_requestIdCounter{0};
-    QMap<uint64_t, QFuture<std::expected<PlaceOrderResult, TSClient::Error>>> m_pendingOrderFutures;
+    QMap<uint64_t, std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>> m_pendingOrderPromises;
     QMap<uint64_t, QString> m_requestIdToStrategyId; // Temporary mapping until OrderID known
     QMap<QString, QString> m_orderMappings;          // OrderID → StrategyID (permanent)
 };
