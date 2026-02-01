@@ -524,13 +524,18 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
 
         DEBUG << "Order placed successfully: strategyID=" << strategyID << "successful=" << result.isAllSuccessful();
 
-        // TODO: Extract OrderID from result.getOrders() and create permanent mapping
-        // For now, just create placeholder mapping
-        // const auto& orders = result.getOrders();
-        // for (const auto& order : orders)
-        // {
-        //     m_orderMappings[order.orderId] = strategyID;
-        // }
+        // Extract OrderIDs from result and create permanent mappings
+        const auto& orders = result.getOrders();
+        for (const auto& orderResultItem: orders)
+        {
+            if (!orderResultItem.isError())
+            {
+                // Successful order - create permanent mapping for future updates
+                QString orderID = orderResultItem.getOrderID();
+                m_orderMappings[orderID] = strategyID;
+                DEBUG << "Created order mapping: OrderID=" << orderID << "→ strategyID=" << strategyID;
+            }
+        }
 
         // TODO: Emit GUI signal if this order is for the displayed stock
         // TODO: Route order result to strategy via SDK
