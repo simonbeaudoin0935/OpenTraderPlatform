@@ -453,11 +453,10 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
 
     // Look up which strategy placed this order
     auto strategyIt = m_requestIdToStrategyId.find(p_requestId);
-    if (strategyIt == m_requestIdToStrategyId.end())
-    {
-        WARNING << "onOrderResolved: requestId not found:" << p_requestId;
-        return;
-    }
+
+    // There is something catastrophically wrong if the requestID is not in the
+    // map when the QFuture associated to it gets resolved here
+    OBJ_ASSUME_FALSE(strategyIt == m_requestIdToStrategyId.end());
 
     QString strategyID = *strategyIt;
     m_requestIdToStrategyId.remove(p_requestId);
