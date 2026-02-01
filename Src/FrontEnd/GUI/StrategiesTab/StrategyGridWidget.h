@@ -5,6 +5,7 @@
 #include <QMap>
 
 class StrategyTile;
+class StrategyManager;
 
 /**
  * @brief StrategyGridWidget - Grid of strategy tiles
@@ -20,7 +21,7 @@ class StrategyGridWidget : public QWidget
     Q_OBJECT
 
   public:
-    explicit StrategyGridWidget(QWidget* parent = nullptr);
+    explicit StrategyGridWidget(StrategyManager* p_strategyManager, QWidget* parent = nullptr);
     ~StrategyGridWidget() override = default;
 
     // Add a strategy tile
@@ -45,4 +46,5 @@ class StrategyGridWidget : public QWidget
     QGridLayout* m_gridLayout;
     QMap<QString, StrategyTile*> m_tiles; // strategyID -> tile widget
     QString m_selectedStrategyID;
+    StrategyManager* m_strategyManager;
 };

@@ -4,6 +4,10 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QVBoxLayout>
+#include <QTimer>
+#include <memory>
+
+class StrategyManager;
 
 /**
  * @brief StrategyTile - Individual strategy card in the grid
@@ -14,8 +18,8 @@
  * - Status (running/error) with color coding
  * - PnL (shows 0 for now - TODO: implement later)
  * - Open positions count
- * - Thread ID and CPU/memory usage
- * - Last update timestamp
+ * - Thread ID and CPU/memory usage (real-time from /proc)
+ * - Last update timestamp (auto-updates)
  *
  * Clickable to select and show details in side panel.
  */
@@ -28,6 +32,7 @@ class StrategyTile : public QWidget
                           const QString& name,
                           const QVector<QString>& symbols,
                           bool isRunning,
+                          StrategyManager* p_strategyManager,
                           QWidget* parent = nullptr);
     ~StrategyTile() override = default;
 
@@ -37,15 +42,22 @@ class StrategyTile : public QWidget
     // Update status
     void setStatus(bool isRunning, const QString& errorMessage);
 
+    // Refresh display (called by timer or externally)
+    void refreshDisplay();
+
   signals:
     void tileClicked(const QString& strategyID);
 
   protected:
     void mousePressEvent(QMouseEvent* event) override;
 
+  private slots:
+    void onRefreshTimer();
+
   private:
     void setupUI();
     void updateStatusDisplay();
+    void updateThreadAndMemoryInfo();
 
     QString m_strategyID;
     QString m_name;
@@ -53,6 +65,8 @@ class StrategyTile : public QWidget
     bool m_isRunning;
     QString m_errorMessage;
     bool m_isSelected;
+    StrategyManager* m_strategyManager;
+    std::unique_ptr<QTimer> m_refreshTimer;
 
     // UI components
     QLabel* m_titleLabel;

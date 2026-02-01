@@ -1,7 +1,9 @@
 #include "StrategyGridWidget.h"
 #include "StrategyTile.h"
+#include "StrategyManager.h"
 
-StrategyGridWidget::StrategyGridWidget(QWidget* parent) : QWidget(parent), m_selectedStrategyID("")
+StrategyGridWidget::StrategyGridWidget(StrategyManager* p_strategyManager, QWidget* parent)
+    : QWidget(parent), m_selectedStrategyID(""), m_strategyManager(p_strategyManager)
 {
     setupUI();
 }
@@ -21,7 +23,7 @@ void StrategyGridWidget::addStrategyTile(const QString& strategyID,
                                          const QVector<QString>& symbols,
                                          bool isRunning)
 {
-    auto tile = new StrategyTile(strategyID, name, symbols, isRunning);
+    auto tile = new StrategyTile(strategyID, name, symbols, isRunning, m_strategyManager);
 
     [[maybe_unused]] auto tileConn =
         connect(tile, &StrategyTile::tileClicked, this, [this](const QString& id) { emit strategyTileClicked(id); });

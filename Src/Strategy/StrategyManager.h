@@ -170,6 +170,18 @@ class StrategyManager final : public QObject
      */
     [[nodiscard]] const StrategyLogger* getStrategyLogger(const QString& p_strategyID) const;
 
+    /*
+     * Get number of open positions for a strategy
+     * Returns 0 if strategy not found
+     */
+    [[nodiscard]] int getStrategyPositionCount(const QString& p_strategyID) const;
+
+    /*
+     * Get thread ID (TID) for a strategy's execution thread
+     * Returns 0 if strategy not found
+     */
+    [[nodiscard]] qint64 getStrategyThreadId(const QString& p_strategyID) const;
+
   public slots:
     /*
      * Called when MainAlgo receives a new bar
@@ -268,6 +280,7 @@ class StrategyManager final : public QObject
         QThread m_thread;                         // Dedicated thread
         QVector<QString> monitoredSymbols;        // Symbols being watched
         std::unique_ptr<StrategyLogger> p_logger; // Strategy logger (owned)
+        Qt::HANDLE threadHandle;                  // Native thread handle for stats reading
     };
 
     MainAlgo* m_mainAlgo;

@@ -22,7 +22,7 @@ StrategiesTab::StrategiesTab(MainAlgo* p_mainAlgo, QWidget* parent)
     ASSUME_TRUE(m_strategyManager);
 
     // Initialize UI components
-    m_strategyGrid = std::make_unique<StrategyGridWidget>();
+    m_strategyGrid = std::make_unique<StrategyGridWidget>(m_strategyManager);
     m_detailsPanel = std::make_unique<StrategyDetailsPanel>(m_strategyManager);
 
     setupUI();

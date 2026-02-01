@@ -169,6 +169,9 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
                      &QThread::started,
                      [this, instance]()
                      {
+                         // Capture thread handle for stats reading
+                         instance->threadHandle = QThread::currentThreadId();
+
                          // Install SIGSEGV handler for this strategy thread
                          if (!StrategySignalHandler::installSignalHandler(instance->strategyID, this))
                          {
@@ -288,6 +291,25 @@ bool StrategyManager::isStrategyRunning(const QString& p_strategyID) const
         return instance->m_thread.isRunning();
     }
     return false;
+}
+
+int StrategyManager::getStrategyPositionCount(const QString& p_strategyID) const
+{
+    Q_UNUSED(p_strategyID);
+    // TODO: Implement position tracking per strategy (Phase 1.6)
+    // For now, return 0 (placeholder)
+    return 0;
+}
+
+qint64 StrategyManager::getStrategyThreadId(const QString& p_strategyID) const
+{
+    const auto* instance = findStrategy(p_strategyID);
+    if (instance)
+    {
+        // Return as qint64 (cast from Qt::HANDLE)
+        return static_cast<qint64>(reinterpret_cast<uintptr_t>(instance->threadHandle));
+    }
+    return 0;
 }
 
 void StrategyManager::onBarReceived(const QString& p_symbol, const Bar& p_bar)
