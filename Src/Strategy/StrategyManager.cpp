@@ -94,15 +94,19 @@ StrategyManager::StrategyManager(MainAlgo* p_mainAlgo)
 
 StrategyManager::~StrategyManager()
 {
+    qInfo(StrategyManagerLog) << "StrategyManager shutdown: unloading" << m_strategies.size() << "active strategies";
+
     QVector<QString> strategyIDs = getActiveStrategies();
     for (const auto& strategyID: strategyIDs)
     {
         auto error = unloadStrategy(strategyID);
         if (!error.isEmpty())
         {
-            qWarning(StrategyManagerLog) << "Error unloading strategy:" << error;
+            qWarning(StrategyManagerLog) << "Error unloading strategy:" << strategyID << "-" << error;
         }
     }
+
+    qInfo(StrategyManagerLog) << "StrategyManager shutdown complete";
 }
 
 std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConfig& p_config)
@@ -196,17 +200,25 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
         return "Strategy not found: " + p_strategyID;
     }
 
-    qInfo(StrategyManagerLog) << "Unloading strategy:" << instance->config.name;
+    qInfo(StrategyManagerLog) << "Unloading strategy:" << instance->config.name << "ID:" << p_strategyID;
 
     disconnectStrategyFromDataSources(instance);
 
-    // Signal thread to quit
+    // Save logs before shutdown
+    if (instance->p_logger)
+    {
+        QString logFile = instance->p_logger->saveToFile();
+        qInfo(StrategyManagerLog) << "Saved strategy logs to:" << logFile;
+    }
+
+    // Signal thread to quit gracefully
     instance->m_thread.quit();
 
-    // Wait for thread to finish gracefully
+    // Wait for thread to finish gracefully (5 second timeout)
     if (!instance->m_thread.wait(5000))
     {
-        qWarning(StrategyManagerLog) << "Strategy thread did not finish, terminating";
+        qWarning(StrategyManagerLog) << "Strategy thread did not finish within timeout, terminating:"
+                                     << instance->config.name;
         instance->m_thread.terminate();
         instance->m_thread.wait();
     }
@@ -215,28 +227,36 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
     if (instance->p_strategy)
     {
         instance->p_strategy->onStop();
+        qInfo(StrategyManagerLog) << "Called onStop for strategy:" << instance->config.name;
     }
 
+    // Clean up adapter
     if (instance->p_adapter)
     {
         delete instance->p_adapter;
     }
 
+    // Destroy strategy instance via factory function
     if (instance->plugin.destroyFn && instance->p_strategy)
     {
         instance->plugin.destroyFn(instance->p_strategy);
+        qInfo(StrategyManagerLog) << "Destroyed strategy instance:" << instance->config.name;
     }
 
+    // Clean up SDK
     if (instance->p_sdk)
     {
         delete instance->p_sdk;
     }
 
+    // Unload plugin .so file
     StrategyLoader::unloadPlugin(instance->plugin);
+    qInfo(StrategyManagerLog) << "Unloaded plugin for strategy:" << instance->config.name;
 
+    // Remove from registry and delete instance
     delete m_strategies.take(p_strategyID);
 
-    qInfo(StrategyManagerLog) << "Unloaded strategy:" << p_strategyID;
+    qInfo(StrategyManagerLog) << "Successfully unloaded strategy:" << p_strategyID;
     return "";
 }
 
