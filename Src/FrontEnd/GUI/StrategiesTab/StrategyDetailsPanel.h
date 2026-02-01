@@ -7,19 +7,21 @@
 #include <QString>
 #include <QTimer>
 #include <QTextEdit>
+#include <QComboBox>
 #include <memory>
 
 class StrategyManager;
 
 /**
- * @brief StrategyDetailsPanel - Docked right panel showing strategy details
+ * @brief StrategyDetailsPanel - Docked right panel showing strategy details and logs
  *
  * Displays when a strategy tile is selected:
  * - Full config (name, symbols, position size, risk limits, custom params)
- * - Recent orders/trades (last 20)
+ * - Recent orders/trades (last 5 shown)
  * - Current balance and PnL
  * - Open positions breakdown
  * - CPU/Memory usage (updated periodically)
+ * - Strategy logs with filtering by level
  * - Error messages if any
  *
  * Real-time updates via StrategyManager signals.
@@ -41,6 +43,9 @@ class StrategyDetailsPanel : public QWidget
   private slots:
     void onStrategyBalanceUpdated(const QString& strategyID, double newBalance);
     void onRefreshStatsTimer();
+    void onLogsLevelFilterChanged(int index);
+    void onExportLogs();
+    void onClearLogs();
 
   private:
     void setupUI();
@@ -48,10 +53,14 @@ class StrategyDetailsPanel : public QWidget
     void updateOrdersList();
     void updatePositionsList();
     void updateStats();
+    void updateLogs();
+    QString levelToString(QtMsgType level) const;
+    QString levelToColor(QtMsgType level) const;
 
     StrategyManager* m_strategyManager;
     QString m_currentStrategyID;
     double m_currentBalance = 0.0;
+    QtMsgType m_selectedLogLevel = QtMsgType::QtDebugMsg; // Filter for logs
 
     // UI components
     QLabel* m_titleLabel;
@@ -60,8 +69,13 @@ class StrategyDetailsPanel : public QWidget
     QLabel* m_statsLabel;
     QTextEdit* m_ordersDisplay;
     QTextEdit* m_positionsDisplay;
+    QComboBox* m_logsLevelFilter;
+    QTextEdit* m_logsDisplay;
+    QLabel* m_logsStatsLabel;
     QPushButton* m_stopButton;
     QPushButton* m_viewLogsButton;
+    QPushButton* m_exportLogsButton;
+    QPushButton* m_clearLogsButton;
     QWidget* m_emptyStateWidget;
 
     // Timer for periodic stats refresh (CPU/Memory)

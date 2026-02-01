@@ -1,6 +1,7 @@
 #include "StrategyDetailsPanel.h"
 #include "StrategyManager.h"
 #include "StrategyConfig.h"
+#include "StrategyLogger.h"
 #include "Order.h"
 #include "Position.h"
 #include <QVBoxLayout>
@@ -11,11 +12,16 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTextEdit>
+#include <QComboBox>
 #include <QTimer>
 #include <QDateTime>
 #include <QProcess>
 #include <QStringList>
 #include <QDebug>
+#include <QMessageBox>
+#include <QFileDialog>
+#include <QFile>
+#include <QStandardPaths>
 #include <iomanip>
 #include <sstream>
 
@@ -49,14 +55,14 @@ StrategyDetailsPanel::~StrategyDetailsPanel()
 
 void StrategyDetailsPanel::setupUI()
 {
-    auto layout = new QVBoxLayout(this);
-    layout->setContentsMargins(10, 10, 10, 10);
-    layout->setSpacing(8);
+    auto mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(10, 10, 10, 10);
+    mainLayout->setSpacing(8);
 
     // Title
     m_titleLabel = new QLabel("Strategy Details");
     m_titleLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: #fff;");
-    layout->addWidget(m_titleLabel);
+    mainLayout->addWidget(m_titleLabel);
 
     // Status and Balance (side by side)
     auto statusLayout = new QHBoxLayout();
@@ -69,49 +75,99 @@ void StrategyDetailsPanel::setupUI()
     statusLayout->addWidget(m_balanceLabel);
 
     statusLayout->addStretch();
-    layout->addLayout(statusLayout);
+    mainLayout->addLayout(statusLayout);
 
     // CPU/Memory stats
     m_statsLabel = new QLabel();
     m_statsLabel->setStyleSheet("font-size: 10px; color: #666;");
-    layout->addWidget(m_statsLabel);
+    mainLayout->addWidget(m_statsLabel);
+
+    // Tabs: Details, Orders, Positions, Logs
+    // We'll use a simple approach: stack different sections vertically with collapsible headers
 
     // Orders section
     auto ordersHeaderLabel = new QLabel("Recent Orders:");
     ordersHeaderLabel->setStyleSheet("font-size: 11px; font-weight: bold; color: #fff; margin-top: 10px;");
-    layout->addWidget(ordersHeaderLabel);
+    mainLayout->addWidget(ordersHeaderLabel);
 
     m_ordersDisplay = new QTextEdit();
     m_ordersDisplay->setReadOnly(true);
     m_ordersDisplay->setStyleSheet("background-color: #2d2d2d; color: #aaa; font-family: monospace; "
                                    "font-size: 9px; border: 1px solid #444;");
-    m_ordersDisplay->setMaximumHeight(100);
-    layout->addWidget(m_ordersDisplay);
+    m_ordersDisplay->setMaximumHeight(80);
+    mainLayout->addWidget(m_ordersDisplay);
 
     // Positions section
     auto positionsHeaderLabel = new QLabel("Open Positions:");
     positionsHeaderLabel->setStyleSheet("font-size: 11px; font-weight: bold; color: #fff;");
-    layout->addWidget(positionsHeaderLabel);
+    mainLayout->addWidget(positionsHeaderLabel);
 
     m_positionsDisplay = new QTextEdit();
     m_positionsDisplay->setReadOnly(true);
     m_positionsDisplay->setStyleSheet("background-color: #2d2d2d; color: #aaa; font-family: monospace; "
                                       "font-size: 9px; border: 1px solid #444;");
-    m_positionsDisplay->setMaximumHeight(100);
-    layout->addWidget(m_positionsDisplay);
+    m_positionsDisplay->setMaximumHeight(80);
+    mainLayout->addWidget(m_positionsDisplay);
+
+    // Logs section header
+    auto logsHeaderLabel = new QLabel("Strategy Logs:");
+    logsHeaderLabel->setStyleSheet("font-size: 11px; font-weight: bold; color: #fff; margin-top: 10px;");
+    mainLayout->addWidget(logsHeaderLabel);
+
+    // Logs filter and controls
+    auto logsControlLayout = new QHBoxLayout();
+    auto filterLabel = new QLabel("Level:");
+    filterLabel->setStyleSheet("color: #aaa; font-size: 10px;");
+    logsControlLayout->addWidget(filterLabel);
+
+    m_logsLevelFilter = new QComboBox();
+    m_logsLevelFilter->setStyleSheet("background-color: #2d2d2d; color: #fff; border: 1px solid #444; "
+                                     "font-size: 9px;");
+    m_logsLevelFilter->setMaximumWidth(100);
+    m_logsLevelFilter->addItem("All", -1);
+    m_logsLevelFilter->addItem("Debug", QtDebugMsg);
+    m_logsLevelFilter->addItem("Info", QtInfoMsg);
+    m_logsLevelFilter->addItem("Warning", QtWarningMsg);
+    m_logsLevelFilter->addItem("Critical", QtCriticalMsg);
+    connect(m_logsLevelFilter,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            &StrategyDetailsPanel::onLogsLevelFilterChanged);
+    logsControlLayout->addWidget(m_logsLevelFilter);
+
+    logsControlLayout->addStretch();
+
+    m_logsStatsLabel = new QLabel();
+    m_logsStatsLabel->setStyleSheet("font-size: 9px; color: #666;");
+    logsControlLayout->addWidget(m_logsStatsLabel);
+
+    mainLayout->addLayout(logsControlLayout);
+
+    // Logs display
+    m_logsDisplay = new QTextEdit();
+    m_logsDisplay->setReadOnly(true);
+    m_logsDisplay->setStyleSheet("background-color: #0d0d0d; color: #0f0; font-family: monospace; "
+                                 "font-size: 8px; border: 1px solid #444;");
+    mainLayout->addWidget(m_logsDisplay);
 
     // Control buttons
     auto buttonLayout = new QHBoxLayout();
     m_stopButton = new QPushButton("Stop");
-    m_stopButton->setMaximumWidth(80);
+    m_stopButton->setMaximumWidth(60);
     buttonLayout->addWidget(m_stopButton);
 
-    m_viewLogsButton = new QPushButton("View Logs");
-    m_viewLogsButton->setMaximumWidth(80);
-    buttonLayout->addWidget(m_viewLogsButton);
+    m_exportLogsButton = new QPushButton("Export");
+    m_exportLogsButton->setMaximumWidth(70);
+    connect(m_exportLogsButton, &QPushButton::clicked, this, &StrategyDetailsPanel::onExportLogs);
+    buttonLayout->addWidget(m_exportLogsButton);
+
+    m_clearLogsButton = new QPushButton("Clear");
+    m_clearLogsButton->setMaximumWidth(60);
+    connect(m_clearLogsButton, &QPushButton::clicked, this, &StrategyDetailsPanel::onClearLogs);
+    buttonLayout->addWidget(m_clearLogsButton);
 
     buttonLayout->addStretch();
-    layout->addLayout(buttonLayout);
+    mainLayout->addLayout(buttonLayout);
 
     // Empty state
     m_emptyStateWidget = new QWidget();
@@ -132,7 +188,7 @@ void StrategyDetailsPanel::setStrategy(const QString& strategyID)
     // Start refresh timer when a strategy is selected
     if (!m_currentStrategyID.isEmpty() && m_statsRefreshTimer)
     {
-        m_statsRefreshTimer->start(1000); // Refresh every second
+        m_statsRefreshTimer->start(500); // Refresh every 500ms for logs
     }
 
     updateDisplay();
@@ -154,8 +210,11 @@ void StrategyDetailsPanel::clearStrategy()
     m_statsLabel->setText("");
     m_ordersDisplay->clear();
     m_positionsDisplay->clear();
+    m_logsDisplay->clear();
+    m_logsStatsLabel->setText("");
     m_stopButton->setEnabled(false);
-    m_viewLogsButton->setEnabled(false);
+    m_exportLogsButton->setEnabled(false);
+    m_clearLogsButton->setEnabled(false);
     m_currentBalance = 0.0;
 }
 
@@ -184,6 +243,7 @@ void StrategyDetailsPanel::updateDisplay()
     updateOrdersList();
     updatePositionsList();
     updateStats();
+    updateLogs();
 }
 
 void StrategyDetailsPanel::updateOrdersList()
@@ -271,25 +331,102 @@ void StrategyDetailsPanel::updateStats()
         return;
     }
 
-    // Try to read CPU and memory from /proc/[tid]/stat
-    QString statPath = QString("/proc/%1/stat").arg(threadId);
-    QProcess proc;
-    proc.start("cat", QStringList() << statPath);
-    proc.waitForFinished(500);
+    m_statsLabel->setText(QString("TID: %1").arg(threadId));
+}
 
-    QString stats;
-    if (proc.exitCode() == 0)
+void StrategyDetailsPanel::updateLogs()
+{
+    if (m_currentStrategyID.isEmpty())
     {
-        QString statContent = QString::fromUtf8(proc.readAllStandardOutput());
-        // /proc/[pid]/stat format is complex; just show basic TID info for now
-        stats = QString("TID: %1").arg(threadId);
-    }
-    else
-    {
-        stats = QString("TID: %1 (stats unavailable)").arg(threadId);
+        return;
     }
 
-    m_statsLabel->setText(stats);
+    const StrategyLogger* logger = m_strategyManager->getStrategyLogger(m_currentStrategyID);
+    if (!logger)
+    {
+        m_logsDisplay->clear();
+        m_logsStatsLabel->setText("Logger not available");
+        return;
+    }
+
+    QVector<StrategyLogMessage> messages = logger->getMessages();
+
+    // Filter by selected level if not "All"
+    if (m_selectedLogLevel != -1)
+    {
+        QVector<StrategyLogMessage> filtered;
+        for (const auto& msg: messages)
+        {
+            if (msg.level == m_selectedLogLevel)
+            {
+                filtered.append(msg);
+            }
+        }
+        messages = filtered;
+    }
+
+    // Build HTML display with colors
+    QString displayText;
+    for (const auto& msg: messages)
+    {
+        QString levelStr = levelToString(msg.level);
+        QString color = levelToColor(msg.level);
+        QString timeStr = msg.timestamp.toString("hh:mm:ss.zzz");
+
+        displayText += QString("<span style=\"color: %1;\">[%2] %3: %4</span><br>")
+                           .arg(color)
+                           .arg(timeStr)
+                           .arg(levelStr)
+                           .arg(msg.message);
+    }
+
+    m_logsDisplay->setHtml(displayText);
+
+    // Auto-scroll to bottom
+    QTextCursor cursor = m_logsDisplay->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    m_logsDisplay->setTextCursor(cursor);
+
+    // Update stats label
+    m_logsStatsLabel->setText(QString("%1 shown | %2 total").arg(messages.size()).arg(logger->messageCount()));
+}
+
+QString StrategyDetailsPanel::levelToString(QtMsgType level) const
+{
+    switch (level)
+    {
+    case QtDebugMsg:
+        return "DEBG";
+    case QtInfoMsg:
+        return "INFO";
+    case QtWarningMsg:
+        return "WARN";
+    case QtCriticalMsg:
+        return "CRIT";
+    case QtFatalMsg:
+        return "FATL";
+    default:
+        return "????";
+    }
+}
+
+QString StrategyDetailsPanel::levelToColor(QtMsgType level) const
+{
+    switch (level)
+    {
+    case QtDebugMsg:
+        return "#666"; // Gray
+    case QtInfoMsg:
+        return "#0f0"; // Green
+    case QtWarningMsg:
+        return "#ff0"; // Yellow
+    case QtCriticalMsg:
+        return "#f00"; // Red
+    case QtFatalMsg:
+        return "#f0f"; // Magenta
+    default:
+        return "#fff";
+    }
 }
 
 void StrategyDetailsPanel::onStrategyBalanceUpdated(const QString& strategyID, double newBalance)
@@ -308,5 +445,83 @@ void StrategyDetailsPanel::onRefreshStatsTimer()
         updateOrdersList();
         updatePositionsList();
         updateStats();
+        updateLogs();
+    }
+}
+
+void StrategyDetailsPanel::onLogsLevelFilterChanged(int index)
+{
+    int levelInt = m_logsLevelFilter->itemData(index).toInt();
+    m_selectedLogLevel = static_cast<QtMsgType>(levelInt);
+    updateLogs();
+}
+
+void StrategyDetailsPanel::onExportLogs()
+{
+    if (m_currentStrategyID.isEmpty())
+    {
+        QMessageBox::warning(this, "Error", "No strategy selected");
+        return;
+    }
+
+    const StrategyLogger* logger = m_strategyManager->getStrategyLogger(m_currentStrategyID);
+    if (!logger)
+    {
+        QMessageBox::warning(this, "Error", "Logger not available");
+        return;
+    }
+
+    StrategyConfig config = m_strategyManager->getStrategyConfig(m_currentStrategyID);
+    QString suggestedPath = QStandardPaths::writableLocation(QStandardPaths::HomeLocation) + "/Desktop/" + config.name +
+                            "_logs_" + QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss") + ".txt";
+
+    QString filePath = QFileDialog::getSaveFileName(this, "Export Logs", suggestedPath, "Text Files (*.txt)");
+    if (filePath.isEmpty())
+    {
+        return; // User cancelled
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    {
+        QMessageBox::critical(this, "Error", QString("Failed to open file: %1").arg(filePath));
+        return;
+    }
+
+    QVector<StrategyLogMessage> messages = logger->getMessages();
+    for (const auto& msg: messages)
+    {
+        QString line = QString("[%1] %2: %3\n")
+                           .arg(msg.timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz"))
+                           .arg(levelToString(msg.level))
+                           .arg(msg.message);
+        file.write(line.toUtf8());
+    }
+
+    file.close();
+    QMessageBox::information(this, "Success", QString("Logs exported to:\n%1").arg(filePath));
+}
+
+void StrategyDetailsPanel::onClearLogs()
+{
+    if (m_currentStrategyID.isEmpty())
+    {
+        return;
+    }
+
+    StrategyLogger* logger = const_cast<StrategyLogger*>(m_strategyManager->getStrategyLogger(m_currentStrategyID));
+    if (!logger)
+    {
+        return;
+    }
+
+    int ret = QMessageBox::question(this,
+                                    "Confirm Clear",
+                                    "Clear all logs for this strategy?",
+                                    QMessageBox::Yes | QMessageBox::No);
+    if (ret == QMessageBox::Yes)
+    {
+        logger->clear();
+        updateLogs();
     }
 }
