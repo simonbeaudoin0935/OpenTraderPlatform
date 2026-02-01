@@ -1,5 +1,6 @@
 #include "StrategyConfig.h"
 #include <QJsonArray>
+#include <QDir>
 
 QJsonObject StrategyConfig::toJson() const
 {
@@ -32,6 +33,12 @@ StrategyConfig StrategyConfig::fromJson(const QJsonObject& obj)
     StrategyConfig config;
     config.name = obj["name"].toString();
     config.soPath = obj["soPath"].toString();
+
+    // Expand tilde in soPath for home directory
+    if (config.soPath.startsWith("~"))
+    {
+        config.soPath.replace(0, 1, QDir::homePath());
+    }
 
     QJsonArray symbolsArray = obj["symbols"].toArray();
     for (const auto& symbol: symbolsArray)
