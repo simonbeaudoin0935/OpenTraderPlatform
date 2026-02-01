@@ -62,7 +62,7 @@ class StrategyDetailsPanel : public QWidget
     StrategyManager* m_strategyManager;
     QString m_currentStrategyID;
     double m_currentBalance = 0.0;
-    QtMsgType m_selectedLogLevel = QtMsgType::QtDebugMsg; // Filter for logs
+    int m_selectedLogLevel = -1; // Filter for logs (-1 means "All")
 
     // UI components
     QLabel* m_titleLabel;

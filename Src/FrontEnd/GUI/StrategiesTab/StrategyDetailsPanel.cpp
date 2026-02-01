@@ -366,9 +366,10 @@ void StrategyDetailsPanel::updateLogs()
     if (m_selectedLogLevel != -1)
     {
         QVector<StrategyLogMessage> filtered;
+        QtMsgType selectedType = static_cast<QtMsgType>(m_selectedLogLevel);
         for (const auto& msg: messages)
         {
-            if (msg.level == m_selectedLogLevel)
+            if (msg.level == selectedType)
             {
                 filtered.append(msg);
             }
