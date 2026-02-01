@@ -24,7 +24,7 @@ StrategyTile::StrategyTile(const QString& strategyID,
     , m_isSelected(false)
     , m_strategyManager(p_strategyManager)
 {
-    setStyleSheet("background-color: #2b2b2b; border: 2px solid #555; border-radius: 5px; padding: 10px;");
+    setStyleSheet("background-color: #2b2b2b; border: 2px solid #555; border-radius: 8px; padding: 10px;");
     setMinimumSize(250, 200);
 
     // Create refresh timer (updates every 1 second)
@@ -89,11 +89,11 @@ void StrategyTile::setSelected(bool selected)
     m_isSelected = selected;
     if (selected)
     {
-        setStyleSheet("background-color: #3d5a3d; border: 2px solid #4db84d; border-radius: 5px; padding: 10px;");
+        setStyleSheet("background-color: #2b2b2b; border: 3px solid #4db84d; border-radius: 8px; padding: 10px;");
     }
     else
     {
-        setStyleSheet("background-color: #2b2b2b; border: 2px solid #555; border-radius: 5px; padding: 10px;");
+        setStyleSheet("background-color: #2b2b2b; border: 2px solid #555; border-radius: 8px; padding: 10px;");
     }
 }
 
