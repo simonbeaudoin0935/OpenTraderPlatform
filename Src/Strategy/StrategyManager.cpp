@@ -83,7 +83,8 @@ const QString& StrategySDK::getStrategyName() const
 
 // StrategyManager implementation
 
-StrategyManager::StrategyManager(MainAlgo* p_mainAlgo) : QObject(nullptr), m_mainAlgo(p_mainAlgo)
+StrategyManager::StrategyManager(MainAlgo* p_mainAlgo)
+    : QObject(nullptr), m_mainAlgo(p_mainAlgo), m_registry(std::make_unique<StrategyRegistry>())
 {
     if (!m_mainAlgo)
     {

@@ -12,6 +12,7 @@
 #include "StrategyLoader.h"
 #include "StrategyConfig.h"
 #include "StrategyConfigLoader.h"
+#include "StrategyRegistry.h"
 
 class MainAlgo;
 
@@ -140,6 +141,22 @@ class StrategyManager final : public QObject
      */
     [[nodiscard]] StrategyBase* getStrategy(const QString& p_strategyID) const;
 
+    /*
+     * Get the strategy registry (available strategies from configs)
+     */
+    [[nodiscard]] StrategyRegistry* getRegistry()
+    {
+        return m_registry.get();
+    }
+
+    /*
+     * Get the strategy registry (const version)
+     */
+    [[nodiscard]] const StrategyRegistry* getRegistry() const
+    {
+        return m_registry.get();
+    }
+
   public slots:
     /*
      * Called when MainAlgo receives a new bar
@@ -203,6 +220,7 @@ class StrategyManager final : public QObject
 
     MainAlgo* m_mainAlgo;
     QMap<QString, StrategyInstance*> m_strategies;
+    std::unique_ptr<StrategyRegistry> m_registry; ///< Registry of available strategies
 
     /*
      * Generate unique strategy instance ID
