@@ -82,5 +82,12 @@ set_target_properties(ExampleStrategy PROPERTIES
 message(STATUS "Building ExampleStrategy plugin")
 message(STATUS "  L2Trader SDK path: ${L2TRADER_SRC}")
 message(STATUS "  Output: ${CMAKE_BINARY_DIR}/lib/ExampleStrategy.so")
-message(STATUS "  Install: mkdir -p ~/.local/share/L2Trader/strategies/ && cp ${CMAKE_BINARY_DIR}/lib/ExampleStrategy.so ~/.local/share/L2Trader/strategies/")
+message(STATUS "  Install dir: ~/.local/share/L2Trader/strategies/")
+
+# Post-build install command to copy .so to ~/.local/share/L2Trader/strategies/
+add_custom_command(TARGET ExampleStrategy POST_BUILD
+    COMMAND mkdir -p ~/.local/share/L2Trader/strategies/
+    COMMAND cp "${CMAKE_BINARY_DIR}/lib/ExampleStrategy.so" ~/.local/share/L2Trader/strategies/
+    COMMENT "Installing ExampleStrategy.so to ~/.local/share/L2Trader/strategies/"
+)
 
