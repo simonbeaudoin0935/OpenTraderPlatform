@@ -559,9 +559,21 @@ void StrategyDetailsPanel::onStopStrategy()
 
 void StrategyDetailsPanel::onStartStrategy()
 {
-    // Start button would be for resuming a paused strategy (Phase 4.7+)
-    // For now, this is a placeholder as strategies auto-start when loaded
-    QMessageBox::information(this,
-                             "Info",
-                             "Strategy auto-starts when loaded.\n\nUse 'Load Strategy' to add new strategies.");
+    if (m_currentStrategyID.isEmpty())
+    {
+        QMessageBox::warning(this, "Error", "No strategy selected");
+        return;
+    }
+
+    if (!m_strategyManager)
+    {
+        QMessageBox::critical(this, "Error", "StrategyManager not available");
+        return;
+    }
+
+    auto error = m_strategyManager->startStrategy(m_currentStrategyID);
+    if (!error.isEmpty())
+    {
+        QMessageBox::critical(this, "Error", "Failed to start strategy: " + error);
+    }
 }

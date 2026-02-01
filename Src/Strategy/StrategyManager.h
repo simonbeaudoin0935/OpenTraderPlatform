@@ -125,6 +125,18 @@ class StrategyManager final : public QObject
     [[nodiscard]] QString unloadStrategy(const QString& p_strategyID);
 
     /*
+     * Start a previously loaded strategy
+     *
+     * - Changes state from LOADED to RUNNING
+     * - Starts strategy thread
+     * - Calls strategy's onStart() callback
+     *
+     * @param p_strategyID - Strategy instance ID (from loadStrategy)
+     * @return Error message on failure, empty string on success
+     */
+    [[nodiscard]] QString startStrategy(const QString& p_strategyID);
+
+    /*
      * Get list of active strategy IDs
      */
     [[nodiscard]] QVector<QString> getActiveStrategies() const;
@@ -294,18 +306,26 @@ class StrategyManager final : public QObject
     void strategyBalanceUpdated(const QString& strategyID, double newBalance);
 
   private:
+    enum class StrategyState
+    {
+        LOADED,  // Strategy loaded but not yet started
+        RUNNING, // Strategy thread is running
+        STOPPED  // Strategy has been stopped/unloaded
+    };
+
     struct StrategyInstance
     {
-        QString strategyID;                       // Unique ID for this instance
-        StrategyConfig config;                    // Configuration
-        StrategyLoader::LoadedPlugin plugin;      // Loaded .so plugin
-        StrategyBase* p_strategy;                 // Strategy instance
-        StrategySDK* p_sdk;                       // SDK instance
-        StrategyCallbackAdapter* p_adapter;       // Callback adapter (lives on strategy thread)
-        QThread m_thread;                         // Dedicated thread
-        QVector<QString> monitoredSymbols;        // Symbols being watched
-        std::unique_ptr<StrategyLogger> p_logger; // Strategy logger (owned)
-        Qt::HANDLE threadHandle;                  // Native thread handle for stats reading
+        QString strategyID;                          // Unique ID for this instance
+        StrategyConfig config;                       // Configuration
+        StrategyLoader::LoadedPlugin plugin;         // Loaded .so plugin
+        StrategyBase* p_strategy;                    // Strategy instance
+        StrategySDK* p_sdk;                          // SDK instance
+        StrategyCallbackAdapter* p_adapter;          // Callback adapter (lives on strategy thread)
+        QThread m_thread;                            // Dedicated thread
+        QVector<QString> monitoredSymbols;           // Symbols being watched
+        std::unique_ptr<StrategyLogger> p_logger;    // Strategy logger (owned)
+        Qt::HANDLE threadHandle;                     // Native thread handle for stats reading
+        StrategyState state = StrategyState::LOADED; // Tracks: LOADED → RUNNING → STOPPED
     };
 
     MainAlgo* m_mainAlgo;

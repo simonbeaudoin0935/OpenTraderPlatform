@@ -191,29 +191,8 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
 
     connectStrategyToDataSources(instance);
 
-    // Connect thread started signal to install signal handler and call onStart
-    QObject::connect(&instance->m_thread,
-                     &QThread::started,
-                     [this, instance]()
-                     {
-                         // Capture thread handle for stats reading
-                         instance->threadHandle = QThread::currentThreadId();
-
-                         // Install SIGSEGV handler for this strategy thread
-                         if (!StrategySignalHandler::installSignalHandler(instance->strategyID, this))
-                         {
-                             qWarning(StrategyManagerLog)
-                                 << "Failed to install signal handler for strategy:" << instance->strategyID;
-                         }
-
-                         // Call strategy's onStart hook
-                         if (instance->p_strategy)
-                         {
-                             instance->p_strategy->onStart(instance->p_sdk);
-                         }
-                     });
-
-    instance->m_thread.start();
+    // Note: Thread is NOT started here - wait for startStrategy() to be called
+    // This allows the UI to show the strategy in LOADED state and wait for user to click Start
 
     qInfo(StrategyManagerLog) << "Loaded strategy:" << p_config.name << "ID:" << strategyID;
 
@@ -295,6 +274,54 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
     return "";
 }
 
+QString StrategyManager::startStrategy(const QString& p_strategyID)
+{
+    auto* instance = findStrategy(p_strategyID);
+    if (!instance)
+    {
+        return "Strategy not found: " + p_strategyID;
+    }
+
+    if (instance->state != StrategyState::LOADED)
+    {
+        return "Strategy is not in LOADED state (current state: " + QString::number(static_cast<int>(instance->state)) +
+               ")";
+    }
+
+    // Connect thread started signal to install signal handler and call onStart
+    QObject::connect(&instance->m_thread,
+                     &QThread::started,
+                     [this, instance]()
+                     {
+                         // Capture thread handle for stats reading
+                         instance->threadHandle = QThread::currentThreadId();
+
+                         // Install SIGSEGV handler for this strategy thread
+                         if (!StrategySignalHandler::installSignalHandler(instance->strategyID, this))
+                         {
+                             qWarning(StrategyManagerLog)
+                                 << "Failed to install signal handler for strategy:" << instance->strategyID;
+                         }
+
+                         // Call strategy's onStart hook
+                         if (instance->p_strategy)
+                         {
+                             instance->p_strategy->onStart(instance->p_sdk);
+                         }
+
+                         // Update state to RUNNING
+                         instance->state = StrategyState::RUNNING;
+                         emit strategyStatusChanged(instance->strategyID, true, "");
+                     });
+
+    // Start the thread
+    instance->m_thread.start();
+
+    qInfo(StrategyManagerLog) << "Started strategy:" << instance->config.name << "ID:" << p_strategyID;
+
+    return "";
+}
+
 QVector<QString> StrategyManager::getActiveStrategies() const
 {
     return m_strategies.keys().toVector();
@@ -315,7 +342,7 @@ bool StrategyManager::isStrategyRunning(const QString& p_strategyID) const
     const auto* instance = findStrategy(p_strategyID);
     if (instance)
     {
-        return instance->m_thread.isRunning();
+        return instance->state == StrategyState::RUNNING;
     }
     return false;
 }
