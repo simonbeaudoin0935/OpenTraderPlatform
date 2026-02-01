@@ -14,6 +14,7 @@ class StrategyManager;
 class MainAlgo;
 class StrategyGridWidget;
 class StrategyDetailsPanel;
+class StrategyLoadDialog;
 
 /**
  * @brief StrategiesTab - Main UI container for strategy management

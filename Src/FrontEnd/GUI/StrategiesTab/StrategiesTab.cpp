@@ -1,12 +1,14 @@
 #include "StrategiesTab.h"
 #include "StrategyGridWidget.h"
 #include "StrategyDetailsPanel.h"
+#include "StrategyLoadDialog.h"
 
 #include <QLabel>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QDebug>
 
 #include "StrategyManager.h"
 #include "MainAlgo.h"
@@ -156,8 +158,27 @@ void StrategiesTab::onStrategyStatusChanged(const QString& strategyID, bool isRu
 
 void StrategiesTab::onLoadStrategyClicked()
 {
-    // TODO: Implement load strategy dialog (Phase 4.3)
-    // For now, this is a placeholder
+    // Show load strategy dialog
+    auto dialog = std::make_unique<StrategyLoadDialog>(this);
+    if (dialog->exec() == QDialog::Accepted)
+    {
+        auto config = dialog->getSelectedConfig();
+        if (config.has_value())
+        {
+            // Load the strategy using StrategyManager
+            auto result = m_strategyManager->loadStrategy(config.value());
+            if (result.has_value())
+            {
+                // Success - the strategyLoaded signal will update UI
+                qDebug() << "Strategy loaded:" << result.value();
+            }
+            else
+            {
+                // Show error message
+                qWarning() << "Failed to load strategy:" << result.error();
+            }
+        }
+    }
 }
 
 void StrategiesTab::onStrategyTileClicked(const QString& strategyID)
