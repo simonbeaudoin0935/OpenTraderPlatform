@@ -13,6 +13,55 @@
 
 class MainAlgo;
 
+/// @brief Adapter to call StrategyBase methods from Qt slots
+/// Lives on strategy's thread and provides thread-safe callback invocation
+class StrategyCallbackAdapter : public QObject
+{
+    Q_OBJECT
+
+  public:
+    explicit StrategyCallbackAdapter(StrategyBase* p_strategy, const QVector<QString>& p_symbols)
+        : m_strategy(p_strategy), m_monitoredSymbols(p_symbols)
+    {
+    }
+
+  public slots:
+    void onBar(const QString& symbol, const Bar& bar) const
+    {
+        // Only call if strategy monitors this symbol
+        if (m_monitoredSymbols.contains(symbol) && m_strategy)
+            m_strategy->onBar(bar);
+    }
+
+    void onMarketDepth(const MarketDepthQuote& quote) const
+    {
+        if (m_strategy)
+            m_strategy->onMarketDepth(quote);
+    }
+
+    void onOrderUpdated(const Order& order) const
+    {
+        if (m_strategy)
+            m_strategy->onOrderUpdated(order);
+    }
+
+    void onPositionUpdated(const Position& position) const
+    {
+        if (m_strategy)
+            m_strategy->onPositionUpdated(position);
+    }
+
+    void onBalanceUpdated(double balance) const
+    {
+        if (m_strategy)
+            m_strategy->onBalanceUpdated(balance);
+    }
+
+  private:
+    StrategyBase* m_strategy;
+    QVector<QString> m_monitoredSymbols;
+};
+
 /*
  * StrategyManager - Orchestrates strategy plugin lifecycle and execution
  *
@@ -145,6 +194,7 @@ class StrategyManager final : public QObject
         StrategyLoader::LoadedPlugin plugin; // Loaded .so plugin
         StrategyBase* p_strategy;            // Strategy instance
         StrategySDK* p_sdk;                  // SDK instance
+        StrategyCallbackAdapter* p_adapter;  // Callback adapter (lives on strategy thread)
         QThread m_thread;                    // Dedicated thread
         QVector<QString> monitoredSymbols;   // Symbols being watched
     };

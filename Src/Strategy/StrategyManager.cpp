@@ -138,15 +138,20 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
     // Set SDK reference in strategy
     p_strategy->setSdk(p_sdk);
 
+    // Create callback adapter that will live on strategy's thread
+    auto p_adapter = new StrategyCallbackAdapter(p_strategy, p_config.symbols);
+
     auto instance = new StrategyInstance();
     instance->strategyID = strategyID;
     instance->config = p_config;
     instance->plugin = plugin;
     instance->p_strategy = p_strategy;
     instance->p_sdk = p_sdk;
+    instance->p_adapter = p_adapter;
     instance->monitoredSymbols = p_config.symbols;
 
     p_sdk->moveToThread(&instance->m_thread);
+    p_adapter->moveToThread(&instance->m_thread);
 
     connectStrategyToDataSources(instance);
 
@@ -191,6 +196,11 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
     if (instance->p_strategy)
     {
         instance->p_strategy->onStop();
+    }
+
+    if (instance->p_adapter)
+    {
+        delete instance->p_adapter;
     }
 
     if (instance->plugin.destroyFn && instance->p_strategy)
@@ -365,20 +375,34 @@ void StrategyManager::onOrderUpdated(const Order& p_order)
 
 void StrategyManager::connectStrategyToDataSources(StrategyInstance* p_instance)
 {
-    if (!p_instance || !m_mainAlgo)
+    if (!p_instance || !m_mainAlgo || !p_instance->p_adapter)
     {
         return;
     }
+
+    // Connect bar data from MainAlgo to strategy adapter
+    // MainAlgo emits displayedStockReceivedNewBar on MainAlgo thread
+    // -> Connected to adapter->onBar with Qt::QueuedConnection
+    // -> Adapter slot executes on strategy thread
+    // -> Calls strategy->onBar() on strategy thread (thread-safe)
+    connect(m_mainAlgo,
+            &MainAlgo::displayedStockReceivedNewBar,
+            p_instance->p_adapter,
+            &StrategyCallbackAdapter::onBar,
+            Qt::QueuedConnection);
 
     qInfo(StrategyManagerLog) << "Connected strategy to data sources:" << p_instance->strategyID;
 }
 
 void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_instance)
 {
-    if (!p_instance)
+    if (!p_instance || !p_instance->p_adapter)
     {
         return;
     }
+
+    // Disconnect all signals connected to this strategy's adapter
+    QObject::disconnect(m_mainAlgo, nullptr, p_instance->p_adapter, nullptr);
 
     qInfo(StrategyManagerLog) << "Disconnected strategy from data sources:" << p_instance->strategyID;
 }
