@@ -26,6 +26,7 @@ enum class LogLevel
 
 // Forward declaration
 class MainAlgo;
+class StrategyLogger;
 
 /// @brief High-level SDK provided to strategies
 /// Strategies use this to place orders, query positions, and log messages.
@@ -40,8 +41,12 @@ class StrategySDK : public QObject
     /// @param p_mainAlgo Pointer to MainAlgo dispatcher
     /// @param p_strategyID Unique ID of the strategy using this SDK
     /// @param p_config Strategy configuration
+    /// @param p_logger Pointer to strategy logger (can be nullptr)
     /// @note Lives on strategy's dedicated QThread
-    explicit StrategySDK(MainAlgo* p_mainAlgo, const QString& p_strategyID, const StrategyConfig& p_config);
+    explicit StrategySDK(MainAlgo* p_mainAlgo,
+                         const QString& p_strategyID,
+                         const StrategyConfig& p_config,
+                         StrategyLogger* p_logger = nullptr);
     ~StrategySDK() override = default;
 
     /// @brief Place an order (async)
@@ -94,4 +99,5 @@ class StrategySDK : public QObject
     MainAlgo* m_mainAlgo;
     QString m_strategyID;
     StrategyConfig m_config;
+    StrategyLogger* m_logger; // Can be nullptr
 };

@@ -8,8 +8,11 @@ Q_DECLARE_LOGGING_CATEGORY(StrategyManagerLog)
 Q_LOGGING_CATEGORY(StrategyManagerLog, "StrategyManager", QtWarningMsg)
 
 // StrategySDK implementation
-StrategySDK::StrategySDK(MainAlgo* p_mainAlgo, const QString& p_strategyID, const StrategyConfig& p_config)
-    : QObject(nullptr), m_mainAlgo(p_mainAlgo), m_strategyID(p_strategyID), m_config(p_config)
+StrategySDK::StrategySDK(MainAlgo* p_mainAlgo,
+                         const QString& p_strategyID,
+                         const StrategyConfig& p_config,
+                         StrategyLogger* p_logger)
+    : QObject(nullptr), m_mainAlgo(p_mainAlgo), m_strategyID(p_strategyID), m_config(p_config), m_logger(p_logger)
 {
 }
 
@@ -67,7 +70,31 @@ double StrategySDK::getAccountBalance() const
 
 void StrategySDK::log(const QString& p_message, LogLevel p_level)
 {
-    Q_UNUSED(p_level);
+    // Convert LogLevel to QtMsgType
+    QtMsgType qtLevel = QtDebugMsg;
+    switch (p_level)
+    {
+    case LogLevel::Debug:
+        qtLevel = QtDebugMsg;
+        break;
+    case LogLevel::Info:
+        qtLevel = QtInfoMsg;
+        break;
+    case LogLevel::Warning:
+        qtLevel = QtWarningMsg;
+        break;
+    case LogLevel::Error:
+        qtLevel = QtCriticalMsg;
+        break;
+    }
+
+    // Log to strategy logger if available
+    if (m_logger)
+    {
+        m_logger->log(qtLevel, p_message);
+    }
+
+    // Also log to global category for debugging
     qInfo(StrategyManagerLog) << "Strategy [" << m_strategyID << "]:" << p_message;
 }
 
@@ -130,7 +157,10 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
     auto plugin = pluginResult.value();
     QString strategyID = generateStrategyID();
 
-    auto p_sdk = new StrategySDK(m_mainAlgo, strategyID, p_config);
+    // Create strategy logger FIRST (before SDK so it can be passed)
+    auto p_logger = std::make_unique<StrategyLogger>(p_config.name);
+
+    auto p_sdk = new StrategySDK(m_mainAlgo, strategyID, p_config, p_logger.get());
 
     StrategyBase* p_strategy = plugin.createFn(p_config, p_sdk);
     if (!p_strategy)
@@ -145,9 +175,6 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
 
     // Create callback adapter that will live on strategy's thread
     auto p_adapter = new StrategyCallbackAdapter(p_strategy, p_config.symbols);
-
-    // Create strategy logger
-    auto p_logger = std::make_unique<StrategyLogger>(p_config.name);
 
     auto instance = new StrategyInstance();
     instance->strategyID = strategyID;
