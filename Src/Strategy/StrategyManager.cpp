@@ -160,10 +160,24 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
 
     connectStrategyToDataSources(instance);
 
-    // Connect thread started signal to call onStart on the strategy thread
+    // Connect thread started signal to install signal handler and call onStart
     QObject::connect(&instance->m_thread,
                      &QThread::started,
-                     [instance]() { instance->p_strategy->onStart(instance->p_sdk); });
+                     [this, instance]()
+                     {
+                         // Install SIGSEGV handler for this strategy thread
+                         if (!StrategySignalHandler::installSignalHandler(instance->strategyID, this))
+                         {
+                             qWarning(StrategyManagerLog)
+                                 << "Failed to install signal handler for strategy:" << instance->strategyID;
+                         }
+
+                         // Call strategy's onStart hook
+                         if (instance->p_strategy)
+                         {
+                             instance->p_strategy->onStart(instance->p_sdk);
+                         }
+                     });
 
     instance->m_thread.start();
 

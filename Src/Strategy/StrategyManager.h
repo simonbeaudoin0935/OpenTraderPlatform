@@ -14,6 +14,7 @@
 #include "StrategyConfigLoader.h"
 #include "StrategyRegistry.h"
 #include "StrategyLogger.h"
+#include "StrategySignalHandler.h"
 #include "Balance.h"
 
 class MainAlgo;
