@@ -20,6 +20,11 @@ add_library(ExampleStrategy SHARED
 # Link Qt6
 target_link_libraries(ExampleStrategy PRIVATE Qt6::Core)
 
+# Link against L2TraderStrategy shared library
+target_link_libraries(ExampleStrategy PRIVATE 
+    L2TraderStrategy
+)
+
 # Include all L2Trader headers with explicit subdirectories
 target_include_directories(ExampleStrategy PRIVATE 
     "${L2TRADER_SRC}"
@@ -58,6 +63,13 @@ target_include_directories(ExampleStrategy PRIVATE
     "${L2TRADER_SRC}/Recorder"
     "${L2TRADER_SRC}/SQL"
     "${L2TRADER_SRC}/Strategy"
+)
+
+# Set link directories to find L2TraderStrategy shared library
+set(L2TRADER_BUILD "${CMAKE_CURRENT_SOURCE_DIR}/../../build")
+target_link_directories(ExampleStrategy PRIVATE
+    "${L2TRADER_BUILD}/GUI/Src"
+    "${L2TRADER_BUILD}/TUI/Src"
 )
 
 # Set output directory

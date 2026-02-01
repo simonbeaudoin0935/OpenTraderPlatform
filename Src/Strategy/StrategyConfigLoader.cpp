@@ -12,7 +12,7 @@ namespace StrategyConfigLoader
     QString getConfigDirectory()
     {
         QString configDir = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-        configDir = configDir + "/L2Trader/strategies";
+        configDir = configDir + "/L2Trader/Strategies";
         return configDir;
     }
 
