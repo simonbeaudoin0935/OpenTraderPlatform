@@ -62,7 +62,8 @@ void HistoricalBarsStrategy::onStop()
 {
     if (m_timer)
     {
-        m_timer->stop();
+        // Don't call stop() directly - it may be called from another thread
+        // The timer will be properly cleaned up via deleteLater() or parent destruction
         m_timer->deleteLater();
         m_timer = nullptr;
     }
