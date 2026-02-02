@@ -63,6 +63,12 @@ class StrategyCallbackAdapter : public QObject
             m_strategy->onBalanceUpdated(balance);
     }
 
+    void callOnStop() const
+    {
+        if (m_strategy)
+            m_strategy->onStop();
+    }
+
   private:
     StrategyBase* m_strategy;
     QVector<QString> m_monitoredSymbols;

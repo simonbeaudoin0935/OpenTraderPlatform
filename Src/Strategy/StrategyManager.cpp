@@ -267,6 +267,13 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
 
     disconnectStrategyFromDataSources(instance);
 
+    // Call onStop on the strategy thread before quitting
+    if (instance->p_adapter)
+    {
+        QMetaObject::invokeMethod(instance->p_adapter, "callOnStop", Qt::BlockingQueuedConnection);
+        qInfo(StrategyManagerLog) << "Called onStop for strategy:" << instance->config.name;
+    }
+
     // Save logs before shutdown
     if (instance->p_logger)
     {
@@ -284,13 +291,6 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
                                      << instance->config.name;
         instance->m_thread.terminate();
         instance->m_thread.wait();
-    }
-
-    // Call onStop after thread has stopped
-    if (instance->p_strategy)
-    {
-        instance->p_strategy->onStop();
-        qInfo(StrategyManagerLog) << "Called onStop for strategy:" << instance->config.name;
     }
 
     // Clean up adapter
