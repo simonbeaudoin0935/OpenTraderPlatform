@@ -121,7 +121,18 @@ void StrategiesTab::onStrategyStatusChanged(const QString& strategyID, bool isRu
 void StrategiesTab::onLoadStrategyClicked()
 {
     auto dialog = new StrategyLoadDialog(this);
-    dialog->exec();
+    if (dialog->exec() == QDialog::Accepted)
+    {
+        auto config = dialog->getSelectedConfig();
+        if (config)
+        {
+            auto result = m_strategyManager->loadStrategy(config.value());
+            if (!result)
+            {
+                qWarning() << "[StrategiesTab] Failed to load strategy:" << result.error();
+            }
+        }
+    }
     delete dialog;
 }
 
