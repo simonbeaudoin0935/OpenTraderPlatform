@@ -71,16 +71,16 @@ You will need API credentials for:
    sudo apt-get install qt6-base-dev libqt6sql6-sqlite cmake
 
    # On Ubuntu/Debian - Optional packages (recommended for development)
-   sudo apt-get install uncrustify ccache
+   sudo apt-get install clang-format ccache
 
    # On macOS with Homebrew - Essential packages
    brew install qt@6 cmake
 
    # On macOS with Homebrew - Optional packages (recommended for development)
-   brew install uncrustify ccache
+   brew install clang-format ccache
    ```
 
-   **Note**: `uncrustify` is needed for the pre-commit formatting hook. `ccache` speeds up rebuilds significantly.
+   **Note**: `clang-format` is needed for the pre-commit formatting hook. `ccache` speeds up rebuilds significantly.
 
 3. **Set up Git hooks** (optional but recommended for contributors):
    ```bash
@@ -272,7 +272,7 @@ The project includes VSCode configuration in `.vscode/`. For Qt Creator:
 - Early return/exit style for error handling
 - Indentation: 4 spaces (no tabs)
 - Line endings: Unix (LF)
-- Automatic formatting via Uncrustify (see `.uncrustify.cfg`)
+- Automatic formatting via clang-format (see `.clang-format`)
 
 **Code Formatting**: Contributors should install the pre-commit hook to automatically check formatting before commits:
 ```bash

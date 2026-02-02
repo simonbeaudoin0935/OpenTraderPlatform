@@ -129,14 +129,14 @@ git push origin feature/amazing-feature
 
 ### Code Formatting
 
-The project uses **uncrustify** for automatic formatting:
+The project uses **clang-format** for automatic formatting:
 
 ```bash
 # Format specific file
-uncrustify -c .uncrustify.cfg --no-backup --replace <file>
+clang-format -i <file>
 
 # Format all files
-find Src -name "*.cpp" -o -name "*.h" | xargs uncrustify -c .uncrustify.cfg --no-backup --replace
+find Src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
 ```
 
 **Pre-commit Hook**: Automatically checks formatting before each commit.
@@ -330,7 +330,7 @@ For UI changes:
 # Run full validation
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
-find Src -name "*.cpp" -o -name "*.h" | xargs uncrustify -c .uncrustify.cfg --check
+find Src -name "*.cpp" -o -name "*.h" | xargs clang-format --dry-run --Werror
 ```
 
 ### PR Template

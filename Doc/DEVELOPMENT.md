@@ -22,7 +22,7 @@
 - **QCustomPlot** (included in repository)
 
 **Optional (Recommended)**:
-- **uncrustify** - Code formatting (pre-commit hook)
+- **clang-format** - Code formatting (pre-commit hook)
 - **ccache** - Build acceleration
 - **QKeychain** - Secure credential storage
 - **ncurses** - TUI mode support
@@ -36,7 +36,7 @@
 sudo apt-get install qt6-base-dev libqt6sql6-sqlite cmake
 
 # Optional (recommended for development)
-sudo apt-get install uncrustify ccache libqtkeychain-qt6-dev libncurses-dev
+sudo apt-get install clang-format ccache libqtkeychain-qt6-dev libncurses-dev
 
 # For GUI testing
 sudo apt-get install xvfb xdotool x11-utils imagemagick
@@ -49,7 +49,7 @@ sudo apt-get install xvfb xdotool x11-utils imagemagick
 brew install qt@6 cmake
 
 # Optional (recommended for development)
-brew install uncrustify ccache qtkeychain
+brew install clang-format ccache qtkeychain
 ```
 
 ### IDE Setup
@@ -90,7 +90,7 @@ Install pre-commit hook for automatic formatting checks:
 ./Utils/install-git-hooks.sh
 ```
 
-The hook checks code formatting before each commit using `uncrustify`. If formatting issues are found, the commit is rejected with instructions to fix.
+The hook checks code formatting before each commit using `clang-format`. If formatting issues are found, the commit is rejected with instructions to fix.
 
 ## Building
 
@@ -279,14 +279,14 @@ cmake --build build
 ### 3. Code Formatting
 
 ```bash
-# Check formatting
-uncrustify -c .uncrustify.cfg --check <file>
+# Check formatting (dry run)
+clang-format --dry-run --Werror <file>
 
-# Format file
-uncrustify -c .uncrustify.cfg --no-backup --replace <file>
+# Format file in-place
+clang-format -i <file>
 
 # Format all source files
-find Src -name "*.cpp" -o -name "*.h" | xargs uncrustify -c .uncrustify.cfg --no-backup --replace
+find Src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
 ```
 
 **CI Enforcement**: Formatting checked on every push/PR.
