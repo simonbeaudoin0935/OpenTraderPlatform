@@ -1,0 +1,11 @@
+{
+  "name": "Example Strategy",
+  "soPath": "~/.local/share/L2Trader/strategies/ExampleStrategy.so",
+  "symbols": ["AAPL", "MSFT", "TSLA"],
+  "positionSize": 100,
+  "riskLimit": 500.0,
+  "customParams": {
+    "logLevel": "INFO",
+    "description": "Example strategy for testing L2Trader platform"
+  }
+}

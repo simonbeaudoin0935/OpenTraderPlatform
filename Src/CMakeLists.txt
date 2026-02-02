@@ -51,6 +51,12 @@ file(GLOB RECORDER_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/*.h"
 )
 
+# Strategy plugin system sources
+file(GLOB_RECURSE STRATEGY_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/*.h"
+)
+
 file(GLOB FRONTEND_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/*.h"
 )
@@ -79,7 +85,15 @@ else()
     )
 endif()
 
-# Create a library with common sources
+# Create a shared library for strategy system (for plugins to link against)
+add_library(L2TraderStrategy SHARED
+    ${STRATEGY_SOURCES}
+)
+
+# Add dependency on logging generation
+add_dependencies(L2TraderStrategy generate_logging)
+
+# Create a library with common sources (excluding strategy which is now separate)
 add_library(L2TraderCommon STATIC
     ${MISC_SOURCES}
     ${CLIENTS_SOURCES}
@@ -97,6 +111,9 @@ add_library(L2TraderCommon STATIC
 # Add dependency on logging generation
 add_dependencies(L2TraderCommon generate_logging)
 
+# L2TraderCommon depends on L2TraderStrategy for linking
+target_link_libraries(L2TraderCommon PUBLIC L2TraderStrategy)
+
 # Disable strict warnings for third-party qcustomplot code
 if(QCUSTOMPLOT_SOURCES)
     set_source_files_properties(${QCUSTOMPLOT_SOURCES} PROPERTIES
@@ -104,7 +121,61 @@ if(QCUSTOMPLOT_SOURCES)
     )
 endif()
 
-# Set include directories for the library
+# Set include directories for the strategy library
+target_include_directories(L2TraderStrategy PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/Misc
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Auth
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/GetAccounts
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/GetBalances
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/GetOrders
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/StreamOrders
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/StreamPositions
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/Bars
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/GetQuoteSnapshots
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/MockStream
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/StreamMarketDepthQuote
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/StreamQuote
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/CancelOrder
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/PlaceOrder
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Stream
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BreakingNewsFetcher
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/MarketDepthQuoteReceiver
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/PositionsReceiver
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/OrdersReceiver
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StockScreener
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache/BarCache
+    ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd
+    ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI
+    ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Gauge
+    ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/StockPriceChart
+    ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Tabs
+    ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI
+    ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
+    ${CMAKE_CURRENT_SOURCE_DIR}/Strategy
+    ${CMAKE_SOURCE_DIR}/qcustomplot
+)
+
+# Link Qt libraries to the strategy library
+target_link_libraries(L2TraderStrategy PUBLIC
+    Qt6::Core
+    Qt6::Network
+    Qt6::Sql
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Concurrent
+    dl
+)
+
+# Set include directories for the common library
 target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/Misc
@@ -143,6 +214,7 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Tabs
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI
     ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
+    ${CMAKE_CURRENT_SOURCE_DIR}/Strategy
     ${CMAKE_SOURCE_DIR}/qcustomplot
 )
 
@@ -152,6 +224,7 @@ target_link_libraries(L2TraderCommon PUBLIC
     Qt6::Network
     Qt6::Sql
     Qt6::Concurrent
+    dl
 )
 
 if(ENABLE_GUI)

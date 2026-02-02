@@ -46,6 +46,7 @@ class TSClient final : public QObject
     {
         Timeout,
         JSONError,
+        RejectedByValidator, // This error is never returned by TSClient directly, this would be used by the MainAlgo validator if it rejects the order before going out the door.
         Other
     };
     Q_ENUM(Error)

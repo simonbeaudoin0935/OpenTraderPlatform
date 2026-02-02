@@ -171,6 +171,9 @@ endif()
 # Add subdirectories
 add_subdirectory(Src)
 
+# Build strategies
+add_subdirectory(Strategies)
+
 if(BUILD_TESTS)
     find_package(Qt6 REQUIRED COMPONENTS Test)
     enable_testing()
