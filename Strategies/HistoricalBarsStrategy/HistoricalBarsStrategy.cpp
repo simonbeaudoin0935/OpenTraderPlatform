@@ -132,10 +132,10 @@ void HistoricalBarsStrategy::fetchNextDay()
         m_currentDate = m_currentDate.addDays(-2); // Sunday -> Friday
     }
 
-    // Schedule next fetch for 500ms later
+    // Schedule next fetch for 2 seconds later
     if (m_timer)
     {
-        m_timer->start(500);
+        m_timer->start(2000);
     }
 }
 
