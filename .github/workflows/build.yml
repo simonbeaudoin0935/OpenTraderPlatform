@@ -76,11 +76,13 @@ jobs:
       - name: Build GUI targets
         run: cmake --build build/GUI -j$(nproc)
 
-      - name: Upload GUI executable artifact
+      - name: Upload GUI executable and libraries artifact
         uses: actions/upload-artifact@v4.4.3
         with:
           name: l2trader-gui-${{ github.sha }}
-          path: build/GUI/Src/L2Trader
+          path: |
+            build/GUI/Src/L2Trader
+            build/GUI/lib/
           retention-days: 1
 
   test-gui:
@@ -143,6 +145,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 &
           XVFB_PID=$!
           export DISPLAY=:99
+          export LD_LIBRARY_PATH=./gui-build/lib:$LD_LIBRARY_PATH
           
           # Wait for Xvfb to be ready
           sleep 2
