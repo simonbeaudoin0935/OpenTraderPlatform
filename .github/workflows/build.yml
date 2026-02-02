@@ -116,7 +116,7 @@ jobs:
           path: ./gui-build
 
       - name: Make executable runnable
-        run: chmod +x ./gui-build/L2Trader
+        run: chmod +x ./gui-build/build/GUI/Src/L2Trader
 
       - name: Setup test credentials
         run: |
@@ -145,7 +145,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 &
           XVFB_PID=$!
           export DISPLAY=:99
-          export LD_LIBRARY_PATH=./gui-build/lib:$LD_LIBRARY_PATH
+          export LD_LIBRARY_PATH=./gui-build/build/GUI/lib:$LD_LIBRARY_PATH
           
           # Wait for Xvfb to be ready
           sleep 2
@@ -158,7 +158,7 @@ jobs:
           }
           
           # Start the GUI application in background
-          ./gui-build/L2Trader &
+          ./gui-build/build/GUI/Src/L2Trader &
           APP_PID=$!
           
           # Wait for application to start
