@@ -20,6 +20,7 @@
 #include "Tabs/CacheTab.h"
 #include "Tabs/RecorderTab.h"
 #include "Tabs/ShortcutsTab.h"
+#include "StrategiesTab/StrategiesTab.h"
 #include "Misc/Logging.h"
 #include "Misc/Settings.h"
 #include "Misc/ShortcutSettings.h"
@@ -275,6 +276,10 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                         &GUIFrontend::onOrderPlaced,
                                         Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(orderEntryConnection);
+
+    // Set up the strategies tab (second tab)
+    StrategiesTab* strategiesTab = new StrategiesTab(mainAlgo);
+    ui->tabWidget->addTab(strategiesTab, "Strategies");
 
     // Set up the logging tab
     LoggingTab* loggingTab = new LoggingTab();

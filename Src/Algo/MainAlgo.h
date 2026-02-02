@@ -6,6 +6,8 @@
 #include <QMap>
 #include <QTimer>
 #include <QVector>
+#include <memory>
+#include <atomic>
 
 #include "MarketDepthQuoteReceiver.h"
 #include "PositionsReceiver.h"
@@ -15,6 +17,9 @@
 #include "Balance.h"
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
+
+class StrategyManager;
+class QSocketNotifier;
 
 
 class StockInstruments : public QObject
@@ -49,6 +54,35 @@ class MainAlgo final : public QObject
 
     BarCache::GetBarsResult_t requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last);
 
+    /*
+     * Strategy order management - called by StrategySDK
+     * All methods should be called via QMetaObject::invokeMethod with Qt::QueuedConnection
+     */
+
+    /// @brief Get next unique requestId for strategy order tracking
+    /// @return Next requestId (thread-safe atomic increment)
+    [[nodiscard]] uint64_t getNextRequestId();
+
+    /// @brief Process a strategy placeOrder request (MainAlgo thread)
+    /// @param p_requestId Unique request ID from StrategySDK
+    /// @param p_strategyID ID of strategy placing the order
+    /// @param p_orderRequest The order details
+    /// @param p_promise Promise to resolve when order ACK is received
+    void processPlaceOrder(uint64_t p_requestId,
+                           const QString& p_strategyID,
+                           const PlaceOrderRequest& p_orderRequest,
+                           std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>> p_promise);
+
+    /// @brief Called when TSClient placeOrder future resolves
+    /// Routes result to strategy and emits GUI signal if displayed stock
+    void onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOrderResult, TSClient::Error>& p_result);
+
+    /// @brief Get the StrategyManager instance
+    [[nodiscard]] StrategyManager* getStrategyManager() const
+    {
+        return m_strategyManager.get();
+    }
+
   signals:
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
     void displayedStockReceivedNewMarketDepthQuote(QString symbol,
@@ -79,6 +113,9 @@ class MainAlgo final : public QObject
     void onBalanceReceived(const QVector<Balance>& results);
     void requestBalance();
 
+    // Handle strategy crash notifications from signal handler pipe
+    void onStrategyCrashNotified();
+
 
   private:
     static MainAlgo* m_instance;
@@ -100,7 +137,15 @@ class MainAlgo final : public QObject
     Account m_activeAccount;
     Balance m_currentBalance;
 
-    QTimer* m_balancePollingTimer;
+    std::unique_ptr<QTimer> m_balancePollingTimer;
 
     bool m_balancePollingStarted = false;
+
+    // Strategy order tracking - all accessed from MainAlgo thread
+    std::unique_ptr<StrategyManager> m_strategyManager;
+    std::unique_ptr<QSocketNotifier> m_crashNotifier; // Monitor crash pipe from signal handlers
+    std::atomic<uint64_t> m_requestIdCounter{0};
+    QMap<uint64_t, std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>> m_pendingOrderPromises;
+    QMap<uint64_t, QString> m_requestIdToStrategyId; // Temporary mapping until OrderID known
+    QMap<QString, QString> m_orderMappings;          // OrderID → StrategyID (permanent)
 };

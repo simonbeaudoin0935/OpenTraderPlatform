@@ -279,33 +279,48 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
     auto future = promise.future();
     promise.start();
 
+    // Always fetch the FULL day from database (to warm cache) even if only partial range requested
+    // This ensures we cache complete days and avoid repeated database queries for the same day
+    // Full day: 6:01 AM (pre-market open) to 8:00 PM (after-market close) = 840 bars total
+    QTime fullDayStart = TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION; // 6:01 AM
+    QTime fullDayEnd = TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;  // 8:00 PM
+
     // Query database via DatabaseThread (async, thread-safe)
+    // Request the FULL day, not just the requested range
     DatabaseThread::getInstance()
         ->getBarsFromDatabase(m_symbol,
                               date,
-                              first,
-                              last)
+                              fullDayStart,
+                              fullDayEnd)
         .then(
             this, // Execute in the thread of this BarCache object, aka the MainAlgo thread
-            [this, date, first, last, isCurrentDay, now, promise = std::move(promise)](
+            [this, date, first, last, fullDayStart, fullDayEnd, isCurrentDay, now, promise = std::move(promise)](
                 std::optional<std::unique_ptr<QVector<Bar>>>&& dbBars) mutable
             {
-                // Check if we got the complete day from database
+                // Check if we got bars from database
                 if (dbBars.has_value())
                 {
-                    std::shared_ptr<QVector<Bar>> sp = std::move(dbBars.value());
+                    std::shared_ptr<QVector<Bar>> fullDayBars = std::move(dbBars.value());
 
-                    const qsizetype expectedBarCount = first.secsTo(last) / 60 + 1;
-
-                    // Happy path, got bars from database
-                    OBJ_ASSUME_EQUAL(sp->size(), expectedBarCount);
-
-                    DEBUG << "Loaded complete day from database:" << sp->size() << "bars";
+                    DEBUG << "Loaded full day from database:" << fullDayBars->size() << "bars";
 
                     // Store the complete day in memory cache
-                    storeBarsInCache(date, sp);
+                    storeBarsInCache(date, fullDayBars);
 
-                    promise.addResult(sp);
+                    // Now filter to the requested range and return
+                    auto filteredBars = std::make_shared<QVector<Bar>>();
+                    for (const auto& bar: *fullDayBars)
+                    {
+                        if (bar.getTimeStamp().time() >= first && bar.getTimeStamp().time() <= last)
+                        {
+                            filteredBars->append(bar);
+                        }
+                    }
+
+                    DEBUG << "Returning filtered bars:" << filteredBars->size()
+                          << "out of full day:" << fullDayBars->size();
+
+                    promise.addResult(filteredBars);
                     promise.finish();
                     return;
                 }

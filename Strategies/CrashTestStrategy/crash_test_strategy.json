@@ -1,0 +1,10 @@
+{
+  "name": "Crash Test Strategy",
+  "soPath": "~/.local/share/L2Trader/strategies/CrashTestStrategy.so",
+  "symbols": ["AAPL"],
+  "positionSize": 1,
+  "riskLimit": 100.0,
+  "customParams": {
+    "description": "Test strategy that intentionally crashes after 5 seconds to test signal handling"
+  }
+}
