@@ -231,16 +231,34 @@ void StrategyCard::updateStatus()
     {
         m_statusLabel->setText("Status: ERROR");
         m_statusLabel->setStyleSheet("font-size: 10px; font-weight: bold; color: #ff6b6b;");
+        m_startButton->setEnabled(true);
+        m_startButton->setStyleSheet("background-color: #51cf66; color: #000; font-size: 9px; padding: 4px 8px; "
+                                     "border-radius: 3px; font-weight: bold;");
+        m_stopButton->setEnabled(false);
+        m_stopButton->setStyleSheet("background-color: #999; color: #333; font-size: 9px; padding: 4px 8px; "
+                                    "border-radius: 3px; font-weight: bold;");
     }
     else if (m_isRunning)
     {
         m_statusLabel->setText("Status: RUNNING");
         m_statusLabel->setStyleSheet("font-size: 10px; font-weight: bold; color: #51cf66;");
+        m_startButton->setEnabled(false);
+        m_startButton->setStyleSheet("background-color: #999; color: #333; font-size: 9px; padding: 4px 8px; "
+                                     "border-radius: 3px; font-weight: bold;");
+        m_stopButton->setEnabled(true);
+        m_stopButton->setStyleSheet("background-color: #ff6b6b; color: #fff; font-size: 9px; padding: 4px 8px; "
+                                    "border-radius: 3px; font-weight: bold;");
     }
     else
     {
         m_statusLabel->setText("Status: STOPPED");
         m_statusLabel->setStyleSheet("font-size: 10px; font-weight: bold; color: #ffd93d;");
+        m_startButton->setEnabled(true);
+        m_startButton->setStyleSheet("background-color: #51cf66; color: #000; font-size: 9px; padding: 4px 8px; "
+                                     "border-radius: 3px; font-weight: bold;");
+        m_stopButton->setEnabled(false);
+        m_stopButton->setStyleSheet("background-color: #999; color: #333; font-size: 9px; padding: 4px 8px; "
+                                    "border-radius: 3px; font-weight: bold;");
     }
 }
 
