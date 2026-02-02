@@ -23,7 +23,7 @@ StrategyTileWithPanel::StrategyTileWithPanel(const QString& strategyID,
 
     // Create main layout
     m_mainLayout = new QVBoxLayout(this);
-    m_mainLayout->setContentsMargins(5, 5, 5, 5);
+    m_mainLayout->setContentsMargins(0, 0, 0, 0);
     m_mainLayout->setSpacing(5);
 
     // Add tile (top)

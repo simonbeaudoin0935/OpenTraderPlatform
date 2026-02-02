@@ -42,10 +42,10 @@ void StrategyTile::setupUI()
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
-    // Content frame with green border
+    // Content frame with border
     m_contentFrame = new QFrame(this);
     m_contentFrame->setStyleSheet(
-        "background-color: #2b2b2b; border: 2px solid #555; border-radius: 8px; padding: 10px;");
+        "background-color: #2b2b2b; border: 1px solid #444; border-radius: 6px; padding: 8px;");
     m_contentFrame->setFrameShape(QFrame::StyledPanel);
     m_contentFrame->setFrameShadow(QFrame::Plain);
     mainLayout->addWidget(m_contentFrame);
@@ -53,33 +53,38 @@ void StrategyTile::setupUI()
     // Layout inside the content frame
     auto contentLayout = new QVBoxLayout(m_contentFrame);
     contentLayout->setContentsMargins(0, 0, 0, 0);
-    contentLayout->setSpacing(5);
+    contentLayout->setSpacing(4);
 
-    // Title
+    // Title - larger, bold
     m_titleLabel = new QLabel(m_name);
-    m_titleLabel->setStyleSheet("font-weight: bold; font-size: 13px; color: #fff;");
+    m_titleLabel->setStyleSheet("font-weight: bold; font-size: 12px; color: #ffffff; margin-bottom: 2px;");
+    m_titleLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     contentLayout->addWidget(m_titleLabel);
 
-    // Symbols
+    // Symbols - label and value on same style
     QString symbolsStr = m_symbols.join(", ");
     m_symbolsLabel = new QLabel("Symbols: " + symbolsStr);
-    m_symbolsLabel->setStyleSheet("font-size: 11px; color: #aaa;");
+    m_symbolsLabel->setStyleSheet("font-size: 10px; color: #b8b8b8;");
     m_symbolsLabel->setWordWrap(true);
+    m_symbolsLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     contentLayout->addWidget(m_symbolsLabel);
 
     // Status
     m_statusLabel = new QLabel();
-    m_statusLabel->setStyleSheet("font-size: 11px; font-weight: bold;");
+    m_statusLabel->setStyleSheet("font-size: 10px; font-weight: bold;");
+    m_statusLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     contentLayout->addWidget(m_statusLabel);
 
     // Positions
-    m_positionsLabel = new QLabel("Open Positions: 0");
-    m_positionsLabel->setStyleSheet("font-size: 11px; color: #ccc;");
+    m_positionsLabel = new QLabel("Positions: 0");
+    m_positionsLabel->setStyleSheet("font-size: 10px; color: #b8b8b8;");
+    m_positionsLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     contentLayout->addWidget(m_positionsLabel);
 
-    // Thread info (will be updated by timer)
-    m_threadInfoLabel = new QLabel("Thread: - (CPU: -%)");
-    m_threadInfoLabel->setStyleSheet("font-size: 10px; color: #999;");
+    // Thread info
+    m_threadInfoLabel = new QLabel("Thread: - | CPU: -%");
+    m_threadInfoLabel->setStyleSheet("font-size: 9px; color: #808080;");
+    m_threadInfoLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     contentLayout->addWidget(m_threadInfoLabel);
 
     contentLayout->addStretch();
@@ -123,17 +128,17 @@ void StrategyTile::updateStatusDisplay()
     if (!m_errorMessage.isEmpty())
     {
         m_statusLabel->setText("Status: ERROR");
-        m_statusLabel->setStyleSheet("font-size: 11px; font-weight: bold; color: #ff6b6b;");
+        m_statusLabel->setStyleSheet("font-size: 10px; font-weight: bold; color: #ff6b6b;");
     }
     else if (m_isRunning)
     {
         m_statusLabel->setText("Status: RUNNING");
-        m_statusLabel->setStyleSheet("font-size: 11px; font-weight: bold; color: #51cf66;");
+        m_statusLabel->setStyleSheet("font-size: 10px; font-weight: bold; color: #51cf66;");
     }
     else
     {
         m_statusLabel->setText("Status: STOPPED");
-        m_statusLabel->setStyleSheet("font-size: 11px; font-weight: bold; color: #ffd93d;");
+        m_statusLabel->setStyleSheet("font-size: 10px; font-weight: bold; color: #ffd93d;");
     }
 }
 
@@ -141,7 +146,7 @@ void StrategyTile::updateThreadAndMemoryInfo()
 {
     if (!m_strategyManager)
     {
-        m_threadInfoLabel->setText("Thread: - (CPU: -%, Mem: -)");
+        m_threadInfoLabel->setText("Thread: - | CPU: -%");
         return;
     }
 
@@ -149,7 +154,7 @@ void StrategyTile::updateThreadAndMemoryInfo()
     qint64 threadId = m_strategyManager->getStrategyThreadId(m_strategyID);
     if (threadId <= 0)
     {
-        m_threadInfoLabel->setText("Thread: - (CPU: -%, Mem: -)");
+        m_threadInfoLabel->setText("Thread: - | CPU: -%");
         return;
     }
 
@@ -158,23 +163,11 @@ void StrategyTile::updateThreadAndMemoryInfo()
 
     if (!stats.valid)
     {
-        m_threadInfoLabel->setText(QString("Thread: %1 (CPU: -%, Mem: -)").arg(threadId));
+        m_threadInfoLabel->setText(QString("Thread: %1 | CPU: -%").arg(threadId));
         return;
     }
 
-    // Format memory (KB or MB)
-    QString memStr;
-    if (stats.memoryBytes < 1024 * 1024)
-    {
-        memStr = QString("%1 KB").arg(stats.memoryBytes / 1024);
-    }
-    else
-    {
-        memStr = QString("%1 MB").arg(stats.memoryBytes / (1024 * 1024));
-    }
-
-    m_threadInfoLabel->setText(
-        QString("Thread: %1 (CPU: %2%, Mem: %3)").arg(threadId).arg((int)stats.cpuUsagePercent).arg(memStr));
+    m_threadInfoLabel->setText(QString("Thread: %1 | CPU: %2%").arg(threadId).arg((int)stats.cpuUsagePercent));
 }
 
 void StrategyTile::mousePressEvent(QMouseEvent* event)
