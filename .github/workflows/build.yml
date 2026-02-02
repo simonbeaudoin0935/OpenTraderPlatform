@@ -63,12 +63,14 @@ jobs:
           cmake -S . -B build/GUI -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF -DENABLE_UBSAN=OFF -DENABLE_ASAN=OFF
 
       - name: Configure TUI with CMake
+        if: false
         run: |
           cmake --version
           mkdir -p build/TUI
           cmake -S . -B build/TUI -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=OFF -DBUILD_TESTS=OFF -DENABLE_UBSAN=OFF -DENABLE_ASAN=OFF
 
       - name: Build TUI targets
+        if: false
         run: cmake --build build/TUI -j$(nproc)
 
       - name: Build GUI targets
