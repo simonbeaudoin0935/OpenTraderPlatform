@@ -23,8 +23,7 @@ extern "C"
     }
 }
 
-CrashTestStrategy::CrashTestStrategy(const StrategyConfig& p_config, StrategySDK* p_sdk)
-    : m_crashTimer(std::make_unique<QTimer>())
+CrashTestStrategy::CrashTestStrategy(const StrategyConfig& p_config, StrategySDK* p_sdk) : m_crashTimer(nullptr)
 {
     Q_UNUSED(p_config);
     Q_UNUSED(p_sdk);
@@ -36,8 +35,12 @@ void CrashTestStrategy::onStart(StrategySDK* p_sdk)
     log("CrashTestStrategy started");
     log("Strategy will crash in 5 seconds to test signal handling...");
 
+    // Create timer without parent (we'll manage it manually)
+    m_crashTimer = new QTimer();
+    m_crashTimer->moveToThread(QThread::currentThread());
+
     // Connect timer to crash after 5 seconds
-    connect(m_crashTimer.get(), &QTimer::timeout, this, &CrashTestStrategy::triggerCrash);
+    connect(m_crashTimer, &QTimer::timeout, this, &CrashTestStrategy::triggerCrash);
     m_crashTimer->setSingleShot(true);
     m_crashTimer->start(5000); // 5 seconds
 }

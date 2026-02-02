@@ -186,8 +186,17 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
     instance->p_logger = std::move(p_logger);
     instance->monitoredSymbols = p_config.symbols;
 
+    // Set thread name for debugging (before starting thread)
+    instance->m_thread.setObjectName(QString("Strategy_%1_%2").arg(p_config.name).arg(strategyID.left(8)));
+
     p_sdk->moveToThread(&instance->m_thread);
     p_adapter->moveToThread(&instance->m_thread);
+
+    // Move strategy to thread if it's a QObject (strategies that use Qt signals/slots)
+    if (auto* qobj = dynamic_cast<QObject*>(p_strategy))
+    {
+        qobj->moveToThread(&instance->m_thread);
+    }
 
     connectStrategyToDataSources(instance);
 

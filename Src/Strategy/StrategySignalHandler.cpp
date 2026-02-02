@@ -4,6 +4,7 @@
 #include <cstring>
 #include <thread>
 #include <map>
+#include <pthread.h>
 #include <QMutex>
 #include <QDebug>
 #include <QMetaObject>
@@ -39,9 +40,9 @@ static void strategySignalHandler(int p_signal)
             },
             Qt::QueuedConnection);
 
-        // Re-raise the signal to terminate the thread
-        signal(SIGSEGV, SIG_DFL);
-        raise(SIGSEGV);
+        // Exit the current thread gracefully instead of raising the signal
+        // This prevents the crash from propagating to the main thread
+        pthread_exit(nullptr);
     }
 }
 

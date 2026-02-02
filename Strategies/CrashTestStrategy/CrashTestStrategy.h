@@ -46,5 +46,5 @@ class CrashTestStrategy : public QObject, public StrategyBase
     void triggerCrash();
 
   private:
-    std::unique_ptr<QTimer> m_crashTimer;
+    QTimer* m_crashTimer;
 };
