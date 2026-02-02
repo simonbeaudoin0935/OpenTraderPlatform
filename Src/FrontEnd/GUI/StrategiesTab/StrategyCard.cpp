@@ -174,7 +174,7 @@ void StrategyCard::setupUI()
     m_logsDisplay = new QTextEdit();
     m_logsDisplay->setReadOnly(true);
     m_logsDisplay->setStyleSheet("background-color: #0d0d0d; color: #0f0; font-family: monospace; "
-                                 "font-size: 9px; border: 1px solid #333;");
+                                 "font-size: 10px; border: 1px solid #333;");
     mainLayout->addWidget(m_logsDisplay, 1); // stretch to fill
 
     // Connect scroll signal to detect manual scrolling
