@@ -25,7 +25,7 @@ StrategyTile::StrategyTile(const QString& strategyID,
     , m_strategyManager(p_strategyManager)
 {
     setStyleSheet("background-color: transparent;");
-    setMinimumSize(250, 200);
+    setMinimumSize(250, 120);
 
     // Create refresh timer (updates every 1 second)
     m_refreshTimer = std::make_unique<QTimer>();
@@ -72,11 +72,6 @@ void StrategyTile::setupUI()
     m_statusLabel->setStyleSheet("font-size: 11px; font-weight: bold;");
     contentLayout->addWidget(m_statusLabel);
 
-    // PnL (show 0 for now)
-    m_pnlLabel = new QLabel("PnL: $0.00");
-    m_pnlLabel->setStyleSheet("font-size: 11px; color: #ccc;");
-    contentLayout->addWidget(m_pnlLabel);
-
     // Positions
     m_positionsLabel = new QLabel("Open Positions: 0");
     m_positionsLabel->setStyleSheet("font-size: 11px; color: #ccc;");
@@ -87,11 +82,6 @@ void StrategyTile::setupUI()
     m_threadInfoLabel->setStyleSheet("font-size: 10px; color: #999;");
     contentLayout->addWidget(m_threadInfoLabel);
 
-    // Timestamp (will be updated by timer)
-    m_timestampLabel = new QLabel("Updated: " + QDateTime::currentDateTime().toString("hh:mm:ss"));
-    m_timestampLabel->setStyleSheet("font-size: 9px; color: #777;");
-    contentLayout->addWidget(m_timestampLabel);
-
     contentLayout->addStretch();
 
     updateStatusDisplay();
@@ -101,16 +91,7 @@ void StrategyTile::setupUI()
 void StrategyTile::setSelected(bool selected)
 {
     m_isSelected = selected;
-    if (selected)
-    {
-        m_contentFrame->setStyleSheet(
-            "background-color: #2b2b2b; border: 3px solid #4db84d; border-radius: 8px; padding: 10px;");
-    }
-    else
-    {
-        m_contentFrame->setStyleSheet(
-            "background-color: #2b2b2b; border: 2px solid #555; border-radius: 8px; padding: 10px;");
-    }
+    // No visual feedback for selection - panel always visible anyway
 }
 
 void StrategyTile::setStatus(bool isRunning, const QString& errorMessage)
@@ -127,7 +108,6 @@ void StrategyTile::refreshDisplay()
 
 void StrategyTile::onRefreshTimer()
 {
-    m_timestampLabel->setText("Updated: " + QDateTime::currentDateTime().toString("hh:mm:ss"));
     updateThreadAndMemoryInfo();
 
     // Update positions count

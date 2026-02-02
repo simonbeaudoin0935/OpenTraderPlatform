@@ -94,7 +94,7 @@ void StrategyDetailsPanel::setupUI()
     m_ordersDisplay->setReadOnly(true);
     m_ordersDisplay->setStyleSheet("background-color: #2d2d2d; color: #aaa; font-family: monospace; "
                                    "font-size: 9px; border: 1px solid #444;");
-    m_ordersDisplay->setMaximumHeight(80);
+    m_ordersDisplay->setMaximumHeight(40);
     mainLayout->addWidget(m_ordersDisplay);
 
     // Positions section
@@ -106,7 +106,7 @@ void StrategyDetailsPanel::setupUI()
     m_positionsDisplay->setReadOnly(true);
     m_positionsDisplay->setStyleSheet("background-color: #2d2d2d; color: #aaa; font-family: monospace; "
                                       "font-size: 9px; border: 1px solid #444;");
-    m_positionsDisplay->setMaximumHeight(80);
+    m_positionsDisplay->setMaximumHeight(40);
     mainLayout->addWidget(m_positionsDisplay);
 
     // Logs section header

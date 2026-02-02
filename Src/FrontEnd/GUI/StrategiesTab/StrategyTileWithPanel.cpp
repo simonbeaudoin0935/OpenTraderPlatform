@@ -29,9 +29,9 @@ StrategyTileWithPanel::StrategyTileWithPanel(const QString& strategyID,
     // Add tile (top)
     m_mainLayout->addWidget(m_tile);
 
-    // Add panel (bottom) with fixed height
-    m_panel->setFixedHeight(300);
-    m_mainLayout->addWidget(m_panel);
+    // Add panel (bottom) - maximize space for logs
+    m_panel->setMinimumHeight(500);
+    m_mainLayout->addWidget(m_panel, 1); // stretch to fill available space
 
     // Set the strategy in the panel
     m_panel->setStrategy(strategyID);
@@ -43,18 +43,7 @@ StrategyTileWithPanel::StrategyTileWithPanel(const QString& strategyID,
 void StrategyTileWithPanel::setSelected(bool selected)
 {
     m_isSelected = selected;
-
-    // Visual feedback: subtle border on selection
-    if (selected)
-    {
-        setStyleSheet("QWidget { border: 2px solid #0078d4; border-radius: 4px; }");
-    }
-    else
-    {
-        setStyleSheet("QWidget { border: 1px solid #cccccc; border-radius: 4px; }");
-    }
-
-    m_tile->setSelected(selected);
+    // No visual feedback - panels always visible for context
 }
 
 void StrategyTileWithPanel::setStatus(bool isRunning, const QString& errorMessage)
