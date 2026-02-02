@@ -1,11 +1,9 @@
 #include "StrategiesTab.h"
 #include "StrategyGridWidget.h"
-#include "StrategyDetailsPanel.h"
 #include "StrategyLoadDialog.h"
 
 #include <QLabel>
 #include <QVBoxLayout>
-#include <QHBoxLayout>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QDebug>
@@ -25,7 +23,6 @@ StrategiesTab::StrategiesTab(MainAlgo* p_mainAlgo, QWidget* parent)
 
     // Initialize UI components
     m_strategyGrid = std::make_unique<StrategyGridWidget>(m_strategyManager);
-    m_detailsPanel = std::make_unique<StrategyDetailsPanel>(m_strategyManager);
 
     setupUI();
     connectSignals();
@@ -34,35 +31,21 @@ StrategiesTab::StrategiesTab(MainAlgo* p_mainAlgo, QWidget* parent)
 
 void StrategiesTab::setupUI()
 {
-    m_mainWidget = new QWidget();
-    m_mainLayout = new QHBoxLayout(m_mainWidget);
+    m_mainLayout = new QVBoxLayout(this);
     m_mainLayout->setContentsMargins(0, 0, 0, 0);
-
-    // Left panel: strategy grid with load button
-    m_leftPanel = new QWidget();
-    m_leftLayout = new QVBoxLayout(m_leftPanel);
 
     // Load Strategy button at top
     m_loadStrategyButton = new QPushButton("Load Strategy");
     m_loadStrategyButton->setMaximumWidth(150);
-    m_leftLayout->addWidget(m_loadStrategyButton);
+    m_mainLayout->addWidget(m_loadStrategyButton);
 
-    // Scroll area for strategy grid
+    // Horizontal scroll area for strategy tiles with embedded panels
     m_gridScrollArea = new QScrollArea();
     m_gridScrollArea->setWidgetResizable(true);
+    m_gridScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_gridScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_gridScrollArea->setWidget(m_strategyGrid.get());
-    m_leftLayout->addWidget(m_gridScrollArea);
-
-    // Add left panel to main layout (takes ~70% of width)
-    m_mainLayout->addWidget(m_leftPanel, 7);
-
-    // Right panel: details (takes ~30% of width)
-    m_mainLayout->addWidget(m_detailsPanel.get(), 3);
-
-    // Set the main widget as this tab's content
-    auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(m_mainWidget);
+    m_mainLayout->addWidget(m_gridScrollArea);
 }
 
 void StrategiesTab::connectSignals()
@@ -89,117 +72,61 @@ void StrategiesTab::connectSignals()
                               Qt::QueuedConnection);
     OBJ_ASSUME_TRUE(statusConn);
 
-    // Connect load button
-    auto buttonConn = connect(m_loadStrategyButton,
-                              &QPushButton::clicked,
-                              this,
-                              &StrategiesTab::onLoadStrategyClicked,
-                              Qt::UniqueConnection);
-    OBJ_ASSUME_TRUE(buttonConn);
+    // Connect to user actions
+    auto loadConn = connect(m_loadStrategyButton, &QPushButton::clicked, this, &StrategiesTab::onLoadStrategyClicked);
+    OBJ_ASSUME_TRUE(loadConn);
 
-    // Connect grid tile selection
-    auto tileConn = connect(m_strategyGrid.get(),
+    // Connect to grid tile selection
+    auto gridConn = connect(m_strategyGrid.get(),
                             &StrategyGridWidget::strategyTileClicked,
                             this,
                             &StrategiesTab::onStrategyTileClicked,
-                            Qt::UniqueConnection);
-    OBJ_ASSUME_TRUE(tileConn);
+                            Qt::QueuedConnection);
+    OBJ_ASSUME_TRUE(gridConn);
 }
 
 void StrategiesTab::updateStrategyGrid()
 {
-    // Clear and rebuild grid with active strategies
-    m_strategyGrid->clearTiles();
-
-    QVector<QString> activeStrategies = m_strategyManager->getActiveStrategies();
-    for (const auto& strategyID: activeStrategies)
+    // Get all active strategies from StrategyManager and add them to grid
+    auto strategyIDs = m_strategyManager->getActiveStrategies();
+    for (const auto& strategyID: strategyIDs)
     {
-        StrategyConfig config = m_strategyManager->getStrategyConfig(strategyID);
+        auto config = m_strategyManager->getStrategyConfig(strategyID);
         bool isRunning = m_strategyManager->isStrategyRunning(strategyID);
         m_strategyGrid->addStrategyTile(strategyID, config.name, config.symbols, isRunning);
     }
 }
 
-void StrategiesTab::onStrategyLoaded(const QString& strategyID, const QString& /* name */)
+void StrategiesTab::onStrategyLoaded(const QString& strategyID, const QString& name)
 {
-    // Add the new strategy to the grid
-    StrategyConfig config = m_strategyManager->getStrategyConfig(strategyID);
-    bool isRunning = m_strategyManager->isStrategyRunning(strategyID);
-    m_strategyGrid->addStrategyTile(strategyID, config.name, config.symbols, isRunning);
+    qDebug() << "[StrategiesTab] Strategy loaded:" << strategyID << name;
 
-    // Auto-select the newly loaded strategy
-    m_selectedStrategyID = strategyID;
-    m_strategyGrid->setSelectedTile(strategyID);
-    m_detailsPanel->setStrategy(strategyID);
+    // Get strategy config from StrategyManager
+    auto config = m_strategyManager->getStrategyConfig(strategyID);
+    bool isRunning = m_strategyManager->isStrategyRunning(strategyID);
+    m_strategyGrid->addStrategyTile(strategyID, name, config.symbols, isRunning);
 }
 
 void StrategiesTab::onStrategyUnloaded(const QString& strategyID)
 {
-    // Remove the strategy tile from grid
+    qDebug() << "[StrategiesTab] Strategy unloaded:" << strategyID;
     m_strategyGrid->removeStrategyTile(strategyID);
-
-    // If the unloaded strategy was selected, deselect
-    if (m_selectedStrategyID == strategyID)
-    {
-        m_selectedStrategyID = "";
-        m_detailsPanel->clearStrategy();
-    }
 }
 
 void StrategiesTab::onStrategyStatusChanged(const QString& strategyID, bool isRunning, const QString& errorMessage)
 {
-    // Strategy status changed - update its tile
     m_strategyGrid->updateStrategyTileStatus(strategyID, isRunning, errorMessage);
-
-    // If it's the selected strategy, update details panel
-    if (m_selectedStrategyID == strategyID)
-    {
-        m_detailsPanel->setStrategy(strategyID);
-    }
 }
 
 void StrategiesTab::onLoadStrategyClicked()
 {
-    // Show load strategy dialog
-    auto dialog = std::make_unique<StrategyLoadDialog>(this);
-    qDebug() << "[StrategiesTab] Load Strategy dialog opened";
-
-    if (dialog->exec() == QDialog::Accepted)
-    {
-        qDebug() << "[StrategiesTab] Dialog accepted";
-        auto config = dialog->getSelectedConfig();
-        if (config.has_value())
-        {
-            qDebug() << "[StrategiesTab] Config loaded:" << config.value().name;
-            qDebug() << "[StrategiesTab] Plugin path:" << config.value().soPath;
-
-            // Load the strategy using StrategyManager
-            auto result = m_strategyManager->loadStrategy(config.value());
-            if (result.has_value())
-            {
-                // Success - the strategyLoaded signal will update UI
-                qDebug() << "[StrategiesTab] Strategy loaded successfully, ID:" << result.value();
-            }
-            else
-            {
-                // Show error message
-                qWarning() << "[StrategiesTab] Failed to load strategy:" << result.error();
-            }
-        }
-        else
-        {
-            qWarning() << "[StrategiesTab] Dialog accepted but no config selected";
-        }
-    }
-    else
-    {
-        qDebug() << "[StrategiesTab] Dialog cancelled";
-    }
+    auto dialog = new StrategyLoadDialog(this);
+    dialog->exec();
+    delete dialog;
 }
 
 void StrategiesTab::onStrategyTileClicked(const QString& strategyID)
 {
     m_selectedStrategyID = strategyID;
     m_strategyGrid->setSelectedTile(strategyID);
-    m_detailsPanel->setStrategy(strategyID);
 }

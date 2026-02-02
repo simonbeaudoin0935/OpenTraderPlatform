@@ -2,32 +2,30 @@
 
 #include <QWidget>
 #include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QGridLayout>
 #include <QPushButton>
-#include <QLabel>
 #include <QScrollArea>
-#include <QMap>
 #include <memory>
 
 class StrategyManager;
 class MainAlgo;
 class StrategyGridWidget;
-class StrategyDetailsPanel;
 class StrategyLoadDialog;
 
 /**
  * @brief StrategiesTab - Main UI container for strategy management
  *
  * Layout:
- * - Left: Strategy grid showing active strategies as tiles
- * - Right: Docked details panel showing selected strategy info
+ * - Top: "Load Strategy" button
+ * - Main: Horizontal scrolling area with strategy tiles + embedded panels
+ *
+ * Each tile is a self-contained unit with:
+ * - Strategy header info (name, symbols, status)
+ * - Embedded details panel below (fixed height with internal scroll)
  *
  * Responsibilities:
- * - Create and manage strategy grid and details panel
+ * - Create and manage strategy grid with composite tiles
  * - Connect to StrategyManager signals for real-time updates
- * - Handle user interactions (load, unload, view details)
- * - Maintain selected strategy state
+ * - Handle user interactions (load, unload)
  */
 class StrategiesTab : public QWidget
 {
@@ -57,16 +55,8 @@ class StrategiesTab : public QWidget
     QString m_selectedStrategyID; // Currently selected strategy
 
     // UI Components
-    QWidget* m_mainWidget;
-    QHBoxLayout* m_mainLayout;
-
-    // Left side: grid of strategy tiles
-    QWidget* m_leftPanel;
-    QVBoxLayout* m_leftLayout;
+    QVBoxLayout* m_mainLayout;
     QPushButton* m_loadStrategyButton;
     QScrollArea* m_gridScrollArea;
     std::unique_ptr<StrategyGridWidget> m_strategyGrid;
-
-    // Right side: details panel
-    std::unique_ptr<StrategyDetailsPanel> m_detailsPanel;
 };

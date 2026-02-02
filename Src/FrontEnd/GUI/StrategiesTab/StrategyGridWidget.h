@@ -1,17 +1,20 @@
 #pragma once
 
 #include <QWidget>
-#include <QGridLayout>
+#include <QHBoxLayout>
 #include <QMap>
 
-class StrategyTile;
+class StrategyTileWithPanel;
 class StrategyManager;
 
 /**
- * @brief StrategyGridWidget - Grid of strategy tiles
+ * @brief StrategyGridWidget - Horizontal container for strategy tiles with embedded panels
  *
- * Displays all active strategies as tiles/cards in a grid layout.
+ * Displays all active strategies as composite tiles (tile + panel below) in horizontal layout.
  * Each tile shows: name, symbols, status, PnL, positions, thread ID, CPU/memory, timestamp.
+ * Each tile has its own embedded details panel below it.
+ *
+ * Layout: Horizontal scrolling, fixed-width tiles (400px).
  *
  * Signals:
  * - strategyTileClicked(strategyID) - emitted when a tile is clicked
@@ -24,7 +27,7 @@ class StrategyGridWidget : public QWidget
     explicit StrategyGridWidget(StrategyManager* p_strategyManager, QWidget* parent = nullptr);
     ~StrategyGridWidget() override = default;
 
-    // Add a strategy tile
+    // Add a strategy tile with panel
     void
     addStrategyTile(const QString& strategyID, const QString& name, const QVector<QString>& symbols, bool isRunning);
 
@@ -34,7 +37,7 @@ class StrategyGridWidget : public QWidget
     // Remove a specific tile
     void removeStrategyTile(const QString& strategyID);
 
-    // Set which tile is selected
+    // Set which tile is selected (visual highlighting)
     void setSelectedTile(const QString& strategyID);
 
     // Clear all tiles
@@ -45,10 +48,9 @@ class StrategyGridWidget : public QWidget
 
   private:
     void setupUI();
-    void reflowTiles(); // Reposition all tiles in 2-column grid layout
 
-    QGridLayout* m_gridLayout;
-    QMap<QString, StrategyTile*> m_tiles; // strategyID -> tile widget
+    QHBoxLayout* m_mainLayout;
+    QMap<QString, StrategyTileWithPanel*> m_tiles; // strategyID -> tile+panel widget
     QString m_selectedStrategyID;
     StrategyManager* m_strategyManager;
 };

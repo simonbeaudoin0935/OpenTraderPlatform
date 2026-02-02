@@ -1,6 +1,9 @@
 #include "StrategyGridWidget.h"
-#include "StrategyTile.h"
+#include "StrategyTileWithPanel.h"
 #include "StrategyManager.h"
+
+#include <QHBoxLayout>
+#include <QSpacerItem>
 
 StrategyGridWidget::StrategyGridWidget(StrategyManager* p_strategyManager, QWidget* parent)
     : QWidget(parent), m_selectedStrategyID(""), m_strategyManager(p_strategyManager)
@@ -10,12 +13,12 @@ StrategyGridWidget::StrategyGridWidget(StrategyManager* p_strategyManager, QWidg
 
 void StrategyGridWidget::setupUI()
 {
-    m_gridLayout = new QGridLayout(this);
-    m_gridLayout->setSpacing(10);
-    m_gridLayout->setContentsMargins(10, 10, 10, 10);
-    m_gridLayout->setColumnStretch(0, 1);
-    m_gridLayout->setColumnStretch(1, 1);
-    m_gridLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Expanding, QSizePolicy::Expanding), 100, 0, 1, 2);
+    m_mainLayout = new QHBoxLayout(this);
+    m_mainLayout->setSpacing(10);
+    m_mainLayout->setContentsMargins(10, 10, 10, 10);
+
+    // Add stretchable space at the end to push tiles to the left
+    m_mainLayout->addStretch();
 }
 
 void StrategyGridWidget::addStrategyTile(const QString& strategyID,
@@ -23,22 +26,23 @@ void StrategyGridWidget::addStrategyTile(const QString& strategyID,
                                          const QVector<QString>& symbols,
                                          bool isRunning)
 {
-    auto tile = new StrategyTile(strategyID, name, symbols, isRunning, m_strategyManager);
+    auto tileWithPanel = new StrategyTileWithPanel(strategyID, name, symbols, isRunning, m_strategyManager);
 
-    [[maybe_unused]] auto tileConn =
-        connect(tile, &StrategyTile::tileClicked, this, [this](const QString& id) { emit strategyTileClicked(id); });
+    // Connect tile click signal
+    [[maybe_unused]] auto tileConn = connect(tileWithPanel,
+                                             &StrategyTileWithPanel::tileClicked,
+                                             this,
+                                             [this](const QString& id) { emit strategyTileClicked(id); });
 
-    m_tiles[strategyID] = tile;
+    m_tiles[strategyID] = tileWithPanel;
 
-    // Add to grid (2 columns, wrapping layout)
-    int tileCount = m_tiles.size() - 1; // Current count before this addition
-    int row = tileCount / 2;
-    int col = tileCount % 2;
-    m_gridLayout->addWidget(tile, row, col);
+    // Insert before the stretch item
+    m_mainLayout->insertWidget(m_mainLayout->count() - 1, tileWithPanel);
 
-    if (m_selectedStrategyID == strategyID)
+    // If this is the first tile, select it
+    if (m_selectedStrategyID.isEmpty())
     {
-        tile->setSelected(true);
+        setSelectedTile(strategyID);
     }
 }
 
@@ -56,65 +60,36 @@ void StrategyGridWidget::removeStrategyTile(const QString& strategyID)
 {
     if (m_tiles.contains(strategyID))
     {
-        delete m_tiles[strategyID];
+        auto tile = m_tiles[strategyID];
+        m_mainLayout->removeWidget(tile);
+        delete tile;
         m_tiles.remove(strategyID);
 
         if (m_selectedStrategyID == strategyID)
         {
             m_selectedStrategyID = "";
+            // Select first remaining tile if any
+            if (!m_tiles.isEmpty())
+            {
+                setSelectedTile(m_tiles.first()->getStrategyID());
+            }
         }
-
-        // Rebuild grid to reflow remaining tiles
-        reflowTiles();
-    }
-}
-
-void StrategyGridWidget::reflowTiles()
-{
-    // Clear all items from layout (except spacer at row 100)
-    while (m_gridLayout->count() > 0)
-    {
-        auto item = m_gridLayout->itemAt(0);
-        if (item->widget())
-        {
-            m_gridLayout->removeWidget(item->widget());
-        }
-        else
-        {
-            m_gridLayout->removeItem(item);
-        }
-    }
-
-    // Re-add spacer
-    m_gridLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Expanding, QSizePolicy::Expanding), 100, 0, 1, 2);
-
-    // Re-add all tiles in order
-    int tileIndex = 0;
-    for (const auto& tile: m_tiles)
-    {
-        int row = tileIndex / 2;
-        int col = tileIndex % 2;
-        m_gridLayout->addWidget(tile, row, col);
-        tileIndex++;
     }
 }
 
 void StrategyGridWidget::setSelectedTile(const QString& strategyID)
 {
-    if (m_selectedStrategyID != strategyID)
+    // Deselect previous
+    if (!m_selectedStrategyID.isEmpty() && m_tiles.contains(m_selectedStrategyID))
     {
-        // Deselect old
-        if (m_tiles.contains(m_selectedStrategyID))
-        {
-            m_tiles[m_selectedStrategyID]->setSelected(false);
-        }
+        m_tiles[m_selectedStrategyID]->setSelected(false);
+    }
 
-        // Select new
-        m_selectedStrategyID = strategyID;
-        if (m_tiles.contains(strategyID))
-        {
-            m_tiles[strategyID]->setSelected(true);
-        }
+    // Select new
+    m_selectedStrategyID = strategyID;
+    if (m_tiles.contains(strategyID))
+    {
+        m_tiles[strategyID]->setSelected(true);
     }
 }
 
