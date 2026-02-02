@@ -121,6 +121,17 @@ void HistoricalBarsStrategy::fetchNextDay()
     m_daysBack++;
     m_currentDate = m_currentDate.addDays(-1);
 
+    // Skip weekends (Saturday=6, Sunday=7)
+    int dayOfWeek = m_currentDate.dayOfWeek();
+    if (dayOfWeek == Qt::Saturday)
+    {
+        m_currentDate = m_currentDate.addDays(-1); // Saturday -> Friday
+    }
+    else if (dayOfWeek == Qt::Sunday)
+    {
+        m_currentDate = m_currentDate.addDays(-2); // Sunday -> Friday
+    }
+
     // Schedule next fetch for 500ms later
     if (m_timer)
     {
