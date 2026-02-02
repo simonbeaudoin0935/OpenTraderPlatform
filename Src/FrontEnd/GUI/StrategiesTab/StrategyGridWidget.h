@@ -31,6 +31,9 @@ class StrategyGridWidget : public QWidget
     // Update status of a specific tile
     void updateStrategyTileStatus(const QString& strategyID, bool isRunning, const QString& errorMessage);
 
+    // Remove a specific tile
+    void removeStrategyTile(const QString& strategyID);
+
     // Set which tile is selected
     void setSelectedTile(const QString& strategyID);
 
@@ -42,6 +45,7 @@ class StrategyGridWidget : public QWidget
 
   private:
     void setupUI();
+    void reflowTiles(); // Reposition all tiles in 2-column grid layout
 
     QGridLayout* m_gridLayout;
     QMap<QString, StrategyTile*> m_tiles; // strategyID -> tile widget

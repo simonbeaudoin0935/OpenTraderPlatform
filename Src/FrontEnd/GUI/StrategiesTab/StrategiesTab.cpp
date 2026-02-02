@@ -122,8 +122,10 @@ void StrategiesTab::updateStrategyGrid()
 
 void StrategiesTab::onStrategyLoaded(const QString& strategyID, const QString& /* name */)
 {
-    // A new strategy was loaded - update grid
-    updateStrategyGrid();
+    // Add the new strategy to the grid
+    StrategyConfig config = m_strategyManager->getStrategyConfig(strategyID);
+    bool isRunning = m_strategyManager->isStrategyRunning(strategyID);
+    m_strategyGrid->addStrategyTile(strategyID, config.name, config.symbols, isRunning);
 
     // Auto-select the newly loaded strategy
     m_selectedStrategyID = strategyID;
@@ -133,8 +135,8 @@ void StrategiesTab::onStrategyLoaded(const QString& strategyID, const QString& /
 
 void StrategiesTab::onStrategyUnloaded(const QString& strategyID)
 {
-    // A strategy was unloaded - update grid
-    updateStrategyGrid();
+    // Remove the strategy tile from grid
+    m_strategyGrid->removeStrategyTile(strategyID);
 
     // If the unloaded strategy was selected, deselect
     if (m_selectedStrategyID == strategyID)
