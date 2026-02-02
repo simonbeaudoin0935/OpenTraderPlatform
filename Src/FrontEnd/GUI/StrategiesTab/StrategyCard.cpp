@@ -178,7 +178,7 @@ void StrategyCard::setupUI()
     mainLayout->addWidget(m_logsDisplay, 1); // stretch to fill
 
     // Connect scroll signal to detect manual scrolling
-    connect(m_logsDisplay->verticalScrollBar(), &QScrollBar::sliderMoved, this, &StrategyCard::onLogsScrolled);
+    connect(m_logsDisplay->verticalScrollBar(), &QScrollBar::valueChanged, this, &StrategyCard::onLogsScrolled);
 
     updateStatus();
     updateThreadInfo();
@@ -335,14 +335,29 @@ void StrategyCard::updateLogs()
     if (m_logsAutoScroll)
     {
         m_logsDisplay->verticalScrollBar()->setValue(m_logsDisplay->verticalScrollBar()->maximum());
+        m_lastScrollValue = m_logsDisplay->verticalScrollBar()->value();
     }
 }
 
 void StrategyCard::onLogsScrolled()
 {
-    // Detect if user scrolled away from bottom
+    // Detect if user manually scrolled (only disable auto-scroll when scrolling up)
     auto scrollBar = m_logsDisplay->verticalScrollBar();
-    m_logsAutoScroll = (scrollBar->value() == scrollBar->maximum());
+    int currentValue = scrollBar->value();
+    int maxValue = scrollBar->maximum();
+
+    // If scrolled up from bottom, disable auto-scroll
+    if (currentValue < maxValue)
+    {
+        m_logsAutoScroll = false;
+    }
+    // If scrolled back to bottom, re-enable auto-scroll
+    else if (currentValue == maxValue)
+    {
+        m_logsAutoScroll = true;
+    }
+
+    m_lastScrollValue = currentValue;
 }
 
 void StrategyCard::onLogsLevelFilterChanged(int index)
