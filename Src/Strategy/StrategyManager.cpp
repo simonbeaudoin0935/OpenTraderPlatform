@@ -402,6 +402,13 @@ void StrategyManager::markStrategyFailed(const QString& p_strategyID, const QStr
     }
 }
 
+void StrategyManager::markStrategyFailedFromSignal(const QString& p_strategyID, const QString& p_errorMessage)
+{
+    // Logging here since we moved qCritical out of signal handler
+    qCritical(StrategyManagerLog) << "Strategy thread crashed with signal:" << p_strategyID << "-" << p_errorMessage;
+    markStrategyFailed(p_strategyID, p_errorMessage);
+}
+
 QVector<QString> StrategyManager::getActiveStrategies() const
 {
     return m_strategies.keys().toVector();

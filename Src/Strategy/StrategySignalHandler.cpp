@@ -43,17 +43,19 @@ static void strategySignalHandler(int p_signal)
         }
 
         // Use a queued invocation to safely notify from signal handler
-        QString strategyID = g_currentStrategyID;
+        // Note: Pass QString copies by pointer to avoid complex captures
+        QString* p_strategyID = new QString(g_currentStrategyID);
+        QString* p_errorMsg = new QString(errorMsg);
         StrategyManager* manager = g_currentStrategyManager;
 
-        QMetaObject::invokeMethod(
-            manager,
-            [strategyID, manager, errorMsg]()
-            {
-                qCritical() << "Strategy thread crashed with signal:" << strategyID << "-" << errorMsg;
-                manager->markStrategyFailed(strategyID, errorMsg);
-            },
-            Qt::QueuedConnection);
+        QMetaObject::invokeMethod(manager,
+                                  "markStrategyFailedFromSignal",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(QString, *p_strategyID),
+                                  Q_ARG(QString, *p_errorMsg));
+
+        delete p_strategyID;
+        delete p_errorMsg;
 
         // For SIGABRT, restore default handler before exiting to prevent re-entry loops
         // (abort() can retry the signal if we just exit normally)
