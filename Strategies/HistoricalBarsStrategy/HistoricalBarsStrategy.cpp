@@ -76,19 +76,12 @@ void HistoricalBarsStrategy::onStop()
 
 void HistoricalBarsStrategy::fetchNextDay()
 {
-    if (!m_sdk || m_daysBack >= MAX_DAYS_BACK)
+    if (!m_sdk)
     {
         if (m_timer)
         {
             m_timer->stop();
         }
-
-        if (m_sdk)
-        {
-            m_sdk->log(QString("HistoricalBarsStrategy completed fetching %1 days of data").arg(m_daysBack),
-                       LogLevel::Info);
-        }
-
         return;
     }
 
@@ -100,7 +93,7 @@ void HistoricalBarsStrategy::fetchNextDay()
     QTime startTime(9, 31);
     QTime endTime(16, 0);
 
-    m_sdk->log(QString("Fetching %1 bars for %2 on %3")
+    m_sdk->log(QString("Fetching day %1 for %2 on %3")
                    .arg(m_daysBack + 1)
                    .arg(symbol)
                    .arg(m_currentDate.toString("yyyy-MM-dd")),
@@ -111,10 +104,12 @@ void HistoricalBarsStrategy::fetchNextDay()
 
     if (bars)
     {
-        m_sdk->log(QString("Fetched %1 bars for %2 on %3")
+        m_fetchedBars.append(bars);
+        m_sdk->log(QString("Fetched %1 bars for %2 on %3 (total days stored: %4)")
                        .arg(bars->size())
                        .arg(symbol)
-                       .arg(m_currentDate.toString("yyyy-MM-dd")),
+                       .arg(m_currentDate.toString("yyyy-MM-dd"))
+                       .arg(m_fetchedBars.size()),
                    LogLevel::Info);
     }
     else
@@ -127,7 +122,7 @@ void HistoricalBarsStrategy::fetchNextDay()
     m_currentDate = m_currentDate.addDays(-1);
 
     // Schedule next fetch for 500ms later
-    if (m_timer && m_daysBack < MAX_DAYS_BACK)
+    if (m_timer)
     {
         m_timer->start(500);
     }

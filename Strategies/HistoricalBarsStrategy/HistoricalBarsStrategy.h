@@ -5,13 +5,15 @@
 #include <QObject>
 #include <QTimer>
 #include <QDate>
+#include <QVector>
+#include <memory>
 
 /**
  * @brief HistoricalBarsStrategy - Test strategy that fetches historical bars
  *
- * This strategy fetches bars from the previous day, then every 2 seconds fetches
- * bars from the day before that, continuing for multiple days.
- * Useful for testing multi-strategy concurrent bar fetching.
+ * This strategy continuously fetches bars from previous days, one day at a time every 500ms.
+ * All fetched bar data is stored in a growing vector of shared pointers.
+ * Useful for testing multi-strategy concurrent bar fetching with accumulating data.
  *
  * Configuration: symbol (e.g., "AAPL", "MSFT") via config file
  */
@@ -44,5 +46,5 @@ class HistoricalBarsStrategy : public QObject, public StrategyBase
     QTimer* m_timer;
     QDate m_currentDate;
     int m_daysBack;
-    static constexpr int MAX_DAYS_BACK = 5;
+    QVector<std::shared_ptr<QVector<Bar>>> m_fetchedBars;
 };
