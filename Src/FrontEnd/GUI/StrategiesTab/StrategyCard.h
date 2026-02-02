@@ -55,6 +55,7 @@ class StrategyCard : public QWidget
     void onLogsLevelFilterChanged(int index);
     void onStartClicked();
     void onStopClicked();
+    void onLogsScrolled();
 
   private:
     void setupUI();
@@ -90,5 +91,6 @@ class StrategyCard : public QWidget
     QTextEdit* m_logsDisplay;
     QLabel* m_logsStatsLabel;
 
-    int m_selectedLogLevel = -1; // -1 means "All"
+    int m_selectedLogLevel = -1;  // -1 means "All"
+    bool m_logsAutoScroll = true; // Track if logs should auto-scroll
 };

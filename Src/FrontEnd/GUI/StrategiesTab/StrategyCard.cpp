@@ -8,6 +8,7 @@
 #include <QFrame>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QMouseEvent>
 #include <QDateTime>
 
@@ -176,6 +177,9 @@ void StrategyCard::setupUI()
                                  "font-size: 7px; border: 1px solid #333;");
     mainLayout->addWidget(m_logsDisplay, 1); // stretch to fill
 
+    // Connect scroll signal to detect manual scrolling
+    connect(m_logsDisplay->verticalScrollBar(), &QScrollBar::sliderMoved, this, &StrategyCard::onLogsScrolled);
+
     updateStatus();
     updateThreadInfo();
     updateLogs();
@@ -308,6 +312,19 @@ void StrategyCard::updateLogs()
 
     m_logsDisplay->setPlainText(logsText);
     m_logsStatsLabel->setText(QString("%1 logs").arg(logs.size()));
+
+    // Auto-scroll to bottom if enabled
+    if (m_logsAutoScroll)
+    {
+        m_logsDisplay->verticalScrollBar()->setValue(m_logsDisplay->verticalScrollBar()->maximum());
+    }
+}
+
+void StrategyCard::onLogsScrolled()
+{
+    // Detect if user scrolled away from bottom
+    auto scrollBar = m_logsDisplay->verticalScrollBar();
+    m_logsAutoScroll = (scrollBar->value() == scrollBar->maximum());
 }
 
 void StrategyCard::onLogsLevelFilterChanged(int index)

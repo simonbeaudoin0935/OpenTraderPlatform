@@ -145,6 +145,12 @@ Bar::Bar(const QJsonObject& jsonObj)
     m_close = static_cast<float>(jsonObj["Close"].toString().toDouble());
     m_timeStamp =
         QDateTime::fromString(jsonObj["TimeStamp"].toString(), Qt::ISODate).toTimeZone(QTimeZone("America/New_York"));
+    if (m_timeStamp.time() > QTime(20, 0))
+    {
+        qCritical() << "Bar timestamp exceeds market close time, adjusting to 8:00 PM:" << m_timeStamp;
+        m_timeStamp.setTime(QTime(20, 0));
+    }
+
     m_totalVolume = (quint64)jsonObj["TotalVolume"].toString().toInt();
     m_downTicks = (quint64)jsonObj["DownTicks"].toInt();
     m_downVolume = (quint64)jsonObj["DownVolume"].toInt();
