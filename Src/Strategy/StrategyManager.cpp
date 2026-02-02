@@ -268,10 +268,19 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
     disconnectStrategyFromDataSources(instance);
 
     // Call onStop on the strategy thread before quitting
-    if (instance->p_adapter)
+    // Only if thread is still running (not crashed)
+    if (instance->m_thread.isRunning() && instance->p_adapter)
     {
         QMetaObject::invokeMethod(instance->p_adapter, "callOnStop", Qt::BlockingQueuedConnection);
         qInfo(StrategyManagerLog) << "Called onStop for strategy:" << instance->config.name;
+    }
+    else if (!instance->m_thread.isRunning() && instance->p_adapter)
+    {
+        // Thread already dead (likely crashed) - call onStop directly in current thread
+        // This may not be ideal but prevents deadlock
+        qWarning(StrategyManagerLog) << "Strategy thread already dead, calling onStop in current thread:"
+                                     << instance->config.name;
+        instance->p_adapter->callOnStop();
     }
 
     // Save logs before shutdown
