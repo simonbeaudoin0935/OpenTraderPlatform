@@ -1,87 +1,248 @@
 # L2Trader Documentation
 
-This directory contains comprehensive documentation for the L2Trader application, including architecture diagrams, sequence flows, and detailed component analysis.
+Welcome to the L2Trader documentation! This directory contains comprehensive guides for understanding, developing, and contributing to L2Trader.
 
 ## Documentation Index
 
-### Application Architecture
-- **[Application_Architecture_Diagram.md](Application_Architecture_Diagram.md)** - High-level overview of application components and signal/slot connections
-  - Updated: Reflects current architecture with TSClient singleton, OrdersReceiver, BalanceWindow, OrderEntryWidget, OrderWindow
-  - Removed: FMPClient, StockScreener, BreakingNewsFetcher (not in current codebase)
-- **[GUI_Architecture.md](GUI_Architecture.md)** - GUI component organization and layout
-  - Updated: Includes all current widgets (BalanceWindow, OrderWindow, OrderEntryWidget, RecorderTab)
-  - Uses qcustomplot for StockPriceChart (Qt Charts removed)
-- **[ProgramSequence.md](ProgramSequence.md)** - Application startup and initialization sequence
-  - Updated: Reflects actual MainApp flow with OAuth authentication and thread initialization
+### Getting Started
 
-### Authentication
-- **[OAuth_Authentication_Process.md](OAuth_Authentication_Process.md)** - Detailed flow of TradeStation OAuth authentication
-  - Comprehensive documentation of OAuth 2.0 implementation with secure storage
+**New to L2Trader?** Start here:
 
-### StockPriceChart Component (qcustomplot-based)
-- **[StockPriceChart_Diagram.md](StockPriceChart_Diagram.md)** - Class diagrams for the chart component
-  - Updated: Uses qcustomplot classes (QCustomPlot, QCPFinancial, QCPBars, QCPItemLine, QCPItemRect)
-- **[StockPriceChart_Architecture.md](StockPriceChart_Architecture.md)** - ⭐ **Comprehensive documentation**
-  - ⚠️ **Note**: Contains some outdated Qt Charts references - core architecture concepts remain valid but implementation details reference old Qt Charts API. Use in conjunction with updated StockPriceChart_Diagram.md and StockPriceChart_BarReception.md for current implementation.
-  - Includes: Detailed architecture, data flow diagrams, event handling, state management, missing bars detection
-- **[StockPriceChart_BarReception.md](StockPriceChart_BarReception.md)** - Bar reception and processing flow
-  - Updated: Reflects qcustomplot implementation with addLiveBar() and index-based system
-- **[BidirectionalIndexSystem_Implementation.md](BidirectionalIndexSystem_Implementation.md)** - Index system details
-  - Bidirectional index system for efficient historical data loading
+1. **[../README.md](../README.md)** - Project overview, features, and quick start
+2. **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and design patterns
+3. **[DEVELOPMENT.md](DEVELOPMENT.md)** - Development environment setup and coding guidelines
 
-### Migration Documentation (Historical)
-- **[qcustomplot-migration.md](qcustomplot-migration.md)** - ✅ Migration from Qt Charts to qcustomplot (COMPLETED)
-- **[MIGRATION_SUMMARY.md](MIGRATION_SUMMARY.md)** - ✅ Summary of qcustomplot migration (COMPLETED)
+### Core Documentation
 
-### Feature Documentation
-- **[RecorderTab_CSV_Input_Widget.md](RecorderTab_CSV_Input_Widget.md)** - CSV file input widget in Recorder tab
-- **[Thread_Relations_TSClient.md](Thread_Relations_TSClient.md)** - Thread relationships for TSClient, async requests, and BarCache
+#### Architecture & Design
 
-## Using the Documentation
+**[ARCHITECTURE.md](ARCHITECTURE.md)** - Comprehensive system architecture documentation
 
-### For General Understanding
-Start with:
-1. Application_Architecture_Diagram.md - Get the big picture of current architecture
-2. GUI_Architecture.md - Understand the UI structure (all widgets included)
-3. ProgramSequence.md - See how the app starts up with OAuth and threads
+- System architecture diagrams
+- Core components (MainApp, TSClient, MainAlgo, StockInstruments, BarCache)
+- Threading model and patterns
+- Memory management strategies
+- Data flow diagrams
+- Design patterns used throughout the codebase
 
-### For StockPriceChart Development
-- **Architecture**: Start with StockPriceChart_Architecture.md for comprehensive overview
-- **Class Structure**: See StockPriceChart_Diagram.md for class diagrams (qcustomplot-based)
-- **Bar Processing**: See StockPriceChart_BarReception.md for data flow
-- **Index System**: See BidirectionalIndexSystem_Implementation.md for performance details
+**Key Topics**:
+- MVC pattern implementation
+- Singleton usage (TSClient, MainAlgo)
+- Thread-safe communication via Qt signals/slots
+- Composition over pointers philosophy
+- Smart pointer usage guidelines
 
-### For Debugging
-- **Chart Issues**: See StockPriceChart_Architecture.md (needs update for qcustomplot specifics)
-- **Authentication Issues**: See OAuth_Authentication_Process.md
-- **Thread Issues**: See Thread_Relations_TSClient.md
+#### Authentication & Security
 
-### For Development
-- Review the architecture diagram relevant to your component
-- All chart components now use qcustomplot library (not Qt Charts)
-- Check migration docs for historical context on Qt Charts → qcustomplot transition
+**[AUTHENTICATION.md](AUTHENTICATION.md)** - OAuth 2.0 authentication and security
 
-## Diagram Format
+- OAuth 2.0 Authorization Code Flow
+- Token management (access tokens, refresh tokens)
+- Automatic token refresh system
+- Secure storage (QKeychain integration)
+- GUI vs TUI authentication modes
+- Security best practices
 
-All diagrams in this directory use [Mermaid](https://mermaid.js.org/) syntax, which is:
-- Rendered automatically in GitHub
-- Viewable in VS Code with Mermaid extensions
-- Convertible to images using various tools
+**Key Topics**:
+- TradeStation API OAuth implementation
+- CSRF protection
+- Platform-specific secure storage (GNOME Keyring, macOS Keychain, Windows Credential Manager)
+- Token expiration and refresh scheduling
 
-## Contributing Documentation
+#### Frontend Implementation
 
-When adding new documentation:
-1. Use Mermaid diagrams where appropriate
-2. Include a table of contents for longer documents
-3. Provide debugging recommendations for complex components
-4. Update this README with links to new documentation
-5. **Important**: When documenting chart components, note that the application uses qcustomplot, not Qt Charts
+**[FRONTEND.md](FRONTEND.md)** - GUI and TUI frontend architectures
 
-## Recent Updates (December 2024)
+- Frontend abstraction layer
+- **GUI Implementation**:
+  - Qt Widgets-based interface
+  - StockPriceChart (QCustomPlot)
+  - Market depth tables
+  - Order and position management
+  - Keyboard shortcuts
+- **TUI Implementation**:
+  - ncurses-based terminal interface
+  - Headless mode support
+  - Order and position monitoring
+- Component interaction diagrams
 
-- ✅ Updated all architecture diagrams to reflect current codebase
-- ✅ Removed obsolete component references (FMPClient, StockScreener, BreakingNewsFetcher)
-- ✅ Added missing components (OrdersReceiver, BalanceWindow, OrderWindow, OrderEntryWidget, RecorderTab)
-- ✅ Updated all StockPriceChart documentation for qcustomplot (removed Qt Charts references)
-- ✅ Marked qcustomplot migration as complete and operational
-- ✅ Updated ProgramSequence with actual startup flow including OAuth and threading details
+**Key Topics**:
+- Dual frontend strategy
+- Bidirectional index system for chart performance
+- Real-time data visualization
+- Session background rendering
+
+### Development
+
+#### Development Guide
+
+**[DEVELOPMENT.md](DEVELOPMENT.md)** - Complete development guide
+
+- **Setup**: Prerequisites, installation, IDE configuration
+- **Building**: Build commands, configurations, optimization
+- **Testing**: Unit tests, GUI integration tests, test writing
+- **Code Quality**: Sanitizers (UBSan, ASan), formatting, compiler warnings
+- **Coding Guidelines**: Style, naming, patterns, best practices
+- **Constants & SQL**: Management strategies
+
+**Essential for**:
+- New contributors
+- Setting up development environment
+- Understanding build system
+- Writing quality code
+
+#### Contributing
+
+**[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines
+
+- Getting started
+- Development workflow
+- Code standards and formatting
+- Testing requirements
+- Pull request process
+- Documentation guidelines
+- Code of conduct
+
+**Essential for**:
+- All contributors
+- Understanding Git workflow
+- Meeting code standards
+- Submitting pull requests
+
+## Quick Reference
+
+### Architecture Diagrams
+
+All diagrams use [Mermaid](https://mermaid.js.org/) syntax and are viewable in GitHub, VSCode (with extension), and can be exported to images.
+
+**Main Diagrams**:
+- System Architecture → [ARCHITECTURE.md](ARCHITECTURE.md#system-architecture)
+- Program Startup Sequence → [ARCHITECTURE.md](ARCHITECTURE.md#program-startup-sequence)
+- OAuth Flow → [AUTHENTICATION.md](AUTHENTICATION.md#initial-authentication-flow)
+- Token Refresh → [AUTHENTICATION.md](AUTHENTICATION.md#token-refresh-flow)
+- GUI Component Hierarchy → [FRONTEND.md](FRONTEND.md#component-hierarchy)
+- Market Data Pipeline → [ARCHITECTURE.md](ARCHITECTURE.md#market-data-pipeline)
+
+### Common Tasks
+
+| Task | Documentation |
+|------|---------------|
+| **Set up development environment** | [DEVELOPMENT.md § Setup](DEVELOPMENT.md#development-setup) |
+| **Build the project** | [DEVELOPMENT.md § Building](DEVELOPMENT.md#building) |
+| **Run tests** | [DEVELOPMENT.md § Testing](DEVELOPMENT.md#testing) |
+| **Understand architecture** | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| **OAuth authentication** | [AUTHENTICATION.md](AUTHENTICATION.md) |
+| **GUI components** | [FRONTEND.md § GUI](FRONTEND.md#gui-implementation) |
+| **Code formatting** | [DEVELOPMENT.md § Code Quality](DEVELOPMENT.md#code-quality-tools) |
+| **Submit changes** | [CONTRIBUTING.md § PR Process](CONTRIBUTING.md#pull-request-process) |
+| **Memory management** | [ARCHITECTURE.md § Memory](ARCHITECTURE.md#memory-management) |
+| **Threading patterns** | [ARCHITECTURE.md § Threading](ARCHITECTURE.md#threading-model) |
+
+### Key Concepts
+
+#### Design Philosophy
+
+L2Trader follows these core principles:
+
+1. **Composition Over Inheritance**: Prefer direct member objects over pointers
+2. **Explicit Dependencies**: Use dependency injection, avoid hidden singletons where possible
+3. **Thread Safety**: Qt signal/slot for cross-thread communication
+4. **Smart Pointers**: Consistent memory management patterns
+5. **Early Return**: Minimize nesting by handling errors first
+
+#### Threading Model
+
+- **Main Thread**: GUI/TUI event loop
+- **TSClient Thread**: Network operations, OAuth
+- **MainAlgo Thread**: Trading logic, bar processing
+- **Database Threads**: SQLite operations (per BarCache)
+
+Communication via **Qt signal/slot** with automatic queuing for thread safety.
+
+#### Memory Management Hierarchy
+
+1. **Composition** (preferred): Direct member objects
+2. **Qt Parent-Child**: For QObjects with available parent
+3. **std::unique_ptr**: Exclusive ownership
+4. **std::shared_ptr**: Shared ownership (Bar vectors)
+5. **QPointer**: Observing Qt objects with uncertain lifetime
+
+## Documentation Standards
+
+### When Adding Documentation
+
+1. **Use Mermaid** for diagrams where appropriate
+2. **Include table of contents** for longer documents
+3. **Cross-reference** related documentation
+4. **Update this index** when adding new files
+5. **Keep diagrams up-to-date** with code changes
+
+### Documentation Structure
+
+```
+Doc/
+├── README.md              # This file - documentation index
+├── ARCHITECTURE.md        # System architecture
+├── AUTHENTICATION.md      # OAuth and security
+├── FRONTEND.md            # GUI and TUI
+├── DEVELOPMENT.md         # Development guide
+└── CONTRIBUTING.md        # Contribution guidelines
+```
+
+### Style Guidelines
+
+- **Headers**: Use ATX-style (`#`, `##`, `###`)
+- **Code blocks**: Specify language for syntax highlighting
+- **Lists**: Use `-` for unordered, `1.` for ordered
+- **Links**: Use relative paths for internal docs
+- **Emphasis**: `**bold**` for important, `*italic*` for emphasis
+- **Tables**: Use for structured data comparison
+
+## Recent Updates
+
+### January 2026
+
+- ✅ Consolidated documentation into 5 main files
+- ✅ Removed obsolete migration and implementation notes
+- ✅ Updated all architecture diagrams
+- ✅ Added comprehensive threading and memory management docs
+- ✅ Expanded authentication documentation with GUI/TUI modes
+- ✅ Created unified frontend documentation
+
+### Key Improvements
+
+- **Better Organization**: Clear structure with focused documents
+- **Comprehensive Coverage**: All major topics covered in depth
+- **Cross-Referencing**: Easy navigation between related topics
+- **Up-to-Date**: All content reflects current codebase
+- **Consolidated**: Reduced from 29 files to 5 core documents
+
+## Contributing to Documentation
+
+Documentation improvements are always welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Documentation Issues
+
+Found outdated or incorrect information? Please:
+
+1. Open an issue describing the problem
+2. Reference the specific file and section
+3. Suggest corrections if possible
+
+### Documentation Pull Requests
+
+When updating documentation:
+
+- Keep language clear and concise
+- Update diagrams if architecture changes
+- Maintain consistent formatting
+- Update this index if adding new sections
+
+## Getting Help
+
+- **Issues**: https://github.com/simonbeaudoin0935/L2Trader/issues
+- **Discussions**: https://github.com/simonbeaudoin0935/L2Trader/discussions
+
+---
+
+**Note**: This documentation describes the current state of L2Trader. Some features may be under active development. Check the main README and issue tracker for the latest information on feature availability.

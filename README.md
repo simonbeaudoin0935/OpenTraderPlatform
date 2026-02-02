@@ -32,12 +32,13 @@ L2Trader follows a modular Model-View-Controller architecture with Qt's signal/s
   - **TUI**: Lightweight ncurses-based terminal interface for headless monitoring
 - **Data Management**: Bar cache, position receiver, and market depth quote handler
 
-For detailed architecture diagrams, see:
-- [Application Architecture Diagram](Doc/Application_Architecture_Diagram.md)
-- [Stock Price Chart Diagram](Doc/StockPriceChart_Diagram.md)
-- [Stock Price Chart Architecture (Comprehensive)](Doc/StockPriceChart_Architecture.md) - Detailed documentation with crash analysis
-- [Program Sequence](Doc/ProgramSequence.md)
-- [OAuth Authentication Process](Doc/OAuth_Authentication_Process.md)
+For detailed architecture documentation, see:
+- **[Doc/README.md](Doc/README.md)** - Documentation index and quick reference
+- **[Doc/ARCHITECTURE.md](Doc/ARCHITECTURE.md)** - System architecture, components, threading, and design patterns
+- **[Doc/AUTHENTICATION.md](Doc/AUTHENTICATION.md)** - OAuth 2.0 authentication and security implementation
+- **[Doc/FRONTEND.md](Doc/FRONTEND.md)** - GUI and TUI frontend architecture and components
+- **[Doc/DEVELOPMENT.md](Doc/DEVELOPMENT.md)** - Development setup, building, testing, and coding guidelines
+- **[Doc/CONTRIBUTING.md](Doc/CONTRIBUTING.md)** - Contribution process and standards
 
 ## Prerequisites
 
@@ -70,16 +71,16 @@ You will need API credentials for:
    sudo apt-get install qt6-base-dev libqt6sql6-sqlite cmake
 
    # On Ubuntu/Debian - Optional packages (recommended for development)
-   sudo apt-get install uncrustify ccache
+   sudo apt-get install clang-format ccache
 
    # On macOS with Homebrew - Essential packages
    brew install qt@6 cmake
 
    # On macOS with Homebrew - Optional packages (recommended for development)
-   brew install uncrustify ccache
+   brew install clang-format ccache
    ```
 
-   **Note**: `uncrustify` is needed for the pre-commit formatting hook. `ccache` speeds up rebuilds significantly.
+   **Note**: `clang-format` is needed for the pre-commit formatting hook. `ccache` speeds up rebuilds significantly.
 
 3. **Set up Git hooks** (optional but recommended for contributors):
    ```bash
@@ -120,7 +121,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DENABLE_ASAN=ON
 cmake --build . --parallel
 ```
 
-See [Code Quality Tools documentation](Doc/Code_Quality_Tools.md) for more information on sanitizers and other code quality tools.
+See [DEVELOPMENT.md](Doc/DEVELOPMENT.md#code-quality-tools) for more information on sanitizers and other code quality tools.
 
 ### Building with GUI Disabled (TUI Mode)
 
@@ -132,7 +133,7 @@ cmake .. -DENABLE_GUI=OFF -DCMAKE_BUILD_TYPE=Release
 cmake --build . --parallel
 ```
 
-The TUI (Terminal User Interface) provides a minimal ncurses-based interface for monitoring orders and positions. See [TUI Implementation documentation](Doc/TUI_Implementation.md) for details on features and keyboard shortcuts.
+The TUI (Terminal User Interface) provides a minimal ncurses-based interface for monitoring orders and positions. See [FRONTEND.md](Doc/FRONTEND.md#tui-implementation) for details on features and keyboard shortcuts.
 
 ## Configuration
 
@@ -247,7 +248,7 @@ cmake --build build/GUI -j$(nproc)
 ./Utils/test-gui.sh
 ```
 
-See [Doc/GUI_Testing.md](Doc/GUI_Testing.md) for more details on GUI testing.
+See [DEVELOPMENT.md](Doc/DEVELOPMENT.md#testing) for more details on testing.
 
 
 ### IDE Setup
@@ -271,23 +272,26 @@ The project includes VSCode configuration in `.vscode/`. For Qt Creator:
 - Early return/exit style for error handling
 - Indentation: 4 spaces (no tabs)
 - Line endings: Unix (LF)
-- Automatic formatting via Uncrustify (see `.uncrustify.cfg`)
+- Automatic formatting via clang-format (see `.clang-format`)
 
 **Code Formatting**: Contributors should install the pre-commit hook to automatically check formatting before commits:
 ```bash
 ./Utils/install-git-hooks.sh
 ```
-See [Git Pre-Commit Hook documentation](Doc/Git_Pre_Commit_Hook.md) for more information.
+See [CONTRIBUTING.md](Doc/CONTRIBUTING.md) for more information.
 
 ## Contributing
 
-Contributions are welcome! Please:
+Contributions are welcome! Please see [CONTRIBUTING.md](Doc/CONTRIBUTING.md) for detailed guidelines.
+
+Quick start:
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Install Git hooks: `./Utils/install-git-hooks.sh`
+4. Make your changes following our [coding guidelines](Doc/DEVELOPMENT.md#coding-guidelines)
+5. Ensure tests pass: `ctest --test-dir build --output-on-failure`
+6. Push to your fork and open a Pull Request
 
 ## Security
 
