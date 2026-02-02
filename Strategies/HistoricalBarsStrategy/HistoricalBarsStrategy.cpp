@@ -26,11 +26,29 @@ void HistoricalBarsStrategy::onStart(StrategySDK* sdk)
 
     // Get today's date in America/New_York timezone
     QDateTime nowNY = m_sdk->getCurrentTime();
-    m_currentDate = nowNY.date().addDays(-1); // Start with yesterday
+    QDate today = nowNY.date();
+
+    // Start with the previous trading day (skip weekends: Saturday=6, Sunday=7 in Qt)
+    // Qt::DayOfWeek: Monday=1, ..., Friday=5, Saturday=6, Sunday=7
+    m_currentDate = today.addDays(-1);
+
+    // Skip weekends: if we land on Saturday (6), go back to Friday
+    // If we land on Sunday (7), go back to Friday
+    int dayOfWeek = m_currentDate.dayOfWeek();
+    if (dayOfWeek == Qt::Saturday)
+    {
+        m_currentDate = m_currentDate.addDays(-1); // Saturday -> Friday
+    }
+    else if (dayOfWeek == Qt::Sunday)
+    {
+        m_currentDate = m_currentDate.addDays(-2); // Sunday -> Friday
+    }
 
     const QString& symbol = m_sdk->getConfig().symbols.isEmpty() ? "UNKNOWN" : m_sdk->getConfig().symbols[0];
 
-    m_sdk->log(QString("HistoricalBarsStrategy started for symbol: %1").arg(symbol), LogLevel::Info);
+    m_sdk->log(QString("HistoricalBarsStrategy started for symbol: %1, first fetch date: %2")
+                   .arg(symbol, m_currentDate.toString("yyyy-MM-dd")),
+               LogLevel::Info);
 
     // Create timer in this thread (strategy thread)
     m_timer = new QTimer(this);
@@ -76,8 +94,10 @@ void HistoricalBarsStrategy::fetchNextDay()
 
     const QString& symbol = m_sdk->getConfig().symbols.isEmpty() ? "AAPL" : m_sdk->getConfig().symbols[0];
 
-    // Trading hours: 9:30 AM to 4:00 PM
-    QTime startTime(9, 30);
+    // Trading hours: 9:31 AM to 4:00 PM (390 bars total)
+    // Note: Bar timestamps represent closing time, so 9:31 bar closes at 9:31 (covers 9:30-9:31 minute)
+    // and 16:00 bar closes at 16:00 (covers 15:59-16:00 minute)
+    QTime startTime(9, 31);
     QTime endTime(16, 0);
 
     m_sdk->log(QString("Fetching %1 bars for %2 on %3")
