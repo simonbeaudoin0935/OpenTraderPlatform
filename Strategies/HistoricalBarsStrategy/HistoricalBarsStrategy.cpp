@@ -62,8 +62,8 @@ void HistoricalBarsStrategy::onStop()
 {
     if (m_timer)
     {
-        // Don't call stop() directly - it may be called from another thread
-        // The timer will be properly cleaned up via deleteLater() or parent destruction
+        // Use invokeMethod to stop timer on the correct thread (strategy thread)
+        QMetaObject::invokeMethod(m_timer, "stop", Qt::QueuedConnection);
         m_timer->deleteLater();
         m_timer = nullptr;
     }
