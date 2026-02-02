@@ -268,10 +268,19 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
     disconnectStrategyFromDataSources(instance);
 
     // Call onStop on the strategy thread before quitting
-    if (instance->p_adapter)
+    // Only if thread is still running (not crashed)
+    if (instance->m_thread.isRunning() && instance->p_adapter)
     {
         QMetaObject::invokeMethod(instance->p_adapter, "callOnStop", Qt::BlockingQueuedConnection);
         qInfo(StrategyManagerLog) << "Called onStop for strategy:" << instance->config.name;
+    }
+    else if (!instance->m_thread.isRunning() && instance->p_adapter)
+    {
+        // Thread already dead (likely crashed) - call onStop directly in current thread
+        // This may not be ideal but prevents deadlock
+        qWarning(StrategyManagerLog) << "Strategy thread already dead, calling onStop in current thread:"
+                                     << instance->config.name;
+        instance->p_adapter->callOnStop();
     }
 
     // Save logs before shutdown
@@ -349,7 +358,7 @@ QString StrategyManager::startStrategy(const QString& p_strategyID)
                          instance->threadHandle = QThread::currentThreadId();
 
                          // Install signal handlers for this strategy thread
-                         if (!StrategySignalHandler::installSignalHandler(instance->strategyID, this))
+                         if (!StrategySignalHandler::installSignalHandler(instance->strategyID))
                          {
                              qWarning(StrategyManagerLog)
                                  << "Failed to install signal handler for strategy:" << instance->strategyID;
@@ -400,6 +409,13 @@ void StrategyManager::markStrategyFailed(const QString& p_strategyID, const QStr
             instance->m_thread.wait();
         }
     }
+}
+
+void StrategyManager::markStrategyFailedFromSignal(const QString& p_strategyID, const QString& p_errorMessage)
+{
+    // Logging here since we moved qCritical out of signal handler
+    qCritical(StrategyManagerLog) << "Strategy thread crashed with signal:" << p_strategyID << "-" << p_errorMessage;
+    markStrategyFailed(p_strategyID, p_errorMessage);
 }
 
 QVector<QString> StrategyManager::getActiveStrategies() const

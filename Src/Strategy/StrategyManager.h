@@ -295,6 +295,13 @@ class StrategyManager final : public QObject
      */
     void onMainAlgoBalanceUpdated(const Balance& p_balance);
 
+  private slots:
+    /*
+     * Private slot called from signal handler to mark strategy as failed
+     * Used with QMetaObject::invokeMethod from signal handler context
+     */
+    void markStrategyFailedFromSignal(const QString& p_strategyID, const QString& p_errorMessage);
+
   signals:
     /*
      * Emitted when a strategy is successfully loaded

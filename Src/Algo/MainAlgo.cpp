@@ -1,8 +1,11 @@
 #include <QThread>
 #include <QTimer>
+#include <QSocketNotifier>
+#include <unistd.h>
 
 #include "MainAlgo.h"
 #include "StrategyManager.h"
+#include "StrategySignalHandler.h"
 #include "TSClient.h"
 #include "Logging.h"
 #include "Assume.h"
@@ -52,6 +55,10 @@ MainAlgo::~MainAlgo()
 {
     DEBUG << "MainAlgo destructor - stopping thread";
 
+    // Cleanup signal handler system
+    m_crashNotifier.reset();
+    StrategySignalHandler::cleanup();
+
     // StrategyManager will be destroyed automatically via unique_ptr
     m_strategyManager.reset();
 
@@ -88,6 +95,27 @@ void MainAlgo::onThreadStarted()
     m_balancePollingTimer = std::make_unique<QTimer>(this);
 
     connect(m_balancePollingTimer.get(), &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
+
+    // Initialize signal handler system (set up crash notification pipe)
+    if (!StrategySignalHandler::initialize(m_strategyManager.get()))
+    {
+        qWarning(MainAlgoLog) << "Failed to initialize signal handler system";
+    }
+    else
+    {
+        // Set up socket notifier to monitor crash pipe
+        int crashFd = StrategySignalHandler::getCrashNotificationFd();
+        if (crashFd != -1)
+        {
+            m_crashNotifier = std::make_unique<QSocketNotifier>(crashFd, QSocketNotifier::Read, this);
+            connect(m_crashNotifier.get(),
+                    &QSocketNotifier::activated,
+                    this,
+                    &MainAlgo::onStrategyCrashNotified,
+                    Qt::UniqueConnection);
+            qDebug(MainAlgoLog) << "Installed crash notification handler";
+        }
+    }
 
     // Connect MainAlgo signals to StrategyManager for data broadcasting
     if (m_strategyManager)
@@ -548,5 +576,53 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
                 << "error=" << QtEnum::toString(error);
 
         // TODO: Route error to strategy via SDK
+    }
+}
+
+void MainAlgo::onStrategyCrashNotified()
+{
+    // Read crash notification from pipe
+    // The pipe was set up by StrategySignalHandler::initialize()
+    // and monitored by QSocketNotifier on this MainAlgo thread
+
+    if (!m_crashNotifier)
+    {
+        qWarning(MainAlgoLog) << "Crash notifier null in onStrategyCrashNotified";
+        return;
+    }
+
+    // Read from the pipe - keep reading until it's empty
+    const int fd = m_crashNotifier->socket();
+    if (fd == -1)
+    {
+        qWarning(MainAlgoLog) << "Invalid pipe file descriptor";
+        return;
+    }
+
+    struct CrashNotification
+    {
+        char strategyID[256];
+        char errorMsg[256];
+        int signal;
+    };
+
+    CrashNotification notif;
+    ssize_t result = read(fd, &notif, sizeof(notif));
+
+    if (result != static_cast<ssize_t>(sizeof(notif)))
+    {
+        qWarning(MainAlgoLog) << "Failed to read crash notification from pipe:" << strerror(errno);
+        return;
+    }
+
+    QString strategyID = QString::fromStdString(std::string(notif.strategyID));
+    QString errorMsg = QString::fromStdString(std::string(notif.errorMsg));
+
+    qCritical(MainAlgoLog) << "Strategy thread crashed with signal:" << strategyID << "-" << errorMsg;
+
+    // Now safely call StrategyManager::markStrategyFailed on the same thread
+    if (m_strategyManager)
+    {
+        m_strategyManager->markStrategyFailed(strategyID, errorMsg);
     }
 }
