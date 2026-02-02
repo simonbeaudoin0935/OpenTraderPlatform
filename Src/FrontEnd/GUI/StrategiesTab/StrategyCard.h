@@ -2,9 +2,11 @@
 
 #include <QWidget>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QTextEdit>
 #include <QComboBox>
+#include <QPushButton>
 #include <QTimer>
 #include <memory>
 
@@ -51,6 +53,8 @@ class StrategyCard : public QWidget
   private slots:
     void onRefreshTimer();
     void onLogsLevelFilterChanged(int index);
+    void onStartClicked();
+    void onStopClicked();
 
   private:
     void setupUI();
@@ -76,6 +80,8 @@ class StrategyCard : public QWidget
     QLabel* m_statusLabel;
     QLabel* m_positionsLabel;
     QLabel* m_threadInfoLabel;
+    QPushButton* m_startButton;
+    QPushButton* m_stopButton;
 
     // UI components - Content
     QTextEdit* m_ordersDisplay;

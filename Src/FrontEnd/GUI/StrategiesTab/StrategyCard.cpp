@@ -83,6 +83,25 @@ void StrategyCard::setupUI()
     m_threadInfoLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     mainLayout->addWidget(m_threadInfoLabel);
 
+    // Control buttons (Start/Stop)
+    auto buttonLayout = new QHBoxLayout();
+    m_startButton = new QPushButton("Start");
+    m_startButton->setStyleSheet("background-color: #51cf66; color: #000; font-size: 9px; padding: 4px 8px; "
+                                 "border-radius: 3px; font-weight: bold;");
+    m_startButton->setMaximumWidth(60);
+    connect(m_startButton, &QPushButton::clicked, this, &StrategyCard::onStartClicked);
+    buttonLayout->addWidget(m_startButton);
+
+    m_stopButton = new QPushButton("Stop");
+    m_stopButton->setStyleSheet("background-color: #ff6b6b; color: #fff; font-size: 9px; padding: 4px 8px; "
+                                "border-radius: 3px; font-weight: bold;");
+    m_stopButton->setMaximumWidth(60);
+    connect(m_stopButton, &QPushButton::clicked, this, &StrategyCard::onStopClicked);
+    buttonLayout->addWidget(m_stopButton);
+
+    buttonLayout->addStretch();
+    mainLayout->addLayout(buttonLayout);
+
     // Separator line
     auto separator = new QFrame();
     separator->setStyleSheet("background-color: #333;");
@@ -342,4 +361,20 @@ void StrategyCard::mousePressEvent(QMouseEvent* event)
         emit cardClicked(m_strategyID);
     }
     QWidget::mousePressEvent(event);
+}
+
+void StrategyCard::onStartClicked()
+{
+    if (m_strategyManager)
+    {
+        [[maybe_unused]] auto result = m_strategyManager->startStrategy(m_strategyID);
+    }
+}
+
+void StrategyCard::onStopClicked()
+{
+    if (m_strategyManager)
+    {
+        [[maybe_unused]] auto result = m_strategyManager->unloadStrategy(m_strategyID);
+    }
 }
