@@ -5,67 +5,74 @@
 #include <thread>
 #include <map>
 #include <pthread.h>
+#include <unistd.h>
 #include <QMutex>
 #include <QDebug>
-#include <QMetaObject>
+#include <QSocketNotifier>
 
 // Thread-local storage for current strategy ID
 static thread_local QString g_currentStrategyID;
-static thread_local StrategyManager* g_currentStrategyManager = nullptr;
+
+// Global pipe for crash notifications (async-signal-safe)
+// Signal handler writes to write_fd, main thread reads from read_fd
+static int g_crashNotifyPipe[2] = {-1, -1};
+
+// Crash notification message structure (must be POD, simple)
+struct CrashNotification
+{
+    char strategyID[256];
+    char errorMsg[256];
+    int signal;
+};
 
 // Map: thread_id -> strategy_id for identifying which strategy crashed
 static QMutex g_threadMapMutex;
 static std::map<std::thread::id, QString> g_threadStrategyMap;
-static std::map<std::thread::id, StrategyManager*> g_threadManagerMap;
 
 // Signal handler for SIGSEGV, SIGABRT, and SIGTERM
 static void strategySignalHandler(int p_signal)
 {
     // This handler runs on the strategy thread with an alternate stack
-    // Minimal code here to be safe - just notify StrategyManager
+    // ONLY async-signal-safe operations allowed here!
 
-    if (g_currentStrategyManager && !g_currentStrategyID.isEmpty())
+    if (!g_currentStrategyID.isEmpty() && g_crashNotifyPipe[1] != -1)
     {
-        QString errorMsg;
+        // Prepare crash notification (no Qt, no memory allocation)
+        CrashNotification notif;
+        std::memset(&notif, 0, sizeof(notif));
+
+        // Copy strategy ID (safe string operation - bounded)
+        std::strncpy(notif.strategyID, g_currentStrategyID.toStdString().c_str(), sizeof(notif.strategyID) - 1);
+
+        // Set error message
         switch (p_signal)
         {
         case SIGSEGV:
-            errorMsg = "Segmentation fault (SIGSEGV)";
+            std::strcpy(notif.errorMsg, "Segmentation fault (SIGSEGV)");
             break;
         case SIGABRT:
-            errorMsg = "Abort signal (SIGABRT)";
+            std::strcpy(notif.errorMsg, "Abort signal (SIGABRT)");
             break;
         case SIGTERM:
-            errorMsg = "Termination signal (SIGTERM)";
+            std::strcpy(notif.errorMsg, "Termination signal (SIGTERM)");
             break;
         default:
-            errorMsg = QString("Unknown signal (%1)").arg(p_signal);
+            std::strcpy(notif.errorMsg, "Unknown signal");
         }
 
-        // Use a queued invocation to safely notify from signal handler
-        // Note: Pass QString copies by pointer to avoid complex captures
-        QString* p_strategyID = new QString(g_currentStrategyID);
-        QString* p_errorMsg = new QString(errorMsg);
-        StrategyManager* manager = g_currentStrategyManager;
+        notif.signal = p_signal;
 
-        QMetaObject::invokeMethod(manager,
-                                  "markStrategyFailedFromSignal",
-                                  Qt::QueuedConnection,
-                                  Q_ARG(QString, *p_strategyID),
-                                  Q_ARG(QString, *p_errorMsg));
+        // Write to pipe - this IS async-signal-safe
+        ssize_t result = write(g_crashNotifyPipe[1], &notif, sizeof(notif));
+        (void)result; // Suppress unused warning
 
-        delete p_strategyID;
-        delete p_errorMsg;
-
-        // For SIGABRT, restore default handler before exiting to prevent re-entry loops
-        // (abort() can retry the signal if we just exit normally)
+        // For SIGABRT, restore default handler to prevent re-entry
         if (p_signal == SIGABRT)
         {
             signal(SIGABRT, SIG_DFL);
         }
 
-        // Exit the current thread gracefully instead of raising the signal
-        // This prevents the crash from propagating to the main thread
+        // Exit thread gracefully
         pthread_exit(nullptr);
     }
 }
@@ -73,23 +80,60 @@ static void strategySignalHandler(int p_signal)
 namespace StrategySignalHandler
 {
 
-    bool installSignalHandler(const QString& p_strategyID, StrategyManager* p_strategyManager)
+    bool initialize(StrategyManager* p_strategyManager)
     {
-        if (p_strategyID.isEmpty() || !p_strategyManager)
+        if (!p_strategyManager)
         {
-            qWarning() << "Invalid parameters for installSignalHandler";
+            qWarning() << "StrategySignalHandler::initialize: Invalid StrategyManager pointer";
             return false;
         }
 
-        // Store thread-local references
+        // Create pipe for crash notifications
+        if (pipe(g_crashNotifyPipe) == -1)
+        {
+            qWarning() << "Failed to create crash notification pipe:" << strerror(errno);
+            return false;
+        }
+
+        qDebug() << "Initialized signal handler system with crash notification pipe";
+        return true;
+    }
+
+    void cleanup()
+    {
+        if (g_crashNotifyPipe[0] != -1)
+        {
+            close(g_crashNotifyPipe[0]);
+            g_crashNotifyPipe[0] = -1;
+        }
+        if (g_crashNotifyPipe[1] != -1)
+        {
+            close(g_crashNotifyPipe[1]);
+            g_crashNotifyPipe[1] = -1;
+        }
+        qDebug() << "Cleaned up signal handler system";
+    }
+
+    int getCrashNotificationFd()
+    {
+        return g_crashNotifyPipe[0];
+    }
+
+    bool installSignalHandler(const QString& p_strategyID)
+    {
+        if (p_strategyID.isEmpty())
+        {
+            qWarning() << "Invalid strategy ID for installSignalHandler";
+            return false;
+        }
+
+        // Store thread-local strategy ID
         g_currentStrategyID = p_strategyID;
-        g_currentStrategyManager = p_strategyManager;
 
         // Store global mapping for debugging
         {
             QMutexLocker locker(&g_threadMapMutex);
             g_threadStrategyMap[std::this_thread::get_id()] = p_strategyID;
-            g_threadManagerMap[std::this_thread::get_id()] = p_strategyManager;
         }
 
         // Set up alternate stack for signal handler (prevents stack overflow during signal delivery)
@@ -153,13 +197,11 @@ namespace StrategySignalHandler
         {
             QMutexLocker locker(&g_threadMapMutex);
             g_threadStrategyMap.erase(std::this_thread::get_id());
-            g_threadManagerMap.erase(std::this_thread::get_id());
         }
 
         qDebug() << "Uninstalled signal handlers for strategy:" << g_currentStrategyID;
 
         g_currentStrategyID.clear();
-        g_currentStrategyManager = nullptr;
     }
 
 } // namespace StrategySignalHandler

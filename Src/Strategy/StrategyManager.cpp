@@ -349,7 +349,7 @@ QString StrategyManager::startStrategy(const QString& p_strategyID)
                          instance->threadHandle = QThread::currentThreadId();
 
                          // Install signal handlers for this strategy thread
-                         if (!StrategySignalHandler::installSignalHandler(instance->strategyID, this))
+                         if (!StrategySignalHandler::installSignalHandler(instance->strategyID))
                          {
                              qWarning(StrategyManagerLog)
                                  << "Failed to install signal handler for strategy:" << instance->strategyID;
