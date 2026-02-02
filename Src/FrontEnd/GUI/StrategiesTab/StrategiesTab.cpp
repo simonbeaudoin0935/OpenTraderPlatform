@@ -76,9 +76,9 @@ void StrategiesTab::connectSignals()
     auto loadConn = connect(m_loadStrategyButton, &QPushButton::clicked, this, &StrategiesTab::onLoadStrategyClicked);
     OBJ_ASSUME_TRUE(loadConn);
 
-    // Connect to grid tile selection
+    // Connect to grid card selection
     auto gridConn = connect(m_strategyGrid.get(),
-                            &StrategyGridWidget::strategyTileClicked,
+                            &StrategyGridWidget::strategyCardClicked,
                             this,
                             &StrategiesTab::onStrategyTileClicked,
                             Qt::QueuedConnection);
@@ -93,7 +93,7 @@ void StrategiesTab::updateStrategyGrid()
     {
         auto config = m_strategyManager->getStrategyConfig(strategyID);
         bool isRunning = m_strategyManager->isStrategyRunning(strategyID);
-        m_strategyGrid->addStrategyTile(strategyID, config.name, config.symbols, isRunning);
+        m_strategyGrid->addStrategyCard(strategyID, config.name, config.symbols, isRunning);
     }
 }
 
@@ -104,18 +104,18 @@ void StrategiesTab::onStrategyLoaded(const QString& strategyID, const QString& n
     // Get strategy config from StrategyManager
     auto config = m_strategyManager->getStrategyConfig(strategyID);
     bool isRunning = m_strategyManager->isStrategyRunning(strategyID);
-    m_strategyGrid->addStrategyTile(strategyID, name, config.symbols, isRunning);
+    m_strategyGrid->addStrategyCard(strategyID, name, config.symbols, isRunning);
 }
 
 void StrategiesTab::onStrategyUnloaded(const QString& strategyID)
 {
     qDebug() << "[StrategiesTab] Strategy unloaded:" << strategyID;
-    m_strategyGrid->removeStrategyTile(strategyID);
+    m_strategyGrid->removeStrategyCard(strategyID);
 }
 
 void StrategiesTab::onStrategyStatusChanged(const QString& strategyID, bool isRunning, const QString& errorMessage)
 {
-    m_strategyGrid->updateStrategyTileStatus(strategyID, isRunning, errorMessage);
+    m_strategyGrid->updateStrategyCardStatus(strategyID, isRunning, errorMessage);
 }
 
 void StrategiesTab::onLoadStrategyClicked()
@@ -139,5 +139,5 @@ void StrategiesTab::onLoadStrategyClicked()
 void StrategiesTab::onStrategyTileClicked(const QString& strategyID)
 {
     m_selectedStrategyID = strategyID;
-    m_strategyGrid->setSelectedTile(strategyID);
+    m_strategyGrid->setSelectedCard(strategyID);
 }

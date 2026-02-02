@@ -42,10 +42,9 @@ void StrategyTile::setupUI()
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
-    // Content frame with border
+    // Content frame (no border - will be in parent container)
     m_contentFrame = new QFrame(this);
-    m_contentFrame->setStyleSheet(
-        "background-color: #2b2b2b; border: 1px solid #444; border-radius: 6px; padding: 8px;");
+    m_contentFrame->setStyleSheet("background-color: transparent; padding: 0px;");
     m_contentFrame->setFrameShape(QFrame::StyledPanel);
     m_contentFrame->setFrameShadow(QFrame::Plain);
     mainLayout->addWidget(m_contentFrame);

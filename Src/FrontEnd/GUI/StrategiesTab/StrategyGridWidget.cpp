@@ -1,5 +1,5 @@
 #include "StrategyGridWidget.h"
-#include "StrategyTileWithPanel.h"
+#include "StrategyCard.h"
 #include "StrategyManager.h"
 
 #include <QHBoxLayout>
@@ -17,88 +17,86 @@ void StrategyGridWidget::setupUI()
     m_mainLayout->setSpacing(10);
     m_mainLayout->setContentsMargins(10, 10, 10, 10);
 
-    // Add stretchable space at the end to push tiles to the left
+    // Add stretchable space at the end to push cards to the left
     m_mainLayout->addStretch();
 }
 
-void StrategyGridWidget::addStrategyTile(const QString& strategyID,
+void StrategyGridWidget::addStrategyCard(const QString& strategyID,
                                          const QString& name,
                                          const QVector<QString>& symbols,
                                          bool isRunning)
 {
-    auto tileWithPanel = new StrategyTileWithPanel(strategyID, name, symbols, isRunning, m_strategyManager);
+    auto card = new StrategyCard(strategyID, name, symbols, isRunning, m_strategyManager);
 
-    // Connect tile click signal
-    [[maybe_unused]] auto tileConn = connect(tileWithPanel,
-                                             &StrategyTileWithPanel::tileClicked,
-                                             this,
-                                             [this](const QString& id) { emit strategyTileClicked(id); });
+    // Connect card click signal
+    [[maybe_unused]] auto cardConn =
+        connect(card, &StrategyCard::cardClicked, this, [this](const QString& id) { emit strategyCardClicked(id); });
 
-    m_tiles[strategyID] = tileWithPanel;
+    m_cards[strategyID] = card;
 
     // Insert before the stretch item
-    m_mainLayout->insertWidget(m_mainLayout->count() - 1, tileWithPanel);
+    m_mainLayout->insertWidget(m_mainLayout->count() - 1, card);
 
-    // If this is the first tile, select it
+    // If this is the first card, select it
     if (m_selectedStrategyID.isEmpty())
     {
-        setSelectedTile(strategyID);
+        setSelectedCard(strategyID);
     }
 }
 
-void StrategyGridWidget::updateStrategyTileStatus(const QString& strategyID,
+void StrategyGridWidget::updateStrategyCardStatus(const QString& strategyID,
                                                   bool isRunning,
                                                   const QString& errorMessage)
 {
-    if (m_tiles.contains(strategyID))
+    if (m_cards.contains(strategyID))
     {
-        m_tiles[strategyID]->setStatus(isRunning, errorMessage);
+        m_cards[strategyID]->setStatus(isRunning, errorMessage);
     }
 }
 
-void StrategyGridWidget::removeStrategyTile(const QString& strategyID)
+void StrategyGridWidget::removeStrategyCard(const QString& strategyID)
 {
-    if (m_tiles.contains(strategyID))
+    if (m_cards.contains(strategyID))
     {
-        auto tile = m_tiles[strategyID];
-        m_mainLayout->removeWidget(tile);
-        delete tile;
-        m_tiles.remove(strategyID);
+        auto card = m_cards[strategyID];
+        m_mainLayout->removeWidget(card);
+        delete card;
+        m_cards.remove(strategyID);
 
         if (m_selectedStrategyID == strategyID)
         {
             m_selectedStrategyID = "";
-            // Select first remaining tile if any
-            if (!m_tiles.isEmpty())
+            // Select first remaining card if any
+            if (!m_cards.isEmpty())
             {
-                setSelectedTile(m_tiles.first()->getStrategyID());
+                setSelectedCard(m_cards.first()->getStrategyID());
             }
         }
     }
 }
 
-void StrategyGridWidget::setSelectedTile(const QString& strategyID)
+void StrategyGridWidget::setSelectedCard(const QString& strategyID)
 {
     // Deselect previous
-    if (!m_selectedStrategyID.isEmpty() && m_tiles.contains(m_selectedStrategyID))
+    if (!m_selectedStrategyID.isEmpty() && m_cards.contains(m_selectedStrategyID))
     {
-        m_tiles[m_selectedStrategyID]->setSelected(false);
+        // Could add visual feedback here if desired
     }
 
     // Select new
     m_selectedStrategyID = strategyID;
-    if (m_tiles.contains(strategyID))
+    if (m_cards.contains(strategyID))
     {
-        m_tiles[strategyID]->setSelected(true);
+        // Could add visual feedback here if desired
     }
 }
 
-void StrategyGridWidget::clearTiles()
+void StrategyGridWidget::clearCards()
 {
-    for (auto tile: m_tiles)
+    for (auto card: m_cards)
     {
-        delete tile;
+        delete card;
     }
-    m_tiles.clear();
+    m_cards.clear();
     m_selectedStrategyID = "";
 }

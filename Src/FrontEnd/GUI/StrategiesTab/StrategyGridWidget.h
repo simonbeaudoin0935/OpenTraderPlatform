@@ -4,20 +4,15 @@
 #include <QHBoxLayout>
 #include <QMap>
 
-class StrategyTileWithPanel;
+class StrategyCard;
 class StrategyManager;
 
 /**
- * @brief StrategyGridWidget - Horizontal container for strategy tiles with embedded panels
+ * @brief StrategyGridWidget - Horizontal container for strategy cards
  *
- * Displays all active strategies as composite tiles (tile + panel below) in horizontal layout.
- * Each tile shows: name, symbols, status, PnL, positions, thread ID, CPU/memory, timestamp.
- * Each tile has its own embedded details panel below it.
- *
- * Layout: Horizontal scrolling, fixed-width tiles (400px).
- *
- * Signals:
- * - strategyTileClicked(strategyID) - emitted when a tile is clicked
+ * Displays all active strategies as self-contained cards in horizontal layout.
+ * Each card is a unified widget with tile header + details/logs panel.
+ * Fixed-width cards (400px) for consistent horizontal scrolling.
  */
 class StrategyGridWidget : public QWidget
 {
@@ -27,30 +22,30 @@ class StrategyGridWidget : public QWidget
     explicit StrategyGridWidget(StrategyManager* p_strategyManager, QWidget* parent = nullptr);
     ~StrategyGridWidget() override = default;
 
-    // Add a strategy tile with panel
+    // Add a strategy card
     void
-    addStrategyTile(const QString& strategyID, const QString& name, const QVector<QString>& symbols, bool isRunning);
+    addStrategyCard(const QString& strategyID, const QString& name, const QVector<QString>& symbols, bool isRunning);
 
-    // Update status of a specific tile
-    void updateStrategyTileStatus(const QString& strategyID, bool isRunning, const QString& errorMessage);
+    // Update status of a specific card
+    void updateStrategyCardStatus(const QString& strategyID, bool isRunning, const QString& errorMessage);
 
-    // Remove a specific tile
-    void removeStrategyTile(const QString& strategyID);
+    // Remove a specific card
+    void removeStrategyCard(const QString& strategyID);
 
-    // Set which tile is selected (visual highlighting)
-    void setSelectedTile(const QString& strategyID);
+    // Set which card is selected
+    void setSelectedCard(const QString& strategyID);
 
-    // Clear all tiles
-    void clearTiles();
+    // Clear all cards
+    void clearCards();
 
   signals:
-    void strategyTileClicked(const QString& strategyID);
+    void strategyCardClicked(const QString& strategyID);
 
   private:
     void setupUI();
 
     QHBoxLayout* m_mainLayout;
-    QMap<QString, StrategyTileWithPanel*> m_tiles; // strategyID -> tile+panel widget
+    QMap<QString, StrategyCard*> m_cards; // strategyID -> card widget
     QString m_selectedStrategyID;
     StrategyManager* m_strategyManager;
 };
