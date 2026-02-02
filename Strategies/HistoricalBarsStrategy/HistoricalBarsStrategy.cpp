@@ -126,10 +126,10 @@ void HistoricalBarsStrategy::fetchNextDay()
     m_daysBack++;
     m_currentDate = m_currentDate.addDays(-1);
 
-    // Schedule next fetch for 2 seconds later
+    // Schedule next fetch for 500ms later
     if (m_timer && m_daysBack < MAX_DAYS_BACK)
     {
-        m_timer->start(2000);
+        m_timer->start(500);
     }
 }
 
