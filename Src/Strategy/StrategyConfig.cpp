@@ -32,7 +32,21 @@ StrategyConfig StrategyConfig::fromJson(const QJsonObject& obj)
 {
     StrategyConfig config;
     config.name = obj["name"].toString();
-    config.soPath = obj["soPath"].toString();
+
+    // Support both "soPath" and "plugin" fields for backwards compatibility
+    QString soPath = obj["soPath"].toString();
+    if (soPath.isEmpty())
+    {
+        soPath = obj["plugin"].toString();
+    }
+
+    // If soPath is just a filename (no path separators), resolve it to the Strategies directory
+    if (!soPath.isEmpty() && !soPath.contains("/") && !soPath.contains("~"))
+    {
+        soPath = "~/.local/share/L2Trader/Strategies/" + soPath;
+    }
+
+    config.soPath = soPath;
 
     // Expand tilde in soPath for home directory
     if (config.soPath.startsWith("~"))

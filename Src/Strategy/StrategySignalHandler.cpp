@@ -18,26 +18,49 @@ static QMutex g_threadMapMutex;
 static std::map<std::thread::id, QString> g_threadStrategyMap;
 static std::map<std::thread::id, StrategyManager*> g_threadManagerMap;
 
-// Signal handler for SIGSEGV
+// Signal handler for SIGSEGV, SIGABRT, and SIGTERM
 static void strategySignalHandler(int p_signal)
 {
     // This handler runs on the strategy thread with an alternate stack
     // Minimal code here to be safe - just notify StrategyManager
 
-    if (p_signal == SIGSEGV && g_currentStrategyManager && !g_currentStrategyID.isEmpty())
+    if (g_currentStrategyManager && !g_currentStrategyID.isEmpty())
     {
+        QString errorMsg;
+        switch (p_signal)
+        {
+        case SIGSEGV:
+            errorMsg = "Segmentation fault (SIGSEGV)";
+            break;
+        case SIGABRT:
+            errorMsg = "Abort signal (SIGABRT)";
+            break;
+        case SIGTERM:
+            errorMsg = "Termination signal (SIGTERM)";
+            break;
+        default:
+            errorMsg = QString("Unknown signal (%1)").arg(p_signal);
+        }
+
         // Use a queued invocation to safely notify from signal handler
         QString strategyID = g_currentStrategyID;
         StrategyManager* manager = g_currentStrategyManager;
 
         QMetaObject::invokeMethod(
             manager,
-            [strategyID, manager]()
+            [strategyID, manager, errorMsg]()
             {
-                qCritical() << "Strategy thread crashed with SIGSEGV: strategyID=" << strategyID;
-                manager->markStrategyFailed(strategyID, "Segmentation fault (SIGSEGV)");
+                qCritical() << "Strategy thread crashed with signal:" << strategyID << "-" << errorMsg;
+                manager->markStrategyFailed(strategyID, errorMsg);
             },
             Qt::QueuedConnection);
+
+        // For SIGABRT, restore default handler before exiting to prevent re-entry loops
+        // (abort() can retry the signal if we just exit normally)
+        if (p_signal == SIGABRT)
+        {
+            signal(SIGABRT, SIG_DFL);
+        }
 
         // Exit the current thread gracefully instead of raising the signal
         // This prevents the crash from propagating to the main thread
@@ -85,26 +108,41 @@ namespace StrategySignalHandler
             return false;
         }
 
-        // Install SIGSEGV handler with alternate stack
+        // Install signal handlers with alternate stack
         struct sigaction sa;
         sigemptyset(&sa.sa_mask);
         sa.sa_handler = strategySignalHandler;
         sa.sa_flags = SA_ONSTACK; // Use alternate stack for signal delivery
 
+        // Install handlers for SIGSEGV, SIGABRT, and SIGTERM
         if (sigaction(SIGSEGV, &sa, nullptr) == -1)
         {
             qWarning() << "Failed to install SIGSEGV handler:" << strerror(errno);
             return false;
         }
 
-        qDebug() << "Installed SIGSEGV handler for strategy:" << p_strategyID;
+        if (sigaction(SIGABRT, &sa, nullptr) == -1)
+        {
+            qWarning() << "Failed to install SIGABRT handler:" << strerror(errno);
+            return false;
+        }
+
+        if (sigaction(SIGTERM, &sa, nullptr) == -1)
+        {
+            qWarning() << "Failed to install SIGTERM handler:" << strerror(errno);
+            return false;
+        }
+
+        qDebug() << "Installed signal handlers for strategy:" << p_strategyID;
         return true;
     }
 
     void uninstallSignalHandler()
     {
-        // Restore default SIGSEGV handler
+        // Restore default signal handlers
         signal(SIGSEGV, SIG_DFL);
+        signal(SIGABRT, SIG_DFL);
+        signal(SIGTERM, SIG_DFL);
 
         // Note: We intentionally leave the alternate stack allocated
         // as freeing it could cause issues if a signal arrives after uninstall
@@ -116,7 +154,7 @@ namespace StrategySignalHandler
             g_threadManagerMap.erase(std::this_thread::get_id());
         }
 
-        qDebug() << "Uninstalled SIGSEGV handler for strategy:" << g_currentStrategyID;
+        qDebug() << "Uninstalled signal handlers for strategy:" << g_currentStrategyID;
 
         g_currentStrategyID.clear();
         g_currentStrategyManager = nullptr;

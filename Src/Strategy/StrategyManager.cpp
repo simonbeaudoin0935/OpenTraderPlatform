@@ -108,6 +108,49 @@ const QString& StrategySDK::getStrategyName() const
     return m_config.name;
 }
 
+std::shared_ptr<QVector<Bar>>
+StrategySDK::getHistoricalBars(const QString& /* symbol */, const QDate& day, const QTime& first, const QTime& last)
+{
+    if (!m_mainAlgo)
+    {
+        return std::make_shared<QVector<Bar>>();
+    }
+
+    // Request bars from MainAlgo (which has access to all StockInstruments and their BarCaches)
+    auto result = m_mainAlgo->requestMissingBarsDisplayedStock(day, first, last);
+
+    // Result is a variant of either std::shared_ptr<QVector<Bar>> or QFuture
+    if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
+    {
+        // Already cached, return immediately
+        return std::get<std::shared_ptr<QVector<Bar>>>(result);
+    }
+    else
+    {
+        // Need to wait for QFuture to resolve
+        auto future = std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result);
+        future.waitForFinished(); // Block and wait for result
+
+        if (future.isValid() && future.resultCount() > 0)
+        {
+            auto expected = future.result();
+            if (expected.has_value())
+            {
+                return expected.value();
+            }
+        }
+    }
+
+    // Return empty vector on error
+    return std::make_shared<QVector<Bar>>();
+}
+
+QDateTime StrategySDK::getCurrentTime() const
+{
+    // Return current time in America/New_York timezone (market timezone)
+    return QDateTime::currentDateTime().toTimeZone(QTimeZone("America/New_York"));
+}
+
 // StrategyManager implementation
 
 StrategyManager::StrategyManager(MainAlgo* p_mainAlgo)
@@ -305,7 +348,7 @@ QString StrategyManager::startStrategy(const QString& p_strategyID)
                          // Capture thread handle for stats reading
                          instance->threadHandle = QThread::currentThreadId();
 
-                         // Install SIGSEGV handler for this strategy thread
+                         // Install signal handlers for this strategy thread
                          if (!StrategySignalHandler::installSignalHandler(instance->strategyID, this))
                          {
                              qWarning(StrategyManagerLog)
@@ -345,6 +388,18 @@ void StrategyManager::markStrategyFailed(const QString& p_strategyID, const QStr
 
     // Emit status changed signal with error state
     emit strategyStatusChanged(p_strategyID, false, p_errorMessage);
+
+    // Stop the thread if it's still running (it may have already crashed)
+    if (instance->m_thread.isRunning())
+    {
+        instance->m_thread.quit();
+        if (!instance->m_thread.wait(2000))
+        {
+            qWarning(StrategyManagerLog) << "Strategy thread did not quit, terminating:" << instance->config.name;
+            instance->m_thread.terminate();
+            instance->m_thread.wait();
+        }
+    }
 }
 
 QVector<QString> StrategyManager::getActiveStrategies() const

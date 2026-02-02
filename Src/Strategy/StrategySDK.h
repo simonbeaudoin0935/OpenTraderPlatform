@@ -95,6 +95,23 @@ class StrategySDK : public QObject
     [[nodiscard]]
     const QString& getStrategyName() const;
 
+    /// @brief Get historical bars for a symbol (blocking)
+    /// Fetches bars from the cache or API, waiting synchronously for the result.
+    /// @param symbol Stock symbol (e.g., "AAPL")
+    /// @param day Trading day (in America/New_York timezone)
+    /// @param first Start time of bar range (in America/New_York timezone)
+    /// @param last End time of bar range (in America/New_York timezone)
+    /// @return Shared vector of bars, or empty vector on error
+    [[nodiscard]]
+    std::shared_ptr<QVector<Bar>>
+    getHistoricalBars(const QString& symbol, const QDate& day, const QTime& first, const QTime& last);
+
+    /// @brief Get current application time (thread-safe)
+    /// Returns the current time in America/New_York timezone
+    /// @return Current QDateTime in New York timezone
+    [[nodiscard]]
+    QDateTime getCurrentTime() const;
+
   private:
     MainAlgo* m_mainAlgo;
     QString m_strategyID;

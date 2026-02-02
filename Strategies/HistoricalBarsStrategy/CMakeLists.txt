@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(CrashTestStrategy VERSION 1.0.0 LANGUAGES CXX)
+project(HistoricalBarsStrategy VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,21 +12,21 @@ find_package(Qt6 COMPONENTS Core REQUIRED)
 set(L2TRADER_SRC "${CMAKE_CURRENT_SOURCE_DIR}/../../Src")
 
 # Create shared library for the strategy plugin
-add_library(CrashTestStrategy SHARED
-    CrashTestStrategy.cpp
-    CrashTestStrategy.h
+add_library(HistoricalBarsStrategy SHARED
+    HistoricalBarsStrategy.cpp
+    HistoricalBarsStrategy.h
 )
 
 # Link Qt6
-target_link_libraries(CrashTestStrategy PRIVATE Qt6::Core)
+target_link_libraries(HistoricalBarsStrategy PRIVATE Qt6::Core)
 
 # Link against L2TraderStrategy shared library
-target_link_libraries(CrashTestStrategy PRIVATE 
+target_link_libraries(HistoricalBarsStrategy PRIVATE 
     L2TraderStrategy
 )
 
 # Include all L2Trader headers with explicit subdirectories
-target_include_directories(CrashTestStrategy PRIVATE 
+target_include_directories(HistoricalBarsStrategy PRIVATE 
     "${L2TRADER_SRC}"
     "${L2TRADER_SRC}/Algo"
     "${L2TRADER_SRC}/Algo/MarketDepthQuoteReceiver"
@@ -67,26 +67,26 @@ target_include_directories(CrashTestStrategy PRIVATE
 
 # Set link directories to find L2TraderStrategy shared library
 set(L2TRADER_BUILD "${CMAKE_CURRENT_SOURCE_DIR}/../../build")
-target_link_directories(CrashTestStrategy PRIVATE
+target_link_directories(HistoricalBarsStrategy PRIVATE
     "${L2TRADER_BUILD}/GUI/Src"
     "${L2TRADER_BUILD}/TUI/Src"
 )
 
 # Set output directory
-set_target_properties(CrashTestStrategy PROPERTIES
+set_target_properties(HistoricalBarsStrategy PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     PREFIX ""
     SUFFIX ".so"
 )
 
-message(STATUS "Building CrashTestStrategy plugin")
+message(STATUS "Building HistoricalBarsStrategy plugin")
 message(STATUS "  L2Trader SDK path: ${L2TRADER_SRC}")
-message(STATUS "  Output: ${CMAKE_BINARY_DIR}/lib/CrashTestStrategy.so")
+message(STATUS "  Output: ${CMAKE_BINARY_DIR}/lib/HistoricalBarsStrategy.so")
 message(STATUS "  Install dir: ~/.local/share/L2Trader/Strategies/")
 
 # Post-build install command to copy .so to ~/.local/share/L2Trader/Strategies/
-add_custom_command(TARGET CrashTestStrategy POST_BUILD
+add_custom_command(TARGET HistoricalBarsStrategy POST_BUILD
     COMMAND mkdir -p ~/.local/share/L2Trader/Strategies/
-    COMMAND cp "${CMAKE_BINARY_DIR}/lib/CrashTestStrategy.so" ~/.local/share/L2Trader/Strategies/
-    COMMENT "Installing CrashTestStrategy.so to ~/.local/share/L2Trader/Strategies/"
+    COMMAND cp "${CMAKE_BINARY_DIR}/lib/HistoricalBarsStrategy.so" ~/.local/share/L2Trader/Strategies/
+    COMMENT "Installing HistoricalBarsStrategy.so to ~/.local/share/L2Trader/Strategies/"
 )

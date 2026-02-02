@@ -326,6 +326,7 @@ class StrategyManager final : public QObject
         STOPPED  // Strategy has been stopped/unloaded
     };
 
+  private:
     struct StrategyInstance
     {
         QString strategyID;                          // Unique ID for this instance
