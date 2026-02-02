@@ -137,6 +137,19 @@ class StrategyManager final : public QObject
     [[nodiscard]] QString startStrategy(const QString& p_strategyID);
 
     /*
+     * Mark a strategy as crashed/failed
+     * Called by signal handlers when strategy thread crashes
+     *
+     * - Sets error state
+     * - Emits strategyStatusChanged signal
+     * - Updates UI to show ERROR status
+     *
+     * @param p_strategyID - Strategy instance ID
+     * @param p_errorMessage - Error message describing the crash
+     */
+    void markStrategyFailed(const QString& p_strategyID, const QString& p_errorMessage);
+
+    /*
      * Get list of active strategy IDs
      */
     [[nodiscard]] QVector<QString> getActiveStrategies() const;

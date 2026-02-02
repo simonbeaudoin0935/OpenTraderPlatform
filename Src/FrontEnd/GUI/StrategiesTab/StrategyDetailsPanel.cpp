@@ -155,11 +155,21 @@ void StrategyDetailsPanel::setupUI()
 
     m_startButton = new QPushButton("Start");
     m_startButton->setMaximumWidth(60);
+    m_startButton->setStyleSheet(
+        "QPushButton { background-color: #4db84d; color: #000; font-weight: bold; border-radius: 3px; padding: 4px; }"
+        "QPushButton:hover { background-color: #66cc66; }"
+        "QPushButton:pressed { background-color: #3d9d3d; }"
+        "QPushButton:disabled { background-color: #555; color: #999; }");
     connect(m_startButton, &QPushButton::clicked, this, &StrategyDetailsPanel::onStartStrategy);
     buttonLayout->addWidget(m_startButton);
 
     m_stopButton = new QPushButton("Stop");
     m_stopButton->setMaximumWidth(60);
+    m_stopButton->setStyleSheet(
+        "QPushButton { background-color: #cc4444; color: #fff; font-weight: bold; border-radius: 3px; padding: 4px; }"
+        "QPushButton:hover { background-color: #ff6666; }"
+        "QPushButton:pressed { background-color: #aa2222; }"
+        "QPushButton:disabled { background-color: #555; color: #999; }");
     connect(m_stopButton, &QPushButton::clicked, this, &StrategyDetailsPanel::onStopStrategy);
     buttonLayout->addWidget(m_stopButton);
 

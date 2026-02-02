@@ -331,6 +331,22 @@ QString StrategyManager::startStrategy(const QString& p_strategyID)
     return "";
 }
 
+void StrategyManager::markStrategyFailed(const QString& p_strategyID, const QString& p_errorMessage)
+{
+    auto* instance = findStrategy(p_strategyID);
+    if (!instance)
+    {
+        qWarning(StrategyManagerLog) << "markStrategyFailed: Strategy not found:" << p_strategyID;
+        return;
+    }
+
+    qCritical(StrategyManagerLog) << "Strategy marked as FAILED:" << instance->config.name
+                                  << "Error:" << p_errorMessage;
+
+    // Emit status changed signal with error state
+    emit strategyStatusChanged(p_strategyID, false, p_errorMessage);
+}
+
 QVector<QString> StrategyManager::getActiveStrategies() const
 {
     return m_strategies.keys().toVector();

@@ -35,8 +35,7 @@ static void strategySignalHandler(int p_signal)
             [strategyID, manager]()
             {
                 qCritical() << "Strategy thread crashed with SIGSEGV: strategyID=" << strategyID;
-                // TODO: Mark strategy as failed/error state
-                // manager->markStrategyFailed(strategyID, "Segmentation fault (SIGSEGV)");
+                manager->markStrategyFailed(strategyID, "Segmentation fault (SIGSEGV)");
             },
             Qt::QueuedConnection);
 
