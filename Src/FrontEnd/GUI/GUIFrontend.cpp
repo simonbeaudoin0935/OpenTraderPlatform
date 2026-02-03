@@ -137,12 +137,14 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                          Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(accountInfoConnection);
 
-    // Create mode indicator (top-right corner) - shows LIVE or REPLAY mode
+    // Create mode indicator (centered) - shows LIVE or REPLAY mode
+    // Insert before the existing spacer to center it
     m_replayIndicator = new QLabel("🟢 LIVE", mainWindow);
     Q_CHECK_PTR(m_replayIndicator);
     m_replayIndicator->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
                                      "border-radius: 4px; font-weight: bold; }");
-    ui->topControlsLayout->addWidget(m_replayIndicator);
+    // Insert at position 3 (after stockSymbolInput, accountSelector, accountInfoButton, before spacer)
+    ui->topControlsLayout->insertWidget(3, m_replayIndicator);
 
     // Connect app frontend signals and slots
     connect(this,

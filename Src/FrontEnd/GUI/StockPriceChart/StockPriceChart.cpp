@@ -160,18 +160,6 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_symbolWatermark->setColor(QColor(255, 255, 255, 30)); // Pale transparent white
     m_symbolWatermark->setLayer("background");              // Draw behind candlesticks
 
-    // Create replay watermark (center, behind candlesticks)
-    m_replayWatermark = new QCPItemText(m_customPlot);
-    Q_CHECK_PTR(m_replayWatermark);
-    m_replayWatermark->setPositionAlignment(Qt::AlignCenter);
-    m_replayWatermark->position->setType(QCPItemPosition::ptAxisRectRatio);
-    m_replayWatermark->position->setCoords(0.5, 0.5); // Center of chart
-    m_replayWatermark->setText("REPLAY");
-    m_replayWatermark->setFont(QFont(font().family(), 72, QFont::Bold));
-    m_replayWatermark->setColor(QColor(255, 255, 255, 40)); // Pale transparent white
-    m_replayWatermark->setLayer("background");              // Draw behind candlesticks
-    m_replayWatermark->setVisible(false);
-
     // Enable mouse interactions
     m_customPlot->setInteractions(QCP::iRangeDrag);
     m_customPlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
@@ -1424,9 +1412,6 @@ void StockPriceChart::setReplayModeActive(bool active)
     QColor bgColor = active ? REPLAY_BACKGROUND_COLOR : NORMAL_BACKGROUND_COLOR;
     m_customPlot->setBackground(QBrush(bgColor));
     m_volumeAxisRect->setBackground(QBrush(bgColor));
-
-    // Show/hide watermark
-    m_replayWatermark->setVisible(active);
 
     m_customPlot->replot();
 
