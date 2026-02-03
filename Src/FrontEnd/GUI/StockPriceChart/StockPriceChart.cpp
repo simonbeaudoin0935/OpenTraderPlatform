@@ -424,7 +424,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
         // Here we will fetch the bars from the beginning of the day up to this bar to fill in history
         QDateTime first = QDateTime(bar.getTimeStamp().date(),
-                                    TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION,
+                                    TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
                                     TradingHours::MARKET_TIMEZONE);
 
         QDateTime last = bar.getTimeStamp();

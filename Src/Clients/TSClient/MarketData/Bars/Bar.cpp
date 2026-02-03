@@ -86,6 +86,8 @@ QUrlQuery Bar::buildUrlQuery(unsigned int interval,
 
     if (firstDate.has_value() && lastDate.has_value())
     {
+        qDebug() << firstDate->toString(Qt::ISODate) << lastDate->toString(Qt::ISODate);
+
         ASSUME_EQUAL(barsback, 0u);
         ASSUME_GTE(firstDate->secsTo(*lastDate), 1);
         query.addQueryItem("firstdate", firstDate->toString(Qt::ISODate));
