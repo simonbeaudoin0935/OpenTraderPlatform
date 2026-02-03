@@ -55,4 +55,9 @@ class FrontEnd : public QObject
                                                                  double bidAskImbalance,
                                                                  double bidDWP,
                                                                  double askDWP) = 0;
+
+    // Replay mode notifications
+    virtual void onReplayModeEntered() = 0;
+    virtual void onReplayModeExited() = 0;
+    virtual void onReplayTimeUpdated(QDateTime currentTime) = 0;
 };

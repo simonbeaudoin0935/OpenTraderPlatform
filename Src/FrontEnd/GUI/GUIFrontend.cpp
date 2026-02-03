@@ -1118,3 +1118,23 @@ void GUIFrontend::onAccountInfoButtonClicked()
         msgBox.exec();
     }
 }
+
+
+void GUIFrontend::onReplayModeEntered()
+{
+    qCInfo(GUIFrontendLog) << "Replay mode entered";
+    // TODO: Update UI to show replay mode indicator (e.g., status bar, background color)
+    // For now, just log it
+}
+
+void GUIFrontend::onReplayModeExited()
+{
+    qCInfo(GUIFrontendLog) << "Replay mode exited";
+    // TODO: Update UI to show live mode indicator
+}
+
+void GUIFrontend::onReplayTimeUpdated(QDateTime currentTime)
+{
+    Q_UNUSED(currentTime)
+    // TODO: Update replay time display in toolbar/status bar
+}

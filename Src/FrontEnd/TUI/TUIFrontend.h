@@ -45,6 +45,11 @@ class TUIFrontend : public FrontEnd
                                                          double bidDWP,
                                                          double askDWP) override;
 
+    // Replay mode notifications
+    void onReplayModeEntered() override;
+    void onReplayModeExited() override;
+    void onReplayTimeUpdated(QDateTime currentTime) override;
+
   private slots:
     void handleInput();
     void onTradeStationAuthStateChanged(bool isAuthenticated, const QString& reason);

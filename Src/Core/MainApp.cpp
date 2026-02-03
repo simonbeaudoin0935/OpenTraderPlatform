@@ -39,8 +39,6 @@ QDateTime MainApp::getCurrentAppTime()
 {
     if (isInReplayMode)
     {
-        // Not implemented yet
-        Q_UNREACHABLE();
         return currentAppReplayTime;
     }
     return QDateTime::currentDateTime().toTimeZone(TradingHours::MARKET_TIMEZONE);
@@ -104,6 +102,9 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
     QObject::connect(mainAlgo, &MainAlgo::receivedNewOrder, appFrontend, &FrontEnd::onNewOrderReceived);
 
     QObject::connect(mainAlgo, &MainAlgo::balanceUpdated, appFrontend, &FrontEnd::onBalanceUpdated);
+
+    // Replay mode signals
+    QObject::connect(mainAlgo, &MainAlgo::replayTimeUpdated, appFrontend, &FrontEnd::onReplayTimeUpdated);
 }
 
 MainApp::~MainApp()
@@ -176,4 +177,79 @@ void MainApp::cleanupSingletons()
     DatabaseThread::destroyInstance();
 
     qInfo() << "All singletons cleaned up";
+}
+
+void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
+{
+    if (isInReplayMode)
+    {
+        qWarning() << "Already in replay mode, ignoring enterReplayMode call";
+        return;
+    }
+
+    qInfo() << "Entering replay mode for" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString("hh:mm:ss");
+
+    // 1. Set global flag
+    isInReplayMode = true;
+
+    // 2. Switch TSClient to replay mode (blocking to ensure mode is set before streams open)
+    QMetaObject::invokeMethod(
+        tradeStationClient,
+        [this]() { tradeStationClient->setMode(TSClient::Mode::Replay); },
+        Qt::BlockingQueuedConnection);
+
+    // 3. Tell MainAlgo to pause live streams and start replay (MainAlgo thread)
+    QMetaObject::invokeMethod(
+        mainAlgo,
+        [this, p_date, p_startTime, p_speed]()
+        {
+            // Close positions/orders streams via receivers
+            mainAlgo->pauseLiveStreams();
+
+            // Enter replay mode (creates ReplayEngine if needed, starts playback)
+            mainAlgo->enterReplayMode(p_date, p_startTime, p_speed);
+        },
+        Qt::QueuedConnection);
+
+    // 4. Update UI
+    appFrontend->onReplayModeEntered();
+
+    qInfo() << "Replay mode entry initiated";
+}
+
+void MainApp::exitReplayMode()
+{
+    if (!isInReplayMode)
+    {
+        qWarning() << "Not in replay mode, ignoring exitReplayMode call";
+        return;
+    }
+
+    qInfo() << "Exiting replay mode";
+
+    // 1. Tell MainAlgo to stop replay first (blocking to ensure clean stop)
+    QMetaObject::invokeMethod(
+        mainAlgo,
+        [this]()
+        {
+            mainAlgo->exitReplayMode();
+
+            // Reopen positions/orders streams via receivers
+            mainAlgo->resumeLiveStreams();
+        },
+        Qt::BlockingQueuedConnection);
+
+    // 2. Reset global flag
+    isInReplayMode = false;
+
+    // 3. Switch TSClient back to live mode (blocking)
+    QMetaObject::invokeMethod(
+        tradeStationClient,
+        [this]() { tradeStationClient->setMode(TSClient::Mode::Live); },
+        Qt::BlockingQueuedConnection);
+
+    // 4. Update UI
+    appFrontend->onReplayModeExited();
+
+    qInfo() << "Replay mode exited, live mode resumed";
 }

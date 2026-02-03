@@ -4,6 +4,7 @@
 #include "FrontEnd.h"
 #include "MainAlgo.h"
 #include "MemoryMonitor.h"
+#include "Core/Replay/ReplayEngine.h"
 
 class MainApp
 {
@@ -32,6 +33,25 @@ class MainApp
     static bool isInReplayMode;
 
     static QDateTime getCurrentAppTime();
+
+    /**
+     * @brief Enter replay mode for the specified date and time
+     * @param p_date Date to replay
+     * @param p_startTime Start time within the day
+     * @param p_speed Playback speed
+     *
+     * Coordinates: TSClient mode switch, MainAlgo stream pause, ReplayEngine start.
+     * Called from GUI thread (e.g., from ChartToolbar play button).
+     */
+    void enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
+
+    /**
+     * @brief Exit replay mode and resume live operation
+     *
+     * Coordinates: ReplayEngine stop, MainAlgo stream resume, TSClient mode switch.
+     * Called from GUI thread.
+     */
+    void exitReplayMode();
 
   private:
     MainApp();

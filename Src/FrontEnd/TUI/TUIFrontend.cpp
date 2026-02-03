@@ -775,3 +775,22 @@ void TUIFrontend::requestMissingBarsForDay(const Bar& firstBar)
                     });
     }
 }
+
+
+void TUIFrontend::onReplayModeEntered()
+{
+    qInfo() << "TUI: Replay mode entered";
+    // TODO: Update TUI display to show replay mode
+}
+
+void TUIFrontend::onReplayModeExited()
+{
+    qInfo() << "TUI: Replay mode exited";
+    // TODO: Update TUI display to show live mode
+}
+
+void TUIFrontend::onReplayTimeUpdated(QDateTime currentTime)
+{
+    Q_UNUSED(currentTime)
+    // TODO: Update TUI time display
+}

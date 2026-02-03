@@ -45,6 +45,11 @@ class GUIFrontend : public FrontEnd
     void onNewOrderReceived(QString account, Order order) override;
     void onBalanceUpdated(Balance balance) override;
 
+    // Replay mode notifications
+    void onReplayModeEntered() override;
+    void onReplayModeExited() override;
+    void onReplayTimeUpdated(QDateTime currentTime) override;
+
   public:
     QString getSelectedAccountId() const;
 
