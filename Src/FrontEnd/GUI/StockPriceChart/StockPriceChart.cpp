@@ -149,7 +149,18 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_priceLabel->setBrush(QBrush(QColor(0, 0, 0, 150)));
     m_priceLabel->setVisible(false);
 
-    // Create replay watermark (behind candlesticks)
+    // Create symbol watermark (center-top, behind candlesticks)
+    m_symbolWatermark = new QCPItemText(m_customPlot);
+    Q_CHECK_PTR(m_symbolWatermark);
+    m_symbolWatermark->setPositionAlignment(Qt::AlignHCenter | Qt::AlignTop);
+    m_symbolWatermark->position->setType(QCPItemPosition::ptAxisRectRatio);
+    m_symbolWatermark->position->setCoords(0.5, 0.05); // Center-top of chart
+    m_symbolWatermark->setText("");
+    m_symbolWatermark->setFont(QFont(font().family(), 48, QFont::Bold));
+    m_symbolWatermark->setColor(QColor(255, 255, 255, 30)); // Pale transparent white
+    m_symbolWatermark->setLayer("background");              // Draw behind candlesticks
+
+    // Create replay watermark (center, behind candlesticks)
     m_replayWatermark = new QCPItemText(m_customPlot);
     Q_CHECK_PTR(m_replayWatermark);
     m_replayWatermark->setPositionAlignment(Qt::AlignCenter);
@@ -277,7 +288,10 @@ void StockPriceChart::setSymbol(const QString& symbol)
 {
     m_symbol = symbol;
     m_candlesticks->setName(symbol + " (Bars)");
-    // Removed stock ticker label to save space
+
+    // Update symbol watermark
+    m_symbolWatermark->setText(symbol);
+    m_customPlot->replot();
 
     // Populate available replay days when symbol changes
     populateAvailableReplayDays();
@@ -956,6 +970,7 @@ void StockPriceChart::clearSymbol()
     m_latestBar = Bar();
 
     m_priceLabel->setVisible(false);
+    m_symbolWatermark->setText("");
 
     // Reset state flags for new symbol
     startedReceivingRealtimeBars = false;

@@ -137,12 +137,11 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                          Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(accountInfoConnection);
 
-    // Create replay mode indicator (top-right corner)
-    m_replayIndicator = new QLabel("🔴 REPLAY MODE", mainWindow);
+    // Create mode indicator (top-right corner) - shows LIVE or REPLAY mode
+    m_replayIndicator = new QLabel("🟢 LIVE", mainWindow);
     Q_CHECK_PTR(m_replayIndicator);
-    m_replayIndicator->setStyleSheet("QLabel { background-color: #8B0000; color: #ffffff; padding: 4px 8px; "
+    m_replayIndicator->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
                                      "border-radius: 4px; font-weight: bold; }");
-    m_replayIndicator->setVisible(false);
     ui->topControlsLayout->addWidget(m_replayIndicator);
 
     // Connect app frontend signals and slots
@@ -1132,10 +1131,12 @@ void GUIFrontend::onReplayModeEntered()
 {
     qCInfo(GUIFrontendLog) << "Replay mode entered";
 
-    // Show replay indicator
+    // Update mode indicator to show REPLAY
     if (m_replayIndicator != nullptr)
     {
-        m_replayIndicator->setVisible(true);
+        m_replayIndicator->setText("🔴 REPLAY");
+        m_replayIndicator->setStyleSheet("QLabel { background-color: #8B0000; color: #ffffff; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; }");
     }
 
     // Update chart visual (background color and watermark)
@@ -1146,10 +1147,12 @@ void GUIFrontend::onReplayModeExited()
 {
     qCInfo(GUIFrontendLog) << "Replay mode exited";
 
-    // Hide replay indicator
+    // Update mode indicator to show LIVE
     if (m_replayIndicator != nullptr)
     {
-        m_replayIndicator->setVisible(false);
+        m_replayIndicator->setText("🟢 LIVE");
+        m_replayIndicator->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; }");
     }
 
     // Restore chart visual

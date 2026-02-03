@@ -118,8 +118,9 @@ class StockPriceChart : public QWidget
     QCPItemLine* m_lastPriceLine;
     QCPItemText* m_priceLabel;
 
-    // Replay mode visual elements
-    QCPItemText* m_replayWatermark;
+    // Chart watermarks
+    QCPItemText* m_symbolWatermark; // Stock symbol at center-top
+    QCPItemText* m_replayWatermark; // "REPLAY" text at center
     bool m_isReplayModeActive = false;
     static constexpr QColor NORMAL_BACKGROUND_COLOR{75, 75, 80};
     static constexpr QColor REPLAY_BACKGROUND_COLOR{60, 60, 75}; // Slightly bluer tint
