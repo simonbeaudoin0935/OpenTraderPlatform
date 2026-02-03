@@ -16,6 +16,7 @@
 #include "BarCache.h"
 #include "Balance.h"
 #include "StrategyManager.h"
+#include "Core/Replay/ReplayEngine.h"
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
@@ -82,6 +83,33 @@ class MainAlgo final : public QObject
     /// Routes result to strategy and emits GUI signal if displayed stock
     void onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOrderResult, TSClient::Error>& p_result);
 
+    /*
+     * Replay mode control - called from MainApp via QMetaObject::invokeMethod
+     */
+    /// @brief Enter replay mode for specified date and time
+    /// @param p_date Date to replay
+    /// @param p_startTime Time to start replay
+    /// @param p_speed Playback speed
+    void enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
+
+    /// @brief Exit replay mode and clean up
+    void exitReplayMode();
+
+    /// @brief Pause replay playback
+    void pauseReplay();
+
+    /// @brief Resume replay playback
+    void resumeReplay();
+
+    /// @brief Pause live streams (positions/orders) for replay mode
+    void pauseLiveStreams();
+
+    /// @brief Resume live streams after exiting replay mode
+    void resumeLiveStreams();
+
+    /// @brief Get replay engine state
+    [[nodiscard]] ReplayEngine::PlaybackState getReplayState() const;
+
   signals:
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
     void displayedStockReceivedNewMarketDepthQuote(QString symbol,
@@ -95,6 +123,14 @@ class MainAlgo final : public QObject
     void receivedNewOrder(QString account, Order order);
     void tradeStationAccountsReceived(QVector<Account> accounts);
     void balanceUpdated(Balance balance);
+
+    // Replay signals (forwarded from ReplayEngine)
+    void replayStarted();
+    void replayStopped();
+    void replayPaused();
+    void replayResumed();
+    void replayTimeUpdated(QDateTime currentTime);
+    void replayEndReached();
 
   public slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, const QString& reason);
@@ -142,6 +178,9 @@ class MainAlgo final : public QObject
 
     // Strategy order tracking - all accessed from MainAlgo thread
     StrategyManager m_strategyManager;
+
+    // Replay engine - owned, runs in MainAlgoThread
+    ReplayEngine* m_replayEngine = nullptr;
 
     std::unique_ptr<QSocketNotifier> m_crashNotifier; // Monitor crash pipe from signal handlers
     std::atomic<uint64_t> m_requestIdCounter{0};

@@ -610,3 +610,155 @@ void MainAlgo::onStrategyCrashNotified()
     // Now safely call StrategyManager::markStrategyFailed on the same thread
     m_strategyManager.markStrategyFailed(strategyID, errorMsg);
 }
+
+// ============================================================================
+// Replay Mode Methods
+// ============================================================================
+
+void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
+{
+    INFO << "MainAlgo entering replay mode for" << p_date.toString(Qt::ISODate) << "at"
+         << p_startTime.toString("hh:mm:ss");
+
+    // Create ReplayEngine on first use (lazy init, parent=this for thread affinity)
+    if (m_replayEngine == nullptr)
+    {
+        m_replayEngine = new ReplayEngine(this, TSClient::getInstance());
+
+        // Forward signals to MainAlgo signals for UI consumption
+        bool connected =
+            connect(m_replayEngine, &ReplayEngine::replayStarted, this, &MainAlgo::replayStarted, Qt::UniqueConnection);
+        ASSUME_TRUE(connected);
+
+        connected =
+            connect(m_replayEngine, &ReplayEngine::replayStopped, this, &MainAlgo::replayStopped, Qt::UniqueConnection);
+        ASSUME_TRUE(connected);
+
+        connected =
+            connect(m_replayEngine, &ReplayEngine::replayPaused, this, &MainAlgo::replayPaused, Qt::UniqueConnection);
+        ASSUME_TRUE(connected);
+
+        connected =
+            connect(m_replayEngine, &ReplayEngine::replayResumed, this, &MainAlgo::replayResumed, Qt::UniqueConnection);
+        ASSUME_TRUE(connected);
+
+        connected = connect(m_replayEngine,
+                            &ReplayEngine::replayTimeUpdated,
+                            this,
+                            &MainAlgo::replayTimeUpdated,
+                            Qt::UniqueConnection);
+        ASSUME_TRUE(connected);
+
+        connected = connect(m_replayEngine,
+                            &ReplayEngine::replayEndReached,
+                            this,
+                            &MainAlgo::replayEndReached,
+                            Qt::UniqueConnection);
+        ASSUME_TRUE(connected);
+
+        DEBUG << "ReplayEngine created and connected";
+    }
+
+    m_replayEngine->startReplay(p_date, p_startTime, p_speed);
+}
+
+void MainAlgo::exitReplayMode()
+{
+    INFO << "MainAlgo exiting replay mode";
+
+    if (m_replayEngine != nullptr)
+    {
+        m_replayEngine->stopReplay();
+    }
+}
+
+void MainAlgo::pauseReplay()
+{
+    if (m_replayEngine != nullptr)
+    {
+        m_replayEngine->pauseReplay();
+    }
+}
+
+void MainAlgo::resumeReplay()
+{
+    if (m_replayEngine != nullptr)
+    {
+        m_replayEngine->resumeReplay();
+    }
+}
+
+void MainAlgo::pauseLiveStreams()
+{
+    INFO << "Pausing live streams for replay mode";
+
+    // Stop positions stream
+    if (m_positionReceiver != nullptr)
+    {
+        m_positionReceiver->stopStream(m_activeAccount.getAccountId());
+        positionStreamStarted = false;
+        DEBUG << "Positions stream stopped";
+    }
+
+    // Stop orders stream
+    if (m_orderReceiver != nullptr)
+    {
+        m_orderReceiver->stopStream(m_activeAccount.getAccountId());
+        orderStreamStarted = false;
+        DEBUG << "Orders stream stopped";
+    }
+}
+
+void MainAlgo::resumeLiveStreams()
+{
+    INFO << "Resuming live streams after replay mode";
+
+    // Recreate positions receiver to trigger fresh snapshot
+    // The constructor creates the stream automatically
+    if (m_positionReceiver != nullptr)
+    {
+        delete m_positionReceiver;
+        m_positionReceiver = nullptr;
+    }
+    m_positionReceiver = new PositionsReceiver(m_activeAccount.getAccountId(), this);
+    bool connected = connect(m_positionReceiver,
+                             &PositionsReceiver::receivedNewPosition,
+                             this,
+                             &MainAlgo::onReceivedNewPosition,
+                             Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+    connected = connect(m_positionReceiver,
+                        &PositionsReceiver::positionDeleted,
+                        this,
+                        &MainAlgo::onPositionDeleted,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+    positionStreamStarted = true;
+    DEBUG << "Positions stream recreated and started";
+
+    // Recreate orders receiver to trigger fresh snapshot
+    // The constructor creates the stream automatically
+    if (m_orderReceiver != nullptr)
+    {
+        delete m_orderReceiver;
+        m_orderReceiver = nullptr;
+    }
+    m_orderReceiver = new OrdersReceiver(m_activeAccount.getAccountId(), this);
+    connected = connect(m_orderReceiver,
+                        &OrdersReceiver::receivedNewOrder,
+                        this,
+                        &MainAlgo::onReceivedNewOrder,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+    orderStreamStarted = true;
+    DEBUG << "Orders stream recreated and started";
+}
+
+ReplayEngine::PlaybackState MainAlgo::getReplayState() const
+{
+    if (m_replayEngine == nullptr)
+    {
+        return ReplayEngine::PlaybackState::Stopped;
+    }
+    return m_replayEngine->getState();
+}
