@@ -120,7 +120,8 @@ void StrategiesTab::onStrategyStatusChanged(const QString& strategyID, bool isRu
 
 void StrategiesTab::onLoadStrategyClicked()
 {
-    auto dialog = new StrategyLoadDialog(this);
+    auto dialog = std::make_unique<StrategyLoadDialog>(this);
+
     if (dialog->exec() == QDialog::Accepted)
     {
         auto config = dialog->getSelectedConfig();
@@ -133,7 +134,6 @@ void StrategiesTab::onLoadStrategyClicked()
             }
         }
     }
-    delete dialog;
 }
 
 void StrategiesTab::onStrategyTileClicked(const QString& strategyID)

@@ -2,10 +2,12 @@
 
 #include <QDateTime>
 #include <QMetaType>
+#include <QTimeZone>
 #include <optional>
 
 #include "PlaceOrder.h"
 #include "Logging.h"
+#include "CONSTANTS.h"
 
 
 namespace OrderNS
@@ -165,7 +167,15 @@ class Order
     }
     void setFilledTime(const QDateTime& p_time)
     {
-        m_filledTime = p_time;
+        if (p_time.timeZone() != TradingHours::MARKET_TIMEZONE)
+        {
+            qWarning() << "Order::setFilledTime: Filled time timezone mismatch";
+            m_filledTime = p_time.toTimeZone(TradingHours::MARKET_TIMEZONE);
+        }
+        else
+        {
+            m_filledTime = p_time;
+        }
     }
 
     QString m_accountID;

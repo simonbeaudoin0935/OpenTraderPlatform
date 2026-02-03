@@ -3,8 +3,6 @@
 #include <QString>
 #include <memory>
 
-class StrategyManager;
-
 /// @brief Per-thread SIGSEGV signal handler for strategy threads
 /// Catches segmentation faults and notifies StrategyManager to mark strategy as failed
 /// Uses pthread_sigaltstack for alternate stack to handle stack overflow crashes
@@ -13,9 +11,7 @@ namespace StrategySignalHandler
 
     /// @brief Initialize signal handler system (call once from main thread)
     /// Sets up pipe for crash notifications
-    /// @param p_strategyManager StrategyManager instance for failure notification
-    /// @return true if successfully initialized, false on error
-    [[nodiscard]] bool initialize(StrategyManager* p_strategyManager);
+    void initialize();
 
     /// @brief Cleanup signal handler system (call once on shutdown)
     void cleanup();

@@ -80,23 +80,12 @@ static void strategySignalHandler(int p_signal)
 namespace StrategySignalHandler
 {
 
-    bool initialize(StrategyManager* p_strategyManager)
+    void initialize()
     {
-        if (!p_strategyManager)
-        {
-            qWarning() << "StrategySignalHandler::initialize: Invalid StrategyManager pointer";
-            return false;
-        }
-
         // Create pipe for crash notifications
-        if (pipe(g_crashNotifyPipe) == -1)
-        {
-            qWarning() << "Failed to create crash notification pipe:" << strerror(errno);
-            return false;
-        }
+        ASSUME_DIFF(pipe(g_crashNotifyPipe), -1);
 
         qDebug() << "Initialized signal handler system with crash notification pipe";
-        return true;
     }
 
     void cleanup()

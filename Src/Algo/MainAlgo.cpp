@@ -35,7 +35,7 @@ void MainAlgo::destroyInstance()
 }
 
 
-MainAlgo::MainAlgo()
+MainAlgo::MainAlgo() : m_strategyManager(this)
 {
     thread.setObjectName("MainAlgoThread");
 
@@ -44,9 +44,6 @@ MainAlgo::MainAlgo()
     this->setObjectName("MainAlgo");
 
     connect(&thread, &QThread::started, this, &MainAlgo::onThreadStarted);
-
-    // Create StrategyManager - owned by this MainAlgo
-    m_strategyManager = std::make_unique<StrategyManager>(this);
 
     DEBUG << "Singleton instance created";
 }
@@ -59,8 +56,7 @@ MainAlgo::~MainAlgo()
     m_crashNotifier.reset();
     StrategySignalHandler::cleanup();
 
-    // StrategyManager will be destroyed automatically via unique_ptr
-    m_strategyManager.reset();
+    // StrategyManager will be destroyed automatically via composition
 
     // Stop balance polling timer if it exists
     // Note: We're in the destructor, so we can't use QMetaObject::invokeMethod
@@ -97,64 +93,60 @@ void MainAlgo::onThreadStarted()
     connect(m_balancePollingTimer.get(), &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
 
     // Initialize signal handler system (set up crash notification pipe)
-    if (!StrategySignalHandler::initialize(m_strategyManager.get()))
-    {
-        qWarning(MainAlgoLog) << "Failed to initialize signal handler system";
-    }
-    else
-    {
-        // Set up socket notifier to monitor crash pipe
-        int crashFd = StrategySignalHandler::getCrashNotificationFd();
-        if (crashFd != -1)
-        {
-            m_crashNotifier = std::make_unique<QSocketNotifier>(crashFd, QSocketNotifier::Read, this);
-            connect(m_crashNotifier.get(),
-                    &QSocketNotifier::activated,
-                    this,
-                    &MainAlgo::onStrategyCrashNotified,
-                    Qt::UniqueConnection);
-            qDebug(MainAlgoLog) << "Installed crash notification handler";
-        }
-    }
+    StrategySignalHandler::initialize();
+
+    // Set up socket notifier to monitor crash pipe
+    int crashFd = StrategySignalHandler::getCrashNotificationFd();
+
+    OBJ_ASSUME_DIFF(crashFd, -1);
+
+    m_crashNotifier = std::make_unique<QSocketNotifier>(crashFd, QSocketNotifier::Read, this);
+    auto c = connect(m_crashNotifier.get(),
+                     &QSocketNotifier::activated,
+                     this,
+                     &MainAlgo::onStrategyCrashNotified,
+                     Qt::UniqueConnection);
+
+    OBJ_ASSUME_TRUE(c);
+
+    DEBUG << "Installed crash notification handler";
+
 
     // Connect MainAlgo signals to StrategyManager for data broadcasting
-    if (m_strategyManager)
-    {
-        // Bars: route to strategies monitoring the symbol
-        connect(this,
-                &MainAlgo::displayedStockReceivedNewBar,
-                m_strategyManager.get(),
-                &StrategyManager::onBarReceived,
-                Qt::QueuedConnection);
+    // Bars: route to strategies monitoring the symbol
+    connect(this,
+            &MainAlgo::displayedStockReceivedNewBar,
+            &m_strategyManager,
+            &StrategyManager::onBarReceived,
+            Qt::QueuedConnection);
 
-        // Market depth quotes: route to strategies monitoring the symbol
-        connect(this,
-                &MainAlgo::displayedStockReceivedNewMarketDepthQuote,
-                m_strategyManager.get(),
-                &StrategyManager::onMarketDepthReceived,
-                Qt::QueuedConnection);
+    // Market depth quotes: route to strategies monitoring the symbol
+    connect(this,
+            &MainAlgo::displayedStockReceivedNewMarketDepthQuote,
+            &m_strategyManager,
+            &StrategyManager::onMarketDepthReceived,
+            Qt::QueuedConnection);
 
-        // Orders: route only to strategy that placed the order
-        connect(this,
-                &MainAlgo::receivedNewOrder,
-                m_strategyManager.get(),
-                &StrategyManager::onMainAlgoOrderUpdated,
-                Qt::QueuedConnection);
+    // Orders: route only to strategy that placed the order
+    connect(this,
+            &MainAlgo::receivedNewOrder,
+            &m_strategyManager,
+            &StrategyManager::onMainAlgoOrderUpdated,
+            Qt::QueuedConnection);
 
-        // Positions: route only to strategy that placed the order
-        connect(this,
-                &MainAlgo::receivedNewPosition,
-                m_strategyManager.get(),
-                &StrategyManager::onMainAlgoPositionUpdated,
-                Qt::QueuedConnection);
+    // Positions: route only to strategy that placed the order
+    connect(this,
+            &MainAlgo::receivedNewPosition,
+            &m_strategyManager,
+            &StrategyManager::onMainAlgoPositionUpdated,
+            Qt::QueuedConnection);
 
-        // Balance: broadcast to all strategies
-        connect(this,
-                &MainAlgo::balanceUpdated,
-                m_strategyManager.get(),
-                &StrategyManager::onMainAlgoBalanceUpdated,
-                Qt::QueuedConnection);
-    }
+    // Balance: broadcast to all strategies
+    connect(this,
+            &MainAlgo::balanceUpdated,
+            &m_strategyManager,
+            &StrategyManager::onMainAlgoBalanceUpdated,
+            Qt::QueuedConnection);
 }
 
 void MainAlgo::onSelectDisplayedStock(const QString& symbol)
@@ -398,18 +390,20 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
 
     // Lookup which strategy placed this order
     auto strategyIt = m_orderMappings.find(order.getOrderID());
-    if (strategyIt != m_orderMappings.end())
+
+    if (strategyIt == m_orderMappings.end())
     {
-        // This order belongs to a strategy - route it to that strategy
-        QString strategyID = *strategyIt;
-        if (m_strategyManager)
-        {
-            QMetaObject::invokeMethod(
-                m_strategyManager.get(),
-                [this, order]() { m_strategyManager->onOrderUpdated(order); },
-                Qt::QueuedConnection);
-        }
+        // This order does not belong to any strategy we know about
+        CRITICAL << "Received order update for unknown order ID:" << order.getOrderID();
+        return;
     }
+
+    // This order belongs to a strategy - route it to that strategy
+    QString strategyID = *strategyIt;
+    QMetaObject::invokeMethod(
+        &m_strategyManager,
+        [this, order]() { m_strategyManager.onOrderUpdated(order); },
+        Qt::QueuedConnection);
 }
 
 void MainAlgo::startBalancePolling()
@@ -585,19 +579,12 @@ void MainAlgo::onStrategyCrashNotified()
     // The pipe was set up by StrategySignalHandler::initialize()
     // and monitored by QSocketNotifier on this MainAlgo thread
 
-    if (!m_crashNotifier)
-    {
-        qWarning(MainAlgoLog) << "Crash notifier null in onStrategyCrashNotified";
-        return;
-    }
+    OBJ_ASSUME_TRUE(m_crashNotifier != nullptr);
 
     // Read from the pipe - keep reading until it's empty
     const int fd = m_crashNotifier->socket();
-    if (fd == -1)
-    {
-        qWarning(MainAlgoLog) << "Invalid pipe file descriptor";
-        return;
-    }
+
+    OBJ_ASSUME_DIFF(fd, -1);
 
     struct CrashNotification
     {
@@ -611,18 +598,15 @@ void MainAlgo::onStrategyCrashNotified()
 
     if (result != static_cast<ssize_t>(sizeof(notif)))
     {
-        qWarning(MainAlgoLog) << "Failed to read crash notification from pipe:" << strerror(errno);
+        CRITICAL << "Failed to read crash notification from pipe:" << strerror(errno);
         return;
     }
 
     QString strategyID = QString::fromStdString(std::string(notif.strategyID));
     QString errorMsg = QString::fromStdString(std::string(notif.errorMsg));
 
-    qCritical(MainAlgoLog) << "Strategy thread crashed with signal:" << strategyID << "-" << errorMsg;
+    CRITICAL << "Strategy thread crashed with signal:" << strategyID << "-" << errorMsg;
 
     // Now safely call StrategyManager::markStrategyFailed on the same thread
-    if (m_strategyManager)
-    {
-        m_strategyManager->markStrategyFailed(strategyID, errorMsg);
-    }
+    m_strategyManager.markStrategyFailed(strategyID, errorMsg);
 }

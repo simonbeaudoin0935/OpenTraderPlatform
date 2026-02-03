@@ -952,7 +952,9 @@ QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) 
         return QDateTime(friday, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION, TradingHours::MARKET_TIMEZONE);
     }
 
-    OBJ_ASSUME_DIFF(previousMinute.time(), QTime(6, 0, 0));
+    OBJ_ASSUME_GTE(previousMinute.time(), TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION);
+    OBJ_ASSUME_LTE(previousMinute.time(), TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
+
     return previousMinute;
 }
 
