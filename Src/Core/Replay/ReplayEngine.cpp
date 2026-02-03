@@ -1,0 +1,283 @@
+#include "ReplayEngine.h"
+#include "ReplayDataLoader.h"
+#include "TSClient.h"
+#include "MainApp.h"
+#include "Logging.h"
+#include "Assume.h"
+
+#define LOGGING_CATEGORY ReplayEngineLog
+
+Q_LOGGING_CATEGORY(ReplayEngineLog, "ReplayEngine")
+
+ReplayEngine::ReplayEngine(QObject* p_parent, TSClient* p_tsClient) : QObject(p_parent), m_tsClient(p_tsClient)
+{
+    ASSUME_TRUE(p_tsClient != nullptr);
+
+    m_playbackTimer.setSingleShot(true);
+    bool connected =
+        connect(&m_playbackTimer, &QTimer::timeout, this, &ReplayEngine::onTimerTick, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    DEBUG << "ReplayEngine created";
+}
+
+ReplayEngine::~ReplayEngine()
+{
+    if (m_state != PlaybackState::Stopped)
+    {
+        stopReplay();
+    }
+
+    delete m_dataLoader;
+    m_dataLoader = nullptr;
+
+    DEBUG << "ReplayEngine destroyed";
+}
+
+void ReplayEngine::startReplay(QDate p_date, QTime p_startTime, PlaybackSpeed p_speed)
+{
+    if (m_state != PlaybackState::Stopped)
+    {
+        WARNING << "Cannot start replay - already active. Stop current replay first.";
+        return;
+    }
+
+    INFO << "Starting replay for" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString("hh:mm:ss")
+         << "speed:" << static_cast<int>(p_speed);
+
+    m_speed = p_speed;
+
+    // Create data loader if needed
+    if (m_dataLoader == nullptr)
+    {
+        m_dataLoader = new ReplayDataLoader(this);
+        bool connected = connect(m_dataLoader,
+                                 &ReplayDataLoader::bufferReady,
+                                 this,
+                                 &ReplayEngine::onBufferReady,
+                                 Qt::UniqueConnection);
+        ASSUME_TRUE(connected);
+    }
+
+    // Load database for the selected date, starting from specified time
+    if (!m_dataLoader->loadDatabase(p_date, p_startTime))
+    {
+        CRITICAL << "Failed to load replay database for" << p_date.toString(Qt::ISODate);
+        return;
+    }
+
+    // Check if we have any data
+    if (!m_dataLoader->hasMoreData())
+    {
+        WARNING << "No data available for replay on" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString();
+        return;
+    }
+
+    m_state = PlaybackState::Playing;
+    m_lastEmittedTimestampMs = 0;
+
+    emit replayStarted();
+
+    // Emit first data point immediately, then schedule subsequent ones
+    emitCurrentDataPoint();
+    scheduleNextDataPoint();
+}
+
+void ReplayEngine::stopReplay()
+{
+    if (m_state == PlaybackState::Stopped)
+    {
+        DEBUG << "stopReplay called but already stopped";
+        return;
+    }
+
+    INFO << "Stopping replay";
+
+    m_playbackTimer.stop();
+    m_state = PlaybackState::Stopped;
+    m_lastEmittedTimestampMs = 0;
+
+    // Clean up data loader
+    if (m_dataLoader != nullptr)
+    {
+        m_dataLoader->reset();
+    }
+
+    emit replayStopped();
+}
+
+void ReplayEngine::pauseReplay()
+{
+    if (m_state != PlaybackState::Playing)
+    {
+        WARNING << "Cannot pause - not currently playing";
+        return;
+    }
+
+    DEBUG << "Pausing replay";
+
+    m_playbackTimer.stop();
+    m_state = PlaybackState::Paused;
+
+    emit replayPaused();
+}
+
+void ReplayEngine::resumeReplay()
+{
+    if (m_state != PlaybackState::Paused)
+    {
+        WARNING << "Cannot resume - not currently paused";
+        return;
+    }
+
+    DEBUG << "Resuming replay";
+
+    m_state = PlaybackState::Playing;
+
+    // Schedule next data point (resume from where we left off)
+    scheduleNextDataPoint();
+
+    emit replayResumed();
+}
+
+void ReplayEngine::onTimerTick()
+{
+    if (m_state != PlaybackState::Playing)
+    {
+        return;
+    }
+
+    emitCurrentDataPoint();
+    scheduleNextDataPoint();
+}
+
+void ReplayEngine::onBufferReady()
+{
+    DEBUG << "Prefetch buffer ready";
+
+    // If we were waiting for data and are still playing, continue
+    if (m_state == PlaybackState::Playing && !m_playbackTimer.isActive())
+    {
+        scheduleNextDataPoint();
+    }
+}
+
+void ReplayEngine::emitCurrentDataPoint()
+{
+    if (m_dataLoader == nullptr || !m_dataLoader->hasMoreData())
+    {
+        return;
+    }
+
+    ReplayDataLoader::ReplayDataPoint dataPoint = m_dataLoader->getNextDataPoint();
+
+    // Check if we have an active stream for this stock
+    bool isBar = (dataPoint.type == ReplayDataLoader::ReplayDataPoint::Type::Bar);
+    if (!hasStreamForStock(dataPoint.stockTicker, isBar))
+    {
+        // No stream for this stock - skip silently and continue
+        // The timer will handle the next point
+        return;
+    }
+
+    // Update replay time (discrete jumps)
+    QDateTime newTime = QDateTime::fromMSecsSinceEpoch(dataPoint.epochMs, TradingHours::MARKET_TIMEZONE);
+    MainApp::currentAppReplayTime = newTime;
+    m_lastEmittedTimestampMs = dataPoint.epochMs;
+
+    emit replayTimeUpdated(newTime);
+
+    // Inject data into TSClient's MockNetworkReply
+    // TODO: Implement actual data injection once MockNetworkReply exists
+    // This will be: m_tsClient->injectReplayData(dataPoint.stockTicker, dataPoint.jsonRawData, isBar);
+    DEBUG << "Would emit" << (isBar ? "bar" : "depth") << "for" << dataPoint.stockTicker << "at"
+          << newTime.toString("hh:mm:ss.zzz");
+}
+
+void ReplayEngine::scheduleNextDataPoint()
+{
+    if (m_dataLoader == nullptr)
+    {
+        return;
+    }
+
+    // Check if more data is available
+    if (!m_dataLoader->hasMoreData())
+    {
+        // Check if we're waiting for a buffer prefetch
+        if (m_dataLoader->isPrefetching())
+        {
+            DEBUG << "Waiting for buffer prefetch...";
+            return; // onBufferReady will reschedule when data arrives
+        }
+
+        INFO << "Replay reached end of data";
+        m_state = PlaybackState::Stopped;
+        emit replayEndReached();
+        emit replayStopped();
+        return;
+    }
+
+    // Peek at next data point to calculate delay
+    const ReplayDataLoader::ReplayDataPoint& nextPoint = m_dataLoader->peekNextDataPoint();
+
+    qint64 deltaMs = 0;
+    if (m_lastEmittedTimestampMs > 0)
+    {
+        deltaMs = nextPoint.epochMs - m_lastEmittedTimestampMs;
+
+        // Sanity check: negative delta means data is out of order
+        if (deltaMs < 0)
+        {
+            WARNING << "Negative timestamp delta detected:" << deltaMs << "ms - data may be out of order";
+            deltaMs = 0;
+        }
+    }
+
+    qint64 scaledDelay = calculateScaledDelay(deltaMs);
+
+    m_playbackTimer.start(static_cast<int>(scaledDelay));
+}
+
+qint64 ReplayEngine::calculateScaledDelay(qint64 p_deltaMs) const
+{
+    if (m_speed == PlaybackSpeed::AsFastAsPossible)
+    {
+        return 0; // 0ms timer gives event loop minimal breathing room
+    }
+
+    // Speed is stored as percentage (100 = 1x, 200 = 2x, 50 = 0.5x)
+    // For 2x speed, we want half the delay: delta / 2
+    // For 0.5x speed, we want double the delay: delta * 2
+    // Formula: scaledDelay = delta * 100 / speed
+
+    int speedValue = static_cast<int>(m_speed);
+    if (speedValue <= 0)
+    {
+        return 0;
+    }
+
+    qint64 scaledDelay = (p_deltaMs * 100) / speedValue;
+
+    // Clamp to reasonable bounds
+    if (scaledDelay < 0)
+    {
+        scaledDelay = 0;
+    }
+    else if (scaledDelay > 60000) // Cap at 1 minute max delay
+    {
+        scaledDelay = 60000;
+    }
+
+    return scaledDelay;
+}
+
+bool ReplayEngine::hasStreamForStock(const QString& p_symbol, bool p_isBar) const
+{
+    // TODO: Implement once TSClient has helper methods
+    // For now, return true to allow all data through during development
+    // This will be: return m_tsClient->hasOpenBarStream(p_symbol) or hasOpenMarketDepthStream(p_symbol)
+    Q_UNUSED(p_symbol)
+    Q_UNUSED(p_isBar)
+    return true;
+}
