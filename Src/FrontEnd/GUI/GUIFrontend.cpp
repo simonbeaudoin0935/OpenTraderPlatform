@@ -137,6 +137,14 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                          Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(accountInfoConnection);
 
+    // Create replay mode indicator (top-right corner)
+    m_replayIndicator = new QLabel("🔴 REPLAY MODE", mainWindow);
+    Q_CHECK_PTR(m_replayIndicator);
+    m_replayIndicator->setStyleSheet("QLabel { background-color: #8B0000; color: #ffffff; padding: 4px 8px; "
+                                     "border-radius: 4px; font-weight: bold; }");
+    m_replayIndicator->setVisible(false);
+    ui->topControlsLayout->addWidget(m_replayIndicator);
+
     // Connect app frontend signals and slots
     connect(this,
             &FrontEnd::tradeStationAuthStateChanged,
@@ -1123,14 +1131,29 @@ void GUIFrontend::onAccountInfoButtonClicked()
 void GUIFrontend::onReplayModeEntered()
 {
     qCInfo(GUIFrontendLog) << "Replay mode entered";
-    // TODO: Update UI to show replay mode indicator (e.g., status bar, background color)
-    // For now, just log it
+
+    // Show replay indicator
+    if (m_replayIndicator != nullptr)
+    {
+        m_replayIndicator->setVisible(true);
+    }
+
+    // Update chart visual (background color and watermark)
+    ui->priceChart->setReplayModeActive(true);
 }
 
 void GUIFrontend::onReplayModeExited()
 {
     qCInfo(GUIFrontendLog) << "Replay mode exited";
-    // TODO: Update UI to show live mode indicator
+
+    // Hide replay indicator
+    if (m_replayIndicator != nullptr)
+    {
+        m_replayIndicator->setVisible(false);
+    }
+
+    // Restore chart visual
+    ui->priceChart->setReplayModeActive(false);
 }
 
 void GUIFrontend::onReplayTimeUpdated(QDateTime currentTime)

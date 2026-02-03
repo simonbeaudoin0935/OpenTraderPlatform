@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include <QShortcut>
 #include <QKeySequence>
+#include <QLabel>
 #include <memory>
 
 #include "FrontEnd.h"
@@ -98,4 +99,6 @@ class GUIFrontend : public FrontEnd
     bool m_hasRestoredLastStock = false; // Track if we've restored the last stock
 
     QVector<Account> m_accounts; // Store available accounts
+
+    QLabel* m_replayIndicator = nullptr; // Replay mode indicator in top-right
 };

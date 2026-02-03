@@ -55,6 +55,7 @@ class StockPriceChart : public QWidget
     void addLiveBar(const QString& symbol, const Bar& bar);
     void onRequestedMissingBarsReceived(const std::shared_ptr<QVector<Bar>>& barsPtr);
     void onRequestedMissingBarsFailed();
+    void setReplayModeActive(bool active);
 
   private slots:
     void onAxisRangeChanged();
@@ -116,6 +117,12 @@ class StockPriceChart : public QWidget
     QCPFinancial* m_candlesticks;
     QCPItemLine* m_lastPriceLine;
     QCPItemText* m_priceLabel;
+
+    // Replay mode visual elements
+    QCPItemText* m_replayWatermark;
+    bool m_isReplayModeActive = false;
+    static constexpr QColor NORMAL_BACKGROUND_COLOR{75, 75, 80};
+    static constexpr QColor REPLAY_BACKGROUND_COLOR{60, 60, 75}; // Slightly bluer tint
 
     // Volume chart components
     QCPAxisRect* m_volumeAxisRect;
