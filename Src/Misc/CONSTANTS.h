@@ -4,9 +4,6 @@
 #include <QTimeZone>
 #include <QString>
 #include <QStringList>
-#ifdef GUI_ENABLED
-#include <QColor>
-#endif
 
 #include "Assume.h"
 
@@ -183,14 +180,6 @@ namespace ChartConstants
     // Candlestick rendering
     inline constexpr double CANDLESTICK_BODY_WIDTH = 0.9; // 90% of available space
 
-
-#ifdef GUI_ENABLED
-    // Light orange for pre-market background
-    inline constexpr QColor PRE_MARKET_BACKGROUND_COLOR = QColor(255, 200, 150, 100);
-
-    // Light blue for after-market background
-    inline constexpr QColor AFTER_MARKET_BACKGROUND_COLOR = QColor(230, 230, 255, 100);
-#endif
 
 } // namespace ChartConstants
 

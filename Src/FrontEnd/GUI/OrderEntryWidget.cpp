@@ -13,7 +13,6 @@
 OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     : QWidget(p_parent)
     , m_headerLabel(new QLabel("ORDER ENTRY", this))
-    , m_symbolInput(new QLineEdit(this))
     , m_buyRadio(new QRadioButton("Buy", this))
     , m_buyToCoverRadio(new QRadioButton("Buy to Cover", this))
     , m_sellRadio(new QRadioButton("Sell", this))
@@ -93,13 +92,6 @@ void OrderEntryWidget::setupUI()
     QFormLayout* formLayout = new QFormLayout(formWidget);
     formLayout->setSpacing(8);
     formLayout->setContentsMargins(8, 8, 8, 8);
-
-    // Symbol input
-    m_symbolInput->setPlaceholderText("e.g., AAPL");
-    m_symbolInput->setMaxLength(10);
-    m_symbolInput->setToolTip("Stock symbol to trade");
-    m_symbolInput->setAlignment(Qt::AlignCenter);
-    formLayout->addRow("Symbol:", m_symbolInput);
 
     // Trade Action (Buy/Sell) - Radio buttons
     QGroupBox* tradeActionGroup = new QGroupBox("", this);
@@ -305,7 +297,7 @@ void OrderEntryWidget::setAccounts(const QList<Account>& accounts)
 
 void OrderEntryWidget::setSymbol(const QString& symbol)
 {
-    m_symbolInput->setText(symbol.toUpper());
+    m_currentSymbol = symbol.toUpper();
 }
 
 void OrderEntryWidget::executeBuyOrder()
@@ -465,15 +457,6 @@ bool OrderEntryWidget::validateInputs()
         return false;
     }
 
-    // Check symbol
-    QString symbol = m_symbolInput->text().trimmed();
-    if (symbol.isEmpty())
-    {
-        QMessageBox::warning(this, "Invalid Input", "Please enter a stock symbol.");
-        m_symbolInput->setFocus();
-        return false;
-    }
-
     // Check quantity
     if (m_quantityInput->value() < 1)
     {
@@ -520,7 +503,7 @@ PlaceOrderRequest OrderEntryWidget::buildOrderRequest()
     QString accountID = m_guiFrontend->getSelectedAccountId();
     request.setAccountID(accountID);
 
-    QString symbol = m_symbolInput->text().trimmed().toUpper();
+    QString symbol = m_currentSymbol;
     request.setSymbol(symbol);
 
     TradeAction tradeAction = static_cast<TradeAction>(m_tradeActionGroup->checkedId());

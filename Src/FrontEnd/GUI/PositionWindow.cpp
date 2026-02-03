@@ -173,28 +173,28 @@ QList<QStandardItem*> PositionWindow::createRowItems(const Position& position)
 
     // Symbol
     auto symbolItem = new QStandardItem(position.getSymbol());
-    symbolItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    symbolItem->setTextAlignment(Qt::AlignCenter);
     items << symbolItem;
 
     // Quantity
     auto quantityItem = new QStandardItem(position.getQuantity());
-    quantityItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    quantityItem->setTextAlignment(Qt::AlignCenter);
     items << quantityItem;
 
     // Average Price
     auto avgPriceItem = new QStandardItem(QString::number(position.getAveragePrice().toDouble(), 'f', 2));
-    avgPriceItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    avgPriceItem->setTextAlignment(Qt::AlignCenter);
     items << avgPriceItem;
 
     // Last Price
     auto lastItem = new QStandardItem(QString::number(position.getLast().toDouble(), 'f', 2));
-    lastItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    lastItem->setTextAlignment(Qt::AlignCenter);
     items << lastItem;
 
     // P/L
     double pl = position.getUnrealizedProfitLoss().toDouble();
     auto plItem = new QStandardItem(QString::number(pl, 'f', 2));
-    plItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    plItem->setTextAlignment(Qt::AlignCenter);
     plItem->setForeground(pl >= 0 ? QColor(Qt::green) : QColor(Qt::red));
     items << plItem;
 
@@ -207,7 +207,7 @@ QList<QStandardItem*> PositionWindow::createRowItems(const Position& position)
 
     // Market Value
     auto marketValueItem = new QStandardItem(QString::number(position.getMarketValue().toDouble(), 'f', 2));
-    marketValueItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    marketValueItem->setTextAlignment(Qt::AlignCenter);
     items << marketValueItem;
 
     return items;
@@ -222,7 +222,7 @@ void PositionWindow::onPositionDeleted(const QString& account, const QString& po
         int row = positionRowMap[positionID];
         // Set quantity to 0 instead of removing the row
         auto quantityItem = new QStandardItem("0");
-        quantityItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        quantityItem->setTextAlignment(Qt::AlignCenter);
         model->setItem(row, 1,
                        quantityItem); // Column 1 is Quantity
     }

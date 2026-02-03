@@ -15,10 +15,10 @@
 #include "Account.h"
 #include "BarCache.h"
 #include "Balance.h"
+#include "StrategyManager.h"
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
-class StrategyManager;
 class QSocketNotifier;
 
 
@@ -58,6 +58,11 @@ class MainAlgo final : public QObject
      * Strategy order management - called by StrategySDK
      * All methods should be called via QMetaObject::invokeMethod with Qt::QueuedConnection
      */
+    /// @brief Get the StrategyManager instance
+    [[nodiscard]] StrategyManager* getStrategyManager()
+    {
+        return &m_strategyManager;
+    }
 
     /// @brief Get next unique requestId for strategy order tracking
     /// @return Next requestId (thread-safe atomic increment)
@@ -76,12 +81,6 @@ class MainAlgo final : public QObject
     /// @brief Called when TSClient placeOrder future resolves
     /// Routes result to strategy and emits GUI signal if displayed stock
     void onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOrderResult, TSClient::Error>& p_result);
-
-    /// @brief Get the StrategyManager instance
-    [[nodiscard]] StrategyManager* getStrategyManager() const
-    {
-        return m_strategyManager.get();
-    }
 
   signals:
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
@@ -142,7 +141,8 @@ class MainAlgo final : public QObject
     bool m_balancePollingStarted = false;
 
     // Strategy order tracking - all accessed from MainAlgo thread
-    std::unique_ptr<StrategyManager> m_strategyManager;
+    StrategyManager m_strategyManager;
+
     std::unique_ptr<QSocketNotifier> m_crashNotifier; // Monitor crash pipe from signal handlers
     std::atomic<uint64_t> m_requestIdCounter{0};
     QMap<uint64_t, std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>> m_pendingOrderPromises;
