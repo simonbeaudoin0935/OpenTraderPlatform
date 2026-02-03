@@ -72,6 +72,25 @@ Welcome to the L2Trader documentation! This directory contains comprehensive gui
 - Real-time data visualization
 - Session background rendering
 
+#### Strategy System
+
+**[STRATEGY.md](STRATEGY.md)** - Trading strategy plugin system
+
+- Strategy architecture and lifecycle
+- Plugin development guide
+- API reference (StrategyBase, StrategySDK)
+- Threading model for strategies
+- GUI integration (StrategyCard, StrategiesTab)
+- Configuration and deployment
+- Best practices and limitations
+
+**Key Topics**:
+- Dynamic strategy loading (.so plugins)
+- Isolated strategy execution (one thread per strategy)
+- Crash detection and isolation
+- Real-time monitoring and logging
+- Strategy development workflow
+
 ### Development
 
 #### Development Guide
@@ -133,6 +152,7 @@ All diagrams use [Mermaid](https://mermaid.js.org/) syntax and are viewable in G
 | **Understand architecture** | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | **OAuth authentication** | [AUTHENTICATION.md](AUTHENTICATION.md) |
 | **GUI components** | [FRONTEND.md § GUI](FRONTEND.md#gui-implementation) |
+| **Develop a strategy** | [STRATEGY.md § Development Guide](STRATEGY.md#development-guide) |
 | **Code formatting** | [DEVELOPMENT.md § Code Quality](DEVELOPMENT.md#code-quality-tools) |
 | **Submit changes** | [CONTRIBUTING.md § PR Process](CONTRIBUTING.md#pull-request-process) |
 | **Memory management** | [ARCHITECTURE.md § Memory](ARCHITECTURE.md#memory-management) |
@@ -185,8 +205,14 @@ Doc/
 ├── ARCHITECTURE.md        # System architecture
 ├── AUTHENTICATION.md      # OAuth and security
 ├── FRONTEND.md            # GUI and TUI
+├── STRATEGY.md            # Strategy system and plugin development
 ├── DEVELOPMENT.md         # Development guide
-└── CONTRIBUTING.md        # Contribution guidelines
+├── CONTRIBUTING.md        # Contribution guidelines
+├── Improvements/          # Architecture improvement recommendations
+│   └── Architecture_Improvements.md
+└── plans/                 # Development plans and session checkpoints
+    ├── STRATEGY_SYSTEM_PLAN.md
+    └── PHASE_6.5_SESSION_CHECKPOINT.md
 ```
 
 ### Style Guidelines
@@ -200,6 +226,13 @@ Doc/
 
 ## Recent Updates
 
+### February 2026
+
+- ✅ Added comprehensive strategy system documentation (STRATEGY.md)
+- ✅ Preserved strategy development plans in Doc/plans/
+- ✅ Moved architecture improvements to Doc/Improvements/
+- ✅ Updated documentation index with new structure
+
 ### January 2026
 
 - ✅ Consolidated documentation into 5 main files
@@ -211,11 +244,11 @@ Doc/
 
 ### Key Improvements
 
-- **Better Organization**: Clear structure with focused documents
-- **Comprehensive Coverage**: All major topics covered in depth
+- **Better Organization**: Clear structure with focused documents and subdirectories
+- **Comprehensive Coverage**: All major topics covered in depth, including strategy system
 - **Cross-Referencing**: Easy navigation between related topics
 - **Up-to-Date**: All content reflects current codebase
-- **Consolidated**: Reduced from 29 files to 5 core documents
+- **Preserved History**: Strategy plans and improvement docs maintained for reference
 
 ## Contributing to Documentation
 
