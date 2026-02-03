@@ -718,10 +718,10 @@ void TUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, const QSt
 
 void TUIFrontend::requestMissingBarsForDay(const Bar& firstBar)
 {
-    // Request bars from the beginning of the trading day (6:00 AM) to now
+    // Request bars from the beginning of the trading day (4:00 AM) to now
     // Use current time instead of firstBar timestamp to avoid requesting future bars
     QDateTime first = QDateTime(firstBar.getTimeStamp().date(),
-                                TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION,
+                                TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
                                 TradingHours::MARKET_TIMEZONE);
 
     // TODO use MainAlgo's notion of "now" to avoid issues with system clock skew

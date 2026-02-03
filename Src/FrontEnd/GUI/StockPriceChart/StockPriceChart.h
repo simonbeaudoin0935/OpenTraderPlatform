@@ -130,6 +130,7 @@ class StockPriceChart : public QWidget
     QCPBars* m_volumeNeg;
 
     // Background rectangles for different market sessions
+    QList<QCPItemRect*> m_earlyPreMarketRects;
     QList<QCPItemRect*> m_preMarketRects;
     QList<QCPItemRect*> m_afterHoursRects;
     QSet<QDate> m_datesWithBackgrounds; // Track which dates already have backgrounds drawn

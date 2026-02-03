@@ -191,16 +191,16 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first,
  * from the API if necessary. The entire day is cached once fetched to ensure completeness.
  *
  * For the current day, bars are fetched up to the current time. For past days, the full trading day
- * (6:01 AM to 8:00 PM ET) is retrieved.
+ * (4:01 AM to 8:00 PM ET) is retrieved.
  *
  * @param date The date for which to retrieve bars (must be a weekday: Monday to Friday).
- * @param first The start time of the range (must be between 6:01 AM and 8:00 PM ET).
- * @param last The end time of the range (must be between 6:01 AM and 8:00 PM ET, and >= first).
+ * @param first The start time of the range (must be between 4:01 AM and 8:00 PM ET).
+ * @param last The end time of the range (must be between 4:01 AM and 8:00 PM ET, and >= first).
  *
  * @return A QFuture containing a std::unique_ptr to a QVector<Bar> with the requested bars.
  *
  * @pre date is a weekday (Monday to Friday).
- * @pre first and last are within trading hours (6:01 AM to 8:00 PM ET).
+ * @pre first and last are within trading hours (4:01 AM to 8:00 PM ET).
  * @pre date is not in the future; for current day, last <= current time.
  * @pre first <= last.
  * @pre first and last have seconds and milliseconds set to 0.
@@ -221,7 +221,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
     OBJ_ASSUME_EQUAL(first.msec(), 0);
     OBJ_ASSUME_EQUAL(last.msec(), 0);
 
-    // Assume monday-friday and between 6:01am-8:00pm
+    // Assume monday-friday and between 4:01am-8:00pm
     OBJ_ASSUME_GTE(date.dayOfWeek(), Qt::Monday);
     OBJ_ASSUME_LTE(date.dayOfWeek(), Qt::Friday);
     OBJ_ASSUME_GTE(first, TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION);
@@ -281,9 +281,9 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
 
     // Always fetch the FULL day from database (to warm cache) even if only partial range requested
     // This ensures we cache complete days and avoid repeated database queries for the same day
-    // Full day: 6:01 AM (pre-market open) to 8:00 PM (after-market close) = 840 bars total
-    QTime fullDayStart = TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION; // 6:01 AM
-    QTime fullDayEnd = TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;  // 8:00 PM
+    // Full day: 4:01 AM (early pre-market open) to 8:00 PM (after-market close) = 960 bars total
+    QTime fullDayStart = TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION; // 4:01 AM
+    QTime fullDayEnd = TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;        // 8:00 PM
 
     // Query database via DatabaseThread (async, thread-safe)
     // Request the FULL day, not just the requested range
@@ -426,7 +426,7 @@ BarCache::getBarsFromCache(const QDate& date, const QTime& start, const QTime& e
     // Day exists in cache - extract the requested range
     const QVector<Bar>& dayVector = m_barCacheByDay[date];
 
-    // a day vector is always pre-allocated to 840 bars
+    // a day vector is always pre-allocated to 960 bars
     OBJ_ASSUME_EQUAL(dayVector.size(), BarsConstants::MINUTE_BARS_PER_DAY);
 
     std::unique_ptr<QVector<Bar>> result = std::make_unique<QVector<Bar>>();
@@ -474,7 +474,7 @@ void BarCache::storeBarInCache(const Bar& bar)
     {
         if (dayVector[index].getBarStatus() != Bar::BarStatus::Uninitialized)
         {
-            if (BarsConstants::timeToIndex(bar.getTimeStamp().time()) == 839)
+            if (BarsConstants::timeToIndex(bar.getTimeStamp().time()) == BarsConstants::MINUTE_BARS_PER_DAY - 1)
             {
                 WARNING << "We received a double of the last bar of the day for symbol" << m_symbol
                         << "at timestamp:" << bar.getTimeStamp()
@@ -584,7 +584,7 @@ constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDay
     ASSUME_LT(first, last);
 
     // Ensure range is within trading hours
-    ASSUME_GTE(first.time(), TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION);
+    ASSUME_GTE(first.time(), TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION);
     ASSUME_LTE(last.time(), TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
 
 
@@ -599,7 +599,8 @@ constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDay
             continue;
         }
 
-        QTime dayTimeStart = (date == first.date()) ? first.time() : TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION;
+        QTime dayTimeStart =
+            (date == first.date()) ? first.time() : TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION;
         QTime dayTimeEnd = (date == last.date()) ? last.time() : TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;
 
         std::tuple<QDate, QTime, QTime> range = std::make_tuple(date, dayTimeStart, dayTimeEnd);
