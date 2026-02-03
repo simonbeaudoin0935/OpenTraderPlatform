@@ -28,4 +28,16 @@ namespace LiveStreamDBQueries
         "VALUES (?, ?, ?, ?)";
 
     const QString SELECT_COUNT_FROM_TABLE = "SELECT COUNT(*) FROM %1";
+
+    // Indexes for efficient replay queries (created after recording or on first replay)
+    const QString CREATE_BARS_EPOCH_INDEX = "CREATE INDEX IF NOT EXISTS idx_bars_epochMs ON bars(epochMs)";
+
+    const QString CREATE_BARS_TICKER_INDEX = "CREATE INDEX IF NOT EXISTS idx_bars_stockTicker ON bars(stockTicker)";
+
+    const QString CREATE_DEPTH_EPOCH_INDEX =
+        "CREATE INDEX IF NOT EXISTS idx_market_depth_epochMs ON market_depth_quotes(epochMs)";
+
+    const QString CREATE_DEPTH_TICKER_INDEX =
+        "CREATE INDEX IF NOT EXISTS idx_market_depth_stockTicker ON market_depth_quotes(stockTicker)";
+
 } // namespace LiveStreamDBQueries
