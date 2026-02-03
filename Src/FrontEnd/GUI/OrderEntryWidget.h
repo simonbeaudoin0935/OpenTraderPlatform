@@ -72,7 +72,6 @@ class OrderEntryWidget : public QWidget
 
     // UI Components
     QLabel* m_headerLabel;
-    QLineEdit* m_symbolInput;
     QRadioButton* m_buyRadio;
     QRadioButton* m_buyToCoverRadio;
     QRadioButton* m_sellRadio;
@@ -105,4 +104,7 @@ class OrderEntryWidget : public QWidget
 
     // Account storage
     QVector<Account> m_accounts;
+
+    // Current symbol
+    QString m_currentSymbol;
 };

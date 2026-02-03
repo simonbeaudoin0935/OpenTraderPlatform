@@ -394,7 +394,7 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
     if (strategyIt == m_orderMappings.end())
     {
         // This order does not belong to any strategy we know about
-        CRITICAL << "Received order update for unknown order ID:" << order.getOrderID();
+        WARNING << "Received order update for order ID:" << order.getOrderID() << "which has no associated strategy";
         return;
     }
 

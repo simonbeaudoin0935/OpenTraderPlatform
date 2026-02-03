@@ -34,8 +34,8 @@ void OrderWindow::setupUI()
 
     // Setup model columns
     QStringList headers;
-    headers << "Order ID" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "DateTime" << "Ack Latency"
-            << "Fill Latency" << "Status";
+    headers << "Status" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "DateTime" << "Ack Latency"
+            << "Fill Latency" << "Order ID";
     m_model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -53,7 +53,7 @@ void OrderWindow::setupUI()
 
     // Set column widths
     m_tableView->setColumnWidth(0,
-                                100);   // Order ID
+                                100);   // Status
     m_tableView->setColumnWidth(1, 70); // Symbol
     m_tableView->setColumnWidth(2, 80); // Action
     m_tableView->setColumnWidth(3,
@@ -68,7 +68,7 @@ void OrderWindow::setupUI()
     m_tableView->setColumnWidth(9,
                                 90); // Fill Latency
     m_tableView->setColumnWidth(10,
-                                100); // Status
+                                100); // Order ID
 
     // Add widgets to layout
     mainLayout->addWidget(m_headerLabel);
@@ -185,11 +185,79 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
     QList<QStandardItem*> items;
     [[maybe_unused]] bool isReceivedOrder = (order.getOrderStatus() == Order::Status::ACK);
 
-    // Order ID
-    auto orderIdItem = new QStandardItem(order.getOrderID());
-    Q_CHECK_PTR(orderIdItem);
-    orderIdItem->setTextAlignment(Qt::AlignCenter);
-    items << orderIdItem;
+    // Status
+    auto statusItem = new QStandardItem(order.getStatusDescription());
+    Q_CHECK_PTR(statusItem);
+    statusItem->setTextAlignment(Qt::AlignCenter);
+
+    // Color code status based on OrderStatus enum
+    switch (order.getOrderStatus())
+    {
+    case Order::Status::FLL:                          // Filled
+        statusItem->setBackground(QColor("#D4EDDA")); // Light green
+        statusItem->setForeground(QColor("#155724")); // Dark green text
+        break;
+    case Order::Status::FLP:                          // Partial Fill (UROut)
+    case Order::Status::FPR:                          // Partial Fill (Alive)
+        statusItem->setBackground(QColor("#F8F9FA")); // Light gray
+        statusItem->setForeground(QColor("#383D41")); // Dark gray text
+        break;
+    case Order::Status::REJ:                          // Rejected
+    case Order::Status::RJC:                          // Cancel Request Rejected
+        statusItem->setBackground(QColor("#F8D7DA")); // Light red
+        statusItem->setForeground(QColor("#721C24")); // Dark red text
+        break;
+    case Order::Status::CAN:                          // Canceled
+    case Order::Status::TSC:                          // Trade Server Canceled
+    case Order::Status::EXP:                          // Expired
+    case Order::Status::BRO:                          // Broken
+        statusItem->setBackground(QColor("#F8D7DA")); // Light red
+        statusItem->setForeground(QColor("#721C24")); // Dark red text
+        break;
+    case Order::Status::OPN:                          // Sent
+    case Order::Status::UCN:                          // Cancel Sent
+    case Order::Status::RSN:                          // Replace Sent
+        statusItem->setBackground(QColor("#FFF3CD")); // Light yellow
+        statusItem->setForeground(QColor("#856404")); // Dark yellow text
+        break;
+    case Order::Status::DON: // Queued
+        // Button styling for queued orders
+        statusItem->setBackground(QColor("#007BFF"));
+        statusItem->setForeground(QColor("#FFFFFF"));
+        statusItem->setText("Queued ❌"); // Add X emoji to make it look like a cancel button
+        break;
+    case Order::Status::ACK: // Received
+        // Button styling for received orders
+        statusItem->setBackground(QColor("#007BFF"));
+        statusItem->setForeground(QColor("#FFFFFF"));
+        statusItem->setText("Received ❌"); // Add X emoji to make it look like a cancel button
+        break;
+    case Order::Status::LAT: // Too Late to Cancel
+    case Order::Status::OUT: // UROut
+    case Order::Status::UCH: // Replaced
+    case Order::Status::CND: // Condition Met
+    case Order::Status::OSO: // OSO Order
+    case Order::Status::SUS: // Suspended
+    default:
+        // Default color for other statuses
+        statusItem->setBackground(QColor("#F8F9FA")); // Light gray
+        statusItem->setForeground(QColor("#383D41")); // Dark gray text
+        break;
+    }
+
+    // Set tooltip with detailed status information
+    QString tooltipText = order.getStatusDescription();
+    if (order.getOrderStatus() == Order::Status::OUT)
+    {
+        tooltipText = "Successfully Cancelled (UROut)\n\nThis order was cancelled successfully.";
+    }
+    else if (order.getRejectReason().has_value() && !order.getRejectReason().value().isEmpty())
+    {
+        tooltipText += "\n\nReject Reason: " + order.getRejectReason().value();
+    }
+    statusItem->setToolTip(tooltipText);
+
+    items << statusItem;
 
     // Symbol
     auto symbolItem = new QStandardItem(order.getSymbol());
@@ -385,87 +453,19 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
     }
     items << fillLatencyItem;
 
-    // Status
-    auto statusItem = new QStandardItem(order.getStatusDescription());
-    Q_CHECK_PTR(statusItem);
-    statusItem->setTextAlignment(Qt::AlignCenter);
-
-    // Color code status based on OrderStatus enum
-    switch (order.getOrderStatus())
-    {
-    case Order::Status::FLL:                          // Filled
-        statusItem->setBackground(QColor("#D4EDDA")); // Light green
-        statusItem->setForeground(QColor("#155724")); // Dark green text
-        break;
-    case Order::Status::FLP:                          // Partial Fill (UROut)
-    case Order::Status::FPR:                          // Partial Fill (Alive)
-        statusItem->setBackground(QColor("#F8F9FA")); // Light gray
-        statusItem->setForeground(QColor("#383D41")); // Dark gray text
-        break;
-    case Order::Status::REJ:                          // Rejected
-    case Order::Status::RJC:                          // Cancel Request Rejected
-        statusItem->setBackground(QColor("#F8D7DA")); // Light red
-        statusItem->setForeground(QColor("#721C24")); // Dark red text
-        break;
-    case Order::Status::CAN:                          // Canceled
-    case Order::Status::TSC:                          // Trade Server Canceled
-    case Order::Status::EXP:                          // Expired
-    case Order::Status::BRO:                          // Broken
-        statusItem->setBackground(QColor("#F8D7DA")); // Light red
-        statusItem->setForeground(QColor("#721C24")); // Dark red text
-        break;
-    case Order::Status::OPN:                          // Sent
-    case Order::Status::UCN:                          // Cancel Sent
-    case Order::Status::RSN:                          // Replace Sent
-        statusItem->setBackground(QColor("#FFF3CD")); // Light yellow
-        statusItem->setForeground(QColor("#856404")); // Dark yellow text
-        break;
-    case Order::Status::DON: // Queued
-        // Button styling for queued orders
-        statusItem->setBackground(QColor("#007BFF"));
-        statusItem->setForeground(QColor("#FFFFFF"));
-        statusItem->setText("Queued ❌"); // Add X emoji to make it look like a cancel button
-        break;
-    case Order::Status::ACK: // Received
-        // Button styling for received orders
-        statusItem->setBackground(QColor("#007BFF"));
-        statusItem->setForeground(QColor("#FFFFFF"));
-        statusItem->setText("Received ❌"); // Add X emoji to make it look like a cancel button
-        break;
-    case Order::Status::LAT: // Too Late to Cancel
-    case Order::Status::OUT: // UROut
-    case Order::Status::UCH: // Replaced
-    case Order::Status::CND: // Condition Met
-    case Order::Status::OSO: // OSO Order
-    case Order::Status::SUS: // Suspended
-    default:
-        // Default color for other statuses
-        statusItem->setBackground(QColor("#F8F9FA")); // Light gray
-        statusItem->setForeground(QColor("#383D41")); // Dark gray text
-        break;
-    }
-
-    // Set tooltip with detailed status information
-    QString tooltipText = order.getStatusDescription();
-    if (order.getOrderStatus() == Order::Status::OUT)
-    {
-        tooltipText = "Successfully Cancelled (UROut)\n\nThis order was cancelled successfully.";
-    }
-    else if (order.getRejectReason().has_value() && !order.getRejectReason().value().isEmpty())
-    {
-        tooltipText += "\n\nReject Reason: " + order.getRejectReason().value();
-    }
-    statusItem->setToolTip(tooltipText);
-
-    items << statusItem;
+    // Order ID
+    auto orderIdItem = new QStandardItem(order.getOrderID());
+    Q_CHECK_PTR(orderIdItem);
+    orderIdItem->setTextAlignment(Qt::AlignCenter);
+    items << orderIdItem;
 
     return items;
 }
 
 void OrderWindow::onSymbolClicked(const QModelIndex& index)
 {
-    // Get the order ID from the first column of the clicked row
-    QStandardItem* orderIdItem = m_model->item(index.row(), 0);
+    // Get the order ID from the last column of the clicked row
+    QStandardItem* orderIdItem = m_model->item(index.row(), 10);
     if (orderIdItem == nullptr)
     {
         return;
@@ -473,9 +473,9 @@ void OrderWindow::onSymbolClicked(const QModelIndex& index)
 
     QString orderId = orderIdItem->text();
 
-    // Check if this row has "Received" or "Queued" status (last column)
+    // Check if this row has "Received" or "Queued" status (first column)
     QStandardItem* statusItem = m_model->item(index.row(),
-                                              10); // Status column (now at index 10)
+                                              0); // Status column (now at index 0)
     bool isCancelableOrder = (statusItem != nullptr && (statusItem->text().contains("Received", Qt::CaseInsensitive) ||
                                                         statusItem->text().contains("Queued", Qt::CaseInsensitive)));
 
