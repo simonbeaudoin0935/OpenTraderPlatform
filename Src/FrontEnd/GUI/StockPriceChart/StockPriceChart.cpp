@@ -29,8 +29,8 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
 
     m_customPlot->installEventFilter(this);
 
-    // Create candlestick chart
-    m_candlesticks = new QCPFinancial(m_customPlot->xAxis, m_customPlot->yAxis);
+    // Create candlestick chart attached to right axis
+    m_candlesticks = new QCPFinancial(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
     Q_CHECK_PTR(m_candlesticks);
 
     m_candlesticks->setName("Candlestick");
@@ -42,24 +42,27 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_candlesticks->setPenPositive(QPen(QColor(0, 180, 0)));
     m_candlesticks->setPenNegative(QPen(QColor(200, 0, 0)));
 
-    // Setup axes
+    // Setup axes - hide left axis and show right axis
     m_customPlot->xAxis->setLabel("");
-    m_customPlot->yAxis->setLabel("");
+    m_customPlot->yAxis->setVisible(false);
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setVisible(true);
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setLabel("");
 
     // Apply dark theme
     m_customPlot->setBackground(QBrush(QColor(75, 75, 80)));
     m_customPlot->xAxis->setBasePen(QPen(QColor(220, 220, 220)));
-    m_customPlot->yAxis->setBasePen(QPen(QColor(220, 220, 220)));
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setBasePen(QPen(QColor(220, 220, 220)));
     m_customPlot->xAxis->setTickPen(QPen(QColor(220, 220, 220)));
-    m_customPlot->yAxis->setTickPen(QPen(QColor(220, 220, 220)));
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setTickPen(QPen(QColor(220, 220, 220)));
     m_customPlot->xAxis->setSubTickPen(QPen(QColor(220, 220, 220)));
-    m_customPlot->yAxis->setSubTickPen(QPen(QColor(220, 220, 220)));
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setSubTickPen(QPen(QColor(220, 220, 220)));
     m_customPlot->xAxis->setTickLabelColor(QColor(220, 220, 220));
-    m_customPlot->yAxis->setTickLabelColor(QColor(220, 220, 220));
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setTickLabelColor(QColor(220, 220, 220));
     m_customPlot->xAxis->setLabelColor(QColor(220, 220, 220));
-    m_customPlot->yAxis->setLabelColor(QColor(220, 220, 220));
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setLabelColor(QColor(220, 220, 220));
     m_customPlot->xAxis->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
-    m_customPlot->yAxis->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->grid()->setVisible(true);
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
 
     // Create bottom axis rect for volume bar chart
     m_volumeAxisRect = new QCPAxisRect(m_customPlot);
@@ -74,22 +77,25 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_volumeAxisRect->setAutoMargins(QCP::msLeft | QCP::msRight | QCP::msBottom);
     m_volumeAxisRect->setMargins(QMargins(0, 0, 0, 0));
 
-    // Apply dark theme to volume axis rect
+    // Apply dark theme to volume axis rect - hide left axis, show right axis
     m_volumeAxisRect->setBackground(QBrush(QColor(75, 75, 80)));
     m_volumeAxisRect->axis(QCPAxis::atBottom)->setBasePen(QPen(QColor(220, 220, 220)));
-    m_volumeAxisRect->axis(QCPAxis::atLeft)->setBasePen(QPen(QColor(220, 220, 220)));
+    m_volumeAxisRect->axis(QCPAxis::atLeft)->setVisible(false);
+    m_volumeAxisRect->axis(QCPAxis::atRight)->setVisible(true);
+    m_volumeAxisRect->axis(QCPAxis::atRight)->setBasePen(QPen(QColor(220, 220, 220)));
     m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickPen(QPen(QColor(220, 220, 220)));
-    m_volumeAxisRect->axis(QCPAxis::atLeft)->setTickPen(QPen(QColor(220, 220, 220)));
+    m_volumeAxisRect->axis(QCPAxis::atRight)->setTickPen(QPen(QColor(220, 220, 220)));
     m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabelColor(QColor(220, 220, 220));
-    m_volumeAxisRect->axis(QCPAxis::atLeft)->setTickLabelColor(QColor(220, 220, 220));
+    m_volumeAxisRect->axis(QCPAxis::atRight)->setTickLabelColor(QColor(220, 220, 220));
     m_volumeAxisRect->axis(QCPAxis::atBottom)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
-    m_volumeAxisRect->axis(QCPAxis::atLeft)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    m_volumeAxisRect->axis(QCPAxis::atRight)->grid()->setVisible(true);
+    m_volumeAxisRect->axis(QCPAxis::atRight)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
 
     // Create two bar plottables for positive (green) and negative (red) volume bars
     m_customPlot->setAutoAddPlottableToLegend(false);
-    m_volumePos = new QCPBars(m_volumeAxisRect->axis(QCPAxis::atBottom), m_volumeAxisRect->axis(QCPAxis::atLeft));
+    m_volumePos = new QCPBars(m_volumeAxisRect->axis(QCPAxis::atBottom), m_volumeAxisRect->axis(QCPAxis::atRight));
     Q_CHECK_PTR(m_volumePos);
-    m_volumeNeg = new QCPBars(m_volumeAxisRect->axis(QCPAxis::atBottom), m_volumeAxisRect->axis(QCPAxis::atLeft));
+    m_volumeNeg = new QCPBars(m_volumeAxisRect->axis(QCPAxis::atBottom), m_volumeAxisRect->axis(QCPAxis::atRight));
     Q_CHECK_PTR(m_volumeNeg);
 
     m_volumePos->setWidth(ChartConstants::CANDLESTICK_BODY_WIDTH);
@@ -127,12 +133,15 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_lastPriceLine = new QCPItemLine(m_customPlot);
     Q_CHECK_PTR(m_lastPriceLine);
     m_lastPriceLine->setPen(QPen(Qt::green, 1, Qt::DashLine));
+    m_lastPriceLine->start->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    m_lastPriceLine->end->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
 
     // Create price label
     m_priceLabel = new QCPItemText(m_customPlot);
     Q_CHECK_PTR(m_priceLabel);
-    m_priceLabel->setPositionAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    m_priceLabel->position->setType(QCPItemPosition::ptAxisRectRatio);
+    m_priceLabel->setPositionAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    m_priceLabel->position->setType(QCPItemPosition::ptPlotCoords);
+    m_priceLabel->position->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
     m_priceLabel->setFont(QFont(font().family(), 10, QFont::Bold));
     m_priceLabel->setColor(Qt::green);
     m_priceLabel->setPadding(QMargins(5, 2, 5, 2));
@@ -144,13 +153,17 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_customPlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
     m_customPlot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
 
+    // Set which axes to use for dragging and zooming
+    m_customPlot->axisRect()->setRangeDragAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    m_customPlot->axisRect()->setRangeZoomAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+
     // Enable horizontal zoom and drag on volume chart independently
     m_volumeAxisRect->setRangeDrag(Qt::Horizontal);
     m_volumeAxisRect->setRangeZoom(Qt::Horizontal);
 
     // Set initial ranges
     m_customPlot->xAxis->setRange(-3, 3);
-    m_customPlot->yAxis->setRange(0, 100);
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(0, 100);
 
     // Create layout and add widgets
     QVBoxLayout* layout = new QVBoxLayout(this);
@@ -203,7 +216,7 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
             QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
             this,
             &StockPriceChart::onAxisRangeChanged);
-    connect(m_customPlot->yAxis,
+    connect(m_customPlot->axisRect()->axis(QCPAxis::atRight),
             QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
             this,
             &StockPriceChart::onAxisRangeChanged);
@@ -357,7 +370,9 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         double newPrice = bar.getClose();
         double padding = newPrice * 0.0002;
         double minRange = newPrice * 0.0005;
-        m_customPlot->yAxis->setRange(qMax(0.0, newPrice - minRange / 2 - padding), newPrice + minRange / 2 + padding);
+        m_customPlot->axisRect()
+            ->axis(QCPAxis::atRight)
+            ->setRange(qMax(0.0, newPrice - minRange / 2 - padding), newPrice + minRange / 2 + padding);
 
         m_customPlot->replot();
 
@@ -572,7 +587,7 @@ void StockPriceChart::rescaleVolumeAxisToVisibleRange()
     {
         // Add small padding (5%) at the top for visual clarity
         const double upperBound = scaleVolume * 1.05;
-        m_volumeAxisRect->axis(QCPAxis::atLeft)->setRange(0.0, upperBound);
+        m_volumeAxisRect->axis(QCPAxis::atRight)->setRange(0.0, upperBound);
     }
 }
 
@@ -697,8 +712,8 @@ void StockPriceChart::drawFixedBackgroundRect(const QDate& date,
     // Set the rectangle to use plot coordinates
     rect->topLeft->setType(QCPItemPosition::ptPlotCoords);
     rect->bottomRight->setType(QCPItemPosition::ptPlotCoords);
-    rect->topLeft->setAxes(m_customPlot->xAxis, m_customPlot->yAxis);
-    rect->bottomRight->setAxes(m_customPlot->xAxis, m_customPlot->yAxis);
+    rect->topLeft->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    rect->bottomRight->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
 
     // Set fixed X coordinates (index range) and full Y range
     // Y coordinates will automatically adapt to axis range changes
@@ -769,6 +784,8 @@ void StockPriceChart::onRequestedMissingBarsFailed()
 
 /**
  * @brief Updates the horizontal last price line.
+ * The line is "sticky" - when the price is outside the visible Y-axis range,
+ * it sticks to the top or bottom edge of the chart to maintain visual awareness.
  */
 void StockPriceChart::redrawLastPriceLine()
 {
@@ -781,15 +798,29 @@ void StockPriceChart::redrawLastPriceLine()
     double lastPrice = m_latestBar.getClose();
     QColor lineColor = (m_latestBar.getClose() >= m_latestBar.getOpen()) ? Qt::green : Qt::red;
 
-    // Update line
-    m_lastPriceLine->start->setCoords(m_customPlot->xAxis->range().lower, lastPrice);
-    m_lastPriceLine->end->setCoords(m_customPlot->xAxis->range().upper, lastPrice);
+    // Get the visible Y-axis range
+    QCPRange yRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
+
+    // Clamp the line position to visible range (sticky behavior)
+    double displayPrice = lastPrice;
+    if (lastPrice < yRange.lower)
+    {
+        displayPrice = yRange.lower;
+    }
+    else if (lastPrice > yRange.upper)
+    {
+        displayPrice = yRange.upper;
+    }
+
+    // Update line at clamped position
+    m_lastPriceLine->start->setCoords(m_customPlot->xAxis->range().lower, displayPrice);
+    m_lastPriceLine->end->setCoords(m_customPlot->xAxis->range().upper, displayPrice);
     m_lastPriceLine->setPen(QPen(lineColor, 1, Qt::DashLine));
 
-    // Update label
+    // Update label at clamped position, but show actual price value
     m_priceLabel->setText(QString::number(lastPrice, 'f', 2));
     m_priceLabel->setColor(lineColor);
-    m_priceLabel->position->setCoords(1.0, lastPrice);
+    m_priceLabel->position->setCoords(m_customPlot->xAxis->range().upper, displayPrice);
     m_priceLabel->setVisible(true);
 }
 
@@ -897,7 +928,7 @@ void StockPriceChart::clearSymbol()
     }
 
     m_customPlot->xAxis->setRange(0, 30);
-    m_customPlot->yAxis->setRange(0, 100);
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(0, 100);
 
     m_customPlot->replot();
 }
@@ -1023,8 +1054,8 @@ void StockPriceChart::updateAxisLabelsDensity()
     // Simple implementation - qcustomplot handles most of this automatically
     // Can be enhanced later if needed
     m_customPlot->xAxis->setNumberFormat("g");
-    m_customPlot->yAxis->setNumberFormat("f");
-    m_customPlot->yAxis->setNumberPrecision(2);
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setNumberFormat("f");
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setNumberPrecision(2);
 }
 
 /**
@@ -1044,9 +1075,9 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const std::shared_ptr<QVec
         const Bar& bar = *it;
         const QDateTime& timestamp = bar.getTimeStamp();
 
-        DEBUG << "Received historical bar" << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
-              << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "isEndOfHistory:" << bar.getIsEndOfHistory()
-              << "O:" << bar.getOpen() << "H:" << bar.getHigh() << "L:" << bar.getLow() << "C:" << bar.getClose();
+        //DEBUG << "Received historical bar" << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
+        //      << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "isEndOfHistory:" << bar.getIsEndOfHistory()
+        //      << "O:" << bar.getOpen() << "H:" << bar.getHigh() << "L:" << bar.getLow() << "C:" << bar.getClose();
 
         //OBJ_ASSUME_TRUE(timestampToIndex.contains(timestamp));
 

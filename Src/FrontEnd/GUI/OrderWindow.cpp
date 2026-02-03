@@ -34,8 +34,8 @@ void OrderWindow::setupUI()
 
     // Setup model columns
     QStringList headers;
-    headers << "Status" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "DateTime" << "Ack Latency"
-            << "Fill Latency" << "Order ID";
+    headers << "Status" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "Date" << "Time"
+            << "Ack Latency" << "Fill Latency" << "Order ID";
     m_model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -52,23 +52,18 @@ void OrderWindow::setupUI()
     OBJ_ASSUME_TRUE(c);
 
     // Set column widths
-    m_tableView->setColumnWidth(0,
-                                100);   // Status
-    m_tableView->setColumnWidth(1, 70); // Symbol
-    m_tableView->setColumnWidth(2, 80); // Action
-    m_tableView->setColumnWidth(3,
-                                50);    // Quantity
-    m_tableView->setColumnWidth(4, 70); // Type
-    m_tableView->setColumnWidth(5, 60); // Limit
-    m_tableView->setColumnWidth(6, 60); // Stop
-    m_tableView->setColumnWidth(7,
-                                100); // DateTime
-    m_tableView->setColumnWidth(8,
-                                90); // Ack Latency
-    m_tableView->setColumnWidth(9,
-                                90); // Fill Latency
-    m_tableView->setColumnWidth(10,
-                                100); // Order ID
+    m_tableView->setColumnWidth(0, 100);  // Status
+    m_tableView->setColumnWidth(1, 70);   // Symbol
+    m_tableView->setColumnWidth(2, 80);   // Action
+    m_tableView->setColumnWidth(3, 50);   // Quantity
+    m_tableView->setColumnWidth(4, 70);   // Type
+    m_tableView->setColumnWidth(5, 60);   // Limit
+    m_tableView->setColumnWidth(6, 60);   // Stop
+    m_tableView->setColumnWidth(7, 80);   // Date
+    m_tableView->setColumnWidth(8, 80);   // Time
+    m_tableView->setColumnWidth(9, 90);   // Ack Latency
+    m_tableView->setColumnWidth(10, 90);  // Fill Latency
+    m_tableView->setColumnWidth(11, 100); // Order ID
 
     // Add widgets to layout
     mainLayout->addWidget(m_headerLabel);
@@ -352,19 +347,23 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
     stopItem->setTextAlignment(Qt::AlignCenter);
     items << stopItem;
 
-    // DateTime
+    // Date and Time (split into two columns)
     QDateTime orderDT = order.getOpenedDateTime();
 
     OBJ_ASSUME_EQUAL(orderDT.timeZone(), TradingHours::MARKET_TIMEZONE);
 
-    QString dateTimeStr = orderDT.toString("MM/dd/yyyy hh:mm:ss");
-    QString timeOnlyStr = orderDT.toString("hh:mm:ss");
+    QString dateStr = orderDT.toString("MM/dd/yyyy");
+    QString timeStr = orderDT.toString("hh:mm:ss");
 
-    auto dateTimeItem = new QStandardItem(timeOnlyStr);
-    Q_CHECK_PTR(dateTimeItem);
-    dateTimeItem->setTextAlignment(Qt::AlignCenter);
-    dateTimeItem->setToolTip(dateTimeStr); // Show full datetime on hover
-    items << dateTimeItem;
+    auto dateItem = new QStandardItem(dateStr);
+    Q_CHECK_PTR(dateItem);
+    dateItem->setTextAlignment(Qt::AlignCenter);
+    items << dateItem;
+
+    auto timeItem = new QStandardItem(timeStr);
+    Q_CHECK_PTR(timeItem);
+    timeItem->setTextAlignment(Qt::AlignCenter);
+    items << timeItem;
 
     // Helper lambda to format latency
     auto formatLatency = [](qint64 latencyMs) -> QString
@@ -465,7 +464,7 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
 void OrderWindow::onSymbolClicked(const QModelIndex& index)
 {
     // Get the order ID from the last column of the clicked row
-    QStandardItem* orderIdItem = m_model->item(index.row(), 10);
+    QStandardItem* orderIdItem = m_model->item(index.row(), 11); // Order ID now at column 11
     if (orderIdItem == nullptr)
     {
         return;
@@ -474,8 +473,7 @@ void OrderWindow::onSymbolClicked(const QModelIndex& index)
     QString orderId = orderIdItem->text();
 
     // Check if this row has "Received" or "Queued" status (first column)
-    QStandardItem* statusItem = m_model->item(index.row(),
-                                              0); // Status column (now at index 0)
+    QStandardItem* statusItem = m_model->item(index.row(), 0); // Status column
     bool isCancelableOrder = (statusItem != nullptr && (statusItem->text().contains("Received", Qt::CaseInsensitive) ||
                                                         statusItem->text().contains("Queued", Qt::CaseInsensitive)));
 
