@@ -784,6 +784,8 @@ void StockPriceChart::onRequestedMissingBarsFailed()
 
 /**
  * @brief Updates the horizontal last price line.
+ * The line is "sticky" - when the price is outside the visible Y-axis range,
+ * it sticks to the top or bottom edge of the chart to maintain visual awareness.
  */
 void StockPriceChart::redrawLastPriceLine()
 {
@@ -796,15 +798,29 @@ void StockPriceChart::redrawLastPriceLine()
     double lastPrice = m_latestBar.getClose();
     QColor lineColor = (m_latestBar.getClose() >= m_latestBar.getOpen()) ? Qt::green : Qt::red;
 
-    // Update line
-    m_lastPriceLine->start->setCoords(m_customPlot->xAxis->range().lower, lastPrice);
-    m_lastPriceLine->end->setCoords(m_customPlot->xAxis->range().upper, lastPrice);
+    // Get the visible Y-axis range
+    QCPRange yRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
+
+    // Clamp the line position to visible range (sticky behavior)
+    double displayPrice = lastPrice;
+    if (lastPrice < yRange.lower)
+    {
+        displayPrice = yRange.lower;
+    }
+    else if (lastPrice > yRange.upper)
+    {
+        displayPrice = yRange.upper;
+    }
+
+    // Update line at clamped position
+    m_lastPriceLine->start->setCoords(m_customPlot->xAxis->range().lower, displayPrice);
+    m_lastPriceLine->end->setCoords(m_customPlot->xAxis->range().upper, displayPrice);
     m_lastPriceLine->setPen(QPen(lineColor, 1, Qt::DashLine));
 
-    // Update label
+    // Update label at clamped position, but show actual price value
     m_priceLabel->setText(QString::number(lastPrice, 'f', 2));
     m_priceLabel->setColor(lineColor);
-    m_priceLabel->position->setCoords(m_customPlot->xAxis->range().upper, lastPrice);
+    m_priceLabel->position->setCoords(m_customPlot->xAxis->range().upper, displayPrice);
     m_priceLabel->setVisible(true);
 }
 
@@ -1059,9 +1075,9 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const std::shared_ptr<QVec
         const Bar& bar = *it;
         const QDateTime& timestamp = bar.getTimeStamp();
 
-        DEBUG << "Received historical bar" << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
-              << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "isEndOfHistory:" << bar.getIsEndOfHistory()
-              << "O:" << bar.getOpen() << "H:" << bar.getHigh() << "L:" << bar.getLow() << "C:" << bar.getClose();
+        //DEBUG << "Received historical bar" << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
+        //      << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "isEndOfHistory:" << bar.getIsEndOfHistory()
+        //      << "O:" << bar.getOpen() << "H:" << bar.getHigh() << "L:" << bar.getLow() << "C:" << bar.getClose();
 
         //OBJ_ASSUME_TRUE(timestampToIndex.contains(timestamp));
 
