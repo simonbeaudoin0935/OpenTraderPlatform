@@ -44,6 +44,18 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
     replayTimeEdit->setDisplayFormat("hh:mm");
     replayTimeEdit->setTime(QTime(9, 30)); // Default to 9:30 AM
 
+    replaySpeedCombo = new QComboBox(this);
+    replaySpeedCombo->setMinimumWidth(80);
+    replaySpeedCombo->setMaximumWidth(100);
+    replaySpeedCombo->addItem("0.5x", static_cast<int>(ReplayEngine::PlaybackSpeed::Half));
+    replaySpeedCombo->addItem("1x", static_cast<int>(ReplayEngine::PlaybackSpeed::Normal));
+    replaySpeedCombo->addItem("2x", static_cast<int>(ReplayEngine::PlaybackSpeed::Double));
+    replaySpeedCombo->addItem("5x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast5x));
+    replaySpeedCombo->addItem("10x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast10x));
+    replaySpeedCombo->addItem("Max", static_cast<int>(ReplayEngine::PlaybackSpeed::AsFastAsPossible));
+    replaySpeedCombo->setCurrentIndex(1); // Default to 1x
+    replaySpeedCombo->setToolTip("Replay playback speed");
+
     playPauseButton = new QPushButton("Play", this);
     playPauseButton->setCheckable(true);
 
@@ -97,6 +109,7 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
     layout->addWidget(replayInfoLabel);
     layout->addWidget(replayDayCombo);
     layout->addWidget(replayTimeEdit);
+    layout->addWidget(replaySpeedCombo);
     layout->addWidget(playPauseButton);
     layout->addWidget(settingsButton); // Add settings button at the end
 
@@ -394,6 +407,19 @@ QTime ChartToolbar::getReplayStartTime() const
 void ChartToolbar::setReplayStartTime(const QTime& time)
 {
     replayTimeEdit->setTime(time);
+}
+
+/**
+ * @brief Gets the selected replay speed.
+ */
+ReplayEngine::PlaybackSpeed ChartToolbar::getReplaySpeed() const
+{
+    int currentIndex = replaySpeedCombo->currentIndex();
+    if (currentIndex >= 0 && currentIndex < replaySpeedCombo->count())
+    {
+        return static_cast<ReplayEngine::PlaybackSpeed>(replaySpeedCombo->itemData(currentIndex).toInt());
+    }
+    return ReplayEngine::PlaybackSpeed::Normal; // Default fallback
 }
 
 /**

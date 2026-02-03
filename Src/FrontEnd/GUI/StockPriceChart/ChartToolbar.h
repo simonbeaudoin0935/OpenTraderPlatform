@@ -13,6 +13,7 @@
 #include <QMenu>
 #include <QWidgetAction>
 #include "Misc/TimeFrame.h"
+#include "Core/Replay/ReplayEngine.h"
 
 /**
  * @class ChartToolbar
@@ -109,6 +110,12 @@ class ChartToolbar : public QWidget
      * @param time The start time for replay.
      */
     void setReplayStartTime(const QTime& time);
+
+    /**
+     * @brief Gets the selected replay speed.
+     * @return The selected PlaybackSpeed enum value.
+     */
+    ReplayEngine::PlaybackSpeed getReplaySpeed() const;
 
     /**
      * @brief Checks if replay is currently playing.
@@ -257,6 +264,7 @@ class ChartToolbar : public QWidget
     QLabel* replayInfoLabel;      ///< Label showing replay time range and bar count info
     QComboBox* replayDayCombo;    ///< Dropdown for selecting replay day
     QTimeEdit* replayTimeEdit;    ///< Time input for replay start time
+    QComboBox* replaySpeedCombo;  ///< Dropdown for selecting replay speed
     QPushButton* playPauseButton; ///< Play/pause button for replay
 
     QToolButton* settingsButton; ///< Settings button with cog icon

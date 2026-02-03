@@ -12,6 +12,7 @@
 #include "Assume.h"
 #include "SQL/StockPriceChartQueries.h"
 #include "BarCache.h"
+#include "MainApp.h"
 
 #define LOGGING_CATEGORY ChartLog
 
@@ -203,6 +204,34 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
                 Q_CHECK_PTR(appStateSettings);
                 appStateSettings->setValue("Chart/WheelZoomRatio", ratio);
                 appStateSettings->sync();
+            });
+
+    // Connect replay play/pause button
+    connect(chartToolbar,
+            &ChartToolbar::replayPlayPauseToggled,
+            this,
+            [this](bool playing)
+            {
+                if (playing)
+                {
+                    QDate date = chartToolbar->getSelectedReplayDay();
+                    QTime startTime = chartToolbar->getReplayStartTime();
+                    ReplayEngine::PlaybackSpeed speed = chartToolbar->getReplaySpeed();
+
+                    if (date.isValid())
+                    {
+                        MainApp::getInstance()->enterReplayMode(date, startTime, speed);
+                    }
+                    else
+                    {
+                        qWarning() << "Cannot start replay: no valid date selected";
+                        chartToolbar->setReplayPlaying(false);
+                    }
+                }
+                else
+                {
+                    MainApp::getInstance()->exitReplayMode();
+                }
             });
 
     // Load wheel zoom ratio from settings
