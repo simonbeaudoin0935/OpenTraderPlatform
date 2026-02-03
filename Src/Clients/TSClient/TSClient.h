@@ -1,6 +1,7 @@
 #pragma once
 
 #include <expected>
+#include <memory>
 
 #include <QMap>
 #include <QObject>
@@ -235,6 +236,26 @@ class TSClient final : public QObject
   public slots:
     // Authentication methods
     void launchAuthProcess();
+
+    /**
+     * @brief Inject bar data into the appropriate MockNetworkReply (replay mode)
+     * @param p_symbol Stock ticker symbol
+     * @param p_data Shared pointer to JSON data
+     *
+     * Called via QueuedConnection from ReplayEngine (cross-thread).
+     * Safely executes in TSClient's thread context.
+     */
+    void onInjectBarData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
+
+    /**
+     * @brief Inject market depth data into the appropriate MockNetworkReply (replay mode)
+     * @param p_symbol Stock ticker symbol
+     * @param p_data Shared pointer to JSON data
+     *
+     * Called via QueuedConnection from ReplayEngine (cross-thread).
+     * Safely executes in TSClient's thread context.
+     */
+    void onInjectDepthData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
 
   signals:
     // Emited at basically every new message

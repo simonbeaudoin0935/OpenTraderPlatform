@@ -314,3 +314,49 @@ MockNetworkReply* TSClient::getMarketDepthReplyForSymbol(const QString& p_symbol
 
     return m_replayDepthReplies[p_symbol].data();
 }
+
+void TSClient::onInjectBarData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data)
+{
+    if (m_mode != Mode::Replay)
+    {
+        WARNING << "onInjectBarData called but not in replay mode";
+        return;
+    }
+
+    if (!p_data)
+    {
+        WARNING << "onInjectBarData called with null data for" << p_symbol;
+        return;
+    }
+
+    if (!m_replayBarReplies.contains(p_symbol) || m_replayBarReplies[p_symbol].isNull())
+    {
+        // No stream open for this symbol - skip silently (expected for non-monitored stocks)
+        return;
+    }
+
+    m_replayBarReplies[p_symbol]->injectData(*p_data);
+}
+
+void TSClient::onInjectDepthData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data)
+{
+    if (m_mode != Mode::Replay)
+    {
+        WARNING << "onInjectDepthData called but not in replay mode";
+        return;
+    }
+
+    if (!p_data)
+    {
+        WARNING << "onInjectDepthData called with null data for" << p_symbol;
+        return;
+    }
+
+    if (!m_replayDepthReplies.contains(p_symbol) || m_replayDepthReplies[p_symbol].isNull())
+    {
+        // No stream open for this symbol - skip silently (expected for non-monitored stocks)
+        return;
+    }
+
+    m_replayDepthReplies[p_symbol]->injectData(*p_data);
+}

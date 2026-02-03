@@ -656,6 +656,23 @@ void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pl
                             Qt::UniqueConnection);
         ASSUME_TRUE(connected);
 
+        // Cross-thread connections to TSClient for data injection
+        // ReplayEngine (MainAlgoThread) -> TSClient (TSClientThread)
+        // QueuedConnection ensures thread-safe delivery
+        connected = connect(m_replayEngine,
+                            &ReplayEngine::injectBarData,
+                            TSClient::getInstance(),
+                            &TSClient::onInjectBarData,
+                            Qt::QueuedConnection);
+        ASSUME_TRUE(connected);
+
+        connected = connect(m_replayEngine,
+                            &ReplayEngine::injectDepthData,
+                            TSClient::getInstance(),
+                            &TSClient::onInjectDepthData,
+                            Qt::QueuedConnection);
+        ASSUME_TRUE(connected);
+
         DEBUG << "ReplayEngine created and connected";
     }
 

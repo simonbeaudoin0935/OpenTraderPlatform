@@ -187,10 +187,20 @@ void ReplayEngine::emitCurrentDataPoint()
 
     emit replayTimeUpdated(newTime);
 
-    // Inject data into TSClient's MockNetworkReply
-    // TODO: Implement actual data injection once MockNetworkReply exists
-    // This will be: m_tsClient->injectReplayData(dataPoint.stockTicker, dataPoint.jsonRawData, isBar);
-    DEBUG << "Would emit" << (isBar ? "bar" : "depth") << "for" << dataPoint.stockTicker << "at"
+    // Create shared_ptr to avoid copying data across thread boundary
+    auto dataPtr = std::make_shared<const QByteArray>(dataPoint.jsonRawData);
+
+    // Emit signal for cross-thread data injection into TSClient
+    if (isBar)
+    {
+        emit injectBarData(dataPoint.stockTicker, dataPtr);
+    }
+    else
+    {
+        emit injectDepthData(dataPoint.stockTicker, dataPtr);
+    }
+
+    DEBUG << "Emitted" << (isBar ? "bar" : "depth") << "for" << dataPoint.stockTicker << "at"
           << newTime.toString("hh:mm:ss.zzz");
 }
 
@@ -274,10 +284,12 @@ qint64 ReplayEngine::calculateScaledDelay(qint64 p_deltaMs) const
 
 bool ReplayEngine::hasStreamForStock(const QString& p_symbol, bool p_isBar) const
 {
-    // TODO: Implement once TSClient has helper methods
-    // For now, return true to allow all data through during development
-    // This will be: return m_tsClient->hasOpenBarStream(p_symbol) or hasOpenMarketDepthStream(p_symbol)
-    Q_UNUSED(p_symbol)
-    Q_UNUSED(p_isBar)
-    return true;
+    if (p_isBar)
+    {
+        return m_tsClient->hasOpenBarStream(p_symbol);
+    }
+    else
+    {
+        return m_tsClient->hasOpenMarketDepthStream(p_symbol);
+    }
 }

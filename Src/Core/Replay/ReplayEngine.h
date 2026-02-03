@@ -4,6 +4,7 @@
 #include <QLoggingCategory>
 #include <QObject>
 #include <QTimer>
+#include <memory>
 
 Q_DECLARE_LOGGING_CATEGORY(ReplayEngineLog)
 
@@ -152,6 +153,20 @@ class ReplayEngine : public QObject
      * @brief Emitted when replay reaches end of available data
      */
     void replayEndReached();
+
+    /**
+     * @brief Inject bar data into TSClient (cross-thread via QueuedConnection)
+     * @param p_symbol Stock ticker symbol
+     * @param p_data Shared pointer to JSON data (avoids deep copy across threads)
+     */
+    void injectBarData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
+
+    /**
+     * @brief Inject market depth data into TSClient (cross-thread via QueuedConnection)
+     * @param p_symbol Stock ticker symbol
+     * @param p_data Shared pointer to JSON data (avoids deep copy across threads)
+     */
+    void injectDepthData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
 
   private slots:
     /**
