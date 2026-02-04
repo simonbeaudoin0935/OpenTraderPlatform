@@ -1385,6 +1385,10 @@ std::tuple<QDateTime, QDateTime, int> StockPriceChart::queryStockTimeRangeForDat
  * This slot is called every second to move the vertical white line to the current time position.
  * The line is positioned based on the fractional index calculated from the current time.
  * Each minute corresponds to 1 index unit, so each second moves the line by 1/60 of an index.
+ * 
+ * Note: TradeStation timestamps represent the closing time of a bar. For example, a bar covering
+ * 6:00:00-6:00:59 has timestamp 6:01:00. Therefore, we subtract 60 seconds from the bar's 
+ * timestamp to get the opening time, which is the actual start of index 0.
  */
 void StockPriceChart::updateCurrentTimeLine()
 {
@@ -1404,7 +1408,9 @@ void StockPriceChart::updateCurrentTimeLine()
         return;
     }
 
-    QDateTime zeroIndexTime = it->getTimeStamp();
+    // TradeStation timestamps represent the closing time of the bar interval.
+    // Subtract 60 seconds to get the opening time (actual start of the bar).
+    QDateTime zeroIndexTime = it->getTimeStamp().addSecs(-60);
 
     // Calculate the time difference in seconds
     qint64 secondsDiff = zeroIndexTime.secsTo(currentTime);
