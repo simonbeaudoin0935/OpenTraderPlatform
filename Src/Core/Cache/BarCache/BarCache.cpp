@@ -505,10 +505,12 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
 
     if (date < MainApp::getCurrentAppTime().date())
     {
+        // Past day - must have full day of bars. This is because throughout the code, we assume tha
         OBJ_ASSUME_EQUAL(bars->size(), BarsConstants::MINUTE_BARS_PER_DAY);
     }
     else
     {
+        // This checks that for the current day, we don't have more bars than up to now
         OBJ_ASSUME_LTE(bars->size(),
                        static_cast<qsizetype>(
                            MainApp::getCurrentAppTime().time() > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION

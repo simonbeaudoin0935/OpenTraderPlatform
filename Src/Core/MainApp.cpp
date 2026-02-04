@@ -1,6 +1,7 @@
 #include "MainApp.h"
 #include "DatabaseThread.h"
 #include "Logging.h"
+#include "Settings.h"
 #include "Stream.h"
 #include <QCoreApplication>
 #ifdef GUI_ENABLED
@@ -13,13 +14,21 @@ bool MainApp::isInReplayMode = false;
 
 QDateTime MainApp::currentAppReplayTime = QDateTime::fromSecsSinceEpoch(0);
 
-// Initialize static member
+// Initialize static members
 MainApp* MainApp::m_instance = nullptr;
+TradingMode MainApp::m_tradingMode = TradingMode::Sim; // Default to Sim for safety
 
 MainApp* MainApp::getInstance()
 {
     if (m_instance == nullptr)
     {
+        // Load trading mode from settings before creating instance
+        // (TSClient needs this during construction)
+        Q_CHECK_PTR(appStateSettings);
+        int savedMode = appStateSettings->value("Trading/Mode", static_cast<int>(TradingMode::Sim)).toInt();
+        m_tradingMode = static_cast<TradingMode>(savedMode);
+        qInfo() << "Trading mode loaded:" << (m_tradingMode == TradingMode::Sim ? "SIM" : "LIVE");
+
         qInfo() << "MainApp singleton instance created";
         m_instance = new MainApp();
     }
@@ -42,6 +51,22 @@ QDateTime MainApp::getCurrentAppTime()
         return currentAppReplayTime;
     }
     return QDateTime::currentDateTime().toTimeZone(TradingHours::MARKET_TIMEZONE);
+}
+
+TradingMode MainApp::getTradingMode()
+{
+    return m_tradingMode;
+}
+
+void MainApp::setTradingMode(TradingMode p_mode)
+{
+    m_tradingMode = p_mode;
+
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("Trading/Mode", static_cast<int>(p_mode));
+    appStateSettings->sync();
+
+    qInfo() << "Trading mode set to" << (p_mode == TradingMode::Sim ? "SIM" : "LIVE") << "(requires restart)";
 }
 
 MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainAlgo::getInstance())

@@ -6,6 +6,7 @@
 #include <QShortcut>
 #include <QKeySequence>
 #include <QLabel>
+#include <QEvent>
 #include <memory>
 
 #include "FrontEnd.h"
@@ -54,6 +55,9 @@ class GUIFrontend : public FrontEnd
   public:
     QString getSelectedAccountId() const;
 
+  protected:
+    bool eventFilter(QObject* p_watched, QEvent* p_event) override;
+
   private slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
     void onNewDisplayedStockSelection();
@@ -100,5 +104,6 @@ class GUIFrontend : public FrontEnd
 
     QVector<Account> m_accounts; // Store available accounts
 
-    QLabel* m_replayIndicator = nullptr; // Replay mode indicator in top-right
+    QLabel* m_tradingModeLabel = nullptr; // Trading mode indicator (SIM/LIVE)
+    QLabel* m_dataSourceLabel = nullptr;  // Data source indicator (LIVE/REPLAY)
 };

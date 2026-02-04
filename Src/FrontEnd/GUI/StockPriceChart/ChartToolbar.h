@@ -100,6 +100,15 @@ class ChartToolbar : public QWidget
     void setSelectedReplayDay(const QDate& date);
 
     /**
+     * @brief Sets the visibility of all replay-related widgets.
+     * @param p_visible True to show replay widgets, false to hide them.
+     *
+     * This controls the visibility of: replay label, day selector, time edit,
+     * speed selector, play/pause button, and info label.
+     */
+    void setReplayWidgetsVisible(bool p_visible);
+
+    /**
      * @brief Gets the replay start time.
      * @return The selected start time for replay.
      */

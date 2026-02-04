@@ -122,6 +122,22 @@ namespace BarsConstants
 } // namespace BarsConstants
 
 /**
+ * @namespace TSClientHosts
+ * @brief TradeStation API host URLs
+ *
+ * TradeStation provides two API endpoints:
+ * - Simulation: For paper trading with virtual money
+ * - Live: For real money trading
+ */
+namespace TSClientHosts
+{
+    inline constexpr const char* SCHEME = "https";
+    inline constexpr const char* SIM_HOST = "sim-api.tradestation.com";
+    inline constexpr const char* LIVE_HOST = "api.tradestation.com";
+    inline constexpr const char* API_VERSION = "/v3/";
+} // namespace TSClientHosts
+
+/**
  * @namespace TSClientEndpoints
  * @brief TradeStation API endpoint constants
  *

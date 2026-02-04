@@ -6,6 +6,19 @@
 #include "MemoryMonitor.h"
 #include "Core/Replay/ReplayEngine.h"
 
+/**
+ * @brief Trading mode for TradeStation API connection
+ *
+ * Determines which API endpoint is used:
+ * - Sim: Uses sim-api.tradestation.com (simulated/paper trading)
+ * - Live: Uses api.tradestation.com (real money trading)
+ */
+enum class TradingMode : quint8
+{
+    Sim, ///< Simulated trading (paper money)
+    Live ///< Live trading (real money)
+};
+
 class MainApp
 {
   public:
@@ -35,6 +48,20 @@ class MainApp
     static QDateTime getCurrentAppTime();
 
     /**
+     * @brief Get the current trading mode (Sim or Live)
+     * @return Current TradingMode
+     */
+    [[nodiscard]] static TradingMode getTradingMode();
+
+    /**
+     * @brief Set the trading mode and persist to settings
+     * @param p_mode New trading mode
+     *
+     * This saves to AppState.ini. A restart is required for the change to take effect.
+     */
+    static void setTradingMode(TradingMode p_mode);
+
+    /**
      * @brief Enter replay mode for the specified date and time
      * @param p_date Date to replay
      * @param p_startTime Start time within the day
@@ -58,6 +85,7 @@ class MainApp
     ~MainApp();
 
     static MainApp* m_instance;
+    static TradingMode m_tradingMode;
 
     TSClient* tradeStationClient;
     MainAlgo* mainAlgo;

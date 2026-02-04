@@ -393,6 +393,16 @@ void ChartToolbar::setSelectedReplayDay(const QDate& date)
     }
 }
 
+void ChartToolbar::setReplayWidgetsVisible(bool p_visible)
+{
+    replayLabel->setVisible(p_visible);
+    replayInfoLabel->setVisible(p_visible);
+    replayDayCombo->setVisible(p_visible);
+    replayTimeEdit->setVisible(p_visible);
+    replaySpeedCombo->setVisible(p_visible);
+    playPauseButton->setVisible(p_visible);
+}
+
 /**
  * @brief Gets the replay start time.
  */

@@ -58,6 +58,15 @@ class StockPriceChart : public QWidget
     void onRequestedMissingBarsFailed();
     void setReplayModeActive(bool active);
 
+    /**
+     * @brief Gets the chart toolbar widget.
+     * @return Pointer to the ChartToolbar.
+     */
+    [[nodiscard]] ChartToolbar* toolbar() const
+    {
+        return chartToolbar;
+    }
+
   private slots:
     void onAxisRangeChanged();
     void onVolumeChartVisibilityChanged(bool visible);

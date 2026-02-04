@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include "MainAlgo.h"
+#include "MainApp.h"
 #include "StrategyManager.h"
 #include "StrategySignalHandler.h"
 #include "TSClient.h"
@@ -299,8 +300,20 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
 {
     m_havePastSuccessfulExchanges = true;
 
-    //TODO this is only for sim, in reality it will be number 0
-    m_activeAccount = results.at(1);
+    // Select account based on trading mode:
+    // - LIVE: first account (index 0)
+    // - SIM: last account in the list
+    if (MainApp::getTradingMode() == TradingMode::Live)
+    {
+        m_activeAccount = results.first();
+    }
+    else
+    {
+        m_activeAccount = results.last();
+    }
+
+    INFO << "Selected account:" << m_activeAccount.getAccountId()
+         << "for mode:" << (MainApp::getTradingMode() == TradingMode::Sim ? "SIM" : "LIVE");
 
     // Start balance polling if not already started
     if (!m_balancePollingStarted)
