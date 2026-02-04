@@ -48,6 +48,17 @@ class Bar
     // Default constructor
     Bar() : m_high(0.0f), m_low(0.0f), m_open(0.0f), m_close(0.0f), m_openInterest(0), m_flags(0) {}
 
+    bool operator==(const Bar& other) const
+    {
+        return m_timeStamp == other.m_timeStamp && m_open == other.m_open && m_high == other.m_high &&
+               m_low == other.m_low && m_close == other.m_close && m_totalVolume == other.m_totalVolume &&
+               m_downTicks == other.m_downTicks && m_downVolume == other.m_downVolume &&
+               m_totalTicks == other.m_totalTicks && m_unchangedTicks == other.m_unchangedTicks &&
+               m_unchangedVolume == other.m_unchangedVolume && m_upTicks == other.m_upTicks &&
+               m_upVolume == other.m_upVolume && m_epoch == other.m_epoch && m_openInterest == other.m_openInterest &&
+               m_flags == other.m_flags;
+    }
+
     static Bar nullBar(QDateTime dateTime);
 
     // Constructor for database

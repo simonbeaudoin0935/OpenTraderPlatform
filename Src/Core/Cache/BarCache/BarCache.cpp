@@ -486,9 +486,18 @@ void BarCache::storeBarInCache(const Bar& bar)
             {
                 CRITICAL
                     << "Inserting historical bar into cache at index" << index << "for timestamp:" << bar.getTimeStamp()
-                    << "but that slot was uninitialized. This should not happen as historical bars should be bulk inserted.";
+                    << "but that index slot already had a bar, which indicates a potential logical bug"
+                    << "On the other hand, this is possible if the stream had an error and the stream got restarted"
+                    << "and we are now recceiving the same closed bar due to the stream sending a bar at the beginning";
 
-                Q_UNREACHABLE();
+                if (dayVector[index] == bar)
+                {
+                    DEBUG << "However, the existing bar is identical to the new bar, so ignoring.";
+                }
+                else
+                {
+                    Q_UNREACHABLE();
+                }
             }
         }
     }
