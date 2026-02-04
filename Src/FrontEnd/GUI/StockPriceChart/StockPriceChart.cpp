@@ -40,8 +40,8 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_candlesticks->setTwoColored(true);
     m_candlesticks->setBrushPositive(QColor(0, 180, 0)); // Green for up
     m_candlesticks->setBrushNegative(QColor(200, 0, 0)); // Red for down
-    m_candlesticks->setPenPositive(QPen(QColor(0, 180, 0)));
-    m_candlesticks->setPenNegative(QPen(QColor(200, 0, 0)));
+    m_candlesticks->setPenPositive(QPen(Qt::black));     // Black contour and wicks
+    m_candlesticks->setPenNegative(QPen(Qt::black));     // Black contour and wicks
 
     // Setup axes - hide left axis and show right axis
     m_customPlot->xAxis->setLabel("");
