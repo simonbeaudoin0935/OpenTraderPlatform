@@ -10,6 +10,7 @@
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QSemaphore>
+#include <QTimer>
 
 #include "qcustomplot.h"
 #include "Bar.h"
@@ -62,6 +63,7 @@ class StockPriceChart : public QWidget
     void onVolumeAutoRescaleChanged(bool enabled);
     void onReplayDayChanged(const QDate& date);
     void onReplayTimeRangeQueryFinished();
+    void updateCurrentTimeLine();
 
   protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -116,6 +118,10 @@ class StockPriceChart : public QWidget
     QCPFinancial* m_candlesticks;
     QCPItemLine* m_lastPriceLine;
     QCPItemText* m_priceLabel;
+
+    // Current time vertical line and timer
+    QCPItemLine* m_currentTimeLine;
+    QTimer* m_timeLineTimer;
 
     // Volume chart components
     QCPAxisRect* m_volumeAxisRect;
