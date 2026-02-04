@@ -264,8 +264,7 @@ void OrderEntryWidget::setupUI()
     // Initialize visibility based on default order type
     updatePriceFieldsVisibility();
 
-    // Initialize button styling based on default trade action (Buy)
-    onTradeActionChanged(static_cast<int>(TradeAction::Buy));
+    // Button styling is initialized in loadSavedSettings() based on saved trade action
 }
 
 void OrderEntryWidget::setupStyles()
@@ -627,6 +626,8 @@ void OrderEntryWidget::loadSavedSettings()
     if (button)
     {
         button->setChecked(true);
+        // Synchronize the submit button appearance with the loaded trade action
+        onTradeActionChanged(savedTradeAction);
     }
 
     // Load confirmation enabled setting
