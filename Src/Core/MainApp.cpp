@@ -3,6 +3,7 @@
 #include "Logging.h"
 #include "Settings.h"
 #include "Stream.h"
+#include "CONSTANTS.h"
 #include <QCoreApplication>
 #include <unistd.h>
 #include <cerrno>
@@ -112,6 +113,39 @@ void MainApp::restartApplication()
     // If we reach here, execv() failed
     qCritical() << "execv() failed:" << strerror(errno);
     QCoreApplication::exit(1);
+}
+
+TradingSession MainApp::getCurrentSession()
+{
+    QTime currentTime = getCurrentAppTime().time();
+
+    // Check each session in order
+    if (currentTime >= TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION &&
+        currentTime <= TradingHours::TIME_LAST_CANDLE_EARLY_PRE_MARKET_SESSION)
+    {
+        return TradingSession::EarlyPreMarket;
+    }
+
+    if (currentTime >= TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION &&
+        currentTime <= TradingHours::TIME_LAST_CANDLE_PRE_MARKET_SESSION)
+    {
+        return TradingSession::PreMarket;
+    }
+
+    if (currentTime >= TradingHours::TIME_FIRST_CANDLE_REGULAR_SESSION &&
+        currentTime <= TradingHours::TIME_LAST_CANDLE_REGULAR_SESSION)
+    {
+        return TradingSession::Regular;
+    }
+
+    if (currentTime >= TradingHours::TIME_FIRST_CANDLE_AFTER_MARKET_SESSION &&
+        currentTime <= TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION)
+    {
+        return TradingSession::AfterHours;
+    }
+
+    // Default: market closed
+    return TradingSession::Closed;
 }
 
 MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainAlgo::getInstance())

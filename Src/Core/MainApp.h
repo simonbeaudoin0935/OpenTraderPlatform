@@ -19,6 +19,20 @@ enum class TradingMode : quint8
     Live ///< Live trading (real money)
 };
 
+/**
+ * @brief Market trading session
+ *
+ * Represents the current trading session based on time of day (ET).
+ */
+enum class TradingSession : quint8
+{
+    EarlyPreMarket, ///< Early pre-market: 4:01 AM - 6:00 AM ET
+    PreMarket,      ///< Pre-market: 6:01 AM - 9:30 AM ET
+    Regular,        ///< Regular trading hours: 9:31 AM - 4:00 PM ET
+    AfterHours,     ///< After-hours: 4:01 PM - 8:00 PM ET
+    Closed          ///< Market closed: 8:01 PM - 4:00 AM ET
+};
+
 class MainApp
 {
   public:
@@ -69,6 +83,14 @@ class MainApp
      * Does not return - the current process is replaced.
      */
     static void restartApplication();
+
+    /**
+     * @brief Get the current trading session based on current app time
+     * @return Current TradingSession
+     *
+     * Works in both live mode (uses real time) and replay mode (uses replay time).
+     */
+    [[nodiscard]] static TradingSession getCurrentSession();
 
     /**
      * @brief Enter replay mode for the specified date and time

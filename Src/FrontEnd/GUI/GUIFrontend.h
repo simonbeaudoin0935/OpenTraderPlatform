@@ -68,6 +68,7 @@ class GUIFrontend : public FrontEnd
     void onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKeySequence& p_newSequence);
     void onCancelAllOrders();
     void onAccountInfoButtonClicked();
+    void updateSessionLabel();
 
   private:
     void setupDarkTheme(QMainWindow* mainWindow);
@@ -106,4 +107,5 @@ class GUIFrontend : public FrontEnd
 
     QLabel* m_tradingModeLabel = nullptr; // Trading mode indicator (SIM/LIVE)
     QLabel* m_dataSourceLabel = nullptr;  // Data source indicator (LIVE/REPLAY)
+    QLabel* m_sessionLabel = nullptr;     // Trading session indicator
 };

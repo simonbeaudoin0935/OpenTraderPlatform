@@ -162,6 +162,20 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_dataSourceLabel->installEventFilter(this);
     ui->topControlsLayout->insertWidget(4, m_dataSourceLabel);
 
+    // Create trading session indicator (read-only, shows current session)
+    m_sessionLabel = new QLabel("CLOSED", mainWindow);
+    Q_CHECK_PTR(m_sessionLabel);
+    m_sessionLabel->setStyleSheet("QLabel { background-color: #555555; color: #ffffff; padding: 4px 8px; "
+                                  "border-radius: 4px; font-weight: bold; font-family: monospace; }");
+    m_sessionLabel->setToolTip("Current trading session:\n"
+                               "🌙 EARLY PRE-MARKET: 4:01 AM - 6:00 AM ET\n"
+                               "🌅 PRE-MARKET: 6:01 AM - 9:30 AM ET\n"
+                               "📈 REGULAR: 9:31 AM - 4:00 PM ET\n"
+                               "🌆 AFTER-HOURS: 4:01 PM - 8:00 PM ET\n"
+                               "🌙 CLOSED: 8:01 PM - 4:00 AM ET");
+    ui->topControlsLayout->insertWidget(5, m_sessionLabel);
+    updateSessionLabel();
+
     // In LIVE trading mode, hide data source label and replay widgets (replay not available with real money)
     // In SIM mode, show data source label but hide replay widgets until user enters replay mode
     if (!isSimMode)
@@ -1152,6 +1166,50 @@ void GUIFrontend::onAccountInfoButtonClicked()
     }
 }
 
+void GUIFrontend::updateSessionLabel()
+{
+    if (m_sessionLabel == nullptr)
+    {
+        return;
+    }
+
+    TradingSession session = MainApp::getCurrentSession();
+    QString sessionText;
+    QString backgroundColor;
+
+    switch (session)
+    {
+    case TradingSession::EarlyPreMarket:
+        sessionText = "🌙 EARLY PRE";
+        backgroundColor = "#2a1a4a"; // Dark purple
+        break;
+    case TradingSession::PreMarket:
+        sessionText = "🌅 PRE-MARKET";
+        backgroundColor = "#4a3a2a"; // Dark orange-brown
+        break;
+    case TradingSession::Regular:
+        sessionText = "📈 REGULAR";
+        backgroundColor = "#1a3a1a"; // Dark green
+        break;
+    case TradingSession::AfterHours:
+        sessionText = "🌆 AFTER-HOURS";
+        backgroundColor = "#4a3a1a"; // Dark orange-brown
+        break;
+    case TradingSession::Closed:
+        sessionText = "🌙 CLOSED";
+        backgroundColor = "#1a1a2a"; // Dark blue-gray
+        break;
+    default:
+        sessionText = "UNKNOWN";
+        backgroundColor = "#2a2a2a";
+        break;
+    }
+
+    m_sessionLabel->setText(sessionText);
+    m_sessionLabel->setStyleSheet(QString("QLabel { background-color: %1; color: #ffffff; padding: 4px 8px; "
+                                          "border-radius: 4px; font-weight: bold; font-family: monospace; }")
+                                      .arg(backgroundColor));
+}
 
 void GUIFrontend::onReplayModeEntered()
 {
@@ -1170,6 +1228,9 @@ void GUIFrontend::onReplayModeEntered()
 
     // Update chart visual (background color and watermark)
     ui->priceChart->setReplayModeActive(true);
+
+    // Update session label (replay time may have changed)
+    updateSessionLabel();
 }
 
 void GUIFrontend::onReplayModeExited()
@@ -1189,12 +1250,16 @@ void GUIFrontend::onReplayModeExited()
 
     // Restore chart visual
     ui->priceChart->setReplayModeActive(false);
+
+    // Update session label (back to live time)
+    updateSessionLabel();
 }
 
 void GUIFrontend::onReplayTimeUpdated(QDateTime currentTime)
 {
     Q_UNUSED(currentTime)
-    // TODO: Update replay time display in toolbar/status bar
+    // Update session label as replay time advances
+    updateSessionLabel();
 }
 
 bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
