@@ -22,7 +22,7 @@
  *
  * All times are in America/New_York timezone (Eastern Time).
  * The trading day is divided into segments:
- * - Early Pre-Market: 4:01 AM - 9:30 AM ET
+ * - Early Pre-Market: 4:01 AM - 6:00 AM ET
  * - Pre-Market: 6:01 AM - 9:30 AM ET
  * - Regular Hours: 9:31 AM - 4:00 PM ET
  * - After Hours: 4:01 PM - 8:00 PM ET
