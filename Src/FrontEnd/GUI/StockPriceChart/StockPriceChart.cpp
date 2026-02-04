@@ -62,8 +62,10 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_customPlot->xAxis->setLabelColor(QColor(220, 220, 220));
     m_customPlot->axisRect()->axis(QCPAxis::atRight)->setLabelColor(QColor(220, 220, 220));
     m_customPlot->xAxis->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    m_customPlot->xAxis->grid()->setZeroLinePen(Qt::NoPen); // Disable zero-line at origin
     m_customPlot->axisRect()->axis(QCPAxis::atRight)->grid()->setVisible(true);
     m_customPlot->axisRect()->axis(QCPAxis::atRight)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->grid()->setZeroLinePen(Qt::NoPen); // Disable zero-line at origin
 
     // Create bottom axis rect for volume bar chart
     m_volumeAxisRect = new QCPAxisRect(m_customPlot);
@@ -89,8 +91,10 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabelColor(QColor(220, 220, 220));
     m_volumeAxisRect->axis(QCPAxis::atRight)->setTickLabelColor(QColor(220, 220, 220));
     m_volumeAxisRect->axis(QCPAxis::atBottom)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->grid()->setZeroLinePen(Qt::NoPen); // Disable zero-line at origin
     m_volumeAxisRect->axis(QCPAxis::atRight)->grid()->setVisible(true);
     m_volumeAxisRect->axis(QCPAxis::atRight)->grid()->setPen(QPen(QColor(70, 70, 70), 1, Qt::DotLine));
+    m_volumeAxisRect->axis(QCPAxis::atRight)->grid()->setZeroLinePen(Qt::NoPen); // Disable zero-line at origin
 
     // Create two bar plottables for positive (green) and negative (red) volume bars
     m_customPlot->setAutoAddPlottableToLegend(false);
