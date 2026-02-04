@@ -61,7 +61,7 @@ class IndexToTimeTicker : public QCPAxisTicker
         }
 
         // Subtract 1 minute for display so labels show round hours (8:00, 9:00)
-        // instead of :01 minutes (8:01, 9:01) since trading data starts at 6:01 AM
+        // instead of :01 minutes (8:01, 9:01) since trading data starts at 4:01 AM
         QDateTime displayTime = timestamp.addSecs(-60);
         return displayTime.toString(m_timeFormat);
     }

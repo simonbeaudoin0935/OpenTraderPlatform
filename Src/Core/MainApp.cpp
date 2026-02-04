@@ -1,25 +1,38 @@
 #include "MainApp.h"
+#include "Assume.h"
 #include "DatabaseThread.h"
 #include "Logging.h"
+#include "Settings.h"
 #include "Stream.h"
+#include "CONSTANTS.h"
 #include <QCoreApplication>
+#include <unistd.h>
+#include <cerrno>
+#include <cstring>
 #ifdef GUI_ENABLED
 #include "GUIFrontend.h"
 #else
 #include "TUIFrontend.h"
 #endif
 
-bool MainApp::isInReplayMode = false;
-
 QDateTime MainApp::currentAppReplayTime = QDateTime::fromSecsSinceEpoch(0);
 
-// Initialize static member
+// Initialize static members
 MainApp* MainApp::m_instance = nullptr;
+TradingMode MainApp::m_tradingMode = TradingMode::Sim; // Default to Sim for safety
+DataSourceMode MainApp::m_dataSourceMode = DataSourceMode::Live;
 
 MainApp* MainApp::getInstance()
 {
     if (m_instance == nullptr)
     {
+        // Load trading mode from settings before creating instance
+        // (TSClient needs this during construction)
+        Q_CHECK_PTR(appStateSettings);
+        int savedMode = appStateSettings->value("Trading/Mode", static_cast<int>(TradingMode::Sim)).toInt();
+        m_tradingMode = static_cast<TradingMode>(savedMode);
+        qInfo() << "Trading mode loaded:" << (m_tradingMode == TradingMode::Sim ? "SIM" : "LIVE");
+
         qInfo() << "MainApp singleton instance created";
         m_instance = new MainApp();
     }
@@ -34,16 +47,115 @@ void MainApp::destroyInstance()
     m_instance = nullptr;
 }
 
+bool MainApp::isInReplayMode()
+{
+    return m_dataSourceMode == DataSourceMode::Replay;
+}
+
+DataSourceMode MainApp::getDataSourceMode()
+{
+    return m_dataSourceMode;
+}
+
 // Get the current application time (real or replay)
 QDateTime MainApp::getCurrentAppTime()
 {
-    if (isInReplayMode)
+    if (isInReplayMode())
     {
-        // Not implemented yet
-        Q_UNREACHABLE();
         return currentAppReplayTime;
     }
     return QDateTime::currentDateTime().toTimeZone(TradingHours::MARKET_TIMEZONE);
+}
+
+TradingMode MainApp::getTradingMode()
+{
+    return m_tradingMode;
+}
+
+void MainApp::setTradingMode(TradingMode p_mode)
+{
+    m_tradingMode = p_mode;
+
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("Trading/Mode", static_cast<int>(p_mode));
+    appStateSettings->sync();
+
+    qInfo() << "Trading mode set to" << (p_mode == TradingMode::Sim ? "SIM" : "LIVE") << "(requires restart)";
+}
+
+void MainApp::restartApplication()
+{
+    // Get the executable path
+    QString executablePath = QCoreApplication::applicationFilePath();
+
+    // Get command line arguments (excluding the first which is the program name)
+    QStringList args = QCoreApplication::arguments();
+    args.removeFirst(); // Remove program name
+
+    // Convert to C-style arrays for execv()
+    QByteArrayList argsByteArrays;
+    argsByteArrays.reserve(args.size() + 2); // +2 for program name and null terminator
+
+    // Add program name
+    argsByteArrays.append(executablePath.toLocal8Bit());
+
+    // Add other arguments
+    for (const QString& arg: args)
+    {
+        argsByteArrays.append(arg.toLocal8Bit());
+    }
+
+    // Build argv array (must be null-terminated)
+    std::vector<char*> argv;
+    argv.reserve(argsByteArrays.size() + 1);
+
+    for (QByteArray& ba: argsByteArrays)
+    {
+        argv.push_back(ba.data());
+    }
+    argv.push_back(nullptr); // Null terminator required by execv()
+
+    qInfo() << "Restarting application via execv()";
+
+    // execv() replaces the current process - doesn't return on success
+    execv(executablePath.toLocal8Bit().constData(), argv.data());
+
+    // If we reach here, execv() failed
+    qCritical() << "execv() failed:" << strerror(errno);
+    QCoreApplication::exit(1);
+}
+
+TradingSession MainApp::getCurrentSession()
+{
+    QTime currentTime = getCurrentAppTime().time();
+
+    // Check each session in order
+    if (currentTime >= TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION &&
+        currentTime <= TradingHours::TIME_LAST_CANDLE_EARLY_PRE_MARKET_SESSION)
+    {
+        return TradingSession::EarlyPreMarket;
+    }
+
+    if (currentTime >= TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION &&
+        currentTime <= TradingHours::TIME_LAST_CANDLE_PRE_MARKET_SESSION)
+    {
+        return TradingSession::PreMarket;
+    }
+
+    if (currentTime >= TradingHours::TIME_FIRST_CANDLE_REGULAR_SESSION &&
+        currentTime <= TradingHours::TIME_LAST_CANDLE_REGULAR_SESSION)
+    {
+        return TradingSession::Regular;
+    }
+
+    if (currentTime >= TradingHours::TIME_FIRST_CANDLE_AFTER_MARKET_SESSION &&
+        currentTime <= TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION)
+    {
+        return TradingSession::AfterHours;
+    }
+
+    // Default: market closed
+    return TradingSession::Closed;
 }
 
 MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainAlgo::getInstance())
@@ -104,6 +216,9 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
     QObject::connect(mainAlgo, &MainAlgo::receivedNewOrder, appFrontend, &FrontEnd::onNewOrderReceived);
 
     QObject::connect(mainAlgo, &MainAlgo::balanceUpdated, appFrontend, &FrontEnd::onBalanceUpdated);
+
+    // Replay mode signals
+    QObject::connect(mainAlgo, &MainAlgo::replayTimeUpdated, appFrontend, &FrontEnd::onReplayTimeUpdated);
 }
 
 MainApp::~MainApp()
@@ -176,4 +291,102 @@ void MainApp::cleanupSingletons()
     DatabaseThread::destroyInstance();
 
     qInfo() << "All singletons cleaned up";
+}
+
+void MainApp::enterReplayMode()
+{
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Live && "enterReplayMode called when already in replay mode");
+
+    qInfo() << "Entering replay mode (data source switch only, playback not started)";
+
+    // 1. Set data source mode
+    m_dataSourceMode = DataSourceMode::Replay;
+
+    // 2. Switch TSClient to replay mode (blocking to ensure mode is set before streams open)
+    QMetaObject::invokeMethod(
+        tradeStationClient,
+        [this]() { tradeStationClient->setMode(TSClient::Mode::Replay); },
+        Qt::BlockingQueuedConnection);
+
+    // 3. Tell MainAlgo to pause live streams (MainAlgo thread)
+    QMetaObject::invokeMethod(
+        mainAlgo,
+        [this]()
+        {
+            // Close positions/orders streams via receivers
+            mainAlgo->pauseLiveStreams();
+        },
+        Qt::QueuedConnection);
+
+    // 4. Update UI
+    appFrontend->onReplayModeEntered();
+
+    qInfo() << "Replay mode entered, awaiting playback start";
+}
+
+void MainApp::exitReplayMode()
+{
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "exitReplayMode called when not in replay mode");
+
+    qInfo() << "Exiting replay mode";
+
+    // 1. Tell MainAlgo to stop replay first (blocking to ensure clean stop)
+    QMetaObject::invokeMethod(
+        mainAlgo,
+        [this]()
+        {
+            mainAlgo->exitReplayMode();
+
+            // Reopen positions/orders streams via receivers
+            mainAlgo->resumeLiveStreams();
+        },
+        Qt::BlockingQueuedConnection);
+
+    // 2. Reset data source mode
+    m_dataSourceMode = DataSourceMode::Live;
+
+    // 3. Switch TSClient back to live mode (blocking)
+    QMetaObject::invokeMethod(
+        tradeStationClient,
+        [this]() { tradeStationClient->setMode(TSClient::Mode::Live); },
+        Qt::BlockingQueuedConnection);
+
+    // 4. Update UI
+    appFrontend->onReplayModeExited();
+
+    qInfo() << "Replay mode exited, live mode resumed";
+}
+
+void MainApp::startReplayPlayback(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
+{
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "startReplayPlayback called when not in replay mode");
+
+    qInfo() << "Starting replay playback for" << p_date.toString(Qt::ISODate) << "at"
+            << p_startTime.toString("hh:mm:ss");
+
+    // Tell MainAlgo to start replay (MainAlgo thread)
+    QMetaObject::invokeMethod(
+        mainAlgo,
+        [this, p_date, p_startTime, p_speed]() { mainAlgo->enterReplayMode(p_date, p_startTime, p_speed); },
+        Qt::QueuedConnection);
+
+    qInfo() << "Replay playback start initiated";
+}
+
+void MainApp::pauseReplayPlayback()
+{
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "pauseReplayPlayback called when not in replay mode");
+
+    qInfo() << "Pausing replay playback";
+
+    QMetaObject::invokeMethod(mainAlgo, [this]() { mainAlgo->pauseReplay(); }, Qt::QueuedConnection);
+}
+
+void MainApp::resumeReplayPlayback()
+{
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "resumeReplayPlayback called when not in replay mode");
+
+    qInfo() << "Resuming replay playback";
+
+    QMetaObject::invokeMethod(mainAlgo, [this]() { mainAlgo->resumeReplay(); }, Qt::QueuedConnection);
 }

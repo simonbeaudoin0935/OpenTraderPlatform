@@ -1,12 +1,15 @@
 #pragma once
 
 #include <expected>
+#include <memory>
 
+#include <QMap>
 #include <QObject>
 #include <QLoggingCategory>
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QNetworkAccessManager>
+#include <QPointer>
 #include <QThread>
 #include <QFuture>
 
@@ -38,6 +41,8 @@ Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 
 // @note : Returned pointer dynamically allocated. Delete with closeStreamBars
 
+class MockNetworkReply;
+
 class TSClient final : public QObject
 {
     Q_OBJECT
@@ -50,6 +55,16 @@ class TSClient final : public QObject
         Other
     };
     Q_ENUM(Error)
+
+    /**
+     * @brief Client operating mode
+     */
+    enum class Mode : quint8
+    {
+        Live,  ///< Normal operation - real network requests
+        Replay ///< Replay mode - uses MockNetworkReply for injected data
+    };
+    Q_ENUM(Mode)
 
 
     // Singleton : Instance getter
@@ -173,9 +188,74 @@ class TSClient final : public QObject
         return m_authInProgress;
     }
 
+    /*
+     * Replay Mode Support
+     */
+    /**
+     * @brief Set the operating mode (Live or Replay)
+     * @param p_mode New mode
+     */
+    void setMode(Mode p_mode);
+
+    /**
+     * @brief Get the current operating mode
+     */
+    [[nodiscard]] Mode getMode() const
+    {
+        return m_mode;
+    }
+
+    /**
+     * @brief Check if a bar stream exists for the given symbol
+     * @param p_symbol Stock ticker symbol
+     * @return true if a stream (real or mock) exists
+     */
+    [[nodiscard]] bool hasOpenBarStream(const QString& p_symbol) const;
+
+    /**
+     * @brief Check if a market depth stream exists for the given symbol
+     * @param p_symbol Stock ticker symbol
+     * @return true if a stream (real or mock) exists
+     */
+    [[nodiscard]] bool hasOpenMarketDepthStream(const QString& p_symbol) const;
+
+    /**
+     * @brief Get the MockNetworkReply for a bar stream (replay mode only)
+     * @param p_symbol Stock ticker symbol
+     * @return Pointer to MockNetworkReply, or nullptr if not found
+     */
+    [[nodiscard]] MockNetworkReply* getBarReplyForSymbol(const QString& p_symbol) const;
+
+    /**
+     * @brief Get the MockNetworkReply for a market depth stream (replay mode only)
+     * @param p_symbol Stock ticker symbol
+     * @return Pointer to MockNetworkReply, or nullptr if not found
+     */
+    [[nodiscard]] MockNetworkReply* getMarketDepthReplyForSymbol(const QString& p_symbol) const;
+
   public slots:
     // Authentication methods
     void launchAuthProcess();
+
+    /**
+     * @brief Inject bar data into the appropriate MockNetworkReply (replay mode)
+     * @param p_symbol Stock ticker symbol
+     * @param p_data Shared pointer to JSON data
+     *
+     * Called via QueuedConnection from ReplayEngine (cross-thread).
+     * Safely executes in TSClient's thread context.
+     */
+    void onInjectBarData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
+
+    /**
+     * @brief Inject market depth data into the appropriate MockNetworkReply (replay mode)
+     * @param p_symbol Stock ticker symbol
+     * @param p_data Shared pointer to JSON data
+     *
+     * Called via QueuedConnection from ReplayEngine (cross-thread).
+     * Safely executes in TSClient's thread context.
+     */
+    void onInjectDepthData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
 
   signals:
     // Emited at basically every new message
@@ -221,6 +301,11 @@ class TSClient final : public QObject
     QString m_apiKey;
     QThread m_thread;
     QNetworkAccessManager* m_networkManager;
+
+    // Replay mode support
+    Mode m_mode = Mode::Live;
+    QMap<QString, QPointer<MockNetworkReply>> m_replayBarReplies;   // symbol -> MockNetworkReply for bars
+    QMap<QString, QPointer<MockNetworkReply>> m_replayDepthReplies; // symbol -> MockNetworkReply for depth
 
 #ifdef GUI_ENABLED
     GUIAuthHandler* m_authHandler = nullptr; // GUI authentication handler

@@ -10,14 +10,12 @@
 #include "TSClient.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "CONSTANTS.h"
+#include "MainApp.h"
 
 #define LOGGING_CATEGORY TSClientLog
 
 Q_LOGGING_CATEGORY(TSClientLog, "TSClient")
-
-#define BASE_URL_SCHEME "https"
-#define BASE_URL_HOST_SIMULATION "sim-api.tradestation.com"
-#define BASE_URL_HOST_VERSION "/v3/"
 
 
 // Initialize static member outside class
@@ -63,9 +61,14 @@ TSClient::TSClient()
     m_thread.setObjectName("TSClientThread");
     this->moveToThread(&m_thread);
 
-    m_baseUrl.setScheme(BASE_URL_SCHEME);
-    m_baseUrl.setHost(BASE_URL_HOST_SIMULATION);
-    m_baseUrl.setPath(BASE_URL_HOST_VERSION);
+    // Set up base URL based on trading mode
+    m_baseUrl.setScheme(TSClientHosts::SCHEME);
+    const char* host =
+        (MainApp::getTradingMode() == TradingMode::Sim) ? TSClientHosts::SIM_HOST : TSClientHosts::LIVE_HOST;
+    m_baseUrl.setHost(host);
+    m_baseUrl.setPath(TSClientHosts::API_VERSION);
+
+    qInfo() << "TSClient connecting to:" << m_baseUrl.host();
 
     m_clientToken = ClientToken::loadFromSettings();
     m_authToken = AuthToken::loadFromSettings();

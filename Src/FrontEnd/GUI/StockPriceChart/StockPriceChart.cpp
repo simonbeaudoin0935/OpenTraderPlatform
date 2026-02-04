@@ -153,6 +153,17 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_priceLabel->setBrush(QBrush(QColor(0, 0, 0, 150)));
     m_priceLabel->setVisible(false);
 
+    // Create symbol watermark (center-top, behind candlesticks)
+    m_symbolWatermark = new QCPItemText(m_customPlot);
+    Q_CHECK_PTR(m_symbolWatermark);
+    m_symbolWatermark->setPositionAlignment(Qt::AlignHCenter | Qt::AlignTop);
+    m_symbolWatermark->position->setType(QCPItemPosition::ptAxisRectRatio);
+    m_symbolWatermark->position->setCoords(0.5, 0.05); // Center-top of chart
+    m_symbolWatermark->setText("");
+    m_symbolWatermark->setFont(QFont(font().family(), 48, QFont::Bold));
+    m_symbolWatermark->setColor(QColor(255, 255, 255, 30)); // Pale transparent white
+    m_symbolWatermark->setLayer("background");              // Draw behind candlesticks
+
     // Create current time vertical line
     m_currentTimeLine = new QCPItemLine(m_customPlot);
     Q_CHECK_PTR(m_currentTimeLine);
@@ -224,6 +235,36 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
                 appStateSettings->sync();
             });
 
+    // Connect replay play/pause button
+    connect(chartToolbar,
+            &ChartToolbar::replayPlayPauseToggled,
+            this,
+            [this](bool playing)
+            {
+                if (playing)
+                {
+                    QDate date = chartToolbar->getSelectedReplayDay();
+                    QTime startTime = chartToolbar->getReplayStartTime();
+                    ReplayEngine::PlaybackSpeed speed = chartToolbar->getReplaySpeed();
+
+                    if (date.isValid())
+                    {
+                        // Start or resume playback depending on current state
+                        MainApp::getInstance()->startReplayPlayback(date, startTime, speed);
+                    }
+                    else
+                    {
+                        qWarning() << "Cannot start replay: no valid date selected";
+                        chartToolbar->setReplayPlaying(false);
+                    }
+                }
+                else
+                {
+                    // Pause playback (stay in replay mode)
+                    MainApp::getInstance()->pauseReplayPlayback();
+                }
+            });
+
     // Load wheel zoom ratio from settings
     Q_CHECK_PTR(appStateSettings);
     qreal savedRatio = appStateSettings->value("Chart/WheelZoomRatio", 1.0).toReal();
@@ -255,7 +296,10 @@ void StockPriceChart::setSymbol(const QString& symbol)
 {
     m_symbol = symbol;
     m_candlesticks->setName(symbol + " (Bars)");
-    // Removed stock ticker label to save space
+
+    // Update symbol watermark
+    m_symbolWatermark->setText(symbol);
+    m_customPlot->replot();
 
     // Populate available replay days when symbol changes
     populateAvailableReplayDays();
@@ -322,7 +366,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         if (bar.getIsRealtime() == false)
         {
             size_t index = BarsConstants::timeToIndex(bar.getTimeStamp().time());
-            if (index == 839)
+            if (index == BarsConstants::MINUTE_BARS_PER_DAY - 1)
             {
                 WARNING << "We received a double of the last bar of the day for symbol" << m_symbol
                         << "at timestamp:" << bar.getTimeStamp()
@@ -405,7 +449,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
         // Here we will fetch the bars from the beginning of the day up to this bar to fill in history
         QDateTime first = QDateTime(bar.getTimeStamp().date(),
-                                    TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION,
+                                    TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
                                     TradingHours::MARKET_TIMEZONE);
 
         QDateTime last = bar.getTimeStamp();
@@ -459,9 +503,14 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         if (m_latestBar.getBarStatus() == Bar::BarStatus::Closed)
         {
             // New bar after previous one was closed
-
             OBJ_ASSUME_GT(bar.getTimeStamp(), m_latestBar.getTimeStamp());
-            break;
+
+            const int newIndex = indexToBar.lastKey() + 1;
+
+            timestampToIndex[bar.getTimeStamp()] = newIndex;
+            indexToBar[newIndex] = bar;
+            m_latestBar = bar;
+            m_latestBarIndex = newIndex;
         }
         else
         {
@@ -470,8 +519,6 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
             indexToBar[m_latestBarIndex] = bar;
             m_latestBar = bar;
-
-            break;
         }
         break;
     }
@@ -655,6 +702,13 @@ void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
             continue;
         }
 
+        // Draw early pre-market rectangle (4:01am - 6:00am ET) - paler orange
+        drawFixedBackgroundRect(date,
+                                TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
+                                TradingHours::TIME_LAST_CANDLE_EARLY_PRE_MARKET_SESSION,
+                                QColor(255, 165, 0, 90),
+                                m_earlyPreMarketRects);
+
         // Draw pre-market rectangle (6:01am - 9:30am ET)
         drawFixedBackgroundRect(date,
                                 TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION,
@@ -681,6 +735,13 @@ void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
  */
 void StockPriceChart::clearBackgroundRects()
 {
+    // Delete and clear early pre-market rectangles
+    for (auto rect: m_earlyPreMarketRects)
+    {
+        m_customPlot->removeItem(rect);
+    }
+    m_earlyPreMarketRects.clear();
+
     // Delete and clear pre-market rectangles
     for (auto rect: m_preMarketRects)
     {
@@ -899,7 +960,7 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     if (viewStartTimeRounded.date() < firstBarTime.date())
     {
         requestStartTime = viewStartTimeRounded;
-        requestStartTime.setTime(TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION);
+        requestStartTime.setTime(TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION);
 
         requestEndTime = viewStartTimeRounded;
         requestEndTime.setTime(TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
@@ -909,7 +970,7 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     else
     {
         requestStartTime = firstBarTime;
-        requestStartTime.setTime(TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION);
+        requestStartTime.setTime(TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION);
 
         requestEndTime = firstBarTime;
         requestEndTime = requestEndTime.addSecs(-60);
@@ -939,6 +1000,7 @@ void StockPriceChart::clearSymbol()
     m_latestBar = Bar();
 
     m_priceLabel->setVisible(false);
+    m_symbolWatermark->setText("");
 
     // Stop and hide the current time line
     m_timeLineTimer->stop();
@@ -967,7 +1029,7 @@ void StockPriceChart::clearSymbol()
  * This function calculates the trading minute immediately preceding the given timestamp.
  * It handles timezone conversion to New York time, adjusts for weekends by rolling back
  * to the previous Friday, and ensures the result falls within valid trading hours
- * (6:00 AM to 8:00 PM ET on weekdays).
+ * (4:00 AM to 8:00 PM ET on weekdays).
  *
  * @param timestamp The reference timestamp (in any timezone)
  * @return The previous trading minute as a QDateTime in the same timezone as the input
@@ -983,7 +1045,7 @@ QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) 
 
     if (dayOfWeek >= TradingHours::MONDAY && dayOfWeek <= TradingHours::FRIDAY)
     {
-        if (time < TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION)
+        if (time < TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION)
         {
             QDateTime result = QDateTime(previousMinute.date().addDays(-1),
                                          TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
@@ -1011,7 +1073,7 @@ QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) 
         return QDateTime(friday, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION, TradingHours::MARKET_TIMEZONE);
     }
 
-    OBJ_ASSUME_GTE(previousMinute.time(), TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION);
+    OBJ_ASSUME_GTE(previousMinute.time(), TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION);
     OBJ_ASSUME_LTE(previousMinute.time(), TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
 
     return previousMinute;
@@ -1033,7 +1095,7 @@ QDateTime StockPriceChart::adjustToValidTradingTime(const QDateTime& timestamp) 
         return QDateTime(friday, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION, TradingHours::MARKET_TIMEZONE);
     }
 
-    if (time < TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION)
+    if (time < TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION)
     {
         QDate previousDay = timestamp.date().addDays(-1);
         if (previousDay.dayOfWeek() > TradingHours::FRIDAY)
@@ -1383,18 +1445,37 @@ std::tuple<QDateTime, QDateTime, int> StockPriceChart::queryStockTimeRangeForDat
     return result;
 }
 
+void StockPriceChart::setReplayModeActive(bool active)
+{
+    if (m_isReplayModeActive == active)
+    {
+        return;
+    }
+
+    m_isReplayModeActive = active;
+
+    // Update background color
+    QColor bgColor = active ? REPLAY_BACKGROUND_COLOR : NORMAL_BACKGROUND_COLOR;
+    m_customPlot->setBackground(QBrush(bgColor));
+    m_volumeAxisRect->setBackground(QBrush(bgColor));
+
+    m_customPlot->replot();
+
+    qCInfo(ChartLog) << "Replay mode visual" << (active ? "activated" : "deactivated");
+}
+
 /**
  * @brief Updates the position of the current time vertical line.
- * 
+ *
  * This slot is called every second to move the vertical white line to the current time position.
  * The line is positioned based on the fractional index calculated from the current time.
  * Each minute corresponds to 1 index unit, so each second moves the line by 1/60 of an index.
- * 
+ *
  * Note: TradeStation timestamps represent the closing time of a bar. For example, a bar covering
- * 6:00:00-6:00:59 has timestamp 6:01:00. Therefore, we subtract 60 seconds from the bar's 
+ * 4:00:00-4:00:59 has timestamp 4:01:00. Therefore, we subtract 60 seconds from the bar's
  * timestamp to get the opening time, which is the actual start of index 0.
- * 
- * The line stops advancing after market close (8:00 PM) and resumes at market open (6:00 AM).
+ *
+ * The line stops advancing after market close (8:00 PM) and resumes at market open (4:00 AM).
  */
 void StockPriceChart::updateCurrentTimeLine()
 {
@@ -1418,18 +1499,19 @@ void StockPriceChart::updateCurrentTimeLine()
     // Subtract 60 seconds to get the opening time (actual start of the bar).
     QDateTime zeroIndexTime = it->getTimeStamp().addSecs(-60);
 
-    // Check if current time is within trading hours (6:00 AM - 8:00 PM ET)
+    // Check if current time is within trading hours (4:00 AM - 8:00 PM ET)
     QTime currentTimeOfDay = currentTime.time();
-    QTime marketOpen = QTime(6, 0);   // 6:00 AM - pre-market open
-    QTime marketClose = QTime(20, 0); // 8:00 PM - after-hours close
+    // Market open is at 4:00 AM (early pre-market), first bar timestamp is 4:01 AM
+    QTime marketOpen = TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION.addSecs(-60);
+    QTime marketClose = TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION; // 8:00 PM
 
     // Calculate the time difference in seconds
     qint64 secondsDiff = zeroIndexTime.secsTo(currentTime);
 
-    // If we're before market open, cap at the start (6:00 AM position)
+    // If we're before market open, cap at the start (4:00 AM position)
     if (currentTimeOfDay < marketOpen)
     {
-        // Position line at 6:00 AM (start of trading day)
+        // Position line at 4:00 AM (start of trading day)
         QDateTime marketOpenTime(currentTime.date(), marketOpen, TradingHours::MARKET_TIMEZONE);
         secondsDiff = zeroIndexTime.secsTo(marketOpenTime);
     }

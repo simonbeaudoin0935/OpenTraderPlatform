@@ -22,6 +22,22 @@ PositionsReceiver::~PositionsReceiver()
     TSClient::getInstance()->closeStream(m_stream);
 }
 
+void PositionsReceiver::stopStream(const QString& account)
+{
+    Q_UNUSED(account);
+    if (m_stream != nullptr)
+    {
+        TSClient::getInstance()->closeStream(m_stream);
+        m_stream = nullptr;
+        DEBUG << "Positions stream stopped for account" << m_account;
+    }
+}
+
+void PositionsReceiver::stopStream(const char* account)
+{
+    stopStream(QString(account));
+}
+
 void PositionsReceiver::createPositionsStream()
 {
     DEBUG << "Starting Positions stream for account " << m_account;

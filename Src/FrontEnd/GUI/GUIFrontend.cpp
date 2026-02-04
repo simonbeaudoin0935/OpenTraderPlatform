@@ -21,6 +21,7 @@
 #include "Tabs/RecorderTab.h"
 #include "Tabs/ShortcutsTab.h"
 #include "StrategiesTab/StrategiesTab.h"
+#include "StockPriceChart/ChartToolbar.h"
 #include "Misc/Logging.h"
 #include "Misc/Settings.h"
 #include "Misc/ShortcutSettings.h"
@@ -136,6 +137,52 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                          &GUIFrontend::onAccountInfoButtonClicked,
                                          Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(accountInfoConnection);
+
+    // Create trading mode indicator (SIM/LIVE) - clickable to toggle
+    bool isSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
+    m_tradingModeLabel = new QLabel(isSimMode ? "🔵 SIM" : "🟠 LIVE", mainWindow);
+    Q_CHECK_PTR(m_tradingModeLabel);
+    m_tradingModeLabel->setStyleSheet(isSimMode
+                                          ? "QLabel { background-color: #1E90FF; color: #ffffff; padding: 4px 8px; "
+                                            "border-radius: 4px; font-weight: bold; cursor: pointer; }"
+                                          : "QLabel { background-color: #FF8C00; color: #ffffff; padding: 4px 8px; "
+                                            "border-radius: 4px; font-weight: bold; cursor: pointer; }");
+    m_tradingModeLabel->setToolTip("Click to toggle between SIM and LIVE trading mode (requires restart)");
+    m_tradingModeLabel->setCursor(Qt::PointingHandCursor);
+    m_tradingModeLabel->installEventFilter(this);
+    ui->topControlsLayout->insertWidget(3, m_tradingModeLabel);
+
+    // Create data source indicator (LIVE/REPLAY) - clickable to toggle (only visible in SIM mode)
+    m_dataSourceLabel = new QLabel("🟢 LIVE", mainWindow);
+    Q_CHECK_PTR(m_dataSourceLabel);
+    m_dataSourceLabel->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
+                                     "border-radius: 4px; font-weight: bold; cursor: pointer; }");
+    m_dataSourceLabel->setToolTip("Click to toggle between LIVE data and REPLAY mode");
+    m_dataSourceLabel->setCursor(Qt::PointingHandCursor);
+    m_dataSourceLabel->installEventFilter(this);
+    ui->topControlsLayout->insertWidget(4, m_dataSourceLabel);
+
+    // Create trading session indicator (read-only, shows current session)
+    m_sessionLabel = new QLabel("CLOSED", mainWindow);
+    Q_CHECK_PTR(m_sessionLabel);
+    m_sessionLabel->setStyleSheet("QLabel { background-color: #555555; color: #ffffff; padding: 4px 8px; "
+                                  "border-radius: 4px; font-weight: bold; font-family: monospace; }");
+    m_sessionLabel->setToolTip("Current trading session:\n"
+                               "🌙 EARLY PRE-MARKET: 4:01 AM - 6:00 AM ET\n"
+                               "🌅 PRE-MARKET: 6:01 AM - 9:30 AM ET\n"
+                               "📈 REGULAR: 9:31 AM - 4:00 PM ET\n"
+                               "🌆 AFTER-HOURS: 4:01 PM - 8:00 PM ET\n"
+                               "🌙 CLOSED: 8:01 PM - 4:00 AM ET");
+    ui->topControlsLayout->insertWidget(5, m_sessionLabel);
+    updateSessionLabel();
+
+    // In LIVE trading mode, hide data source label and replay widgets (replay not available with real money)
+    // In SIM mode, show data source label but hide replay widgets until user enters replay mode
+    if (!isSimMode)
+    {
+        m_dataSourceLabel->setVisible(false);
+    }
+    ui->priceChart->toolbar()->setReplayWidgetsVisible(false);
 
     // Connect app frontend signals and slots
     connect(this,
@@ -1117,4 +1164,178 @@ void GUIFrontend::onAccountInfoButtonClicked()
         msgBox.setIcon(QMessageBox::Information);
         msgBox.exec();
     }
+}
+
+void GUIFrontend::updateSessionLabel()
+{
+    if (m_sessionLabel == nullptr)
+    {
+        return;
+    }
+
+    TradingSession session = MainApp::getCurrentSession();
+    QString sessionText;
+    QString backgroundColor;
+
+    switch (session)
+    {
+    case TradingSession::EarlyPreMarket:
+        sessionText = "🌙 EARLY PRE";
+        backgroundColor = "#2a1a4a"; // Dark purple
+        break;
+    case TradingSession::PreMarket:
+        sessionText = "🌅 PRE-MARKET";
+        backgroundColor = "#4a3a2a"; // Dark orange-brown
+        break;
+    case TradingSession::Regular:
+        sessionText = "📈 REGULAR";
+        backgroundColor = "#1a3a1a"; // Dark green
+        break;
+    case TradingSession::AfterHours:
+        sessionText = "🌆 AFTER-HOURS";
+        backgroundColor = "#4a3a1a"; // Dark orange-brown
+        break;
+    case TradingSession::Closed:
+        sessionText = "🌙 CLOSED";
+        backgroundColor = "#1a1a2a"; // Dark blue-gray
+        break;
+    default:
+        sessionText = "UNKNOWN";
+        backgroundColor = "#2a2a2a";
+        break;
+    }
+
+    m_sessionLabel->setText(sessionText);
+    m_sessionLabel->setStyleSheet(QString("QLabel { background-color: %1; color: #ffffff; padding: 4px 8px; "
+                                          "border-radius: 4px; font-weight: bold; font-family: monospace; }")
+                                      .arg(backgroundColor));
+}
+
+void GUIFrontend::onReplayModeEntered()
+{
+    qCInfo(GUIFrontendLog) << "Replay mode entered";
+
+    // Update data source indicator to show REPLAY
+    if (m_dataSourceLabel != nullptr)
+    {
+        m_dataSourceLabel->setText("🔴 REPLAY");
+        m_dataSourceLabel->setStyleSheet("QLabel { background-color: #8B0000; color: #ffffff; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; cursor: pointer; }");
+    }
+
+    // Show replay widgets in toolbar and ensure play button is in stopped state
+    ui->priceChart->toolbar()->setReplayWidgetsVisible(true);
+    ui->priceChart->toolbar()->setReplayPlaying(false);
+
+    // Update chart visual (background color and watermark)
+    ui->priceChart->setReplayModeActive(true);
+
+    // Update session label (replay time may have changed)
+    updateSessionLabel();
+}
+
+void GUIFrontend::onReplayModeExited()
+{
+    qCInfo(GUIFrontendLog) << "Replay mode exited";
+
+    // Update data source indicator to show LIVE
+    if (m_dataSourceLabel != nullptr)
+    {
+        m_dataSourceLabel->setText("🟢 LIVE");
+        m_dataSourceLabel->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; cursor: pointer; }");
+    }
+
+    // Reset play button state and hide replay widgets
+    ui->priceChart->toolbar()->setReplayPlaying(false);
+    ui->priceChart->toolbar()->setReplayWidgetsVisible(false);
+
+    // Restore chart visual
+    ui->priceChart->setReplayModeActive(false);
+
+    // Update session label (back to live time)
+    updateSessionLabel();
+}
+
+void GUIFrontend::onReplayTimeUpdated(QDateTime currentTime)
+{
+    Q_UNUSED(currentTime)
+    // Update session label as replay time advances
+    updateSessionLabel();
+}
+
+bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
+{
+    // Handle click on trading mode label
+    if (p_watched == m_tradingModeLabel && p_event->type() == QEvent::MouseButtonRelease)
+    {
+        // Get current and target modes
+        TradingMode currentMode = MainApp::getTradingMode();
+        TradingMode newMode = (currentMode == TradingMode::Sim) ? TradingMode::Live : TradingMode::Sim;
+        QString currentModeStr = (currentMode == TradingMode::Sim) ? "SIM" : "LIVE";
+        QString newModeStr = (newMode == TradingMode::Sim) ? "SIM" : "LIVE";
+
+        // Show confirmation dialog
+        QMessageBox::StandardButton reply =
+            QMessageBox::question(nullptr,
+                                  "Change Trading Mode",
+                                  QString("Switch from %1 to %2 mode?\n\n"
+                                          "This will restart the application to connect to the %3 API.\n\n"
+                                          "%4")
+                                      .arg(currentModeStr,
+                                           newModeStr,
+                                           newModeStr,
+                                           newMode == TradingMode::Live ? "⚠️ WARNING: LIVE mode uses REAL MONEY!"
+                                                                        : "SIM mode uses simulated/paper trading."),
+                                  QMessageBox::Yes | QMessageBox::No,
+                                  QMessageBox::No);
+
+        if (reply == QMessageBox::Yes)
+        {
+            // Save the new mode
+            MainApp::setTradingMode(newMode);
+
+            qCInfo(GUIFrontendLog) << "Trading mode changed to" << newModeStr << "- restarting application";
+
+            // Restart the application using execv() - this replaces the current process
+            MainApp::restartApplication();
+        }
+
+        return true; // Event handled
+    }
+
+    // Handle click on data source label (toggle LIVE/REPLAY)
+    if (p_watched == m_dataSourceLabel && p_event->type() == QEvent::MouseButtonRelease)
+    {
+        if (MainApp::isInReplayMode())
+        {
+            // Currently in replay mode - exit replay
+            MainApp::getInstance()->exitReplayMode();
+        }
+        else
+        {
+            // Currently in live mode - enter replay mode (without starting playback)
+            // Playback starts when user clicks Play button in ChartToolbar
+            ChartToolbar* toolbar = ui->priceChart->toolbar();
+
+            // Scan for available replay days if not already populated
+            toolbar->scanAndPopulateReplayDays();
+
+            if (!toolbar->getSelectedReplayDay().isValid())
+            {
+                QMessageBox::warning(nullptr,
+                                     "No Replay Data",
+                                     "No recorded data found for replay.\n\n"
+                                     "Use the Recorder tab to record market data first.");
+                return true;
+            }
+
+            qCInfo(GUIFrontendLog) << "Entering replay mode (playback not started yet)";
+            MainApp::getInstance()->enterReplayMode();
+        }
+
+        return true; // Event handled
+    }
+
+    return QObject::eventFilter(p_watched, p_event);
 }

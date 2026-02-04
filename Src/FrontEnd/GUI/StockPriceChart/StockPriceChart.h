@@ -56,6 +56,16 @@ class StockPriceChart : public QWidget
     void addLiveBar(const QString& symbol, const Bar& bar);
     void onRequestedMissingBarsReceived(const std::shared_ptr<QVector<Bar>>& barsPtr);
     void onRequestedMissingBarsFailed();
+    void setReplayModeActive(bool active);
+
+    /**
+     * @brief Gets the chart toolbar widget.
+     * @return Pointer to the ChartToolbar.
+     */
+    [[nodiscard]] ChartToolbar* toolbar() const
+    {
+        return chartToolbar;
+    }
 
   private slots:
     void onAxisRangeChanged();
@@ -123,12 +133,19 @@ class StockPriceChart : public QWidget
     QCPItemLine* m_currentTimeLine;
     QTimer* m_timeLineTimer;
 
+    // Chart watermark
+    QCPItemText* m_symbolWatermark; // Stock symbol at center-top
+    bool m_isReplayModeActive = false;
+    static constexpr QColor NORMAL_BACKGROUND_COLOR{75, 75, 80};
+    static constexpr QColor REPLAY_BACKGROUND_COLOR{60, 60, 75}; // Slightly bluer tint
+
     // Volume chart components
     QCPAxisRect* m_volumeAxisRect;
     QCPBars* m_volumePos;
     QCPBars* m_volumeNeg;
 
     // Background rectangles for different market sessions
+    QList<QCPItemRect*> m_earlyPreMarketRects;
     QList<QCPItemRect*> m_preMarketRects;
     QList<QCPItemRect*> m_afterHoursRects;
     QSet<QDate> m_datesWithBackgrounds; // Track which dates already have backgrounds drawn

@@ -5,6 +5,8 @@
 #include <QPushButton>
 #include <QShortcut>
 #include <QKeySequence>
+#include <QLabel>
+#include <QEvent>
 #include <memory>
 
 #include "FrontEnd.h"
@@ -45,8 +47,16 @@ class GUIFrontend : public FrontEnd
     void onNewOrderReceived(QString account, Order order) override;
     void onBalanceUpdated(Balance balance) override;
 
+    // Replay mode notifications
+    void onReplayModeEntered() override;
+    void onReplayModeExited() override;
+    void onReplayTimeUpdated(QDateTime currentTime) override;
+
   public:
     QString getSelectedAccountId() const;
+
+  protected:
+    bool eventFilter(QObject* p_watched, QEvent* p_event) override;
 
   private slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
@@ -58,6 +68,7 @@ class GUIFrontend : public FrontEnd
     void onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKeySequence& p_newSequence);
     void onCancelAllOrders();
     void onAccountInfoButtonClicked();
+    void updateSessionLabel();
 
   private:
     void setupDarkTheme(QMainWindow* mainWindow);
@@ -93,4 +104,8 @@ class GUIFrontend : public FrontEnd
     bool m_hasRestoredLastStock = false; // Track if we've restored the last stock
 
     QVector<Account> m_accounts; // Store available accounts
+
+    QLabel* m_tradingModeLabel = nullptr; // Trading mode indicator (SIM/LIVE)
+    QLabel* m_dataSourceLabel = nullptr;  // Data source indicator (LIVE/REPLAY)
+    QLabel* m_sessionLabel = nullptr;     // Trading session indicator
 };

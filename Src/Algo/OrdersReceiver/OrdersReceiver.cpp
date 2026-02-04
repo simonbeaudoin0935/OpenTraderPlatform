@@ -163,3 +163,19 @@ void OrdersReceiver::validateSnapshotOrders()
 
     INFO << "Snapshot validation complete";
 }
+
+void OrdersReceiver::stopStream(const QString& p_account)
+{
+    Q_UNUSED(p_account);
+    if (m_stream != nullptr)
+    {
+        TSClient::getInstance()->closeStream(m_stream);
+        m_stream = nullptr;
+        DEBUG << "Orders stream stopped for account" << m_account;
+    }
+}
+
+void OrdersReceiver::stopStream(const char* p_account)
+{
+    stopStream(QString(p_account));
+}

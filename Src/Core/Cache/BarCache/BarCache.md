@@ -2,18 +2,18 @@
 
 ## Overview
 
-The BarCache class provides efficient caching of 1-minute stock bars using a day-based storage approach. Each trading day (6:01am-8:00pm ET) is stored in a separate QVector, with bars indexed by their minute offset. Database operations are handled asynchronously via a dedicated `DatabaseThread` singleton.
+The BarCache class provides efficient caching of 1-minute stock bars using a day-based storage approach. Each trading day (4:01am-8:00pm ET) is stored in a separate QVector, with bars indexed by their minute offset. Database operations are handled asynchronously via a dedicated `DatabaseThread` singleton.
 
 ## Key Design Principles
 
 1. **Day-Based Storage**: Uses `QMap<QDate, QVector<Bar>>` where each QVector represents one complete trading day
-2. **Complete Day Rule**: If a day exists in the cache, ALL bars for that day are available. The exception is for the current day; for past days, if the date is in the QMap, it means the QVector of bars for that day will contain all 840 minute bars. Even for minutes where no trades happened, there will still be a 'null' bar for that minute. This is a design choice, so that an algorithm can iterate through all 840 bars and know it's stepping one minute at a time, and take action on whether or not the minute had any trades.
-3. **Index-Based Access**: Each bar's position in the vector corresponds to its minute offset (index 0 = 6:01am bar, index 839 = 8:00pm bar)
-4. **Pre-Allocated Vectors**: Day vectors are pre-allocated to 840 bars for efficiency
+2. **Complete Day Rule**: If a day exists in the cache, ALL bars for that day are available. The exception is for the current day; for past days, if the date is in the QMap, it means the QVector of bars for that day will contain all 960 minute bars. Even for minutes where no trades happened, there will still be a 'null' bar for that minute. This is a design choice, so that an algorithm can iterate through all 960 bars and know it's stepping one minute at a time, and take action on whether or not the minute had any trades.
+3. **Index-Based Access**: Each bar's position in the vector corresponds to its minute offset (index 0 = 4:01am bar, index 959 = 8:00pm bar)
+4. **Pre-Allocated Vectors**: Day vectors are pre-allocated to 960 bars for efficiency
 5. **TradeStation Timestamp Quirk**: TradeStation timestamps minute bars at the **end** of the minute interval, not the beginning. This means:
-   - The first tradeable minute (06:00:00 to 06:00:59) is timestamped as **06:01** — there is no bar with timestamp 06:00
+   - The first tradeable minute (04:00:00 to 04:00:59) is timestamped as **04:01** — there is no bar with timestamp 04:00
    - The last bar of the day IS timestamped **20:00** (representing the 19:59:00 to 19:59:59 interval)
-   - Therefore, valid bar timestamps range from 06:01 to 20:00 inclusive (840 bars total)
+   - Therefore, valid bar timestamps range from 04:01 to 20:00 inclusive (960 bars total)
 6. **Asynchronous Database Operations**: All database I/O is performed on a dedicated `DatabaseThread` to avoid blocking the main thread
 7. **Thread-Safe Access**: Memory cache is protected by `QReadWriteLock` for concurrent access
 
@@ -159,7 +159,7 @@ sequenceDiagram
             BarCache->>MemoryCache: storeBarsInCache(date, bars)
             BarCache-->>Client: Resolve QFuture with bars
         else Database miss
-            Note over BarCache: Determine fetch range:<br/>Past day: 6:01am-8:00pm<br/>Current day: 6:01am to now
+            Note over BarCache: Determine fetch range:<br/>Past day: 4:01am-8:00pm<br/>Current day: 4:01am to now
 
             BarCache->>TSClient: getBars(symbol, startDateTime, endDateTime)
             TSClient-->>BarCache: expected<unique_ptr<QVector<Bar>>, Error>
@@ -178,7 +178,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    START(["getBars(date, first, last)"]) --> ASSERT["Assert preconditions:<br/>• Weekday (Mon-Fri)<br/>• 6:01am ≤ time ≤ 8:00pm<br/>• Not future date/time<br/>• Seconds/ms are zero"]
+    START(["getBars(date, first, last)"]) --> ASSERT["Assert preconditions:<br/>• Weekday (Mon-Fri)<br/>• 4:01am ≤ time ≤ 8:00pm<br/>• Not future date/time<br/>• Seconds/ms are zero"]
     ASSERT --> CHECK_MEMORY["Check memory cache<br/>getBarsFromCache()"]
 
     CHECK_MEMORY -->|"Hit: all bars initialized"| RETURN_SYNC["Return shared_ptr<QVector<Bar>><br/>(synchronous)"]
@@ -192,8 +192,8 @@ flowchart TD
 
     DB_RESULT -->|"No"| DETERMINE_RANGE{"Current day?"}
 
-    DETERMINE_RANGE -->|"Yes"| FETCH_PARTIAL["Fetch API: 6:01am to now"]
-    DETERMINE_RANGE -->|"No"| FETCH_FULL["Fetch API: 6:01am to 8:00pm"]
+    DETERMINE_RANGE -->|"Yes"| FETCH_PARTIAL["Fetch API: 4:01am to now"]
+    DETERMINE_RANGE -->|"No"| FETCH_FULL["Fetch API: 4:01am to 8:00pm"]
 
     FETCH_PARTIAL --> FILL_HOLES["fillHolesOfReceivedRequest()<br/>Insert null bars for gaps"]
     FETCH_FULL --> FILL_HOLES
@@ -281,50 +281,50 @@ graph TB
 ### Memory Cache Structure
 - **Container**: `QMap<QDate, QVector<Bar>>`
 - **Key**: Trading date (QDate)
-- **Value**: Vector of exactly 840 bars (6:01am to 8:00pm inclusive)
+- **Value**: Vector of exactly 960 bars (4:01am to 8:00pm inclusive)
 - **Thread Safety**: Protected by `mutable QReadWriteLock m_barCacheRwLock`
-- **Index Mapping**: `index = (hour - 6) * 60 + minute - 1`
-  - Index 0 = 6:01am bar
-  - Index 1 = 6:02am bar
+- **Index Mapping**: `index = (hour - 4) * 60 + minute - 1`
+  - Index 0 = 4:01am bar
+  - Index 1 = 4:02am bar
   - ...
-  - Index 509 = 2:30pm bar
-  - Index 839 = 8:00pm bar
+  - Index 629 = 2:30pm bar
+  - Index 959 = 8:00pm bar
 
 ### Complete Day Rule
-- **Invariant**: If a QDate exists in the map, the QVector is pre-allocated to 840 bars
+- **Invariant**: If a QDate exists in the map, the QVector is pre-allocated to 960 bars
 - **Uninitialized Detection**: Bars with `BarStatus::Uninitialized` indicate missing data (cache miss)
-- **Exception**: Current day (streaming) may have partial data from 6:01am to now
+- **Exception**: Current day (streaming) may have partial data from 4:01am to now
 - **Benefit**: Simplifies cache logic - no need to track partial day states
 
 ### Index Calculation (Current Implementation)
 ```cpp
 // Constants
-static inline const QTime TRADING_START_TIME = QTime(6, 1);  // 6:01 AM ET
+static inline const QTime TRADING_START_TIME = QTime(4, 1);  // 4:01 AM ET
 static inline const QTime TRADING_END_TIME = QTime(20, 0);   // 8:00 PM ET
-static constexpr unsigned int BARS_PER_DAY = 840;
+static constexpr unsigned int BARS_PER_DAY = 960;
 
-// Convert time to vector index (0-839)
+// Convert time to vector index (0-959)
 size_t BarCache::timeToIndex(const QTime& time)
 {
-    // time must be between 6:01 AM and 8:00 PM inclusive
-    size_t minutesSince6AM = (time.hour() - 6) * 60 + time.minute();
-    size_t index = minutesSince6AM - 1;  // -1 because first bar is 6:01, not 6:00
-    return index;  // Range: 0 to 839
+    // time must be between 4:01 AM and 8:00 PM inclusive
+    size_t minutesSince4AM = (time.hour() - 4) * 60 + time.minute();
+    size_t index = minutesSince4AM - 1;  // -1 because first bar is 4:01, not 4:00
+    return index;  // Range: 0 to 959
 }
 
 // Convert index back to bar timestamp
 QTime BarCache::indexToTime(size_t index)
 {
     size_t adjustedMinutes = index + 1;  // +1 to offset back
-    int hour = 6 + (adjustedMinutes / 60);
+    int hour = 4 + (adjustedMinutes / 60);
     int minute = adjustedMinutes % 60;
     return QTime(hour, minute, 0);
 }
 
 // Examples:
-// timeToIndex(QTime(6, 1))   → 0    (first bar)
-// timeToIndex(QTime(14, 30)) → 509  (2:30 PM bar)
-// timeToIndex(QTime(20, 0))  → 839  (last bar)
+// timeToIndex(QTime(4, 1))   → 0    (first bar)
+// timeToIndex(QTime(14, 30)) → 629  (2:30 PM bar)
+// timeToIndex(QTime(20, 0))  → 959  (last bar)
 ```
 
 ### Return Type: GetBarsResult_t
