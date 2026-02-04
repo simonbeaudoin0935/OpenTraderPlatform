@@ -12,6 +12,7 @@
 #include "Assume.h"
 #include "SQL/StockPriceChartQueries.h"
 #include "BarCache.h"
+#include "MainApp.h"
 
 #define LOGGING_CATEGORY ChartLog
 
@@ -147,6 +148,20 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_priceLabel->setPadding(QMargins(5, 2, 5, 2));
     m_priceLabel->setBrush(QBrush(QColor(0, 0, 0, 150)));
     m_priceLabel->setVisible(false);
+
+    // Create current time vertical line
+    m_currentTimeLine = new QCPItemLine(m_customPlot);
+    Q_CHECK_PTR(m_currentTimeLine);
+    m_currentTimeLine->setPen(QPen(Qt::white, 2, Qt::SolidLine));
+    m_currentTimeLine->start->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    m_currentTimeLine->end->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    m_currentTimeLine->setVisible(false); // Initially hidden until first bar is received
+
+    // Create timer for updating the current time line position
+    m_timeLineTimer = new QTimer(this);
+    Q_CHECK_PTR(m_timeLineTimer);
+    m_timeLineTimer->setInterval(1000); // Update every second
+    connect(m_timeLineTimer, &QTimer::timeout, this, &StockPriceChart::updateCurrentTimeLine, Qt::UniqueConnection);
 
     // Enable mouse interactions
     m_customPlot->setInteractions(QCP::iRangeDrag);
@@ -378,6 +393,11 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
         // Draw background rectangles for the session
         drawBackgroundsForReceivedBars(QVector<Bar>{bar});
+
+        // Start the timer for updating the current time line
+        m_currentTimeLine->setVisible(true);
+        m_timeLineTimer->start();
+        updateCurrentTimeLine(); // Update immediately
 
         // Here we will fetch the bars from the beginning of the day up to this bar to fill in history
         QDateTime first = QDateTime(bar.getTimeStamp().date(),
@@ -916,6 +936,10 @@ void StockPriceChart::clearSymbol()
 
     m_priceLabel->setVisible(false);
 
+    // Stop and hide the current time line
+    m_timeLineTimer->stop();
+    m_currentTimeLine->setVisible(false);
+
     // Reset state flags for new symbol
     startedReceivingRealtimeBars = false;
 
@@ -1353,4 +1377,49 @@ std::tuple<QDateTime, QDateTime, int> StockPriceChart::queryStockTimeRangeForDat
     QSqlDatabase::removeDatabase("replay_query");
 
     return result;
+}
+
+/**
+ * @brief Updates the position of the current time vertical line.
+ * 
+ * This slot is called every second to move the vertical white line to the current time position.
+ * The line is positioned based on the fractional index calculated from the current time.
+ * Each minute corresponds to 1 index unit, so each second moves the line by 1/60 of an index.
+ */
+void StockPriceChart::updateCurrentTimeLine()
+{
+    // Only update if we have received at least one bar
+    if (indexToBar.isEmpty())
+    {
+        return;
+    }
+
+    // Get the current application time (NY timezone)
+    QDateTime currentTime = MainApp::getCurrentAppTime();
+
+    // Get the timestamp of the bar at index 0 (the first bar received)
+    auto it = indexToBar.find(0);
+    if (it == indexToBar.end())
+    {
+        return;
+    }
+
+    QDateTime zeroIndexTime = it->getTimeStamp();
+
+    // Calculate the time difference in seconds
+    qint64 secondsDiff = zeroIndexTime.secsTo(currentTime);
+
+    // Convert to fractional index position
+    // Each minute is 1 index unit, so each second is 1/60.0 of an index
+    double currentIndex = secondsDiff / 60.0;
+
+    // Get the current Y-axis range for the line
+    QCPRange yRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
+
+    // Position the vertical line at the calculated index
+    m_currentTimeLine->start->setCoords(currentIndex, yRange.lower);
+    m_currentTimeLine->end->setCoords(currentIndex, yRange.upper);
+
+    // Replot to update the line position
+    m_customPlot->replot();
 }

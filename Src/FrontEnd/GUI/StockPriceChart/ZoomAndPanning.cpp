@@ -15,6 +15,15 @@ void StockPriceChart::onAxisRangeChanged()
     redrawLastPriceLine();
     rescaleVolumeAxisToVisibleRange();
 
+    // Update the current time line's Y coordinates to match new Y-axis range
+    if (m_currentTimeLine->visible())
+    {
+        QCPRange yRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
+        double currentX = m_currentTimeLine->start->coords().x();
+        m_currentTimeLine->start->setCoords(currentX, yRange.lower);
+        m_currentTimeLine->end->setCoords(currentX, yRange.upper);
+    }
+
     // Note: Background rectangles are created once when bars are received,
     // QCustomPlot handles clipping to visible range automatically.
     // No need to recreate them on every axis change.
