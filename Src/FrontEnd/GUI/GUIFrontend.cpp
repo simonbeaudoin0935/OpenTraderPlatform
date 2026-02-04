@@ -1230,10 +1230,8 @@ bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
 
             qCInfo(GUIFrontendLog) << "Trading mode changed to" << newModeStr << "- restarting application";
 
-            // Restart the application
-            // We quit with a special exit code that signals restart
-            // The caller (main or a wrapper script) should handle this
-            QCoreApplication::exit(42); // Exit code 42 = restart requested
+            // Restart the application using execv() - this replaces the current process
+            MainApp::restartApplication();
         }
 
         return true; // Event handled

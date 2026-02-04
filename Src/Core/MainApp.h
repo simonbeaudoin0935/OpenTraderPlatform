@@ -62,6 +62,15 @@ class MainApp
     static void setTradingMode(TradingMode p_mode);
 
     /**
+     * @brief Restart the application using execv()
+     *
+     * Replaces the current process with a fresh instance of the same executable.
+     * This is used after changing trading mode to pick up the new API endpoint.
+     * Does not return - the current process is replaced.
+     */
+    static void restartApplication();
+
+    /**
      * @brief Enter replay mode for the specified date and time
      * @param p_date Date to replay
      * @param p_startTime Start time within the day

@@ -4,6 +4,9 @@
 #include "Settings.h"
 #include "Stream.h"
 #include <QCoreApplication>
+#include <unistd.h>
+#include <cerrno>
+#include <cstring>
 #ifdef GUI_ENABLED
 #include "GUIFrontend.h"
 #else
@@ -67,6 +70,48 @@ void MainApp::setTradingMode(TradingMode p_mode)
     appStateSettings->sync();
 
     qInfo() << "Trading mode set to" << (p_mode == TradingMode::Sim ? "SIM" : "LIVE") << "(requires restart)";
+}
+
+void MainApp::restartApplication()
+{
+    // Get the executable path
+    QString executablePath = QCoreApplication::applicationFilePath();
+
+    // Get command line arguments (excluding the first which is the program name)
+    QStringList args = QCoreApplication::arguments();
+    args.removeFirst(); // Remove program name
+
+    // Convert to C-style arrays for execv()
+    QByteArrayList argsByteArrays;
+    argsByteArrays.reserve(args.size() + 2); // +2 for program name and null terminator
+
+    // Add program name
+    argsByteArrays.append(executablePath.toLocal8Bit());
+
+    // Add other arguments
+    for (const QString& arg: args)
+    {
+        argsByteArrays.append(arg.toLocal8Bit());
+    }
+
+    // Build argv array (must be null-terminated)
+    std::vector<char*> argv;
+    argv.reserve(argsByteArrays.size() + 1);
+
+    for (QByteArray& ba: argsByteArrays)
+    {
+        argv.push_back(ba.data());
+    }
+    argv.push_back(nullptr); // Null terminator required by execv()
+
+    qInfo() << "Restarting application via execv()";
+
+    // execv() replaces the current process - doesn't return on success
+    execv(executablePath.toLocal8Bit().constData(), argv.data());
+
+    // If we reach here, execv() failed
+    qCritical() << "execv() failed:" << strerror(errno);
+    QCoreApplication::exit(1);
 }
 
 MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainAlgo::getInstance())
