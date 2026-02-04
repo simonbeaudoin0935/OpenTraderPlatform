@@ -459,9 +459,14 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         if (m_latestBar.getBarStatus() == Bar::BarStatus::Closed)
         {
             // New bar after previous one was closed
-
             OBJ_ASSUME_GT(bar.getTimeStamp(), m_latestBar.getTimeStamp());
-            break;
+
+            const int newIndex = indexToBar.lastKey() + 1;
+
+            timestampToIndex[bar.getTimeStamp()] = newIndex;
+            indexToBar[newIndex] = bar;
+            m_latestBar = bar;
+            m_latestBarIndex = newIndex;
         }
         else
         {
@@ -470,8 +475,6 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
             indexToBar[m_latestBarIndex] = bar;
             m_latestBar = bar;
-
-            break;
         }
         break;
     }
