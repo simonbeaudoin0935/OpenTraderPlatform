@@ -450,6 +450,9 @@ BarCache::getBarsFromCache(const QDate& date, const QTime& start, const QTime& e
 void BarCache::storeBarInCache(const Bar& bar)
 {
     QDateTime dateTime = bar.getTimeStamp();
+
+    OBJ_ASSUME_EQUAL(dateTime.timeZone(), TradingHours::MARKET_TIMEZONE);
+
     QDate date = dateTime.date();
     QTime time = dateTime.time();
 
@@ -458,9 +461,7 @@ void BarCache::storeBarInCache(const Bar& bar)
 
     QWriteLocker locker(&m_barCacheRwLock);
 
-
     QVector<Bar>& dayVector = getOrCreateDayVector(date);
-
 
     // Check if we're overwriting an existing bar (only if the index existed before resize)
     if (bar.getIsRealtime())
@@ -470,7 +471,7 @@ void BarCache::storeBarInCache(const Bar& bar)
             DEBUG << "Real time cache insertion; received the closing bar";
         }
     }
-    else
+    else // Closing historical bar
     {
         if (dayVector[index].getBarStatus() != Bar::BarStatus::Uninitialized)
         {
@@ -479,7 +480,7 @@ void BarCache::storeBarInCache(const Bar& bar)
                 WARNING << "We received a double of the last bar of the day for symbol" << m_symbol
                         << "at timestamp:" << bar.getTimeStamp()
                         << "- Experimentally, this has proven to be possible from the API."
-                           " It seems to be a little glitch from their side when the app sits idle after hours.";
+                        << " It seems to be a little glitch from their side when the app sits idle after hours.";
             }
             else
             {
