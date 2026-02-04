@@ -1,4 +1,5 @@
 #include "MainApp.h"
+#include "Assume.h"
 #include "DatabaseThread.h"
 #include "Logging.h"
 #include "Settings.h"
@@ -14,13 +15,12 @@
 #include "TUIFrontend.h"
 #endif
 
-bool MainApp::isInReplayMode = false;
-
 QDateTime MainApp::currentAppReplayTime = QDateTime::fromSecsSinceEpoch(0);
 
 // Initialize static members
 MainApp* MainApp::m_instance = nullptr;
 TradingMode MainApp::m_tradingMode = TradingMode::Sim; // Default to Sim for safety
+DataSourceMode MainApp::m_dataSourceMode = DataSourceMode::Live;
 
 MainApp* MainApp::getInstance()
 {
@@ -47,10 +47,20 @@ void MainApp::destroyInstance()
     m_instance = nullptr;
 }
 
+bool MainApp::isInReplayMode()
+{
+    return m_dataSourceMode == DataSourceMode::Replay;
+}
+
+DataSourceMode MainApp::getDataSourceMode()
+{
+    return m_dataSourceMode;
+}
+
 // Get the current application time (real or replay)
 QDateTime MainApp::getCurrentAppTime()
 {
-    if (isInReplayMode)
+    if (isInReplayMode())
     {
         return currentAppReplayTime;
     }
@@ -283,18 +293,14 @@ void MainApp::cleanupSingletons()
     qInfo() << "All singletons cleaned up";
 }
 
-void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
+void MainApp::enterReplayMode()
 {
-    if (isInReplayMode)
-    {
-        qWarning() << "Already in replay mode, ignoring enterReplayMode call";
-        return;
-    }
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Live && "enterReplayMode called when already in replay mode");
 
-    qInfo() << "Entering replay mode for" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString("hh:mm:ss");
+    qInfo() << "Entering replay mode (data source switch only, playback not started)";
 
-    // 1. Set global flag
-    isInReplayMode = true;
+    // 1. Set data source mode
+    m_dataSourceMode = DataSourceMode::Replay;
 
     // 2. Switch TSClient to replay mode (blocking to ensure mode is set before streams open)
     QMetaObject::invokeMethod(
@@ -302,32 +308,25 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pla
         [this]() { tradeStationClient->setMode(TSClient::Mode::Replay); },
         Qt::BlockingQueuedConnection);
 
-    // 3. Tell MainAlgo to pause live streams and start replay (MainAlgo thread)
+    // 3. Tell MainAlgo to pause live streams (MainAlgo thread)
     QMetaObject::invokeMethod(
         mainAlgo,
-        [this, p_date, p_startTime, p_speed]()
+        [this]()
         {
             // Close positions/orders streams via receivers
             mainAlgo->pauseLiveStreams();
-
-            // Enter replay mode (creates ReplayEngine if needed, starts playback)
-            mainAlgo->enterReplayMode(p_date, p_startTime, p_speed);
         },
         Qt::QueuedConnection);
 
     // 4. Update UI
     appFrontend->onReplayModeEntered();
 
-    qInfo() << "Replay mode entry initiated";
+    qInfo() << "Replay mode entered, awaiting playback start";
 }
 
 void MainApp::exitReplayMode()
 {
-    if (!isInReplayMode)
-    {
-        qWarning() << "Not in replay mode, ignoring exitReplayMode call";
-        return;
-    }
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "exitReplayMode called when not in replay mode");
 
     qInfo() << "Exiting replay mode";
 
@@ -343,8 +342,8 @@ void MainApp::exitReplayMode()
         },
         Qt::BlockingQueuedConnection);
 
-    // 2. Reset global flag
-    isInReplayMode = false;
+    // 2. Reset data source mode
+    m_dataSourceMode = DataSourceMode::Live;
 
     // 3. Switch TSClient back to live mode (blocking)
     QMetaObject::invokeMethod(
@@ -356,4 +355,38 @@ void MainApp::exitReplayMode()
     appFrontend->onReplayModeExited();
 
     qInfo() << "Replay mode exited, live mode resumed";
+}
+
+void MainApp::startReplayPlayback(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
+{
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "startReplayPlayback called when not in replay mode");
+
+    qInfo() << "Starting replay playback for" << p_date.toString(Qt::ISODate) << "at"
+            << p_startTime.toString("hh:mm:ss");
+
+    // Tell MainAlgo to start replay (MainAlgo thread)
+    QMetaObject::invokeMethod(
+        mainAlgo,
+        [this, p_date, p_startTime, p_speed]() { mainAlgo->enterReplayMode(p_date, p_startTime, p_speed); },
+        Qt::QueuedConnection);
+
+    qInfo() << "Replay playback start initiated";
+}
+
+void MainApp::pauseReplayPlayback()
+{
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "pauseReplayPlayback called when not in replay mode");
+
+    qInfo() << "Pausing replay playback";
+
+    QMetaObject::invokeMethod(mainAlgo, [this]() { mainAlgo->pauseReplay(); }, Qt::QueuedConnection);
+}
+
+void MainApp::resumeReplayPlayback()
+{
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "resumeReplayPlayback called when not in replay mode");
+
+    qInfo() << "Resuming replay playback";
+
+    QMetaObject::invokeMethod(mainAlgo, [this]() { mainAlgo->resumeReplay(); }, Qt::QueuedConnection);
 }

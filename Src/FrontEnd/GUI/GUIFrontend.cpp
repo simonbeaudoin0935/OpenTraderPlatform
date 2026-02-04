@@ -1223,8 +1223,9 @@ void GUIFrontend::onReplayModeEntered()
                                          "border-radius: 4px; font-weight: bold; cursor: pointer; }");
     }
 
-    // Show replay widgets in toolbar
+    // Show replay widgets in toolbar and ensure play button is in stopped state
     ui->priceChart->toolbar()->setReplayWidgetsVisible(true);
+    ui->priceChart->toolbar()->setReplayPlaying(false);
 
     // Update chart visual (background color and watermark)
     ui->priceChart->setReplayModeActive(true);
@@ -1245,7 +1246,8 @@ void GUIFrontend::onReplayModeExited()
                                          "border-radius: 4px; font-weight: bold; cursor: pointer; }");
     }
 
-    // Hide replay widgets in toolbar
+    // Reset play button state and hide replay widgets
+    ui->priceChart->toolbar()->setReplayPlaying(false);
     ui->priceChart->toolbar()->setReplayWidgetsVisible(false);
 
     // Restore chart visual
@@ -1305,38 +1307,31 @@ bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
     // Handle click on data source label (toggle LIVE/REPLAY)
     if (p_watched == m_dataSourceLabel && p_event->type() == QEvent::MouseButtonRelease)
     {
-        if (MainApp::isInReplayMode)
+        if (MainApp::isInReplayMode())
         {
             // Currently in replay mode - exit replay
             MainApp::getInstance()->exitReplayMode();
         }
         else
         {
-            // Currently in live mode - enter replay mode
-            // Get the selected date, time, and speed from the chart toolbar
+            // Currently in live mode - enter replay mode (without starting playback)
+            // Playback starts when user clicks Play button in ChartToolbar
             ChartToolbar* toolbar = ui->priceChart->toolbar();
-            QDate replayDate = toolbar->getSelectedReplayDay();
-            QTime replayTime = toolbar->getReplayStartTime();
-            ReplayEngine::PlaybackSpeed speed = toolbar->getReplaySpeed();
 
-            if (!replayDate.isValid())
+            // Scan for available replay days if not already populated
+            toolbar->scanAndPopulateReplayDays();
+
+            if (!toolbar->getSelectedReplayDay().isValid())
             {
-                // No date selected - scan for available days first
-                toolbar->scanAndPopulateReplayDays();
-                replayDate = toolbar->getSelectedReplayDay();
-
-                if (!replayDate.isValid())
-                {
-                    QMessageBox::warning(nullptr,
-                                         "No Replay Data",
-                                         "No recorded data found for replay.\n\n"
-                                         "Use the Recorder tab to record market data first.");
-                    return true;
-                }
+                QMessageBox::warning(nullptr,
+                                     "No Replay Data",
+                                     "No recorded data found for replay.\n\n"
+                                     "Use the Recorder tab to record market data first.");
+                return true;
             }
 
-            qCInfo(GUIFrontendLog) << "Entering replay mode for" << replayDate << "at" << replayTime;
-            MainApp::getInstance()->enterReplayMode(replayDate, replayTime, speed);
+            qCInfo(GUIFrontendLog) << "Entering replay mode (playback not started yet)";
+            MainApp::getInstance()->enterReplayMode();
         }
 
         return true; // Event handled

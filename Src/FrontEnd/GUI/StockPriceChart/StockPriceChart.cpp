@@ -249,7 +249,8 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
 
                     if (date.isValid())
                     {
-                        MainApp::getInstance()->enterReplayMode(date, startTime, speed);
+                        // Start or resume playback depending on current state
+                        MainApp::getInstance()->startReplayPlayback(date, startTime, speed);
                     }
                     else
                     {
@@ -259,7 +260,8 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
                 }
                 else
                 {
-                    MainApp::getInstance()->exitReplayMode();
+                    // Pause playback (stay in replay mode)
+                    MainApp::getInstance()->pauseReplayPlayback();
                 }
             });
 
