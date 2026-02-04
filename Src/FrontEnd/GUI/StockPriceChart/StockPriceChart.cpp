@@ -161,7 +161,7 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_timeLineTimer = new QTimer(this);
     Q_CHECK_PTR(m_timeLineTimer);
     m_timeLineTimer->setInterval(1000); // Update every second
-    connect(m_timeLineTimer, &QTimer::timeout, this, &StockPriceChart::updateCurrentTimeLine, Qt::UniqueConnection);
+    connect(m_timeLineTimer, &QTimer::timeout, this, &StockPriceChart::updateCurrentTimeLine);
 
     // Enable mouse interactions
     m_customPlot->setInteractions(QCP::iRangeDrag);
@@ -1420,6 +1420,6 @@ void StockPriceChart::updateCurrentTimeLine()
     m_currentTimeLine->start->setCoords(currentIndex, yRange.lower);
     m_currentTimeLine->end->setCoords(currentIndex, yRange.upper);
 
-    // Replot to update the line position
-    m_customPlot->replot();
+    // Use queued replot for better performance - allows batching multiple updates
+    m_customPlot->replot(QCustomPlot::rpQueuedReplot);
 }
