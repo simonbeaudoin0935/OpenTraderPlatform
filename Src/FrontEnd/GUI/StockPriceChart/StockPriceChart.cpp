@@ -1467,10 +1467,10 @@ void StockPriceChart::setReplayModeActive(bool active)
  * Each minute corresponds to 1 index unit, so each second moves the line by 1/60 of an index.
  *
  * Note: TradeStation timestamps represent the closing time of a bar. For example, a bar covering
- * 6:00:00-6:00:59 has timestamp 6:01:00. Therefore, we subtract 60 seconds from the bar's
+ * 4:00:00-4:00:59 has timestamp 4:01:00. Therefore, we subtract 60 seconds from the bar's
  * timestamp to get the opening time, which is the actual start of index 0.
  *
- * The line stops advancing after market close (8:00 PM) and resumes at market open (6:00 AM).
+ * The line stops advancing after market close (8:00 PM) and resumes at market open (4:00 AM).
  */
 void StockPriceChart::updateCurrentTimeLine()
 {
@@ -1494,18 +1494,19 @@ void StockPriceChart::updateCurrentTimeLine()
     // Subtract 60 seconds to get the opening time (actual start of the bar).
     QDateTime zeroIndexTime = it->getTimeStamp().addSecs(-60);
 
-    // Check if current time is within trading hours (6:00 AM - 8:00 PM ET)
+    // Check if current time is within trading hours (4:00 AM - 8:00 PM ET)
     QTime currentTimeOfDay = currentTime.time();
-    QTime marketOpen = QTime(6, 0);   // 6:00 AM - pre-market open
-    QTime marketClose = QTime(20, 0); // 8:00 PM - after-hours close
+    // Market open is at 4:00 AM (early pre-market), first bar timestamp is 4:01 AM
+    QTime marketOpen = TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION.addSecs(-60);
+    QTime marketClose = TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION; // 8:00 PM
 
     // Calculate the time difference in seconds
     qint64 secondsDiff = zeroIndexTime.secsTo(currentTime);
 
-    // If we're before market open, cap at the start (6:00 AM position)
+    // If we're before market open, cap at the start (4:00 AM position)
     if (currentTimeOfDay < marketOpen)
     {
-        // Position line at 6:00 AM (start of trading day)
+        // Position line at 4:00 AM (start of trading day)
         QDateTime marketOpenTime(currentTime.date(), marketOpen, TradingHours::MARKET_TIMEZONE);
         secondsDiff = zeroIndexTime.secsTo(marketOpenTime);
     }
