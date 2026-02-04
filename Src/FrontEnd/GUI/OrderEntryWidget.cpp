@@ -627,6 +627,8 @@ void OrderEntryWidget::loadSavedSettings()
     if (button)
     {
         button->setChecked(true);
+        // Synchronize the submit button appearance with the loaded trade action
+        onTradeActionChanged(savedTradeAction);
     }
 
     // Load confirmation enabled setting
