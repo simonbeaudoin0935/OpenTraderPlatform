@@ -49,6 +49,8 @@ class ReplayEngine : public QObject
      */
     enum class PlaybackSpeed
     {
+        SuperSlow = 1,        ///< 0.01x speed (delays multiplied by 100)
+        VerySlow = 10,        ///< 0.1x speed (delays multiplied by 10)
         Half = 50,            ///< 0.5x speed (delays multiplied by 2)
         Normal = 100,         ///< 1.0x speed (real-time)
         Double = 200,         ///< 2.0x speed (delays divided by 2)
@@ -188,6 +190,7 @@ class ReplayEngine : public QObject
     PlaybackSpeed m_speed = PlaybackSpeed::Normal;
 
     qint64 m_lastEmittedTimestampMs = 0;
+    uint32_t m_replayGeneration = 0; // Incremented on each startReplay to invalidate stale timer events
 
     /**
      * @brief Emit current data point to appropriate TSClient stream

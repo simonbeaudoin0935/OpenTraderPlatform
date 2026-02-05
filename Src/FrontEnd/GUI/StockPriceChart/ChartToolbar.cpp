@@ -47,13 +47,15 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
     replaySpeedCombo = new QComboBox(this);
     replaySpeedCombo->setMinimumWidth(80);
     replaySpeedCombo->setMaximumWidth(100);
+    replaySpeedCombo->addItem("0.01x", static_cast<int>(ReplayEngine::PlaybackSpeed::SuperSlow));
+    replaySpeedCombo->addItem("0.1x", static_cast<int>(ReplayEngine::PlaybackSpeed::VerySlow));
     replaySpeedCombo->addItem("0.5x", static_cast<int>(ReplayEngine::PlaybackSpeed::Half));
     replaySpeedCombo->addItem("1x", static_cast<int>(ReplayEngine::PlaybackSpeed::Normal));
     replaySpeedCombo->addItem("2x", static_cast<int>(ReplayEngine::PlaybackSpeed::Double));
     replaySpeedCombo->addItem("5x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast5x));
     replaySpeedCombo->addItem("10x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast10x));
     replaySpeedCombo->addItem("Max", static_cast<int>(ReplayEngine::PlaybackSpeed::AsFastAsPossible));
-    replaySpeedCombo->setCurrentIndex(1); // Default to 1x
+    replaySpeedCombo->setCurrentIndex(3); // Default to 1x
     replaySpeedCombo->setToolTip("Replay playback speed");
 
     playPauseButton = new QPushButton("Play", this);
