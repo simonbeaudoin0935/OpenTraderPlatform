@@ -619,13 +619,14 @@ void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
                                                                   double bidDWP,
                                                                   double askDWP)
 {
-    Q_UNUSED(symbol);
-
     ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks());
     ui->marketDepthTable->updateDWP(bidDWP, askDWP);
 
     // Update the BAI gauge with the bid-ask imbalance
     ui->baiGauge->setValue(bidAskImbalance);
+
+    // Forward market depth update to OrderEntryWidget for sticky price feature
+    ui->orderEntryWidget->onMarketDepthUpdate(symbol, quote);
 }
 
 void GUIFrontend::onNewPositionReceived(QString account, Position position)
