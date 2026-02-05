@@ -29,7 +29,11 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     , m_submitButton(new QPushButton("Submit Order", this))
     , m_limitPriceLabel(new QLabel("Limit Price:", this))
     , m_stopPriceLabel(new QLabel("Stop Price:", this))
-    , m_stickyCheckBox(new QCheckBox("Sticky", this))
+    , m_stickyLabel(new QLabel("Sticky:", this))
+    , m_stickyCheckBox(new QCheckBox(this))
+    , m_aggressiveRadio(new QRadioButton("Aggressive", this))
+    , m_passiveRadio(new QRadioButton("Passive", this))
+    , m_stickyModeGroup(new QButtonGroup(this))
     , m_stickyOffsetInput(new QDoubleSpinBox(this))
     , m_settingsButton(new QToolButton(this))
     , m_settingsMenu(new QMenu(this))
@@ -40,6 +44,7 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     , m_resultPopupEnabled(true)           // Default to enabled
     , m_cancelAllConfirmationEnabled(true) // Default to enabled
     , m_stickyEnabled(false)               // Default to disabled
+    , m_stickyAggressiveMode(true)         // Default to aggressive
     , m_lastBestBid(0.0)
     , m_lastBestAsk(0.0)
     , m_guiFrontend(nullptr)
@@ -139,13 +144,15 @@ void OrderEntryWidget::setupUI()
     m_quantityInput->setToolTip("Number of shares");
     formLayout->addRow("Quantity:", m_quantityInput);
 
-    // Limit Price row with sticky checkbox and offset
-    m_limitPriceInput->setMinimum(0.01);
-    m_limitPriceInput->setMaximum(999999.99);
-    m_limitPriceInput->setDecimals(2);
-    m_limitPriceInput->setValue(0.00);
-    m_limitPriceInput->setPrefix("$ ");
-    m_limitPriceInput->setToolTip("Limit price for order");
+    // Sticky controls row (new row above limit price)
+    m_stickyCheckBox->setToolTip("Enable auto-update limit price from market depth");
+
+    // Configure sticky mode radio buttons
+    m_stickyModeGroup->addButton(m_aggressiveRadio, 0);
+    m_stickyModeGroup->addButton(m_passiveRadio, 1);
+    m_aggressiveRadio->setChecked(true); // Default to aggressive
+    m_aggressiveRadio->setToolTip("Cross spread for guaranteed fills (Buy=Ask+offset, Sell=Bid-offset)");
+    m_passiveRadio->setToolTip("Enter on bid/ask for better price (Buy=Bid+offset, Sell=Ask-offset)");
 
     // Configure sticky offset spinbox
     m_stickyOffsetInput->setMinimum(0.00);
@@ -157,18 +164,28 @@ void OrderEntryWidget::setupUI()
     m_stickyOffsetInput->setToolTip("Price offset from best bid/ask");
     m_stickyOffsetInput->setFixedWidth(65);
 
-    m_stickyCheckBox->setToolTip("Auto-update limit price from market depth");
+    // Create horizontal layout for sticky controls
+    QWidget* stickyWidget = new QWidget(this);
+    QHBoxLayout* stickyLayout = new QHBoxLayout(stickyWidget);
+    stickyLayout->setContentsMargins(0, 0, 0, 0);
+    stickyLayout->setSpacing(4);
+    stickyLayout->addWidget(m_stickyCheckBox);
+    stickyLayout->addWidget(m_aggressiveRadio);
+    stickyLayout->addWidget(m_passiveRadio);
+    stickyLayout->addWidget(m_stickyOffsetInput);
+    stickyLayout->addStretch(); // Push everything to the left
 
-    // Create horizontal layout for sticky checkbox, offset, and limit price input
-    QWidget* limitPriceWidget = new QWidget(this);
-    QHBoxLayout* limitPriceLayout = new QHBoxLayout(limitPriceWidget);
-    limitPriceLayout->setContentsMargins(0, 0, 0, 0);
-    limitPriceLayout->setSpacing(4);
-    limitPriceLayout->addWidget(m_stickyCheckBox);
-    limitPriceLayout->addWidget(m_stickyOffsetInput);
-    limitPriceLayout->addWidget(m_limitPriceInput, 1); // Give limit price input stretch factor
+    formLayout->addRow(m_stickyLabel, stickyWidget);
 
-    formLayout->addRow(m_limitPriceLabel, limitPriceWidget);
+    // Limit Price row (now simplified, just the input)
+    m_limitPriceInput->setMinimum(0.01);
+    m_limitPriceInput->setMaximum(999999.99);
+    m_limitPriceInput->setDecimals(2);
+    m_limitPriceInput->setValue(0.00);
+    m_limitPriceInput->setPrefix("$ ");
+    m_limitPriceInput->setToolTip("Limit price for order");
+
+    formLayout->addRow(m_limitPriceLabel, m_limitPriceInput);
 
     // Stop Price
     m_stopPriceInput->setMinimum(0.01);
@@ -320,6 +337,21 @@ void OrderEntryWidget::setupUI()
                        &OrderEntryWidget::saveStickyOffsetSetting,
                        Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(c16);
+
+    // Connect sticky mode radio buttons
+    auto c17 = connect(m_stickyModeGroup,
+                       QOverload<int>::of(&QButtonGroup::idClicked),
+                       this,
+                       &OrderEntryWidget::onStickyModeChanged,
+                       Qt::UniqueConnection);
+    OBJ_ASSUME_TRUE(c17);
+
+    auto c18 = connect(m_stickyModeGroup,
+                       QOverload<int>::of(&QButtonGroup::idClicked),
+                       this,
+                       &OrderEntryWidget::saveStickyModeSetting,
+                       Qt::UniqueConnection);
+    OBJ_ASSUME_TRUE(c18);
 
     // Initialize visibility based on default order type
     updatePriceFieldsVisibility();
@@ -502,7 +534,10 @@ void OrderEntryWidget::updatePriceFieldsVisibility()
     bool needsLimitPrice = (orderType == OrderType::Type::Limit || orderType == OrderType::Type::StopLimit);
     m_limitPriceLabel->setVisible(needsLimitPrice);
     m_limitPriceInput->setVisible(needsLimitPrice);
+    m_stickyLabel->setVisible(needsLimitPrice);
     m_stickyCheckBox->setVisible(needsLimitPrice);
+    m_aggressiveRadio->setVisible(needsLimitPrice);
+    m_passiveRadio->setVisible(needsLimitPrice);
     m_stickyOffsetInput->setVisible(needsLimitPrice);
 
     // Show/hide stop price based on order type
@@ -714,6 +749,15 @@ void OrderEntryWidget::loadSavedSettings()
     m_stickyEnabled = appStateSettings->value("OrderEntry/StickyPrice", false).toBool();
     m_stickyCheckBox->setChecked(m_stickyEnabled);
 
+    // Load sticky mode (0 = aggressive, 1 = passive)
+    int savedStickyMode = appStateSettings->value("OrderEntry/StickyMode", 0).toInt();
+    QAbstractButton* modeButton = m_stickyModeGroup->button(savedStickyMode);
+    if (modeButton)
+    {
+        modeButton->setChecked(true);
+        m_stickyAggressiveMode = (savedStickyMode == 0);
+    }
+
     double savedStickyOffset = appStateSettings->value("OrderEntry/StickyOffset", 0.00).toDouble();
     m_stickyOffsetInput->setValue(savedStickyOffset);
 }
@@ -819,6 +863,22 @@ void OrderEntryWidget::saveStickyOffsetSetting(double value)
     appStateSettings->sync();
 }
 
+void OrderEntryWidget::onStickyModeChanged(int id)
+{
+    m_stickyAggressiveMode = (id == 0); // 0 = aggressive, 1 = passive
+    if (m_stickyEnabled)
+    {
+        updateStickyPrice();
+    }
+}
+
+void OrderEntryWidget::saveStickyModeSetting(int id)
+{
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("OrderEntry/StickyMode", id);
+    appStateSettings->sync();
+}
+
 void OrderEntryWidget::onMarketDepthUpdate(const QString& symbol, const MarketDepthQuote& quote)
 {
     // Only update if this is for the current symbol
@@ -871,16 +931,29 @@ void OrderEntryWidget::updateStickyPrice()
     double offset = m_stickyOffsetInput->value();
     double finalPrice = 0.0;
 
+    // Determine base price based on mode and trade action
     switch (action)
     {
     case TradeAction::Buy:
     case TradeAction::BuyToCover:
     case TradeAction::BuyToOpen:
     case TradeAction::BuyToClose:
-        // For buy orders, use ask price + offset
-        if (m_lastBestAsk > 0.0)
+        // Buy orders
+        if (m_stickyAggressiveMode)
         {
-            finalPrice = m_lastBestAsk + offset;
+            // Aggressive: Cross spread (Ask + offset) for guaranteed fill
+            if (m_lastBestAsk > 0.0)
+            {
+                finalPrice = m_lastBestAsk + offset;
+            }
+        }
+        else
+        {
+            // Passive: Enter on bid (Bid + offset) for better price
+            if (m_lastBestBid > 0.0)
+            {
+                finalPrice = m_lastBestBid + offset;
+            }
         }
         break;
 
@@ -888,15 +961,28 @@ void OrderEntryWidget::updateStickyPrice()
     case TradeAction::SellShort:
     case TradeAction::SellToOpen:
     case TradeAction::SellToClose:
-        // For sell orders, use bid price - offset
-        if (m_lastBestBid > 0.0)
+        // Sell orders
+        if (m_stickyAggressiveMode)
         {
-            finalPrice = m_lastBestBid - offset;
-            // Ensure price doesn't go negative
-            if (finalPrice < 0.01)
+            // Aggressive: Cross spread (Bid - offset) for guaranteed fill
+            if (m_lastBestBid > 0.0)
             {
-                finalPrice = 0.01;
+                finalPrice = m_lastBestBid - offset;
             }
+        }
+        else
+        {
+            // Passive: Enter on ask (Ask - offset) for better price
+            if (m_lastBestAsk > 0.0)
+            {
+                finalPrice = m_lastBestAsk - offset;
+            }
+        }
+
+        // Ensure price doesn't go negative
+        if (finalPrice < 0.01)
+        {
+            finalPrice = 0.01;
         }
         break;
     }

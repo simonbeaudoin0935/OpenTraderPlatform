@@ -312,9 +312,11 @@ Order placement interface.
 - Trade action (Buy/Sell radio buttons)
 - Order type (Market, Limit, Stop, etc.)
 - Quantity
-- Limit price (if applicable)
-  - **Sticky checkbox**: Auto-updates limit price from Level 2 market depth
+- Sticky controls (separate row, visible for Limit/Stop Limit orders):
+  - **Sticky checkbox**: Enable auto-price tracking
+  - **Aggressive/Passive radio buttons**: Choose fill strategy
   - **Price offset spinbox**: Adds buffer ($0.00-$10.00) to best bid/ask
+- Limit price (if applicable)
 - Time in force (Day, GTC)
 
 **Validation**:
@@ -324,31 +326,46 @@ Order placement interface.
 
 **Sticky Limit Price Feature**:
 
-The sticky price feature automatically updates the limit price based on real-time Level 2 market depth data, emulating market orders during pre-market and after-hours trading.
+The sticky price feature automatically updates the limit price based on real-time Level 2 market depth data, with two distinct modes for different trading strategies.
 
 *When to Use*:
 - Pre-market or after-hours trading when market orders may not be accepted
-- Wanting to guarantee fills with minimal slippage
+- Wanting to guarantee fills with minimal slippage (Aggressive mode)
+- Trying to get better prices by entering on the bid/ask (Passive mode)
 - Needing to stay competitive with dynamic bid/ask spreads
 
+*Two Modes*:
+
+**Aggressive Mode** (Default):
+- **Buy**: Limit price = Best Ask + Offset (crosses spread for guaranteed fill)
+- **Sell**: Limit price = Best Bid - Offset (crosses spread for guaranteed fill)
+- Use when you want immediate execution and are willing to pay/accept current market prices
+- Mimics market order behavior during pre-market/after-hours
+
+**Passive Mode**:
+- **Buy**: Limit price = Best Bid + Offset (enters on bid, may not fill immediately)
+- **Sell**: Limit price = Best Ask - Offset (enters on ask, may not fill immediately)
+- Use when you want better prices and are patient
+- Risk: May not get filled if market moves away
+
 *How it Works*:
-- **Buy orders**: Limit price = Best Ask + Offset
-- **Sell orders**: Limit price = Best Bid - Offset
 - Price updates automatically on every market depth quote
 - Visual green flash indicates automatic price update
+- Recalculates when trade action, mode, or offset changes
 
 *Configuration*:
 1. Select Limit or Stop Limit order type
 2. Check the "Sticky" checkbox
-3. Set desired price offset (default: $0.00)
+3. Select mode:
+   - **Aggressive**: For guaranteed fills (cross the spread)
+   - **Passive**: For better prices (enter on bid/ask)
+4. Set desired price offset (default: $0.00)
    - $0.00: Match best bid/ask exactly
    - $0.01-$0.05: Small buffer for better fills
    - $0.10+: Larger buffer for volatile stocks
-4. Limit price auto-updates as market depth changes
+5. Limit price auto-updates as market depth changes
 
 *Behavior*:
-- Recalculates when trade action changes (Buy ↔ Sell)
-- Recalculates when offset value changes
 - User can manually override (will be overwritten on next update)
 - State persists across application restarts
 - Only visible for Limit and Stop Limit order types

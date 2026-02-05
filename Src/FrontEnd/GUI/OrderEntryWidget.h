@@ -65,6 +65,8 @@ class OrderEntryWidget : public QWidget
     void onCancelAllConfirmationCheckBoxToggled(bool checked);
     void onStickyCheckBoxToggled(bool checked);
     void saveStickyPriceSetting(bool checked);
+    void onStickyModeChanged(int id);
+    void saveStickyModeSetting(int id);
     void onStickyOffsetChanged(double value);
     void saveStickyOffsetSetting(double value);
 
@@ -97,7 +99,11 @@ class OrderEntryWidget : public QWidget
     QLabel* m_stopPriceLabel;
 
     // Sticky price components
+    QLabel* m_stickyLabel;
     QCheckBox* m_stickyCheckBox;
+    QRadioButton* m_aggressiveRadio;
+    QRadioButton* m_passiveRadio;
+    QButtonGroup* m_stickyModeGroup;
     QDoubleSpinBox* m_stickyOffsetInput;
 
     // Settings menu
@@ -113,6 +119,7 @@ class OrderEntryWidget : public QWidget
 
     // Sticky price state
     bool m_stickyEnabled;
+    bool m_stickyAggressiveMode; // true = aggressive, false = passive
     double m_lastBestBid;
     double m_lastBestAsk;
 
