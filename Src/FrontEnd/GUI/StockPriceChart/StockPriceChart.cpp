@@ -420,6 +420,9 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         m_volumeAxisRect->axis(QCPAxis::atBottom)->setTicker(indexToTimeTicker);
         m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabels(true);
 
+        // Also set the same ticker on main chart's X-axis so grid lines align with nice times
+        m_customPlot->xAxis->setTicker(indexToTimeTicker);
+
         OBJ_ASSUME_EQUAL(timestampToIndex.size(), 0);
 
         // The indexd of the first bar received when opening the stream is always 0
