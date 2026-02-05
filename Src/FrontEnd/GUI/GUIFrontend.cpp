@@ -187,6 +187,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     bool isSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
     m_tradingModeLabel = new QLabel(isSimMode ? "🔵 SIM" : "🟠 LIVE", mainWindow);
     Q_CHECK_PTR(m_tradingModeLabel);
+    m_tradingModeLabel->setAlignment(Qt::AlignCenter);
+    m_tradingModeLabel->setMinimumWidth(65);
     m_tradingModeLabel->setStyleSheet(isSimMode
                                           ? "QLabel { background-color: #1E90FF; color: #ffffff; padding: 4px 8px; "
                                             "border-radius: 4px; font-weight: bold; cursor: pointer; }"
@@ -201,6 +203,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // Create data source indicator (right side: LIVE/REPLAY) - clickable to toggle (only visible in SIM mode)
     m_dataSourceLabel = new QLabel("🟢 LIVE", mainWindow);
     Q_CHECK_PTR(m_dataSourceLabel);
+    m_dataSourceLabel->setAlignment(Qt::AlignCenter);
+    m_dataSourceLabel->setMinimumWidth(80);
     m_dataSourceLabel->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
                                      "border-radius: 4px; font-weight: bold; cursor: pointer; }");
     m_dataSourceLabel->setToolTip("Click to toggle between LIVE data and REPLAY mode");
@@ -1239,7 +1243,7 @@ void GUIFrontend::updateSessionLabel()
         backgroundColor = "#4a3a1a"; // Dark orange-brown
         break;
     case TradingSession::Closed:
-        sessionText = "🌙 CLOSED";
+        sessionText = "🌚 CLOSED";
         backgroundColor = "#1a1a2a"; // Dark blue-gray
         break;
     default:
@@ -1273,7 +1277,7 @@ void GUIFrontend::updateTimeDisplay()
     // Update display with appropriate styling
     if (isReplayMode)
     {
-        // REPLAY mode: Amber/orange glow effect
+        // REPLAY mode: Amber/orange color
         m_timeDisplayLabel->setText("⏱️ " + timeStr);
         m_timeDisplayLabel->setStyleSheet(
             "QLabel { "
@@ -1287,12 +1291,11 @@ void GUIFrontend::updateTimeDisplay()
             "  font-size: 14px; "
             "  font-weight: bold; "
             "  letter-spacing: 1px; "
-            "  text-shadow: 0 0 8px #ff9900; " // Glow effect
             "}");
     }
     else
     {
-        // LIVE mode: Green glow effect
+        // LIVE mode: Green color
         m_timeDisplayLabel->setText("🕐 " + timeStr);
         m_timeDisplayLabel->setStyleSheet(
             "QLabel { "
@@ -1306,7 +1309,6 @@ void GUIFrontend::updateTimeDisplay()
             "  font-size: 14px; "
             "  font-weight: bold; "
             "  letter-spacing: 1px; "
-            "  text-shadow: 0 0 8px #00ff00; " // Glow effect
             "}");
     }
 }
