@@ -138,31 +138,13 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                          Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(accountInfoConnection);
 
-    // Create trading mode indicator (SIM/LIVE) - clickable to toggle
-    bool isSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
-    m_tradingModeLabel = new QLabel(isSimMode ? "🔵 SIM" : "🟠 LIVE", mainWindow);
-    Q_CHECK_PTR(m_tradingModeLabel);
-    m_tradingModeLabel->setStyleSheet(isSimMode
-                                          ? "QLabel { background-color: #1E90FF; color: #ffffff; padding: 4px 8px; "
-                                            "border-radius: 4px; font-weight: bold; cursor: pointer; }"
-                                          : "QLabel { background-color: #FF8C00; color: #ffffff; padding: 4px 8px; "
-                                            "border-radius: 4px; font-weight: bold; cursor: pointer; }");
-    m_tradingModeLabel->setToolTip("Click to toggle between SIM and LIVE trading mode (requires restart)");
-    m_tradingModeLabel->setCursor(Qt::PointingHandCursor);
-    m_tradingModeLabel->installEventFilter(this);
-    ui->topControlsLayout->insertWidget(3, m_tradingModeLabel);
+    // Reorganize toolbar: Center session+clock, right-align mode labels
 
-    // Create data source indicator (LIVE/REPLAY) - clickable to toggle (only visible in SIM mode)
-    m_dataSourceLabel = new QLabel("🟢 LIVE", mainWindow);
-    Q_CHECK_PTR(m_dataSourceLabel);
-    m_dataSourceLabel->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
-                                     "border-radius: 4px; font-weight: bold; cursor: pointer; }");
-    m_dataSourceLabel->setToolTip("Click to toggle between LIVE data and REPLAY mode");
-    m_dataSourceLabel->setCursor(Qt::PointingHandCursor);
-    m_dataSourceLabel->installEventFilter(this);
-    ui->topControlsLayout->insertWidget(4, m_dataSourceLabel);
+    // Add spacer to push session label towards center
+    auto* leftSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
+    ui->topControlsLayout->insertSpacerItem(3, leftSpacer);
 
-    // Create trading session indicator (read-only, shows current session)
+    // Create trading session indicator (centered with clock)
     m_sessionLabel = new QLabel("CLOSED", mainWindow);
     Q_CHECK_PTR(m_sessionLabel);
     m_sessionLabel->setStyleSheet("QLabel { background-color: #555555; color: #ffffff; padding: 4px 8px; "
@@ -173,10 +155,10 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                "📈 REGULAR: 9:31 AM - 4:00 PM ET\n"
                                "🌆 AFTER-HOURS: 4:01 PM - 8:00 PM ET\n"
                                "🌙 CLOSED: 8:01 PM - 4:00 AM ET");
-    ui->topControlsLayout->insertWidget(5, m_sessionLabel);
+    ui->topControlsLayout->insertWidget(4, m_sessionLabel);
     updateSessionLabel();
 
-    // Create time display widget with digital clock style
+    // Create time display widget (centered next to session label)
     m_timeDisplayLabel = new QLabel("00:00:00", mainWindow);
     Q_CHECK_PTR(m_timeDisplayLabel);
     m_timeDisplayLabel->setStyleSheet(
@@ -195,7 +177,35 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_timeDisplayLabel->setToolTip("Application time (New York timezone)\n"
                                    "🟢 Green: LIVE mode - real-time clock\n"
                                    "🟠 Amber: REPLAY mode - simulated time");
-    ui->topControlsLayout->insertWidget(6, m_timeDisplayLabel);
+    ui->topControlsLayout->insertWidget(5, m_timeDisplayLabel);
+
+    // Add spacer to push mode labels to the right
+    auto* rightSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
+    ui->topControlsLayout->insertSpacerItem(6, rightSpacer);
+
+    // Create trading mode indicator (right side: SIM/LIVE) - clickable to toggle
+    bool isSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
+    m_tradingModeLabel = new QLabel(isSimMode ? "🔵 SIM" : "🟠 LIVE", mainWindow);
+    Q_CHECK_PTR(m_tradingModeLabel);
+    m_tradingModeLabel->setStyleSheet(isSimMode
+                                          ? "QLabel { background-color: #1E90FF; color: #ffffff; padding: 4px 8px; "
+                                            "border-radius: 4px; font-weight: bold; cursor: pointer; }"
+                                          : "QLabel { background-color: #FF8C00; color: #ffffff; padding: 4px 8px; "
+                                            "border-radius: 4px; font-weight: bold; cursor: pointer; }");
+    m_tradingModeLabel->setToolTip("Click to toggle between SIM and LIVE trading mode (requires restart)");
+    m_tradingModeLabel->setCursor(Qt::PointingHandCursor);
+    m_tradingModeLabel->installEventFilter(this);
+    ui->topControlsLayout->insertWidget(7, m_tradingModeLabel);
+
+    // Create data source indicator (right side: LIVE/REPLAY) - clickable to toggle (only visible in SIM mode)
+    m_dataSourceLabel = new QLabel("🟢 LIVE", mainWindow);
+    Q_CHECK_PTR(m_dataSourceLabel);
+    m_dataSourceLabel->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
+                                     "border-radius: 4px; font-weight: bold; cursor: pointer; }");
+    m_dataSourceLabel->setToolTip("Click to toggle between LIVE data and REPLAY mode");
+    m_dataSourceLabel->setCursor(Qt::PointingHandCursor);
+    m_dataSourceLabel->installEventFilter(this);
+    ui->topControlsLayout->insertWidget(8, m_dataSourceLabel);
 
     // Set up timer to update clock every second in LIVE mode
     m_timeUpdateTimer = new QTimer(this);
