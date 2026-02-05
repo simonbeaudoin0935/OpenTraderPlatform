@@ -1038,6 +1038,50 @@ void StockPriceChart::clearSymbol()
     m_customPlot->replot();
 }
 
+void StockPriceChart::clearChart()
+{
+    INFO << "Clearing chart data for replay mode";
+
+    // Clear all candlestick and volume data
+    m_candlesticks->data()->clear();
+    m_volumePos->data()->clear();
+    m_volumeNeg->data()->clear();
+    clearBackgroundRects();
+
+    // Clear index mappings
+    indexToBar.clear();
+    timestampToIndex.clear();
+
+    // Reset bar tracking
+    m_latestBarIndex = -1;
+    m_latestBar = Bar();
+
+    // Hide price label but keep symbol watermark (same symbol in replay)
+    m_priceLabel->setVisible(false);
+
+    // Stop current time line (replay has its own time)
+    m_timeLineTimer->stop();
+    m_currentTimeLine->setVisible(false);
+
+    // Reset state flags
+    startedReceivingRealtimeBars = false;
+
+    // Reset semaphore to available state
+    if (m_missingBarsRequestSemaphore.available() == 0)
+    {
+        DEBUG << "Releasing semaphore during clearChart - previous request was in-flight";
+        m_missingBarsRequestSemaphore.release();
+    }
+
+    // Reset view range
+    m_customPlot->xAxis->setRange(0, 30);
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(0, 100);
+
+    m_customPlot->replot();
+
+    DEBUG << "Chart cleared for replay mode";
+}
+
 /**
  * @brief Gets the previous valid trading minute.
  *

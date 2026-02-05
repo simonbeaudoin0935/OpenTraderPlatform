@@ -61,14 +61,16 @@ BarCache::BarCache(const QString& symbol, bool isStreaming, QObject* parent)
 
     if (isStreaming)
     {
-        startStream();
+        startStreamInternal();
     }
 }
 
 
-void BarCache::startStream()
+void BarCache::startStreamInternal()
 {
     DEBUG << "Starting bars stream for symbol " << m_symbol;
+
+    m_autoReconnect = true; // Reset auto-reconnect when starting stream
 
     m_stream = TSClient::getInstance()->openStreamBars(m_symbol,
                                                        1, /* Interval: 1 bar */
@@ -87,12 +89,15 @@ void BarCache::startStream()
                                     CRITICAL << "Bars cache bar future failed for" << m_symbol
                                              << "- Exception:" << error.value();
 
-                                    CRITICAL << "Restarting bars stream for symbol " << m_symbol;
-
-                                    // Turns out closeStream() is already done implicitely when the TSClient handles the stream error
-                                    // TSClient::getInstance()->closeStream(m_stream);
-
-                                    startStream();
+                                    if (m_autoReconnect)
+                                    {
+                                        CRITICAL << "Restarting bars stream for symbol " << m_symbol;
+                                        startStreamInternal();
+                                    }
+                                    else
+                                    {
+                                        DEBUG << "Auto-reconnect disabled, not restarting stream for" << m_symbol;
+                                    }
                                 }
                                 else
                                 {
@@ -586,6 +591,37 @@ void BarCache::clearDatabase()
                                                                                 << m_symbol;
                                                                     }
                                                                 });
+}
+
+void BarCache::clearMemoryCache()
+{
+    INFO << "Clearing in-memory bar cache for" << m_symbol;
+
+    // Stop stream first if active
+    stopStream(true);
+
+    // Clear the in-memory cache
+    {
+        QWriteLocker locker(&m_barCacheRwLock);
+        m_barCacheByDay.clear();
+    }
+
+    DEBUG << "In-memory bar cache cleared for" << m_symbol;
+}
+
+void BarCache::stopStream(bool disableAutoReconnect)
+{
+    if (disableAutoReconnect)
+    {
+        m_autoReconnect = false;
+    }
+
+    if (m_stream)
+    {
+        DEBUG << "Stopping bars stream for symbol" << m_symbol;
+        TSClient::getInstance()->closeStream(m_stream);
+        m_stream = nullptr;
+    }
 }
 
 constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDayRanges(const QDateTime& first,

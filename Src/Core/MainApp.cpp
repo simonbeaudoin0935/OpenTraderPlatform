@@ -312,13 +312,16 @@ void MainApp::enterReplayMode()
         [this]() { tradeStationClient->setMode(TSClient::Mode::Replay); },
         Qt::BlockingQueuedConnection);
 
-    // 4. Tell MainAlgo to pause live streams (MainAlgo thread)
+    // 4. Tell MainAlgo to pause live streams and clear bar caches (MainAlgo thread)
     QMetaObject::invokeMethod(
         mainAlgo,
         [this]()
         {
             // Close positions/orders streams via receivers
             mainAlgo->pauseLiveStreams();
+
+            // Clear all bar caches to start fresh for replay
+            mainAlgo->clearAllBarCaches();
         },
         Qt::QueuedConnection);
 

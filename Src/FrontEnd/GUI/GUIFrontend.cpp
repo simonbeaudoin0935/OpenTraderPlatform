@@ -1259,10 +1259,8 @@ void GUIFrontend::updateSessionLabel()
 
 void GUIFrontend::updateTimeDisplay()
 {
-    if (m_timeDisplayLabel == nullptr)
-    {
-        return;
-    }
+
+    OBJ_ASSUME_TRUE(m_timeDisplayLabel != nullptr);
 
     // Get current application time (live or replay)
     QDateTime currentTime = MainApp::getCurrentAppTime();
@@ -1321,12 +1319,15 @@ void GUIFrontend::onReplayModeEntered()
     {
         m_dataSourceLabel->setText("🔴 REPLAY");
         m_dataSourceLabel->setStyleSheet("QLabel { background-color: #8B0000; color: #ffffff; padding: 4px 8px; "
-                                         "border-radius: 4px; font-weight: bold; cursor: pointer; }");
+                                         "border-radius: 4px; font-weight: bold; font-weight: bold; }");
     }
 
     // Clear live orders and positions from widgets (replay starts with clean slate)
     ui->orderWindow->clearAllOrders();
     ui->positionWindow->clearAllPositions();
+
+    // Clear chart data for fresh replay (bar caches are cleared separately by MainAlgo)
+    ui->priceChart->clearChart();
 
     // Show replay widgets in toolbar and ensure play button is in stopped state
     ui->priceChart->toolbar()->setReplayWidgetsVisible(true);
@@ -1349,12 +1350,15 @@ void GUIFrontend::onReplayModeExited()
     {
         m_dataSourceLabel->setText("🟢 LIVE");
         m_dataSourceLabel->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
-                                         "border-radius: 4px; font-weight: bold; cursor: pointer; }");
+                                         "border-radius: 4px; font-weight: bold; }");
     }
 
     // Reset play button state and hide replay widgets
     ui->priceChart->toolbar()->setReplayPlaying(false);
     ui->priceChart->toolbar()->setReplayWidgetsVisible(false);
+
+    // Clear chart data (MainAlgo will clear caches and restart live stream)
+    ui->priceChart->clearChart();
 
     // Restore chart visual
     ui->priceChart->setReplayModeActive(false);

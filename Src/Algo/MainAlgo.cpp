@@ -792,3 +792,19 @@ ReplayEngine::PlaybackState MainAlgo::getReplayState() const
     }
     return m_replayEngine->getState();
 }
+
+void MainAlgo::clearAllBarCaches()
+{
+    INFO << "Clearing all bar caches for replay mode transition";
+
+    for (auto it = stockInstruments.begin(); it != stockInstruments.end(); ++it)
+    {
+        if (QPointer<StockInstruments> instrument = it.value(); instrument)
+        {
+            instrument->barCache.clearMemoryCache();
+            DEBUG << "Cleared bar cache for" << instrument->symbol;
+        }
+    }
+
+    INFO << "All bar caches cleared";
+}

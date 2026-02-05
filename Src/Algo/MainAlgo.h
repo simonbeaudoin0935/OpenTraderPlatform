@@ -107,6 +107,9 @@ class MainAlgo final : public QObject
     /// @brief Resume live streams after exiting replay mode
     void resumeLiveStreams();
 
+    /// @brief Clear all bar caches (for replay mode transition)
+    void clearAllBarCaches();
+
     /// @brief Get replay engine state
     [[nodiscard]] ReplayEngine::PlaybackState getReplayState() const;
 

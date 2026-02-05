@@ -45,6 +45,21 @@ class BarCache : public QObject
 
     void clearDatabase();
 
+    /**
+     * @brief Clears the in-memory bar cache, keeping database data intact.
+     *
+     * This is used when switching to replay mode to start fresh.
+     * The stream is stopped if active.
+     */
+    void clearMemoryCache();
+
+    /**
+     * @brief Stops the bar stream if active, with optional auto-reconnect disable.
+     *
+     * @param disableAutoReconnect If true, prevents the stream from auto-reconnecting on error.
+     */
+    void stopStream(bool disableAutoReconnect = false);
+
     // Converts a QTime timestamp to the corresponding index in the daily bar cache vector
     static size_t timeToIndex(const QTime& time);
 
@@ -59,7 +74,7 @@ class BarCache : public QObject
     void onReceivedNewLiveBar(Bar newBar);
 
   private:
-    void startStream();
+    void startStreamInternal();
 
     [[nodiscard]]
     static constexpr QVector<std::tuple<QDate, QTime, QTime>> splitIntoTradingDayRanges(const QDateTime& first,
@@ -82,6 +97,7 @@ class BarCache : public QObject
     const bool m_isStreaming;
     QString m_dbPath; // Path to the database file (managed by DatabaseThread)
     QPointer<StreamBars> m_stream;
+    bool m_autoReconnect = true; // Controls whether stream auto-reconnects on error
 
     mutable QReadWriteLock m_barCacheRwLock; // Protects m_barCacheByDay, mutable for use in const methods
     // Day-based storage: one QVector per trading day. Vector index maps to minute within trading day.
