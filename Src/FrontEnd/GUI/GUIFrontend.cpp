@@ -1247,8 +1247,7 @@ void GUIFrontend::updateSessionLabel()
         backgroundColor = "#1a1a2a"; // Dark blue-gray
         break;
     default:
-        sessionText = "UNKNOWN";
-        backgroundColor = "#2a2a2a";
+        Q_UNREACHABLE();
         break;
     }
 
