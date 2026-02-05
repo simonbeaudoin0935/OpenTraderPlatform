@@ -401,7 +401,10 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     {
         // Should be the case becase we call openBarStream() with barsback=1,
         // so we always get at least one historical bar first
-        OBJ_ASSUME_TRUE(bar.getIsEndOfHistory() == true);
+        if (MainApp::isInReplayMode() == false)
+        {
+            OBJ_ASSUME_TRUE(bar.getIsEndOfHistory() == true);
+        }
 
         // Sanity check: semaphore should be available (count == 1) for the first bar
         OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.available() == 1);
@@ -473,8 +476,11 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         return;
     }
 
-    // Any live bar after the first one shall have the isEndOfHistory flag false
-    OBJ_ASSUME_TRUE(bar.getIsEndOfHistory() == false);
+    if (MainApp::isInReplayMode() == false)
+    {
+        // Any live bar after the first one shall have the isEndOfHistory flag false
+        OBJ_ASSUME_TRUE(bar.getIsEndOfHistory() == false);
+    }
 
     switch (bar.getBarStatus())
     {

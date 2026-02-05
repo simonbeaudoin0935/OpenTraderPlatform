@@ -808,3 +808,27 @@ void MainAlgo::clearAllBarCaches()
 
     INFO << "All bar caches cleared";
 }
+
+void MainAlgo::startReplayStreamForDisplayedSymbol()
+{
+    if (!currentDisplayedStockInstrument)
+    {
+        WARNING << "No displayed stock instrument to start replay stream for";
+        return;
+    }
+
+    INFO << "Starting replay stream for displayed symbol:" << currentDisplayedStockInstrument->symbol;
+    currentDisplayedStockInstrument->barCache.startStream();
+}
+
+void MainAlgo::restartLiveStreamForDisplayedSymbol()
+{
+    if (!currentDisplayedStockInstrument)
+    {
+        WARNING << "No displayed stock instrument to restart live stream for";
+        return;
+    }
+
+    INFO << "Restarting live stream for displayed symbol:" << currentDisplayedStockInstrument->symbol;
+    currentDisplayedStockInstrument->barCache.startStream();
+}

@@ -60,6 +60,13 @@ class BarCache : public QObject
      */
     void stopStream(bool disableAutoReconnect = false);
 
+    /**
+     * @brief Starts the bar stream for this cache's symbol.
+     * In Live mode, connects to real TradeStation API.
+     * In Replay mode, creates a MockNetworkReply for injected data.
+     */
+    void startStream();
+
     // Converts a QTime timestamp to the corresponding index in the daily bar cache vector
     static size_t timeToIndex(const QTime& time);
 

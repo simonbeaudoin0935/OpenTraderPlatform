@@ -110,6 +110,12 @@ class MainAlgo final : public QObject
     /// @brief Clear all bar caches (for replay mode transition)
     void clearAllBarCaches();
 
+    /// @brief Start replay stream for the currently displayed symbol
+    void startReplayStreamForDisplayedSymbol();
+
+    /// @brief Restart live stream for the currently displayed symbol
+    void restartLiveStreamForDisplayedSymbol();
+
     /// @brief Get replay engine state
     [[nodiscard]] ReplayEngine::PlaybackState getReplayState() const;
 

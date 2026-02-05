@@ -322,6 +322,9 @@ void MainApp::enterReplayMode()
 
             // Clear all bar caches to start fresh for replay
             mainAlgo->clearAllBarCaches();
+
+            // Start replay stream for displayed symbol (backed by MockNetworkReply)
+            mainAlgo->startReplayStreamForDisplayedSymbol();
         },
         Qt::QueuedConnection);
 
@@ -344,6 +347,9 @@ void MainApp::exitReplayMode()
         {
             mainAlgo->exitReplayMode();
 
+            // Clear bar caches of replay data
+            mainAlgo->clearAllBarCaches();
+
             // Reopen positions/orders streams via receivers
             mainAlgo->resumeLiveStreams();
         },
@@ -358,7 +364,13 @@ void MainApp::exitReplayMode()
         [this]() { tradeStationClient->setMode(TSClient::Mode::Live); },
         Qt::BlockingQueuedConnection);
 
-    // 4. Update UI
+    // 4. Restart live bar stream for displayed symbol (now in Live mode)
+    QMetaObject::invokeMethod(
+        mainAlgo,
+        [this]() { mainAlgo->restartLiveStreamForDisplayedSymbol(); },
+        Qt::QueuedConnection);
+
+    // 5. Update UI
     appFrontend->onReplayModeExited();
 
     qInfo() << "Replay mode exited, live mode resumed";

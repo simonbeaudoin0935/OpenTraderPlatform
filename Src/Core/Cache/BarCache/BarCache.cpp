@@ -624,6 +624,17 @@ void BarCache::stopStream(bool disableAutoReconnect)
     }
 }
 
+void BarCache::startStream()
+{
+    if (m_stream)
+    {
+        WARNING << "Stream already active for" << m_symbol << "- stopping first";
+        stopStream(false);
+    }
+
+    startStreamInternal();
+}
+
 constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDayRanges(const QDateTime& first,
                                                                                        const QDateTime& last)
 {
