@@ -505,6 +505,8 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         }
         else
         {
+#error here we need to deal with startedReceivingRealtimeBars which is not restarted on replay
+
             OBJ_ASSUME_TRUE(m_latestBar.getBarStatus() == Bar::BarStatus::Closed);
             OBJ_ASSUME_GT(bar.getTimeStamp(), m_latestBar.getTimeStamp());
         }
