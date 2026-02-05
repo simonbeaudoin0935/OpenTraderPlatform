@@ -27,6 +27,7 @@ class PositionsReceiver : public QObject
   private:
     QPointer<StreamPositions> m_stream = nullptr;
     QString m_account;
+    bool m_autoReconnect = true; // Disable when intentionally stopping stream
 
     void createPositionsStream();
 };

@@ -54,9 +54,7 @@ void OrdersReceiver::createOrdersStream()
     m_stream->future().then(this,
                             [this](std::optional<QString> error)
                             {
-                                // We get here when the stream is gracefully closed by the receiving side.
-                                // This should never happen for the orders stream, its supposed to operate during
-                                // all the program execution.
+                                // We get here when the stream is closed (either gracefully or with error)
 
                                 if (error.has_value())
                                 {
@@ -68,7 +66,15 @@ void OrdersReceiver::createOrdersStream()
                                     DEBUG << "Orders stream for account" << m_account << "finished without error";
                                 }
 
-                                QTimer::singleShot(300, this, &OrdersReceiver::createOrdersStream);
+                                // Only auto-reconnect if not intentionally stopped (e.g., for replay mode)
+                                if (m_autoReconnect)
+                                {
+                                    QTimer::singleShot(300, this, &OrdersReceiver::createOrdersStream);
+                                }
+                                else
+                                {
+                                    DEBUG << "Auto-reconnect disabled, not recreating orders stream";
+                                }
                             });
 }
 
@@ -167,6 +173,7 @@ void OrdersReceiver::validateSnapshotOrders()
 void OrdersReceiver::stopStream(const QString& p_account)
 {
     Q_UNUSED(p_account);
+    m_autoReconnect = false; // Disable auto-reconnect when intentionally stopping
     if (m_stream != nullptr)
     {
         TSClient::getInstance()->closeStream(m_stream);

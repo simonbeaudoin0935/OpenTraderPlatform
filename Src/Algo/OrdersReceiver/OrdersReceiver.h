@@ -31,6 +31,7 @@ class OrdersReceiver : public QObject
     QString m_account;
     OrdersDatabase* m_database = nullptr;
     bool m_receivedEndSnapshot = false;
+    bool m_autoReconnect = true; // Disable when intentionally stopping stream
 
     // Track orders for the initial snapshot validation
     QMap<QString, QDateTime> m_snapshotOrders; // orderID -> received time
