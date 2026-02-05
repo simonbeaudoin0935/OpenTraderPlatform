@@ -382,6 +382,8 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
                         << "at timestamp:" << bar.getTimeStamp()
                         << "- Experimentally, this has proven to be possible from the API."
                            " It seems to be a little glitch from their side when the app sits idle after hours.";
+
+                return; // Ignore this bar
             }
             else
             {
