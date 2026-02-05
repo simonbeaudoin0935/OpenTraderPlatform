@@ -73,7 +73,7 @@ void BarCache::startStream()
     m_stream = TSClient::getInstance()->openStreamBars(m_symbol,
                                                        1, /* Interval: 1 bar */
                                                        Bar::BarUnit::Minute,
-                                                       0, /* Barsback: 0 bars */
+                                                       1, /* Barsback: 1 bars */
                                                        Bar::BarSessionTemplate::USEQ24Hour);
     Q_CHECK_PTR(m_stream);
 
@@ -591,8 +591,8 @@ void BarCache::clearDatabase()
 constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDayRanges(const QDateTime& first,
                                                                                        const QDateTime& last)
 {
-    ASSUME_EQUAL(first.timeZone(), QTimeZone("America/New_York"));
-    ASSUME_EQUAL(last.timeZone(), QTimeZone("America/New_York"));
+    ASSUME_EQUAL(first.timeZone(), TradingHours::MARKET_TIMEZONE);
+    ASSUME_EQUAL(last.timeZone(), TradingHours::MARKET_TIMEZONE);
     ASSUME_LT(first, last);
 
     // Ensure range is within trading hours
