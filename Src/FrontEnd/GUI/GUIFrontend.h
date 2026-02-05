@@ -69,6 +69,7 @@ class GUIFrontend : public FrontEnd
     void onCancelAllOrders();
     void onAccountInfoButtonClicked();
     void updateSessionLabel();
+    void updateTimeDisplay();
 
   private:
     void setupDarkTheme(QMainWindow* mainWindow);
@@ -108,4 +109,6 @@ class GUIFrontend : public FrontEnd
     QLabel* m_tradingModeLabel = nullptr; // Trading mode indicator (SIM/LIVE)
     QLabel* m_dataSourceLabel = nullptr;  // Data source indicator (LIVE/REPLAY)
     QLabel* m_sessionLabel = nullptr;     // Trading session indicator
+    QLabel* m_timeDisplayLabel = nullptr; // Application time display (live or replay)
+    QTimer* m_timeUpdateTimer = nullptr;  // Timer to update time display
 };

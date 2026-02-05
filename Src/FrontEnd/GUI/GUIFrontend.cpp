@@ -176,6 +176,36 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     ui->topControlsLayout->insertWidget(5, m_sessionLabel);
     updateSessionLabel();
 
+    // Create time display widget with digital clock style
+    m_timeDisplayLabel = new QLabel("00:00:00", mainWindow);
+    Q_CHECK_PTR(m_timeDisplayLabel);
+    m_timeDisplayLabel->setStyleSheet(
+        "QLabel { "
+        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "                               stop:0 #1a1a1a, stop:0.5 #0d0d0d, stop:1 #1a1a1a); "
+        "  color: #00ff00; " // Bright green for LIVE mode
+        "  border: 2px solid #333333; "
+        "  border-radius: 6px; "
+        "  padding: 6px 12px; "
+        "  font-family: 'Courier New', monospace; "
+        "  font-size: 14px; "
+        "  font-weight: bold; "
+        "  letter-spacing: 1px; "
+        "}");
+    m_timeDisplayLabel->setToolTip("Application time (New York timezone)\n"
+                                   "🟢 Green: LIVE mode - real-time clock\n"
+                                   "🟠 Amber: REPLAY mode - simulated time");
+    ui->topControlsLayout->insertWidget(6, m_timeDisplayLabel);
+
+    // Set up timer to update clock every second in LIVE mode
+    m_timeUpdateTimer = new QTimer(this);
+    Q_CHECK_PTR(m_timeUpdateTimer);
+    bool connected =
+        connect(m_timeUpdateTimer, &QTimer::timeout, this, &GUIFrontend::updateTimeDisplay, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+    m_timeUpdateTimer->start(1000); // Update every second
+    updateTimeDisplay();            // Initial update
+
     // In LIVE trading mode, hide data source label and replay widgets (replay not available with real money)
     // In SIM mode, show data source label but hide replay widgets until user enters replay mode
     if (!isSimMode)
@@ -1212,6 +1242,63 @@ void GUIFrontend::updateSessionLabel()
                                       .arg(backgroundColor));
 }
 
+void GUIFrontend::updateTimeDisplay()
+{
+    if (m_timeDisplayLabel == nullptr)
+    {
+        return;
+    }
+
+    // Get current application time (live or replay)
+    QDateTime currentTime = MainApp::getCurrentAppTime();
+
+    // Format time with date: "Wed 02/05  03:34:47 PM"
+    QString timeStr = currentTime.toString("ddd MM/dd  hh:mm:ss AP");
+
+    // Check if we're in replay mode
+    bool isReplayMode = MainApp::isInReplayMode();
+
+    // Update display with appropriate styling
+    if (isReplayMode)
+    {
+        // REPLAY mode: Amber/orange glow effect
+        m_timeDisplayLabel->setText("⏱️ " + timeStr);
+        m_timeDisplayLabel->setStyleSheet(
+            "QLabel { "
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+            "                               stop:0 #2a1a0a, stop:0.5 #1a0f05, stop:1 #2a1a0a); "
+            "  color: #ff9900; " // Amber for REPLAY
+            "  border: 2px solid #443322; "
+            "  border-radius: 6px; "
+            "  padding: 6px 12px; "
+            "  font-family: 'Courier New', monospace; "
+            "  font-size: 14px; "
+            "  font-weight: bold; "
+            "  letter-spacing: 1px; "
+            "  text-shadow: 0 0 8px #ff9900; " // Glow effect
+            "}");
+    }
+    else
+    {
+        // LIVE mode: Green glow effect
+        m_timeDisplayLabel->setText("🕐 " + timeStr);
+        m_timeDisplayLabel->setStyleSheet(
+            "QLabel { "
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+            "                               stop:0 #0a1a0a, stop:0.5 #050f05, stop:1 #0a1a0a); "
+            "  color: #00ff00; " // Bright green for LIVE
+            "  border: 2px solid #224422; "
+            "  border-radius: 6px; "
+            "  padding: 6px 12px; "
+            "  font-family: 'Courier New', monospace; "
+            "  font-size: 14px; "
+            "  font-weight: bold; "
+            "  letter-spacing: 1px; "
+            "  text-shadow: 0 0 8px #00ff00; " // Glow effect
+            "}");
+    }
+}
+
 void GUIFrontend::onReplayModeEntered()
 {
     qCInfo(GUIFrontendLog) << "Replay mode entered";
@@ -1231,8 +1318,9 @@ void GUIFrontend::onReplayModeEntered()
     // Update chart visual (background color and watermark)
     ui->priceChart->setReplayModeActive(true);
 
-    // Update session label (replay time may have changed)
+    // Update session label and time display (replay time may have changed)
     updateSessionLabel();
+    updateTimeDisplay();
 }
 
 void GUIFrontend::onReplayModeExited()
@@ -1254,15 +1342,17 @@ void GUIFrontend::onReplayModeExited()
     // Restore chart visual
     ui->priceChart->setReplayModeActive(false);
 
-    // Update session label (back to live time)
+    // Update session label and time display (back to live time)
     updateSessionLabel();
+    updateTimeDisplay();
 }
 
 void GUIFrontend::onReplayTimeUpdated(QDateTime currentTime)
 {
     Q_UNUSED(currentTime)
-    // Update session label as replay time advances
+    // Update session label and time display as replay time advances
     updateSessionLabel();
+    updateTimeDisplay();
 }
 
 bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
