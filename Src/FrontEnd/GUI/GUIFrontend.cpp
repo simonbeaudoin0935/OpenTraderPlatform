@@ -195,7 +195,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_tradingModeLabel->setToolTip("Click to toggle between SIM and LIVE trading mode (requires restart)");
     m_tradingModeLabel->setCursor(Qt::PointingHandCursor);
     m_tradingModeLabel->installEventFilter(this);
-    ui->topControlsLayout->insertWidget(7, m_tradingModeLabel);
+    m_tradingModeLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed); // Fixed size to stick to right
+    ui->topControlsLayout->addWidget(m_tradingModeLabel, 0, Qt::AlignRight);
 
     // Create data source indicator (right side: LIVE/REPLAY) - clickable to toggle (only visible in SIM mode)
     m_dataSourceLabel = new QLabel("🟢 LIVE", mainWindow);
@@ -205,7 +206,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_dataSourceLabel->setToolTip("Click to toggle between LIVE data and REPLAY mode");
     m_dataSourceLabel->setCursor(Qt::PointingHandCursor);
     m_dataSourceLabel->installEventFilter(this);
-    ui->topControlsLayout->insertWidget(8, m_dataSourceLabel);
+    m_dataSourceLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed); // Fixed size to stick to right
+    ui->topControlsLayout->addWidget(m_dataSourceLabel, 0, Qt::AlignRight);
 
     // Set up timer to update clock every second in LIVE mode
     m_timeUpdateTimer = new QTimer(this);
