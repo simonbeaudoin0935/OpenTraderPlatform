@@ -361,7 +361,17 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
             << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "isEndOfHistory:" << bar.getIsEndOfHistory()
             << "O:" << bar.getOpen() << "H:" << bar.getHigh() << "L:" << bar.getLow() << "C:" << bar.getClose();
 
-    if (startedReceivingRealtimeBars == true)
+    // Putting unlikely because only at the start will this condition be true,
+    // so optimizing for the cruising case
+    if (startedReceivingRealtimeBars == false) [[unlikely]]
+    {
+        if (bar.getIsEndOfHistory())
+        {
+            OBJ_ASSUME_FALSE(bar.getIsRealtime());
+            startedReceivingRealtimeBars = true;
+        }
+    }
+    else
     {
         if (bar.getIsRealtime() == false)
         {
@@ -383,18 +393,13 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
             }
         }
     }
-    else
-    {
-        if (bar.getIsEndOfHistory())
-        {
-            OBJ_ASSUME_FALSE(bar.getIsRealtime());
-            startedReceivingRealtimeBars = true;
-        }
-    }
 
     // Is this the first bar ever received for this chart
     if (indexToBar.size() == 0) [[unlikely]]
     {
+        // Should be the case becase we call openBarStream() with barsback=1,
+        // so we always get at least one historical bar first
+        OBJ_ASSUME_TRUE(bar.getIsEndOfHistory() == true);
 
         // Sanity check: semaphore should be available (count == 1) for the first bar
         OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.available() == 1);
@@ -415,9 +420,14 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         m_volumeAxisRect->axis(QCPAxis::atBottom)->setTicker(indexToTimeTicker);
         m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabels(true);
 
-        const int index = 0;
+        // Also set the same ticker on main chart's X-axis so grid lines align with nice times
+        m_customPlot->xAxis->setTicker(indexToTimeTicker);
 
         OBJ_ASSUME_EQUAL(timestampToIndex.size(), 0);
+
+        // The indexd of the first bar received when opening the stream is always 0
+        // Historical bars fetched will go in the negative indices, and future bars in positive indices
+        const int index = 0;
 
         timestampToIndex[bar.getTimeStamp()] = index;
         indexToBar[index] = bar;
@@ -461,6 +471,8 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         return;
     }
 
+    // Any live bar after the first one shall have the isEndOfHistory flag false
+    OBJ_ASSUME_TRUE(bar.getIsEndOfHistory() == false);
 
     switch (bar.getBarStatus())
     {
@@ -489,13 +501,14 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
             OBJ_ASSUME_GT(bar.getTimeStamp(), m_latestBar.getTimeStamp());
         }
 
+        // When we receive a closed bar, we shall not increase the latestBarIndex,
+        // because the next bar to be received will be an open bar for the next candle
+        // Therefore, we just replace the existing latest bar at latestBarIndex
+        indexToBar[m_latestBarIndex] = bar;
 
-        const int newIndex = indexToBar.lastKey() + 1;
-
-        timestampToIndex[bar.getTimeStamp()] = newIndex;
-        indexToBar[newIndex] = bar;
+        // Especially here, we need to store this bar with status = closed, because the
+        // next open bar will need to know that the previous bar was closed.
         m_latestBar = bar;
-        m_latestBarIndex = newIndex;
     }
     break;
 
@@ -1479,21 +1492,16 @@ void StockPriceChart::setReplayModeActive(bool active)
  */
 void StockPriceChart::updateCurrentTimeLine()
 {
-    // Only update if we have received at least one bar
-    if (indexToBar.isEmpty())
-    {
-        return;
-    }
-
-    // Get the current application time (NY timezone)
-    QDateTime currentTime = MainApp::getCurrentAppTime();
+    // The timer that triggers the update of the current time line should only have been activated
+    // after receiving the first real-time bar, so indexToBar should not be empty.
+    OBJ_ASSUME_FALSE(indexToBar.isEmpty());
 
     // Get the timestamp of the bar at index 0 (the first bar received)
     auto it = indexToBar.find(0);
-    if (it == indexToBar.end())
-    {
-        return;
-    }
+    OBJ_ASSUME_FALSE(it == indexToBar.end());
+
+    // Get the current application time (NY timezone)
+    QDateTime currentTime = MainApp::getCurrentAppTime();
 
     // TradeStation timestamps represent the closing time of the bar interval.
     // Subtract 60 seconds to get the opening time (actual start of the bar).
@@ -1501,6 +1509,7 @@ void StockPriceChart::updateCurrentTimeLine()
 
     // Check if current time is within trading hours (4:00 AM - 8:00 PM ET)
     QTime currentTimeOfDay = currentTime.time();
+
     // Market open is at 4:00 AM (early pre-market), first bar timestamp is 4:01 AM
     QTime marketOpen = TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION.addSecs(-60);
     QTime marketClose = TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION; // 8:00 PM
@@ -1526,6 +1535,11 @@ void StockPriceChart::updateCurrentTimeLine()
     // Convert to fractional index position
     // Each minute is 1 index unit, so each second is 1/60.0 of an index
     double currentIndex = secondsDiff / 60.0;
+
+    // There is a particularity with how the index and bar printing works;
+    // a bar is placed at an index, but half of the bar is before and half after the index.
+    // To center the line within the current minute, we subtract 0.5
+    currentIndex -= 0.5; // Center the line within the current minute
 
     // Get the current Y-axis range for the line
     QCPRange yRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
