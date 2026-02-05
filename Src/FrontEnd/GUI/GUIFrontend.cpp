@@ -1324,6 +1324,10 @@ void GUIFrontend::onReplayModeEntered()
                                          "border-radius: 4px; font-weight: bold; cursor: pointer; }");
     }
 
+    // Clear live orders and positions from widgets (replay starts with clean slate)
+    ui->orderWindow->clearAllOrders();
+    ui->positionWindow->clearAllPositions();
+
     // Show replay widgets in toolbar and ensure play button is in stopped state
     ui->priceChart->toolbar()->setReplayWidgetsVisible(true);
     ui->priceChart->toolbar()->setReplayPlaying(false);

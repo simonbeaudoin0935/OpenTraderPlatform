@@ -19,6 +19,7 @@ class PositionWindow : public QWidget
   public slots:
     void updatePosition(const QString& account, const Position& position);
     void onPositionDeleted(const QString& account, const QString& positionID);
+    void clearAllPositions();
 
   signals:
     void symbolClicked(const QString& symbol);
