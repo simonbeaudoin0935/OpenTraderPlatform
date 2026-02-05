@@ -73,6 +73,13 @@ void ReplayEngine::startReplay(QDate p_date, QTime p_startTime, PlaybackSpeed p_
         return;
     }
 
+    // Initialize replay time to first data point timestamp
+    // This ensures MainApp::getCurrentAppTime() returns valid time immediately
+    const ReplayDataLoader::ReplayDataPoint& firstPoint = m_dataLoader->peekNextDataPoint();
+    QDateTime initialTime = QDateTime::fromMSecsSinceEpoch(firstPoint.epochMs, TradingHours::MARKET_TIMEZONE);
+    MainApp::currentAppReplayTime = initialTime;
+    INFO << "Initialized replay time to first data point:" << initialTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+
     m_state = PlaybackState::Playing;
     m_lastEmittedTimestampMs = 0;
 
