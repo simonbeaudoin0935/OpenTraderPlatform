@@ -302,13 +302,17 @@ void MainApp::enterReplayMode()
     // 1. Set data source mode
     m_dataSourceMode = DataSourceMode::Replay;
 
-    // 2. Switch TSClient to replay mode (blocking to ensure mode is set before streams open)
+    // 2. Initialize replay time to current real time (will be overwritten when playback starts)
+    // This prevents ASSERT failures if user pans chart before starting playback
+    currentAppReplayTime = QDateTime::currentDateTime().toTimeZone(TradingHours::MARKET_TIMEZONE);
+
+    // 3. Switch TSClient to replay mode (blocking to ensure mode is set before streams open)
     QMetaObject::invokeMethod(
         tradeStationClient,
         [this]() { tradeStationClient->setMode(TSClient::Mode::Replay); },
         Qt::BlockingQueuedConnection);
 
-    // 3. Tell MainAlgo to pause live streams (MainAlgo thread)
+    // 4. Tell MainAlgo to pause live streams (MainAlgo thread)
     QMetaObject::invokeMethod(
         mainAlgo,
         [this]()
@@ -318,7 +322,7 @@ void MainApp::enterReplayMode()
         },
         Qt::QueuedConnection);
 
-    // 4. Update UI
+    // 5. Update UI
     appFrontend->onReplayModeEntered();
 
     qInfo() << "Replay mode entered, awaiting playback start";
