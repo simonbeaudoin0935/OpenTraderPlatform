@@ -6,6 +6,9 @@
 #include <QMessageBox>
 #include <QGroupBox>
 #include <QWidgetAction>
+#include <QPropertyAnimation>
+#include <QGraphicsOpacityEffect>
+#include <QTimer>
 #include "GUIFrontend.h"
 #include "Misc/Settings.h"
 #include "Assume.h"
@@ -26,6 +29,8 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     , m_submitButton(new QPushButton("Submit Order", this))
     , m_limitPriceLabel(new QLabel("Limit Price:", this))
     , m_stopPriceLabel(new QLabel("Stop Price:", this))
+    , m_stickyCheckBox(new QCheckBox("Sticky", this))
+    , m_stickyOffsetInput(new QDoubleSpinBox(this))
     , m_settingsButton(new QToolButton(this))
     , m_settingsMenu(new QMenu(this))
     , m_confirmationCheckBox(new QCheckBox("Enable Order Confirmation", this))
@@ -34,6 +39,9 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     , m_confirmationEnabled(true)          // Default to enabled
     , m_resultPopupEnabled(true)           // Default to enabled
     , m_cancelAllConfirmationEnabled(true) // Default to enabled
+    , m_stickyEnabled(false)               // Default to disabled
+    , m_lastBestBid(0.0)
+    , m_lastBestAsk(0.0)
     , m_guiFrontend(nullptr)
 {
     setupUI();
@@ -131,14 +139,36 @@ void OrderEntryWidget::setupUI()
     m_quantityInput->setToolTip("Number of shares");
     formLayout->addRow("Quantity:", m_quantityInput);
 
-    // Limit Price
+    // Limit Price row with sticky checkbox and offset
     m_limitPriceInput->setMinimum(0.01);
     m_limitPriceInput->setMaximum(999999.99);
     m_limitPriceInput->setDecimals(2);
     m_limitPriceInput->setValue(0.00);
     m_limitPriceInput->setPrefix("$ ");
     m_limitPriceInput->setToolTip("Limit price for order");
-    formLayout->addRow(m_limitPriceLabel, m_limitPriceInput);
+
+    // Configure sticky offset spinbox
+    m_stickyOffsetInput->setMinimum(0.00);
+    m_stickyOffsetInput->setMaximum(10.00);
+    m_stickyOffsetInput->setDecimals(2);
+    m_stickyOffsetInput->setSingleStep(0.01);
+    m_stickyOffsetInput->setValue(0.00);
+    m_stickyOffsetInput->setPrefix("$ ");
+    m_stickyOffsetInput->setToolTip("Price offset from best bid/ask");
+    m_stickyOffsetInput->setFixedWidth(65);
+
+    m_stickyCheckBox->setToolTip("Auto-update limit price from market depth");
+
+    // Create horizontal layout for sticky checkbox, offset, and limit price input
+    QWidget* limitPriceWidget = new QWidget(this);
+    QHBoxLayout* limitPriceLayout = new QHBoxLayout(limitPriceWidget);
+    limitPriceLayout->setContentsMargins(0, 0, 0, 0);
+    limitPriceLayout->setSpacing(4);
+    limitPriceLayout->addWidget(m_stickyCheckBox);
+    limitPriceLayout->addWidget(m_stickyOffsetInput);
+    limitPriceLayout->addWidget(m_limitPriceInput, 1); // Give limit price input stretch factor
+
+    formLayout->addRow(m_limitPriceLabel, limitPriceWidget);
 
     // Stop Price
     m_stopPriceInput->setMinimum(0.01);
@@ -169,8 +199,8 @@ void OrderEntryWidget::setupUI()
     // Add spacer at bottom
     mainLayout->addStretch();
 
-    // Set fixed width
-    setFixedWidth(280);
+    // Set fixed width (increased to accommodate sticky controls)
+    setFixedWidth(320);
 
     // Load saved settings
     loadSavedSettings();
@@ -260,6 +290,36 @@ void OrderEntryWidget::setupUI()
                        &OrderEntryWidget::onCancelAllConfirmationCheckBoxToggled,
                        Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(c12);
+
+    // Connect sticky checkbox
+    auto c13 = connect(m_stickyCheckBox,
+                       &QCheckBox::toggled,
+                       this,
+                       &OrderEntryWidget::onStickyCheckBoxToggled,
+                       Qt::UniqueConnection);
+    OBJ_ASSUME_TRUE(c13);
+
+    auto c14 = connect(m_stickyCheckBox,
+                       &QCheckBox::toggled,
+                       this,
+                       &OrderEntryWidget::saveStickyPriceSetting,
+                       Qt::UniqueConnection);
+    OBJ_ASSUME_TRUE(c14);
+
+    // Connect sticky offset spinbox
+    auto c15 = connect(m_stickyOffsetInput,
+                       QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                       this,
+                       &OrderEntryWidget::onStickyOffsetChanged,
+                       Qt::UniqueConnection);
+    OBJ_ASSUME_TRUE(c15);
+
+    auto c16 = connect(m_stickyOffsetInput,
+                       QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                       this,
+                       &OrderEntryWidget::saveStickyOffsetSetting,
+                       Qt::UniqueConnection);
+    OBJ_ASSUME_TRUE(c16);
 
     // Initialize visibility based on default order type
     updatePriceFieldsVisibility();
@@ -426,6 +486,12 @@ void OrderEntryWidget::onTradeActionChanged(int id)
 
     m_submitButton->setText(buttonText);
     m_submitButton->setStyleSheet(buttonStyle);
+
+    // Update sticky price if enabled (trade action affects price calculation)
+    if (m_stickyEnabled)
+    {
+        updateStickyPrice();
+    }
 }
 
 void OrderEntryWidget::updatePriceFieldsVisibility()
@@ -436,6 +502,8 @@ void OrderEntryWidget::updatePriceFieldsVisibility()
     bool needsLimitPrice = (orderType == OrderType::Type::Limit || orderType == OrderType::Type::StopLimit);
     m_limitPriceLabel->setVisible(needsLimitPrice);
     m_limitPriceInput->setVisible(needsLimitPrice);
+    m_stickyCheckBox->setVisible(needsLimitPrice);
+    m_stickyOffsetInput->setVisible(needsLimitPrice);
 
     // Show/hide stop price based on order type
     bool needsStopPrice = (orderType == OrderType::Type::StopMarket || orderType == OrderType::Type::StopLimit);
@@ -641,6 +709,13 @@ void OrderEntryWidget::loadSavedSettings()
     // Load cancel all confirmation enabled setting
     m_cancelAllConfirmationEnabled = appStateSettings->value("OrderEntry/CancelAllConfirmationEnabled", true).toBool();
     m_cancelAllConfirmationCheckBox->setChecked(m_cancelAllConfirmationEnabled);
+
+    // Load sticky price settings
+    m_stickyEnabled = appStateSettings->value("OrderEntry/StickyPrice", false).toBool();
+    m_stickyCheckBox->setChecked(m_stickyEnabled);
+
+    double savedStickyOffset = appStateSettings->value("OrderEntry/StickyOffset", 0.00).toDouble();
+    m_stickyOffsetInput->setValue(savedStickyOffset);
 }
 
 void OrderEntryWidget::saveOrderTypeSetting(int index)
@@ -710,4 +785,137 @@ void OrderEntryWidget::onCancelAllConfirmationCheckBoxToggled(bool checked)
     appStateSettings->setValue("OrderEntry/CancelAllConfirmationEnabled", checked);
     appStateSettings->sync();
     qInfo() << "Cancel all orders confirmation" << (checked ? "enabled" : "disabled");
+}
+
+void OrderEntryWidget::onStickyCheckBoxToggled(bool checked)
+{
+    m_stickyEnabled = checked;
+    if (checked)
+    {
+        updateStickyPrice();
+    }
+}
+
+void OrderEntryWidget::saveStickyPriceSetting(bool checked)
+{
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("OrderEntry/StickyPrice", checked);
+    appStateSettings->sync();
+}
+
+void OrderEntryWidget::onStickyOffsetChanged(double value)
+{
+    Q_UNUSED(value);
+    if (m_stickyEnabled)
+    {
+        updateStickyPrice();
+    }
+}
+
+void OrderEntryWidget::saveStickyOffsetSetting(double value)
+{
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("OrderEntry/StickyOffset", value);
+    appStateSettings->sync();
+}
+
+void OrderEntryWidget::onMarketDepthUpdate(const QString& symbol, const MarketDepthQuote& quote)
+{
+    // Only update if this is for the current symbol
+    if (symbol != m_currentSymbol)
+    {
+        return;
+    }
+
+    // Extract best bid and ask prices
+    const QVector<MarketDepthLevel>& bids = quote.getBids();
+    const QVector<MarketDepthLevel>& asks = quote.getAsks();
+
+    // TODO: Add check for account having "Matrix" label (Level 2 data permission)
+
+    if (!bids.isEmpty())
+    {
+        bool ok = false;
+        double bestBid = bids[0].getPrice().toDouble(&ok);
+        if (ok)
+        {
+            m_lastBestBid = bestBid;
+        }
+    }
+
+    if (!asks.isEmpty())
+    {
+        bool ok = false;
+        double bestAsk = asks[0].getPrice().toDouble(&ok);
+        if (ok)
+        {
+            m_lastBestAsk = bestAsk;
+        }
+    }
+
+    // Update sticky price if enabled
+    if (m_stickyEnabled)
+    {
+        updateStickyPrice();
+    }
+}
+
+void OrderEntryWidget::updateStickyPrice()
+{
+    if (!m_stickyEnabled)
+    {
+        return;
+    }
+
+    TradeAction action = static_cast<TradeAction>(m_tradeActionGroup->checkedId());
+    double offset = m_stickyOffsetInput->value();
+    double finalPrice = 0.0;
+
+    switch (action)
+    {
+    case TradeAction::Buy:
+    case TradeAction::BuyToCover:
+    case TradeAction::BuyToOpen:
+    case TradeAction::BuyToClose:
+        // For buy orders, use ask price + offset
+        if (m_lastBestAsk > 0.0)
+        {
+            finalPrice = m_lastBestAsk + offset;
+        }
+        break;
+
+    case TradeAction::Sell:
+    case TradeAction::SellShort:
+    case TradeAction::SellToOpen:
+    case TradeAction::SellToClose:
+        // For sell orders, use bid price - offset
+        if (m_lastBestBid > 0.0)
+        {
+            finalPrice = m_lastBestBid - offset;
+            // Ensure price doesn't go negative
+            if (finalPrice < 0.01)
+            {
+                finalPrice = 0.01;
+            }
+        }
+        break;
+    }
+
+    if (finalPrice > 0.0)
+    {
+        m_limitPriceInput->setValue(finalPrice);
+        flashLimitPriceInput();
+    }
+}
+
+void OrderEntryWidget::flashLimitPriceInput()
+{
+    // Create a brief visual flash effect by temporarily changing the style
+    QString originalStyle = m_limitPriceInput->styleSheet();
+
+    // Apply a highlighted style (bright border)
+    m_limitPriceInput->setStyleSheet("QDoubleSpinBox { border: 2px solid #00FF00; background-color: #E8FFE8; }");
+
+    // Use a QTimer to restore the original style after a brief delay
+    QTimer::singleShot(150, this, [this, originalStyle]() { m_limitPriceInput->setStyleSheet(originalStyle); });
 }

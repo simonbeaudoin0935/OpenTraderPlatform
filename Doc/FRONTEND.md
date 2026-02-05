@@ -313,12 +313,50 @@ Order placement interface.
 - Order type (Market, Limit, Stop, etc.)
 - Quantity
 - Limit price (if applicable)
+  - **Sticky checkbox**: Auto-updates limit price from Level 2 market depth
+  - **Price offset spinbox**: Adds buffer ($0.00-$10.00) to best bid/ask
 - Time in force (Day, GTC)
 
 **Validation**:
 - Required fields check
 - Price validation for limit orders
 - Quantity must be positive
+
+**Sticky Limit Price Feature**:
+
+The sticky price feature automatically updates the limit price based on real-time Level 2 market depth data, emulating market orders during pre-market and after-hours trading.
+
+*When to Use*:
+- Pre-market or after-hours trading when market orders may not be accepted
+- Wanting to guarantee fills with minimal slippage
+- Needing to stay competitive with dynamic bid/ask spreads
+
+*How it Works*:
+- **Buy orders**: Limit price = Best Ask + Offset
+- **Sell orders**: Limit price = Best Bid - Offset
+- Price updates automatically on every market depth quote
+- Visual green flash indicates automatic price update
+
+*Configuration*:
+1. Select Limit or Stop Limit order type
+2. Check the "Sticky" checkbox
+3. Set desired price offset (default: $0.00)
+   - $0.00: Match best bid/ask exactly
+   - $0.01-$0.05: Small buffer for better fills
+   - $0.10+: Larger buffer for volatile stocks
+4. Limit price auto-updates as market depth changes
+
+*Behavior*:
+- Recalculates when trade action changes (Buy ↔ Sell)
+- Recalculates when offset value changes
+- User can manually override (will be overwritten on next update)
+- State persists across application restarts
+- Only visible for Limit and Stop Limit order types
+
+*Safety*:
+- Prevents negative prices (minimum $0.01)
+- Handles all trade actions (Buy, Sell, BuyToCover, etc.)
+- Uses last known value if market depth unavailable
 
 #### 6. Tabs
 

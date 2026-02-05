@@ -16,6 +16,7 @@
 
 #include "Account.h"
 #include "PlaceOrder.h"
+#include "MarketDepthQuote.h"
 
 class GUIFrontend;
 
@@ -44,6 +45,7 @@ class OrderEntryWidget : public QWidget
     void executeSellOrder();
     void executeBuyToCoverOrder();
     void executeSellToCoverOrder();
+    void onMarketDepthUpdate(const QString& symbol, const MarketDepthQuote& quote);
 
   signals:
     void orderPlaced(const PlaceOrderRequest& order);
@@ -61,6 +63,10 @@ class OrderEntryWidget : public QWidget
     void onConfirmationCheckBoxToggled(bool checked);
     void onResultPopupCheckBoxToggled(bool checked);
     void onCancelAllConfirmationCheckBoxToggled(bool checked);
+    void onStickyCheckBoxToggled(bool checked);
+    void saveStickyPriceSetting(bool checked);
+    void onStickyOffsetChanged(double value);
+    void saveStickyOffsetSetting(double value);
 
   private:
     void setupUI();
@@ -69,6 +75,8 @@ class OrderEntryWidget : public QWidget
     void loadSavedSettings();
     [[nodiscard]] bool validateInputs();
     [[nodiscard]] PlaceOrderRequest buildOrderRequest();
+    void updateStickyPrice();
+    void flashLimitPriceInput();
 
     // UI Components
     QLabel* m_headerLabel;
@@ -88,6 +96,10 @@ class OrderEntryWidget : public QWidget
     QLabel* m_limitPriceLabel;
     QLabel* m_stopPriceLabel;
 
+    // Sticky price components
+    QCheckBox* m_stickyCheckBox;
+    QDoubleSpinBox* m_stickyOffsetInput;
+
     // Settings menu
     QToolButton* m_settingsButton;
     QMenu* m_settingsMenu;
@@ -98,6 +110,11 @@ class OrderEntryWidget : public QWidget
     bool m_confirmationEnabled;          // Whether to show confirmation dialog
     bool m_resultPopupEnabled;           // Whether to show result popup after order execution
     bool m_cancelAllConfirmationEnabled; // Whether to show confirmation dialog when cancelling all orders
+
+    // Sticky price state
+    bool m_stickyEnabled;
+    double m_lastBestBid;
+    double m_lastBestAsk;
 
     // Reference to GUIFrontend for account selection
     GUIFrontend* m_guiFrontend;
