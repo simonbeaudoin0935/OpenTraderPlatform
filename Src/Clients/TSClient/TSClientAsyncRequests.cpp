@@ -506,67 +506,107 @@ QFuture<std::expected<PlaceOrderResult, TSClient::Error>> TSClient::placeOrder(c
             QNetworkReply* reply = m_networkManager->post(request, postData);
             Q_CHECK_PTR(reply);
 
-            connect(reply,
-                    &QNetworkReply::finished,
-                    this,
-                    [this, reply, promise = std::move(promise)]() mutable
+            connect(
+                reply,
+                &QNetworkReply::finished,
+                this,
+                [this, reply, promise = std::move(promise)]() mutable
+                {
+                    QByteArray rawData = reply->readAll();
+
+                    processNewAmountOfDataReceived(rawData.size());
+
+                    switch (reply->error())
                     {
-                        QByteArray rawData = reply->readAll();
+                    // Happy path
+                    case QNetworkReply::NoError:
+                    {
+                        QJsonParseError parseError;
+                        QJsonDocument doc = QJsonDocument::fromJson(rawData, &parseError);
 
-                        processNewAmountOfDataReceived(rawData.size());
-
-                        switch (reply->error())
+                        if (parseError.error != QJsonParseError::NoError)
                         {
-                        // Happy path
-                        case QNetworkReply::NoError:
-                        {
-                            QJsonParseError parseError;
-                            QJsonDocument doc = QJsonDocument::fromJson(rawData, &parseError);
-
-                            if (parseError.error != QJsonParseError::NoError)
-                            {
-                                CRITICAL << "Failed to parse JSON:" << parseError.errorString();
-                                CRITICAL << "Content of the bad data : " << rawData;
-                                promise.addResult(std::unexpected(Error::JSONError));
-                                break;
-                            }
-
-                            if (!doc.isObject())
-                            {
-                                CRITICAL << " : JSON is not an object";
-                                promise.addResult(std::unexpected(Error::JSONError));
-                                break;
-                            }
-
-                            const PlaceOrderResult results = PlaceOrderResult(doc.object());
-
-                            promise.addResult(results);
+                            CRITICAL << "Failed to parse JSON:" << parseError.errorString();
+                            CRITICAL << "Content of the bad data : " << rawData;
+                            promise.addResult(std::unexpected(Error::JSONError));
                             break;
                         }
 
-                        // timeout
-                        case QNetworkReply::HostNotFoundError:
-                        case QNetworkReply::UnknownNetworkError:
+                        if (!doc.isObject())
                         {
-                            CRITICAL << ": placeOrder(): Timeout with the reply: " << reply->errorString() << " : "
-                                     << reply->error();
-                            promise.addResult(std::unexpected(Error::Timeout));
+                            CRITICAL << " : JSON is not an object";
+                            promise.addResult(std::unexpected(Error::JSONError));
                             break;
                         }
 
-                        // other errors
-                        default:
+                        const PlaceOrderResult results = PlaceOrderResult(doc.object());
+
+                        promise.addResult(results);
+                        break;
+                    }
+
+                    // timeout
+                    case QNetworkReply::HostNotFoundError:
+                    case QNetworkReply::UnknownNetworkError:
+                    {
+                        CRITICAL << ": placeOrder(): Timeout with the reply: " << reply->errorString() << " : "
+                                 << reply->error();
+                        promise.addResult(std::unexpected(Error::Timeout));
+                        break;
+                    }
+
+                    case QNetworkReply::ProtocolInvalidOperationError:
+                    {
+                        // This error code is returned by TSClient when the order request is syntactically correct but semantically invalid (e.g. trying to buy a stock that doesn't exist, or missing required fields, etc). In this case, TSClient's response body should contain details about what exactly was wrong with the order request, so we should treat this as a successful response and parse the error details from the JSON instead of treating it as a generic error.
+                        QJsonParseError parseError;
+                        QJsonDocument doc = QJsonDocument::fromJson(rawData, &parseError);
+
+                        if (parseError.error != QJsonParseError::NoError)
                         {
-                            CRITICAL << ": placeOrder(): Error with reply: " << reply->errorString() << " : "
-                                     << reply->error();
+                            CRITICAL << "Failed to parse JSON for order validation error response:"
+                                     << parseError.errorString();
+                            CRITICAL << "Content of the bad data : " << rawData;
+                            promise.addResult(std::unexpected(Error::JSONError));
+                            break;
+                        }
+
+                        const QJsonObject obj = doc.object();
+
+                        const QString error = obj["Error"].toString();
+                        const QString message = obj["Message"].toString();
+
+                        CRITICAL << "Order validation error - Error: " << error << ", Message: " << message;
+
+                        if (error == "BadRequest")
+                        {
+                            // This means the order request was malformed in some way that it couldn't be processed at all, and we should treat this as a generic error instead of trying to parse error details from the JSON because we can't rely on the structure of the JSON in this case
+                            CRITICAL
+                                << "Bad request error indicates a malformed order request that couldn't be processed at all, treating as generic error";
                             promise.addResult(std::unexpected(Error::Other));
+
+                            Q_UNREACHABLE();
                             break;
                         }
-                        };
+                        break;
+                    }
 
-                        promise.finish(); // always finish exactly once
-                        reply->deleteLater();
-                    });
+                    // other errors
+                    default:
+                    {
+                        CRITICAL << ": placeOrder(): Error with reply: " << reply->errorString() << " : "
+                                 << reply->error() << " : " << rawData;
+                        promise.addResult(std::unexpected(Error::Other));
+
+                        // Means our request is malformed
+                        Q_UNREACHABLE(); // We should never hit this because placeOrder should return error details in the JSON response even in cases of order validation errors, so TSClient should never treat any response as an outright failure. If we do hit this, it means we got an unexpected error code that we haven't accounted for, and we should investigate and update our code to handle it properly instead of just treating it as a generic error.
+
+                        break;
+                    }
+                    };
+
+                    promise.finish(); // always finish exactly once
+                    reply->deleteLater();
+                });
 
             DEBUG << "Sent placeOrder() to Network Manager";
         },

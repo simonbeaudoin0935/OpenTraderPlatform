@@ -35,7 +35,7 @@ void OrderWindow::setupUI()
     // Setup model columns
     QStringList headers;
     headers << "Status" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "Date" << "Time"
-            << "Ack Latency" << "Fill Latency" << "Order ID";
+            << "Ack/Fill Latency" << "Order ID";
     m_model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -61,9 +61,8 @@ void OrderWindow::setupUI()
     m_tableView->setColumnWidth(6, 60);   // Stop
     m_tableView->setColumnWidth(7, 80);   // Date
     m_tableView->setColumnWidth(8, 80);   // Time
-    m_tableView->setColumnWidth(9, 90);   // Ack Latency
-    m_tableView->setColumnWidth(10, 90);  // Fill Latency
-    m_tableView->setColumnWidth(11, 100); // Order ID
+    m_tableView->setColumnWidth(9, 120);  // Ack/Fill Latency
+    m_tableView->setColumnWidth(10, 100); // Order ID
 
     // Add widgets to layout
     mainLayout->addWidget(m_headerLabel);
@@ -392,65 +391,49 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
         }
     };
 
-    // Ack Latency - show latency from order placement to acknowledgment
-    QString ackLatencyStr = "-";
-    QString ackTooltipStr;
-
-    if (order.getReceivedTime().has_value() && order.getOpenedDateTime().isValid())
-    {
-        // Calculate acknowledgment latency in milliseconds
-        qint64 ackLatencyMs = order.getOpenedDateTime().msecsTo(order.getReceivedTime().value());
-        ackLatencyStr = formatLatency(ackLatencyMs);
-
-        // Tooltip shows full details
-        QDateTime receivedDateTime = order.getReceivedTime().value();
-        QDateTime openedDateTime = order.getOpenedDateTime();
-        ackTooltipStr = QString("Opened: %1\nAcknowledged: %2\nLatency: %3 ms")
-                            .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
-                            .arg(receivedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
-                            .arg(ackLatencyMs);
-    }
-
-    auto ackLatencyItem = new QStandardItem(ackLatencyStr);
-    Q_CHECK_PTR(ackLatencyItem);
-    ackLatencyItem->setTextAlignment(Qt::AlignCenter);
-    if (!ackTooltipStr.isEmpty())
-    {
-        ackLatencyItem->setToolTip(ackTooltipStr);
-    }
-    items << ackLatencyItem;
-
-    // Fill Latency - show latency from order placement to fill
-    QString fillLatencyStr = "-";
-    QString fillTooltipStr;
+    // Ack/Fill Latency - show latency from order placement to acknowledgment or fill (whichever is available)
+    QString latencyStr = "-";
+    QString latencyTooltipStr;
 
     if (order.getFilledTime().has_value() && order.getOpenedDateTime().isValid())
     {
-        // Calculate fill latency in milliseconds
+        // Show fill latency if available (order was filled)
         qint64 fillLatencyMs = order.getOpenedDateTime().msecsTo(order.getFilledTime().value());
-        fillLatencyStr = formatLatency(fillLatencyMs);
+        latencyStr = formatLatency(fillLatencyMs);
 
-        // Tooltip shows full details
         QDateTime filledDateTime = order.getFilledTime().value();
         QDateTime openedDateTime = order.getOpenedDateTime();
 
         OBJ_ASSUME_TRUE(filledDateTime.timeZone() == TradingHours::MARKET_TIMEZONE);
         OBJ_ASSUME_TRUE(openedDateTime.timeZone() == TradingHours::MARKET_TIMEZONE);
 
-        fillTooltipStr = QString("Opened: %1\nFilled: %2\nLatency: %3 ms")
-                             .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
-                             .arg(filledDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
-                             .arg(fillLatencyMs);
+        latencyTooltipStr = QString("Opened: %1\nFilled: %2\nLatency: %3 ms")
+                                .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
+                                .arg(filledDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
+                                .arg(fillLatencyMs);
+    }
+    else if (order.getReceivedTime().has_value() && order.getOpenedDateTime().isValid())
+    {
+        // Otherwise show ack latency if available (order was acknowledged but not filled)
+        qint64 ackLatencyMs = order.getOpenedDateTime().msecsTo(order.getReceivedTime().value());
+        latencyStr = formatLatency(ackLatencyMs);
+
+        QDateTime receivedDateTime = order.getReceivedTime().value();
+        QDateTime openedDateTime = order.getOpenedDateTime();
+        latencyTooltipStr = QString("Opened: %1\nAcknowledged: %2\nLatency: %3 ms")
+                                .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
+                                .arg(receivedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
+                                .arg(ackLatencyMs);
     }
 
-    auto fillLatencyItem = new QStandardItem(fillLatencyStr);
-    Q_CHECK_PTR(fillLatencyItem);
-    fillLatencyItem->setTextAlignment(Qt::AlignCenter);
-    if (!fillTooltipStr.isEmpty())
+    auto latencyItem = new QStandardItem(latencyStr);
+    Q_CHECK_PTR(latencyItem);
+    latencyItem->setTextAlignment(Qt::AlignCenter);
+    if (!latencyTooltipStr.isEmpty())
     {
-        fillLatencyItem->setToolTip(fillTooltipStr);
+        latencyItem->setToolTip(latencyTooltipStr);
     }
-    items << fillLatencyItem;
+    items << latencyItem;
 
     // Order ID
     auto orderIdItem = new QStandardItem(order.getOrderID());
