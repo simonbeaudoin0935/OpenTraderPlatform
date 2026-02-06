@@ -169,7 +169,6 @@ class Order
     {
         if (p_time.timeZone() != TradingHours::MARKET_TIMEZONE)
         {
-            qWarning() << "Order::setFilledTime: Filled time timezone mismatch";
             m_filledTime = p_time.toTimeZone(TradingHours::MARKET_TIMEZONE);
         }
         else
