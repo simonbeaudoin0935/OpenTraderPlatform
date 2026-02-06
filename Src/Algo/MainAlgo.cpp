@@ -671,14 +671,18 @@ void MainAlgo::onReplayEndReached()
 {
     INFO << "Replay ended, pausing heartbeat timers to prevent stream timeout";
 
-    // Pause heartbeat timers on mock streams
-    if (currentDisplayedStockInstrument != nullptr)
+    // Pause heartbeat timers on ALL mock streams, not just the displayed one
+    for (auto& instrument: stockInstruments)
     {
-        if (auto stream = currentDisplayedStockInstrument->barReceiver.getStream())
+        if (instrument.isNull())
+        {
+            continue;
+        }
+        if (auto stream = instrument->barReceiver.getStream())
         {
             stream->pauseHeartbeat();
         }
-        if (auto stream = currentDisplayedStockInstrument->marketDepthQuoteReceiver.getStream())
+        if (auto stream = instrument->marketDepthQuoteReceiver.getStream())
         {
             stream->pauseHeartbeat();
         }
@@ -843,19 +847,22 @@ void MainAlgo::pauseReplay()
 {
     // If we can click "Pause", replay engine must exist
     OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
-    // Must have a displayed stock to pause streams for
-    OBJ_ASSUME_DIFF(currentDisplayedStockInstrument, nullptr);
 
     m_replayEngine->pauseReplay();
 
-    // Pause heartbeat timers on mock streams to prevent timeout while paused
-    if (auto stream = currentDisplayedStockInstrument->barReceiver.getStream())
+    // Pause heartbeat timers on ALL mock streams to prevent timeout while paused
+    for (auto& instrument: stockInstruments)
     {
-        stream->pauseHeartbeat();
-    }
-    if (auto stream = currentDisplayedStockInstrument->marketDepthQuoteReceiver.getStream())
-    {
-        stream->pauseHeartbeat();
+        OBJ_ASSUME_FALSE(instrument.isNull());
+
+        if (auto stream = instrument->barReceiver.getStream())
+        {
+            stream->pauseHeartbeat();
+        }
+        if (auto stream = instrument->marketDepthQuoteReceiver.getStream())
+        {
+            stream->pauseHeartbeat();
+        }
     }
 }
 
@@ -863,17 +870,22 @@ void MainAlgo::resumeReplay()
 {
     // If we can click "Resume", replay engine must exist
     OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
-    // Must have a displayed stock to resume streams for
-    OBJ_ASSUME_DIFF(currentDisplayedStockInstrument, nullptr);
 
-    // Resume heartbeat timers before resuming replay
-    if (auto stream = currentDisplayedStockInstrument->barReceiver.getStream())
+    // Resume heartbeat timers on ALL streams before resuming replay
+    for (auto& instrument: stockInstruments)
     {
-        stream->resumeHeartbeat();
-    }
-    if (auto stream = currentDisplayedStockInstrument->marketDepthQuoteReceiver.getStream())
-    {
-        stream->resumeHeartbeat();
+        if (instrument.isNull())
+        {
+            continue;
+        }
+        if (auto stream = instrument->barReceiver.getStream())
+        {
+            stream->resumeHeartbeat();
+        }
+        if (auto stream = instrument->marketDepthQuoteReceiver.getStream())
+        {
+            stream->resumeHeartbeat();
+        }
     }
 
     m_replayEngine->resumeReplay();
