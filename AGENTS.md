@@ -21,42 +21,44 @@ This file provides AI agents with key information about the L2Trader project str
 - **Main Executable**: L2Trader (GUI or TUI mode)
 - **Companion Executable**: Recorder (for data collection)
 
-## Key Directories
+## Navigation to Detailed Documentation
 
-### Source Code (`Src/`)
-- **Clients/TSClient/**: TradeStation API client - REST and WebSocket communication
-- **Core/**: Main application logic, cache management, replay functionality
-- **Algo/**: Trading algorithm components (MainAlgo, receivers, processors)
-- **FrontEnd/**: UI implementations (GUI with Qt Widgets, TUI with ncurses)
-- **Misc/**: Utilities (logging, settings, secure storage, constants)
-- **SQL/**: Centralized SQL query definitions
-- **Strategy/**: Plugin-based strategy system
-- **Recorder/**: Data recording companion app
+### Component-Specific AGENTS.md Files
 
-### Documentation (`Doc/`)
-- **ARCHITECTURE.md**: Complete architecture details, threading model, design patterns
-- **AUTHENTICATION.md**: OAuth 2.0 flow, token management, security
-- **FRONTEND.md**: GUI/TUI implementation details
-- **STRATEGY.md**: Strategy plugin system documentation
-- **DEVELOPMENT.md**: Development setup and guidelines
-- **CONTRIBUTING.md**: Contribution guidelines
+For detailed information about specific subsystems, navigate to:
 
-### Build Artifacts
-- `build/`: Build output directory (not in repo)
-- `.vscode/tasks.json`: VSCode tasks for building
+**Source Code Structure**:
+- **Src/AGENTS.md** - Source directory organization, architectural patterns, memory management rules
 
-## Core Components
+**Core Components**:
+- **Src/Core/AGENTS.md** - MainApp orchestration, MemoryMonitor, OrdersDatabase
+- **Src/Core/Cache/BarCache/AGENTS.md** - Two-tier caching (memory + SQLite), thread-safe access
 
-### Singletons
-- **TSClient**: TradeStation API client (runs in dedicated thread)
-- **MainAlgo**: Trading algorithm coordinator (runs in dedicated thread)
-- **LogBroadcaster**: Centralized logging distribution
+**API Communication**:
+- **Src/Clients/TSClient/AGENTS.md** - TradeStation API client, OAuth flow, async requests, streams
 
-### Key Classes
-- **MainApp**: Application orchestrator (lives in main thread)
-- **StockInstruments**: Per-symbol data container (BarCache, MarketDepthQuoteReceiver)
-- **BarCache**: Bar data caching with SQLite persistence
-- **GUIFrontend/TUIFrontend**: UI implementations conforming to FrontEnd interface
+**Trading Logic**:
+- **Src/Algo/AGENTS.md** - MainAlgo coordinator, receivers (bars, positions, orders), data processing
+
+**User Interfaces**:
+- **Src/FrontEnd/AGENTS.md** - Abstract FrontEnd interface, data flow, threading
+- **Src/FrontEnd/GUI/AGENTS.md** - Qt Widgets GUI, charts, market depth, order entry
+- **Src/FrontEnd/TUI/AGENTS.md** - ncurses terminal interface
+
+**Infrastructure**:
+- **Src/Misc/AGENTS.md** - Constants (CONSTANTS.h), logging, settings, secure storage, utilities
+- **Src/SQL/AGENTS.md** - SQL query centralization and organization
+
+**Extensions**:
+- **Src/Strategy/AGENTS.md** - Plugin-based strategy system, SDK, crash isolation
+
+### Comprehensive Documentation (Doc/)
+- **Doc/ARCHITECTURE.md** - Complete architecture, threading model, design patterns
+- **Doc/AUTHENTICATION.md** - OAuth 2.0 flow, token management, security
+- **Doc/FRONTEND.md** - GUI/TUI implementation details
+- **Doc/STRATEGY.md** - Strategy plugin system documentation
+- **Doc/DEVELOPMENT.md** - Development setup and guidelines
+- **Doc/CONTRIBUTING.md** - Contribution guidelines
 
 ## Building the Project
 
@@ -82,45 +84,34 @@ find Src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
 - Full build: ~2-5 minutes (with Ninja)
 - Incremental build: ~10-30 seconds
 
-## Coding Conventions
+## Essential Coding Conventions
 
-### Memory Management
-1. **Prefer composition over pointers**: Use direct member objects when possible
-2. **Qt parent-child ownership**: For Qt objects with parents, no smart pointers needed
-3. **QPointer**: For Qt objects that may be deleted independently (streams)
-4. **std::unique_ptr**: For exclusive ownership (non-Qt or Qt without parents)
-5. **std::shared_ptr**: For shared ownership (async operations, data sharing)
-6. **Stack-allocated threads**: Use `QThread m_thread` not `QThread* m_thread`
+> **Note**: For complete coding guidelines, see `.github/copilot-instructions.md` and component-specific AGENTS.md files.
 
-### Code Style
-- **Member variables**: Prefix with `m_` (e.g., `m_barCache`)
-- **Global variables**: Prefix with `g_` (e.g., `g_mainAlgo`)
-- **Parameters**: Prefix with `p_` (e.g., `p_symbol`)
-- **Early exit**: Handle errors first, then main logic (minimize indentation)
-- **Assertions**: Use ASSUME macros from `Src/Misc/Assume.h` instead of Q_ASSERT
-- **ASSERT-First Strategy**: Assert expected state upfront, don't use defensive null checks
-- **[[nodiscard]]**: Mark functions where return values should not be ignored
+### Quick Reference
 
-### Constants Management
-- **ALL** constants defined in `Src/Misc/CONSTANTS.h` in appropriate namespaces
-- Never define constants inline in source files
-- Reference via namespace: `TradingHours::TRADING_START_TIME`
+**Memory Management**:
+- Composition > Pointers when possible
+- Qt parent-child for Qt objects with parents
+- `QThread m_thread;` (stack-allocated, NOT `QThread*`)
 
-### SQL Queries
-- **ALL** SQL queries defined in `Src/SQL/<ClassName>Queries.h`
-- Each class has its own header with namespace
-- Never write SQL directly in implementation files
+**Naming**:
+- Members: `m_barCache`, Globals: `g_mainAlgo`, Parameters: `p_symbol`
 
-### Threading Patterns
-- Stack-allocated thread members: `QThread m_thread;`
-- Proper cleanup in destructors with quit/wait/terminate pattern
-- Thread affinity assertions in debug builds
-- Signal/slot cross-thread communication with Qt::QueuedConnection
+**Centralization**:
+- Constants → `Src/Misc/CONSTANTS.h`
+- SQL Queries → `Src/SQL/<ClassName>Queries.h`
+- Documentation → `Doc/` folder
+
+**ASSERT-First**:
+```cpp
+OBJ_ASSUME_DIFF(m_stream, nullptr);  // Assert upfront
+m_stream->start();                    // Use without checks
+```
 
 ## Testing
 
 ```bash
-# Run tests
 cmake --build build/GUI --target test
 ```
 
@@ -140,18 +131,17 @@ GitHub Actions workflows:
 6. **Security**: Run codeql_checker and gh-advisory-database before finalizing
 7. **Logs to stderr**: In TUI mode, logs go to stderr to not interfere with ncurses
 
-## Related Agent Instructions
+## Where to Find Information
 
-- `Src/AGENTS.md`: Source code structure details
-- `Src/Clients/TSClient/AGENTS.md`: TradeStation API client specifics
-- `Src/Core/AGENTS.md`: Core application components
-- `Src/Algo/AGENTS.md`: Trading algorithm details
-- `Src/FrontEnd/AGENTS.md`: Frontend architecture
-- `Src/Strategy/AGENTS.md`: Strategy plugin system
+### Need to Understand:
+- **API Communication?** → `Src/Clients/TSClient/AGENTS.md`
+- **Trading Logic?** → `Src/Algo/AGENTS.md`
+- **Caching System?** → `Src/Core/Cache/BarCache/AGENTS.md`
+- **GUI Components?** → `Src/FrontEnd/GUI/AGENTS.md`
+- **Constants/Utilities?** → `Src/Misc/AGENTS.md`
+- **SQL Patterns?** → `Src/SQL/AGENTS.md`
+- **Strategy Plugins?** → `Src/Strategy/AGENTS.md`
+- **Overall Architecture?** → `Doc/ARCHITECTURE.md`
+- **OAuth/Security?** → `Doc/AUTHENTICATION.md`
 
-## Getting Help
-
-For detailed information on specific subsystems, refer to:
-1. Corresponding AGENTS.md file in that directory
-2. Documentation in `Doc/` folder
-3. Source code comments and headers
+Start with the root AGENTS.md (this file), then navigate to component-specific files as needed.
