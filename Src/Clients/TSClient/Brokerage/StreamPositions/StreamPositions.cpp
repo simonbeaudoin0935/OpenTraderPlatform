@@ -11,7 +11,7 @@ StreamPositions::StreamPositions(const QString& accountID, QNetworkReply* reply,
 {
     this->setObjectName("Stream::Positions::" + accountID);
 
-    INFO << "Stream created";
+    DEBUG << "Stream created";
 }
 
 void StreamPositions::processJsonObject(const QJsonObject& jsonObj)

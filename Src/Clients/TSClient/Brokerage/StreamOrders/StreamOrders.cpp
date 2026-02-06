@@ -9,7 +9,7 @@ StreamOrders::StreamOrders(const QString& accountID, QNetworkReply* reply, QObje
 {
     this->setObjectName("Stream::Orders::" + accountID);
 
-    INFO << "Stream created";
+    DEBUG << "Stream created";
 }
 
 void StreamOrders::processJsonObject(const QJsonObject& jsonObj)
