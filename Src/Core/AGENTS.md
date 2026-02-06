@@ -150,9 +150,9 @@ Contains data caching subsystems.
 **Role**: Market data replay for backtesting and analysis
 
 **Components**:
-- ReplayEngine: Controls replay playback
-- ReplayDataLoader: Loads historical data
-- ReplayController: User interface controls
+- ReplayEngine: Controls replay playback, timing, and speed
+- ReplayDataLoader: Loads historical data from SQLite databases
+- See `Replay/AGENTS.md` for detailed replay architecture and workflow
 
 **Features**:
 - Load data from CSV or database
@@ -401,6 +401,7 @@ TSClient& client = TSClient::getInstance();
 ## Related Agent Instructions
 
 - `Cache/BarCache/AGENTS.md`: Bar caching system details
+- `Replay/AGENTS.md`: Market data replay architecture and workflow
 - `../Algo/AGENTS.md`: MainAlgo coordination
 - `../Clients/TSClient/AGENTS.md`: TSClient API communication
 - `../FrontEnd/AGENTS.md`: FrontEnd interface implementations

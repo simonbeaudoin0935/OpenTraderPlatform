@@ -32,6 +32,7 @@ For detailed information about specific subsystems, navigate to:
 **Core Components**:
 - **Src/Core/AGENTS.md** - MainApp orchestration, MemoryMonitor, OrdersDatabase
 - **Src/Core/Cache/BarCache/AGENTS.md** - Two-tier caching (memory + SQLite), thread-safe access
+- **Src/Core/Replay/AGENTS.md** - Market data replay system, recording, playback controls
 
 **API Communication**:
 - **Src/Clients/TSClient/AGENTS.md** - TradeStation API client, OAuth flow, async requests, streams
