@@ -248,11 +248,12 @@ QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersData
         QString orderTypeStr = query.value(4).toString();
         QString jsonDataStr = query.value(5).toString();
 
-        QDateTime receivedTime = QDateTime::fromString(receivedTimeStr, Qt::ISODate);
+        QDateTime receivedTime =
+            QDateTime::fromString(receivedTimeStr, Qt::ISODate).toTimeZone(TradingHours::MARKET_TIMEZONE);
         std::optional<QDateTime> filledTime;
         if (!filledTimeStr.isEmpty())
         {
-            filledTime = QDateTime::fromString(filledTimeStr, Qt::ISODate);
+            filledTime = QDateTime::fromString(filledTimeStr, Qt::ISODate).toTimeZone(TradingHours::MARKET_TIMEZONE);
         }
 
         // Reconstruct the Order object from JSON
