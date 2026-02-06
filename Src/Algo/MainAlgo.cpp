@@ -676,61 +676,61 @@ void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pl
     INFO << "MainAlgo entering replay mode for" << p_date.toString(Qt::ISODate) << "at"
          << p_startTime.toString("hh:mm:ss");
 
+    // We assume that if we were able to click "Enter Replay Mode", then we must not already be in replay mode, so m_replayEngine should be null
+    OBJ_ASSUME_TRUE(m_replayEngine == nullptr);
+
     // Create ReplayEngine on first use (lazy init, parent=this for thread affinity)
-    if (m_replayEngine == nullptr)
-    {
-        m_replayEngine = new ReplayEngine(this, TSClient::getInstance());
+    m_replayEngine = new ReplayEngine(this, TSClient::getInstance());
 
-        // Forward signals to MainAlgo signals for UI consumption
-        bool connected =
-            connect(m_replayEngine, &ReplayEngine::replayStarted, this, &MainAlgo::replayStarted, Qt::UniqueConnection);
-        ASSUME_TRUE(connected);
+    // Forward signals to MainAlgo signals for UI consumption
+    bool connected =
+        connect(m_replayEngine, &ReplayEngine::replayStarted, this, &MainAlgo::replayStarted, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
 
-        connected =
-            connect(m_replayEngine, &ReplayEngine::replayStopped, this, &MainAlgo::replayStopped, Qt::UniqueConnection);
-        ASSUME_TRUE(connected);
+    connected =
+        connect(m_replayEngine, &ReplayEngine::replayStopped, this, &MainAlgo::replayStopped, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
 
-        connected =
-            connect(m_replayEngine, &ReplayEngine::replayPaused, this, &MainAlgo::replayPaused, Qt::UniqueConnection);
-        ASSUME_TRUE(connected);
+    connected =
+        connect(m_replayEngine, &ReplayEngine::replayPaused, this, &MainAlgo::replayPaused, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
 
-        connected =
-            connect(m_replayEngine, &ReplayEngine::replayResumed, this, &MainAlgo::replayResumed, Qt::UniqueConnection);
-        ASSUME_TRUE(connected);
+    connected =
+        connect(m_replayEngine, &ReplayEngine::replayResumed, this, &MainAlgo::replayResumed, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
 
-        connected = connect(m_replayEngine,
-                            &ReplayEngine::replayTimeUpdated,
-                            this,
-                            &MainAlgo::replayTimeUpdated,
-                            Qt::UniqueConnection);
-        ASSUME_TRUE(connected);
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::replayTimeUpdated,
+                        this,
+                        &MainAlgo::replayTimeUpdated,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
 
-        connected = connect(m_replayEngine,
-                            &ReplayEngine::replayEndReached,
-                            this,
-                            &MainAlgo::replayEndReached,
-                            Qt::UniqueConnection);
-        ASSUME_TRUE(connected);
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::replayEndReached,
+                        this,
+                        &MainAlgo::replayEndReached,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
 
-        // Cross-thread connections to TSClient for data injection
-        // ReplayEngine (MainAlgoThread) -> TSClient (TSClientThread)
-        // QueuedConnection ensures thread-safe delivery
-        connected = connect(m_replayEngine,
-                            &ReplayEngine::injectBarData,
-                            TSClient::getInstance(),
-                            &TSClient::onInjectBarData,
-                            Qt::QueuedConnection);
-        ASSUME_TRUE(connected);
+    // Cross-thread connections to TSClient for data injection
+    // ReplayEngine (MainAlgoThread) -> TSClient (TSClientThread)
+    // QueuedConnection ensures thread-safe delivery
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::injectBarData,
+                        TSClient::getInstance(),
+                        &TSClient::onInjectBarData,
+                        Qt::QueuedConnection);
+    ASSUME_TRUE(connected);
 
-        connected = connect(m_replayEngine,
-                            &ReplayEngine::injectDepthData,
-                            TSClient::getInstance(),
-                            &TSClient::onInjectDepthData,
-                            Qt::QueuedConnection);
-        ASSUME_TRUE(connected);
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::injectDepthData,
+                        TSClient::getInstance(),
+                        &TSClient::onInjectDepthData,
+                        Qt::QueuedConnection);
+    ASSUME_TRUE(connected);
 
-        DEBUG << "ReplayEngine created and connected";
-    }
+    DEBUG << "ReplayEngine created and connected";
 
     m_replayEngine->startReplay(p_date, p_startTime, p_speed);
 }
@@ -739,10 +739,9 @@ void MainAlgo::exitReplayMode()
 {
     INFO << "MainAlgo exiting replay mode";
 
-    if (m_replayEngine != nullptr)
-    {
-        m_replayEngine->stopReplay();
-    }
+    OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
+
+    m_replayEngine->stopReplay();
 }
 
 void MainAlgo::pauseReplay()
@@ -768,23 +767,23 @@ void MainAlgo::pauseReplay()
 
 void MainAlgo::resumeReplay()
 {
-    if (m_replayEngine != nullptr)
-    {
-        // Resume heartbeat timers before resuming replay
-        if (currentDisplayedStockInstrument != nullptr)
-        {
-            if (auto stream = currentDisplayedStockInstrument->barReceiver.getStream())
-            {
-                stream->resumeHeartbeat();
-            }
-            if (auto stream = currentDisplayedStockInstrument->marketDepthQuoteReceiver.getStream())
-            {
-                stream->resumeHeartbeat();
-            }
-        }
+    // We assume that if we were able to click Resume", then we must not already be in replay mode, so m_replayEngine should be null
+    OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
 
-        m_replayEngine->resumeReplay();
+    // Resume heartbeat timers before resuming replay
+    if (currentDisplayedStockInstrument != nullptr)
+    {
+        if (auto stream = currentDisplayedStockInstrument->barReceiver.getStream())
+        {
+            stream->resumeHeartbeat();
+        }
+        if (auto stream = currentDisplayedStockInstrument->marketDepthQuoteReceiver.getStream())
+        {
+            stream->resumeHeartbeat();
+        }
     }
+
+    m_replayEngine->resumeReplay();
 }
 
 void MainAlgo::pauseLiveStreams()
