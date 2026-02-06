@@ -117,12 +117,13 @@ class MainApp
     /**
      * @brief Enter replay mode (switch data source from Live to Replay)
      *
-     * This only switches the data source mode. Playback does not start automatically.
-     * Use startReplayPlayback() to begin playback after entering replay mode.
-     * Coordinates: TSClient mode switch, MainAlgo stream pause, UI update.
-     * Called from GUI thread.
+     * Switches data source mode, emits first bar to populate chart, then pauses.
+     * User sees populated chart in paused state, ready to play.
+     * @param p_date Date to replay
+     * @param p_startTime Start time within the day
+     * @param p_speed Playback speed for when user clicks play
      */
-    void enterReplayMode();
+    void enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
 
     /**
      * @brief Exit replay mode and resume live operation

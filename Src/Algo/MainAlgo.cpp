@@ -735,6 +735,67 @@ void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pl
     m_replayEngine->startReplay(p_date, p_startTime, p_speed);
 }
 
+void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
+{
+    INFO << "MainAlgo entering replay mode (paused) for" << p_date.toString(Qt::ISODate) << "at"
+         << p_startTime.toString("hh:mm:ss");
+
+    // We assume that if we were able to click "Enter Replay Mode", then we must not already be in replay mode
+    OBJ_ASSUME_TRUE(m_replayEngine == nullptr);
+
+    // Create ReplayEngine (same setup as enterReplayMode)
+    m_replayEngine = new ReplayEngine(this, TSClient::getInstance());
+
+    bool connected =
+        connect(m_replayEngine, &ReplayEngine::replayStarted, this, &MainAlgo::replayStarted, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected =
+        connect(m_replayEngine, &ReplayEngine::replayStopped, this, &MainAlgo::replayStopped, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected =
+        connect(m_replayEngine, &ReplayEngine::replayPaused, this, &MainAlgo::replayPaused, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected =
+        connect(m_replayEngine, &ReplayEngine::replayResumed, this, &MainAlgo::replayResumed, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::replayTimeUpdated,
+                        this,
+                        &MainAlgo::replayTimeUpdated,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::replayEndReached,
+                        this,
+                        &MainAlgo::replayEndReached,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::injectBarData,
+                        TSClient::getInstance(),
+                        &TSClient::onInjectBarData,
+                        Qt::QueuedConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::injectDepthData,
+                        TSClient::getInstance(),
+                        &TSClient::onInjectDepthData,
+                        Qt::QueuedConnection);
+    ASSUME_TRUE(connected);
+
+    DEBUG << "ReplayEngine created and connected";
+
+    // Start in paused state - emit first bar then pause
+    m_replayEngine->startReplayPaused(p_date, p_startTime, p_speed);
+}
+
 void MainAlgo::exitReplayMode()
 {
     INFO << "MainAlgo exiting replay mode";

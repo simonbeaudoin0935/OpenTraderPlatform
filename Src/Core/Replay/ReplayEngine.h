@@ -83,6 +83,14 @@ class ReplayEngine : public QObject
     void startReplay(QDate p_date, QTime p_startTime, PlaybackSpeed p_speed);
 
     /**
+     * @brief Start replay in paused state, emitting only the first data point
+     *
+     * Used when entering replay mode to pre-populate the chart.
+     * Emits first bar/quote then immediately pauses. User clicks Play to continue.
+     */
+    void startReplayPaused(QDate p_date, QTime p_startTime, PlaybackSpeed p_speed);
+
+    /**
      * @brief Stop replay and clean up resources
      *
      * Stops timer, clears data loader, resets state to Stopped.

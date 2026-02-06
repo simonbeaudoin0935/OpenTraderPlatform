@@ -97,6 +97,10 @@ class MainAlgo final : public QObject
     /// @param p_speed Playback speed
     void enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
 
+    /// @brief Enter replay mode and immediately pause after first bar
+    /// Used when entering replay mode to pre-populate chart
+    void enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
+
     /// @brief Exit replay mode and clean up
     void exitReplayMode();
 

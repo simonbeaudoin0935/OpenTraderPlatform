@@ -293,11 +293,11 @@ void MainApp::cleanupSingletons()
     qInfo() << "All singletons cleaned up";
 }
 
-void MainApp::enterReplayMode()
+void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
 {
     ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Live && "enterReplayMode called when already in replay mode");
 
-    qInfo() << "Entering replay mode (data source switch only, playback not started)";
+    qInfo() << "Entering replay mode for" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString("hh:mm:ss");
 
     // 1. Capture currently displayed symbol before we delete everything
     QString displayedSymbol = mainAlgo->getDisplayedSymbol();
@@ -310,9 +310,8 @@ void MainApp::enterReplayMode()
     // 2. Set data source mode
     m_dataSourceMode = DataSourceMode::Replay;
 
-    // 3. Initialize replay time to current real time (will be overwritten when playback starts)
-    // This prevents ASSERT failures if user pans chart before starting playback
-    currentAppReplayTime = QDateTime::currentDateTime().toTimeZone(TradingHours::MARKET_TIMEZONE);
+    // 3. Initialize replay time to start time (will be refined when first bar emits)
+    currentAppReplayTime = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE);
 
     // 4. Switch TSClient to replay mode (blocking to ensure mode is set before streams open)
     QMetaObject::invokeMethod(
@@ -320,10 +319,10 @@ void MainApp::enterReplayMode()
         [this]() { tradeStationClient->setMode(TSClient::Mode::Replay); },
         Qt::BlockingQueuedConnection);
 
-    // 5. Clean slate: stop everything and recreate fresh (MainAlgo thread)
+    // 5. Clean slate: stop everything and recreate fresh, then start replay paused (MainAlgo thread)
     QMetaObject::invokeMethod(
         mainAlgo,
-        [this, displayedSymbol]()
+        [this, displayedSymbol, p_date, p_startTime, p_speed]()
         {
             // Stop all running strategies
             mainAlgo->stopAllStrategies();
@@ -336,13 +335,16 @@ void MainApp::enterReplayMode()
 
             // Create fresh stock instrument with mock-backed streams
             mainAlgo->createAndSetDisplayedStockInstrument(displayedSymbol);
+
+            // Start replay in paused state - emits first bar to populate chart
+            mainAlgo->enterReplayModePaused(p_date, p_startTime, p_speed);
         },
         Qt::QueuedConnection);
 
     // 6. Update UI
     appFrontend->onReplayModeEntered();
 
-    qInfo() << "Replay mode entered, awaiting playback start";
+    qInfo() << "Replay mode entered with chart pre-populated";
 }
 
 void MainApp::exitReplayMode()

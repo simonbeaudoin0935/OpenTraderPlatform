@@ -94,6 +94,65 @@ void ReplayEngine::startReplay(QDate p_date, QTime p_startTime, PlaybackSpeed p_
     scheduleNextDataPoint();
 }
 
+void ReplayEngine::startReplayPaused(QDate p_date, QTime p_startTime, PlaybackSpeed p_speed)
+{
+    if (m_state != PlaybackState::Stopped)
+    {
+        WARNING << "Cannot start replay - already active. Stop current replay first.";
+        return;
+    }
+
+    INFO << "Starting replay (paused) for" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString("hh:mm:ss");
+
+    m_speed = p_speed;
+
+    // Create data loader if needed
+    if (m_dataLoader == nullptr)
+    {
+        m_dataLoader = new ReplayDataLoader(this);
+        bool connected = connect(m_dataLoader,
+                                 &ReplayDataLoader::bufferReady,
+                                 this,
+                                 &ReplayEngine::onBufferReady,
+                                 Qt::UniqueConnection);
+        ASSUME_TRUE(connected);
+    }
+
+    // Load database for the selected date, starting from specified time
+    if (!m_dataLoader->loadDatabase(p_date, p_startTime))
+    {
+        CRITICAL << "Failed to load replay database for" << p_date.toString(Qt::ISODate);
+        return;
+    }
+
+    // Check if we have any data
+    if (!m_dataLoader->hasMoreData())
+    {
+        WARNING << "No data available for replay on" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString();
+        return;
+    }
+
+    // Initialize replay time to first data point timestamp
+    const ReplayDataLoader::ReplayDataPoint& firstPoint = m_dataLoader->peekNextDataPoint();
+    QDateTime initialTime = QDateTime::fromMSecsSinceEpoch(firstPoint.epochMs, TradingHours::MARKET_TIMEZONE);
+    MainApp::currentAppReplayTime = initialTime;
+    INFO << "Initialized replay time to first data point:" << initialTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+
+    ++m_replayGeneration; // Invalidate any stale timer events from previous replay
+
+    // Emit first data point to trigger chart population
+    m_state = PlaybackState::Playing;
+    m_lastEmittedTimestampMs = 0;
+    emit replayStarted();
+    emitCurrentDataPoint();
+
+    // Immediately pause instead of scheduling next data point
+    m_state = PlaybackState::Paused;
+    emit replayPaused();
+
+    INFO << "Replay started in paused state after first data point";
+}
+
 void ReplayEngine::stopReplay()
 {
     if (m_state == PlaybackState::Stopped)

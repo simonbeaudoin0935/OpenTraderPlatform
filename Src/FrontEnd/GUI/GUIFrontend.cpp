@@ -1442,8 +1442,12 @@ bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
                 return true;
             }
 
-            qCInfo(GUIFrontendLog) << "Entering replay mode (playback not started yet)";
-            MainApp::getInstance()->enterReplayMode();
+            QDate replayDate = toolbar->getSelectedReplayDay();
+            QTime replayTime = toolbar->getReplayStartTime();
+            ReplayEngine::PlaybackSpeed speed = toolbar->getReplaySpeed();
+
+            qCInfo(GUIFrontendLog) << "Entering replay mode for" << replayDate << "at" << replayTime;
+            MainApp::getInstance()->enterReplayMode(replayDate, replayTime, speed);
         }
 
         return true; // Event handled
