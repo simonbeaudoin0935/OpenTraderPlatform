@@ -270,6 +270,12 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
                 }
             });
 
+    // Connect replay speed change
+    connect(chartToolbar,
+            &ChartToolbar::replaySpeedChanged,
+            this,
+            [](ReplayEngine::PlaybackSpeed speed) { MainApp::getInstance()->setReplaySpeed(speed); });
+
     // Load wheel zoom ratio from settings
     Q_CHECK_PTR(appStateSettings);
     qreal savedRatio = appStateSettings->value("Chart/WheelZoomRatio", 1.0).toReal();
@@ -327,18 +333,21 @@ void StockPriceChart::populateAvailableReplayDays()
         return;
     }
 
-    // Get all .db files in the directory
+    // Get all .db files in the directory (format: YYYY-MM-DD.db)
     QStringList filters;
-    filters << "RecordedLiveBars_*.db";
+    filters << "*.db";
     QStringList dbFiles = dir.entryList(filters, QDir::Files, QDir::Name);
 
     QList<QDate> availableDates;
     for (const QString& dbFile: dbFiles)
     {
-        // Extract date from filename (format: RecordedLiveBars_YYYY-MM-DD.db)
-        QString dateStr = dbFile.mid(17,
-                                     10); // Skip "RecordedLiveBars_" (17 chars) and take 10 chars for date
-        QDate date = QDate::fromString(dateStr, "yyyy-MM-dd");
+        // Extract date from filename (format: YYYY-MM-DD.db)
+        QString baseName = dbFile;
+        if (baseName.endsWith(".db"))
+        {
+            baseName.chop(3); // Remove ".db"
+        }
+        QDate date = QDate::fromString(baseName, "yyyy-MM-dd");
         if (date.isValid())
         {
             availableDates.append(date);
@@ -1468,10 +1477,9 @@ std::tuple<QDateTime, QDateTime, int> StockPriceChart::queryStockTimeRangeForDat
 {
     std::tuple<QDateTime, QDateTime, int> result;
 
-    // Build database path: ~/.cache/L2Trader/RecordedLiveData/Bars/RecordedLiveBars_YYYY-MM-DD.db
+    // Build database path: ~/.cache/L2Trader/RecordedLiveData/Bars/YYYY-MM-DD.db
     QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
-    QString dbPath =
-        QString("%1/RecordedLiveData/Bars/RecordedLiveBars_%2.db").arg(cacheDir, date.toString("yyyy-MM-dd"));
+    QString dbPath = QString("%1/RecordedLiveData/Bars/%2.db").arg(cacheDir, date.toString("yyyy-MM-dd"));
 
     if (!QFile::exists(dbPath))
     {
@@ -1479,58 +1487,61 @@ std::tuple<QDateTime, QDateTime, int> StockPriceChart::queryStockTimeRangeForDat
         return result;
     }
 
-    // Open database connection
-    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "replay_query");
-    db.setDatabaseName(dbPath);
-
-    if (!db.open())
+    // Use a scoped block to ensure QSqlQuery goes out of scope before removeDatabase
     {
-        qCWarning(ChartLog) << "Failed to open database:" << db.lastError().text();
-        return result;
-    }
+        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "replay_query");
+        db.setDatabaseName(dbPath);
 
-    // Calculate epoch range for the date (start of day to end of day in NY timezone)
-    QTimeZone nyZone("America/New_York");
-    QDateTime dayStart(date, QTime(0, 0, 0), nyZone);
-    QDateTime dayEnd(date, QTime(23, 59, 59, 999), nyZone);
-    qint64 startEpochMs = dayStart.toMSecsSinceEpoch();
-    qint64 endEpochMs = dayEnd.toMSecsSinceEpoch();
-
-    // Query for min, max timestamps and count for the symbol
-    QSqlQuery query(db);
-    query.prepare(StockPriceChartQueries::SELECT_STOCK_TIME_RANGE);
-    query.addBindValue(symbol);
-    query.addBindValue(startEpochMs);
-    query.addBindValue(endEpochMs);
-
-    if (query.exec() && query.next())
-    {
-        qint64 minEpochMs = query.value(0).toLongLong();
-        qint64 maxEpochMs = query.value(1).toLongLong();
-        int barCount = query.value(2).toInt();
-
-        if (minEpochMs > 0 && maxEpochMs > 0)
+        if (!db.open())
         {
-            // Convert from UTC to New York timezone
-            std::get<0>(result) = QDateTime::fromMSecsSinceEpoch(minEpochMs, Qt::UTC).toTimeZone(nyZone);
-            std::get<1>(result) = QDateTime::fromMSecsSinceEpoch(maxEpochMs, Qt::UTC).toTimeZone(nyZone);
-            std::get<2>(result) = barCount;
+            qCWarning(ChartLog) << "Failed to open database:" << db.lastError().text();
+            QSqlDatabase::removeDatabase("replay_query");
+            return result;
+        }
 
-            qCInfo(ChartLog) << "Database query result for" << symbol << "on" << date.toString("yyyy-MM-dd") << ":"
-                             << barCount << "bars found";
+        // Calculate epoch range for the date (start of day to end of day in NY timezone)
+        QTimeZone nyZone("America/New_York");
+        QDateTime dayStart(date, QTime(0, 0, 0), nyZone);
+        QDateTime dayEnd(date, QTime(23, 59, 59, 999), nyZone);
+        qint64 startEpochMs = dayStart.toMSecsSinceEpoch();
+        qint64 endEpochMs = dayEnd.toMSecsSinceEpoch();
+
+        // Query for min, max timestamps and count for the symbol
+        QSqlQuery query(db);
+        query.prepare(StockPriceChartQueries::SELECT_STOCK_TIME_RANGE);
+        query.addBindValue(symbol);
+        query.addBindValue(startEpochMs);
+        query.addBindValue(endEpochMs);
+
+        if (query.exec() && query.next())
+        {
+            qint64 minEpochMs = query.value(0).toLongLong();
+            qint64 maxEpochMs = query.value(1).toLongLong();
+            int barCount = query.value(2).toInt();
+
+            if (minEpochMs > 0 && maxEpochMs > 0)
+            {
+                // Convert from UTC to New York timezone
+                std::get<0>(result) = QDateTime::fromMSecsSinceEpoch(minEpochMs, Qt::UTC).toTimeZone(nyZone);
+                std::get<1>(result) = QDateTime::fromMSecsSinceEpoch(maxEpochMs, Qt::UTC).toTimeZone(nyZone);
+                std::get<2>(result) = barCount;
+
+                qCInfo(ChartLog) << "Database query result for" << symbol << "on" << date.toString("yyyy-MM-dd") << ":"
+                                 << barCount << "bars found";
+            }
+            else
+            {
+                qCInfo(ChartLog) << "No bars found for" << symbol << "on" << date.toString("yyyy-MM-dd");
+            }
         }
         else
         {
-            qCInfo(ChartLog) << "No bars found for" << symbol << "on" << date.toString("yyyy-MM-dd");
+            qCWarning(ChartLog) << "Query failed:" << query.lastError().text();
         }
-    }
-    else
-    {
-        qCWarning(ChartLog) << "Query failed:" << query.lastError().text();
-    }
 
-    // Clean up database connection
-    db.close();
+        db.close();
+    } // QSqlQuery and QSqlDatabase go out of scope here
+
     QSqlDatabase::removeDatabase("replay_query");
 
     return result;

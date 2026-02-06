@@ -395,8 +395,8 @@ void RecorderTab::onStartRecording()
 
     // Create database instances
     QString dateStr = QDate::currentDate().toString("yyyy-MM-dd");
-    QString barsDbPath = barsPath + "/RecordedLiveBars_" + dateStr + ".db";
-    QString marketDepthDbPath = marketDepthPath + "/RecordedLiveMarketDepthQuotes_" + dateStr + ".db";
+    QString barsDbPath = barsPath + "/" + dateStr + ".db";
+    QString marketDepthDbPath = marketDepthPath + "/" + dateStr + ".db";
 
     m_liveBarsDB = std::make_unique<LiveStreamDB>(LiveStreamDB::StreamType::Bars, barsDbPath, m_stockTickers);
     m_liveMarketDepthQuoteDB =
