@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <QFileInfo>
 #include <QtSql/QSqlDatabase>
 #include <QMap>
 #include <QStringList>
@@ -43,6 +44,11 @@ class LiveStreamDB : public QObject
     QMap<QString, int> getSuccessfulRecoveries() const
     {
         return successfulRecoveries;
+    }
+
+    [[nodiscard]] qint64 getDatabaseFileSizeBytes() const
+    {
+        return QFileInfo(db.databaseName()).size();
     }
 
     int getRecordCount() const;

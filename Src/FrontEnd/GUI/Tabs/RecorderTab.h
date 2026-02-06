@@ -53,7 +53,7 @@ class RecorderTab : public QWidget
     QLabel* m_uptimeLabel;
     QLabel* m_barsRecordCountLabel;
     QLabel* m_depthRecordCountLabel;
-    QLabel* m_memoryUsageLabel;
+    QLabel* m_recordingSizeLabel;
     QTimer* m_refreshTimer;
 
     // Recorder state

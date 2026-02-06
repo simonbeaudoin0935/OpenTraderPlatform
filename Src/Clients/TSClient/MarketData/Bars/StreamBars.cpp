@@ -19,7 +19,7 @@ void StreamBars::processJsonObject(const QJsonObject& jsonObj)
 
     if (!bar.isValid()) [[unlikely]]
     {
-        qCWarning(StreamLog) << "Bar malformed : " << bar.toJsonString();
+        WARNING << "Bar malformed : " << bar.toJsonString();
         return;
     }
 

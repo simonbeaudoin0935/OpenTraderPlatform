@@ -16,11 +16,6 @@
 #include <QTextStream>
 #include <QFileDialog>
 
-#ifdef Q_OS_LINUX
-#include <fstream>
-#include <unistd.h>
-#endif
-
 RecorderTab::RecorderTab(QWidget* p_parent)
     : QWidget(p_parent)
     , m_streamTable(nullptr)
@@ -34,7 +29,7 @@ RecorderTab::RecorderTab(QWidget* p_parent)
     , m_uptimeLabel(nullptr)
     , m_barsRecordCountLabel(nullptr)
     , m_depthRecordCountLabel(nullptr)
-    , m_memoryUsageLabel(nullptr)
+    , m_recordingSizeLabel(nullptr)
     , m_refreshTimer(nullptr)
     , m_isRecording(false)
     , m_isAuthenticated(false)
@@ -96,8 +91,8 @@ void RecorderTab::setupUI()
     m_depthRecordCountLabel = new QLabel("Market Depth Records: 0");
     statusLayout->addWidget(m_depthRecordCountLabel);
 
-    m_memoryUsageLabel = new QLabel("Memory Usage: N/A");
-    statusLayout->addWidget(m_memoryUsageLabel);
+    m_recordingSizeLabel = new QLabel("Recording Size: N/A");
+    statusLayout->addWidget(m_recordingSizeLabel);
 
     // CSV file input section
     QHBoxLayout* csvFileLayout = new QHBoxLayout();
@@ -495,27 +490,17 @@ void RecorderTab::updateStatsDisplay()
         m_depthRecordCountLabel->setText(QString("Market Depth Records: %1").arg(depthCount));
     }
 
-    // Update memory usage
-#ifdef Q_OS_LINUX
-    std::ifstream statm("/proc/self/statm");
-    if (statm.is_open())
+    // Update total recording size (sum of both database files)
+    qint64 totalDbSize = 0;
+    if (m_liveBarsDB)
     {
-        long vmPages;
-        long rssPages;
-        statm >> vmPages >> rssPages;
-        long pageSize = sysconf(_SC_PAGESIZE);
-        long memoryBytes = rssPages * pageSize;
-        m_memoryUsageLabel->setText(QString("Memory Usage: %1").arg(formatFileSize(memoryBytes)));
-        statm.close();
+        totalDbSize += m_liveBarsDB->getDatabaseFileSizeBytes();
     }
-    else
+    if (m_liveMarketDepthQuoteDB)
     {
-        m_memoryUsageLabel->setText("Memory Usage: N/A");
+        totalDbSize += m_liveMarketDepthQuoteDB->getDatabaseFileSizeBytes();
     }
-#else
-    // For non-Linux platforms, we don't have a simple way to get memory usage
-    m_memoryUsageLabel->setText("Memory Usage: N/A (platform not supported)");
-#endif
+    m_recordingSizeLabel->setText(QString("Recording Size: %1").arg(formatFileSize(totalDbSize)));
 }
 
 void RecorderTab::updateStreamTable()

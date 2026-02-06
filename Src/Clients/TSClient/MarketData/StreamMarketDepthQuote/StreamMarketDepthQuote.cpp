@@ -20,20 +20,19 @@ void StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
     if (!quote.isValid()) [[unlikely]]
     {
 
-        qCWarning(StreamLog) << Q_FUNC_INFO << "Market Depth Quote invalid. Received data : "
-                             << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
-        qCWarning(StreamLog).noquote() << Q_FUNC_INFO << "Malformed object to string : " << quote.toJsonString();
+        WARNING << "Market Depth Quote invalid. Received data : "
+                << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
 
         return;
     }
 
     if (quote.isLocked())
     {
-        qCDebug(StreamLog) << Q_FUNC_INFO << " Quote is locked";
+        DEBUG << " Quote is locked";
     }
     else if (quote.isCrossed())
     {
-        qCDebug(StreamLog) << Q_FUNC_INFO << " Quote is crossed";
+        DEBUG << " Quote is crossed";
     }
 
     emit newMarketDepthQuoteReceived(quote);
