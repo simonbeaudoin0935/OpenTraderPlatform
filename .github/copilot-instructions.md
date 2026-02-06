@@ -58,11 +58,15 @@ if (m_replayEngine != nullptr) {
     m_replayEngine->pauseReplay();
 }
 
-// ✓ CORRECT - Assert expectation upfront
+// ✓ CORRECT - Assert expectation upfront (pre-condition)
 OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
 m_replayEngine->pauseReplay();
+
+// ✓ CORRECT - Assert valid results (post-condition)
+auto result = processData();
+VALUE_ASSUME_GT(result, 0);  // Ensure valid output
 ```
-Use ASSUME macros from `Src/Misc/Assume.h` instead of Q_ASSERT.
+Use ASSUME macros from `Src/Misc/Assume.h` for both pre-conditions and post-conditions instead of Q_ASSERT.
 
 ### Naming Conventions
 - Member variables: `m_` prefix (e.g., `m_barCache`)

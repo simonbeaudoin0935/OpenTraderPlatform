@@ -38,6 +38,11 @@ This directory contains all source code for the L2Trader application.
 - SDK for strategy development
 - Signal handling for crash isolation
 
+**Recorder/** - Market data recording
+- Recording logic for capturing live market data
+- CSV file output
+- Integration with RecorderTab in GUI
+
 ### Supporting Components
 
 **Misc/** - Utilities and helpers

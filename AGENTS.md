@@ -105,9 +105,15 @@ find Src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
 
 **ASSERT-First**:
 ```cpp
+// Pre-conditions (expected state)
 OBJ_ASSUME_DIFF(m_stream, nullptr);  // Assert upfront
 m_stream->start();                    // Use without checks
+
+// Post-conditions (validate results)
+auto result = processData();
+VALUE_ASSUME_GT(result, 0);          // Ensure valid output
 ```
+Use ASSUME macros from `Src/Misc/Assume.h` for both pre-conditions and post-conditions.
 
 ## Testing
 
