@@ -156,6 +156,12 @@ class StrategyManager final : public QObject
     void markStrategyFailed(const QString& p_strategyID, const QString& p_errorMessage);
 
     /*
+     * Stop and unload all running strategies
+     * Used during mode transitions (Live <-> Replay) for clean separation
+     */
+    void stopAllStrategies();
+
+    /*
      * Get list of active strategy IDs
      */
     [[nodiscard]] QVector<QString> getActiveStrategies() const;

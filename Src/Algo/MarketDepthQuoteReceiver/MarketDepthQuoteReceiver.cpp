@@ -19,6 +19,7 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
     DEBUG << "Starting Market Depth Quote stream for " << m_symbol;
 
     OBJ_ASSUME_EQUAL(m_stream, nullptr);
+
     m_stream = TSClient::getInstance()->openStreamMarketDepthQuote(m_symbol, 10);
 
     Q_CHECK_PTR(m_stream);
@@ -41,8 +42,6 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
                 DEBUG << "Market Depth Quote stream for" << m_symbol << "finished without error";
             }
             WARNING << "Market Depth Quote future finished. This is ok if the TSClient::closeStream() is called";
-
-            QTimer::singleShot(300, this, &MarketDepthQuoteReceiver::createMarketDepthQuoteStream);
         });
 }
 

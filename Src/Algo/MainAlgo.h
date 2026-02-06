@@ -10,6 +10,7 @@
 #include <atomic>
 
 #include "MarketDepthQuoteReceiver.h"
+#include "BarReceiver.h"
 #include "PositionsReceiver.h"
 #include "OrdersReceiver.h"
 #include "Account.h"
@@ -32,6 +33,7 @@ class StockInstruments : public QObject
 
     QString symbol;
     BarCache barCache;
+    BarReceiver barReceiver;
     MarketDepthQuoteReceiver marketDepthQuoteReceiver;
 };
 
@@ -52,6 +54,9 @@ class MainAlgo final : public QObject
     void startBalancePolling();
     void stopBalancePolling();
     [[nodiscard]] Balance getCurrentBalance() const;
+
+    /// @brief Get the currently displayed stock symbol
+    [[nodiscard]] QString getDisplayedSymbol() const;
 
     BarCache::GetBarsResult_t requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last);
 
@@ -107,14 +112,15 @@ class MainAlgo final : public QObject
     /// @brief Resume live streams after exiting replay mode
     void resumeLiveStreams();
 
-    /// @brief Clear all bar caches (for replay mode transition)
-    void clearAllBarCaches();
+    /// @brief Delete all stock instruments (for clean mode transitions)
+    void deleteAllStockInstruments();
 
-    /// @brief Start replay stream for the currently displayed symbol
-    void startReplayStreamForDisplayedSymbol();
+    /// @brief Stop all running strategies (for clean mode transitions)
+    void stopAllStrategies();
 
-    /// @brief Restart live stream for the currently displayed symbol
-    void restartLiveStreamForDisplayedSymbol();
+    /// @brief Create a stock instrument and set it as displayed
+    /// @param p_symbol The stock symbol to create and display
+    void createAndSetDisplayedStockInstrument(const QString& p_symbol);
 
     /// @brief Get replay engine state
     [[nodiscard]] ReplayEngine::PlaybackState getReplayState() const;

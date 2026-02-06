@@ -8,7 +8,6 @@
 #include <expected>
 
 #include "Bar.h"
-#include "StreamBars.h"
 #include "TSClient.h"
 #include "CONSTANTS.h"
 
@@ -19,18 +18,13 @@ class BarCache : public QObject
     Q_OBJECT
 
   public:
-    explicit BarCache(const QString& symbol, bool isStreaming = false, QObject* parent = nullptr);
+    explicit BarCache(const QString& symbol, QObject* parent = nullptr);
     ~BarCache();
 
-    const QString& getSymbol() const
+    [[nodiscard]] const QString& getSymbol() const
     {
         return m_symbol;
     };
-
-    QPointer<StreamBars> getStream() const
-    {
-        return m_stream;
-    }
 
     typedef std::variant<std::shared_ptr<QVector<Bar>>,
                          QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>
@@ -46,43 +40,13 @@ class BarCache : public QObject
     void clearDatabase();
 
     /**
-     * @brief Clears the in-memory bar cache, keeping database data intact.
+     * @brief Store a single bar in the cache.
      *
-     * This is used when switching to replay mode to start fresh.
-     * The stream is stopped if active.
+     * This is called by BarReceiver when new bars arrive from the stream.
      */
-    void clearMemoryCache();
-
-    /**
-     * @brief Stops the bar stream if active, with optional auto-reconnect disable.
-     *
-     * @param disableAutoReconnect If true, prevents the stream from auto-reconnecting on error.
-     */
-    void stopStream(bool disableAutoReconnect = false);
-
-    /**
-     * @brief Starts the bar stream for this cache's symbol.
-     * In Live mode, connects to real TradeStation API.
-     * In Replay mode, creates a MockNetworkReply for injected data.
-     */
-    void startStream();
-
-    // Converts a QTime timestamp to the corresponding index in the daily bar cache vector
-    static size_t timeToIndex(const QTime& time);
-
-    // Converts a daily bar cache index to the corresponding bar timestamp (QTime)
-    static QTime indexToTime(size_t index);
-
-  signals:
-    void receivedNewBar(QString symbol, Bar newBar);
-
-  private slots:
-
-    void onReceivedNewLiveBar(Bar newBar);
+    void storeBar(const Bar& bar);
 
   private:
-    void startStreamInternal();
-
     [[nodiscard]]
     static constexpr QVector<std::tuple<QDate, QTime, QTime>> splitIntoTradingDayRanges(const QDateTime& first,
                                                                                         const QDateTime& last);
@@ -101,10 +65,7 @@ class BarCache : public QObject
     QVector<Bar>& getOrCreateDayVector(const QDate& date);
 
     const QString m_symbol;
-    const bool m_isStreaming;
     QString m_dbPath; // Path to the database file (managed by DatabaseThread)
-    QPointer<StreamBars> m_stream;
-    bool m_autoReconnect = true; // Controls whether stream auto-reconnects on error
 
     mutable QReadWriteLock m_barCacheRwLock; // Protects m_barCacheByDay, mutable for use in const methods
     // Day-based storage: one QVector per trading day. Vector index maps to minute within trading day.

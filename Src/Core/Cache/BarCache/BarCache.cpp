@@ -16,8 +16,7 @@
 #define LOGGING_CATEGORY BarCacheLog
 Q_LOGGING_CATEGORY(BarCacheLog, "BarCache")
 
-BarCache::BarCache(const QString& symbol, bool isStreaming, QObject* parent)
-    : QObject(parent), m_symbol(symbol), m_isStreaming(isStreaming)
+BarCache::BarCache(const QString& symbol, QObject* parent) : QObject(parent), m_symbol(symbol)
 {
     OBJ_ASSUME_DIFF(parent, nullptr);
 
@@ -58,64 +57,19 @@ BarCache::BarCache(const QString& symbol, bool isStreaming, QObject* parent)
                       CRITICAL << "Failed to open database for" << m_symbol;
                   }
               });
-
-    if (isStreaming)
-    {
-        startStreamInternal();
-    }
-}
-
-
-void BarCache::startStreamInternal()
-{
-    DEBUG << "Starting bars stream for symbol " << m_symbol;
-
-    m_autoReconnect = true; // Reset auto-reconnect when starting stream
-
-    m_stream = TSClient::getInstance()->openStreamBars(m_symbol,
-                                                       1, /* Interval: 1 bar */
-                                                       Bar::BarUnit::Minute,
-                                                       1, /* Barsback: 1 bars */
-                                                       Bar::BarSessionTemplate::USEQ24Hour);
-    Q_CHECK_PTR(m_stream);
-
-    connect(m_stream, &StreamBars::newBarReceived, this, &BarCache::onReceivedNewLiveBar);
-
-    m_stream->future().then(this,
-                            [this](std::optional<QString> error)
-                            {
-                                if (error.has_value())
-                                {
-                                    CRITICAL << "Bars cache bar future failed for" << m_symbol
-                                             << "- Exception:" << error.value();
-
-                                    if (m_autoReconnect)
-                                    {
-                                        CRITICAL << "Restarting bars stream for symbol " << m_symbol;
-                                        startStreamInternal();
-                                    }
-                                    else
-                                    {
-                                        DEBUG << "Auto-reconnect disabled, not restarting stream for" << m_symbol;
-                                    }
-                                }
-                                else
-                                {
-                                    CRITICAL << "Bars cache bar future finished, which should not happen";
-                                    Q_UNREACHABLE();
-                                }
-                            });
 }
 
 BarCache::~BarCache()
 {
-    // Note: Stream cleanup is handled by TSClient. Calling closeStream() from destructor
-    // can cause race conditions with pending .then() callbacks when using deleteLater().
-
     // Close database connection via DatabaseThread
     DatabaseThread::getInstance()->closeDatabase(m_symbol);
 
     DEBUG << "Destroyed";
+}
+
+void BarCache::storeBar(const Bar& bar)
+{
+    storeBarInCache(bar);
 }
 
 
@@ -566,13 +520,6 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
     }
 }
 
-void BarCache::onReceivedNewLiveBar(Bar newBar)
-{
-    storeBarInCache(newBar);
-
-    emit receivedNewBar(m_symbol, newBar);
-}
-
 void BarCache::clearDatabase()
 {
     INFO << "Clearing all bars from database for" << m_symbol;
@@ -591,48 +538,6 @@ void BarCache::clearDatabase()
                                                                                 << m_symbol;
                                                                     }
                                                                 });
-}
-
-void BarCache::clearMemoryCache()
-{
-    INFO << "Clearing in-memory bar cache for" << m_symbol;
-
-    // Stop stream first if active
-    stopStream(true);
-
-    // Clear the in-memory cache
-    {
-        QWriteLocker locker(&m_barCacheRwLock);
-        m_barCacheByDay.clear();
-    }
-
-    DEBUG << "In-memory bar cache cleared for" << m_symbol;
-}
-
-void BarCache::stopStream(bool disableAutoReconnect)
-{
-    if (disableAutoReconnect)
-    {
-        m_autoReconnect = false;
-    }
-
-    if (m_stream)
-    {
-        DEBUG << "Stopping bars stream for symbol" << m_symbol;
-        TSClient::getInstance()->closeStream(m_stream);
-        m_stream = nullptr;
-    }
-}
-
-void BarCache::startStream()
-{
-    if (m_stream)
-    {
-        WARNING << "Stream already active for" << m_symbol << "- stopping first";
-        stopStream(false);
-    }
-
-    startStreamInternal();
 }
 
 constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDayRanges(const QDateTime& first,

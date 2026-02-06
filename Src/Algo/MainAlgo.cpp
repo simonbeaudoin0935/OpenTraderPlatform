@@ -150,6 +150,29 @@ void MainAlgo::onThreadStarted()
             Qt::QueuedConnection);
 }
 
+/**
+ * @brief Handles the selection of a new stock for display.
+ *
+ * This function is called when the user selects a different stock to display in the UI.
+ * It manages the lifecycle of StockInstruments, disconnecting signals from the previous stock,
+ * cleaning up resources (such as closing data streams), and setting up the new stock's
+ * bar cache and market depth quote receivers with appropriate signal connections.
+ *
+ * If a stock was previously selected, it ensures proper cleanup by:
+ * - Disconnecting signals from the old stock's BarCache and MarketDepthQuoteReceiver
+ * - Closing any active streams for the old stock
+ * - Removing the old StockInstruments from the map and scheduling its deletion
+ *
+ * For the new stock, it either reuses an existing StockInstruments if the symbol is already
+ * in the map, or creates a new one. It then connects the new stock's signals to emit
+ * MainAlgo's signals for bar and market depth updates.
+ *
+ * @param symbol The stock symbol to select for display. Must be a valid stock symbol.
+ *
+ * @note This method must be called from the MainAlgo thread (QThread::currentThread() == &thread).
+ * @note Assumes that if a stock is currently displayed, the new symbol is different.
+ * @note Uses Qt's parent-child ownership for memory management of StockInstruments.
+ */
 void MainAlgo::onSelectDisplayedStock(const QString& symbol)
 {
     // Make sure that this method gets Qt::InvokeMethod'ed if called from another thread
@@ -162,8 +185,8 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         // Selecting the same stock as currently selected. No action taken.
         OBJ_ASSUME_DIFF(currentDisplayedStockInstrument->symbol, symbol);
 
-        disconnect(&currentDisplayedStockInstrument->barCache,
-                   &BarCache::receivedNewBar,
+        disconnect(&currentDisplayedStockInstrument->barReceiver,
+                   &BarReceiver::receivedNewBar,
                    this,
                    &MainAlgo::displayedStockReceivedNewBar);
 
@@ -177,9 +200,9 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         QPointer<StockInstruments> oldInstrument = currentDisplayedStockInstrument;
 
         // Close streams BEFORE scheduling deletion to avoid race conditions with .then() callbacks
-        if (oldInstrument->barCache.getStream())
+        if (oldInstrument->barReceiver.getStream())
         {
-            TSClient::getInstance()->closeStream(oldInstrument->barCache.getStream());
+            TSClient::getInstance()->closeStream(oldInstrument->barReceiver.getStream());
         }
         if (oldInstrument->marketDepthQuoteReceiver.getStream())
         {
@@ -210,8 +233,8 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
     }
 
     // Redoo the plumbing we disconnected at the top of this function
-    connect(&currentDisplayedStockInstrument->barCache,
-            &BarCache::receivedNewBar,
+    connect(&currentDisplayedStockInstrument->barReceiver,
+            &BarReceiver::receivedNewBar,
             this,
             &MainAlgo::displayedStockReceivedNewBar);
 
@@ -441,6 +464,15 @@ void MainAlgo::stopBalancePolling()
     return m_currentBalance;
 }
 
+[[nodiscard]] QString MainAlgo::getDisplayedSymbol() const
+{
+    if (currentDisplayedStockInstrument)
+    {
+        return currentDisplayedStockInstrument->symbol;
+    }
+    return QString();
+}
+
 void MainAlgo::requestBalance()
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
@@ -484,9 +516,20 @@ void MainAlgo::onBalanceReceived(const QVector<Balance>& results)
 }
 
 StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
-    : QObject(p_parent), symbol(p_symbol), barCache(p_symbol, true, this), marketDepthQuoteReceiver(p_symbol, this)
+    : QObject(p_parent)
+    , symbol(p_symbol)
+    , barCache(p_symbol, this)
+    , barReceiver(p_symbol, this)
+    , marketDepthQuoteReceiver(p_symbol, this)
 {
     this->setObjectName("StockInstrument::" + p_symbol);
+
+    // Connect BarReceiver to BarCache for storage
+    bool connected = connect(&barReceiver,
+                             &BarReceiver::receivedNewBar,
+                             &barCache,
+                             [this](const QString&, const Bar& bar) { barCache.storeBar(bar); });
+    OBJ_ASSUME_TRUE(connected);
 
     DEBUG << "New instance";
 }
@@ -793,42 +836,74 @@ ReplayEngine::PlaybackState MainAlgo::getReplayState() const
     return m_replayEngine->getState();
 }
 
-void MainAlgo::clearAllBarCaches()
+void MainAlgo::deleteAllStockInstruments()
 {
-    INFO << "Clearing all bar caches for replay mode transition";
+    INFO << "Deleting all stock instruments for clean mode transition";
 
+    // Clear the displayed pointer first
+    currentDisplayedStockInstrument = nullptr;
+
+    // Delete all stock instruments
     for (auto it = stockInstruments.begin(); it != stockInstruments.end(); ++it)
     {
         if (QPointer<StockInstruments> instrument = it.value(); instrument)
         {
-            instrument->barCache.clearMemoryCache();
-            DEBUG << "Cleared bar cache for" << instrument->symbol;
+            DEBUG << "Deleting stock instrument for" << instrument->symbol;
+            delete instrument;
         }
     }
+    stockInstruments.clear();
 
-    INFO << "All bar caches cleared";
+    INFO << "All stock instruments deleted";
 }
 
-void MainAlgo::startReplayStreamForDisplayedSymbol()
+void MainAlgo::stopAllStrategies()
 {
-    if (!currentDisplayedStockInstrument)
-    {
-        WARNING << "No displayed stock instrument to start replay stream for";
-        return;
-    }
-
-    INFO << "Starting replay stream for displayed symbol:" << currentDisplayedStockInstrument->symbol;
-    currentDisplayedStockInstrument->barCache.startStream();
+    INFO << "Stopping all strategies for mode transition";
+    m_strategyManager.stopAllStrategies();
+    INFO << "All strategies stopped";
 }
 
-void MainAlgo::restartLiveStreamForDisplayedSymbol()
+void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
 {
-    if (!currentDisplayedStockInstrument)
-    {
-        WARNING << "No displayed stock instrument to restart live stream for";
-        return;
-    }
+    INFO << "Creating and setting displayed stock instrument for" << p_symbol;
 
-    INFO << "Restarting live stream for displayed symbol:" << currentDisplayedStockInstrument->symbol;
-    currentDisplayedStockInstrument->barCache.startStream();
+    // Create new stock instrument (will open streams with current TSClient mode)
+    auto* newInstrument = new StockInstruments(p_symbol, this);
+    Q_CHECK_PTR(newInstrument);
+
+    stockInstruments[p_symbol] = newInstrument;
+    currentDisplayedStockInstrument = newInstrument;
+
+    // Connect signals for the new displayed instrument
+    bool connected = connect(&currentDisplayedStockInstrument->barReceiver,
+                             &BarReceiver::receivedNewBar,
+                             this,
+                             &MainAlgo::displayedStockReceivedNewBar,
+                             Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver,
+                        &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+                        this,
+                        &MainAlgo::displayedStockReceivedNewMarketDepthQuote,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    // Connect to strategy manager for bar delivery
+    connected = connect(&currentDisplayedStockInstrument->barReceiver,
+                        &BarReceiver::receivedNewBar,
+                        &m_strategyManager,
+                        &StrategyManager::onBarReceived,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver,
+                        &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+                        &m_strategyManager,
+                        &StrategyManager::onMarketDepthReceived,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    INFO << "Stock instrument created and set as displayed for" << p_symbol;
 }
