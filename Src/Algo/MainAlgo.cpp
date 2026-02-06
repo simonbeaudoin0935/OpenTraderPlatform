@@ -750,6 +750,19 @@ void MainAlgo::pauseReplay()
     if (m_replayEngine != nullptr)
     {
         m_replayEngine->pauseReplay();
+
+        // Pause heartbeat timers on mock streams to prevent timeout while paused
+        if (currentDisplayedStockInstrument != nullptr)
+        {
+            if (auto stream = currentDisplayedStockInstrument->barReceiver.getStream())
+            {
+                stream->pauseHeartbeat();
+            }
+            if (auto stream = currentDisplayedStockInstrument->marketDepthQuoteReceiver.getStream())
+            {
+                stream->pauseHeartbeat();
+            }
+        }
     }
 }
 
@@ -757,6 +770,19 @@ void MainAlgo::resumeReplay()
 {
     if (m_replayEngine != nullptr)
     {
+        // Resume heartbeat timers before resuming replay
+        if (currentDisplayedStockInstrument != nullptr)
+        {
+            if (auto stream = currentDisplayedStockInstrument->barReceiver.getStream())
+            {
+                stream->resumeHeartbeat();
+            }
+            if (auto stream = currentDisplayedStockInstrument->marketDepthQuoteReceiver.getStream())
+            {
+                stream->resumeHeartbeat();
+            }
+        }
+
         m_replayEngine->resumeReplay();
     }
 }

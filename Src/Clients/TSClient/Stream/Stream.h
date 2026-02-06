@@ -37,6 +37,22 @@ class Stream : public QObject
         s_isShuttingDown = shuttingDown;
     }
 
+    /**
+     * @brief Pause the heartbeat timer (e.g., when replay is paused)
+     */
+    void pauseHeartbeat()
+    {
+        m_heartbeatTimer.stop();
+    }
+
+    /**
+     * @brief Resume the heartbeat timer (e.g., when replay resumes)
+     */
+    void resumeHeartbeat()
+    {
+        m_heartbeatTimer.start(m_heartbeatTimeoutMS);
+    }
+
   signals:
     void newAmountOfDataReceived(size_t bytes);
     void receivedNewRawData(const QByteArray& rawData);
