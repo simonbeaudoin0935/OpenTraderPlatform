@@ -157,6 +157,11 @@ class MainApp
      */
     void resumeReplayPlayback();
 
+    /**
+     * @brief Check if replay is currently paused
+     */
+    [[nodiscard]] bool isReplayPaused() const;
+
   private:
     MainApp();
     ~MainApp();

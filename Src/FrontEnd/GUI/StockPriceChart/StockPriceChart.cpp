@@ -247,9 +247,14 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
                     QTime startTime = chartToolbar->getReplayStartTime();
                     ReplayEngine::PlaybackSpeed speed = chartToolbar->getReplaySpeed();
 
-                    if (date.isValid())
+                    if (MainApp::getInstance()->isReplayPaused())
                     {
-                        // Start or resume playback depending on current state
+                        // Resume from pause
+                        MainApp::getInstance()->resumeReplayPlayback();
+                    }
+                    else if (date.isValid())
+                    {
+                        // Start new playback
                         MainApp::getInstance()->startReplayPlayback(date, startTime, speed);
                     }
                     else

@@ -436,3 +436,8 @@ void MainApp::resumeReplayPlayback()
 
     QMetaObject::invokeMethod(mainAlgo, [this]() { mainAlgo->resumeReplay(); }, Qt::QueuedConnection);
 }
+
+bool MainApp::isReplayPaused() const
+{
+    return mainAlgo->getReplayState() == ReplayEngine::PlaybackState::Paused;
+}
