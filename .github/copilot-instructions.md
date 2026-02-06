@@ -13,19 +13,19 @@
    cd build
    ```
 
-3. **Configure GUI version with CMake**:
+3. **Configure GUI version with CMake** (using Ninja):
 
    ```bash
    mkdir -p ./build/GUI
-   cmake -S .. -B ./build/GUI -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF
+   cmake -S .. -B ./build/GUI -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF
    ```
    - Takes ~10-15 seconds
 
-3. **Configure TUI version with CMake**:
+3. **Configure TUI version with CMake** (using Ninja):
 
    ```bash
    mkdir -p ./build/TUI
-   cmake -S .. -B ./build/TUI -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=OFF -DBUILD_TESTS=OFF
+   cmake -S .. -B ./build/TUI -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=OFF -DBUILD_TESTS=OFF
    ```
    - Takes ~10-15 seconds
 
@@ -41,13 +41,13 @@
    ```bash
    cmake --build ./build/GUI -j$(nproc)
    ```
-   - Takes ~2-5 minutes
+   - Takes ~2-5 minutes (faster with Ninja)
 
 6. **Build TUI version**:
    ```bash
    cmake --build ./build/TUI -j$(nproc)
    ```
-   - Takes ~2-5 minutes
+   - Takes ~2-5 minutes (faster with Ninja)
 
 ## Run Application
 1. **TUI Mode** (default):
