@@ -501,6 +501,7 @@ void RecorderTab::updateStatsDisplay()
         totalDbSize += m_liveMarketDepthQuoteDB->getDatabaseFileSizeBytes();
     }
     m_recordingSizeLabel->setText(QString("Recording Size: %1").arg(formatFileSize(totalDbSize)));
+    emit recordingSizeChanged(totalDbSize);
 }
 
 void RecorderTab::updateStreamTable()

@@ -405,6 +405,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
                     << "Inserting historical bar into cache at index" << index << "for timestamp:" << bar.getTimeStamp()
                     << "but that slot was uninitialized. This should not happen as historical bars should be bulk inserted.";
 
+#warning fix this shit
                 Q_UNREACHABLE();
             }
         }

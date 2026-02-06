@@ -31,6 +31,9 @@ class RecorderTab : public QWidget
     void onBrowseButtonClicked();
     void onCsvFilePathChanged(const QString& p_text);
 
+  signals:
+    void recordingSizeChanged(qint64 totalBytes);
+
   private:
     void setupUI();
     void updateStatsDisplay();

@@ -408,6 +408,17 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     RecorderTab* recorderTab = new RecorderTab();
     ui->tabWidget->addTab(recorderTab, "Recorder");
 
+    QMetaObject::Connection c;
+    c = connect(recorderTab,
+                &RecorderTab::recordingSizeChanged,
+                this,
+                [this](qint64 totalBytes)
+                {
+                    m_recordingSize = totalBytes;
+                    updateStatusBar();
+                });
+    OBJ_ASSUME_TRUE(c);
+
     // Set up the shortcuts tab
     ShortcutsTab* shortcutsTab = new ShortcutsTab();
     ui->tabWidget->addTab(shortcutsTab, "Shortcuts");
@@ -593,15 +604,24 @@ void GUIFrontend::setupDarkTheme(QMainWindow* mainWindow)
     qApp->setStyleSheet(styleSheet);
 }
 
+void GUIFrontend::updateStatusBar()
+{
+    QString message = "TS usage : " + bytesToString(TSClientDataUsage) +
+                      " - Memory usage : " + bytesToString(memoryUsage) +
+                      " - Streams : " + QString::number(streamCount);
+
+    if (m_recordingSize > 0)
+    {
+        message += " - Recording : " + bytesToString(m_recordingSize);
+    }
+
+    ui->statusbar->showMessage(message);
+}
+
 void GUIFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
 {
     TSClientDataUsage = newDataUsage;
-
-    QString usageTS = bytesToString(newDataUsage);
-    QString usageMemory = bytesToString(memoryUsage);
-
-    ui->statusbar->showMessage("TS usage : " + usageTS + " - Memory usage : " + usageMemory +
-                               " - Streams : " + QString::number(streamCount));
+    updateStatusBar();
 }
 
 void GUIFrontend::onTradeStationAccountsReceived(QVector<Account> results)
@@ -642,23 +662,13 @@ QString GUIFrontend::getSelectedAccountId() const
 void GUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
 {
     memoryUsage = newDataUsage;
-
-    QString usageTS = bytesToString(TSClientDataUsage);
-    QString usageMemory = bytesToString(newDataUsage);
-
-    ui->statusbar->showMessage("TS usage : " + usageTS + " - Memory usage : " + usageMemory +
-                               " - Streams : " + QString::number(streamCount));
+    updateStatusBar();
 }
 
 void GUIFrontend::onStreamCountUpdate(int count)
 {
     streamCount = count;
-
-    QString usageTS = bytesToString(TSClientDataUsage);
-    QString usageMemory = bytesToString(memoryUsage);
-
-    ui->statusbar->showMessage("TS usage : " + usageTS + " - Memory usage : " + usageMemory +
-                               " - Streams : " + QString::number(count));
+    updateStatusBar();
 }
 
 void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)

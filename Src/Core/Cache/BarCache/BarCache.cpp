@@ -455,7 +455,7 @@ void BarCache::storeBarInCache(const Bar& bar)
                 }
                 else
                 {
-                    Q_UNREACHABLE();
+                    //Q_UNREACHABLE();
                 }
             }
         }
