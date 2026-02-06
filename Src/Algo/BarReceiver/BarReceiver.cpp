@@ -28,26 +28,28 @@ void BarReceiver::createBarStream()
 
     connect(m_stream, &StreamBars::newBarReceived, this, &BarReceiver::onReceivedNewBar);
 
+    // Capture symbol by value - no context object needed since this is just logging
     m_stream->future().then(
-        this,
-        [this](std::optional<QString> error)
+        [symbol = m_symbol](std::optional<QString> error)
         {
             if (error.has_value())
             {
-                CRITICAL << "Bars stream for" << m_symbol << "finished with error:" << error.value();
+                qCCritical(BarReceiverLog) << "Bars stream for" << symbol << "finished with error:" << error.value();
             }
             else
             {
-                DEBUG << "Bars stream for" << m_symbol << "finished without error";
+                qCDebug(BarReceiverLog) << "Bars stream for" << symbol << "finished without error";
             }
-            WARNING << "Bars stream future finished. This is ok if TSClient::closeStream() is called";
+            qCWarning(BarReceiverLog) << "Bars stream future finished. This is ok if TSClient::closeStream() is called";
         });
 }
 
 BarReceiver::~BarReceiver()
 {
-    // Note: Stream cleanup is handled by TSClient. Calling closeStream() from destructor
-    // can cause race conditions with pending .then() callbacks when using deleteLater().
+    if (m_stream != nullptr)
+    {
+        TSClient::getInstance()->closeStream(m_stream);
+    }
 }
 
 void BarReceiver::onReceivedNewBar(Bar newBar)

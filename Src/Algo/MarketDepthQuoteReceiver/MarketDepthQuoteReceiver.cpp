@@ -31,27 +31,32 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
             this,
             &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote);
 
+    // Capture symbol by value - no context object needed since this is just logging
     m_stream->future().then(
-        this,
-        [this](std::optional<QString> error)
+        [symbol = m_symbol](std::optional<QString> error)
         {
             if (error.has_value())
             {
-                CRITICAL << "Market Depth Quote stream for" << m_symbol << "finished with error:" << error.value();
+                qCCritical(MarketDepthQuoteReceiverLog)
+                    << "Market Depth Quote stream for" << symbol << "finished with error:" << error.value();
             }
             else
             {
-                DEBUG << "Market Depth Quote stream for" << m_symbol << "finished without error";
+                qCDebug(MarketDepthQuoteReceiverLog)
+                    << "Market Depth Quote stream for" << symbol << "finished without error";
             }
-            WARNING << "Market Depth Quote future finished. This is ok if the TSClient::closeStream() is called";
+            qCWarning(MarketDepthQuoteReceiverLog)
+                << "Market Depth Quote future finished. This is ok if TSClient::closeStream() is called";
         });
 }
 
 
 MarketDepthQuoteReceiver::~MarketDepthQuoteReceiver()
 {
-    // Note: Stream cleanup is handled by TSClient. Calling closeStream() from destructor
-    // can cause race conditions with pending .then() callbacks when using deleteLater().
+    if (m_stream != nullptr)
+    {
+        TSClient::getInstance()->closeStream(m_stream);
+    }
 }
 
 // Calculate Bid-Ask Imbalance (BAI)
