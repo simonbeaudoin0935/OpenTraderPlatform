@@ -55,12 +55,17 @@ class LiveStreamDB : public QObject
     void finalizeUnrecoveredTimeouts();
     void attemptStreamRecovery(const QString& symbol);
 
+    [[nodiscard]] QMap<QString, QMap<Stream::StreamError, int>> getErrorCounters() const
+    {
+        return m_streamErrorCounters;
+    }
+
   private slots:
     void onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData);
 
-
   private:
     bool storeData(const QString& stock, qint64 epochMs, const QByteArray& rawData);
+    void handleStreamError(const QString& symbol, Stream::StreamError reason, const QString& message);
 
     StreamType streamType;
     QStringList stockTickers;
@@ -71,6 +76,7 @@ class LiveStreamDB : public QObject
     QMap<QString, QPointer<StreamBars>> m_streamBars;
     QMap<QString, QPointer<StreamMarketDepthQuote>> m_streamMarketDepthQuotes;
 
+    QMap<QString, QMap<Stream::StreamError, int>> m_streamErrorCounters;
     QSet<QString> unrecoveredTimeouts;
     QMap<QString, int> recoveredTimeouts;
     QMap<QString, int> unrecoveredTimeoutCounts;

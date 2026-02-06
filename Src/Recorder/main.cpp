@@ -56,8 +56,8 @@ void signalHandler(int signal)
                     std::cout << "  " << symbol.toStdString() << ":" << std::endl;
                     for (auto errorIt = errorMap.begin(); errorIt != errorMap.end(); ++errorIt)
                     {
-                        std::cout << "    " << streamErrorToString(errorIt.key()).toStdString() << ": "
-                                  << errorIt.value() << " errors" << std::endl;
+                        std::cout << "    " << QtEnum::toString(errorIt.key()).toStdString() << ": " << errorIt.value()
+                                  << " errors" << std::endl;
                     }
                 }
             }
@@ -108,8 +108,8 @@ void signalHandler(int signal)
                     std::cout << "  " << symbol.toStdString() << ":" << std::endl;
                     for (auto errorIt = errorMap.begin(); errorIt != errorMap.end(); ++errorIt)
                     {
-                        std::cout << "    " << streamErrorToString(errorIt.key()).toStdString() << ": "
-                                  << errorIt.value() << " errors" << std::endl;
+                        std::cout << "    " << QtEnum::toString(errorIt.key()).toStdString() << ": " << errorIt.value()
+                                  << " errors" << std::endl;
                     }
                 }
             }

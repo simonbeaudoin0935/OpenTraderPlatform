@@ -104,14 +104,7 @@ void LiveStreamDB::startRecording()
                              &Stream::streamClosed,
                              this,
                              [this, symbol](Stream::StreamError reason, QString message)
-                             {
-                                 if (reason != Stream::StreamError::Closed)
-                                 {
-                                     CRITICAL << "StreamBars Receiver failed for" << symbol << "- Error:" << message;
-                                     Q_UNREACHABLE();
-                                     // TODO attempt to restart the stream
-                                 }
-                             });
+                             { handleStreamError(symbol, reason, message); });
 
             m_streamBars[symbol] = stream;
         }
@@ -133,15 +126,7 @@ void LiveStreamDB::startRecording()
                              &Stream::streamClosed,
                              this,
                              [this, symbol](Stream::StreamError reason, QString message)
-                             {
-                                 if (reason != Stream::StreamError::Closed)
-                                 {
-                                     CRITICAL << "StreamMarketDepthQuote Receiver failed for" << symbol
-                                              << "- Error:" << message;
-                                     Q_UNREACHABLE();
-                                     // TODO attempt to restart the stream
-                                 }
-                             });
+                             { handleStreamError(symbol, reason, message); });
 
             m_streamMarketDepthQuotes[symbol] = stream;
         }
@@ -166,49 +151,23 @@ void LiveStreamDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray
     storeData(symbol, epochMs, rawData);
 }
 
-// TODO fix this shit, and plug that everywhere in this file where we have todos about acting on the stream erroring
-/*
-void LiveStreamDB::onStreamErrorOccurred(QString errorMessage) {
-    // Find the sender and symbol based on stream type
-    QString symbol;
-    if (streamType == StreamType::Bars) {
-        StreamBars* senderStream = qobject_cast<StreamBars*>(sender());
-        Q_ASSERT(senderStream);  // Should always be valid - catastrophic error if not
-
-        // Find the symbol by looking up the sender in our stream map
-        for (auto it = streamBars.begin(); it != streamBars.end(); ++it) {
-            if (it.value() == senderStream) {
-                symbol = it.key();
-                break;
-            }
-        }
-    } else {
-        StreamMarketDepthQuote* senderStream = qobject_cast<StreamMarketDepthQuote*>(sender());
-        Q_ASSERT(senderStream);  // Should always be valid - catastrophic error if not
-
-        // Find the symbol by looking up the sender in our stream map
-        for (auto it = streamMarketDepthQuotes.begin(); it != streamMarketDepthQuotes.end(); ++it) {
-            if (it.value() == senderStream) {
-                symbol = it.key();
-                break;
-            }
-        }
+void LiveStreamDB::handleStreamError(const QString& symbol, Stream::StreamError reason, const QString& message)
+{
+    if (reason == Stream::StreamError::Closed)
+    {
+        return;
     }
 
-    Q_ASSERT(!symbol.isEmpty());  // Should always find the symbol - catastrophic error if not
+    m_streamErrorCounters[symbol][reason]++;
+    WARNING << "Stream error for" << symbol << ":" << message;
 
-    streamErrorCounters[symbol][error]++;
-
-    // Track timeout recovery and attempt automatic recovery
-    if (error == Stream::StreamError::Timeout) {
+    if (reason == Stream::StreamError::Timeout)
+    {
         unrecoveredTimeouts.insert(symbol);
-        // Attempt automatic recovery
-        attemptStreamRecovery(symbol);
     }
 
-    qWarning() << "Stream error for" << symbol << "error:" << static_cast<int>(error) << "message:" << errorMessage;
+    attemptStreamRecovery(symbol);
 }
-*/
 
 void LiveStreamDB::finalizeUnrecoveredTimeouts()
 {
@@ -256,14 +215,7 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                          &Stream::streamClosed,
                          this,
                          [this, symbol](Stream::StreamError reason, QString message)
-                         {
-                             if (reason != Stream::StreamError::Closed)
-                             {
-                                 CRITICAL << "Bar Receiver failed for" << symbol << "- Error:" << message;
-                                 Q_UNREACHABLE();
-                                 // TODO attempt to restart the stream
-                             }
-                         });
+                         { handleStreamError(symbol, reason, message); });
 
         m_streamBars[symbol] = stream;
         successfulRecoveries[symbol]++;
@@ -295,15 +247,7 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                          &Stream::streamClosed,
                          this,
                          [this, symbol](Stream::StreamError reason, QString message)
-                         {
-                             if (reason != Stream::StreamError::Closed)
-                             {
-                                 CRITICAL << "Recorder Market Depth Quote receiver failed for" << symbol
-                                          << "- Error:" << message;
-                                 Q_UNREACHABLE();
-                                 // TODO attempt to restart the stream
-                             }
-                         });
+                         { handleStreamError(symbol, reason, message); });
 
         m_streamMarketDepthQuotes[symbol] = stream;
         successfulRecoveries[symbol]++;
