@@ -116,8 +116,7 @@
             "args": [
                 "--build",
                 "${workspaceFolder}/build",
-                "--parallel",
-                "3"
+                "--parallel"
             ],
             "group": "build",
             "presentation": {

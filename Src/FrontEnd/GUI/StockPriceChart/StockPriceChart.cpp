@@ -448,7 +448,8 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         updateCandlestickData();
         updateVolumeData();
 
-        m_customPlot->xAxis->setRange(index - 30, index + 1);
+        // Center index 0 with 1 hour (60 bars) on each side
+        m_customPlot->xAxis->setRange(-60, 60);
 
         double newPrice = bar.getClose();
         double padding = newPrice * 0.0002;
@@ -874,6 +875,24 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
 
     // Draw background rectangles for the visible range
     drawBackgroundsForReceivedBars(*barsPtr);
+
+    // Compute min/max price from the last 60 bars to set initial Y-axis range
+    const int barsToAnalyze = qMin(60, static_cast<int>(barsPtr->size()));
+    double minPrice = std::numeric_limits<double>::max();
+    double maxPrice = std::numeric_limits<double>::lowest();
+
+    for (int i = barsPtr->size() - barsToAnalyze; i < barsPtr->size(); ++i)
+    {
+        const Bar& bar = barsPtr->at(i);
+        minPrice = qMin(minPrice, bar.getLow());
+        maxPrice = qMax(maxPrice, bar.getHigh());
+    }
+
+    if (minPrice < maxPrice)
+    {
+        double padding = (maxPrice - minPrice) * 0.05; // 5% padding
+        m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(minPrice - padding, maxPrice + padding);
+    }
 
     //#warning TODO: optimize redraws
     // Update candlestick data
