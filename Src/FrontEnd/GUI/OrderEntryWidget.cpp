@@ -144,9 +144,28 @@ void OrderEntryWidget::setupUI()
     m_quantityInput->setToolTip("Number of shares");
     formLayout->addRow("Quantity:", m_quantityInput);
 
-    // Sticky controls row (new row above limit price)
+    // Limit Price with Sticky checkbox on same line
+    m_limitPriceInput->setMinimum(0.01);
+    m_limitPriceInput->setMaximum(999999.99);
+    m_limitPriceInput->setDecimals(2);
+    m_limitPriceInput->setValue(0.00);
+    m_limitPriceInput->setPrefix("$ ");
+    m_limitPriceInput->setToolTip("Limit price for order");
+
     m_stickyCheckBox->setToolTip("Enable auto-update limit price from market depth");
 
+    // Create horizontal layout for limit price and sticky checkbox
+    QWidget* limitPriceWidget = new QWidget(this);
+    QHBoxLayout* limitPriceLayout = new QHBoxLayout(limitPriceWidget);
+    limitPriceLayout->setContentsMargins(0, 0, 0, 0);
+    limitPriceLayout->setSpacing(8);
+    limitPriceLayout->addWidget(m_limitPriceInput);
+    limitPriceLayout->addWidget(m_stickyCheckBox);
+    limitPriceLayout->addStretch(); // Push everything to the left
+
+    formLayout->addRow(m_limitPriceLabel, limitPriceWidget);
+
+    // Aggressive/Passive and offset on next line
     // Configure sticky mode radio buttons
     m_stickyModeGroup->addButton(m_aggressiveRadio, 0);
     m_stickyModeGroup->addButton(m_passiveRadio, 1);
@@ -169,23 +188,12 @@ void OrderEntryWidget::setupUI()
     QHBoxLayout* stickyLayout = new QHBoxLayout(stickyWidget);
     stickyLayout->setContentsMargins(0, 0, 0, 0);
     stickyLayout->setSpacing(4);
-    stickyLayout->addWidget(m_stickyCheckBox);
     stickyLayout->addWidget(m_aggressiveRadio);
     stickyLayout->addWidget(m_passiveRadio);
     stickyLayout->addWidget(m_stickyOffsetInput);
     stickyLayout->addStretch(); // Push everything to the left
 
-    formLayout->addRow(m_stickyLabel, stickyWidget);
-
-    // Limit Price row (now simplified, just the input)
-    m_limitPriceInput->setMinimum(0.01);
-    m_limitPriceInput->setMaximum(999999.99);
-    m_limitPriceInput->setDecimals(2);
-    m_limitPriceInput->setValue(0.00);
-    m_limitPriceInput->setPrefix("$ ");
-    m_limitPriceInput->setToolTip("Limit price for order");
-
-    formLayout->addRow(m_limitPriceLabel, m_limitPriceInput);
+    formLayout->addRow("Mode/Offset:", stickyWidget);
 
     // Stop Price
     m_stopPriceInput->setMinimum(0.01);
@@ -996,11 +1004,11 @@ void OrderEntryWidget::updateStickyPrice()
 
 void OrderEntryWidget::flashLimitPriceInput()
 {
-    // Create a brief visual flash effect by temporarily changing the style
+    // Create a brief visual flash effect by temporarily changing the background color subtly
     QString originalStyle = m_limitPriceInput->styleSheet();
 
-    // Apply a highlighted style (bright border)
-    m_limitPriceInput->setStyleSheet("QDoubleSpinBox { border: 2px solid #00FF00; background-color: #E8FFE8; }");
+    // Apply a subtle highlight (slight yellow background)
+    m_limitPriceInput->setStyleSheet("QDoubleSpinBox { background-color: #FFFACD; }");
 
     // Use a QTimer to restore the original style after a brief delay
     QTimer::singleShot(150, this, [this, originalStyle]() { m_limitPriceInput->setStyleSheet(originalStyle); });
