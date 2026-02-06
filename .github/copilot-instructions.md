@@ -61,6 +61,23 @@
 ## General Coding Guidelines
 - Use the ASSUME macros from Src/Misc/Assume.h for assertions instead of Q_ASSERT or similar, to ensure consistency and proper no-op behavior in release builds.
 
+- **ASSERT-First Strategy**: Instead of defensive null checks like `if (ptr != nullptr) { ... }`, assert the expected state upfront with `OBJ_ASSUME_DIFF(ptr, nullptr)` and proceed without conditionals. This:
+  1. Makes assumptions explicit and documents invariants
+  2. Catches logic errors early in debug builds
+  3. Removes defensive code that hides bugs
+  4. Example - instead of:
+     ```cpp
+     if (m_replayEngine != nullptr) {
+         m_replayEngine->pauseReplay();
+     }
+     ```
+     Write:
+     ```cpp
+     OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
+     m_replayEngine->pauseReplay();
+     ```
+  5. Only use conditional checks when the null/empty state is a **valid runtime possibility**, not a logic error.
+
 - When creating connections between signal and slots, prioritize using a Qt::UniqueConnection and asserting that the connection made was indeed unique and not a double. It should be extremely rare, if not never, that we should authorize multiple same connections.
 
 - When creating new functions with return values, if it makes no sense to ignore the return value, add the [[nodiscard]] guards to make sure we get notified if we don't use the return value of a function. This should be the default for every new function that returns a value in fact, and you should only take it out when truly its not a big deal to not check the value, but this should in practice be rare.

@@ -746,41 +746,39 @@ void MainAlgo::exitReplayMode()
 
 void MainAlgo::pauseReplay()
 {
-    if (m_replayEngine != nullptr)
-    {
-        m_replayEngine->pauseReplay();
+    // If we can click "Pause", replay engine must exist
+    OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
+    // Must have a displayed stock to pause streams for
+    OBJ_ASSUME_DIFF(currentDisplayedStockInstrument, nullptr);
 
-        // Pause heartbeat timers on mock streams to prevent timeout while paused
-        if (currentDisplayedStockInstrument != nullptr)
-        {
-            if (auto stream = currentDisplayedStockInstrument->barReceiver.getStream())
-            {
-                stream->pauseHeartbeat();
-            }
-            if (auto stream = currentDisplayedStockInstrument->marketDepthQuoteReceiver.getStream())
-            {
-                stream->pauseHeartbeat();
-            }
-        }
+    m_replayEngine->pauseReplay();
+
+    // Pause heartbeat timers on mock streams to prevent timeout while paused
+    if (auto stream = currentDisplayedStockInstrument->barReceiver.getStream())
+    {
+        stream->pauseHeartbeat();
+    }
+    if (auto stream = currentDisplayedStockInstrument->marketDepthQuoteReceiver.getStream())
+    {
+        stream->pauseHeartbeat();
     }
 }
 
 void MainAlgo::resumeReplay()
 {
-    // We assume that if we were able to click Resume", then we must not already be in replay mode, so m_replayEngine should be null
+    // If we can click "Resume", replay engine must exist
     OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
+    // Must have a displayed stock to resume streams for
+    OBJ_ASSUME_DIFF(currentDisplayedStockInstrument, nullptr);
 
     // Resume heartbeat timers before resuming replay
-    if (currentDisplayedStockInstrument != nullptr)
+    if (auto stream = currentDisplayedStockInstrument->barReceiver.getStream())
     {
-        if (auto stream = currentDisplayedStockInstrument->barReceiver.getStream())
-        {
-            stream->resumeHeartbeat();
-        }
-        if (auto stream = currentDisplayedStockInstrument->marketDepthQuoteReceiver.getStream())
-        {
-            stream->resumeHeartbeat();
-        }
+        stream->resumeHeartbeat();
+    }
+    if (auto stream = currentDisplayedStockInstrument->marketDepthQuoteReceiver.getStream())
+    {
+        stream->resumeHeartbeat();
     }
 
     m_replayEngine->resumeReplay();
@@ -790,34 +788,32 @@ void MainAlgo::pauseLiveStreams()
 {
     INFO << "Pausing live streams for replay mode";
 
+    // These receivers must exist when entering replay mode from live
+    OBJ_ASSUME_DIFF(m_positionReceiver, nullptr);
+    OBJ_ASSUME_DIFF(m_orderReceiver, nullptr);
+
     // Stop positions stream
-    if (m_positionReceiver != nullptr)
-    {
-        m_positionReceiver->stopStream(m_activeAccount.getAccountId());
-        positionStreamStarted = false;
-        DEBUG << "Positions stream stopped";
-    }
+    m_positionReceiver->stopStream(m_activeAccount.getAccountId());
+    positionStreamStarted = false;
+    DEBUG << "Positions stream stopped";
 
     // Stop orders stream
-    if (m_orderReceiver != nullptr)
-    {
-        m_orderReceiver->stopStream(m_activeAccount.getAccountId());
-        orderStreamStarted = false;
-        DEBUG << "Orders stream stopped";
-    }
+    m_orderReceiver->stopStream(m_activeAccount.getAccountId());
+    orderStreamStarted = false;
+    DEBUG << "Orders stream stopped";
 }
 
 void MainAlgo::resumeLiveStreams()
 {
     INFO << "Resuming live streams after replay mode";
 
+    // The receivers must exist - we paused them in pauseLiveStreams
+    OBJ_ASSUME_DIFF(m_positionReceiver, nullptr);
+    OBJ_ASSUME_DIFF(m_orderReceiver, nullptr);
+
     // Recreate positions receiver to trigger fresh snapshot
     // The constructor creates the stream automatically
-    if (m_positionReceiver != nullptr)
-    {
-        delete m_positionReceiver;
-        m_positionReceiver = nullptr;
-    }
+    delete m_positionReceiver;
     m_positionReceiver = new PositionsReceiver(m_activeAccount.getAccountId(), this);
     bool connected = connect(m_positionReceiver,
                              &PositionsReceiver::receivedNewPosition,
@@ -836,11 +832,7 @@ void MainAlgo::resumeLiveStreams()
 
     // Recreate orders receiver to trigger fresh snapshot
     // The constructor creates the stream automatically
-    if (m_orderReceiver != nullptr)
-    {
-        delete m_orderReceiver;
-        m_orderReceiver = nullptr;
-    }
+    delete m_orderReceiver;
     m_orderReceiver = new OrdersReceiver(m_activeAccount.getAccountId(), this);
     connected = connect(m_orderReceiver,
                         &OrdersReceiver::receivedNewOrder,
