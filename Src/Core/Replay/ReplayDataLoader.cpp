@@ -133,6 +133,11 @@ void ReplayDataLoader::closeDatabases()
         m_depthDb.close();
     }
 
+    // Clear the member variables before removing connections
+    // This ensures no references remain when removeDatabase is called
+    m_barsDb = QSqlDatabase();
+    m_depthDb = QSqlDatabase();
+
     // Remove connections
     if (QSqlDatabase::contains(m_barsDbConnectionName))
     {
