@@ -130,8 +130,11 @@ void Stream::onReplyReadyRead()
  */
 void Stream::processRawData(const QByteArray& rawData)
 {
-    // Doesnt matter what it, heartbeat or data or error, we kick the heartbeat watchdog
-    m_heartbeatTimer.start(m_heartbeatTimeoutMS);
+    // Kick the heartbeat watchdog unless intentionally paused (e.g., replay paused)
+    if (!m_heartbeatPaused)
+    {
+        m_heartbeatTimer.start(m_heartbeatTimeoutMS);
+    }
 
     m_accumulatedData.append(rawData);
 
@@ -181,8 +184,11 @@ void Stream::processJsonDoc(const QJsonDocument& doc)
             CRITICAL << " received malformed heartbeat object without Timestamp field";
         }
 
-        m_heartbeatTimer.start(m_heartbeatTimeoutMS);
-        //DEBUG << "received heartbeat";
+        if (!m_heartbeatPaused)
+        {
+            m_heartbeatTimer.start(m_heartbeatTimeoutMS);
+        }
+        // DEBUG << "received heartbeat";
         return;
         ;
     }

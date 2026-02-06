@@ -42,6 +42,7 @@ class Stream : public QObject
      */
     void pauseHeartbeat()
     {
+        m_heartbeatPaused = true;
         m_heartbeatTimer.stop();
     }
 
@@ -50,6 +51,7 @@ class Stream : public QObject
      */
     void resumeHeartbeat()
     {
+        m_heartbeatPaused = false;
         m_heartbeatTimer.start(m_heartbeatTimeoutMS);
     }
 
@@ -85,6 +87,7 @@ class Stream : public QObject
 
     const size_t m_heartbeatTimeoutMS = 10000;
     QTimer m_heartbeatTimer;
+    bool m_heartbeatPaused = false; // When true, don't restart timer on data reception
 
     static size_t s_numberOfStream;
     static bool s_isShuttingDown;
