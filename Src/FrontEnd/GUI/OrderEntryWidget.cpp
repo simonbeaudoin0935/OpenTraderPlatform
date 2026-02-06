@@ -129,20 +129,31 @@ void OrderEntryWidget::setupUI()
 
     formLayout->addRow(tradeActionGroup);
 
-    // Order Type
+    // Order Type and Quantity on same row
     m_orderTypeCombo->addItem("Market", static_cast<int>(OrderType::Type::Market));
     m_orderTypeCombo->addItem("Limit", static_cast<int>(OrderType::Type::Limit));
     m_orderTypeCombo->addItem("Stop Market", static_cast<int>(OrderType::Type::StopMarket));
     m_orderTypeCombo->addItem("Stop Limit", static_cast<int>(OrderType::Type::StopLimit));
     m_orderTypeCombo->setToolTip("Select order type");
-    formLayout->addRow("Order Type:", m_orderTypeCombo);
 
-    // Quantity
     m_quantityInput->setMinimum(1);
     m_quantityInput->setMaximum(999999);
     m_quantityInput->setValue(100);
     m_quantityInput->setToolTip("Number of shares");
-    formLayout->addRow("Quantity:", m_quantityInput);
+
+    // Create horizontal layout for order type and quantity
+    QWidget* orderTypeQuantityWidget = new QWidget(this);
+    QHBoxLayout* orderTypeQuantityLayout = new QHBoxLayout(orderTypeQuantityWidget);
+    orderTypeQuantityLayout->setContentsMargins(0, 0, 0, 0);
+    orderTypeQuantityLayout->setSpacing(16);
+
+    orderTypeQuantityLayout->addWidget(new QLabel("Order Type:"));
+    orderTypeQuantityLayout->addWidget(m_orderTypeCombo);
+    orderTypeQuantityLayout->addWidget(new QLabel("Quantity:"));
+    orderTypeQuantityLayout->addWidget(m_quantityInput);
+    orderTypeQuantityLayout->addStretch();
+
+    formLayout->addRow(orderTypeQuantityWidget);
 
     // Limit Price with Sticky checkbox on same line
     m_limitPriceInput->setMinimum(0.01);
