@@ -16,6 +16,31 @@ class Stream : public QObject
     Q_OBJECT
 
   public:
+    /**
+     * @brief Stream error types that can be received from the TradeStation API.
+     *
+     * MarketData streams (Bars, MarketDepthQuote) use: BadRequest, DualLogon, GoAway, InternalServerError
+     * Brokerage streams (Orders, Positions) use: Forbidden, InternalServerError, ServiceUnavailable, GatewayTimeout, Failed
+     */
+    enum class StreamError : quint8
+    {
+        // Common
+        Timeout, ///< Heartbeat timeout - no data received. Recoverable.
+
+        // MarketData category errors
+        BadRequest,          ///< Our code error - malformed request. Assert.
+        DualLogon,           ///< Server error - another session logged in. Recoverable.
+        GoAway,              ///< Normal server shutdown. Recoverable.
+        InternalServerError, ///< Server error. Recoverable.
+
+        // Brokerage category errors
+        Forbidden,          ///< Our code error - bad account/permissions. Assert.
+        ServiceUnavailable, ///< Our code error - bad request format. Assert.
+        GatewayTimeout,     ///< Unknown cause. Recoverable.
+        Failed,             ///< Generic server failure. Recoverable.
+    };
+    Q_ENUM(StreamError)
+
     Stream(QNetworkReply* reply, QObject* parent);
     ~Stream();
     Stream(const Stream&) = delete;
@@ -80,13 +105,27 @@ class Stream : public QObject
     void newAmountOfDataReceived(size_t bytes);
     void receivedNewRawData(const QByteArray& rawData);
 
+    /**
+     * @brief Emitted when the server sends an EndSnapshot status (Brokerage streams only).
+     * Indicates the initial data snapshot is complete and subsequent messages are live updates.
+     */
+    void endSnapshotReceived();
+
   public slots:
     void onReplyReadyRead();
     void onReplyFinished();
 
   protected:
-    // Each derived class must implement how to process a json object
+    // Each derived class must implement how to process a json object (data only, no error handling)
     virtual void processJsonObject(const QJsonObject& doc) = 0;
+
+    /**
+     * @brief Detect and handle error/status messages in the JSON object.
+     * Implemented by intermediate classes (StreamMarketData, StreamBrokerage) to handle
+     * category-specific error formats.
+     * @return true if the JSON object was an error/status message and was handled, false if it's normal data
+     */
+    virtual bool handleErrorOrStatus(const QJsonObject& jsonObj) = 0;
 
     bool m_receivedTimeoutError = false;
 

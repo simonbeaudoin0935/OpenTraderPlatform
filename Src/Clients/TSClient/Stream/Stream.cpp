@@ -193,6 +193,12 @@ void Stream::processJsonDoc(const QJsonDocument& doc)
     // Each type of stream may have its own error object, so we delegate to derived classes
     // to handle error objects as they see fit.
 
+    // Check if this is an error/status message handled by the intermediate class
+    if (handleErrorOrStatus(jsonObj))
+    {
+        return;
+    }
+
     // Happy path, process the object
     // Delegate to derived class for processing
     processJsonObject(jsonObj);

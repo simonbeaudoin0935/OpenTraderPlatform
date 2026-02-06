@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Stream.h"
+#include "StreamMarketData.h"
 #include "MarketDepthQuote.h"
 
-class StreamMarketDepthQuote final : public Stream
+class StreamMarketDepthQuote final : public StreamMarketData
 {
     Q_OBJECT
 

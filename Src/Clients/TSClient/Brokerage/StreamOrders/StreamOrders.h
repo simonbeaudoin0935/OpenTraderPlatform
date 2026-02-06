@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Stream.h"
+#include "StreamBrokerage.h"
 #include "Order.h"
 
-class StreamOrders final : public Stream
+class StreamOrders final : public StreamBrokerage
 {
     Q_OBJECT
 
@@ -21,11 +21,9 @@ class StreamOrders final : public Stream
 
   signals:
     void newOrderReceived(Order order);
-    void endSnapshotReceived();
 
   private:
     void processJsonObject(const QJsonObject& jsonObj) override;
 
     QString m_accountID;
-    bool m_receivedEndSnapshot = false; // Track if we've received the EndSnapshot status
 };

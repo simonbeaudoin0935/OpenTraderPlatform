@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Stream.h"
+#include "StreamBrokerage.h"
 #include "Position.h"
 
-class StreamPositions final : public Stream
+class StreamPositions final : public StreamBrokerage
 {
     Q_OBJECT
 
@@ -20,12 +20,10 @@ class StreamPositions final : public Stream
 
   signals:
     void newPositionReceived(Position position);
-    void endSnapshotReceived();
     void positionDeleted(QString positionID);
 
   private:
     void processJsonObject(const QJsonObject& jsonObj) override;
 
     QString m_accountID;
-    bool m_receivedEndSnapshot = false; // Track if we've received the EndSnapshot status
 };

@@ -6,7 +6,7 @@
 
 
 StreamMarketDepthQuote::StreamMarketDepthQuote(const QString& symbol, QNetworkReply* reply, QObject* parent)
-    : Stream(reply, parent), m_symbol(symbol)
+    : StreamMarketData(reply, parent), m_symbol(symbol)
 {
     this->setObjectName("Stream::MarketDepthQuote::" + symbol);
 
@@ -15,20 +15,6 @@ StreamMarketDepthQuote::StreamMarketDepthQuote(const QString& symbol, QNetworkRe
 
 void StreamMarketDepthQuote::processJsonObject(const QJsonObject& jsonObj)
 {
-    if (jsonObj.contains("Error")) [[unlikely]]
-    {
-
-        QString errorStr = jsonObj["Error"].toString();
-        QString message = jsonObj["Message"].toString();
-
-        m_jsonErrorString = errorStr + ": " + message;
-
-        CRITICAL << "Received error string '" << errorStr << "' and message: " << jsonObj["Message"].toString();
-
-        return;
-    }
-
-
     MarketDepthQuote quote(jsonObj);
 
     if (!quote.isValid()) [[unlikely]]
