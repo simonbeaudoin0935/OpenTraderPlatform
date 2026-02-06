@@ -452,6 +452,14 @@ void ChartToolbar::setReplayPlaying(bool playing)
 }
 
 /**
+ * @brief Toggles play/pause state and emits the signal.
+ */
+void ChartToolbar::togglePlayPause()
+{
+    playPauseButton->click();
+}
+
+/**
  * @brief Handles replay day combobox selection changes.
  */
 void ChartToolbar::onReplayDayChanged(int index)
@@ -482,17 +490,25 @@ void ChartToolbar::onPlayPauseClicked()
 }
 
 /**
- * @brief Updates the play/pause button text based on current state.
+ * @brief Updates the play/pause button text and style based on current state.
  */
 void ChartToolbar::updatePlayPauseButton()
 {
     if (playPauseButton->isChecked())
     {
-        playPauseButton->setText("Pause");
+        playPauseButton->setText("⏸ Pause");
+        playPauseButton->setStyleSheet(
+            "QPushButton { background-color: #D84315; color: white; font-weight: bold; padding: 4px 12px; "
+            "border-radius: 4px; } "
+            "QPushButton:hover { background-color: #BF360C; }");
     }
     else
     {
-        playPauseButton->setText("Play");
+        playPauseButton->setText("▶ Play");
+        playPauseButton->setStyleSheet(
+            "QPushButton { background-color: #2E7D32; color: white; font-weight: bold; padding: 4px 12px; "
+            "border-radius: 4px; } "
+            "QPushButton:hover { background-color: #1B5E20; }");
     }
 }
 

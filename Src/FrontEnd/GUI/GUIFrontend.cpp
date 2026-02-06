@@ -1083,12 +1083,8 @@ void GUIFrontend::onToggleReplayPlayPause()
         return;
     }
 
-    // Toggle the play button in the chart toolbar
-    ChartToolbar* toolbar = ui->priceChart->toolbar();
-    bool isPlaying = toolbar->isReplayPlaying();
-    toolbar->setReplayPlaying(!isPlaying);
-
-    // The toolbar's playStateChanged signal will handle the actual play/pause/resume
+    // Toggle via the toolbar method which clicks the button and emits the signal
+    ui->priceChart->toolbar()->togglePlayPause();
 }
 
 void GUIFrontend::onCancelAllOrders()
