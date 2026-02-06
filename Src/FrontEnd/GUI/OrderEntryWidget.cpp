@@ -19,7 +19,7 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     , m_buyRadio(new QRadioButton("Buy", this))
     , m_buyToCoverRadio(new QRadioButton("Buy to Cover", this))
     , m_sellRadio(new QRadioButton("Sell", this))
-    , m_sellToCoverRadio(new QRadioButton("Sell to Cover", this))
+    , m_sellToCoverRadio(new QRadioButton("Sell Short", this))
     , m_tradeActionGroup(new QButtonGroup(this))
     , m_orderTypeCombo(new QComboBox(this))
     , m_quantityInput(new QSpinBox(this))
@@ -115,10 +115,10 @@ void OrderEntryWidget::setupUI()
     m_tradeActionGroup->addButton(m_buyRadio, static_cast<int>(TradeAction::Buy));
     m_tradeActionGroup->addButton(m_sellRadio, static_cast<int>(TradeAction::Sell));
     m_tradeActionGroup->addButton(m_buyToCoverRadio, static_cast<int>(TradeAction::BuyToCover));
-    m_tradeActionGroup->addButton(m_sellToCoverRadio, static_cast<int>(TradeAction::SellToClose));
+    m_tradeActionGroup->addButton(m_sellToCoverRadio, static_cast<int>(TradeAction::SellShort));
 
     // Arrange in 2x2 grid: Buy | Sell
-    //                      Buy to Cover | Sell to Cover
+    //                      Buy to Cover | Sell Short
     tradeActionLayout->addWidget(m_buyRadio, 0, 0);
     tradeActionLayout->addWidget(m_sellRadio, 0, 1);
     tradeActionLayout->addWidget(m_buyToCoverRadio, 1, 0);
@@ -446,10 +446,10 @@ void OrderEntryWidget::executeBuyToCoverOrder()
 
 void OrderEntryWidget::executeSellToCoverOrder()
 {
-    // Set trade action to Sell to Cover
+    // Set trade action to Sell Short
     m_sellToCoverRadio->setChecked(true);
     // Explicitly trigger the trade action change to update button appearance
-    onTradeActionChanged(static_cast<int>(TradeAction::SellToClose));
+    onTradeActionChanged(static_cast<int>(TradeAction::SellShort));
     // Submit the order
     onSubmitClicked();
 }
@@ -494,7 +494,7 @@ void OrderEntryWidget::onTradeActionChanged(int id)
         break;
 
     case TradeAction::Sell:
-    case TradeAction::SellToClose:
+    case TradeAction::SellShort:
         buttonText = "Sell";
         buttonStyle = "QPushButton {"
                       "   background-color: #DC3545;" // Red
@@ -987,7 +987,6 @@ void OrderEntryWidget::updateStickyPrice()
     case TradeAction::Sell:
     case TradeAction::SellShort:
     case TradeAction::SellToOpen:
-    case TradeAction::SellToClose:
         // Sell orders
         if (m_stickyAggressiveMode)
         {
