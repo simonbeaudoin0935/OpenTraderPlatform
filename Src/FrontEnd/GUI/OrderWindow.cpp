@@ -391,39 +391,15 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
         }
     };
 
-    // Ack/Fill Latency - show latency from order placement to acknowledgment or fill (whichever is available)
+    // Ack/Fill Latency - display the stored latency value directly
     QString latencyStr = "-";
     QString latencyTooltipStr;
 
-    if (order.getFilledTime().has_value() && order.getOpenedDateTime().isValid())
+    if (order.getLatencyMs().has_value())
     {
-        // Show fill latency if available (order was filled)
-        qint64 fillLatencyMs = order.getOpenedDateTime().msecsTo(order.getFilledTime().value());
-        latencyStr = formatLatency(fillLatencyMs);
-
-        QDateTime filledDateTime = order.getFilledTime().value();
-        QDateTime openedDateTime = order.getOpenedDateTime();
-
-        OBJ_ASSUME_TRUE(filledDateTime.timeZone() == TradingHours::MARKET_TIMEZONE);
-        OBJ_ASSUME_TRUE(openedDateTime.timeZone() == TradingHours::MARKET_TIMEZONE);
-
-        latencyTooltipStr = QString("Opened: %1\nFilled: %2\nLatency: %3 ms")
-                                .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
-                                .arg(filledDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
-                                .arg(fillLatencyMs);
-    }
-    else if (order.getReceivedTime().has_value() && order.getOpenedDateTime().isValid())
-    {
-        // Otherwise show ack latency if available (order was acknowledged but not filled)
-        qint64 ackLatencyMs = order.getOpenedDateTime().msecsTo(order.getReceivedTime().value());
-        latencyStr = formatLatency(ackLatencyMs);
-
-        QDateTime receivedDateTime = order.getReceivedTime().value();
-        QDateTime openedDateTime = order.getOpenedDateTime();
-        latencyTooltipStr = QString("Opened: %1\nAcknowledged: %2\nLatency: %3 ms")
-                                .arg(openedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
-                                .arg(receivedDateTime.toString("MM/dd/yyyy hh:mm:ss.zzz"))
-                                .arg(ackLatencyMs);
+        qint64 latencyMs = order.getLatencyMs().value();
+        latencyStr = formatLatency(latencyMs);
+        latencyTooltipStr = QString("Latency: %1 ms").arg(latencyMs);
     }
 
     auto latencyItem = new QStandardItem(latencyStr);

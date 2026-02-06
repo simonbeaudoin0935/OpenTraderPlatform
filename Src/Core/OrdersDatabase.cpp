@@ -84,7 +84,7 @@ void OrdersDatabase::createTable()
     }
 }
 
-bool OrdersDatabase::insertOrder(const Order& p_order, const QDateTime& p_receivedTime)
+bool OrdersDatabase::insertOrder(const Order& p_order, std::optional<qint64> p_latencyMs)
 {
     QSqlQuery query(m_db);
 
@@ -130,17 +130,17 @@ bool OrdersDatabase::insertOrder(const Order& p_order, const QDateTime& p_receiv
         query.addBindValue(QVariant()); // NULL value for SQL
     }
 
-    query.addBindValue(p_receivedTime.toString(Qt::ISODate));
-
-    // Filled time is null for new orders
-    query.addBindValue(QVariant()); // NULL value for SQL
+    // Latency in milliseconds
+    if (p_latencyMs.has_value())
+    {
+        query.addBindValue(p_latencyMs.value());
+    }
+    else
+    {
+        query.addBindValue(QVariant()); // NULL value for SQL
+    }
 
     // Store a minimal order representation in JSON
-    // Note: We don't need to store the complete order data because orders are
-    // received from the stream on every startup. We only store the minimal data
-    // needed to identify the order (OrderID, AccountID, Symbol, etc.) along with
-    // the timestamps in dedicated columns. The full order data will be restored
-    // from the stream when the application restarts.
     QJsonObject jsonObj;
     jsonObj["OrderID"] = p_order.getOrderID();
     jsonObj["AccountID"] = p_order.getAccountID();
@@ -159,7 +159,7 @@ bool OrdersDatabase::insertOrder(const Order& p_order, const QDateTime& p_receiv
     return true;
 }
 
-bool OrdersDatabase::updateOrder(const Order& p_order, const std::optional<QDateTime>& p_filledTime)
+bool OrdersDatabase::updateOrder(const Order& p_order, std::optional<qint64> p_latencyMs)
 {
     QSqlQuery query(m_db);
 
@@ -178,9 +178,9 @@ bool OrdersDatabase::updateOrder(const Order& p_order, const std::optional<QDate
         query.addBindValue(QVariant()); // NULL value for SQL
     }
 
-    if (p_filledTime.has_value())
+    if (p_latencyMs.has_value())
     {
-        query.addBindValue(p_filledTime.value().toString(Qt::ISODate));
+        query.addBindValue(p_latencyMs.value());
     }
     else
     {
@@ -228,9 +228,9 @@ bool OrdersDatabase::orderExists(const QString& p_orderID) const
     return false;
 }
 
-QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersDatabase::loadAllOrders() const
+QMap<QString, std::tuple<Order, std::optional<qint64>>> OrdersDatabase::loadAllOrders() const
 {
-    QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> orders;
+    QMap<QString, std::tuple<Order, std::optional<qint64>>> orders;
 
     QSqlQuery query(m_db);
     if (!query.exec(OrdersDatabaseQueries::SELECT_ALL_ORDERS))
@@ -242,18 +242,14 @@ QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersData
     while (query.next())
     {
         QString orderId = query.value(0).toString();
-        QString receivedTimeStr = query.value(1).toString();
-        QString filledTimeStr = query.value(2).toString();
-        QString statusStr = query.value(3).toString();
-        QString orderTypeStr = query.value(4).toString();
-        QString jsonDataStr = query.value(5).toString();
-
-        QDateTime receivedTime = QDateTime::fromString(receivedTimeStr, Qt::ISODate);
-        std::optional<QDateTime> filledTime;
-        if (!filledTimeStr.isEmpty())
+        std::optional<qint64> latencyMs;
+        if (!query.value(1).isNull())
         {
-            filledTime = QDateTime::fromString(filledTimeStr, Qt::ISODate);
+            latencyMs = query.value(1).toLongLong();
         }
+        QString statusStr = query.value(2).toString();
+        QString orderTypeStr = query.value(3).toString();
+        QString jsonDataStr = query.value(4).toString();
 
         // Reconstruct the Order object from JSON
         QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonDataStr.toUtf8());
@@ -263,7 +259,7 @@ QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> OrdersData
             jsonObj["Status"] = statusStr;
             jsonObj["OrderType"] = orderTypeStr;
             Order order(jsonObj);
-            orders.insert(orderId, std::make_tuple(order, receivedTime, filledTime));
+            orders.insert(orderId, std::make_tuple(order, latencyMs));
         }
     }
 

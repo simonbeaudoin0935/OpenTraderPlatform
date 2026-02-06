@@ -151,30 +151,14 @@ class Order
     {
         return m_rejectReason;
     }
-    std::optional<QDateTime> getReceivedTime() const
+    std::optional<qint64> getLatencyMs() const
     {
-        return m_receivedTime;
-    }
-    std::optional<QDateTime> getFilledTime() const
-    {
-        return m_filledTime;
+        return m_latencyMs;
     }
 
-    // Setters for tracking times
-    void setReceivedTime(const QDateTime& p_time)
+    void setLatencyMs(qint64 p_latencyMs)
     {
-        m_receivedTime = p_time;
-    }
-    void setFilledTime(const QDateTime& p_time)
-    {
-        if (p_time.timeZone() != TradingHours::MARKET_TIMEZONE)
-        {
-            m_filledTime = p_time.toTimeZone(TradingHours::MARKET_TIMEZONE);
-        }
-        else
-        {
-            m_filledTime = p_time;
-        }
+        m_latencyMs = p_latencyMs;
     }
 
     QString m_accountID;
@@ -218,11 +202,9 @@ class Order
 
     bool m_isUpdate = false; // Whether this order is an update
 
-    // Tracking times for order lifecycle
-    // Those are not from the API but tracked locally. They are computed when we first receive the order
-    // and when it gets filled. When retrieving historical orders, those will get filles by the database fields
-    std::optional<QDateTime> m_receivedTime; // When we first received this order
-    std::optional<QDateTime> m_filledTime;   // When this order was filled
+    // Ack/fill latency in milliseconds, computed once at the moment we receive the ack or fill
+    // and stored as-is in the database. This value never changes after initial computation.
+    std::optional<qint64> m_latencyMs;
 };
 
 Q_DECLARE_METATYPE(Order)

@@ -18,26 +18,24 @@ namespace OrdersDatabaseQueries
                                         "filled_price REAL, "
                                         "opened_datetime TEXT, "
                                         "closed_datetime TEXT, "
-                                        "received_time TEXT NOT NULL, "
-                                        "filled_time TEXT, "
+                                        "latency_ms INTEGER, "
                                         "json_data TEXT NOT NULL"
                                         ")";
 
     const QString INSERT_ORDER = "INSERT INTO orders ("
                                  "order_id, account_id, symbol, quantity, trade_action, order_type, "
                                  "status, status_description, limit_price, stop_price, filled_price, "
-                                 "opened_datetime, closed_datetime, received_time, filled_time, json_data"
-                                 ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                                 "opened_datetime, closed_datetime, latency_ms, json_data"
+                                 ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     const QString UPDATE_ORDER = "UPDATE orders SET "
                                  "status = ?, status_description = ?, filled_price = ?, "
-                                 "closed_datetime = ?, filled_time = ?, json_data = ? "
+                                 "closed_datetime = ?, latency_ms = ?, json_data = ? "
                                  "WHERE order_id = ?";
 
     const QString SELECT_ORDER_EXISTS = "SELECT COUNT(*) FROM orders WHERE order_id = ?";
 
-    const QString SELECT_ALL_ORDERS =
-        "SELECT order_id, received_time, filled_time, status, order_type, json_data FROM orders";
+    const QString SELECT_ALL_ORDERS = "SELECT order_id, latency_ms, status, order_type, json_data FROM orders";
 
     const QString SELECT_ORDER_COUNT = "SELECT COUNT(*) FROM orders";
 
