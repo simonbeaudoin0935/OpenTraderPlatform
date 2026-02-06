@@ -45,8 +45,7 @@ class Stream : public QObject
 
     Stream(QNetworkReply* reply, QObject* parent);
     ~Stream();
-    Stream(const Stream&) = delete;
-    Stream& operator=(const Stream&) = delete;
+    Q_DISABLE_COPY_MOVE(Stream)
 
     /**
      * @brief Returns a future that resolves when the stream ends.

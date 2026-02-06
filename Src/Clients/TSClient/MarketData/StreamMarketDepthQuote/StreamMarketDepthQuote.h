@@ -9,9 +9,8 @@ class StreamMarketDepthQuote final : public StreamMarketData
 
   public:
     explicit StreamMarketDepthQuote(const QString& symbol, QNetworkReply* reply, QObject* parent = nullptr);
-    ~StreamMarketDepthQuote(){};
-    StreamMarketDepthQuote(const StreamMarketDepthQuote&) = delete;
-    StreamMarketDepthQuote& operator=(const StreamMarketDepthQuote&) = delete;
+    ~StreamMarketDepthQuote() = default;
+    Q_DISABLE_COPY_MOVE(StreamMarketDepthQuote)
 
     QString getSymbol() const
     {

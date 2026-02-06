@@ -10,9 +10,8 @@ class StreamOrders final : public StreamBrokerage
   public:
     // TODO make it multiple accounts
     explicit StreamOrders(const QString& account, QNetworkReply* reply, QObject* parent = nullptr);
-    ~StreamOrders(){};
-    StreamOrders(const StreamOrders&) = delete;
-    StreamOrders& operator=(const StreamOrders&) = delete;
+    ~StreamOrders() = default;
+    Q_DISABLE_COPY_MOVE(StreamOrders)
 
     QString getAccountID()
     {

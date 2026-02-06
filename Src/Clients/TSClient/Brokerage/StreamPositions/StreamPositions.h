@@ -9,9 +9,8 @@ class StreamPositions final : public StreamBrokerage
 
   public:
     explicit StreamPositions(const QString& accountID, QNetworkReply* reply, QObject* parent = nullptr);
-    ~StreamPositions(){};
-    StreamPositions(const StreamPositions&) = delete;
-    StreamPositions& operator=(const StreamPositions&) = delete;
+    ~StreamPositions() = default;
+    Q_DISABLE_COPY_MOVE(StreamPositions)
 
     QString getAccountID()
     {
