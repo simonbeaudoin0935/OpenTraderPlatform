@@ -105,6 +105,7 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString& symbol,
             {
                 auto* mockReply = new MockNetworkReply(this);
                 Q_CHECK_PTR(mockReply);
+                mockReply->setObjectName("MockNetworkReply::Bars::" + symbol);
 
                 // Track the mock reply for data injection later
                 m_replayBarReplies[symbol] = mockReply;
@@ -169,6 +170,7 @@ QPointer<StreamMarketDepthQuote> TSClient::openStreamMarketDepthQuote(const QStr
             {
                 auto* mockReply = new MockNetworkReply(this);
                 Q_CHECK_PTR(mockReply);
+                mockReply->setObjectName("MockNetworkReply::MarketDepth::" + symbol);
 
                 // Track the mock reply for data injection later
                 m_replayDepthReplies[symbol] = mockReply;

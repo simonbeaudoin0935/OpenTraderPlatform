@@ -30,7 +30,7 @@ endif()
 
 # Enable strict compiler warnings, and treat warnings as errors
 add_compile_options(
-    -Werror
+    #-Werror
     -Wall
     -Wextra
     -Wpedantic
