@@ -31,20 +31,27 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
             this,
             &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote);
 
+    QPointer<MarketDepthQuoteReceiver> self = this;
     m_stream->future().then(
-        this,
-        [this](std::optional<std::pair<Stream::StreamError, QString>> error)
+        [self](std::optional<std::pair<Stream::StreamError, QString>> error)
         {
+            if (!self)
+            {
+                return;
+            }
+
             if (error.has_value())
             {
                 auto [errorType, message] = error.value();
-                CRITICAL << "Market Depth Quote stream for" << m_symbol << "finished with error:" << message;
-                m_stream = nullptr;
-                QTimer::singleShot(300, this, &MarketDepthQuoteReceiver::createMarketDepthQuoteStream);
+                qCCritical(MarketDepthQuoteReceiverLog)
+                    << "Market Depth Quote stream for" << self->m_symbol << "finished with error:" << message;
+                self->m_stream = nullptr;
+                QTimer::singleShot(300, self.data(), &MarketDepthQuoteReceiver::createMarketDepthQuoteStream);
             }
             else
             {
-                DEBUG << "Market Depth Quote stream for" << m_symbol << "intentionally closed";
+                qCDebug(MarketDepthQuoteReceiverLog)
+                    << "Market Depth Quote stream for" << self->m_symbol << "intentionally closed";
             }
         });
 }

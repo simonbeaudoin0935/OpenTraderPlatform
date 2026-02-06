@@ -55,22 +55,29 @@ void PositionsReceiver::createPositionsStream()
             this,
             [this]() { INFO << "Received EndSnapshot for Positions stream"; });
 
-    m_stream->future().then(this,
-                            [this](std::optional<std::pair<Stream::StreamError, QString>> error)
-                            {
-                                if (error.has_value())
-                                {
-                                    auto [errorType, message] = error.value();
-                                    CRITICAL << "Positions stream for account" << m_account
-                                             << "finished with error:" << message;
-                                    m_stream = nullptr;
-                                    QTimer::singleShot(300, this, &PositionsReceiver::createPositionsStream);
-                                }
-                                else
-                                {
-                                    DEBUG << "Positions stream for account" << m_account << "intentionally closed";
-                                }
-                            });
+    QPointer<PositionsReceiver> self = this;
+    m_stream->future().then(
+        [self](std::optional<std::pair<Stream::StreamError, QString>> error)
+        {
+            if (!self)
+            {
+                return;
+            }
+
+            if (error.has_value())
+            {
+                auto [errorType, message] = error.value();
+                qCCritical(PositionsReceiverLog)
+                    << "Positions stream for account" << self->m_account << "finished with error:" << message;
+                self->m_stream = nullptr;
+                QTimer::singleShot(300, self.data(), &PositionsReceiver::createPositionsStream);
+            }
+            else
+            {
+                qCDebug(PositionsReceiverLog)
+                    << "Positions stream for account" << self->m_account << "intentionally closed";
+            }
+        });
 }
 
 

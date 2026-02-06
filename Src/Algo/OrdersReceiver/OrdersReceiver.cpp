@@ -52,22 +52,28 @@ void OrdersReceiver::createOrdersStream()
     connect(m_stream, &StreamOrders::newOrderReceived, this, &OrdersReceiver::onReceivedNewOrder);
     connect(m_stream, &StreamOrders::endSnapshotReceived, this, &OrdersReceiver::onEndSnapshotReceived);
 
-    m_stream->future().then(this,
-                            [this](std::optional<std::pair<Stream::StreamError, QString>> error)
-                            {
-                                if (error.has_value())
-                                {
-                                    auto [errorType, message] = error.value();
-                                    CRITICAL << "Orders stream for account" << m_account
-                                             << "finished with error:" << message;
-                                    m_stream = nullptr;
-                                    QTimer::singleShot(300, this, &OrdersReceiver::createOrdersStream);
-                                }
-                                else
-                                {
-                                    DEBUG << "Orders stream for account" << m_account << "intentionally closed";
-                                }
-                            });
+    QPointer<OrdersReceiver> self = this;
+    m_stream->future().then(
+        [self](std::optional<std::pair<Stream::StreamError, QString>> error)
+        {
+            if (!self)
+            {
+                return;
+            }
+
+            if (error.has_value())
+            {
+                auto [errorType, message] = error.value();
+                qCCritical(OrdersReceiverLog)
+                    << "Orders stream for account" << self->m_account << "finished with error:" << message;
+                self->m_stream = nullptr;
+                QTimer::singleShot(300, self.data(), &OrdersReceiver::createOrdersStream);
+            }
+            else
+            {
+                qCDebug(OrdersReceiverLog) << "Orders stream for account" << self->m_account << "intentionally closed";
+            }
+        });
 }
 
 void OrdersReceiver::onReceivedNewOrder(Order order)
