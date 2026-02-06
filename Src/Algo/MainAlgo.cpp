@@ -843,6 +843,10 @@ void MainAlgo::exitReplayMode()
     OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
 
     m_replayEngine->stopReplay();
+
+    // Clean up replay engine
+    delete m_replayEngine;
+    m_replayEngine = nullptr;
 }
 
 void MainAlgo::pauseReplay()
@@ -893,12 +897,12 @@ void MainAlgo::pauseLiveStreams()
     OBJ_ASSUME_DIFF(m_positionReceiver, nullptr);
     OBJ_ASSUME_DIFF(m_orderReceiver, nullptr);
 
-    // Stop positions stream
+    // Stop streams - this closes them gracefully and disables auto-reconnect
+    // The receivers remain alive but with null streams
     m_positionReceiver->stopStream(m_activeAccount.getAccountId());
     positionStreamStarted = false;
     DEBUG << "Positions stream stopped";
 
-    // Stop orders stream
     m_orderReceiver->stopStream(m_activeAccount.getAccountId());
     orderStreamStarted = false;
     DEBUG << "Orders stream stopped";
@@ -908,12 +912,12 @@ void MainAlgo::resumeLiveStreams()
 {
     INFO << "Resuming live streams after replay mode";
 
-    // The receivers must exist - we paused them in pauseLiveStreams
+    // Receivers exist but their streams were stopped in pauseLiveStreams
     OBJ_ASSUME_DIFF(m_positionReceiver, nullptr);
     OBJ_ASSUME_DIFF(m_orderReceiver, nullptr);
 
-    // Recreate positions receiver to trigger fresh snapshot
-    // The constructor creates the stream automatically
+    // Delete and recreate to get fresh snapshots
+    // The streams are already null from stopStream(), so destructor won't try to close them
     delete m_positionReceiver;
     m_positionReceiver = new PositionsReceiver(m_activeAccount.getAccountId(), this);
     bool connected = connect(m_positionReceiver,
@@ -929,10 +933,8 @@ void MainAlgo::resumeLiveStreams()
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
     positionStreamStarted = true;
-    DEBUG << "Positions stream recreated and started";
+    DEBUG << "Positions receiver recreated and started";
 
-    // Recreate orders receiver to trigger fresh snapshot
-    // The constructor creates the stream automatically
     delete m_orderReceiver;
     m_orderReceiver = new OrdersReceiver(m_activeAccount.getAccountId(), this);
     connected = connect(m_orderReceiver,
@@ -942,7 +944,7 @@ void MainAlgo::resumeLiveStreams()
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
     orderStreamStarted = true;
-    DEBUG << "Orders stream recreated and started";
+    DEBUG << "Orders receiver recreated and started";
 }
 
 ReplayEngine::PlaybackState MainAlgo::getReplayState() const

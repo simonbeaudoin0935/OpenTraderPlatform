@@ -18,9 +18,11 @@ PositionsReceiver::PositionsReceiver(const QString& account, QObject* parent)
 
 PositionsReceiver::~PositionsReceiver()
 {
-    OBJ_ASSUME_TRUE(m_stream != nullptr);
-
-    TSClient::getInstance()->closeStream(m_stream);
+    // Stream may be null if stopStream() was called before destruction
+    if (m_stream != nullptr)
+    {
+        TSClient::getInstance()->closeStream(m_stream);
+    }
 }
 
 void PositionsReceiver::stopStream(const QString& account)
