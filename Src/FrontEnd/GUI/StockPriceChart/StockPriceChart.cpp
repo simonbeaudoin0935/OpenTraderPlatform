@@ -565,6 +565,12 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     updateCandlestickData();
     updateVolumeData();
 
+    // Draw session backgrounds if this bar belongs to a new date (e.g., next day's pre-market just started)
+    if (!m_datesWithBackgrounds.contains(bar.getTimeStamp().date()))
+    {
+        drawBackgroundsForReceivedBars(QVector<Bar>{bar});
+    }
+
     redrawLastPriceLine();
     m_customPlot->replot();
 }
