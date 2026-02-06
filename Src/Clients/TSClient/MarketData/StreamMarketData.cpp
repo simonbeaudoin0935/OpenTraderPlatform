@@ -34,6 +34,7 @@ bool StreamMarketData::handleErrorOrStatus(const QJsonObject& jsonObj)
 
     if (errorStr == "BadRequest")
     {
+        m_streamError = StreamError::BadRequest;
         CRITICAL << "BadRequest error (malformed request):" << message;
         OBJ_ASSUME_TRUE(false);
         return true;
@@ -41,23 +42,27 @@ bool StreamMarketData::handleErrorOrStatus(const QJsonObject& jsonObj)
 
     if (errorStr == "GoAway")
     {
+        m_streamError = StreamError::GoAway;
         INFO << "Server shutting down (GoAway):" << message;
         return true;
     }
 
     if (errorStr == "DualLogon")
     {
+        m_streamError = StreamError::DualLogon;
         WARNING << "DualLogon error:" << message;
         return true;
     }
 
     if (errorStr == "InternalServerError")
     {
+        m_streamError = StreamError::InternalServerError;
         WARNING << "InternalServerError:" << message;
         return true;
     }
 
     // Unknown error type - log critical
+    m_streamError = StreamError::InternalServerError;
     CRITICAL << "Unknown MarketData error type '" << errorStr << "':" << message;
     return true;
 }

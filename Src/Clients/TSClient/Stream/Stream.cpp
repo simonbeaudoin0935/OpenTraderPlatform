@@ -74,21 +74,27 @@ void Stream::onReplyFinished()
 
     Q_CHECK_PTR(m_networkReply);
 
-    // Theres 3 ways to get here:
-    // 1) In the previous readyRead() call, we detected an error object in the stream and marked m_isInError = true
-    // 2) The heartbeat timer timed out and aborted the network reply
-    // 3) There is a network error reported by QNetworkReply (timeout, disconnection, etc )
-    QString exceptionString = "Timeout: " + (m_receivedTimeoutError ? QString("true") : QString("false")) +
-                              " JSON Error: " + m_jsonErrorString + ". Network error: " + m_networkReply->errorString();
+    // Determine the error type based on what triggered this:
+    // 1) Heartbeat timeout (m_receivedTimeoutError == true)
+    // 2) JSON error received from server (m_streamError has been set by intermediate class)
+    // 3) Network error reported by QNetworkReply (timeout, disconnection, etc)
+    StreamError errorType = StreamError::Timeout; // Default to timeout
+    if (m_streamError.has_value())
+    {
+        errorType = m_streamError.value();
+    }
 
-    DEBUG << "exceptionString: " << exceptionString;
+    QString description = "Timeout: " + (m_receivedTimeoutError ? QString("true") : QString("false")) +
+                          " JSON Error: " + m_jsonErrorString + ". Network error: " + m_networkReply->errorString();
+
+    DEBUG << "Stream finished with error:" << description;
 
     m_heartbeatTimer.stop();
 
     // During shutdown, don't try to add results to the promise as the QFuture context may be destroyed
     if (!s_isShuttingDown)
     {
-        m_promise.addResult(exceptionString);
+        m_promise.addResult(std::make_pair(errorType, description));
     }
 
     // m_promise.finish() will be called in the destructor
@@ -164,7 +170,8 @@ void Stream::processRawData(const QByteArray& rawData)
 
 /*
  * Process a JSON document extracted from the stream.
- * Handles error and heartbeat objects, and delegates normal objects to derived classes.
+ * Handles heartbeat objects centrally, delegates error/status handling to intermediate classes
+ * (StreamMarketData, StreamBrokerage), and delegates normal data to concrete derived classes.
  */
 void Stream::processJsonDoc(const QJsonDocument& doc)
 {
@@ -185,21 +192,15 @@ void Stream::processJsonDoc(const QJsonDocument& doc)
         {
             m_heartbeatTimer.start(m_heartbeatTimeoutMS);
         }
-        // DEBUG << "received heartbeat";
         return;
-        ;
     }
 
-    // Each type of stream may have its own error object, so we delegate to derived classes
-    // to handle error objects as they see fit.
-
-    // Check if this is an error/status message handled by the intermediate class
+    // Delegate error/status detection to intermediate classes (StreamMarketData or StreamBrokerage)
     if (handleErrorOrStatus(jsonObj))
     {
         return;
     }
 
-    // Happy path, process the object
-    // Delegate to derived class for processing
+    // Happy path: delegate normal data processing to concrete derived class
     processJsonObject(jsonObj);
 }

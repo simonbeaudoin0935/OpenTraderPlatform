@@ -101,12 +101,13 @@ void LiveStreamDB::startRecording()
                              { onReceivedNewRawDataForStock(symbol, rawData); });
 
             stream->future().then(this,
-                                  [this, symbol](std::optional<QString> error)
+                                  [this, symbol](std::optional<std::pair<Stream::StreamError, QString>> error)
                                   {
                                       if (error.has_value())
                                       {
+                                          auto [errorType, message] = error.value();
                                           CRITICAL << "StreamBars Receiver failed for" << symbol
-                                                   << "- Exception:" << error.value();
+                                                   << "- Exception:" << message;
 
                                           Q_UNREACHABLE();
 
@@ -142,12 +143,13 @@ void LiveStreamDB::startRecording()
                              { onReceivedNewRawDataForStock(symbol, rawData); });
 
             stream->future().then(this,
-                                  [this, symbol](std::optional<QString> error)
+                                  [this, symbol](std::optional<std::pair<Stream::StreamError, QString>> error)
                                   {
                                       if (error.has_value())
                                       {
+                                          auto [errorType, message] = error.value();
                                           CRITICAL << "StreamMarketDepthQuote Receiver failed for" << symbol
-                                                   << "- Exception:" << error.value();
+                                                   << "- Exception:" << message;
 
                                           Q_UNREACHABLE();
 
@@ -273,12 +275,13 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
 
 
         stream->future().then(this,
-                              [this, symbol](std::optional<QString> error)
+                              [this, symbol](std::optional<std::pair<Stream::StreamError, QString>> error)
                               {
                                   if (error.has_value())
                                   {
+                                      auto [errorType, message] = error.value();
                                       CRITICAL << "Bar Receiver Receiver failed for" << symbol
-                                               << "- Exception:" << error.value();
+                                               << "- Exception:" << message;
 
                                       Q_UNREACHABLE();
 
@@ -321,12 +324,13 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                          [this, symbol](const QByteArray& rawData) { onReceivedNewRawDataForStock(symbol, rawData); });
 
         stream->future().then(this,
-                              [this, symbol](std::optional<QString> error)
+                              [this, symbol](std::optional<std::pair<Stream::StreamError, QString>> error)
                               {
                                   if (error.has_value())
                                   {
+                                      auto [errorType, message] = error.value();
                                       CRITICAL << "Recorder Market Depth Quote receiver failed for" << symbol
-                                               << "- Exception:" << error.value();
+                                               << "- Exception:" << message;
 
                                       Q_UNREACHABLE();
 

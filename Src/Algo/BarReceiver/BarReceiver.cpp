@@ -30,11 +30,12 @@ void BarReceiver::createBarStream()
 
     // Capture symbol by value - no context object needed since this is just logging
     m_stream->future().then(
-        [symbol = m_symbol](std::optional<QString> error)
+        [symbol = m_symbol](std::optional<std::pair<Stream::StreamError, QString>> error)
         {
             if (error.has_value())
             {
-                qCCritical(BarReceiverLog) << "Bars stream for" << symbol << "finished with error:" << error.value();
+                auto [errorType, message] = error.value();
+                qCCritical(BarReceiverLog) << "Bars stream for" << symbol << "finished with error:" << message;
             }
             else
             {

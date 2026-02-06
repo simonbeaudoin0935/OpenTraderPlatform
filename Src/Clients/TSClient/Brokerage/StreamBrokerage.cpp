@@ -2,25 +2,26 @@
 #include "Logging.h"
 #include "Assume.h"
 
+#include <QJsonDocument>
 #include <QJsonObject>
 
 #define LOGGING_CATEGORY StreamLog
 
 /**
- * @brief Handle Brokerage category error/status messages.
+ * @brief Handle Brokerage category error and status messages.
  *
- * Brokerage streams (Orders, Positions) receive two types of control messages:
+ * Brokerage streams (Orders, Positions) receive two types of non-data messages:
  *
- * 1. StreamStatus: { "StreamStatus": "EndSnapshot|GoAway" }
- *    - EndSnapshot: Initial snapshot complete, subsequent data is live. Emits endSnapshotReceived().
- *    - GoAway: Server shutting down, connection will close. Recoverable via future.
+ * StreamStatus messages:
+ * - EndSnapshot: Initial data snapshot is complete, emit endSnapshotReceived()
+ * - GoAway:      Server shutting down, server closes connection, consumer reconnects via future
  *
- * 2. ErrorResponse: { "ErrorResponse": "...", "Error": "<type>", "Message": "...", "AccountID": "..." }
- *    - Forbidden:          CRITICAL + assert (bad account/permissions - our code error)
- *    - ServiceUnavailable: CRITICAL + assert (bad request format - our code error)
- *    - InternalServerError: WARNING, server closes connection, consumer reconnects via future
- *    - GatewayTimeout:     WARNING, server closes connection, consumer reconnects via future
- *    - Failed:             WARNING, server closes connection, consumer reconnects via future
+ * ErrorResponse messages with Error types:
+ * - Forbidden:          CRITICAL + assert (our code error, bad account/permissions)
+ * - InternalServerError: WARNING, server closes connection, consumer reconnects via future
+ * - ServiceUnavailable: CRITICAL + assert (our code error, bad request format)
+ * - GatewayTimeout:     WARNING, server closes connection, consumer reconnects via future
+ * - Failed:             WARNING, server closes connection, consumer reconnects via future
  *
  * @return true if the JSON was an error/status message (handled), false if normal data
  */
@@ -40,6 +41,7 @@ bool StreamBrokerage::handleErrorOrStatus(const QJsonObject& jsonObj)
 
         if (statusStr == "GoAway")
         {
+            m_streamError = StreamError::GoAway;
             INFO << "Server shutting down (GoAway)";
             return true;
         }
@@ -60,6 +62,7 @@ bool StreamBrokerage::handleErrorOrStatus(const QJsonObject& jsonObj)
 
         if (errorStr == "Forbidden")
         {
+            m_streamError = StreamError::Forbidden;
             CRITICAL << "Forbidden error (bad account/permissions):" << message << "AccountID:" << accountID;
             OBJ_ASSUME_TRUE(false);
             return true;
@@ -67,6 +70,7 @@ bool StreamBrokerage::handleErrorOrStatus(const QJsonObject& jsonObj)
 
         if (errorStr == "ServiceUnavailable")
         {
+            m_streamError = StreamError::ServiceUnavailable;
             CRITICAL << "ServiceUnavailable error (bad request format):" << message << "AccountID:" << accountID;
             OBJ_ASSUME_TRUE(false);
             return true;
@@ -74,23 +78,27 @@ bool StreamBrokerage::handleErrorOrStatus(const QJsonObject& jsonObj)
 
         if (errorStr == "InternalServerError")
         {
+            m_streamError = StreamError::InternalServerError;
             WARNING << "InternalServerError:" << message << "AccountID:" << accountID;
             return true;
         }
 
         if (errorStr == "GatewayTimeout")
         {
+            m_streamError = StreamError::GatewayTimeout;
             WARNING << "GatewayTimeout:" << message << "AccountID:" << accountID;
             return true;
         }
 
         if (errorStr == "Failed")
         {
+            m_streamError = StreamError::Failed;
             WARNING << "Failed:" << message << "AccountID:" << accountID;
             return true;
         }
 
         // Unknown error type - log critical
+        m_streamError = StreamError::InternalServerError;
         CRITICAL << "Unknown Brokerage error type '" << errorStr << "':" << message << "AccountID:" << accountID;
         return true;
     }

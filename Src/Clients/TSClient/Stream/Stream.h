@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include <QObject>
 #include <QJsonDocument>
 #include <QLoggingCategory>
@@ -46,7 +48,27 @@ class Stream : public QObject
     Stream(const Stream&) = delete;
     Stream& operator=(const Stream&) = delete;
 
-    QFuture<std::optional<QString>> future() const
+    /**
+     * @brief Returns a future that resolves when the stream ends.
+     *
+     * The future carries an optional pair of (StreamError, description):
+     * - **Has value**: The stream ended due to an error (network timeout, server error, etc.).
+     *   The StreamError enum identifies the error type, and the QString provides a human-readable description.
+     * - **No value** (std::nullopt): The stream was intentionally closed via TSClient::closeStream().
+     *
+     * Consumers should use this to detect stream closure and decide whether to reconnect:
+     * @code
+     * stream->future().then(this, [](std::optional<std::pair<Stream::StreamError, QString>> error) {
+     *     if (error.has_value()) {
+     *         // Stream ended with error - consider reconnecting
+     *         auto [errorType, message] = error.value();
+     *     } else {
+     *         // Stream was intentionally closed - no action needed
+     *     }
+     * });
+     * @endcode
+     */
+    [[nodiscard]] QFuture<std::optional<std::pair<StreamError, QString>>> future() const
     {
         return m_future;
     }
@@ -131,12 +153,16 @@ class Stream : public QObject
 
     QString m_jsonErrorString;
 
+    /// Set by intermediate classes when a server error is detected in the stream JSON data.
+    /// Used by onReplyFinished() to determine the error type for the promise result.
+    std::optional<StreamError> m_streamError;
+
   private slots:
     void onHeartbeatTimerTimeout();
 
   private:
-    QPromise<std::optional<QString>> m_promise;
-    QFuture<std::optional<QString>> m_future;
+    QPromise<std::optional<std::pair<StreamError, QString>>> m_promise;
+    QFuture<std::optional<std::pair<StreamError, QString>>> m_future;
 
     QByteArray m_accumulatedData;
     void processRawData(const QByteArray& rawData);

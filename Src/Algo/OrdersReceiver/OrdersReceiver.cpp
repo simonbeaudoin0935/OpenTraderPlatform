@@ -53,14 +53,15 @@ void OrdersReceiver::createOrdersStream()
     connect(m_stream, &StreamOrders::endSnapshotReceived, this, &OrdersReceiver::onEndSnapshotReceived);
 
     m_stream->future().then(this,
-                            [this](std::optional<QString> error)
+                            [this](std::optional<std::pair<Stream::StreamError, QString>> error)
                             {
                                 // We get here when the stream is closed (either gracefully or with error)
 
                                 if (error.has_value())
                                 {
+                                    auto [errorType, message] = error.value();
                                     CRITICAL << "Orders stream for account" << m_account
-                                             << "finished with error:" << error.value();
+                                             << "finished with error:" << message;
                                 }
                                 else
                                 {
