@@ -471,19 +471,24 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
 {
     OBJ_ASSUME_FALSE(bars->isEmpty());
 
-    if (date < MainApp::getCurrentAppTime().date())
+    // In live mode, validate bar counts make sense relative to current time
+    // In replay mode, skip validation since we're loading historical data that may have full days
+    if (TSClient::getInstance()->getMode() == TSClient::Mode::Live)
     {
-        // Past day - must have full day of bars. This is because throughout the code, we assume tha
-        OBJ_ASSUME_EQUAL(bars->size(), BarsConstants::MINUTE_BARS_PER_DAY);
-    }
-    else
-    {
-        // This checks that for the current day, we don't have more bars than up to now
-        OBJ_ASSUME_LTE(bars->size(),
-                       static_cast<qsizetype>(
-                           MainApp::getCurrentAppTime().time() > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION
-                               ? BarsConstants::MINUTE_BARS_PER_DAY
-                               : BarsConstants::timeToIndex(MainApp::getCurrentAppTime().time()) + 1));
+        if (date < MainApp::getCurrentAppTime().date())
+        {
+            // Past day - must have full day of bars
+            OBJ_ASSUME_EQUAL(bars->size(), BarsConstants::MINUTE_BARS_PER_DAY);
+        }
+        else
+        {
+            // Current day - can't have more bars than up to now
+            OBJ_ASSUME_LTE(bars->size(),
+                           static_cast<qsizetype>(
+                               MainApp::getCurrentAppTime().time() > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION
+                                   ? BarsConstants::MINUTE_BARS_PER_DAY
+                                   : BarsConstants::timeToIndex(MainApp::getCurrentAppTime().time()) + 1));
+        }
     }
 
     OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().date(), bars->last().getTimeStamp().date());
