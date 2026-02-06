@@ -54,7 +54,7 @@ bool StreamMarketData::handleErrorOrStatus(const QJsonObject& jsonObj)
         return true;
     }
 
-    if (errorStr == "InternalServerError")
+    if (errorStr == "InternalServerError" || errorStr == "InternalError")
     {
         m_streamError = StreamError::InternalServerError;
         WARNING << "InternalServerError:" << message;
