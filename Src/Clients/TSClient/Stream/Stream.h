@@ -5,10 +5,9 @@
 #include <QObject>
 #include <QJsonDocument>
 #include <QLoggingCategory>
+#include <QThread>
 #include <QTimer>
 #include <QNetworkReply>
-#include <QPromise>
-#include <QFuture>
 
 Q_DECLARE_LOGGING_CATEGORY(StreamLog)
 
@@ -19,14 +18,16 @@ class Stream : public QObject
 
   public:
     /**
-     * @brief Stream error types that can be received from the TradeStation API.
+     * @brief Stream closure reasons.
      *
      * MarketData streams (Bars, MarketDepthQuote) use: BadRequest, DualLogon, GoAway, InternalServerError
      * Brokerage streams (Orders, Positions) use: Forbidden, InternalServerError, ServiceUnavailable, GatewayTimeout, Failed
+     * All streams use: Timeout, Closed
      */
     enum class StreamError : quint8
     {
         // Common
+        Closed,  ///< Intentional close via TSClient::closeStream(). Not an error.
         Timeout, ///< Heartbeat timeout - no data received. Recoverable.
 
         // MarketData category errors
@@ -46,31 +47,6 @@ class Stream : public QObject
     Stream(QNetworkReply* reply, QObject* parent);
     ~Stream();
     Q_DISABLE_COPY_MOVE(Stream)
-
-    /**
-     * @brief Returns a future that resolves when the stream ends.
-     *
-     * The future carries an optional pair of (StreamError, description):
-     * - **Has value**: The stream ended due to an error (network timeout, server error, etc.).
-     *   The StreamError enum identifies the error type, and the QString provides a human-readable description.
-     * - **No value** (std::nullopt): The stream was intentionally closed via TSClient::closeStream().
-     *
-     * Consumers should use this to detect stream closure and decide whether to reconnect:
-     * @code
-     * stream->future().then(this, [](std::optional<std::pair<Stream::StreamError, QString>> error) {
-     *     if (error.has_value()) {
-     *         // Stream ended with error - consider reconnecting
-     *         auto [errorType, message] = error.value();
-     *     } else {
-     *         // Stream was intentionally closed - no action needed
-     *     }
-     * });
-     * @endcode
-     */
-    [[nodiscard]] QFuture<std::optional<std::pair<StreamError, QString>>> future() const
-    {
-        return m_future;
-    }
 
     static size_t getNumberOpenStream()
     {
@@ -132,6 +108,17 @@ class Stream : public QObject
      */
     void endSnapshotReceived();
 
+    /**
+     * @brief Emitted just before the stream is destroyed, indicating why it closed.
+     *
+     * - StreamError::Closed: Intentional close via TSClient::closeStream() — no action needed.
+     * - Any other value: The stream ended due to an error — consumer should reconnect.
+     *
+     * @param reason The reason the stream closed.
+     * @param description Human-readable description of the closure reason.
+     */
+    void streamClosed(Stream::StreamError reason, QString description);
+
   public slots:
     void onReplyReadyRead();
     void onReplyFinished();
@@ -153,16 +140,13 @@ class Stream : public QObject
     QString m_jsonErrorString;
 
     /// Set by intermediate classes when a server error is detected in the stream JSON data.
-    /// Used by onReplyFinished() to determine the error type for the promise result.
+    /// Used by onReplyFinished() to determine the error type for the streamClosed signal.
     std::optional<StreamError> m_streamError;
 
   private slots:
     void onHeartbeatTimerTimeout();
 
   private:
-    QPromise<std::optional<std::pair<StreamError, QString>>> m_promise;
-    QFuture<std::optional<std::pair<StreamError, QString>>> m_future;
-
     QByteArray m_accumulatedData;
     void processRawData(const QByteArray& rawData);
     void processJsonDoc(const QJsonDocument& doc);

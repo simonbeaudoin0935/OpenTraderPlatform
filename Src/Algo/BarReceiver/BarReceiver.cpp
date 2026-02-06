@@ -28,27 +28,22 @@ void BarReceiver::createBarStream()
 
     connect(m_stream, &StreamBars::newBarReceived, this, &BarReceiver::onReceivedNewBar);
 
-    QPointer<BarReceiver> self = this;
-    m_stream->future().then(
-        [self](std::optional<std::pair<Stream::StreamError, QString>> error)
-        {
-            if (!self)
+    connect(m_stream,
+            &Stream::streamClosed,
+            this,
+            [this](Stream::StreamError reason, QString message)
             {
-                return;
-            }
-
-            if (error.has_value())
-            {
-                auto [errorType, message] = error.value();
-                qCCritical(BarReceiverLog) << "Bars stream for" << self->m_symbol << "finished with error:" << message;
-                self->m_stream = nullptr;
-                QTimer::singleShot(300, self.data(), &BarReceiver::createBarStream);
-            }
-            else
-            {
-                qCDebug(BarReceiverLog) << "Bars stream for" << self->m_symbol << "intentionally closed";
-            }
-        });
+                if (reason != Stream::StreamError::Closed)
+                {
+                    CRITICAL << "Bars stream for" << m_symbol << "finished with error:" << message;
+                    m_stream = nullptr;
+                    QTimer::singleShot(300, this, &BarReceiver::createBarStream);
+                }
+                else
+                {
+                    DEBUG << "Bars stream for" << m_symbol << "intentionally closed";
+                }
+            });
 }
 
 BarReceiver::~BarReceiver()

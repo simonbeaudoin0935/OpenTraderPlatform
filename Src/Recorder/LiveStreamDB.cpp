@@ -100,31 +100,18 @@ void LiveStreamDB::startRecording()
                              [this, symbol](const QByteArray& rawData)
                              { onReceivedNewRawDataForStock(symbol, rawData); });
 
-            stream->future().then(this,
-                                  [this, symbol](std::optional<std::pair<Stream::StreamError, QString>> error)
-                                  {
-                                      if (error.has_value())
-                                      {
-                                          auto [errorType, message] = error.value();
-                                          CRITICAL << "StreamBars Receiver failed for" << symbol
-                                                   << "- Exception:" << message;
-
-                                          Q_UNREACHABLE();
-
-                                          // TODO attempt to restart the stream
-
-                                          // if we have to know that is the source of the failure.
-                                          // if its an invalid symbol, then we dont restart
-                                          // if its a timeout then we restart
-                                      }
-                                      else
-                                      {
-                                          CRITICAL << "StreamBars Receiver future finished for " << symbol;
-
-                                          //Should never happen
-                                          Q_UNREACHABLE();
-                                      }
-                                  });
+            QObject::connect(stream,
+                             &Stream::streamClosed,
+                             this,
+                             [this, symbol](Stream::StreamError reason, QString message)
+                             {
+                                 if (reason != Stream::StreamError::Closed)
+                                 {
+                                     CRITICAL << "StreamBars Receiver failed for" << symbol << "- Error:" << message;
+                                     Q_UNREACHABLE();
+                                     // TODO attempt to restart the stream
+                                 }
+                             });
 
             m_streamBars[symbol] = stream;
         }
@@ -142,28 +129,19 @@ void LiveStreamDB::startRecording()
                              [this, symbol = stream->getSymbol()](const QByteArray& rawData)
                              { onReceivedNewRawDataForStock(symbol, rawData); });
 
-            stream->future().then(this,
-                                  [this, symbol](std::optional<std::pair<Stream::StreamError, QString>> error)
-                                  {
-                                      if (error.has_value())
-                                      {
-                                          auto [errorType, message] = error.value();
-                                          CRITICAL << "StreamMarketDepthQuote Receiver failed for" << symbol
-                                                   << "- Exception:" << message;
-
-                                          Q_UNREACHABLE();
-
-                                          //TODO attempt to restart the stream
-                                      }
-                                      else
-                                      {
-
-                                          CRITICAL << "StreamMarketDepthQuote Receiver future finished for " << symbol;
-
-                                          //Should never happen
-                                          Q_UNREACHABLE();
-                                      }
-                                  });
+            QObject::connect(stream,
+                             &Stream::streamClosed,
+                             this,
+                             [this, symbol](Stream::StreamError reason, QString message)
+                             {
+                                 if (reason != Stream::StreamError::Closed)
+                                 {
+                                     CRITICAL << "StreamMarketDepthQuote Receiver failed for" << symbol
+                                              << "- Error:" << message;
+                                     Q_UNREACHABLE();
+                                     // TODO attempt to restart the stream
+                                 }
+                             });
 
             m_streamMarketDepthQuotes[symbol] = stream;
         }
@@ -274,28 +252,18 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                          [this, symbol](const QByteArray& rawData) { onReceivedNewRawDataForStock(symbol, rawData); });
 
 
-        stream->future().then(this,
-                              [this, symbol](std::optional<std::pair<Stream::StreamError, QString>> error)
-                              {
-                                  if (error.has_value())
-                                  {
-                                      auto [errorType, message] = error.value();
-                                      CRITICAL << "Bar Receiver Receiver failed for" << symbol
-                                               << "- Exception:" << message;
-
-                                      Q_UNREACHABLE();
-
-                                      //TODO attempt to restart the stream
-                                  }
-                                  else
-                                  {
-
-                                      CRITICAL << "Bar Receiver Receiver future finished for " << symbol;
-
-                                      // should never happen
-                                      Q_UNREACHABLE();
-                                  }
-                              });
+        QObject::connect(stream,
+                         &Stream::streamClosed,
+                         this,
+                         [this, symbol](Stream::StreamError reason, QString message)
+                         {
+                             if (reason != Stream::StreamError::Closed)
+                             {
+                                 CRITICAL << "Bar Receiver failed for" << symbol << "- Error:" << message;
+                                 Q_UNREACHABLE();
+                                 // TODO attempt to restart the stream
+                             }
+                         });
 
         m_streamBars[symbol] = stream;
         successfulRecoveries[symbol]++;
@@ -323,26 +291,19 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
                          this,
                          [this, symbol](const QByteArray& rawData) { onReceivedNewRawDataForStock(symbol, rawData); });
 
-        stream->future().then(this,
-                              [this, symbol](std::optional<std::pair<Stream::StreamError, QString>> error)
-                              {
-                                  if (error.has_value())
-                                  {
-                                      auto [errorType, message] = error.value();
-                                      CRITICAL << "Recorder Market Depth Quote receiver failed for" << symbol
-                                               << "- Exception:" << message;
-
-                                      Q_UNREACHABLE();
-
-                                      //TODO attempt to restart the stream
-                                  }
-                                  else
-                                  {
-                                      CRITICAL << "Recorder Bar receiver bar future finished for " << symbol;
-                                      // should never happen
-                                      Q_UNREACHABLE();
-                                  }
-                              });
+        QObject::connect(stream,
+                         &Stream::streamClosed,
+                         this,
+                         [this, symbol](Stream::StreamError reason, QString message)
+                         {
+                             if (reason != Stream::StreamError::Closed)
+                             {
+                                 CRITICAL << "Recorder Market Depth Quote receiver failed for" << symbol
+                                          << "- Error:" << message;
+                                 Q_UNREACHABLE();
+                                 // TODO attempt to restart the stream
+                             }
+                         });
 
         m_streamMarketDepthQuotes[symbol] = stream;
         successfulRecoveries[symbol]++;

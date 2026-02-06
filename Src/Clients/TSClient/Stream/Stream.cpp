@@ -36,9 +36,6 @@ Stream::Stream(QNetworkReply* reply, QObject* parent) : QObject(parent), m_netwo
     // Creating a Stream implies that we expect data to start flowing in because the QNetworkReply
     // that was passed has been obtained after the HTTP x request, so we start the heartbeat timer now
     m_heartbeatTimer.start(m_heartbeatTimeoutMS);
-
-    m_future = m_promise.future();
-    m_promise.start();
 }
 
 Stream::~Stream()
@@ -50,22 +47,18 @@ Stream::~Stream()
 
     s_numberOfStream--;
 
+    // Disconnect finished signal BEFORE aborting to prevent onReplyFinished() from firing.
+    // The intentional close path emits streamClosed(Closed) below instead.
+    disconnect(m_networkReply, &QNetworkReply::finished, this, &Stream::onReplyFinished);
     m_networkReply->abort();
     m_networkReply->deleteLater();
 
-    // Here, maybe its this stream that asked to destroy itself because of an error detected in the stream,
-    // or maybe the user of the stream is destroying it because he wants to stop it.
-    // In any case, we must finish the promise to mark the stream as finished, and if there was an error, we
-    // must have already set the exception in the promise.
-    // Note: During application shutdown, QPromise::finish() may assert if the QFuture's context has been
-    // destroyed. Since QPromise will be destroyed anyway, we can skip finishing it during shutdown.
-    // The promise destructor will handle cleanup.
+    m_heartbeatTimer.stop();
+
     if (!s_isShuttingDown)
     {
-        m_promise.finish();
+        emit streamClosed(StreamError::Closed, QStringLiteral("Stream intentionally closed"));
     }
-
-    m_heartbeatTimer.stop();
 }
 
 void Stream::onReplyFinished()
@@ -91,13 +84,10 @@ void Stream::onReplyFinished()
 
     m_heartbeatTimer.stop();
 
-    // During shutdown, don't try to add results to the promise as the QFuture context may be destroyed
-    if (!s_isShuttingDown)
-    {
-        m_promise.addResult(std::make_pair(errorType, description));
-    }
+    emit streamClosed(errorType, description);
 
-    // m_promise.finish() will be called in the destructor
+    // The destructor will be called later, but we disconnect finished() so it won't emit again
+    disconnect(m_networkReply, &QNetworkReply::finished, this, &Stream::onReplyFinished);
     this->deleteLater();
 }
 
