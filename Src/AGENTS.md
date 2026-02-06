@@ -57,10 +57,6 @@ This directory contains all source code for the L2Trader application.
 - Organized by namespace
 - Examples: `OrdersDatabaseQueries.h`, `LiveStreamDBQueries.h`, `StockPriceChartQueries.h`
 
-**Recorder/** - Data recording companion app
-- Standalone executable for collecting market data
-- Records to CSV format
-
 **main.cpp** - Application entry point
 - Creates QApplication/QCoreApplication
 - Initializes logging

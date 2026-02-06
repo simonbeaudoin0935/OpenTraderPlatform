@@ -19,7 +19,6 @@ This file provides AI agents with key information about the L2Trader project str
 - **Target**: Linux (Ubuntu 24.04), cross-platform (X86_64, ARM64)
 - **Lines of Code**: ~10,000+
 - **Main Executable**: L2Trader (GUI or TUI mode)
-- **Companion Executable**: Recorder (for data collection)
 
 ## Navigation to Detailed Documentation
 
@@ -50,7 +49,8 @@ For detailed information about specific subsystems, navigate to:
 - **Src/SQL/AGENTS.md** - SQL query centralization and organization
 
 **Extensions**:
-- **Src/Strategy/AGENTS.md** - Plugin-based strategy system, SDK, crash isolation
+- **Src/Strategy/AGENTS.md** - Strategy management infrastructure (loading, threading, SDK)
+- **Strategies/** - Template and test strategy implementations (shared objects loaded by Src/Strategy)
 
 ### Comprehensive Documentation (Doc/)
 - **Doc/ARCHITECTURE.md** - Complete architecture, threading model, design patterns

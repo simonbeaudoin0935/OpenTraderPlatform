@@ -265,10 +265,10 @@ Features:
 
 #### RecorderTab (RecorderTab.h/cpp)
 
-**Market data recording controls**
+**Market data recording controls (integrated into main application)**
 
 Features:
-- Start/stop recording
+- Start/stop recording within the application
 - CSV file input for symbol list
 - Select timeframe
 - Recording status display
