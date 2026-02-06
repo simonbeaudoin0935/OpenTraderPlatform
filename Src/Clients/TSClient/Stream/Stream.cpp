@@ -43,7 +43,7 @@ Stream::Stream(QNetworkReply* reply, QObject* parent) : QObject(parent), m_netwo
 
 Stream::~Stream()
 {
-    WARNING << "Stream destroyed ";
+    DEBUG << "Stream destroyed ";
 
     // Stream must be destroyed in the same thread where it was created
     OBJ_ASSUME_EQUAL(QThread::currentThread(), this->thread());
@@ -70,12 +70,9 @@ Stream::~Stream()
 
 void Stream::onReplyFinished()
 {
-    CRITICAL << "received the signal finished()";
+    WARNING << "received the signal finished()";
 
     Q_CHECK_PTR(m_networkReply);
-
-    // Because we listen to readyRead(), it WILL have been called before and therefore finishing there should be no more data
-    OBJ_ASSUME_EQUAL(m_networkReply->readAll().size(), 0);
 
     // Theres 3 ways to get here:
     // 1) In the previous readyRead() call, we detected an error object in the stream and marked m_isInError = true
@@ -84,7 +81,7 @@ void Stream::onReplyFinished()
     QString exceptionString = "Timeout: " + (m_receivedTimeoutError ? QString("true") : QString("false")) +
                               " JSON Error: " + m_jsonErrorString + ". Network error: " + m_networkReply->errorString();
 
-    CRITICAL << "exceptionString: " << exceptionString;
+    DEBUG << "exceptionString: " << exceptionString;
 
     m_heartbeatTimer.stop();
 

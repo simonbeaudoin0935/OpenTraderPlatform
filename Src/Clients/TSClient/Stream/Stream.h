@@ -39,20 +39,41 @@ class Stream : public QObject
 
     /**
      * @brief Pause the heartbeat timer (e.g., when replay is paused)
+     * Thread-safe: uses blocking queued invocation to stop timer on the correct thread
      */
     void pauseHeartbeat()
     {
         m_heartbeatPaused = true;
-        m_heartbeatTimer.stop();
+        // Timer must be stopped from the thread where it was created
+        if (QThread::currentThread() == this->thread())
+        {
+            m_heartbeatTimer.stop();
+        }
+        else
+        {
+            QMetaObject::invokeMethod(&m_heartbeatTimer, &QTimer::stop, Qt::BlockingQueuedConnection);
+        }
     }
 
     /**
      * @brief Resume the heartbeat timer (e.g., when replay resumes)
+     * Thread-safe: uses blocking queued invocation to start timer on the correct thread
      */
     void resumeHeartbeat()
     {
         m_heartbeatPaused = false;
-        m_heartbeatTimer.start(m_heartbeatTimeoutMS);
+        // Timer must be started from the thread where it was created
+        if (QThread::currentThread() == this->thread())
+        {
+            m_heartbeatTimer.start(m_heartbeatTimeoutMS);
+        }
+        else
+        {
+            QMetaObject::invokeMethod(
+                &m_heartbeatTimer,
+                [this]() { m_heartbeatTimer.start(m_heartbeatTimeoutMS); },
+                Qt::BlockingQueuedConnection);
+        }
     }
 
   signals:
