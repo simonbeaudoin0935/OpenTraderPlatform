@@ -198,9 +198,9 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_tradingModeLabel->setMinimumWidth(65);
     m_tradingModeLabel->setStyleSheet(isSimMode
                                           ? "QLabel { background-color: #1E90FF; color: #ffffff; padding: 4px 8px; "
-                                            "border-radius: 4px; font-weight: bold; cursor: pointer; }"
+                                            "border-radius: 4px; font-weight: bold; }"
                                           : "QLabel { background-color: #FF8C00; color: #ffffff; padding: 4px 8px; "
-                                            "border-radius: 4px; font-weight: bold; cursor: pointer; }");
+                                            "border-radius: 4px; font-weight: bold; }");
     m_tradingModeLabel->setToolTip("Click to toggle between SIM and LIVE trading mode (requires restart)");
     m_tradingModeLabel->setCursor(Qt::PointingHandCursor);
     m_tradingModeLabel->installEventFilter(this);
@@ -213,7 +213,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_dataSourceLabel->setAlignment(Qt::AlignCenter);
     m_dataSourceLabel->setMinimumWidth(80);
     m_dataSourceLabel->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
-                                     "border-radius: 4px; font-weight: bold; cursor: pointer; }");
+                                     "border-radius: 4px; font-weight: bold; }");
     m_dataSourceLabel->setToolTip("Click to toggle between LIVE data and REPLAY mode");
     m_dataSourceLabel->setCursor(Qt::PointingHandCursor);
     m_dataSourceLabel->installEventFilter(this);
