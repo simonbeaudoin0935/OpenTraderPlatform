@@ -174,7 +174,6 @@ namespace AuthConstants
     inline constexpr int EXPECTED_EXPIRES_IN = 1200; // 20 minutes
     inline constexpr int EXPIRY_BUFFER_SECONDS = 5;  // Buffer time before actual expiry
 
-<<<<<<< Updated upstream
     // Expected OAuth scopes
     inline const QStringList EXPECTED_SCOPES =
         {"openid", "profile", "MarketData", "ReadAccount", "Trade", "Matrix", "offline_access"};
@@ -182,15 +181,6 @@ namespace AuthConstants
     // Auth handler server configuration
     inline constexpr quint16 DEFAULT_AUTH_PORT = 8080;
     inline constexpr quint16 MAX_PORT_ATTEMPTS = 10;
-=======
-    // Expected OAuth scopes
-    inline const QStringList EXPECTED_SCOPES =
-        {"openid ", "offline_access", "profile", "MarketData", "Matrix", "ReadAccount", "Trade"};
-
-    // Auth handler server configuration
-    inline constexpr quint16 DEFAULT_AUTH_PORT = 8080;
-    inline constexpr quint16 MAX_PORT_ATTEMPTS = 10;
->>>>>>> Stashed changes
 } // namespace AuthConstants
 
 /**
