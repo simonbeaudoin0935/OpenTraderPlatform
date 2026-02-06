@@ -667,6 +667,24 @@ void MainAlgo::onStrategyCrashNotified()
     m_strategyManager.markStrategyFailed(strategyID, errorMsg);
 }
 
+void MainAlgo::onReplayEndReached()
+{
+    INFO << "Replay ended, pausing heartbeat timers to prevent stream timeout";
+
+    // Pause heartbeat timers on mock streams
+    if (currentDisplayedStockInstrument != nullptr)
+    {
+        if (auto stream = currentDisplayedStockInstrument->barReceiver.getStream())
+        {
+            stream->pauseHeartbeat();
+        }
+        if (auto stream = currentDisplayedStockInstrument->marketDepthQuoteReceiver.getStream())
+        {
+            stream->pauseHeartbeat();
+        }
+    }
+}
+
 // ============================================================================
 // Replay Mode Methods
 // ============================================================================
@@ -710,6 +728,14 @@ void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pl
                         &ReplayEngine::replayEndReached,
                         this,
                         &MainAlgo::replayEndReached,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    // Also handle end of replay to pause heartbeat timers
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::replayEndReached,
+                        this,
+                        &MainAlgo::onReplayEndReached,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
@@ -773,6 +799,14 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
                         &ReplayEngine::replayEndReached,
                         this,
                         &MainAlgo::replayEndReached,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    // Also handle end of replay to pause heartbeat timers
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::replayEndReached,
+                        this,
+                        &MainAlgo::onReplayEndReached,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 

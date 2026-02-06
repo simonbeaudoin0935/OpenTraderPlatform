@@ -170,6 +170,9 @@ class MainAlgo final : public QObject
     // Handle strategy crash notifications from signal handler pipe
     void onStrategyCrashNotified();
 
+    // Handle replay end - pause heartbeat timers
+    void onReplayEndReached();
+
 
   private:
     static MainAlgo* m_instance;
