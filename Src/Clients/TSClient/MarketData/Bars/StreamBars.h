@@ -1,17 +1,16 @@
 #pragma once
 
-#include "Stream.h"
+#include "StreamMarketData.h"
 #include "Bar.h"
 
-class StreamBars final : public Stream
+class StreamBars final : public StreamMarketData
 {
     Q_OBJECT
 
   public:
     explicit StreamBars(const QString& symbol, QNetworkReply* reply, QObject* parent = nullptr);
-    ~StreamBars(){};
-    StreamBars(const StreamBars&) = delete;
-    StreamBars& operator=(const StreamBars&) = delete;
+    ~StreamBars() = default;
+    Q_DISABLE_COPY_MOVE(StreamBars)
 
     QString getSymbol() const
     {

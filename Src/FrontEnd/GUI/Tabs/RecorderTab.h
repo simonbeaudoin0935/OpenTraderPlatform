@@ -31,6 +31,9 @@ class RecorderTab : public QWidget
     void onBrowseButtonClicked();
     void onCsvFilePathChanged(const QString& p_text);
 
+  signals:
+    void recordingSizeChanged(qint64 totalBytes);
+
   private:
     void setupUI();
     void updateStatsDisplay();
@@ -53,7 +56,7 @@ class RecorderTab : public QWidget
     QLabel* m_uptimeLabel;
     QLabel* m_barsRecordCountLabel;
     QLabel* m_depthRecordCountLabel;
-    QLabel* m_memoryUsageLabel;
+    QLabel* m_recordingSizeLabel;
     QTimer* m_refreshTimer;
 
     // Recorder state

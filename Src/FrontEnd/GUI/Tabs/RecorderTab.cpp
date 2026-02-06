@@ -1,5 +1,6 @@
 #include "RecorderTab.h"
 #include "LiveStreamDB.h"
+#include "Logging.h"
 #include "RecorderUtils.h"
 #include "Settings.h"
 #include "TSClient.h"
@@ -15,11 +16,6 @@
 #include <QTextStream>
 #include <QFileDialog>
 
-#ifdef Q_OS_LINUX
-#include <fstream>
-#include <unistd.h>
-#endif
-
 RecorderTab::RecorderTab(QWidget* p_parent)
     : QWidget(p_parent)
     , m_streamTable(nullptr)
@@ -33,7 +29,7 @@ RecorderTab::RecorderTab(QWidget* p_parent)
     , m_uptimeLabel(nullptr)
     , m_barsRecordCountLabel(nullptr)
     , m_depthRecordCountLabel(nullptr)
-    , m_memoryUsageLabel(nullptr)
+    , m_recordingSizeLabel(nullptr)
     , m_refreshTimer(nullptr)
     , m_isRecording(false)
     , m_isAuthenticated(false)
@@ -95,8 +91,8 @@ void RecorderTab::setupUI()
     m_depthRecordCountLabel = new QLabel("Market Depth Records: 0");
     statusLayout->addWidget(m_depthRecordCountLabel);
 
-    m_memoryUsageLabel = new QLabel("Memory Usage: N/A");
-    statusLayout->addWidget(m_memoryUsageLabel);
+    m_recordingSizeLabel = new QLabel("Recording Size: N/A");
+    statusLayout->addWidget(m_recordingSizeLabel);
 
     // CSV file input section
     QHBoxLayout* csvFileLayout = new QHBoxLayout();
@@ -469,9 +465,7 @@ void RecorderTab::refreshRecorderStats()
 
     updateStatsDisplay();
     updateStreamTable();
-
-    // TODO fix this function
-    //updateErrorTable();
+    updateErrorTable();
 }
 
 void RecorderTab::updateStatsDisplay()
@@ -496,26 +490,18 @@ void RecorderTab::updateStatsDisplay()
         m_depthRecordCountLabel->setText(QString("Market Depth Records: %1").arg(depthCount));
     }
 
-    // Update memory usage
-#ifdef Q_OS_LINUX
-    std::ifstream statm("/proc/self/statm");
-    if (statm.is_open())
+    // Update total recording size (sum of both database files)
+    qint64 totalDbSize = 0;
+    if (m_liveBarsDB)
     {
-        long pages;
-        statm >> pages;
-        long pageSize = sysconf(_SC_PAGESIZE);
-        long memoryBytes = pages * pageSize;
-        m_memoryUsageLabel->setText(QString("Memory Usage: %1").arg(formatFileSize(memoryBytes)));
-        statm.close();
+        totalDbSize += m_liveBarsDB->getDatabaseFileSizeBytes();
     }
-    else
+    if (m_liveMarketDepthQuoteDB)
     {
-        m_memoryUsageLabel->setText("Memory Usage: N/A");
+        totalDbSize += m_liveMarketDepthQuoteDB->getDatabaseFileSizeBytes();
     }
-#else
-    // For non-Linux platforms, we don't have a simple way to get memory usage
-    m_memoryUsageLabel->setText("Memory Usage: N/A (platform not supported)");
-#endif
+    m_recordingSizeLabel->setText(QString("Recording Size: %1").arg(formatFileSize(totalDbSize)));
+    emit recordingSizeChanged(totalDbSize);
 }
 
 void RecorderTab::updateStreamTable()
@@ -554,11 +540,12 @@ void RecorderTab::updateStreamTable()
     m_streamTable->setItem(row, 3, new QTableWidgetItem(QString::number(totalDepthStreams)));
 }
 
-/*
-void RecorderTab::updateErrorTable() {
+void RecorderTab::updateErrorTable()
+{
     m_errorTable->setRowCount(0);
 
-    if (!m_isRecording || !m_liveBarsDB || !m_liveMarketDepthQuoteDB) {
+    if (!m_isRecording || !m_liveBarsDB || !m_liveMarketDepthQuoteDB)
+    {
         return;
     }
 
@@ -568,39 +555,48 @@ void RecorderTab::updateErrorTable() {
     auto barsErrors = m_liveBarsDB->getErrorCounters();
     QMap<Stream::StreamError, int> barsErrorTypeCounts;
 
-    for (auto symbolIt = barsErrors.begin(); symbolIt != barsErrors.end(); ++symbolIt) {
-        for (auto errorIt = symbolIt.value().begin(); errorIt != symbolIt.value().end(); ++errorIt) {
+    for (auto symbolIt = barsErrors.begin(); symbolIt != barsErrors.end(); ++symbolIt)
+    {
+        for (auto errorIt = symbolIt.value().begin(); errorIt != symbolIt.value().end(); ++errorIt)
+        {
             barsErrorTypeCounts[errorIt.key()] += errorIt.value();
         }
     }
 
-    for (auto it = barsErrorTypeCounts.begin(); it != barsErrorTypeCounts.end(); ++it) {
+    for (auto it = barsErrorTypeCounts.begin(); it != barsErrorTypeCounts.end(); ++it)
+    {
         m_errorTable->insertRow(row);
         m_errorTable->setItem(row, 0, new QTableWidgetItem("Bars"));
-        m_errorTable->setItem(row, 1, new QTableWidgetItem(streamErrorToString(it.key())));
+        m_errorTable->setItem(row, 1, new QTableWidgetItem(QtEnum::toString(it.key())));
         m_errorTable->setItem(row, 2, new QTableWidgetItem(QString::number(it.value())));
 
         // For timeout errors, show recovery stats
-        if (it.key() == Stream::StreamError::Timeout) {
+        if (it.key() == Stream::StreamError::Timeout)
+        {
             auto recovered = m_liveBarsDB->getRecoveredTimeouts();
             auto unrecovered = m_liveBarsDB->getUnrecoveredTimeoutCounts();
 
             int totalRecovered = 0;
             int totalUnrecovered = 0;
 
-            for (auto rit = recovered.begin(); rit != recovered.end(); ++rit) {
+            for (auto rit = recovered.begin(); rit != recovered.end(); ++rit)
+            {
                 totalRecovered += rit.value();
             }
-            for (auto uit = unrecovered.begin(); uit != unrecovered.end(); ++uit) {
+            for (auto uit = unrecovered.begin(); uit != unrecovered.end(); ++uit)
+            {
                 totalUnrecovered += uit.value();
             }
 
             int totalTimeouts = totalRecovered + totalUnrecovered;
-            double recoveryRate = totalTimeouts > 0 ? (static_cast<double>(totalRecovered) / totalTimeouts) * 100.0 : 0.0;
+            double recoveryRate =
+                totalTimeouts > 0 ? (static_cast<double>(totalRecovered) / totalTimeouts) * 100.0 : 0.0;
 
             m_errorTable->setItem(row, 3, new QTableWidgetItem(QString::number(totalRecovered)));
             m_errorTable->setItem(row, 4, new QTableWidgetItem(QString("%1%").arg(recoveryRate, 0, 'f', 1)));
-        } else {
+        }
+        else
+        {
             m_errorTable->setItem(row, 3, new QTableWidgetItem("N/A"));
             m_errorTable->setItem(row, 4, new QTableWidgetItem("N/A"));
         }
@@ -612,39 +608,48 @@ void RecorderTab::updateErrorTable() {
     auto depthErrors = m_liveMarketDepthQuoteDB->getErrorCounters();
     QMap<Stream::StreamError, int> depthErrorTypeCounts;
 
-    for (auto symbolIt = depthErrors.begin(); symbolIt != depthErrors.end(); ++symbolIt) {
-        for (auto errorIt = symbolIt.value().begin(); errorIt != symbolIt.value().end(); ++errorIt) {
+    for (auto symbolIt = depthErrors.begin(); symbolIt != depthErrors.end(); ++symbolIt)
+    {
+        for (auto errorIt = symbolIt.value().begin(); errorIt != symbolIt.value().end(); ++errorIt)
+        {
             depthErrorTypeCounts[errorIt.key()] += errorIt.value();
         }
     }
 
-    for (auto it = depthErrorTypeCounts.begin(); it != depthErrorTypeCounts.end(); ++it) {
+    for (auto it = depthErrorTypeCounts.begin(); it != depthErrorTypeCounts.end(); ++it)
+    {
         m_errorTable->insertRow(row);
         m_errorTable->setItem(row, 0, new QTableWidgetItem("Market Depth"));
-        m_errorTable->setItem(row, 1, new QTableWidgetItem(streamErrorToString(it.key())));
+        m_errorTable->setItem(row, 1, new QTableWidgetItem(QtEnum::toString(it.key())));
         m_errorTable->setItem(row, 2, new QTableWidgetItem(QString::number(it.value())));
 
         // For timeout errors, show recovery stats
-        if (it.key() == Stream::StreamError::Timeout) {
+        if (it.key() == Stream::StreamError::Timeout)
+        {
             auto recovered = m_liveMarketDepthQuoteDB->getRecoveredTimeouts();
             auto unrecovered = m_liveMarketDepthQuoteDB->getUnrecoveredTimeoutCounts();
 
             int totalRecovered = 0;
             int totalUnrecovered = 0;
 
-            for (auto rit = recovered.begin(); rit != recovered.end(); ++rit) {
+            for (auto rit = recovered.begin(); rit != recovered.end(); ++rit)
+            {
                 totalRecovered += rit.value();
             }
-            for (auto uit = unrecovered.begin(); uit != unrecovered.end(); ++uit) {
+            for (auto uit = unrecovered.begin(); uit != unrecovered.end(); ++uit)
+            {
                 totalUnrecovered += uit.value();
             }
 
             int totalTimeouts = totalRecovered + totalUnrecovered;
-            double recoveryRate = totalTimeouts > 0 ? (static_cast<double>(totalRecovered) / totalTimeouts) * 100.0 : 0.0;
+            double recoveryRate =
+                totalTimeouts > 0 ? (static_cast<double>(totalRecovered) / totalTimeouts) * 100.0 : 0.0;
 
             m_errorTable->setItem(row, 3, new QTableWidgetItem(QString::number(totalRecovered)));
             m_errorTable->setItem(row, 4, new QTableWidgetItem(QString("%1%").arg(recoveryRate, 0, 'f', 1)));
-        } else {
+        }
+        else
+        {
             m_errorTable->setItem(row, 3, new QTableWidgetItem("N/A"));
             m_errorTable->setItem(row, 4, new QTableWidgetItem("N/A"));
         }
@@ -652,7 +657,6 @@ void RecorderTab::updateErrorTable() {
         row++;
     }
 }
-*/
 
 QString RecorderTab::formatFileSize(qint64 p_bytes) const
 {

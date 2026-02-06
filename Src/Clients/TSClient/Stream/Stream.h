@@ -1,12 +1,13 @@
 #pragma once
 
+#include <optional>
+
 #include <QObject>
 #include <QJsonDocument>
 #include <QLoggingCategory>
+#include <QThread>
 #include <QTimer>
 #include <QNetworkReply>
-#include <QPromise>
-#include <QFuture>
 
 Q_DECLARE_LOGGING_CATEGORY(StreamLog)
 
@@ -16,15 +17,36 @@ class Stream : public QObject
     Q_OBJECT
 
   public:
+    /**
+     * @brief Stream closure reasons.
+     *
+     * MarketData streams (Bars, MarketDepthQuote) use: BadRequest, DualLogon, GoAway, InternalServerError
+     * Brokerage streams (Orders, Positions) use: Forbidden, InternalServerError, ServiceUnavailable, GatewayTimeout, Failed
+     * All streams use: Timeout, Closed
+     */
+    enum class StreamError : quint8
+    {
+        // Common
+        Closed,  ///< Intentional close via TSClient::closeStream(). Not an error.
+        Timeout, ///< Heartbeat timeout - no data received. Recoverable.
+
+        // MarketData category errors
+        BadRequest,          ///< Our code error - malformed request. Assert.
+        DualLogon,           ///< Server error - another session logged in. Recoverable.
+        GoAway,              ///< Normal server shutdown. Recoverable.
+        InternalServerError, ///< Server error. Recoverable.
+
+        // Brokerage category errors
+        Forbidden,          ///< Our code error - bad account/permissions. Assert.
+        ServiceUnavailable, ///< Our code error - bad request format. Assert.
+        GatewayTimeout,     ///< Unknown cause. Recoverable.
+        Failed,             ///< Generic server failure. Recoverable.
+    };
+    Q_ENUM(StreamError)
+
     Stream(QNetworkReply* reply, QObject* parent);
     ~Stream();
-    Stream(const Stream&) = delete;
-    Stream& operator=(const Stream&) = delete;
-
-    QFuture<std::optional<QString>> future() const
-    {
-        return m_future;
-    }
+    Q_DISABLE_COPY_MOVE(Stream)
 
     static size_t getNumberOpenStream()
     {
@@ -80,25 +102,51 @@ class Stream : public QObject
     void newAmountOfDataReceived(size_t bytes);
     void receivedNewRawData(const QByteArray& rawData);
 
+    /**
+     * @brief Emitted when the server sends an EndSnapshot status (Brokerage streams only).
+     * Indicates the initial data snapshot is complete and subsequent messages are live updates.
+     */
+    void endSnapshotReceived();
+
+    /**
+     * @brief Emitted just before the stream is destroyed, indicating why it closed.
+     *
+     * - StreamError::Closed: Intentional close via TSClient::closeStream() — no action needed.
+     * - Any other value: The stream ended due to an error — consumer should reconnect.
+     *
+     * @param reason The reason the stream closed.
+     * @param description Human-readable description of the closure reason.
+     */
+    void streamClosed(Stream::StreamError reason, QString description);
+
   public slots:
     void onReplyReadyRead();
     void onReplyFinished();
 
   protected:
-    // Each derived class must implement how to process a json object
+    // Each derived class must implement how to process a json object (data only, no error handling)
     virtual void processJsonObject(const QJsonObject& doc) = 0;
+
+    /**
+     * @brief Detect and handle error/status messages in the JSON object.
+     * Implemented by intermediate classes (StreamMarketData, StreamBrokerage) to handle
+     * category-specific error formats.
+     * @return true if the JSON object was an error/status message and was handled, false if it's normal data
+     */
+    virtual bool handleErrorOrStatus(const QJsonObject& jsonObj) = 0;
 
     bool m_receivedTimeoutError = false;
 
     QString m_jsonErrorString;
 
+    /// Set by intermediate classes when a server error is detected in the stream JSON data.
+    /// Used by onReplyFinished() to determine the error type for the streamClosed signal.
+    std::optional<StreamError> m_streamError;
+
   private slots:
     void onHeartbeatTimerTimeout();
 
   private:
-    QPromise<std::optional<QString>> m_promise;
-    QFuture<std::optional<QString>> m_future;
-
     QByteArray m_accumulatedData;
     void processRawData(const QByteArray& rawData);
     void processJsonDoc(const QJsonDocument& doc);

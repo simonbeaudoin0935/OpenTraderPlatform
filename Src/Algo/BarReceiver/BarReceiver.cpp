@@ -28,20 +28,22 @@ void BarReceiver::createBarStream()
 
     connect(m_stream, &StreamBars::newBarReceived, this, &BarReceiver::onReceivedNewBar);
 
-    // Capture symbol by value - no context object needed since this is just logging
-    m_stream->future().then(
-        [symbol = m_symbol](std::optional<QString> error)
-        {
-            if (error.has_value())
+    connect(m_stream,
+            &Stream::streamClosed,
+            this,
+            [this](Stream::StreamError reason, QString message)
             {
-                qCCritical(BarReceiverLog) << "Bars stream for" << symbol << "finished with error:" << error.value();
-            }
-            else
-            {
-                qCDebug(BarReceiverLog) << "Bars stream for" << symbol << "finished without error";
-            }
-            qCWarning(BarReceiverLog) << "Bars stream future finished. This is ok if TSClient::closeStream() is called";
-        });
+                if (reason != Stream::StreamError::Closed)
+                {
+                    CRITICAL << "Bars stream for" << m_symbol << "finished with error:" << message;
+                    m_stream = nullptr;
+                    QTimer::singleShot(300, this, &BarReceiver::createBarStream);
+                }
+                else
+                {
+                    DEBUG << "Bars stream for" << m_symbol << "intentionally closed";
+                }
+            });
 }
 
 BarReceiver::~BarReceiver()

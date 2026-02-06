@@ -52,31 +52,22 @@ void OrdersReceiver::createOrdersStream()
     connect(m_stream, &StreamOrders::newOrderReceived, this, &OrdersReceiver::onReceivedNewOrder);
     connect(m_stream, &StreamOrders::endSnapshotReceived, this, &OrdersReceiver::onEndSnapshotReceived);
 
-    m_stream->future().then(this,
-                            [this](std::optional<QString> error)
-                            {
-                                // We get here when the stream is closed (either gracefully or with error)
-
-                                if (error.has_value())
-                                {
-                                    CRITICAL << "Orders stream for account" << m_account
-                                             << "finished with error:" << error.value();
-                                }
-                                else
-                                {
-                                    DEBUG << "Orders stream for account" << m_account << "finished without error";
-                                }
-
-                                // Only auto-reconnect if not intentionally stopped (e.g., for replay mode)
-                                if (m_autoReconnect)
-                                {
-                                    QTimer::singleShot(300, this, &OrdersReceiver::createOrdersStream);
-                                }
-                                else
-                                {
-                                    DEBUG << "Auto-reconnect disabled, not recreating orders stream";
-                                }
-                            });
+    connect(m_stream,
+            &Stream::streamClosed,
+            this,
+            [this](Stream::StreamError reason, QString message)
+            {
+                if (reason != Stream::StreamError::Closed)
+                {
+                    CRITICAL << "Orders stream for account" << m_account << "finished with error:" << message;
+                    m_stream = nullptr;
+                    QTimer::singleShot(300, this, &OrdersReceiver::createOrdersStream);
+                }
+                else
+                {
+                    DEBUG << "Orders stream for account" << m_account << "intentionally closed";
+                }
+            });
 }
 
 void OrdersReceiver::onReceivedNewOrder(Order order)
@@ -174,7 +165,6 @@ void OrdersReceiver::validateSnapshotOrders()
 void OrdersReceiver::stopStream(const QString& p_account)
 {
     Q_UNUSED(p_account);
-    m_autoReconnect = false; // Disable auto-reconnect when intentionally stopping
     if (m_stream != nullptr)
     {
         TSClient::getInstance()->closeStream(m_stream);

@@ -28,7 +28,6 @@ PositionsReceiver::~PositionsReceiver()
 void PositionsReceiver::stopStream(const QString& account)
 {
     Q_UNUSED(account);
-    m_autoReconnect = false; // Disable auto-reconnect when intentionally stopping
     if (m_stream != nullptr)
     {
         TSClient::getInstance()->closeStream(m_stream);
@@ -56,34 +55,22 @@ void PositionsReceiver::createPositionsStream()
             this,
             [this]() { INFO << "Received EndSnapshot for Positions stream"; });
 
-    m_stream->future().then(this,
-                            [this](std::optional<QString> error)
-                            {
-                                // We get here when the stream is closed (either gracefully or with error)
-
-                                if (error.has_value())
-                                {
-                                    CRITICAL << "Positions stream for account" << m_account
-                                             << "finished with error:" << error.value();
-                                }
-                                else
-                                {
-                                    DEBUG << "Positions stream for account" << m_account << "finished without error";
-                                }
-
-                                // Only auto-reconnect if not intentionally stopped (e.g., for replay mode)
-                                if (m_autoReconnect)
-                                {
-                                    // Since we are in the failed path, it means the stream on the other end
-                                    // will have called deleteLater() on itself after throwing an exception at
-                                    // us. Its safe to then just re-execute this function.
-                                    QTimer::singleShot(300, this, &PositionsReceiver::createPositionsStream);
-                                }
-                                else
-                                {
-                                    DEBUG << "Auto-reconnect disabled, not recreating positions stream";
-                                }
-                            });
+    connect(m_stream,
+            &Stream::streamClosed,
+            this,
+            [this](Stream::StreamError reason, QString message)
+            {
+                if (reason != Stream::StreamError::Closed)
+                {
+                    CRITICAL << "Positions stream for account" << m_account << "finished with error:" << message;
+                    m_stream = nullptr;
+                    QTimer::singleShot(300, this, &PositionsReceiver::createPositionsStream);
+                }
+                else
+                {
+                    DEBUG << "Positions stream for account" << m_account << "intentionally closed";
+                }
+            });
 }
 
 

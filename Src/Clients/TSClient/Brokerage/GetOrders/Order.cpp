@@ -50,10 +50,6 @@ OrderNS::AdvancedOptions::AdvancedOptions(const QString& str)
 
 Order::Order(const QJsonObject& jsonObj, bool isUpdate_) : m_isUpdate(isUpdate_)
 {
-    // Debug: Log all keys in the JSON object
-    qDebug() << "Order constructor: JSON keys:" << jsonObj.keys();
-    qDebug() << "Order constructor: Full JSON:" << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Compact));
-
     m_accountID = jsonObj["AccountID"].toString();
 
     if (jsonObj.contains("AdvancedOptions"))
@@ -96,11 +92,6 @@ Order::Order(const QJsonObject& jsonObj, bool isUpdate_) : m_isUpdate(isUpdate_)
     }
 
     m_unbundledRouteFee = jsonObj["UnbundledRouteFee"].toDouble(0.0);
-
-    // Debug: Log limit price parsing
-    qDebug() << "Order limitPrice parsed:"
-             << (m_limitPrice.has_value() ? QString::number(m_limitPrice.value()) : "not set")
-             << "stopPrice parsed:" << (m_stopPrice.has_value() ? QString::number(m_stopPrice.value()) : "not set");
 
     // Parse string fields
     m_currency = jsonObj["Currency"].toString();

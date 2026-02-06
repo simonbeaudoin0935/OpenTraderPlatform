@@ -101,6 +101,9 @@ class GUIFrontend : public FrontEnd
     qsizetype TSClientDataUsage = 0;
     qint64 memoryUsage = 0;
     int streamCount = 0;
+    qint64 m_recordingSize = 0;
+
+    void updateStatusBar();
 
     int maxLiveLogLines = 1000; // Maximum lines in live log display
 

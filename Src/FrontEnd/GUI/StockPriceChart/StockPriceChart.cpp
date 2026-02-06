@@ -405,6 +405,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
                     << "Inserting historical bar into cache at index" << index << "for timestamp:" << bar.getTimeStamp()
                     << "but that slot was uninitialized. This should not happen as historical bars should be bulk inserted.";
 
+#warning fix this shit
                 Q_UNREACHABLE();
             }
         }
@@ -564,6 +565,12 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     // Update candlestick data
     updateCandlestickData();
     updateVolumeData();
+
+    // Draw session backgrounds if this bar belongs to a new date (e.g., next day's pre-market just started)
+    if (!m_datesWithBackgrounds.contains(bar.getTimeStamp().date()))
+    {
+        drawBackgroundsForReceivedBars(QVector<Bar>{bar});
+    }
 
     redrawLastPriceLine();
     m_customPlot->replot();
