@@ -998,18 +998,5 @@ void OrderEntryWidget::updateStickyPrice()
     if (finalPrice > 0.0)
     {
         m_limitPriceInput->setValue(finalPrice);
-        flashLimitPriceInput();
     }
-}
-
-void OrderEntryWidget::flashLimitPriceInput()
-{
-    // Create a brief visual flash effect by temporarily changing the background color subtly
-    QString originalStyle = m_limitPriceInput->styleSheet();
-
-    // Apply a subtle highlight (slight yellow background)
-    m_limitPriceInput->setStyleSheet("QDoubleSpinBox { background-color: #FFFACD; }");
-
-    // Use a QTimer to restore the original style after a brief delay
-    QTimer::singleShot(150, this, [this, originalStyle]() { m_limitPriceInput->setStyleSheet(originalStyle); });
 }

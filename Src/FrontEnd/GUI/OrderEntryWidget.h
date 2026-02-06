@@ -78,7 +78,6 @@ class OrderEntryWidget : public QWidget
     [[nodiscard]] bool validateInputs();
     [[nodiscard]] PlaceOrderRequest buildOrderRequest();
     void updateStickyPrice();
-    void flashLimitPriceInput();
 
     // UI Components
     QLabel* m_headerLabel;
