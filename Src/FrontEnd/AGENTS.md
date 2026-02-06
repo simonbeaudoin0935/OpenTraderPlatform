@@ -57,7 +57,7 @@ option(ENABLE_GUI "Enable GUI frontend (Qt Widgets)" ON)
 
 if(ENABLE_GUI)
     target_compile_definitions(L2Trader PRIVATE GUI_ENABLED)
-    # Link Qt Widgets, Charts, WebEngineWidgets
+    # Link Qt Widgets, QCustomPlot (third-party charting library)
 else()
     # Link ncurses, Qt Core only
 endif()
@@ -80,9 +80,7 @@ See `GUI/AGENTS.md` for detailed implementation:
 
 **Key Dependencies**:
 - Qt Widgets
-- Qt Charts
-- QCustomPlot (third-party)
-- Qt WebEngineWidgets (for OAuth browser)
+- QCustomPlot (third-party charting library in qcustomplot/ folder)
 
 ### TUI/ - Text User Interface
 

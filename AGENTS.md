@@ -14,7 +14,7 @@ This file provides AI agents with key information about the L2Trader project str
 ## Quick Facts
 
 - **Languages**: C++23, QML (minimal), CMake, Shell scripts
-- **Framework**: Qt6 (Core, Network, SQL, Widgets, Charts, WebEngineWidgets)
+- **Framework**: Qt6 (Core, Network, SQL, Widgets) + QCustomPlot (third-party charting library)
 - **Build System**: CMake 3.16+ with Ninja recommended
 - **Target**: Linux (Ubuntu 24.04), cross-platform (X86_64, ARM64)
 - **Lines of Code**: ~10,000+
