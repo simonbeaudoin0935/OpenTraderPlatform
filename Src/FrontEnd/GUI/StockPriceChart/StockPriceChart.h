@@ -183,4 +183,7 @@ class StockPriceChart : public QWidget
     QString indexToTimeString(double index) const;
 
     bool startedReceivingRealtimeBars = false;
+
+    /// True after first batch of historical bars sets Y-axis range (prevents resetting on subsequent loads)
+    bool m_initialYAxisRangeSet = false;
 };
