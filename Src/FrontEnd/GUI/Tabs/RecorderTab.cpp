@@ -500,10 +500,11 @@ void RecorderTab::updateStatsDisplay()
     std::ifstream statm("/proc/self/statm");
     if (statm.is_open())
     {
-        long pages;
-        statm >> pages;
+        long vmPages;
+        long rssPages;
+        statm >> vmPages >> rssPages;
         long pageSize = sysconf(_SC_PAGESIZE);
-        long memoryBytes = pages * pageSize;
+        long memoryBytes = rssPages * pageSize;
         m_memoryUsageLabel->setText(QString("Memory Usage: %1").arg(formatFileSize(memoryBytes)));
         statm.close();
     }
