@@ -1165,7 +1165,6 @@ void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDate
             {
                 if (bars.has_value())
                 {
-                    qInfo() << "Successfully retrieved missing bars from BarCache";
                     ui->priceChart->onRequestedMissingBarsReceived(bars.value());
                 }
                 else
