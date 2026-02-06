@@ -471,7 +471,6 @@ void OrderEntryWidget::onTradeActionChanged(int id)
     switch (action)
     {
     case TradeAction::Buy:
-    case TradeAction::BuyToCover:
         buttonText = "Buy";
         buttonStyle = "QPushButton {"
                       "   background-color: #28A745;" // Green
@@ -493,9 +492,52 @@ void OrderEntryWidget::onTradeActionChanged(int id)
                       "}";
         break;
 
+    case TradeAction::BuyToCover:
+        buttonText = "Buy to Cover";
+        buttonStyle = "QPushButton {"
+                      "   background-color: #28A745;" // Green
+                      "   color: #FFFFFF;"
+                      "   border: none;"
+                      "   border-radius: 4px;"
+                      "   padding: 8px;"
+                      "   font-weight: bold;"
+                      "}"
+                      "QPushButton:hover {"
+                      "   background-color: #218838;"
+                      "}"
+                      "QPushButton:pressed {"
+                      "   background-color: #1E7E34;"
+                      "}"
+                      "QPushButton:disabled {"
+                      "   background-color: #505050;"
+                      "   color: #888888;"
+                      "}";
+        break;
+
     case TradeAction::Sell:
-    case TradeAction::SellShort:
         buttonText = "Sell";
+        buttonStyle = "QPushButton {"
+                      "   background-color: #DC3545;" // Red
+                      "   color: #FFFFFF;"
+                      "   border: none;"
+                      "   border-radius: 4px;"
+                      "   padding: 8px;"
+                      "   font-weight: bold;"
+                      "}"
+                      "QPushButton:hover {"
+                      "   background-color: #C82333;"
+                      "}"
+                      "QPushButton:pressed {"
+                      "   background-color: #BD2130;"
+                      "}"
+                      "QPushButton:disabled {"
+                      "   background-color: #505050;"
+                      "   color: #888888;"
+                      "}";
+        break;
+
+    case TradeAction::SellShort:
+        buttonText = "Sell Short";
         buttonStyle = "QPushButton {"
                       "   background-color: #DC3545;" // Red
                       "   color: #FFFFFF;"
