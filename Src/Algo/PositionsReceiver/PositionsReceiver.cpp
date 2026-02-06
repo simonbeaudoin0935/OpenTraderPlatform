@@ -28,7 +28,6 @@ PositionsReceiver::~PositionsReceiver()
 void PositionsReceiver::stopStream(const QString& account)
 {
     Q_UNUSED(account);
-    m_autoReconnect = false; // Disable auto-reconnect when intentionally stopping
     if (m_stream != nullptr)
     {
         TSClient::getInstance()->closeStream(m_stream);
@@ -59,30 +58,17 @@ void PositionsReceiver::createPositionsStream()
     m_stream->future().then(this,
                             [this](std::optional<std::pair<Stream::StreamError, QString>> error)
                             {
-                                // We get here when the stream is closed (either gracefully or with error)
-
                                 if (error.has_value())
                                 {
                                     auto [errorType, message] = error.value();
                                     CRITICAL << "Positions stream for account" << m_account
                                              << "finished with error:" << message;
-                                }
-                                else
-                                {
-                                    DEBUG << "Positions stream for account" << m_account << "finished without error";
-                                }
-
-                                // Only auto-reconnect if not intentionally stopped (e.g., for replay mode)
-                                if (m_autoReconnect)
-                                {
-                                    // Since we are in the failed path, it means the stream on the other end
-                                    // will have called deleteLater() on itself after throwing an exception at
-                                    // us. Its safe to then just re-execute this function.
+                                    m_stream = nullptr;
                                     QTimer::singleShot(300, this, &PositionsReceiver::createPositionsStream);
                                 }
                                 else
                                 {
-                                    DEBUG << "Auto-reconnect disabled, not recreating positions stream";
+                                    DEBUG << "Positions stream for account" << m_account << "intentionally closed";
                                 }
                             });
 }

@@ -31,23 +31,21 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
             this,
             &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote);
 
-    // Capture symbol by value - no context object needed since this is just logging
     m_stream->future().then(
-        [symbol = m_symbol](std::optional<std::pair<Stream::StreamError, QString>> error)
+        this,
+        [this](std::optional<std::pair<Stream::StreamError, QString>> error)
         {
             if (error.has_value())
             {
                 auto [errorType, message] = error.value();
-                qCCritical(MarketDepthQuoteReceiverLog)
-                    << "Market Depth Quote stream for" << symbol << "finished with error:" << message;
+                CRITICAL << "Market Depth Quote stream for" << m_symbol << "finished with error:" << message;
+                m_stream = nullptr;
+                QTimer::singleShot(300, this, &MarketDepthQuoteReceiver::createMarketDepthQuoteStream);
             }
             else
             {
-                qCDebug(MarketDepthQuoteReceiverLog)
-                    << "Market Depth Quote stream for" << symbol << "finished without error";
+                DEBUG << "Market Depth Quote stream for" << m_symbol << "intentionally closed";
             }
-            qCWarning(MarketDepthQuoteReceiverLog)
-                << "Market Depth Quote future finished. This is ok if TSClient::closeStream() is called";
         });
 }
 
