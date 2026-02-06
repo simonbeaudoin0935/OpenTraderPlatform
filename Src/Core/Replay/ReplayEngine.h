@@ -49,6 +49,8 @@ class ReplayEngine : public QObject
      */
     enum class PlaybackSpeed
     {
+        SuperSlow = 1,        ///< 0.01x speed (delays multiplied by 100)
+        VerySlow = 10,        ///< 0.1x speed (delays multiplied by 10)
         Half = 50,            ///< 0.5x speed (delays multiplied by 2)
         Normal = 100,         ///< 1.0x speed (real-time)
         Double = 200,         ///< 2.0x speed (delays divided by 2)
@@ -81,6 +83,14 @@ class ReplayEngine : public QObject
     void startReplay(QDate p_date, QTime p_startTime, PlaybackSpeed p_speed);
 
     /**
+     * @brief Start replay in paused state, emitting only the first data point
+     *
+     * Used when entering replay mode to pre-populate the chart.
+     * Emits first bar/quote then immediately pauses. User clicks Play to continue.
+     */
+    void startReplayPaused(QDate p_date, QTime p_startTime, PlaybackSpeed p_speed);
+
+    /**
      * @brief Stop replay and clean up resources
      *
      * Stops timer, clears data loader, resets state to Stopped.
@@ -97,6 +107,15 @@ class ReplayEngine : public QObject
      * @brief Resume replay from paused state
      */
     void resumeReplay();
+
+    /**
+     * @brief Set playback speed on the fly
+     * Can be called while replay is playing or paused.
+     */
+    void setSpeed(PlaybackSpeed p_speed)
+    {
+        m_speed = p_speed;
+    }
 
     /**
      * @brief Get current playback state
@@ -188,6 +207,7 @@ class ReplayEngine : public QObject
     PlaybackSpeed m_speed = PlaybackSpeed::Normal;
 
     qint64 m_lastEmittedTimestampMs = 0;
+    uint32_t m_replayGeneration = 0; // Incremented on each startReplay to invalidate stale timer events
 
     /**
      * @brief Emit current data point to appropriate TSClient stream

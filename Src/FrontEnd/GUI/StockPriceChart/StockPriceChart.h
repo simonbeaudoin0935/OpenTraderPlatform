@@ -45,6 +45,12 @@ class StockPriceChart : public QWidget
     void clearSymbol();
 
     /**
+     * @brief Clears all chart data, index mappings, and background rects.
+     * Used when entering replay mode to start fresh.
+     */
+    void clearChart();
+
+    /**
      * @brief Populates the replay day dropdown with available dates from cache.
      */
     void populateAvailableReplayDays();
@@ -177,4 +183,7 @@ class StockPriceChart : public QWidget
     QString indexToTimeString(double index) const;
 
     bool startedReceivingRealtimeBars = false;
+
+    /// True after first batch of historical bars sets Y-axis range (prevents resetting on subsequent loads)
+    bool m_initialYAxisRangeSet = false;
 };

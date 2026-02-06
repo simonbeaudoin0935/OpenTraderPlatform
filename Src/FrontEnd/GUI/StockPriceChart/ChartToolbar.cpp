@@ -47,13 +47,15 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
     replaySpeedCombo = new QComboBox(this);
     replaySpeedCombo->setMinimumWidth(80);
     replaySpeedCombo->setMaximumWidth(100);
+    replaySpeedCombo->addItem("0.01x", static_cast<int>(ReplayEngine::PlaybackSpeed::SuperSlow));
+    replaySpeedCombo->addItem("0.1x", static_cast<int>(ReplayEngine::PlaybackSpeed::VerySlow));
     replaySpeedCombo->addItem("0.5x", static_cast<int>(ReplayEngine::PlaybackSpeed::Half));
     replaySpeedCombo->addItem("1x", static_cast<int>(ReplayEngine::PlaybackSpeed::Normal));
     replaySpeedCombo->addItem("2x", static_cast<int>(ReplayEngine::PlaybackSpeed::Double));
     replaySpeedCombo->addItem("5x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast5x));
     replaySpeedCombo->addItem("10x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast10x));
     replaySpeedCombo->addItem("Max", static_cast<int>(ReplayEngine::PlaybackSpeed::AsFastAsPossible));
-    replaySpeedCombo->setCurrentIndex(1); // Default to 1x
+    replaySpeedCombo->setCurrentIndex(3); // Default to 1x
     replaySpeedCombo->setToolTip("Replay playback speed");
 
     playPauseButton = new QPushButton("Play", this);
@@ -127,6 +129,17 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
             &ChartToolbar::onReplayDayChanged);
     connect(replayTimeEdit, &QTimeEdit::timeChanged, this, &ChartToolbar::onReplayTimeChanged);
     connect(playPauseButton, &QPushButton::clicked, this, &ChartToolbar::onPlayPauseClicked);
+    connect(replaySpeedCombo,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            [this](int index)
+            {
+                if (index >= 0)
+                {
+                    auto speed = static_cast<ReplayEngine::PlaybackSpeed>(replaySpeedCombo->itemData(index).toInt());
+                    emit replaySpeedChanged(speed);
+                }
+            });
     connect(wheelRatioCombo,
             QOverload<int>::of(&QComboBox::currentIndexChanged),
             this,
@@ -450,6 +463,14 @@ void ChartToolbar::setReplayPlaying(bool playing)
 }
 
 /**
+ * @brief Toggles play/pause state and emits the signal.
+ */
+void ChartToolbar::togglePlayPause()
+{
+    playPauseButton->click();
+}
+
+/**
  * @brief Handles replay day combobox selection changes.
  */
 void ChartToolbar::onReplayDayChanged(int index)
@@ -480,17 +501,25 @@ void ChartToolbar::onPlayPauseClicked()
 }
 
 /**
- * @brief Updates the play/pause button text based on current state.
+ * @brief Updates the play/pause button text and style based on current state.
  */
 void ChartToolbar::updatePlayPauseButton()
 {
     if (playPauseButton->isChecked())
     {
-        playPauseButton->setText("Pause");
+        playPauseButton->setText("⏸ Pause");
+        playPauseButton->setStyleSheet(
+            "QPushButton { background-color: #D84315; color: white; font-weight: bold; padding: 4px 12px; "
+            "border-radius: 4px; } "
+            "QPushButton:hover { background-color: #BF360C; }");
     }
     else
     {
-        playPauseButton->setText("Play");
+        playPauseButton->setText("▶ Play");
+        playPauseButton->setStyleSheet(
+            "QPushButton { background-color: #2E7D32; color: white; font-weight: bold; padding: 4px 12px; "
+            "border-radius: 4px; } "
+            "QPushButton:hover { background-color: #1B5E20; }");
     }
 }
 
@@ -555,23 +584,6 @@ void ChartToolbar::scanAndPopulateReplayDays()
  */
 QDate ChartToolbar::extractDateFromFileName(const QString& fileName)
 {
-    // Handle RecordedLiveBars_YYYY-MM-DD.db format
-    if (fileName.startsWith("RecordedLiveBars_"))
-    {
-        QString datePart = fileName.mid(18); // Skip "RecordedLiveBars_" (18 chars)
-        int dotIndex = datePart.indexOf('.');
-        if (dotIndex != -1)
-        {
-            datePart = datePart.left(dotIndex); // Remove extension
-        }
-        QDate date = QDate::fromString(datePart, "yyyy-MM-dd");
-        if (date.isValid())
-        {
-            return date;
-        }
-    }
-
-    // Fallback: Try different common date formats that might be used in filenames
     // Remove file extension if present
     QString baseName = fileName;
     int dotIndex = baseName.lastIndexOf('.');
@@ -580,7 +592,7 @@ QDate ChartToolbar::extractDateFromFileName(const QString& fileName)
         baseName = baseName.left(dotIndex);
     }
 
-    // Try YYYY-MM-DD format
+    // Primary format: YYYY-MM-DD.db
     QDate date = QDate::fromString(baseName, "yyyy-MM-dd");
     if (date.isValid())
     {

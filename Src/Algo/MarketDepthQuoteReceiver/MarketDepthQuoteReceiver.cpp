@@ -2,12 +2,13 @@
 #include "TSClient.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "CONSTANTS.h"
 
 #define LOGGING_CATEGORY MarketDepthQuoteReceiverLog
 Q_LOGGING_CATEGORY(LOGGING_CATEGORY, "MarketDepthQuoteReceiver")
 
 MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(const QString& symbol, QObject* parent)
-    : QObject(parent), m_symbol(symbol)
+    : StreamReceiver(parent), m_symbol(symbol)
 {
     setObjectName("MarketDepthQuoteReceiver::" + symbol);
 
@@ -19,7 +20,9 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
     DEBUG << "Starting Market Depth Quote stream for " << m_symbol;
 
     OBJ_ASSUME_EQUAL(m_stream, nullptr);
-    m_stream = TSClient::getInstance()->openStreamMarketDepthQuote(m_symbol, 10);
+
+    m_stream = TSClient::getInstance()->openStreamMarketDepthQuote(m_symbol,
+                                                                   MarketDepthConstants::DEFAULT_MARKET_DEPTH_LEVELS);
 
     Q_CHECK_PTR(m_stream);
 
@@ -28,29 +31,32 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
             this,
             &MarketDepthQuoteReceiver::onReceivedNewMarketDepthQuote);
 
+    // Capture symbol by value - no context object needed since this is just logging
     m_stream->future().then(
-        this,
-        [this](std::optional<QString> error)
+        [symbol = m_symbol](std::optional<QString> error)
         {
             if (error.has_value())
             {
-                CRITICAL << "Market Depth Quote stream for" << m_symbol << "finished with error:" << error.value();
+                qCCritical(MarketDepthQuoteReceiverLog)
+                    << "Market Depth Quote stream for" << symbol << "finished with error:" << error.value();
             }
             else
             {
-                DEBUG << "Market Depth Quote stream for" << m_symbol << "finished without error";
+                qCDebug(MarketDepthQuoteReceiverLog)
+                    << "Market Depth Quote stream for" << symbol << "finished without error";
             }
-            WARNING << "Market Depth Quote future finished. This is ok if the TSClient::closeStream() is called";
-
-            QTimer::singleShot(300, this, &MarketDepthQuoteReceiver::createMarketDepthQuoteStream);
+            qCWarning(MarketDepthQuoteReceiverLog)
+                << "Market Depth Quote future finished. This is ok if TSClient::closeStream() is called";
         });
 }
 
 
 MarketDepthQuoteReceiver::~MarketDepthQuoteReceiver()
 {
-    // Note: Stream cleanup is handled by TSClient. Calling closeStream() from destructor
-    // can cause race conditions with pending .then() callbacks when using deleteLater().
+    if (m_stream != nullptr)
+    {
+        TSClient::getInstance()->closeStream(m_stream);
+    }
 }
 
 // Calculate Bid-Ask Imbalance (BAI)

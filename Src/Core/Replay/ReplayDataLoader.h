@@ -24,8 +24,8 @@ Q_DECLARE_LOGGING_CATEGORY(ReplayDataLoaderLog)
  * - Async prefetching of next buffer while current is consumed
  *
  * Database files are organized by date in the recorder data directory:
- * - Bars: {cacheLocation}/RecordedLiveData/Bars/RecordedLiveBars_{date}.db
- * - Depth: {cacheLocation}/RecordedLiveData/MarketDepthQuotes/RecordedLiveMarketDepthQuotes_{date}.db
+ * - Bars: {cacheLocation}/RecordedLiveData/Bars/{YYYY-MM-DD}.db
+ * - Depth: {cacheLocation}/RecordedLiveData/MarketDepthQuotes/{YYYY-MM-DD}.db
  *
  * Threading: Main operations run in caller's thread, prefetch uses QtConcurrent
  */

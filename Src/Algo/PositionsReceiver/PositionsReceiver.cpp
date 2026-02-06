@@ -8,7 +8,8 @@
 #define LOGGING_CATEGORY PositionsReceiverLog
 Q_LOGGING_CATEGORY(PositionsReceiverLog, "PositionsReceiver");
 
-PositionsReceiver::PositionsReceiver(const QString& account, QObject* parent) : QObject(parent), m_account(account)
+PositionsReceiver::PositionsReceiver(const QString& account, QObject* parent)
+    : StreamReceiver(parent), m_account(account)
 {
     this->setObjectName("PositionReceiver");
 
@@ -17,14 +18,17 @@ PositionsReceiver::PositionsReceiver(const QString& account, QObject* parent) : 
 
 PositionsReceiver::~PositionsReceiver()
 {
-    OBJ_ASSUME_TRUE(m_stream != nullptr);
-
-    TSClient::getInstance()->closeStream(m_stream);
+    // Stream may be null if stopStream() was called before destruction
+    if (m_stream != nullptr)
+    {
+        TSClient::getInstance()->closeStream(m_stream);
+    }
 }
 
 void PositionsReceiver::stopStream(const QString& account)
 {
     Q_UNUSED(account);
+    m_autoReconnect = false; // Disable auto-reconnect when intentionally stopping
     if (m_stream != nullptr)
     {
         TSClient::getInstance()->closeStream(m_stream);
@@ -50,14 +54,12 @@ void PositionsReceiver::createPositionsStream()
     connect(m_stream,
             &StreamPositions::endSnapshotReceived,
             this,
-            [this]() { INFO << "Received EndSnapshot for Orders stream"; });
+            [this]() { INFO << "Received EndSnapshot for Positions stream"; });
 
     m_stream->future().then(this,
                             [this](std::optional<QString> error)
                             {
-                                // We get here when the stream is gracefully closed by the receiving side.
-                                // This should never happen for the orders stream, its supposed to operate during
-                                // all the program execution.
+                                // We get here when the stream is closed (either gracefully or with error)
 
                                 if (error.has_value())
                                 {
@@ -69,11 +71,18 @@ void PositionsReceiver::createPositionsStream()
                                     DEBUG << "Positions stream for account" << m_account << "finished without error";
                                 }
 
-                                // Since we are in the failed path, it means the stream on the other end
-                                // will have called deleteLater() on itself after throwing an exception at us.
-                                // Its safe to then just re-execute this function, since we don't have to worry amout
-                                // freeing the current stream variable.
-                                QTimer::singleShot(300, this, &PositionsReceiver::createPositionsStream);
+                                // Only auto-reconnect if not intentionally stopped (e.g., for replay mode)
+                                if (m_autoReconnect)
+                                {
+                                    // Since we are in the failed path, it means the stream on the other end
+                                    // will have called deleteLater() on itself after throwing an exception at
+                                    // us. Its safe to then just re-execute this function.
+                                    QTimer::singleShot(300, this, &PositionsReceiver::createPositionsStream);
+                                }
+                                else
+                                {
+                                    DEBUG << "Auto-reconnect disabled, not recreating positions stream";
+                                }
                             });
 }
 

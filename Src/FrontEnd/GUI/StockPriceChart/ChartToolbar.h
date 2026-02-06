@@ -133,10 +133,16 @@ class ChartToolbar : public QWidget
     bool isReplayPlaying() const;
 
     /**
-     * @brief Sets the replay play/pause state.
+     * @brief Sets the replay play/pause state (visual only, no signal).
      * @param playing True to start playing, false to pause.
      */
     void setReplayPlaying(bool playing);
+
+    /**
+     * @brief Toggles play/pause state and emits the signal.
+     * Use this when triggering from keyboard shortcuts.
+     */
+    void togglePlayPause();
 
     /**
      * @brief Updates the replay info label with time range and bar count.
@@ -207,6 +213,12 @@ class ChartToolbar : public QWidget
      * @param playing True if replay should start playing, false if paused.
      */
     void replayPlayPauseToggled(bool playing);
+
+    /**
+     * @brief Emitted when the replay speed changes.
+     * @param speed The new playback speed.
+     */
+    void replaySpeedChanged(ReplayEngine::PlaybackSpeed speed);
 
     /**
      * @brief Emitted when the wheel scrolling ratio changes.

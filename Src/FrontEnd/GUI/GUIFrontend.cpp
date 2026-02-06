@@ -101,6 +101,13 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
         connect(m_cancelAllOrdersShortcut, &QShortcut::activated, [this]() { onCancelAllOrders(); });
     OBJ_ASSUME_TRUE(cancelAllConnection);
 
+    // Add Space shortcut to toggle replay play/pause
+    m_toggleReplayPlayPauseShortcut =
+        new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ToggleReplayPlayPause), mainWindow);
+    auto toggleReplayConnection =
+        connect(m_toggleReplayPlayPauseShortcut, &QShortcut::activated, [this]() { onToggleReplayPlayPause(); });
+    OBJ_ASSUME_TRUE(toggleReplayConnection);
+
     // Connect to shortcut changes to update active shortcuts
     auto shortcutChangeConnection = connect(&shortcutSettings,
                                             &ShortcutSettings::shortcutChanged,
@@ -138,31 +145,13 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                          Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(accountInfoConnection);
 
-    // Create trading mode indicator (SIM/LIVE) - clickable to toggle
-    bool isSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
-    m_tradingModeLabel = new QLabel(isSimMode ? "🔵 SIM" : "🟠 LIVE", mainWindow);
-    Q_CHECK_PTR(m_tradingModeLabel);
-    m_tradingModeLabel->setStyleSheet(isSimMode
-                                          ? "QLabel { background-color: #1E90FF; color: #ffffff; padding: 4px 8px; "
-                                            "border-radius: 4px; font-weight: bold; cursor: pointer; }"
-                                          : "QLabel { background-color: #FF8C00; color: #ffffff; padding: 4px 8px; "
-                                            "border-radius: 4px; font-weight: bold; cursor: pointer; }");
-    m_tradingModeLabel->setToolTip("Click to toggle between SIM and LIVE trading mode (requires restart)");
-    m_tradingModeLabel->setCursor(Qt::PointingHandCursor);
-    m_tradingModeLabel->installEventFilter(this);
-    ui->topControlsLayout->insertWidget(3, m_tradingModeLabel);
+    // Reorganize toolbar: Center session+clock, right-align mode labels
 
-    // Create data source indicator (LIVE/REPLAY) - clickable to toggle (only visible in SIM mode)
-    m_dataSourceLabel = new QLabel("🟢 LIVE", mainWindow);
-    Q_CHECK_PTR(m_dataSourceLabel);
-    m_dataSourceLabel->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
-                                     "border-radius: 4px; font-weight: bold; cursor: pointer; }");
-    m_dataSourceLabel->setToolTip("Click to toggle between LIVE data and REPLAY mode");
-    m_dataSourceLabel->setCursor(Qt::PointingHandCursor);
-    m_dataSourceLabel->installEventFilter(this);
-    ui->topControlsLayout->insertWidget(4, m_dataSourceLabel);
+    // Add spacer to push session label towards center
+    auto* leftSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
+    ui->topControlsLayout->insertSpacerItem(3, leftSpacer);
 
-    // Create trading session indicator (read-only, shows current session)
+    // Create trading session indicator (centered with clock)
     m_sessionLabel = new QLabel("CLOSED", mainWindow);
     Q_CHECK_PTR(m_sessionLabel);
     m_sessionLabel->setStyleSheet("QLabel { background-color: #555555; color: #ffffff; padding: 4px 8px; "
@@ -173,8 +162,72 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                "📈 REGULAR: 9:31 AM - 4:00 PM ET\n"
                                "🌆 AFTER-HOURS: 4:01 PM - 8:00 PM ET\n"
                                "🌙 CLOSED: 8:01 PM - 4:00 AM ET");
-    ui->topControlsLayout->insertWidget(5, m_sessionLabel);
+    ui->topControlsLayout->insertWidget(4, m_sessionLabel);
     updateSessionLabel();
+
+    // Create time display widget (centered next to session label)
+    m_timeDisplayLabel = new QLabel("00:00:00", mainWindow);
+    Q_CHECK_PTR(m_timeDisplayLabel);
+    m_timeDisplayLabel->setStyleSheet(
+        "QLabel { "
+        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "                               stop:0 #1a1a1a, stop:0.5 #0d0d0d, stop:1 #1a1a1a); "
+        "  color: #00ff00; " // Bright green for LIVE mode
+        "  border: 2px solid #333333; "
+        "  border-radius: 6px; "
+        "  padding: 6px 12px; "
+        "  font-family: 'Courier New', monospace; "
+        "  font-size: 14px; "
+        "  font-weight: bold; "
+        "  letter-spacing: 1px; "
+        "}");
+    m_timeDisplayLabel->setToolTip("Application time (New York timezone)\n"
+                                   "🟢 Green: LIVE mode - real-time clock\n"
+                                   "🟠 Amber: REPLAY mode - simulated time");
+    ui->topControlsLayout->insertWidget(5, m_timeDisplayLabel);
+
+    // Add spacer to push mode labels to the right
+    auto* rightSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
+    ui->topControlsLayout->insertSpacerItem(6, rightSpacer);
+
+    // Create trading mode indicator (right side: SIM/LIVE) - clickable to toggle
+    bool isSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
+    m_tradingModeLabel = new QLabel(isSimMode ? "🔵 SIM" : "🟠 LIVE", mainWindow);
+    Q_CHECK_PTR(m_tradingModeLabel);
+    m_tradingModeLabel->setAlignment(Qt::AlignCenter);
+    m_tradingModeLabel->setMinimumWidth(65);
+    m_tradingModeLabel->setStyleSheet(isSimMode
+                                          ? "QLabel { background-color: #1E90FF; color: #ffffff; padding: 4px 8px; "
+                                            "border-radius: 4px; font-weight: bold; }"
+                                          : "QLabel { background-color: #FF8C00; color: #ffffff; padding: 4px 8px; "
+                                            "border-radius: 4px; font-weight: bold; }");
+    m_tradingModeLabel->setToolTip("Click to toggle between SIM and LIVE trading mode (requires restart)");
+    m_tradingModeLabel->setCursor(Qt::PointingHandCursor);
+    m_tradingModeLabel->installEventFilter(this);
+    m_tradingModeLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed); // Fixed size to stick to right
+    ui->topControlsLayout->addWidget(m_tradingModeLabel, 0, Qt::AlignRight);
+
+    // Create data source indicator (right side: LIVE/REPLAY) - clickable to toggle (only visible in SIM mode)
+    m_dataSourceLabel = new QLabel("🟢 LIVE", mainWindow);
+    Q_CHECK_PTR(m_dataSourceLabel);
+    m_dataSourceLabel->setAlignment(Qt::AlignCenter);
+    m_dataSourceLabel->setMinimumWidth(80);
+    m_dataSourceLabel->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
+                                     "border-radius: 4px; font-weight: bold; }");
+    m_dataSourceLabel->setToolTip("Click to toggle between LIVE data and REPLAY mode");
+    m_dataSourceLabel->setCursor(Qt::PointingHandCursor);
+    m_dataSourceLabel->installEventFilter(this);
+    m_dataSourceLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed); // Fixed size to stick to right
+    ui->topControlsLayout->addWidget(m_dataSourceLabel, 0, Qt::AlignRight);
+
+    // Set up timer to update clock every second in LIVE mode
+    m_timeUpdateTimer = new QTimer(this);
+    Q_CHECK_PTR(m_timeUpdateTimer);
+    bool connected =
+        connect(m_timeUpdateTimer, &QTimer::timeout, this, &GUIFrontend::updateTimeDisplay, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+    m_timeUpdateTimer->start(1000); // Update every second
+    updateTimeDisplay();            // Initial update
 
     // In LIVE trading mode, hide data source label and replay widgets (replay not available with real money)
     // In SIM mode, show data source label but hide replay widgets until user enters replay mode
@@ -1013,7 +1066,25 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
         m_cancelAllOrdersShortcut->setKey(p_newSequence);
         qInfo() << "Updated cancel all orders shortcut to:" << p_newSequence.toString();
         break;
+
+    case ShortcutSettings::ToggleReplayPlayPause:
+        Q_CHECK_PTR(m_toggleReplayPlayPauseShortcut);
+        m_toggleReplayPlayPauseShortcut->setKey(p_newSequence);
+        qInfo() << "Updated toggle replay play/pause shortcut to:" << p_newSequence.toString();
+        break;
     }
+}
+
+void GUIFrontend::onToggleReplayPlayPause()
+{
+    // Only works in replay mode
+    if (MainApp::getDataSourceMode() != DataSourceMode::Replay)
+    {
+        return;
+    }
+
+    // Toggle via the toolbar method which clicks the button and emits the signal
+    ui->priceChart->toolbar()->togglePlayPause();
 }
 
 void GUIFrontend::onCancelAllOrders()
@@ -1094,7 +1165,6 @@ void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDate
             {
                 if (bars.has_value())
                 {
-                    qInfo() << "Successfully retrieved missing bars from BarCache";
                     ui->priceChart->onRequestedMissingBarsReceived(bars.value());
                 }
                 else
@@ -1197,12 +1267,11 @@ void GUIFrontend::updateSessionLabel()
         backgroundColor = "#4a3a1a"; // Dark orange-brown
         break;
     case TradingSession::Closed:
-        sessionText = "🌙 CLOSED";
+        sessionText = "🌚 CLOSED";
         backgroundColor = "#1a1a2a"; // Dark blue-gray
         break;
     default:
-        sessionText = "UNKNOWN";
-        backgroundColor = "#2a2a2a";
+        Q_UNREACHABLE();
         break;
     }
 
@@ -1210,6 +1279,59 @@ void GUIFrontend::updateSessionLabel()
     m_sessionLabel->setStyleSheet(QString("QLabel { background-color: %1; color: #ffffff; padding: 4px 8px; "
                                           "border-radius: 4px; font-weight: bold; font-family: monospace; }")
                                       .arg(backgroundColor));
+}
+
+void GUIFrontend::updateTimeDisplay()
+{
+
+    OBJ_ASSUME_TRUE(m_timeDisplayLabel != nullptr);
+
+    // Get current application time (live or replay)
+    QDateTime currentTime = MainApp::getCurrentAppTime();
+
+    // Format time with date: "Wed 02/05  03:34:47 PM"
+    QString timeStr = currentTime.toString("ddd MM/dd  hh:mm:ss AP");
+
+    // Check if we're in replay mode
+    bool isReplayMode = MainApp::isInReplayMode();
+
+    // Update display with appropriate styling
+    if (isReplayMode)
+    {
+        // REPLAY mode: Amber/orange color
+        m_timeDisplayLabel->setText("⏱️ " + timeStr);
+        m_timeDisplayLabel->setStyleSheet(
+            "QLabel { "
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+            "                               stop:0 #2a1a0a, stop:0.5 #1a0f05, stop:1 #2a1a0a); "
+            "  color: #ff9900; " // Amber for REPLAY
+            "  border: 2px solid #443322; "
+            "  border-radius: 6px; "
+            "  padding: 6px 12px; "
+            "  font-family: 'Courier New', monospace; "
+            "  font-size: 14px; "
+            "  font-weight: bold; "
+            "  letter-spacing: 1px; "
+            "}");
+    }
+    else
+    {
+        // LIVE mode: Green color
+        m_timeDisplayLabel->setText("🕐 " + timeStr);
+        m_timeDisplayLabel->setStyleSheet(
+            "QLabel { "
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+            "                               stop:0 #0a1a0a, stop:0.5 #050f05, stop:1 #0a1a0a); "
+            "  color: #00ff00; " // Bright green for LIVE
+            "  border: 2px solid #224422; "
+            "  border-radius: 6px; "
+            "  padding: 6px 12px; "
+            "  font-family: 'Courier New', monospace; "
+            "  font-size: 14px; "
+            "  font-weight: bold; "
+            "  letter-spacing: 1px; "
+            "}");
+    }
 }
 
 void GUIFrontend::onReplayModeEntered()
@@ -1221,8 +1343,15 @@ void GUIFrontend::onReplayModeEntered()
     {
         m_dataSourceLabel->setText("🔴 REPLAY");
         m_dataSourceLabel->setStyleSheet("QLabel { background-color: #8B0000; color: #ffffff; padding: 4px 8px; "
-                                         "border-radius: 4px; font-weight: bold; cursor: pointer; }");
+                                         "border-radius: 4px; font-weight: bold; font-weight: bold; }");
     }
+
+    // Clear live orders and positions from widgets (replay starts with clean slate)
+    ui->orderWindow->clearAllOrders();
+    ui->positionWindow->clearAllPositions();
+
+    // Clear chart data for fresh replay (bar caches are cleared separately by MainAlgo)
+    ui->priceChart->clearChart();
 
     // Show replay widgets in toolbar and ensure play button is in stopped state
     ui->priceChart->toolbar()->setReplayWidgetsVisible(true);
@@ -1231,8 +1360,9 @@ void GUIFrontend::onReplayModeEntered()
     // Update chart visual (background color and watermark)
     ui->priceChart->setReplayModeActive(true);
 
-    // Update session label (replay time may have changed)
+    // Update session label and time display (replay time may have changed)
     updateSessionLabel();
+    updateTimeDisplay();
 }
 
 void GUIFrontend::onReplayModeExited()
@@ -1244,25 +1374,30 @@ void GUIFrontend::onReplayModeExited()
     {
         m_dataSourceLabel->setText("🟢 LIVE");
         m_dataSourceLabel->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
-                                         "border-radius: 4px; font-weight: bold; cursor: pointer; }");
+                                         "border-radius: 4px; font-weight: bold; }");
     }
 
     // Reset play button state and hide replay widgets
     ui->priceChart->toolbar()->setReplayPlaying(false);
     ui->priceChart->toolbar()->setReplayWidgetsVisible(false);
 
+    // Clear chart data (MainAlgo will clear caches and restart live stream)
+    ui->priceChart->clearChart();
+
     // Restore chart visual
     ui->priceChart->setReplayModeActive(false);
 
-    // Update session label (back to live time)
+    // Update session label and time display (back to live time)
     updateSessionLabel();
+    updateTimeDisplay();
 }
 
 void GUIFrontend::onReplayTimeUpdated(QDateTime currentTime)
 {
     Q_UNUSED(currentTime)
-    // Update session label as replay time advances
+    // Update session label and time display as replay time advances
     updateSessionLabel();
+    updateTimeDisplay();
 }
 
 bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
@@ -1331,8 +1466,12 @@ bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
                 return true;
             }
 
-            qCInfo(GUIFrontendLog) << "Entering replay mode (playback not started yet)";
-            MainApp::getInstance()->enterReplayMode();
+            QDate replayDate = toolbar->getSelectedReplayDay();
+            QTime replayTime = toolbar->getReplayStartTime();
+            ReplayEngine::PlaybackSpeed speed = toolbar->getReplaySpeed();
+
+            qCInfo(GUIFrontendLog) << "Entering replay mode for" << replayDate << "at" << replayTime;
+            MainApp::getInstance()->enterReplayMode(replayDate, replayTime, speed);
         }
 
         return true; // Event handled

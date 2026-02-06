@@ -67,8 +67,10 @@ class GUIFrontend : public FrontEnd
     void onOrderPlaced(const PlaceOrderRequest& order);
     void onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKeySequence& p_newSequence);
     void onCancelAllOrders();
+    void onToggleReplayPlayPause();
     void onAccountInfoButtonClicked();
     void updateSessionLabel();
+    void updateTimeDisplay();
 
   private:
     void setupDarkTheme(QMainWindow* mainWindow);
@@ -87,13 +89,14 @@ class GUIFrontend : public FrontEnd
     QPushButton* tradeStationLoginButton; // Login button in status bar
     QPushButton* m_accountInfoButton;     // Info button for account details
 
-    QShortcut* m_quitShortcut;            // Quit application shortcut
-    QShortcut* m_focusShortcut;           // Focus stock input shortcut
-    QShortcut* m_buyShortcut;             // Execute buy order shortcut
-    QShortcut* m_sellShortcut;            // Execute sell order shortcut
-    QShortcut* m_buyToCoverShortcut;      // Execute buy to cover order shortcut
-    QShortcut* m_sellToCoverShortcut;     // Execute sell to cover order shortcut
-    QShortcut* m_cancelAllOrdersShortcut; // Cancel all orders shortcut
+    QShortcut* m_quitShortcut;                  // Quit application shortcut
+    QShortcut* m_focusShortcut;                 // Focus stock input shortcut
+    QShortcut* m_buyShortcut;                   // Execute buy order shortcut
+    QShortcut* m_sellShortcut;                  // Execute sell order shortcut
+    QShortcut* m_buyToCoverShortcut;            // Execute buy to cover order shortcut
+    QShortcut* m_sellToCoverShortcut;           // Execute sell to cover order shortcut
+    QShortcut* m_cancelAllOrdersShortcut;       // Cancel all orders shortcut
+    QShortcut* m_toggleReplayPlayPauseShortcut; // Toggle replay play/pause shortcut
 
     qsizetype TSClientDataUsage = 0;
     qint64 memoryUsage = 0;
@@ -108,4 +111,6 @@ class GUIFrontend : public FrontEnd
     QLabel* m_tradingModeLabel = nullptr; // Trading mode indicator (SIM/LIVE)
     QLabel* m_dataSourceLabel = nullptr;  // Data source indicator (LIVE/REPLAY)
     QLabel* m_sessionLabel = nullptr;     // Trading session indicator
+    QLabel* m_timeDisplayLabel = nullptr; // Application time display (live or replay)
+    QTimer* m_timeUpdateTimer = nullptr;  // Timer to update time display
 };

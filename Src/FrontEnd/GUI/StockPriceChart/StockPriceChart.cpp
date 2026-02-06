@@ -247,9 +247,14 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
                     QTime startTime = chartToolbar->getReplayStartTime();
                     ReplayEngine::PlaybackSpeed speed = chartToolbar->getReplaySpeed();
 
-                    if (date.isValid())
+                    if (MainApp::getInstance()->isReplayPaused())
                     {
-                        // Start or resume playback depending on current state
+                        // Resume from pause
+                        MainApp::getInstance()->resumeReplayPlayback();
+                    }
+                    else if (date.isValid())
+                    {
+                        // Start new playback
                         MainApp::getInstance()->startReplayPlayback(date, startTime, speed);
                     }
                     else
@@ -264,6 +269,12 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
                     MainApp::getInstance()->pauseReplayPlayback();
                 }
             });
+
+    // Connect replay speed change
+    connect(chartToolbar,
+            &ChartToolbar::replaySpeedChanged,
+            this,
+            [](ReplayEngine::PlaybackSpeed speed) { MainApp::getInstance()->setReplaySpeed(speed); });
 
     // Load wheel zoom ratio from settings
     Q_CHECK_PTR(appStateSettings);
@@ -322,18 +333,21 @@ void StockPriceChart::populateAvailableReplayDays()
         return;
     }
 
-    // Get all .db files in the directory
+    // Get all .db files in the directory (format: YYYY-MM-DD.db)
     QStringList filters;
-    filters << "RecordedLiveBars_*.db";
+    filters << "*.db";
     QStringList dbFiles = dir.entryList(filters, QDir::Files, QDir::Name);
 
     QList<QDate> availableDates;
     for (const QString& dbFile: dbFiles)
     {
-        // Extract date from filename (format: RecordedLiveBars_YYYY-MM-DD.db)
-        QString dateStr = dbFile.mid(17,
-                                     10); // Skip "RecordedLiveBars_" (17 chars) and take 10 chars for date
-        QDate date = QDate::fromString(dateStr, "yyyy-MM-dd");
+        // Extract date from filename (format: YYYY-MM-DD.db)
+        QString baseName = dbFile;
+        if (baseName.endsWith(".db"))
+        {
+            baseName.chop(3); // Remove ".db"
+        }
+        QDate date = QDate::fromString(baseName, "yyyy-MM-dd");
         if (date.isValid())
         {
             availableDates.append(date);
@@ -401,7 +415,10 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     {
         // Should be the case becase we call openBarStream() with barsback=1,
         // so we always get at least one historical bar first
-        OBJ_ASSUME_TRUE(bar.getIsEndOfHistory() == true);
+        if (MainApp::isInReplayMode() == false)
+        {
+            OBJ_ASSUME_TRUE(bar.getIsEndOfHistory() == true);
+        }
 
         // Sanity check: semaphore should be available (count == 1) for the first bar
         OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.available() == 1);
@@ -440,7 +457,8 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         updateCandlestickData();
         updateVolumeData();
 
-        m_customPlot->xAxis->setRange(index - 30, index + 1);
+        // Center index 0 with 1 hour (60 bars) on each side
+        m_customPlot->xAxis->setRange(-60, 60);
 
         double newPrice = bar.getClose();
         double padding = newPrice * 0.0002;
@@ -473,8 +491,11 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         return;
     }
 
-    // Any live bar after the first one shall have the isEndOfHistory flag false
-    OBJ_ASSUME_TRUE(bar.getIsEndOfHistory() == false);
+    if (MainApp::isInReplayMode() == false)
+    {
+        // Any live bar after the first one shall have the isEndOfHistory flag false
+        OBJ_ASSUME_TRUE(bar.getIsEndOfHistory() == false);
+    }
 
     switch (bar.getBarStatus())
     {
@@ -499,6 +520,8 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         }
         else
         {
+#warning here we need to deal with startedReceivingRealtimeBars which is not restarted on replay
+
             OBJ_ASSUME_TRUE(m_latestBar.getBarStatus() == Bar::BarStatus::Closed);
             OBJ_ASSUME_GT(bar.getTimeStamp(), m_latestBar.getTimeStamp());
         }
@@ -862,6 +885,30 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
     // Draw background rectangles for the visible range
     drawBackgroundsForReceivedBars(*barsPtr);
 
+    // Only set initial Y-axis range on the first batch of historical bars
+    if (!m_initialYAxisRangeSet)
+    {
+        // Compute min/max price from the last 60 bars to set initial Y-axis range
+        const int barsToAnalyze = qMin(60, static_cast<int>(barsPtr->size()));
+        double minPrice = std::numeric_limits<double>::max();
+        double maxPrice = std::numeric_limits<double>::lowest();
+
+        for (int i = barsPtr->size() - barsToAnalyze; i < barsPtr->size(); ++i)
+        {
+            const Bar& bar = barsPtr->at(i);
+            minPrice = qMin(minPrice, bar.getLow());
+            maxPrice = qMax(maxPrice, bar.getHigh());
+        }
+
+        if (minPrice < maxPrice)
+        {
+            double padding = (maxPrice - minPrice) * 0.05; // 5% padding
+            m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(minPrice - padding, maxPrice + padding);
+        }
+
+        m_initialYAxisRangeSet = true;
+    }
+
     //#warning TODO: optimize redraws
     // Update candlestick data
     updateCandlestickData();
@@ -1023,6 +1070,7 @@ void StockPriceChart::clearSymbol()
 
     // Reset state flags for new symbol
     startedReceivingRealtimeBars = false;
+    m_initialYAxisRangeSet = false;
 
     // Reset semaphore to available state (1) for new symbol
     // If it was acquired (count == 0), release it; if already available, do nothing
@@ -1036,6 +1084,51 @@ void StockPriceChart::clearSymbol()
     m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(0, 100);
 
     m_customPlot->replot();
+}
+
+void StockPriceChart::clearChart()
+{
+    INFO << "Clearing chart data for replay mode";
+
+    // Clear all candlestick and volume data
+    m_candlesticks->data()->clear();
+    m_volumePos->data()->clear();
+    m_volumeNeg->data()->clear();
+    clearBackgroundRects();
+
+    // Clear index mappings
+    indexToBar.clear();
+    timestampToIndex.clear();
+
+    // Reset bar tracking
+    m_latestBarIndex = -1;
+    m_latestBar = Bar();
+
+    // Hide price label but keep symbol watermark (same symbol in replay)
+    m_priceLabel->setVisible(false);
+
+    // Stop current time line (replay has its own time)
+    m_timeLineTimer->stop();
+    m_currentTimeLine->setVisible(false);
+
+    // Reset state flags
+    startedReceivingRealtimeBars = false;
+    m_initialYAxisRangeSet = false;
+
+    // Reset semaphore to available state
+    if (m_missingBarsRequestSemaphore.available() == 0)
+    {
+        DEBUG << "Releasing semaphore during clearChart - previous request was in-flight";
+        m_missingBarsRequestSemaphore.release();
+    }
+
+    // Reset view range
+    m_customPlot->xAxis->setRange(0, 30);
+    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(0, 100);
+
+    m_customPlot->replot();
+
+    DEBUG << "Chart cleared for replay mode";
 }
 
 /**
@@ -1392,10 +1485,9 @@ std::tuple<QDateTime, QDateTime, int> StockPriceChart::queryStockTimeRangeForDat
 {
     std::tuple<QDateTime, QDateTime, int> result;
 
-    // Build database path: ~/.cache/L2Trader/RecordedLiveData/Bars/RecordedLiveBars_YYYY-MM-DD.db
+    // Build database path: ~/.cache/L2Trader/RecordedLiveData/Bars/YYYY-MM-DD.db
     QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
-    QString dbPath =
-        QString("%1/RecordedLiveData/Bars/RecordedLiveBars_%2.db").arg(cacheDir, date.toString("yyyy-MM-dd"));
+    QString dbPath = QString("%1/RecordedLiveData/Bars/%2.db").arg(cacheDir, date.toString("yyyy-MM-dd"));
 
     if (!QFile::exists(dbPath))
     {
@@ -1403,58 +1495,61 @@ std::tuple<QDateTime, QDateTime, int> StockPriceChart::queryStockTimeRangeForDat
         return result;
     }
 
-    // Open database connection
-    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "replay_query");
-    db.setDatabaseName(dbPath);
-
-    if (!db.open())
+    // Use a scoped block to ensure QSqlQuery goes out of scope before removeDatabase
     {
-        qCWarning(ChartLog) << "Failed to open database:" << db.lastError().text();
-        return result;
-    }
+        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "replay_query");
+        db.setDatabaseName(dbPath);
 
-    // Calculate epoch range for the date (start of day to end of day in NY timezone)
-    QTimeZone nyZone("America/New_York");
-    QDateTime dayStart(date, QTime(0, 0, 0), nyZone);
-    QDateTime dayEnd(date, QTime(23, 59, 59, 999), nyZone);
-    qint64 startEpochMs = dayStart.toMSecsSinceEpoch();
-    qint64 endEpochMs = dayEnd.toMSecsSinceEpoch();
-
-    // Query for min, max timestamps and count for the symbol
-    QSqlQuery query(db);
-    query.prepare(StockPriceChartQueries::SELECT_STOCK_TIME_RANGE);
-    query.addBindValue(symbol);
-    query.addBindValue(startEpochMs);
-    query.addBindValue(endEpochMs);
-
-    if (query.exec() && query.next())
-    {
-        qint64 minEpochMs = query.value(0).toLongLong();
-        qint64 maxEpochMs = query.value(1).toLongLong();
-        int barCount = query.value(2).toInt();
-
-        if (minEpochMs > 0 && maxEpochMs > 0)
+        if (!db.open())
         {
-            // Convert from UTC to New York timezone
-            std::get<0>(result) = QDateTime::fromMSecsSinceEpoch(minEpochMs, Qt::UTC).toTimeZone(nyZone);
-            std::get<1>(result) = QDateTime::fromMSecsSinceEpoch(maxEpochMs, Qt::UTC).toTimeZone(nyZone);
-            std::get<2>(result) = barCount;
+            qCWarning(ChartLog) << "Failed to open database:" << db.lastError().text();
+            QSqlDatabase::removeDatabase("replay_query");
+            return result;
+        }
 
-            qCInfo(ChartLog) << "Database query result for" << symbol << "on" << date.toString("yyyy-MM-dd") << ":"
-                             << barCount << "bars found";
+        // Calculate epoch range for the date (start of day to end of day in NY timezone)
+        QTimeZone nyZone("America/New_York");
+        QDateTime dayStart(date, QTime(0, 0, 0), nyZone);
+        QDateTime dayEnd(date, QTime(23, 59, 59, 999), nyZone);
+        qint64 startEpochMs = dayStart.toMSecsSinceEpoch();
+        qint64 endEpochMs = dayEnd.toMSecsSinceEpoch();
+
+        // Query for min, max timestamps and count for the symbol
+        QSqlQuery query(db);
+        query.prepare(StockPriceChartQueries::SELECT_STOCK_TIME_RANGE);
+        query.addBindValue(symbol);
+        query.addBindValue(startEpochMs);
+        query.addBindValue(endEpochMs);
+
+        if (query.exec() && query.next())
+        {
+            qint64 minEpochMs = query.value(0).toLongLong();
+            qint64 maxEpochMs = query.value(1).toLongLong();
+            int barCount = query.value(2).toInt();
+
+            if (minEpochMs > 0 && maxEpochMs > 0)
+            {
+                // Convert from UTC to New York timezone
+                std::get<0>(result) = QDateTime::fromMSecsSinceEpoch(minEpochMs, Qt::UTC).toTimeZone(nyZone);
+                std::get<1>(result) = QDateTime::fromMSecsSinceEpoch(maxEpochMs, Qt::UTC).toTimeZone(nyZone);
+                std::get<2>(result) = barCount;
+
+                qCInfo(ChartLog) << "Database query result for" << symbol << "on" << date.toString("yyyy-MM-dd") << ":"
+                                 << barCount << "bars found";
+            }
+            else
+            {
+                qCInfo(ChartLog) << "No bars found for" << symbol << "on" << date.toString("yyyy-MM-dd");
+            }
         }
         else
         {
-            qCInfo(ChartLog) << "No bars found for" << symbol << "on" << date.toString("yyyy-MM-dd");
+            qCWarning(ChartLog) << "Query failed:" << query.lastError().text();
         }
-    }
-    else
-    {
-        qCWarning(ChartLog) << "Query failed:" << query.lastError().text();
-    }
 
-    // Clean up database connection
-    db.close();
+        db.close();
+    } // QSqlQuery and QSqlDatabase go out of scope here
+
     QSqlDatabase::removeDatabase("replay_query");
 
     return result;

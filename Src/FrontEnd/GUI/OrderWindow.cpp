@@ -527,3 +527,12 @@ QStringList OrderWindow::getCancellableOrderIds() const
 
     return cancellableIds;
 }
+
+
+void OrderWindow::clearAllOrders()
+{
+    m_model->removeRows(0, m_model->rowCount());
+    m_orderRowMap.clear();
+    m_orders.clear();
+    qDebug() << "OrderWindow cleared all orders";
+}

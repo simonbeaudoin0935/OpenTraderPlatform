@@ -236,3 +236,11 @@ void PositionWindow::onSymbolClicked(const QModelIndex& index)
         emit symbolClicked(symbol);
     }
 }
+
+
+void PositionWindow::clearAllPositions()
+{
+    model->removeRows(0, model->rowCount());
+    positionRowMap.clear();
+    qDebug() << "PositionWindow cleared all positions";
+}

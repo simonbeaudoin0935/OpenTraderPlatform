@@ -1,16 +1,17 @@
 #pragma once
 
-#include <QObject>
-#include <QFutureWatcher>
 #include <QDateTime>
+#include <QFutureWatcher>
 #include <QMap>
+#include <QObject>
 
-#include "StreamOrders.h"
 #include "OrdersDatabase.h"
+#include "StreamOrders.h"
+#include "StreamReceiver.h"
 
 Q_DECLARE_LOGGING_CATEGORY(OrdersReceiverLog)
 
-class OrdersReceiver : public QObject
+class OrdersReceiver : public StreamReceiver
 {
     Q_OBJECT
   public:
@@ -19,6 +20,11 @@ class OrdersReceiver : public QObject
     void stopStream(const QString& p_account);
     void stopStream(const char* p_account);
 
+    QPointer<StreamOrders> getStream() const
+    {
+        return m_stream;
+    }
+
   signals:
     void receivedNewOrder(QString account, Order order);
 
@@ -26,11 +32,18 @@ class OrdersReceiver : public QObject
     void onReceivedNewOrder(Order order);
     void onEndSnapshotReceived();
 
+  protected:
+    [[nodiscard]] QPointer<Stream> getStreamBase() const override
+    {
+        return QPointer<Stream>(m_stream.data());
+    }
+
   private:
     QPointer<StreamOrders> m_stream = nullptr;
     QString m_account;
     OrdersDatabase* m_database = nullptr;
     bool m_receivedEndSnapshot = false;
+    bool m_autoReconnect = true; // Disable when intentionally stopping stream
 
     // Track orders for the initial snapshot validation
     QMap<QString, QDateTime> m_snapshotOrders; // orderID -> received time

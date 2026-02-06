@@ -293,35 +293,58 @@ void MainApp::cleanupSingletons()
     qInfo() << "All singletons cleaned up";
 }
 
-void MainApp::enterReplayMode()
+void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
 {
     ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Live && "enterReplayMode called when already in replay mode");
 
-    qInfo() << "Entering replay mode (data source switch only, playback not started)";
+    qInfo() << "Entering replay mode for" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString("hh:mm:ss");
 
-    // 1. Set data source mode
+    // 1. Capture currently displayed symbol before we delete everything
+    QString displayedSymbol = mainAlgo->getDisplayedSymbol();
+    if (displayedSymbol.isEmpty())
+    {
+        qWarning() << "No displayed symbol, using default AAPL";
+        displayedSymbol = "AAPL";
+    }
+
+    // 2. Set data source mode
     m_dataSourceMode = DataSourceMode::Replay;
 
-    // 2. Switch TSClient to replay mode (blocking to ensure mode is set before streams open)
+    // 3. Initialize replay time to start time (will be refined when first bar emits)
+    currentAppReplayTime = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE);
+
+    // 4. Switch TSClient to replay mode (blocking to ensure mode is set before streams open)
     QMetaObject::invokeMethod(
         tradeStationClient,
         [this]() { tradeStationClient->setMode(TSClient::Mode::Replay); },
         Qt::BlockingQueuedConnection);
 
-    // 3. Tell MainAlgo to pause live streams (MainAlgo thread)
+    // 5. Clean slate: stop everything and recreate fresh, then start replay paused (MainAlgo thread)
     QMetaObject::invokeMethod(
         mainAlgo,
-        [this]()
+        [this, displayedSymbol, p_date, p_startTime, p_speed]()
         {
-            // Close positions/orders streams via receivers
+            // Stop all running strategies
+            mainAlgo->stopAllStrategies();
+
+            // Close positions/orders streams
             mainAlgo->pauseLiveStreams();
+
+            // Delete all stock instruments (and their streams)
+            mainAlgo->deleteAllStockInstruments();
+
+            // Create fresh stock instrument with mock-backed streams
+            mainAlgo->createAndSetDisplayedStockInstrument(displayedSymbol);
+
+            // Start replay in paused state - emits first bar to populate chart
+            mainAlgo->enterReplayModePaused(p_date, p_startTime, p_speed);
         },
         Qt::QueuedConnection);
 
-    // 4. Update UI
+    // 6. Update UI
     appFrontend->onReplayModeEntered();
 
-    qInfo() << "Replay mode entered, awaiting playback start";
+    qInfo() << "Replay mode entered with chart pre-populated";
 }
 
 void MainApp::exitReplayMode()
@@ -330,28 +353,53 @@ void MainApp::exitReplayMode()
 
     qInfo() << "Exiting replay mode";
 
-    // 1. Tell MainAlgo to stop replay first (blocking to ensure clean stop)
+    // 1. Capture currently displayed symbol before we delete everything
+    QString displayedSymbol = mainAlgo->getDisplayedSymbol();
+    if (displayedSymbol.isEmpty())
+    {
+        qWarning() << "No displayed symbol, using default AAPL";
+        displayedSymbol = "AAPL";
+    }
+
+    // 2. Tell MainAlgo to stop replay and clean up (blocking to ensure clean stop)
     QMetaObject::invokeMethod(
         mainAlgo,
         [this]()
         {
+            // Stop replay engine if running
             mainAlgo->exitReplayMode();
 
-            // Reopen positions/orders streams via receivers
-            mainAlgo->resumeLiveStreams();
+            // Stop all replay strategies
+            mainAlgo->stopAllStrategies();
+
+            // Delete all replay stock instruments
+            mainAlgo->deleteAllStockInstruments();
         },
         Qt::BlockingQueuedConnection);
 
-    // 2. Reset data source mode
+    // 3. Reset data source mode
     m_dataSourceMode = DataSourceMode::Live;
 
-    // 3. Switch TSClient back to live mode (blocking)
+    // 4. Switch TSClient back to live mode (blocking)
     QMetaObject::invokeMethod(
         tradeStationClient,
         [this]() { tradeStationClient->setMode(TSClient::Mode::Live); },
         Qt::BlockingQueuedConnection);
 
-    // 4. Update UI
+    // 5. Recreate fresh live instruments and resume streams (MainAlgo thread)
+    QMetaObject::invokeMethod(
+        mainAlgo,
+        [this, displayedSymbol]()
+        {
+            // Reopen positions/orders streams
+            mainAlgo->resumeLiveStreams();
+
+            // Create fresh stock instrument with live streams
+            mainAlgo->createAndSetDisplayedStockInstrument(displayedSymbol);
+        },
+        Qt::QueuedConnection);
+
+    // 6. Update UI
     appFrontend->onReplayModeExited();
 
     qInfo() << "Replay mode exited, live mode resumed";
@@ -389,4 +437,14 @@ void MainApp::resumeReplayPlayback()
     qInfo() << "Resuming replay playback";
 
     QMetaObject::invokeMethod(mainAlgo, [this]() { mainAlgo->resumeReplay(); }, Qt::QueuedConnection);
+}
+
+void MainApp::setReplaySpeed(ReplayEngine::PlaybackSpeed p_speed)
+{
+    QMetaObject::invokeMethod(mainAlgo, [this, p_speed]() { mainAlgo->setReplaySpeed(p_speed); }, Qt::QueuedConnection);
+}
+
+bool MainApp::isReplayPaused() const
+{
+    return mainAlgo->getReplayState() == ReplayEngine::PlaybackState::Paused;
 }

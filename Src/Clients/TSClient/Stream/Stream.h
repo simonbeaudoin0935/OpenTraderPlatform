@@ -37,6 +37,45 @@ class Stream : public QObject
         s_isShuttingDown = shuttingDown;
     }
 
+    /**
+     * @brief Pause the heartbeat timer (e.g., when replay is paused)
+     * Thread-safe: uses blocking queued invocation to stop timer on the correct thread
+     */
+    void pauseHeartbeat()
+    {
+        m_heartbeatPaused = true;
+        // Timer must be stopped from the thread where it was created
+        if (QThread::currentThread() == this->thread())
+        {
+            m_heartbeatTimer.stop();
+        }
+        else
+        {
+            QMetaObject::invokeMethod(&m_heartbeatTimer, &QTimer::stop, Qt::BlockingQueuedConnection);
+        }
+    }
+
+    /**
+     * @brief Resume the heartbeat timer (e.g., when replay resumes)
+     * Thread-safe: uses blocking queued invocation to start timer on the correct thread
+     */
+    void resumeHeartbeat()
+    {
+        m_heartbeatPaused = false;
+        // Timer must be started from the thread where it was created
+        if (QThread::currentThread() == this->thread())
+        {
+            m_heartbeatTimer.start(m_heartbeatTimeoutMS);
+        }
+        else
+        {
+            QMetaObject::invokeMethod(
+                &m_heartbeatTimer,
+                [this]() { m_heartbeatTimer.start(m_heartbeatTimeoutMS); },
+                Qt::BlockingQueuedConnection);
+        }
+    }
+
   signals:
     void newAmountOfDataReceived(size_t bytes);
     void receivedNewRawData(const QByteArray& rawData);
@@ -69,6 +108,7 @@ class Stream : public QObject
 
     const size_t m_heartbeatTimeoutMS = 10000;
     QTimer m_heartbeatTimer;
+    bool m_heartbeatPaused = false; // When true, don't restart timer on data reception
 
     static size_t s_numberOfStream;
     static bool s_isShuttingDown;

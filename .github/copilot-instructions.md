@@ -13,19 +13,19 @@
    cd build
    ```
 
-3. **Configure GUI version with CMake**:
+3. **Configure GUI version with CMake** (using Ninja):
 
    ```bash
    mkdir -p ./build/GUI
-   cmake -S .. -B ./build/GUI -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF
+   cmake -S .. -B ./build/GUI -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF
    ```
    - Takes ~10-15 seconds
 
-3. **Configure TUI version with CMake**:
+3. **Configure TUI version with CMake** (using Ninja):
 
    ```bash
    mkdir -p ./build/TUI
-   cmake -S .. -B ./build/TUI -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=OFF -DBUILD_TESTS=OFF
+   cmake -S .. -B ./build/TUI -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=OFF -DBUILD_TESTS=OFF
    ```
    - Takes ~10-15 seconds
 
@@ -41,13 +41,13 @@
    ```bash
    cmake --build ./build/GUI -j$(nproc)
    ```
-   - Takes ~2-5 minutes
+   - Takes ~2-5 minutes (faster with Ninja)
 
 6. **Build TUI version**:
    ```bash
    cmake --build ./build/TUI -j$(nproc)
    ```
-   - Takes ~2-5 minutes
+   - Takes ~2-5 minutes (faster with Ninja)
 
 ## Run Application
 1. **TUI Mode** (default):
@@ -60,6 +60,23 @@
 
 ## General Coding Guidelines
 - Use the ASSUME macros from Src/Misc/Assume.h for assertions instead of Q_ASSERT or similar, to ensure consistency and proper no-op behavior in release builds.
+
+- **ASSERT-First Strategy**: Instead of defensive null checks like `if (ptr != nullptr) { ... }`, assert the expected state upfront with `OBJ_ASSUME_DIFF(ptr, nullptr)` and proceed without conditionals. This:
+  1. Makes assumptions explicit and documents invariants
+  2. Catches logic errors early in debug builds
+  3. Removes defensive code that hides bugs
+  4. Example - instead of:
+     ```cpp
+     if (m_replayEngine != nullptr) {
+         m_replayEngine->pauseReplay();
+     }
+     ```
+     Write:
+     ```cpp
+     OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
+     m_replayEngine->pauseReplay();
+     ```
+  5. Only use conditional checks when the null/empty state is a **valid runtime possibility**, not a logic error.
 
 - When creating connections between signal and slots, prioritize using a Qt::UniqueConnection and asserting that the connection made was indeed unique and not a double. It should be extremely rare, if not never, that we should authorize multiple same connections.
 

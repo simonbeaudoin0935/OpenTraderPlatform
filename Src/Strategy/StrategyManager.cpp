@@ -4,7 +4,10 @@
 #include <QUuid>
 #include <QDebug>
 
-Q_DECLARE_LOGGING_CATEGORY(StrategyManagerLog)
+#define LOGGING_CATEGORY StrategyManagerLog
+
+#include "Logging.h"
+
 Q_LOGGING_CATEGORY(StrategyManagerLog, "StrategyManager", QtWarningMsg)
 
 // StrategySDK implementation
@@ -409,6 +412,27 @@ void StrategyManager::markStrategyFailed(const QString& p_strategyID, const QStr
             instance->m_thread.wait();
         }
     }
+}
+
+void StrategyManager::stopAllStrategies()
+{
+    QVector<QString> activeStrategies = getActiveStrategies();
+    INFO << "Stopping all strategies, count:" << activeStrategies.size();
+
+    for (const QString& strategyID: activeStrategies)
+    {
+        QString error = unloadStrategy(strategyID);
+        if (!error.isEmpty())
+        {
+            WARNING << "Failed to unload strategy" << strategyID << ":" << error;
+        }
+        else
+        {
+            DEBUG << "Unloaded strategy" << strategyID;
+        }
+    }
+
+    INFO << "All strategies stopped";
 }
 
 void StrategyManager::markStrategyFailedFromSignal(const QString& p_strategyID, const QString& p_errorMessage)

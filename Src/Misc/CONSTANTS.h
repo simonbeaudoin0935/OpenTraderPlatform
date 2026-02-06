@@ -223,3 +223,13 @@ namespace FileSystemConstants
     // Subdirectory name for bar cache database files
     inline constexpr const char* BARS_CACHE_SUBDIR = "Bars";
 } // namespace FileSystemConstants
+
+/**
+ * @namespace MarketDepthConstants
+ * @brief Constants related to market depth data
+ */
+namespace MarketDepthConstants
+{
+    // Default number of market depth levels to request from TradeStation
+    inline constexpr int DEFAULT_MARKET_DEPTH_LEVELS = 10;
+} // namespace MarketDepthConstants

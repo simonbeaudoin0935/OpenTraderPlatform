@@ -19,6 +19,7 @@ class OrderWindow : public QWidget
 
   public slots:
     void updateOrder(const QString& account, const Order& order);
+    void clearAllOrders();
 
   public:
     QStringList getAllOrderIds() const;

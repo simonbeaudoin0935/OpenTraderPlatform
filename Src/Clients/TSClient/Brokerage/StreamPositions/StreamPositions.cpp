@@ -27,14 +27,15 @@ void StreamPositions::processJsonObject(const QJsonObject& jsonObj)
         }
         else if (statusStr == "GoAway")
         {
-            WARNING << "Received GoAway status for account" << m_accountID;
-            // TODO handle this properly
+            CRITICAL << "Received GoAway status for account" << m_accountID;
+// TODO handle this properly
+#warning fix this now
             Q_UNREACHABLE();
         }
         else
         {
-            WARNING << "Stream status object invalid : "
-                    << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
+            CRITICAL << "Stream status object invalid : "
+                     << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
         }
 
         return;

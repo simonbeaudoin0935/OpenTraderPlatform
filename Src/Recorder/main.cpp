@@ -195,15 +195,14 @@ int main(int argc, char* argv[])
     TSClient::getInstancePtr()->start();
 
     QString dateStr = QDate::currentDate().toString("yyyy-MM-dd");
-    QString barsDbPath = recordedDataPath + "/Bars/RecordedLiveBars_" + dateStr + ".db";
+    QString barsDbPath = recordedDataPath + "/Bars/" + dateStr + ".db";
     auto liveBarsDB = std::make_unique<LiveStreamDB>(LiveStreamDB::StreamType::Bars, barsDbPath, stockTickers);
 
     liveBarsDB->startRecording();
 
     qInfo() << "------ Recorder for Bars started - recording market data...";
 
-    QString marketDepthDbPath =
-        recordedDataPath + "/MarketDepthQuotes/RecordedLiveMarketDepthQuotes_" + dateStr + ".db";
+    QString marketDepthDbPath = recordedDataPath + "/MarketDepthQuotes/" + dateStr + ".db";
     auto liveMarketDepthQuoteDB =
         std::make_unique<LiveStreamDB>(LiveStreamDB::StreamType::MarketDepthQuotes, marketDepthDbPath, stockTickers);
 

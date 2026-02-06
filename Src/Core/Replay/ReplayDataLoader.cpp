@@ -52,13 +52,13 @@ ReplayDataLoader::~ReplayDataLoader()
 QString ReplayDataLoader::getBarsDbPath(QDate p_date) const
 {
     QString dateStr = p_date.toString("yyyy-MM-dd");
-    return getCacheLocation() + "/RecordedLiveData/Bars/RecordedLiveBars_" + dateStr + ".db";
+    return getCacheLocation() + "/RecordedLiveData/Bars/" + dateStr + ".db";
 }
 
 QString ReplayDataLoader::getDepthDbPath(QDate p_date) const
 {
     QString dateStr = p_date.toString("yyyy-MM-dd");
-    return getCacheLocation() + "/RecordedLiveData/MarketDepthQuotes/RecordedLiveMarketDepthQuotes_" + dateStr + ".db";
+    return getCacheLocation() + "/RecordedLiveData/MarketDepthQuotes/" + dateStr + ".db";
 }
 
 bool ReplayDataLoader::openDatabases(QDate p_date)
@@ -132,6 +132,11 @@ void ReplayDataLoader::closeDatabases()
     {
         m_depthDb.close();
     }
+
+    // Clear the member variables before removing connections
+    // This ensures no references remain when removeDatabase is called
+    m_barsDb = QSqlDatabase();
+    m_depthDb = QSqlDatabase();
 
     // Remove connections
     if (QSqlDatabase::contains(m_barsDbConnectionName))

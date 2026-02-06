@@ -24,6 +24,8 @@
             "type": "shell",
             "command": "cmake",
             "args": [
+                "-G",
+                "Ninja",
                 "-S",
                 "${workspaceFolder}",
                 "-B",
@@ -46,6 +48,8 @@
             "type": "shell",
             "command": "cmake",
             "args": [
+                "-G",
+                "Ninja",
                 "-S",
                 "${workspaceFolder}",
                 "-B",
@@ -68,6 +72,8 @@
             "type": "shell",
             "command": "cmake",
             "args": [
+                "-G",
+                "Ninja",
                 "-S",
                 "${workspaceFolder}",
                 "-B",
@@ -91,6 +97,8 @@
             "type": "shell",
             "command": "cmake",
             "args": [
+                "-G",
+                "Ninja",
                 "-S",
                 "${workspaceFolder}",
                 "-B",
@@ -116,8 +124,7 @@
             "args": [
                 "--build",
                 "${workspaceFolder}/build",
-                "--parallel",
-                "3"
+                "--parallel"
             ],
             "group": "build",
             "presentation": {
@@ -194,6 +201,8 @@
             "type": "shell",
             "command": "cmake",
             "args": [
+                "-G",
+                "Ninja",
                 "-S",
                 "${workspaceFolder}",
                 "-B",

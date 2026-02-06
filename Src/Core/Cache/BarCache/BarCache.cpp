@@ -16,8 +16,7 @@
 #define LOGGING_CATEGORY BarCacheLog
 Q_LOGGING_CATEGORY(BarCacheLog, "BarCache")
 
-BarCache::BarCache(const QString& symbol, bool isStreaming, QObject* parent)
-    : QObject(parent), m_symbol(symbol), m_isStreaming(isStreaming)
+BarCache::BarCache(const QString& symbol, QObject* parent) : QObject(parent), m_symbol(symbol)
 {
     OBJ_ASSUME_DIFF(parent, nullptr);
 
@@ -58,59 +57,19 @@ BarCache::BarCache(const QString& symbol, bool isStreaming, QObject* parent)
                       CRITICAL << "Failed to open database for" << m_symbol;
                   }
               });
-
-    if (isStreaming)
-    {
-        startStream();
-    }
-}
-
-
-void BarCache::startStream()
-{
-    DEBUG << "Starting bars stream for symbol " << m_symbol;
-
-    m_stream = TSClient::getInstance()->openStreamBars(m_symbol,
-                                                       1, /* Interval: 1 bar */
-                                                       Bar::BarUnit::Minute,
-                                                       1, /* Barsback: 1 bars */
-                                                       Bar::BarSessionTemplate::USEQ24Hour);
-    Q_CHECK_PTR(m_stream);
-
-    connect(m_stream, &StreamBars::newBarReceived, this, &BarCache::onReceivedNewLiveBar);
-
-    m_stream->future().then(this,
-                            [this](std::optional<QString> error)
-                            {
-                                if (error.has_value())
-                                {
-                                    CRITICAL << "Bars cache bar future failed for" << m_symbol
-                                             << "- Exception:" << error.value();
-
-                                    CRITICAL << "Restarting bars stream for symbol " << m_symbol;
-
-                                    // Turns out closeStream() is already done implicitely when the TSClient handles the stream error
-                                    // TSClient::getInstance()->closeStream(m_stream);
-
-                                    startStream();
-                                }
-                                else
-                                {
-                                    CRITICAL << "Bars cache bar future finished, which should not happen";
-                                    Q_UNREACHABLE();
-                                }
-                            });
 }
 
 BarCache::~BarCache()
 {
-    // Note: Stream cleanup is handled by TSClient. Calling closeStream() from destructor
-    // can cause race conditions with pending .then() callbacks when using deleteLater().
-
     // Close database connection via DatabaseThread
     DatabaseThread::getInstance()->closeDatabase(m_symbol);
 
     DEBUG << "Destroyed";
+}
+
+void BarCache::storeBar(const Bar& bar)
+{
+    storeBarInCache(bar);
 }
 
 
@@ -512,19 +471,24 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
 {
     OBJ_ASSUME_FALSE(bars->isEmpty());
 
-    if (date < MainApp::getCurrentAppTime().date())
+    // In live mode, validate bar counts make sense relative to current time
+    // In replay mode, skip validation since we're loading historical data that may have full days
+    if (TSClient::getInstance()->getMode() == TSClient::Mode::Live)
     {
-        // Past day - must have full day of bars. This is because throughout the code, we assume tha
-        OBJ_ASSUME_EQUAL(bars->size(), BarsConstants::MINUTE_BARS_PER_DAY);
-    }
-    else
-    {
-        // This checks that for the current day, we don't have more bars than up to now
-        OBJ_ASSUME_LTE(bars->size(),
-                       static_cast<qsizetype>(
-                           MainApp::getCurrentAppTime().time() > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION
-                               ? BarsConstants::MINUTE_BARS_PER_DAY
-                               : BarsConstants::timeToIndex(MainApp::getCurrentAppTime().time()) + 1));
+        if (date < MainApp::getCurrentAppTime().date())
+        {
+            // Past day - must have full day of bars
+            OBJ_ASSUME_EQUAL(bars->size(), BarsConstants::MINUTE_BARS_PER_DAY);
+        }
+        else
+        {
+            // Current day - can't have more bars than up to now
+            OBJ_ASSUME_LTE(bars->size(),
+                           static_cast<qsizetype>(
+                               MainApp::getCurrentAppTime().time() > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION
+                                   ? BarsConstants::MINUTE_BARS_PER_DAY
+                                   : BarsConstants::timeToIndex(MainApp::getCurrentAppTime().time()) + 1));
+        }
     }
 
     OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().date(), bars->last().getTimeStamp().date());
@@ -559,13 +523,6 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
 
         DEBUG << "Inserted partial day in cache for" << date << "with" << bars->size() << "bars";
     }
-}
-
-void BarCache::onReceivedNewLiveBar(Bar newBar)
-{
-    storeBarInCache(newBar);
-
-    emit receivedNewBar(m_symbol, newBar);
 }
 
 void BarCache::clearDatabase()

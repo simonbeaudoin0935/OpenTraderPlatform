@@ -306,7 +306,8 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
 
             bars->append(bar);
         }
-        INFO << "Loaded" << bars->size() << "bars from database for" << symbol;
+
+        DEBUG << "Loaded" << bars->size() << "bars from database for" << symbol;
     }
     else
     {
@@ -319,6 +320,7 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
     {
         DEBUG << "Database does not have complete set of bars for" << symbol << "on date" << date << "- expected"
               << expectedCount << "bars but got" << bars->size();
+
         return std::nullopt;
     }
 
@@ -380,7 +382,8 @@ int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDa
         }
     }
 
-    INFO << "Successfully stored" << storedCount << "bars in database for" << symbol;
+    DEBUG << "Successfully stored" << storedCount << "bars in database for" << symbol;
+
     return storedCount;
 }
 
