@@ -26,7 +26,8 @@ class ShortcutSettings : public QObject
         ExecuteSellOrder,
         ExecuteBuyToCoverOrder,
         ExecuteSellToCoverOrder,
-        CancelAllOrders
+        CancelAllOrders,
+        ToggleReplayPlayPause
     };
     Q_ENUM(ShortcutId)
 

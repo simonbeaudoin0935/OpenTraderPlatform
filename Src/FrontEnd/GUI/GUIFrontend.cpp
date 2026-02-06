@@ -101,6 +101,13 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
         connect(m_cancelAllOrdersShortcut, &QShortcut::activated, [this]() { onCancelAllOrders(); });
     OBJ_ASSUME_TRUE(cancelAllConnection);
 
+    // Add Space shortcut to toggle replay play/pause
+    m_toggleReplayPlayPauseShortcut =
+        new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ToggleReplayPlayPause), mainWindow);
+    auto toggleReplayConnection =
+        connect(m_toggleReplayPlayPauseShortcut, &QShortcut::activated, [this]() { onToggleReplayPlayPause(); });
+    OBJ_ASSUME_TRUE(toggleReplayConnection);
+
     // Connect to shortcut changes to update active shortcuts
     auto shortcutChangeConnection = connect(&shortcutSettings,
                                             &ShortcutSettings::shortcutChanged,
@@ -1059,7 +1066,29 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
         m_cancelAllOrdersShortcut->setKey(p_newSequence);
         qInfo() << "Updated cancel all orders shortcut to:" << p_newSequence.toString();
         break;
+
+    case ShortcutSettings::ToggleReplayPlayPause:
+        Q_CHECK_PTR(m_toggleReplayPlayPauseShortcut);
+        m_toggleReplayPlayPauseShortcut->setKey(p_newSequence);
+        qInfo() << "Updated toggle replay play/pause shortcut to:" << p_newSequence.toString();
+        break;
     }
+}
+
+void GUIFrontend::onToggleReplayPlayPause()
+{
+    // Only works in replay mode
+    if (MainApp::getDataSourceMode() != DataSourceMode::Replay)
+    {
+        return;
+    }
+
+    // Toggle the play button in the chart toolbar
+    ChartToolbar* toolbar = ui->priceChart->toolbar();
+    bool isPlaying = toolbar->isReplayPlaying();
+    toolbar->setReplayPlaying(!isPlaying);
+
+    // The toolbar's playStateChanged signal will handle the actual play/pause/resume
 }
 
 void GUIFrontend::onCancelAllOrders()
