@@ -439,6 +439,11 @@ void MainApp::resumeReplayPlayback()
     QMetaObject::invokeMethod(mainAlgo, [this]() { mainAlgo->resumeReplay(); }, Qt::QueuedConnection);
 }
 
+void MainApp::setReplaySpeed(ReplayEngine::PlaybackSpeed p_speed)
+{
+    QMetaObject::invokeMethod(mainAlgo, [this, p_speed]() { mainAlgo->setReplaySpeed(p_speed); }, Qt::QueuedConnection);
+}
+
 bool MainApp::isReplayPaused() const
 {
     return mainAlgo->getReplayState() == ReplayEngine::PlaybackState::Paused;

@@ -877,6 +877,14 @@ void MainAlgo::resumeReplay()
     m_replayEngine->resumeReplay();
 }
 
+void MainAlgo::setReplaySpeed(ReplayEngine::PlaybackSpeed p_speed)
+{
+    if (m_replayEngine != nullptr)
+    {
+        m_replayEngine->setSpeed(p_speed);
+    }
+}
+
 void MainAlgo::pauseLiveStreams()
 {
     INFO << "Pausing live streams for replay mode";

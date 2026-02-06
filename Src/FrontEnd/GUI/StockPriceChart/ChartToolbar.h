@@ -215,6 +215,12 @@ class ChartToolbar : public QWidget
     void replayPlayPauseToggled(bool playing);
 
     /**
+     * @brief Emitted when the replay speed changes.
+     * @param speed The new playback speed.
+     */
+    void replaySpeedChanged(ReplayEngine::PlaybackSpeed speed);
+
+    /**
      * @brief Emitted when the wheel scrolling ratio changes.
      * @param ratio The new wheel scrolling ratio (e.g., 0.5 for less sensitive, 2.0 for more sensitive).
      */

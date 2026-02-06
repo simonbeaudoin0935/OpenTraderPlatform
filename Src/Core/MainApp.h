@@ -159,6 +159,14 @@ class MainApp
     void resumeReplayPlayback();
 
     /**
+     * @brief Set replay playback speed on the fly
+     * @param p_speed The new playback speed
+     *
+     * Can be called while replay is playing or paused.
+     */
+    void setReplaySpeed(ReplayEngine::PlaybackSpeed p_speed);
+
+    /**
      * @brief Check if replay is currently paused
      */
     [[nodiscard]] bool isReplayPaused() const;

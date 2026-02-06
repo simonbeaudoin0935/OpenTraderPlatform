@@ -129,6 +129,17 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
             &ChartToolbar::onReplayDayChanged);
     connect(replayTimeEdit, &QTimeEdit::timeChanged, this, &ChartToolbar::onReplayTimeChanged);
     connect(playPauseButton, &QPushButton::clicked, this, &ChartToolbar::onPlayPauseClicked);
+    connect(replaySpeedCombo,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            [this](int index)
+            {
+                if (index >= 0)
+                {
+                    auto speed = static_cast<ReplayEngine::PlaybackSpeed>(replaySpeedCombo->itemData(index).toInt());
+                    emit replaySpeedChanged(speed);
+                }
+            });
     connect(wheelRatioCombo,
             QOverload<int>::of(&QComboBox::currentIndexChanged),
             this,
@@ -573,23 +584,6 @@ void ChartToolbar::scanAndPopulateReplayDays()
  */
 QDate ChartToolbar::extractDateFromFileName(const QString& fileName)
 {
-    // Handle RecordedLiveBars_YYYY-MM-DD.db format
-    if (fileName.startsWith("RecordedLiveBars_"))
-    {
-        QString datePart = fileName.mid(18); // Skip "RecordedLiveBars_" (18 chars)
-        int dotIndex = datePart.indexOf('.');
-        if (dotIndex != -1)
-        {
-            datePart = datePart.left(dotIndex); // Remove extension
-        }
-        QDate date = QDate::fromString(datePart, "yyyy-MM-dd");
-        if (date.isValid())
-        {
-            return date;
-        }
-    }
-
-    // Fallback: Try different common date formats that might be used in filenames
     // Remove file extension if present
     QString baseName = fileName;
     int dotIndex = baseName.lastIndexOf('.');
@@ -598,7 +592,7 @@ QDate ChartToolbar::extractDateFromFileName(const QString& fileName)
         baseName = baseName.left(dotIndex);
     }
 
-    // Try YYYY-MM-DD format
+    // Primary format: YYYY-MM-DD.db
     QDate date = QDate::fromString(baseName, "yyyy-MM-dd");
     if (date.isValid())
     {

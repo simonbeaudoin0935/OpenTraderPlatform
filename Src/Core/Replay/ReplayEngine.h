@@ -109,6 +109,15 @@ class ReplayEngine : public QObject
     void resumeReplay();
 
     /**
+     * @brief Set playback speed on the fly
+     * Can be called while replay is playing or paused.
+     */
+    void setSpeed(PlaybackSpeed p_speed)
+    {
+        m_speed = p_speed;
+    }
+
+    /**
      * @brief Get current playback state
      */
     [[nodiscard]] PlaybackState getState() const

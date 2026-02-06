@@ -110,6 +110,9 @@ class MainAlgo final : public QObject
     /// @brief Resume replay playback
     void resumeReplay();
 
+    /// @brief Set replay speed on the fly
+    void setReplaySpeed(ReplayEngine::PlaybackSpeed p_speed);
+
     /// @brief Pause live streams (positions/orders) for replay mode
     void pauseLiveStreams();
 
