@@ -163,14 +163,7 @@ class Order
     // Setters for tracking times
     void setReceivedTime(const QDateTime& p_time)
     {
-        if (p_time.timeZone() != TradingHours::MARKET_TIMEZONE)
-        {
-            m_receivedTime = p_time.toTimeZone(TradingHours::MARKET_TIMEZONE);
-        }
-        else
-        {
-            m_receivedTime = p_time;
-        }
+        m_receivedTime = p_time;
     }
     void setFilledTime(const QDateTime& p_time)
     {
