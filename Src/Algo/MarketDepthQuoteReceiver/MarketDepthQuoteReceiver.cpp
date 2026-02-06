@@ -8,7 +8,7 @@
 Q_LOGGING_CATEGORY(LOGGING_CATEGORY, "MarketDepthQuoteReceiver")
 
 MarketDepthQuoteReceiver::MarketDepthQuoteReceiver(const QString& symbol, QObject* parent)
-    : QObject(parent), m_symbol(symbol)
+    : StreamReceiver(parent), m_symbol(symbol)
 {
     setObjectName("MarketDepthQuoteReceiver::" + symbol);
 

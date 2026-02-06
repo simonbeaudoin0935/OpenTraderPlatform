@@ -146,6 +146,7 @@ target_include_directories(L2TraderStrategy PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Stream
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BreakingNewsFetcher
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StreamReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BarReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/MarketDepthQuoteReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/PositionsReceiver
@@ -201,6 +202,7 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Stream
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BreakingNewsFetcher
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StreamReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BarReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/MarketDepthQuoteReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/PositionsReceiver

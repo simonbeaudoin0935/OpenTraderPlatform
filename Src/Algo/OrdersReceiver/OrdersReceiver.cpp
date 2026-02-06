@@ -11,7 +11,8 @@
 #define LOGGING_CATEGORY OrdersReceiverLog
 Q_LOGGING_CATEGORY(OrdersReceiverLog, "OrdersReceiver");
 
-OrdersReceiver::OrdersReceiver(const QString& p_account, QObject* p_parent) : QObject(p_parent), m_account(p_account)
+OrdersReceiver::OrdersReceiver(const QString& p_account, QObject* p_parent)
+    : StreamReceiver(p_parent), m_account(p_account)
 {
     this->setObjectName("OrdersReceiver");
 

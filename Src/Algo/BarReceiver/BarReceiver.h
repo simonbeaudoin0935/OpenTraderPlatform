@@ -3,10 +3,11 @@
 #include <QObject>
 
 #include "StreamBars.h"
+#include "StreamReceiver.h"
 
 Q_DECLARE_LOGGING_CATEGORY(BarReceiverLog)
 
-class BarReceiver : public QObject
+class BarReceiver : public StreamReceiver
 {
     Q_OBJECT
   public:
@@ -28,6 +29,12 @@ class BarReceiver : public QObject
 
   private slots:
     void onReceivedNewBar(Bar newBar);
+
+  protected:
+    [[nodiscard]] QPointer<Stream> getStreamBase() const override
+    {
+        return QPointer<Stream>(m_stream.data());
+    }
 
   private:
     void createBarStream();

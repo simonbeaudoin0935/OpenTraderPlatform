@@ -8,7 +8,8 @@
 #define LOGGING_CATEGORY PositionsReceiverLog
 Q_LOGGING_CATEGORY(PositionsReceiverLog, "PositionsReceiver");
 
-PositionsReceiver::PositionsReceiver(const QString& account, QObject* parent) : QObject(parent), m_account(account)
+PositionsReceiver::PositionsReceiver(const QString& account, QObject* parent)
+    : StreamReceiver(parent), m_account(account)
 {
     this->setObjectName("PositionReceiver");
 

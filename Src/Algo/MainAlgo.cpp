@@ -678,14 +678,8 @@ void MainAlgo::onReplayEndReached()
         {
             continue;
         }
-        if (auto stream = instrument->barReceiver.getStream())
-        {
-            stream->pauseHeartbeat();
-        }
-        if (auto stream = instrument->marketDepthQuoteReceiver.getStream())
-        {
-            stream->pauseHeartbeat();
-        }
+        instrument->barReceiver.pauseHeartbeat();
+        instrument->marketDepthQuoteReceiver.pauseHeartbeat();
     }
 }
 
@@ -832,6 +826,14 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
 
     // Start in paused state - emit first bar then pause
     m_replayEngine->startReplayPaused(p_date, p_startTime, p_speed);
+
+    // Pause heartbeat timers since we're starting in paused state
+    for (auto& instrument: stockInstruments)
+    {
+        OBJ_ASSUME_FALSE(instrument.isNull());
+        instrument->barReceiver.pauseHeartbeat();
+        instrument->marketDepthQuoteReceiver.pauseHeartbeat();
+    }
 }
 
 void MainAlgo::exitReplayMode()
@@ -854,15 +856,8 @@ void MainAlgo::pauseReplay()
     for (auto& instrument: stockInstruments)
     {
         OBJ_ASSUME_FALSE(instrument.isNull());
-
-        if (auto stream = instrument->barReceiver.getStream())
-        {
-            stream->pauseHeartbeat();
-        }
-        if (auto stream = instrument->marketDepthQuoteReceiver.getStream())
-        {
-            stream->pauseHeartbeat();
-        }
+        instrument->barReceiver.pauseHeartbeat();
+        instrument->marketDepthQuoteReceiver.pauseHeartbeat();
     }
 }
 
@@ -874,18 +869,9 @@ void MainAlgo::resumeReplay()
     // Resume heartbeat timers on ALL streams before resuming replay
     for (auto& instrument: stockInstruments)
     {
-        if (instrument.isNull())
-        {
-            continue;
-        }
-        if (auto stream = instrument->barReceiver.getStream())
-        {
-            stream->resumeHeartbeat();
-        }
-        if (auto stream = instrument->marketDepthQuoteReceiver.getStream())
-        {
-            stream->resumeHeartbeat();
-        }
+        OBJ_ASSUME_FALSE(instrument.isNull());
+        instrument->barReceiver.resumeHeartbeat();
+        instrument->marketDepthQuoteReceiver.resumeHeartbeat();
     }
 
     m_replayEngine->resumeReplay();

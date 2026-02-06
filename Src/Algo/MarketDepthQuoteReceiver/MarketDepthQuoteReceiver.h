@@ -2,12 +2,13 @@
 
 #include <QObject>
 
-#include "StreamMarketDepthQuote.h"
 #include "Assume.h"
+#include "StreamMarketDepthQuote.h"
+#include "StreamReceiver.h"
 
 Q_DECLARE_LOGGING_CATEGORY(MarketDepthQuoteReceiverLog)
 
-class MarketDepthQuoteReceiver : public QObject
+class MarketDepthQuoteReceiver : public StreamReceiver
 {
     Q_OBJECT
   public:
@@ -54,6 +55,12 @@ class MarketDepthQuoteReceiver : public QObject
 
   private slots:
     void onReceivedNewMarketDepthQuote(MarketDepthQuote marketDepthQuote);
+
+  protected:
+    [[nodiscard]] QPointer<Stream> getStreamBase() const override
+    {
+        return QPointer<Stream>(m_stream.data());
+    }
 
   private:
     void createMarketDepthQuoteStream();
