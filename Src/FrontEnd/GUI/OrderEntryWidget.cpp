@@ -154,12 +154,13 @@ void OrderEntryWidget::setupUI()
 
     m_stickyCheckBox->setToolTip("Enable auto-update limit price from market depth");
 
-    // Create horizontal layout for limit price and sticky checkbox
+    // Create horizontal layout for limit price and sticky checkbox with label
     QWidget* limitPriceWidget = new QWidget(this);
     QHBoxLayout* limitPriceLayout = new QHBoxLayout(limitPriceWidget);
     limitPriceLayout->setContentsMargins(0, 0, 0, 0);
     limitPriceLayout->setSpacing(8);
     limitPriceLayout->addWidget(m_limitPriceInput);
+    limitPriceLayout->addWidget(new QLabel("Sticky:"));
     limitPriceLayout->addWidget(m_stickyCheckBox);
     limitPriceLayout->addStretch(); // Push everything to the left
 
@@ -184,8 +185,8 @@ void OrderEntryWidget::setupUI()
     m_stickyOffsetInput->setFixedWidth(65);
 
     // Create horizontal layout for sticky controls
-    QWidget* stickyWidget = new QWidget(this);
-    QHBoxLayout* stickyLayout = new QHBoxLayout(stickyWidget);
+    m_stickyControlsWidget = new QWidget(this);
+    QHBoxLayout* stickyLayout = new QHBoxLayout(m_stickyControlsWidget);
     stickyLayout->setContentsMargins(0, 0, 0, 0);
     stickyLayout->setSpacing(4);
     stickyLayout->addWidget(m_aggressiveRadio);
@@ -193,7 +194,10 @@ void OrderEntryWidget::setupUI()
     stickyLayout->addWidget(m_stickyOffsetInput);
     stickyLayout->addStretch(); // Push everything to the left
 
-    formLayout->addRow("Mode/Offset:", stickyWidget);
+    formLayout->addRow("Mode/Offset:", m_stickyControlsWidget);
+
+    // Initially disable sticky controls since sticky is off by default
+    m_stickyControlsWidget->setEnabled(false);
 
     // Stop Price
     m_stopPriceInput->setMinimum(0.01);
@@ -842,6 +846,10 @@ void OrderEntryWidget::onCancelAllConfirmationCheckBoxToggled(bool checked)
 void OrderEntryWidget::onStickyCheckBoxToggled(bool checked)
 {
     m_stickyEnabled = checked;
+
+    // Enable/disable the mode and offset controls based on sticky state
+    m_stickyControlsWidget->setEnabled(checked);
+
     if (checked)
     {
         updateStickyPrice();
