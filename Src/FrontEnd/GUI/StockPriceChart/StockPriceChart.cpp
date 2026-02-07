@@ -519,6 +519,21 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         Q_UNREACHABLE();
         break;
 
+
+        /*
+ okay, we are going to plan for the fix of the following issue. the background you need to know before is that its possible in life to have no candles for a minute for a stock. it
+  happens all the time with stocks that are quiet or also when in pre or after market. When I fetch historical bars for a range, then its very likely to have simply less bars back than
+  what was requested. To figure out which minute does not have a candle, i go through the returned candles and just figure out the missing minutes, and create a Null bar for that minute.
+  The reason my code has the notion of Null bars Bar objects is because for me its easier to store days of bars in memory, just a vector or bars. if the API did not send a bar, we create
+  one for ourselves that represent the lack of bar simply put. I believe this will also make my live easier for running strategies and have the strategy go over each minute, even if
+  nothing happened for that minute. Anyway, that being said, the problem I have now is that this works for fetching past bars, but when it comes to forward looking bars - future bars -
+  then the stream of bars will simply not send anything, it doesnt sent a "Null" bar to us, thats a construct on our side. The notable effect of this is causes offsetting in the chart
+  between the time linw which moves forward steadily every second, and the bars being drawn. For every minute were there was no trades and no bars received, we accumulate an offset of one
+  bar beween the line and the last drawn bar. Thats because the bars are added one after the other. I think that what we need to do is that anytime we
+
+*/
+
+
     case Bar::BarStatus::Closed:
     {
         if (startedReceivingRealtimeBars)
