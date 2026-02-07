@@ -108,20 +108,38 @@ void PositionsReceiver::onReceivedNewPosition(Position position)
     qCDebug(PositionsReceiverLog).noquote()
         << "New position for account (" << m_account << ") : " << position.toJsonString();
 
+    QString positionID = position.getPositionID();
+    QDateTime currentTime = QDateTime::currentDateTime();
+
+    // Parse quantity to check if position is at 0
+    bool quantityIsZero = (position.getQuantity().toDouble() == 0.0);
+
     // Check if this is a new position or an update
-    bool positionExistsInDB = m_database->positionExists(position.getPositionID());
+    bool positionExistsInDB = m_database->positionExists(positionID);
 
     if (!positionExistsInDB)
     {
-        // New position - insert into database
-        m_database->insertPosition(position);
-        DEBUG << "Stored new position" << position.getPositionID() << "in database";
+        // New position - insert into database with opened time
+        QDateTime openedTime = currentTime;
+        m_positionOpenedTimes[positionID] = openedTime;
+        m_database->insertPosition(position, openedTime);
+        DEBUG << "Stored new position" << positionID << "in database, opened at" << openedTime.toString(Qt::ISODate);
     }
     else
     {
         // Existing position - update in database
-        m_database->updatePosition(position);
-        DEBUG << "Updated position" << position.getPositionID() << "in database";
+        // If quantity is now 0, set the closed datetime
+        std::optional<QDateTime> closedTime;
+        if (quantityIsZero)
+        {
+            closedTime = currentTime;
+            DEBUG << "Position" << positionID << "closed at" << currentTime.toString(Qt::ISODate);
+            // Remove from tracking map as position is closed
+            m_positionOpenedTimes.remove(positionID);
+        }
+
+        m_database->updatePosition(position, closedTime);
+        DEBUG << "Updated position" << positionID << "in database";
     }
 
     emit receivedNewPosition(m_account, position);

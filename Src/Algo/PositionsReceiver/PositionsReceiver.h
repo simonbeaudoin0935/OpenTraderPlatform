@@ -44,6 +44,7 @@ class PositionsReceiver : public StreamReceiver
     QString m_account;
     QPointer<PositionsDatabase> m_database = nullptr;
     bool m_receivedEndSnapshot = false;
+    QMap<QString, QDateTime> m_positionOpenedTimes; // Track when positions were first opened
 
     void createPositionsStream();
 };

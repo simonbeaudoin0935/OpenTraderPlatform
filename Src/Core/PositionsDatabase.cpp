@@ -84,7 +84,7 @@ void PositionsDatabase::createTable()
     }
 }
 
-bool PositionsDatabase::insertPosition(const Position& p_position)
+bool PositionsDatabase::insertPosition(const Position& p_position, const QDateTime& p_openedDateTime)
 {
     QSqlQuery query(m_db);
 
@@ -124,6 +124,19 @@ bool PositionsDatabase::insertPosition(const Position& p_position)
 
     query.addBindValue(p_position.getTimestamp().toString(Qt::ISODate));
 
+    // Add opened datetime
+    if (p_openedDateTime.isValid())
+    {
+        query.addBindValue(p_openedDateTime.toString(Qt::ISODate));
+    }
+    else
+    {
+        query.addBindValue(QVariant()); // NULL value for SQL
+    }
+
+    // Closed datetime is NULL on insert (position just opened)
+    query.addBindValue(QVariant());
+
     // Store the full position as JSON for easy reconstruction
     query.addBindValue(p_position.toJsonString());
 
@@ -137,7 +150,7 @@ bool PositionsDatabase::insertPosition(const Position& p_position)
     return true;
 }
 
-bool PositionsDatabase::updatePosition(const Position& p_position)
+bool PositionsDatabase::updatePosition(const Position& p_position, std::optional<QDateTime> p_closedDateTime)
 {
     QSqlQuery query(m_db);
 
@@ -155,6 +168,16 @@ bool PositionsDatabase::updatePosition(const Position& p_position)
     query.addBindValue(p_position.getAsk());
     query.addBindValue(p_position.isDeleted() ? 1 : 0);
     query.addBindValue(p_position.getTimestamp().toString(Qt::ISODate));
+
+    // Add closed datetime if provided
+    if (p_closedDateTime.has_value() && p_closedDateTime.value().isValid())
+    {
+        query.addBindValue(p_closedDateTime.value().toString(Qt::ISODate));
+    }
+    else
+    {
+        query.addBindValue(QVariant()); // NULL value for SQL
+    }
 
     // Store the full position as JSON
     query.addBindValue(p_position.toJsonString());

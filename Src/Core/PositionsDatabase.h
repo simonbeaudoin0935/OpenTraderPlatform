@@ -6,6 +6,7 @@
 #include <QDateTime>
 #include <QMap>
 #include <QLoggingCategory>
+#include <optional>
 
 #include "Position.h"
 
@@ -41,16 +42,18 @@ class PositionsDatabase : public QObject
     /**
      * @brief Insert a new position into the database
      * @param p_position The position to insert
+     * @param p_openedDateTime The datetime when the position was opened (optional, defaults to current time)
      * @return true if successful, false otherwise
      */
-    bool insertPosition(const Position& p_position);
+    bool insertPosition(const Position& p_position, const QDateTime& p_openedDateTime = QDateTime::currentDateTime());
 
     /**
      * @brief Update an existing position in the database
      * @param p_position The position to update
+     * @param p_closedDateTime The datetime when the position was closed to 0 shares (optional, only set when quantity is 0)
      * @return true if successful, false otherwise
      */
-    bool updatePosition(const Position& p_position);
+    bool updatePosition(const Position& p_position, std::optional<QDateTime> p_closedDateTime = std::nullopt);
 
     /**
      * @brief Check if a position exists in the database

@@ -29,6 +29,8 @@ namespace PositionsDatabaseQueries
                                            "deleted INTEGER NOT NULL DEFAULT 0, "
                                            "expiration_date TEXT, "
                                            "timestamp TEXT NOT NULL, "
+                                           "opened_datetime TEXT, "
+                                           "closed_datetime TEXT, "
                                            "json_data TEXT NOT NULL, "
                                            "PRIMARY KEY (position_id, timestamp)"
                                            ")";
@@ -40,14 +42,14 @@ namespace PositionsDatabaseQueries
         "unrealized_profit_loss_percent, todays_profit_loss, long_short, asset_type, "
         "bid, ask, conversion_rate, day_trade_requirement, initial_requirement, "
         "maintenance_margin, unrealized_profit_loss_qty, deleted, expiration_date, "
-        "timestamp, json_data"
-        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        "timestamp, opened_datetime, closed_datetime, json_data"
+        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     const QString UPDATE_POSITION = "UPDATE positions SET "
                                     "quantity = ?, average_price = ?, last = ?, mark_to_market_price = ?, "
                                     "market_value = ?, total_cost = ?, unrealized_profit_loss = ?, "
                                     "unrealized_profit_loss_percent = ?, todays_profit_loss = ?, "
-                                    "bid = ?, ask = ?, deleted = ?, timestamp = ?, json_data = ? "
+                                    "bid = ?, ask = ?, deleted = ?, timestamp = ?, closed_datetime = ?, json_data = ? "
                                     "WHERE position_id = ?";
 
     const QString SELECT_POSITION_EXISTS = "SELECT COUNT(*) FROM positions WHERE position_id = ?";
