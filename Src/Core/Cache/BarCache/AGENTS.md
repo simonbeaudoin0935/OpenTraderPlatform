@@ -60,16 +60,16 @@ The BarCache system provides efficient two-tier (memory + disk) caching for hist
 ```cpp
 class Bar {
     QDateTime m_timestamp;      // 8 bytes (Unix timestamp + timezone)
-    
+
     // OHLC as float (sufficient precision for stock prices)
     float m_open;               // 4 bytes
     float m_high;               // 4 bytes
     float m_low;                // 4 bytes
     float m_close;              // 4 bytes
-    
+
     qint64 m_totalVolume;       // 8 bytes
     int m_tradeCount;           // 4 bytes
-    
+
     // Bit-packed flags (1 byte total)
     quint8 m_isRealTime : 1;
     quint8 m_isEndOfDay : 1;
@@ -80,7 +80,7 @@ class Bar {
 
 **Memory Optimization**:
 - Before: ~152 bytes per bar
-- After: ~104 bytes per bar  
+- After: ~104 bytes per bar
 - **32% reduction**
 - Impact: For 10,000 bars, saves ~480 KB per symbol
 
@@ -135,14 +135,14 @@ All SQL defined in `Src/SQL/` headers:
 class BarCache {
     mutable QReadWriteLock m_barCacheRwLock;
     mutable QMap<QDate, QVector<Bar>> m_barCacheByDay;
-    
+
 public:
     // Multiple readers can access simultaneously
     QVector<Bar> getBarsForDay(const QDate& date) const {
         QReadLocker locker(&m_barCacheRwLock);
         return m_barCacheByDay.value(date);
     }
-    
+
     // Writers get exclusive access
     void addBar(const Bar& bar) {
         QWriteLocker locker(&m_barCacheRwLock);
@@ -169,13 +169,13 @@ Each BarCache instance has its own DatabaseThread:
 class BarCache {
     DatabaseThread* m_databaseThread;  // Owned, runs async DB ops
     QThread m_dbThread;                // Stack-allocated thread
-    
+
     BarCache(const QString& symbol, const QString& timeframe) {
         m_databaseThread = new DatabaseThread(symbol, timeframe);
         m_databaseThread->moveToThread(&m_dbThread);
         m_dbThread.start();
     }
-    
+
     ~BarCache() {
         m_dbThread.quit();
         if (!m_dbThread.wait(5000)) {
@@ -253,16 +253,16 @@ When streaming live bars:
 class BarCache {
     QPointer<StreamBars> m_stream;  // Auto-null when stream closes
     std::unique_ptr<LiveStreamDB> m_liveStreamDB;  // Persists stream data
-    
+
     void startStreaming(const QString& symbol, const QString& interval) {
         // Create stream
         m_stream = TSClient::getInstance().createStreamBars(symbol, interval);
-        
+
         // Create persistence
         m_liveStreamDB = std::make_unique<LiveStreamDB>(symbol, interval);
-        
+
         // Connect signals
-        connect(m_stream, &StreamBars::barReceived, this, 
+        connect(m_stream, &StreamBars::barReceived, this,
                 [this](const Bar& bar) {
                     addBar(bar);                  // Add to memory cache
                     m_liveStreamDB->storeBar(bar); // Persist to database
@@ -285,7 +285,7 @@ class BarCache {
 ```cpp
 QVector<Bar> getBarsForDateRange(const QDate& start, const QDate& end) {
     QVector<Bar> result;
-    
+
     // Try memory cache first
     {
         QReadLocker locker(&m_barCacheRwLock);
@@ -298,7 +298,7 @@ QVector<Bar> getBarsForDateRange(const QDate& start, const QDate& end) {
             }
         }
     }
-    
+
     return result;
 }
 ```
@@ -309,15 +309,15 @@ When receiving bars from API or database:
 ```cpp
 void mergeBarsIntoCache(const QVector<Bar>& newBars) {
     QWriteLocker locker(&m_barCacheRwLock);
-    
+
     for (const Bar& bar : newBars) {
         QDate date = bar.timestamp().date();
         QVector<Bar>& dayBars = m_barCacheByDay[date];
-        
+
         // Check for duplicates (by timestamp)
         if (!containsBarWithTimestamp(dayBars, bar.timestamp())) {
             dayBars.append(bar);
-            std::sort(dayBars.begin(), dayBars.end(), 
+            std::sort(dayBars.begin(), dayBars.end(),
                      [](const Bar& a, const Bar& b) {
                          return a.timestamp() < b.timestamp();
                      });
@@ -379,7 +379,7 @@ if (!db.open()) {
 ### Stream Errors
 
 ```cpp
-connect(m_stream, &StreamBars::errorOccurred, this, 
+connect(m_stream, &StreamBars::errorOccurred, this,
         [this](const QString& error) {
             qCWarning() << "Stream error:" << error;
             // Attempt reconnection or notify user
@@ -433,7 +433,7 @@ Settings::getValue("BarCache/EnablePersistence", true); // DB enabled
 Configurable via settings or environment:
 ```cpp
 QString dbPath = Settings::getValue(
-    "BarCache/DatabasePath", 
+    "BarCache/DatabasePath",
     QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/bars"
 );
 ```

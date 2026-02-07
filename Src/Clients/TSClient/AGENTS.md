@@ -143,22 +143,22 @@ Tracking prevents:
 All REST requests follow this pattern:
 
 ```cpp
-void TSClient::someAPICall(QString param, 
+void TSClient::someAPICall(QString param,
                            std::function<void(bool, QJsonDocument)> callback) {
     // Build request
     QNetworkRequest request;
     request.setUrl(QUrl(TSClientEndpoints::SOME_ENDPOINT));
     request.setRawHeader("Authorization", "Bearer " + accessToken);
-    
+
     // Track request
     QString requestId = QUuid::createUuid().toString();
     AsyncRequest tracking = {requestId, callback, createTimeout(), TYPE, now()};
     m_asyncRequests.insert(requestId, tracking);
-    
+
     // Send request
     QNetworkReply* reply = m_networkManager->get(request);
     reply->setProperty("requestId", requestId);
-    
+
     // Connect completion handler
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         handleAsyncReplyFinished(reply);
@@ -175,12 +175,12 @@ class StreamBars : public QObject {
     // Created in TSClient thread
     // Manages WebSocket connection
     // Emits signals for data
-    
+
 signals:
     void barReceived(const Bar& bar);
     void errorOccurred(const QString& error);
     void streamClosed();
-    
+
 public slots:
     void start();        // Begin streaming
     void stop();         // Gracefully close
@@ -200,13 +200,13 @@ public slots:
 signals:
     // Authentication
     void authStateChanged(bool authenticated, QString reason);
-    
+
     // Data usage tracking
     void totalDataReceivedBytesIncreased(qsizetype bytesIncrease);
-    
+
     // Stream tracking
     void openStreamCountChanged(int count);
-    
+
     // Error reporting
     void errorOccurred(const QString& error);
 ```
@@ -219,7 +219,7 @@ signals:
 // From any thread (usually MainAlgo)
 TSClient& client = TSClient::getInstance();
 
-client.getBars(symbol, interval, startDate, endDate, 
+client.getBars(symbol, interval, startDate, endDate,
     [this](bool success, const QJsonDocument& response) {
         if (success) {
             // Parse response

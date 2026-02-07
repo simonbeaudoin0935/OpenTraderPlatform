@@ -78,7 +78,6 @@ class OrderEntryWidget : public QWidget
     [[nodiscard]] bool validateInputs();
     [[nodiscard]] PlaceOrderRequest buildOrderRequest();
     void updateStickyPrice();
-    void flashLimitPriceInput();
 
     // UI Components
     QLabel* m_headerLabel;
@@ -105,6 +104,7 @@ class OrderEntryWidget : public QWidget
     QRadioButton* m_passiveRadio;
     QButtonGroup* m_stickyModeGroup;
     QDoubleSpinBox* m_stickyOffsetInput;
+    QWidget* m_stickyControlsWidget; // Container for mode/offset to enable/disable as a group
 
     // Settings menu
     QToolButton* m_settingsButton;

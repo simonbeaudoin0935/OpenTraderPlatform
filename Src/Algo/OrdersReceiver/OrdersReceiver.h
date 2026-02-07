@@ -47,11 +47,8 @@ class OrdersReceiver : public StreamReceiver
     // Track orders for the initial snapshot validation
     QMap<QString, QDateTime> m_snapshotOrders; // orderID -> received time
 
-    // Cache of loaded orders with their timestamps
-    QMap<QString,
-         std::tuple<QDateTime,
-                    std::optional<QDateTime>>>
-        m_loadedOrderTimes; // orderID -> (receivedTime, filledTime)
+    // Cache of loaded order latencies from database
+    QMap<QString, std::optional<qint64>> m_loadedLatencies; // orderID -> latencyMs
 
     void createOrdersStream();
     void validateSnapshotOrders();

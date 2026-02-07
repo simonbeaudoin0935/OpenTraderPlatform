@@ -21,9 +21,9 @@ public:
         static MainAlgo instance;
         return instance;
     }
-    
+
     Q_DISABLE_COPY_MOVE(MainAlgo)
-    
+
 private:
     MainAlgo();  // Private constructor
     ~MainAlgo(); // Private destructor
@@ -85,15 +85,15 @@ class MainAlgo {
     // Per-symbol instruments
     QMap<QString, StockInstruments*> m_stockInstruments;
     QString m_currentlyDisplayedSymbol;
-    
+
     // Receivers
     std::unique_ptr<PositionsReceiver> m_positionReceiver;
     std::unique_ptr<OrdersReceiver> m_orderReceiver;
-    
+
     // Balance polling
     QTimer* m_balancePollingTimer;
     Balance m_currentBalance;
-    
+
     // Account management
     QVector<Account> m_tradeStationAccounts;
     QString m_selectedAccountId;
@@ -108,17 +108,17 @@ signals:
     // Account and balance
     void tradeStationAccountsReceived(const QVector<Account>& accounts);
     void balanceUpdated(const Balance& balance);
-    
+
     // Market data for displayed stock
     void displayedStockReceivedNewBar(const QString& symbol, const Bar& bar);
     void displayedStockReceivedNewMarketDepthQuote(
-        const QString& symbol, 
+        const QString& symbol,
         const MarketDepthQuote& quote,
-        double dwp, 
-        double bidTotalVol, 
+        double dwp,
+        double bidTotalVol,
         double askTotalVol
     );
-    
+
     // Trading events
     void receivedNewPosition(const QString& accountId, const Position& position);
     void positionDeleted(const QString& accountId, const QString& positionId);
@@ -130,16 +130,16 @@ signals:
 public slots:
     // Authentication
     void onAuthStateChanged(bool authenticated);
-    
+
     // Stock selection
     void onSelectDisplayedStock(const QString& symbol);
-    
+
     // Order placement
     void onPlaceOrder(const PlaceOrderRequest& request);
-    
+
     // Data requests
-    void onRequestMissingBars(const QString& symbol, 
-                             const QDateTime& start, 
+    void onRequestMissingBars(const QString& symbol,
+                             const QDateTime& start,
                              const QDateTime& end);
 ```
 
@@ -153,11 +153,11 @@ class StockInstruments : public QObject {
 private:
     QString m_symbol;
     QString m_timeframe;
-    
+
     // Direct member objects (composition)
     BarCache m_barCache;
     MarketDepthQuoteReceiver m_marketDepthQuoteReceiver;
-    
+
     // Future: Run-up detection, indicators, etc.
 };
 ```
@@ -213,7 +213,7 @@ bool isValidBar(const Bar& bar) {
 **Metrics Calculation**:
 ```cpp
 // Depth-Weighted Price (buy pressure indicator)
-double dwp = (totalBidVolume - totalAskVolume) / 
+double dwp = (totalBidVolume - totalAskVolume) /
              (totalBidVolume + totalAskVolume);
 // DWP > 0: More buying pressure
 // DWP < 0: More selling pressure
@@ -421,13 +421,13 @@ Periodic balance updates:
 void MainAlgo::startBalancePolling(int intervalMs = 5000) {
     m_balancePollingTimer = new QTimer(this);
     m_balancePollingTimer->setInterval(intervalMs);
-    
+
     connect(m_balancePollingTimer, &QTimer::timeout, this, [this]() {
         if (TSClient::getInstance().isAuthenticated()) {
             requestBalanceUpdate();
         }
     });
-    
+
     m_balancePollingTimer->start();
 }
 ```
@@ -456,7 +456,7 @@ Settings::getValue("MainAlgo/EnablePositionTracking", true);
 
 Handle stream disconnections:
 ```cpp
-connect(stream, &StreamBars::errorOccurred, this, 
+connect(stream, &StreamBars::errorOccurred, this,
         [this, symbol](const QString& error) {
             qCWarning() << "Stream error for" << symbol << ":" << error;
             // Attempt reconnection or notify user
@@ -524,13 +524,13 @@ void GUIFrontend::onSymbolEntered(const QString& symbol) {
 // MainAlgo handles selection
 void MainAlgo::onSelectDisplayedStock(const QString& symbol) {
     m_currentlyDisplayedSymbol = symbol;
-    
+
     // Get or create instruments
     StockInstruments* instruments = getOrCreateInstruments(symbol);
-    
+
     // Start streaming if not already
     instruments->startStreaming();
-    
+
     // Load historical bars
     instruments->getBarCache().preloadBars();
 }
@@ -554,7 +554,7 @@ emit orderPlaced(request);
 
 // MainAlgo places via TSClient
 void MainAlgo::onPlaceOrder(const PlaceOrderRequest& request) {
-    TSClient::getInstance().placeOrder(request, 
+    TSClient::getInstance().placeOrder(request,
         [this](bool success, const QString& orderId) {
             if (success) {
                 qCInfo() << "Order placed:" << orderId;

@@ -35,21 +35,21 @@ For complete documentation, see `Doc/STRATEGY.md`.
 class StrategyManager : public QObject {
 public:
     static StrategyManager& getInstance();
-    
+
     // Plugin management
     bool loadStrategy(const QString& pluginPath);
     void unloadStrategy(const QString& strategyId);
     void unloadAllStrategies();
-    
+
     // Strategy control
     bool startStrategy(const QString& strategyId);
     void stopStrategy(const QString& strategyId);
     void stopAllStrategies();
-    
+
     // Query
     QVector<QString> getLoadedStrategyIds() const;
     StrategyStatus getStrategyStatus(const QString& strategyId) const;
-    
+
 signals:
     // Strategy events
     void strategyLoaded(const QString& strategyId, const QString& name);
@@ -58,7 +58,7 @@ signals:
     void strategyStopped(const QString& strategyId);
     void strategyError(const QString& strategyId, const QString& error);
     void strategyCrashed(const QString& strategyId, const QString& reason);
-    
+
     // Strategy outputs
     void strategyLog(const QString& strategyId, const QString& message);
     void strategyMetric(const QString& strategyId, const QString& name, double value);
@@ -77,16 +77,16 @@ class StrategyBase : public QObject {
 public:
     explicit StrategyBase(StrategySDK* sdk, QObject* parent = nullptr);
     virtual ~StrategyBase() = default;
-    
+
     // Lifecycle (pure virtual - must implement)
     virtual void onStart() = 0;
     virtual void onStop() = 0;
-    
+
     // Metadata (pure virtual - must implement)
     virtual QString getName() const = 0;
     virtual QString getVersion() const = 0;
     virtual QString getDescription() const = 0;
-    
+
     // Optional overrides
     virtual void onBar(const QString& symbol, const Bar& bar) {}
     virtual void onPosition(const Position& position) {}
@@ -117,34 +117,34 @@ protected:
 class StrategySDK {
 public:
     // Market data access
-    QVector<Bar> getBars(const QString& symbol, 
+    QVector<Bar> getBars(const QString& symbol,
                         const QString& interval,
                         const QDateTime& start,
                         const QDateTime& end);
-    
+
     Bar getLatestBar(const QString& symbol, const QString& interval);
-    
+
     QVector<Position> getPositions(const QString& accountId);
     QVector<Order> getOrders(const QString& accountId);
     Balance getBalance(const QString& accountId);
-    
+
     // Data subscription
     void subscribeToSymbol(const QString& symbol, const QString& interval);
     void unsubscribeFromSymbol(const QString& symbol, const QString& interval);
-    
+
     // Order management
     QString placeOrder(const PlaceOrderRequest& request);
     bool cancelOrder(const QString& orderId);
     bool modifyOrder(const QString& orderId, const ModifyOrderRequest& request);
-    
+
     // Account info
     QVector<Account> getAccounts();
     QString getSelectedAccountId();
-    
+
     // Utilities
     bool isMarketOpen();
     QDateTime getMarketTime();
-    
+
     // Settings (strategy-specific)
     void setSetting(const QString& key, const QVariant& value);
     QVariant getSetting(const QString& key, const QVariant& defaultValue = QVariant());
@@ -172,19 +172,19 @@ public:
 void StrategySignalHandler::handleSignal(int signal) {
     // Log crash
     qCCritical() << "Strategy crashed with signal:" << signal;
-    
+
     // Generate backtrace
     void* buffer[100];
     int size = backtrace(buffer, 100);
     char** symbols = backtrace_symbols(buffer, size);
-    
+
     for (int i = 0; i < size; i++) {
         qCCritical() << symbols[i];
     }
-    
+
     // Notify manager
     emit strategyCrashed(getCurrentStrategyId(), "Signal: " + QString::number(signal));
-    
+
     // Don't terminate entire application
     // Strategy thread will be cleaned up
 }
@@ -267,18 +267,18 @@ class MyStrategy : public StrategyBase {
 
 public:
     explicit MyStrategy(StrategySDK* sdk, QObject* parent = nullptr);
-    
+
     // Required implementations
     void onStart() override;
     void onStop() override;
-    
+
     QString getName() const override { return "My Strategy"; }
     QString getVersion() const override { return "1.0.0"; }
     QString getDescription() const override { return "Example strategy"; }
-    
+
     // Optional overrides
     void onBar(const QString& symbol, const Bar& bar) override;
-    
+
 private:
     // Strategy state
     QString m_symbol;
@@ -300,19 +300,19 @@ MyStrategy::MyStrategy(StrategySDK* sdk, QObject* parent)
 
 void MyStrategy::onStart() {
     emit log("Strategy starting");
-    
+
     // Subscribe to symbol
     m_sdk->subscribeToSymbol(m_symbol, "1min");
-    
+
     // Load settings
     m_positionSize = m_sdk->getSetting("positionSize", 100.0).toDouble();
 }
 
 void MyStrategy::onBar(const QString& symbol, const Bar& bar) {
     if (symbol != m_symbol) return;
-    
+
     emit log(QString("Received bar: %1").arg(bar.close()));
-    
+
     // Strategy logic here
     if (shouldBuy(bar)) {
         PlaceOrderRequest request;
@@ -337,7 +337,7 @@ extern "C" {
     StrategyBase* createStrategy(StrategySDK* sdk) {
         return new MyStrategy(sdk);
     }
-    
+
     void destroyStrategy(StrategyBase* strategy) {
         delete strategy;
     }
@@ -431,13 +431,13 @@ if (!createFunc) {
 void StrategyManager::handleStrategyError(const QString& strategyId,
                                          const QString& error) {
     qCWarning() << "Strategy error:" << strategyId << error;
-    
+
     // Mark as error state
     m_strategies[strategyId].status = StrategyStatus::ERROR;
-    
+
     // Notify UI
     emit strategyError(strategyId, error);
-    
+
     // Optional: Auto-stop strategy
     stopStrategy(strategyId);
 }
@@ -448,17 +448,17 @@ void StrategyManager::handleStrategyError(const QString& strategyId,
 ```cpp
 void StrategyManager::handleStrategyCrash(const QString& strategyId) {
     qCCritical() << "Strategy crashed:" << strategyId;
-    
+
     // Mark as crashed
     m_strategies[strategyId].status = StrategyStatus::CRASHED;
-    
+
     // Stop strategy thread
     m_strategies[strategyId].thread->quit();
     m_strategies[strategyId].thread->wait();
-    
+
     // Notify UI
     emit strategyCrashed(strategyId, "Segmentation fault");
-    
+
     // Optional: Offer to restart
     // restartStrategy(strategyId);
 }
@@ -497,12 +497,12 @@ Test strategy logic independently:
 TEST(MyStrategy, BuysOnCondition) {
     MockStrategySDK mockSdk;
     MyStrategy strategy(&mockSdk);
-    
+
     strategy.onStart();
-    
+
     Bar bar = createTestBar(100.0);  // Price triggers buy
     strategy.onBar("AAPL", bar);
-    
+
     EXPECT_TRUE(mockSdk.orderPlaced());
 }
 ```

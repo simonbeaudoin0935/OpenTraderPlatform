@@ -19,7 +19,7 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     , m_buyRadio(new QRadioButton("Buy", this))
     , m_buyToCoverRadio(new QRadioButton("Buy to Cover", this))
     , m_sellRadio(new QRadioButton("Sell", this))
-    , m_sellToCoverRadio(new QRadioButton("Sell to Cover", this))
+    , m_sellToCoverRadio(new QRadioButton("Sell Short", this))
     , m_tradeActionGroup(new QButtonGroup(this))
     , m_orderTypeCombo(new QComboBox(this))
     , m_quantityInput(new QSpinBox(this))
@@ -115,10 +115,10 @@ void OrderEntryWidget::setupUI()
     m_tradeActionGroup->addButton(m_buyRadio, static_cast<int>(TradeAction::Buy));
     m_tradeActionGroup->addButton(m_sellRadio, static_cast<int>(TradeAction::Sell));
     m_tradeActionGroup->addButton(m_buyToCoverRadio, static_cast<int>(TradeAction::BuyToCover));
-    m_tradeActionGroup->addButton(m_sellToCoverRadio, static_cast<int>(TradeAction::SellToClose));
+    m_tradeActionGroup->addButton(m_sellToCoverRadio, static_cast<int>(TradeAction::SellShort));
 
     // Arrange in 2x2 grid: Buy | Sell
-    //                      Buy to Cover | Sell to Cover
+    //                      Buy to Cover | Sell Short
     tradeActionLayout->addWidget(m_buyRadio, 0, 0);
     tradeActionLayout->addWidget(m_sellRadio, 0, 1);
     tradeActionLayout->addWidget(m_buyToCoverRadio, 1, 0);
@@ -129,24 +129,55 @@ void OrderEntryWidget::setupUI()
 
     formLayout->addRow(tradeActionGroup);
 
-    // Order Type
+    // Order Type and Quantity on same row
     m_orderTypeCombo->addItem("Market", static_cast<int>(OrderType::Type::Market));
     m_orderTypeCombo->addItem("Limit", static_cast<int>(OrderType::Type::Limit));
     m_orderTypeCombo->addItem("Stop Market", static_cast<int>(OrderType::Type::StopMarket));
     m_orderTypeCombo->addItem("Stop Limit", static_cast<int>(OrderType::Type::StopLimit));
     m_orderTypeCombo->setToolTip("Select order type");
-    formLayout->addRow("Order Type:", m_orderTypeCombo);
 
-    // Quantity
     m_quantityInput->setMinimum(1);
     m_quantityInput->setMaximum(999999);
     m_quantityInput->setValue(100);
     m_quantityInput->setToolTip("Number of shares");
-    formLayout->addRow("Quantity:", m_quantityInput);
 
-    // Sticky controls row (new row above limit price)
+    // Create horizontal layout for order type and quantity
+    QWidget* orderTypeQuantityWidget = new QWidget(this);
+    QHBoxLayout* orderTypeQuantityLayout = new QHBoxLayout(orderTypeQuantityWidget);
+    orderTypeQuantityLayout->setContentsMargins(0, 0, 0, 0);
+    orderTypeQuantityLayout->setSpacing(16);
+
+    orderTypeQuantityLayout->addWidget(new QLabel("Order Type:"));
+    orderTypeQuantityLayout->addWidget(m_orderTypeCombo);
+    orderTypeQuantityLayout->addWidget(new QLabel("Quantity:"));
+    orderTypeQuantityLayout->addWidget(m_quantityInput);
+    orderTypeQuantityLayout->addStretch();
+
+    formLayout->addRow(orderTypeQuantityWidget);
+
+    // Limit Price with Sticky checkbox on same line
+    m_limitPriceInput->setMinimum(0.01);
+    m_limitPriceInput->setMaximum(999999.99);
+    m_limitPriceInput->setDecimals(2);
+    m_limitPriceInput->setValue(0.00);
+    m_limitPriceInput->setPrefix("$ ");
+    m_limitPriceInput->setToolTip("Limit price for order");
+
     m_stickyCheckBox->setToolTip("Enable auto-update limit price from market depth");
 
+    // Create horizontal layout for limit price and sticky checkbox with label
+    QWidget* limitPriceWidget = new QWidget(this);
+    QHBoxLayout* limitPriceLayout = new QHBoxLayout(limitPriceWidget);
+    limitPriceLayout->setContentsMargins(0, 0, 0, 0);
+    limitPriceLayout->setSpacing(8);
+    limitPriceLayout->addWidget(m_limitPriceInput);
+    limitPriceLayout->addWidget(new QLabel("Sticky:"));
+    limitPriceLayout->addWidget(m_stickyCheckBox);
+    limitPriceLayout->addStretch(); // Push everything to the left
+
+    formLayout->addRow(m_limitPriceLabel, limitPriceWidget);
+
+    // Aggressive/Passive and offset on next line
     // Configure sticky mode radio buttons
     m_stickyModeGroup->addButton(m_aggressiveRadio, 0);
     m_stickyModeGroup->addButton(m_passiveRadio, 1);
@@ -165,27 +196,19 @@ void OrderEntryWidget::setupUI()
     m_stickyOffsetInput->setFixedWidth(65);
 
     // Create horizontal layout for sticky controls
-    QWidget* stickyWidget = new QWidget(this);
-    QHBoxLayout* stickyLayout = new QHBoxLayout(stickyWidget);
+    m_stickyControlsWidget = new QWidget(this);
+    QHBoxLayout* stickyLayout = new QHBoxLayout(m_stickyControlsWidget);
     stickyLayout->setContentsMargins(0, 0, 0, 0);
     stickyLayout->setSpacing(4);
-    stickyLayout->addWidget(m_stickyCheckBox);
     stickyLayout->addWidget(m_aggressiveRadio);
     stickyLayout->addWidget(m_passiveRadio);
     stickyLayout->addWidget(m_stickyOffsetInput);
     stickyLayout->addStretch(); // Push everything to the left
 
-    formLayout->addRow(m_stickyLabel, stickyWidget);
+    formLayout->addRow("Mode/Offset:", m_stickyControlsWidget);
 
-    // Limit Price row (now simplified, just the input)
-    m_limitPriceInput->setMinimum(0.01);
-    m_limitPriceInput->setMaximum(999999.99);
-    m_limitPriceInput->setDecimals(2);
-    m_limitPriceInput->setValue(0.00);
-    m_limitPriceInput->setPrefix("$ ");
-    m_limitPriceInput->setToolTip("Limit price for order");
-
-    formLayout->addRow(m_limitPriceLabel, m_limitPriceInput);
+    // Initially disable sticky controls since sticky is off by default
+    m_stickyControlsWidget->setEnabled(false);
 
     // Stop Price
     m_stopPriceInput->setMinimum(0.01);
@@ -423,10 +446,10 @@ void OrderEntryWidget::executeBuyToCoverOrder()
 
 void OrderEntryWidget::executeSellToCoverOrder()
 {
-    // Set trade action to Sell to Cover
+    // Set trade action to Sell Short
     m_sellToCoverRadio->setChecked(true);
     // Explicitly trigger the trade action change to update button appearance
-    onTradeActionChanged(static_cast<int>(TradeAction::SellToClose));
+    onTradeActionChanged(static_cast<int>(TradeAction::SellShort));
     // Submit the order
     onSubmitClicked();
 }
@@ -448,7 +471,6 @@ void OrderEntryWidget::onTradeActionChanged(int id)
     switch (action)
     {
     case TradeAction::Buy:
-    case TradeAction::BuyToCover:
         buttonText = "Buy";
         buttonStyle = "QPushButton {"
                       "   background-color: #28A745;" // Green
@@ -470,9 +492,52 @@ void OrderEntryWidget::onTradeActionChanged(int id)
                       "}";
         break;
 
+    case TradeAction::BuyToCover:
+        buttonText = "Buy to Cover";
+        buttonStyle = "QPushButton {"
+                      "   background-color: #28A745;" // Green
+                      "   color: #FFFFFF;"
+                      "   border: none;"
+                      "   border-radius: 4px;"
+                      "   padding: 8px;"
+                      "   font-weight: bold;"
+                      "}"
+                      "QPushButton:hover {"
+                      "   background-color: #218838;"
+                      "}"
+                      "QPushButton:pressed {"
+                      "   background-color: #1E7E34;"
+                      "}"
+                      "QPushButton:disabled {"
+                      "   background-color: #505050;"
+                      "   color: #888888;"
+                      "}";
+        break;
+
     case TradeAction::Sell:
-    case TradeAction::SellToClose:
         buttonText = "Sell";
+        buttonStyle = "QPushButton {"
+                      "   background-color: #DC3545;" // Red
+                      "   color: #FFFFFF;"
+                      "   border: none;"
+                      "   border-radius: 4px;"
+                      "   padding: 8px;"
+                      "   font-weight: bold;"
+                      "}"
+                      "QPushButton:hover {"
+                      "   background-color: #C82333;"
+                      "}"
+                      "QPushButton:pressed {"
+                      "   background-color: #BD2130;"
+                      "}"
+                      "QPushButton:disabled {"
+                      "   background-color: #505050;"
+                      "   color: #888888;"
+                      "}";
+        break;
+
+    case TradeAction::SellShort:
+        buttonText = "Sell Short";
         buttonStyle = "QPushButton {"
                       "   background-color: #DC3545;" // Red
                       "   color: #FFFFFF;"
@@ -834,6 +899,10 @@ void OrderEntryWidget::onCancelAllConfirmationCheckBoxToggled(bool checked)
 void OrderEntryWidget::onStickyCheckBoxToggled(bool checked)
 {
     m_stickyEnabled = checked;
+
+    // Enable/disable the mode and offset controls based on sticky state
+    m_stickyControlsWidget->setEnabled(checked);
+
     if (checked)
     {
         updateStickyPrice();
@@ -960,7 +1029,6 @@ void OrderEntryWidget::updateStickyPrice()
     case TradeAction::Sell:
     case TradeAction::SellShort:
     case TradeAction::SellToOpen:
-    case TradeAction::SellToClose:
         // Sell orders
         if (m_stickyAggressiveMode)
         {
@@ -990,18 +1058,5 @@ void OrderEntryWidget::updateStickyPrice()
     if (finalPrice > 0.0)
     {
         m_limitPriceInput->setValue(finalPrice);
-        flashLimitPriceInput();
     }
-}
-
-void OrderEntryWidget::flashLimitPriceInput()
-{
-    // Create a brief visual flash effect by temporarily changing the style
-    QString originalStyle = m_limitPriceInput->styleSheet();
-
-    // Apply a highlighted style (bright border)
-    m_limitPriceInput->setStyleSheet("QDoubleSpinBox { border: 2px solid #00FF00; background-color: #E8FFE8; }");
-
-    // Use a QTimer to restore the original style after a brief delay
-    QTimer::singleShot(150, this, [this, originalStyle]() { m_limitPriceInput->setStyleSheet(originalStyle); });
 }

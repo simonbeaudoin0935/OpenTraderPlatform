@@ -65,12 +65,12 @@ class MainApp : public QObject {
 class MemoryMonitor : public QObject {
     QTimer* m_timer;           // Polling timer
     qsizetype m_currentUsage;  // Last measured usage
-    
+
 public:
     void startMonitoring(int intervalMs = 500);
     void stopMonitoring();
     qsizetype getCurrentMemoryUsage() const;
-    
+
 signals:
     void memoryUsageUpdated(qsizetype bytes);
 };
@@ -191,7 +191,7 @@ CSV with columns: timestamp, open, high, low, close, volume
 
 MainApp uses dependency injection pattern:
 ```cpp
-MainApp::MainApp() 
+MainApp::MainApp()
     : m_tradeStationClient(TSClient::getInstance())  // Get singleton
     , m_mainAlgo(MainAlgo::getInstance())            // Get singleton
     , m_appFrontend(nullptr)                         // Create based on build
@@ -250,7 +250,7 @@ MainApp::~MainApp() {
     if (m_memoryMonitor) {
         m_memoryMonitor->stopMonitoring();
     }
-    
+
     // Close databases
     // Qt parent-child deletes m_memoryMonitor and m_appFrontend
 }

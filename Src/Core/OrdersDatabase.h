@@ -41,18 +41,18 @@ class OrdersDatabase : public QObject
     /**
      * @brief Insert a new order into the database
      * @param p_order The order to insert
-     * @param p_receivedTime When the order was first received
+     * @param p_latencyMs The ack/fill latency in milliseconds (nullopt if not yet known)
      * @return true if successful, false otherwise
      */
-    bool insertOrder(const Order& p_order, const QDateTime& p_receivedTime);
+    bool insertOrder(const Order& p_order, std::optional<qint64> p_latencyMs = std::nullopt);
 
     /**
      * @brief Update an existing order in the database
      * @param p_order The order to update
-     * @param p_filledTime When the order was filled (optional)
+     * @param p_latencyMs The ack/fill latency in milliseconds (nullopt to keep existing)
      * @return true if successful, false otherwise
      */
-    bool updateOrder(const Order& p_order, const std::optional<QDateTime>& p_filledTime = std::nullopt);
+    bool updateOrder(const Order& p_order, std::optional<qint64> p_latencyMs = std::nullopt);
 
     /**
      * @brief Check if an order exists in the database
@@ -63,9 +63,9 @@ class OrdersDatabase : public QObject
 
     /**
      * @brief Load all orders from the database
-     * @return Map of order ID to tuple of (Order, receivedTime, filledTime)
+     * @return Map of order ID to tuple of (Order, latencyMs)
      */
-    QMap<QString, std::tuple<Order, QDateTime, std::optional<QDateTime>>> loadAllOrders() const;
+    QMap<QString, std::tuple<Order, std::optional<qint64>>> loadAllOrders() const;
 
     /**
      * @brief Check if the database is open

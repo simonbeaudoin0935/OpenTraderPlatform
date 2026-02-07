@@ -34,7 +34,7 @@ public:
     void onTSClientDataUsageUpdate(qsizetype bytes) override;
     void onMemoryUsageUpdate(qsizetype bytes) override;
     void onStreamCountUpdate(int count) override;
-    
+
     // Not implemented (minimal TUI)
     void onTradeStationAccountsReceived(const QVector<Account>&) override {}
     void onCurrentHighlightedStockBarReceived(const QString&, const Bar&) override {}
@@ -43,25 +43,25 @@ public:
 
 private:
     MainAlgo* m_mainAlgo;
-    
+
     // ncurses windows
     WINDOW* m_ordersWindow;
     WINDOW* m_positionsWindow;
     WINDOW* m_statusWindow;
     WINDOW* m_helpWindow;
-    
+
     // Data storage
     QHash<QString, Order> m_orders;           // OrderID → Order
     QHash<QString, Position> m_positions;     // PositionID → Position
-    
+
     // Status metrics
     qsizetype m_dataUsage;
     qsizetype m_memoryUsage;
     int m_streamCount;
-    
+
     // Input handling
     QSocketNotifier* m_inputNotifier;
-    
+
     // Internal methods
     void setupNcurses();
     void cleanupNcurses();
@@ -118,7 +118,7 @@ void TUIFrontend::setupNcurses() {
     keypad(stdscr, TRUE);   // Enable function keys
     nodelay(stdscr, TRUE);  // Non-blocking getch()
     curs_set(0);            // Hide cursor
-    
+
     // Initialize colors if supported
     if (has_colors()) {
         start_color();
@@ -128,7 +128,7 @@ void TUIFrontend::setupNcurses() {
         init_pair(4, COLOR_YELLOW, COLOR_BLACK);  // Status
         init_pair(5, COLOR_CYAN, COLOR_BLACK);    // Help
     }
-    
+
     // Disable scrolling
     scrollok(stdscr, FALSE);
     idlok(stdscr, FALSE);
@@ -155,21 +155,21 @@ void TUIFrontend::cleanupNcurses() {
 void TUIFrontend::createWindows() {
     int height, width;
     getmaxyx(stdscr, height, width);
-    
+
     // Calculate heights
     int ordersHeight = height * 0.40;
     int positionsHeight = height * 0.40;
     int statusHeight = 2;
     int helpHeight = 1;
-    
+
     // Create windows (y, x, height, width)
     m_ordersWindow = newwin(ordersHeight, width, 0, 0);
     m_positionsWindow = newwin(positionsHeight, width, ordersHeight, 0);
-    m_statusWindow = newwin(statusHeight, width, 
+    m_statusWindow = newwin(statusHeight, width,
                            ordersHeight + positionsHeight, 0);
-    m_helpWindow = newwin(helpHeight, width, 
+    m_helpWindow = newwin(helpHeight, width,
                          ordersHeight + positionsHeight + statusHeight, 0);
-    
+
     // Disable scrolling per window
     scrollok(m_ordersWindow, FALSE);
     scrollok(m_positionsWindow, FALSE);
@@ -188,9 +188,9 @@ Integrate ncurses with Qt event loop:
 void TUIFrontend::initialize() {
     setupNcurses();
     createWindows();
-    
+
     // Monitor stdin for keyboard input
-    m_inputNotifier = new QSocketNotifier(STDIN_FILENO, 
+    m_inputNotifier = new QSocketNotifier(STDIN_FILENO,
                                          QSocketNotifier::Read, this);
     connect(m_inputNotifier, &QSocketNotifier::activated,
             this, &TUIFrontend::handleInput);
@@ -198,30 +198,30 @@ void TUIFrontend::initialize() {
 
 void TUIFrontend::handleInput() {
     int ch = getch();  // Non-blocking
-    
+
     if (ch == ERR) return;  // No input available
-    
+
     switch (ch) {
         case 'q':
         case 'Q':
             QCoreApplication::quit();
             break;
-            
+
         case 'r':
         case 'R':
             refreshDisplay();
             break;
-            
+
         case KEY_RESIZE:
             destroyWindows();
             createWindows();
             refreshDisplay();
             break;
-            
+
         case '?':
             // Show help (future)
             break;
-            
+
         default:
             // Ignore unknown keys
             break;
@@ -247,13 +247,13 @@ case KEY_RESIZE:
 ```cpp
 void TUIFrontend::drawOrders() {
     werase(m_ordersWindow);
-    
+
     // Draw header
     wattron(m_ordersWindow, COLOR_PAIR(1) | A_BOLD);
     mvwprintw(m_ordersWindow, 0, 0, "%-10s %-8s %-8s %-6s %-8s %-12s",
               "Order ID", "Symbol", "Action", "Qty", "Type", "Status");
     wattroff(m_ordersWindow, COLOR_PAIR(1) | A_BOLD);
-    
+
     // Draw orders
     int row = 1;
     for (const Order& order : m_orders) {
@@ -264,7 +264,7 @@ void TUIFrontend::drawOrders() {
                    order.status() == OrderStatus::Rejected) {
             wattron(m_ordersWindow, COLOR_PAIR(3));  // Red
         }
-        
+
         mvwprintw(m_ordersWindow, row, 0, "%-10s %-8s %-8s %-6d %-8s %-12s",
                   order.orderId().left(10).toStdString().c_str(),
                   order.symbol().toStdString().c_str(),
@@ -272,11 +272,11 @@ void TUIFrontend::drawOrders() {
                   order.quantity(),
                   orderTypeToString(order.orderType()).toStdString().c_str(),
                   orderStatusToString(order.status()).toStdString().c_str());
-        
+
         wattroff(m_ordersWindow, COLOR_PAIR(2) | COLOR_PAIR(3));
         row++;
     }
-    
+
     box(m_ordersWindow, 0, 0);
     wrefresh(m_ordersWindow);
 }
@@ -287,28 +287,28 @@ void TUIFrontend::drawOrders() {
 ```cpp
 void TUIFrontend::drawPositions() {
     werase(m_positionsWindow);
-    
+
     // Draw header
     wattron(m_positionsWindow, COLOR_PAIR(1) | A_BOLD);
     mvwprintw(m_positionsWindow, 0, 0, "%-8s %-6s %-10s %-10s %-10s %-8s",
               "Symbol", "Qty", "Avg Price", "Last Price", "P/L", "P/L %");
     wattroff(m_positionsWindow, COLOR_PAIR(1) | A_BOLD);
-    
+
     // Draw positions
     int row = 1;
     for (const Position& position : m_positions) {
-        double pnl = (position.lastPrice() - position.averagePrice()) * 
+        double pnl = (position.lastPrice() - position.averagePrice()) *
                      position.quantity();
-        double pnlPercent = (pnl / (position.averagePrice() * 
+        double pnlPercent = (pnl / (position.averagePrice() *
                                     position.quantity())) * 100.0;
-        
+
         // Color-code by P/L
         if (pnl > 0) {
             wattron(m_positionsWindow, COLOR_PAIR(2));  // Green
         } else if (pnl < 0) {
             wattron(m_positionsWindow, COLOR_PAIR(3));  // Red
         }
-        
+
         mvwprintw(m_positionsWindow, row, 0, "%-8s %6d $%9.2f $%9.2f $%9.2f %7.2f%%",
                   position.symbol().toStdString().c_str(),
                   position.quantity(),
@@ -316,11 +316,11 @@ void TUIFrontend::drawPositions() {
                   position.lastPrice(),
                   pnl,
                   pnlPercent);
-        
+
         wattroff(m_positionsWindow, COLOR_PAIR(2) | COLOR_PAIR(3));
         row++;
     }
-    
+
     box(m_positionsWindow, 0, 0);
     wrefresh(m_positionsWindow);
 }
@@ -331,23 +331,23 @@ void TUIFrontend::drawPositions() {
 ```cpp
 void TUIFrontend::drawStatus() {
     werase(m_statusWindow);
-    
+
     wattron(m_statusWindow, COLOR_PAIR(4));
-    
+
     // Line 1: Resource metrics
-    mvwprintw(m_statusWindow, 0, 0, 
+    mvwprintw(m_statusWindow, 0, 0,
               "Data: %.2f MB | Memory: %.2f MB | Streams: %d",
               m_dataUsage / (1024.0 * 1024.0),
               m_memoryUsage / (1024.0 * 1024.0),
               m_streamCount);
-    
+
     // Line 2: Connection status
     bool authenticated = TSClient::getInstance().isAuthenticated();
-    mvwprintw(m_statusWindow, 1, 0, 
+    mvwprintw(m_statusWindow, 1, 0,
               "Auth: %s | Last Update: %s",
               authenticated ? "✓ Connected" : "✗ Disconnected",
               QDateTime::currentDateTime().toString("hh:mm:ss").toStdString().c_str());
-    
+
     wattroff(m_statusWindow, COLOR_PAIR(4));
     wrefresh(m_statusWindow);
 }
@@ -358,12 +358,12 @@ void TUIFrontend::drawStatus() {
 ```cpp
 void TUIFrontend::drawHelp() {
     werase(m_helpWindow);
-    
+
     wattron(m_helpWindow, COLOR_PAIR(5));
-    mvwprintw(m_helpWindow, 0, 0, 
+    mvwprintw(m_helpWindow, 0, 0,
               "q:Quit | r:Refresh | ?:Help");
     wattroff(m_helpWindow, COLOR_PAIR(5));
-    
+
     wrefresh(m_helpWindow);
 }
 ```
@@ -387,12 +387,12 @@ void TUIFrontend::refreshDisplay() {
 TUI uses stdout for ncurses display. Logs must go to stderr:
 
 ```cpp
-void customMessageHandler(QtMsgType type, 
-                         const QMessageLogContext& context, 
+void customMessageHandler(QtMsgType type,
+                         const QMessageLogContext& context,
                          const QString& msg) {
     QTextStream err(stderr);  // Use stderr, NOT stdout
     err << formatLogMessage(type, msg) << Qt::endl;
-    
+
     // Also write to log file
     writeToFile(msg);
 }
@@ -470,14 +470,14 @@ Handle terminals too small:
 void TUIFrontend::createWindows() {
     int height, width;
     getmaxyx(stdscr, height, width);
-    
+
     if (height < 20 || width < 80) {
         cleanupNcurses();
         fprintf(stderr, "Error: Terminal too small (min 80x20)\n");
         QCoreApplication::exit(1);
         return;
     }
-    
+
     // Create windows...
 }
 ```
@@ -502,9 +502,9 @@ TEST(TUIFrontend, StoresOrders) {
     TUIFrontend tui(nullptr);
     Order order;
     order.setOrderId("test-123");
-    
+
     tui.onNewOrderReceived("account", order);
-    
+
     EXPECT_TRUE(tui.hasOrder("test-123"));
 }
 ```
