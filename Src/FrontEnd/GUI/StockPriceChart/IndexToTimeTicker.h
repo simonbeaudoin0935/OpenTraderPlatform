@@ -60,10 +60,7 @@ class IndexToTimeTicker : public QCPAxisTicker
             return QString::number(index);
         }
 
-        // Subtract 1 minute for display so labels show round hours (8:00, 9:00)
-        // instead of :01 minutes (8:01, 9:01) since trading data starts at 4:01 AM
-        QDateTime displayTime = timestamp.addSecs(-60);
-        return displayTime.toString(m_timeFormat);
+        return timestamp.toString(m_timeFormat);
     }
 
     /**
@@ -117,10 +114,6 @@ class IndexToTimeTicker : public QCPAxisTicker
      * Instead of anchoring at index 0 (arbitrary start time), we calculate
      * an offset so that ticks land on round times (e.g., :00, :15, :30, :45
      * for a 15-minute step).
-     *
-     * The -1 minute display adjustment in getTickLabel() means that to show
-     * a nice time like :00, :15, etc., we need ticks at indices whose raw
-     * timestamps end in :01, :16, etc. (one minute after the nice boundary).
      */
     QVector<double> createTickVector(double p_tickStep, const QCPRange& p_range) override
     {
@@ -137,17 +130,12 @@ class IndexToTimeTicker : public QCPAxisTicker
             return QCPAxisTicker::createTickVector(p_tickStep, p_range);
         }
 
-        // Use raw timestamp minutes (not display-adjusted).
-        // We want ticks where (rawMinutes - 1) % step == 0, i.e., rawMinutes % step == 1
-        // This ensures that after the -1 minute display adjustment, labels are nice.
         int rawMinutes = originTime.time().hour() * 60 + originTime.time().minute();
         int tickStepInt = static_cast<int>(p_tickStep);
 
-        // Calculate offset to align to nice time boundaries
-        // We need rawMinutes % step == 1 for nice display times
-        // Current remainder is rawMinutes % step, we want remainder 1
+        // Calculate offset to align to nice time boundaries (e.g., :00, :15, :30, :45)
         int currentRemainder = rawMinutes % tickStepInt;
-        int targetRemainder = 1; // Because getTickLabel subtracts 1 minute
+        int targetRemainder = 0;
         int offset = targetRemainder - currentRemainder;
 
         // Normalize offset to be in range (-step, 0]

@@ -483,11 +483,20 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
                                     TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
                                     TradingHours::MARKET_TIMEZONE);
 
-        QDateTime last = bar.getTimeStamp();
+        QDateTime last = bar.getTimeStamp().addSecs(-60);
 
-        DEBUG << "Requesting whole day bars from" << first.toString(Qt::ISODate) << "to" << last.toString(Qt::ISODate);
-
-        emit requestMissingBars(first, last);
+        // Only fetch history if there are bars before the first streaming bar
+        if (last >= first)
+        {
+            DEBUG << "Requesting whole day bars from" << first.toString(Qt::ISODate) << "to"
+                  << last.toString(Qt::ISODate);
+            emit requestMissingBars(first, last);
+        }
+        else
+        {
+            DEBUG << "First bar is the earliest candle, no history to fetch";
+            m_missingBarsRequestSemaphore.release();
+        }
 
         return;
     }
@@ -1175,7 +1184,7 @@ QDateTime StockPriceChart::getPreviousTradingMinute(const QDateTime& timestamp) 
             }
             return result.toTimeZone(timestamp.timeZone());
         }
-        else if (time >= TradingHours::TIME_FIRST_CANDLE_AFTER_MARKET_SESSION)
+        else if (time > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION)
         {
             DEBUG << "Unexpected: getPreviousTradingMinute called with time after 8PM:" << time;
             return QDateTime(previousMinute.date(),
