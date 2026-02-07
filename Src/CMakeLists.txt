@@ -163,6 +163,7 @@ target_include_directories(L2TraderStrategy PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI
     ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
     ${CMAKE_CURRENT_SOURCE_DIR}/Strategy
+    ${CMAKE_CURRENT_SOURCE_DIR}/SQL
     ${CMAKE_SOURCE_DIR}/qcustomplot
 )
 
@@ -219,6 +220,7 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI
     ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
     ${CMAKE_CURRENT_SOURCE_DIR}/Strategy
+    ${CMAKE_CURRENT_SOURCE_DIR}/SQL
     ${CMAKE_SOURCE_DIR}/qcustomplot
 )
 
