@@ -53,12 +53,6 @@ MainAlgo::~MainAlgo()
 {
     DEBUG << "MainAlgo destructor - stopping thread";
 
-    // Cleanup signal handler system
-    m_crashNotifier.reset();
-    StrategySignalHandler::cleanup();
-
-    // StrategyManager will be destroyed automatically via composition
-
     // Stop balance polling timer if it exists
     // Note: We're in the destructor, so we can't use QMetaObject::invokeMethod
     // since the thread might already be stopping. Just stop the timer directly.
@@ -68,6 +62,7 @@ MainAlgo::~MainAlgo()
         DEBUG << "Stopped balance polling timer in destructor";
     }
 
+    // CRITICAL: Stop thread BEFORE destroying thread-owned objects to prevent cross-thread access
     // Request thread to stop
     thread.quit();
 
@@ -78,6 +73,12 @@ MainAlgo::~MainAlgo()
         thread.terminate();
         thread.wait();
     }
+
+    // Now safe to cleanup QSocketNotifier and signal handler (thread is stopped)
+    m_crashNotifier.reset();
+    StrategySignalHandler::cleanup();
+
+    // StrategyManager will be destroyed automatically via composition
 
     DEBUG << "Destroyed singleton instance";
 }
