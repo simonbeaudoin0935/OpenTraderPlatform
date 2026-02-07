@@ -163,6 +163,7 @@ class MainAlgo final : public QObject
 
     void onReceivedNewPosition(const QString& account, Position position);
     void onPositionDeleted(const QString& account, const QString& positionID);
+    void onLoadedPositionsFromDatabase(const QString& account, QMap<QString, Position> positions);
     void onReceivedNewOrder(const QString& account, Order order);
 
     void onReceivedAsyncGetAccounts(const QVector<Account>& results);

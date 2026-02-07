@@ -376,6 +376,13 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
                           &MainAlgo::onPositionDeleted,
                           Qt::UniqueConnection);
         OBJ_ASSUME_TRUE(c3);
+
+        auto c4 = connect(m_positionReceiver,
+                          &PositionsReceiver::loadedPositionsFromDatabase,
+                          this,
+                          &MainAlgo::onLoadedPositionsFromDatabase,
+                          Qt::UniqueConnection);
+        OBJ_ASSUME_TRUE(c4);
     }
 
     // Only initialize order stream once
@@ -418,6 +425,19 @@ void MainAlgo::onPositionDeleted(const QString& account, const QString& position
     Q_UNUSED(account);
     DEBUG << "Position deleted:" << positionID;
     emit positionDeleted(account, positionID);
+}
+
+void MainAlgo::onLoadedPositionsFromDatabase(const QString& account, QMap<QString, Position> positions)
+{
+    INFO << "Loading" << positions.size() << "positions from database for account" << account;
+
+    // Emit each loaded position to the frontend
+    for (auto it = positions.constBegin(); it != positions.constEnd(); ++it)
+    {
+        const Position& position = it.value();
+        DEBUG << "Emitting loaded position:" << position.getPositionID();
+        emit receivedNewPosition(account, position);
+    }
 }
 
 void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
@@ -930,6 +950,12 @@ void MainAlgo::resumeLiveStreams()
                         &PositionsReceiver::positionDeleted,
                         this,
                         &MainAlgo::onPositionDeleted,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+    connected = connect(m_positionReceiver,
+                        &PositionsReceiver::loadedPositionsFromDatabase,
+                        this,
+                        &MainAlgo::onLoadedPositionsFromDatabase,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
     positionStreamStarted = true;

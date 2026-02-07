@@ -2,9 +2,11 @@
 
 #include <QFutureWatcher>
 #include <QObject>
+#include <QMap>
 
 #include "StreamPositions.h"
 #include "StreamReceiver.h"
+#include "PositionsDatabase.h"
 
 Q_DECLARE_LOGGING_CATEGORY(PositionsReceiverLog)
 
@@ -25,6 +27,7 @@ class PositionsReceiver : public StreamReceiver
   signals:
     void receivedNewPosition(QString account, Position position);
     void positionDeleted(QString account, QString positionID);
+    void loadedPositionsFromDatabase(QString account, QMap<QString, Position> positions);
 
   private slots:
     void onReceivedNewPosition(Position position);
@@ -39,6 +42,8 @@ class PositionsReceiver : public StreamReceiver
   private:
     QPointer<StreamPositions> m_stream = nullptr;
     QString m_account;
+    QPointer<PositionsDatabase> m_database = nullptr;
+    bool m_receivedEndSnapshot = false;
 
     void createPositionsStream();
 };
