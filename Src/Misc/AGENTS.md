@@ -173,15 +173,15 @@ void initLogging() {
     qInstallMessageHandler(customMessageHandler);
 }
 
-void customMessageHandler(QtMsgType type, 
+void customMessageHandler(QtMsgType type,
                          const QMessageLogContext& context,
                          const QString& msg) {
     // Format message
     QString formatted = formatLogMessage(type, context, msg);
-    
+
     // Broadcast to all consumers
     LogBroadcaster::getInstance().broadcast(formatted);
-    
+
     // Write to file if enabled
     if (LoggingConfig::getInstance().isFileLoggingEnabled()) {
         writeToFile(formatted);
@@ -255,7 +255,7 @@ bool success = SecureStorage::storeValuesSync("L2Trader", values, 5000);
 
 // Retrieve values
 QStringList keys = {"access_token", "refresh_token"};
-QMap<QString, QString> retrieved = 
+QMap<QString, QString> retrieved =
     SecureStorage::retrieveValuesSync("L2Trader", keys, 5000);
 
 // Delete values
@@ -420,9 +420,9 @@ public:
         static Singleton instance;
         return instance;
     }
-    
+
     Q_DISABLE_COPY_MOVE(Singleton)
-    
+
 private:
     Singleton() = default;
     ~Singleton() = default;
@@ -475,7 +475,7 @@ Q_LOGGING_CATEGORY(MyClassLog, "MyClass")
 
 void MyClass::someMethod() {
     qCDebug(MyClassLog) << "Method called";
-    
+
     if (errorCondition) {
         qCWarning(MyClassLog) << "Warning condition";
     }

@@ -232,7 +232,7 @@ Streams have a 10-second heartbeat timer that triggers if no data arrives. In re
 
 The `StreamReceiver` base class provides a unified interface for heartbeat management across:
 - BarReceiver
-- MarketDepthQuoteReceiver  
+- MarketDepthQuoteReceiver
 - PositionsReceiver
 - OrdersReceiver
 

@@ -465,7 +465,7 @@ void showInfo(const QString& title, const QString& message) {
 ```cpp
 bool OrderEntryWidget::validate() {
     if (m_symbolInput->text().isEmpty()) {
-        QMessageBox::warning(this, tr("Validation Error"), 
+        QMessageBox::warning(this, tr("Validation Error"),
                            tr("Symbol is required"));
         m_symbolInput->setFocus();
         return false;
@@ -485,7 +485,7 @@ TEST(OrderEntryWidget, ValidatesRequiredFields) {
     OrderEntryWidget widget;
     widget.setSymbol("");
     EXPECT_FALSE(widget.validate());
-    
+
     widget.setSymbol("AAPL");
     EXPECT_TRUE(widget.validate());
 }

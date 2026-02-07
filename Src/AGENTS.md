@@ -87,10 +87,10 @@ Cross-thread communication uses Qt signals/slots with automatic queuing:
 ```
 TSClient (thread) ─[authStateChanged]→ MainAlgo (thread)
                  ─[newBar]→ MainAlgo (thread)
-                 
+
 MainAlgo (thread) ─[displayedStockReceivedNewBar]→ GUIFrontend (main)
                   ─[receivedNewPosition]→ GUIFrontend (main)
-                  
+
 GUIFrontend (main) ─[selectedDisplayedStock]→ MainAlgo (thread)
 ```
 
@@ -98,16 +98,16 @@ GUIFrontend (main) ─[selectedDisplayedStock]→ MainAlgo (thread)
 
 1. **Composition first**: Use direct member objects when possible
    - Example: `class StockInstruments { BarCache m_barCache; };`
-   
+
 2. **Qt parent-child**: For Qt objects with parents, Qt manages memory
    - Example: `new QTimer(this)` - parent handles deletion
-   
+
 3. **QPointer**: For Qt objects with uncertain lifetime
    - Example: `QPointer<StreamBars> m_stream;` - auto-nulls on delete
-   
+
 4. **std::unique_ptr**: For exclusive ownership
    - Example: `std::unique_ptr<PositionsReceiver> m_positionReceiver;`
-   
+
 5. **std::shared_ptr**: For shared ownership across async operations
    - Example: `std::shared_ptr<QVector<Bar>> bars;` - shared between cache/UI/callbacks
 
@@ -188,7 +188,7 @@ m_replayEngine->pauseReplay();
 
 Always use unique connections and verify:
 ```cpp
-bool connected = connect(sender, &Sender::signal, 
+bool connected = connect(sender, &Sender::signal,
                         receiver, &Receiver::slot,
                         Qt::UniqueConnection);
 OBJ_ASSUME_EQ(connected, true); // Assert connection succeeded and was unique

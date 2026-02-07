@@ -57,18 +57,18 @@ constexpr const char* CREATE_ORDERS_TABLE = R"(
 
 // Indexes
 constexpr const char* CREATE_TIMESTAMP_INDEX = R"(
-    CREATE INDEX IF NOT EXISTS idx_orders_timestamp 
+    CREATE INDEX IF NOT EXISTS idx_orders_timestamp
     ON orders(timestamp)
 )";
 
 constexpr const char* CREATE_SYMBOL_INDEX = R"(
-    CREATE INDEX IF NOT EXISTS idx_orders_symbol 
+    CREATE INDEX IF NOT EXISTS idx_orders_symbol
     ON orders(symbol)
 )";
 
 // CRUD operations
 constexpr const char* INSERT_ORDER = R"(
-    INSERT OR REPLACE INTO orders 
+    INSERT OR REPLACE INTO orders
     (order_id, account_id, symbol, trade_action, order_type, quantity,
      limit_price, stop_price, time_in_force, status, filled_quantity,
      average_fill_price, timestamp)
@@ -76,7 +76,7 @@ constexpr const char* INSERT_ORDER = R"(
 )";
 
 constexpr const char* UPDATE_ORDER = R"(
-    UPDATE orders 
+    UPDATE orders
     SET status = ?, filled_quantity = ?, average_fill_price = ?
     WHERE order_id = ?
 )";
@@ -91,19 +91,19 @@ constexpr const char* SELECT_ORDER_BY_ID = R"(
 )";
 
 constexpr const char* SELECT_ORDERS_BY_DATE_RANGE = R"(
-    SELECT * FROM orders 
+    SELECT * FROM orders
     WHERE timestamp BETWEEN ? AND ?
     ORDER BY timestamp DESC
 )";
 
 constexpr const char* SELECT_ORDERS_BY_SYMBOL = R"(
-    SELECT * FROM orders 
+    SELECT * FROM orders
     WHERE symbol = ?
     ORDER BY timestamp DESC
 )";
 
 constexpr const char* SELECT_ALL_ORDERS = R"(
-    SELECT * FROM orders 
+    SELECT * FROM orders
     ORDER BY timestamp DESC
 )";
 
@@ -135,20 +135,20 @@ constexpr const char* CREATE_BARS_TABLE = R"(
 
 // Index
 constexpr const char* CREATE_TIMESTAMP_INDEX = R"(
-    CREATE INDEX IF NOT EXISTS idx_bars_timestamp 
+    CREATE INDEX IF NOT EXISTS idx_bars_timestamp
     ON bars(timestamp)
 )";
 
 // Insert/Update
 constexpr const char* INSERT_BAR = R"(
-    INSERT OR REPLACE INTO bars 
+    INSERT OR REPLACE INTO bars
     (timestamp, open, high, low, close, total_volume, trade_count, flags)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 )";
 
 // Queries
 constexpr const char* SELECT_BARS_BY_DATE_RANGE = R"(
-    SELECT * FROM bars 
+    SELECT * FROM bars
     WHERE timestamp BETWEEN ? AND ?
     ORDER BY timestamp ASC
 )";
@@ -158,14 +158,14 @@ constexpr const char* SELECT_BAR_COUNT = R"(
 )";
 
 constexpr const char* SELECT_LATEST_BAR = R"(
-    SELECT * FROM bars 
-    ORDER BY timestamp DESC 
+    SELECT * FROM bars
+    ORDER BY timestamp DESC
     LIMIT 1
 )";
 
 constexpr const char* SELECT_OLDEST_BAR = R"(
-    SELECT * FROM bars 
-    ORDER BY timestamp ASC 
+    SELECT * FROM bars
+    ORDER BY timestamp ASC
     LIMIT 1
 )";
 
@@ -219,20 +219,20 @@ constexpr const char* CREATE_STREAM_BARS_TABLE = R"(
 
 // Session operations
 constexpr const char* INSERT_STREAM_SESSION = R"(
-    INSERT INTO stream_sessions 
+    INSERT INTO stream_sessions
     (session_id, symbol, interval, start_time)
     VALUES (?, ?, ?, ?)
 )";
 
 constexpr const char* UPDATE_STREAM_SESSION_END = R"(
-    UPDATE stream_sessions 
+    UPDATE stream_sessions
     SET end_time = ?, bar_count = ?
     WHERE session_id = ?
 )";
 
 // Bar operations
 constexpr const char* INSERT_STREAM_BAR = R"(
-    INSERT OR REPLACE INTO stream_bars 
+    INSERT OR REPLACE INTO stream_bars
     (timestamp, session_id, open, high, low, close, total_volume, trade_count, flags)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 )";
@@ -261,7 +261,7 @@ constexpr const char* CREATE_CHART_STATE_TABLE = R"(
 
 // Save/Load chart state
 constexpr const char* SAVE_CHART_STATE = R"(
-    INSERT OR REPLACE INTO chart_state 
+    INSERT OR REPLACE INTO chart_state
     (symbol, visible_range_start, visible_range_end, zoom_level, origin_index, last_update)
     VALUES (?, ?, ?, ?, ?, ?)
 )";
@@ -297,14 +297,14 @@ constexpr const char* CREATE_REPLAY_DATA_TABLE = R"(
 
 // Import from CSV
 constexpr const char* INSERT_REPLAY_BAR = R"(
-    INSERT OR IGNORE INTO replay_data 
+    INSERT OR IGNORE INTO replay_data
     (symbol, timestamp, open, high, low, close, volume)
     VALUES (?, ?, ?, ?, ?, ?, ?)
 )";
 
 // Queries
 constexpr const char* SELECT_REPLAY_BARS = R"(
-    SELECT * FROM replay_data 
+    SELECT * FROM replay_data
     WHERE symbol = ? AND timestamp BETWEEN ? AND ?
     ORDER BY timestamp ASC
 )";
@@ -342,12 +342,12 @@ namespace MyQueries {
     // 1. Schema/Table Creation
     constexpr const char* CREATE_TABLE = "...";
     constexpr const char* CREATE_INDEX = "...";
-    
+
     // 2. Insert/Update/Delete
     constexpr const char* INSERT = "...";
     constexpr const char* UPDATE = "...";
     constexpr const char* DELETE = "...";
-    
+
     // 3. Select Queries
     constexpr const char* SELECT_BY_ID = "...";
     constexpr const char* SELECT_ALL = "...";
@@ -397,11 +397,11 @@ constexpr const char* SELECT_RECENT_FILLED_ORDERS_WITH_PNL = R"(
    // NewComponentQueries.h
    #ifndef NEWCOMPONENTQUERIES_H
    #define NEWCOMPONENTQUERIES_H
-   
+
    namespace NewComponentQueries {
        // Queries here
    }
-   
+
    #endif
    ```
 
@@ -433,21 +433,21 @@ For database migrations:
 ```cpp
 namespace SchemaVersioning {
     constexpr int CURRENT_VERSION = 2;
-    
+
     constexpr const char* CREATE_VERSION_TABLE = R"(
         CREATE TABLE IF NOT EXISTS schema_version (
             version INTEGER PRIMARY KEY
         )
     )";
-    
+
     constexpr const char* GET_VERSION = R"(
         SELECT version FROM schema_version LIMIT 1
     )";
-    
+
     constexpr const char* SET_VERSION = R"(
         INSERT OR REPLACE INTO schema_version (version) VALUES (?)
     )";
-    
+
     // Migration queries
     constexpr const char* MIGRATE_V1_TO_V2 = R"(
         ALTER TABLE orders ADD COLUMN commission REAL DEFAULT 0.0
@@ -470,10 +470,10 @@ TEST(OrdersDatabaseQueries, CreatesTableSuccessfully) {
     QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
     db.setDatabaseName(":memory:");
     db.open();
-    
+
     QSqlQuery query(db);
     EXPECT_TRUE(query.exec(OrdersDatabaseQueries::CREATE_ORDERS_TABLE));
-    
+
     // Verify table exists
     EXPECT_TRUE(db.tables().contains("orders"));
 }

@@ -290,7 +290,7 @@ To add a new frontend implementation:
        Q_OBJECT
    public:
        explicit NewFrontend(MainAlgo* algo, QObject* parent = nullptr);
-       
+
        // Implement all pure virtual methods
        void onTSClientDataUsageUpdate(qsizetype bytes) override;
        // ... etc
