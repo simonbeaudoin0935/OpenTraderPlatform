@@ -69,9 +69,10 @@ add_compile_options(
 )
 
 # Security hardening flags (runtime protections)
+# Note: _FORTIFY_SOURCE is not set here as it is provided by dpkg-buildpackage
+# hardening flags during debian builds and by compiler defaults otherwise.
 add_compile_options(
     -fstack-protector-strong # Stack buffer overflow protection
-    -D_FORTIFY_SOURCE=2      # Buffer overflow detection (requires -O1+)
 )
 
 # Linker security hardening

@@ -23,13 +23,3 @@ Description: Real-time algorithmic trading application
   * Position Tracking
   * Algorithmic Trading capabilities
   * Market data replay from recorded sessions
-
-Package: l2trader-tests
-Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends},
-         l2trader (= ${binary:Version})
-Description: Unit tests for L2Trader
- This package contains unit tests for the L2Trader application:
-  * BarCache unit tests
-  * TSClient unit tests
-  * Recorder integration tests
