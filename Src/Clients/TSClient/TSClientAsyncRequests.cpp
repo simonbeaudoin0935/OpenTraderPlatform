@@ -97,6 +97,21 @@ QFuture<std::expected<QVector<Account>, TSClient::Error>> TSClient::getAccounts(
                             break;
                         }
 
+                        case QNetworkReply::AuthenticationRequiredError:
+                        {
+                            CRITICAL << ": getAccounts(): Authentication error with the reply: " << reply->errorString()
+                                     << " : " << reply->error();
+
+                            // Here the credentials are likely invalid or expired.
+                            // Need to pop a dialog to the user to re-authenticate.
+
+
+                            Q_UNREACHABLE();
+
+                            promise.addResult(std::unexpected(Error::Other));
+                            break;
+                        }
+
                         // other errors
                         default:
                         {
