@@ -163,11 +163,10 @@ void TSClient::refreshAccessToken()
 
                 if (m_authenticated == false)
                 {
-                    emit authStateChanged(false, "Received refreshed token invalid");
                     qCCritical(TSClientLog) << "Received refreshed token invalid";
 
-                    //TODO probably need more
-                    QTimer::singleShot(1000, this, [this]() { refreshAccessToken(); });
+                    // Don't retry if the token is invalid - user needs to manually re-authenticate
+                    emit authStateChanged(false, "Token invalid - please login again");
                     break;
                 }
 
