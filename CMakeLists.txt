@@ -51,6 +51,12 @@ add_compile_options(
     -fdiagnostics-color=always  # Enable colored compiler output
 )
 
+# Disable unused-variable errors in Release builds when NDEBUG removes assertion variables
+# The ASSUME macros expand to nothing with NDEBUG, leaving their validation variables unused
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_compile_options(-Wno-error=unused-variable)
+endif()
+
 # Additional safety and security warnings
 add_compile_options(
     -Wformat-security        # Format string vulnerabilities
