@@ -458,7 +458,7 @@ GUIFrontend::~GUIFrontend()
     // ui is automatically deleted by std::unique_ptr
 }
 
-void GUIFrontend::setupDarkTheme(QMainWindow* m_mainWindow)
+void GUIFrontend::setupDarkTheme(QMainWindow* p_mainWindow)
 {
     // Define the dark theme palette
     QPalette darkPalette;
@@ -479,7 +479,7 @@ void GUIFrontend::setupDarkTheme(QMainWindow* m_mainWindow)
     darkPalette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(150, 150, 150));
 
     // Apply the dark palette to the application
-    mainWindow->setPalette(darkPalette);
+    p_mainWindow->setPalette(darkPalette);
     qApp->setPalette(darkPalette);
 
     // Set stylesheet for specific widgets and components
