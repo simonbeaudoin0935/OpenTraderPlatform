@@ -112,7 +112,10 @@ void PositionsReceiver::onReceivedNewPosition(Position position)
     QDateTime currentTime = QDateTime::currentDateTime();
 
     // Parse quantity to check if position is at 0
-    bool quantityIsZero = (position.getQuantity().toDouble() == 0.0);
+    // Using epsilon comparison for floating point quantity
+    double quantity = position.getQuantity().toDouble();
+    constexpr double EPSILON = 1e-9; // Tiny threshold for "zero"
+    bool quantityIsZero = (std::abs(quantity) < EPSILON);
 
     // Check if this is a new position or an update
     bool positionExistsInDB = m_database->positionExists(positionID);

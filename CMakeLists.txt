@@ -30,7 +30,11 @@ endif()
 
 # Enable strict compiler warnings, and treat warnings as errors
 add_compile_options(
-    #-Werror
+    # === Treat warnings as errors (except #warning directives) ===
+    -Werror                  # All warnings are errors
+    -Wno-error=cpp           # Except #warning directives (intentional TODOs)
+
+    # === Tier 0: Core warnings ===
     -Wall
     -Wextra
     -Wpedantic

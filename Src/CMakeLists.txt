@@ -117,7 +117,7 @@ target_link_libraries(L2TraderCommon PUBLIC L2TraderStrategy)
 # Disable strict warnings for third-party qcustomplot code
 if(QCUSTOMPLOT_SOURCES)
     set_source_files_properties(${QCUSTOMPLOT_SOURCES} PROPERTIES
-        COMPILE_FLAGS "-Wno-error -Wno-shadow -Wno-double-promotion"
+        COMPILE_FLAGS "-Wno-error -Wno-shadow -Wno-double-promotion -Wno-float-equal -Wno-suggest-override"
     )
 endif()
 
@@ -221,6 +221,10 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
     ${CMAKE_CURRENT_SOURCE_DIR}/Strategy
     ${CMAKE_CURRENT_SOURCE_DIR}/SQL
+)
+
+# Include qcustomplot as SYSTEM to suppress external library warnings
+target_include_directories(L2TraderCommon SYSTEM PRIVATE
     ${CMAKE_SOURCE_DIR}/qcustomplot
 )
 

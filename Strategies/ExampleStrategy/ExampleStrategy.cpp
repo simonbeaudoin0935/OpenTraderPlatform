@@ -84,7 +84,9 @@ void ExampleStrategy::onPositionUpdated(const Position& p_position)
 
 void ExampleStrategy::onBalanceUpdated(double p_balance)
 {
-    if (m_lastBalance != p_balance)
+    // Use epsilon comparison for balance changes (floating point)
+    constexpr double EPSILON = 0.001; // 0.1 cent threshold
+    if (std::abs(m_lastBalance - p_balance) >= EPSILON)
     {
         log(QString("[ExampleStrategy] Balance updated: %1").arg(p_balance));
         m_lastBalance = p_balance;

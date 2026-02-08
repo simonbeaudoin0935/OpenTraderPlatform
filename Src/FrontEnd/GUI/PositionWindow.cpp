@@ -127,7 +127,8 @@ void PositionWindow::updatePosition(const QString& account, const Position& posi
                     // Compare numerical value to handle different string formats (0, 0.0, 0.00)
                     bool conversionOk = false;
                     double quantity = quantityItem->text().toDouble(&conversionOk);
-                    if (conversionOk && quantity == 0.0)
+                    constexpr double EPSILON = 1e-9;
+                    if (conversionOk && std::abs(quantity) < EPSILON)
                     {
                         existingRowWithZeroQty = row;
                         oldPositionIdToRemove = it.key();
