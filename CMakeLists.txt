@@ -44,6 +44,7 @@ add_compile_options(
     -Woverloaded-virtual
     -Wshadow
     -Wunused
+    -fdiagnostics-color=always  # Enable colored compiler output
 )
 
 # Additional safety and security warnings
