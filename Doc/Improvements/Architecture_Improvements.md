@@ -193,6 +193,8 @@ Q_ASSERT(QThread::currentThread() == &thread);
 
 #### 1.3 Lock Granularity in BarCache
 
+**Status:** ✅ REVIEWED (2026-02-08)
+
 **Current:** Single QReadWriteLock protects entire m_barCacheByDay map.
 
 **Code:**
@@ -202,10 +204,23 @@ mutable QReadWriteLock m_barCacheRwLock; // Protects m_barCacheByDay
 mutable QMap<QDate, QVector<Bar>> m_barCacheByDay;
 ```
 
-**Issue:** Lock contention when multiple symbols need different days' data simultaneously.
+**Original Issue:** Lock contention when multiple symbols need different days' data simultaneously.
 
-**Recommendation:** Consider per-day locking for better concurrency:
+**Analysis & Resolution:**
+The original concern about lock contention between symbols is NOT an issue because:
+1. **Per-Symbol Isolation**: Each symbol has its own BarCache instance (via StockInstruments)
+2. **Per-Instance Locking**: Each BarCache has its own m_barCacheRwLock
+3. **No Cross-Symbol Contention**: Multiple symbols accessing data simultaneously use DIFFERENT locks
+4. **Rare Single-Symbol Contention**: Lock contention only occurs when the SAME symbol requests different days simultaneously, which is unlikely
 
+**Current Design Advantages:**
+- Simple and maintainable code
+- QReadWriteLock allows multiple concurrent readers
+- Write operations are fast (in-memory only)
+- No lock contention between symbols (separate instances)
+- No profiling evidence of lock contention issues
+
+**Alternative Design (Considered but NOT Implemented):**
 ```cpp
 struct DayCacheEntry {
     QVector<Bar> bars;
@@ -216,11 +231,18 @@ mutable QReadWriteLock m_mapLock; // Only for map modifications
 ```
 
 **Trade-offs:**
-- **Pro:** Better concurrency, reduced lock contention
-- **Con:** More complex code, higher memory overhead
-- **Verdict:** Implement only if profiling shows lock contention
+- **Pro:** Better concurrency for single-symbol multi-day requests
+- **Con:** More complex code, higher memory overhead, more lock objects
+- **Verdict:** Current design is optimal; implement per-day locking only if profiling shows need
+
+**Implementation Notes:**
+- Added comprehensive documentation in BarCache.h explaining lock granularity analysis
+- Thread safety guarantees documented for read/write operations
+- See `Src/Core/Cache/BarCache/BarCache.h` for full documentation
 
 ### 1.4 Signal-Slot Thread Safety
+
+**Status:** ✅ IMPLEMENTED (2026-02-08)
 
 **Current:** Heavy reliance on Qt's signal-slot mechanism for cross-thread communication (good!).
 
@@ -232,6 +254,57 @@ signals:
     // Received on: Any thread (Qt::QueuedConnection for cross-thread)
     void authStateChanged(bool isAuthenticated, QString reason);
 ```
+
+**Implementation:**
+Comprehensive thread safety documentation has been added to all major signal declarations throughout the codebase:
+
+1. **TSClient Signals** (`Src/Clients/TSClient/TSClient.h`):
+   - `totalDataReceivedBytesIncreased` - Emitted from TSClient worker thread
+   - `openStreamCountChanged` - Emitted from TSClient worker thread
+   - `authStateChanged` - Emitted from TSClient worker thread
+   - All documented with thread context and Qt::QueuedConnection behavior
+
+2. **Stream Signals** (`Src/Clients/TSClient/Stream/Stream.h`):
+   - `newAmountOfDataReceived` - Emitted from TSClient worker thread
+   - `receivedNewRawData` - Emitted from TSClient worker thread
+   - `endSnapshotReceived` - Emitted from TSClient worker thread
+   - `streamClosed` - Emitted from TSClient worker thread
+
+3. **MainAlgo Signals** (`Src/Algo/MainAlgo.h`):
+   - `displayedStockReceivedNewBar` - Emitted from MainAlgo worker thread
+   - `displayedStockReceivedNewMarketDepthQuote` - Emitted from MainAlgo worker thread
+   - `receivedNewPosition` - Emitted from MainAlgo worker thread
+   - `positionDeleted` - Emitted from MainAlgo worker thread
+   - `receivedNewOrder` - Emitted from MainAlgo worker thread
+   - `tradeStationAccountsReceived` - Emitted from MainAlgo worker thread
+   - `balanceUpdated` - Emitted from MainAlgo worker thread
+   - Replay signals (forwarded from ReplayEngine)
+
+4. **Receiver Signals** (MainAlgo thread):
+   - **BarReceiver** (`Src/Algo/BarReceiver/BarReceiver.h`): Cross-thread data flow documented
+   - **PositionsReceiver** (`Src/Algo/PositionsReceiver/PositionsReceiver.h`): Signal chain documented
+   - **OrdersReceiver** (`Src/Algo/OrdersReceiver/OrdersReceiver.h`): Thread context documented
+   - **MarketDepthQuoteReceiver** (`Src/Algo/MarketDepthQuoteReceiver/MarketDepthQuoteReceiver.h`): Full data flow documented
+
+5. **FrontEnd Signals** (`Src/FrontEnd/FrontEnd.h`):
+   - All signals documented as emitted from main/GUI thread
+   - Complete data flow pattern documented (Backend → MainApp → FrontEnd → GUI)
+   - Qt main thread requirement for GUI updates noted
+
+**Documentation Pattern:**
+Each signal now includes:
+- Thread where signal is emitted
+- Thread(s) where signal is typically received
+- Thread-safety guarantees (Qt::QueuedConnection for cross-thread)
+- Data flow explanation for complex chains
+- Reference to Architecture_Improvements.md point 1.4
+
+**Thread Safety Summary:**
+- **TSClient Thread**: Network operations, stream processing, authentication
+- **MainAlgo Thread**: Trading logic, receivers, strategy management
+- **Main/GUI Thread**: UI updates, user interaction
+- **Qt Automatic**: Cross-thread signals automatically use Qt::QueuedConnection
+- **Thread-Safe**: All signal-slot connections are thread-safe by design
 
 ---
 

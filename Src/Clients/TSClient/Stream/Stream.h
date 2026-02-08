@@ -99,12 +99,38 @@ class Stream : public QObject
     }
 
   signals:
+    /**
+     * @brief Signal emitted when new data is received from the network
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: TSClient worker thread
+     * - Received on: Any thread (Qt automatically uses Qt::QueuedConnection for cross-thread)
+     * - Thread-safe: Yes (queued connection ensures thread safety)
+     * 
+     * @param bytes Number of bytes received
+     */
     void newAmountOfDataReceived(size_t bytes);
+    
+    /**
+     * @brief Signal emitted when raw data is received (before JSON parsing)
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: TSClient worker thread
+     * - Received on: Any thread (Qt automatically uses Qt::QueuedConnection for cross-thread)
+     * - Thread-safe: Yes (queued connection ensures thread safety)
+     * 
+     * @param rawData The raw byte array received
+     */
     void receivedNewRawData(const QByteArray& rawData);
 
     /**
      * @brief Emitted when the server sends an EndSnapshot status (Brokerage streams only).
      * Indicates the initial data snapshot is complete and subsequent messages are live updates.
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: TSClient worker thread
+     * - Received on: Any thread (Qt automatically uses Qt::QueuedConnection for cross-thread)
+     * - Thread-safe: Yes (queued connection ensures thread safety)
      */
     void endSnapshotReceived();
 
@@ -113,6 +139,11 @@ class Stream : public QObject
      *
      * - StreamError::Closed: Intentional close via TSClient::closeStream() — no action needed.
      * - Any other value: The stream ended due to an error — consumer should reconnect.
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: TSClient worker thread
+     * - Received on: Any thread (Qt automatically uses Qt::QueuedConnection for cross-thread)
+     * - Thread-safe: Yes (queued connection ensures thread safety)
      *
      * @param reason The reason the stream closed.
      * @param description Human-readable description of the closure reason.

@@ -133,20 +133,110 @@ class MainAlgo final : public QObject
     [[nodiscard]] ReplayEngine::PlaybackState getReplayState() const;
 
   signals:
+    /**
+     * @brief Signal emitted when the displayed stock receives a new bar
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: MainAlgo worker thread
+     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
+     * - Thread-safe: Yes (queued connection ensures thread safety)
+     * 
+     * @param symbol Stock ticker symbol
+     * @param bar The new bar data
+     */
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
+    
+    /**
+     * @brief Signal emitted when the displayed stock receives a new market depth quote
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: MainAlgo worker thread
+     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
+     * - Thread-safe: Yes (queued connection ensures thread safety)
+     * 
+     * @param symbol Stock ticker symbol
+     * @param quote The market depth quote
+     * @param bidAskImbalance Calculated bid/ask imbalance
+     * @param bidDWP Bid dollar-weighted price
+     * @param askDWP Ask dollar-weighted price
+     */
     void displayedStockReceivedNewMarketDepthQuote(QString symbol,
                                                    MarketDepthQuote quote,
                                                    double bidAskImbalance,
                                                    double bidDWP,
                                                    double askDWP);
 
+    /**
+     * @brief Signal emitted when a new position is received
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: MainAlgo worker thread
+     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
+     * - Thread-safe: Yes (queued connection ensures thread safety)
+     * 
+     * @param account Account ID
+     * @param position The position data
+     */
     void receivedNewPosition(QString account, Position position);
+    
+    /**
+     * @brief Signal emitted when a position is deleted
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: MainAlgo worker thread
+     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
+     * - Thread-safe: Yes (queued connection ensures thread safety)
+     * 
+     * @param account Account ID
+     * @param positionID Position identifier
+     */
     void positionDeleted(QString account, QString positionID);
+    
+    /**
+     * @brief Signal emitted when a new order is received
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: MainAlgo worker thread
+     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
+     * - Thread-safe: Yes (queued connection ensures thread safety)
+     * 
+     * @param account Account ID
+     * @param order The order data
+     */
     void receivedNewOrder(QString account, Order order);
+    
+    /**
+     * @brief Signal emitted when TradeStation accounts are received
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: MainAlgo worker thread
+     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
+     * - Thread-safe: Yes (queued connection ensures thread safety)
+     * 
+     * @param accounts Vector of account data
+     */
     void tradeStationAccountsReceived(QVector<Account> accounts);
+    
+    /**
+     * @brief Signal emitted when account balance is updated
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: MainAlgo worker thread
+     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
+     * - Thread-safe: Yes (queued connection ensures thread safety)
+     * 
+     * @param balance The updated balance data
+     */
     void balanceUpdated(Balance balance);
 
-    // Replay signals (forwarded from ReplayEngine)
+    /**
+     * @brief Replay control signals (forwarded from ReplayEngine)
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: MainAlgo worker thread (forwarding ReplayEngine signals)
+     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
+     * - Thread-safe: Yes (queued connection ensures thread safety)
+     */
     void replayStarted();
     void replayStopped();
     void replayPaused();

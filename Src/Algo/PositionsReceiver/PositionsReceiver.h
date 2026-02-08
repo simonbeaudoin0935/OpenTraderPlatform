@@ -25,8 +25,48 @@ class PositionsReceiver : public StreamReceiver
     }
 
   signals:
+    /**
+     * @brief Signal emitted when a new position is received from the stream
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: MainAlgo worker thread (this receiver runs on MainAlgo thread)
+     * - Received on: MainAlgo thread (same thread, typically uses Qt::DirectConnection)
+     * - Thread-safe: Yes (receivers run on MainAlgo thread, receive from TSClient via queued connection)
+     * 
+     * Data Flow:
+     * 1. StreamPositions (TSClient thread) emits newPosition signal
+     * 2. PositionsReceiver slot onReceivedNewPosition (MainAlgo thread) receives via Qt::QueuedConnection
+     * 3. PositionsReceiver emits receivedNewPosition to MainAlgo (same MainAlgo thread)
+     * 
+     * @param account Account ID
+     * @param position The position data
+     */
     void receivedNewPosition(QString account, Position position);
+    
+    /**
+     * @brief Signal emitted when a position is deleted/closed
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: MainAlgo worker thread
+     * - Received on: MainAlgo thread (same thread)
+     * - Thread-safe: Yes (same as receivedNewPosition)
+     * 
+     * @param account Account ID
+     * @param positionID Position identifier
+     */
     void positionDeleted(QString account, QString positionID);
+    
+    /**
+     * @brief Signal emitted when positions are loaded from database at startup
+     * 
+     * Thread Safety (Architecture_Improvements.md point 1.4):
+     * - Emitted from: MainAlgo worker thread
+     * - Received on: MainAlgo thread (same thread)
+     * - Thread-safe: Yes (database operations are async and thread-safe)
+     * 
+     * @param account Account ID
+     * @param positions Map of position ID to Position objects
+     */
     void loadedPositionsFromDatabase(QString account, QMap<QString, Position> positions);
 
   private slots:
