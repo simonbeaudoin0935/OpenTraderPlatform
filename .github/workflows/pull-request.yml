@@ -254,7 +254,8 @@ jobs:
             
             # Check if process exited
             if kill -0 $APP_PID 2>/dev/null; then
-              echo "Application did not exit after Ctrl+Q within ${TIMEOUT}s, killing it"
+              echo "ERROR: Application did not exit after Ctrl+Q within ${TIMEOUT}s, killing it"
+              echo "This is a test failure - application should exit gracefully"
               kill -9 $APP_PID
               
               # Wait with timeout for process to actually terminate
@@ -274,14 +275,29 @@ jobs:
               
               wait $APP_PID 2>/dev/null || true
               EXIT_CODE=$?
+              
+              # Fail because we had to force kill
+              echo "Test FAILED: Application required kill -9 to terminate"
+              exit 1
             else
+              # App exited gracefully, check exit code
               wait $APP_PID 2>/dev/null || true
               EXIT_CODE=$?
+              
+              if [ $EXIT_CODE -ne 0 ]; then
+                echo "ERROR: Application exited with non-zero exit code: $EXIT_CODE"
+                echo "This indicates a crash or error during shutdown"
+                exit 1
+              fi
+              
+              echo "Application exited gracefully with exit code: $EXIT_CODE"
             fi
           else
-            echo "Window not found, application may have crashed or failed to start"
+            echo "ERROR: Window not found, application may have crashed or failed to start"
             wait $APP_PID 2>/dev/null || true
             EXIT_CODE=$?
+            echo "Application exit code: $EXIT_CODE"
+            exit 1
           fi
           
           # Clean up tail process
@@ -289,8 +305,6 @@ jobs:
           
           # Clean up Xvfb
           kill $XVFB_PID 2>/dev/null || true
-          
-          echo "Application exit code: $EXIT_CODE"
 
       - name: Analyze UBSan results
         if: always()
@@ -476,7 +490,8 @@ jobs:
             
             # Check if process exited
             if kill -0 $APP_PID 2>/dev/null; then
-              echo "Application did not exit after Ctrl+Q within ${TIMEOUT}s, killing it"
+              echo "ERROR: Application did not exit after Ctrl+Q within ${TIMEOUT}s, killing it"
+              echo "This is a test failure - application should exit gracefully"
               kill -9 $APP_PID
               
               # Wait with timeout for process to actually terminate
@@ -496,14 +511,29 @@ jobs:
               
               wait $APP_PID 2>/dev/null || true
               EXIT_CODE=$?
+              
+              # Fail because we had to force kill
+              echo "Test FAILED: Application required kill -9 to terminate"
+              exit 1
             else
+              # App exited gracefully, check exit code
               wait $APP_PID 2>/dev/null || true
               EXIT_CODE=$?
+              
+              if [ $EXIT_CODE -ne 0 ]; then
+                echo "ERROR: Application exited with non-zero exit code: $EXIT_CODE"
+                echo "This indicates a crash or error during shutdown"
+                exit 1
+              fi
+              
+              echo "Application exited gracefully with exit code: $EXIT_CODE"
             fi
           else
-            echo "Window not found, application may have crashed or failed to start"
+            echo "ERROR: Window not found, application may have crashed or failed to start"
             wait $APP_PID 2>/dev/null || true
             EXIT_CODE=$?
+            echo "Application exit code: $EXIT_CODE"
+            exit 1
           fi
           
           # Clean up tail process
@@ -511,8 +541,6 @@ jobs:
           
           # Clean up Xvfb
           kill $XVFB_PID 2>/dev/null || true
-          
-          echo "Application exit code: $EXIT_CODE"
 
       - name: Analyze ASan results
         if: always()
