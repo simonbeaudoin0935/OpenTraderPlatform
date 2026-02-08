@@ -67,7 +67,10 @@ void CrashTestStrategy::triggerCrash()
 
     // Intentionally dereference null pointer to trigger segfault
     int* p = nullptr;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnull-dereference"
     *p = 42; // BOOM!
+#pragma GCC diagnostic pop
 }
 
 void CrashTestStrategy::onBar(const Bar& p_bar)
