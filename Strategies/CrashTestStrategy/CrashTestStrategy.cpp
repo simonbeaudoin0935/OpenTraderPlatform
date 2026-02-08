@@ -1,6 +1,7 @@
 #include "CrashTestStrategy.h"
 #include "Strategy/StrategySDK.h"
 #include <QTimer>
+#include <csignal>
 
 extern "C"
 {
@@ -65,10 +66,8 @@ void CrashTestStrategy::triggerCrash()
 {
     log("Triggering crash now!");
 
-    // Intentionally dereference null pointer to trigger segfault
-    // volatile prevents the compiler from optimizing away or warning about the null dereference
-    volatile int* p = nullptr;
-    *p = 42; // BOOM!
+    // Raise SIGSEGV directly instead of null dereference to avoid -Werror=null-dereference
+    std::raise(SIGSEGV);
 }
 
 void CrashTestStrategy::onBar(const Bar& p_bar)
