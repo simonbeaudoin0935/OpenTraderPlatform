@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     debhelper-compat \
     crossbuild-essential-arm64 \
+    libstdc++-12-dev-arm64-cross \
     qt6-base-dev:arm64 \
     qt6-base-private-dev:arm64 \
     libqt6sql6-sqlite:arm64 \
