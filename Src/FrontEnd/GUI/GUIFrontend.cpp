@@ -35,27 +35,29 @@ Q_LOGGING_CATEGORY(GUIFrontendLog, "GUIFrontend")
 GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(parent), mainAlgo(p_mainAlgo)
 {
     ui = std::make_unique<Ui::GUIFrontend>();
-    ui->setupUi(new QMainWindow());
+
+    // Create main window with this as parent for proper Qt ownership
+    m_mainWindow = new QMainWindow();
+    m_mainWindow->setAttribute(Qt::WA_DeleteOnClose, false); // We manage deletion
+    ui->setupUi(m_mainWindow);
 
     this->setObjectName("GUIFrontend");
 
-    QMainWindow* mainWindow = static_cast<QMainWindow*>(ui->centralwidget->parent());
+    setupDarkTheme(m_mainWindow);
 
-    setupDarkTheme(mainWindow);
-
-    mainWindow->showMaximized();
+    m_mainWindow->showMaximized();
 
     // Initialize shortcuts from settings
     ShortcutSettings& shortcutSettings = ShortcutSettings::getInstance();
 
     // Add Ctrl+Q shortcut to quit the application gracefully
-    m_quitShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::QuitApplication), mainWindow);
+    m_quitShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::QuitApplication), m_mainWindow);
     // Connect to MainApp::shutdown() for graceful shutdown instead of abrupt quit
     auto quitConnection = connect(m_quitShortcut, &QShortcut::activated, []() { MainApp::getInstance()->shutdown(); });
     OBJ_ASSUME_TRUE(quitConnection);
 
     // Add "i" shortcut to focus the stock symbol input box
-    m_focusShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::FocusStockInput), mainWindow);
+    m_focusShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::FocusStockInput), m_mainWindow);
     // Note: Qt::UniqueConnection cannot be used with lambda functions
     auto focusConnection = connect(m_focusShortcut,
                                    &QShortcut::activated,
@@ -67,20 +69,20 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     OBJ_ASSUME_TRUE(focusConnection);
 
     // Add Ctrl+B shortcut to execute buy order
-    m_buyShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteBuyOrder), mainWindow);
+    m_buyShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteBuyOrder), m_mainWindow);
     auto buyConnection =
         connect(m_buyShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeBuyOrder(); });
     OBJ_ASSUME_TRUE(buyConnection);
 
     // Add Ctrl+S shortcut to execute sell order
-    m_sellShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteSellOrder), mainWindow);
+    m_sellShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteSellOrder), m_mainWindow);
     auto sellConnection =
         connect(m_sellShortcut, &QShortcut::activated, [this]() { ui->orderEntryWidget->executeSellOrder(); });
     OBJ_ASSUME_TRUE(sellConnection);
 
     // Add Ctrl+Shift+B shortcut to execute buy to cover order
     m_buyToCoverShortcut =
-        new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteBuyToCoverOrder), mainWindow);
+        new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteBuyToCoverOrder), m_mainWindow);
     auto buyToCoverConnection = connect(m_buyToCoverShortcut,
                                         &QShortcut::activated,
                                         [this]() { ui->orderEntryWidget->executeBuyToCoverOrder(); });
@@ -88,7 +90,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
 
     // Add Ctrl+Shift+S shortcut to execute sell to cover order
     m_sellToCoverShortcut =
-        new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteSellToCoverOrder), mainWindow);
+        new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ExecuteSellToCoverOrder), m_mainWindow);
     auto sellToCoverConnection = connect(m_sellToCoverShortcut,
                                          &QShortcut::activated,
                                          [this]() { ui->orderEntryWidget->executeSellToCoverOrder(); });
@@ -96,14 +98,14 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
 
     // Add Ctrl+X shortcut to cancel all orders
     m_cancelAllOrdersShortcut =
-        new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::CancelAllOrders), mainWindow);
+        new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::CancelAllOrders), m_mainWindow);
     auto cancelAllConnection =
         connect(m_cancelAllOrdersShortcut, &QShortcut::activated, [this]() { onCancelAllOrders(); });
     OBJ_ASSUME_TRUE(cancelAllConnection);
 
     // Add Space shortcut to toggle replay play/pause
     m_toggleReplayPlayPauseShortcut =
-        new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ToggleReplayPlayPause), mainWindow);
+        new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ToggleReplayPlayPause), m_mainWindow);
     auto toggleReplayConnection =
         connect(m_toggleReplayPlayPauseShortcut, &QShortcut::activated, [this]() { onToggleReplayPlayPause(); });
     OBJ_ASSUME_TRUE(toggleReplayConnection);
@@ -152,7 +154,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     ui->topControlsLayout->insertSpacerItem(3, leftSpacer);
 
     // Create trading session indicator (centered with clock)
-    m_sessionLabel = new QLabel("CLOSED", mainWindow);
+    m_sessionLabel = new QLabel("CLOSED", m_mainWindow);
     Q_CHECK_PTR(m_sessionLabel);
     m_sessionLabel->setStyleSheet("QLabel { background-color: #555555; color: #ffffff; padding: 4px 8px; "
                                   "border-radius: 4px; font-weight: bold; font-family: monospace; }");
@@ -166,7 +168,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     updateSessionLabel();
 
     // Create time display widget (centered next to session label)
-    m_timeDisplayLabel = new QLabel("00:00:00", mainWindow);
+    m_timeDisplayLabel = new QLabel("00:00:00", m_mainWindow);
     Q_CHECK_PTR(m_timeDisplayLabel);
     m_timeDisplayLabel->setStyleSheet(
         "QLabel { "
@@ -192,7 +194,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
 
     // Create trading mode indicator (right side: SIM/LIVE) - clickable to toggle
     bool isSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
-    m_tradingModeLabel = new QLabel(isSimMode ? "🔵 SIM" : "🟠 LIVE", mainWindow);
+    m_tradingModeLabel = new QLabel(isSimMode ? "🔵 SIM" : "🟠 LIVE", m_mainWindow);
     Q_CHECK_PTR(m_tradingModeLabel);
     m_tradingModeLabel->setAlignment(Qt::AlignCenter);
     m_tradingModeLabel->setMinimumWidth(65);
@@ -208,7 +210,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     ui->topControlsLayout->addWidget(m_tradingModeLabel, 0, Qt::AlignRight);
 
     // Create data source indicator (right side: LIVE/REPLAY) - clickable to toggle (only visible in SIM mode)
-    m_dataSourceLabel = new QLabel("🟢 LIVE", mainWindow);
+    m_dataSourceLabel = new QLabel("🟢 LIVE", m_mainWindow);
     Q_CHECK_PTR(m_dataSourceLabel);
     m_dataSourceLabel->setAlignment(Qt::AlignCenter);
     m_dataSourceLabel->setMinimumWidth(80);
@@ -451,10 +453,12 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
 
 GUIFrontend::~GUIFrontend()
 {
+    // Delete main window explicitly (owns all child widgets via Qt parent-child)
+    delete m_mainWindow;
     // ui is automatically deleted by std::unique_ptr
 }
 
-void GUIFrontend::setupDarkTheme(QMainWindow* mainWindow)
+void GUIFrontend::setupDarkTheme(QMainWindow* m_mainWindow)
 {
     // Define the dark theme palette
     QPalette darkPalette;
