@@ -20,18 +20,9 @@ class FrontEnd : public QObject
   signals:
     /**
      * @brief Frontend signals (forwarded from backend components to GUI/TUI)
+     * Thread context: Emitted from Main/GUI thread
      * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: Main/GUI thread (FrontEnd runs on main thread)
-     * - Received on: Main/GUI thread (same thread, typically uses Qt::DirectConnection)
-     * - Thread-safe: Yes (receives data from MainAlgo/TSClient via Qt::QueuedConnection)
-     * 
-     * Data Flow Pattern:
-     * 1. Backend components (TSClient, MainAlgo) emit signals from their worker threads
-     * 2. MainApp receives signals via Qt::QueuedConnection (cross-thread, queued)
-     * 3. MainApp forwards to FrontEnd (same main thread)
-     * 4. FrontEnd emits to GUI widgets (same main thread)
-     * 
+     * Data flow: Backend threads (TSClient, MainAlgo) → MainApp (queued) → FrontEnd → GUI widgets
      * Note: All GUI updates must occur on the main thread per Qt requirements
      */
     void tradeStationAuthStateChanged(bool isAuthenticated, QString reason);

@@ -28,18 +28,9 @@ class BarReceiver : public StreamReceiver
     /**
      * @brief Signal emitted when a new bar is received from the stream
      * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: MainAlgo worker thread (this receiver runs on MainAlgo thread)
-     * - Received on: MainAlgo thread (same thread, typically uses Qt::DirectConnection)
-     * - Thread-safe: Yes (receivers run on MainAlgo thread, receive from TSClient via queued connection)
-     * 
-     * Data Flow:
-     * 1. StreamBars (TSClient thread) emits newBar signal
-     * 2. BarReceiver slot onReceivedNewBar (MainAlgo thread) receives via Qt::QueuedConnection
-     * 3. BarReceiver emits receivedNewBar to BarCache (same MainAlgo thread)
-     * 
-     * @param symbol Stock ticker symbol
-     * @param newBar The new bar data
+     * Thread context:
+     * - Emitted from: MainAlgo worker thread
+     * - Data flow: StreamBars (TSClient thread) → BarReceiver slot (MainAlgo thread, queued) → this signal
      */
     void receivedNewBar(QString symbol, Bar newBar);
 

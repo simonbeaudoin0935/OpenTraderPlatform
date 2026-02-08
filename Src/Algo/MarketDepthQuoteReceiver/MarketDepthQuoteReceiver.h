@@ -50,20 +50,10 @@ class MarketDepthQuoteReceiver : public StreamReceiver
     /**
      * @brief Signal emitted when a new market depth quote is received and processed
      * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: MainAlgo worker thread (this receiver runs on MainAlgo thread)
-     * - Received on: MainAlgo thread (same thread, typically uses Qt::DirectConnection)
-     * - Thread-safe: Yes (receivers run on MainAlgo thread, receive from TSClient via queued connection)
+     * Thread context: Emitted from MainAlgo worker thread
+     * Data flow: StreamMarketDepthQuote (TSClient thread) → MarketDepthQuoteReceiver slot (MainAlgo thread, queued)
+     *            → calculates metrics → emits this signal
      * 
-     * Data Flow:
-     * 1. StreamMarketDepthQuote (TSClient thread) emits newMarketDepthQuote signal
-     * 2. MarketDepthQuoteReceiver slot onReceivedNewMarketDepthQuote (MainAlgo thread) receives via Qt::QueuedConnection
-     * 3. MarketDepthQuoteReceiver calculates bid/ask imbalance and depth-weighted prices
-     * 4. MarketDepthQuoteReceiver emits receivedNewMarketDepthQuote to MainAlgo (same MainAlgo thread)
-     * 
-     * @param symbol Stock ticker symbol
-     * @param marketDepthQuote The market depth quote data
-     * @param bidAskImbalance Calculated bid/ask imbalance ratio
      * @param bidDWP Bid depth-weighted price
      * @param askDWP Ask depth-weighted price
      */

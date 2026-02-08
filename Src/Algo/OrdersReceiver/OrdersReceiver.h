@@ -29,18 +29,8 @@ class OrdersReceiver : public StreamReceiver
     /**
      * @brief Signal emitted when a new order is received from the stream
      * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: MainAlgo worker thread (this receiver runs on MainAlgo thread)
-     * - Received on: MainAlgo thread (same thread, typically uses Qt::DirectConnection)
-     * - Thread-safe: Yes (receivers run on MainAlgo thread, receive from TSClient via queued connection)
-     * 
-     * Data Flow:
-     * 1. StreamOrders (TSClient thread) emits newOrder signal
-     * 2. OrdersReceiver slot onReceivedNewOrder (MainAlgo thread) receives via Qt::QueuedConnection
-     * 3. OrdersReceiver emits receivedNewOrder to MainAlgo (same MainAlgo thread)
-     * 
-     * @param account Account ID
-     * @param order The order data
+     * Thread context: Emitted from MainAlgo worker thread
+     * Data flow: StreamOrders (TSClient thread) → OrdersReceiver slot (MainAlgo thread, queued) → this signal
      */
     void receivedNewOrder(QString account, Order order);
 

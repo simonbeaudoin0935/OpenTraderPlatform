@@ -260,38 +260,19 @@ class TSClient final : public QObject
   signals:
     /**
      * @brief Signal emitted whenever network data is received
-     * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: TSClient worker thread
-     * - Received on: Any thread (Qt automatically uses Qt::QueuedConnection for cross-thread)
-     * - Thread-safe: Yes (queued connection ensures thread safety)
-     * 
-     * @param dataSize Number of bytes received
+     * Thread context: Emitted from TSClient worker thread
      */
     void totalDataReceivedBytesIncreased(qsizetype dataSize);
 
     /**
      * @brief Signal emitted when the count of open streams changes
-     * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: TSClient worker thread
-     * - Received on: Any thread (Qt automatically uses Qt::QueuedConnection for cross-thread)
-     * - Thread-safe: Yes (queued connection ensures thread safety)
-     * 
-     * @param count Current number of open streams
+     * Thread context: Emitted from TSClient worker thread
      */
     void openStreamCountChanged(size_t count);
 
     /**
      * @brief Signal emitted when authentication state changes
-     * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: TSClient worker thread
-     * - Received on: Any thread (Qt automatically uses Qt::QueuedConnection for cross-thread)
-     * - Thread-safe: Yes (queued connection ensures thread safety)
-     * 
-     * @param isAuthenticated true if authenticated, false otherwise
-     * @param reason Human-readable reason for the state change
+     * Thread context: Emitted from TSClient worker thread
      */
     void authStateChanged(bool isAuthenticated, QString reason);
 

@@ -135,28 +135,14 @@ class MainAlgo final : public QObject
   signals:
     /**
      * @brief Signal emitted when the displayed stock receives a new bar
-     * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: MainAlgo worker thread
-     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
-     * - Thread-safe: Yes (queued connection ensures thread safety)
-     * 
-     * @param symbol Stock ticker symbol
-     * @param bar The new bar data
+     * Thread context: Emitted from MainAlgo worker thread
      */
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
     
     /**
      * @brief Signal emitted when the displayed stock receives a new market depth quote
+     * Thread context: Emitted from MainAlgo worker thread
      * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: MainAlgo worker thread
-     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
-     * - Thread-safe: Yes (queued connection ensures thread safety)
-     * 
-     * @param symbol Stock ticker symbol
-     * @param quote The market depth quote
-     * @param bidAskImbalance Calculated bid/ask imbalance
      * @param bidDWP Bid depth-weighted price
      * @param askDWP Ask depth-weighted price
      */
@@ -168,74 +154,37 @@ class MainAlgo final : public QObject
 
     /**
      * @brief Signal emitted when a new position is received
-     * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: MainAlgo worker thread
-     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
-     * - Thread-safe: Yes (queued connection ensures thread safety)
-     * 
-     * @param account Account ID
-     * @param position The position data
+     * Thread context: Emitted from MainAlgo worker thread
      */
     void receivedNewPosition(QString account, Position position);
     
     /**
      * @brief Signal emitted when a position is deleted
-     * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: MainAlgo worker thread
-     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
-     * - Thread-safe: Yes (queued connection ensures thread safety)
-     * 
-     * @param account Account ID
-     * @param positionID Position identifier
+     * Thread context: Emitted from MainAlgo worker thread
      */
     void positionDeleted(QString account, QString positionID);
     
     /**
      * @brief Signal emitted when a new order is received
-     * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: MainAlgo worker thread
-     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
-     * - Thread-safe: Yes (queued connection ensures thread safety)
-     * 
-     * @param account Account ID
-     * @param order The order data
+     * Thread context: Emitted from MainAlgo worker thread
      */
     void receivedNewOrder(QString account, Order order);
     
     /**
      * @brief Signal emitted when TradeStation accounts are received
-     * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: MainAlgo worker thread
-     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
-     * - Thread-safe: Yes (queued connection ensures thread safety)
-     * 
-     * @param accounts Vector of account data
+     * Thread context: Emitted from MainAlgo worker thread
      */
     void tradeStationAccountsReceived(QVector<Account> accounts);
     
     /**
      * @brief Signal emitted when account balance is updated
-     * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: MainAlgo worker thread
-     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
-     * - Thread-safe: Yes (queued connection ensures thread safety)
-     * 
-     * @param balance The updated balance data
+     * Thread context: Emitted from MainAlgo worker thread
      */
     void balanceUpdated(Balance balance);
 
     /**
      * @brief Replay control signals (forwarded from ReplayEngine)
-     * 
-     * Thread Safety (Architecture_Improvements.md point 1.4):
-     * - Emitted from: MainAlgo worker thread (forwarding ReplayEngine signals)
-     * - Received on: Any thread (typically MainApp/GUI thread via Qt::QueuedConnection)
-     * - Thread-safe: Yes (queued connection ensures thread safety)
+     * Thread context: Emitted from MainAlgo worker thread
      */
     void replayStarted();
     void replayStopped();
