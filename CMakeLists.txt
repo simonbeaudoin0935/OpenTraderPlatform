@@ -46,6 +46,15 @@ add_compile_options(
     -Wunused
 )
 
+# Additional safety and security warnings
+add_compile_options(
+    -Wformat-security        # Format string vulnerabilities
+    -Wstrict-overflow=2      # Pointer arithmetic overflow warnings
+    -Wfloat-equal            # Dangerous floating point comparisons
+    -Wundef                  # Undefined macros in #if
+    -Wsuggest-override       # Missing override keyword
+)
+
 # Disable some warnings that are too noisy or incompatible with Qt
 add_compile_options(
     -Wno-old-style-cast      # Qt uses C-style casts extensively
@@ -53,6 +62,25 @@ add_compile_options(
     -Wno-conversion          # Too noisy with Qt
     -Wno-missing-include-dirs # Can be problematic with Qt paths
 )
+
+# Security hardening flags (runtime protections)
+add_compile_options(
+    -fstack-protector-strong # Stack buffer overflow protection
+    -D_FORTIFY_SOURCE=2      # Buffer overflow detection (requires -O1+)
+)
+
+# Linker security hardening
+add_link_options(
+    -Wl,-z,relro,-z,now     # Full RELRO: GOT hardening
+    -Wl,-z,noexecstack      # Non-executable stack
+)
+
+# Debug-only runtime checks
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_definitions(_GLIBCXX_ASSERTIONS)  # STL bounds checking
+    message(STATUS "Debug build: Enabled _GLIBCXX_ASSERTIONS for STL bounds checking")
+endif()
+
 
 # Enable sanitizers if requested (GCC and Clang only)
 if(ENABLE_UBSAN)
