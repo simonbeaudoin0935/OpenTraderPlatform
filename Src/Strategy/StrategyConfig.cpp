@@ -1,6 +1,7 @@
 #include "StrategyConfig.h"
 #include <QJsonArray>
 #include <QDir>
+#include <QFileInfo>
 
 QJsonObject StrategyConfig::toJson() const
 {
@@ -40,10 +41,24 @@ StrategyConfig StrategyConfig::fromJson(const QJsonObject& obj)
         soPath = obj["plugin"].toString();
     }
 
-    // If soPath is just a filename (no path separators), resolve it to the Strategies directory
+    // If soPath is just a filename (no path separators), try multiple locations
     if (!soPath.isEmpty() && !soPath.contains("/") && !soPath.contains("~"))
     {
-        soPath = "~/.local/share/L2Trader/Strategies/" + soPath;
+        QString filename = soPath;
+        // Try user local strategies first
+        soPath = "~/.local/share/L2Trader/Strategies/" + filename;
+
+        // Check if it exists, otherwise try system location
+        QString expandedPath = soPath;
+        if (expandedPath.startsWith("~"))
+        {
+            expandedPath.replace(0, 1, QDir::homePath());
+        }
+
+        if (!QFileInfo::exists(expandedPath))
+        {
+            soPath = "/usr/share/l2trader/strategies/" + filename;
+        }
     }
 
     config.soPath = soPath;

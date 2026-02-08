@@ -564,7 +564,14 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         else
         {
             // Updating existing open bar
-            OBJ_ASSUME_EQUAL(bar.getTimeStamp(), m_latestBar.getTimeStamp());
+            if (bar.getTimeStamp() != m_latestBar.getTimeStamp())
+            {
+                CRITICAL << "Timestamp mismatch when updating existing open bar: new bar timestamp"
+                         << bar.getTimeStamp().toString(Qt::ISODate) << "does not match latest bar timestamp"
+                         << m_latestBar.getTimeStamp().toString(Qt::ISODate);
+
+                return;
+            }
 
             indexToBar[m_latestBarIndex] = bar;
             m_latestBar = bar;
