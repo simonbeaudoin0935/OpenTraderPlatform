@@ -11,7 +11,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # Always run on push and PRs (including drafts) to give quick build feedback
 
     permissions:
       contents: read
@@ -90,6 +90,7 @@ jobs:
   test-gui:
     runs-on: ubuntu-24.04
     needs: build-debian-package
+    # Only run expensive tests when PR is ready (not draft)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     
     permissions:
@@ -233,6 +234,7 @@ jobs:
 
   build-ubsan:
     runs-on: ubuntu-24.04
+    # Only run expensive sanitizer builds when PR is ready (not draft)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     
     permissions:
@@ -296,6 +298,7 @@ jobs:
   test-ubsan:
     runs-on: ubuntu-24.04
     needs: build-ubsan
+    # Only run expensive sanitizer tests when PR is ready (not draft)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     
     permissions:
@@ -430,6 +433,7 @@ jobs:
 
   build-asan:
     runs-on: ubuntu-24.04
+    # Only run expensive sanitizer builds when PR is ready (not draft)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     
     permissions:
@@ -493,6 +497,7 @@ jobs:
   test-asan:
     runs-on: ubuntu-24.04
     needs: build-asan
+    # Only run expensive sanitizer tests when PR is ready (not draft)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     
     permissions:
@@ -627,6 +632,7 @@ jobs:
 
   build-debian-package:
     runs-on: ubuntu-24.04
+    # Only run expensive package builds when PR is ready (not draft)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     permissions:
       contents: read
