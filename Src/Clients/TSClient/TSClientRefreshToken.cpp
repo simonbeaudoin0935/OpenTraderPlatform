@@ -45,7 +45,7 @@ void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
         // Schedule the next token refresh (20 minutes - 5 seconds)
         int secondsToNextRefreshRequest = m_authToken.secondsToNextRefreshRequest();
         OBJ_ASSUME_GT(secondsToNextRefreshRequest, 1);
-        OBJ_ASSUME_LTE(secondsToNextRefreshRequest, 1195);
+        OBJ_ASSUME_LTE(secondsToNextRefreshRequest, AuthConstants::MAX_SECONDS_TO_NEXT_REFRESH_REQUEST);
 
         qCDebug(TSClientLog) << "Programming the next refresh in " << secondsToNextRefreshRequest << " seconds";
 
@@ -186,7 +186,7 @@ void TSClient::refreshAccessToken()
                     int secondsToNextRefreshRequest = m_authToken.secondsToNextRefreshRequest();
                     // Logically if we are here this HAS to be t least 1s
                     OBJ_ASSUME_GT(secondsToNextRefreshRequest, 1);
-                    OBJ_ASSUME_LTE(secondsToNextRefreshRequest, 1195);
+                    OBJ_ASSUME_LTE(secondsToNextRefreshRequest, AuthConstants::MAX_SECONDS_TO_NEXT_REFRESH_REQUEST);
 
                     qCDebug(TSClientLog) << "Programming the next refresh in " << secondsToNextRefreshRequest
                                          << " seconds";
