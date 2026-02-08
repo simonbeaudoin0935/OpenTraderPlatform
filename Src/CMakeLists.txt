@@ -230,7 +230,7 @@ target_include_directories(L2TraderCommon SYSTEM PRIVATE
 
 # Disable null-dereference error for this target because MOC-generated code includes
 # qcustomplot.h without SYSTEM treatment, triggering false positives in template code.
-target_compile_options(L2TraderCommon PRIVATE -Wno-error=null-dereference)
+target_compile_options(L2TraderCommon PRIVATE -Wno-error=null-dereference -Wno-error=unused-but-set-variable)
 
 # Link Qt libraries to the common library
 target_link_libraries(L2TraderCommon PUBLIC
