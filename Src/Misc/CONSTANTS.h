@@ -75,7 +75,7 @@ namespace BarsConstants
      *      - 4:01 AM ≤ time ≤ 8:00 PM
      * @note The function asserts on invalid inputs in debug builds.
      */
-    size_t timeToIndex(const QTime& time)
+    inline size_t timeToIndex(const QTime& time)
     {
         // Validate: must be between 4:01 AM and 8:00 PM inclusive
         ASSUME_GTE(time, TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION);
@@ -105,7 +105,7 @@ namespace BarsConstants
      * @pre index < MINUTE_BARS_PER_DAY (960)
      * @note Returned times are always valid bar timestamps: 4:01 AM to 8:00 PM inclusive.
      */
-    QTime indexToTime(size_t index)
+    inline QTime indexToTime(size_t index)
     {
         ASSUME_LT(index, MINUTE_BARS_PER_DAY);
 
