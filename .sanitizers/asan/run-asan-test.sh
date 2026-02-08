@@ -5,7 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 BUILD_DIR="$REPO_ROOT/build/ASan"
 APP="$BUILD_DIR/Src/L2Trader"
 ASAN_LOG="$SCRIPT_DIR/asan-report.txt"

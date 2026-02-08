@@ -351,7 +351,7 @@ jobs:
       - name: Run UBSan test with Xvfb
         run: |
           # Configure UBSan environment
-          export UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0:log_path=.sanitizers/ubsan-report.txt:suppressions=.sanitizers/ubsan.supp"
+          export UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0:log_path=.sanitizers/ubsan/ubsan-report.txt:suppressions=.sanitizers/ubsan/ubsan.supp"
           
           # Start Xvfb on display :99
           Xvfb :99 -screen 0 1024x768x24 &
@@ -369,7 +369,7 @@ jobs:
           }
           
           # Start the GUI application in background
-          ./build/UBSan/Src/L2Trader 2>&1 | tee .sanitizers/ubsan-console.txt &
+          ./build/UBSan/Src/L2Trader 2>&1 | tee .sanitizers/ubsan/ubsan-console.txt &
           APP_PID=$!
           
           # Wait for application to start
@@ -416,8 +416,8 @@ jobs:
       - name: Analyze UBSan results
         if: always()
         run: |
-          chmod +x .sanitizers/analyze-ubsan.sh
-          ./.sanitizers/analyze-ubsan.sh || echo "UBSan analysis completed with findings"
+          chmod +x .sanitizers/ubsan/analyze-ubsan.sh
+          ./.sanitizers/ubsan/analyze-ubsan.sh || echo "UBSan analysis completed with findings"
 
       - name: Upload UBSan reports
         if: always()
@@ -425,7 +425,7 @@ jobs:
         with:
           name: ubsan-reports-${{ github.sha }}
           path: |
-            .sanitizers/ubsan-*.txt*
+            .sanitizers/ubsan/*.txt*
           retention-days: 7
 
   build-asan:
@@ -548,7 +548,7 @@ jobs:
       - name: Run ASan test with Xvfb
         run: |
           # Configure ASan environment
-          export ASAN_OPTIONS="log_path=.sanitizers/asan-report.txt:halt_on_error=0:detect_leaks=1:suppressions=.sanitizers/asan.supp"
+          export ASAN_OPTIONS="log_path=.sanitizers/asan/asan-report.txt:halt_on_error=0:detect_leaks=1:suppressions=.sanitizers/asan/asan.supp"
           
           # Start Xvfb on display :99
           Xvfb :99 -screen 0 1024x768x24 &
@@ -566,7 +566,7 @@ jobs:
           }
           
           # Start the GUI application in background
-          ./build/ASan/Src/L2Trader 2>&1 | tee .sanitizers/asan-console.txt &
+          ./build/ASan/Src/L2Trader 2>&1 | tee .sanitizers/asan/asan-console.txt &
           APP_PID=$!
           
           # Wait for application to start
@@ -613,8 +613,8 @@ jobs:
       - name: Analyze ASan results
         if: always()
         run: |
-          chmod +x .sanitizers/analyze-asan.sh
-          ./.sanitizers/analyze-asan.sh || echo "ASan analysis completed with findings"
+          chmod +x .sanitizers/asan/analyze-asan.sh
+          ./.sanitizers/asan/analyze-asan.sh || echo "ASan analysis completed with findings"
 
       - name: Upload ASan reports
         if: always()
@@ -622,7 +622,7 @@ jobs:
         with:
           name: asan-reports-${{ github.sha }}
           path: |
-            .sanitizers/asan-*.txt*
+            .sanitizers/asan/*.txt*
           retention-days: 7
 
   build-debian-package:

@@ -1,11 +1,32 @@
-# Sanitizers Testing for L2Trader
+# L2Trader Sanitizers and Memory Analysis Tools
 
-This directory contains scripts and configuration for runtime sanitizers that detect bugs during execution.
+## Directory Organization
 
-## Available Sanitizers
+This directory contains runtime sanitizers and memory analysis tools organized by tool type:
 
-### UBSan (Undefined Behavior Sanitizer)
-Detects undefined behavior at runtime:
+```
+.sanitizers/
+├── AGENTS.md           # This file - AI agent instructions
+├── ubsan/              # UndefinedBehaviorSanitizer
+│   ├── analyze-ubsan.sh
+│   ├── run-ubsan-test.sh
+│   └── ubsan.supp
+├── asan/               # AddressSanitizer
+│   ├── analyze-asan.sh
+│   ├── run-asan-test.sh
+│   └── asan.supp
+└── valgrind/           # Valgrind memory leak detection
+    ├── analyze-leaks.sh
+    ├── run-valgrind-test.sh
+    └── valgrind-qt.supp
+```
+
+## Tool Capabilities
+
+### UBSan (Undefined Behavior Sanitizer) - `ubsan/`
+**Purpose**: Detects undefined behavior at compile-time and runtime
+**When to use**: Checking for code correctness and standards compliance
+**Detects**:
 - Null pointer dereferences
 - Signed integer overflows
 - Out-of-bounds array access
@@ -13,55 +34,120 @@ Detects undefined behavior at runtime:
 - Invalid bit shifts
 - Misaligned pointer access
 
-### ASan (Address Sanitizer)
-Detects memory errors at runtime:
+**Build flag**: `-DENABLE_UBSAN=ON`
+**Performance**: 20-50% slowdown
+**Memory**: Minimal overhead
+
+### ASan (Address Sanitizer) - `asan/`
+**Purpose**: Detects memory access errors and memory leaks
+**When to use**: Debugging memory corruption and heap issues
+**Detects**:
 - Heap buffer overflows
 - Stack buffer overflows
 - Use-after-free
 - Double-free
-- Memory leaks
+- Memory leaks (via LeakSanitizer)
 - Global buffer overflows
 
-**Note**: UBSan and ASan cannot be used simultaneously. Choose one based on what you're testing.
+**Build flag**: `-DENABLE_ASAN=ON`
+**Performance**: 50-100% slowdown
+**Memory**: 2-3x memory usage
 
-## Quick Start
+### Valgrind - `valgrind/`
+**Purpose**: Comprehensive memory error and leak detection
+**When to use**: Deep memory leak analysis, complement to ASan
+**Detects**:
+- All memory leaks (definite, indirect, possible)
+- Invalid memory access
+- Use of uninitialized memory
+- Double-free and invalid-free
 
-### VSCode Tasks (Recommended)
-```
-Ctrl+Shift+P → "Tasks: Run Task"
-```
+**Build flag**: Normal Debug build (no special flags)
+**Performance**: 10-50x slowdown
+**Memory**: Moderate overhead
 
-**UBSan Tasks:**
-- `run-ubsan-with-analysis` ⭐ - Run app with UBSan + auto-analyze results
-- `run-ubsan` - Run app with UBSan (raw output)
-- `analyze-ubsan-report` - Analyze existing UBSan report
-- `build-ubsan` - Build with UBSan enabled
+**Important**: UBSan and ASan cannot be used simultaneously (enforced by CMake). Valgrind can be used separately with any build.
 
-**ASan Tasks:**
-- `run-asan` - Run app with ASan
-- `build-asan` - Build with ASan enabled
+## Quick Start for AI Agents
 
-### Command Line
+### Running Tests Locally
 
-#### UBSan
+**UBSan**:
 ```bash
-# Automated test with analysis
-./.sanitizers/run-ubsan-test.sh
-
-# Or manual:
-./build/UBSan/Src/L2Trader
-./.sanitizers/analyze-ubsan.sh
+./.sanitizers/ubsan/run-ubsan-test.sh
 ```
 
-#### ASan
+**ASan**:
 ```bash
-# Automated test with analysis
-./.sanitizers/run-asan-test.sh
-
-# Or manual:
-./build/ASan/Src/L2Trader
-./.sanitizers/analyze-asan.sh
+./.sanitizers/asan/run-asan-test.sh
 ```
+
+**Valgrind**:
+```bash
+./.sanitizers/valgrind/run-valgrind-test.sh
+```
+
+### Analyzing Reports
+
+**UBSan**:
+```bash
+./.sanitizers/ubsan/analyze-ubsan.sh
+```
+
+**ASan**:
+```bash
+./.sanitizers/asan/analyze-asan.sh
+```
+
+**Valgrind**:
+```bash
+./.sanitizers/valgrind/analyze-leaks.sh [report-file]
+```
+
+### CI Integration
+
+The `.github/workflows/build.yml` includes automated tests:
+- `build-ubsan` + `test-ubsan`: Builds with UBSan and runs test
+- `build-asan` + `test-asan`: Builds with ASan and runs test
+
+Each test job:
+1. Downloads sanitizer-enabled build
+2. Runs app in Xvfb (virtual X display)
+3. Waits 5 seconds for initialization
+4. Sends Ctrl+Q for graceful exit
+5. Analyzes output with respective analyze script
+6. Uploads reports as artifacts (7-day retention)
+
+## File Locations and Paths
+
+### Report Files (gitignored)
+- UBSan: `.sanitizers/ubsan/ubsan-report.txt.*`, `.sanitizers/ubsan/ubsan-console.txt`
+- ASan: `.sanitizers/asan/asan-report.txt.*`, `.sanitizers/asan/asan-console.txt`
+- Valgrind: `.sanitizers/valgrind/valgrind-report.txt`
+
+### Suppression Files
+- UBSan: `.sanitizers/ubsan/ubsan.supp`
+- ASan: `.sanitizers/asan/asan.supp`
+- Valgrind: `.sanitizers/valgrind/valgrind-qt.supp`
+
+## VSCode Integration
+
+Tasks are configured in `.vscode/tasks.json`:
+
+**UBSan**:
+- `run-ubsan-with-analysis` - Run + analyze
+- `analyze-ubsan-report` - Analyze existing report
+- `build-ubsan` - Build with UBSan
+
+**ASan**:
+- `run-asan-with-analysis` - Run + analyze
+- `analyze-asan-report` - Analyze existing report
+- `build-asan` - Build with ASan
+
+**Valgrind**:
+- `run-valgrind-with-analysis` - Run + analyze
+- `analyze-valgrind-report` - Analyze existing report
+- `run-valgrind` - Run with full options
 
 ## How It Works
 
@@ -83,12 +169,17 @@ This adds compiler flags:
 - `-fsanitize=address` - Enable ASan
 - `-fno-omit-frame-pointer` - Better stack traces
 
+**Valgrind:**
+```bash
+valgrind --leak-check=full --show-leak-kinds=definite,possible \
+  --suppressions=.sanitizers/valgrind/valgrind-qt.supp ./build/GUI/Src/L2Trader
+```
+
 ### Environment Variables
 
 **UBSan:**
-**UBSan:**
 ```bash
-UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0:log_path=./ubsan-report.txt:suppressions=ubsan.supp"
+UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0:log_path=./ubsan/ubsan-report.txt:suppressions=./ubsan/ubsan.supp"
 ```
 
 Options:
@@ -100,7 +191,7 @@ Options:
 
 **ASan:**
 ```bash
-ASAN_OPTIONS="log_path=./asan-report.txt:halt_on_error=0:detect_leaks=1:suppressions=asan.supp"
+ASAN_OPTIONS="log_path=./asan/asan-report.txt:halt_on_error=0:detect_leaks=1:suppressions=./asan/asan.supp"
 ```
 
 Options:
@@ -111,8 +202,7 @@ Options:
 
 ### Suppressions
 
-**UBSan suppressions** (`.sanitizers/ubsan.supp`):
-**UBSan suppressions** (`.sanitizers/ubsan.supp`):
+**UBSan suppressions** (`.sanitizers/ubsan/ubsan.supp`):
 ```
 # Suppress specific function
 signed-integer-overflow:*MyFunction*
@@ -124,7 +214,7 @@ src:*/external/library.cpp
 signed-integer-overflow:*QHash*
 ```
 
-**ASan suppressions** (`.sanitizers/asan.supp`):
+**ASan suppressions** (`.sanitizers/asan/asan.supp`):
 ```
 # Suppress memory leaks from Qt
 leak:*QApplication*
@@ -133,9 +223,13 @@ leak:*QApplication*
 leak:*libfontconfig*
 ```
 
+**Valgrind suppressions** (`.sanitizers/valgrind/valgrind-qt.supp`):
+- Comprehensive Qt6, GTK, GLib, fontconfig suppressions
+- System library suppressions
+- See file for full list of patterns
+
 ## Output Analysis
 
-### UBSan Clean Run
 ### UBSan Clean Run
 ```
 🎉 PERFECT! No undefined behavior detected!
@@ -146,7 +240,6 @@ leak:*libfontconfig*
    ...
 ```
 
-### UBSan Issues Found
 ### UBSan Issues Found
 ```
 ⚠️  Found 5 undefined behavior issue(s)
@@ -304,7 +397,7 @@ After a CI run:
     ./build/UBSan/Src/L2Trader
     
 - name: Analyze
-  run: ./.sanitizers/analyze-ubsan.sh
+  run: ./.sanitizers/ubsan/analyze-ubsan.sh
 ```
 
 ## Performance Impact
@@ -334,10 +427,10 @@ After a CI run:
 ## Files
 
 ### Scripts
-- `.sanitizers/run-ubsan-test.sh` - UBSan test runner
-- `.sanitizers/analyze-ubsan.sh` - UBSan report analyzer
-- `.sanitizers/run-asan-test.sh` - ASan test runner
-- `.sanitizers/analyze-asan.sh` - ASan report analyzer
+- `.sanitizers/ubsan/run-ubsan-test.sh` - UBSan test runner
+- `.sanitizers/ubsan/analyze-ubsan.sh` - UBSan report analyzer
+- `.sanitizers/asan/run-asan-test.sh` - ASan test runner
+- `.sanitizers/asan/analyze-asan.sh` - ASan report analyzer
 
 ### Configuration
 - `.sanitizers/ubsan.supp` - UBSan suppressions
@@ -396,5 +489,6 @@ export ASAN_OPTIONS="detect_leaks=0"
 ## See Also
 - [UBSan Documentation](https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html)
 - [ASan Documentation](https://clang.llvm.org/docs/AddressSanitizer.html)
+- [Valgrind Documentation](https://valgrind.org/docs/manual/quick-start.html)
 - `Doc/Destructor_Guidelines.md` - Memory management best practices
-- `.valgrind/README.md` - Complementary memory leak testing
+- `.sanitizers/valgrind/` - Valgrind scripts and suppressions for memory leak testing
