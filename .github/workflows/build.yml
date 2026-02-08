@@ -231,6 +231,400 @@ jobs:
           path: screenshots/
           retention-days: 2
 
+  build-ubsan:
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    
+    permissions:
+      contents: read
+    
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{github.head_ref}}
+
+      - name: Set up ccache
+        run: |
+          export CCACHE_DIR=$HOME/.cache/ccache
+          echo "CCACHE_DIR=$HOME/.cache/ccache" >> $GITHUB_ENV
+          ccache --version
+          mkdir -p $CCACHE_DIR
+          ccache --set-config=max_size=500M
+          ccache --set-config=compression=true
+          ccache --set-config=compression_level=6
+          ccache --zero-stats
+
+      - name: Cache ccache directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-ubsan-noble-X86-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-ubsan-noble-X86-${{ github.ref }}
+            ccache-ubsan-noble-X86-refs/heads/main
+
+      - name: Configure UBSan build with CMake
+        run: |
+          cmake --version
+          mkdir -p build/UBSan
+          cmake -S . -B build/UBSan -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF -DENABLE_UBSAN=ON
+
+      - name: Build UBSan targets
+        run: cmake --build build/UBSan -j$(nproc)
+
+      - name: Upload UBSan executable artifact
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: l2trader-ubsan-${{ github.sha }}
+          path: |
+            build/UBSan/Src/L2Trader
+            build/UBSan/Src/*.so
+            build/UBSan/lib/
+          retention-days: 1
+
+  test-ubsan:
+    runs-on: ubuntu-24.04
+    needs: build-ubsan
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    
+    permissions:
+      contents: read
+      actions: read
+    
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{github.head_ref}}
+
+      - name: Download UBSan executable
+        uses: actions/download-artifact@v4
+        with:
+          name: l2trader-ubsan-${{ github.sha }}
+          path: ./build/UBSan
+
+      - name: Set executable permissions
+        run: chmod +x ./build/UBSan/Src/L2Trader
+
+      - name: Setup test credentials
+        run: |
+          chmod +x .github/scripts/setup-test-credentials.sh
+          .github/scripts/setup-test-credentials.sh \
+            "${{ secrets.ACCESS_TOKEN }}" \
+            "${{ secrets.CLIENT_ID }}" \
+            "${{ secrets.CLIENT_SECRET }}" \
+            "${{ secrets.ID_TOKEN }}" \
+            "${{ secrets.REFRESH_TOKEN }}" \
+            "${{ vars.EXPIRES_IN }}" \
+            "${{ vars.RECEIVED_AT }}" \
+            "${{ vars.SCOPE }}" \
+            "${{ vars.TOKEN_TYPE }}"
+
+      - name: Set default stock in AppState.ini
+        run: |
+          cat > ~/.config/L2Trader/AppState.ini << EOF
+          [UI]
+          LastDisplayedStock=TSLA
+          EOF
+
+      - name: Run UBSan test with Xvfb
+        run: |
+          # Configure UBSan environment
+          export UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0:log_path=.sanitizers/ubsan-report.txt:suppressions=.sanitizers/ubsan.supp"
+          
+          # Start Xvfb on display :99
+          Xvfb :99 -screen 0 1024x768x24 &
+          XVFB_PID=$!
+          export DISPLAY=:99
+          
+          # Wait for Xvfb to be ready
+          sleep 2
+          
+          # Verify display is available
+          xdpyinfo -display :99 > /dev/null 2>&1 || { 
+            echo "Display :99 not available"
+            kill $XVFB_PID 2>/dev/null || true
+            exit 1
+          }
+          
+          # Start the GUI application in background
+          ./build/UBSan/Src/L2Trader 2>&1 | tee .sanitizers/ubsan-console.txt &
+          APP_PID=$!
+          
+          # Wait for application to start
+          sleep 5
+          
+          # Find the window and send Ctrl+Q
+          WINDOW_ID=$(xdotool search --sync --onlyvisible --class "L2Trader" 2>/dev/null | head -1)
+          
+          if [ -n "$WINDOW_ID" ]; then
+            echo "Found window ID: $WINDOW_ID"
+            
+            # Send Ctrl+Q directly to the window
+            xdotool key --window "$WINDOW_ID" ctrl+q
+            
+            # Wait for application to exit (with timeout)
+            TIMEOUT=10
+            ELAPSED=0
+            while kill -0 $APP_PID 2>/dev/null && [ $ELAPSED -lt $TIMEOUT ]; do
+              sleep 1
+              ELAPSED=$((ELAPSED + 1))
+            done
+            
+            # Check if process exited
+            if kill -0 $APP_PID 2>/dev/null; then
+              echo "Application did not exit after Ctrl+Q within ${TIMEOUT}s, killing it"
+              kill $APP_PID
+              wait $APP_PID 2>/dev/null || true
+              EXIT_CODE=$?
+            else
+              wait $APP_PID 2>/dev/null || true
+              EXIT_CODE=$?
+            fi
+          else
+            echo "Window not found, application may have crashed or failed to start"
+            wait $APP_PID 2>/dev/null || true
+            EXIT_CODE=$?
+          fi
+          
+          # Clean up Xvfb
+          kill $XVFB_PID 2>/dev/null || true
+          
+          echo "Application exit code: $EXIT_CODE"
+
+      - name: Analyze UBSan results
+        if: always()
+        run: |
+          chmod +x .sanitizers/analyze-ubsan.sh
+          ./.sanitizers/analyze-ubsan.sh || echo "UBSan analysis completed with findings"
+
+      - name: Upload UBSan reports
+        if: always()
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: ubsan-reports-${{ github.sha }}
+          path: |
+            .sanitizers/ubsan-*.txt*
+          retention-days: 7
+
+  build-asan:
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    
+    permissions:
+      contents: read
+    
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{github.head_ref}}
+
+      - name: Set up ccache
+        run: |
+          export CCACHE_DIR=$HOME/.cache/ccache
+          echo "CCACHE_DIR=$HOME/.cache/ccache" >> $GITHUB_ENV
+          ccache --version
+          mkdir -p $CCACHE_DIR
+          ccache --set-config=max_size=500M
+          ccache --set-config=compression=true
+          ccache --set-config=compression_level=6
+          ccache --zero-stats
+
+      - name: Cache ccache directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-asan-noble-X86-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-asan-noble-X86-${{ github.ref }}
+            ccache-asan-noble-X86-refs/heads/main
+
+      - name: Configure ASan build with CMake
+        run: |
+          cmake --version
+          mkdir -p build/ASan
+          cmake -S . -B build/ASan -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF -DENABLE_ASAN=ON
+
+      - name: Build ASan targets
+        run: cmake --build build/ASan -j$(nproc)
+
+      - name: Upload ASan executable artifact
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: l2trader-asan-${{ github.sha }}
+          path: |
+            build/ASan/Src/L2Trader
+            build/ASan/Src/*.so
+            build/ASan/lib/
+          retention-days: 1
+
+  test-asan:
+    runs-on: ubuntu-24.04
+    needs: build-asan
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    
+    permissions:
+      contents: read
+      actions: read
+    
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{github.head_ref}}
+
+      - name: Download ASan executable
+        uses: actions/download-artifact@v4
+        with:
+          name: l2trader-asan-${{ github.sha }}
+          path: ./build/ASan
+
+      - name: Set executable permissions
+        run: chmod +x ./build/ASan/Src/L2Trader
+
+      - name: Setup test credentials
+        run: |
+          chmod +x .github/scripts/setup-test-credentials.sh
+          .github/scripts/setup-test-credentials.sh \
+            "${{ secrets.ACCESS_TOKEN }}" \
+            "${{ secrets.CLIENT_ID }}" \
+            "${{ secrets.CLIENT_SECRET }}" \
+            "${{ secrets.ID_TOKEN }}" \
+            "${{ secrets.REFRESH_TOKEN }}" \
+            "${{ vars.EXPIRES_IN }}" \
+            "${{ vars.RECEIVED_AT }}" \
+            "${{ vars.SCOPE }}" \
+            "${{ vars.TOKEN_TYPE }}"
+
+      - name: Set default stock in AppState.ini
+        run: |
+          cat > ~/.config/L2Trader/AppState.ini << EOF
+          [UI]
+          LastDisplayedStock=TSLA
+          EOF
+
+      - name: Run ASan test with Xvfb
+        run: |
+          # Configure ASan environment
+          export ASAN_OPTIONS="log_path=.sanitizers/asan-report.txt:halt_on_error=0:detect_leaks=1:suppressions=.sanitizers/asan.supp"
+          
+          # Start Xvfb on display :99
+          Xvfb :99 -screen 0 1024x768x24 &
+          XVFB_PID=$!
+          export DISPLAY=:99
+          
+          # Wait for Xvfb to be ready
+          sleep 2
+          
+          # Verify display is available
+          xdpyinfo -display :99 > /dev/null 2>&1 || { 
+            echo "Display :99 not available"
+            kill $XVFB_PID 2>/dev/null || true
+            exit 1
+          }
+          
+          # Start the GUI application in background
+          ./build/ASan/Src/L2Trader 2>&1 | tee .sanitizers/asan-console.txt &
+          APP_PID=$!
+          
+          # Wait for application to start
+          sleep 5
+          
+          # Find the window and send Ctrl+Q
+          WINDOW_ID=$(xdotool search --sync --onlyvisible --class "L2Trader" 2>/dev/null | head -1)
+          
+          if [ -n "$WINDOW_ID" ]; then
+            echo "Found window ID: $WINDOW_ID"
+            
+            # Send Ctrl+Q directly to the window
+            xdotool key --window "$WINDOW_ID" ctrl+q
+            
+            # Wait for application to exit (with timeout)
+            TIMEOUT=10
+            ELAPSED=0
+            while kill -0 $APP_PID 2>/dev/null && [ $ELAPSED -lt $TIMEOUT ]; do
+              sleep 1
+              ELAPSED=$((ELAPSED + 1))
+            done
+            
+            # Check if process exited
+            if kill -0 $APP_PID 2>/dev/null; then
+              echo "Application did not exit after Ctrl+Q within ${TIMEOUT}s, killing it"
+              kill $APP_PID
+              wait $APP_PID 2>/dev/null || true
+              EXIT_CODE=$?
+            else
+              wait $APP_PID 2>/dev/null || true
+              EXIT_CODE=$?
+            fi
+          else
+            echo "Window not found, application may have crashed or failed to start"
+            wait $APP_PID 2>/dev/null || true
+            EXIT_CODE=$?
+          fi
+          
+          # Clean up Xvfb
+          kill $XVFB_PID 2>/dev/null || true
+          
+          echo "Application exit code: $EXIT_CODE"
+
+      - name: Analyze ASan results
+        if: always()
+        run: |
+          chmod +x .sanitizers/analyze-asan.sh
+          ./.sanitizers/analyze-asan.sh || echo "ASan analysis completed with findings"
+
+      - name: Upload ASan reports
+        if: always()
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: asan-reports-${{ github.sha }}
+          path: |
+            .sanitizers/asan-*.txt*
+          retention-days: 7
+
   build-debian-package:
     runs-on: ubuntu-24.04
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
