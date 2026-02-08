@@ -5,6 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 jobs:
@@ -82,16 +83,18 @@ jobs:
           name: l2trader-gui-${{ github.sha }}
           path: |
             build/GUI/Src/L2Trader
+            build/GUI/Src/*.so
             build/GUI/lib/
           retention-days: 1
 
   test-gui:
     runs-on: ubuntu-24.04
-    needs: build
+    needs: build-debian-package
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     
     permissions:
       contents: read
+      actions: read
     
     defaults:
       run:
@@ -109,16 +112,16 @@ jobs:
         with:
           ref: ${{github.head_ref}}
 
-      - name: Download GUI artifact
-        uses: actions/download-artifact@v4.1.8
+      - name: Download Debian package artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: l2trader-gui-${{ github.sha }}
-          path: ./gui-build
+          name: debian-packages-X64
+          path: ./packages
 
-      - name: Make executable runnable
+      - name: Install packages
         run: |
-          tree ./gui-build
-          chmod +x ./gui-build/Src/L2Trader
+          apt-get update
+          apt-get install -y ./packages/l2trader_*.deb
 
       - name: Setup test credentials
         run: |
@@ -134,12 +137,16 @@ jobs:
             "${{ vars.SCOPE }}" \
             "${{ vars.TOKEN_TYPE }}"
 
-
-
       - name: Print config files
         run: find ~/.config/L2Trader -type f -exec cat {} \;
 
-            
+      - name: Give default stock
+      - name: Set default stock in AppState.ini
+        run: |
+          cat > ~/.config/L2Trader/AppState.ini << EOF
+          [UI]
+          LastDisplayedStock=TSLA
+          EOF
 
       - name: Run GUI test with Xvfb
         run: |
@@ -147,7 +154,6 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 &
           XVFB_PID=$!
           export DISPLAY=:99
-          export LD_LIBRARY_PATH=./gui-build/lib:$LD_LIBRARY_PATH
           
           # Wait for Xvfb to be ready
           sleep 2
@@ -160,7 +166,7 @@ jobs:
           }
           
           # Start the GUI application in background
-          ./gui-build/Src/L2Trader &
+          l2trader &
           APP_PID=$!
           
           # Wait for application to start
@@ -225,3 +231,70 @@ jobs:
           name: gui-test-screenshot-${{ github.sha }}
           path: screenshots/
           retention-days: 2
+
+  build-debian-package:
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      actions: read
+
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up ccache
+      run: |
+        export CCACHE_DIR=$HOME/.cache/ccache
+        echo "CCACHE_DIR=$HOME/.cache/ccache" >> $GITHUB_ENV
+        ccache --version
+        mkdir -p $CCACHE_DIR
+        ccache --set-config=max_size=500M
+        ccache --set-config=compression=true
+        ccache --set-config=compression_level=6
+        ccache --zero-stats
+
+    - name: Cache ccache directory
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ccache-debian-noble-X86-${{ github.ref }}-${{ github.sha }}
+        restore-keys: |
+          ccache-debian-noble-X86-${{ github.ref }}
+          ccache-debian-noble-X86-refs/heads/main
+
+    - name: Build Debian package
+      run: |
+        cmake --version
+        git config --global --add safe.directory /__w/L2Trader/L2Trader
+        export GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown")
+        export GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        export GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        echo "Building with version: $GIT_TAG ~ $GIT_BRANCH@$GIT_HASH"
+        dpkg-buildpackage -us -uc -b
+
+    - name: Show ccache statistics
+      run: ccache --show-stats
+
+    - name: Prepare artifacts directory
+      run: |
+        mkdir -p artifacts
+        cp ../*.deb artifacts/
+
+    - name: List generated packages
+      run: ls -lh ../*.deb
+
+    - name: Upload Debian packages as artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: debian-packages-X64
+        path: artifacts/*.deb

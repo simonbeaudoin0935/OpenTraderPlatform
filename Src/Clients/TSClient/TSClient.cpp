@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QMutexLocker>
 #include <QDebug>
+#include <QCoreApplication>
 
 #include "TSClient.h"
 #include "Logging.h"
@@ -43,7 +44,38 @@ TSClient::~TSClient()
 {
     qCDebug(TSClientLog) << "TSClient shutting down";
 
-    // Request thread to stop
+    // Thread affinity assertion - destructor must be called from main thread
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
+
+    // CRITICAL: Delete Stream child objects BEFORE QNetworkAccessManager
+    // Streams need a valid QNetworkAccessManager to abort their network replies
+    QMetaObject::invokeMethod(
+        this,
+        [this]()
+        {
+            // This lambda executes on TSClient thread
+            const QObjectList childrenList = children();
+            for (QObject* child: childrenList)
+            {
+                // Skip QNetworkAccessManager - delete it AFTER streams
+                if (child == m_networkManager)
+                    continue;
+
+                child->deleteLater(); // Schedule Stream deletion
+            }
+        },
+        Qt::BlockingQueuedConnection);
+
+    // Process events to delete Streams (while QNetworkAccessManager still valid)
+    QMetaObject::invokeMethod(this, []() { QCoreApplication::processEvents(); }, Qt::BlockingQueuedConnection);
+
+    // Now delete QNetworkAccessManager after all Streams are gone
+    QMetaObject::invokeMethod(this, [this]() { m_networkManager->deleteLater(); }, Qt::BlockingQueuedConnection);
+
+    // Process final deleteLater
+    QMetaObject::invokeMethod(this, []() { QCoreApplication::processEvents(); }, Qt::BlockingQueuedConnection);
+
+    // Now safe to stop thread (all objects deleted in correct order)
     m_thread.quit();
 
     // Wait for thread to finish (with timeout)

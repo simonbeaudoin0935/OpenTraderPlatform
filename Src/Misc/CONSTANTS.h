@@ -174,6 +174,9 @@ namespace AuthConstants
     inline constexpr int EXPECTED_EXPIRES_IN = 1200; // 20 minutes
     inline constexpr int EXPIRY_BUFFER_SECONDS = 5;  // Buffer time before actual expiry
 
+    // Maximum seconds to next refresh request (expires_in - buffer)
+    inline constexpr int MAX_SECONDS_TO_NEXT_REFRESH_REQUEST = 1195;
+
     // Expected OAuth scopes
     inline const QStringList EXPECTED_SCOPES =
         {"openid", "profile", "MarketData", "ReadAccount", "Trade", "Matrix", "offline_access"};

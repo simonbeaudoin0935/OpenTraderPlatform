@@ -1,0 +1,333 @@
+# Valgrind suppression file for Qt6 applications
+# Qt intentionally keeps some global static objects alive until process exit
+# These are not memory leaks but intentional design decisions
+
+# =============================================================================
+# Qt6 Core Framework
+# =============================================================================
+
+{
+   Qt6-QCoreApplication-global-static
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QCoreApplication*
+}
+
+{
+   Qt6-QThread-static
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QThread*
+}
+
+{
+   Qt6-QMetaType-global
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QMetaType*
+}
+
+{
+   Qt6-QFactoryLoader
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QFactoryLoader*
+}
+
+{
+   Qt6-QLibraryPrivate
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QLibraryPrivate*
+}
+
+{
+   Qt6-QString-static
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QString*
+}
+
+{
+   Qt6-QByteArray-static
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QByteArray*
+}
+
+{
+   Qt6-Global-statics
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:*/libQt6Core.so*
+}
+
+# =============================================================================
+# Qt6 GUI & Widgets
+# =============================================================================
+
+{
+   Qt6-QFont-cache
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   fun:*QFont*
+}
+
+{
+   Qt6-QPixmapCache
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QPixmapCache*
+}
+
+{
+   Qt6-GUI-statics
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   obj:*/libQt6Gui.so*
+}
+
+{
+   Qt6-Widgets-statics
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:*/libQt6Widgets.so*
+}
+
+# =============================================================================
+# Qt6 Network & Proxy
+# =============================================================================
+
+{
+   Qt6-Network-statics
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   obj:*/libQt6Network.so*
+}
+
+{
+   Qt6-QNetworkProxy-factory
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   fun:*QNetworkProxyFactory*
+}
+
+{
+   Qt6-libproxy
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   obj:*/libproxy*
+}
+
+{
+   Qt6-libproxy-manager
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   fun:px_manager_new*
+}
+
+{
+   Qt6-libproxy-factory
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   fun:px_proxy_factory_new
+}
+
+# =============================================================================
+# Fontconfig (used by Qt for font rendering)
+# =============================================================================
+
+{
+   fontconfig-FcFontMatch
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   fun:FcFontMatch
+}
+
+{
+   fontconfig-FcFontRenderPrepare
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   fun:FcFontRenderPrepare
+}
+
+{
+   fontconfig-cache-all
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   obj:*/libfontconfig.so*
+}
+
+{
+   fontconfig-Qt-integration
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   fun:*QFontEngine*
+   ...
+   obj:*/libfontconfig.so*
+}
+
+# =============================================================================
+# GTK & ATK (accessibility)
+# =============================================================================
+
+{
+   gtk3-css-provider
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   fun:gtk_css_provider*
+}
+
+{
+   gtk3-all-leaks
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   obj:*/libgtk-3.so*
+}
+
+{
+   atk-bridge-init
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   fun:atk_bridge_adaptor_init
+}
+
+{
+   atk-bridge-all
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   obj:*/libatk-bridge*.so*
+}
+
+{
+   atk-interface
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   fun:spi_atk_add_interface
+}
+
+# =============================================================================
+# GLib & GObject (GTK/Qt dependencies on Linux)
+# =============================================================================
+
+{
+   glib-g_malloc
+   Memcheck:Leak
+   match-leak-kinds: all
+   fun:*alloc
+   fun:g_malloc*
+   ...
+}
+
+{
+   glib-g_realloc
+   Memcheck:Leak
+   match-leak-kinds: all
+   fun:realloc
+   fun:g_realloc
+   ...
+}
+
+{
+   glib-all
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   obj:*/libglib-2.0.so*
+}
+
+{
+   gobject-all
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   obj:*/libgobject-2.0.so*
+}
+
+{
+   gobject-signal
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   fun:g_signal_emit*
+}
+
+{
+   gobject-closure
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   fun:g_closure_invoke
+}
+
+# =============================================================================
+# System Libraries
+# =============================================================================
+
+{
+   glibc-dlopen
+   Memcheck:Leak
+   match-leak-kinds: all
+   fun:*alloc
+   ...
+   fun:dlopen*
+}
+
+{
+   libstdc++-locale
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   fun:*locale*
+   obj:*/libstdc++.so*
+}
+
+{
+   libstdc++-all
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:*/libstdc++.so*
+}
+
+# =============================================================================
+# Conditional jump suppressions (uninitialized values in libraries)
+# =============================================================================
+
+{
+   Qt-uninitialized-conditional
+   Memcheck:Cond
+   obj:*/libQt6*.so*
+}
+
+{
+   glib-uninitialized-conditional
+   Memcheck:Cond
+   obj:*/libglib-2.0.so*
+}

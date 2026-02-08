@@ -1029,6 +1029,7 @@ void OrderEntryWidget::updateStickyPrice()
     case TradeAction::Sell:
     case TradeAction::SellShort:
     case TradeAction::SellToOpen:
+    case TradeAction::SellToClose:
         // Sell orders
         if (m_stickyAggressiveMode)
         {

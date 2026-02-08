@@ -564,7 +564,14 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         else
         {
             // Updating existing open bar
-            OBJ_ASSUME_EQUAL(bar.getTimeStamp(), m_latestBar.getTimeStamp());
+            if (bar.getTimeStamp() != m_latestBar.getTimeStamp())
+            {
+                CRITICAL << "Timestamp mismatch when updating existing open bar: new bar timestamp"
+                         << bar.getTimeStamp().toString(Qt::ISODate) << "does not match latest bar timestamp"
+                         << m_latestBar.getTimeStamp().toString(Qt::ISODate);
+
+                return;
+            }
 
             indexToBar[m_latestBarIndex] = bar;
             m_latestBar = bar;
@@ -905,16 +912,22 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
     // Only set initial Y-axis range on the first batch of historical bars
     if (!m_initialYAxisRangeSet)
     {
-        // Compute min/max price from the last 60 bars to set initial Y-axis range
-        const int barsToAnalyze = qMin(60, static_cast<int>(barsPtr->size()));
+        // Compute min/max price from the last 60 non-null bars to set initial Y-axis range
+        // We skip Null (void) bars since they have 0 prices and would distort the range
         double minPrice = std::numeric_limits<double>::max();
         double maxPrice = std::numeric_limits<double>::lowest();
+        int barsAnalyzed = 0;
 
-        for (int i = barsPtr->size() - barsToAnalyze; i < barsPtr->size(); ++i)
+        for (int i = barsPtr->size() - 1; i >= 0 && barsAnalyzed < 60; --i)
         {
             const Bar& bar = barsPtr->at(i);
+            if (bar.getBarStatus() == Bar::BarStatus::Null)
+            {
+                continue;
+            }
             minPrice = qMin(minPrice, bar.getLow());
             maxPrice = qMax(maxPrice, bar.getHigh());
+            ++barsAnalyzed;
         }
 
         if (minPrice < maxPrice)

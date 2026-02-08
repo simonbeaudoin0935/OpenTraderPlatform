@@ -93,7 +93,9 @@ bool SecureStorage::isSecureStorageAvailable()
 #endif
 }
 
-bool SecureStorage::storeValuesSync(const QString& service, const QMap<QString, QString>& keyValues, int timeoutMs)
+bool SecureStorage::storeValuesSync(const QString& service,
+                                    const QMap<QString, QString>& keyValues,
+                                    [[maybe_unused]] int timeoutMs)
 {
     // Service name cannot be empty
     OBJ_ASSUME_FALSE(service.isEmpty());
@@ -187,7 +189,8 @@ bool SecureStorage::storeValuesSync(const QString& service, const QMap<QString, 
     return success;
 }
 
-QMap<QString, QString> SecureStorage::retrieveValuesSync(const QString& service, const QStringList& keys, int timeoutMs)
+QMap<QString, QString>
+SecureStorage::retrieveValuesSync(const QString& service, const QStringList& keys, [[maybe_unused]] int timeoutMs)
 {
     // Service name cannot be empty
     OBJ_ASSUME_FALSE(service.isEmpty());
@@ -264,7 +267,7 @@ QMap<QString, QString> SecureStorage::retrieveValuesSync(const QString& service,
     return results;
 }
 
-bool SecureStorage::deleteValuesSync(const QString& service, const QStringList& keys, int timeoutMs)
+bool SecureStorage::deleteValuesSync(const QString& service, const QStringList& keys, [[maybe_unused]] int timeoutMs)
 {
     // Service name cannot be empty
     OBJ_ASSUME_FALSE(service.isEmpty());

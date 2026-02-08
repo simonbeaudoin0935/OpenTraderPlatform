@@ -5,36 +5,19 @@ set -e
 
 case "$1" in
     purge)
-        # Clean up systemd configuration
-        if [ -d /run/systemd/system ]; then
-            systemctl daemon-reload >/dev/null || true
-        fi
-        
-        # Clean up configuration files for all users
-        # Note: This only removes local config files, not keyring credentials
+        # Remove user configuration, cache, and local data on full purge
         for user_home in /home/*; do
             if [ -d "$user_home" ]; then
-                # Remove all .ini files from L2Trader config directory
-                rm -f "$user_home/.config/L2Trader"/*.ini 2>/dev/null || true
+                # Remove L2Trader configuration
+                rm -rf "$user_home/.config/L2Trader" 2>/dev/null || true
                 
-                # Clean up empty directories
-                rmdir "$user_home/.config/L2Trader" 2>/dev/null || true
+                # Remove L2Trader cache
+                rm -rf "$user_home/.cache/L2Trader" 2>/dev/null || true
                 
-                # Try to clear keyring credentials for this user
-                username=$(basename "$user_home")
-                if command -v secret-tool >/dev/null 2>&1 && getent passwd "$username" >/dev/null 2>&1; then
-                    # Run as the user to clear their keyring credentials
-                    su - "$username" -c "secret-tool clear service TradeStation 2>/dev/null || true" 2>/dev/null || true
-                fi
+                # Remove L2Trader local data (strategies, logs, etc.)
+                rm -rf "$user_home/.local/share/L2Trader" 2>/dev/null || true
             fi
         done
-        
-        # Inform users about keyring credentials
-        # Note: We attempted to automatically clear keyring credentials, but this may not work
-        # if the user's keyring is locked or if the session is not available
-        echo "Note: Attempted to clear TradeStation credentials from system keyring for all users."
-        echo "If credentials remain, users can manually clear them by running:"
-        echo "  secret-tool clear service TradeStation"
         ;;
 esac
 

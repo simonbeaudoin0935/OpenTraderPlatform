@@ -50,6 +50,10 @@ class Bar
 
     bool operator==(const Bar& other) const
     {
+        // Exact bitwise equality check for Bar data structure comparison
+        // Suppress -Wfloat-equal: This is intentional for exact cache/dedup checks
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
         return m_timeStamp == other.m_timeStamp && m_open == other.m_open && m_high == other.m_high &&
                m_low == other.m_low && m_close == other.m_close && m_totalVolume == other.m_totalVolume &&
                m_downTicks == other.m_downTicks && m_downVolume == other.m_downVolume &&
@@ -57,6 +61,7 @@ class Bar
                m_unchangedVolume == other.m_unchangedVolume && m_upTicks == other.m_upTicks &&
                m_upVolume == other.m_upVolume && m_epoch == other.m_epoch && m_openInterest == other.m_openInterest &&
                m_flags == other.m_flags;
+#pragma GCC diagnostic pop
     }
 
     static Bar nullBar(QDateTime dateTime);

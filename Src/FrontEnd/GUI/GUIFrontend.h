@@ -86,6 +86,7 @@ class GUIFrontend : public FrontEnd
     static QString bytesToString(qint64 bytes);
 
     std::unique_ptr<Ui::GUIFrontend> ui;  // Pointer to the UI object
+    QMainWindow* m_mainWindow = nullptr;  // Main application window (owned by this)
     QPushButton* tradeStationLoginButton; // Login button in status bar
     QPushButton* m_accountInfoButton;     // Info button for account details
 

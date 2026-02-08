@@ -30,7 +30,11 @@ endif()
 
 # Enable strict compiler warnings, and treat warnings as errors
 add_compile_options(
-    #-Werror
+    # === Treat warnings as errors (except #warning directives) ===
+    -Werror                  # All warnings are errors
+    -Wno-error=cpp           # Except #warning directives (intentional TODOs)
+
+    # === Tier 0: Core warnings ===
     -Wall
     -Wextra
     -Wpedantic
@@ -44,6 +48,22 @@ add_compile_options(
     -Woverloaded-virtual
     -Wshadow
     -Wunused
+    -fdiagnostics-color=always  # Enable colored compiler output
+)
+
+# Disable unused-variable errors in Release builds when NDEBUG removes assertion variables
+# The ASSUME macros expand to nothing with NDEBUG, leaving their validation variables unused
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_compile_options(-Wno-error=unused-variable)
+endif()
+
+# Additional safety and security warnings
+add_compile_options(
+    -Wformat-security        # Format string vulnerabilities
+    -Wstrict-overflow=2      # Pointer arithmetic overflow warnings
+    -Wfloat-equal            # Dangerous floating point comparisons
+    -Wundef                  # Undefined macros in #if
+    -Wsuggest-override       # Missing override keyword
 )
 
 # Disable some warnings that are too noisy or incompatible with Qt
@@ -53,6 +73,26 @@ add_compile_options(
     -Wno-conversion          # Too noisy with Qt
     -Wno-missing-include-dirs # Can be problematic with Qt paths
 )
+
+# Security hardening flags (runtime protections)
+# Note: _FORTIFY_SOURCE is not set here as it is provided by dpkg-buildpackage
+# hardening flags during debian builds and by compiler defaults otherwise.
+add_compile_options(
+    -fstack-protector-strong # Stack buffer overflow protection
+)
+
+# Linker security hardening
+add_link_options(
+    -Wl,-z,relro,-z,now     # Full RELRO: GOT hardening
+    -Wl,-z,noexecstack      # Non-executable stack
+)
+
+# Debug-only runtime checks
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_definitions(_GLIBCXX_ASSERTIONS)  # STL bounds checking
+    message(STATUS "Debug build: Enabled _GLIBCXX_ASSERTIONS for STL bounds checking")
+endif()
+
 
 # Enable sanitizers if requested (GCC and Clang only)
 if(ENABLE_UBSAN)

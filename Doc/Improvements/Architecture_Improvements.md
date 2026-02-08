@@ -1,7 +1,8 @@
 # L2Trader Architecture Improvement Recommendations
 
-**Document Version:** 1.0  
-**Date:** 2026-01-17  
+**Document Version:** 1.1  
+**Date:** 2026-02-07  
+**Last Updated:** Fixed critical shutdown segfault  
 **Author:** Copilot Architecture Analysis
 
 ## Executive Summary
@@ -75,6 +76,98 @@ TSClient::~TSClient()
 - Changed TSClient from heap-allocated QThread to stack-allocated (consistency with MainAlgo and DatabaseThread)
 - Added proper thread lifecycle management with quit/wait/terminate pattern
 - Thread lifetime now properly tied to object lifetime
+
+#### 1.1.1 QSocketNotifier Cross-Thread Destruction Fix
+
+**Status:** ✅ Fixed (2026-02-07)
+
+**Problem:** Application segfaulted during graceful shutdown (Ctrl+Q) when QSocketNotifiers were destroyed from a different thread while their event loops were still running.
+
+**Root Cause:** 
+```cpp
+// MainAlgo.cpp - BROKEN (before fix)
+MainAlgo::~MainAlgo()
+{
+    // ❌ WRONG: Deleting QSocketNotifier while thread is still running
+    m_crashNotifier.reset();          // Line 57 - Cross-thread deletion
+    StrategySignalHandler::cleanup();
+    
+    // Thread stop happens AFTER QSocketNotifier deletion
+    thread.quit();                     // Line 72
+    thread.wait(5000);
+}
+```
+
+**Error Symptoms:**
+- Warning: "QSocketNotifier: Socket notifiers cannot be enabled or disabled from another thread"
+- Segfault in `QSocketNotifier::type()` during `QEventDispatcherGlib::processEvents()`
+- Crash in MainAlgoThread event loop
+
+**Fix Applied:**
+```cpp
+// MainAlgo.cpp - FIXED
+MainAlgo::~MainAlgo()
+{
+    DEBUG << "MainAlgo destructor - stopping thread";
+
+    // Stop balance polling timer first
+    if (m_balancePollingTimer && m_balancePollingTimer->isActive())
+    {
+        m_balancePollingTimer->stop();
+    }
+
+    // CRITICAL: Stop thread BEFORE destroying thread-owned objects
+    thread.quit();
+    
+    if (!thread.wait(5000))
+    {
+        CRITICAL << "MainAlgo thread did not finish within timeout, terminating";
+        thread.terminate();
+        thread.wait();
+    }
+
+    // Now safe to cleanup QSocketNotifier (thread is stopped)
+    m_crashNotifier.reset();
+    StrategySignalHandler::cleanup();
+    
+    DEBUG << "Destroyed singleton instance";
+}
+```
+
+**TUIFrontend Fix:**
+```cpp
+// TUIFrontend.cpp - Added explicit QSocketNotifier cleanup
+void TUIFrontend::cleanup()
+{
+    if (m_initialized)
+    {
+        // Stop input monitoring before cleanup
+        if (m_inputNotifier)
+        {
+            m_inputNotifier->setEnabled(false);
+            delete m_inputNotifier;
+            m_inputNotifier = nullptr;
+        }
+
+        // Then cleanup ncurses windows...
+        endwin();
+        m_initialized = false;
+    }
+}
+```
+
+**Threading Rule Established:**
+> **Always stop thread event loops BEFORE destroying objects that belong to that thread, especially QSocketNotifiers.**
+
+**Files Modified:**
+- `Src/Algo/MainAlgo.cpp` - Reordered destructor operations
+- `Src/FrontEnd/TUI/TUIFrontend.cpp` - Added explicit QSocketNotifier cleanup
+
+**Verification:**
+- No segfaults on graceful shutdown (Ctrl+Q)
+- No "Socket notifiers cannot be enabled" warnings
+- Clean singleton destruction order
+- All threads terminate properly
 
 #### 1.2 Thread Affinity Checks
 

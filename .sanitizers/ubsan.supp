@@ -1,0 +1,23 @@
+# UBSan suppressions file for L2Trader
+# Suppress known false positives from external libraries
+
+# Example suppressions (uncomment and modify as needed):
+# 
+# Suppress specific functions:
+# fun:*FunctionName*
+#
+# Suppress specific source files:
+# src:*/path/to/file.cpp
+#
+# Suppress specific error types:
+# signed-integer-overflow:*FunctionName*
+# null-pointer-use:*FunctionName*
+# undefined-behavior:*FunctionName*
+
+# Qt library suppressions (if needed)
+# These are uncommon but may appear in some Qt versions
+
+# Example: Suppress overflow in Qt internal hash functions
+# signed-integer-overflow:*QHash*
+
+# Add suppressions here as needed when false positives are identified

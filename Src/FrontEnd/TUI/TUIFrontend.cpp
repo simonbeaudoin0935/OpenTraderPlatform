@@ -105,6 +105,15 @@ void TUIFrontend::cleanup()
 {
     if (m_initialized)
     {
+        // Stop input monitoring before cleanup to prevent events during teardown
+        if (m_inputNotifier)
+        {
+            m_inputNotifier->setEnabled(false);
+            delete m_inputNotifier;
+            m_inputNotifier = nullptr;
+        }
+
+        // Cleanup ncurses windows
         if (m_orderWin)
             delwin(m_orderWin);
         if (m_positionWin)

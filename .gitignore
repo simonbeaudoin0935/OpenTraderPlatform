@@ -17,3 +17,8 @@ debian/*.debhelper*
 debian/*.substvars
 debian/debhelper-build-stamp
 
+# Valgrind reports
+.valgrind/*.txt
+
+# Sanitizer reports
+.sanitizers/*.txt

@@ -1,6 +1,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QSocketNotifier>
+#include <QCoreApplication>
 #include <unistd.h>
 
 #include "MainAlgo.h"
@@ -53,11 +54,8 @@ MainAlgo::~MainAlgo()
 {
     DEBUG << "MainAlgo destructor - stopping thread";
 
-    // Cleanup signal handler system
-    m_crashNotifier.reset();
-    StrategySignalHandler::cleanup();
-
-    // StrategyManager will be destroyed automatically via composition
+    // Thread affinity assertion - destructor must be called from main thread
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
 
     // Stop balance polling timer if it exists
     // Note: We're in the destructor, so we can't use QMetaObject::invokeMethod
@@ -68,6 +66,7 @@ MainAlgo::~MainAlgo()
         DEBUG << "Stopped balance polling timer in destructor";
     }
 
+    // CRITICAL: Stop thread BEFORE destroying thread-owned objects to prevent cross-thread access
     // Request thread to stop
     thread.quit();
 
@@ -78,6 +77,12 @@ MainAlgo::~MainAlgo()
         thread.terminate();
         thread.wait();
     }
+
+    // Now safe to cleanup QSocketNotifier and signal handler (thread is stopped)
+    m_crashNotifier.reset();
+    StrategySignalHandler::cleanup();
+
+    // StrategyManager will be destroyed automatically via composition
 
     DEBUG << "Destroyed singleton instance";
 }
@@ -989,18 +994,19 @@ void MainAlgo::deleteAllStockInstruments()
     // Clear the displayed pointer first
     currentDisplayedStockInstrument = nullptr;
 
-    // Delete all stock instruments
+    // Delete all stock instruments using deleteLater()
+    // StockInstruments are QObject-derived with active connections (streams, receivers)
     for (auto it = stockInstruments.begin(); it != stockInstruments.end(); ++it)
     {
         if (QPointer<StockInstruments> instrument = it.value(); instrument)
         {
-            DEBUG << "Deleting stock instrument for" << instrument->symbol;
-            delete instrument;
+            DEBUG << "Scheduling deletion of stock instrument for" << instrument->symbol;
+            instrument->deleteLater(); // Use deleteLater() for Qt objects with signals
         }
     }
     stockInstruments.clear();
 
-    INFO << "All stock instruments deleted";
+    INFO << "All stock instruments scheduled for deletion";
 }
 
 void MainAlgo::stopAllStrategies()

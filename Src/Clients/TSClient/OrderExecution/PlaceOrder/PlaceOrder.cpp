@@ -2,6 +2,7 @@
 #include <QJsonDocument>
 #include <QDateTime>
 #include <QJsonArray>
+#include <algorithm>
 
 #include "TSClient.h"
 #include "Assume.h"
@@ -182,16 +183,7 @@ void PlaceOrderRequest::setOrderConfirmID(const QString& value)
     ASSUME_LTE(value.length(), 22);
 
     // Check that all characters are digits
-    bool allDigits = true;
-    for (const QChar& c: value)
-    {
-        if (!c.isDigit())
-        {
-            allDigits = false;
-            break;
-        }
-    }
-    ASSUME_TRUE(allDigits);
+    ASSUME_TRUE(std::all_of(value.begin(), value.end(), [](const QChar& c) { return c.isDigit(); }));
 
     orderConfirmID = value;
 }
@@ -421,7 +413,7 @@ bool PlaceOrderRequest::isValid() const
         // Validate trailing stop if present
         if (options.getTrailingStop())
         {
-            const auto& trailingStop = *options.getTrailingStop();
+            const auto trailingStop = *options.getTrailingStop();
             if (!trailingStop.getAmount() && !trailingStop.getPercent())
             {
                 qWarning() << "Trailing stop requires either an amount or percent";

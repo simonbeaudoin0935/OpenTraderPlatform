@@ -3,31 +3,4 @@ set -e
 
 #DEBHELPER#
 
-case "$1" in
-    remove)
-        # Stop and disable the timers
-        if [ -d /run/systemd/system ]; then
-            deb-systemd-invoke stop l2trader-recorder-start.timer >/dev/null || true
-            deb-systemd-invoke stop l2trader-recorder-stop.timer >/dev/null || true
-            
-            # Stop the recorder service if it's running
-            deb-systemd-invoke stop l2trader-recorder.service >/dev/null || true
-        fi
-        ;;
-    
-    purge)
-        # Remove user and group on purge
-        if getent passwd l2trader >/dev/null; then
-            deluser --quiet l2trader >/dev/null || true
-        fi
-        if getent group l2trader >/dev/null; then
-            delgroup --quiet l2trader >/dev/null || true
-        fi
-        
-        # Remove data directories on purge
-        rm -rf /var/lib/l2trader
-        rm -rf /var/log/l2trader
-        ;;
-esac
-
 exit 0
