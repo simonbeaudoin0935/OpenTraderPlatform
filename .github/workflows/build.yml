@@ -140,7 +140,6 @@ jobs:
       - name: Print config files
         run: find ~/.config/L2Trader -type f -exec cat {} \;
 
-      - name: Give default stock
       - name: Set default stock in AppState.ini
         run: |
           cat > ~/.config/L2Trader/AppState.ini << EOF
