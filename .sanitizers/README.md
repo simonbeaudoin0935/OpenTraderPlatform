@@ -1,13 +1,28 @@
-# UBSan (Undefined Behavior Sanitizer) Testing
+# Sanitizers Testing for L2Trader
 
-## Overview
-UBSan detects undefined behavior at runtime:
+This directory contains scripts and configuration for runtime sanitizers that detect bugs during execution.
+
+## Available Sanitizers
+
+### UBSan (Undefined Behavior Sanitizer)
+Detects undefined behavior at runtime:
 - Null pointer dereferences
 - Signed integer overflows
 - Out-of-bounds array access
 - Use of uninitialized variables
 - Invalid bit shifts
 - Misaligned pointer access
+
+### ASan (Address Sanitizer)
+Detects memory errors at runtime:
+- Heap buffer overflows
+- Stack buffer overflows
+- Use-after-free
+- Double-free
+- Memory leaks
+- Global buffer overflows
+
+**Note**: UBSan and ASan cannot be used simultaneously. Choose one based on what you're testing.
 
 ## Quick Start
 
@@ -16,16 +31,19 @@ UBSan detects undefined behavior at runtime:
 Ctrl+Shift+P → "Tasks: Run Task"
 ```
 
-**Main Tasks:**
+**UBSan Tasks:**
 - `run-ubsan-with-analysis` ⭐ - Run app with UBSan + auto-analyze results
 - `run-ubsan` - Run app with UBSan (raw output)
 - `analyze-ubsan-report` - Analyze existing UBSan report
-
-**Build Tasks:**
 - `build-ubsan` - Build with UBSan enabled
-- `configure-ubsan` - Configure build directory
+
+**ASan Tasks:**
+- `run-asan` - Run app with ASan
+- `build-asan` - Build with ASan enabled
 
 ### Command Line
+
+#### UBSan
 ```bash
 # Automated test with analysis
 ./.sanitizers/run-ubsan-test.sh
@@ -35,21 +53,42 @@ Ctrl+Shift+P → "Tasks: Run Task"
 ./.sanitizers/analyze-ubsan.sh
 ```
 
+#### ASan
+```bash
+# Automated test with analysis
+./.sanitizers/run-asan-test.sh
+
+# Or manual:
+./build/ASan/Src/L2Trader
+./.sanitizers/analyze-asan.sh
+```
+
 ## How It Works
 
 ### Build Configuration
-UBSan is enabled via CMake option:
-```bash
-cmake -DENABLE_UBSAN=ON ...
-```
 
+**UBSan:**
+```bash
+cmake -DENABLE_UBSAN=ON -DCMAKE_BUILD_TYPE=Debug ...
+```
 This adds compiler flags:
 - `-fsanitize=undefined` - Enable UBSan
-- `-fno-sanitize-recover=all` - Abort on first error (optional)
+- `-fno-sanitize-recover=all` - Abort on first error
+
+**ASan:**
+```bash
+cmake -DENABLE_ASAN=ON -DCMAKE_BUILD_TYPE=Debug ...
+```
+This adds compiler flags:
+- `-fsanitize=address` - Enable ASan
+- `-fno-omit-frame-pointer` - Better stack traces
 
 ### Environment Variables
+
+**UBSan:**
+**UBSan:**
 ```bash
-UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0:log_path=./ubsan-report.txt"
+UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0:log_path=./ubsan-report.txt:suppressions=ubsan.supp"
 ```
 
 Options:
@@ -57,9 +96,23 @@ Options:
 - `halt_on_error=0` - Continue after errors (default)
 - `halt_on_error=1` - Abort on first error (testing)
 - `log_path=FILE` - Write reports to file
+- `suppressions=FILE` - Suppress known false positives
+
+**ASan:**
+```bash
+ASAN_OPTIONS="log_path=./asan-report.txt:halt_on_error=0:detect_leaks=1:suppressions=asan.supp"
+```
+
+Options:
+- `halt_on_error=0` - Continue after errors
+- `detect_leaks=1` - Enable leak detection
+- `log_path=FILE` - Write reports to file
+- `suppressions=FILE` - Suppress known false positives
 
 ### Suppressions
-Add false positives to `.sanitizers/ubsan.supp`:
+
+**UBSan suppressions** (`.sanitizers/ubsan.supp`):
+**UBSan suppressions** (`.sanitizers/ubsan.supp`):
 ```
 # Suppress specific function
 signed-integer-overflow:*MyFunction*
@@ -71,9 +124,19 @@ src:*/external/library.cpp
 signed-integer-overflow:*QHash*
 ```
 
+**ASan suppressions** (`.sanitizers/asan.supp`):
+```
+# Suppress memory leaks from Qt
+leak:*QApplication*
+
+# Suppress system library leaks
+leak:*libfontconfig*
+```
+
 ## Output Analysis
 
-### Clean Run
+### UBSan Clean Run
+### UBSan Clean Run
 ```
 🎉 PERFECT! No undefined behavior detected!
 
@@ -83,7 +146,8 @@ signed-integer-overflow:*QHash*
    ...
 ```
 
-### Issues Found
+### UBSan Issues Found
+### UBSan Issues Found
 ```
 ⚠️  Found 5 undefined behavior issue(s)
 
@@ -97,9 +161,31 @@ L2TRADER CODE ISSUES:
 ❌ Found 2 issue(s) in L2Trader code - ACTION REQUIRED!
 ```
 
+### ASan Clean Run
+```
+🎉 PERFECT! No memory errors detected!
+
+✅ All checks passed:
+   - No heap buffer overflows
+   - No use-after-free
+   - No memory leaks
+```
+
+### ASan Issues Found
+```
+⚠️  Found 3 memory error(s)
+
+ISSUE BREAKDOWN:
+----------------
+  ❌ Heap buffer overflows: 1
+  ❌ Use-after-free: 1
+  ⚠️  Memory leaks: 1
+```
+
 ## Common Issues and Fixes
 
-### Signed Integer Overflow
+### UBSan: Signed Integer Overflow
+### UBSan: Signed Integer Overflow
 ```cpp
 // BAD:
 int a = INT_MAX;
@@ -111,7 +197,8 @@ if (a > INT_MAX - 1) {
 }
 ```
 
-### Null Pointer Dereference
+### UBSan: Null Pointer Dereference
+### UBSan: Null Pointer Dereference
 ```cpp
 // BAD:
 MyClass* obj = getObject();
@@ -123,7 +210,8 @@ OBJ_ASSUME_DIFF(obj, nullptr);  // Assert or check
 obj->method();
 ```
 
-### Out-of-Bounds Access
+### UBSan: Out-of-Bounds Access
+### UBSan: Out-of-Bounds Access
 ```cpp
 // BAD:
 int arr[5];
@@ -136,70 +224,177 @@ if (index < 5) {
 }
 ```
 
+### ASan: Heap Buffer Overflow
+```cpp
+// BAD:
+char* buf = new char[10];
+strcpy(buf, "This is too long");  // ❌ Buffer overflow
+
+// GOOD:
+char* buf = new char[20];
+strncpy(buf, "This is safe", 19);
+buf[19] = '\0';
+```
+
+### ASan: Use-After-Free
+```cpp
+// BAD:
+auto* obj = new MyClass();
+delete obj;
+obj->method();  // ❌ Use after free
+
+// GOOD:
+auto* obj = new MyClass();
+obj->method();
+delete obj;
+obj = nullptr;  // Prevent accidental reuse
+```
+
+### ASan: Memory Leak
+```cpp
+// BAD:
+MyClass* obj = new MyClass();
+// Never deleted  // ❌ Memory leak
+
+// GOOD:
+std::unique_ptr<MyClass> obj = std::make_unique<MyClass>();
+// Automatically deleted
+```
+
 ## Integration with CI/CD
 
-### GitHub Actions
+Both sanitizers are now integrated into the CI pipeline:
+Both sanitizers are now integrated into the CI pipeline:
+
+### GitHub Actions Workflow
+The `.github/workflows/build.yml` includes these jobs:
+
+1. **build-ubsan** - Builds application with UBSan enabled
+2. **test-ubsan** - Runs the app, sends Ctrl+Q to exit, analyzes UBSan output
+3. **build-asan** - Builds application with ASan enabled
+4. **test-asan** - Runs the app, sends Ctrl+Q to exit, analyzes ASan output
+
+Each test job:
+- Downloads the sanitizer-enabled build
+- Sets up test credentials
+- Runs the app in Xvfb (virtual X display)
+- Waits 5 seconds for initialization
+- Sends Ctrl+Q for graceful exit
+- Analyzes sanitizer output
+- Uploads reports as artifacts (retained for 7 days)
+
+### Viewing CI Results
+After a CI run:
+1. Go to the Actions tab
+2. Click on the workflow run
+3. Download the sanitizer reports:
+   - `ubsan-reports-<sha>` - UBSan findings
+   - `asan-reports-<sha>` - ASan findings
+
+### Manual CI Testing
 ```yaml
 - name: Build with UBSan
   run: |
-    cmake -B build -DENABLE_UBSAN=ON
-    cmake --build build
+    cmake -B build/UBSan -DENABLE_UBSAN=ON -DCMAKE_BUILD_TYPE=Debug
+    cmake --build build/UBSan
 
-- name: Run UBSan tests
+- name: Run UBSan test
   run: |
-    ./.sanitizers/run-ubsan-test.sh
+    export UBSAN_OPTIONS="log_path=ubsan-report.txt"
+    ./build/UBSan/Src/L2Trader
+    
+- name: Analyze
+  run: ./.sanitizers/analyze-ubsan.sh
 ```
 
 ## Performance Impact
+
+### UBSan
 - **Slowdown**: 20-50% slower than normal build
 - **Memory**: Slightly higher usage
 - **Use case**: Development testing, not production
 
+### ASan
+- **Slowdown**: 50-100% slower than normal build  
+- **Memory**: 2-3x memory usage
+- **Use case**: Development testing, not production
+
 ## Compatibility
+
+### UBSan
 - **Compilers**: GCC 4.9+, Clang 3.3+
-- **Note**: Cannot be used simultaneously with ASan
-- **CMake check**: Fatal error if both enabled
+- **Cannot** be used with ASan simultaneously
+- CMake check will error if both enabled
+
+### ASan
+- **Compilers**: GCC 4.8+, Clang 3.1+
+- **Cannot** be used with UBSan simultaneously
+- CMake check will error if both enabled
 
 ## Files
 
 ### Scripts
-- `.sanitizers/run-ubsan-test.sh` - Automated test runner
-- `.sanitizers/analyze-ubsan.sh` - Report analyzer
-- `.sanitizers/ubsan.supp` - Suppressions file
+- `.sanitizers/run-ubsan-test.sh` - UBSan test runner
+- `.sanitizers/analyze-ubsan.sh` - UBSan report analyzer
+- `.sanitizers/run-asan-test.sh` - ASan test runner
+- `.sanitizers/analyze-asan.sh` - ASan report analyzer
 
-### Generated Reports
-- `.sanitizers/ubsan-report.txt.*` - UBSan log files (gitignored)
-- `.sanitizers/ubsan-console.txt` - Console output (gitignored)
+### Configuration
+- `.sanitizers/ubsan.supp` - UBSan suppressions
+- `.sanitizers/asan.supp` - ASan suppressions
+
+### Generated Reports (gitignored)
+- `.sanitizers/ubsan-report.txt.*` - UBSan log files
+- `.sanitizers/ubsan-console.txt` - UBSan console output
+- `.sanitizers/asan-report.txt.*` - ASan log files
+- `.sanitizers/asan-console.txt` - ASan console output
 
 ## Best Practices
 
 1. **Run regularly** during development
-2. **Test all features** - UBSan only catches executed code
-3. **Fix immediately** - Undefined behavior is a bug, not a warning
+2. **Test all features** - Sanitizers only catch executed code
+3. **Fix immediately** - Don't ignore sanitizer warnings
 4. **Don't suppress L2Trader code** - Only external libraries
-5. **Use with valgrind** - Complementary tools (run separately)
+5. **Use both sanitizers** - Run separately, they catch different bugs
+6. **CI integration** - Sanitizer tests run automatically on every push
 
 ## Debugging Tips
 
-### Get more details
+### UBSan: Get more details
 ```bash
 export UBSAN_OPTIONS="print_stacktrace=1:verbosity=1"
 ./build/UBSan/Src/L2Trader
 ```
 
-### Abort on first error (for debugging)
+### UBSan: Abort on first error (for debugging)
 ```bash
 export UBSAN_OPTIONS="halt_on_error=1"
 gdb ./build/UBSan/Src/L2Trader
 ```
 
+### ASan: Get more details
+```bash
+export ASAN_OPTIONS="verbosity=1:log_path=asan.log"
+./build/ASan/Src/L2Trader
+```
+
+### ASan: Abort on first error
+```bash
+export ASAN_OPTIONS="halt_on_error=1"
+gdb ./build/ASan/Src/L2Trader
+```
+
 ### Check specific sanitizers only
 ```bash
-# Only check null pointer issues
+# UBSan: Only check null pointer issues
 cmake -DCMAKE_CXX_FLAGS="-fsanitize=null" ...
+
+# ASan: Disable leak checking
+export ASAN_OPTIONS="detect_leaks=0"
 ```
 
 ## See Also
 - [UBSan Documentation](https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html)
+- [ASan Documentation](https://clang.llvm.org/docs/AddressSanitizer.html)
 - `Doc/Destructor_Guidelines.md` - Memory management best practices
 - `.valgrind/README.md` - Complementary memory leak testing

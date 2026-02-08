@@ -341,6 +341,32 @@
             ]
         },
         {
+            "label": "analyze-asan-report",
+            "type": "shell",
+            "command": "${workspaceFolder}/.sanitizers/analyze-asan.sh",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run-asan-with-analysis",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "run-asan",
+                "analyze-asan-report"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": false
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "run-barcache-test",
             "type": "shell",
             "command": "${workspaceFolder}/build/All/Tests/test_barcache",
