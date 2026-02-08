@@ -183,8 +183,7 @@ void PlaceOrderRequest::setOrderConfirmID(const QString& value)
     ASSUME_LTE(value.length(), 22);
 
     // Check that all characters are digits
-    const bool allDigits = std::all_of(value.begin(), value.end(), [](const QChar& c) { return c.isDigit(); });
-    ASSUME_TRUE(allDigits);
+    ASSUME_TRUE(std::all_of(value.begin(), value.end(), [](const QChar& c) { return c.isDigit(); }));
 
     orderConfirmID = value;
 }
