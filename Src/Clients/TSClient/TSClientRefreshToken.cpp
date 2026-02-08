@@ -10,6 +10,9 @@ void TSClient::launchAuthProcess()
 
     m_authInProgress = true;
 
+    // Emit signal to update UI that authentication is starting
+    emit authStateChanged(false, "Connecting...");
+
 #ifdef GUI_ENABLED
     m_authHandler = new GUIAuthHandler();
     connect(m_authHandler, &GUIAuthHandler::authFinished, this, &TSClient::onAuthFinished);
@@ -24,6 +27,7 @@ void TSClient::launchAuthProcess()
     {
         qCritical(TSClientLog) << "Failed to start authentication process";
         m_authInProgress = false;
+        emit authStateChanged(false, "Failed to start authentication");
     }
 #endif
 }
