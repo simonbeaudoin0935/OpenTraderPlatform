@@ -116,7 +116,7 @@
                 "panel": "shared"
             },
             "problemMatcher": "$gcc"
-        }, 
+        },
         {
             "label": "build",
             "type": "shell",
@@ -134,7 +134,9 @@
                 "panel": "shared"
             },
             "problemMatcher": "$gcc",
-            "dependsOn": ["configure"]
+            "dependsOn": [
+                "configure"
+            ]
         },
         {
             "label": "build-all",
@@ -154,7 +156,9 @@
                 "panel": "shared"
             },
             "problemMatcher": "$gcc",
-            "dependsOn": ["configure-all"]
+            "dependsOn": [
+                "configure-all"
+            ]
         },
         {
             "label": "build-ubsan",
@@ -174,7 +178,9 @@
                 "panel": "shared"
             },
             "problemMatcher": "$gcc",
-            "dependsOn": ["configure-ubsan"]
+            "dependsOn": [
+                "configure-ubsan"
+            ]
         },
         {
             "label": "build-asan",
@@ -194,7 +200,9 @@
                 "panel": "shared"
             },
             "problemMatcher": "$gcc",
-            "dependsOn": ["configure-asan"]
+            "dependsOn": [
+                "configure-asan"
+            ]
         },
         {
             "label": "configure-tui",
@@ -238,14 +246,15 @@
                 "panel": "shared"
             },
             "problemMatcher": "$gcc",
-            "dependsOn": ["configure-tui"]
+            "dependsOn": [
+                "configure-tui"
+            ]
         },
         {
             "label": "run-tui",
             "type": "shell",
             "command": "${workspaceFolder}/build/TUI/Src/L2Trader 2>/dev/null",
-            "args": [
-            ],
+            "args": [],
             "group": "test",
             "presentation": {
                 "echo": true,
@@ -253,7 +262,9 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-tui"]
+            "dependsOn": [
+                "build-tui"
+            ]
         },
         {
             "label": "run",
@@ -267,7 +278,9 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build"]
+            "dependsOn": [
+                "build"
+            ]
         },
         {
             "label": "run-ubsan",
@@ -281,7 +294,35 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-ubsan"]
+            "dependsOn": [
+                "build-ubsan"
+            ]
+        },
+        {
+            "label": "analyze-ubsan-report",
+            "type": "shell",
+            "command": "${workspaceFolder}/.sanitizers/analyze-ubsan.sh",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run-ubsan-with-analysis",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "run-ubsan",
+                "analyze-ubsan-report"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": false
+            },
+            "problemMatcher": []
         },
         {
             "label": "run-asan",
@@ -295,7 +336,9 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-asan"]
+            "dependsOn": [
+                "build-asan"
+            ]
         },
         {
             "label": "run-barcache-test",
@@ -312,7 +355,9 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-all"]
+            "dependsOn": [
+                "build-all"
+            ]
         },
         {
             "label": "run-barcache-test-ubsan",
@@ -329,7 +374,9 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-ubsan"]
+            "dependsOn": [
+                "build-ubsan"
+            ]
         },
         {
             "label": "run-barcache-test-asan",
@@ -346,7 +393,9 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-asan"]
+            "dependsOn": [
+                "build-asan"
+            ]
         },
         {
             "label": "run-fmpclient-test",
@@ -362,7 +411,9 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-all"]
+            "dependsOn": [
+                "build-all"
+            ]
         },
         {
             "label": "run-tsclient-test",
@@ -378,7 +429,9 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-all"]
+            "dependsOn": [
+                "build-all"
+            ]
         },
         {
             "label": "run-tsclient-test-ubsan",
@@ -394,7 +447,9 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-ubsan"]
+            "dependsOn": [
+                "build-ubsan"
+            ]
         },
         {
             "label": "run-tsclient-test-asan",
@@ -410,7 +465,9 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build-asan"]
+            "dependsOn": [
+                "build-asan"
+            ]
         },
         {
             "label": "run-valgrind",
@@ -432,7 +489,9 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build"],
+            "dependsOn": [
+                "build"
+            ],
             "problemMatcher": []
         },
         {
@@ -481,7 +540,9 @@
                 "focus": true,
                 "panel": "shared"
             },
-            "dependsOn": ["build"],
+            "dependsOn": [
+                "build"
+            ],
             "problemMatcher": []
         }
     ]
