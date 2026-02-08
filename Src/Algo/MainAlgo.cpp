@@ -994,18 +994,19 @@ void MainAlgo::deleteAllStockInstruments()
     // Clear the displayed pointer first
     currentDisplayedStockInstrument = nullptr;
 
-    // Delete all stock instruments
+    // Delete all stock instruments using deleteLater()
+    // StockInstruments are QObject-derived with active connections (streams, receivers)
     for (auto it = stockInstruments.begin(); it != stockInstruments.end(); ++it)
     {
         if (QPointer<StockInstruments> instrument = it.value(); instrument)
         {
-            DEBUG << "Deleting stock instrument for" << instrument->symbol;
-            delete instrument;
+            DEBUG << "Scheduling deletion of stock instrument for" << instrument->symbol;
+            instrument->deleteLater(); // Use deleteLater() for Qt objects with signals
         }
     }
     stockInstruments.clear();
 
-    INFO << "All stock instruments deleted";
+    INFO << "All stock instruments scheduled for deletion";
 }
 
 void MainAlgo::stopAllStrategies()

@@ -229,8 +229,8 @@ void TSClient::closeStream(Stream* const stream)
         this,
         [this, stream]() // Capture stream by value, not by reference
         {
-            // Deleting the stream will also close the associated QNetworkReply
-            delete stream;
+            // Use deleteLater() for Stream objects (have timers, network replies, signals)
+            stream->deleteLater();
 
             emit openStreamCountChanged(Stream::getNumberOpenStream());
         },
