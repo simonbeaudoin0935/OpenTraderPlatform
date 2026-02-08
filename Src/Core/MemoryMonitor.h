@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QTimer>
+#include <memory>
 
 class MemoryMonitor : public QObject
 {
@@ -20,6 +21,6 @@ class MemoryMonitor : public QObject
     void updateMemoryUsage(); // Slot to query and emit memory usage
 
   private:
-    QTimer* timer;
+    std::unique_ptr<QTimer> m_timer;
     qint64 getProcessMemoryUsage(); // Platform-specific memory query
 };

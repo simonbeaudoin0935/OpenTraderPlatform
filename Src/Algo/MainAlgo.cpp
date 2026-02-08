@@ -1,6 +1,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QSocketNotifier>
+#include <QCoreApplication>
 #include <unistd.h>
 
 #include "MainAlgo.h"
@@ -52,6 +53,9 @@ MainAlgo::MainAlgo() : m_strategyManager(this)
 MainAlgo::~MainAlgo()
 {
     DEBUG << "MainAlgo destructor - stopping thread";
+
+    // Thread affinity assertion - destructor must be called from main thread
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
 
     // Stop balance polling timer if it exists
     // Note: We're in the destructor, so we can't use QMetaObject::invokeMethod

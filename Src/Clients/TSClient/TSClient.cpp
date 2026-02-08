@@ -44,6 +44,9 @@ TSClient::~TSClient()
 {
     qCDebug(TSClientLog) << "TSClient shutting down";
 
+    // Thread affinity assertion - destructor must be called from main thread
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
+
     // CRITICAL: Delete Stream child objects BEFORE QNetworkAccessManager
     // Streams need a valid QNetworkAccessManager to abort their network replies
     QMetaObject::invokeMethod(

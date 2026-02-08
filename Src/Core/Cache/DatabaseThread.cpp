@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QPromise>
 #include <QTimeZone>
+#include <QCoreApplication>
 
 #include "DatabaseThread.h"
 #include "Logging.h"
@@ -46,6 +47,9 @@ DatabaseThread::DatabaseThread() : QObject()
 
 DatabaseThread::~DatabaseThread()
 {
+    // Thread affinity assertion - destructor must be called from main thread
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
+
     // Close all database connections
     for (const QString& connectionName: m_databases.keys())
     {

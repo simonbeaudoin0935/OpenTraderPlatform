@@ -11,31 +11,31 @@
 #include <fstream>
 #endif
 
-MemoryMonitor::MemoryMonitor(QObject* parent) : QObject(parent), timer(new QTimer(this))
+MemoryMonitor::MemoryMonitor(QObject* parent) : QObject(parent), m_timer(std::make_unique<QTimer>(this))
 {
-    connect(timer, &QTimer::timeout, this, &MemoryMonitor::updateMemoryUsage);
+    connect(m_timer.get(), &QTimer::timeout, this, &MemoryMonitor::updateMemoryUsage);
 }
 
 MemoryMonitor::~MemoryMonitor()
 {
     stopMonitoring();
-    // timer is automatically deleted by Qt parent-child ownership (parent is 'this')
+    // m_timer automatically deleted by unique_ptr
 }
 
 void MemoryMonitor::startMonitoring(int intervalMs)
 {
-    if (!timer->isActive())
+    if (!m_timer->isActive())
     {
-        timer->start(intervalMs);
+        m_timer->start(intervalMs);
         updateMemoryUsage(); // Initial update
     }
 }
 
 void MemoryMonitor::stopMonitoring()
 {
-    if (timer->isActive())
+    if (m_timer->isActive())
     {
-        timer->stop();
+        m_timer->stop();
     }
 }
 
