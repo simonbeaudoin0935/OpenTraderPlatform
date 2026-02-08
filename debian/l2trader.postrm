@@ -3,4 +3,22 @@ set -e
 
 #DEBHELPER#
 
+case "$1" in
+    purge)
+        # Remove user configuration, cache, and local data on full purge
+        for user_home in /home/*; do
+            if [ -d "$user_home" ]; then
+                # Remove L2Trader configuration
+                rm -rf "$user_home/.config/L2Trader" 2>/dev/null || true
+                
+                # Remove L2Trader cache
+                rm -rf "$user_home/.cache/L2Trader" 2>/dev/null || true
+                
+                # Remove L2Trader local data (strategies, logs, etc.)
+                rm -rf "$user_home/.local/share/L2Trader" 2>/dev/null || true
+            fi
+        done
+        ;;
+esac
+
 exit 0
