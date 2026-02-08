@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     git \
     tree \
     cmake \
+    ninja-build \
     ccache \
     clang-format \
     clang-tidy \
