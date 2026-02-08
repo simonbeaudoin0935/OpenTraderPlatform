@@ -82,6 +82,7 @@ jobs:
           name: l2trader-gui-${{ github.sha }}
           path: |
             build/GUI/Src/L2Trader
+            build/GUI/Src/*.so
             build/GUI/lib/
           retention-days: 1
 
@@ -147,7 +148,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 &
           XVFB_PID=$!
           export DISPLAY=:99
-          export LD_LIBRARY_PATH=./gui-build/lib:$LD_LIBRARY_PATH
+          export LD_LIBRARY_PATH=./gui-build/Src:./gui-build/lib:$LD_LIBRARY_PATH
           
           # Wait for Xvfb to be ready
           sleep 2
