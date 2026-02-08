@@ -12,7 +12,7 @@ DEB_HOST_GNU_TYPE ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
 
 override_dh_auto_configure:
 	# Configure with CMake
-	dh_auto_configure -- -DCMAKE_BUILD_TYPE=Release -DENABLE_GUI=ON -DBUILD_TESTS=ON -DBUILD_RECORDER=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+	dh_auto_configure -- -DCMAKE_BUILD_TYPE=Release -DENABLE_GUI=ON -DBUILD_TESTS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
 override_dh_auto_build:
 	# Build with CMake
@@ -27,28 +27,11 @@ override_dh_auto_install:
 	# Install main application binary
 	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Src/L2Trader debian/l2trader/usr/bin/l2trader
 	
-	# Install recorder application binary
-	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Src/L2Trader_Recorder debian/l2trader/usr/bin/l2trader-recorder
-	
 	# Install application icon
 	install -D -m 0644 Resources/Icons/L2T.png debian/l2trader/usr/share/pixmaps/l2trader.png
 	
 	# Install desktop file
 	install -D -m 0644 debian/l2trader.desktop debian/l2trader/usr/share/applications/l2trader.desktop
-	
-	# Install systemd service and timer files for recorder
-	install -D -m 0644 debian/l2trader-recorder.service debian/l2trader/lib/systemd/system/l2trader-recorder.service
-	install -D -m 0644 debian/l2trader-recorder-start.service debian/l2trader/lib/systemd/system/l2trader-recorder-start.service
-	install -D -m 0644 debian/l2trader-recorder-start.timer debian/l2trader/lib/systemd/system/l2trader-recorder-start.timer
-	install -D -m 0644 debian/l2trader-recorder-stop.service debian/l2trader/lib/systemd/system/l2trader-recorder-stop.service
-	install -D -m 0644 debian/l2trader-recorder-stop.timer debian/l2trader/lib/systemd/system/l2trader-recorder-stop.timer
-	
-	# Install post-stop script
-	install -D -m 0755 debian/recorder-post-stop.sh debian/l2trader/usr/lib/l2trader/recorder-post-stop.sh
-	
-	# Create directories for recorder runtime data
-	install -d debian/l2trader/var/lib/l2trader
-	install -d debian/l2trader/var/log/l2trader
 	
 	# Install example configuration files
 	install -d debian/l2trader/usr/share/doc/l2trader/examples
@@ -66,6 +49,3 @@ override_dh_auto_clean:
 
 override_dh_shlibdeps:
 	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info
-
-override_dh_installsystemd:
-	dh_installsystemd --no-start
