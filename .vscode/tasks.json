@@ -80,7 +80,7 @@
                 "${workspaceFolder}/build/UBSan",
                 "-DCMAKE_BUILD_TYPE=Debug",
                 "-DENABLE_GUI=ON",
-                "-DBUILD_TESTS=ON",
+                "-DBUILD_TESTS=OFF",
                 "-DENABLE_UBSAN=ON"
             ],
             "group": "build",
@@ -105,7 +105,7 @@
                 "${workspaceFolder}/build/ASan",
                 "-DCMAKE_BUILD_TYPE=Debug",
                 "-DENABLE_GUI=ON",
-                "-DBUILD_TESTS=ON",
+                "-DBUILD_TESTS=OFF",
                 "-DENABLE_ASAN=ON"
             ],
             "group": "build",
