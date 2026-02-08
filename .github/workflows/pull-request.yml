@@ -252,6 +252,22 @@ jobs:
             if kill -0 $APP_PID 2>/dev/null; then
               echo "Application did not exit after Ctrl+Q within ${TIMEOUT}s, killing it"
               kill -9 $APP_PID
+              
+              # Wait with timeout for process to actually terminate
+              WAIT_TIMEOUT=5
+              WAIT_ELAPSED=0
+              while kill -0 $APP_PID 2>/dev/null && [ $WAIT_ELAPSED -lt $WAIT_TIMEOUT ]; do
+                sleep 1
+                WAIT_ELAPSED=$((WAIT_ELAPSED + 1))
+              done
+              
+              # Check if process is still alive after kill -9
+              if kill -0 $APP_PID 2>/dev/null; then
+                echo "ERROR: Process did not terminate after kill -9 within ${WAIT_TIMEOUT}s"
+                echo "This indicates a serious system issue"
+                exit 1
+              fi
+              
               wait $APP_PID 2>/dev/null || true
               EXIT_CODE=$?
             else
@@ -451,6 +467,22 @@ jobs:
             if kill -0 $APP_PID 2>/dev/null; then
               echo "Application did not exit after Ctrl+Q within ${TIMEOUT}s, killing it"
               kill -9 $APP_PID
+              
+              # Wait with timeout for process to actually terminate
+              WAIT_TIMEOUT=5
+              WAIT_ELAPSED=0
+              while kill -0 $APP_PID 2>/dev/null && [ $WAIT_ELAPSED -lt $WAIT_TIMEOUT ]; do
+                sleep 1
+                WAIT_ELAPSED=$((WAIT_ELAPSED + 1))
+              done
+              
+              # Check if process is still alive after kill -9
+              if kill -0 $APP_PID 2>/dev/null; then
+                echo "ERROR: Process did not terminate after kill -9 within ${WAIT_TIMEOUT}s"
+                echo "This indicates a serious system issue"
+                exit 1
+              fi
+              
               wait $APP_PID 2>/dev/null || true
               EXIT_CODE=$?
             else
