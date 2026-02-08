@@ -1,0 +1,133 @@
+# Valgrind suppression file for Qt6 applications
+# Qt intentionally keeps some global static objects alive until process exit
+# These are not memory leaks but intentional design decisions
+
+{
+   Qt6-QCoreApplication-global-static
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QCoreApplication*
+}
+
+{
+   Qt6-QThread-static
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QThread*
+}
+
+{
+   Qt6-QMetaType-global
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QMetaType*
+}
+
+{
+   Qt6-QFactoryLoader
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QFactoryLoader*
+}
+
+{
+   Qt6-QLibraryPrivate
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QLibraryPrivate*
+}
+
+{
+   Qt6-QString-static
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QString*
+}
+
+{
+   Qt6-QByteArray-static
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QByteArray*
+}
+
+{
+   Qt6-QFont-cache
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QFont*
+}
+
+{
+   Qt6-QPixmapCache
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*QPixmapCache*
+}
+
+{
+   Qt6-Global-statics
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:*/libQt6Core.so*
+}
+
+{
+   Qt6-GUI-statics
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:*/libQt6Gui.so*
+}
+
+{
+   Qt6-Widgets-statics
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:*/libQt6Widgets.so*
+}
+
+{
+   Qt6-Network-statics
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:*/libQt6Network.so*
+}
+
+{
+   glibc-dlopen
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:*alloc
+   ...
+   fun:dlopen*
+}
+
+{
+   fontconfig-cache
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:*/libfontconfig.so*
+}
+
+{
+   libstdc++-locale
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*locale*
+   obj:*/libstdc++.so*
+}

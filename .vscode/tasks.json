@@ -411,6 +411,49 @@
                 "panel": "shared"
             },
             "dependsOn": ["build-asan"]
+        },
+        {
+            "label": "run-valgrind",
+            "type": "shell",
+            "command": "valgrind",
+            "args": [
+                "--leak-check=full",
+                "--show-leak-kinds=all",
+                "--track-origins=yes",
+                "--verbose",
+                "--log-file=${workspaceFolder}/.valgrind/valgrind-report.txt",
+                "--suppressions=${workspaceFolder}/.valgrind/valgrind-qt.supp",
+                "${workspaceFolder}/build/GUI/Src/L2Trader"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build"],
+            "problemMatcher": []
+        },
+        {
+            "label": "run-valgrind-quick",
+            "type": "shell",
+            "command": "valgrind",
+            "args": [
+                "--leak-check=yes",
+                "--show-reachable=no",
+                "--suppressions=${workspaceFolder}/.valgrind/valgrind-qt.supp",
+                "${workspaceFolder}/build/GUI/Src/L2Trader"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": ["build"],
+            "problemMatcher": []
         }
     ]
 }
