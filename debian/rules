@@ -27,6 +27,9 @@ override_dh_auto_install:
 	# Install main application binary
 	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Src/L2Trader debian/l2trader/usr/bin/l2trader
 	
+	# Install strategy SDK library
+	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Src/libL2TraderStrategy.so debian/l2trader/usr/lib/libL2TraderStrategy.so
+	
 	# Install application icon
 	install -D -m 0644 Resources/Icons/L2T.png debian/l2trader/usr/share/pixmaps/l2trader.png
 	
