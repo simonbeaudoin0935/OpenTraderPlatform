@@ -545,8 +545,9 @@ void BarCache::clearDatabase()
                                                                 });
 }
 
-constexpr QVector<std::tuple<QDate, QTime, QTime>> BarCache::splitIntoTradingDayRanges(const QDateTime& first,
-                                                                                       const QDateTime& last)
+QVector<std::tuple<QDate, QTime, QTime>>
+BarCache::splitIntoTradingDayRanges(const QDateTime& first,
+                                    const QDateTime& last)
 {
     ASSUME_EQUAL(first.timeZone(), TradingHours::MARKET_TIMEZONE);
     ASSUME_EQUAL(last.timeZone(), TradingHours::MARKET_TIMEZONE);

@@ -4,7 +4,7 @@
 # Raspberry Pi 4 running Debian Bookworm (aarch64/arm64).
 
 # Use Debian Bookworm as base image for amd64 architecture
-FROM debian:bookworm
+FROM debian:bookworm-slim
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
