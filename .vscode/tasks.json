@@ -436,6 +436,35 @@
             "problemMatcher": []
         },
         {
+            "label": "analyze-valgrind-report",
+            "type": "shell",
+            "command": "${workspaceFolder}/.valgrind/analyze-leaks.sh",
+            "args": [
+                "${workspaceFolder}/.valgrind/valgrind-report.txt"
+            ],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run-valgrind-with-analysis",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "run-valgrind",
+                "analyze-valgrind-report"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": false
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "run-valgrind-quick",
             "type": "shell",
             "command": "valgrind",

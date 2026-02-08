@@ -60,41 +60,13 @@ valgrind \
 
 echo ""
 echo "═══════════════════════════════════════════════════════"
-echo "  Valgrind Test Complete"
+echo "  Valgrind Test Complete - Analyzing Results"
 echo "═══════════════════════════════════════════════════════"
 echo ""
 
-# Parse results
+# Run analysis script
 if [ -f "$VALGRIND_LOG" ]; then
-    echo "📄 Full report: $VALGRIND_LOG"
-    echo ""
-    
-    # Extract summary
-    echo "Summary:"
-    echo "--------"
-    grep "LEAK SUMMARY" "$VALGRIND_LOG" -A 5 || echo "No leak summary found"
-    echo ""
-    
-    # Check for definite leaks
-    DEFINITE_LEAKS=$(grep "definitely lost:" "$VALGRIND_LOG" | grep -oP '\d+(?= bytes)' || echo "0")
-    POSSIBLE_LEAKS=$(grep "possibly lost:" "$VALGRIND_LOG" | grep -oP '\d+(?= bytes)' || echo "0")
-    
-    echo "Results:"
-    echo "--------"
-    if [ "$DEFINITE_LEAKS" = "0" ]; then
-        echo "✅ No definite memory leaks detected!"
-    else
-        echo "⚠️  Definite leaks: $DEFINITE_LEAKS bytes"
-    fi
-    
-    if [ "$POSSIBLE_LEAKS" = "0" ]; then
-        echo "✅ No possible memory leaks detected!"
-    else
-        echo "⚠️  Possible leaks: $POSSIBLE_LEAKS bytes (may be false positives)"
-    fi
-    
-    echo ""
-    echo "To see full details: cat $VALGRIND_LOG"
+    "$SCRIPT_DIR/analyze-leaks.sh" "$VALGRIND_LOG"
 else
     echo "❌ Error: Valgrind log file not created"
     exit 1
