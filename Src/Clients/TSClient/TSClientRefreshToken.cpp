@@ -166,7 +166,7 @@ void TSClient::refreshAccessToken()
                     qCCritical(TSClientLog) << "Received refreshed token invalid";
 
                     // Don't retry if the token is invalid - user needs to manually re-authenticate
-                    emit authStateChanged(false, "Token invalid - please login again");
+                    emit authStateChanged(false, "Token expired");
                     break;
                 }
 

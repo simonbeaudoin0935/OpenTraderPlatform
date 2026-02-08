@@ -735,6 +735,7 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
             restoreLastDisplayedStock();
         }
 
+        // Clear first-time flag on successful authentication
         isFirstTime = false;
     }
     else
@@ -747,6 +748,7 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
             tradeStationLoginButton->setStyleSheet(
                 "QPushButton { background-color: #FFF4E6; color: #FF9800; padding: 2px 6px; border-radius: 3px; }");
             tradeStationLoginButton->setEnabled(false);
+            // Don't change isFirstTime - let connection result determine final state
         }
         else if (isFirstTime)
         {
@@ -757,6 +759,7 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
             tradeStationLoginButton->setStyleSheet(
                 "QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
             tradeStationLoginButton->setEnabled(true);
+            // Clear first-time flag after showing initial state
             isFirstTime = false;
         }
         else
