@@ -36,6 +36,10 @@ override_dh_auto_install:
 	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/lib/CrashTestStrategy.so debian/l2trader/usr/share/l2trader/strategies/
 	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/lib/HistoricalBarsStrategy.so debian/l2trader/usr/share/l2trader/strategies/
 	
+	# Install strategy configuration files
+	install -m 0644 Strategies/ExampleStrategy/example_strategy.json debian/l2trader/usr/share/l2trader/strategies/
+	install -m 0644 Strategies/CrashTestStrategy/crash_test_strategy.json debian/l2trader/usr/share/l2trader/strategies/
+	
 	# Install application icon
 	install -D -m 0644 Resources/Icons/L2T.png debian/l2trader/usr/share/pixmaps/l2trader.png
 	
