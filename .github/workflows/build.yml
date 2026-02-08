@@ -140,6 +140,14 @@ jobs:
       - name: Print config files
         run: find ~/.config/L2Trader -type f -exec cat {} \;
 
+      - name: Give default stock
+      - name: Set default stock in AppState.ini
+        run: |
+          cat > ~/.config/L2Trader/AppState.ini << EOF
+          [UI]
+          LastDisplayedStock=TSLA
+          EOF
+
       - name: Run GUI test with Xvfb
         run: |
           # Start Xvfb on display :99
