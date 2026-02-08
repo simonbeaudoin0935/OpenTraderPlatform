@@ -157,8 +157,8 @@ class MainAlgo final : public QObject
      * @param symbol Stock ticker symbol
      * @param quote The market depth quote
      * @param bidAskImbalance Calculated bid/ask imbalance
-     * @param bidDWP Bid dollar-weighted price
-     * @param askDWP Ask dollar-weighted price
+     * @param bidDWP Bid depth-weighted price
+     * @param askDWP Ask depth-weighted price
      */
     void displayedStockReceivedNewMarketDepthQuote(QString symbol,
                                                    MarketDepthQuote quote,
