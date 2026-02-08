@@ -725,6 +725,7 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
         tradeStationLoginButton->setText("TradeStation Connected");
         tradeStationLoginButton->setStyleSheet(
             "QPushButton { background-color: #E6FFE6; color: #4CAF50; padding: 2px 6px; border-radius: 3px; }");
+        tradeStationLoginButton->setEnabled(true);
 
         // Restore the last displayed stock now that we're authenticated
         // Only do this once on the first successful authentication
@@ -733,10 +734,21 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
             m_hasRestoredLastStock = true;
             restoreLastDisplayedStock();
         }
+
+        isFirstTime = false;
     }
     else
     {
-        if (isFirstTime)
+        // Check if we're in a "connecting" state
+        if (reason == "Connecting...")
+        {
+            // Show connecting state with orange/yellow color and disable button
+            tradeStationLoginButton->setText("Connecting to TradeStation...");
+            tradeStationLoginButton->setStyleSheet(
+                "QPushButton { background-color: #FFF4E6; color: #FF9800; padding: 2px 6px; border-radius: 3px; }");
+            tradeStationLoginButton->setEnabled(false);
+        }
+        else if (isFirstTime)
         {
             // If its the first time we receive this signal and its negative state, it just
             // means that at startup we are not authenticated, not that there was an error.
@@ -744,16 +756,17 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
             tradeStationLoginButton->setText("Login to TradeStation");
             tradeStationLoginButton->setStyleSheet(
                 "QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
+            tradeStationLoginButton->setEnabled(true);
+            isFirstTime = false;
         }
         else
         {
             tradeStationLoginButton->setText("Login Failed: " + reason);
             tradeStationLoginButton->setStyleSheet(
                 "QPushButton { background-color: #FFE6E6; color: #f44336; padding: 2px 6px; border-radius: 3px; }");
+            tradeStationLoginButton->setEnabled(true);
         }
     }
-
-    isFirstTime = false;
 }
 
 QString GUIFrontend::bytesToString(qint64 bytes)

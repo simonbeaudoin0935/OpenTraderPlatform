@@ -107,6 +107,9 @@ void TSClient::refreshAccessToken()
 
     qCDebug(TSClientLog) << "Starting an ASYNC token refresh request";
 
+    // Emit signal to update UI that we're attempting to connect
+    emit authStateChanged(false, "Connecting...");
+
 
     // Build the request and query using our static helper methods
     const QNetworkRequest request = buildRefreshTokenRequest();
