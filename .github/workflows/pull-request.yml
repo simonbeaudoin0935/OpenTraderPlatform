@@ -224,9 +224,13 @@ jobs:
             exit 1
           }
           
-          # Start the GUI application in background
-          ./build/UBSan/Src/L2Trader 2>&1 | tee .sanitizers/ubsan/ubsan-console.txt &
+          # Start the GUI application in background (redirect to file instead of using tee/pipe)
+          ./build/UBSan/Src/L2Trader 2>&1 > .sanitizers/ubsan/ubsan-console.txt &
           APP_PID=$!
+          
+          # Also capture the console output in real-time using tail for monitoring
+          tail -f .sanitizers/ubsan/ubsan-console.txt 2>/dev/null &
+          TAIL_PID=$!
           
           # Wait for application to start
           sleep 5
@@ -279,6 +283,9 @@ jobs:
             wait $APP_PID 2>/dev/null || true
             EXIT_CODE=$?
           fi
+          
+          # Clean up tail process
+          kill $TAIL_PID 2>/dev/null || true
           
           # Clean up Xvfb
           kill $XVFB_PID 2>/dev/null || true
@@ -439,9 +446,13 @@ jobs:
             exit 1
           }
           
-          # Start the GUI application in background
-          ./build/ASan/Src/L2Trader 2>&1 | tee .sanitizers/asan/asan-console.txt &
+          # Start the GUI application in background (redirect to file instead of using tee/pipe)
+          ./build/ASan/Src/L2Trader 2>&1 > .sanitizers/asan/asan-console.txt &
           APP_PID=$!
+          
+          # Also capture the console output in real-time using tail for monitoring
+          tail -f .sanitizers/asan/asan-console.txt 2>/dev/null &
+          TAIL_PID=$!
           
           # Wait for application to start
           sleep 5
@@ -494,6 +505,9 @@ jobs:
             wait $APP_PID 2>/dev/null || true
             EXIT_CODE=$?
           fi
+          
+          # Clean up tail process
+          kill $TAIL_PID 2>/dev/null || true
           
           # Clean up Xvfb
           kill $XVFB_PID 2>/dev/null || true
