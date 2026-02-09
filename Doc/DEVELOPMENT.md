@@ -172,6 +172,43 @@ cmake --build build -j4
 ./build/TUI/Src/L2Trader 2>logs.txt
 ```
 
+### Cross-Compilation
+
+#### ARM64 Cross-Compilation (Debian/Ubuntu)
+
+The project supports cross-compilation for ARM64 (aarch64) architecture, commonly used for Raspberry Pi and other ARM-based systems.
+
+**Known Issue: libstdc++_libbacktrace**
+
+The C++23 stacktrace support requires `libstdc++_libbacktrace.a`, which may not be available in all cross-compilation toolchains. The build system automatically detects and conditionally links this library:
+
+- **If found**: Full stacktrace support in crash handlers
+- **If not found**: Build succeeds with a warning, but stacktrace functionality will be limited
+
+This is expected behavior during ARM64 cross-compilation with older GCC cross-toolchains (GCC 12 and earlier). The application will build and run correctly, but crash handler stack traces may not be fully functional.
+
+**Build Process**:
+
+```bash
+# Using dpkg-buildpackage with cross-compilation profile
+dpkg-buildpackage -us -uc -b -aarm64 -Pcross
+```
+
+The CMake configuration uses the compiler's `-print-file-name` to detect library availability:
+
+```cmake
+execute_process(
+    COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libstdc++_libbacktrace.a
+    OUTPUT_VARIABLE STDCPP_LIBBACKTRACE_FULL_PATH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+```
+
+**Debian Package Build**:
+
+See `.github/workflows/post-merge.yml` for the CI/CD pipeline that builds packages for both x86_64 and ARM64 architectures using Docker containers with appropriate cross-compilation toolchains.
+
 ## Testing
 
 ### Unit Tests
