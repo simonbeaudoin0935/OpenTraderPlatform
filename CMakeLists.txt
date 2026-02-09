@@ -205,7 +205,25 @@ add_compile_definitions(
 # No longer need -rdynamic flag as C++23 handles this internally
 # Library stdc++_libbacktrace is needed for stacktrace support
 if(UNIX AND NOT APPLE)
-    link_libraries(stdc++_libbacktrace)
+    # Try to find the stdc++_libbacktrace library
+    # This library may not be available during cross-compilation for ARM64
+    # Look in GCC library directories as this is where it's typically located
+    execute_process(
+        COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libstdc++_libbacktrace.a
+        OUTPUT_VARIABLE STDCPP_LIBBACKTRACE_FULL_PATH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    
+    # Check if the compiler found the library (returns just the filename if not found)
+    if(STDCPP_LIBBACKTRACE_FULL_PATH AND NOT STDCPP_LIBBACKTRACE_FULL_PATH STREQUAL "libstdc++_libbacktrace.a")
+        message(STATUS "Found stdc++_libbacktrace: ${STDCPP_LIBBACKTRACE_FULL_PATH}")
+        link_libraries(stdc++_libbacktrace)
+    else()
+        message(WARNING "stdc++_libbacktrace not found - stacktrace functionality will NOT work")
+        message(WARNING "This is expected during cross-compilation for ARM64 with older GCC toolchains")
+        message(WARNING "The application will still build but crash handler stacktraces may not be functional")
+    endif()
 endif()
 
 # Add subdirectories
