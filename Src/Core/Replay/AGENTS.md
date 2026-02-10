@@ -44,18 +44,19 @@ The Recorder and Replay system enables capturing live market data streams and re
 │   ReplayEngine ◄────────────────────────────────────────────────────────┐   │
 │       │                                                                  │   │
 │       │  startReplayPaused() / startReplay()                            │   │
-│       ▼                                                                  │   │
-│   ReplayDataLoader                                                       │   │
 │       │                                                                  │   │
-│       │  Loads from SQLite DBs                                          │   │
-│       │  Ping-pong buffer strategy                                      │   │
-│       │  Merges bars + depth chronologically                            │   │
+│       ├── m_barTimer ──► ReplayDataLoader (Bar)                         │   │
+│       │       │  Loads from Bars SQLite DB                              │   │
+│       │       │  Ping-pong buffer strategy                              │   │
+│       │       ▼                                                          │   │
+│       │   ReplayDataPoint → injectBarData signal                        │   │
 │       │                                                                  │   │
-│       ▼                                                                  │   │
-│   ReplayDataPoint (bars/depth JSON)                                     │   │
-│       │                                                                  │   │
-│       │  injectBarData / injectDepthData signals                        │   │
-│       ▼                                                                  │   │
+│       └── m_depthTimer ──► ReplayDataLoader (MarketDepthQuote)          │   │
+│               │  Loads from Depth SQLite DB                              │   │
+│               │  Ping-pong buffer strategy                              │   │
+│               ▼                                                          │   │
+│           ReplayDataPoint → injectDepthData signal                      │   │
+│                                                                          │   │
 │   TSClient (Replay Mode)                                                 │   │
 │       │                                                                  │   │
 │       │  Routes to MockNetworkReply                                     │   │
@@ -84,8 +85,8 @@ The Recorder and Replay system enables capturing live market data streams and re
 
 | File | Purpose |
 |------|---------|
-| `ReplayEngine.h/cpp` | Orchestrates replay playback. Manages state (Stopped/Playing/Paused), speed, timing |
-| `ReplayDataLoader.h/cpp` | Loads data from SQLite DBs into memory buffers. Ping-pong buffering for efficiency |
+| `ReplayEngine.h/cpp` | Orchestrates replay playback with two independent streams (bars, depth). Each stream has its own single-shot QTimer and ReplayDataLoader. Uses wall-clock anchored timing for accurate speed control |
+| `ReplayDataLoader.h/cpp` | Loads one data type (Bar or MarketDepthQuote) from its SQLite DB into memory buffers. Ping-pong buffering with prefetch at 80% |
 
 ### Integration Points
 
@@ -166,27 +167,41 @@ MainAlgo::resumeReplay()
     ├── resumeHeartbeat() on all stream receivers
     └── ReplayEngine::resumeReplay()
             │
+            ├── Adjust wall-clock anchor by pause duration
             ├── Set state = Playing
-            └── scheduleNextDataPoint() → starts timer
+            ├── scheduleNextBar() → starts bar timer
+            └── scheduleNextDepth() → starts depth timer
 ```
 
 ### 3. Data Emission Loop
 
+Each stream (bars and depth) has its own independent timer and emission loop:
+
 ```
-ReplayEngine::onTimerTick()
-    │
-    ├── emitCurrentDataPoint()
-    │       │
-    │       ├── Get next ReplayDataPoint from ReplayDataLoader
-    │       ├── emit injectBarData(symbol, jsonData) OR
-    │       └── emit injectDepthData(symbol, jsonData)
-    │
-    └── scheduleNextDataPoint()
-            │
-            ├── Calculate delta to next timestamp
-            ├── Scale by playback speed
-            └── Start single-shot timer
+ReplayEngine::onBarTimerTick()          ReplayEngine::onDepthTimerTick()
+    │                                       │
+    ├── emitNextBar()                       ├── emitNextDepth()
+    │       │                               │       │
+    │       ├── Get next point from         │       ├── Get next point from
+    │       │   m_barLoader                 │       │   m_depthLoader
+    │       ├── updateReplayTime()          │       ├── updateReplayTime()
+    │       └── emit injectBarData()        │       └── emit injectDepthData()
+    │                                       │
+    └── scheduleNextBar()                   └── scheduleNextDepth()
+            │                                       │
+            ├── Peek next data point               ├── Peek next data point
+            ├── calculateWallClockDelay()           ├── calculateWallClockDelay()
+            └── m_barTimer.start(delay)             └── m_depthTimer.start(delay)
 ```
+
+**Wall-Clock Anchored Timing**: Both streams share a single wall-clock anchor point.
+Instead of computing delay from timestamp deltas between consecutive points, each
+data point's delay is calculated as:
+```
+targetWallMs = m_wallClockAnchorMs + (replayEpochMs - m_replayEpochAnchorMs) * 100 / speed
+delay = max(0, targetWallMs - now)
+```
+This prevents timing drift from two independent timers and ensures accurate playback speed.
 
 ### 4. Pausing Replay
 
@@ -220,7 +235,18 @@ Defined in `ReplayEngine::PlaybackSpeed`:
 | Fast10x (1000) | 10.0x | 10x faster |
 | AsFastAsPossible (-1) | Max | 0ms timer delays |
 
-Speed can be changed on-the-fly via `MainApp::setReplaySpeed()`.
+Speed can be changed on-the-fly via `MainApp::setReplaySpeed()`. When changed during
+playback, `setSpeed()` re-anchors the wall-clock mapping to the current instant and
+reschedules both stream timers, so the new speed takes effect immediately.
+
+### Pause/Resume Timing
+
+- **Pause**: Records `m_pauseWallClockMs = now`, stops both timers
+- **Resume**: Shifts `m_wallClockAnchorMs` forward by the pause duration so timing
+  stays accurate across pauses. If resuming after `startReplayPaused()`, the anchor
+  is set to "now" on first resume.
+- `updateReplayTime()` only advances `MainApp::currentAppReplayTime` forward (never backward),
+  so whichever stream has the latest timestamp drives the displayed clock.
 
 ## Heartbeat Timer Management
 
@@ -249,11 +275,12 @@ The `StreamReceiver` base class provides a unified interface for heartbeat manag
 
 1. Add new `StreamType` to `LiveStreamDB` (recorder side)
 2. Add new table creation in `LiveStreamDB::createTable()`
-3. Add new `ReplayDataPoint::Type` in `ReplayDataLoader`
-4. Add loading logic in `ReplayDataLoader::loadBufferChunk()`
-5. Add injection signal in `ReplayEngine` (e.g., `injectNewDataType`)
-6. Connect signal to `TSClient::onInjectNewDataType()`
-7. Route to appropriate `MockNetworkReply` in TSClient
+3. Create a new `ReplayDataLoader` instance in `ReplayEngine` for the data type
+4. Add a new `QTimer`, emit/schedule function pair, and stream-ended flag in `ReplayEngine`
+5. Add loading logic in `ReplayDataLoader::loadBufferChunk()` for the new table
+6. Add injection signal in `ReplayEngine` (e.g., `injectNewDataType`)
+7. Connect signal to `TSClient::onInjectNewDataType()`
+8. Route to appropriate `MockNetworkReply` in TSClient
 
 ### Debugging Replay Issues
 
@@ -277,7 +304,8 @@ MainAlgoThread
     │
     └── MainAlgo
             ├── ReplayEngine
-            │       └── ReplayDataLoader
+            │       ├── m_barTimer + ReplayDataLoader (Bar)
+            │       └── m_depthTimer + ReplayDataLoader (MarketDepthQuote)
             │
             ├── StockInstruments (BarReceiver, MarketDepthQuoteReceiver)
             └── PositionsReceiver, OrdersReceiver
