@@ -16,11 +16,14 @@ class ReplayDataLoader;
  * @brief Orchestrates replay of recorded market data at configurable speeds
  *
  * ReplayEngine is composed into MainAlgo and runs in MainAlgoThread.
- * It manages:
+ * It manages two independent playback streams — one for bars, one for market
+ * depth quotes — each with its own timer, data loader, and timestamp tracker.
+ *
+ * Key responsibilities:
  * - Replay state (stopped, playing, paused)
- * - Playback speed control
- * - Timing between data emissions using timestamp deltas
- * - Coordination with ReplayDataLoader for data retrieval
+ * - Playback speed control (shared by both streams)
+ * - Independent timing for bars and depth via separate single-shot timers
+ * - Coordination with two ReplayDataLoader instances for data retrieval
  * - Injection of data into TSClient's MockNetworkReply objects
  *
  * Threading: Runs in MainAlgoThread (inherits parent's thread via Qt parenting)
@@ -76,30 +79,31 @@ class ReplayEngine : public QObject
      * @param p_startTime Time of day to start replay
      * @param p_speed Initial playback speed
      *
-     * Loads data from replay database starting at p_startTime (not market open).
-     * First data point will be emitted immediately, subsequent points scheduled
-     * based on timestamp deltas and playback speed.
+     * Loads data from replay databases starting at p_startTime.
+     * First data point from each stream will be emitted immediately,
+     * subsequent points scheduled based on timestamp deltas and playback speed.
      */
     void startReplay(QDate p_date, QTime p_startTime, PlaybackSpeed p_speed);
 
     /**
-     * @brief Start replay in paused state, emitting only the first data point
+     * @brief Start replay in paused state, emitting only the first data points
      *
      * Used when entering replay mode to pre-populate the chart.
-     * Emits first bar/quote then immediately pauses. User clicks Play to continue.
+     * Emits first bar and first depth then immediately pauses.
+     * User clicks Play to continue.
      */
     void startReplayPaused(QDate p_date, QTime p_startTime, PlaybackSpeed p_speed);
 
     /**
      * @brief Stop replay and clean up resources
      *
-     * Stops timer, clears data loader, resets state to Stopped.
+     * Stops timers, clears data loaders, resets state to Stopped.
      * Does NOT restore live mode - that's MainAlgo/MainApp's responsibility.
      */
     void stopReplay();
 
     /**
-     * @brief Pause replay (timer stopped, state preserved)
+     * @brief Pause replay (timers stopped, state preserved)
      */
     void pauseReplay();
 
@@ -109,13 +113,10 @@ class ReplayEngine : public QObject
     void resumeReplay();
 
     /**
-     * @brief Set playback speed on the fly
+     * @brief Set playback speed on the fly (affects both streams)
      * Can be called while replay is playing or paused.
      */
-    void setSpeed(PlaybackSpeed p_speed)
-    {
-        m_speed = p_speed;
-    }
+    void setSpeed(PlaybackSpeed p_speed);
 
     /**
      * @brief Get current playback state
@@ -169,7 +170,7 @@ class ReplayEngine : public QObject
     void replayTimeUpdated(QDateTime p_currentTime);
 
     /**
-     * @brief Emitted when replay reaches end of available data
+     * @brief Emitted when replay reaches end of available data (both streams)
      */
     void replayEndReached();
 
@@ -189,42 +190,96 @@ class ReplayEngine : public QObject
 
   private slots:
     /**
-     * @brief Timer tick handler - processes next data point
+     * @brief Bar timer tick — processes next bar data point
      */
-    void onTimerTick();
+    void onBarTimerTick();
 
     /**
-     * @brief Called when ReplayDataLoader has prefetched next buffer
+     * @brief Depth timer tick — processes next depth data point
      */
-    void onBufferReady();
+    void onDepthTimerTick();
+
+    /**
+     * @brief Called when bar loader has prefetched next buffer
+     */
+    void onBarBufferReady();
+
+    /**
+     * @brief Called when depth loader has prefetched next buffer
+     */
+    void onDepthBufferReady();
 
   private:
-    QTimer m_playbackTimer;
-    ReplayDataLoader* m_dataLoader = nullptr; // Owned, created on startReplay
-    TSClient* m_tsClient;                     // Reference, not owned
+    // Independent timers for each data stream
+    QTimer m_barTimer;
+    QTimer m_depthTimer;
+
+    // Independent data loaders (owned, created on startReplay)
+    ReplayDataLoader* m_barLoader = nullptr;
+    ReplayDataLoader* m_depthLoader = nullptr;
+
+    TSClient* m_tsClient; // Reference, not owned
 
     PlaybackState m_state = PlaybackState::Stopped;
     PlaybackSpeed m_speed = PlaybackSpeed::Normal;
 
-    qint64 m_lastEmittedTimestampMs = 0;
-    uint32_t m_replayGeneration = 0; // Incremented on each startReplay to invalidate stale timer events
+    // Wall-clock anchor: maps replay-epoch time to real wall-clock time
+    // targetWallMs = m_wallClockAnchorMs + (replayEpochMs - m_replayEpochAnchorMs) * 100 / speed
+    qint64 m_wallClockAnchorMs = 0;
+    qint64 m_replayEpochAnchorMs = 0;
+    qint64 m_pauseWallClockMs = 0; // Wall-clock time when paused (to adjust anchor on resume)
+
+    // Track which streams have reached end of data
+    bool m_barStreamEnded = false;
+    bool m_depthStreamEnded = false;
 
     /**
-     * @brief Emit current data point to appropriate TSClient stream
+     * @brief Initialize both loaders, loading databases for the given date/time
+     * @return true if at least one loader has data
      */
-    void emitCurrentDataPoint();
+    bool initLoaders(QDate p_date, QTime p_startTime);
 
     /**
-     * @brief Schedule next data point emission based on timestamp delta and speed
+     * @brief Clean up both loaders
      */
-    void scheduleNextDataPoint();
+    void cleanupLoaders();
 
     /**
-     * @brief Calculate timer delay based on timestamp delta and playback speed
-     * @param p_deltaMs Raw delta between timestamps in milliseconds
-     * @return Scaled delay for timer (0 for AsFastAsPossible)
+     * @brief Emit next bar data point, skipping stocks without active streams
      */
-    [[nodiscard]] qint64 calculateScaledDelay(qint64 p_deltaMs) const;
+    void emitNextBar();
+
+    /**
+     * @brief Emit next depth data point, skipping stocks without active streams
+     */
+    void emitNextDepth();
+
+    /**
+     * @brief Schedule next bar emission using wall-clock anchor
+     */
+    void scheduleNextBar();
+
+    /**
+     * @brief Schedule next depth emission using wall-clock anchor
+     */
+    void scheduleNextDepth();
+
+    /**
+     * @brief Calculate wall-clock delay for a data point based on its replay timestamp
+     * @param p_replayEpochMs The replay-epoch timestamp of the next data point
+     * @return Delay in ms from now until the data point should fire (min 0)
+     */
+    [[nodiscard]] qint64 calculateWallClockDelay(qint64 p_replayEpochMs) const;
+
+    /**
+     * @brief Update MainApp::currentAppReplayTime to the max of current and new time
+     */
+    void updateReplayTime(qint64 p_epochMs);
+
+    /**
+     * @brief Check if both streams have ended and emit replayEndReached if so
+     */
+    void checkAllStreamsEnded();
 
     /**
      * @brief Check if TSClient has an active stream for the given stock

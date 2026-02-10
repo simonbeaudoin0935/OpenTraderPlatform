@@ -99,15 +99,15 @@ void DatabaseThread::closeDatabase(const QString& symbol)
     QMetaObject::invokeMethod(this, [this, symbol]() { closeDatabaseInternal(symbol); }, Qt::QueuedConnection);
 }
 
-QFuture<std::optional<std::unique_ptr<QVector<Bar>>>>
+QFuture<std::optional<std::shared_ptr<QVector<Bar>>>>
 DatabaseThread::getBarsFromDatabase(const QString& symbol, QDate date, QTime start, QTime end)
 {
     // Make sure we're not called from the database thread itself, that
     // would be illogical.
     OBJ_ASSUME_FALSE(this->thread() == QThread::currentThread());
 
-    QPromise<std::optional<std::unique_ptr<QVector<Bar>>>> promise;
-    QFuture<std::optional<std::unique_ptr<QVector<Bar>>>> future = promise.future();
+    QPromise<std::optional<std::shared_ptr<QVector<Bar>>>> promise;
+    QFuture<std::optional<std::shared_ptr<QVector<Bar>>>> future = promise.future();
     promise.start();
 
     QMetaObject::invokeMethod(
@@ -250,7 +250,7 @@ void DatabaseThread::closeDatabaseInternal(const QString& symbol)
     INFO << "Closed database for symbol" << symbol;
 }
 
-std::optional<std::unique_ptr<QVector<Bar>>>
+std::optional<std::shared_ptr<QVector<Bar>>>
 DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, QTime start, QTime end)
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
@@ -282,7 +282,7 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
     query.addBindValue(static_cast<int>(indexStart));
     query.addBindValue(static_cast<int>(indexEnd));
 
-    std::unique_ptr<QVector<Bar>> bars = std::make_unique<QVector<Bar>>();
+    std::shared_ptr<QVector<Bar>> bars = std::make_shared<QVector<Bar>>();
 
     if (query.exec())
     {

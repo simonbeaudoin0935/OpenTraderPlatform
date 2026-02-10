@@ -76,7 +76,7 @@ class DatabaseThread final : public QObject
      * @param end End time of the range
      * @return QFuture with optional vector of bars (nullopt if incomplete data)
      */
-    [[nodiscard]] QFuture<std::optional<std::unique_ptr<QVector<Bar>>>>
+    [[nodiscard]] QFuture<std::optional<std::shared_ptr<QVector<Bar>>>>
     getBarsFromDatabase(const QString& symbol, QDate date, QTime start, QTime end);
 
     /**
@@ -109,7 +109,7 @@ class DatabaseThread final : public QObject
     bool openDatabaseInternal(const QString& symbol, const QString& dbPath);
     void closeDatabaseInternal(const QString& symbol);
 
-    std::optional<std::unique_ptr<QVector<Bar>>>
+    std::optional<std::shared_ptr<QVector<Bar>>>
     getBarsFromDatabaseInternal(const QString& symbol, QDate date, QTime start, QTime end);
 
     int storeBarsInDatabaseInternal(const QString& symbol, const QDate& date, const QVector<Bar>& bars);
