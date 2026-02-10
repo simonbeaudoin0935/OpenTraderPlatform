@@ -204,8 +204,15 @@ add_compile_definitions(
 # Enable stack trace symbol resolution using C++23 stacktrace
 # No longer need -rdynamic flag as C++23 handles this internally
 # Library stdc++_libbacktrace is needed for stacktrace support
+# GCC12 (Debian Bookworm on Raspberry Pi) doesn't support stacktrace, so disable for that version
 if(UNIX AND NOT APPLE)
-    link_libraries(stdc++_libbacktrace)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "13")
+        # GCC < 13 doesn't support stacktrace library
+        add_compile_definitions(DISABLE_STACKTRACE)
+        message(STATUS "GCC ${CMAKE_CXX_COMPILER_VERSION} detected - stacktrace feature disabled")
+    else()
+        link_libraries(stdc++_libbacktrace)
+    endif()
 endif()
 
 # Add subdirectories
