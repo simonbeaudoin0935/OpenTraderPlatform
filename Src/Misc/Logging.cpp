@@ -12,7 +12,9 @@
 
 #include <iostream>
 #include <csignal>
+#ifndef DISABLE_STACKTRACE
 #include <stacktrace>
+#endif
 #include <sstream>
 #include <mutex>
 
@@ -84,6 +86,7 @@ void printStackTrace()
 {
     std::lock_guard<std::recursive_mutex> lock(loggingMutex);
 
+#ifndef DISABLE_STACKTRACE
     // Capture current stacktrace
     std::stacktrace trace = std::stacktrace::current();
 
@@ -116,6 +119,20 @@ void printStackTrace()
         logStream->flush();
     }
     std::cerr << msg << std::endl;
+#else
+    std::ostringstream stackTraceMsg;
+    stackTraceMsg << "\nStack traces are not available for this compiler version.\n";
+
+    std::string msg = stackTraceMsg.str();
+
+    // Write to both log file and stderr
+    if (logStream)
+    {
+        *logStream << QString::fromStdString(msg);
+        logStream->flush();
+    }
+    std::cerr << msg << std::endl;
+#endif
 }
 
 // LogBroadcaster implementation
