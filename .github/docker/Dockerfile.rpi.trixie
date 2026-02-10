@@ -1,10 +1,9 @@
-
 # This dockerfile is built by an amd64 machine (ubuntu-latest GitHub runner) FOR an amd64 machine,
 # which will contain the cross-compilation toolchain and dependencies to build Debian packages for
 # Raspberry Pi 4 running Debian Bookworm (aarch64/arm64).
 
 # Use Debian Bookworm as base image for amd64 architecture
-FROM debian:bookworm
+FROM debian:trixie-slim
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive

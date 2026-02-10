@@ -83,7 +83,7 @@ jobs:
         shell: bash
 
     container:
-      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:rpi-bookworm
+      image: ghcr.io/${{ vars.USERNAME }}/l2trader-builder:rpi-trixie
       credentials:
         username: ${{ vars.USERNAME }}
         password: ${{secrets.TOKEN_GHCR}}
