@@ -22,18 +22,18 @@ static const ReplayDataLoader::ReplayDataPoint s_emptyDataPoint{};
 // Atomic counter for unique database connection names
 static std::atomic<int> s_connectionCounter{0};
 
-ReplayDataLoader::ReplayDataLoader(QObject* p_parent) : QObject(p_parent)
+ReplayDataLoader::ReplayDataLoader(DataType p_dataType, QObject* p_parent) : QObject(p_parent), m_dataType(p_dataType)
 {
-    // Generate unique connection names for this instance
+    // Generate unique connection name for this instance
     int instanceId = s_connectionCounter.fetch_add(1);
-    m_barsDbConnectionName = QString("ReplayBarsDB_%1").arg(instanceId);
-    m_depthDbConnectionName = QString("ReplayDepthDB_%1").arg(instanceId);
+    QString typeStr = (m_dataType == DataType::Bar) ? "Bars" : "Depth";
+    m_dbConnectionName = QString("Replay%1DB_%2").arg(typeStr).arg(instanceId);
 
     // Initialize buffer pointers
     m_activeBuffer = &m_bufferA;
     m_loadingBuffer = &m_bufferB;
 
-    DEBUG << "ReplayDataLoader created with connection names:" << m_barsDbConnectionName << m_depthDbConnectionName;
+    DEBUG << "ReplayDataLoader created for" << typeStr << "with connection:" << m_dbConnectionName;
 }
 
 ReplayDataLoader::~ReplayDataLoader()
@@ -49,103 +49,54 @@ ReplayDataLoader::~ReplayDataLoader()
     DEBUG << "ReplayDataLoader destroyed";
 }
 
-QString ReplayDataLoader::getBarsDbPath(QDate p_date) const
+QString ReplayDataLoader::getDbPath(QDate p_date) const
 {
     QString dateStr = p_date.toString("yyyy-MM-dd");
-    return getCacheLocation() + "/RecordedLiveData/Bars/" + dateStr + ".db";
-}
-
-QString ReplayDataLoader::getDepthDbPath(QDate p_date) const
-{
-    QString dateStr = p_date.toString("yyyy-MM-dd");
+    if (m_dataType == DataType::Bar)
+    {
+        return getCacheLocation() + "/RecordedLiveData/Bars/" + dateStr + ".db";
+    }
     return getCacheLocation() + "/RecordedLiveData/MarketDepthQuotes/" + dateStr + ".db";
 }
 
-bool ReplayDataLoader::openDatabases(QDate p_date)
+bool ReplayDataLoader::openDatabase(QDate p_date)
 {
-    QString barsPath = getBarsDbPath(p_date);
-    QString depthPath = getDepthDbPath(p_date);
+    QString dbPath = getDbPath(p_date);
 
-    // Check if files exist
-    bool barsExists = QFile::exists(barsPath);
-    bool depthExists = QFile::exists(depthPath);
-
-    if (!barsExists && !depthExists)
+    if (!QFile::exists(dbPath))
     {
-        WARNING << "No replay databases found for" << p_date.toString(Qt::ISODate);
-        WARNING << "  Bars path:" << barsPath;
-        WARNING << "  Depth path:" << depthPath;
+        QString typeStr = (m_dataType == DataType::Bar) ? "bars" : "depth";
+        WARNING << "No" << typeStr << "replay database found for" << p_date.toString(Qt::ISODate);
+        WARNING << "  Path:" << dbPath;
         return false;
     }
 
-    // Open bars database if exists
-    if (barsExists)
+    m_db = QSqlDatabase::addDatabase("QSQLITE", m_dbConnectionName);
+    m_db.setDatabaseName(dbPath);
+    if (!m_db.open())
     {
-        m_barsDb = QSqlDatabase::addDatabase("QSQLITE", m_barsDbConnectionName);
-        m_barsDb.setDatabaseName(barsPath);
-        if (!m_barsDb.open())
-        {
-            CRITICAL << "Failed to open bars replay database:" << m_barsDb.lastError().text();
-            return false;
-        }
-        INFO << "Opened bars replay database:" << barsPath;
-
-        // Ensure indexes exist for efficient queries
-        ensureIndexes(m_barsDb, true);
+        CRITICAL << "Failed to open replay database:" << m_db.lastError().text();
+        return false;
     }
-    else
-    {
-        DEBUG << "No bars database for" << p_date.toString(Qt::ISODate);
-    }
+    INFO << "Opened replay database:" << dbPath;
 
-    // Open depth database if exists
-    if (depthExists)
-    {
-        m_depthDb = QSqlDatabase::addDatabase("QSQLITE", m_depthDbConnectionName);
-        m_depthDb.setDatabaseName(depthPath);
-        if (!m_depthDb.open())
-        {
-            CRITICAL << "Failed to open depth replay database:" << m_depthDb.lastError().text();
-            closeDatabases();
-            return false;
-        }
-        INFO << "Opened depth replay database:" << depthPath;
-
-        // Ensure indexes exist for efficient queries
-        ensureIndexes(m_depthDb, false);
-    }
-    else
-    {
-        DEBUG << "No market depth database for" << p_date.toString(Qt::ISODate);
-    }
-
+    ensureIndexes();
     return true;
 }
 
-void ReplayDataLoader::closeDatabases()
+void ReplayDataLoader::closeDatabase()
 {
-    if (m_barsDb.isOpen())
+    if (m_db.isOpen())
     {
-        m_barsDb.close();
-    }
-    if (m_depthDb.isOpen())
-    {
-        m_depthDb.close();
+        m_db.close();
     }
 
-    // Clear the member variables before removing connections
-    // This ensures no references remain when removeDatabase is called
-    m_barsDb = QSqlDatabase();
-    m_depthDb = QSqlDatabase();
+    // Clear the member variable before removing connection
+    m_db = QSqlDatabase();
 
-    // Remove connections
-    if (QSqlDatabase::contains(m_barsDbConnectionName))
+    if (QSqlDatabase::contains(m_dbConnectionName))
     {
-        QSqlDatabase::removeDatabase(m_barsDbConnectionName);
-    }
-    if (QSqlDatabase::contains(m_depthDbConnectionName))
-    {
-        QSqlDatabase::removeDatabase(m_depthDbConnectionName);
+        QSqlDatabase::removeDatabase(m_dbConnectionName);
     }
 }
 
@@ -160,46 +111,33 @@ bool ReplayDataLoader::loadDatabase(QDate p_date, QTime p_startTime)
     QDateTime startDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE);
     m_startEpochMs = startDateTime.toMSecsSinceEpoch();
 
-    INFO << "Loading replay database for" << p_date.toString(Qt::ISODate) << "starting at"
+    QString typeStr = (m_dataType == DataType::Bar) ? "bars" : "depth";
+    INFO << "Loading" << typeStr << "replay database for" << p_date.toString(Qt::ISODate) << "starting at"
          << p_startTime.toString("hh:mm:ss") << "(epoch:" << m_startEpochMs << ")";
 
-    if (!openDatabases(p_date))
+    if (!openDatabase(p_date))
     {
         return false;
     }
 
-    // Get total counts for progress tracking
-    if (m_barsDb.isOpen())
+    // Get total count for progress tracking
+    QSqlQuery countQuery(m_db);
+    QString countSql = (m_dataType == DataType::Bar) ? ReplayDataQueries::COUNT_BARS_FROM_TIME
+                                                     : ReplayDataQueries::COUNT_MARKET_DEPTH_FROM_TIME;
+    countQuery.prepare(countSql);
+    countQuery.addBindValue(m_startEpochMs);
+    if (countQuery.exec() && countQuery.next())
     {
-        QSqlQuery countQuery(m_barsDb);
-        countQuery.prepare(ReplayDataQueries::COUNT_BARS_FROM_TIME);
-        countQuery.addBindValue(m_startEpochMs);
-        if (countQuery.exec() && countQuery.next())
-        {
-            m_totalBarsCount = countQuery.value(0).toLongLong();
-            DEBUG << "Total bars from start time:" << m_totalBarsCount;
-        }
+        m_totalCount = countQuery.value(0).toLongLong();
+        DEBUG << "Total" << typeStr << "from start time:" << m_totalCount;
     }
 
-    if (m_depthDb.isOpen())
-    {
-        QSqlQuery countQuery(m_depthDb);
-        countQuery.prepare(ReplayDataQueries::COUNT_MARKET_DEPTH_FROM_TIME);
-        countQuery.addBindValue(m_startEpochMs);
-        if (countQuery.exec() && countQuery.next())
-        {
-            m_totalDepthCount = countQuery.value(0).toLongLong();
-            DEBUG << "Total depth quotes from start time:" << m_totalDepthCount;
-        }
-    }
+    INFO << "Total" << typeStr << "records to replay:" << m_totalCount;
 
-    INFO << "Total records to replay:" << (m_totalBarsCount + m_totalDepthCount) << "(bars:" << m_totalBarsCount
-         << ", depth:" << m_totalDepthCount << ")";
-
-    if (m_totalBarsCount == 0 && m_totalDepthCount == 0)
+    if (m_totalCount == 0)
     {
-        WARNING << "No data found from" << p_startTime.toString("hh:mm:ss") << "onwards";
-        closeDatabases();
+        WARNING << "No" << typeStr << "data found from" << p_startTime.toString("hh:mm:ss") << "onwards";
+        closeDatabase();
         return false;
     }
 
@@ -214,7 +152,7 @@ void ReplayDataLoader::reset()
         m_prefetchFuture.waitForFinished();
     }
 
-    closeDatabases();
+    closeDatabase();
 
     m_bufferA.clear();
     m_bufferB.clear();
@@ -222,16 +160,13 @@ void ReplayDataLoader::reset()
     m_loadingBuffer = &m_bufferB;
     m_activeBufferIndex = 0;
 
-    m_nextBarsId = 1;
-    m_nextDepthId = 1;
+    m_nextId = 1;
     m_startEpochMs = 0;
     m_isPrefetching = false;
-    m_endOfBarsReached = false;
-    m_endOfDepthReached = false;
+    m_endOfDataReached = false;
     m_loadingBufferReady = false;
 
-    m_totalBarsCount = 0;
-    m_totalDepthCount = 0;
+    m_totalCount = 0;
     m_recordsConsumed = 0;
 
     m_loadedDate = QDate();
@@ -301,12 +236,23 @@ ReplayDataLoader::ReplayDataPoint ReplayDataLoader::getNextDataPoint()
 
 const ReplayDataLoader::ReplayDataPoint& ReplayDataLoader::peekNextDataPoint() const
 {
-    if (m_activeBuffer == nullptr || m_activeBufferIndex >= m_activeBuffer->size())
+    if (m_activeBuffer == nullptr)
     {
         return s_emptyDataPoint;
     }
 
-    return (*m_activeBuffer)[m_activeBufferIndex];
+    if (m_activeBufferIndex < m_activeBuffer->size())
+    {
+        return (*m_activeBuffer)[m_activeBufferIndex];
+    }
+
+    // Active buffer exhausted but loading buffer is ready — peek into it
+    if (m_loadingBufferReady && m_loadingBuffer != nullptr && !m_loadingBuffer->isEmpty())
+    {
+        return m_loadingBuffer->first();
+    }
+
+    return s_emptyDataPoint;
 }
 
 QDateTime ReplayDataLoader::getFirstTimestamp() const
@@ -321,69 +267,52 @@ QDateTime ReplayDataLoader::getFirstTimestamp() const
 
 QDateTime ReplayDataLoader::getLastTimestamp() const
 {
-    // Query database for the actual last timestamp
-    qint64 lastEpoch = 0;
-
-    if (m_barsDb.isOpen())
-    {
-        QSqlQuery query(m_barsDb);
-        if (query.exec(ReplayDataQueries::SELECT_LAST_BAR_TIMESTAMP) && query.next())
-        {
-            lastEpoch = qMax(lastEpoch, query.value(0).toLongLong());
-        }
-    }
-
-    if (m_depthDb.isOpen())
-    {
-        QSqlQuery query(m_depthDb);
-        if (query.exec(ReplayDataQueries::SELECT_LAST_DEPTH_TIMESTAMP) && query.next())
-        {
-            lastEpoch = qMax(lastEpoch, query.value(0).toLongLong());
-        }
-    }
-
-    if (lastEpoch == 0)
+    if (!m_db.isOpen())
     {
         return QDateTime();
     }
 
-    return QDateTime::fromMSecsSinceEpoch(lastEpoch, TradingHours::MARKET_TIMEZONE);
+    QSqlQuery query(m_db);
+    QString sql = (m_dataType == DataType::Bar) ? ReplayDataQueries::SELECT_LAST_BAR_TIMESTAMP
+                                                : ReplayDataQueries::SELECT_LAST_DEPTH_TIMESTAMP;
+    if (query.exec(sql) && query.next())
+    {
+        qint64 lastEpoch = query.value(0).toLongLong();
+        if (lastEpoch > 0)
+        {
+            return QDateTime::fromMSecsSinceEpoch(lastEpoch, TradingHours::MARKET_TIMEZONE);
+        }
+    }
+
+    return QDateTime();
 }
 
 QStringList ReplayDataLoader::getAvailableStocks() const
 {
-    QSet<QString> stocks;
+    QStringList stocks;
 
-    if (m_barsDb.isOpen())
+    if (!m_db.isOpen())
     {
-        QSqlQuery query(m_barsDb);
-        if (query.exec(ReplayDataQueries::SELECT_AVAILABLE_STOCKS_BARS))
+        return stocks;
+    }
+
+    QSqlQuery query(m_db);
+    QString sql = (m_dataType == DataType::Bar) ? ReplayDataQueries::SELECT_AVAILABLE_STOCKS_BARS
+                                                : ReplayDataQueries::SELECT_AVAILABLE_STOCKS_DEPTH;
+    if (query.exec(sql))
+    {
+        while (query.next())
         {
-            while (query.next())
-            {
-                stocks.insert(query.value(0).toString());
-            }
+            stocks.append(query.value(0).toString());
         }
     }
 
-    if (m_depthDb.isOpen())
-    {
-        QSqlQuery query(m_depthDb);
-        if (query.exec(ReplayDataQueries::SELECT_AVAILABLE_STOCKS_DEPTH))
-        {
-            while (query.next())
-            {
-                stocks.insert(query.value(0).toString());
-            }
-        }
-    }
-
-    return stocks.values();
+    return stocks;
 }
 
 qint64 ReplayDataLoader::getTotalRecordCount() const
 {
-    return m_totalBarsCount + m_totalDepthCount;
+    return m_totalCount;
 }
 
 qint64 ReplayDataLoader::getCurrentPosition() const
@@ -410,126 +339,58 @@ bool ReplayDataLoader::loadInitialBuffer()
 void ReplayDataLoader::loadBufferChunk(QVector<ReplayDataPoint>* p_buffer, bool p_isInitial)
 {
     p_buffer->clear();
-    p_buffer->reserve(BUFFER_SIZE * 2); // Reserve for both bars and depth
+    p_buffer->reserve(BUFFER_SIZE);
 
-    QVector<ReplayDataPoint> barsChunk;
-    QVector<ReplayDataPoint> depthChunk;
-
-    // Load bars chunk
-    if (m_barsDb.isOpen() && !m_endOfBarsReached)
+    if (!m_db.isOpen() || m_endOfDataReached)
     {
-        QSqlQuery query(m_barsDb);
-
-        if (p_isInitial)
-        {
-            query.prepare(ReplayDataQueries::SELECT_BARS_FROM_TIME);
-            query.addBindValue(m_startEpochMs);
-        }
-        else
-        {
-            query.prepare(ReplayDataQueries::SELECT_BARS_CHUNK);
-            query.addBindValue(m_nextBarsId);
-        }
-        query.addBindValue(BUFFER_SIZE);
-
-        if (query.exec())
-        {
-            while (query.next())
-            {
-                ReplayDataPoint point;
-                point.id = query.value(0).toLongLong();
-                point.stockTicker = query.value(1).toString();
-                point.epochMs = query.value(2).toLongLong();
-                point.jsonRawData = query.value(3).toByteArray();
-                point.type = ReplayDataPoint::Type::Bar;
-                barsChunk.append(point);
-
-                // Track next ID for cursor
-                m_nextBarsId = point.id + 1;
-            }
-
-            if (barsChunk.size() < BUFFER_SIZE)
-            {
-                m_endOfBarsReached = true;
-                DEBUG << "End of bars data reached";
-            }
-        }
-        else
-        {
-            WARNING << "Failed to query bars:" << query.lastError().text();
-        }
+        return;
     }
 
-    // Load depth chunk
-    if (m_depthDb.isOpen() && !m_endOfDepthReached)
+    QSqlQuery query(m_db);
+
+    if (p_isInitial)
     {
-        QSqlQuery query(m_depthDb);
+        QString sql = (m_dataType == DataType::Bar) ? ReplayDataQueries::SELECT_BARS_FROM_TIME
+                                                    : ReplayDataQueries::SELECT_MARKET_DEPTH_FROM_TIME;
+        query.prepare(sql);
+        query.addBindValue(m_startEpochMs);
+    }
+    else
+    {
+        QString sql = (m_dataType == DataType::Bar) ? ReplayDataQueries::SELECT_BARS_CHUNK
+                                                    : ReplayDataQueries::SELECT_MARKET_DEPTH_CHUNK;
+        query.prepare(sql);
+        query.addBindValue(m_nextId);
+    }
+    query.addBindValue(BUFFER_SIZE);
 
-        if (p_isInitial)
+    if (query.exec())
+    {
+        while (query.next())
         {
-            query.prepare(ReplayDataQueries::SELECT_MARKET_DEPTH_FROM_TIME);
-            query.addBindValue(m_startEpochMs);
+            ReplayDataPoint point;
+            point.id = query.value(0).toLongLong();
+            point.stockTicker = query.value(1).toString();
+            point.epochMs = query.value(2).toLongLong();
+            point.jsonRawData = query.value(3).toByteArray();
+            p_buffer->append(point);
+
+            // Track next ID for cursor
+            m_nextId = point.id + 1;
         }
-        else
-        {
-            query.prepare(ReplayDataQueries::SELECT_MARKET_DEPTH_CHUNK);
-            query.addBindValue(m_nextDepthId);
-        }
-        query.addBindValue(BUFFER_SIZE);
 
-        if (query.exec())
+        if (p_buffer->size() < BUFFER_SIZE)
         {
-            while (query.next())
-            {
-                ReplayDataPoint point;
-                point.id = query.value(0).toLongLong();
-                point.stockTicker = query.value(1).toString();
-                point.epochMs = query.value(2).toLongLong();
-                point.jsonRawData = query.value(3).toByteArray();
-                point.type = ReplayDataPoint::Type::MarketDepthQuote;
-                depthChunk.append(point);
-
-                // Track next ID for cursor
-                m_nextDepthId = point.id + 1;
-            }
-
-            if (depthChunk.size() < BUFFER_SIZE)
-            {
-                m_endOfDepthReached = true;
-                DEBUG << "End of depth data reached";
-            }
-        }
-        else
-        {
-            WARNING << "Failed to query depth:" << query.lastError().text();
+            m_endOfDataReached = true;
+            DEBUG << "End of data reached";
         }
     }
-
-    // Merge chronologically
-    mergeChronologically(barsChunk, depthChunk, p_buffer);
-
-    DEBUG << "Loaded buffer chunk with" << p_buffer->size() << "records (bars:" << barsChunk.size()
-          << ", depth:" << depthChunk.size() << ")";
-}
-
-void ReplayDataLoader::mergeChronologically(QVector<ReplayDataPoint>& p_bars,
-                                            QVector<ReplayDataPoint>& p_depth,
-                                            QVector<ReplayDataPoint>* p_output)
-{
-    // Simple merge: combine and sort by timestamp
-    p_output->reserve(p_bars.size() + p_depth.size());
-
-    for (const auto& bar: p_bars)
+    else
     {
-        p_output->append(bar);
-    }
-    for (const auto& depth: p_depth)
-    {
-        p_output->append(depth);
+        WARNING << "Failed to query data:" << query.lastError().text();
     }
 
-    // Sort by timestamp (stable to preserve order of same-timestamp records)
-    std::stable_sort(p_output->begin(), p_output->end());
+    DEBUG << "Loaded buffer chunk with" << p_buffer->size() << "records";
 }
 
 bool ReplayDataLoader::shouldPrefetch() const
@@ -546,7 +407,7 @@ bool ReplayDataLoader::shouldPrefetch() const
     }
 
     // Already reached end of all data
-    if (m_endOfBarsReached && m_endOfDepthReached)
+    if (m_endOfDataReached)
     {
         return false;
     }
@@ -599,11 +460,11 @@ void ReplayDataLoader::swapBuffers()
     DEBUG << "Buffers swapped, new active buffer size:" << m_activeBuffer->size();
 }
 
-void ReplayDataLoader::ensureIndexes(QSqlDatabase& p_db, bool p_isBarsDb)
+void ReplayDataLoader::ensureIndexes()
 {
-    QSqlQuery query(p_db);
+    QSqlQuery query(m_db);
 
-    if (p_isBarsDb)
+    if (m_dataType == DataType::Bar)
     {
         if (!query.exec(LiveStreamDBQueries::CREATE_BARS_EPOCH_INDEX))
         {
