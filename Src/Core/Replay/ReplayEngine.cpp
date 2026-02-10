@@ -111,8 +111,6 @@ void ReplayEngine::startReplay(QDate p_date, QTime p_startTime, PlaybackSpeed p_
          << "speed:" << static_cast<int>(p_speed);
 
     m_speed = p_speed;
-    m_lastBarTimestampMs = 0;
-    m_lastDepthTimestampMs = 0;
     m_barStreamEnded = false;
     m_depthStreamEnded = false;
 
@@ -121,7 +119,7 @@ void ReplayEngine::startReplay(QDate p_date, QTime p_startTime, PlaybackSpeed p_
         return;
     }
 
-    // Initialize replay time to earliest first data point
+    // Find earliest first data point across both streams
     qint64 initialEpoch = 0;
     if (m_barLoader->hasMoreData())
     {
@@ -142,6 +140,10 @@ void ReplayEngine::startReplay(QDate p_date, QTime p_startTime, PlaybackSpeed p_
         MainApp::currentAppReplayTime = initialTime;
         INFO << "Initialized replay time to:" << initialTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
     }
+
+    // Set wall-clock anchor: this replay-epoch maps to "now"
+    m_replayEpochAnchorMs = initialEpoch;
+    m_wallClockAnchorMs = QDateTime::currentMSecsSinceEpoch();
 
     m_state = PlaybackState::Playing;
     emit replayStarted();
@@ -170,8 +172,6 @@ void ReplayEngine::startReplayPaused(QDate p_date, QTime p_startTime, PlaybackSp
     INFO << "Starting replay (paused) for" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString("hh:mm:ss");
 
     m_speed = p_speed;
-    m_lastBarTimestampMs = 0;
-    m_lastDepthTimestampMs = 0;
     m_barStreamEnded = false;
     m_depthStreamEnded = false;
 
@@ -180,7 +180,7 @@ void ReplayEngine::startReplayPaused(QDate p_date, QTime p_startTime, PlaybackSp
         return;
     }
 
-    // Initialize replay time to earliest first data point
+    // Find earliest first data point across both streams
     qint64 initialEpoch = 0;
     if (m_barLoader->hasMoreData())
     {
@@ -201,6 +201,10 @@ void ReplayEngine::startReplayPaused(QDate p_date, QTime p_startTime, PlaybackSp
         MainApp::currentAppReplayTime = initialTime;
         INFO << "Initialized replay time to:" << initialTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
     }
+
+    // Wall-clock anchor will be set on resume; for now just record the replay start epoch
+    m_replayEpochAnchorMs = initialEpoch;
+    m_wallClockAnchorMs = 0; // Will be set when user resumes
 
     // Emit first data points then immediately pause
     m_state = PlaybackState::Playing;
@@ -235,8 +239,9 @@ void ReplayEngine::stopReplay()
     m_barTimer.stop();
     m_depthTimer.stop();
     m_state = PlaybackState::Stopped;
-    m_lastBarTimestampMs = 0;
-    m_lastDepthTimestampMs = 0;
+    m_wallClockAnchorMs = 0;
+    m_replayEpochAnchorMs = 0;
+    m_pauseWallClockMs = 0;
     m_barStreamEnded = false;
     m_depthStreamEnded = false;
 
@@ -265,6 +270,7 @@ void ReplayEngine::pauseReplay()
 
     m_barTimer.stop();
     m_depthTimer.stop();
+    m_pauseWallClockMs = QDateTime::currentMSecsSinceEpoch();
     m_state = PlaybackState::Paused;
 
     emit replayPaused();
@@ -279,6 +285,19 @@ void ReplayEngine::resumeReplay()
     }
 
     DEBUG << "Resuming replay";
+
+    // Shift wall-clock anchor forward by the pause duration so timing stays correct
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_wallClockAnchorMs == 0)
+    {
+        // First resume after startReplayPaused — anchor to now
+        m_wallClockAnchorMs = now;
+    }
+    else if (m_pauseWallClockMs > 0)
+    {
+        m_wallClockAnchorMs += (now - m_pauseWallClockMs);
+    }
+    m_pauseWallClockMs = 0;
 
     m_state = PlaybackState::Playing;
 
@@ -349,7 +368,6 @@ void ReplayEngine::emitNextBar()
             continue;
         }
 
-        m_lastBarTimestampMs = dataPoint.epochMs;
         updateReplayTime(dataPoint.epochMs);
 
         auto dataPtr = std::make_shared<const QByteArray>(dataPoint.jsonRawData);
@@ -373,7 +391,6 @@ void ReplayEngine::emitNextDepth()
             continue;
         }
 
-        m_lastDepthTimestampMs = dataPoint.epochMs;
         updateReplayTime(dataPoint.epochMs);
 
         auto dataPtr = std::make_shared<const QByteArray>(dataPoint.jsonRawData);
@@ -407,15 +424,8 @@ void ReplayEngine::scheduleNextBar()
     }
 
     const ReplayDataLoader::ReplayDataPoint& nextPoint = m_barLoader->peekNextDataPoint();
-
-    qint64 deltaMs = 0;
-    if (m_lastBarTimestampMs > 0 && nextPoint.epochMs > m_lastBarTimestampMs)
-    {
-        deltaMs = nextPoint.epochMs - m_lastBarTimestampMs;
-    }
-
-    qint64 scaledDelay = calculateScaledDelay(deltaMs);
-    m_barTimer.start(static_cast<int>(scaledDelay));
+    qint64 delay = calculateWallClockDelay(nextPoint.epochMs);
+    m_barTimer.start(static_cast<int>(delay));
 }
 
 void ReplayEngine::scheduleNextDepth()
@@ -440,46 +450,48 @@ void ReplayEngine::scheduleNextDepth()
     }
 
     const ReplayDataLoader::ReplayDataPoint& nextPoint = m_depthLoader->peekNextDataPoint();
-
-    qint64 deltaMs = 0;
-    if (m_lastDepthTimestampMs > 0 && nextPoint.epochMs > m_lastDepthTimestampMs)
-    {
-        deltaMs = nextPoint.epochMs - m_lastDepthTimestampMs;
-    }
-
-    qint64 scaledDelay = calculateScaledDelay(deltaMs);
-    m_depthTimer.start(static_cast<int>(scaledDelay));
+    qint64 delay = calculateWallClockDelay(nextPoint.epochMs);
+    m_depthTimer.start(static_cast<int>(delay));
 }
 
-qint64 ReplayEngine::calculateScaledDelay(qint64 p_deltaMs) const
+qint64 ReplayEngine::calculateWallClockDelay(qint64 p_replayEpochMs) const
 {
     if (m_speed == PlaybackSpeed::AsFastAsPossible)
     {
-        return 0; // 0ms timer gives event loop minimal breathing room
+        return 0;
     }
 
-    // Speed is stored as percentage (100 = 1x, 200 = 2x, 50 = 0.5x)
-    // Formula: scaledDelay = delta * 100 / speed
     int speedValue = static_cast<int>(m_speed);
-
     if (speedValue <= 0)
     {
         return 0;
     }
 
-    qint64 scaledDelay = (p_deltaMs * 100) / speedValue;
+    // How far into the replay this data point is (in replay-time ms)
+    qint64 replayOffsetMs = p_replayEpochMs - m_replayEpochAnchorMs;
 
-    // Clamp to reasonable bounds
-    if (scaledDelay < 0)
+    // Scale by speed: at 2x (200%), wall-clock offset is half the replay offset
+    // Formula: wallClockOffset = replayOffset * 100 / speed
+    qint64 wallClockOffsetMs = (replayOffsetMs * 100) / speedValue;
+
+    // Target wall-clock time for this data point
+    qint64 targetWallMs = m_wallClockAnchorMs + wallClockOffsetMs;
+
+    // Delay = how long from now until target
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    qint64 delay = targetWallMs - now;
+
+    // Clamp: if we're behind schedule, fire immediately
+    if (delay < 0)
     {
-        scaledDelay = 0;
+        delay = 0;
     }
-    else if (scaledDelay > 60000) // Cap at 1 minute max delay
+    else if (delay > 60000) // Cap at 1 minute
     {
-        scaledDelay = 60000;
+        delay = 60000;
     }
 
-    return scaledDelay;
+    return delay;
 }
 
 void ReplayEngine::updateReplayTime(qint64 p_epochMs)

@@ -226,9 +226,11 @@ class ReplayEngine : public QObject
     PlaybackState m_state = PlaybackState::Stopped;
     PlaybackSpeed m_speed = PlaybackSpeed::Normal;
 
-    // Independent timestamp tracking per stream
-    qint64 m_lastBarTimestampMs = 0;
-    qint64 m_lastDepthTimestampMs = 0;
+    // Wall-clock anchor: maps replay-epoch time to real wall-clock time
+    // targetWallMs = m_wallClockAnchorMs + (replayEpochMs - m_replayEpochAnchorMs) * 100 / speed
+    qint64 m_wallClockAnchorMs = 0;
+    qint64 m_replayEpochAnchorMs = 0;
+    qint64 m_pauseWallClockMs = 0; // Wall-clock time when paused (to adjust anchor on resume)
 
     // Track which streams have reached end of data
     bool m_barStreamEnded = false;
@@ -256,21 +258,21 @@ class ReplayEngine : public QObject
     void emitNextDepth();
 
     /**
-     * @brief Schedule next bar emission based on timestamp delta and speed
+     * @brief Schedule next bar emission using wall-clock anchor
      */
     void scheduleNextBar();
 
     /**
-     * @brief Schedule next depth emission based on timestamp delta and speed
+     * @brief Schedule next depth emission using wall-clock anchor
      */
     void scheduleNextDepth();
 
     /**
-     * @brief Calculate timer delay based on timestamp delta and playback speed
-     * @param p_deltaMs Raw delta between timestamps in milliseconds
-     * @return Scaled delay for timer (0 for AsFastAsPossible)
+     * @brief Calculate wall-clock delay for a data point based on its replay timestamp
+     * @param p_replayEpochMs The replay-epoch timestamp of the next data point
+     * @return Delay in ms from now until the data point should fire (min 0)
      */
-    [[nodiscard]] qint64 calculateScaledDelay(qint64 p_deltaMs) const;
+    [[nodiscard]] qint64 calculateWallClockDelay(qint64 p_replayEpochMs) const;
 
     /**
      * @brief Update MainApp::currentAppReplayTime to the max of current and new time
