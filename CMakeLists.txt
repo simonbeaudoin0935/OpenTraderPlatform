@@ -33,6 +33,7 @@ add_compile_options(
     # === Treat warnings as errors (except #warning directives) ===
     -Werror                  # All warnings are errors
     -Wno-error=cpp           # Except #warning directives (intentional TODOs)
+    -Wno-extensions          # Shuts GCC 12 up about #warning
 
     # === Tier 0: Core warnings ===
     -Wall
