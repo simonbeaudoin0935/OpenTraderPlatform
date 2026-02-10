@@ -116,10 +116,7 @@ class ReplayEngine : public QObject
      * @brief Set playback speed on the fly (affects both streams)
      * Can be called while replay is playing or paused.
      */
-    void setSpeed(PlaybackSpeed p_speed)
-    {
-        m_speed = p_speed;
-    }
+    void setSpeed(PlaybackSpeed p_speed);
 
     /**
      * @brief Get current playback state

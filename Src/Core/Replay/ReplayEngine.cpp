@@ -258,6 +258,44 @@ void ReplayEngine::stopReplay()
     emit replayStopped();
 }
 
+void ReplayEngine::setSpeed(PlaybackSpeed p_speed)
+{
+    if (m_speed == p_speed)
+    {
+        return;
+    }
+
+    PlaybackSpeed oldSpeed = m_speed;
+    m_speed = p_speed;
+
+    INFO << "Speed changed from" << static_cast<int>(oldSpeed) << "to" << static_cast<int>(p_speed);
+
+    // Re-anchor wall clock so the new speed applies from this instant
+    if (m_state == PlaybackState::Playing)
+    {
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        qint64 currentReplayMs = MainApp::currentAppReplayTime.isValid()
+                                     ? MainApp::currentAppReplayTime.toMSecsSinceEpoch()
+                                     : m_replayEpochAnchorMs;
+
+        m_wallClockAnchorMs = now;
+        m_replayEpochAnchorMs = currentReplayMs;
+
+        // Reschedule both timers with the new anchor/speed
+        m_barTimer.stop();
+        m_depthTimer.stop();
+
+        if (!m_barStreamEnded)
+        {
+            scheduleNextBar();
+        }
+        if (!m_depthStreamEnded)
+        {
+            scheduleNextDepth();
+        }
+    }
+}
+
 void ReplayEngine::pauseReplay()
 {
     if (m_state != PlaybackState::Playing)
