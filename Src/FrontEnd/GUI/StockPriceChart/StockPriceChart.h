@@ -78,6 +78,7 @@ class StockPriceChart : public QWidget
     void onVolumeChartVisibilityChanged(bool visible);
     void onVolumeAutoRescaleChanged(bool enabled);
     void onReplayDayChanged(const QDate& date);
+    void onReplayTimeChanged(const QTime& time);
     void onReplayTimeRangeQueryFinished();
     void updateCurrentTimeLine();
 

@@ -494,9 +494,19 @@ void ChartToolbar::onReplayDayChanged(int index)
 
 /**
  * @brief Handles replay time edit changes.
+ *
+ * When in Playing state, silently ignores the change.
+ * When in paused states (PreloadingPaused or Paused), emits replayStartTimeChanged signal
+ * to trigger chart preload with the new time.
  */
 void ChartToolbar::onReplayTimeChanged(const QTime& time)
 {
+    // Guard: Ignore time changes during playback
+    if (m_replayState == ReplayState::Playing)
+    {
+        return;
+    }
+
     emit replayStartTimeChanged(time);
 }
 
