@@ -223,6 +223,7 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
             &StockPriceChart::onVolumeChartVisibilityChanged);
     connect(chartToolbar, &ChartToolbar::volumeAutoRescaleChanged, this, &StockPriceChart::onVolumeAutoRescaleChanged);
     connect(chartToolbar, &ChartToolbar::replayDayChanged, this, &StockPriceChart::onReplayDayChanged);
+    connect(chartToolbar, &ChartToolbar::replayStartTimeChanged, this, &StockPriceChart::onReplayTimeChanged);
     connect(chartToolbar,
             &ChartToolbar::wheelRatioChanged,
             this,
@@ -1478,6 +1479,33 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
     QFuture<std::tuple<QDateTime, QDateTime, int>> future =
         QtConcurrent::run([this, date]() { return queryStockTimeRangeForDate(m_symbol, date); });
     replayTimeRangeWatcher->setFuture(future);
+}
+
+/**
+ * @brief Handles replay start time changes.
+ *
+ * When user changes the start time in paused state, triggers chart preload
+ * with the new time but keeping the current day selected.
+ */
+void StockPriceChart::onReplayTimeChanged(const QTime& time)
+{
+    if (m_symbol.isEmpty())
+    {
+        qCWarning(ChartLog) << "No symbol selected for replay time change";
+        return;
+    }
+
+    // If in replay mode, trigger preload with the current day and new time
+    if (MainApp::isInReplayMode())
+    {
+        QDate currentDate = chartToolbar->getSelectedReplayDay();
+        ReplayEngine::PlaybackSpeed currentSpeed = chartToolbar->getReplaySpeed();
+
+        qCInfo(ChartLog) << "Preloading chart for new replay time:" << currentDate.toString(Qt::ISODate) << "at"
+                         << time.toString("hh:mm");
+
+        MainApp::getInstance()->preloadChartForReplay(currentDate, time, currentSpeed);
+    }
 }
 
 /**
