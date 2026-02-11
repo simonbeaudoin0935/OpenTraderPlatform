@@ -1374,6 +1374,17 @@ void GUIFrontend::onReplayModeEntered()
     // Set toolbar to PreloadingPaused state (data loaded, waiting for user to press play)
     ui->priceChart->toolbar()->setReplayState(ChartToolbar::ReplayState::PreloadingPaused);
 
+    // Connect replay engine error signal to chart error handler
+    ReplayEngine* replayEngine = MainApp::getInstance()->getReplayEngine();
+    if (replayEngine != nullptr)
+    {
+        connect(replayEngine,
+                &ReplayEngine::replayDataLoadFailed,
+                ui->priceChart,
+                &StockPriceChart::onReplayDataLoadFailed,
+                Qt::UniqueConnection);
+    }
+
     // Update chart visual (background color and watermark)
     ui->priceChart->setReplayModeActive(true);
 

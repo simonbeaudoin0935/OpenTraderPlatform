@@ -472,3 +472,8 @@ void MainApp::preloadChartForReplay(QDate p_date, QTime p_startTime, ReplayEngin
 
     qInfo() << "Chart preload initiated for" << displayedSymbol;
 }
+
+ReplayEngine* MainApp::getReplayEngine() const
+{
+    return mainAlgo->getReplayEngine();
+}

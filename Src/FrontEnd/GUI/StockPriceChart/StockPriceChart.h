@@ -73,6 +73,9 @@ class StockPriceChart : public QWidget
         return chartToolbar;
     }
 
+  public slots:
+    void onReplayDataLoadFailed(const QString& errorMessage);
+
   private slots:
     void onAxisRangeChanged();
     void onVolumeChartVisibilityChanged(bool visible);

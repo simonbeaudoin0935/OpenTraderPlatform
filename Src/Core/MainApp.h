@@ -184,6 +184,14 @@ class MainApp
      */
     void preloadChartForReplay(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
 
+    /**
+     * @brief Get pointer to ReplayEngine for connecting signals
+     *
+     * Used by frontend to connect to replay engine signals.
+     * Only valid when in replay mode.
+     */
+    [[nodiscard]] ReplayEngine* getReplayEngine() const;
+
   private:
     MainApp();
     ~MainApp();

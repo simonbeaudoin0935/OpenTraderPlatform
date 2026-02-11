@@ -179,6 +179,9 @@ void ReplayEngine::startReplayPaused(QDate p_date, QTime p_startTime, PlaybackSp
 
     if (!initLoaders(p_date, p_startTime))
     {
+        QString errorMsg = QString("Failed to load replay data for %1").arg(p_date.toString(Qt::ISODate));
+        CRITICAL << errorMsg;
+        emit replayDataLoadFailed(errorMsg);
         return;
     }
 

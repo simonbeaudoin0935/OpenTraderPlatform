@@ -1545,6 +1545,22 @@ void StockPriceChart::onReplayTimeRangeQueryFinished()
 }
 
 /**
+ * @brief Handles replay data loading failure (database not found, corrupted, etc.)
+ *
+ * Shows error message to user and reverts to previous valid state.
+ */
+void StockPriceChart::onReplayDataLoadFailed(const QString& errorMessage)
+{
+    qCWarning(ChartLog) << "Replay data load failed:" << errorMessage;
+
+    // Update toolbar info display to show failure
+    chartToolbar->updateReplayInfo(QTime(), QTime(), 0);
+
+    // Log detailed error
+    qCCritical(ChartLog) << "Failed to preload replay data:" << errorMessage;
+}
+
+/**
  * @brief Queries the database for the first and last timestamps of a stock on a specific date.
  * @param symbol The stock symbol to query
  * @param date The date to query (in NY timezone)

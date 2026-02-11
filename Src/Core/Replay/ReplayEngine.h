@@ -175,6 +175,12 @@ class ReplayEngine : public QObject
     void replayEndReached();
 
     /**
+     * @brief Emitted when replay data loading fails
+     * @param p_errorMessage Human-readable error message
+     */
+    void replayDataLoadFailed(const QString& p_errorMessage);
+
+    /**
      * @brief Inject bar data into TSClient (cross-thread via QueuedConnection)
      * @param p_symbol Stock ticker symbol
      * @param p_data Shared pointer to JSON data (avoids deep copy across threads)

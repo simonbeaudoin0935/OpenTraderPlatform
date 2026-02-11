@@ -132,6 +132,9 @@ class MainAlgo final : public QObject
     /// @brief Get replay engine state
     [[nodiscard]] ReplayEngine::PlaybackState getReplayState() const;
 
+    /// @brief Get pointer to replay engine for signal connections
+    [[nodiscard]] ReplayEngine* getReplayEngine() const;
+
   signals:
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
     void displayedStockReceivedNewMarketDepthQuote(QString symbol,
