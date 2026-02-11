@@ -7,9 +7,7 @@
 #include "Misc/Settings.h"
 #include "Misc/CONSTANTS.h"
 
-ConfigTab::ConfigTab(QWidget* parent)
-    : QWidget(parent)
-    , m_marketDepthLevelSpinBox(nullptr)
+ConfigTab::ConfigTab(QWidget* parent) : QWidget(parent), m_marketDepthLevelSpinBox(nullptr)
 {
     setupUI();
     loadSettings();
@@ -33,7 +31,10 @@ void ConfigTab::setupUI()
     m_marketDepthLevelSpinBox->setSingleStep(1);
     m_marketDepthLevelSpinBox->setToolTip("Number of market depth levels to request from TradeStation (1-20).\n"
                                           "Lower values reduce data usage when recording.");
-    connect(m_marketDepthLevelSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &ConfigTab::onMarketDepthLevelChanged);
+    connect(m_marketDepthLevelSpinBox,
+            QOverload<int>::of(&QSpinBox::valueChanged),
+            this,
+            &ConfigTab::onMarketDepthLevelChanged);
     marketDepthLayout->addWidget(marketDepthLabel);
     marketDepthLayout->addWidget(m_marketDepthLevelSpinBox);
     marketDepthLayout->addStretch();
@@ -48,8 +49,8 @@ void ConfigTab::loadSettings()
     Q_CHECK_PTR(appStateSettings);
 
     // Load market depth level, default to constant if not set
-    int marketDepthLevel = appStateSettings->value("Config/MarketDepthLevel",
-                                                   MarketDepthConstants::DEFAULT_MARKET_DEPTH_LEVELS).toInt();
+    int marketDepthLevel =
+        appStateSettings->value("Config/MarketDepthLevel", MarketDepthConstants::DEFAULT_MARKET_DEPTH_LEVELS).toInt();
     m_marketDepthLevelSpinBox->setValue(marketDepthLevel);
 }
 

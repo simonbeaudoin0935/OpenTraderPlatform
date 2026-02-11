@@ -23,9 +23,19 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
     OBJ_ASSUME_EQUAL(m_stream, nullptr);
 
     // Read market depth level from settings, default to constant if not set
+    // Note: Configuration changes only affect newly opened streams
     Q_CHECK_PTR(appStateSettings);
-    int marketDepthLevel = appStateSettings->value("Config/MarketDepthLevel",
-                                                   MarketDepthConstants::DEFAULT_MARKET_DEPTH_LEVELS).toInt();
+    int marketDepthLevel =
+        appStateSettings->value("Config/MarketDepthLevel", MarketDepthConstants::DEFAULT_MARKET_DEPTH_LEVELS).toInt();
+
+    // Validate the configured value is within acceptable range (1-20)
+    // This protects against manually edited settings files with invalid values
+    if (marketDepthLevel < 1 || marketDepthLevel > 20)
+    {
+        CRITICAL << "Invalid market depth level in settings:" << marketDepthLevel
+                 << "- using default:" << MarketDepthConstants::DEFAULT_MARKET_DEPTH_LEVELS;
+        marketDepthLevel = MarketDepthConstants::DEFAULT_MARKET_DEPTH_LEVELS;
+    }
 
     DEBUG << "Using market depth level:" << marketDepthLevel;
 
