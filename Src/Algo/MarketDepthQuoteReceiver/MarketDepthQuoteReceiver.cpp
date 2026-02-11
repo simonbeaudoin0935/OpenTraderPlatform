@@ -3,6 +3,7 @@
 #include "Logging.h"
 #include "Assume.h"
 #include "CONSTANTS.h"
+#include "Settings.h"
 
 #define LOGGING_CATEGORY MarketDepthQuoteReceiverLog
 Q_LOGGING_CATEGORY(LOGGING_CATEGORY, "MarketDepthQuoteReceiver")
@@ -21,8 +22,14 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
 
     OBJ_ASSUME_EQUAL(m_stream, nullptr);
 
-    m_stream = TSClient::getInstance()->openStreamMarketDepthQuote(m_symbol,
-                                                                   MarketDepthConstants::DEFAULT_MARKET_DEPTH_LEVELS);
+    // Read market depth level from settings, default to constant if not set
+    Q_CHECK_PTR(appStateSettings);
+    int marketDepthLevel = appStateSettings->value("Config/MarketDepthLevel",
+                                                   MarketDepthConstants::DEFAULT_MARKET_DEPTH_LEVELS).toInt();
+
+    DEBUG << "Using market depth level:" << marketDepthLevel;
+
+    m_stream = TSClient::getInstance()->openStreamMarketDepthQuote(m_symbol, marketDepthLevel);
 
     Q_CHECK_PTR(m_stream);
 
