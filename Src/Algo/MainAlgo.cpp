@@ -987,6 +987,11 @@ ReplayEngine::PlaybackState MainAlgo::getReplayState() const
     return m_replayEngine->getState();
 }
 
+ReplayEngine* MainAlgo::getReplayEngine() const
+{
+    return m_replayEngine;
+}
+
 void MainAlgo::deleteAllStockInstruments()
 {
     INFO << "Deleting all stock instruments for clean mode transition";

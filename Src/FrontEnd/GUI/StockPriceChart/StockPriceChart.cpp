@@ -223,6 +223,7 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
             &StockPriceChart::onVolumeChartVisibilityChanged);
     connect(chartToolbar, &ChartToolbar::volumeAutoRescaleChanged, this, &StockPriceChart::onVolumeAutoRescaleChanged);
     connect(chartToolbar, &ChartToolbar::replayDayChanged, this, &StockPriceChart::onReplayDayChanged);
+    connect(chartToolbar, &ChartToolbar::replayStartTimeChanged, this, &StockPriceChart::onReplayTimeChanged);
     connect(chartToolbar,
             &ChartToolbar::wheelRatioChanged,
             this,
@@ -371,9 +372,9 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     OBJ_ASSUME_EQUAL(symbol, m_symbol);
     OBJ_ASSUME_TRUE(bar.isValid());
 
-    WARNING << "Received bar for" << symbol << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
-            << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "isEndOfHistory:" << bar.getIsEndOfHistory()
-            << "O:" << bar.getOpen() << "H:" << bar.getHigh() << "L:" << bar.getLow() << "C:" << bar.getClose();
+    INFO << "Received bar for" << symbol << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
+         << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "isEndOfHistory:" << bar.getIsEndOfHistory()
+         << "O:" << bar.getOpen() << "H:" << bar.getHigh() << "L:" << bar.getLow() << "C:" << bar.getClose();
 
     // Putting unlikely because only at the start will this condition be true,
     // so optimizing for the cruising case
@@ -1462,10 +1463,49 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
         replayTimeRangeWatcher->cancel();
     }
 
-    // Start asynchronous query for time range
+    // If in replay mode, trigger preload with the new day and current time selection
+    if (MainApp::isInReplayMode())
+    {
+        QTime currentTime = chartToolbar->getReplayStartTime();
+        ReplayEngine::PlaybackSpeed currentSpeed = chartToolbar->getReplaySpeed();
+
+        qCInfo(ChartLog) << "Preloading chart for new replay day:" << date.toString(Qt::ISODate) << "at"
+                         << currentTime.toString("hh:mm");
+
+        MainApp::getInstance()->preloadChartForReplay(date, currentTime, currentSpeed);
+    }
+
+    // Start asynchronous query for time range (for display info in toolbar)
     QFuture<std::tuple<QDateTime, QDateTime, int>> future =
         QtConcurrent::run([this, date]() { return queryStockTimeRangeForDate(m_symbol, date); });
     replayTimeRangeWatcher->setFuture(future);
+}
+
+/**
+ * @brief Handles replay start time changes.
+ *
+ * When user changes the start time in paused state, triggers chart preload
+ * with the new time but keeping the current day selected.
+ */
+void StockPriceChart::onReplayTimeChanged(const QTime& time)
+{
+    if (m_symbol.isEmpty())
+    {
+        qCWarning(ChartLog) << "No symbol selected for replay time change";
+        return;
+    }
+
+    // If in replay mode, trigger preload with the current day and new time
+    if (MainApp::isInReplayMode())
+    {
+        QDate currentDate = chartToolbar->getSelectedReplayDay();
+        ReplayEngine::PlaybackSpeed currentSpeed = chartToolbar->getReplaySpeed();
+
+        qCInfo(ChartLog) << "Preloading chart for new replay time:" << currentDate.toString(Qt::ISODate) << "at"
+                         << time.toString("hh:mm");
+
+        MainApp::getInstance()->preloadChartForReplay(currentDate, time, currentSpeed);
+    }
 }
 
 /**
@@ -1502,6 +1542,22 @@ void StockPriceChart::onReplayTimeRangeQueryFinished()
         // Clear the info label when no data is found
         chartToolbar->updateReplayInfo(QTime(), QTime(), 0);
     }
+}
+
+/**
+ * @brief Handles replay data loading failure (database not found, corrupted, etc.)
+ *
+ * Shows error message to user and reverts to previous valid state.
+ */
+void StockPriceChart::onReplayDataLoadFailed(const QString& errorMessage)
+{
+    qCWarning(ChartLog) << "Replay data load failed:" << errorMessage;
+
+    // Update toolbar info display to show failure
+    chartToolbar->updateReplayInfo(QTime(), QTime(), 0);
+
+    // Log detailed error
+    qCCritical(ChartLog) << "Failed to preload replay data:" << errorMessage;
 }
 
 /**

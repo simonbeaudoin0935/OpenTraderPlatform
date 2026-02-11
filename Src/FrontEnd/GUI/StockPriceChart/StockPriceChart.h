@@ -73,11 +73,15 @@ class StockPriceChart : public QWidget
         return chartToolbar;
     }
 
+  public slots:
+    void onReplayDataLoadFailed(const QString& errorMessage);
+
   private slots:
     void onAxisRangeChanged();
     void onVolumeChartVisibilityChanged(bool visible);
     void onVolumeAutoRescaleChanged(bool enabled);
     void onReplayDayChanged(const QDate& date);
+    void onReplayTimeChanged(const QTime& time);
     void onReplayTimeRangeQueryFinished();
     void updateCurrentTimeLine();
 

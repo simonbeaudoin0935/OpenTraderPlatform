@@ -245,6 +245,9 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
 
     // Scan and populate available replay days from cache
     scanAndPopulateReplayDays();
+
+    // Initialize replay state to Inactive (will be changed by GUIFrontend when replay mode is entered)
+    updateUIControlStates();
 }
 
 /**
@@ -472,9 +475,19 @@ void ChartToolbar::togglePlayPause()
 
 /**
  * @brief Handles replay day combobox selection changes.
+ *
+ * When in Playing state, silently ignores the change.
+ * When in paused states (PreloadingPaused or Paused), emits replayDayChanged signal
+ * to trigger chart preload with the new day.
  */
 void ChartToolbar::onReplayDayChanged(int index)
 {
+    // Guard: Ignore day changes during playback
+    if (m_replayState == ReplayState::Playing)
+    {
+        return;
+    }
+
     if (index >= 0 && index < replayDayCombo->count())
     {
         QDate selectedDate = replayDayCombo->itemData(index).toDate();
@@ -484,18 +497,49 @@ void ChartToolbar::onReplayDayChanged(int index)
 
 /**
  * @brief Handles replay time edit changes.
+ *
+ * When in Playing state, silently ignores the change.
+ * When in paused states (PreloadingPaused or Paused), emits replayStartTimeChanged signal
+ * to trigger chart preload with the new time.
  */
 void ChartToolbar::onReplayTimeChanged(const QTime& time)
 {
+    // Guard: Ignore time changes during playback
+    if (m_replayState == ReplayState::Playing)
+    {
+        return;
+    }
+
     emit replayStartTimeChanged(time);
 }
 
 /**
  * @brief Handles play/pause button clicks.
+ *
+ * Manages state transitions:
+ * - PreloadingPaused → Playing: User presses play for first time
+ * - Playing → Paused: User presses pause during playback
+ * - Paused → Playing: User resumes from paused state
  */
 void ChartToolbar::onPlayPauseClicked()
 {
     bool playing = playPauseButton->isChecked();
+
+    // Update state based on button press
+    if (playing)
+    {
+        // Transitioning to Playing
+        setReplayState(ReplayState::Playing);
+    }
+    else
+    {
+        // Transitioning to Paused (from Playing state)
+        if (m_replayState == ReplayState::Playing)
+        {
+            setReplayState(ReplayState::Paused);
+        }
+    }
+
     updatePlayPauseButton();
     emit replayPlayPauseToggled(playing);
 }
@@ -737,4 +781,64 @@ void ChartToolbar::onWheelRatioChanged(int index)
     }
 
     emit wheelRatioChanged(ratio);
+}
+
+/**
+ * @brief Gets the current replay state.
+ */
+ChartToolbar::ReplayState ChartToolbar::getReplayState() const
+{
+    return m_replayState;
+}
+
+/**
+ * @brief Sets the replay state and updates UI controls accordingly.
+ */
+void ChartToolbar::setReplayState(ReplayState state)
+{
+    m_replayState = state;
+    updateUIControlStates();
+}
+
+/**
+ * @brief Updates the enabled/disabled state of replay controls based on m_replayState.
+ *
+ * Control enable/disable matrix:
+ * - Inactive: All controls disabled
+ * - PreloadingPaused: Day ENABLED, Time ENABLED, Speed ENABLED, Play ENABLED
+ * - Playing: Day DISABLED, Time DISABLED, Speed ENABLED, Play ENABLED
+ * - Paused: Day ENABLED, Time ENABLED, Speed ENABLED, Play ENABLED
+ */
+void ChartToolbar::updateUIControlStates()
+{
+    switch (m_replayState)
+    {
+    case ReplayState::Inactive:
+        replayDayCombo->setEnabled(false);
+        replayTimeEdit->setEnabled(false);
+        replaySpeedCombo->setEnabled(false);
+        playPauseButton->setEnabled(false);
+        break;
+
+    case ReplayState::PreloadingPaused:
+        replayDayCombo->setEnabled(true);
+        replayTimeEdit->setEnabled(true);
+        replaySpeedCombo->setEnabled(true);
+        playPauseButton->setEnabled(true);
+        break;
+
+    case ReplayState::Playing:
+        replayDayCombo->setEnabled(false);
+        replayTimeEdit->setEnabled(false);
+        replaySpeedCombo->setEnabled(true);
+        playPauseButton->setEnabled(true);
+        break;
+
+    case ReplayState::Paused:
+        replayDayCombo->setEnabled(true);
+        replayTimeEdit->setEnabled(true);
+        replaySpeedCombo->setEnabled(true);
+        playPauseButton->setEnabled(true);
+        break;
+    }
 }

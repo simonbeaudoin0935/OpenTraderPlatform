@@ -448,3 +448,32 @@ bool MainApp::isReplayPaused() const
 {
     return mainAlgo->getReplayState() == ReplayEngine::PlaybackState::Paused;
 }
+
+void MainApp::preloadChartForReplay(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
+{
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "preloadChartForReplay called when not in replay mode");
+
+    qInfo() << "Preloading chart for replay:" << p_date.toString(Qt::ISODate) << "at"
+            << p_startTime.toString("hh:mm:ss");
+
+    // Get currently displayed symbol
+    QString displayedSymbol = mainAlgo->getDisplayedSymbol();
+
+    // Reload chart data for new day/time (MainAlgo thread)
+    QMetaObject::invokeMethod(
+        mainAlgo,
+        [this, displayedSymbol, p_date, p_startTime, p_speed]()
+        {
+            // Re-enter replay paused with new date/time
+            // This stops existing replay, reloads data, and emits first bar to update chart
+            mainAlgo->enterReplayModePaused(p_date, p_startTime, p_speed);
+        },
+        Qt::QueuedConnection);
+
+    qInfo() << "Chart preload initiated for" << displayedSymbol;
+}
+
+ReplayEngine* MainApp::getReplayEngine() const
+{
+    return mainAlgo->getReplayEngine();
+}

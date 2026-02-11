@@ -113,6 +113,7 @@ void ReplayEngine::startReplay(QDate p_date, QTime p_startTime, PlaybackSpeed p_
     m_speed = p_speed;
     m_barStreamEnded = false;
     m_depthStreamEnded = false;
+    m_isPausedBeforePlay = false; // No longer in paused-before-play state
 
     if (!initLoaders(p_date, p_startTime))
     {
@@ -174,9 +175,13 @@ void ReplayEngine::startReplayPaused(QDate p_date, QTime p_startTime, PlaybackSp
     m_speed = p_speed;
     m_barStreamEnded = false;
     m_depthStreamEnded = false;
+    m_isPausedBeforePlay = true; // Set flag: paused before first play
 
     if (!initLoaders(p_date, p_startTime))
     {
+        QString errorMsg = QString("Failed to load replay data for %1").arg(p_date.toString(Qt::ISODate));
+        CRITICAL << errorMsg;
+        emit replayDataLoadFailed(errorMsg);
         return;
     }
 
@@ -244,6 +249,7 @@ void ReplayEngine::stopReplay()
     m_pauseWallClockMs = 0;
     m_barStreamEnded = false;
     m_depthStreamEnded = false;
+    m_isPausedBeforePlay = false; // Reset flag when stopping
 
     // Clean up data loaders
     if (m_barLoader != nullptr)
