@@ -245,6 +245,9 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
 
     // Scan and populate available replay days from cache
     scanAndPopulateReplayDays();
+
+    // Initialize replay state to Inactive (will be changed by GUIFrontend when replay mode is entered)
+    updateUIControlStates();
 }
 
 /**
@@ -512,10 +515,31 @@ void ChartToolbar::onReplayTimeChanged(const QTime& time)
 
 /**
  * @brief Handles play/pause button clicks.
+ *
+ * Manages state transitions:
+ * - PreloadingPaused → Playing: User presses play for first time
+ * - Playing → Paused: User presses pause during playback
+ * - Paused → Playing: User resumes from paused state
  */
 void ChartToolbar::onPlayPauseClicked()
 {
     bool playing = playPauseButton->isChecked();
+
+    // Update state based on button press
+    if (playing)
+    {
+        // Transitioning to Playing
+        setReplayState(ReplayState::Playing);
+    }
+    else
+    {
+        // Transitioning to Paused (from Playing state)
+        if (m_replayState == ReplayState::Playing)
+        {
+            setReplayState(ReplayState::Paused);
+        }
+    }
+
     updatePlayPauseButton();
     emit replayPlayPauseToggled(playing);
 }

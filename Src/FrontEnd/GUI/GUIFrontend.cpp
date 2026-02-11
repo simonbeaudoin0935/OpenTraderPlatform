@@ -1371,6 +1371,9 @@ void GUIFrontend::onReplayModeEntered()
     ui->priceChart->toolbar()->setReplayWidgetsVisible(true);
     ui->priceChart->toolbar()->setReplayPlaying(false);
 
+    // Set toolbar to PreloadingPaused state (data loaded, waiting for user to press play)
+    ui->priceChart->toolbar()->setReplayState(ChartToolbar::ReplayState::PreloadingPaused);
+
     // Update chart visual (background color and watermark)
     ui->priceChart->setReplayModeActive(true);
 
@@ -1394,6 +1397,9 @@ void GUIFrontend::onReplayModeExited()
     // Reset play button state and hide replay widgets
     ui->priceChart->toolbar()->setReplayPlaying(false);
     ui->priceChart->toolbar()->setReplayWidgetsVisible(false);
+
+    // Set toolbar state back to Inactive
+    ui->priceChart->toolbar()->setReplayState(ChartToolbar::ReplayState::Inactive);
 
     // Clear chart data (MainAlgo will clear caches and restart live stream)
     ui->priceChart->clearChart();
