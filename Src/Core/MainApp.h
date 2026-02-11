@@ -171,6 +171,19 @@ class MainApp
      */
     [[nodiscard]] bool isReplayPaused() const;
 
+    /**
+     * @brief Preload chart with data from a different day/time while in paused state
+     *
+     * Used when user changes day or start time selection before pressing play.
+     * Reloads the replay data for the new day/time and updates chart without
+     * affecting the Playing/Paused state. Only works when in replay mode.
+     *
+     * @param p_date New date to preload
+     * @param p_startTime New start time within the day
+     * @param p_speed Current playback speed setting
+     */
+    void preloadChartForReplay(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
+
   private:
     MainApp();
     ~MainApp();

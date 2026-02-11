@@ -1462,7 +1462,19 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
         replayTimeRangeWatcher->cancel();
     }
 
-    // Start asynchronous query for time range
+    // If in replay mode, trigger preload with the new day and current time selection
+    if (MainApp::isInReplayMode())
+    {
+        QTime currentTime = chartToolbar->getReplayStartTime();
+        ReplayEngine::PlaybackSpeed currentSpeed = chartToolbar->getReplaySpeed();
+
+        qCInfo(ChartLog) << "Preloading chart for new replay day:" << date.toString(Qt::ISODate) << "at"
+                         << currentTime.toString("hh:mm");
+
+        MainApp::getInstance()->preloadChartForReplay(date, currentTime, currentSpeed);
+    }
+
+    // Start asynchronous query for time range (for display info in toolbar)
     QFuture<std::tuple<QDateTime, QDateTime, int>> future =
         QtConcurrent::run([this, date]() { return queryStockTimeRangeForDate(m_symbol, date); });
     replayTimeRangeWatcher->setFuture(future);

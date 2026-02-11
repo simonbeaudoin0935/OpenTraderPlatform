@@ -472,9 +472,19 @@ void ChartToolbar::togglePlayPause()
 
 /**
  * @brief Handles replay day combobox selection changes.
+ *
+ * When in Playing state, silently ignores the change.
+ * When in paused states (PreloadingPaused or Paused), emits replayDayChanged signal
+ * to trigger chart preload with the new day.
  */
 void ChartToolbar::onReplayDayChanged(int index)
 {
+    // Guard: Ignore day changes during playback
+    if (m_replayState == ReplayState::Playing)
+    {
+        return;
+    }
+
     if (index >= 0 && index < replayDayCombo->count())
     {
         QDate selectedDate = replayDayCombo->itemData(index).toDate();
