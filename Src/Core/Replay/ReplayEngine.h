@@ -233,6 +233,11 @@ class ReplayEngine : public QObject
     bool m_barStreamEnded = false;
     bool m_depthStreamEnded = false;
 
+    // Track if we're paused before user pressed play for first time
+    // True = startReplayPaused() was called, user hasn't pressed play yet
+    // False = either not in replay mode, or paused during playback via pauseReplay()
+    bool m_isPausedBeforePlay = false;
+
     /**
      * @brief Initialize both loaders, loading databases for the given date/time
      * @return true if at least one loader has data
@@ -288,4 +293,16 @@ class ReplayEngine : public QObject
      * @return true if stream exists and data should be injected
      */
     [[nodiscard]] bool hasStreamForStock(const QString& p_symbol, bool p_isBar) const;
+
+    /**
+     * @brief Check if currently in paused-before-first-play state
+     *
+     * This distinguishes between:
+     * - True: In paused state from startReplayPaused(), user hasn't pressed Play yet
+     * - False: Either not in replay mode, or paused during playback via pauseReplay()
+     */
+    [[nodiscard]] bool isPausedBeforePlay() const
+    {
+        return m_isPausedBeforePlay;
+    }
 };

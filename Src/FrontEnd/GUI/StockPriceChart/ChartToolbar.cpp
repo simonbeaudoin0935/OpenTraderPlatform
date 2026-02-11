@@ -738,3 +738,63 @@ void ChartToolbar::onWheelRatioChanged(int index)
 
     emit wheelRatioChanged(ratio);
 }
+
+/**
+ * @brief Gets the current replay state.
+ */
+ChartToolbar::ReplayState ChartToolbar::getReplayState() const
+{
+    return m_replayState;
+}
+
+/**
+ * @brief Sets the replay state and updates UI controls accordingly.
+ */
+void ChartToolbar::setReplayState(ReplayState state)
+{
+    m_replayState = state;
+    updateUIControlStates();
+}
+
+/**
+ * @brief Updates the enabled/disabled state of replay controls based on m_replayState.
+ *
+ * Control enable/disable matrix:
+ * - Inactive: All controls disabled
+ * - PreloadingPaused: Day ENABLED, Time ENABLED, Speed ENABLED, Play ENABLED
+ * - Playing: Day DISABLED, Time DISABLED, Speed ENABLED, Play ENABLED
+ * - Paused: Day ENABLED, Time ENABLED, Speed ENABLED, Play ENABLED
+ */
+void ChartToolbar::updateUIControlStates()
+{
+    switch (m_replayState)
+    {
+    case ReplayState::Inactive:
+        replayDayCombo->setEnabled(false);
+        replayTimeEdit->setEnabled(false);
+        replaySpeedCombo->setEnabled(false);
+        playPauseButton->setEnabled(false);
+        break;
+
+    case ReplayState::PreloadingPaused:
+        replayDayCombo->setEnabled(true);
+        replayTimeEdit->setEnabled(true);
+        replaySpeedCombo->setEnabled(true);
+        playPauseButton->setEnabled(true);
+        break;
+
+    case ReplayState::Playing:
+        replayDayCombo->setEnabled(false);
+        replayTimeEdit->setEnabled(false);
+        replaySpeedCombo->setEnabled(true);
+        playPauseButton->setEnabled(true);
+        break;
+
+    case ReplayState::Paused:
+        replayDayCombo->setEnabled(true);
+        replayTimeEdit->setEnabled(true);
+        replaySpeedCombo->setEnabled(true);
+        playPauseButton->setEnabled(true);
+        break;
+    }
+}
