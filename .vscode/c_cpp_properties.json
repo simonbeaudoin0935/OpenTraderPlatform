@@ -9,7 +9,6 @@
                 "/usr/include/x86_64-linux-gnu/qt6/QtGui",
                 "/usr/include/x86_64-linux-gnu/qt6/QtWidgets",
                 "/usr/include/x86_64-linux-gnu/qt6/QtNetwork",
-                "/usr/include/x86_64-linux-gnu/qt6/QtWebEngineWidgets",
                 "/usr/include/x86_64-linux-gnu/qt6/QtTest",
                 "/usr/include/x86_64-linux-gnu/qt6/QtSql"
 
@@ -19,7 +18,6 @@
                 "QT_GUI_LIB",
                 "QT_WIDGETS_LIB",
                 "QT_NETWORK_LIB",
-                "QT_WEBENGINEWIDGETS_LIB",
                 "GUI_ENABLED"
             ],
             "compilerPath": "/usr/bin/g++",
