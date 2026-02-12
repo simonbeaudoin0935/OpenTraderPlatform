@@ -215,7 +215,7 @@ bool isValidBar(const Bar& bar) {
 ```cpp
 void MarketDepthQuoteReceiver::createMarketDepthQuoteStream(QString symbol, unsigned int depth) {
     auto result = TSClient::getInstance().openStreamMarketDepthQuote(symbol, depth);
-    
+
     if (result.has_value()) {
         // Stream opened immediately (< 10 active streams)
         QPointer<StreamMarketDepthQuote> stream = result.value();
@@ -224,7 +224,7 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream(QString symbol, unsi
     } else {
         // Stream queued (≥ 10 active streams)
         QFuture<QPointer<StreamMarketDepthQuote>> future = result.error();
-        
+
         // Use .then() continuation for clean async handling (Qt6)
         future.then(this, [this](QPointer<StreamMarketDepthQuote> stream) {
             if (!stream.isNull()) {

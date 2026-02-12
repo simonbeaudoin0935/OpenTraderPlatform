@@ -294,7 +294,7 @@ if (result.has_value()) {
 } else {
     // Stream queued (≥ 10 active) - received QFuture
     QFuture<QPointer<StreamMarketDepthQuote>> future = result.error();
-    
+
     // Use .then() continuation for clean async handling (Qt6)
     future.then(this, [this](QPointer<StreamMarketDepthQuote> stream) {
         if (!stream.isNull()) {
@@ -302,7 +302,7 @@ if (result.has_value()) {
             stream->start();
         }
     });
-    
+
     qInfo() << "Market depth stream queued for" << symbol;
 }
 ```
