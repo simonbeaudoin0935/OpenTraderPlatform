@@ -258,3 +258,24 @@ namespace MarketDepthConstants
      */
     inline constexpr int QUEUE_PROCESS_DELAY_MS = 1000;
 } // namespace MarketDepthConstants
+
+/**
+ * @namespace RecorderConstants
+ * @brief Constants related to the recording system
+ */
+namespace RecorderConstants
+{
+    /**
+     * @brief Delay in milliseconds between opening each stream during recorder startup
+     *
+     * When recording a large number of symbols (e.g., 100+ stocks), opening all streams
+     * simultaneously can overwhelm the TradeStation API servers. This delay staggers
+     * the stream creation to stay within the server's rate limits.
+     *
+     * Testing shows that 50 simultaneous streams work, but 100+ fails. A 500ms delay
+     * provides a safe ramp-up rate (~2 streams/second) that prevents server overload.
+     *
+     * @note Applies to both bar and market depth streams
+     */
+    inline constexpr int STREAM_RAMP_UP_DELAY_MS = 500;
+} // namespace RecorderConstants

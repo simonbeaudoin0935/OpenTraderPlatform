@@ -6,6 +6,7 @@
 #include <QMap>
 #include <QStringList>
 #include <QObject>
+#include <QTimer>
 
 #include "StreamBars.h"
 #include "StreamMarketDepthQuote.h"
@@ -69,6 +70,7 @@ class LiveStreamDB : public QObject
 
   private slots:
     void onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData);
+    void openNextStream();
 
   private:
     bool storeData(const QString& stock, qint64 epochMs, const QByteArray& rawData);
@@ -89,4 +91,8 @@ class LiveStreamDB : public QObject
     QMap<QString, int> unrecoveredTimeoutCounts;
     QMap<QString, int> recoveryAttempts;
     QMap<QString, int> successfulRecoveries;
+
+    // Stream ramp-up state
+    QTimer m_rampTimer;
+    int m_currentRampIndex = -1; // -1 = not ramping, >=0 = index of next symbol to open
 };

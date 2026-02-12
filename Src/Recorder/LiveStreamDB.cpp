@@ -7,6 +7,7 @@
 #include "TSClient.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "CONSTANTS.h"
 
 #define LOGGING_CATEGORY LiveStreamDBLog
 Q_LOGGING_CATEGORY(LiveStreamDBLog, "LiveStreamDB");
@@ -39,6 +40,10 @@ LiveStreamDB::LiveStreamDB(StreamType type, const QString& dbPath, QStringList& 
 
     QString dbType = (type == StreamType::Bars) ? "bars" : "market depth quotes";
     INFO << "Live" << dbType << "database opened at" << dbPath;
+
+    // Setup ramp-up timer (single-shot mode, we'll restart it for each symbol)
+    m_rampTimer.setSingleShot(true);
+    connect(&m_rampTimer, &QTimer::timeout, this, &LiveStreamDB::openNextStream);
 }
 
 LiveStreamDB::~LiveStreamDB()
@@ -83,43 +88,75 @@ bool LiveStreamDB::storeData(const QString& stock, qint64 timestamp, const QByte
 
 void LiveStreamDB::startRecording()
 {
-    for (const QString& symbol: stockTickers)
+    if (stockTickers.isEmpty())
     {
-        if (streamType == StreamType::Bars)
+        WARNING << "No stock tickers to record";
+        return;
+    }
+
+    QString dataType = (streamType == StreamType::Bars) ? "bars" : "market depth quotes";
+    INFO << "Starting recording for" << stockTickers.size() << dataType << "streams with"
+         << RecorderConstants::STREAM_RAMP_UP_DELAY_MS << "ms ramp-up delay";
+
+    // Start ramping: open first stream immediately, then schedule the rest
+    m_currentRampIndex = 0;
+    openNextStream(); // Open first one immediately
+}
+
+void LiveStreamDB::openNextStream()
+{
+    // Check if ramp-up is complete
+    if (m_currentRampIndex < 0 || m_currentRampIndex >= stockTickers.size())
+    {
+        if (m_currentRampIndex >= stockTickers.size())
         {
-            QPointer<StreamBars> stream = TSClient::getInstance()->openStreamBars(symbol,
-                                                                                  1,
-                                                                                  Bar::BarUnit::Minute,
-                                                                                  0,
-                                                                                  Bar::BarSessionTemplate::USEQ24Hour);
-            OBJ_ASSUME_TRUE(stream != nullptr);
+            QString dataType = (streamType == StreamType::Bars) ? "bars" : "market depth quotes";
+            INFO << "Ramp-up complete - all" << stockTickers.size() << dataType << "streams opened";
+            m_currentRampIndex = -1; // Mark ramping as complete
+        }
+        return;
+    }
 
-            QObject::connect(stream,
-                             &StreamBars::receivedNewRawData,
-                             this,
-                             [this, symbol](const QByteArray& rawData)
-                             { onReceivedNewRawDataForStock(symbol, rawData); });
+    const QString& symbol = stockTickers[m_currentRampIndex];
 
-            QObject::connect(stream,
-                             &Stream::streamClosed,
-                             this,
-                             [this, symbol](Stream::StreamError reason, QString message)
-                             { handleStreamError(symbol, reason, message); });
+    if (streamType == StreamType::Bars)
+    {
+        QPointer<StreamBars> stream = TSClient::getInstance()->openStreamBars(symbol,
+                                                                              1,
+                                                                              Bar::BarUnit::Minute,
+                                                                              0,
+                                                                              Bar::BarSessionTemplate::USEQ24Hour);
+        OBJ_ASSUME_TRUE(stream != nullptr);
 
-            m_streamBars[symbol] = stream;
+        QObject::connect(stream,
+                         &StreamBars::receivedNewRawData,
+                         this,
+                         [this, symbol](const QByteArray& rawData)
+                         { onReceivedNewRawDataForStock(symbol, rawData); });
+
+        QObject::connect(stream,
+                         &Stream::streamClosed,
+                         this,
+                         [this, symbol](Stream::StreamError reason, QString message)
+                         { handleStreamError(symbol, reason, message); });
+
+        m_streamBars[symbol] = stream;
+
+        DEBUG << "Opened bar stream for" << symbol << "(" << (m_currentRampIndex + 1) << "/" << stockTickers.size()
+              << ")";
+    }
+    else
+    {
+        // Open market depth stream - check availability first
+        // For recorder, we don't queue - if limit is reached, skip this symbol
+        if (!StreamMarketDepthQuote::canOpenStream())
+        {
+            WARNING << "Market depth stream limit reached ("
+                    << StreamMarketDepthQuote::getNumberOfMarketDepthStreams() << "/"
+                    << MarketDepthConstants::MAX_CONCURRENT_STREAMS << ") - skipping" << symbol;
         }
         else
         {
-            // Open market depth stream - check availability first
-            // For recorder, we don't queue - if limit is reached, skip this symbol
-            if (!StreamMarketDepthQuote::canOpenStream())
-            {
-                WARNING << "Market depth stream limit reached ("
-                        << StreamMarketDepthQuote::getNumberOfMarketDepthStreams() << "/"
-                        << MarketDepthConstants::MAX_CONCURRENT_STREAMS << ") - skipping" << symbol;
-                continue; // Skip this symbol
-            }
-
             auto result = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10); // depth 10
 
             if (result.has_value())
@@ -141,6 +178,9 @@ void LiveStreamDB::startRecording()
                                  { handleStreamError(symbol, reason, message); });
 
                 m_streamMarketDepthQuotes[symbol] = stream;
+
+                DEBUG << "Opened market depth stream for" << symbol << "(" << (m_currentRampIndex + 1) << "/"
+                      << stockTickers.size() << ")";
             }
             else
             {
@@ -151,10 +191,34 @@ void LiveStreamDB::startRecording()
             }
         }
     }
+
+    // Move to next symbol
+    m_currentRampIndex++;
+
+    // Schedule opening the next stream if more remain
+    if (m_currentRampIndex < stockTickers.size())
+    {
+        m_rampTimer.start(RecorderConstants::STREAM_RAMP_UP_DELAY_MS);
+    }
+    else
+    {
+        // Ramping complete
+        QString dataType = (streamType == StreamType::Bars) ? "bars" : "market depth quotes";
+        INFO << "Ramp-up complete - all" << stockTickers.size() << dataType << "streams opened";
+        m_currentRampIndex = -1;
+    }
 }
 
 void LiveStreamDB::stopRecording()
 {
+    // Stop ramp-up timer if still running
+    if (m_rampTimer.isActive())
+    {
+        m_rampTimer.stop();
+        INFO << "Stopped ramp-up timer (was at index" << m_currentRampIndex << "of" << stockTickers.size() << ")";
+        m_currentRampIndex = -1;
+    }
+
     QString dataType = (streamType == StreamType::Bars) ? "bars" : "market depth quotes";
     INFO << "Stopping recording for" << dataType;
 

@@ -69,19 +69,40 @@ The main recording class. One instance per data type (Bars or MarketDepthQuotes)
 
 **Responsibilities:**
 - Opens SQLite database file for the current date
-- Creates streams for each stock symbol via TSClient
+- Creates streams for each stock symbol via TSClient with ramped startup
 - Receives raw JSON data from streams
 - Stores data with timestamp to database
 - Tracks and attempts recovery from stream timeouts
 - Tracks error statistics per symbol
+
+**Stream Ramp-Up Mechanism:**
+
+When recording large numbers of symbols (e.g., 100+ stocks), opening all streams simultaneously can overwhelm the TradeStation API servers with rate limiting. To prevent this:
+
+- Streams are opened **sequentially** with a configurable delay between each
+- Default delay: `RecorderConstants::STREAM_RAMP_UP_DELAY_MS = 500ms`
+- First stream opens immediately, subsequent streams open every 500ms
+- Ramp-up can be interrupted by calling `stopRecording()`
+- Progress is logged: "Opened bar stream for AAPL (1/100)"
+
+**Testing shows:**
+- ✅ 50 simultaneous streams: Works
+- ❌ 100 simultaneous streams: API rate limiting errors
+- ✅ 100+ streams with 500ms ramp-up: Works reliably
 
 **Key Methods:**
 ```cpp
 // Constructor - opens DB and creates table
 LiveStreamDB(StreamType type, const QString& dbPath, QStringList& stockTickers);
 
-// Start recording all configured stocks
+// Start recording all configured stocks (uses ramping)
 void startRecording();
+
+// Stop recording and cancel any pending ramp-up
+void stopRecording();
+
+// Internal: Opens next stream in the ramp-up sequence
+void openNextStream();
 
 // Store a single data point
 bool storeData(const QString& stock, qint64 timestamp, const QByteArray& rawData);

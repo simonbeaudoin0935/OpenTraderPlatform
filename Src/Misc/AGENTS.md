@@ -72,6 +72,10 @@ namespace MarketDepthConstants {
     constexpr size_t MAX_CONCURRENT_STREAMS = 10;    // TradeStation API hard limit
     constexpr int QUEUE_PROCESS_DELAY_MS = 1000;     // Delay before opening queued stream (TCP close propagation)
 }
+
+namespace RecorderConstants {
+    constexpr int STREAM_RAMP_UP_DELAY_MS = 500;     // Delay between opening each stream during recorder startup
+}
 ```
 
 **Usage**:
@@ -83,6 +87,9 @@ QString endpoint = TSClientEndpoints::BASE_URL + TSClientEndpoints::GET_BARS;
 if (StreamMarketDepthQuote::getNumberOfMarketDepthStreams() >= MarketDepthConstants::MAX_CONCURRENT_STREAMS) {
     // Will be queued
 }
+
+// In LiveStreamDB - ramp up stream creation to avoid API rate limits
+m_rampTimer.start(RecorderConstants::STREAM_RAMP_UP_DELAY_MS);
 ```
 
 ### Assume.h
