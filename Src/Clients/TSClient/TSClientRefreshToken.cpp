@@ -11,7 +11,7 @@ void TSClient::launchAuthProcess()
     m_authInProgress = true;
 
     // Emit signal to update UI that authentication is starting
-    emit authStateChanged(false, "Connecting...");
+    emit authStateChanged(false, AuthStateReason::Connecting, "Connecting...");
 
 #ifdef GUI_ENABLED
     m_authHandler = new GUIAuthHandler();
@@ -27,7 +27,7 @@ void TSClient::launchAuthProcess()
     {
         qCritical(TSClientLog) << "Failed to start authentication process";
         m_authInProgress = false;
-        emit authStateChanged(false, "Failed to start authentication");
+        emit authStateChanged(false, AuthStateReason::AuthFailed, "Failed to start authentication");
     }
 #endif
 }
@@ -61,7 +61,10 @@ void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
     {
         qCWarning(TSClientLog) << Q_FUNC_INFO << "Auth unsucessful : " << reason;
     }
-    emit authStateChanged(m_authenticated, reason);
+    
+    // Determine the auth state reason based on success/failure
+    AuthStateReason authReason = m_authenticated ? AuthStateReason::ValidToken : AuthStateReason::AuthFailed;
+    emit authStateChanged(m_authenticated, authReason, reason);
 }
 
 void TSClient::onAuthHandlerDestroyed()
@@ -112,7 +115,7 @@ void TSClient::refreshAccessToken()
     qCDebug(TSClientLog) << "Starting an ASYNC token refresh request";
 
     // Emit signal to update UI that we're attempting to connect
-    emit authStateChanged(false, "Connecting...");
+    emit authStateChanged(false, AuthStateReason::Connecting, "Connecting...");
 
 
     // Build the request and query using our static helper methods
@@ -166,7 +169,7 @@ void TSClient::refreshAccessToken()
                     qCCritical(TSClientLog) << "Received refreshed token invalid";
 
                     // Don't retry if the token is invalid - user needs to manually re-authenticate
-                    emit authStateChanged(false, "Token expired");
+                    emit authStateChanged(false, AuthStateReason::TokenExpired, "Token expired");
                     break;
                 }
 
@@ -211,7 +214,7 @@ void TSClient::refreshAccessToken()
                         // for the first API call. Almost as if the refresh did not properly propagade in their system.
                         // Wait a second on our end before propagating the successful authentification as to delay
                         // making the first API call.
-                        emit authStateChanged(true, "Auth token refresh successful");
+                        emit authStateChanged(true, AuthStateReason::RefreshSuccessful, "Auth token refresh successful");
                     });
                 break;
             }

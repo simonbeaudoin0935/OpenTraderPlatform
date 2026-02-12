@@ -59,7 +59,7 @@ class GUIFrontend : public FrontEnd
     bool eventFilter(QObject* p_watched, QEvent* p_event) override;
 
   private slots:
-    void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
+    void onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, QString message);
     void onNewDisplayedStockSelection();
     void updateLiveLogDisplay(const QString& message);
     void onLoggerVisibilityChanged(bool visible);

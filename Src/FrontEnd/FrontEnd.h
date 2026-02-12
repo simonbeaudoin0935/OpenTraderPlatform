@@ -9,6 +9,7 @@
 #include "Bar.h"
 #include "MarketDepthQuote.h"
 #include "Balance.h"
+#include "TSClient.h"  // For TSClient::AuthStateReason enum
 
 class FrontEnd : public QObject
 {
@@ -18,7 +19,7 @@ class FrontEnd : public QObject
     virtual ~FrontEnd() = default;
 
   signals:
-    void tradeStationAuthStateChanged(bool isAuthenticated, QString reason);
+    void tradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, QString message);
     void tradeStationAccountsReceived(QVector<Account> results);
 
     void tradeStationDataUsageUpdated(qsizetype newDataUsage);

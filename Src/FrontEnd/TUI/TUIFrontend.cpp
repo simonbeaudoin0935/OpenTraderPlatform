@@ -711,9 +711,10 @@ bool TUIFrontend::isValidStockSymbol(const QString& symbol) const
     return true;
 }
 
-void TUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, const QString& reason)
+void TUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, const QString& message)
 {
     Q_UNUSED(reason);
+    Q_UNUSED(message);
 
     if (isAuthenticated)
     {

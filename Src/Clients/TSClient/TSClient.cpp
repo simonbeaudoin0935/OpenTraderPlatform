@@ -160,7 +160,8 @@ TSClient::TSClient()
         QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() { refreshAccessToken(); });
 
         // Schedule an emition for when the event loop is started
-        QTimer::singleShot(0, this, [this]() { emit authStateChanged(true, "Auth token valid and not expired"); });
+        QTimer::singleShot(
+            0, this, [this]() { emit authStateChanged(true, AuthStateReason::ValidToken, "Auth token valid and not expired"); });
     }
     else
     {

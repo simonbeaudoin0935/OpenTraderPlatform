@@ -12,6 +12,8 @@
 #include <QLineEdit>
 #include <memory>
 
+#include "TSClient.h"  // For TSClient::AuthStateReason enum
+
 // Forward declarations
 class LiveStreamDB;
 
@@ -27,7 +29,7 @@ class RecorderTab : public QWidget
     void onStartRecording();
     void onStopRecording();
     void refreshRecorderStats();
-    void onTradeStationAuthStateChanged(bool p_isAuthenticated, QString p_reason);
+    void onTradeStationAuthStateChanged(bool p_isAuthenticated, TSClient::AuthStateReason p_reason, QString p_message);
     void onBrowseButtonClicked();
     void onCsvFilePathChanged(const QString& p_text);
 

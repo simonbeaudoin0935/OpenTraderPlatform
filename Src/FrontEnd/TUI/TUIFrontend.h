@@ -52,7 +52,7 @@ class TUIFrontend : public FrontEnd
 
   private slots:
     void handleInput();
-    void onTradeStationAuthStateChanged(bool isAuthenticated, const QString& reason);
+    void onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, const QString& message);
 
   private:
     void setupWindows();

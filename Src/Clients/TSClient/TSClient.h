@@ -60,6 +60,29 @@ class TSClient final : public QObject
     Q_ENUM(Error)
 
     /**
+     * @brief Authentication state reason
+     *
+     * Describes why authStateChanged signal was emitted.
+     * Allows receivers to distinguish between transient states (e.g., token refresh)
+     * and permanent failures (e.g., expired token).
+     */
+    enum class AuthStateReason : quint8
+    {
+        // Success states
+        ValidToken,           ///< Token is valid and not expired (startup)
+        RefreshSuccessful,    ///< Token refresh completed successfully
+
+        // Transient states (auth in progress)
+        Connecting,           ///< Authentication or token refresh in progress
+
+        // Failure states
+        TokenExpired,         ///< Refresh token has expired, manual re-auth required
+        AuthFailed,           ///< Authentication process failed
+        StartupNoToken,       ///< No token available at startup (commented out in code)
+    };
+    Q_ENUM(AuthStateReason)
+
+    /**
      * @brief Client operating mode
      */
     enum class Mode : quint8
@@ -335,7 +358,19 @@ class TSClient final : public QObject
      */
     void streamCountsChanged(size_t barsCount, size_t marketDepthCount);
 
-    void authStateChanged(bool isAuthenticated, QString reason);
+    /**
+     * @brief Emitted when authentication state changes
+     * @param isAuthenticated True if currently authenticated, false otherwise
+     * @param reason Enum describing why the state changed
+     * @param message Human-readable description (for logging/UI)
+     *
+     * Common scenarios:
+     * - Startup: (true, ValidToken, "Auth token valid and not expired")
+     * - Token refresh start: (false, Connecting, "Connecting...")
+     * - Token refresh success: (true, RefreshSuccessful, "Auth token refresh successful")
+     * - Token expired: (false, TokenExpired, "Token expired")
+     */
+    void authStateChanged(bool isAuthenticated, AuthStateReason reason, QString message);
 
   private slots:
     void onAuthFinished(bool success, AuthToken token, QString reason);

@@ -18,6 +18,7 @@
 #include "Balance.h"
 #include "StrategyManager.h"
 #include "Core/Replay/ReplayEngine.h"
+#include "TSClient.h"  // For TSClient::AuthStateReason enum
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
@@ -158,7 +159,7 @@ class MainAlgo final : public QObject
     void replayEndReached();
 
   public slots:
-    void onTradeStationAuthStateChanged(bool isAuthenticated, const QString& reason);
+    void onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, const QString& message);
     void onSelectDisplayedStock(const QString& symbol);
 
   private slots:

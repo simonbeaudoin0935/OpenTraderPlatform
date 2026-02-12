@@ -250,7 +250,7 @@ void RecorderTab::restoreLastCsvFilePath()
     m_stockCsvFileInput->setText(lastCsvPath);
 }
 
-void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, QString p_reason)
+void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, TSClient::AuthStateReason p_reason, QString p_message)
 {
     m_isAuthenticated = p_isAuthenticated;
 
@@ -262,18 +262,18 @@ void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, QString
             m_startButton->setEnabled(true);
             m_startButton->setToolTip("Start recording market data");
         }
-        qInfo() << "RecorderTab: TradeStation authenticated -" << p_reason;
+        qInfo() << "RecorderTab: TradeStation authenticated -" << p_message;
     }
     else
     {
-        // Check if this is just a transient "Connecting..." state during token refresh
+        // Check if this is just a transient "Connecting" state during token refresh
         // If so, don't stop recording - the refresh will complete momentarily
-        bool isTransientRefreshState = p_reason.contains("Connecting", Qt::CaseInsensitive);
+        bool isTransientRefreshState = (p_reason == TSClient::AuthStateReason::Connecting);
 
         // Disable the start button and show reason
         m_startButton->setEnabled(false);
-        m_startButton->setToolTip(QString("Cannot start recording: %1").arg(p_reason));
-        qWarning() << "RecorderTab: TradeStation not authenticated -" << p_reason;
+        m_startButton->setToolTip(QString("Cannot start recording: %1").arg(p_message));
+        qWarning() << "RecorderTab: TradeStation not authenticated -" << p_message;
 
         // If currently recording, we should stop ONLY if this is a real auth loss (not a refresh)
         if (m_isRecording && !isTransientRefreshState)
@@ -285,7 +285,7 @@ void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, QString
                                  QString("Lost TradeStation authentication during recording.\n"
                                          "Recording has been stopped.\n\n"
                                          "Reason: %1")
-                                     .arg(p_reason));
+                                     .arg(p_message));
         }
         else if (m_isRecording && isTransientRefreshState)
         {

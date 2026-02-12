@@ -725,7 +725,7 @@ void GUIFrontend::onBalanceUpdated(Balance balance)
     ui->balanceWindow->updateBalance(balance);
 }
 
-void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString reason)
+void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, QString message)
 {
     static bool isFirstTime = true;
 
@@ -749,8 +749,8 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
     }
     else
     {
-        // Check if we're in a "connecting" state
-        if (reason == "Connecting...")
+        // Check if we're in a "connecting" state using the enum
+        if (reason == TSClient::AuthStateReason::Connecting)
         {
             // Show connecting state with orange/yellow color and disable button
             tradeStationLoginButton->setText("Connecting to TradeStation...");
@@ -773,7 +773,7 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, QString r
         }
         else
         {
-            tradeStationLoginButton->setText("Login Failed: " + reason);
+            tradeStationLoginButton->setText("Login Failed: " + message);
             tradeStationLoginButton->setStyleSheet(
                 "QPushButton { background-color: #FFE6E6; color: #f44336; padding: 2px 6px; border-radius: 3px; }");
             tradeStationLoginButton->setEnabled(true);

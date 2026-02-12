@@ -262,18 +262,25 @@ BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date,
 /*
  * This is the entry point that activates the chain of events after authentication state changes
  */
-void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, const QString& reason)
+void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, const QString& message)
 {
     if (!isAuthenticated)
     {
+        // Ignore transient "Connecting" state during token refresh
+        if (reason == TSClient::AuthStateReason::Connecting)
+        {
+            DEBUG << "Token refresh in progress - ignoring transient auth state";
+            return;
+        }
+
         if (!m_havePastSuccessfulExchanges)
         {
-            CRITICAL << "Tradestation failed to authenticate. Reason : " << reason;
+            CRITICAL << "Tradestation failed to authenticate. Reason : " << message;
             CRITICAL << "Cannot proceed without authentication. Retrying";
         }
         else
         {
-            CRITICAL << "Tradestation lost authentication. Reason : " << reason;
+            CRITICAL << "Tradestation lost authentication. Reason : " << message;
         }
         return;
     }
@@ -317,6 +324,7 @@ void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, const QStrin
                                            {
                                                DEBUG << "Retrying getAccounts() after failure";
                                                onTradeStationAuthStateChanged(true,
+                                                                              TSClient::AuthStateReason::ValidToken,
                                                                               "Re-auth after getAccounts() failure");
                                            });
                     }
