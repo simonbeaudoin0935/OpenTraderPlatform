@@ -51,11 +51,20 @@ TSClient is the core singleton class for all TradeStation API communication in L
 - Replace/modify orders
 
 **Stream/** - WebSocket streaming
-- StreamBars: Live bar updates (1min, 5min, etc.)
+- StreamBars: Live bar updates (1min, 5min, etc.) - **unlimited concurrent streams**
 - StreamQuotes: Real-time quote updates
-- StreamMarketDepthQuotes: Level 2 market depth
-- StreamOrders: Order status updates
-- StreamPositions: Position updates
+- StreamMarketDepthQuotes: Level 2 market depth - **maximum 10 concurrent streams**
+- StreamOrders: Order status updates - **singleton (max 1)**
+- StreamPositions: Position updates - **singleton (max 1)**
+
+**Stream Concurrency Limits**:
+- **StreamBars**: No limit - can open as many as needed
+- **StreamMarketDepthQuote**: Hard limit of 10 concurrent streams (API restriction)
+  - Opening 11+ streams triggers FIFO queue with QFuture-based async fulfillment
+  - 1000ms delay before processing queue (TCP close propagation)
+  - See "Stream Management" section below for details
+- **StreamPositions**: Singleton - exactly 1 stream allowed (asserted)
+- **StreamOrders**: Singleton - exactly 1 stream allowed (asserted)
 
 ## Architecture
 
@@ -190,9 +199,27 @@ public slots:
 **Stream Management**:
 - TSClient maintains `QMap<QString, QPointer<Stream>>` for tracking
 - QPointer auto-nulls when stream deleted (important for cleanup)
-- Each stream type has dedicated class
+- Each stream type has dedicated class with per-type counters
 - Automatic reconnection on transient failures
 - Backpressure handling for high-frequency data
+
+**Per-Stream-Type Counters**:
+Each stream type maintains its own static counter for tracking:
+- `StreamBars::s_numberOfBarsStreams` (size_t, no limit)
+- `StreamMarketDepthQuote::s_numberOfMarketDepthStreams` (std::atomic<size_t>, max 10)
+- `StreamPositions::s_numberOfPositionStreams` (size_t, max 1)
+- `StreamOrders::s_numberOfOrderStreams` (size_t, max 1)
+
+**Market Depth Stream Queue**:
+The TradeStation API enforces a hard limit of 10 concurrent market depth streams. When this limit is reached:
+1. Requests are queued in a FIFO `std::deque<PendingMarketDepthRequest>`
+2. Each queued request includes a `QPromise<QPointer<StreamMarketDepthQuote>>`
+3. When a stream closes, the queue is processed after 1000ms delay (allows TCP FIN to propagate)
+4. Callers receive `std::expected<QPointer<Stream>, QFuture<QPointer<Stream>>>`:
+   - **Value channel**: Stream opened immediately (< 10 active)
+   - **Error channel**: QFuture that completes when queued stream opens (≥ 10 active)
+
+**Important**: Callers MUST handle QFuture properly - do not cancel futures as the stream will still be created and needs cleanup.
 
 ## Key Signals
 
@@ -204,8 +231,8 @@ signals:
     // Data usage tracking
     void totalDataReceivedBytesIncreased(qsizetype bytesIncrease);
 
-    // Stream tracking
-    void openStreamCountChanged(int count);
+    // Stream tracking (separate counts for bars and market depth)
+    void streamCountsChanged(size_t barsCount, size_t marketDepthCount);
 
     // Error reporting
     void errorOccurred(const QString& error);
@@ -234,8 +261,9 @@ client.getBars(symbol, interval, startDate, endDate,
 
 ### Opening a Stream
 
+**Bar Stream (unlimited)**:
 ```cpp
-StreamBars* stream = TSClient::getInstance().createStreamBars(symbol, interval);
+StreamBars* stream = TSClient::getInstance().openStreamBars(symbol, interval);
 
 // Connect signals
 connect(stream, &StreamBars::barReceived, this, [this](const Bar& bar) {
@@ -252,6 +280,47 @@ stream->start();
 
 // Later: close stream
 stream->stop();  // Will emit streamClosed() signal
+```
+
+**Market Depth Stream (max 10 concurrent)**:
+```cpp
+auto result = TSClient::getInstance().openStreamMarketDepthQuote(symbol, depth);
+
+if (result.has_value()) {
+    // Stream opened immediately (< 10 active)
+    QPointer<StreamMarketDepthQuote> stream = result.value();
+    connectStreamSignals(stream);
+    stream->start();
+} else {
+    // Stream queued (≥ 10 active) - received QFuture
+    QFuture<QPointer<StreamMarketDepthQuote>> future = result.error();
+    
+    // Use QFutureWatcher to handle async fulfillment
+    auto* watcher = new QFutureWatcher<QPointer<StreamMarketDepthQuote>>(this);
+    connect(watcher, &QFutureWatcher<QPointer<StreamMarketDepthQuote>>::finished,
+            this, [this, watcher]() {
+                QPointer<StreamMarketDepthQuote> stream = watcher->result();
+                if (!stream.isNull()) {
+                    connectStreamSignals(stream);
+                    stream->start();
+                }
+                watcher->deleteLater();
+            });
+    watcher->setFuture(future);
+    
+    qInfo() << "Market depth stream queued for" << symbol;
+}
+```
+
+**Checking Stream Availability**:
+```cpp
+if (StreamMarketDepthQuote::canOpenStream()) {
+    // Can open immediately
+} else {
+    // Will be queued (10 streams already open)
+    size_t count = StreamMarketDepthQuote::getNumberOfMarketDepthStreams();
+    qDebug() << "Market depth streams at limit:" << count;
+}
 ```
 
 ### Checking Authentication
@@ -374,6 +443,9 @@ With real API:
 3. **Don't ignore callback bool success** - Always check before using response
 4. **Don't assume immediate auth** - Connect to authStateChanged signal
 5. **Don't make sequential calls in loop** - Use batch endpoints when available
+6. **Don't cancel QFuture from market depth queue** - Stream still created, needs cleanup
+7. **Don't open 11+ market depth streams** - Check `canOpenStream()` or handle QFuture
+8. **Don't create multiple Positions/Orders streams** - Singletons, will assert
 
 ## Related Documentation
 

@@ -27,7 +27,7 @@ public slots:
     virtual void onTSClientDataUsageUpdate(qsizetype bytes) = 0;
     virtual void onTradeStationAccountsReceived(const QVector<Account>& accounts) = 0;
     virtual void onMemoryUsageUpdate(qsizetype bytes) = 0;
-    virtual void onStreamCountUpdate(int count) = 0;
+    virtual void onStreamCountUpdate(size_t barsCount, size_t marketDepthCount) = 0;
     virtual void onCurrentHighlightedStockBarReceived(const QString& symbol, const Bar& bar) = 0;
     virtual void onCurrentHighlightedReceivedNewMarketDepthQuote(...) = 0;
     virtual void onNewPositionReceived(const QString& accountId, const Position& position) = 0;
@@ -190,9 +190,12 @@ void onMemoryUsageUpdate(qsizetype bytes) {
     // Update periodically (500ms interval)
 }
 
-void onStreamCountUpdate(int count) {
-    // Display active stream count
-    // Helps monitor connection health
+void onStreamCountUpdate(size_t barsCount, size_t marketDepthCount) {
+    // Display active stream counts (separate for bars and Level 2 market depth)
+    // GUI: Status bar displays "Bars: X | Level2: Y"
+    // TUI: Status window displays "Bars: X | Level2: Y"
+    // Helps monitor connection health and TradeStation API limits
+    // Note: Market depth has hard limit of 10 concurrent streams
 }
 ```
 

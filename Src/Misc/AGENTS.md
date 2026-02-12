@@ -67,6 +67,11 @@ namespace FileSystemConstants {
     const QString CACHE_DIR = "bars";
     const QString CONFIG_DIR = ".config/L2Trader";
 }
+
+namespace MarketDepthConstants {
+    constexpr size_t MAX_CONCURRENT_STREAMS = 10;    // TradeStation API hard limit
+    constexpr int QUEUE_PROCESS_DELAY_MS = 1000;     // Delay before opening queued stream (TCP close propagation)
+}
 ```
 
 **Usage**:
@@ -75,6 +80,9 @@ namespace FileSystemConstants {
 
 QTime marketOpen = TradingHours::TRADING_START_TIME;
 QString endpoint = TSClientEndpoints::BASE_URL + TSClientEndpoints::GET_BARS;
+if (StreamMarketDepthQuote::getNumberOfMarketDepthStreams() >= MarketDepthConstants::MAX_CONCURRENT_STREAMS) {
+    // Will be queued
+}
 ```
 
 ### Assume.h

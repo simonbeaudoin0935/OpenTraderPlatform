@@ -209,6 +209,36 @@ bool isValidBar(const Bar& bar) {
   - **Spread**: Best ask - best bid
   - **Total volumes**: Sum of bid/ask sizes
 - Emits processed data for display and strategy use
+- **Handles stream queuing**: Market depth streams limited to 10 concurrent (API restriction)
+
+**Stream Opening**:
+```cpp
+void MarketDepthQuoteReceiver::createMarketDepthQuoteStream(QString symbol, unsigned int depth) {
+    auto result = TSClient::getInstance().openStreamMarketDepthQuote(symbol, depth);
+    
+    if (result.has_value()) {
+        // Stream opened immediately (< 10 active streams)
+        QPointer<StreamMarketDepthQuote> stream = result.value();
+        connectStreamSignals(stream);
+        stream->start();
+    } else {
+        // Stream queued (≥ 10 active streams)
+        QFuture<QPointer<StreamMarketDepthQuote>> future = result.error();
+        
+        // Use QFutureWatcher to handle async fulfillment
+        auto* watcher = new QFutureWatcher<QPointer<StreamMarketDepthQuote>>(this);
+        connect(watcher, &QFutureWatcher::finished, this, [this, watcher]() {
+            QPointer<StreamMarketDepthQuote> stream = watcher->result();
+            if (!stream.isNull()) {
+                connectStreamSignals(stream);
+                stream->start();
+            }
+            watcher->deleteLater();
+        });
+        watcher->setFuture(future);
+    }
+}
+```
 
 **Metrics Calculation**:
 ```cpp
