@@ -45,6 +45,9 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
 
     setupDarkTheme(m_mainWindow);
 
+    // Install event filter on main window to handle close events
+    m_mainWindow->installEventFilter(this);
+
     m_mainWindow->showMaximized();
 
     // Initialize shortcuts from settings
@@ -1433,6 +1436,15 @@ void GUIFrontend::onReplayTimeUpdated(QDateTime currentTime)
 
 bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
 {
+    // Handle main window close event
+    if (p_watched == m_mainWindow && p_event->type() == QEvent::Close)
+    {
+        // Call shutdown for graceful cleanup (same as Ctrl+Q)
+        MainApp::getInstance()->shutdown();
+        p_event->accept();
+        return true;
+    }
+
     // Handle click on trading mode label
     if (p_watched == m_tradingModeLabel && p_event->type() == QEvent::MouseButtonRelease)
     {
