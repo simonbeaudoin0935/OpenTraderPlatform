@@ -452,25 +452,19 @@ void TSClient::processMarketDepthQueue()
     {
         DEBUG << "Opening queued replay StreamMarketDepthQuote for" << request.symbol;
 
-        QMetaObject::invokeMethod(
-            this,
-            [this, &stream, &request]()
-            {
-                auto* mockReply = new MockNetworkReply(this);
-                Q_CHECK_PTR(mockReply);
+        // Already on TSClient thread - no need for invokeMethod
+        auto* mockReply = new MockNetworkReply(this);
+        Q_CHECK_PTR(mockReply);
 
-                m_replayDepthReplies[request.symbol] = mockReply;
+        m_replayDepthReplies[request.symbol] = mockReply;
 
-                stream = new StreamMarketDepthQuote(request.symbol, mockReply, this);
-                Q_CHECK_PTR(stream);
+        stream = new StreamMarketDepthQuote(request.symbol, mockReply, this);
+        Q_CHECK_PTR(stream);
 
-                auto c =
-                    connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
-                OBJ_ASSUME_TRUE(c);
+        auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+        OBJ_ASSUME_TRUE(c);
 
-                INFO << "Opened queued replay StreamMarketDepthQuote for" << request.symbol;
-            },
-            Qt::BlockingQueuedConnection);
+        INFO << "Opened queued replay StreamMarketDepthQuote for" << request.symbol;
     }
     else
     {
@@ -483,23 +477,17 @@ void TSClient::processMarketDepthQueue()
         QNetworkRequest netRequest =
             buildNetworkRequest(QString(TSClientEndpoints::STREAM_MARKET_DEPTH_QUOTE).arg(request.symbol), query);
 
-        QMetaObject::invokeMethod(
-            this,
-            [this, &netRequest, &stream, &request]()
-            {
-                QNetworkReply* reply = m_networkManager->get(netRequest);
-                Q_CHECK_PTR(reply);
+        // Already on TSClient thread - no need for invokeMethod
+        QNetworkReply* reply = m_networkManager->get(netRequest);
+        Q_CHECK_PTR(reply);
 
-                stream = new StreamMarketDepthQuote(request.symbol, reply, this);
-                Q_CHECK_PTR(stream);
+        stream = new StreamMarketDepthQuote(request.symbol, reply, this);
+        Q_CHECK_PTR(stream);
 
-                auto c =
-                    connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
-                OBJ_ASSUME_TRUE(c);
+        auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+        OBJ_ASSUME_TRUE(c);
 
-                INFO << "Opened queued live StreamMarketDepthQuote for" << request.symbol;
-            },
-            Qt::BlockingQueuedConnection);
+        INFO << "Opened queued live StreamMarketDepthQuote for" << request.symbol;
     }
 
     // Fulfill the promise with the created stream
