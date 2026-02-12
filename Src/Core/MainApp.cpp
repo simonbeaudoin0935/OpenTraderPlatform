@@ -225,6 +225,9 @@ MainApp::~MainApp()
 {
     qInfo() << "MainApp destructor - cleaning up";
 
+    // Stop memory monitoring first to avoid cross-thread timer warnings
+    memoryMonitor.stopMonitoring();
+
     // Delete the frontend first
     delete appFrontend;
     appFrontend = nullptr;
