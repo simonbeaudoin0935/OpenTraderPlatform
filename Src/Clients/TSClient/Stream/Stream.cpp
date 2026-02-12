@@ -71,14 +71,19 @@ void Stream::onReplyFinished()
     // 1) Heartbeat timeout (m_receivedTimeoutError == true)
     // 2) JSON error received from server (m_streamError has been set by intermediate class)
     // 3) Network error reported by QNetworkReply (timeout, disconnection, etc)
-    StreamError errorType = StreamError::Timeout; // Default to timeout
+    StreamError errorType = StreamError::NoError; // Default to no error
     if (m_streamError.has_value())
     {
         errorType = m_streamError.value();
     }
 
+    QNetworkReply::NetworkError error = m_networkReply->error();
+    QMetaEnum metaEnum = QMetaEnum::fromType<QNetworkReply::NetworkError>();
+    QString errorName = metaEnum.valueToKey(error);
+
     QString description = "Timeout: " + (m_receivedTimeoutError ? QString("true") : QString("false")) +
-                          " JSON Error: " + m_jsonErrorString + ". Network error: " + m_networkReply->errorString();
+                          " JSON Error: " + m_jsonErrorString + ". Network error: " + errorName + " (" +
+                          m_networkReply->errorString() + ")";
 
     DEBUG << "Stream finished with error:" << description;
 

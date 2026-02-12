@@ -325,7 +325,13 @@ void RecorderTab::onStartRecording()
         QStringList fields = line.split(',');
         if (!fields.isEmpty() && !fields[0].isEmpty())
         {
-            m_stockTickers.append(fields[0]);
+            QString ticker = fields[0].trimmed();
+            // Remove surrounding quotes (both single and double)
+            if ((ticker.startsWith('"') && ticker.endsWith('"')) || (ticker.startsWith('\'') && ticker.endsWith('\'')))
+            {
+                ticker = ticker.mid(1, ticker.length() - 2);
+            }
+            m_stockTickers.append(ticker);
         }
     }
     file.close();
@@ -431,15 +437,17 @@ void RecorderTab::onStopRecording()
     // Stop refresh timer
     m_refreshTimer->stop();
 
-    // Finalize databases
+    // Stop recording and close streams
     if (m_liveBarsDB)
     {
+        m_liveBarsDB->stopRecording();
         m_liveBarsDB->finalizeUnrecoveredTimeouts();
         m_liveBarsDB.reset();
     }
 
     if (m_liveMarketDepthQuoteDB)
     {
+        m_liveMarketDepthQuoteDB->stopRecording();
         m_liveMarketDepthQuoteDB->finalizeUnrecoveredTimeouts();
         m_liveMarketDepthQuoteDB.reset();
     }

@@ -5,6 +5,8 @@
 
 #define LOGGING_CATEGORY TSClientLog
 
+#warning dont forget to have a mocked version of StreamOrders and StreamPositions for replay mode if you want to replay orders/positions data in the future. currently only bars and market depth quote have mocked versions for replay.
+
 QPointer<StreamPositions> TSClient::openStreamPositions(const QString& accountID, bool changes)
 {
     // normal account numbers have 8 digits, sim have additional letters
@@ -98,6 +100,8 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString& symbol,
 
     if (m_mode == Mode::Replay)
     {
+        DEBUG << "Opening replay StreamBars for" << symbol;
+
         // In replay mode, create a MockNetworkReply instead of a real network request
         QMetaObject::invokeMethod(
             this,
@@ -124,6 +128,8 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString& symbol,
     }
     else
     {
+        DEBUG << "Opening live StreamBars for" << symbol;
+
         // Live mode - make real network request
         const QString endpoint = QString(TSClientEndpoints::STREAM_BARS).arg(symbol);
         QUrlQuery query = Bar::buildUrlQuery(interval, unit, barsback, sessionTemplate);
@@ -162,6 +168,8 @@ QPointer<StreamMarketDepthQuote> TSClient::openStreamMarketDepthQuote(const QStr
 
     if (m_mode == Mode::Replay)
     {
+        DEBUG << "Opening replay StreamMarketDepthQuote for" << symbol;
+
         // In replay mode, create a MockNetworkReply instead of a real network request
         QMetaObject::invokeMethod(
             this,
@@ -192,7 +200,7 @@ QPointer<StreamMarketDepthQuote> TSClient::openStreamMarketDepthQuote(const QStr
         QUrlQuery query;
         query.addQueryItem("maxlevels", QString::number(depth));
 
-        qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamMarketDepthQuote";
+        DEBUG << "Opening live StreamMarketDepthQuote for" << symbol;
 
         QNetworkRequest request =
             buildNetworkRequest(QString(TSClientEndpoints::STREAM_MARKET_DEPTH_QUOTE).arg(symbol), query);
@@ -232,7 +240,12 @@ void TSClient::closeStream(Stream* const stream)
             // Use deleteLater() for Stream objects (have timers, network replies, signals)
             stream->deleteLater();
 
-            emit openStreamCountChanged(Stream::getNumberOpenStream());
+            // Emit count change after the stream is actually deleted
+            // Use QueuedConnection to ensure destructor has run first
+            QMetaObject::invokeMethod(
+                this,
+                [this]() { emit openStreamCountChanged(Stream::getNumberOpenStream()); },
+                Qt::QueuedConnection);
         },
         Qt::QueuedConnection);
 }
