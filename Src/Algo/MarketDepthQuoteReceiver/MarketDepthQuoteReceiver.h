@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QObject>
-#include <QFutureWatcher>
 
 #include "Assume.h"
 #include "StreamMarketDepthQuote.h"

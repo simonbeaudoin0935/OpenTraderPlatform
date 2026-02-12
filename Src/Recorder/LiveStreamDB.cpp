@@ -1,7 +1,6 @@
 #include <QtSql/QSqlQuery>
 #include <QtSql/QSqlError>
 #include <QDebug>
-#include <QFutureWatcher>
 
 #include "LiveStreamDB.h"
 #include "SQL/LiveStreamDBQueries.h"
@@ -141,36 +140,28 @@ void LiveStreamDB::startRecording()
 
                 INFO << "Market depth stream limit reached - queued for" << symbol;
 
-                // Wait for future
-                auto* watcher = new QFutureWatcher<QPointer<StreamMarketDepthQuote>>(this);
-                connect(watcher,
-                        &QFutureWatcher<QPointer<StreamMarketDepthQuote>>::finished,
-                        this,
-                        [this, watcher, symbol]()
-                        {
-                            QPointer<StreamMarketDepthQuote> stream = watcher->result();
-                            OBJ_ASSUME_TRUE(stream != nullptr);
+                // Use .then() continuation for cleaner async handling
+                future.then(this,
+                            [this, symbol](QPointer<StreamMarketDepthQuote> stream)
+                            {
+                                OBJ_ASSUME_TRUE(stream != nullptr);
 
-                            QObject::connect(stream,
-                                             &StreamMarketDepthQuote::receivedNewRawData,
-                                             this,
-                                             [this, symbol = stream->getSymbol()](const QByteArray& rawData)
-                                             { onReceivedNewRawDataForStock(symbol, rawData); });
+                                QObject::connect(stream,
+                                                 &StreamMarketDepthQuote::receivedNewRawData,
+                                                 this,
+                                                 [this, symbol = stream->getSymbol()](const QByteArray& rawData)
+                                                 { onReceivedNewRawDataForStock(symbol, rawData); });
 
-                            QObject::connect(stream,
-                                             &Stream::streamClosed,
-                                             this,
-                                             [this, symbol](Stream::StreamError reason, QString message)
-                                             { handleStreamError(symbol, reason, message); });
+                                QObject::connect(stream,
+                                                 &Stream::streamClosed,
+                                                 this,
+                                                 [this, symbol](Stream::StreamError reason, QString message)
+                                                 { handleStreamError(symbol, reason, message); });
 
-                            m_streamMarketDepthQuotes[symbol] = stream;
+                                m_streamMarketDepthQuotes[symbol] = stream;
 
-                            INFO << "Queued market depth stream opened for" << symbol;
-
-                            watcher->deleteLater();
-                        });
-
-                watcher->setFuture(future);
+                                INFO << "Queued market depth stream opened for" << symbol;
+                            });
             }
         }
     }
@@ -346,36 +337,28 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
 
             INFO << "Market depth stream limit reached - queued recovery for" << symbol;
 
-            // Wait for future to complete
-            auto* watcher = new QFutureWatcher<QPointer<StreamMarketDepthQuote>>(this);
-            connect(watcher,
-                    &QFutureWatcher<QPointer<StreamMarketDepthQuote>>::finished,
-                    this,
-                    [this, watcher, symbol]()
-                    {
-                        StreamMarketDepthQuote* stream = watcher->result();
-                        Q_CHECK_PTR(stream);
+            // Use .then() continuation for cleaner async handling
+            future.then(this,
+                        [this, symbol](QPointer<StreamMarketDepthQuote> stream)
+                        {
+                            Q_CHECK_PTR(stream);
 
-                        QObject::connect(stream,
-                                         &StreamMarketDepthQuote::receivedNewRawData,
-                                         this,
-                                         [this, symbol](const QByteArray& rawData)
-                                         { onReceivedNewRawDataForStock(symbol, rawData); });
+                            QObject::connect(stream,
+                                             &StreamMarketDepthQuote::receivedNewRawData,
+                                             this,
+                                             [this, symbol](const QByteArray& rawData)
+                                             { onReceivedNewRawDataForStock(symbol, rawData); });
 
-                        QObject::connect(stream,
-                                         &Stream::streamClosed,
-                                         this,
-                                         [this, symbol](Stream::StreamError reason, QString message)
-                                         { handleStreamError(symbol, reason, message); });
+                            QObject::connect(stream,
+                                             &Stream::streamClosed,
+                                             this,
+                                             [this, symbol](Stream::StreamError reason, QString message)
+                                             { handleStreamError(symbol, reason, message); });
 
-                        m_streamMarketDepthQuotes[symbol] = stream;
-                        successfulRecoveries[symbol]++;
-                        INFO << "Queued market depth stream opened for" << symbol;
-
-                        watcher->deleteLater();
-                    });
-
-            watcher->setFuture(future);
+                            m_streamMarketDepthQuotes[symbol] = stream;
+                            successfulRecoveries[symbol]++;
+                            INFO << "Queued market depth stream opened for" << symbol;
+                        });
         }
     }
 }

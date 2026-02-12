@@ -59,24 +59,17 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
 
         INFO << "Market depth stream limit reached - request queued for" << m_symbol;
 
-        // Wait for QFuture to complete (when slot becomes available)
-        auto* watcher = new QFutureWatcher<QPointer<StreamMarketDepthQuote>>(this);
-        connect(watcher,
-                &QFutureWatcher<QPointer<StreamMarketDepthQuote>>::finished,
-                this,
-                [this, watcher]() // Capture watcher
-                {
-                    m_stream = watcher->result();
-                    Q_CHECK_PTR(m_stream);
+        // Use .then() continuation for cleaner async handling
+        future.then(this,
+                    [this](QPointer<StreamMarketDepthQuote> stream)
+                    {
+                        m_stream = stream;
+                        Q_CHECK_PTR(m_stream);
 
-                    INFO << "Queued market depth stream opened for" << m_symbol;
+                        INFO << "Queued market depth stream opened for" << m_symbol;
 
-                    connectStreamSignals();
-
-                    watcher->deleteLater();
-                });
-
-        watcher->setFuture(future);
+                        connectStreamSignals();
+                    });
     }
 }
 
