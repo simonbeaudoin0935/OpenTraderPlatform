@@ -4,12 +4,24 @@
 
 #define LOGGING_CATEGORY StreamLog
 
+// Initialize static counter
+size_t StreamBars::s_numberOfBarsStreams = 0;
+
 StreamBars::StreamBars(const QString& symbol, QNetworkReply* reply, QObject* parent)
     : StreamMarketData(reply, parent), m_symbol(symbol)
 {
     this->setObjectName("Stream::Bars::" + symbol);
 
-    DEBUG << "Stream created";
+    s_numberOfBarsStreams++;
+
+    DEBUG << "Stream created - Total bar streams:" << s_numberOfBarsStreams;
+}
+
+StreamBars::~StreamBars()
+{
+    s_numberOfBarsStreams--;
+
+    DEBUG << "Stream destroyed - Total bar streams:" << s_numberOfBarsStreams;
 }
 
 void StreamBars::processJsonObject(const QJsonObject& jsonObj)

@@ -5,13 +5,27 @@
 
 #define LOGGING_CATEGORY StreamLog
 
+// Initialize static counter
+size_t StreamPositions::s_numberOfPositionStreams = 0;
 
 StreamPositions::StreamPositions(const QString& accountID, QNetworkReply* reply, QObject* parent)
     : StreamBrokerage(reply, parent), m_accountID(accountID)
 {
     this->setObjectName("Stream::Positions::" + accountID);
 
-    DEBUG << "Stream created";
+    // Assert that we're not creating a second positions stream
+    OBJ_ASSUME_EQUAL(s_numberOfPositionStreams, 0u);
+
+    s_numberOfPositionStreams++;
+
+    DEBUG << "Stream created - Total position streams:" << s_numberOfPositionStreams;
+}
+
+StreamPositions::~StreamPositions()
+{
+    s_numberOfPositionStreams--;
+
+    DEBUG << "Stream destroyed - Total position streams:" << s_numberOfPositionStreams;
 }
 
 void StreamPositions::processJsonObject(const QJsonObject& jsonObj)
