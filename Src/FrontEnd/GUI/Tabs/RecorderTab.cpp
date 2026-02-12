@@ -325,7 +325,13 @@ void RecorderTab::onStartRecording()
         QStringList fields = line.split(',');
         if (!fields.isEmpty() && !fields[0].isEmpty())
         {
-            m_stockTickers.append(fields[0]);
+            QString ticker = fields[0].trimmed();
+            // Remove surrounding quotes (both single and double)
+            if ((ticker.startsWith('"') && ticker.endsWith('"')) || (ticker.startsWith('\'') && ticker.endsWith('\'')))
+            {
+                ticker = ticker.mid(1, ticker.length() - 2);
+            }
+            m_stockTickers.append(ticker);
         }
     }
     file.close();
