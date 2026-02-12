@@ -74,7 +74,11 @@ namespace MarketDepthConstants {
 }
 
 namespace RecorderConstants {
-    constexpr int STREAM_RAMP_UP_DELAY_MS = 500;     // Delay between opening each stream during recorder startup
+    constexpr int STREAM_RAMP_UP_DELAY_TIER1_MS = 500;   // First 100 streams
+    constexpr int STREAM_RAMP_UP_DELAY_TIER2_MS = 1000;  // Streams 101-200
+    constexpr int STREAM_RAMP_UP_DELAY_TIER3_MS = 2000;  // Streams 201+
+    constexpr int STREAM_RAMP_UP_TIER1_THRESHOLD = 100;  // Switch to tier 2 after this many
+    constexpr int STREAM_RAMP_UP_TIER2_THRESHOLD = 200;  // Switch to tier 3 after this many
 }
 ```
 
@@ -88,8 +92,16 @@ if (StreamMarketDepthQuote::getNumberOfMarketDepthStreams() >= MarketDepthConsta
     // Will be queued
 }
 
-// In LiveStreamDB - ramp up stream creation to avoid API rate limits
-m_rampTimer.start(RecorderConstants::STREAM_RAMP_UP_DELAY_MS);
+// In LiveStreamDB - adaptive ramp-up based on stream count
+int delay;
+if (m_currentRampIndex <= RecorderConstants::STREAM_RAMP_UP_TIER1_THRESHOLD) {
+    delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER1_MS;  // Fast: 500ms
+} else if (m_currentRampIndex <= RecorderConstants::STREAM_RAMP_UP_TIER2_THRESHOLD) {
+    delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER2_MS;  // Medium: 1000ms
+} else {
+    delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER3_MS;  // Slow: 2000ms
+}
+m_rampTimer.start(delay);
 ```
 
 ### Assume.h

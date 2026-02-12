@@ -95,8 +95,10 @@ void LiveStreamDB::startRecording()
     }
 
     QString dataType = (streamType == StreamType::Bars) ? "bars" : "market depth quotes";
-    INFO << "Starting recording for" << stockTickers.size() << dataType << "streams with"
-         << RecorderConstants::STREAM_RAMP_UP_DELAY_MS << "ms ramp-up delay";
+    INFO << "Starting recording for" << stockTickers.size() << dataType << "streams with graduated ramp-up delay";
+    INFO << "Ramp-up strategy: 0-100=" << RecorderConstants::STREAM_RAMP_UP_DELAY_TIER1_MS << "ms, "
+         << "101-200=" << RecorderConstants::STREAM_RAMP_UP_DELAY_TIER2_MS << "ms, "
+         << "201+=" << RecorderConstants::STREAM_RAMP_UP_DELAY_TIER3_MS << "ms";
 
     // Start ramping: open first stream immediately, then schedule the rest
     m_currentRampIndex = 0;
@@ -198,7 +200,34 @@ void LiveStreamDB::openNextStream()
     // Schedule opening the next stream if more remain
     if (m_currentRampIndex < stockTickers.size())
     {
-        m_rampTimer.start(RecorderConstants::STREAM_RAMP_UP_DELAY_MS);
+        // Calculate adaptive delay based on number of streams already opened
+        int delay;
+        if (m_currentRampIndex <= RecorderConstants::STREAM_RAMP_UP_TIER1_THRESHOLD)
+        {
+            delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER1_MS;
+        }
+        else if (m_currentRampIndex <= RecorderConstants::STREAM_RAMP_UP_TIER2_THRESHOLD)
+        {
+            delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER2_MS;
+            // Log when transitioning to slower tier
+            if (m_currentRampIndex == RecorderConstants::STREAM_RAMP_UP_TIER1_THRESHOLD + 1)
+            {
+                INFO << "Reached" << RecorderConstants::STREAM_RAMP_UP_TIER1_THRESHOLD
+                     << "streams - slowing down to" << delay << "ms delay";
+            }
+        }
+        else
+        {
+            delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER3_MS;
+            // Log when transitioning to slowest tier
+            if (m_currentRampIndex == RecorderConstants::STREAM_RAMP_UP_TIER2_THRESHOLD + 1)
+            {
+                INFO << "Reached" << RecorderConstants::STREAM_RAMP_UP_TIER2_THRESHOLD
+                     << "streams - slowing down to" << delay << "ms delay";
+            }
+        }
+
+        m_rampTimer.start(delay);
     }
     else
     {

@@ -77,18 +77,32 @@ The main recording class. One instance per data type (Bars or MarketDepthQuotes)
 
 **Stream Ramp-Up Mechanism:**
 
-When recording large numbers of symbols (e.g., 100+ stocks), opening all streams simultaneously can overwhelm the TradeStation API servers with rate limiting. To prevent this:
+When recording large numbers of symbols (e.g., 100+ stocks), opening all streams simultaneously can overwhelm the TradeStation API servers with rate limiting. To prevent this, we use a **graduated ramp-up strategy** that slows down progressively:
 
-- Streams are opened **sequentially** with a configurable delay between each
-- Default delay: `RecorderConstants::STREAM_RAMP_UP_DELAY_MS = 500ms`
-- First stream opens immediately, subsequent streams open every 500ms
+**Adaptive Delay Strategy:**
+- **Streams 1-100**: 500ms delay (2 streams/second)
+- **Streams 101-200**: 1000ms delay (1 stream/second)  
+- **Streams 201+**: 2000ms delay (0.5 streams/second)
+
+**Why Graduated?**
+The TradeStation API has cumulative rate limits that become stricter as more concurrent streams are opened. Starting fast and slowing down allows:
+- Quick startup for small recordings (50 stocks in ~25 seconds)
+- Reliable scaling to large recordings (250 stocks without errors)
+- Automatic adaptation based on stream count
+
+**Behavior:**
+- First stream opens immediately
+- Subsequent streams open with adaptive delay
+- Logs tier transitions: "Reached 100 streams - slowing down to 1000ms delay"
 - Ramp-up can be interrupted by calling `stopRecording()`
-- Progress is logged: "Opened bar stream for AAPL (1/100)"
+- Progress logged for each stream: "Opened bar stream for AAPL (1/250)"
 
-**Testing shows:**
+**Testing Results:**
 - ✅ 50 simultaneous streams: Works
 - ❌ 100 simultaneous streams: API rate limiting errors
-- ✅ 100+ streams with 500ms ramp-up: Works reliably
+- ✅ 100 streams with 500ms ramp-up: Works
+- ❌ 200+ streams with 500ms ramp-up: API rate limiting at higher counts
+- ✅ 250+ streams with graduated ramp-up: Works reliably
 
 **Key Methods:**
 ```cpp

@@ -266,16 +266,28 @@ namespace MarketDepthConstants
 namespace RecorderConstants
 {
     /**
-     * @brief Delay in milliseconds between opening each stream during recorder startup
+     * @brief Graduated ramp-up delays for stream opening during recorder startup
      *
-     * When recording a large number of symbols (e.g., 100+ stocks), opening all streams
-     * simultaneously can overwhelm the TradeStation API servers. This delay staggers
-     * the stream creation to stay within the server's rate limits.
+     * When recording a large number of symbols, the TradeStation API has cumulative
+     * rate limits that become stricter as more streams are opened. We use a graduated
+     * delay strategy that slows down progressively:
      *
-     * Testing shows that 50 simultaneous streams work, but 100+ fails. A 500ms delay
-     * provides a safe ramp-up rate (~2 streams/second) that prevents server overload.
+     * - Streams 1-100:   500ms delay (2 streams/second)
+     * - Streams 101-200: 1000ms delay (1 stream/second)
+     * - Streams 201+:    2000ms delay (0.5 streams/second)
+     *
+     * Testing shows:
+     * - 50 simultaneous streams: ✅ Works
+     * - 100 simultaneous streams: ❌ API rate limiting errors
+     * - 100+ with 500ms ramp-up: ✅ Works up to ~100 streams
+     * - 200+ requires slower ramp-up to avoid cumulative rate limits
      *
      * @note Applies to both bar and market depth streams
      */
-    inline constexpr int STREAM_RAMP_UP_DELAY_MS = 500;
+    inline constexpr int STREAM_RAMP_UP_DELAY_TIER1_MS = 500;   // First 100 streams
+    inline constexpr int STREAM_RAMP_UP_DELAY_TIER2_MS = 1000;  // Streams 101-200
+    inline constexpr int STREAM_RAMP_UP_DELAY_TIER3_MS = 2000;  // Streams 201+
+    
+    inline constexpr int STREAM_RAMP_UP_TIER1_THRESHOLD = 100;  // Switch to tier 2 after this many
+    inline constexpr int STREAM_RAMP_UP_TIER2_THRESHOLD = 200;  // Switch to tier 3 after this many
 } // namespace RecorderConstants
