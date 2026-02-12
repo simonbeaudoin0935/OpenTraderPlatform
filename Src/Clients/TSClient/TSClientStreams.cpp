@@ -34,8 +34,7 @@ QPointer<StreamPositions> TSClient::openStreamPositions(const QString& accountID
             auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
             OBJ_ASSUME_TRUE(c);
 
-            // Emit signal that stream count has changed
-            emit openStreamCountChanged(Stream::getNumberOpenStream());
+            // Don't emit signal for Positions stream (singleton, always 0 or 1)
         },
         Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
     // finishes executing this lambda so that a valid pointer is returned
@@ -69,8 +68,7 @@ QPointer<StreamOrders> TSClient::openStreamOrders(const QString& accountID)
             auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
             OBJ_ASSUME_TRUE(c);
 
-            // Emit signal that stream count has changed
-            emit openStreamCountChanged(Stream::getNumberOpenStream());
+            // Don't emit signal for Orders stream (singleton, always 0 or 1)
         },
         Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
     // finishes executing this lambda so that a valid pointer is returned
@@ -120,7 +118,9 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString& symbol,
                     connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
                 OBJ_ASSUME_TRUE(c);
 
-                emit openStreamCountChanged(Stream::getNumberOpenStream());
+                // Emit updated stream counts
+                emit streamCountsChanged(StreamBars::getNumberOfBarsStreams(),
+                                         StreamMarketDepthQuote::getNumberOfMarketDepthStreams());
 
                 INFO << "Opened replay StreamBars for" << symbol;
             },
@@ -149,8 +149,9 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString& symbol,
                     connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
                 OBJ_ASSUME_TRUE(c);
 
-                // Emit signal that stream count has changed
-                emit openStreamCountChanged(Stream::getNumberOpenStream());
+                // Emit updated stream counts
+                emit streamCountsChanged(StreamBars::getNumberOfBarsStreams(),
+                                         StreamMarketDepthQuote::getNumberOfMarketDepthStreams());
             },
             Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
         // finishes executing this lambda so that a valid pointer is returned
@@ -159,11 +160,34 @@ QPointer<StreamBars> TSClient::openStreamBars(const QString& symbol,
     return stream;
 }
 
-QPointer<StreamMarketDepthQuote> TSClient::openStreamMarketDepthQuote(const QString& symbol, unsigned int depth)
+std::expected<QPointer<StreamMarketDepthQuote>, QFuture<QPointer<StreamMarketDepthQuote>>>
+TSClient::openStreamMarketDepthQuote(const QString& symbol, unsigned int depth)
 {
     OBJ_ASSUME_GTE(depth, 1u);
     OBJ_ASSUME_LTE(depth, 20u);
 
+    // Check if we can open immediately (atomic check, thread-safe)
+    if (!StreamMarketDepthQuote::canOpenStream())
+    {
+        // Limit reached - queue the request
+        INFO << "Market depth stream limit reached (" << StreamMarketDepthQuote::getNumberOfMarketDepthStreams() << "/"
+             << MarketDepthConstants::MAX_CONCURRENT_STREAMS << ") - queuing request for" << symbol;
+
+        // Create promise/future pair
+        QPromise<QPointer<StreamMarketDepthQuote>> promise;
+        QFuture<QPointer<StreamMarketDepthQuote>> future = promise.future();
+        promise.start();
+
+        // Add to queue (move promise since it's not copyable)
+        m_marketDepthQueue.emplace_back(symbol, depth, std::move(promise));
+
+        INFO << "Request queued for" << symbol << "- Queue size:" << m_marketDepthQueue.size();
+
+        // Return future in expected's error channel
+        return std::unexpected(future);
+    }
+
+    // Can open immediately - proceed with normal flow
     QPointer<StreamMarketDepthQuote> stream;
 
     if (m_mode == Mode::Replay)
@@ -188,7 +212,9 @@ QPointer<StreamMarketDepthQuote> TSClient::openStreamMarketDepthQuote(const QStr
                     connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
                 OBJ_ASSUME_TRUE(c);
 
-                emit openStreamCountChanged(Stream::getNumberOpenStream());
+                // Emit updated stream counts
+                emit streamCountsChanged(StreamBars::getNumberOfBarsStreams(),
+                                         StreamMarketDepthQuote::getNumberOfMarketDepthStreams());
 
                 INFO << "Opened replay StreamMarketDepthQuote for" << symbol;
             },
@@ -219,13 +245,15 @@ QPointer<StreamMarketDepthQuote> TSClient::openStreamMarketDepthQuote(const QStr
                     connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
                 OBJ_ASSUME_TRUE(c);
 
-                // Emit signal that stream count has changed
-                emit openStreamCountChanged(Stream::getNumberOpenStream());
+                // Emit updated stream counts
+                emit streamCountsChanged(StreamBars::getNumberOfBarsStreams(),
+                                         StreamMarketDepthQuote::getNumberOfMarketDepthStreams());
             },
             Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
         // finishes executing this lambda so that a valid pointer is returned
     }
 
+    // Return stream in expected's value channel
     return stream;
 }
 
@@ -244,7 +272,11 @@ void TSClient::closeStream(Stream* const stream)
             // Use QueuedConnection to ensure destructor has run first
             QMetaObject::invokeMethod(
                 this,
-                [this]() { emit openStreamCountChanged(Stream::getNumberOpenStream()); },
+                [this]()
+                {
+                    emit streamCountsChanged(StreamBars::getNumberOfBarsStreams(),
+                                             StreamMarketDepthQuote::getNumberOfMarketDepthStreams());
+                },
                 Qt::QueuedConnection);
         },
         Qt::QueuedConnection);
@@ -372,4 +404,95 @@ void TSClient::onInjectDepthData(const QString& p_symbol, std::shared_ptr<const 
     }
 
     m_replayDepthReplies[p_symbol]->injectData(*p_data);
+}
+
+// ============================================================================
+// Market Depth Queue Processing
+// ============================================================================
+
+void TSClient::processMarketDepthQueue()
+{
+    // Must be called from TSClient thread
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), this->thread());
+
+    // Check if shutdown in progress
+    if (Stream::isShuttingDown())
+    {
+        DEBUG << "Shutdown in progress - clearing market depth queue";
+        m_marketDepthQueue.clear();
+        return;
+    }
+
+    // Check if queue is empty
+    if (m_marketDepthQueue.empty())
+    {
+        DEBUG << "Market depth queue is empty - nothing to process";
+        return;
+    }
+
+    // Check if we can open a new stream (should always be true here, but verify)
+    if (!StreamMarketDepthQuote::canOpenStream())
+    {
+        WARNING << "processMarketDepthQueue called but limit still reached - count:"
+                << StreamMarketDepthQuote::getNumberOfMarketDepthStreams();
+        return;
+    }
+
+    // Get the next request from queue (FIFO)
+    PendingMarketDepthRequest request = std::move(m_marketDepthQueue.front());
+    m_marketDepthQueue.pop_front();
+
+    INFO << "Processing queued market depth request for" << request.symbol
+         << "- Queue size after dequeue:" << m_marketDepthQueue.size();
+
+    // Open the stream (same logic as immediate open)
+    QPointer<StreamMarketDepthQuote> stream;
+
+    if (m_mode == Mode::Replay)
+    {
+        DEBUG << "Opening queued replay StreamMarketDepthQuote for" << request.symbol;
+
+        // Already on TSClient thread - no need for invokeMethod
+        auto* mockReply = new MockNetworkReply(this);
+        Q_CHECK_PTR(mockReply);
+
+        m_replayDepthReplies[request.symbol] = mockReply;
+
+        stream = new StreamMarketDepthQuote(request.symbol, mockReply, this);
+        Q_CHECK_PTR(stream);
+
+        auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+        OBJ_ASSUME_TRUE(c);
+
+        INFO << "Opened queued replay StreamMarketDepthQuote for" << request.symbol;
+    }
+    else
+    {
+        // Live mode
+        DEBUG << "Opening queued live StreamMarketDepthQuote for" << request.symbol;
+
+        QUrlQuery query;
+        query.addQueryItem("maxlevels", QString::number(request.depth));
+
+        QNetworkRequest netRequest =
+            buildNetworkRequest(QString(TSClientEndpoints::STREAM_MARKET_DEPTH_QUOTE).arg(request.symbol), query);
+
+        // Already on TSClient thread - no need for invokeMethod
+        QNetworkReply* reply = m_networkManager->get(netRequest);
+        Q_CHECK_PTR(reply);
+
+        stream = new StreamMarketDepthQuote(request.symbol, reply, this);
+        Q_CHECK_PTR(stream);
+
+        auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+        OBJ_ASSUME_TRUE(c);
+
+        INFO << "Opened queued live StreamMarketDepthQuote for" << request.symbol;
+    }
+
+    // Fulfill the promise with the created stream
+    request.promise.addResult(stream);
+    request.promise.finish();
+
+    DEBUG << "Queued market depth stream fulfilled for" << request.symbol;
 }

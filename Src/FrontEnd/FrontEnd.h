@@ -22,7 +22,7 @@ class FrontEnd : public QObject
     void tradeStationAccountsReceived(QVector<Account> results);
 
     void tradeStationDataUsageUpdated(qsizetype newDataUsage);
-    void streamCountUpdated(int count);
+    void streamCountsUpdated(size_t barsCount, size_t marketDepthCount);
 
     void newPositionReceived(QString account, Position position);
     void positionDeleted(QString account, QString positionID);
@@ -41,7 +41,7 @@ class FrontEnd : public QObject
     // Usage update
     virtual void onTSClientDataUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onMemoryUsageUpdate(qsizetype newDataUsage) = 0;
-    virtual void onStreamCountUpdate(int count) = 0;
+    virtual void onStreamCountUpdate(size_t barsCount, size_t marketDepthCount) = 0;
 
     virtual void onTradeStationAccountsReceived(QVector<Account> results) = 0;
     virtual void onNewPositionReceived(QString account, Position position) = 0;

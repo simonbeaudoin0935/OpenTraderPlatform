@@ -10,7 +10,6 @@
 #define LOGGING_CATEGORY StreamLog
 Q_LOGGING_CATEGORY(LOGGING_CATEGORY, "Stream")
 
-size_t Stream::s_numberOfStream = 0;
 bool Stream::s_isShuttingDown = false;
 
 
@@ -18,8 +17,6 @@ Stream::Stream(QNetworkReply* reply, QObject* parent) : QObject(parent), m_netwo
 {
     Q_CHECK_PTR(reply);
     Q_CHECK_PTR(parent);
-
-    s_numberOfStream++;
 
     m_networkReply->setParent(this);
 
@@ -44,8 +41,6 @@ Stream::~Stream()
 
     // Stream must be destroyed in the same thread where it was created
     OBJ_ASSUME_EQUAL(QThread::currentThread(), this->thread());
-
-    s_numberOfStream--;
 
     // Disconnect finished signal BEFORE aborting to prevent onReplyFinished() from firing.
     // The intentional close path emits streamClosed(Closed) below instead.

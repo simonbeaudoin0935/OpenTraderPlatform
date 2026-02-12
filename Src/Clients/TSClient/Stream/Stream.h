@@ -50,15 +50,15 @@ class Stream : public QObject
     ~Stream();
     Q_DISABLE_COPY_MOVE(Stream)
 
-    static size_t getNumberOpenStream()
-    {
-        return s_numberOfStream;
-    }
-
     // Called by MainApp before starting shutdown sequence
     static void setShuttingDown(bool shuttingDown)
     {
         s_isShuttingDown = shuttingDown;
+    }
+
+    static bool isShuttingDown()
+    {
+        return s_isShuttingDown;
     }
 
     /**
@@ -160,6 +160,5 @@ class Stream : public QObject
     QTimer m_heartbeatTimer;
     bool m_heartbeatPaused = false; // When true, don't restart timer on data reception
 
-    static size_t s_numberOfStream;
     static bool s_isShuttingDown;
 };

@@ -12,6 +12,9 @@
 #include <QPointer>
 #include <QThread>
 #include <QFuture>
+#include <QPromise>
+#include <QQueue>
+#include <deque>
 
 #include "AuthToken.h"
 #include "ClientToken.h"
@@ -65,6 +68,34 @@ class TSClient final : public QObject
         Replay ///< Replay mode - uses MockNetworkReply for injected data
     };
     Q_ENUM(Mode)
+
+    /**
+     * @brief Pending market depth stream request
+     *
+     * Stores information needed to open a queued market depth stream
+     * when a slot becomes available (count < MAX_CONCURRENT_STREAMS).
+     */
+    struct PendingMarketDepthRequest
+    {
+        QString symbol;                                     ///< Stock ticker symbol
+        unsigned int depth;                                 ///< Number of depth levels (1-20)
+        QPromise<QPointer<StreamMarketDepthQuote>> promise; ///< Promise to fulfill when stream opens
+
+        // Constructor that moves the promise
+        PendingMarketDepthRequest(QString p_symbol,
+                                  unsigned int p_depth,
+                                  QPromise<QPointer<StreamMarketDepthQuote>>&& p_promise)
+            : symbol(std::move(p_symbol)), depth(p_depth), promise(std::move(p_promise))
+        {
+        }
+
+        // Make movable but not copyable (QPromise is move-only)
+        PendingMarketDepthRequest() = delete;
+        PendingMarketDepthRequest(const PendingMarketDepthRequest&) = delete;
+        PendingMarketDepthRequest& operator=(const PendingMarketDepthRequest&) = delete;
+        PendingMarketDepthRequest(PendingMarketDepthRequest&&) = default;
+        PendingMarketDepthRequest& operator=(PendingMarketDepthRequest&&) = default;
+    };
 
 
     // Singleton : Instance getter
@@ -146,11 +177,19 @@ class TSClient final : public QObject
     /*
      * Creates a MarketDepthQuote Stream
      *
-     * @return : nullptr if the stream could not be created
+     * @param symbol Stock ticker symbol
+     * @param depth Number of market depth levels to request (1-20, default 20)
+     * @return If count < MAX_CONCURRENT_STREAMS: std::expected with QPointer to stream
+     *         If count >= MAX_CONCURRENT_STREAMS: std::expected with QFuture that completes when slot available
+     *
+     * @note TradeStation API enforces maximum of 10 concurrent market depth streams
+     * @note If limit reached, request is queued (FIFO) and QFuture will complete after ~1000ms delay
+     * @note Caller MUST handle QFuture - cannot cancel queued requests
+     *
      * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/StreamMarketDepthQuotes
      */
-    [[nodiscard]] QPointer<StreamMarketDepthQuote> openStreamMarketDepthQuote(const QString& symbol,
-                                                                              unsigned int depth = 20);
+    [[nodiscard]] std::expected<QPointer<StreamMarketDepthQuote>, QFuture<QPointer<StreamMarketDepthQuote>>>
+    openStreamMarketDepthQuote(const QString& symbol, unsigned int depth = 20);
 
     /*
      * Creates a StreaOrders Stream
@@ -175,9 +214,15 @@ class TSClient final : public QObject
         return m_totalDataReceivedBytes;
     };
     [[nodiscard]] bool isCleanedUp();
+
+    /**
+     * @brief Get total number of open streams (all types combined)
+     * @return Sum of all stream type counters
+     */
     [[nodiscard]] static size_t getStreamCount()
     {
-        return Stream::getNumberOpenStream();
+        return StreamBars::getNumberOfBarsStreams() + StreamMarketDepthQuote::getNumberOfMarketDepthStreams() +
+               StreamPositions::getNumberOfPositionStreams() + StreamOrders::getNumberOfOrderStreams();
     }
     [[nodiscard]] bool isAuthenticated() const
     {
@@ -233,6 +278,16 @@ class TSClient final : public QObject
      */
     [[nodiscard]] MockNetworkReply* getMarketDepthReplyForSymbol(const QString& p_symbol) const;
 
+    /**
+     * @brief Check if the market depth queue is empty
+     * @return true if no pending requests, false otherwise
+     * @note Thread-safe when called from TSClient thread
+     */
+    [[nodiscard]] bool isMarketDepthQueueEmpty() const
+    {
+        return m_marketDepthQueue.empty();
+    }
+
   public slots:
     // Authentication methods
     void launchAuthProcess();
@@ -257,11 +312,28 @@ class TSClient final : public QObject
      */
     void onInjectDepthData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
 
+    /**
+     * @brief Process the next queued market depth stream request
+     *
+     * Called after a market depth stream is destroyed and the queue is not empty.
+     * Delayed by QUEUE_PROCESS_DELAY_MS to allow TCP FIN to propagate to server.
+     *
+     * @note Must be called from TSClient thread
+     * @note Automatically stops processing if queue is empty or shutdown in progress
+     */
+    void processMarketDepthQueue();
+
   signals:
     // Emited at basically every new message
     void totalDataReceivedBytesIncreased(qsizetype dataSize);
 
-    void openStreamCountChanged(size_t count);
+    /**
+     * @brief Emitted when stream counts change
+     * @param barsCount Number of currently open bar streams
+     * @param marketDepthCount Number of currently open market depth streams
+     * @note Does not track Positions/Orders streams (always 0 or 1)
+     */
+    void streamCountsChanged(size_t barsCount, size_t marketDepthCount);
 
     void authStateChanged(bool isAuthenticated, QString reason);
 
@@ -306,6 +378,9 @@ class TSClient final : public QObject
     Mode m_mode = Mode::Live;
     QMap<QString, QPointer<MockNetworkReply>> m_replayBarReplies;   // symbol -> MockNetworkReply for bars
     QMap<QString, QPointer<MockNetworkReply>> m_replayDepthReplies; // symbol -> MockNetworkReply for depth
+
+    // Market depth queue for handling concurrent stream limit
+    std::deque<PendingMarketDepthRequest> m_marketDepthQueue;
 
 #ifdef GUI_ENABLED
     GUIAuthHandler* m_authHandler = nullptr; // GUI authentication handler

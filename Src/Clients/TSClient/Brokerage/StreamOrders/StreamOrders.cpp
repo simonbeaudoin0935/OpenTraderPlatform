@@ -1,15 +1,31 @@
 #include "StreamOrders.h"
 #include "TSClient.h"
 #include "Logging.h"
+#include "Assume.h"
 
 #define LOGGING_CATEGORY StreamLog
+
+// Initialize static counter
+size_t StreamOrders::s_numberOfOrderStreams = 0;
 
 StreamOrders::StreamOrders(const QString& accountID, QNetworkReply* reply, QObject* parent)
     : StreamBrokerage(reply, parent), m_accountID(accountID)
 {
     this->setObjectName("Stream::Orders::" + accountID);
 
-    DEBUG << "Stream created";
+    // Assert that we're not creating a second orders stream
+    OBJ_ASSUME_EQUAL(s_numberOfOrderStreams, 0u);
+
+    s_numberOfOrderStreams++;
+
+    DEBUG << "Stream created - Total order streams:" << s_numberOfOrderStreams;
+}
+
+StreamOrders::~StreamOrders()
+{
+    s_numberOfOrderStreams--;
+
+    DEBUG << "Stream destroyed - Total order streams:" << s_numberOfOrderStreams;
 }
 
 void StreamOrders::processJsonObject(const QJsonObject& jsonObj)

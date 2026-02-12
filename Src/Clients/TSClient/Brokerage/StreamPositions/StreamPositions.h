@@ -9,13 +9,23 @@ class StreamPositions final : public StreamBrokerage
 
   public:
     explicit StreamPositions(const QString& accountID, QNetworkReply* reply, QObject* parent = nullptr);
-    ~StreamPositions() = default;
+    ~StreamPositions();
     Q_DISABLE_COPY_MOVE(StreamPositions)
 
     QString getAccountID()
     {
         return m_accountID;
     };
+
+    /**
+     * @brief Get the number of currently open position streams
+     * @return Current count (should always be 0 or 1)
+     * @note There should only ever be one positions stream per application instance
+     */
+    static size_t getNumberOfPositionStreams()
+    {
+        return s_numberOfPositionStreams;
+    }
 
   signals:
     void newPositionReceived(Position position);
@@ -25,4 +35,7 @@ class StreamPositions final : public StreamBrokerage
     void processJsonObject(const QJsonObject& jsonObj) override;
 
     QString m_accountID;
+
+    /// Counter for position streams (should never exceed 1)
+    static size_t s_numberOfPositionStreams;
 };

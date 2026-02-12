@@ -235,4 +235,26 @@ namespace MarketDepthConstants
 {
     // Default number of market depth levels to request from TradeStation
     inline constexpr int DEFAULT_MARKET_DEPTH_LEVELS = 10;
+
+    /**
+     * @brief Maximum number of concurrent market depth quote streams
+     *
+     * TradeStation API enforces a hard limit of 10 concurrent market depth quote streams.
+     * Attempting to open more than 10 streams results in immediate connection failure
+     * with QNetworkReply::UnknownContentError.
+     *
+     * @note This limit applies to both Live and Replay modes for consistency
+     */
+    inline constexpr size_t MAX_CONCURRENT_STREAMS = 10;
+
+    /**
+     * @brief Delay in milliseconds before processing queued stream requests
+     *
+     * When a market depth stream is closed and queued requests exist, we delay processing
+     * the next request to allow the TCP FIN packet to propagate to the TradeStation server.
+     * This prevents the server from seeing 11 concurrent connections due to network timing.
+     *
+     * @note Value of 1000ms provides sufficient time for TCP close to complete
+     */
+    inline constexpr int QUEUE_PROCESS_DELAY_MS = 1000;
 } // namespace MarketDepthConstants

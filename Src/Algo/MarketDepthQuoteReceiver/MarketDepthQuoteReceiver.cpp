@@ -39,9 +39,43 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream()
 
     DEBUG << "Using market depth level:" << marketDepthLevel;
 
-    m_stream = TSClient::getInstance()->openStreamMarketDepthQuote(m_symbol, marketDepthLevel);
+    // Request stream - may return immediately or queued QFuture
+    auto result = TSClient::getInstance()->openStreamMarketDepthQuote(m_symbol, marketDepthLevel);
 
-    Q_CHECK_PTR(m_stream);
+    if (result.has_value())
+    {
+        // Stream opened immediately
+        m_stream = result.value();
+        Q_CHECK_PTR(m_stream);
+
+        DEBUG << "Market depth stream opened immediately for" << m_symbol;
+
+        connectStreamSignals();
+    }
+    else
+    {
+        // Limit reached - request queued, will complete via QFuture
+        QFuture<QPointer<StreamMarketDepthQuote>> future = result.error();
+
+        INFO << "Market depth stream limit reached - request queued for" << m_symbol;
+
+        // Use .then() continuation for cleaner async handling
+        future.then(this,
+                    [this](QPointer<StreamMarketDepthQuote> stream)
+                    {
+                        m_stream = stream;
+                        Q_CHECK_PTR(m_stream);
+
+                        INFO << "Queued market depth stream opened for" << m_symbol;
+
+                        connectStreamSignals();
+                    });
+    }
+}
+
+void MarketDepthQuoteReceiver::connectStreamSignals()
+{
+    OBJ_ASSUME_DIFF(m_stream, nullptr);
 
     connect(m_stream,
             &StreamMarketDepthQuote::newMarketDepthQuoteReceived,

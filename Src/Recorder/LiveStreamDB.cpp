@@ -110,25 +110,45 @@ void LiveStreamDB::startRecording()
         }
         else
         {
-            QPointer<StreamMarketDepthQuote> stream =
-                TSClient::getInstance()->openStreamMarketDepthQuote(symbol,
-                                                                    10); // depth 10
-            OBJ_ASSUME_TRUE(stream != nullptr);
+            // Open market depth stream - check availability first
+            // For recorder, we don't queue - if limit is reached, skip this symbol
+            if (!StreamMarketDepthQuote::canOpenStream())
+            {
+                WARNING << "Market depth stream limit reached ("
+                        << StreamMarketDepthQuote::getNumberOfMarketDepthStreams() << "/"
+                        << MarketDepthConstants::MAX_CONCURRENT_STREAMS << ") - skipping" << symbol;
+                continue; // Skip this symbol
+            }
 
+            auto result = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10); // depth 10
 
-            QObject::connect(stream,
-                             &StreamMarketDepthQuote::receivedNewRawData,
-                             this,
-                             [this, symbol = stream->getSymbol()](const QByteArray& rawData)
-                             { onReceivedNewRawDataForStock(symbol, rawData); });
+            if (result.has_value())
+            {
+                // Stream opened immediately (expected path)
+                QPointer<StreamMarketDepthQuote> stream = result.value();
+                OBJ_ASSUME_TRUE(stream != nullptr);
 
-            QObject::connect(stream,
-                             &Stream::streamClosed,
-                             this,
-                             [this, symbol](Stream::StreamError reason, QString message)
-                             { handleStreamError(symbol, reason, message); });
+                QObject::connect(stream,
+                                 &StreamMarketDepthQuote::receivedNewRawData,
+                                 this,
+                                 [this, symbol = stream->getSymbol()](const QByteArray& rawData)
+                                 { onReceivedNewRawDataForStock(symbol, rawData); });
 
-            m_streamMarketDepthQuotes[symbol] = stream;
+                QObject::connect(stream,
+                                 &Stream::streamClosed,
+                                 this,
+                                 [this, symbol](Stream::StreamError reason, QString message)
+                                 { handleStreamError(symbol, reason, message); });
+
+                m_streamMarketDepthQuotes[symbol] = stream;
+            }
+            else
+            {
+                // Should not happen - we checked canOpenStream() above
+                CRITICAL
+                    << "Unexpected: openStreamMarketDepthQuote returned queued future despite canOpenStream() check"
+                    << "- skipping" << symbol;
+            }
         }
     }
 }
@@ -271,24 +291,47 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
             m_streamMarketDepthQuotes.remove(symbol);
         }
 
-        // Open new stream
-        StreamMarketDepthQuote* stream = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10);
-        Q_CHECK_PTR(stream);
+        // Open new stream - check availability first
+        // For recorder, we don't queue - if limit is reached, we'll retry later
+        if (!StreamMarketDepthQuote::canOpenStream())
+        {
+            WARNING << "Market depth stream limit reached during recovery for" << symbol << "("
+                    << StreamMarketDepthQuote::getNumberOfMarketDepthStreams() << "/"
+                    << MarketDepthConstants::MAX_CONCURRENT_STREAMS << ") - will retry later";
+            // Don't mark as recovered - will retry on next handleStreamError call
+            return;
+        }
 
-        QObject::connect(stream,
-                         &StreamMarketDepthQuote::receivedNewRawData,
-                         this,
-                         [this, symbol](const QByteArray& rawData) { onReceivedNewRawDataForStock(symbol, rawData); });
+        auto result = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10);
 
-        QObject::connect(stream,
-                         &Stream::streamClosed,
-                         this,
-                         [this, symbol](Stream::StreamError reason, QString message)
-                         { handleStreamError(symbol, reason, message); });
+        if (result.has_value())
+        {
+            // Stream opened immediately (expected path)
+            StreamMarketDepthQuote* stream = result.value();
+            Q_CHECK_PTR(stream);
 
-        m_streamMarketDepthQuotes[symbol] = stream;
-        successfulRecoveries[symbol]++;
-        INFO << "Successfully recovered market depth stream for" << symbol;
+            QObject::connect(stream,
+                             &StreamMarketDepthQuote::receivedNewRawData,
+                             this,
+                             [this, symbol](const QByteArray& rawData)
+                             { onReceivedNewRawDataForStock(symbol, rawData); });
+
+            QObject::connect(stream,
+                             &Stream::streamClosed,
+                             this,
+                             [this, symbol](Stream::StreamError reason, QString message)
+                             { handleStreamError(symbol, reason, message); });
+
+            m_streamMarketDepthQuotes[symbol] = stream;
+            successfulRecoveries[symbol]++;
+            INFO << "Successfully recovered market depth stream for" << symbol;
+        }
+        else
+        {
+            // Should not happen - we checked canOpenStream() above
+            CRITICAL << "Unexpected: openStreamMarketDepthQuote returned queued future despite canOpenStream() check"
+                     << "- will retry recovery for" << symbol;
+        }
     }
 }
 
