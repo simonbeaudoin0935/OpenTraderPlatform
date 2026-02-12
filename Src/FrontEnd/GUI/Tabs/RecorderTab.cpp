@@ -266,13 +266,17 @@ void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, QString
     }
     else
     {
+        // Check if this is just a transient "Connecting..." state during token refresh
+        // If so, don't stop recording - the refresh will complete momentarily
+        bool isTransientRefreshState = p_reason.contains("Connecting", Qt::CaseInsensitive);
+
         // Disable the start button and show reason
         m_startButton->setEnabled(false);
         m_startButton->setToolTip(QString("Cannot start recording: %1").arg(p_reason));
         qWarning() << "RecorderTab: TradeStation not authenticated -" << p_reason;
 
-        // If currently recording, we should stop
-        if (m_isRecording)
+        // If currently recording, we should stop ONLY if this is a real auth loss (not a refresh)
+        if (m_isRecording && !isTransientRefreshState)
         {
             qCritical() << "RecorderTab: Lost authentication during recording. Stopping recording.";
             onStopRecording();
@@ -282,6 +286,10 @@ void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, QString
                                          "Recording has been stopped.\n\n"
                                          "Reason: %1")
                                      .arg(p_reason));
+        }
+        else if (m_isRecording && isTransientRefreshState)
+        {
+            qDebug() << "RecorderTab: Token refresh in progress during recording - ignoring transient auth state";
         }
     }
 }
