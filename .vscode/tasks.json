@@ -277,6 +277,19 @@
                 "reveal": "always",
                 "focus": true,
                 "panel": "shared"
+            }
+        },
+        {
+            "label": "build-then-run",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/Src/L2Trader",
+            "args": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
             },
             "dependsOn": [
                 "build"
@@ -365,135 +378,6 @@
                 "isDefault": false
             },
             "problemMatcher": []
-        },
-        {
-            "label": "run-barcache-test",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/All/Tests/test_barcache",
-            "args": [
-                "--cache-root-dir=/tmp/l2trader_test_cache",
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "dependsOn": [
-                "build-all"
-            ]
-        },
-        {
-            "label": "run-barcache-test-ubsan",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/UBSan/Tests/test_barcache",
-            "args": [
-                "--cache-root-dir=/tmp/l2trader_test_cache",
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "dependsOn": [
-                "build-ubsan"
-            ]
-        },
-        {
-            "label": "run-barcache-test-asan",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/ASan/Tests/test_barcache",
-            "args": [
-                "--cache-root-dir=/tmp/l2trader_test_cache",
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "dependsOn": [
-                "build-asan"
-            ]
-        },
-        {
-            "label": "run-fmpclient-test",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/Tests/test_fmpclient",
-            "args": [
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "dependsOn": [
-                "build-all"
-            ]
-        },
-        {
-            "label": "run-tsclient-test",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/Tests/test_tradestationclient",
-            "args": [
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "dependsOn": [
-                "build-all"
-            ]
-        },
-        {
-            "label": "run-tsclient-test-ubsan",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/UBSan/Tests/test_tradestationclient",
-            "args": [
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "dependsOn": [
-                "build-ubsan"
-            ]
-        },
-        {
-            "label": "run-tsclient-test-asan",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/ASan/Tests/test_tradestationclient",
-            "args": [
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "dependsOn": [
-                "build-asan"
-            ]
         },
         {
             "label": "run-valgrind",

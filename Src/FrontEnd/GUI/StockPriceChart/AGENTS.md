@@ -62,7 +62,7 @@ The replay controls use a 4-state machine managed by `ChartToolbar`:
      │
      └─ Play button pressed
         (back to Playing)
-     
+
      │
      └─ exitReplayMode()
         (back to Inactive)
@@ -178,12 +178,12 @@ public:
         Playing,          // Actively replaying
         Paused            // Paused during playback
     };
-    
+
     // State management
     ReplayState getReplayState() const;
     void setReplayState(ReplayState state);
     void updateUIControlStates();  // Apply enable/disable based on state
-    
+
     // Replay controls
     QDate getSelectedReplayDay() const;
     void setSelectedReplayDay(const QDate& date);
@@ -194,7 +194,7 @@ public:
     void setReplayPlaying(bool playing);
     void togglePlayPause();
     void updateReplayInfo(const QTime& startTime, const QTime& endTime, int barCount);
-    
+
     // Scan cache for available days
     void scanAndPopulateReplayDays();
     void setAvailableReplayDays(const QList<QDate>& days);
@@ -204,11 +204,11 @@ private slots:
     void onReplayDayChanged(int index);   // Emits signal + guard
     void onReplayTimeChanged(const QTime& time);  // Emits signal + guard
     void onWheelRatioChanged(int index);
-    
+
 private:
     void updatePlayPauseButton();   // Updates button text/color
     void updateUIControlStates();   // Disable/enable controls per state
-    
+
     ReplayState m_replayState = ReplayState::Inactive;
 };
 ```
@@ -278,7 +278,7 @@ void StockPriceChart::onReplayDayChanged(const QDate& date) {
     if (MainApp::isInReplayMode()) {
         QTime currentTime = chartToolbar->getReplayStartTime();
         ReplayEngine::PlaybackSpeed speed = chartToolbar->getReplaySpeed();
-        
+
         // Trigger preload with new day
         MainApp::getInstance()->preloadChartForReplay(date, currentTime, speed);
     }
@@ -299,10 +299,10 @@ void StockPriceChart::onReplayDayChanged(const QDate& date) {
 ```cpp
 void StockPriceChart::onReplayDataLoadFailed(const QString& errorMessage) {
     qCWarning(ChartLog) << "Replay data load failed:" << errorMessage;
-    
+
     // Clear info to show failure
     chartToolbar->updateReplayInfo(QTime(), QTime(), 0);
-    
+
     qCCritical(ChartLog) << "Failed to preload replay data:" << errorMessage;
 }
 ```
@@ -342,13 +342,13 @@ MainAlgo (MainAlgoThread)
     └─ displayedStockReceivedNewBar(symbol, bar)
             │
             ▼ (cross-thread signal)
-    
+
 GUIFrontend (Main Thread)
     │
     └─ onCurrentHighlightedStockBarReceived(symbol, bar)
             │
             ▼
-    
+
 StockPriceChart::addLiveBar(symbol, bar)
     │
     ├─ Update m_latestBar and m_latestBarIndex
