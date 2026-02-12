@@ -210,7 +210,8 @@ bool TSClient::isCleanedUp()
 {
     // The pending requests tracking was removed from TSClient.
     // The isCleanedUp() check is now primarily about verifying no open streams remain.
-    // For now, just check the stream count.
-    return Stream::getNumberOpenStream() == 0;
+    // Check all stream type counters
+    return (StreamBars::getNumberOfBarsStreams() == 0 && StreamMarketDepthQuote::getNumberOfMarketDepthStreams() == 0 &&
+            StreamPositions::getNumberOfPositionStreams() == 0 && StreamOrders::getNumberOfOrderStreams() == 0);
 }
 #endif
