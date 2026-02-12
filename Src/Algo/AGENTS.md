@@ -225,17 +225,13 @@ void MarketDepthQuoteReceiver::createMarketDepthQuoteStream(QString symbol, unsi
         // Stream queued (≥ 10 active streams)
         QFuture<QPointer<StreamMarketDepthQuote>> future = result.error();
         
-        // Use QFutureWatcher to handle async fulfillment
-        auto* watcher = new QFutureWatcher<QPointer<StreamMarketDepthQuote>>(this);
-        connect(watcher, &QFutureWatcher::finished, this, [this, watcher]() {
-            QPointer<StreamMarketDepthQuote> stream = watcher->result();
+        // Use .then() continuation for clean async handling (Qt6)
+        future.then(this, [this](QPointer<StreamMarketDepthQuote> stream) {
             if (!stream.isNull()) {
                 connectStreamSignals(stream);
                 stream->start();
             }
-            watcher->deleteLater();
         });
-        watcher->setFuture(future);
     }
 }
 ```

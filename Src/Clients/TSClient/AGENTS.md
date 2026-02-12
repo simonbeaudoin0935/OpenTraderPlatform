@@ -295,18 +295,13 @@ if (result.has_value()) {
     // Stream queued (≥ 10 active) - received QFuture
     QFuture<QPointer<StreamMarketDepthQuote>> future = result.error();
     
-    // Use QFutureWatcher to handle async fulfillment
-    auto* watcher = new QFutureWatcher<QPointer<StreamMarketDepthQuote>>(this);
-    connect(watcher, &QFutureWatcher<QPointer<StreamMarketDepthQuote>>::finished,
-            this, [this, watcher]() {
-                QPointer<StreamMarketDepthQuote> stream = watcher->result();
-                if (!stream.isNull()) {
-                    connectStreamSignals(stream);
-                    stream->start();
-                }
-                watcher->deleteLater();
-            });
-    watcher->setFuture(future);
+    // Use .then() continuation for clean async handling (Qt6)
+    future.then(this, [this](QPointer<StreamMarketDepthQuote> stream) {
+        if (!stream.isNull()) {
+            connectStreamSignals(stream);
+            stream->start();
+        }
+    });
     
     qInfo() << "Market depth stream queued for" << symbol;
 }
