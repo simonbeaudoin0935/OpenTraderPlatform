@@ -240,7 +240,12 @@ void TSClient::closeStream(Stream* const stream)
             // Use deleteLater() for Stream objects (have timers, network replies, signals)
             stream->deleteLater();
 
-            emit openStreamCountChanged(Stream::getNumberOpenStream());
+            // Emit count change after the stream is actually deleted
+            // Use QueuedConnection to ensure destructor has run first
+            QMetaObject::invokeMethod(
+                this,
+                [this]() { emit openStreamCountChanged(Stream::getNumberOpenStream()); },
+                Qt::QueuedConnection);
         },
         Qt::QueuedConnection);
 }
