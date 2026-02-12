@@ -1,6 +1,7 @@
 #include <QtSql/QSqlQuery>
 #include <QtSql/QSqlError>
 #include <QDebug>
+#include <QFutureWatcher>
 
 #include "LiveStreamDB.h"
 #include "SQL/LiveStreamDBQueries.h"
@@ -110,25 +111,67 @@ void LiveStreamDB::startRecording()
         }
         else
         {
-            QPointer<StreamMarketDepthQuote> stream =
-                TSClient::getInstance()->openStreamMarketDepthQuote(symbol,
-                                                                    10); // depth 10
-            OBJ_ASSUME_TRUE(stream != nullptr);
+            // Open market depth stream - handle potential queuing
+            auto result = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10); // depth 10
 
+            if (result.has_value())
+            {
+                // Stream opened immediately
+                QPointer<StreamMarketDepthQuote> stream = result.value();
+                OBJ_ASSUME_TRUE(stream != nullptr);
 
-            QObject::connect(stream,
-                             &StreamMarketDepthQuote::receivedNewRawData,
-                             this,
-                             [this, symbol = stream->getSymbol()](const QByteArray& rawData)
-                             { onReceivedNewRawDataForStock(symbol, rawData); });
+                QObject::connect(stream,
+                                 &StreamMarketDepthQuote::receivedNewRawData,
+                                 this,
+                                 [this, symbol = stream->getSymbol()](const QByteArray& rawData)
+                                 { onReceivedNewRawDataForStock(symbol, rawData); });
 
-            QObject::connect(stream,
-                             &Stream::streamClosed,
-                             this,
-                             [this, symbol](Stream::StreamError reason, QString message)
-                             { handleStreamError(symbol, reason, message); });
+                QObject::connect(stream,
+                                 &Stream::streamClosed,
+                                 this,
+                                 [this, symbol](Stream::StreamError reason, QString message)
+                                 { handleStreamError(symbol, reason, message); });
 
-            m_streamMarketDepthQuotes[symbol] = stream;
+                m_streamMarketDepthQuotes[symbol] = stream;
+            }
+            else
+            {
+                // Limit reached - request queued
+                QFuture<QPointer<StreamMarketDepthQuote>> future = result.error();
+
+                INFO << "Market depth stream limit reached - queued for" << symbol;
+
+                // Wait for future
+                auto* watcher = new QFutureWatcher<QPointer<StreamMarketDepthQuote>>(this);
+                connect(watcher,
+                        &QFutureWatcher<QPointer<StreamMarketDepthQuote>>::finished,
+                        this,
+                        [this, watcher, symbol]()
+                        {
+                            QPointer<StreamMarketDepthQuote> stream = watcher->result();
+                            OBJ_ASSUME_TRUE(stream != nullptr);
+
+                            QObject::connect(stream,
+                                             &StreamMarketDepthQuote::receivedNewRawData,
+                                             this,
+                                             [this, symbol = stream->getSymbol()](const QByteArray& rawData)
+                                             { onReceivedNewRawDataForStock(symbol, rawData); });
+
+                            QObject::connect(stream,
+                                             &Stream::streamClosed,
+                                             this,
+                                             [this, symbol](Stream::StreamError reason, QString message)
+                                             { handleStreamError(symbol, reason, message); });
+
+                            m_streamMarketDepthQuotes[symbol] = stream;
+
+                            INFO << "Queued market depth stream opened for" << symbol;
+
+                            watcher->deleteLater();
+                        });
+
+                watcher->setFuture(future);
+            }
         }
     }
 }
@@ -271,24 +314,69 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
             m_streamMarketDepthQuotes.remove(symbol);
         }
 
-        // Open new stream
-        StreamMarketDepthQuote* stream = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10);
-        Q_CHECK_PTR(stream);
+        // Open new stream - handle potential queuing
+        auto result = TSClient::getInstance()->openStreamMarketDepthQuote(symbol, 10);
 
-        QObject::connect(stream,
-                         &StreamMarketDepthQuote::receivedNewRawData,
-                         this,
-                         [this, symbol](const QByteArray& rawData) { onReceivedNewRawDataForStock(symbol, rawData); });
+        if (result.has_value())
+        {
+            // Stream opened immediately
+            StreamMarketDepthQuote* stream = result.value();
+            Q_CHECK_PTR(stream);
 
-        QObject::connect(stream,
-                         &Stream::streamClosed,
-                         this,
-                         [this, symbol](Stream::StreamError reason, QString message)
-                         { handleStreamError(symbol, reason, message); });
+            QObject::connect(stream,
+                             &StreamMarketDepthQuote::receivedNewRawData,
+                             this,
+                             [this, symbol](const QByteArray& rawData)
+                             { onReceivedNewRawDataForStock(symbol, rawData); });
 
-        m_streamMarketDepthQuotes[symbol] = stream;
-        successfulRecoveries[symbol]++;
-        INFO << "Successfully recovered market depth stream for" << symbol;
+            QObject::connect(stream,
+                             &Stream::streamClosed,
+                             this,
+                             [this, symbol](Stream::StreamError reason, QString message)
+                             { handleStreamError(symbol, reason, message); });
+
+            m_streamMarketDepthQuotes[symbol] = stream;
+            successfulRecoveries[symbol]++;
+            INFO << "Successfully recovered market depth stream for" << symbol;
+        }
+        else
+        {
+            // Limit reached - request queued
+            QFuture<QPointer<StreamMarketDepthQuote>> future = result.error();
+
+            INFO << "Market depth stream limit reached - queued recovery for" << symbol;
+
+            // Wait for future to complete
+            auto* watcher = new QFutureWatcher<QPointer<StreamMarketDepthQuote>>(this);
+            connect(watcher,
+                    &QFutureWatcher<QPointer<StreamMarketDepthQuote>>::finished,
+                    this,
+                    [this, watcher, symbol]()
+                    {
+                        StreamMarketDepthQuote* stream = watcher->result();
+                        Q_CHECK_PTR(stream);
+
+                        QObject::connect(stream,
+                                         &StreamMarketDepthQuote::receivedNewRawData,
+                                         this,
+                                         [this, symbol](const QByteArray& rawData)
+                                         { onReceivedNewRawDataForStock(symbol, rawData); });
+
+                        QObject::connect(stream,
+                                         &Stream::streamClosed,
+                                         this,
+                                         [this, symbol](Stream::StreamError reason, QString message)
+                                         { handleStreamError(symbol, reason, message); });
+
+                        m_streamMarketDepthQuotes[symbol] = stream;
+                        successfulRecoveries[symbol]++;
+                        INFO << "Queued market depth stream opened for" << symbol;
+
+                        watcher->deleteLater();
+                    });
+
+            watcher->setFuture(future);
+        }
     }
 }
 
