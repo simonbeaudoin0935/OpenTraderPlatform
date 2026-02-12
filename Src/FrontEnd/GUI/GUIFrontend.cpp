@@ -262,7 +262,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             &GUIFrontend::onTSClientDataUsageUpdate,
             Qt::DirectConnection);
 
-    connect(this, &FrontEnd::streamCountUpdated, this, &GUIFrontend::onStreamCountUpdate, Qt::DirectConnection);
+    connect(this, &FrontEnd::streamCountsUpdated, this, &GUIFrontend::onStreamCountUpdate, Qt::DirectConnection);
 
     connect(this,
             &FrontEnd::currentHighlightedStockBarReceived,
@@ -618,9 +618,9 @@ void GUIFrontend::setupDarkTheme(QMainWindow* p_mainWindow)
 
 void GUIFrontend::updateStatusBar()
 {
-    QString message = "TS usage : " + bytesToString(TSClientDataUsage) +
-                      " - Memory usage : " + bytesToString(memoryUsage) +
-                      " - Streams : " + QString::number(streamCount);
+    QString message =
+        "TS usage : " + bytesToString(TSClientDataUsage) + " - Memory usage : " + bytesToString(memoryUsage) +
+        " - Bars : " + QString::number(barsStreamCount) + " - Level2 : " + QString::number(marketDepthStreamCount);
 
     if (m_recordingSize > 0)
     {
@@ -677,9 +677,10 @@ void GUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
     updateStatusBar();
 }
 
-void GUIFrontend::onStreamCountUpdate(int count)
+void GUIFrontend::onStreamCountUpdate(size_t barsCount, size_t marketDepthCount)
 {
-    streamCount = count;
+    barsStreamCount = barsCount;
+    marketDepthStreamCount = marketDepthCount;
     updateStatusBar();
 }
 
