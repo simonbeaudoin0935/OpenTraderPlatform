@@ -620,7 +620,7 @@ void GUIFrontend::updateStatusBar()
 {
     QString message =
         "TS usage : " + bytesToString(TSClientDataUsage) + " - Memory usage : " + bytesToString(memoryUsage) +
-        " - Bars : " + QString::number(barsStreamCount) + " - Level2 : " + QString::number(marketDepthStreamCount);
+        " - Bars : " + QString::number(barsStreamCount) + " - Depth : " + QString::number(marketDepthStreamCount);
 
     if (m_recordingSize > 0)
     {

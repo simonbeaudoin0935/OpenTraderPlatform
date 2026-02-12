@@ -434,7 +434,7 @@ void TUIFrontend::displayStatusBar()
     mvwprintw(m_statusWin,
               0,
               2,
-              "Data: %lld KB | Memory: %lld KB | Bars: %zu | Level2: %zu",
+              "Data: %lld KB | Memory: %lld KB | Bars: %zu | Depth: %zu",
               static_cast<long long>(m_dataUsage / 1024),
               static_cast<long long>(m_memoryUsage / 1024),
               m_barsStreamCount,

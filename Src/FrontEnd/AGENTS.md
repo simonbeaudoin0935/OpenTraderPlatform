@@ -192,8 +192,8 @@ void onMemoryUsageUpdate(qsizetype bytes) {
 
 void onStreamCountUpdate(size_t barsCount, size_t marketDepthCount) {
     // Display active stream counts (separate for bars and Level 2 market depth)
-    // GUI: Status bar displays "Bars: X | Level2: Y"
-    // TUI: Status window displays "Bars: X | Level2: Y"
+    // GUI: Status bar displays "Bars: X | Depth: Y"
+    // TUI: Status window displays "Bars: X | Depth: Y"
     // Helps monitor connection health and TradeStation API limits
     // Note: Market depth has hard limit of 10 concurrent streams
 }
