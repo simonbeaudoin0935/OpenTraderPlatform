@@ -163,7 +163,6 @@ class Bar
         m_close = c;
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const Bar& bar);
     friend QDebug operator<<(QDebug debug, const Bar& bar);
 
   private:

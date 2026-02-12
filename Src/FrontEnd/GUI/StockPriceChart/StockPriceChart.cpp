@@ -372,9 +372,9 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     OBJ_ASSUME_EQUAL(symbol, m_symbol);
     OBJ_ASSUME_TRUE(bar.isValid());
 
-    INFO << "Received bar for" << symbol << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
-         << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "isEndOfHistory:" << bar.getIsEndOfHistory()
-         << "O:" << bar.getOpen() << "H:" << bar.getHigh() << "L:" << bar.getLow() << "C:" << bar.getClose();
+    WARNING << "Received bar for" << symbol << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
+            << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "isEndOfHistory:" << bar.getIsEndOfHistory()
+            << "O:" << bar.getOpen() << "H:" << bar.getHigh() << "L:" << bar.getLow() << "C:" << bar.getClose();
 
     // Putting unlikely because only at the start will this condition be true,
     // so optimizing for the cruising case
