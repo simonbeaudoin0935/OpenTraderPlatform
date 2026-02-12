@@ -10,6 +10,9 @@ void TSClient::launchAuthProcess()
 
     m_authInProgress = true;
 
+    // Emit signal to update UI that authentication is starting
+    emit authStateChanged(false, "Connecting...");
+
 #ifdef GUI_ENABLED
     m_authHandler = new GUIAuthHandler();
     connect(m_authHandler, &GUIAuthHandler::authFinished, this, &TSClient::onAuthFinished);
@@ -24,6 +27,7 @@ void TSClient::launchAuthProcess()
     {
         qCritical(TSClientLog) << "Failed to start authentication process";
         m_authInProgress = false;
+        emit authStateChanged(false, "Failed to start authentication");
     }
 #endif
 }
@@ -107,6 +111,9 @@ void TSClient::refreshAccessToken()
 
     qCDebug(TSClientLog) << "Starting an ASYNC token refresh request";
 
+    // Emit signal to update UI that we're attempting to connect
+    emit authStateChanged(false, "Connecting...");
+
 
     // Build the request and query using our static helper methods
     const QNetworkRequest request = buildRefreshTokenRequest();
@@ -156,11 +163,10 @@ void TSClient::refreshAccessToken()
 
                 if (m_authenticated == false)
                 {
-                    emit authStateChanged(false, "Received refreshed token invalid");
                     qCCritical(TSClientLog) << "Received refreshed token invalid";
 
-                    //TODO probably need more
-                    QTimer::singleShot(1000, this, [this]() { refreshAccessToken(); });
+                    // Don't retry if the token is invalid - user needs to manually re-authenticate
+                    emit authStateChanged(false, "Token expired");
                     break;
                 }
 
