@@ -28,6 +28,7 @@ class LiveStreamDB : public QObject
 
     bool isOpen() const;
     void startRecording();
+    void stopRecording();
 
     QMap<QString, int> getRecoveredTimeouts() const
     {

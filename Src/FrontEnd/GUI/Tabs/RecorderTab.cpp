@@ -437,15 +437,17 @@ void RecorderTab::onStopRecording()
     // Stop refresh timer
     m_refreshTimer->stop();
 
-    // Finalize databases
+    // Stop recording and close streams
     if (m_liveBarsDB)
     {
+        m_liveBarsDB->stopRecording();
         m_liveBarsDB->finalizeUnrecoveredTimeouts();
         m_liveBarsDB.reset();
     }
 
     if (m_liveMarketDepthQuoteDB)
     {
+        m_liveMarketDepthQuoteDB->stopRecording();
         m_liveMarketDepthQuoteDB->finalizeUnrecoveredTimeouts();
         m_liveMarketDepthQuoteDB.reset();
     }

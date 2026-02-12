@@ -133,6 +133,43 @@ void LiveStreamDB::startRecording()
     }
 }
 
+void LiveStreamDB::stopRecording()
+{
+    QString dataType = (streamType == StreamType::Bars) ? "bars" : "market depth quotes";
+    INFO << "Stopping recording for" << dataType;
+
+    if (streamType == StreamType::Bars)
+    {
+        for (auto it = m_streamBars.begin(); it != m_streamBars.end(); ++it)
+        {
+            const QString& symbol = it.key();
+            QPointer<StreamBars> stream = it.value();
+            if (stream)
+            {
+                DEBUG << "Closing bar stream for" << symbol;
+                TSClient::getInstance()->closeStream(stream);
+            }
+        }
+        m_streamBars.clear();
+    }
+    else
+    {
+        for (auto it = m_streamMarketDepthQuotes.begin(); it != m_streamMarketDepthQuotes.end(); ++it)
+        {
+            const QString& symbol = it.key();
+            QPointer<StreamMarketDepthQuote> stream = it.value();
+            if (stream)
+            {
+                DEBUG << "Closing market depth stream for" << symbol;
+                TSClient::getInstance()->closeStream(stream);
+            }
+        }
+        m_streamMarketDepthQuotes.clear();
+    }
+
+    INFO << "Stopped recording for" << dataType;
+}
+
 void LiveStreamDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData)
 {
     qint64 epochMs = QDateTime::currentMSecsSinceEpoch();
