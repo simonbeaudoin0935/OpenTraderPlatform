@@ -238,3 +238,17 @@ QString Bar::toJsonString() const
     QJsonDocument doc(jsonObj);
     return QString(doc.toJson(QJsonDocument::Indented));
 }
+
+std::ostream& operator<<(std::ostream& os, const Bar& bar)
+{
+    os << bar.getTimeStamp().toString(Qt::ISODate).toStdString() << " O:" << bar.getOpen() << " H:" << bar.getHigh()
+       << " L:" << bar.getLow() << " C:" << bar.getClose();
+    return os;
+}
+
+QDebug operator<<(QDebug debug, const Bar& bar)
+{
+    debug << bar.getTimeStamp().toString(Qt::ISODate) << "O:" << bar.getOpen() << "H:" << bar.getHigh()
+          << "L:" << bar.getLow() << "C:" << bar.getClose();
+    return debug;
+}

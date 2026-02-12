@@ -386,30 +386,14 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
             startedReceivingRealtimeBars = true;
         }
     }
-    else
+    else if (bar.getIsRealtime() == false) [[unlikely]]
     {
-        if (bar.getIsRealtime() == false)
-        {
-            size_t index = BarsConstants::timeToIndex(bar.getTimeStamp().time());
-            if (index == BarsConstants::MINUTE_BARS_PER_DAY - 1)
-            {
-                WARNING << "We received a double of the last bar of the day for symbol" << m_symbol
-                        << "at timestamp:" << bar.getTimeStamp()
-                        << "- Experimentally, this has proven to be possible from the API."
-                           " It seems to be a little glitch from their side when the app sits idle after hours.";
+        WARNING << "We received a double of the last bar of the day for symbol" << m_symbol
+                << "at timestamp:" << bar.getTimeStamp()
+                << "- Experimentally, this has proven to be possible from the API."
+                   " It seems to be a little glitch from their side when the app sits idle after hours.";
 
-                return; // Ignore this bar
-            }
-            else
-            {
-                CRITICAL
-                    << "Inserting historical bar into cache at index" << index << "for timestamp:" << bar.getTimeStamp()
-                    << "but that slot was uninitialized. This should not happen as historical bars should be bulk inserted.";
-
-#warning fix this shit
-                Q_UNREACHABLE();
-            }
-        }
+        return; // Ignore this bar
     }
 
     // Is this the first bar ever received for this chart
@@ -431,7 +415,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         bool acquired = m_missingBarsRequestSemaphore.tryAcquire();
         OBJ_ASSUME_TRUE(acquired); // Should always succeed for first bar
 
-        DEBUG << "Received first bar ";
+        DEBUG << "Received first bar " << bar;
 
         // Now that we have the first bar, we can set up the custom time ticker
         // that converts index values to time labels
