@@ -331,7 +331,9 @@ void OrderEmulator::resume()
 
 QString OrderEmulator::generateOrderID()
 {
-    return QString("EMU-%1").arg(m_nextOrderID++);
+    // Generate 9-digit numeric order IDs like TradeStation (e.g., "935936728")
+    // Start at 900000000 to match TradeStation format and avoid conflicts
+    return QString::number(m_nextOrderID++);
 }
 
 int OrderEmulator::calculateReceptionDelay() const

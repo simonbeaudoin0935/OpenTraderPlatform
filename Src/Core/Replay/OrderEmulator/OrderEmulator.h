@@ -308,7 +308,8 @@ class OrderEmulator : public QObject
     QTimer m_executionTimer;
 
     // Order ID generation
-    quint64 m_nextOrderID = 1000;
+    // Order ID counter - starts at 900000000 to generate 9-digit numeric IDs matching TradeStation format
+    quint64 m_nextOrderID = 900000000;
 
     // Replay speed (percentage, -1 = as fast as possible)
     int m_replaySpeedPercent = 100;
