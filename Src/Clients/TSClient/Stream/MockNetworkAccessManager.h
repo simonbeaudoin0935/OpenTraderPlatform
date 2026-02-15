@@ -68,5 +68,19 @@ class MockNetworkAccessManager : public QNetworkAccessManager
      */
     QNetworkReply* createMockReply(const QByteArray& p_data);
 
+    /**
+     * @brief Extract account ID from URL path
+     * @param p_path URL path (e.g., /v3/brokerage/accounts/SIM123456/balances)
+     * @return Account ID or empty string if not found
+     */
+    QString extractAccountIdFromPath(const QString& p_path);
+
+    /**
+     * @brief Create a mock error reply
+     * @param p_error Error code
+     * @param p_message Human-readable error message
+     */
+    QNetworkReply* createErrorReply(const QString& p_error, const QString& p_message);
+
     OrderEmulator* m_emulator; // Not owned
 };

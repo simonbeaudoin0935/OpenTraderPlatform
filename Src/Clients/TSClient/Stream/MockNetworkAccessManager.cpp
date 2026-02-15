@@ -4,6 +4,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -215,6 +216,15 @@ QNetworkReply* MockNetworkAccessManager::handleGet(const QNetworkRequest& p_requ
     // Handle getBalances: /v3/brokerage/accounts/{accounts}/balances
     if (path.contains("/balances"))
     {
+        // Validate account ID matches simulated account
+        QString accountId = extractAccountIdFromPath(path);
+        if (accountId != OrderEmulator::getSimulatedAccountID())
+        {
+            return createErrorReply("INVALID_ACCOUNT", 
+                QString("Account '%1' not found in replay mode. Use '%2'.")
+                    .arg(accountId, OrderEmulator::getSimulatedAccountID()));
+        }
+
         double balance = m_emulator->getBalance();
 
         QJsonArray balances;
@@ -259,4 +269,27 @@ QNetworkReply* MockNetworkAccessManager::createMockReply(const QByteArray& p_dat
         Qt::QueuedConnection);
 
     return reply;
+}
+
+QString MockNetworkAccessManager::extractAccountIdFromPath(const QString& p_path)
+{
+    // Pattern: /v3/brokerage/accounts/{accountId}/...
+    QRegularExpression re("/accounts/([^/]+)");
+    QRegularExpressionMatch match = re.match(p_path);
+    if (match.hasMatch())
+    {
+        return match.captured(1);
+    }
+    return QString();
+}
+
+QNetworkReply* MockNetworkAccessManager::createErrorReply(const QString& p_error, const QString& p_message)
+{
+    QJsonObject errorObj;
+    errorObj["Error"] = p_error;
+    errorObj["Message"] = p_message;
+
+    WARNING << "Returning error response:" << p_error << "-" << p_message;
+
+    return createMockReply(QJsonDocument(errorObj).toJson());
 }

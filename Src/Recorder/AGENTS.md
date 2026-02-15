@@ -81,7 +81,7 @@ When recording large numbers of symbols (e.g., 100+ stocks), opening all streams
 
 **Adaptive Delay Strategy:**
 - **Streams 1-100**: 500ms delay (2 streams/second)
-- **Streams 101-200**: 1000ms delay (1 stream/second)  
+- **Streams 101-200**: 1000ms delay (1 stream/second)
 - **Streams 201+**: 2000ms delay (0.5 streams/second)
 
 **Why Graduated?**
