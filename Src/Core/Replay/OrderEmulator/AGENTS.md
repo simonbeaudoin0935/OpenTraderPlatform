@@ -133,12 +133,20 @@ cancelOrder(orderID)
 
 ## Order Status Codes
 
-| Status | Description | When Used |
-|--------|-------------|-----------|
-| `OPN` | Open | Order received, not yet filled |
-| `FLL` | Filled | Order completely filled |
-| `REJ` | Rejected | Validation failed (balance, symbol, etc.) |
-| `CAN` | Cancelled | User cancelled open order |
+Status codes and descriptions **exactly match** TradeStation API. Status descriptions are centralized in `Order::getStatusDescriptionForStatus()` (see `Src/Clients/TSClient/Brokerage/GetOrders/Order.h`).
+
+**Commonly Used in Replay**:
+
+| Status | StatusDescription | When Used |
+|--------|-------------------|-----------|
+| `ACK` | "Received" | Order received by emulator |
+| `OPN` | "Sent" | Order acknowledged, waiting to fill |
+| `FLL` | "Filled" | Order completely filled |
+| `REJ` | "Rejected" | Validation failed (balance, symbol, etc.) |
+| `CAN` | "Canceled" | User cancelled open order |
+| `DON` | "Queued" | Order queued (currently unused) |
+
+**Order ID Format**: 9-digit numeric IDs starting at 900000000, matching real TradeStation API format (e.g., "900000001", "900000002"). Previously used "EMU-1000" prefix which caused assertion failures during cancellation.
 
 ## Data Structures
 
@@ -269,6 +277,11 @@ static QString getSimulatedAccountID() { return "SIM123456"; }
 ```
 
 Starting balance: `$100,000` (stored in `m_balance`)
+
+**Order ID Generation**: Starting value is 900000000, increments sequentially:
+```cpp
+QString m_nextOrderID = 900000000;  // Generates: "900000000", "900000001", ...
+```
 
 ## Integration Points
 

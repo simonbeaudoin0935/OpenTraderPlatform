@@ -43,6 +43,10 @@ TSClient is the core singleton class for all TradeStation API communication in L
 - Account information
 - Balances (cash, buying power, margin)
 - Position tracking
+- **Order class** (`Brokerage/GetOrders/Order.h`):
+  - Data structure representing orders from API
+  - **Centralized status descriptions**: `Order::getStatusDescriptionForStatus()` provides single source of truth mapping Order::Status enum to TradeStation API status strings (e.g., `ACK` → "Received", `FLL` → "Filled")
+  - Used by OrderEmulator to ensure replay mode matches real API behavior
 
 **OrderExecution/** - Order management
 - Place orders (market, limit, stop, stop-limit)

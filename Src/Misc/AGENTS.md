@@ -73,7 +73,12 @@ namespace MarketDepthConstants {
     constexpr int QUEUE_PROCESS_DELAY_MS = 1000;     // Delay before opening queued stream (TCP close propagation)
 }
 
-namespace RecorderConstants {
+namespace PollingConstants {
+    constexpr int BALANCE_POLLING_INTERVAL_MS = 1000;  // Poll balance every 1 second
+}
+```
+
+**Usage**:
     constexpr int STREAM_RAMP_UP_DELAY_TIER1_MS = 500;   // First 100 streams
     constexpr int STREAM_RAMP_UP_DELAY_TIER2_MS = 1000;  // Streams 101-200
     constexpr int STREAM_RAMP_UP_DELAY_TIER3_MS = 2000;  // Streams 201+
@@ -88,9 +93,14 @@ namespace RecorderConstants {
 
 QTime marketOpen = TradingHours::TRADING_START_TIME;
 QString endpoint = TSClientEndpoints::BASE_URL + TSClientEndpoints::GET_BARS;
+
+// Check stream limits
 if (StreamMarketDepthQuote::getNumberOfMarketDepthStreams() >= MarketDepthConstants::MAX_CONCURRENT_STREAMS) {
     // Will be queued
 }
+
+// Balance polling in MainAlgo
+m_balancePollingTimer->setInterval(PollingConstants::BALANCE_POLLING_INTERVAL_MS);
 
 // In LiveStreamDB - adaptive ramp-up based on stream count
 int delay;

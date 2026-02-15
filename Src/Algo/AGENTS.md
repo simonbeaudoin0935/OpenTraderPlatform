@@ -444,9 +444,9 @@ qDeleteAll(m_stockInstruments);
 
 Periodic balance updates:
 ```cpp
-void MainAlgo::startBalancePolling(int intervalMs = 5000) {
+void MainAlgo::startBalancePolling() {
     m_balancePollingTimer = new QTimer(this);
-    m_balancePollingTimer->setInterval(intervalMs);
+    m_balancePollingTimer->setInterval(PollingConstants::BALANCE_POLLING_INTERVAL_MS);
 
     connect(m_balancePollingTimer, &QTimer::timeout, this, [this]() {
         if (TSClient::getInstance().isAuthenticated()) {
@@ -458,7 +458,7 @@ void MainAlgo::startBalancePolling(int intervalMs = 5000) {
 }
 ```
 
-Configurable interval (default 5 seconds).
+**Polling interval**: Centralized in `Src/Misc/CONSTANTS.h` as `PollingConstants::BALANCE_POLLING_INTERVAL_MS` (default: 1000ms = 1 second).
 
 ## Configuration
 
@@ -626,6 +626,42 @@ void MainAlgo::enterReplayModePaused() {
     m_replayEngine->startReplayPaused();
 }
 ```
+
+### Exiting Replay Mode
+
+When exiting replay mode back to live/simulation mode, `resumeLiveStreams()` performs critical cleanup:
+
+```cpp
+void MainAlgo::resumeLiveStreams() {
+    // 1. Refetch real TradeStation accounts from API
+    //    (m_activeAccount may still be "SIM123456" from replay)
+    auto accountsFuture = TSClient::getInstance().getAccounts();
+    accountsFuture.waitForFinished();
+    
+    if (accountsFuture.result().has_value()) {
+        auto accounts = accountsFuture.result().value();
+        if (!accounts.isEmpty()) {
+            m_activeAccount = accounts.first().getAccountID();
+            emit tradeStationAccountsReceived(accounts);  // Update GUI
+        }
+    }
+
+    // 2. Delete replay-specific receivers (SIM123456)
+    m_positionReceiver.reset();
+    m_orderReceiver.reset();
+
+    // 3. Recreate receivers with real account
+    m_positionReceiver = std::make_unique<PositionsReceiver>(m_activeAccount, this);
+    m_orderReceiver = std::make_unique<OrdersReceiver>(m_activeAccount, this);
+
+    // 4. Resume live streams for displayed stock
+    if (hasDisplayedStock()) {
+        // Resume bar/depth streams...
+    }
+}
+```
+
+**Critical**: Must refetch accounts before recreating receivers, otherwise API calls fail with ContentAccessDenied errors due to invalid account ID.
 
 ### startReplayOrderStreams()
 
