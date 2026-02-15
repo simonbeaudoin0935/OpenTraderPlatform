@@ -417,6 +417,36 @@ void TSClient::setMode(Mode p_mode)
     {
         // Returning to Live mode - cleanup replay resources
 
+        // Delete replay streams BEFORE cleaning up emulator
+        // This ensures StreamOrders/StreamPositions are destroyed before MockNetworkReply
+        if (!m_replayOrdersReply.isNull())
+        {
+            // Find and delete the StreamOrders that owns this MockNetworkReply
+            for (QObject* child : children())
+            {
+                if (auto* stream = qobject_cast<StreamOrders*>(child))
+                {
+                    delete stream;
+                    break;
+                }
+            }
+            m_replayOrdersReply.clear();
+        }
+
+        if (!m_replayPositionsReply.isNull())
+        {
+            // Find and delete the StreamPositions that owns this MockNetworkReply
+            for (QObject* child : children())
+            {
+                if (auto* stream = qobject_cast<StreamPositions*>(child))
+                {
+                    delete stream;
+                    break;
+                }
+            }
+            m_replayPositionsReply.clear();
+        }
+
         // Cancel any pending orders in emulator
         if (m_orderEmulator)
         {
@@ -435,8 +465,6 @@ void TSClient::setMode(Mode p_mode)
         // Clear replay stream tracking
         m_replayBarReplies.clear();
         m_replayDepthReplies.clear();
-        m_replayOrdersReply.clear();
-        m_replayPositionsReply.clear();
     }
 }
 
