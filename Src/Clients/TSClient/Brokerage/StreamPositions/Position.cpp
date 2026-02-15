@@ -38,25 +38,128 @@ Position::Position(const QJsonObject& jsonObj, bool isUpdate_) : isUpdate(isUpda
 bool Position::isValid() const
 {
     // Check required fields
-    if (accountID.isEmpty() || assetType.isEmpty() || averagePrice.isEmpty() || bid.isEmpty() || ask.isEmpty() ||
-        conversionRate.isEmpty() || dayTradeRequirement.isEmpty() || initialRequirement.isEmpty() ||
-        maintenanceMargin.isEmpty() || last.isEmpty() || longShort.isEmpty() || markToMarketPrice.isEmpty() ||
-        marketValue.isEmpty() || positionID.isEmpty() || quantity.isEmpty() || symbol.isEmpty() ||
-        !timestamp.isValid() || todaysProfitLoss.isEmpty() || totalCost.isEmpty() || unrealizedProfitLoss.isEmpty() ||
-        unrealizedProfitLossPercent.isEmpty() || unrealizedProfitLossQty.isEmpty())
+    if (accountID.isEmpty())
     {
+        qDebug() << "Position invalid: accountID empty";
+        return false;
+    }
+    if (assetType.isEmpty())
+    {
+        qDebug() << "Position invalid: assetType empty";
+        return false;
+    }
+    if (averagePrice.isEmpty())
+    {
+        qDebug() << "Position invalid: averagePrice empty";
+        return false;
+    }
+    if (bid.isEmpty())
+    {
+        qDebug() << "Position invalid: bid empty";
+        return false;
+    }
+    if (ask.isEmpty())
+    {
+        qDebug() << "Position invalid: ask empty";
+        return false;
+    }
+    if (conversionRate.isEmpty())
+    {
+        qDebug() << "Position invalid: conversionRate empty";
+        return false;
+    }
+    if (dayTradeRequirement.isEmpty())
+    {
+        qDebug() << "Position invalid: dayTradeRequirement empty";
+        return false;
+    }
+    if (initialRequirement.isEmpty())
+    {
+        qDebug() << "Position invalid: initialRequirement empty";
+        return false;
+    }
+    if (maintenanceMargin.isEmpty())
+    {
+        qDebug() << "Position invalid: maintenanceMargin empty";
+        return false;
+    }
+    if (last.isEmpty())
+    {
+        qDebug() << "Position invalid: last empty";
+        return false;
+    }
+    if (longShort.isEmpty())
+    {
+        qDebug() << "Position invalid: longShort empty";
+        return false;
+    }
+    if (markToMarketPrice.isEmpty())
+    {
+        qDebug() << "Position invalid: markToMarketPrice empty";
+        return false;
+    }
+    if (marketValue.isEmpty())
+    {
+        qDebug() << "Position invalid: marketValue empty";
+        return false;
+    }
+    if (positionID.isEmpty())
+    {
+        qDebug() << "Position invalid: positionID empty";
+        return false;
+    }
+    if (quantity.isEmpty())
+    {
+        qDebug() << "Position invalid: quantity empty";
+        return false;
+    }
+    if (symbol.isEmpty())
+    {
+        qDebug() << "Position invalid: symbol empty";
+        return false;
+    }
+    if (!timestamp.isValid())
+    {
+        qDebug() << "Position invalid: timestamp invalid";
+        return false;
+    }
+    if (todaysProfitLoss.isEmpty())
+    {
+        qDebug() << "Position invalid: todaysProfitLoss empty";
+        return false;
+    }
+    if (totalCost.isEmpty())
+    {
+        qDebug() << "Position invalid: totalCost empty";
+        return false;
+    }
+    if (unrealizedProfitLoss.isEmpty())
+    {
+        qDebug() << "Position invalid: unrealizedProfitLoss empty";
+        return false;
+    }
+    if (unrealizedProfitLossPercent.isEmpty())
+    {
+        qDebug() << "Position invalid: unrealizedProfitLossPercent empty";
+        return false;
+    }
+    if (unrealizedProfitLossQty.isEmpty())
+    {
+        qDebug() << "Position invalid: unrealizedProfitLossQty empty";
         return false;
     }
 
     // Validate asset type
     if (assetType != "STOCK" && assetType != "STOCKOPTION" && assetType != "FUTURE" && assetType != "INDEXOPTION")
     {
+        qDebug() << "Position invalid: assetType not recognized:" << assetType;
         return false;
     }
 
     // Validate position direction
     if (longShort != "Long" && longShort != "Short")
     {
+        qDebug() << "Position invalid: longShort not recognized:" << longShort;
         return false;
     }
 
