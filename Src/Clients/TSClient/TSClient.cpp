@@ -161,7 +161,9 @@ TSClient::TSClient()
 
         // Schedule an emition for when the event loop is started
         QTimer::singleShot(
-            0, this, [this]() { emit authStateChanged(true, AuthStateReason::ValidToken, "Auth token valid and not expired"); });
+            0,
+            this,
+            [this]() { emit authStateChanged(true, AuthStateReason::ValidToken, "Auth token valid and not expired"); });
     }
     else
     {

@@ -9,7 +9,7 @@
 #include "Bar.h"
 #include "MarketDepthQuote.h"
 #include "Balance.h"
-#include "TSClient.h"  // For TSClient::AuthStateReason enum
+#include "TSClient.h" // For TSClient::AuthStateReason enum
 
 class FrontEnd : public QObject
 {

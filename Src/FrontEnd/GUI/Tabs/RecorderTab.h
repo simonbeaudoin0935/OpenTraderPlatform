@@ -12,7 +12,7 @@
 #include <QLineEdit>
 #include <memory>
 
-#include "TSClient.h"  // For TSClient::AuthStateReason enum
+#include "TSClient.h" // For TSClient::AuthStateReason enum
 
 // Forward declarations
 class LiveStreamDB;

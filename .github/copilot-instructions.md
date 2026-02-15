@@ -1,4 +1,4 @@
-# Copilot Instructions for L2Trader Repository
+#Copilot Instructions for L2Trader Repository
 
 ## Navigation Guide
 
@@ -18,17 +18,17 @@ For detailed information about specific components, see the AGENTS.md files:
 ### Quick Build Commands
 
 ```bash
-# GUI version (default)
+#GUI version(default)
 mkdir -p build/GUI
 cmake -S . -B build/GUI -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF
 cmake --build build/GUI -j$(nproc)
 
-# TUI version (headless)
+#TUI version(headless)
 mkdir -p build/TUI
 cmake -S . -B build/TUI -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=OFF -DBUILD_TESTS=OFF
 cmake --build build/TUI -j$(nproc)
 
-# Format code before committing (REQUIRED)
+#Format code before committing(REQUIRED)
 find Src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
 ```
 
@@ -40,22 +40,37 @@ find Src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
 ### Run Application
 
 ```bash
-# GUI mode
+#GUI mode
 ./build/GUI/Src/L2Trader
 
-# TUI mode (stdout is ncurses UI, stderr is logging)
+#TUI mode(stdout is ncurses UI, stderr is logging)
 ./build/TUI/Src/L2Trader 2>app.log
 ```
 
 
 ## Core Coding Guidelines
 
-### ASSERT-First Strategy
-Instead of defensive null checks, assert expected state upfront:
+### ASSERT-First Strategy (MANDATORY)
+**Always use ASSUME macros instead of defensive null/pointer checks.** Defensive checks hide bugs by silently failing; ASSUME macros catch bugs early in testing.
+
+#### When to Use ASSUME Macros
+Use ASSUME macros for pointer/object validation in ALL cases EXCEPT:
+- ✅ Destructor cleanup (legitimate to check before deleteLater/reset)
+- ✅ Optional parameters explicitly documented as nullable
+- ✅ Explicit error handling paths (parsing user input, network responses)
+
+#### Required Patterns
 ```cpp
 // ✗ WRONG - Defensive check hides bugs
-if (m_replayEngine != nullptr) {
+if (m_replayEngine != nullptr)
+{
     m_replayEngine->pauseReplay();
+}
+
+// ✗ WRONG - Silent failure on null pointer
+if (m_strategyManager)
+{
+    m_strategyManager->loadStrategy();
 }
 
 // ✓ CORRECT - Assert expectation upfront (pre-condition)
@@ -64,8 +79,27 @@ m_replayEngine->pauseReplay();
 
 // ✓ CORRECT - Assert valid results (post-condition)
 auto result = processData();
-VALUE_ASSUME_GT(result, 0);  // Ensure valid output
+ASSUME_GT(result, 0); // Ensure valid output
+
+// ✓ ACCEPTABLE - Destructor cleanup
+~MyClass()
+{
+    if (m_resource)
+    {
+        m_resource->cleanup();
+    }
+}
 ```
+
+#### Available ASSUME Macros
+From `Src/Misc/Assume.h`:
+- `OBJ_ASSUME_DIFF(ptr, nullptr)` - Assert pointer is not null
+- `OBJ_ASSUME_TRUE(condition)` - Assert condition is true
+- `OBJ_ASSUME_FALSE(condition)` - Assert condition is false
+- `OBJ_ASSUME_EQUAL(a, b)` - Assert equality
+- `OBJ_ASSUME_GT/GTE/LT/LTE(a, b)` - Assert comparisons
+- Non-OBJ variants (ASSUME_*) use function name instead of object name
+
 Use ASSUME macros from `Src/Misc/Assume.h` for both pre-conditions and post-conditions instead of Q_ASSERT.
 
 ### Naming Conventions
@@ -90,14 +124,17 @@ Use ASSUME macros from `Src/Misc/Assume.h` for both pre-conditions and post-cond
 - **QPointer**: For Qt objects with uncertain lifetime
 - **std::unique_ptr**: For exclusive ownership
 - **std::shared_ptr**: For shared ownership across async operations
-- **Stack-allocated threads**: `QThread m_thread;` NOT `QThread* m_thread;`
+- **Stack-allocated threads**: `QThread m_thread;
+` NOT `QThread* m_thread;
+`
 
-### Threading Pattern
-Always use stack-allocated threads with proper cleanup:
-```cpp
-~MyClass() {
+    ## #Threading Pattern Always use stack -
+    allocated threads with proper cleanup :
+```cpp ~MyClass()
+{
     m_thread.quit();
-    if (!m_thread.wait(5000)) {
+    if (!m_thread.wait(5000))
+    {
         qWarning() << "Thread did not finish, terminating";
         m_thread.terminate();
         m_thread.wait();
@@ -105,46 +142,54 @@ Always use stack-allocated threads with proper cleanup:
 }
 ```
 
-## Graceful Teardown & Destructor Guidelines
+        ##Graceful Teardown& Destructor Guidelines
 
-### Critical Threading Rules (MUST FOLLOW)
+        ## #Critical Threading
+        Rules(MUST FOLLOW)
 
-**Rule 1: Stop threads BEFORE destroying thread-owned objects**
+        * *Rule 1 : Stop threads BEFORE destroying thread
+    - owned objects**
 ```cpp
-// ✓ CORRECT - Stop thread first
-~MyClass() {
+    // ✓ CORRECT - Stop thread first
+    ~MyClass()
+{
     // 1. Stop thread
     m_thread.quit();
     m_thread.wait(5000);
-    
+
     // 2. THEN destroy thread-owned objects
     m_socketNotifier.reset();
     m_timer.reset();
 }
 
 // ✗ WRONG - Destroys objects while thread running
-~MyClass() {
-    m_socketNotifier.reset();  // ❌ Thread still processing events!
+~MyClass()
+{
+    m_socketNotifier.reset(); // ❌ Thread still processing events!
     m_thread.quit();
 }
 ```
 
-**Rule 2: Delete child QObjects on their thread before stopping**
+    ** Rule 2 : Delete child QObjects on their thread before stopping**
 ```cpp
-// ✓ CORRECT - Delete children on their thread
-~MyWorkerClass() {
+                // ✓ CORRECT - Delete children on their thread
+                ~MyWorkerClass()
+{
     // Schedule deletion on correct thread
-    QMetaObject::invokeMethod(this, [this]() {
-        for (QObject* child : children()) {
-            child->deleteLater();
-        }
-    }, Qt::BlockingQueuedConnection);
-    
+    QMetaObject::invokeMethod(
+        this,
+        [this]()
+        {
+            for (QObject* child: children())
+            {
+                child->deleteLater();
+            }
+        },
+        Qt::BlockingQueuedConnection);
+
     // Process deleteLater queue
-    QMetaObject::invokeMethod(this, []() {
-        QCoreApplication::processEvents();
-    }, Qt::BlockingQueuedConnection);
-    
+    QMetaObject::invokeMethod(this, []() { QCoreApplication::processEvents(); }, Qt::BlockingQueuedConnection);
+
     // Now safe to stop thread
     m_thread.quit();
     m_thread.wait(5000);
@@ -154,124 +199,131 @@ Always use stack-allocated threads with proper cleanup:
 **Rule 3: Use deleteLater() for QObjects with signals/events**
 ```cpp
 // ✓ CORRECT - Use deleteLater() for objects with pending events
-void cleanup() {
-    m_stream->deleteLater();        // Has timers, network replies, signals
-    m_networkReply->deleteLater();  // Qt requirement
+void cleanup()
+{
+    m_stream->deleteLater();       // Has timers, network replies, signals
+    m_networkReply->deleteLater(); // Qt requirement
 }
 
 // ✗ WRONG - Direct delete can crash
-void cleanup() {
-    delete m_stream;        // ❌ Signals may fire during destruction
-    delete m_networkReply;  // ❌ Violates Qt guidelines
+void cleanup()
+{
+    delete m_stream;       // ❌ Signals may fire during destruction
+    delete m_networkReply; // ❌ Violates Qt guidelines
 }
 ```
 
-**Rule 4: Add thread affinity assertions in destructors**
-```cpp
-~MyThreadedClass() {
+    ** Rule 4 : Add thread affinity assertions in destructors**
+```cpp ~MyThreadedClass()
+{
     // Assert destructor called from expected thread
     OBJ_ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
-    
+
     // Or for objects that should be on their own thread:
     OBJ_ASSUME_EQUAL(QThread::currentThread(), this->thread());
-    
+
     // Rest of cleanup...
 }
 ```
 
-### When to Use delete vs deleteLater()
+            ## #When to Use delete vs
+            deleteLater()
 
-**Use `deleteLater()` when QObject has:**
-- ✅ Signal connections (pending signals may fire)
-- ✅ Pending events in event queue
-- ✅ Child QObjects that emit signals
-- ✅ QTimer or QSocketNotifier members
-- ✅ QNetworkReply (Qt requirement)
-- ✅ Called from signal/slot handlers
-- ✅ Complex object graph with cross-dependencies
+            * *Use `deleteLater()` when QObject has
+    : **- ✅ Signal connections(pending signals may fire) - ✅ Pending events in event queue
+        - ✅ Child QObjects that emit signals - ✅ QTimer
+    or QSocketNotifier members - ✅ QNetworkReply(Qt requirement) - ✅ Called from signal / slot handlers
+           - ✅ Complex object graph with cross -
+           dependencies
 
-**Use direct `delete` only when:**
-- ✅ Thread stopped and event loop exited
-- ✅ No signal connections exist
-- ✅ No pending events possible
-- ✅ Not a QNetworkReply
-- ✅ Simple utility objects with no Qt features
+               ** Use direct `delete` only when : **- ✅ Thread stopped and event loop exited
+                                                  - ✅ No signal connections exist
+                                                  - ✅ No pending events possible
+                                                  - ✅ Not a QNetworkReply
+                                                  - ✅ Simple utility objects with no Qt features
 
-**Example Patterns:**
+                                                      ** Example Patterns : **
 ```cpp
-// QNetworkReply - ALWAYS use deleteLater()
-void onRequestFinished() {
+                                                                            // QNetworkReply - ALWAYS use deleteLater()
+                                                                            void onRequestFinished()
+{
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
-    reply->deleteLater();  // ✓ CORRECT
+    reply->deleteLater(); // ✓ CORRECT
 }
 
 // Stream objects - Use deleteLater() (have timers/signals)
-void closeStream() {
-    m_stream->deleteLater();  // ✓ CORRECT
+void closeStream()
+{
+    m_stream->deleteLater(); // ✓ CORRECT
 }
 
 // After stopping thread - Direct delete is safe
-~TSClient() {
+~TSClient()
+{
     m_thread.quit();
     m_thread.wait();
     // Thread stopped, direct delete safe for simple objects
-    delete m_simpleResource;  // ✓ CORRECT (if no Qt features)
+    delete m_simpleResource; // ✓ CORRECT (if no Qt features)
 }
 ```
 
-### Destructor Best Practices
+    ## #Destructor Best Practices
 
-**1. Document cleanup order:**
-```cpp
-~MyClass() {
+        * *
+    1. Document cleanup order : **
+```cpp ~MyClass()
+{
     DEBUG << "MyClass destructor - cleaning up";
-    
+
     // 1. Stop timers/notifiers
     m_timer->stop();
-    
+
     // 2. Stop threads
     m_thread.quit();
     m_thread.wait(5000);
-    
+
     // 3. Delete thread-owned objects
     m_threadOwnedObject.reset();
-    
+
     // 4. Cleanup in reverse order of initialization
     m_networkResources.clear();
-    
+
     DEBUG << "MyClass destroyed successfully";
 }
 ```
 
-**2. Always log destruction:**
-```cpp
-~MyClass() {
+        * *
+    2. Always log destruction : **
+```cpp ~MyClass()
+{
     DEBUG << "MyClass destructor - stopping thread";
     // cleanup...
     DEBUG << "Destroyed singleton instance";
 }
 ```
 
-**3. Handle thread termination:**
-```cpp
-m_thread.quit();
-if (!m_thread.wait(5000)) {
+        * *
+    3. Handle thread termination : **
+```cpp m_thread.quit();
+if (!m_thread.wait(5000))
+{
     CRITICAL << "Thread did not finish within timeout, terminating";
     m_thread.terminate();
     m_thread.wait();
 }
 ```
 
-### Singleton Destruction Order
+    ## #Singleton Destruction Order
 
-In `MainApp::cleanupSingletons()`, destroy in dependency order:
-```cpp
-void MainApp::cleanupSingletons() {
-    Stream::setShuttingDown(true);    // Prevent promise resolution
-    
-    MainApp::destroyInstance();       // Frontend first
-    MainAlgo::destroyInstance();      // Algo before client
-    TSClient::destroyInstance();      // Client before database
+        In `MainApp::cleanupSingletons()`,
+    destroy in dependency order :
+```cpp void MainApp::cleanupSingletons()
+{
+    Stream::setShuttingDown(true); // Prevent promise resolution
+
+    MainApp::destroyInstance();        // Frontend first
+    MainAlgo::destroyInstance();       // Algo before client
+    TSClient::destroyInstance();       // Client before database
     DatabaseThread::destroyInstance(); // Database last
 }
 ```

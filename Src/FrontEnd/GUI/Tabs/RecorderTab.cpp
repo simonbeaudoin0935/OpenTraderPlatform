@@ -250,7 +250,9 @@ void RecorderTab::restoreLastCsvFilePath()
     m_stockCsvFileInput->setText(lastCsvPath);
 }
 
-void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, TSClient::AuthStateReason p_reason, QString p_message)
+void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated,
+                                                 TSClient::AuthStateReason p_reason,
+                                                 QString p_message)
 {
     m_isAuthenticated = p_isAuthenticated;
 

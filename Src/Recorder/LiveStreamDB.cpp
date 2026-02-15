@@ -133,8 +133,7 @@ void LiveStreamDB::openNextStream()
         QObject::connect(stream,
                          &StreamBars::receivedNewRawData,
                          this,
-                         [this, symbol](const QByteArray& rawData)
-                         { onReceivedNewRawDataForStock(symbol, rawData); });
+                         [this, symbol](const QByteArray& rawData) { onReceivedNewRawDataForStock(symbol, rawData); });
 
         QObject::connect(stream,
                          &Stream::streamClosed,
@@ -153,9 +152,8 @@ void LiveStreamDB::openNextStream()
         // For recorder, we don't queue - if limit is reached, skip this symbol
         if (!StreamMarketDepthQuote::canOpenStream())
         {
-            WARNING << "Market depth stream limit reached ("
-                    << StreamMarketDepthQuote::getNumberOfMarketDepthStreams() << "/"
-                    << MarketDepthConstants::MAX_CONCURRENT_STREAMS << ") - skipping" << symbol;
+            WARNING << "Market depth stream limit reached (" << StreamMarketDepthQuote::getNumberOfMarketDepthStreams()
+                    << "/" << MarketDepthConstants::MAX_CONCURRENT_STREAMS << ") - skipping" << symbol;
         }
         else
         {
@@ -212,8 +210,8 @@ void LiveStreamDB::openNextStream()
             // Log when transitioning to slower tier
             if (m_currentRampIndex == RecorderConstants::STREAM_RAMP_UP_TIER1_THRESHOLD + 1)
             {
-                INFO << "Reached" << RecorderConstants::STREAM_RAMP_UP_TIER1_THRESHOLD
-                     << "streams - slowing down to" << delay << "ms delay";
+                INFO << "Reached" << RecorderConstants::STREAM_RAMP_UP_TIER1_THRESHOLD << "streams - slowing down to"
+                     << delay << "ms delay";
             }
         }
         else
@@ -222,8 +220,8 @@ void LiveStreamDB::openNextStream()
             // Log when transitioning to slowest tier
             if (m_currentRampIndex == RecorderConstants::STREAM_RAMP_UP_TIER2_THRESHOLD + 1)
             {
-                INFO << "Reached" << RecorderConstants::STREAM_RAMP_UP_TIER2_THRESHOLD
-                     << "streams - slowing down to" << delay << "ms delay";
+                INFO << "Reached" << RecorderConstants::STREAM_RAMP_UP_TIER2_THRESHOLD << "streams - slowing down to"
+                     << delay << "ms delay";
             }
         }
 

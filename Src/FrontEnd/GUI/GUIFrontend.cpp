@@ -725,7 +725,9 @@ void GUIFrontend::onBalanceUpdated(Balance balance)
     ui->balanceWindow->updateBalance(balance);
 }
 
-void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, QString message)
+void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated,
+                                                 TSClient::AuthStateReason reason,
+                                                 QString message)
 {
     static bool isFirstTime = true;
 
@@ -1378,12 +1380,10 @@ void GUIFrontend::onReplayModeEntered()
     qCInfo(GUIFrontendLog) << "Replay mode entered";
 
     // Update data source indicator to show REPLAY
-    if (m_dataSourceLabel != nullptr)
-    {
-        m_dataSourceLabel->setText("🔴 REPLAY");
-        m_dataSourceLabel->setStyleSheet("QLabel { background-color: #8B0000; color: #ffffff; padding: 4px 8px; "
-                                         "border-radius: 4px; font-weight: bold; font-weight: bold; }");
-    }
+    ASSUME_DIFF(m_dataSourceLabel, nullptr);
+    m_dataSourceLabel->setText("🔴 REPLAY");
+    m_dataSourceLabel->setStyleSheet("QLabel { background-color: #8B0000; color: #ffffff; padding: 4px 8px; "
+                                     "border-radius: 4px; font-weight: bold; font-weight: bold; }");
 
     // Clear live orders and positions from widgets (replay starts with clean slate)
     ui->orderWindow->clearAllOrders();
@@ -1423,12 +1423,10 @@ void GUIFrontend::onReplayModeExited()
     qCInfo(GUIFrontendLog) << "Replay mode exited";
 
     // Update data source indicator to show LIVE
-    if (m_dataSourceLabel != nullptr)
-    {
-        m_dataSourceLabel->setText("🟢 LIVE");
-        m_dataSourceLabel->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
-                                         "border-radius: 4px; font-weight: bold; }");
-    }
+    ASSUME_DIFF(m_dataSourceLabel, nullptr);
+    m_dataSourceLabel->setText("🟢 LIVE");
+    m_dataSourceLabel->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
+                                     "border-radius: 4px; font-weight: bold; }");
 
     // Reset play button state and hide replay widgets
     ui->priceChart->toolbar()->setReplayPlaying(false);
