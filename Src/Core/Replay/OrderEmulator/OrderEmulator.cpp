@@ -421,18 +421,69 @@ QJsonObject OrderEmulator::createOrderJson(const QString& p_orderID,
     json["TradeAction"] = tradeActionToString(p_request.getTradeAction());
     json["Status"] = QtEnum::toString(p_status);
     
-    // Provide meaningful status descriptions
+    // Match TradeStation API status descriptions exactly
     QString statusDesc;
     switch (p_status)
     {
+    case Order::Status::ACK:
+        statusDesc = "Received";
+        break;
+    case Order::Status::BRO:
+        statusDesc = "Broken";
+        break;
+    case Order::Status::CAN:
+        statusDesc = "Canceled";
+        break;
+    case Order::Status::EXP:
+        statusDesc = "Expired";
+        break;
+    case Order::Status::FLL:
+        statusDesc = "Filled";
+        break;
+    case Order::Status::FLP:
+        statusDesc = "Partial Fill (UROut)";
+        break;
+    case Order::Status::FPR:
+        statusDesc = "Partial Fill (Alive)";
+        break;
+    case Order::Status::LAT:
+        statusDesc = "Too Late to Cancel";
+        break;
+    case Order::Status::OPN:
+        statusDesc = "Sent";
+        break;
+    case Order::Status::OUT:
+        statusDesc = "UROut";
+        break;
+    case Order::Status::REJ:
+        statusDesc = "Rejected";
+        break;
+    case Order::Status::UCH:
+        statusDesc = "Replaced";
+        break;
+    case Order::Status::UCN:
+        statusDesc = "Cancel Sent";
+        break;
+    case Order::Status::TSC:
+        statusDesc = "Trade Server Canceled";
+        break;
+    case Order::Status::RJC:
+        statusDesc = "Cancel Request Rejected";
+        break;
     case Order::Status::DON:
         statusDesc = "Queued";
         break;
-    case Order::Status::ACK:
-        statusDesc = "Order Received";
+    case Order::Status::RSN:
+        statusDesc = "Replace Sent";
         break;
-    case Order::Status::FLL:
-        statusDesc = "Order Filled";
+    case Order::Status::CND:
+        statusDesc = "Condition Met";
+        break;
+    case Order::Status::OSO:
+        statusDesc = "OSO Order";
+        break;
+    case Order::Status::SUS:
+        statusDesc = "Suspended";
         break;
     default:
         statusDesc = QtEnum::toString(p_status);
