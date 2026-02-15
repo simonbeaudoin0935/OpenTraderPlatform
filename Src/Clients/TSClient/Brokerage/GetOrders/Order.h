@@ -8,6 +8,7 @@
 #include "PlaceOrder.h"
 #include "Logging.h"
 #include "CONSTANTS.h"
+#include "Assume.h"
 
 
 namespace OrderNS
@@ -107,6 +108,66 @@ class Order
     {
         return m_statusDescription;
     }
+    
+    /**
+     * @brief Get the official TradeStation API status description for a given status
+     * @param status The Order::Status enum value
+     * @return The official status description string from TradeStation API
+     * 
+     * This is the single source of truth for status descriptions matching
+     * TradeStation's API documentation exactly.
+     */
+    static QString getStatusDescriptionForStatus(Status status)
+    {
+        switch (status)
+        {
+        case Status::ACK:
+            return "Received";
+        case Status::BRO:
+            return "Broken";
+        case Status::CAN:
+            return "Canceled";
+        case Status::EXP:
+            return "Expired";
+        case Status::FLL:
+            return "Filled";
+        case Status::FLP:
+            return "Partial Fill (UROut)";
+        case Status::FPR:
+            return "Partial Fill (Alive)";
+        case Status::LAT:
+            return "Too Late to Cancel";
+        case Status::OPN:
+            return "Sent";
+        case Status::OUT:
+            return "UROut";
+        case Status::REJ:
+            return "Rejected";
+        case Status::UCH:
+            return "Replaced";
+        case Status::UCN:
+            return "Cancel Sent";
+        case Status::TSC:
+            return "Trade Server Canceled";
+        case Status::RJC:
+            return "Cancel Request Rejected";
+        case Status::DON:
+            return "Queued";
+        case Status::RSN:
+            return "Replace Sent";
+        case Status::CND:
+            return "Condition Met";
+        case Status::OSO:
+            return "OSO Order";
+        case Status::SUS:
+            return "Suspended";
+        }
+        
+        // Should never reach here - all enum values must be handled
+        ASSUME_TRUE(false);
+        return ""; // Unreachable
+    }
+    
     Status getOrderStatus() const
     {
         return m_orderStatus;
