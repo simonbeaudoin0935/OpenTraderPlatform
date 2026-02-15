@@ -1,4 +1,4 @@
-#ccache Implementation Summary for GitHub Actions
+# ccache Implementation Summary for GitHub Actions
 
 This document summarizes the implementation of ccache for ephemeral GitHub Actions runners and answers the key question: "How would I go about publishing this ~/.cache/ccache result at the end of a build, so that it can be downloaded again in another run?"
 
@@ -30,16 +30,11 @@ Added these steps to each build job:
   uses: actions/cache@v4
   with:
     path: ~/.cache/ccache
-    key: ccache-debian-noble-$
-{
-    {
-        github.sha
-    }
-}
+    key: ccache-debian-noble-${{ github.sha }}
     restore-keys: |
       ccache-debian-noble-
 
-#... build step...
+# ... build step ...
 
 - name: Show ccache statistics
   run: ccache --show-stats
@@ -53,10 +48,7 @@ Added these steps to each build job:
 - There's space in the repository cache (10GB limit)
 
 **Automatic Restore**: At the start of the next job:
-1. Actions looks for exact key match: `ccache-debian-noble-$
-    {
-        COMMIT_SHA
-    }`
+1. Actions looks for exact key match: `ccache-debian-noble-${COMMIT_SHA}`
 2. If not found, uses restore-keys to find prefix match: `ccache-debian-noble-`
 3. Restores the most recent matching cache
 4. Build uses cached compilation results

@@ -1,4 +1,4 @@
-#ccache Configuration for CI Builds
+# ccache Configuration for CI Builds
 
 This document explains how ccache is configured and used in the L2Trader CI pipeline to speed up builds on GitHub's ephemeral runners.
 
@@ -44,18 +44,11 @@ Different cache keys are used for each build type to prevent cross-contamination
 
 - **X86_64 builds**:
   - Main branch (push): `ccache-debian-noble-main`
-  - PR builds: `ccache-debian-noble-$
-{
-    COMMIT_SHA
-}
-` - Restore fallback : `ccache - debian - noble - main`,
-    then `ccache - debian - noble -` -
-        **ARM64 builds** : -Main branch(push)
-    : `ccache
-        - debian - bookworm - arm64 - main` - PR builds : `ccache - debian - bookworm - arm64 - $
-{
-    COMMIT_SHA
-}`
+  - PR builds: `ccache-debian-noble-${COMMIT_SHA}`
+  - Restore fallback: `ccache-debian-noble-main`, then `ccache-debian-noble-`
+- **ARM64 builds**:
+  - Main branch (push): `ccache-debian-bookworm-arm64-main`
+  - PR builds: `ccache-debian-bookworm-arm64-${COMMIT_SHA}`
   - Restore fallback: `ccache-debian-bookworm-arm64-main`, then `ccache-debian-bookworm-arm64-`
 
 The cache key includes:
