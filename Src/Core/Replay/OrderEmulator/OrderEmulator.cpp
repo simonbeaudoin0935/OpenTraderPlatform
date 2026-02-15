@@ -420,7 +420,26 @@ QJsonObject OrderEmulator::createOrderJson(const QString& p_orderID,
     json["Quantity"] = QString::number(p_request.getQuantity());
     json["TradeAction"] = tradeActionToString(p_request.getTradeAction());
     json["Status"] = QtEnum::toString(p_status);
-    json["StatusDescription"] = "";
+    
+    // Provide meaningful status descriptions
+    QString statusDesc;
+    switch (p_status)
+    {
+    case Order::Status::DON:
+        statusDesc = "Queued";
+        break;
+    case Order::Status::ACK:
+        statusDesc = "Order Received";
+        break;
+    case Order::Status::FLL:
+        statusDesc = "Order Filled";
+        break;
+    default:
+        statusDesc = QtEnum::toString(p_status);
+        break;
+    }
+    json["StatusDescription"] = statusDesc;
+    
     json["OpenedDateTime"] = QDateTime::currentDateTime().toString(Qt::ISODate);
     json["FilledPrice"] = "0.00";  // Default for non-filled orders
     json["CommissionFee"] = "0.00";
