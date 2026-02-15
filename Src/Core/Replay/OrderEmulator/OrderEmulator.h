@@ -146,6 +146,14 @@ class OrderEmulator : public QObject
         m_balance = p_balance;
     }
 
+    /**
+     * @brief Get the total realized profit/loss
+     */
+    [[nodiscard]] double getRealizedProfitLoss() const
+    {
+        return m_realizedProfitLoss;
+    }
+
   signals:
     /**
      * @brief Emitted when an order status changes
@@ -306,7 +314,10 @@ class OrderEmulator : public QObject
     int m_replaySpeedPercent = 100;
 
     // Simulated account balance
-    double m_balance = 100000.0; // Default $100k
+    double m_balance = 100000.0;
+
+    // Realized profit/loss (from closed positions)
+    double m_realizedProfitLoss = 0.0; // Default $100k
 
     // Constants for delays (in ms at 100% speed)
     static constexpr int MIN_RECEPTION_DELAY_MS = 100;

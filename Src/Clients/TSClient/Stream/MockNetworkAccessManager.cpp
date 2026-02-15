@@ -245,6 +245,7 @@ QNetworkReply* MockNetworkAccessManager::handleGet(const QNetworkRequest& p_requ
         }
 
         double cashBalance = m_emulator->getBalance();
+        double realizedPnL = m_emulator->getRealizedProfitLoss();
 
         // Calculate total market value and unrealized P&L from positions
         double totalMarketValue = 0.0;
@@ -267,6 +268,9 @@ QNetworkReply* MockNetworkAccessManager::handleGet(const QNetworkRequest& p_requ
         // Calculate buying power (2x equity for margin account)
         double buyingPower = equity * 2.0;
 
+        // Total today's P&L = realized + unrealized
+        double todaysPnL = realizedPnL + totalUnrealizedPnL;
+
         QJsonArray balances;
         QJsonObject balanceObj;
         balanceObj["AccountID"] = OrderEmulator::getSimulatedAccountID();
@@ -275,9 +279,9 @@ QNetworkReply* MockNetworkAccessManager::handleGet(const QNetworkRequest& p_requ
         balanceObj["BuyingPower"] = QString::number(buyingPower, 'f', 2);
         balanceObj["Equity"] = QString::number(equity, 'f', 2);
         balanceObj["MarketValue"] = QString::number(totalMarketValue, 'f', 2);
-        balanceObj["RealizedProfitLoss"] = "0.00"; // Not tracked yet
+        balanceObj["RealizedProfitLoss"] = QString::number(realizedPnL, 'f', 2);
         balanceObj["UnrealizedProfitLoss"] = QString::number(totalUnrealizedPnL, 'f', 2);
-        balanceObj["TodaysProfitLoss"] = QString::number(totalUnrealizedPnL, 'f', 2); // Same as unrealized for now
+        balanceObj["TodaysProfitLoss"] = QString::number(todaysPnL, 'f', 2);
         balanceObj["Comission"] = "0.00";
         balanceObj["UnclearedDeposit"] = "0.00";
         balances.append(balanceObj);
@@ -288,7 +292,9 @@ QNetworkReply* MockNetworkAccessManager::handleGet(const QNetworkRequest& p_requ
         DEBUG << "Returning mock balance: cash=" << cashBalance 
               << "marketValue=" << totalMarketValue 
               << "equity=" << equity
-              << "unrealizedPnL=" << totalUnrealizedPnL;
+              << "realizedPnL=" << realizedPnL
+              << "unrealizedPnL=" << totalUnrealizedPnL
+              << "todaysPnL=" << todaysPnL;
 
         return createMockReply(QJsonDocument(response).toJson());
     }

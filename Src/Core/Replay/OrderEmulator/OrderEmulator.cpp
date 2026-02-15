@@ -495,6 +495,7 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
     // Calculate new position
     int newQty = currentQty;
     double newAvgPrice = currentAvgPrice;
+    double realizedPnL = 0.0; // Track realized P&L from this trade
 
     bool isBuy = (tradeAction == "BUY" || tradeAction == "BUYTOCOVER" ||
                   tradeAction == "Buy" || tradeAction == "Buy to Cover");
@@ -511,12 +512,19 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
         }
         else
         {
-            // Covering short
+            // Covering short - realize P&L on covered shares
+            int closedQty = qMin(quantity, -currentQty); // How many shares are closing
+            realizedPnL = closedQty * (currentAvgPrice - p_fillPrice); // Short profit = avgPrice - fillPrice
+            
             newQty = currentQty + quantity;
-            if (newQty >= 0)
+            if (newQty > 0)
             {
                 // Position flipped to long
                 newAvgPrice = p_fillPrice;
+            }
+            else if (newQty == 0)
+            {
+                newAvgPrice = 0; // Position closed
             }
         }
 
@@ -535,12 +543,19 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
         }
         else
         {
-            // Selling long
+            // Selling long - realize P&L on sold shares
+            int closedQty = qMin(quantity, currentQty); // How many shares are closing
+            realizedPnL = closedQty * (p_fillPrice - currentAvgPrice); // Long profit = fillPrice - avgPrice
+            
             newQty = currentQty - quantity;
-            if (newQty <= 0)
+            if (newQty < 0)
             {
                 // Position flipped to short
                 newAvgPrice = p_fillPrice;
+            }
+            else if (newQty == 0)
+            {
+                newAvgPrice = 0; // Position closed
             }
         }
 
@@ -548,8 +563,24 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
         m_balance += quantity * p_fillPrice;
     }
 
+    // Track realized P&L
+    if (std::abs(realizedPnL) > 0.0001) // Use epsilon for float comparison
+    {
+        m_realizedProfitLoss += realizedPnL;
+        DEBUG << "Realized P&L:" << realizedPnL << "Total realized:" << m_realizedProfitLoss;
+    }
+
     posData.quantity = newQty;
     posData.averagePrice = newAvgPrice;
+
+    // If position is closed (qty == 0), remove it from tracking
+    if (newQty == 0)
+    {
+        m_positions.remove(symbol);
+        m_positionData.remove(symbol);
+        DEBUG << "Position closed for" << symbol;
+        return; // Don't emit position update for closed position
+    }
 
     // Create Position JSON
     QJsonObject posJson;
