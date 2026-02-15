@@ -164,6 +164,17 @@ namespace TSClientEndpoints
 } // namespace TSClientEndpoints
 
 /**
+ * @namespace StreamConstants
+ * @brief Constants related to streaming and heartbeat
+ */
+namespace StreamConstants
+{
+    // Heartbeat interval for mock streams in replay mode (milliseconds)
+    // Should be less than the stream heartbeat timeout (10 seconds)
+    inline constexpr int MOCK_HEARTBEAT_INTERVAL_MS = 5000;
+} // namespace StreamConstants
+
+/**
  * @namespace AuthConstants
  * @brief Authentication and token-related constants
  */

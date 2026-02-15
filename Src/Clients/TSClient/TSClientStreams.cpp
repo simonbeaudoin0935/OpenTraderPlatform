@@ -39,6 +39,9 @@ QPointer<StreamPositions> TSClient::openStreamPositions(const QString& accountID
                 // Track the mock reply for position updates from OrderEmulator
                 m_replayPositionsReply = mockReply;
 
+                // Start heartbeat for stream keep-alive
+                mockReply->startHeartbeat(StreamConstants::MOCK_HEARTBEAT_INTERVAL_MS);
+
                 stream = new StreamPositions(accountID, mockReply, this);
                 Q_CHECK_PTR(stream);
 
@@ -122,6 +125,9 @@ QPointer<StreamOrders> TSClient::openStreamOrders(const QString& accountID)
 
                 // Track the mock reply for order updates from OrderEmulator
                 m_replayOrdersReply = mockReply;
+
+                // Start heartbeat for stream keep-alive
+                mockReply->startHeartbeat(StreamConstants::MOCK_HEARTBEAT_INTERVAL_MS);
 
                 stream = new StreamOrders(accountID, mockReply, this);
                 Q_CHECK_PTR(stream);
