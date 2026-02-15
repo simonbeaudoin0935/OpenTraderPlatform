@@ -54,7 +54,7 @@ QPointer<StreamPositions> TSClient::openStreamPositions(const QString& accountID
 
                 // Send initial empty snapshot with EndSnapshot event
                 QJsonObject endSnapshot;
-                endSnapshot["EndSnapshot"] = true;
+                endSnapshot["StreamStatus"] = "EndSnapshot";
                 mockReply->injectData(QJsonDocument(endSnapshot).toJson(QJsonDocument::Compact) + "\n");
 
                 INFO << "Opened replay StreamPositions for account" << accountID;
@@ -138,7 +138,7 @@ QPointer<StreamOrders> TSClient::openStreamOrders(const QString& accountID)
 
                 // Send initial empty snapshot with EndSnapshot event
                 QJsonObject endSnapshot;
-                endSnapshot["EndSnapshot"] = true;
+                endSnapshot["StreamStatus"] = "EndSnapshot";
                 mockReply->injectData(QJsonDocument(endSnapshot).toJson(QJsonDocument::Compact) + "\n");
 
                 INFO << "Opened replay StreamOrders for account" << accountID;
