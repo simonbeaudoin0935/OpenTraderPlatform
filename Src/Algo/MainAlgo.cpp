@@ -11,6 +11,7 @@
 #include "TSClient.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "OrderEmulator.h"
 
 #define LOGGING_CATEGORY MainAlgoLog
 
@@ -791,6 +792,9 @@ void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pl
 
     DEBUG << "ReplayEngine created and connected";
 
+    // Start replay order/position streams with simulated account
+    startReplayOrderStreams();
+
     m_replayEngine->startReplay(p_date, p_startTime, p_speed);
 }
 
@@ -858,6 +862,9 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
     ASSUME_TRUE(connected);
 
     DEBUG << "ReplayEngine created and connected";
+
+    // Start replay order/position streams with simulated account
+    startReplayOrderStreams();
 
     // Start in paused state - emit first bar then pause
     m_replayEngine->startReplayPaused(p_date, p_startTime, p_speed);
@@ -941,6 +948,61 @@ void MainAlgo::pauseLiveStreams()
     m_orderReceiver->stopStream(m_activeAccount.getAccountId());
     orderStreamStarted = false;
     DEBUG << "Orders stream stopped";
+}
+
+void MainAlgo::startReplayOrderStreams()
+{
+    INFO << "Starting replay order/position streams with simulated account";
+
+    // Get the simulated account ID from TSClient
+    QString simAccountID = OrderEmulator::getSimulatedAccountID();
+
+    // Delete existing receivers and create new ones with the simulated account
+    if (m_positionReceiver)
+    {
+        delete m_positionReceiver;
+    }
+    m_positionReceiver = new PositionsReceiver(simAccountID, this);
+    bool connected = connect(m_positionReceiver,
+                             &PositionsReceiver::receivedNewPosition,
+                             this,
+                             &MainAlgo::onReceivedNewPosition,
+                             Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+    connected = connect(m_positionReceiver,
+                        &PositionsReceiver::positionDeleted,
+                        this,
+                        &MainAlgo::onPositionDeleted,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+    connected = connect(m_positionReceiver,
+                        &PositionsReceiver::loadedPositionsFromDatabase,
+                        this,
+                        &MainAlgo::onLoadedPositionsFromDatabase,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+    positionStreamStarted = true;
+    DEBUG << "Replay positions receiver created for" << simAccountID;
+
+    if (m_orderReceiver)
+    {
+        delete m_orderReceiver;
+    }
+    m_orderReceiver = new OrdersReceiver(simAccountID, this);
+    connected = connect(m_orderReceiver,
+                        &OrdersReceiver::receivedNewOrder,
+                        this,
+                        &MainAlgo::onReceivedNewOrder,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+    connected = connect(m_orderReceiver,
+                        &OrdersReceiver::receivedNewOrder,
+                        this,
+                        &MainAlgo::receivedNewOrder,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+    orderStreamStarted = true;
+    DEBUG << "Replay orders receiver created for" << simAccountID;
 }
 
 void MainAlgo::resumeLiveStreams()
