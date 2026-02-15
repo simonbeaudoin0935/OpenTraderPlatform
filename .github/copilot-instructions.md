@@ -50,12 +50,25 @@ find Src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
 
 ## Core Coding Guidelines
 
-### ASSERT-First Strategy
-Instead of defensive null checks, assert expected state upfront:
+### ASSERT-First Strategy (MANDATORY)
+**Always use ASSUME macros instead of defensive null/pointer checks.** Defensive checks hide bugs by silently failing; ASSUME macros catch bugs early in testing.
+
+#### When to Use ASSUME Macros
+Use ASSUME macros for pointer/object validation in ALL cases EXCEPT:
+- ✅ Destructor cleanup (legitimate to check before deleteLater/reset)
+- ✅ Optional parameters explicitly documented as nullable
+- ✅ Explicit error handling paths (parsing user input, network responses)
+
+#### Required Patterns
 ```cpp
 // ✗ WRONG - Defensive check hides bugs
 if (m_replayEngine != nullptr) {
     m_replayEngine->pauseReplay();
+}
+
+// ✗ WRONG - Silent failure on null pointer
+if (m_strategyManager) {
+    m_strategyManager->loadStrategy();
 }
 
 // ✓ CORRECT - Assert expectation upfront (pre-condition)
@@ -64,8 +77,25 @@ m_replayEngine->pauseReplay();
 
 // ✓ CORRECT - Assert valid results (post-condition)
 auto result = processData();
-VALUE_ASSUME_GT(result, 0);  // Ensure valid output
+ASSUME_GT(result, 0);  // Ensure valid output
+
+// ✓ ACCEPTABLE - Destructor cleanup
+~MyClass() {
+    if (m_resource) {
+        m_resource->cleanup();
+    }
+}
 ```
+
+#### Available ASSUME Macros
+From `Src/Misc/Assume.h`:
+- `OBJ_ASSUME_DIFF(ptr, nullptr)` - Assert pointer is not null
+- `OBJ_ASSUME_TRUE(condition)` - Assert condition is true
+- `OBJ_ASSUME_FALSE(condition)` - Assert condition is false
+- `OBJ_ASSUME_EQUAL(a, b)` - Assert equality
+- `OBJ_ASSUME_GT/GTE/LT/LTE(a, b)` - Assert comparisons
+- Non-OBJ variants (ASSUME_*) use function name instead of object name
+
 Use ASSUME macros from `Src/Misc/Assume.h` for both pre-conditions and post-conditions instead of Q_ASSERT.
 
 ### Naming Conventions

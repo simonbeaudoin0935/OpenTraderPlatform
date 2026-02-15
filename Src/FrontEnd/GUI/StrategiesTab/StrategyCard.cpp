@@ -2,6 +2,7 @@
 #include "StrategyManager.h"
 #include "StrategyLogger.h"
 #include "ThreadStats.h"
+#include "Assume.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -216,11 +217,9 @@ void StrategyCard::onRefreshTimer()
 {
     updateThreadInfo();
 
-    if (m_strategyManager)
-    {
-        int posCount = m_strategyManager->getStrategyPositionCount(m_strategyID);
-        m_positionsLabel->setText("Positions: " + QString::number(posCount));
-    }
+    ASSUME_DIFF(m_strategyManager, nullptr);
+    int posCount = m_strategyManager->getStrategyPositionCount(m_strategyID);
+    m_positionsLabel->setText("Positions: " + QString::number(posCount));
 
     updateLogs();
 }
@@ -264,11 +263,7 @@ void StrategyCard::updateStatus()
 
 void StrategyCard::updateThreadInfo()
 {
-    if (!m_strategyManager)
-    {
-        m_threadInfoLabel->setText("Thread: - | CPU: -%");
-        return;
-    }
+    ASSUME_DIFF(m_strategyManager, nullptr);
 
     qint64 threadId = m_strategyManager->getStrategyThreadId(m_strategyID);
     if (threadId <= 0)
@@ -289,8 +284,7 @@ void StrategyCard::updateThreadInfo()
 
 void StrategyCard::updateLogs()
 {
-    if (!m_strategyManager)
-        return;
+    ASSUME_DIFF(m_strategyManager, nullptr);
 
     const StrategyLogger* logger = m_strategyManager->getStrategyLogger(m_strategyID);
     if (!logger)
@@ -415,16 +409,12 @@ void StrategyCard::mousePressEvent(QMouseEvent* event)
 
 void StrategyCard::onStartClicked()
 {
-    if (m_strategyManager)
-    {
-        [[maybe_unused]] auto result = m_strategyManager->startStrategy(m_strategyID);
-    }
+    ASSUME_DIFF(m_strategyManager, nullptr);
+    [[maybe_unused]] auto result = m_strategyManager->startStrategy(m_strategyID);
 }
 
 void StrategyCard::onStopClicked()
 {
-    if (m_strategyManager)
-    {
-        [[maybe_unused]] auto result = m_strategyManager->unloadStrategy(m_strategyID);
-    }
+    ASSUME_DIFF(m_strategyManager, nullptr);
+    [[maybe_unused]] auto result = m_strategyManager->unloadStrategy(m_strategyID);
 }

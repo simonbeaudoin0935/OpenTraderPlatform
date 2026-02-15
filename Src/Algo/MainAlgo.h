@@ -18,7 +18,7 @@
 #include "Balance.h"
 #include "StrategyManager.h"
 #include "Core/Replay/ReplayEngine.h"
-#include "TSClient.h"  // For TSClient::AuthStateReason enum
+#include "TSClient.h" // For TSClient::AuthStateReason enum
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 

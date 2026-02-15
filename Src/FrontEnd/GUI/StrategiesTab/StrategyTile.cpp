@@ -1,6 +1,7 @@
 #include "StrategyTile.h"
 #include "StrategyManager.h"
 #include "ThreadStats.h"
+#include "Assume.h"
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPalette>
@@ -115,11 +116,9 @@ void StrategyTile::onRefreshTimer()
     updateThreadAndMemoryInfo();
 
     // Update positions count
-    if (m_strategyManager)
-    {
-        int posCount = m_strategyManager->getStrategyPositionCount(m_strategyID);
-        m_positionsLabel->setText("Open Positions: " + QString::number(posCount));
-    }
+    ASSUME_DIFF(m_strategyManager, nullptr);
+    int posCount = m_strategyManager->getStrategyPositionCount(m_strategyID);
+    m_positionsLabel->setText("Open Positions: " + QString::number(posCount));
 }
 
 void StrategyTile::updateStatusDisplay()
@@ -143,11 +142,7 @@ void StrategyTile::updateStatusDisplay()
 
 void StrategyTile::updateThreadAndMemoryInfo()
 {
-    if (!m_strategyManager)
-    {
-        m_threadInfoLabel->setText("Thread: - | CPU: -%");
-        return;
-    }
+    ASSUME_DIFF(m_strategyManager, nullptr);
 
     // Get thread ID
     qint64 threadId = m_strategyManager->getStrategyThreadId(m_strategyID);

@@ -262,7 +262,9 @@ BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date,
 /*
  * This is the entry point that activates the chain of events after authentication state changes
  */
-void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, const QString& message)
+void MainAlgo::onTradeStationAuthStateChanged(bool isAuthenticated,
+                                              TSClient::AuthStateReason reason,
+                                              const QString& message)
 {
     if (!isAuthenticated)
     {

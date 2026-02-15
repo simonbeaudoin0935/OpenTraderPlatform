@@ -284,10 +284,10 @@ namespace RecorderConstants
      *
      * @note Applies to both bar and market depth streams
      */
-    inline constexpr int STREAM_RAMP_UP_DELAY_TIER1_MS = 500;   // First 100 streams
-    inline constexpr int STREAM_RAMP_UP_DELAY_TIER2_MS = 1000;  // Streams 101-200
-    inline constexpr int STREAM_RAMP_UP_DELAY_TIER3_MS = 2000;  // Streams 201+
-    
-    inline constexpr int STREAM_RAMP_UP_TIER1_THRESHOLD = 100;  // Switch to tier 2 after this many
-    inline constexpr int STREAM_RAMP_UP_TIER2_THRESHOLD = 200;  // Switch to tier 3 after this many
+    inline constexpr int STREAM_RAMP_UP_DELAY_TIER1_MS = 500;  // First 100 streams
+    inline constexpr int STREAM_RAMP_UP_DELAY_TIER2_MS = 1000; // Streams 101-200
+    inline constexpr int STREAM_RAMP_UP_DELAY_TIER3_MS = 2000; // Streams 201+
+
+    inline constexpr int STREAM_RAMP_UP_TIER1_THRESHOLD = 100; // Switch to tier 2 after this many
+    inline constexpr int STREAM_RAMP_UP_TIER2_THRESHOLD = 200; // Switch to tier 3 after this many
 } // namespace RecorderConstants

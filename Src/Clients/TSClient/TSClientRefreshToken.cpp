@@ -61,7 +61,7 @@ void TSClient::onAuthFinished(bool success, AuthToken token, QString reason)
     {
         qCWarning(TSClientLog) << Q_FUNC_INFO << "Auth unsucessful : " << reason;
     }
-    
+
     // Determine the auth state reason based on success/failure
     AuthStateReason authReason = m_authenticated ? AuthStateReason::ValidToken : AuthStateReason::AuthFailed;
     emit authStateChanged(m_authenticated, authReason, reason);
@@ -214,7 +214,9 @@ void TSClient::refreshAccessToken()
                         // for the first API call. Almost as if the refresh did not properly propagade in their system.
                         // Wait a second on our end before propagating the successful authentification as to delay
                         // making the first API call.
-                        emit authStateChanged(true, AuthStateReason::RefreshSuccessful, "Auth token refresh successful");
+                        emit authStateChanged(true,
+                                              AuthStateReason::RefreshSuccessful,
+                                              "Auth token refresh successful");
                     });
                 break;
             }

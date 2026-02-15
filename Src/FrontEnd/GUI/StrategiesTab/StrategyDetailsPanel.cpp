@@ -4,6 +4,7 @@
 #include "StrategyLogger.h"
 #include "Order.h"
 #include "Position.h"
+#include "Assume.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -32,13 +33,11 @@ StrategyDetailsPanel::StrategyDetailsPanel(StrategyManager* p_strategyManager, Q
     setupUI();
 
     // Connect to balance updates
-    if (m_strategyManager)
-    {
-        connect(m_strategyManager,
-                &StrategyManager::strategyBalanceUpdated,
-                this,
-                &StrategyDetailsPanel::onStrategyBalanceUpdated);
-    }
+    ASSUME_DIFF(m_strategyManager, nullptr);
+    connect(m_strategyManager,
+            &StrategyManager::strategyBalanceUpdated,
+            this,
+            &StrategyDetailsPanel::onStrategyBalanceUpdated);
 
     // Setup timer for periodic stats refresh (CPU/Memory)
     m_statsRefreshTimer = std::make_unique<QTimer>(this);
@@ -575,11 +574,7 @@ void StrategyDetailsPanel::onStartStrategy()
         return;
     }
 
-    if (!m_strategyManager)
-    {
-        QMessageBox::critical(this, "Error", "StrategyManager not available");
-        return;
-    }
+    ASSUME_DIFF(m_strategyManager, nullptr);
 
     auto error = m_strategyManager->startStrategy(m_currentStrategyID);
     if (!error.isEmpty())

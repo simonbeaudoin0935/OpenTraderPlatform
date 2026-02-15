@@ -69,16 +69,16 @@ class TSClient final : public QObject
     enum class AuthStateReason : quint8
     {
         // Success states
-        ValidToken,           ///< Token is valid and not expired (startup)
-        RefreshSuccessful,    ///< Token refresh completed successfully
+        ValidToken,        ///< Token is valid and not expired (startup)
+        RefreshSuccessful, ///< Token refresh completed successfully
 
         // Transient states (auth in progress)
-        Connecting,           ///< Authentication or token refresh in progress
+        Connecting, ///< Authentication or token refresh in progress
 
         // Failure states
-        TokenExpired,         ///< Refresh token has expired, manual re-auth required
-        AuthFailed,           ///< Authentication process failed
-        StartupNoToken,       ///< No token available at startup (commented out in code)
+        TokenExpired,   ///< Refresh token has expired, manual re-auth required
+        AuthFailed,     ///< Authentication process failed
+        StartupNoToken, ///< No token available at startup (commented out in code)
     };
     Q_ENUM(AuthStateReason)
 
