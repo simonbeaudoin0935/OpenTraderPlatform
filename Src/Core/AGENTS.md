@@ -286,11 +286,47 @@ Settings stored via QSettings:
 - Organization: "L2Trader"
 - Application: "L2Trader"
 
-### Database Locations
+### Database Locations and Mode-Based Organization
 
-- **Orders Database**: `~/.local/share/L2Trader/orders.db`
+L2Trader uses three distinct trading modes, each with its own database storage:
+
+| Mode | Endpoint | Database Path | Description |
+|------|----------|---------------|-------------|
+| **Live** | `api.tradestation.com` | `~/.cache/L2Trader/Orders/Live/Orders.db` | Real money trading |
+| **Simulation** | `sim-api.tradestation.com` | `~/.cache/L2Trader/Orders/Simulation/Orders.db` | Paper trading via real API |
+| **Replay** | (None - local emulation) | `~/.cache/L2Trader/Orders/Replay/Orders_YYYY-MM-DD_HHMMSS.db` | Historical playback |
+
+**Important Distinction**:
+- **Simulation** uses the real TradeStation sim API endpoint (`sim-api.tradestation.com`) - orders go through real network requests, just to a paper trading account
+- **Replay** uses completely local emulation via `OrderEmulator` - no network requests, orders are processed by the emulator based on recorded market depth
+
+**Directory Structure**:
+```
+~/.cache/L2Trader/
+├── Orders/
+│   ├── Live/
+│   │   └── Orders.db              (single file, all live trading history)
+│   ├── Simulation/
+│   │   └── Orders.db              (single file, all paper trading history)
+│   └── Replay/
+│       ├── Orders_2026-02-14_143022.db
+│       ├── Orders_2026-02-15_091533.db
+│       └── ...                    (one per replay session)
+└── Positions/
+    ├── Live/
+    │   └── Positions.db
+    ├── Simulation/
+    │   └── Positions.db
+    └── Replay/
+        ├── Positions_2026-02-14_143022.db
+        └── ...
+```
+
+**Timestamp Format**: `YYYY-MM-DD_HHMMSS` (e.g., `2026-02-14_143022` for Feb 14, 2026 at 14:30:22)
+
+**Other Database Locations**:
 - **Bar Cache Databases**: `~/.local/share/L2Trader/bars/<symbol>_<timeframe>.db`
-- **Replay Data**: User-specified paths
+- **Replay Data**: User-specified paths (recorded market data)
 
 ## Build Configuration
 

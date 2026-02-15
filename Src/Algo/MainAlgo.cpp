@@ -11,6 +11,7 @@
 #include "TSClient.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "OrderEmulator.h"
 
 #define LOGGING_CATEGORY MainAlgoLog
 
@@ -431,8 +432,8 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
 
 void MainAlgo::onReceivedNewPosition(const QString& account, Position position)
 {
-    Q_UNUSED(account);
     DEBUG << "Received new position:" << position.toJsonString();
+    emit receivedNewPosition(account, position);
 }
 
 void MainAlgo::onPositionDeleted(const QString& account, const QString& positionID)
@@ -481,8 +482,8 @@ void MainAlgo::startBalancePolling()
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
 
-    m_balancePollingTimer->start(5000); // 5 seconds
-    requestBalance();                   // initial request
+    m_balancePollingTimer->start(PollingConstants::BALANCE_POLLING_INTERVAL_MS);
+    requestBalance(); // initial request
     DEBUG << "Started balance polling";
 }
 
@@ -791,6 +792,9 @@ void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pl
 
     DEBUG << "ReplayEngine created and connected";
 
+    // Start replay order/position streams with simulated account
+    startReplayOrderStreams();
+
     m_replayEngine->startReplay(p_date, p_startTime, p_speed);
 }
 
@@ -799,8 +803,15 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
     INFO << "MainAlgo entering replay mode (paused) for" << p_date.toString(Qt::ISODate) << "at"
          << p_startTime.toString("hh:mm:ss");
 
-    // We assume that if we were able to click "Enter Replay Mode", then we must not already be in replay mode
-    OBJ_ASSUME_TRUE(m_replayEngine == nullptr);
+    bool isRecreatingEngine = (m_replayEngine != nullptr);
+
+    // If ReplayEngine already exists (e.g., changing replay day), delete it first
+    if (m_replayEngine != nullptr)
+    {
+        DEBUG << "Deleting existing ReplayEngine before creating new one";
+        delete m_replayEngine;
+        m_replayEngine = nullptr;
+    }
 
     // Create ReplayEngine (same setup as enterReplayMode)
     m_replayEngine = new ReplayEngine(this, TSClient::getInstance());
@@ -858,6 +869,12 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
     ASSUME_TRUE(connected);
 
     DEBUG << "ReplayEngine created and connected";
+
+    // Only setup order/position streams on first entry to replay mode
+    if (!isRecreatingEngine)
+    {
+        startReplayOrderStreams();
+    }
 
     // Start in paused state - emit first bar then pause
     m_replayEngine->startReplayPaused(p_date, p_startTime, p_speed);
@@ -943,18 +960,31 @@ void MainAlgo::pauseLiveStreams()
     DEBUG << "Orders stream stopped";
 }
 
-void MainAlgo::resumeLiveStreams()
+void MainAlgo::startReplayOrderStreams()
 {
-    INFO << "Resuming live streams after replay mode";
+    INFO << "Starting replay order/position streams with simulated account";
 
-    // Receivers exist but their streams were stopped in pauseLiveStreams
-    OBJ_ASSUME_DIFF(m_positionReceiver, nullptr);
-    OBJ_ASSUME_DIFF(m_orderReceiver, nullptr);
+    // Get the simulated account ID from TSClient
+    QString simAccountID = OrderEmulator::getSimulatedAccountID();
 
-    // Delete and recreate to get fresh snapshots
-    // The streams are already null from stopStream(), so destructor won't try to close them
-    delete m_positionReceiver;
-    m_positionReceiver = new PositionsReceiver(m_activeAccount.getAccountId(), this);
+    // Create simulated account and update m_activeAccount
+    QJsonObject accountJson;
+    accountJson["AccountID"] = simAccountID;
+    accountJson["AccountType"] = "Margin";
+    accountJson["Name"] = "Replay Simulation Account";
+    accountJson["Status"] = "Active";
+    Account simAccount(accountJson);
+
+    // Update active account to the simulated account
+    m_activeAccount = simAccount;
+    INFO << "Set active account to simulated account:" << simAccountID;
+
+    // Delete existing receivers and create new ones with the simulated account
+    if (m_positionReceiver)
+    {
+        delete m_positionReceiver;
+    }
+    m_positionReceiver = new PositionsReceiver(simAccountID, this);
     bool connected = connect(m_positionReceiver,
                              &PositionsReceiver::receivedNewPosition,
                              this,
@@ -974,18 +1004,105 @@ void MainAlgo::resumeLiveStreams()
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
     positionStreamStarted = true;
-    DEBUG << "Positions receiver recreated and started";
+    DEBUG << "Replay positions receiver created for" << simAccountID;
 
-    delete m_orderReceiver;
-    m_orderReceiver = new OrdersReceiver(m_activeAccount.getAccountId(), this);
+    if (m_orderReceiver)
+    {
+        delete m_orderReceiver;
+    }
+    m_orderReceiver = new OrdersReceiver(simAccountID, this);
     connected = connect(m_orderReceiver,
                         &OrdersReceiver::receivedNewOrder,
                         this,
                         &MainAlgo::onReceivedNewOrder,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
+    connected = connect(m_orderReceiver,
+                        &OrdersReceiver::receivedNewOrder,
+                        this,
+                        &MainAlgo::receivedNewOrder,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
     orderStreamStarted = true;
-    DEBUG << "Orders receiver recreated and started";
+    DEBUG << "Replay orders receiver created for" << simAccountID;
+
+    // Emit simulated account to update GUI account selector
+    QVector<Account> simAccounts;
+    simAccounts.append(simAccount);
+    emit tradeStationAccountsReceived(simAccounts);
+    DEBUG << "Emitted simulated account for replay mode";
+}
+
+void MainAlgo::resumeLiveStreams()
+{
+    INFO << "Resuming live streams after replay mode";
+
+    // Receivers exist but their streams were stopped in pauseLiveStreams
+    OBJ_ASSUME_DIFF(m_positionReceiver, nullptr);
+    OBJ_ASSUME_DIFF(m_orderReceiver, nullptr);
+
+    // Fetch real accounts from API (replay mode uses fake "SIM123456")
+    INFO << "Fetching real accounts from API after replay mode";
+    QFuture<std::expected<QVector<Account>, TSClient::Error>> future = TSClient::getInstance()->getAccounts();
+
+    future.then(this,
+                [this](std::expected<QVector<Account>, TSClient::Error> results)
+                {
+                    if (!results.has_value())
+                    {
+                        CRITICAL << "Failed to fetch accounts after replay mode";
+                        return;
+                    }
+
+                    QVector<Account> accounts = results.value();
+                    if (accounts.isEmpty())
+                    {
+                        CRITICAL << "No accounts returned after replay mode";
+                        return;
+                    }
+
+                    // Emit accounts to GUI so user can select
+                    emit tradeStationAccountsReceived(accounts);
+
+                    // Use first account as active (or find previous active if still exists)
+                    m_activeAccount = accounts.first();
+                    INFO << "Using account" << m_activeAccount.getAccountId() << "after replay mode";
+
+                    // Delete and recreate receivers with real account
+                    delete m_positionReceiver;
+                    m_positionReceiver = new PositionsReceiver(m_activeAccount.getAccountId(), this);
+                    bool connected = connect(m_positionReceiver,
+                                             &PositionsReceiver::receivedNewPosition,
+                                             this,
+                                             &MainAlgo::onReceivedNewPosition,
+                                             Qt::UniqueConnection);
+                    ASSUME_TRUE(connected);
+                    connected = connect(m_positionReceiver,
+                                        &PositionsReceiver::positionDeleted,
+                                        this,
+                                        &MainAlgo::onPositionDeleted,
+                                        Qt::UniqueConnection);
+                    ASSUME_TRUE(connected);
+                    connected = connect(m_positionReceiver,
+                                        &PositionsReceiver::loadedPositionsFromDatabase,
+                                        this,
+                                        &MainAlgo::onLoadedPositionsFromDatabase,
+                                        Qt::UniqueConnection);
+                    ASSUME_TRUE(connected);
+                    positionStreamStarted = true;
+                    DEBUG << "Positions receiver recreated and started";
+
+                    delete m_orderReceiver;
+                    m_orderReceiver = new OrdersReceiver(m_activeAccount.getAccountId(), this);
+                    connected = connect(m_orderReceiver,
+                                        &OrdersReceiver::receivedNewOrder,
+                                        this,
+                                        &MainAlgo::onReceivedNewOrder,
+                                        Qt::UniqueConnection);
+                    ASSUME_TRUE(connected);
+                    orderStreamStarted = true;
+                    DEBUG << "Orders receiver recreated and started";
+                });
 }
 
 ReplayEngine::PlaybackState MainAlgo::getReplayState() const

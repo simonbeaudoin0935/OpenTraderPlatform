@@ -12,6 +12,9 @@
 #include "GUIFrontend.h"
 #include "Misc/Settings.h"
 #include "Assume.h"
+#include "TSClient.h"
+#include "MainAlgo.h"
+#include "Core/Replay/ReplayEngine.h"
 
 OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     : QWidget(p_parent)
@@ -615,6 +618,20 @@ bool OrderEntryWidget::validateInputs()
 {
     // Check GUIFrontend reference
     OBJ_ASSUME_TRUE(m_guiFrontend);
+
+    // Check if in replay mode and replay is not running
+    if (TSClient::getInstance()->getMode() == TSClient::Mode::Replay)
+    {
+        MainAlgo* mainAlgo = MainAlgo::getInstance();
+        if (mainAlgo->getReplayState() != ReplayEngine::PlaybackState::Playing)
+        {
+            QMessageBox::warning(this,
+                                 "Replay Not Running",
+                                 "Cannot place orders when replay is paused or stopped.\n\n"
+                                 "Please start replay playback by pressing the Play button.");
+            return false;
+        }
+    }
 
     // Check account selected
     QString accountID = m_guiFrontend->getSelectedAccountId();

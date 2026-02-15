@@ -444,9 +444,9 @@ qDeleteAll(m_stockInstruments);
 
 Periodic balance updates:
 ```cpp
-void MainAlgo::startBalancePolling(int intervalMs = 5000) {
+void MainAlgo::startBalancePolling() {
     m_balancePollingTimer = new QTimer(this);
-    m_balancePollingTimer->setInterval(intervalMs);
+    m_balancePollingTimer->setInterval(PollingConstants::BALANCE_POLLING_INTERVAL_MS);
 
     connect(m_balancePollingTimer, &QTimer::timeout, this, [this]() {
         if (TSClient::getInstance().isAuthenticated()) {
@@ -458,7 +458,7 @@ void MainAlgo::startBalancePolling(int intervalMs = 5000) {
 }
 ```
 
-Configurable interval (default 5 seconds).
+**Polling interval**: Centralized in `Src/Misc/CONSTANTS.h` as `PollingConstants::BALANCE_POLLING_INTERVAL_MS` (default: 1000ms = 1 second).
 
 ## Configuration
 
@@ -598,6 +598,135 @@ void MainAlgo::onPlaceOrder(const PlaceOrderRequest& request) {
 - **Balance polling**: Configurable interval, don't poll too frequently
 - **Position tracking**: Use maps for O(1) lookups
 - **Memory**: Bar caches evict old data automatically
+
+## Replay Mode
+
+MainAlgo coordinates replay mode for strategy testing:
+
+### Entering Replay Mode
+
+```cpp
+void MainAlgo::enterReplayModePaused() {
+    // 1. Create ReplayEngine with historical data
+    m_replayEngine = new ReplayEngine(...);
+
+    // 2. Connect signals from ReplayEngine
+    connect(m_replayEngine, &ReplayEngine::injectBarData,
+            TSClient::getInstance(), &TSClient::onInjectBarData);
+    connect(m_replayEngine, &ReplayEngine::injectDepthData,
+            TSClient::getInstance(), &TSClient::onInjectDepthData);
+
+    // 3. Pause live streams (heartbeat timers)
+    pauseLiveStreams();
+
+    // 4. Create replay order/position receivers
+    startReplayOrderStreams();  // Uses SIM123456 account
+
+    // 5. Start replay (paused initially)
+    m_replayEngine->startReplayPaused();
+}
+```
+
+### Exiting Replay Mode
+
+When exiting replay mode back to live/simulation mode, `resumeLiveStreams()` performs critical cleanup:
+
+```cpp
+void MainAlgo::resumeLiveStreams() {
+    // 1. Refetch real TradeStation accounts from API
+    //    (m_activeAccount may still be "SIM123456" from replay)
+    auto accountsFuture = TSClient::getInstance().getAccounts();
+    accountsFuture.waitForFinished();
+    
+    if (accountsFuture.result().has_value()) {
+        auto accounts = accountsFuture.result().value();
+        if (!accounts.isEmpty()) {
+            m_activeAccount = accounts.first().getAccountID();
+            emit tradeStationAccountsReceived(accounts);  // Update GUI
+        }
+    }
+
+    // 2. Delete replay-specific receivers (SIM123456)
+    m_positionReceiver.reset();
+    m_orderReceiver.reset();
+
+    // 3. Recreate receivers with real account
+    m_positionReceiver = std::make_unique<PositionsReceiver>(m_activeAccount, this);
+    m_orderReceiver = std::make_unique<OrdersReceiver>(m_activeAccount, this);
+
+    // 4. Resume live streams for displayed stock
+    if (hasDisplayedStock()) {
+        // Resume bar/depth streams...
+    }
+}
+```
+
+**Critical**: Must refetch accounts before recreating receivers, otherwise API calls fail with ContentAccessDenied errors due to invalid account ID.
+
+### startReplayOrderStreams()
+
+Creates receivers for order/position tracking with simulated account:
+
+```cpp
+void MainAlgo::startReplayOrderStreams() {
+    QString simAccountID = OrderEmulator::getSimulatedAccountID();  // "SIM123456"
+
+    // Create position receiver with simulated account
+    m_positionReceiver = new PositionsReceiver(simAccountID, this);
+    // Connect signals...
+
+    // Create order receiver with simulated account
+    m_orderReceiver = new OrdersReceiver(simAccountID, this);
+    // Connect signals...
+
+    // Emit simulated account to update GUI account selector
+    QJsonObject accountJson;
+    accountJson["AccountID"] = simAccountID;
+    accountJson["AccountType"] = "Margin";
+    accountJson["Name"] = "Replay Simulation Account";
+    Account simAccount(accountJson);
+
+    emit tradeStationAccountsReceived({simAccount});
+}
+```
+
+### Order/Position Flow in Replay Mode
+
+```
+GUI/Strategy → placeOrder() → TSClient
+    ↓ (Mode::Replay)
+MockNetworkAccessManager
+    ↓
+OrderEmulator
+    ↓ (reception delay 100-500ms)
+emit OPN status
+    ↓ (execution delay 10-50ms)
+emit FLL status + position update
+    ↓
+MockNetworkReply::injectData()
+    ↓
+StreamOrders/StreamPositions
+    ↓
+OrdersReceiver/PositionsReceiver
+    ↓
+MainAlgo::onReceivedNewOrder/Position()
+    ↓
+GUI (OrderWindow, PositionWindow)
+```
+
+### Key Differences from Live Mode
+
+| Aspect | Live Mode | Replay Mode |
+|--------|-----------|-------------|
+| Account | Real TradeStation account | `SIM123456` simulated |
+| Orders | Real API | OrderEmulator |
+| Positions | Real API | OrderEmulator |
+| Market data | Live streams | Recorded SQLite DB |
+| Fills | Real market | Based on recorded depth |
+| Latency | Real network | Simulated (100-500ms) |
+| Balance | Real | $100,000 simulated |
+
+See `Src/Core/Replay/OrderEmulator/AGENTS.md` for order emulation details.
 
 ## Related Agent Instructions
 

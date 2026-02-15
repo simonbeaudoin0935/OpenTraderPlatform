@@ -14,6 +14,8 @@
 #include "Settings.h"
 #include "SQL/PositionsDatabaseQueries.h"
 #include "Assume.h"
+#include "MainApp.h"
+#include "TSClient.h"
 
 #define LOGGING_CATEGORY PositionsDatabaseLog
 Q_LOGGING_CATEGORY(PositionsDatabaseLog, "PositionsDatabase");
@@ -21,12 +23,56 @@ Q_LOGGING_CATEGORY(PositionsDatabaseLog, "PositionsDatabase");
 // Static singleton instance
 PositionsDatabase* PositionsDatabase::s_instance = nullptr;
 
+namespace
+{
+    /**
+ * @brief Determines the database path based on current trading mode
+ *
+ * Database structure:
+ * - Live:       ~/.cache/L2Trader/Positions/Live/Positions.db
+ * - Simulation: ~/.cache/L2Trader/Positions/Simulation/Positions.db
+ * - Replay:     ~/.cache/L2Trader/Positions/Replay/Positions_YYYY-MM-DD_HHMMSS.db
+ *
+ * @return Full path to the positions database file
+ */
+    QString determineDatabasePath()
+    {
+        QString baseDir = getCacheLocation();
+        baseDir += "/Positions/";
+
+        // Check TSClient mode first - if Replay, use replay path
+        TSClient* client = TSClient::getInstance();
+        if (client && client->getMode() == TSClient::Mode::Replay)
+        {
+            QString timestamp = client->getReplaySessionTimestamp();
+            ASSUME_TRUE(!timestamp.isEmpty());
+
+            QString replayDir = baseDir + "Replay/";
+            QDir().mkpath(replayDir);
+            return replayDir + "Positions_" + timestamp + ".db";
+        }
+
+        // Otherwise check TradingMode (Live vs Sim)
+        TradingMode tradingMode = MainApp::getTradingMode();
+        if (tradingMode == TradingMode::Sim)
+        {
+            QString simDir = baseDir + "Simulation/";
+            QDir().mkpath(simDir);
+            return simDir + "Positions.db";
+        }
+
+        // Default to Live
+        QString liveDir = baseDir + "Live/";
+        QDir().mkpath(liveDir);
+        return liveDir + "Positions.db";
+    }
+} // anonymous namespace
+
 PositionsDatabase* PositionsDatabase::getInstance(QObject* p_parent)
 {
     if (s_instance == nullptr)
     {
-        QString cacheDir = getCacheLocation();
-        QString dbPath = cacheDir + "/positions.db";
+        QString dbPath = determineDatabasePath();
         s_instance = new PositionsDatabase(dbPath, p_parent);
     }
     return s_instance;

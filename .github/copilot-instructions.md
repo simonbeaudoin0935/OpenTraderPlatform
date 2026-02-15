@@ -345,6 +345,71 @@ void MainApp::cleanupSingletons() {
 
 See `Doc/Improvements/Architecture_Improvements.md` section 1.1.1 for detailed analysis of these threading issues and fixes.
 
+## Trading Modes and Database Organization
+
+L2Trader supports three distinct trading modes. Understanding the difference is critical:
+
+### Mode Definitions
+
+| Mode | API Endpoint | Database Path | Description |
+|------|--------------|---------------|-------------|
+| **Live** | `api.tradestation.com` | `Orders/Live/Orders.db` | Real money trading with actual funds |
+| **Simulation** | `sim-api.tradestation.com` | `Orders/Simulation/Orders.db` | Paper trading via **real API** |
+| **Replay** | (None - local emulation) | `Orders/Replay/Orders_YYYY-MM-DD_HHMMSS.db` | Historical playback with emulated orders |
+
+### Critical Distinction: Simulation vs Replay
+
+**Simulation Mode** (`TradingMode::Sim`):
+- Uses TradeStation's **real simulation API** endpoint (`sim-api.tradestation.com`)
+- Orders go through **real network requests** to TradeStation servers
+- Paper trading account with virtual money but real API behavior
+- Order fills, rejections, and latency match real market conditions
+- Requires authentication and API connection
+
+**Replay Mode** (`TSClient::Mode::Replay`):
+- **Completely local** - no network requests to any broker
+- Orders processed by `OrderEmulator` class
+- Market data comes from recorded SQLite databases (not live)
+- Fills based on recorded market depth snapshots
+- Simulated latency (100-500ms reception, 10-50ms execution)
+- No authentication required
+- One Orders.db file per replay session (timestamped)
+
+### Database Structure
+
+```
+~/.cache/L2Trader/
+├── Orders/
+│   ├── Live/
+│   │   └── Orders.db              (single file, all live orders)
+│   ├── Simulation/
+│   │   └── Orders.db              (single file, all paper orders)
+│   └── Replay/
+│       ├── Orders_2026-02-14_143022.db
+│       ├── Orders_2026-02-15_091533.db
+│       └── ...                    (one per replay session)
+└── Positions/
+    └── (same structure as Orders)
+```
+
+### Mode Detection in Code
+
+```cpp
+// Check trading mode (Live vs Sim API)
+if (MainApp::getTradingMode() == TradingMode::Live) {
+    // Real money trading
+} else if (MainApp::getTradingMode() == TradingMode::Sim) {
+    // Paper trading via real API
+}
+
+// Check client mode (Live vs Replay)
+if (TSClient::getInstance()->getMode() == TSClient::Mode::Replay) {
+    // Local emulation, no network
+} else {
+    // Real API (either Live or Sim endpoint)
+}
+```
+
 ### Time Handling
 Use Qt time classes with proper timezone (always NewYork for stock market):
 - QDateTime/QTime/QDate with QTimeZone

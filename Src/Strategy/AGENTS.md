@@ -535,6 +535,56 @@ replay.wait();   // Wait for completion
 // Analyze results
 ```
 
+### Testing in Replay Mode
+
+Replay mode provides full order emulation for strategy testing:
+
+**Key Differences from Live/Simulation**:
+- Orders processed by `OrderEmulator` (no network requests)
+- Market data comes from recorded SQLite databases
+- Fills based on recorded market depth snapshots
+- Simulated latency (100-500ms reception, 10-50ms execution)
+
+**Testing Flow**:
+1. Enter replay mode (click "Replay" button or use `MainApp::enterReplayMode()`)
+2. Load strategy plugin
+3. Start strategy
+4. Press play to begin replay
+5. Strategy receives bars via `onBar()` callback
+6. Strategy can place orders via `m_sdk->placeOrder()`
+7. Orders processed by OrderEmulator with realistic delays
+8. Filled orders trigger `onOrder()` callback
+9. Position updates trigger `onPosition()` callback
+
+**Simulated Account**:
+- Account ID: `SIM123456`
+- Starting balance: $100,000
+- Full order validation (balance checks, boxing prevention)
+
+**Order Lifecycle in Replay**:
+```
+placeOrder() → 100-500ms delay → OPN status → 10-50ms delay → FLL status
+```
+
+**Accessing via SDK in Replay Mode**:
+```cpp
+void MyStrategy::onStart() {
+    // Same SDK calls work in replay mode
+    QVector<Position> positions = m_sdk->getPositions("SIM123456");
+    QVector<Order> orders = m_sdk->getOrders("SIM123456");
+    Balance balance = m_sdk->getBalance("SIM123456");
+    
+    // Place orders - processed by OrderEmulator
+    PlaceOrderRequest request;
+    request.setAccountID("SIM123456");
+    request.setSymbol("AAPL");
+    request.setQuantity(100);
+    m_sdk->placeOrder(request);
+}
+```
+
+See `Src/Core/Replay/OrderEmulator/AGENTS.md` for detailed order emulation documentation.
+
 ## Best Practices
 
 1. **Always implement onStop()**: Clean up resources, unsubscribe, close positions

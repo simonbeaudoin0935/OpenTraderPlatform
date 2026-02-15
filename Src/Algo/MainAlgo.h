@@ -117,6 +117,9 @@ class MainAlgo final : public QObject
     /// @brief Pause live streams (positions/orders) for replay mode
     void pauseLiveStreams();
 
+    /// @brief Start replay mode order/position streams with simulated account
+    void startReplayOrderStreams();
+
     /// @brief Resume live streams after exiting replay mode
     void resumeLiveStreams();
 

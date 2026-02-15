@@ -45,6 +45,8 @@ Q_DECLARE_LOGGING_CATEGORY(TSClientLog)
 // @note : Returned pointer dynamically allocated. Delete with closeStreamBars
 
 class MockNetworkReply;
+class MockNetworkAccessManager;
+class OrderEmulator;
 
 class TSClient final : public QObject
 {
@@ -236,6 +238,7 @@ class TSClient final : public QObject
     {
         return m_totalDataReceivedBytes;
     };
+
     [[nodiscard]] bool isCleanedUp();
 
     /**
@@ -309,6 +312,24 @@ class TSClient final : public QObject
     [[nodiscard]] bool isMarketDepthQueueEmpty() const
     {
         return m_marketDepthQueue.empty();
+    }
+
+    /**
+     * @brief Get the OrderEmulator (replay mode only)
+     * @return Pointer to OrderEmulator, or nullptr if not in replay mode
+     */
+    [[nodiscard]] OrderEmulator* getOrderEmulator() const
+    {
+        return m_orderEmulator;
+    }
+
+    /**
+     * @brief Get the replay session timestamp
+     * @return Timestamp string (YYYY-MM-DD_HHMMSS), empty if not in replay mode
+     */
+    [[nodiscard]] QString getReplaySessionTimestamp() const
+    {
+        return m_replaySessionTimestamp;
     }
 
   public slots:
@@ -413,6 +434,13 @@ class TSClient final : public QObject
     Mode m_mode = Mode::Live;
     QMap<QString, QPointer<MockNetworkReply>> m_replayBarReplies;   // symbol -> MockNetworkReply for bars
     QMap<QString, QPointer<MockNetworkReply>> m_replayDepthReplies; // symbol -> MockNetworkReply for depth
+    QPointer<MockNetworkReply> m_replayOrdersReply;                 // MockNetworkReply for orders stream
+    QPointer<MockNetworkReply> m_replayPositionsReply;              // MockNetworkReply for positions stream
+
+    // Order emulation for replay mode
+    OrderEmulator* m_orderEmulator = nullptr;                 // Created when entering replay mode
+    MockNetworkAccessManager* m_mockNetworkManager = nullptr; // Created when entering replay mode
+    QString m_replaySessionTimestamp;                         // Timestamp when replay mode was entered
 
     // Market depth queue for handling concurrent stream limit
     std::deque<PendingMarketDepthRequest> m_marketDepthQueue;
