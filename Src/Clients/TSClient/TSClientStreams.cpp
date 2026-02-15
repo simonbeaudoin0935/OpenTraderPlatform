@@ -4,76 +4,171 @@
 #include "Stream/MockNetworkReply.h"
 #include "Stream/MockNetworkAccessManager.h"
 #include "OrderEmulator.h"
+#include "MarketDepthQuote.h"
 
 #define LOGGING_CATEGORY TSClientLog
 
-#warning dont forget to have a mocked version of StreamOrders and StreamPositions for replay mode if you want to replay orders/positions data in the future. currently only bars and market depth quote have mocked versions for replay.
-
 QPointer<StreamPositions> TSClient::openStreamPositions(const QString& accountID, bool changes)
 {
-    // normal account numbers have 8 digits, sim have additional letters
-    OBJ_ASSUME_GTE(accountID.length(), 8);
+    // In replay mode, accept the simulated account ID
+    if (m_mode == Mode::Replay)
+    {
+        OBJ_ASSUME_EQUAL(accountID, QString("SIM123456"));
+    }
+    else
+    {
+        // normal account numbers have 8 digits, sim have additional letters
+        OBJ_ASSUME_GTE(accountID.length(), 8);
+    }
 
     DEBUG << "Opening StreamPositions for account " << accountID << " with changes=" << changes;
 
-    QUrlQuery query;
-    query.addQueryItem("changes", changes ? "true" : "false");
-
-    QNetworkRequest request = buildNetworkRequest(QString(TSClientEndpoints::STREAM_POSITIONS).arg(accountID), query);
-
     QPointer<StreamPositions> stream;
 
-    QMetaObject::invokeMethod(
-        this,
-        [this, &request, &stream, &accountID]()
-        {
-            QNetworkReply* reply = m_networkManager->get(request);
-            Q_CHECK_PTR(reply);
+    if (m_mode == Mode::Replay)
+    {
+        DEBUG << "Opening replay StreamPositions for account" << accountID;
 
-            stream = new StreamPositions(accountID, reply, this);
-            Q_CHECK_PTR(stream);
+        QMetaObject::invokeMethod(
+            this,
+            [this, &stream, &accountID]()
+            {
+                auto* mockReply = new MockNetworkReply(this);
+                Q_CHECK_PTR(mockReply);
 
-            auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
-            OBJ_ASSUME_TRUE(c);
+                // Track the mock reply for position updates from OrderEmulator
+                m_replayPositionsReply = mockReply;
 
-            // Don't emit signal for Positions stream (singleton, always 0 or 1)
-        },
-        Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
-    // finishes executing this lambda so that a valid pointer is returned
+                stream = new StreamPositions(accountID, mockReply, this);
+                Q_CHECK_PTR(stream);
+
+                auto c =
+                    connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+                OBJ_ASSUME_TRUE(c);
+
+                // Connect OrderEmulator position updates to the mock reply
+                if (m_orderEmulator)
+                {
+                    connect(m_orderEmulator, &OrderEmulator::positionUpdate, mockReply, &MockNetworkReply::injectData);
+                }
+
+                // Send initial empty snapshot with EndSnapshot event
+                QJsonObject endSnapshot;
+                endSnapshot["EndSnapshot"] = true;
+                mockReply->injectData(QJsonDocument(endSnapshot).toJson(QJsonDocument::Compact) + "\n");
+
+                INFO << "Opened replay StreamPositions for account" << accountID;
+            },
+            Qt::BlockingQueuedConnection);
+    }
+    else
+    {
+        // Live mode - make real network request
+        QUrlQuery query;
+        query.addQueryItem("changes", changes ? "true" : "false");
+
+        QNetworkRequest request =
+            buildNetworkRequest(QString(TSClientEndpoints::STREAM_POSITIONS).arg(accountID), query);
+
+        QMetaObject::invokeMethod(
+            this,
+            [this, &request, &stream, &accountID]()
+            {
+                QNetworkReply* reply = m_networkManager->get(request);
+                Q_CHECK_PTR(reply);
+
+                stream = new StreamPositions(accountID, reply, this);
+                Q_CHECK_PTR(stream);
+
+                auto c =
+                    connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+                OBJ_ASSUME_TRUE(c);
+
+                // Don't emit signal for Positions stream (singleton, always 0 or 1)
+            },
+            Qt::BlockingQueuedConnection);
+    }
 
     return stream;
 }
 
 QPointer<StreamOrders> TSClient::openStreamOrders(const QString& accountID)
 {
-    // normal account numbers have 8 digits, sim have additional letters
-    OBJ_ASSUME_GTE(accountID.length(), 8);
+    // In replay mode, accept the simulated account ID
+    if (m_mode == Mode::Replay)
+    {
+        OBJ_ASSUME_EQUAL(accountID, QString("SIM123456"));
+    }
+    else
+    {
+        // normal account numbers have 8 digits, sim have additional letters
+        OBJ_ASSUME_GTE(accountID.length(), 8);
+    }
 
-    qCDebug(TSClientLog) << Q_FUNC_INFO << "Opening StreamOrders for account " << accountID;
-
-    const QString endpoint = QString(TSClientEndpoints::STREAM_ORDERS).arg(accountID);
-
-    QNetworkRequest request = buildNetworkRequest(endpoint);
+    DEBUG << "Opening StreamOrders for account" << accountID;
 
     QPointer<StreamOrders> stream;
 
-    QMetaObject::invokeMethod(
-        this,
-        [this, &request, &stream, &accountID]()
-        {
-            QNetworkReply* reply = m_networkManager->get(request);
-            Q_CHECK_PTR(reply);
+    if (m_mode == Mode::Replay)
+    {
+        DEBUG << "Opening replay StreamOrders for account" << accountID;
 
-            stream = new StreamOrders(accountID, reply, this);
-            Q_CHECK_PTR(stream);
+        QMetaObject::invokeMethod(
+            this,
+            [this, &stream, &accountID]()
+            {
+                auto* mockReply = new MockNetworkReply(this);
+                Q_CHECK_PTR(mockReply);
 
-            auto c = connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
-            OBJ_ASSUME_TRUE(c);
+                // Track the mock reply for order updates from OrderEmulator
+                m_replayOrdersReply = mockReply;
 
-            // Don't emit signal for Orders stream (singleton, always 0 or 1)
-        },
-        Qt::BlockingQueuedConnection); // Ensures this thread is blocked until the client thread
-    // finishes executing this lambda so that a valid pointer is returned
+                stream = new StreamOrders(accountID, mockReply, this);
+                Q_CHECK_PTR(stream);
+
+                auto c =
+                    connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+                OBJ_ASSUME_TRUE(c);
+
+                // Connect OrderEmulator order updates to the mock reply
+                if (m_orderEmulator)
+                {
+                    connect(m_orderEmulator, &OrderEmulator::orderStatusUpdate, mockReply, &MockNetworkReply::injectData);
+                }
+
+                // Send initial empty snapshot with EndSnapshot event
+                QJsonObject endSnapshot;
+                endSnapshot["EndSnapshot"] = true;
+                mockReply->injectData(QJsonDocument(endSnapshot).toJson(QJsonDocument::Compact) + "\n");
+
+                INFO << "Opened replay StreamOrders for account" << accountID;
+            },
+            Qt::BlockingQueuedConnection);
+    }
+    else
+    {
+        // Live mode - make real network request
+        const QString endpoint = QString(TSClientEndpoints::STREAM_ORDERS).arg(accountID);
+        QNetworkRequest request = buildNetworkRequest(endpoint);
+
+        QMetaObject::invokeMethod(
+            this,
+            [this, &request, &stream, &accountID]()
+            {
+                QNetworkReply* reply = m_networkManager->get(request);
+                Q_CHECK_PTR(reply);
+
+                stream = new StreamOrders(accountID, reply, this);
+                Q_CHECK_PTR(stream);
+
+                auto c =
+                    connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+                OBJ_ASSUME_TRUE(c);
+
+                // Don't emit signal for Orders stream (singleton, always 0 or 1)
+            },
+            Qt::BlockingQueuedConnection);
+    }
 
     return stream;
 }
@@ -334,6 +429,8 @@ void TSClient::setMode(Mode p_mode)
         // Clear replay stream tracking
         m_replayBarReplies.clear();
         m_replayDepthReplies.clear();
+        m_replayOrdersReply.clear();
+        m_replayPositionsReply.clear();
     }
 }
 
@@ -425,6 +522,19 @@ void TSClient::onInjectDepthData(const QString& p_symbol, std::shared_ptr<const 
     {
         WARNING << "onInjectDepthData called with null data for" << p_symbol;
         return;
+    }
+
+    // Also forward depth data to OrderEmulator for order fill monitoring
+    if (m_orderEmulator)
+    {
+        // Parse the depth data and forward to emulator
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(*p_data, &parseError);
+        if (parseError.error == QJsonParseError::NoError && doc.isObject())
+        {
+            MarketDepthQuote depth(doc.object());
+            m_orderEmulator->updateMarketDepth(p_symbol, depth);
+        }
     }
 
     if (!m_replayDepthReplies.contains(p_symbol) || m_replayDepthReplies[p_symbol].isNull())

@@ -5,6 +5,7 @@
 #include "TSClient.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "Stream/MockNetworkAccessManager.h"
 
 #define LOGGING_CATEGORY TSClientLog
 
@@ -21,7 +22,12 @@ QFuture<std::expected<QVector<Account>, TSClient::Error>> TSClient::getAccounts(
         this,
         [this, promise = std::move(promise)]() mutable
         {
-            QNetworkReply* reply = m_networkManager->get(buildNetworkRequest(TSClientEndpoints::GET_ACCOUNTS));
+            // Use mock network manager in replay mode for simulated account
+            QNetworkAccessManager* manager = (m_mode == Mode::Replay && m_mockNetworkManager)
+                                                  ? m_mockNetworkManager
+                                                  : m_networkManager;
+
+            QNetworkReply* reply = manager->get(buildNetworkRequest(TSClientEndpoints::GET_ACCOUNTS));
             Q_CHECK_PTR(reply);
 
             connect(reply,
@@ -151,8 +157,13 @@ QFuture<std::expected<QVector<Balance>, TSClient::Error>> TSClient::getBalances(
         this,
         [this, account, promise = std::move(promise)]() mutable
         {
+            // Use mock network manager in replay mode for simulated balance
+            QNetworkAccessManager* manager = (m_mode == Mode::Replay && m_mockNetworkManager)
+                                                  ? m_mockNetworkManager
+                                                  : m_networkManager;
+
             QNetworkReply* reply =
-                m_networkManager->get(buildNetworkRequest(QString(TSClientEndpoints::GET_BALANCES).arg(account)));
+                manager->get(buildNetworkRequest(QString(TSClientEndpoints::GET_BALANCES).arg(account)));
             Q_CHECK_PTR(reply);
 
             connect(reply,
@@ -518,7 +529,12 @@ QFuture<std::expected<PlaceOrderResult, TSClient::Error>> TSClient::placeOrder(c
         this,
         [this, request = std::move(request), postData = std::move(postData), promise = std::move(promise)]() mutable
         {
-            QNetworkReply* reply = m_networkManager->post(request, postData);
+            // Use mock network manager in replay mode for order emulation
+            QNetworkAccessManager* manager = (m_mode == Mode::Replay && m_mockNetworkManager)
+                                                  ? m_mockNetworkManager
+                                                  : m_networkManager;
+
+            QNetworkReply* reply = manager->post(request, postData);
             Q_CHECK_PTR(reply);
 
             connect(
@@ -648,7 +664,12 @@ QFuture<std::expected<CancelOrderResult, TSClient::Error>> TSClient::cancelOrder
         this,
         [this, request = std::move(request), promise = std::move(promise)]() mutable
         {
-            QNetworkReply* reply = m_networkManager->deleteResource(request);
+            // Use mock network manager in replay mode for order emulation
+            QNetworkAccessManager* manager = (m_mode == Mode::Replay && m_mockNetworkManager)
+                                                  ? m_mockNetworkManager
+                                                  : m_networkManager;
+
+            QNetworkReply* reply = manager->deleteResource(request);
             Q_CHECK_PTR(reply);
 
             connect(reply,

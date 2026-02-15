@@ -433,6 +433,8 @@ class TSClient final : public QObject
     Mode m_mode = Mode::Live;
     QMap<QString, QPointer<MockNetworkReply>> m_replayBarReplies;   // symbol -> MockNetworkReply for bars
     QMap<QString, QPointer<MockNetworkReply>> m_replayDepthReplies; // symbol -> MockNetworkReply for depth
+    QPointer<MockNetworkReply> m_replayOrdersReply;                 // MockNetworkReply for orders stream
+    QPointer<MockNetworkReply> m_replayPositionsReply;              // MockNetworkReply for positions stream
 
     // Order emulation for replay mode
     OrderEmulator* m_orderEmulator = nullptr;               // Created when entering replay mode
