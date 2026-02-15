@@ -2,6 +2,8 @@
 #include "Logging.h"
 #include "Assume.h"
 #include "Stream/MockNetworkReply.h"
+#include "Stream/MockNetworkAccessManager.h"
+#include "OrderEmulator.h"
 
 #define LOGGING_CATEGORY TSClientLog
 
@@ -298,10 +300,38 @@ void TSClient::setMode(Mode p_mode)
 
     m_mode = p_mode;
 
-    if (p_mode == Mode::Live)
+    if (p_mode == Mode::Replay)
     {
-        // Clear replay stream tracking when returning to live mode
-        // The streams themselves are managed by their owners (BarCache, etc.)
+        // Generate replay session timestamp
+        m_replaySessionTimestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HHmmss");
+        INFO << "Replay session timestamp:" << m_replaySessionTimestamp;
+
+        // Create OrderEmulator
+        m_orderEmulator = new OrderEmulator(this);
+
+        // Create MockNetworkAccessManager (routes order requests to emulator)
+        m_mockNetworkManager = new MockNetworkAccessManager(m_orderEmulator, this);
+    }
+    else
+    {
+        // Returning to Live mode - cleanup replay resources
+
+        // Cancel any pending orders in emulator
+        if (m_orderEmulator)
+        {
+            m_orderEmulator->clear();
+        }
+
+        // Delete mock objects
+        delete m_orderEmulator;
+        m_orderEmulator = nullptr;
+
+        delete m_mockNetworkManager;
+        m_mockNetworkManager = nullptr;
+
+        m_replaySessionTimestamp.clear();
+
+        // Clear replay stream tracking
         m_replayBarReplies.clear();
         m_replayDepthReplies.clear();
     }

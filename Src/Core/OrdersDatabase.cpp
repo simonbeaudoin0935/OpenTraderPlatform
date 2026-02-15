@@ -14,6 +14,8 @@
 #include "Settings.h"
 #include "SQL/OrdersDatabaseQueries.h"
 #include "Assume.h"
+#include "MainApp.h"
+#include "TSClient.h"
 
 #define LOGGING_CATEGORY OrdersDatabaseLog
 Q_LOGGING_CATEGORY(OrdersDatabaseLog, "OrdersDatabase");
@@ -21,12 +23,56 @@ Q_LOGGING_CATEGORY(OrdersDatabaseLog, "OrdersDatabase");
 // Static singleton instance
 OrdersDatabase* OrdersDatabase::s_instance = nullptr;
 
+namespace
+{
+/**
+ * @brief Determines the database path based on current trading mode
+ *
+ * Database structure:
+ * - Live:       ~/.cache/L2Trader/Orders/Live/Orders.db
+ * - Simulation: ~/.cache/L2Trader/Orders/Simulation/Orders.db
+ * - Replay:     ~/.cache/L2Trader/Orders/Replay/Orders_YYYY-MM-DD_HHMMSS.db
+ *
+ * @return Full path to the orders database file
+ */
+QString determineDatabasePath()
+{
+    QString baseDir = getCacheLocation();
+    baseDir += "/Orders/";
+
+    // Check TSClient mode first - if Replay, use replay path
+    TSClient* client = TSClient::getInstance();
+    if (client && client->getMode() == TSClient::Mode::Replay)
+    {
+        QString timestamp = client->getReplaySessionTimestamp();
+        ASSUME_TRUE(!timestamp.isEmpty());
+
+        QString replayDir = baseDir + "Replay/";
+        QDir().mkpath(replayDir);
+        return replayDir + "Orders_" + timestamp + ".db";
+    }
+
+    // Otherwise check TradingMode (Live vs Sim)
+    TradingMode tradingMode = MainApp::getTradingMode();
+    if (tradingMode == TradingMode::Sim)
+    {
+        QString simDir = baseDir + "Simulation/";
+        QDir().mkpath(simDir);
+        return simDir + "Orders.db";
+    }
+
+    // Default to Live
+    QString liveDir = baseDir + "Live/";
+    QDir().mkpath(liveDir);
+    return liveDir + "Orders.db";
+}
+} // anonymous namespace
+
 OrdersDatabase* OrdersDatabase::getInstance(QObject* p_parent)
 {
     if (s_instance == nullptr)
     {
-        QString cacheDir = getCacheLocation();
-        QString dbPath = cacheDir + "/orders.db";
+        QString dbPath = determineDatabasePath();
         s_instance = new OrdersDatabase(dbPath, p_parent);
     }
     return s_instance;
