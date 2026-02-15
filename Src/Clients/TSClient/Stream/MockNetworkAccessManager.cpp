@@ -220,12 +220,16 @@ QNetworkReply* MockNetworkAccessManager::handleGet(const QNetworkRequest& p_requ
         QJsonArray balances;
         QJsonObject balanceObj;
         balanceObj["AccountID"] = OrderEmulator::getSimulatedAccountID();
+        balanceObj["AccountType"] = "Margin";
         balanceObj["CashBalance"] = QString::number(balance, 'f', 2);
         balanceObj["BuyingPower"] = QString::number(balance * 2, 'f', 2); // 2x margin
         balanceObj["Equity"] = QString::number(balance, 'f', 2);
         balanceObj["MarketValue"] = "0.00";
         balanceObj["RealizedProfitLoss"] = "0.00";
         balanceObj["UnrealizedProfitLoss"] = "0.00";
+        balanceObj["TodaysProfitLoss"] = "0.00";
+        balanceObj["Comission"] = "0.00";
+        balanceObj["UnclearedDeposit"] = "0.00";
         balances.append(balanceObj);
 
         QJsonObject response;
