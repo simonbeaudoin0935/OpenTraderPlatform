@@ -482,8 +482,8 @@ void MainAlgo::startBalancePolling()
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
 
-    m_balancePollingTimer->start(5000); // 5 seconds
-    requestBalance();                   // initial request
+    m_balancePollingTimer->start(PollingConstants::BALANCE_POLLING_INTERVAL_MS);
+    requestBalance(); // initial request
     DEBUG << "Started balance polling";
 }
 

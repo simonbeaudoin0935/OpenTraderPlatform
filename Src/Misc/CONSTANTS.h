@@ -164,6 +164,16 @@ namespace TSClientEndpoints
 } // namespace TSClientEndpoints
 
 /**
+ * @namespace PollingConstants
+ * @brief Polling intervals for various background tasks
+ */
+namespace PollingConstants
+{
+    // Balance polling interval (milliseconds)
+    inline constexpr int BALANCE_POLLING_INTERVAL_MS = 1000; // 1 second
+} // namespace PollingConstants
+
+/**
  * @namespace StreamConstants
  * @brief Constants related to streaming and heartbeat
  */
