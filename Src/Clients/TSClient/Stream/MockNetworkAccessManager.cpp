@@ -30,33 +30,31 @@ MockNetworkAccessManager::~MockNetworkAccessManager()
     DEBUG << "MockNetworkAccessManager destroyed";
 }
 
-QNetworkReply* MockNetworkAccessManager::createRequest(Operation p_op,
-                                                        const QNetworkRequest& p_request,
-                                                        QIODevice* p_outgoingData)
+QNetworkReply*
+MockNetworkAccessManager::createRequest(Operation p_op, const QNetworkRequest& p_request, QIODevice* p_outgoingData)
 {
     QString path = p_request.url().path();
     DEBUG << "Intercepting request:" << p_op << path;
 
     switch (p_op)
     {
-        case PostOperation:
-            return handlePost(p_request, p_outgoingData);
+    case PostOperation:
+        return handlePost(p_request, p_outgoingData);
 
-        case DeleteOperation:
-            return handleDelete(p_request);
+    case DeleteOperation:
+        return handleDelete(p_request);
 
-        case GetOperation:
-            return handleGet(p_request);
+    case GetOperation:
+        return handleGet(p_request);
 
-        default:
-            WARNING << "Unhandled operation type:" << p_op << "for path:" << path;
-            // Fall through to base implementation for unhandled operations
-            return QNetworkAccessManager::createRequest(p_op, p_request, p_outgoingData);
+    default:
+        WARNING << "Unhandled operation type:" << p_op << "for path:" << path;
+        // Fall through to base implementation for unhandled operations
+        return QNetworkAccessManager::createRequest(p_op, p_request, p_outgoingData);
     }
 }
 
-QNetworkReply* MockNetworkAccessManager::handlePost(const QNetworkRequest& p_request,
-                                                     QIODevice* p_outgoingData)
+QNetworkReply* MockNetworkAccessManager::handlePost(const QNetworkRequest& p_request, QIODevice* p_outgoingData)
 {
     QString path = p_request.url().path();
 
@@ -109,7 +107,7 @@ QNetworkReply* MockNetworkAccessManager::handlePost(const QNetworkRequest& p_req
         // Parse order type
         QString orderTypeStr = requestObj["OrderType"].toString();
         DEBUG << "Parsing order type:" << orderTypeStr;
-        
+
         if (orderTypeStr == "Limit")
         {
             orderRequest.setOrderType(OrderType::Type::Limit);
@@ -239,9 +237,9 @@ QNetworkReply* MockNetworkAccessManager::handleGet(const QNetworkRequest& p_requ
         QString accountId = extractAccountIdFromPath(path);
         if (accountId != OrderEmulator::getSimulatedAccountID())
         {
-            return createErrorReply("INVALID_ACCOUNT", 
-                QString("Account '%1' not found in replay mode. Use '%2'.")
-                    .arg(accountId, OrderEmulator::getSimulatedAccountID()));
+            return createErrorReply("INVALID_ACCOUNT",
+                                    QString("Account '%1' not found in replay mode. Use '%2'.")
+                                        .arg(accountId, OrderEmulator::getSimulatedAccountID()));
         }
 
         double cashBalance = m_emulator->getBalance();
@@ -250,21 +248,21 @@ QNetworkReply* MockNetworkAccessManager::handleGet(const QNetworkRequest& p_requ
         // Calculate total market value and unrealized P&L from positions
         double totalMarketValue = 0.0;
         double totalUnrealizedPnL = 0.0;
-        
+
         QVector<Position> positions = m_emulator->getPositions();
-        for (const Position& position : positions)
+        for (const Position& position: positions)
         {
             // Parse market value and unrealized P&L from position
             double marketValue = position.getMarketValue().toDouble();
             double unrealizedPnL = position.getUnrealizedProfitLoss().toDouble();
-            
+
             totalMarketValue += marketValue;
             totalUnrealizedPnL += unrealizedPnL;
         }
 
         // Calculate equity (cash + market value)
         double equity = cashBalance + totalMarketValue;
-        
+
         // Calculate buying power (2x equity for margin account)
         double buyingPower = equity * 2.0;
 
@@ -289,11 +287,8 @@ QNetworkReply* MockNetworkAccessManager::handleGet(const QNetworkRequest& p_requ
         QJsonObject response;
         response["Balances"] = balances;
 
-        DEBUG << "Returning mock balance: cash=" << cashBalance 
-              << "marketValue=" << totalMarketValue 
-              << "equity=" << equity
-              << "realizedPnL=" << realizedPnL
-              << "unrealizedPnL=" << totalUnrealizedPnL
+        DEBUG << "Returning mock balance: cash=" << cashBalance << "marketValue=" << totalMarketValue
+              << "equity=" << equity << "realizedPnL=" << realizedPnL << "unrealizedPnL=" << totalUnrealizedPnL
               << "todaysPnL=" << todaysPnL;
 
         return createMockReply(QJsonDocument(response).toJson());
@@ -311,7 +306,8 @@ QNetworkReply* MockNetworkAccessManager::createMockReply(const QByteArray& p_dat
     // Schedule data injection after reply is connected
     QMetaObject::invokeMethod(
         reply,
-        [reply, p_data]() {
+        [reply, p_data]()
+        {
             reply->injectData(p_data);
             emit reply->finished();
         },

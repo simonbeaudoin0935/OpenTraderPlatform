@@ -20,22 +20,22 @@ namespace
     {
         switch (p_action)
         {
-            case TradeAction::Buy:
-                return "BUY";
-            case TradeAction::Sell:
-                return "SELL";
-            case TradeAction::BuyToCover:
-                return "BUYTOCOVER";
-            case TradeAction::SellShort:
-                return "SELLSHORT";
-            case TradeAction::BuyToOpen:
-                return "BUYTOOPEN";
-            case TradeAction::BuyToClose:
-                return "BUYTOCLOSE";
-            case TradeAction::SellToOpen:
-                return "SELLTOOPEN";
-            case TradeAction::SellToClose:
-                return "SELLTOCLOSE";
+        case TradeAction::Buy:
+            return "BUY";
+        case TradeAction::Sell:
+            return "SELL";
+        case TradeAction::BuyToCover:
+            return "BUYTOCOVER";
+        case TradeAction::SellShort:
+            return "SELLSHORT";
+        case TradeAction::BuyToOpen:
+            return "BUYTOOPEN";
+        case TradeAction::BuyToClose:
+            return "BUYTOCLOSE";
+        case TradeAction::SellToOpen:
+            return "SELLTOOPEN";
+        case TradeAction::SellToClose:
+            return "SELLTOCLOSE";
         }
         return "UNKNOWN";
     }
@@ -63,8 +63,7 @@ namespace
     }
 } // anonymous namespace
 
-OrderEmulator::OrderEmulator(QObject* p_parent)
-    : QObject(p_parent)
+OrderEmulator::OrderEmulator(QObject* p_parent) : QObject(p_parent)
 {
     setObjectName("OrderEmulator");
 
@@ -85,8 +84,7 @@ OrderEmulator::~OrderEmulator()
 void OrderEmulator::placeOrder(const PlaceOrderRequest& p_request, const QString& p_requestID)
 {
     DEBUG << "placeOrder called:" << p_request.getSymbol() << "qty:" << p_request.getQuantity()
-          << "type:" << OrderType::toString(p_request.getOrderType().type)
-          << "requestID:" << p_requestID;
+          << "type:" << OrderType::toString(p_request.getOrderType().type) << "requestID:" << p_requestID;
 
     // Validate order
     QString errorMessage;
@@ -225,11 +223,11 @@ QVector<Order> OrderEmulator::getOrders() const
     QVector<Order> result;
     result.reserve(m_openOrders.size() + m_filledOrders.size());
 
-    for (const Order& order : m_openOrders)
+    for (const Order& order: m_openOrders)
     {
         result.append(order);
     }
-    for (const Order& order : m_filledOrders)
+    for (const Order& order: m_filledOrders)
     {
         result.append(order);
     }
@@ -242,7 +240,7 @@ QVector<Position> OrderEmulator::getPositions() const
     QVector<Position> result;
     result.reserve(m_positions.size());
 
-    for (const Position& position : m_positions)
+    for (const Position& position: m_positions)
     {
         result.append(position);
     }
@@ -277,7 +275,7 @@ void OrderEmulator::pause()
     // Store remaining time for pending timers
     if (m_receptionTimer.isActive())
     {
-        for (PendingOrder& pending : m_pendingOrders)
+        for (PendingOrder& pending: m_pendingOrders)
         {
             pending.remainingDelayMs = m_receptionTimer.remainingTime();
         }
@@ -286,7 +284,7 @@ void OrderEmulator::pause()
 
     if (m_executionTimer.isActive())
     {
-        for (ExecutingOrder& executing : m_executingOrders)
+        for (ExecutingOrder& executing: m_executingOrders)
         {
             executing.remainingDelayMs = m_executionTimer.remainingTime();
         }
@@ -343,8 +341,7 @@ int OrderEmulator::calculateReceptionDelay() const
         return 0;
     }
 
-    int baseDelay =
-        QRandomGenerator::global()->bounded(MIN_RECEPTION_DELAY_MS, MAX_RECEPTION_DELAY_MS + 1);
+    int baseDelay = QRandomGenerator::global()->bounded(MIN_RECEPTION_DELAY_MS, MAX_RECEPTION_DELAY_MS + 1);
 
     // Scale by speed: at 200% speed, delays are halved
     return (baseDelay * 100) / qMax(1, m_replaySpeedPercent);
@@ -357,8 +354,7 @@ int OrderEmulator::calculateExecutionDelay() const
         return 0;
     }
 
-    int baseDelay =
-        QRandomGenerator::global()->bounded(MIN_EXECUTION_DELAY_MS, MAX_EXECUTION_DELAY_MS + 1);
+    int baseDelay = QRandomGenerator::global()->bounded(MIN_EXECUTION_DELAY_MS, MAX_EXECUTION_DELAY_MS + 1);
 
     return (baseDelay * 100) / qMax(1, m_replaySpeedPercent);
 }
@@ -374,16 +370,14 @@ bool OrderEmulator::canFillLimitOrder(const Order& p_order, const MarketDepthQuo
     QString tradeAction = p_order.getTradeAction();
 
     // BUY limit: fills if ask <= limit price
-    if (tradeAction == "BUY" || tradeAction == "BUYTOCOVER" || tradeAction == "Buy" ||
-        tradeAction == "Buy to Cover")
+    if (tradeAction == "BUY" || tradeAction == "BUYTOCOVER" || tradeAction == "Buy" || tradeAction == "Buy to Cover")
     {
         double bestAsk = getBestAsk(p_depth);
         return bestAsk > 0 && bestAsk <= limitPrice;
     }
 
     // SELL limit: fills if bid >= limit price
-    if (tradeAction == "SELL" || tradeAction == "SELLSHORT" || tradeAction == "Sell" ||
-        tradeAction == "Sell Short")
+    if (tradeAction == "SELL" || tradeAction == "SELLSHORT" || tradeAction == "Sell" || tradeAction == "Sell Short")
     {
         double bestBid = getBestBid(p_depth);
         return bestBid > 0 && bestBid >= limitPrice;
@@ -392,15 +386,13 @@ bool OrderEmulator::canFillLimitOrder(const Order& p_order, const MarketDepthQuo
     return false;
 }
 
-double OrderEmulator::calculateMarketOrderFillPrice(const Order& p_order,
-                                                     const MarketDepthQuote& p_depth) const
+double OrderEmulator::calculateMarketOrderFillPrice(const Order& p_order, const MarketDepthQuote& p_depth) const
 {
     QString tradeAction = p_order.getTradeAction();
 
     // For now, simplified: use best bid/ask
     // TODO: Implement full book walking algorithm
-    if (tradeAction == "BUY" || tradeAction == "BUYTOCOVER" || tradeAction == "Buy" ||
-        tradeAction == "Buy to Cover")
+    if (tradeAction == "BUY" || tradeAction == "BUYTOCOVER" || tradeAction == "Buy" || tradeAction == "Buy to Cover")
     {
         return getBestAsk(p_depth);
     }
@@ -410,8 +402,8 @@ double OrderEmulator::calculateMarketOrderFillPrice(const Order& p_order,
 }
 
 QJsonObject OrderEmulator::createOrderJson(const QString& p_orderID,
-                                            const PlaceOrderRequest& p_request,
-                                            Order::Status p_status) const
+                                           const PlaceOrderRequest& p_request,
+                                           Order::Status p_status) const
 {
     QJsonObject json;
     json["OrderID"] = p_orderID;
@@ -421,9 +413,9 @@ QJsonObject OrderEmulator::createOrderJson(const QString& p_orderID,
     json["TradeAction"] = tradeActionToString(p_request.getTradeAction());
     json["Status"] = QtEnum::toString(p_status);
     json["StatusDescription"] = Order::getStatusDescriptionForStatus(p_status);
-    
+
     json["OpenedDateTime"] = QDateTime::currentDateTime().toString(Qt::ISODate);
-    json["FilledPrice"] = "0.00";  // Default for non-filled orders
+    json["FilledPrice"] = "0.00"; // Default for non-filled orders
     json["CommissionFee"] = "0.00";
     json["ConversionRate"] = "1.00";
     json["Currency"] = "USD";
@@ -500,8 +492,8 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
     double newAvgPrice = currentAvgPrice;
     double realizedPnL = 0.0; // Track realized P&L from this trade
 
-    bool isBuy = (tradeAction == "BUY" || tradeAction == "BUYTOCOVER" ||
-                  tradeAction == "Buy" || tradeAction == "Buy to Cover");
+    bool isBuy =
+        (tradeAction == "BUY" || tradeAction == "BUYTOCOVER" || tradeAction == "Buy" || tradeAction == "Buy to Cover");
 
     if (isBuy)
     {
@@ -516,9 +508,9 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
         else
         {
             // Covering short - realize P&L on covered shares
-            int closedQty = qMin(quantity, -currentQty); // How many shares are closing
+            int closedQty = qMin(quantity, -currentQty);               // How many shares are closing
             realizedPnL = closedQty * (currentAvgPrice - p_fillPrice); // Short profit = avgPrice - fillPrice
-            
+
             newQty = currentQty + quantity;
             if (newQty > 0)
             {
@@ -547,9 +539,9 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
         else
         {
             // Selling long - realize P&L on sold shares
-            int closedQty = qMin(quantity, currentQty); // How many shares are closing
+            int closedQty = qMin(quantity, currentQty);                // How many shares are closing
             realizedPnL = closedQty * (p_fillPrice - currentAvgPrice); // Long profit = fillPrice - avgPrice
-            
+
             newQty = currentQty - quantity;
             if (newQty < 0)
             {
@@ -766,8 +758,8 @@ bool OrderEmulator::validateOrder(const PlaceOrderRequest& p_request, QString& p
     // Check account ID
     if (p_request.getAccountID() != getSimulatedAccountID())
     {
-        p_errorMessage = QString("Invalid account ID: %1 (expected %2)")
-                             .arg(p_request.getAccountID(), getSimulatedAccountID());
+        p_errorMessage =
+            QString("Invalid account ID: %1 (expected %2)").arg(p_request.getAccountID(), getSimulatedAccountID());
         return false;
     }
 

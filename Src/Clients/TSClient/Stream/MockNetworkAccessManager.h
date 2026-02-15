@@ -43,9 +43,7 @@ class MockNetworkAccessManager : public QNetworkAccessManager
     /**
      * @brief Override createRequest to intercept network requests
      */
-    QNetworkReply* createRequest(Operation p_op,
-                                  const QNetworkRequest& p_request,
-                                  QIODevice* p_outgoingData) override;
+    QNetworkReply* createRequest(Operation p_op, const QNetworkRequest& p_request, QIODevice* p_outgoingData) override;
 
   private:
     /**

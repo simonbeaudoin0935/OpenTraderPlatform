@@ -108,7 +108,7 @@ void PositionsReceiver::onReceivedNewPosition(Position position)
     qCDebug(PositionsReceiverLog).noquote()
         << "New position for account (" << m_account << ") : " << position.toJsonString();
 
-    DEBUG << "PositionsReceiver::onReceivedNewPosition called for" << position.getSymbol() 
+    DEBUG << "PositionsReceiver::onReceivedNewPosition called for" << position.getSymbol()
           << "qty:" << position.getQuantity();
 
     QString positionID = position.getPositionID();

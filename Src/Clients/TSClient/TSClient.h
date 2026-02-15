@@ -238,7 +238,7 @@ class TSClient final : public QObject
     {
         return m_totalDataReceivedBytes;
     };
-    
+
     [[nodiscard]] bool isCleanedUp();
 
     /**
@@ -438,9 +438,9 @@ class TSClient final : public QObject
     QPointer<MockNetworkReply> m_replayPositionsReply;              // MockNetworkReply for positions stream
 
     // Order emulation for replay mode
-    OrderEmulator* m_orderEmulator = nullptr;               // Created when entering replay mode
+    OrderEmulator* m_orderEmulator = nullptr;                 // Created when entering replay mode
     MockNetworkAccessManager* m_mockNetworkManager = nullptr; // Created when entering replay mode
-    QString m_replaySessionTimestamp;                        // Timestamp when replay mode was entered
+    QString m_replaySessionTimestamp;                         // Timestamp when replay mode was entered
 
     // Market depth queue for handling concurrent stream limit
     std::deque<PendingMarketDepthRequest> m_marketDepthQueue;

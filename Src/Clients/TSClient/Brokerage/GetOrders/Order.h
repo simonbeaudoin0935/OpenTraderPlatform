@@ -108,7 +108,7 @@ class Order
     {
         return m_statusDescription;
     }
-    
+
     /**
      * @brief Get the official TradeStation API status description for a given status
      * @param status The Order::Status enum value
@@ -162,12 +162,12 @@ class Order
         case Status::SUS:
             return "Suspended";
         }
-        
+
         // Should never reach here - all enum values must be handled
         ASSUME_TRUE(false);
         return ""; // Unreachable
     }
-    
+
     Status getOrderStatus() const
     {
         return m_orderStatus;

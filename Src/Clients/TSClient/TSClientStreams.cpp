@@ -139,7 +139,10 @@ QPointer<StreamOrders> TSClient::openStreamOrders(const QString& accountID)
                 // Connect OrderEmulator order updates to the mock reply
                 if (m_orderEmulator)
                 {
-                    connect(m_orderEmulator, &OrderEmulator::orderStatusUpdate, mockReply, &MockNetworkReply::injectData);
+                    connect(m_orderEmulator,
+                            &OrderEmulator::orderStatusUpdate,
+                            mockReply,
+                            &MockNetworkReply::injectData);
                 }
 
                 // Send initial empty snapshot with EndSnapshot event
@@ -422,7 +425,7 @@ void TSClient::setMode(Mode p_mode)
         if (!m_replayOrdersReply.isNull())
         {
             // Find and delete the StreamOrders that owns this MockNetworkReply
-            for (QObject* child : children())
+            for (QObject* child: children())
             {
                 if (auto* stream = qobject_cast<StreamOrders*>(child))
                 {
@@ -436,7 +439,7 @@ void TSClient::setMode(Mode p_mode)
         if (!m_replayPositionsReply.isNull())
         {
             // Find and delete the StreamPositions that owns this MockNetworkReply
-            for (QObject* child : children())
+            for (QObject* child: children())
             {
                 if (auto* stream = qobject_cast<StreamPositions*>(child))
                 {

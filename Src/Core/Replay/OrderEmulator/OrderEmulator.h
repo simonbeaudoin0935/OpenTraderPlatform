@@ -261,9 +261,8 @@ class OrderEmulator : public QObject
      * @param p_status The order status
      * @return QJsonObject ready for Order constructor
      */
-    [[nodiscard]] QJsonObject createOrderJson(const QString& p_orderID,
-                                               const PlaceOrderRequest& p_request,
-                                               Order::Status p_status) const;
+    [[nodiscard]] QJsonObject
+    createOrderJson(const QString& p_orderID, const PlaceOrderRequest& p_request, Order::Status p_status) const;
 
   private slots:
     void onReceptionDelayElapsed();

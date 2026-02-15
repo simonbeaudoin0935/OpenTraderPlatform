@@ -25,7 +25,7 @@ OrdersDatabase* OrdersDatabase::s_instance = nullptr;
 
 namespace
 {
-/**
+    /**
  * @brief Determines the database path based on current trading mode
  *
  * Database structure:
@@ -35,37 +35,37 @@ namespace
  *
  * @return Full path to the orders database file
  */
-QString determineDatabasePath()
-{
-    QString baseDir = getCacheLocation();
-    baseDir += "/Orders/";
-
-    // Check TSClient mode first - if Replay, use replay path
-    TSClient* client = TSClient::getInstance();
-    if (client && client->getMode() == TSClient::Mode::Replay)
+    QString determineDatabasePath()
     {
-        QString timestamp = client->getReplaySessionTimestamp();
-        ASSUME_TRUE(!timestamp.isEmpty());
+        QString baseDir = getCacheLocation();
+        baseDir += "/Orders/";
 
-        QString replayDir = baseDir + "Replay/";
-        QDir().mkpath(replayDir);
-        return replayDir + "Orders_" + timestamp + ".db";
+        // Check TSClient mode first - if Replay, use replay path
+        TSClient* client = TSClient::getInstance();
+        if (client && client->getMode() == TSClient::Mode::Replay)
+        {
+            QString timestamp = client->getReplaySessionTimestamp();
+            ASSUME_TRUE(!timestamp.isEmpty());
+
+            QString replayDir = baseDir + "Replay/";
+            QDir().mkpath(replayDir);
+            return replayDir + "Orders_" + timestamp + ".db";
+        }
+
+        // Otherwise check TradingMode (Live vs Sim)
+        TradingMode tradingMode = MainApp::getTradingMode();
+        if (tradingMode == TradingMode::Sim)
+        {
+            QString simDir = baseDir + "Simulation/";
+            QDir().mkpath(simDir);
+            return simDir + "Orders.db";
+        }
+
+        // Default to Live
+        QString liveDir = baseDir + "Live/";
+        QDir().mkpath(liveDir);
+        return liveDir + "Orders.db";
     }
-
-    // Otherwise check TradingMode (Live vs Sim)
-    TradingMode tradingMode = MainApp::getTradingMode();
-    if (tradingMode == TradingMode::Sim)
-    {
-        QString simDir = baseDir + "Simulation/";
-        QDir().mkpath(simDir);
-        return simDir + "Orders.db";
-    }
-
-    // Default to Live
-    QString liveDir = baseDir + "Live/";
-    QDir().mkpath(liveDir);
-    return liveDir + "Orders.db";
-}
 } // anonymous namespace
 
 OrdersDatabase* OrdersDatabase::getInstance(QObject* p_parent)
