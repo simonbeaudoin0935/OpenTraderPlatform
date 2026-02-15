@@ -67,6 +67,10 @@ void MockNetworkReply::injectData(const QByteArray& p_data)
         return;
     }
 
+    // Debug: Log what data is being injected
+    QString dataPreview = QString::fromUtf8(p_data).left(200);  // First 200 chars
+    DEBUG << "MockNetworkReply::injectData called with data:" << dataPreview;
+
     // The Stream class expects newline-delimited JSON objects.
     // The recorded data should already include newlines, but we add one
     // as a safeguard if missing to ensure Stream can parse the data.

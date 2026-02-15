@@ -108,6 +108,9 @@ void PositionsReceiver::onReceivedNewPosition(Position position)
     qCDebug(PositionsReceiverLog).noquote()
         << "New position for account (" << m_account << ") : " << position.toJsonString();
 
+    DEBUG << "PositionsReceiver::onReceivedNewPosition called for" << position.getSymbol() 
+          << "qty:" << position.getQuantity();
+
     QString positionID = position.getPositionID();
     QDateTime currentTime = QDateTime::currentDateTime();
 
@@ -145,7 +148,9 @@ void PositionsReceiver::onReceivedNewPosition(Position position)
         DEBUG << "Updated position" << positionID << "in database";
     }
 
+    DEBUG << "About to emit receivedNewPosition signal for" << position.getSymbol();
     emit receivedNewPosition(m_account, position);
+    DEBUG << "Emitted receivedNewPosition signal";
 }
 
 void PositionsReceiver::onPositionDeleted(QString positionID)
