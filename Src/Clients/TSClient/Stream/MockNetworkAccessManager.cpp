@@ -108,6 +108,8 @@ QNetworkReply* MockNetworkAccessManager::handlePost(const QNetworkRequest& p_req
 
         // Parse order type
         QString orderTypeStr = requestObj["OrderType"].toString();
+        DEBUG << "Parsing order type:" << orderTypeStr;
+        
         if (orderTypeStr == "Limit")
         {
             orderRequest.setOrderType(OrderType::Type::Limit);
@@ -124,8 +126,25 @@ QNetworkReply* MockNetworkAccessManager::handlePost(const QNetworkRequest& p_req
                 orderRequest.setStopPrice(requestObj["StopPrice"].toString().toDouble());
             }
         }
+        else if (orderTypeStr == "StopLimit")
+        {
+            orderRequest.setOrderType(OrderType::Type::StopLimit);
+            if (requestObj.contains("LimitPrice"))
+            {
+                orderRequest.setLimitPrice(requestObj["LimitPrice"].toString().toDouble());
+            }
+            if (requestObj.contains("StopPrice"))
+            {
+                orderRequest.setStopPrice(requestObj["StopPrice"].toString().toDouble());
+            }
+        }
+        else if (orderTypeStr == "Market")
+        {
+            orderRequest.setOrderType(OrderType::Type::Market);
+        }
         else
         {
+            WARNING << "Unknown order type:" << orderTypeStr << "- defaulting to Market";
             orderRequest.setOrderType(OrderType::Type::Market);
         }
 

@@ -85,6 +85,7 @@ OrderEmulator::~OrderEmulator()
 void OrderEmulator::placeOrder(const PlaceOrderRequest& p_request, const QString& p_requestID)
 {
     DEBUG << "placeOrder called:" << p_request.getSymbol() << "qty:" << p_request.getQuantity()
+          << "type:" << OrderType::toString(p_request.getOrderType().type)
           << "requestID:" << p_requestID;
 
     // Validate order
