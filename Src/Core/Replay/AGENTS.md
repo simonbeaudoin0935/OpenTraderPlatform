@@ -87,6 +87,7 @@ The Recorder and Replay system enables capturing live market data streams and re
 |------|---------|
 | `ReplayEngine.h/cpp` | Orchestrates replay playback with two independent streams (bars, depth). Each stream has its own single-shot QTimer and ReplayDataLoader. Uses wall-clock anchored timing for accurate speed control |
 | `ReplayDataLoader.h/cpp` | Loads one data type (Bar or MarketDepthQuote) from its SQLite DB into memory buffers. Ping-pong buffering with prefetch at 80% |
+| `OrderEmulator/` | Subfolder containing order/position simulation. See `OrderEmulator/AGENTS.md` for details |
 
 ### Integration Points
 
@@ -312,3 +313,58 @@ MainAlgoThread
 ```
 
 Cross-thread communication uses `Qt::QueuedConnection` or `Qt::BlockingQueuedConnection` for synchronization.
+
+## Order & Position Emulation
+
+When in replay mode, orders and positions are emulated locally rather than sent to any external API:
+
+```
+Strategy/GUI ──► placeOrder() ──► MockNetworkAccessManager
+                                          │
+                                          ▼
+                                    OrderEmulator
+                                          │
+                                    ┌─────┴─────┐
+                                    ▼           ▼
+                              OPN status   FLL status
+                                    │           │
+                                    └─────┬─────┘
+                                          ▼
+                                   MockNetworkReply (orders)
+                                          │
+                                          ▼
+                                    StreamOrders
+                                          │
+                                          ▼
+                                    OrdersReceiver
+                                          │
+                                          ▼
+                                         GUI
+```
+
+### Key Components
+
+| Component | Role |
+|-----------|------|
+| `OrderEmulator` | Simulates order lifecycle with realistic delays |
+| `MockNetworkAccessManager` | Intercepts HTTP requests, routes to emulator |
+| Mock StreamOrders/StreamPositions | Receive emulated updates via MockNetworkReply |
+
+### Market Depth Integration
+
+The OrderEmulator monitors market depth to fill pending limit orders:
+
+1. `ReplayEngine` emits `injectDepthData` signal
+2. `TSClient::onInjectDepthData()` receives it
+3. Depth is forwarded to `OrderEmulator::updateMarketDepth()`
+4. Emulator checks if any open limit orders can now fill
+5. Fills are processed with appropriate delays
+
+### Simulated Account
+
+A single simulated account `SIM123456` is used for all replay orders:
+- Starting balance: $100,000
+- Full order validation (balance, boxing prevention)
+- Position tracking with P&L calculations
+
+See `OrderEmulator/AGENTS.md` for detailed documentation.
