@@ -803,8 +803,15 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
     INFO << "MainAlgo entering replay mode (paused) for" << p_date.toString(Qt::ISODate) << "at"
          << p_startTime.toString("hh:mm:ss");
 
-    // We assume that if we were able to click "Enter Replay Mode", then we must not already be in replay mode
-    OBJ_ASSUME_TRUE(m_replayEngine == nullptr);
+    bool isRecreatingEngine = (m_replayEngine != nullptr);
+
+    // If ReplayEngine already exists (e.g., changing replay day), delete it first
+    if (m_replayEngine != nullptr)
+    {
+        DEBUG << "Deleting existing ReplayEngine before creating new one";
+        delete m_replayEngine;
+        m_replayEngine = nullptr;
+    }
 
     // Create ReplayEngine (same setup as enterReplayMode)
     m_replayEngine = new ReplayEngine(this, TSClient::getInstance());
@@ -863,8 +870,11 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
 
     DEBUG << "ReplayEngine created and connected";
 
-    // Start replay order/position streams with simulated account
-    startReplayOrderStreams();
+    // Only setup order/position streams on first entry to replay mode
+    if (!isRecreatingEngine)
+    {
+        startReplayOrderStreams();
+    }
 
     // Start in paused state - emit first bar then pause
     m_replayEngine->startReplayPaused(p_date, p_startTime, p_speed);
