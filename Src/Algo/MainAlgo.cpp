@@ -1041,41 +1041,68 @@ void MainAlgo::resumeLiveStreams()
     OBJ_ASSUME_DIFF(m_positionReceiver, nullptr);
     OBJ_ASSUME_DIFF(m_orderReceiver, nullptr);
 
-    // Delete and recreate to get fresh snapshots
-    // The streams are already null from stopStream(), so destructor won't try to close them
-    delete m_positionReceiver;
-    m_positionReceiver = new PositionsReceiver(m_activeAccount.getAccountId(), this);
-    bool connected = connect(m_positionReceiver,
-                             &PositionsReceiver::receivedNewPosition,
-                             this,
-                             &MainAlgo::onReceivedNewPosition,
-                             Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-    connected = connect(m_positionReceiver,
-                        &PositionsReceiver::positionDeleted,
-                        this,
-                        &MainAlgo::onPositionDeleted,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-    connected = connect(m_positionReceiver,
-                        &PositionsReceiver::loadedPositionsFromDatabase,
-                        this,
-                        &MainAlgo::onLoadedPositionsFromDatabase,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-    positionStreamStarted = true;
-    DEBUG << "Positions receiver recreated and started";
+    // Fetch real accounts from API (replay mode uses fake "SIM123456")
+    INFO << "Fetching real accounts from API after replay mode";
+    QFuture<std::expected<QVector<Account>, TSClient::Error>> future = TSClient::getInstance()->getAccounts();
 
-    delete m_orderReceiver;
-    m_orderReceiver = new OrdersReceiver(m_activeAccount.getAccountId(), this);
-    connected = connect(m_orderReceiver,
-                        &OrdersReceiver::receivedNewOrder,
-                        this,
-                        &MainAlgo::onReceivedNewOrder,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-    orderStreamStarted = true;
-    DEBUG << "Orders receiver recreated and started";
+    future.then(this,
+                [this](std::expected<QVector<Account>, TSClient::Error> results)
+                {
+                    if (!results.has_value())
+                    {
+                        CRITICAL << "Failed to fetch accounts after replay mode";
+                        return;
+                    }
+
+                    QVector<Account> accounts = results.value();
+                    if (accounts.isEmpty())
+                    {
+                        CRITICAL << "No accounts returned after replay mode";
+                        return;
+                    }
+
+                    // Emit accounts to GUI so user can select
+                    emit tradeStationAccountsReceived(accounts);
+
+                    // Use first account as active (or find previous active if still exists)
+                    m_activeAccount = accounts.first();
+                    INFO << "Using account" << m_activeAccount.getAccountId() << "after replay mode";
+
+                    // Delete and recreate receivers with real account
+                    delete m_positionReceiver;
+                    m_positionReceiver = new PositionsReceiver(m_activeAccount.getAccountId(), this);
+                    bool connected = connect(m_positionReceiver,
+                                             &PositionsReceiver::receivedNewPosition,
+                                             this,
+                                             &MainAlgo::onReceivedNewPosition,
+                                             Qt::UniqueConnection);
+                    ASSUME_TRUE(connected);
+                    connected = connect(m_positionReceiver,
+                                        &PositionsReceiver::positionDeleted,
+                                        this,
+                                        &MainAlgo::onPositionDeleted,
+                                        Qt::UniqueConnection);
+                    ASSUME_TRUE(connected);
+                    connected = connect(m_positionReceiver,
+                                        &PositionsReceiver::loadedPositionsFromDatabase,
+                                        this,
+                                        &MainAlgo::onLoadedPositionsFromDatabase,
+                                        Qt::UniqueConnection);
+                    ASSUME_TRUE(connected);
+                    positionStreamStarted = true;
+                    DEBUG << "Positions receiver recreated and started";
+
+                    delete m_orderReceiver;
+                    m_orderReceiver = new OrdersReceiver(m_activeAccount.getAccountId(), this);
+                    connected = connect(m_orderReceiver,
+                                        &OrdersReceiver::receivedNewOrder,
+                                        this,
+                                        &MainAlgo::onReceivedNewOrder,
+                                        Qt::UniqueConnection);
+                    ASSUME_TRUE(connected);
+                    orderStreamStarted = true;
+                    DEBUG << "Orders receiver recreated and started";
+                });
 }
 
 ReplayEngine::PlaybackState MainAlgo::getReplayState() const
