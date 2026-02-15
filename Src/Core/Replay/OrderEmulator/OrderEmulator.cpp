@@ -408,6 +408,16 @@ QJsonObject OrderEmulator::createOrderJson(const QString& p_orderID,
     json["Status"] = QtEnum::toString(p_status);
     json["StatusDescription"] = "";
     json["OpenedDateTime"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    json["FilledPrice"] = "0.00";  // Default for non-filled orders
+    json["CommissionFee"] = "0.00";
+    json["ConversionRate"] = "1.00";
+    json["Currency"] = "USD";
+    json["Duration"] = "DAY";
+    json["Routing"] = "Intelligent";
+    json["PriceUsedForBuyingPower"] = "0.00";
+    json["ShowOnlyQuantity"] = "0";
+    json["Spread"] = "0.00";
+    json["UnbundledRouteFee"] = "0.00";
 
     // Order type
     OrderType ot = p_request.getOrderType();
