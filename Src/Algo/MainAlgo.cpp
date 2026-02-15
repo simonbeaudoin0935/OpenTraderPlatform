@@ -1003,6 +1003,19 @@ void MainAlgo::startReplayOrderStreams()
     ASSUME_TRUE(connected);
     orderStreamStarted = true;
     DEBUG << "Replay orders receiver created for" << simAccountID;
+
+    // Emit simulated account to update GUI account selector
+    QJsonObject accountJson;
+    accountJson["AccountID"] = simAccountID;
+    accountJson["AccountType"] = "Margin";
+    accountJson["Name"] = "Replay Simulation Account";
+    accountJson["Status"] = "Active";
+    Account simAccount(accountJson);
+
+    QVector<Account> simAccounts;
+    simAccounts.append(simAccount);
+    emit tradeStationAccountsReceived(simAccounts);
+    DEBUG << "Emitted simulated account for replay mode";
 }
 
 void MainAlgo::resumeLiveStreams()
