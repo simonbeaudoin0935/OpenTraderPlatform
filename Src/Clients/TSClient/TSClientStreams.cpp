@@ -507,6 +507,23 @@ void TSClient::onInjectBarData(const QString& p_symbol, std::shared_ptr<const QB
         return;
     }
 
+    // Forward bar close price to OrderEmulator for P&L calculation
+    if (m_orderEmulator)
+    {
+        // Parse bar data to extract close price
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(*p_data, &parseError);
+        if (parseError.error == QJsonParseError::NoError && doc.isObject())
+        {
+            QJsonObject barObj = doc.object();
+            if (barObj.contains("Close"))
+            {
+                double closePrice = barObj["Close"].toString().toDouble();
+                m_orderEmulator->updateBarClose(p_symbol, closePrice);
+            }
+        }
+    }
+
     if (!m_replayBarReplies.contains(p_symbol) || m_replayBarReplies[p_symbol].isNull())
     {
         // No stream open for this symbol - skip silently (expected for non-monitored stocks)

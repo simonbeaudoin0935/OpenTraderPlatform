@@ -432,8 +432,8 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
 
 void MainAlgo::onReceivedNewPosition(const QString& account, Position position)
 {
-    Q_UNUSED(account);
     DEBUG << "Received new position:" << position.toJsonString();
+    emit receivedNewPosition(account, position);
 }
 
 void MainAlgo::onPositionDeleted(const QString& account, const QString& positionID)

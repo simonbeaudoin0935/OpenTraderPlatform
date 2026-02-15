@@ -76,8 +76,18 @@ class OrderEmulator : public QObject
      * Called by ReplayEngine on each depth tick. Used for:
      * - Calculating fill prices for market orders
      * - Monitoring limit order fill conditions
+     * - Updating position P&L in real-time
      */
     void updateMarketDepth(const QString& p_symbol, const MarketDepthQuote& p_depth);
+
+    /**
+     * @brief Update bar close price for a symbol
+     * @param p_symbol Stock ticker symbol
+     * @param p_close Bar close price
+     *
+     * Called when a new bar is received. Used as "Last" price in mark-to-market calculation.
+     */
+    void updateBarClose(const QString& p_symbol, double p_close);
 
     /**
      * @brief Get all current orders
@@ -209,6 +219,16 @@ class OrderEmulator : public QObject
     void updatePosition(const Order& p_filledOrder, double p_fillPrice);
 
     /**
+     * @brief Recalculate position P&L and emit update
+     * @param p_symbol Stock ticker symbol
+     * 
+     * Uses TradeStation mark-to-market formula:
+     * - If Last is between bid/ask: use Last
+     * - Otherwise: use closest bid or ask
+     */
+    void recalculatePositionPnL(const QString& p_symbol);
+
+    /**
      * @brief Convert order to JSON for stream emission
      */
     [[nodiscard]] QByteArray orderToJson(const Order& p_order) const;
@@ -260,6 +280,9 @@ class OrderEmulator : public QObject
 
     // Market depth snapshots
     QMap<QString, MarketDepthQuote> m_depthSnapshots; // symbol → latest depth
+
+    // Bar close prices (for mark-to-market calculation)
+    QMap<QString, double> m_latestBarClose; // symbol → latest bar close price
 
     // Pending orders (awaiting reception delay)
     QVector<PendingOrder> m_pendingOrders;

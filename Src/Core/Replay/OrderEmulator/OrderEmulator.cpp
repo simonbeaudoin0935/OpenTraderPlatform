@@ -207,6 +207,17 @@ void OrderEmulator::updateMarketDepth(const QString& p_symbol, const MarketDepth
             ++it;
         }
     }
+
+    // Update position P&L if we have a position for this symbol
+    if (m_positions.contains(p_symbol))
+    {
+        recalculatePositionPnL(p_symbol);
+    }
+}
+
+void OrderEmulator::updateBarClose(const QString& p_symbol, double p_close)
+{
+    m_latestBarClose.insert(p_symbol, p_close);
 }
 
 QVector<Order> OrderEmulator::getOrders() const
@@ -577,6 +588,85 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
     emit positionUpdate(positionToJson(position));
 
     DEBUG << "Position updated:" << symbol << "qty:" << newQty << "avgPrice:" << newAvgPrice;
+}
+
+void OrderEmulator::recalculatePositionPnL(const QString& p_symbol)
+{
+    // Ensure we have all necessary data
+    if (!m_positionData.contains(p_symbol))
+    {
+        return;
+    }
+
+    if (!m_depthSnapshots.contains(p_symbol))
+    {
+        return; // No market depth available yet
+    }
+
+    if (!m_latestBarClose.contains(p_symbol))
+    {
+        return; // No bar close price available yet
+    }
+
+    const PositionData& data = m_positionData[p_symbol];
+    const MarketDepthQuote& depth = m_depthSnapshots[p_symbol];
+    double last = m_latestBarClose[p_symbol];
+
+    // Get bid/ask from depth using helper functions
+    double bid = getBestBid(depth);
+    double ask = getBestAsk(depth);
+
+    // TradeStation mark-to-market price calculation:
+    // Use Last if within bid/ask spread, otherwise closest bid/ask
+    double markToMarketPrice;
+    if (last >= bid && last <= ask)
+    {
+        markToMarketPrice = last;
+    }
+    else
+    {
+        // Use whichever is closer to Last
+        markToMarketPrice = (std::abs(last - bid) < std::abs(last - ask)) ? bid : ask;
+    }
+
+    // Calculate P&L metrics
+    double marketValue = markToMarketPrice * data.quantity;
+    double costBasis = data.averagePrice * data.quantity;
+    double unrealizedPnL = (markToMarketPrice - data.averagePrice) * data.quantity;
+    double unrealizedPnLPercent = (unrealizedPnL / costBasis) * 100.0;
+
+    // Rebuild Position JSON with updated P&L
+    QJsonObject posJson;
+    posJson["PositionID"] = QString("POS-%1").arg(p_symbol);
+    posJson["AccountID"] = "SIM123456";
+    posJson["Symbol"] = p_symbol;
+    posJson["Quantity"] = QString::number(data.quantity);
+    posJson["AveragePrice"] = QString::number(data.averagePrice, 'f', 4);
+    posJson["Last"] = QString::number(last, 'f', 4);
+    posJson["Bid"] = QString::number(bid, 'f', 4);
+    posJson["Ask"] = QString::number(ask, 'f', 4);
+    posJson["LongShort"] = (data.quantity > 0) ? "Long" : "Short";
+    posJson["AssetType"] = "STOCK";
+    posJson["Timestamp"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    posJson["ConversionRate"] = "1.0";
+    posJson["DayTradeRequirement"] = "0";
+    posJson["InitialRequirement"] = "0";
+    posJson["MaintenanceMargin"] = "0";
+    posJson["MarkToMarketPrice"] = QString::number(markToMarketPrice, 'f', 4);
+    posJson["MarketValue"] = QString::number(marketValue, 'f', 2);
+    posJson["TodaysProfitLoss"] = QString::number(unrealizedPnL, 'f', 2);
+    posJson["TotalCost"] = QString::number(costBasis, 'f', 2);
+    posJson["UnrealizedProfitLoss"] = QString::number(unrealizedPnL, 'f', 2);
+    posJson["UnrealizedProfitLossPercent"] = QString::number(unrealizedPnLPercent, 'f', 2);
+    posJson["UnrealizedProfitLossQty"] = QString::number(data.quantity);
+    posJson["IsUpdate"] = true; // Mark as update (not initial creation)
+
+    // Update stored position
+    Position position(posJson);
+    m_positions.insert(p_symbol, position);
+
+    // Emit updated position
+    emit positionUpdate(positionToJson(position));
 }
 
 QByteArray OrderEmulator::orderToJson(const Order& p_order) const
