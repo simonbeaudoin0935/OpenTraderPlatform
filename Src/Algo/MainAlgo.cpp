@@ -957,6 +957,18 @@ void MainAlgo::startReplayOrderStreams()
     // Get the simulated account ID from TSClient
     QString simAccountID = OrderEmulator::getSimulatedAccountID();
 
+    // Create simulated account and update m_activeAccount
+    QJsonObject accountJson;
+    accountJson["AccountID"] = simAccountID;
+    accountJson["AccountType"] = "Margin";
+    accountJson["Name"] = "Replay Simulation Account";
+    accountJson["Status"] = "Active";
+    Account simAccount(accountJson);
+
+    // Update active account to the simulated account
+    m_activeAccount = simAccount;
+    INFO << "Set active account to simulated account:" << simAccountID;
+
     // Delete existing receivers and create new ones with the simulated account
     if (m_positionReceiver)
     {
@@ -1005,13 +1017,6 @@ void MainAlgo::startReplayOrderStreams()
     DEBUG << "Replay orders receiver created for" << simAccountID;
 
     // Emit simulated account to update GUI account selector
-    QJsonObject accountJson;
-    accountJson["AccountID"] = simAccountID;
-    accountJson["AccountType"] = "Margin";
-    accountJson["Name"] = "Replay Simulation Account";
-    accountJson["Status"] = "Active";
-    Account simAccount(accountJson);
-
     QVector<Account> simAccounts;
     simAccounts.append(simAccount);
     emit tradeStationAccountsReceived(simAccounts);

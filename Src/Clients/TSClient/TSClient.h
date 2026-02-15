@@ -238,6 +238,7 @@ class TSClient final : public QObject
     {
         return m_totalDataReceivedBytes;
     };
+    
     [[nodiscard]] bool isCleanedUp();
 
     /**
