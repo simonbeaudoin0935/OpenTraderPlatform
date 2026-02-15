@@ -599,6 +599,99 @@ void MainAlgo::onPlaceOrder(const PlaceOrderRequest& request) {
 - **Position tracking**: Use maps for O(1) lookups
 - **Memory**: Bar caches evict old data automatically
 
+## Replay Mode
+
+MainAlgo coordinates replay mode for strategy testing:
+
+### Entering Replay Mode
+
+```cpp
+void MainAlgo::enterReplayModePaused() {
+    // 1. Create ReplayEngine with historical data
+    m_replayEngine = new ReplayEngine(...);
+
+    // 2. Connect signals from ReplayEngine
+    connect(m_replayEngine, &ReplayEngine::injectBarData,
+            TSClient::getInstance(), &TSClient::onInjectBarData);
+    connect(m_replayEngine, &ReplayEngine::injectDepthData,
+            TSClient::getInstance(), &TSClient::onInjectDepthData);
+
+    // 3. Pause live streams (heartbeat timers)
+    pauseLiveStreams();
+
+    // 4. Create replay order/position receivers
+    startReplayOrderStreams();  // Uses SIM123456 account
+
+    // 5. Start replay (paused initially)
+    m_replayEngine->startReplayPaused();
+}
+```
+
+### startReplayOrderStreams()
+
+Creates receivers for order/position tracking with simulated account:
+
+```cpp
+void MainAlgo::startReplayOrderStreams() {
+    QString simAccountID = OrderEmulator::getSimulatedAccountID();  // "SIM123456"
+
+    // Create position receiver with simulated account
+    m_positionReceiver = new PositionsReceiver(simAccountID, this);
+    // Connect signals...
+
+    // Create order receiver with simulated account
+    m_orderReceiver = new OrdersReceiver(simAccountID, this);
+    // Connect signals...
+
+    // Emit simulated account to update GUI account selector
+    QJsonObject accountJson;
+    accountJson["AccountID"] = simAccountID;
+    accountJson["AccountType"] = "Margin";
+    accountJson["Name"] = "Replay Simulation Account";
+    Account simAccount(accountJson);
+
+    emit tradeStationAccountsReceived({simAccount});
+}
+```
+
+### Order/Position Flow in Replay Mode
+
+```
+GUI/Strategy → placeOrder() → TSClient
+    ↓ (Mode::Replay)
+MockNetworkAccessManager
+    ↓
+OrderEmulator
+    ↓ (reception delay 100-500ms)
+emit OPN status
+    ↓ (execution delay 10-50ms)
+emit FLL status + position update
+    ↓
+MockNetworkReply::injectData()
+    ↓
+StreamOrders/StreamPositions
+    ↓
+OrdersReceiver/PositionsReceiver
+    ↓
+MainAlgo::onReceivedNewOrder/Position()
+    ↓
+GUI (OrderWindow, PositionWindow)
+```
+
+### Key Differences from Live Mode
+
+| Aspect | Live Mode | Replay Mode |
+|--------|-----------|-------------|
+| Account | Real TradeStation account | `SIM123456` simulated |
+| Orders | Real API | OrderEmulator |
+| Positions | Real API | OrderEmulator |
+| Market data | Live streams | Recorded SQLite DB |
+| Fills | Real market | Based on recorded depth |
+| Latency | Real network | Simulated (100-500ms) |
+| Balance | Real | $100,000 simulated |
+
+See `Src/Core/Replay/OrderEmulator/AGENTS.md` for order emulation details.
+
 ## Related Agent Instructions
 
 - `../Core/AGENTS.md`: MainApp orchestration
