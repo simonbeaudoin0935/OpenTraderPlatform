@@ -141,7 +141,7 @@ void OrderEmulator::cancelOrder(const QString& p_orderID, const QString& p_reque
     cancelJson["OrderID"] = order.getOrderID();
     cancelJson["AccountID"] = order.getAccountID();
     cancelJson["Status"] = "CAN";
-    cancelJson["StatusDescription"] = "Cancelled by user";
+    cancelJson["StatusDescription"] = "Canceled";  // Match TradeStation API
     cancelJson["Symbol"] = order.getSymbol();
     cancelJson["Quantity"] = order.getQuantity();
     cancelJson["TradeAction"] = order.getTradeAction();
@@ -527,7 +527,7 @@ void OrderEmulator::fillOrder(const QJsonObject& p_orderJson, double p_fillPrice
     // Create filled order JSON
     QJsonObject fillJson = p_orderJson;
     fillJson["Status"] = "FLL";
-    fillJson["StatusDescription"] = "Order Filled";
+    fillJson["StatusDescription"] = "Filled";  // Match TradeStation API exactly
     fillJson["FilledPrice"] = QString::number(p_fillPrice, 'f', 4);
     fillJson["ClosedDateTime"] = QDateTime::currentDateTime().toString(Qt::ISODate);
 
