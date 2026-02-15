@@ -587,6 +587,7 @@ QByteArray OrderEmulator::orderToJson(const Order& p_order) const
     obj["Symbol"] = p_order.getSymbol();
     obj["Quantity"] = p_order.getQuantity();
     obj["TradeAction"] = p_order.getTradeAction();
+    obj["OrderType"] = OrderType::toString(p_order.getOrderType().type);
     obj["Status"] = QtEnum::toString(p_order.getOrderStatus());
     obj["StatusDescription"] = p_order.getStatusDescription();
     obj["FilledPrice"] = QString::number(p_order.getFilledPrice(), 'f', 4);
@@ -615,10 +616,22 @@ QByteArray OrderEmulator::positionToJson(const Position& p_position) const
     obj["Quantity"] = p_position.getQuantity();
     obj["AveragePrice"] = p_position.getAveragePrice();
     obj["Last"] = p_position.getLast();
-    obj["UnrealizedPL"] = p_position.getUnrealizedProfitLoss();
+    obj["Bid"] = p_position.getBid();
+    obj["Ask"] = p_position.getAsk();
+    obj["UnrealizedProfitLoss"] = p_position.getUnrealizedProfitLoss();
+    obj["UnrealizedProfitLossPercent"] = p_position.getUnrealizedProfitLossPercent();
+    obj["UnrealizedProfitLossQty"] = p_position.getUnrealizedProfitLossQty();
     obj["LongShort"] = p_position.getLongShort();
     obj["AssetType"] = p_position.getAssetType();
     obj["Timestamp"] = p_position.getTimestamp().toString(Qt::ISODate);
+    obj["ConversionRate"] = p_position.getConversionRate();
+    obj["DayTradeRequirement"] = p_position.getDayTradeRequirement();
+    obj["InitialRequirement"] = p_position.getInitialRequirement();
+    obj["MaintenanceMargin"] = p_position.getMaintenanceMargin();
+    obj["MarkToMarketPrice"] = p_position.getMarkToMarketPrice();
+    obj["MarketValue"] = p_position.getMarketValue();
+    obj["TodaysProfitLoss"] = p_position.getTodaysProfitLoss();
+    obj["TotalCost"] = p_position.getTotalCost();
 
     QJsonDocument doc(obj);
     return doc.toJson(QJsonDocument::Compact) + "\n";
