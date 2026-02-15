@@ -1,6 +1,7 @@
 #include "StrategyManager.h"
 #include "StrategySDK.h"
 #include "../Algo/MainAlgo.h"
+#include "Assume.h"
 #include <QUuid>
 #include <QDebug>
 
@@ -21,11 +22,7 @@ StrategySDK::StrategySDK(MainAlgo* p_mainAlgo,
 
 QFuture<std::expected<PlaceOrderResult, TSClient::Error>> StrategySDK::placeOrder(const PlaceOrderRequest& p_order)
 {
-    if (!m_mainAlgo)
-    {
-        return QtFuture::makeReadyFuture(
-            std::expected<PlaceOrderResult, TSClient::Error>(std::unexpected(TSClient::Error::Other)));
-    }
+    ASSUME_DIFF(m_mainAlgo, nullptr);
 
     // Validate order before sending to MainAlgo
     if (!StrategyOrderValidator::validateOrder(m_strategyID, p_order))
@@ -114,10 +111,7 @@ const QString& StrategySDK::getStrategyName() const
 std::shared_ptr<QVector<Bar>>
 StrategySDK::getHistoricalBars(const QString& /* symbol */, const QDate& day, const QTime& first, const QTime& last)
 {
-    if (!m_mainAlgo)
-    {
-        return std::make_shared<QVector<Bar>>();
-    }
+    ASSUME_DIFF(m_mainAlgo, nullptr);
 
     // Request bars from MainAlgo (which has access to all StockInstruments and their BarCaches)
     auto result = m_mainAlgo->requestMissingBarsDisplayedStock(day, first, last);
@@ -159,10 +153,7 @@ QDateTime StrategySDK::getCurrentTime() const
 StrategyManager::StrategyManager(MainAlgo* p_mainAlgo)
     : QObject(nullptr), m_mainAlgo(p_mainAlgo), m_registry(std::make_unique<StrategyRegistry>())
 {
-    if (!m_mainAlgo)
-    {
-        qWarning(StrategyManagerLog) << "StrategyManager created with null MainAlgo";
-    }
+    ASSUME_DIFF(m_mainAlgo, nullptr);
 }
 
 StrategyManager::~StrategyManager()
@@ -184,10 +175,7 @@ StrategyManager::~StrategyManager()
 
 std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConfig& p_config)
 {
-    if (!m_mainAlgo)
-    {
-        return std::unexpected("StrategyManager not initialized with MainAlgo");
-    }
+    ASSUME_DIFF(m_mainAlgo, nullptr);
 
     if (p_config.soPath.isEmpty())
     {
