@@ -31,7 +31,7 @@ void PositionWindow::setupUI()
 
     // Setup model columns (Position ID at END like OrderWindow)
     QStringList headers;
-    headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "P/L" << "P/L %" << "Market Value" << "Position ID";
+    headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "Unrealized P/L" << "Realized P/L" << "Market Value" << "Position ID";
     model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -51,8 +51,8 @@ void PositionWindow::setupUI()
     tableView->setColumnWidth(1, 70);  // Quantity
     tableView->setColumnWidth(2, 70);  // Avg Price
     tableView->setColumnWidth(3, 70);  // Last
-    tableView->setColumnWidth(4, 70);  // P/L
-    tableView->setColumnWidth(5, 70);  // P/L %
+    tableView->setColumnWidth(4, 90);  // Unrealized P/L
+    tableView->setColumnWidth(5, 90);  // Realized P/L
     tableView->setColumnWidth(6, 90);  // Market Value
     tableView->setColumnWidth(7, 90);  // Position ID
 
@@ -153,19 +153,30 @@ QList<QStandardItem*> PositionWindow::createRowItems(const Position& position)
     lastItem->setTextAlignment(Qt::AlignCenter);
     items << lastItem;
 
-    // P/L
-    double pl = position.getUnrealizedProfitLoss().toDouble();
-    auto plItem = new QStandardItem(QString::number(pl, 'f', 2));
-    plItem->setTextAlignment(Qt::AlignCenter);
-    plItem->setForeground(pl >= 0 ? QColor(Qt::green) : QColor(Qt::red));
-    items << plItem;
+    // Unrealized P/L (only for open positions)
+    int qty = position.getQuantity().toInt();
+    double unrealizedPL = position.getUnrealizedProfitLoss().toDouble();
+    auto unrealizedItem = new QStandardItem();
+    unrealizedItem->setTextAlignment(Qt::AlignCenter);
+    if (qty != 0)
+    {
+        unrealizedItem->setText(QString::number(unrealizedPL, 'f', 2));
+        unrealizedItem->setForeground(unrealizedPL >= 0 ? QColor(Qt::green) : QColor(Qt::red));
+    }
+    // else: leave empty for closed positions
+    items << unrealizedItem;
 
-    // P/L %
-    double plPercent = position.getUnrealizedProfitLossPercent().toDouble();
-    auto plPercentItem = new QStandardItem(QString::number(plPercent, 'f', 2) + "%");
-    plPercentItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    plPercentItem->setForeground(plPercent >= 0 ? QColor(Qt::green) : QColor(Qt::red));
-    items << plPercentItem;
+    // Realized P/L (only for closed positions, uses TodaysProfitLoss field)
+    double realizedPL = position.getTodaysProfitLoss().toDouble();
+    auto realizedItem = new QStandardItem();
+    realizedItem->setTextAlignment(Qt::AlignCenter);
+    if (qty == 0)
+    {
+        realizedItem->setText(QString::number(realizedPL, 'f', 2));
+        realizedItem->setForeground(realizedPL >= 0 ? QColor(Qt::green) : QColor(Qt::red));
+    }
+    // else: leave empty for open positions
+    items << realizedItem;
 
     // Market Value
     auto marketValueItem = new QStandardItem(QString::number(position.getMarketValue().toDouble(), 'f', 2));
