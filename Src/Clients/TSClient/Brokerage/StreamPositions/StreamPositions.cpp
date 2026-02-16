@@ -44,10 +44,12 @@ void StreamPositions::processJsonObject(const QJsonObject& jsonObj)
     Position position(jsonObj,
                       m_receivedEndSnapshot); // Pass the update flag based on EndSnapshot status
 
+    // ASSERT that position is valid (pre-condition: JSON should always produce valid Position)
     if (!position.isValid()) [[unlikely]]
     {
-        WARNING << "Position update object invalid : "
+        CRITICAL << "Position update object invalid : "
                 << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
+        OBJ_ASSUME_TRUE(position.isValid()); // ASSERT - this should never happen
         return;
     }
 

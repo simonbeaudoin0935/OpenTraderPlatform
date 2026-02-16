@@ -36,9 +36,11 @@ void StreamOrders::processJsonObject(const QJsonObject& jsonObj)
     Order order(jsonObj,
                 m_receivedEndSnapshot); // Pass the update flag based on EndSnapshot status
 
+    // ASSERT that order is valid (pre-condition: JSON should always produce valid Order)
     if (!order.isValid()) [[unlikely]]
     {
         CRITICAL << "Order update object invalid : " << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
+        OBJ_ASSUME_TRUE(order.isValid());  // ASSERT - this should never happen
         return;
     }
 

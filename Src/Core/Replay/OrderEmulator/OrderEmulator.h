@@ -299,6 +299,7 @@ class OrderEmulator : public QObject
         int quantity = 0;
         double averagePrice = 0.0;
         double realizedPnL = 0.0;  // Accumulated realized P&L for this position
+        bool isLong = true;        // true = Long position, false = Short position
     };
     QMap<QString, PositionData> m_positionData;        // positionID → PositionData
     QMap<QString, QString> m_symbolToActivePosition;   // symbol → active positionID

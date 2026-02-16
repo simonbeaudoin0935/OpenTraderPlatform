@@ -488,6 +488,7 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
         newPos.quantity = 0;
         newPos.averagePrice = 0;
         newPos.realizedPnL = 0;
+        newPos.isLong = true;  // Will be determined by first trade
         m_positionData.insert(positionID, newPos);
         m_symbolToActivePosition.insert(symbol, positionID);
     }
@@ -512,6 +513,7 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
             double totalCost = (currentQty * currentAvgPrice) + (quantity * p_fillPrice);
             newQty = currentQty + quantity;
             newAvgPrice = (newQty > 0) ? (totalCost / newQty) : 0;
+            posData.isLong = true;  // Opening or adding to long position
         }
         else
         {
@@ -523,10 +525,12 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
             if (newQty > 0)
             {
                 newAvgPrice = p_fillPrice;
+                posData.isLong = true;  // Flipped to long
             }
             else if (newQty == 0)
             {
                 newAvgPrice = 0;
+                // Keep isLong = false (was short)
             }
         }
 
@@ -540,6 +544,7 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
             double totalCost = ((-currentQty) * currentAvgPrice) + (quantity * p_fillPrice);
             newQty = currentQty - quantity;
             newAvgPrice = (newQty < 0) ? (totalCost / (-newQty)) : 0;
+            posData.isLong = false;  // Opening or adding to short position
         }
         else
         {
@@ -551,10 +556,12 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
             if (newQty < 0)
             {
                 newAvgPrice = p_fillPrice;
+                posData.isLong = false;  // Flipped to short
             }
             else if (newQty == 0)
             {
                 newAvgPrice = 0;
+                // Keep isLong = true (was long)
             }
         }
 
@@ -566,6 +573,15 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
     {
         posData.realizedPnL += realizedPnL;
         m_realizedProfitLoss += realizedPnL;
+    }
+
+    // If position will be closed (qty == 0), capture the average price and direction NOW before updating posData
+    double closedAvgPrice = 0.0;
+    bool wasLong = true;
+    if (newQty == 0)
+    {
+        closedAvgPrice = posData.averagePrice;  // Capture BEFORE it gets set to 0
+        wasLong = posData.isLong;               // Preserve whether it was Long or Short
     }
 
     posData.quantity = newQty;
@@ -586,10 +602,10 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
         closedJson["AccountID"] = getSimulatedAccountID();
         closedJson["Symbol"] = symbol;
         closedJson["Quantity"] = "0";
-        closedJson["AveragePrice"] = QString::number(posData.averagePrice, 'f', 4);
+        closedJson["AveragePrice"] = QString::number(closedAvgPrice, 'f', 4);
         closedJson["Last"] = QString::number(p_fillPrice, 'f', 4);
         closedJson["AssetType"] = "STOCK";
-        closedJson["LongShort"] = "Flat";
+        closedJson["LongShort"] = wasLong ? "Long" : "Short";  // Preserve historical direction
         closedJson["Timestamp"] = MainApp::currentAppReplayTime.toString(Qt::ISODate);
         closedJson["Bid"] = QString::number(p_fillPrice, 'f', 4);
         closedJson["Ask"] = QString::number(p_fillPrice, 'f', 4);
@@ -608,7 +624,8 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
         closedJson["IsUpdate"] = true;
 
         // Emit the final position update with realized P&L
-        emit positionUpdate(QJsonDocument(closedJson).toJson(QJsonDocument::Compact));
+        QByteArray closedJsonBytes = QJsonDocument(closedJson).toJson(QJsonDocument::Compact);
+        emit positionUpdate(closedJsonBytes);
 
         m_positions.remove(positionID);
         m_positionData.remove(positionID);
