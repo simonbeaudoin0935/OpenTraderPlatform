@@ -541,14 +541,10 @@ void MainAlgo::onBalanceReceived(const QVector<Balance>& results)
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
     OBJ_ASSUME_EQUAL(results.size(), 1);
 
-
     m_currentBalance = results.at(0);
-    //qCDebug(MainAlgoLog) << "Received balances for" << results.size() << "accounts";
 
     // Emit signal for the UI or other components interested
     emit balanceUpdated(m_currentBalance);
-
-    // TODO save this balance figure and act on it
 }
 
 StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
