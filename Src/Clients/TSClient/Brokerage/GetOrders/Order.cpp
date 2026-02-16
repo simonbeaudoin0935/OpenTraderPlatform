@@ -4,6 +4,7 @@
 #include "Order.h"
 #include "Logging.h"
 #include "CONSTANTS.h"
+#include "Assume.h"
 
 OrderNS::AdvancedOptions::AdvancedOptions(const QString& str)
 {
@@ -266,11 +267,47 @@ Order::Order(const QJsonObject& jsonObj, bool isUpdate_) : m_isUpdate(isUpdate_)
 
 bool Order::isValid()
 {
-    // Check required fields
-    if (m_accountID.isEmpty() || m_orderID.isEmpty())
+    // Check required fields - these should NEVER be empty
+    if (m_accountID.isEmpty())
     {
-        return false;
+        qDebug() << "Order invalid: accountID empty";
     }
+    ASSUME_FALSE(m_accountID.isEmpty());  // ASSERT: accountID must not be empty
+    
+    if (m_orderID.isEmpty())
+    {
+        qDebug() << "Order invalid: orderID empty";
+    }
+    ASSUME_FALSE(m_orderID.isEmpty());  // ASSERT: orderID must not be empty
+    
+    if (m_symbol.isEmpty())
+    {
+        qDebug() << "Order invalid: symbol empty";
+    }
+    ASSUME_FALSE(m_symbol.isEmpty());  // ASSERT: symbol must not be empty
+    
+    if (m_quantity.isEmpty())
+    {
+        qDebug() << "Order invalid: quantity empty";
+    }
+    ASSUME_FALSE(m_quantity.isEmpty());  // ASSERT: quantity must not be empty
+    
+    if (m_tradeAction.isEmpty())
+    {
+        qDebug() << "Order invalid: tradeAction empty";
+    }
+    ASSUME_FALSE(m_tradeAction.isEmpty());  // ASSERT: tradeAction must not be empty
+    
+    // Validate tradeAction - MUST be one of the recognized actions
+    bool validTradeAction = (m_tradeAction == "BUY" || m_tradeAction == "SELL" || 
+                            m_tradeAction == "BUYTOCOVER" || m_tradeAction == "SELLSHORT" ||
+                            m_tradeAction == "Buy" || m_tradeAction == "Sell" ||
+                            m_tradeAction == "Buy to Cover" || m_tradeAction == "Sell Short");
+    if (!validTradeAction)
+    {
+        qDebug() << "Order invalid: tradeAction not recognized:" << m_tradeAction;
+    }
+    ASSUME_TRUE(validTradeAction);  // ASSERT: tradeAction must be recognized
 
     return true;
 }
