@@ -172,7 +172,8 @@ QList<QStandardItem*> PositionWindow::createRowItems(const Position& position)
     realizedItem->setTextAlignment(Qt::AlignCenter);
     if (qty == 0)
     {
-        realizedItem->setText(QString::number(realizedPL, 'f', 2));
+        QString text = QString::number(realizedPL, 'f', 2);
+        realizedItem->setText(text);
         realizedItem->setForeground(realizedPL >= 0 ? QColor(Qt::green) : QColor(Qt::red));
     }
     // else: leave empty for open positions
