@@ -78,6 +78,15 @@ OrdersDatabase* OrdersDatabase::getInstance(QObject* p_parent)
     return s_instance;
 }
 
+void OrdersDatabase::destroyInstance()
+{
+    if (s_instance != nullptr)
+    {
+        delete s_instance;
+        s_instance = nullptr;
+    }
+}
+
 OrdersDatabase::OrdersDatabase(const QString& p_dbPath, QObject* p_parent)
     : QObject(p_parent), m_dbPath(p_dbPath), m_connectionName("OrdersDB") // Use fixed connection name for singleton
 {
@@ -297,13 +306,39 @@ QMap<QString, std::tuple<Order, std::optional<qint64>>> OrdersDatabase::loadAllO
         QString orderTypeStr = query.value(3).toString();
         QString jsonDataStr = query.value(4).toString();
 
-        // Reconstruct the Order object from JSON
+        // Additional columns
+        double filledPrice = query.value(5).toDouble();
+        QVariant limitPriceVar = query.value(6);
+        QVariant stopPriceVar = query.value(7);
+        QString openedDateTimeStr = query.value(8).toString();
+        QString closedDateTimeStr = query.value(9).toString();
+
+        // Reconstruct the Order object from JSON with additional fields
         QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonDataStr.toUtf8());
         if (jsonDoc.isObject())
         {
             QJsonObject jsonObj = jsonDoc.object();
             jsonObj["Status"] = statusStr;
             jsonObj["OrderType"] = orderTypeStr;
+            jsonObj["FilledPrice"] = QString::number(filledPrice, 'f', 4);
+
+            if (!limitPriceVar.isNull())
+            {
+                jsonObj["LimitPrice"] = QString::number(limitPriceVar.toDouble(), 'f', 4);
+            }
+            if (!stopPriceVar.isNull())
+            {
+                jsonObj["StopPrice"] = QString::number(stopPriceVar.toDouble(), 'f', 4);
+            }
+            if (!openedDateTimeStr.isEmpty())
+            {
+                jsonObj["OpenedDateTime"] = openedDateTimeStr;
+            }
+            if (!closedDateTimeStr.isEmpty())
+            {
+                jsonObj["ClosedDateTime"] = closedDateTimeStr;
+            }
+
             Order order(jsonObj);
             orders.insert(orderId, std::make_tuple(order, latencyMs));
         }

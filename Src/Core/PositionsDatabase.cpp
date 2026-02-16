@@ -78,6 +78,15 @@ PositionsDatabase* PositionsDatabase::getInstance(QObject* p_parent)
     return s_instance;
 }
 
+void PositionsDatabase::destroyInstance()
+{
+    if (s_instance != nullptr)
+    {
+        delete s_instance;
+        s_instance = nullptr;
+    }
+}
+
 PositionsDatabase::PositionsDatabase(const QString& p_dbPath, QObject* p_parent)
     : QObject(p_parent), m_dbPath(p_dbPath), m_connectionName("PositionsDB") // Use fixed connection name for singleton
 {

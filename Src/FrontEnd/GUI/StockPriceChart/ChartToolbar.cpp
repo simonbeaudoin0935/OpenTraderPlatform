@@ -29,6 +29,11 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
     volumeAutoRescaleCheckBox->setChecked(true); // Auto-rescale enabled by default
     volumeAutoRescaleCheckBox->setToolTip("Auto-rescale volume Y-axis to visible bar range");
 
+    // Create the order visualizations visibility checkbox
+    ordersCheckBox = new QCheckBox("Orders", this);
+    ordersCheckBox->setChecked(true); // Orders visible by default
+    ordersCheckBox->setToolTip("Show/hide order markers and position lines on chart");
+
     // Create replay controls
     replayLabel = new QLabel("Replay:", this);
     replayLabel->setStyleSheet("font-weight: bold;");
@@ -106,6 +111,7 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
     layout->addWidget(autoCheckBox);
     layout->addWidget(volumeCheckBox);
     layout->addWidget(volumeAutoRescaleCheckBox);
+    layout->addWidget(ordersCheckBox);
     layout->addStretch(); // Push replay widgets to the right
     layout->addWidget(replayLabel);
     layout->addWidget(replayInfoLabel);
@@ -123,6 +129,7 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
             &QCheckBox::stateChanged,
             this,
             &ChartToolbar::onVolumeAutoRescaleCheckBoxChanged);
+    connect(ordersCheckBox, &QCheckBox::stateChanged, this, &ChartToolbar::onOrdersCheckBoxChanged);
     connect(replayDayCombo,
             QOverload<int>::of(&QComboBox::currentIndexChanged),
             this,
@@ -327,6 +334,22 @@ void ChartToolbar::setVolumeAutoRescaleEnabled(bool enabled)
 }
 
 /**
+ * @brief Checks if order visualizations are visible.
+ */
+bool ChartToolbar::isOrderVisualizationsVisible() const
+{
+    return ordersCheckBox->isChecked();
+}
+
+/**
+ * @brief Sets the order visualizations visibility state.
+ */
+void ChartToolbar::setOrderVisualizationsVisible(bool visible)
+{
+    ordersCheckBox->setChecked(visible);
+}
+
+/**
  * @brief Handles combobox selection changes.
  */
 void ChartToolbar::onComboBoxChanged(int index)
@@ -363,6 +386,15 @@ void ChartToolbar::onVolumeAutoRescaleCheckBoxChanged(int state)
 {
     bool enabled = (state == Qt::Checked);
     emit volumeAutoRescaleChanged(enabled);
+}
+
+/**
+ * @brief Handles orders checkbox state changes.
+ */
+void ChartToolbar::onOrdersCheckBoxChanged(int state)
+{
+    bool visible = (state == Qt::Checked);
+    emit orderVisualizationsVisibilityChanged(visible);
 }
 
 /**

@@ -92,6 +92,18 @@ class ChartToolbar : public QWidget
     void setVolumeAutoRescaleEnabled(bool enabled);
 
     /**
+     * @brief Checks if order visualizations are visible.
+     * @return True if order markers and position lines are visible, false otherwise.
+     */
+    bool isOrderVisualizationsVisible() const;
+
+    /**
+     * @brief Sets the order visualizations visibility state.
+     * @param visible True to show order markers and position lines, false to hide.
+     */
+    void setOrderVisualizationsVisible(bool visible);
+
+    /**
      * @brief Sets the available days for market replay.
      * @param days List of dates available for replay.
      */
@@ -223,6 +235,12 @@ class ChartToolbar : public QWidget
     void volumeAutoRescaleChanged(bool enabled);
 
     /**
+     * @brief Emitted when the order visualizations visibility changes.
+     * @param visible True if order markers and position lines are visible.
+     */
+    void orderVisualizationsVisibilityChanged(bool visible);
+
+    /**
      * @brief Emitted when the user selects a different replay day.
      * @param date The newly selected date for replay.
      */
@@ -278,6 +296,12 @@ class ChartToolbar : public QWidget
     void onVolumeAutoRescaleCheckBoxChanged(int state);
 
     /**
+     * @brief Handles orders checkbox state changes.
+     * @param state The new state of the checkbox.
+     */
+    void onOrdersCheckBoxChanged(int state);
+
+    /**
      * @brief Handles replay day combobox selection changes.
      * @param index The index of the selected item.
      */
@@ -306,6 +330,7 @@ class ChartToolbar : public QWidget
     QCheckBox* autoCheckBox;              ///< Checkbox for auto timeframe selection
     QCheckBox* volumeCheckBox;            ///< Checkbox for volume chart visibility
     QCheckBox* volumeAutoRescaleCheckBox; ///< Checkbox for volume Y-axis auto-rescale to visible range
+    QCheckBox* ordersCheckBox;            ///< Checkbox for order visualizations visibility
 
     QLabel* replayLabel;          ///< Label showing "Replay:"
     QLabel* replayInfoLabel;      ///< Label showing replay time range and bar count info

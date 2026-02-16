@@ -84,6 +84,13 @@ void StockPriceChart::onVolumeAutoRescaleChanged(bool enabled)
     }
 }
 
+void StockPriceChart::onOrderVisualizationsVisibilityChanged(bool visible)
+{
+    m_orderVisualizationsVisible = visible;
+    updateOrderVisualizationsVisibility();
+    m_customPlot->replot();
+}
+
 /**
  * @brief Handles widget resize events.
  */

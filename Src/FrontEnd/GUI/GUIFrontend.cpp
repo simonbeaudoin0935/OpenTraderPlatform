@@ -23,6 +23,7 @@
 #include "Tabs/ConfigTab.h"
 #include "StrategiesTab/StrategiesTab.h"
 #include "StockPriceChart/ChartToolbar.h"
+#include "StockPriceChart/StockPriceChart.h"
 #include "Misc/Logging.h"
 #include "Misc/Settings.h"
 #include "Misc/ShortcutSettings.h"
@@ -708,6 +709,24 @@ void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
 void GUIFrontend::onNewPositionReceived(QString account, Position position)
 {
     ui->positionWindow->updatePosition(account, position);
+
+    // Forward position to chart for visualization
+    // Only process positions for the currently displayed symbol
+    if (position.getSymbol() == ui->priceChart->getCurrentSymbol())
+    {
+        int quantity = position.getQuantity().toInt();
+
+        if (quantity == 0)
+        {
+            // Position closed (round-trip complete)
+            ui->priceChart->onPositionClosed(position);
+        }
+        else
+        {
+            // Open or updated position
+            ui->priceChart->onPositionUpdated(position);
+        }
+    }
 }
 
 void GUIFrontend::onPositionDeleted(QString account, QString positionID)
@@ -718,6 +737,34 @@ void GUIFrontend::onPositionDeleted(QString account, QString positionID)
 void GUIFrontend::onNewOrderReceived(QString account, Order order)
 {
     ui->orderWindow->updateOrder(account, order);
+
+    // Forward order to chart for visualization
+    // Only process orders for the currently displayed symbol
+    if (order.getSymbol() == ui->priceChart->getCurrentSymbol())
+    {
+        Order::Status status = order.getOrderStatus();
+
+        if (status == Order::Status::OPN || status == Order::Status::ACK)
+        {
+            // Pending order (sent or acknowledged)
+            ui->priceChart->onOrderPlaced(order);
+        }
+        else if (status == Order::Status::FLL || status == Order::Status::FLP || status == Order::Status::FPR)
+        {
+            // Filled or partial fill
+            ui->priceChart->onOrderFilled(order);
+        }
+        else if (status == Order::Status::CAN || status == Order::Status::UCN || status == Order::Status::TSC)
+        {
+            // Cancelled
+            ui->priceChart->onOrderCancelled(order);
+        }
+        else if (status == Order::Status::UCH || status == Order::Status::RSN)
+        {
+            // Amended (replaced)
+            ui->priceChart->onOrderAmended(order);
+        }
+    }
 }
 
 void GUIFrontend::onBalanceUpdated(Balance balance)

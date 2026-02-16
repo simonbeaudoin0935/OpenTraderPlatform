@@ -443,3 +443,218 @@ Adding m historical bars: O(m) instead of O(n) rebuild
 6. Better error messages for edge cases
 
 These are tracked in the implementation plan but deemed optional for core functionality.
+
+## Order Visualization Feature
+
+### Overview
+
+The chart displays order executions and position P&L directly on the candlestick chart, allowing traders to:
+- See exact entry and exit points with precise time/price coordinates
+- Track positions dynamically with real-time P&L
+- Visualize historical trades for analysis
+- Connect related orders forming positions with visual lines
+
+### Position Lifecycle Model
+
+A **position** is defined as a complete round-trip from 0 shares to some quantity and back to 0 shares:
+
+```
+Position 1: Buy 10 → Sell 10 (closed, quantity=0)
+Position 2: Buy 10 → Sell 10 (new position, separate ID)
+Position 3: Buy 10 → Buy 10 → Sell 20 (DCA closed, quantity=0)
+Position 4: Buy 10 → Sell 5 → ... (still open, 5 shares remaining)
+```
+
+Each closed position appears as separate entry in PositionWindow with quantity=0 and realized P&L.
+
+### Data Structures
+
+```cpp
+// Order marker for visual representation
+struct OrderMarker {
+    QString orderID;
+    QString symbol;
+    QDateTime timestamp;      // Fill time for filled, placement time for pending
+    double price;             // Fill price for filled, order price for pending
+    int quantity;
+    bool isBuy;               // true = buy, false = sell
+    QString accountID;
+    
+    enum class State {
+        Pending,     // Hollow triangle
+        Filled,      // Solid triangle
+        Cancelled    // Gray X
+    };
+    State state;
+    
+    // QCustomPlot visual elements (3 lines form triangle, 2 lines form X)
+    QCPItemLine* markerLine1 = nullptr;
+    QCPItemLine* markerLine2 = nullptr;
+    QCPItemLine* markerLine3 = nullptr;
+};
+
+// Position visualization for connecting orders
+struct PositionVisualization {
+    QString positionID;
+    QString symbol;
+    QVector<OrderMarker*> entryMarkers;     // All buy orders in this position
+    QVector<OrderMarker*> exitMarkers;      // All sell orders in this position
+    QVector<QCPItemLine*> entryLines;       // Lines connecting sequential entries
+    QCPItemLine* dynamicLine = nullptr;     // For open positions (to current price)
+    QVector<QCPItemLine*> exitLines;        // Lines to each exit
+    QCPItemText* plLabel = nullptr;         // P&L text label
+    QCPItemRect* plBackground = nullptr;    // P&L box background
+    double realizedPL = 0.0;                // Final P&L when closed
+    bool isClosed = false;                  // True when shares reach 0
+    bool isShort = false;                   // True for short positions
+    double avgEntryPrice = 0.0;             // DCA average entry price
+    int currentQuantity = 0;                // Current position size
+    int totalBought = 0;                    // Total shares bought
+    int totalSold = 0;                      // Total shares sold
+};
+```
+
+### Visual Specifications
+
+| Element | Color | Style | Size |
+|---------|-------|-------|------|
+| Buy marker (filled) | Green #00C800 | Solid upward triangle | Scales with zoom |
+| Sell marker (filled) | Red #C80000 | Solid downward triangle | Scales with zoom |
+| Buy marker (pending) | Green #00C800 | Dashed upward triangle | Scales with zoom |
+| Sell marker (pending) | Red #C80000 | Dashed downward triangle | Scales with zoom |
+| Cancelled marker | Gray #808080 | X shape | Scales with zoom |
+| Position line (profit) | Green #00C800 | Dotted | 1-2px |
+| Position line (loss) | Red #C80000 | Dotted | 1-2px |
+| P&L text | Green/Red | Bold | 8-10pt |
+| P&L box background | Dark gray | 70-80% opacity | Auto-size |
+
+### Signal/Slot Connections
+
+```
+GUIFrontend::onNewOrderReceived()
+    │
+    ├─ Order::Status::OPN/ACK ──► StockPriceChart::onOrderPlaced()
+    ├─ Order::Status::FLL/FLP/FPR ──► StockPriceChart::onOrderFilled()
+    ├─ Order::Status::CAN/UCN/TSC ──► StockPriceChart::onOrderCancelled()
+    └─ Order::Status::UCH/RSN ──► StockPriceChart::onOrderAmended()
+
+GUIFrontend::onNewPositionReceived()
+    │
+    ├─ quantity == 0 ──► StockPriceChart::onPositionClosed()
+    └─ quantity > 0 ──► StockPriceChart::onPositionUpdated()
+```
+
+### Public Slots
+
+```cpp
+// Order event handlers
+void onOrderPlaced(const Order& order);    // Create pending marker
+void onOrderFilled(const Order& order);     // Convert to filled, update position
+void onOrderCancelled(const Order& order);  // Convert to cancelled X
+void onOrderAmended(const Order& order);    // Move marker to new price
+
+// Position event handlers
+void onPositionOpened(const Position& position);   // Create new position
+void onPositionUpdated(const Position& position);  // Update dynamic line/P&L
+void onPositionClosed(const Position& position);   // Finalize, show realized P&L
+```
+
+### Helper Methods
+
+```cpp
+// Marker creation
+OrderMarker* createBuyMarker(const Order& order, OrderMarker::State state);
+OrderMarker* createSellMarker(const Order& order, OrderMarker::State state);
+void createCancelledMarker(OrderMarker* marker);
+void updateMarkerState(OrderMarker* marker, OrderMarker::State newState);
+void moveMarkerToPrice(OrderMarker* marker, double newPrice);
+
+// Position line management
+void createPositionLine(PositionVisualization* pos, OrderMarker* from, OrderMarker* to);
+void updateOpenPositionDynamicLine(double currentPrice, int currentBarIndex);
+void updateOpenPositionPLBox(double currentPrice);
+void createRealizedPLLabel(PositionVisualization* pos);
+
+// Coordinate conversion
+double getExactIndexForTimestamp(const QDateTime& timestamp);
+
+// Cleanup
+void clearOrderVisualizations();
+void updateOrderVisualizationsVisibility();
+```
+
+### Toolbar Toggle
+
+The ChartToolbar includes an "Orders" checkbox to show/hide all order visualizations:
+
+```cpp
+// ChartToolbar signals
+void orderVisualizationsVisibilityChanged(bool visible);
+
+// StockPriceChart slot
+void onOrderVisualizationsVisibilityChanged(bool visible);
+```
+
+### Historical Data Loading
+
+On symbol change, historical orders and positions are loaded:
+
+```cpp
+void loadHistoricalOrders();   // Query OrdersDatabase
+void loadHistoricalPositions(); // Query PositionsDatabase
+```
+
+### P&L Calculations
+
+**Long positions**:
+```cpp
+unrealizedPL = (currentPrice - avgEntryPrice) * currentQuantity;
+```
+
+**Short positions**:
+```cpp
+unrealizedPL = (avgEntryPrice - currentPrice) * currentQuantity;
+```
+
+**DCA average entry price**:
+```cpp
+avgEntryPrice = totalCostBasis / totalSharesBought;
+```
+
+### Performance Optimizations
+
+1. **Culling**: Markers and lines outside visible X-axis range are hidden
+2. **Z-ordering**: Recent orders render on top of older ones
+3. **Update frequency**: P&L box updates with every bar (no throttling)
+4. **Immediate clear**: Visualizations cleared instantly on symbol change
+
+### Testing Scenarios
+
+| Scenario | Expected Result |
+|----------|-----------------|
+| Buy 10 → Sell 10 | Closed position with 2 markers, line, realized P&L |
+| Buy 10 → Sell 10 → Buy 10 → Sell 10 | Two separate closed positions |
+| Buy 10 → Buy 10 → Sell 20 | DCA position with 3 markers, connecting lines |
+| Buy 20 → Sell 10 → Sell 10 | Partial close, then full close |
+| Order placed (pending) | Hollow triangle marker |
+| Order cancelled | Gray X marker |
+| Order amended | Marker moves to new price |
+
+### Troubleshooting
+
+**Markers not appearing**:
+1. Check order symbol matches chart symbol
+2. Verify OrdersDatabase is initialized
+3. Check timestamp is within visible range
+4. Verify m_orderVisualizationsVisible is true
+
+**P&L miscalculated**:
+1. Verify avgEntryPrice calculation includes all entries
+2. Check long vs short position detection
+3. Verify currentQuantity updates on partial closes
+
+**Lines not connecting**:
+1. Check position has both entry and exit markers
+2. Verify getExactIndexForTimestamp() returns valid index
+3. Check bars exist for the timestamps
+

@@ -242,6 +242,11 @@ class OrderEmulator : public QObject
     [[nodiscard]] QByteArray orderToJson(const Order& p_order) const;
 
     /**
+     * @brief Convert order to QJsonObject (for internal use)
+     */
+    [[nodiscard]] QJsonObject orderToJsonObject(const Order& p_order) const;
+
+    /**
      * @brief Convert position to JSON for stream emission
      */
     [[nodiscard]] QByteArray positionToJson(const Position& p_position) const;
