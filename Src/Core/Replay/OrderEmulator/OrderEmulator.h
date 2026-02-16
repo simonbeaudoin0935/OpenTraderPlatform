@@ -4,6 +4,7 @@
 #include <QLoggingCategory>
 #include <QMap>
 #include <QObject>
+#include <QThread>
 #include <QTimer>
 #include <QVector>
 
@@ -147,11 +148,20 @@ class OrderEmulator : public QObject
     }
 
     /**
-     * @brief Get the total realized profit/loss
+     * @brief Get the total realized profit/loss from all closed positions
      */
     [[nodiscard]] double getRealizedProfitLoss() const
     {
         return m_realizedProfitLoss;
+    }
+
+    /**
+     * @brief Get realized P&L summed from closed positions
+     * Uses accumulated total for reliability (QMap had unexplained corruption issues)
+     */
+    [[nodiscard]] double getClosedPositionsPnL() const
+    {
+        return m_totalClosedPnL;
     }
 
   signals:
@@ -278,17 +288,30 @@ class OrderEmulator : public QObject
     QMap<QString, Order> m_openOrders;   // orderID → Order (OPN status)
     QMap<QString, Order> m_filledOrders; // orderID → Order (FLL/CAN/REJ status)
 
-    // Position tracking
-    QMap<QString, Position> m_positions; // symbol → Position (for getPositions())
+    // Position tracking (ID-based for unique round trips)
+    QMap<QString, Position> m_positions; // positionID → Position
 
-    // Internal position data for calculation (simpler than Position object)
+    // Internal position data for calculation
     struct PositionData
     {
+        QString positionID;
         QString symbol;
         int quantity = 0;
         double averagePrice = 0.0;
+        double realizedPnL = 0.0;  // Accumulated realized P&L for this position
     };
-    QMap<QString, PositionData> m_positionData; // symbol → PositionData
+    QMap<QString, PositionData> m_positionData;        // positionID → PositionData
+    QMap<QString, QString> m_symbolToActivePosition;   // symbol → active positionID
+
+    // Track closed positions' realized P&L (positionID → realized P&L at close)
+    // Note: QMap had unexplained corruption issues, so we use m_totalClosedPnL as primary source
+    QMap<QString, double> m_closedPositionPnL;
+    
+    // Total realized P&L from all closed positions (primary source for balance calculation)
+    double m_totalClosedPnL = 0.0;
+
+    // Position ID counter - starts at 60000000 to generate 8-digit numeric IDs matching TradeStation format
+    qint64 m_nextPositionID = 60000000;
 
     // Market depth snapshots
     QMap<QString, MarketDepthQuote> m_depthSnapshots; // symbol → latest depth

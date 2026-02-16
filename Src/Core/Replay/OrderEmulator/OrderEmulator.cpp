@@ -198,8 +198,8 @@ void OrderEmulator::updateMarketDepth(const QString& p_symbol, const MarketDepth
         }
     }
 
-    // Update position P&L if we have a position for this symbol
-    if (m_positions.contains(p_symbol))
+    // Update position P&L if we have an active position for this symbol
+    if (m_symbolToActivePosition.contains(p_symbol))
     {
         recalculatePositionPnL(p_symbol);
     }
@@ -255,9 +255,16 @@ void OrderEmulator::clear()
     m_openOrders.clear();
     m_filledOrders.clear();
     m_positions.clear();
+    m_positionData.clear();
+    m_symbolToActivePosition.clear();
+    m_closedPositionPnL.clear();
+    m_totalClosedPnL = 0.0;
     m_depthSnapshots.clear();
+    m_latestBarClose.clear();
     m_nextOrderID = 1000;
+    m_nextPositionID = 60000000;
     m_balance = 100000.0;
+    m_realizedProfitLoss = 0.0;
 
     INFO << "OrderEmulator cleared";
 }
@@ -463,33 +470,42 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
     QString tradeAction = p_filledOrder.getTradeAction();
     int quantity = p_filledOrder.getQuantity().toInt();
 
-    // Track position internally
-    auto it = m_positionData.find(symbol);
-    if (it == m_positionData.end())
+    // Check if there's an active position for this symbol
+    QString positionID;
+
+    if (m_symbolToActivePosition.contains(symbol))
     {
+        positionID = m_symbolToActivePosition[symbol];
+    }
+    else
+    {
+        // Create new position with unique ID
+        positionID = QString::number(m_nextPositionID++);
+
         PositionData newPos;
+        newPos.positionID = positionID;
         newPos.symbol = symbol;
         newPos.quantity = 0;
         newPos.averagePrice = 0;
-        m_positionData.insert(symbol, newPos);
-        it = m_positionData.find(symbol);
+        newPos.realizedPnL = 0;
+        m_positionData.insert(positionID, newPos);
+        m_symbolToActivePosition.insert(symbol, positionID);
     }
 
-    PositionData& posData = it.value();
+    PositionData& posData = m_positionData[positionID];
     int currentQty = posData.quantity;
     double currentAvgPrice = posData.averagePrice;
 
     // Calculate new position
     int newQty = currentQty;
     double newAvgPrice = currentAvgPrice;
-    double realizedPnL = 0.0; // Track realized P&L from this trade
+    double realizedPnL = 0.0;
 
     bool isBuy =
         (tradeAction == "BUY" || tradeAction == "BUYTOCOVER" || tradeAction == "Buy" || tradeAction == "Buy to Cover");
 
     if (isBuy)
     {
-        // Adding shares
         if (currentQty >= 0)
         {
             // Long position: average up
@@ -500,27 +516,24 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
         else
         {
             // Covering short - realize P&L on covered shares
-            int closedQty = qMin(quantity, -currentQty);               // How many shares are closing
-            realizedPnL = closedQty * (currentAvgPrice - p_fillPrice); // Short profit = avgPrice - fillPrice
+            int closedQty = qMin(quantity, -currentQty);
+            realizedPnL = closedQty * (currentAvgPrice - p_fillPrice);
 
             newQty = currentQty + quantity;
             if (newQty > 0)
             {
-                // Position flipped to long
                 newAvgPrice = p_fillPrice;
             }
             else if (newQty == 0)
             {
-                newAvgPrice = 0; // Position closed
+                newAvgPrice = 0;
             }
         }
 
-        // Update balance
         m_balance -= quantity * p_fillPrice;
     }
     else
     {
-        // Removing shares
         if (currentQty <= 0)
         {
             // Short position: average down
@@ -531,68 +544,96 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
         else
         {
             // Selling long - realize P&L on sold shares
-            int closedQty = qMin(quantity, currentQty);                // How many shares are closing
-            realizedPnL = closedQty * (p_fillPrice - currentAvgPrice); // Long profit = fillPrice - avgPrice
+            int closedQty = qMin(quantity, currentQty);
+            realizedPnL = closedQty * (p_fillPrice - currentAvgPrice);
 
             newQty = currentQty - quantity;
             if (newQty < 0)
             {
-                // Position flipped to short
                 newAvgPrice = p_fillPrice;
             }
             else if (newQty == 0)
             {
-                newAvgPrice = 0; // Position closed
+                newAvgPrice = 0;
             }
         }
 
-        // Update balance
         m_balance += quantity * p_fillPrice;
     }
 
-    // Track realized P&L
-    if (std::abs(realizedPnL) > 0.0001) // Use epsilon for float comparison
+    // Track realized P&L per position
+    if (std::abs(realizedPnL) > 0.0001)
     {
+        posData.realizedPnL += realizedPnL;
         m_realizedProfitLoss += realizedPnL;
-        DEBUG << "Realized P&L:" << realizedPnL << "Total realized:" << m_realizedProfitLoss;
     }
 
     posData.quantity = newQty;
     posData.averagePrice = newAvgPrice;
 
-    // If position is closed (qty == 0), emit deletion signal and remove from tracking
+    // If position is closed (qty == 0), store final P&L and remove from active tracking
     if (newQty == 0)
     {
-        // Emit a position deleted JSON so StreamPositions emits positionDeleted signal
-        QJsonObject deletedJson;
-        deletedJson["PositionID"] = QString("POS-%1").arg(symbol);
-        deletedJson["Deleted"] = true;
+        // Store the closed position's realized P&L for balance calculation
+        double finalPnL = posData.realizedPnL;
+        
+        m_closedPositionPnL.insert(positionID, finalPnL);
+        m_totalClosedPnL += finalPnL;
 
-        emit positionUpdate(QJsonDocument(deletedJson).toJson(QJsonDocument::Compact));
+        // Create a final position update with qty=0 showing REALIZED P&L (not mark-to-market)
+        QJsonObject closedJson;
+        closedJson["PositionID"] = positionID;
+        closedJson["AccountID"] = getSimulatedAccountID();
+        closedJson["Symbol"] = symbol;
+        closedJson["Quantity"] = "0";
+        closedJson["AveragePrice"] = QString::number(posData.averagePrice, 'f', 4);
+        closedJson["Last"] = QString::number(p_fillPrice, 'f', 4);
+        closedJson["AssetType"] = "STOCK";
+        closedJson["LongShort"] = "Flat";
+        closedJson["Timestamp"] = MainApp::currentAppReplayTime.toString(Qt::ISODate);
+        closedJson["Bid"] = QString::number(p_fillPrice, 'f', 4);
+        closedJson["Ask"] = QString::number(p_fillPrice, 'f', 4);
+        closedJson["ConversionRate"] = "1.0";
+        closedJson["DayTradeRequirement"] = "0";
+        closedJson["InitialRequirement"] = "0";
+        closedJson["MaintenanceMargin"] = "0";
+        closedJson["MarkToMarketPrice"] = QString::number(p_fillPrice, 'f', 4);
+        closedJson["MarketValue"] = "0.00";
+        closedJson["TotalCost"] = "0.00";
+        // Use REALIZED P&L for the final display (matches balance P&L)
+        closedJson["TodaysProfitLoss"] = QString::number(finalPnL, 'f', 2);
+        closedJson["UnrealizedProfitLoss"] = QString::number(finalPnL, 'f', 2);
+        closedJson["UnrealizedProfitLossPercent"] = "0";
+        closedJson["UnrealizedProfitLossQty"] = "0";
+        closedJson["IsUpdate"] = true;
 
-        m_positions.remove(symbol);
-        m_positionData.remove(symbol);
-        DEBUG << "Position closed for" << symbol << "- emitted deletion signal";
+        // Emit the final position update with realized P&L
+        emit positionUpdate(QJsonDocument(closedJson).toJson(QJsonDocument::Compact));
+
+        m_positions.remove(positionID);
+        m_positionData.remove(positionID);
+        m_symbolToActivePosition.remove(symbol);
+
+        INFO << "Position closed:" << positionID << symbol << "realized P&L:" << finalPnL;
         return;
     }
 
     // Create Position JSON
     QJsonObject posJson;
-    posJson["PositionID"] = QString("POS-%1").arg(symbol);
+    posJson["PositionID"] = positionID;
     posJson["AccountID"] = getSimulatedAccountID();
     posJson["Symbol"] = symbol;
     posJson["Quantity"] = QString::number(newQty);
     posJson["AveragePrice"] = QString::number(newAvgPrice, 'f', 4);
     posJson["Last"] = QString::number(p_fillPrice, 'f', 4);
     posJson["AssetType"] = "STOCK";
-    posJson["LongShort"] = (newQty > 0) ? "Long" : (newQty < 0 ? "Short" : "");
+    posJson["LongShort"] = (newQty > 0) ? "Long" : "Short";
     posJson["Timestamp"] = MainApp::currentAppReplayTime.toString(Qt::ISODate);
 
     // Calculate P&L
     double unrealizedPL = (p_fillPrice - newAvgPrice) * newQty;
-    posJson["UnrealizedPL"] = QString::number(unrealizedPL, 'f', 2);
 
-    // Required fields with defaults
+    // Required fields
     posJson["Bid"] = QString::number(p_fillPrice, 'f', 4);
     posJson["Ask"] = QString::number(p_fillPrice, 'f', 4);
     posJson["ConversionRate"] = "1.0";
@@ -608,41 +649,47 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
     posJson["UnrealizedProfitLossQty"] = QString::number(quantity);
 
     Position position(posJson);
-    m_positions.insert(symbol, position);
+    m_positions.insert(positionID, position);
 
     emit positionUpdate(positionToJson(position));
 
-    DEBUG << "Position updated:" << symbol << "qty:" << newQty << "avgPrice:" << newAvgPrice;
+    INFO << "Position updated:" << positionID << symbol << "qty:" << newQty << "avgPrice:" << newAvgPrice;
 }
 
 void OrderEmulator::recalculatePositionPnL(const QString& p_symbol)
 {
-    // Ensure we have all necessary data
-    if (!m_positionData.contains(p_symbol))
+    // Ensure we have an active position for this symbol
+    if (!m_symbolToActivePosition.contains(p_symbol))
+    {
+        return;
+    }
+
+    QString positionID = m_symbolToActivePosition[p_symbol];
+
+    if (!m_positionData.contains(positionID))
     {
         return;
     }
 
     if (!m_depthSnapshots.contains(p_symbol))
     {
-        return; // No market depth available yet
+        return;
     }
 
     if (!m_latestBarClose.contains(p_symbol))
     {
-        return; // No bar close price available yet
+        return;
     }
 
-    const PositionData& data = m_positionData[p_symbol];
+    const PositionData& data = m_positionData[positionID];
     const MarketDepthQuote& depth = m_depthSnapshots[p_symbol];
     double last = m_latestBarClose[p_symbol];
 
-    // Get bid/ask from depth using helper functions
+    // Get bid/ask from depth
     double bid = getBestBid(depth);
     double ask = getBestAsk(depth);
 
-    // TradeStation mark-to-market price calculation:
-    // Use Last if within bid/ask spread, otherwise closest bid/ask
+    // TradeStation mark-to-market price calculation
     double markToMarketPrice;
     if (last >= bid && last <= ask)
     {
@@ -650,7 +697,6 @@ void OrderEmulator::recalculatePositionPnL(const QString& p_symbol)
     }
     else
     {
-        // Use whichever is closer to Last
         markToMarketPrice = (std::abs(last - bid) < std::abs(last - ask)) ? bid : ask;
     }
 
@@ -658,12 +704,12 @@ void OrderEmulator::recalculatePositionPnL(const QString& p_symbol)
     double marketValue = markToMarketPrice * data.quantity;
     double costBasis = data.averagePrice * data.quantity;
     double unrealizedPnL = (markToMarketPrice - data.averagePrice) * data.quantity;
-    double unrealizedPnLPercent = (unrealizedPnL / costBasis) * 100.0;
+    double unrealizedPnLPercent = (std::abs(costBasis) > 0.01) ? (unrealizedPnL / costBasis) * 100.0 : 0.0;
 
     // Rebuild Position JSON with updated P&L
     QJsonObject posJson;
-    posJson["PositionID"] = QString("POS-%1").arg(p_symbol);
-    posJson["AccountID"] = "SIM123456";
+    posJson["PositionID"] = positionID;
+    posJson["AccountID"] = getSimulatedAccountID();
     posJson["Symbol"] = p_symbol;
     posJson["Quantity"] = QString::number(data.quantity);
     posJson["AveragePrice"] = QString::number(data.averagePrice, 'f', 4);
@@ -684,13 +730,12 @@ void OrderEmulator::recalculatePositionPnL(const QString& p_symbol)
     posJson["UnrealizedProfitLoss"] = QString::number(unrealizedPnL, 'f', 2);
     posJson["UnrealizedProfitLossPercent"] = QString::number(unrealizedPnLPercent, 'f', 2);
     posJson["UnrealizedProfitLossQty"] = QString::number(data.quantity);
-    posJson["IsUpdate"] = true; // Mark as update (not initial creation)
+    posJson["IsUpdate"] = true;
 
     // Update stored position
     Position position(posJson);
-    m_positions.insert(p_symbol, position);
+    m_positions.insert(positionID, position);
 
-    // Emit updated position
     emit positionUpdate(positionToJson(position));
 }
 
@@ -829,11 +874,12 @@ bool OrderEmulator::validateOrder(const PlaceOrderRequest& p_request, QString& p
         }
     }
 
-    // Check boxing prevention
-    auto posIt = m_positionData.find(p_request.getSymbol());
-    if (posIt != m_positionData.end())
+    // Check boxing prevention and sell validation
+    QString symbol = p_request.getSymbol();
+    if (m_symbolToActivePosition.contains(symbol))
     {
-        const PositionData& pos = posIt.value();
+        QString positionID = m_symbolToActivePosition[symbol];
+        const PositionData& pos = m_positionData[positionID];
         int currentQty = pos.quantity;
 
         // Long position but trying to short
@@ -868,7 +914,7 @@ bool OrderEmulator::validateOrder(const PlaceOrderRequest& p_request, QString& p
             p_errorMessage = QString("EC401: Cannot sell %1 shares of %2 (no position held). "
                                      "Use 'Sell Short' to open a short position.")
                                  .arg(p_request.getQuantity())
-                                 .arg(p_request.getSymbol());
+                                 .arg(symbol);
             return false;
         }
     }
