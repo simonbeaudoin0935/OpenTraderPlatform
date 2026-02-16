@@ -13,6 +13,10 @@
 #include "SQL/StockPriceChartQueries.h"
 #include "BarCache.h"
 #include "MainApp.h"
+#include "Order.h"
+#include "Position.h"
+#include "OrdersDatabase.h"
+#include "PositionsDatabase.h"
 
 #define LOGGING_CATEGORY ChartLog
 
@@ -222,6 +226,10 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
             this,
             &StockPriceChart::onVolumeChartVisibilityChanged);
     connect(chartToolbar, &ChartToolbar::volumeAutoRescaleChanged, this, &StockPriceChart::onVolumeAutoRescaleChanged);
+    connect(chartToolbar,
+            &ChartToolbar::orderVisualizationsVisibilityChanged,
+            this,
+            &StockPriceChart::onOrderVisualizationsVisibilityChanged);
     connect(chartToolbar, &ChartToolbar::replayDayChanged, this, &StockPriceChart::onReplayDayChanged);
     connect(chartToolbar, &ChartToolbar::replayStartTimeChanged, this, &StockPriceChart::onReplayTimeChanged);
     connect(chartToolbar,
@@ -306,6 +314,9 @@ StockPriceChart::~StockPriceChart()
  */
 void StockPriceChart::setSymbol(const QString& symbol)
 {
+    // Clear order visualizations from previous symbol immediately
+    clearOrderVisualizations();
+
     m_symbol = symbol;
     m_candlesticks->setName(symbol + " (Bars)");
 
@@ -315,6 +326,8 @@ void StockPriceChart::setSymbol(const QString& symbol)
 
     // Populate available replay days when symbol changes
     populateAvailableReplayDays();
+
+    // Historical orders/positions loaded after first bar is received (need bar data for index calculation)
 
     DEBUG << "Set chart symbol to" << symbol;
 }
@@ -330,7 +343,7 @@ void StockPriceChart::populateAvailableReplayDays()
     QDir dir(barsDir);
     if (!dir.exists())
     {
-        qCWarning(ChartLog) << "Bars directory does not exist:" << barsDir;
+        WARNING << "Bars directory does not exist:" << barsDir;
         return;
     }
 
@@ -573,6 +586,15 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     }
 
     redrawLastPriceLine();
+
+    // Update open position dynamic line and P&L box with current price
+    if (m_currentOpenPosition && !m_currentOpenPosition->isClosed)
+    {
+        double currentPrice = bar.getClose();
+        updateOpenPositionDynamicLine(currentPrice, m_latestBarIndex);
+        updateOpenPositionPLBox(currentPrice);
+    }
+
     m_customPlot->replot();
 }
 
@@ -928,6 +950,10 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
     updateVolumeData();
 
     m_customPlot->replot();
+
+    // Now that we have bars, load historical orders and positions
+    loadHistoricalOrders();
+    loadHistoricalPositions();
 }
 
 /**
@@ -1102,6 +1128,9 @@ void StockPriceChart::clearSymbol()
 void StockPriceChart::clearChart()
 {
     INFO << "Clearing chart data for replay mode";
+
+    // Clear order visualizations immediately
+    clearOrderVisualizations();
 
     // Clear all candlestick and volume data
     m_candlesticks->data()->clear();
@@ -1434,7 +1463,7 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
 {
     if (m_symbol.isEmpty())
     {
-        qCWarning(ChartLog) << "No symbol selected for replay day query";
+        WARNING << "No symbol selected for replay day query";
         return;
     }
 
@@ -1473,7 +1502,7 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
 {
     if (m_symbol.isEmpty())
     {
-        qCWarning(ChartLog) << "No symbol selected for replay time change";
+        WARNING << "No symbol selected for replay time change";
         return;
     }
 
@@ -1520,7 +1549,7 @@ void StockPriceChart::onReplayTimeRangeQueryFinished()
     }
     else
     {
-        qCWarning(ChartLog) << "No data found for" << m_symbol << "on selected date";
+        WARNING << "No data found for" << m_symbol << "on selected date";
         // Clear the info label when no data is found
         chartToolbar->updateReplayInfo(QTime(), QTime(), 0);
     }
@@ -1533,7 +1562,7 @@ void StockPriceChart::onReplayTimeRangeQueryFinished()
  */
 void StockPriceChart::onReplayDataLoadFailed(const QString& errorMessage)
 {
-    qCWarning(ChartLog) << "Replay data load failed:" << errorMessage;
+    WARNING << "Replay data load failed:" << errorMessage;
 
     // Update toolbar info display to show failure
     chartToolbar->updateReplayInfo(QTime(), QTime(), 0);
@@ -1559,7 +1588,7 @@ std::tuple<QDateTime, QDateTime, int> StockPriceChart::queryStockTimeRangeForDat
 
     if (!QFile::exists(dbPath))
     {
-        qCWarning(ChartLog) << "Database file does not exist:" << dbPath;
+        WARNING << "Database file does not exist:" << dbPath;
         return result;
     }
 
@@ -1570,7 +1599,7 @@ std::tuple<QDateTime, QDateTime, int> StockPriceChart::queryStockTimeRangeForDat
 
         if (!db.open())
         {
-            qCWarning(ChartLog) << "Failed to open database:" << db.lastError().text();
+            WARNING << "Failed to open database:" << db.lastError().text();
             QSqlDatabase::removeDatabase("replay_query");
             return result;
         }
@@ -1612,7 +1641,7 @@ std::tuple<QDateTime, QDateTime, int> StockPriceChart::queryStockTimeRangeForDat
         }
         else
         {
-            qCWarning(ChartLog) << "Query failed:" << query.lastError().text();
+            WARNING << "Query failed:" << query.lastError().text();
         }
 
         db.close();
@@ -1715,4 +1744,895 @@ void StockPriceChart::updateCurrentTimeLine()
 
     // Use queued replot for better performance - allows batching multiple updates
     m_customPlot->replot(QCustomPlot::rpQueuedReplot);
+}
+
+// ========== Order Visualization Implementation ==========
+
+double StockPriceChart::getExactIndexForTimestamp(const QDateTime& timestamp) const
+{
+    if (timestampToIndex.isEmpty())
+    {
+        return 0.0;
+    }
+
+    // Find the closest bar timestamp
+    auto it = timestampToIndex.lowerBound(timestamp);
+
+    if (it == timestampToIndex.end())
+    {
+        // Timestamp is after all bars, use last bar
+        --it;
+        int lastIndex = it.value();
+        QDateTime lastBarTime = it.key();
+        qint64 msDiff = lastBarTime.msecsTo(timestamp);
+        // Assume 1-minute bars: 60000ms per index
+        return lastIndex + (msDiff / 60000.0);
+    }
+
+    if (it == timestampToIndex.begin())
+    {
+        // Timestamp is before all bars
+        int firstIndex = it.value();
+        QDateTime firstBarTime = it.key();
+        qint64 msDiff = timestamp.msecsTo(firstBarTime);
+        return firstIndex - (msDiff / 60000.0);
+    }
+
+    // Interpolate between two bars
+    QDateTime upperTime = it.key();
+    int upperIndex = it.value();
+    --it;
+    QDateTime lowerTime = it.key();
+    int lowerIndex = it.value();
+
+    qint64 totalMs = lowerTime.msecsTo(upperTime);
+    qint64 elapsedMs = lowerTime.msecsTo(timestamp);
+
+    if (totalMs <= 0)
+    {
+        return lowerIndex;
+    }
+
+    double fraction = static_cast<double>(elapsedMs) / static_cast<double>(totalMs);
+    return lowerIndex + fraction * (upperIndex - lowerIndex);
+}
+
+OrderMarker*
+StockPriceChart::createOrderMarker(const QString& orderID, double index, double price, bool isBuy, bool filled)
+{
+    auto* marker = new OrderMarker();
+    marker->orderID = orderID;
+    marker->price = price;
+    marker->isBuy = isBuy;
+    marker->state = filled ? OrderMarker::State::Filled : OrderMarker::State::Pending;
+
+    QCPAxis* yAxis = m_customPlot->axisRect()->axis(QCPAxis::atRight);
+    QCPItemText* textLabel = new QCPItemText(m_customPlot);
+    textLabel->position->setAxes(m_customPlot->xAxis, yAxis);
+    textLabel->position->setCoords(index + 0.5, price);
+    textLabel->setFont(QFont("Arial", 14, QFont::Bold));
+    textLabel->setPadding(QMargins(4, 4, 4, 4));
+
+    if (isBuy)
+    {
+        textLabel->setText("▲");
+        textLabel->setColor(filled ? ORDER_VIZ_GREEN : ORDER_VIZ_GREEN.lighter(130));
+        textLabel->setPositionAlignment(Qt::AlignTop | Qt::AlignHCenter);
+    }
+    else
+    {
+        textLabel->setText("▼");
+        textLabel->setColor(filled ? ORDER_VIZ_RED : ORDER_VIZ_RED.lighter(130));
+        textLabel->setPositionAlignment(Qt::AlignBottom | Qt::AlignHCenter);
+    }
+
+    marker->priceLabel = textLabel;
+    m_orderMarkers.insert(orderID, marker);
+    return marker;
+}
+
+OrderMarker* StockPriceChart::createBuyMarker(const QString& orderID, double index, double price, bool filled)
+{
+    return createOrderMarker(orderID, index, price, true, filled);
+}
+
+OrderMarker* StockPriceChart::createSellMarker(const QString& orderID, double index, double price, bool filled)
+{
+    return createOrderMarker(orderID, index, price, false, filled);
+}
+
+OrderMarker* StockPriceChart::createCancelledMarker(const QString& orderID, double index, double price)
+{
+    auto* marker = new OrderMarker();
+    marker->orderID = orderID;
+    marker->price = price;
+    marker->state = OrderMarker::State::Cancelled;
+
+    // Get the right Y-axis
+    QCPAxis* yAxis = m_customPlot->axisRect()->axis(QCPAxis::atRight);
+
+    // Create a simple text label showing cancelled state
+    QCPItemText* textLabel = new QCPItemText(m_customPlot);
+    textLabel->position->setAxes(m_customPlot->xAxis, yAxis);
+    // Apply +0.5 offset to align markers correctly with candle timing
+    textLabel->position->setCoords(index + 0.5, price);
+    textLabel->setText("✖");
+    textLabel->setFont(QFont("Arial", 14, QFont::Bold));
+    textLabel->setColor(ORDER_VIZ_GRAY);
+    textLabel->setPadding(QMargins(4, 4, 4, 4));
+    textLabel->setPositionAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
+    marker->priceLabel = textLabel;
+
+    m_orderMarkers.insert(orderID, marker);
+    return marker;
+}
+
+void StockPriceChart::updateMarkerState(OrderMarker* marker, OrderMarker::State newState)
+{
+    if (!marker || !marker->priceLabel)
+    {
+        return;
+    }
+
+    marker->state = newState;
+
+    struct MarkerStyle
+    {
+        QString text;
+        QColor color;
+    };
+
+    auto getStyle = [&]() -> MarkerStyle
+    {
+        if (newState == OrderMarker::State::Cancelled || newState == OrderMarker::State::Rejected)
+        {
+            return {"✖", ORDER_VIZ_GRAY};
+        }
+
+        bool isPending = (newState == OrderMarker::State::Pending);
+        if (marker->isBuy)
+        {
+            QColor color = isPending ? ORDER_VIZ_GREEN.lighter(130) : ORDER_VIZ_GREEN;
+            return {"▲", color};
+        }
+        else
+        {
+            QColor color = isPending ? ORDER_VIZ_RED.lighter(130) : ORDER_VIZ_RED;
+            return {"▼", color};
+        }
+    };
+
+    MarkerStyle style = getStyle();
+    marker->priceLabel->setText(style.text);
+    marker->priceLabel->setColor(style.color);
+}
+
+void StockPriceChart::moveMarkerToPrice(OrderMarker* marker, double newPrice)
+{
+    if (!marker || !marker->priceLabel)
+    {
+        return;
+    }
+
+    marker->price = newPrice;
+
+    // Move text label to new price
+    auto coords = marker->priceLabel->position->coords();
+    marker->priceLabel->position->setCoords(coords.x(), newPrice);
+}
+
+void StockPriceChart::removeOrderMarker(const QString& orderID)
+{
+    auto it = m_orderMarkers.find(orderID);
+    if (it == m_orderMarkers.end())
+    {
+        return;
+    }
+
+    OrderMarker* marker = it.value();
+
+    // Remove text label from plot
+    if (marker->priceLabel)
+    {
+        m_customPlot->removeItem(marker->priceLabel);
+    }
+
+    delete marker;
+    m_orderMarkers.erase(it);
+}
+
+double StockPriceChart::clampIndexToValidRange(double index, int barCount) const
+{
+    if (index < FIRST_CANDLE_WINDOW)
+    {
+        DEBUG << "Index too far negative (" << index << "), clamping to" << FIRST_CANDLE_WINDOW;
+        return FIRST_CANDLE_WINDOW;
+    }
+
+    if (index > barCount + FUTURE_BAR_TOLERANCE)
+    {
+        DEBUG << "Index too far in future (" << index << "), clamping to" << (barCount - 1);
+        return barCount - 1;
+    }
+
+    return index;
+}
+
+QCPItemLine* StockPriceChart::createPositionLine(double x1, double y1, double x2, double y2, bool profitable)
+{
+    auto* line = new QCPItemLine(m_customPlot);
+    QCPAxis* yAxis = m_customPlot->axisRect()->axis(QCPAxis::atRight);
+    line->start->setAxes(m_customPlot->xAxis, yAxis);
+    line->end->setAxes(m_customPlot->xAxis, yAxis);
+    QColor color = profitable ? ORDER_VIZ_GREEN : ORDER_VIZ_RED;
+    QPen pen(color, ORDER_VIZ_LINE_WIDTH - 1, Qt::DotLine); // Thin dotted line
+    line->setPen(pen);
+    line->start->setCoords(x1, y1);
+    line->end->setCoords(x2, y2);
+    return line;
+}
+
+void StockPriceChart::updateOpenPositionDynamicLine(double currentPrice, double currentIndex)
+{
+    if (!m_currentOpenPosition || m_currentOpenPosition->isClosed)
+    {
+        return;
+    }
+
+    // Get the last entry marker position
+    if (m_currentOpenPosition->entryMarkers.isEmpty())
+    {
+        return;
+    }
+
+    OrderMarker* lastEntry = m_currentOpenPosition->entryMarkers.last();
+    double entryIndex = getExactIndexForTimestamp(lastEntry->timestamp);
+    double entryPrice = lastEntry->price;
+
+    // Calculate if position is currently profitable
+    bool profitable;
+    if (m_currentOpenPosition->isShort)
+    {
+        profitable = currentPrice < m_currentOpenPosition->avgEntryPrice;
+    }
+    else
+    {
+        profitable = currentPrice > m_currentOpenPosition->avgEntryPrice;
+    }
+
+    // Create or update dynamic line
+    if (!m_currentOpenPosition->dynamicLine)
+    {
+        m_currentOpenPosition->dynamicLine =
+            createPositionLine(entryIndex, entryPrice, currentIndex, currentPrice, profitable);
+    }
+    else
+    {
+        QColor color = profitable ? ORDER_VIZ_GREEN : ORDER_VIZ_RED;
+        m_currentOpenPosition->dynamicLine->setPen(QPen(color, ORDER_VIZ_LINE_WIDTH - 1, Qt::DotLine));
+        m_currentOpenPosition->dynamicLine->start->setCoords(entryIndex, entryPrice);
+        m_currentOpenPosition->dynamicLine->end->setCoords(currentIndex, currentPrice);
+    }
+}
+
+void StockPriceChart::ensureOpenPositionPLBox()
+{
+    if (!m_openPositionPLBox)
+    {
+        // Create text label (has its own background via setBrush)
+        m_openPositionPLBox = new QCPItemText(m_customPlot);
+        m_openPositionPLBox->setPositionAlignment(Qt::AlignRight | Qt::AlignTop);
+        m_openPositionPLBox->position->setType(QCPItemPosition::ptAxisRectRatio);
+        m_openPositionPLBox->position->setCoords(0.98, 0.02); // Top-right corner
+        m_openPositionPLBox->setFont(QFont(font().family(), ORDER_VIZ_PL_FONT_SIZE, QFont::Bold));
+        m_openPositionPLBox->setPadding(QMargins(6, 4, 6, 4));
+        m_openPositionPLBox->setBrush(QBrush(QColor(40, 40, 40, 190)));
+    }
+}
+
+void StockPriceChart::updateOpenPositionPLBox(double currentPrice)
+{
+    if (!m_currentOpenPosition || m_currentOpenPosition->isClosed)
+    {
+        hideOpenPositionPLBox();
+        return;
+    }
+
+    ensureOpenPositionPLBox();
+
+    // Calculate unrealized P&L
+    double avgEntry = m_currentOpenPosition->avgEntryPrice;
+    int quantity = m_currentOpenPosition->currentQuantity;
+    double unrealizedPL;
+
+    if (m_currentOpenPosition->isShort)
+    {
+        unrealizedPL = (avgEntry - currentPrice) * quantity;
+    }
+    else
+    {
+        unrealizedPL = (currentPrice - avgEntry) * quantity;
+    }
+
+    // Format and display
+    QString plText = QString("%1$%2").arg(unrealizedPL >= 0 ? "+" : "").arg(QString::number(unrealizedPL, 'f', 2));
+
+    QColor textColor = unrealizedPL >= 0 ? ORDER_VIZ_GREEN : ORDER_VIZ_RED;
+    m_openPositionPLBox->setColor(textColor);
+    m_openPositionPLBox->setText(plText);
+    m_openPositionPLBox->setVisible(m_orderVisualizationsVisible);
+}
+
+void StockPriceChart::hideOpenPositionPLBox()
+{
+    if (m_openPositionPLBox)
+    {
+        m_openPositionPLBox->setVisible(false);
+    }
+}
+
+void StockPriceChart::createClosedPositionPLLabel(PositionVisualization* posViz)
+{
+    if (!posViz || posViz->exitMarkers.isEmpty())
+    {
+        return;
+    }
+
+    // Position the label near the last exit marker
+    OrderMarker* lastExit = posViz->exitMarkers.last();
+    double exitIndex = getExactIndexForTimestamp(lastExit->timestamp);
+    double exitPrice = lastExit->price;
+
+    // Create label
+    posViz->plLabel = new QCPItemText(m_customPlot);
+    posViz->plLabel->setPositionAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    posViz->plLabel->position->setType(QCPItemPosition::ptPlotCoords);
+    posViz->plLabel->position->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    posViz->plLabel->position->setCoords(exitIndex + 0.5, exitPrice);
+    posViz->plLabel->setFont(QFont(font().family(), ORDER_VIZ_PL_FONT_SIZE));
+
+    // Format P&L text
+    QString plText =
+        QString("%1$%2").arg(posViz->realizedPL >= 0 ? "+" : "").arg(QString::number(posViz->realizedPL, 'f', 2));
+
+    QColor textColor = posViz->realizedPL >= 0 ? ORDER_VIZ_GREEN : ORDER_VIZ_RED;
+    posViz->plLabel->setColor(textColor);
+    posViz->plLabel->setText(plText);
+}
+
+double StockPriceChart::calculateDCAPrice(const PositionVisualization* posViz) const
+{
+    if (!posViz || posViz->entryMarkers.isEmpty())
+    {
+        return 0.0;
+    }
+
+    double totalCost = 0.0;
+    int totalQuantity = 0;
+
+    for (const OrderMarker* marker: posViz->entryMarkers)
+    {
+        totalCost += marker->price * marker->quantity;
+        totalQuantity += marker->quantity;
+    }
+
+    return totalQuantity > 0 ? totalCost / totalQuantity : 0.0;
+}
+
+void StockPriceChart::finalizeClosedPosition(PositionVisualization* posViz)
+{
+    if (!posViz)
+    {
+        return;
+    }
+
+    posViz->isClosed = true;
+
+    // Remove dynamic line
+    if (posViz->dynamicLine)
+    {
+        m_customPlot->removeItem(posViz->dynamicLine);
+        posViz->dynamicLine = nullptr;
+    }
+
+    // Create connection lines from last entry to each exit
+    if (!posViz->entryMarkers.isEmpty() && !posViz->exitMarkers.isEmpty())
+    {
+        OrderMarker* lastEntry = posViz->entryMarkers.last();
+        double entryIndex = getExactIndexForTimestamp(lastEntry->timestamp);
+
+        for (OrderMarker* exitMarker: posViz->exitMarkers)
+        {
+            double exitIndex = getExactIndexForTimestamp(exitMarker->timestamp);
+            bool profitable = posViz->realizedPL >= 0;
+            auto* line = createPositionLine(entryIndex, lastEntry->price, exitIndex, exitMarker->price, profitable);
+            posViz->exitLines.append(line);
+        }
+    }
+
+    // Create P&L label
+    createClosedPositionPLLabel(posViz);
+
+    // Clear current open position if this was it
+    if (m_currentOpenPosition == posViz)
+    {
+        m_currentOpenPosition = nullptr;
+        hideOpenPositionPLBox();
+    }
+}
+
+void StockPriceChart::clearOrderVisualizations()
+{
+    DEBUG << "Clearing" << m_orderMarkers.size() << "order markers and" << m_positionVisualizations.size()
+          << "position visualizations";
+
+    // Remove all order markers
+    for (auto it = m_orderMarkers.begin(); it != m_orderMarkers.end(); ++it)
+    {
+        OrderMarker* marker = it.value();
+        if (marker->priceLabel)
+        {
+            m_customPlot->removeItem(marker->priceLabel);
+        }
+        delete marker;
+    }
+    m_orderMarkers.clear();
+
+    // Remove all position visualizations
+    for (auto it = m_positionVisualizations.begin(); it != m_positionVisualizations.end(); ++it)
+    {
+        PositionVisualization* posViz = it.value();
+
+        // Remove connection lines
+        for (QCPItemLine* line: posViz->entryConnectionLines)
+        {
+            m_customPlot->removeItem(line);
+        }
+        for (QCPItemLine* line: posViz->exitLines)
+        {
+            m_customPlot->removeItem(line);
+        }
+        if (posViz->dynamicLine)
+        {
+            m_customPlot->removeItem(posViz->dynamicLine);
+        }
+        if (posViz->plLabel)
+        {
+            m_customPlot->removeItem(posViz->plLabel);
+        }
+
+        delete posViz;
+    }
+    m_positionVisualizations.clear();
+    m_currentOpenPosition = nullptr;
+
+    // Hide P&L box
+    hideOpenPositionPLBox();
+
+    DEBUG << "Order visualizations cleared";
+}
+
+void StockPriceChart::loadHistoricalOrders()
+{
+    if (m_symbol.isEmpty())
+    {
+        qCDebug(ChartLog) << "loadHistoricalOrders() - No symbol set";
+        return;
+    }
+
+    OrdersDatabase* ordersDb = OrdersDatabase::getInstance();
+    OBJ_ASSUME_DIFF(ordersDb, nullptr);
+    OBJ_ASSUME_TRUE(ordersDb->isOpen());
+
+    QMap<QString, std::tuple<Order, std::optional<qint64>>> allOrders = ordersDb->loadAllOrders();
+
+    // Must have bars loaded before loading historical orders
+    int barCount = m_candlesticks ? m_candlesticks->data()->size() : 0;
+    if (barCount == 0)
+    {
+        qCDebug(ChartLog) << "loadHistoricalOrders() - No bars loaded yet, deferring";
+        return;
+    }
+
+    int loadedCount = 0;
+    for (auto it = allOrders.begin(); it != allOrders.end(); ++it)
+    {
+        const Order& order = std::get<0>(it.value());
+
+        // Only process orders for the current symbol
+        if (order.getSymbol() != m_symbol)
+        {
+            continue;
+        }
+
+        Order::Status status = order.getOrderStatus();
+
+        if (status == Order::Status::OPN || status == Order::Status::ACK)
+        {
+            // Pending order
+            onOrderPlaced(order);
+            loadedCount++;
+        }
+        else if (status == Order::Status::FLL || status == Order::Status::FLP || status == Order::Status::FPR)
+        {
+            // Filled order
+            onOrderFilled(order);
+            loadedCount++;
+        }
+        else if (status == Order::Status::CAN || status == Order::Status::UCN || status == Order::Status::TSC)
+        {
+            // Cancelled order
+            onOrderCancelled(order);
+            loadedCount++;
+        }
+    }
+
+    qCDebug(ChartLog) << "loadHistoricalOrders() - Loaded" << loadedCount << "orders for symbol" << m_symbol;
+}
+
+void StockPriceChart::loadHistoricalPositions()
+{
+    if (m_symbol.isEmpty())
+    {
+        qCDebug(ChartLog) << "loadHistoricalPositions() - No symbol set";
+        return;
+    }
+
+    PositionsDatabase* positionsDb = PositionsDatabase::getInstance();
+    if (!positionsDb || !positionsDb->isOpen())
+    {
+        WARNING << "loadHistoricalPositions() - PositionsDatabase not available";
+        return;
+    }
+
+    QMap<QString, Position> allPositions = positionsDb->loadAllPositions();
+
+    int loadedCount = 0;
+    for (auto it = allPositions.begin(); it != allPositions.end(); ++it)
+    {
+        const Position& position = it.value();
+
+        // Only process positions for the current symbol
+        if (position.getSymbol() != m_symbol)
+        {
+            continue;
+        }
+
+        int quantity = position.getQuantity().toInt();
+
+        if (quantity == 0)
+        {
+            // Closed position
+            onPositionClosed(position);
+        }
+        else
+        {
+            // Open position
+            onPositionUpdated(position);
+        }
+        loadedCount++;
+    }
+
+    qCDebug(ChartLog) << "loadHistoricalPositions() - Loaded" << loadedCount << "positions for symbol" << m_symbol;
+}
+
+void StockPriceChart::updateOrderVisualizationsVisibility()
+{
+    // Update visibility of all markers
+    for (OrderMarker* marker: m_orderMarkers)
+    {
+        if (marker->priceLabel)
+        {
+            marker->priceLabel->setVisible(m_orderVisualizationsVisible);
+        }
+    }
+
+    // Update visibility of all position lines
+    for (PositionVisualization* posViz: m_positionVisualizations)
+    {
+        for (QCPItemLine* line: posViz->entryConnectionLines)
+        {
+            line->setVisible(m_orderVisualizationsVisible);
+        }
+        for (QCPItemLine* line: posViz->exitLines)
+        {
+            line->setVisible(m_orderVisualizationsVisible);
+        }
+        if (posViz->dynamicLine)
+        {
+            posViz->dynamicLine->setVisible(m_orderVisualizationsVisible);
+        }
+        if (posViz->plLabel)
+        {
+            posViz->plLabel->setVisible(m_orderVisualizationsVisible);
+        }
+    }
+
+    // Update P&L box
+    if (m_openPositionPLBox)
+    {
+        m_openPositionPLBox->setVisible(m_orderVisualizationsVisible && m_currentOpenPosition != nullptr);
+    }
+
+    m_customPlot->replot(QCustomPlot::rpQueuedReplot);
+}
+
+void StockPriceChart::cullOrderVisualizationsToVisibleRange()
+{
+    QCPRange xRange = m_customPlot->xAxis->range();
+
+    // Cull order markers
+    for (OrderMarker* marker: m_orderMarkers)
+    {
+        double index = getExactIndexForTimestamp(marker->timestamp);
+        bool inRange = (index >= xRange.lower - 1 && index <= xRange.upper + 1);
+        bool visible = m_orderVisualizationsVisible && inRange;
+
+        if (marker->priceLabel)
+        {
+            marker->priceLabel->setVisible(visible);
+        }
+    }
+
+    // Cull position lines (more complex - check if any part of line is visible)
+    for (PositionVisualization* posViz: m_positionVisualizations)
+    {
+        if (posViz->plLabel)
+        {
+            double labelX = posViz->plLabel->position->coords().x();
+            posViz->plLabel->setVisible(m_orderVisualizationsVisible && labelX >= xRange.lower &&
+                                        labelX <= xRange.upper);
+        }
+    }
+}
+
+// ========== Order Event Slots ==========
+
+void StockPriceChart::onOrderPlaced(const Order& order)
+{
+    if (order.getSymbol() != m_symbol)
+    {
+        return;
+    }
+
+    QString orderID = order.getOrderID();
+    if (m_orderMarkers.contains(orderID))
+    {
+        return;
+    }
+
+    std::optional<double> limitPrice = order.getLimitPrice();
+    std::optional<double> stopPrice = order.getStopPrice();
+
+    if (!limitPrice.has_value() && !stopPrice.has_value())
+    {
+        return;
+    }
+
+    double price = limitPrice.has_value() ? limitPrice.value() : stopPrice.value();
+    OBJ_ASSUME_GT(price, 0.01);
+
+    double index = getExactIndexForTimestamp(order.getOpenedDateTime());
+    bool isBuy = order.getTradeAction().toUpper().contains("BUY");
+
+    int barCount = m_candlesticks ? m_candlesticks->data()->size() : 0;
+    OBJ_ASSUME_GT(barCount, 0);
+
+    index = clampIndexToValidRange(index, barCount);
+
+    DEBUG << "Order placed marker: symbol=" << order.getSymbol() << "ID=" << orderID << "price=" << price
+          << "index=" << index;
+
+    OrderMarker* marker;
+    if (isBuy)
+    {
+        marker = createBuyMarker(orderID, index, price, false);
+    }
+    else
+    {
+        marker = createSellMarker(orderID, index, price, false);
+    }
+
+    marker->symbol = order.getSymbol();
+    marker->timestamp = order.getOpenedDateTime();
+    marker->quantity = order.getQuantity().toInt();
+    marker->accountID = order.getAccountID();
+
+    m_customPlot->replot(QCustomPlot::rpQueuedReplot);
+}
+
+void StockPriceChart::onOrderFilled(const Order& order)
+{
+    if (order.getSymbol() != m_symbol)
+    {
+        return;
+    }
+
+    QString orderID = order.getOrderID();
+    auto it = m_orderMarkers.find(orderID);
+
+    if (it != m_orderMarkers.end())
+    {
+        OrderMarker* marker = it.value();
+        updateMarkerState(marker, OrderMarker::State::Filled);
+
+        double fillPrice = order.getFilledPrice();
+        if (qAbs(marker->price - fillPrice) > 0.001)
+        {
+            moveMarkerToPrice(marker, fillPrice);
+        }
+
+        marker->timestamp = order.getClosedDateTime();
+    }
+    else
+    {
+        double price = order.getFilledPrice();
+        OBJ_ASSUME_GT(price, 0.01);
+
+        double index = getExactIndexForTimestamp(order.getClosedDateTime());
+        bool isBuy = order.getTradeAction().toUpper().contains("BUY");
+
+        int barCount = m_candlesticks ? m_candlesticks->data()->size() : 0;
+        OBJ_ASSUME_GT(barCount, 0);
+
+        index = clampIndexToValidRange(index, barCount);
+
+        DEBUG << "Order filled marker: symbol=" << order.getSymbol() << "ID=" << orderID << "price=" << price
+              << "index=" << index;
+
+        OrderMarker* marker;
+        if (isBuy)
+        {
+            marker = createBuyMarker(orderID, index, price, true);
+        }
+        else
+        {
+            marker = createSellMarker(orderID, index, price, true);
+        }
+
+        marker->symbol = order.getSymbol();
+        marker->timestamp = order.getClosedDateTime();
+        marker->quantity = order.getQuantity().toInt();
+        marker->accountID = order.getAccountID();
+    }
+
+    m_customPlot->replot(QCustomPlot::rpQueuedReplot);
+}
+
+void StockPriceChart::onOrderCancelled(const Order& order)
+{
+    if (order.getSymbol() != m_symbol)
+    {
+        return;
+    }
+
+    QString orderID = order.getOrderID();
+    auto it = m_orderMarkers.find(orderID);
+
+    if (it != m_orderMarkers.end())
+    {
+        // Convert existing marker to cancelled state
+        OrderMarker* marker = it.value();
+        updateMarkerState(marker, OrderMarker::State::Cancelled);
+
+        m_customPlot->replot(QCustomPlot::rpQueuedReplot);
+        qCDebug(ChartLog) << "Order cancelled marker updated:" << orderID;
+    }
+}
+
+void StockPriceChart::onOrderAmended(const Order& order)
+{
+    if (order.getSymbol() != m_symbol)
+    {
+        return;
+    }
+
+    QString orderID = order.getOrderID();
+    auto it = m_orderMarkers.find(orderID);
+
+    if (it != m_orderMarkers.end())
+    {
+        OrderMarker* marker = it.value();
+        double newPrice = order.getLimitPrice().value_or(order.getStopPrice().value_or(marker->price));
+
+        if (qAbs(marker->price - newPrice) > 0.001)
+        {
+            moveMarkerToPrice(marker, newPrice);
+            m_customPlot->replot(QCustomPlot::rpQueuedReplot);
+            qCDebug(ChartLog) << "Order amended marker moved:" << orderID << "to" << newPrice;
+        }
+    }
+}
+
+void StockPriceChart::onPositionOpened(const Position& position)
+{
+    if (position.getSymbol() != m_symbol)
+    {
+        Q_UNREACHABLE();
+        return;
+    }
+
+    QString positionID = position.getPositionID();
+
+    // Create new position visualization
+    auto* posViz = new PositionVisualization();
+    posViz->positionID = positionID;
+    posViz->symbol = position.getSymbol();
+    posViz->isShort = position.getLongShort().toUpper() == "SHORT";
+    posViz->currentQuantity = position.getQuantity().toInt();
+    posViz->avgEntryPrice = position.getAveragePrice().toDouble();
+
+    m_positionVisualizations.insert(positionID, posViz);
+    m_currentOpenPosition = posViz;
+
+    qCDebug(ChartLog) << "Position opened:" << positionID << "qty:" << posViz->currentQuantity;
+}
+
+void StockPriceChart::onPositionUpdated(const Position& position)
+{
+    if (position.getSymbol() != m_symbol)
+    {
+        return;
+    }
+
+    QString positionID = position.getPositionID();
+    auto it = m_positionVisualizations.find(positionID);
+
+    if (it == m_positionVisualizations.end())
+    {
+        // Position doesn't exist yet, create it
+        onPositionOpened(position);
+        return;
+    }
+
+    PositionVisualization* posViz = it.value();
+
+    // Update position data
+    int newQuantity = position.getQuantity().toInt();
+    posViz->avgEntryPrice = position.getAveragePrice().toDouble();
+    posViz->currentQuantity = newQuantity;
+
+    // Update dynamic line with latest bar price
+    if (m_latestBarIndex >= 0)
+    {
+        double currentPrice = m_latestBar.getClose();
+        updateOpenPositionDynamicLine(currentPrice, m_latestBarIndex);
+        updateOpenPositionPLBox(currentPrice);
+    }
+
+    qCDebug(ChartLog) << "Position updated:" << positionID << "qty:" << newQuantity;
+}
+
+void StockPriceChart::onPositionClosed(const Position& position)
+{
+    if (position.getSymbol() != m_symbol)
+    {
+        return;
+    }
+
+    QString positionID = position.getPositionID();
+    auto it = m_positionVisualizations.find(positionID);
+
+    if (it == m_positionVisualizations.end())
+    {
+        return;
+    }
+
+    PositionVisualization* posViz = it.value();
+
+    // Calculate realized P&L from position data
+    posViz->realizedPL = position.getTodaysProfitLoss().toDouble();
+    posViz->currentQuantity = 0;
+
+    // Finalize the position visualization
+    finalizeClosedPosition(posViz);
+
+    m_customPlot->replot(QCustomPlot::rpQueuedReplot);
+    qCDebug(ChartLog) << "Position closed:" << positionID << "P&L:" << posViz->realizedPL;
+}
+
+void StockPriceChart::setOrderVisualizationsVisible(bool visible)
+{
+    m_orderVisualizationsVisible = visible;
+    updateOrderVisualizationsVisibility();
 }

@@ -111,6 +111,7 @@ void BalanceWindow::updateBalance(const Balance& balance)
 
 void BalanceWindow::updateBalanceData(const Balance& balance)
 {
+    qWarning() << "BalanceWindow::updateBalanceData - TodaysProfitLoss:" << balance.getTodaysProfitLoss();
     // Row indices match the order in setupUI
     int row = 0;
 

@@ -72,7 +72,17 @@ Order::Order(const QJsonObject& jsonObj, bool isUpdate_) : m_isUpdate(isUpdate_)
     // Parse numeric fields
     m_commissionsFee = jsonObj["CommissionFee"].toDouble(0.0);
     m_conversionRate = jsonObj["ConversionRate"].toDouble(1.0);
-    m_filledPrice = jsonObj["FilledPrice"].toDouble(0.0);
+
+    // FilledPrice may come as string or number
+    QJsonValue filledPriceVal = jsonObj["FilledPrice"];
+    if (filledPriceVal.isString())
+    {
+        m_filledPrice = filledPriceVal.toString().toDouble();
+    }
+    else
+    {
+        m_filledPrice = filledPriceVal.toDouble(0.0);
+    }
 
     // Parse optional limit price
     if (jsonObj.contains("LimitPrice"))

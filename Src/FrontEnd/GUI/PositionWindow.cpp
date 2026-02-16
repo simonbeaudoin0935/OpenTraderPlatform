@@ -29,9 +29,9 @@ void PositionWindow::setupUI()
     headerLabel->setFixedHeight(24);
     headerLabel->setAlignment(Qt::AlignCenter);
 
-    // Setup model columns
+    // Setup model columns (Position ID at END like OrderWindow)
     QStringList headers;
-    headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "P/L" << "P/L %" << "Market Value";
+    headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "P/L" << "P/L %" << "Market Value" << "Position ID";
     model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -47,14 +47,14 @@ void PositionWindow::setupUI()
     connect(tableView, &QTableView::clicked, this, &PositionWindow::onSymbolClicked);
 
     // Set column widths
-    tableView->setColumnWidth(0, 70); // Symbol
-    tableView->setColumnWidth(1, 70); // Quantity
-    tableView->setColumnWidth(2, 70); // Avg Price
-    tableView->setColumnWidth(3, 70); // Last
-    tableView->setColumnWidth(4, 70); // P/L
-    tableView->setColumnWidth(5, 70); // P/L %
-    tableView->setColumnWidth(6,
-                              90); // Market Value
+    tableView->setColumnWidth(0, 70);  // Symbol
+    tableView->setColumnWidth(1, 70);  // Quantity
+    tableView->setColumnWidth(2, 70);  // Avg Price
+    tableView->setColumnWidth(3, 70);  // Last
+    tableView->setColumnWidth(4, 70);  // P/L
+    tableView->setColumnWidth(5, 70);  // P/L %
+    tableView->setColumnWidth(6, 90);  // Market Value
+    tableView->setColumnWidth(7, 90);  // Position ID
 
     // Add widgets to layout
     mainLayout->addWidget(headerLabel);
@@ -101,7 +101,6 @@ void PositionWindow::setupStyles()
 void PositionWindow::updatePosition(const QString& account, const Position& position)
 {
     QString positionId = position.getPositionID();
-    QString symbol = position.getSymbol();
 
     if (positionRowMap.contains(positionId))
     {
@@ -110,48 +109,10 @@ void PositionWindow::updatePosition(const QString& account, const Position& posi
     }
     else
     {
-        // Check if there's an existing row with 0 quantity for this symbol (closed position being reopened)
-        int existingRowWithZeroQty = -1;
-        QString oldPositionIdToRemove;
-
-        for (auto it = positionRowMap.constBegin(); it != positionRowMap.constEnd(); ++it)
-        {
-            int row = it.value();
-            if (row < model->rowCount())
-            {
-                QStandardItem* symbolItem = model->item(row, 0);   // Column 0 is Symbol
-                QStandardItem* quantityItem = model->item(row, 1); // Column 1 is Quantity
-
-                if (symbolItem && quantityItem && symbolItem->text() == symbol)
-                {
-                    // Compare numerical value to handle different string formats (0, 0.0, 0.00)
-                    bool conversionOk = false;
-                    double quantity = quantityItem->text().toDouble(&conversionOk);
-                    constexpr double EPSILON = 1e-9;
-                    if (conversionOk && std::abs(quantity) < EPSILON)
-                    {
-                        existingRowWithZeroQty = row;
-                        oldPositionIdToRemove = it.key();
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (existingRowWithZeroQty >= 0)
-        {
-            // Reuse the existing row with 0 quantity
-            positionRowMap.remove(oldPositionIdToRemove);
-            positionRowMap[positionId] = existingRowWithZeroQty;
-            updatePositionRow(account, position);
-        }
-        else
-        {
-            // Add new position
-            QList<QStandardItem*> rowItems = createRowItems(position);
-            model->appendRow(rowItems);
-            positionRowMap[positionId] = model->rowCount() - 1;
-        }
+        // Add new position - each round trip gets its own row
+        QList<QStandardItem*> rowItems = createRowItems(position);
+        model->appendRow(rowItems);
+        positionRowMap[positionId] = model->rowCount() - 1;
     }
 }
 
@@ -210,6 +171,11 @@ QList<QStandardItem*> PositionWindow::createRowItems(const Position& position)
     auto marketValueItem = new QStandardItem(QString::number(position.getMarketValue().toDouble(), 'f', 2));
     marketValueItem->setTextAlignment(Qt::AlignCenter);
     items << marketValueItem;
+
+    // Position ID (at end, like OrderWindow)
+    auto positionIDItem = new QStandardItem(position.getPositionID());
+    positionIDItem->setTextAlignment(Qt::AlignCenter);
+    items << positionIDItem;
 
     return items;
 }

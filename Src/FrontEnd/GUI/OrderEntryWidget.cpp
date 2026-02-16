@@ -842,6 +842,9 @@ void OrderEntryWidget::loadSavedSettings()
 
     double savedStickyOffset = appStateSettings->value("OrderEntry/StickyOffset", 0.00).toDouble();
     m_stickyOffsetInput->setValue(savedStickyOffset);
+
+    // Apply initial enablement state for mode/offset controls
+    m_stickyControlsWidget->setEnabled(m_stickyEnabled);
 }
 
 void OrderEntryWidget::saveOrderTypeSetting(int index)

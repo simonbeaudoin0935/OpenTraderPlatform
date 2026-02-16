@@ -5,6 +5,8 @@
 #include "Settings.h"
 #include "Stream.h"
 #include "CONSTANTS.h"
+#include "OrdersDatabase.h"
+#include "PositionsDatabase.h"
 #include <QCoreApplication>
 #include <unistd.h>
 #include <cerrno>
@@ -319,7 +321,11 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pla
         [this]() { tradeStationClient->setMode(TSClient::Mode::Replay); },
         Qt::BlockingQueuedConnection);
 
-    // 5. Clean slate: stop everything and recreate fresh, then start replay paused (MainAlgo thread)
+    // 5. Destroy and recreate database singletons to pick up new timestamped replay database path
+    OrdersDatabase::destroyInstance();
+    PositionsDatabase::destroyInstance();
+
+    // 6. Clean slate: stop everything and recreate fresh, then start replay paused (MainAlgo thread)
     QMetaObject::invokeMethod(
         mainAlgo,
         [this, displayedSymbol, p_date, p_startTime, p_speed]()
@@ -341,7 +347,7 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pla
         },
         Qt::QueuedConnection);
 
-    // 6. Update UI
+    // 7. Update UI
     appFrontend->onReplayModeEntered();
 
     qInfo() << "Replay mode entered with chart pre-populated";
@@ -386,7 +392,11 @@ void MainApp::exitReplayMode()
         [this]() { tradeStationClient->setMode(TSClient::Mode::Live); },
         Qt::BlockingQueuedConnection);
 
-    // 5. Recreate fresh live instruments and resume streams (MainAlgo thread)
+    // 5. Destroy and recreate database singletons to switch back to Live/Sim database
+    OrdersDatabase::destroyInstance();
+    PositionsDatabase::destroyInstance();
+
+    // 6. Recreate fresh live instruments and resume streams (MainAlgo thread)
     QMetaObject::invokeMethod(
         mainAlgo,
         [this, displayedSymbol]()

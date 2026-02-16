@@ -243,21 +243,17 @@ QNetworkReply* MockNetworkAccessManager::handleGet(const QNetworkRequest& p_requ
         }
 
         double cashBalance = m_emulator->getBalance();
-        double realizedPnL = m_emulator->getRealizedProfitLoss();
+        double closedPnL = m_emulator->getClosedPositionsPnL();
 
-        // Calculate total market value and unrealized P&L from positions
+        // Calculate total market value and unrealized P&L from ACTIVE positions
         double totalMarketValue = 0.0;
         double totalUnrealizedPnL = 0.0;
 
         QVector<Position> positions = m_emulator->getPositions();
         for (const Position& position: positions)
         {
-            // Parse market value and unrealized P&L from position
-            double marketValue = position.getMarketValue().toDouble();
-            double unrealizedPnL = position.getUnrealizedProfitLoss().toDouble();
-
-            totalMarketValue += marketValue;
-            totalUnrealizedPnL += unrealizedPnL;
+            totalMarketValue += position.getMarketValue().toDouble();
+            totalUnrealizedPnL += position.getUnrealizedProfitLoss().toDouble();
         }
 
         // Calculate equity (cash + market value)
@@ -266,8 +262,8 @@ QNetworkReply* MockNetworkAccessManager::handleGet(const QNetworkRequest& p_requ
         // Calculate buying power (2x equity for margin account)
         double buyingPower = equity * 2.0;
 
-        // Total today's P&L = realized + unrealized
-        double todaysPnL = realizedPnL + totalUnrealizedPnL;
+        // Total today's P&L = closed positions P&L + open positions unrealized P&L
+        double todaysPnL = closedPnL + totalUnrealizedPnL;
 
         QJsonArray balances;
         QJsonObject balanceObj;
@@ -277,7 +273,7 @@ QNetworkReply* MockNetworkAccessManager::handleGet(const QNetworkRequest& p_requ
         balanceObj["BuyingPower"] = QString::number(buyingPower, 'f', 2);
         balanceObj["Equity"] = QString::number(equity, 'f', 2);
         balanceObj["MarketValue"] = QString::number(totalMarketValue, 'f', 2);
-        balanceObj["RealizedProfitLoss"] = QString::number(realizedPnL, 'f', 2);
+        balanceObj["RealizedProfitLoss"] = QString::number(closedPnL, 'f', 2);
         balanceObj["UnrealizedProfitLoss"] = QString::number(totalUnrealizedPnL, 'f', 2);
         balanceObj["TodaysProfitLoss"] = QString::number(todaysPnL, 'f', 2);
         balanceObj["Comission"] = "0.00";
@@ -286,10 +282,6 @@ QNetworkReply* MockNetworkAccessManager::handleGet(const QNetworkRequest& p_requ
 
         QJsonObject response;
         response["Balances"] = balances;
-
-        DEBUG << "Returning mock balance: cash=" << cashBalance << "marketValue=" << totalMarketValue
-              << "equity=" << equity << "realizedPnL=" << realizedPnL << "unrealizedPnL=" << totalUnrealizedPnL
-              << "todaysPnL=" << todaysPnL;
 
         return createMockReply(QJsonDocument(response).toJson());
     }

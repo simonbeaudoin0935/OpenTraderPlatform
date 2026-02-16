@@ -53,6 +53,8 @@ For complete architectural details, see `Doc/FRONTEND.md`.
 Key files:
 - `StockPriceChart.h/cpp`: Main chart widget
 - `StockPriceChart.ui`: Qt Designer layout
+- `ChartToolbar.h/cpp`: Toolbar with controls
+- `AGENTS.md`: Detailed component documentation
 
 **Features**:
 - Live candlestick updates
@@ -62,6 +64,18 @@ Key files:
 - Last price line with dynamic label
 - Missing bar detection and auto-request
 - Mouse interactions (pan, zoom, reset)
+- **Order visualization**: Buy/sell markers, position lines, P&L display
+- **Replay mode**: Play back historical market data
+
+**Order Visualization Feature**:
+- Buy markers: Green upward triangles at fill price/time
+- Sell markers: Red downward triangles at fill price/time
+- Position lines: Dotted green/red lines connecting entries to exits
+- P&L box: Real-time unrealized P&L for open positions
+- P&L labels: Realized P&L for closed positions
+- Toolbar toggle to show/hide visualizations
+
+See `StockPriceChart/AGENTS.md` for detailed order visualization documentation.
 
 **Bidirectional Index System**:
 ```
@@ -91,6 +105,12 @@ public slots:
     void addLiveBar(const QString& symbol, const Bar& bar);
     void onRequestedMissingBarsReceived(const QVector<Bar>& bars);
     void setSymbol(const QString& symbol);
+    // Order visualization slots
+    void onOrderPlaced(const Order& order);
+    void onOrderFilled(const Order& order);
+    void onOrderCancelled(const Order& order);
+    void onPositionUpdated(const Position& position);
+    void onPositionClosed(const Position& position);
 ```
 
 ### MarketDepthTable (MarketDepthTable.h/cpp)
@@ -336,6 +356,27 @@ connect(&MainAlgo::getInstance(), &MainAlgo::receivedNewPosition,
 
 connect(&MainAlgo::getInstance(), &MainAlgo::receivedNewOrder,
         this, &GUIFrontend::onNewOrderReceived);
+```
+
+**GUIFrontend order/position forwarding to chart**:
+
+The `onNewOrderReceived()` and `onNewPositionReceived()` handlers forward events to both the respective windows AND the StockPriceChart for visualization:
+
+```cpp
+void GUIFrontend::onNewOrderReceived(QString account, Order order) {
+    ui->orderWindow->updateOrder(account, order);
+    
+    // Forward to chart for visualization (if symbol matches)
+    if (order.getSymbol() == ui->priceChart->getCurrentSymbol()) {
+        // Route based on order status
+        if (status == Order::Status::FLL) {
+            ui->priceChart->onOrderFilled(order);
+        } else if (status == Order::Status::OPN) {
+            ui->priceChart->onOrderPlaced(order);
+        }
+        // ... etc
+    }
+}
 ```
 
 ### From GUI to Backend
