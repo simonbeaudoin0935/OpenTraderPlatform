@@ -9,7 +9,7 @@
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
 #include <QTimer>
-#include "GUIFrontend.h"
+#include "../../GUIFrontend.h"
 #include "Misc/Settings.h"
 #include "Assume.h"
 #include "TSClient.h"

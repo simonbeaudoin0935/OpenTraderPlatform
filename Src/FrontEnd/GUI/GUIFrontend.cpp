@@ -21,7 +21,7 @@
 #include "Tabs/RecorderTab.h"
 #include "Tabs/ShortcutsTab.h"
 #include "Tabs/ConfigTab.h"
-#include "StrategiesTab/StrategiesTab.h"
+#include "Tabs/StrategiesTab/StrategiesTab.h"
 #include "StockPriceChart/ChartToolbar.h"
 #include "StockPriceChart/StockPriceChart.h"
 #include "Misc/Logging.h"
