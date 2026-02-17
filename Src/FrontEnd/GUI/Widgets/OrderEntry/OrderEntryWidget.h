@@ -27,27 +27,54 @@ class OrderEntryWidget : public QWidget
     explicit OrderEntryWidget(QWidget* p_parent = nullptr);
     ~OrderEntryWidget();
 
+    /// Set reference to GUIFrontend for accessing current account selection
+    /// @param guiFrontend Pointer to parent GUIFrontend instance
     void setGUIFrontend(GUIFrontend* guiFrontend);
 
+    /// Check if result popup notification is enabled
+    /// @return True if popup should appear after order execution
     bool isResultPopupEnabled() const
     {
         return m_resultPopupEnabled;
     }
+
+    /// Check if Cancel All confirmation dialog is enabled
+    /// @return True if confirmation is required before canceling all orders
     bool isCancelAllConfirmationEnabled() const
     {
         return m_cancelAllConfirmationEnabled;
     }
 
   public slots:
+    /// Update available accounts list
+    /// @param accounts List of trading accounts to populate dropdown
     void setAccounts(const QList<Account>& accounts);
+
+    /// Set the symbol for order entry
+    /// @param symbol Stock symbol to trade (e.g., "AAPL")
     void setSymbol(const QString& symbol);
+
+    /// Execute a market buy order (shortcut trigger)
     void executeBuyOrder();
+
+    /// Execute a market sell order (shortcut trigger)
     void executeSellOrder();
+
+    /// Execute a buy-to-cover order (close short position)
     void executeBuyToCoverOrder();
+
+    /// Execute a sell short order (open short position)
     void executeSellToCoverOrder();
+
+    /// Handle market depth updates for sticky price calculation
+    /// Updates best bid/ask prices when sticky mode is enabled
+    /// @param symbol Stock symbol of the update
+    /// @param quote Market depth quote with current bid/ask levels
     void onMarketDepthUpdate(const QString& symbol, const MarketDepthQuote& quote);
 
   signals:
+    /// Emitted when user submits an order (after validation)
+    /// @param order The order request details
     void orderPlaced(const PlaceOrderRequest& order);
 
   private slots:

@@ -23,10 +23,24 @@ class CacheTab : public QWidget
     ~CacheTab() override = default;
 
   private slots:
+    /// Refresh cache information from disk
+    /// Updates table with current cache file sizes
     void refreshCacheInfo();
+
+    /// Clear selected cache files
+    /// Deletes cache files selected in the table
     void clearSelectedCache();
+
+    /// Clear all cache files
+    /// Deletes all bar cache files
     void clearAllCache();
+
+    /// Refresh orders database information
+    /// Updates counts and size display
     void refreshOrdersDbInfo();
+
+    /// Clear orders database
+    /// Deletes all orders from the database
     void clearOrdersDatabase();
 
   private:

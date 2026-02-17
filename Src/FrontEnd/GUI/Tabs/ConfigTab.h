@@ -13,6 +13,8 @@ class ConfigTab : public QWidget
     ~ConfigTab() override = default;
 
   private slots:
+    /// Handle market depth level setting change
+    /// @param value New number of market depth levels to display (1-20)
     void onMarketDepthLevelChanged(int value);
 
   private:

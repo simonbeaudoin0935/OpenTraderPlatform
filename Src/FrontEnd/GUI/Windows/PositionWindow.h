@@ -17,11 +17,23 @@ class PositionWindow : public QWidget
     ~PositionWindow();
 
   public slots:
+    /// Update or add a position to the display
+    /// Creates a new row or updates existing row based on position ID
+    /// @param account Account ID for the position
+    /// @param position Position details (symbol, quantity, P&L, etc.)
     void updatePosition(const QString& account, const Position& position);
+
+    /// Remove a position from the display
+    /// @param account Account ID for the position
+    /// @param positionID Unique position identifier
     void onPositionDeleted(const QString& account, const QString& positionID);
+
+    /// Clear all positions from the table
     void clearAllPositions();
 
   signals:
+    /// Emitted when user clicks on a symbol in the table
+    /// @param symbol Stock symbol that was clicked
     void symbolClicked(const QString& symbol);
 
   private:
