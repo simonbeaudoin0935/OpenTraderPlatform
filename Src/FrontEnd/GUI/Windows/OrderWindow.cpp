@@ -423,7 +423,7 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
 void OrderWindow::onSymbolClicked(const QModelIndex& index)
 {
     // Get the order ID from the last column of the clicked row
-    QStandardItem* orderIdItem = m_model->item(index.row(), 11); // Order ID now at column 11
+    QStandardItem* orderIdItem = m_model->item(index.row(), 10); // Order ID at column 10
     if (orderIdItem == nullptr)
     {
         return;

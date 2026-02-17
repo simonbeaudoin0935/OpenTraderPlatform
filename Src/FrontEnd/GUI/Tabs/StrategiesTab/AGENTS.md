@@ -110,7 +110,7 @@ signals:
 ```cpp
 /// Create a strategy card for given strategy
 explicit StrategyCard(const QString& strategyId, 
-                     const Poland& strategyName,
+                     const QString& strategyName,
                      QWidget* parent = nullptr);
 
 /// Update card with new strategy status

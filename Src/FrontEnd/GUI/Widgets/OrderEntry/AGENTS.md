@@ -142,7 +142,7 @@ void executeSellOrder();
 void executeBuyToCoverOrder();
 
 /// Execute sell-short order with current settings
-/// Validates inputs and submits market sell-short order (AKA sell-to-cover)
+/// Validates inputs and submits market sell-short order (open short position)
 void executeSellToCoverOrder();
 ```
 
