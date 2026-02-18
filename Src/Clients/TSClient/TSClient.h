@@ -410,6 +410,13 @@ class TSClient final : public QObject
     void totalDataReceivedBytesIncreased(qsizetype dataSize);
 
     /**
+     * @brief Emitted when a new Level 1 quote is received (live or replay)
+     * @param symbol The stock symbol
+     * @param quote The parsed Quote object with bid/ask and market flags
+     */
+    void newQuoteReceived(const QString& symbol, const Quote& quote);
+
+    /**
      * @brief Emitted when stream counts change
      * @param barsCount Number of currently open bar streams
      * @param marketDepthCount Number of currently open market depth streams

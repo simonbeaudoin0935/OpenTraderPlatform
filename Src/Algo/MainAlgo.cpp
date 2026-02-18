@@ -715,6 +715,15 @@ void MainAlgo::onReplayEndReached()
     }
 }
 
+void MainAlgo::onDisplayedStockReceivedNewQuote(const QString& symbol, const Quote& quote)
+{
+    // Only forward quotes for the currently displayed stock
+    if (!currentDisplayedStockInstrument.isNull() && symbol == currentDisplayedStockInstrument->symbol)
+    {
+        emit displayedStockReceivedNewQuote(symbol, quote);
+    }
+}
+
 // ============================================================================
 // Replay Mode Methods
 // ============================================================================

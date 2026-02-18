@@ -16,6 +16,7 @@
 #include "Account.h"
 #include "BarCache.h"
 #include "Balance.h"
+#include "Quote.h"
 #include "StrategyManager.h"
 #include "Core/Replay/ReplayEngine.h"
 #include "TSClient.h" // For TSClient::AuthStateReason enum
@@ -146,6 +147,7 @@ class MainAlgo final : public QObject
                                                    double bidAskImbalance,
                                                    double bidDWP,
                                                    double askDWP);
+    void displayedStockReceivedNewQuote(QString symbol, Quote quote);
 
     void receivedNewPosition(QString account, Position position);
     void positionDeleted(QString account, QString positionID);
@@ -164,6 +166,9 @@ class MainAlgo final : public QObject
   public slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, const QString& message);
     void onSelectDisplayedStock(const QString& symbol);
+
+    // Handle quote updates for displayed stock (connected from TSClient)
+    void onDisplayedStockReceivedNewQuote(const QString& symbol, const Quote& quote);
 
   private slots:
     void onThreadStarted();

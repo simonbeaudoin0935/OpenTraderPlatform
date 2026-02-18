@@ -620,6 +620,13 @@ void TUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
     // Not applicable for minimal TUI
 }
 
+void TUIFrontend::onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote)
+{
+    Q_UNUSED(symbol);
+    Q_UNUSED(quote);
+    // MarketFlags display not applicable for minimal TUI
+}
+
 void TUIFrontend::saveLastDisplayedStock(const QString& symbol)
 {
     Q_CHECK_PTR(appStateSettings);

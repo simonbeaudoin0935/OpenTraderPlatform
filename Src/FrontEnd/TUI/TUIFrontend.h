@@ -2,6 +2,7 @@
 
 #include "FrontEnd.h"
 #include "Bar.h"
+#include "Quote.h"
 #include "BarCache.h"
 #include <QMap>
 #include <QSocketNotifier>
@@ -44,6 +45,7 @@ class TUIFrontend : public FrontEnd
                                                          double bidAskImbalance,
                                                          double bidDWP,
                                                          double askDWP) override;
+    void onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote) override;
 
     // Replay mode notifications
     void onReplayModeEntered() override;

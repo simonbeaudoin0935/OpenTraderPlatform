@@ -400,6 +400,13 @@ QPointer<StreamQuote> TSClient::openStreamQuote(const QStringList& symbols)
                     connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
                 OBJ_ASSUME_TRUE(c);
 
+                // Forward quote signals for MainAlgo/FrontEnd MarketFlags display
+                c = connect(stream,
+                            &StreamQuote::newQuoteReceived,
+                            this,
+                            [this](Quote quote) { emit newQuoteReceived(quote.getSymbol(), quote); });
+                OBJ_ASSUME_TRUE(c);
+
                 INFO << "Opened replay StreamQuote for" << symbols.size() << "symbols";
             },
             Qt::BlockingQueuedConnection);
@@ -423,6 +430,13 @@ QPointer<StreamQuote> TSClient::openStreamQuote(const QStringList& symbols)
 
                 auto c =
                     connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+                OBJ_ASSUME_TRUE(c);
+
+                // Forward quote signals for MainAlgo/FrontEnd MarketFlags display
+                c = connect(stream,
+                            &StreamQuote::newQuoteReceived,
+                            this,
+                            [this](Quote quote) { emit newQuoteReceived(quote.getSymbol(), quote); });
                 OBJ_ASSUME_TRUE(c);
 
                 INFO << "Opened live StreamQuote for" << symbols.size() << "symbols";
@@ -732,6 +746,9 @@ void TSClient::onInjectQuoteData(const QString& p_symbol, std::shared_ptr<const 
             if (quote.isValid())
             {
                 m_orderEmulator->updateQuote(p_symbol, quote);
+
+                // Emit signal for MainAlgo/FrontEnd to update MarketFlags display
+                emit newQuoteReceived(p_symbol, quote);
             }
         }
     }

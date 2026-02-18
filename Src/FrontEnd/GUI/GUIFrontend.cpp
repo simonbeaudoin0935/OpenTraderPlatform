@@ -16,6 +16,7 @@
 #include "TSClient.h"
 #include "GUIFrontend.h"
 #include "ui_GUIFrontend.h"
+#include "Quote.h"
 #include "Tabs/LoggingTab.h"
 #include "Tabs/CacheTab.h"
 #include "Tabs/RecorderTab.h"
@@ -173,6 +174,31 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     ui->topControlsLayout->insertWidget(4, m_sessionLabel);
     updateSessionLabel();
 
+    // Create MarketFlags status labels (start in inactive/grey state)
+    // Inactive: dark grey background, muted text
+    // Active: bright colored background matching the alert level
+    static const QString inactiveStyle =
+        "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+        "border-radius: 4px; font-weight: bold; }";
+
+    m_haltedLabel = new QLabel("HALTED", m_mainWindow);
+    Q_CHECK_PTR(m_haltedLabel);
+    m_haltedLabel->setStyleSheet(inactiveStyle);
+    m_haltedLabel->setToolTip("Trading is halted for this symbol");
+    ui->topControlsLayout->insertWidget(5, m_haltedLabel);
+
+    m_delayedLabel = new QLabel("DELAYED", m_mainWindow);
+    Q_CHECK_PTR(m_delayedLabel);
+    m_delayedLabel->setStyleSheet(inactiveStyle);
+    m_delayedLabel->setToolTip("Data is delayed (not real-time)");
+    ui->topControlsLayout->insertWidget(6, m_delayedLabel);
+
+    m_hardToBorrowLabel = new QLabel("HTB", m_mainWindow);
+    Q_CHECK_PTR(m_hardToBorrowLabel);
+    m_hardToBorrowLabel->setStyleSheet(inactiveStyle);
+    m_hardToBorrowLabel->setToolTip("Hard to borrow - short selling may be restricted");
+    ui->topControlsLayout->insertWidget(7, m_hardToBorrowLabel);
+
     // Create time display widget (centered next to session label)
     m_timeDisplayLabel = new QLabel("00:00:00", m_mainWindow);
     Q_CHECK_PTR(m_timeDisplayLabel);
@@ -192,11 +218,11 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_timeDisplayLabel->setToolTip("Application time (New York timezone)\n"
                                    "🟢 Green: LIVE mode - real-time clock\n"
                                    "🟠 Amber: REPLAY mode - simulated time");
-    ui->topControlsLayout->insertWidget(5, m_timeDisplayLabel);
+    ui->topControlsLayout->insertWidget(8, m_timeDisplayLabel);
 
     // Add spacer to push mode labels to the right
     auto* rightSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
-    ui->topControlsLayout->insertSpacerItem(6, rightSpacer);
+    ui->topControlsLayout->insertSpacerItem(9, rightSpacer);
 
     // Create trading mode indicator (right side: SIM/LIVE) - clickable to toggle
     bool isSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
@@ -276,6 +302,12 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             &FrontEnd::currentHighlightedReceivedNewMarketDepthQuote,
             this,
             &GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote,
+            Qt::DirectConnection);
+
+    connect(this,
+            &FrontEnd::currentHighlightedReceivedNewQuote,
+            this,
+            &GUIFrontend::onCurrentHighlightedReceivedNewQuote,
             Qt::DirectConnection);
 
     connect(this, &FrontEnd::newPositionReceived, this, &GUIFrontend::onNewPositionReceived, Qt::DirectConnection);
@@ -709,6 +741,32 @@ void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
 
     // Forward market depth update to OrderEntryWidget for sticky price feature
     ui->orderEntryWidget->onMarketDepthUpdate(symbol, quote);
+}
+
+void GUIFrontend::onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote)
+{
+    Q_UNUSED(symbol);
+
+    // Style constants for MarketFlags labels
+    static const QString inactiveStyle =
+        "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+        "border-radius: 4px; font-weight: bold; }";
+    static const QString haltedActiveStyle =
+        "QLabel { background-color: #DC143C; color: #ffffff; padding: 4px 8px; "
+        "border-radius: 4px; font-weight: bold; }";
+    static const QString delayedActiveStyle =
+        "QLabel { background-color: #FFD700; color: #000000; padding: 4px 8px; "
+        "border-radius: 4px; font-weight: bold; }";
+    static const QString htbActiveStyle =
+        "QLabel { background-color: #FF8C00; color: #ffffff; padding: 4px 8px; "
+        "border-radius: 4px; font-weight: bold; }";
+
+    // Update MarketFlags labels style based on quote data
+    const MarketFlags& flags = quote.getMarketFlags();
+
+    m_haltedLabel->setStyleSheet(flags.isHalted() ? haltedActiveStyle : inactiveStyle);
+    m_delayedLabel->setStyleSheet(flags.isDelayed() ? delayedActiveStyle : inactiveStyle);
+    m_hardToBorrowLabel->setStyleSheet(flags.isHardToBorrow() ? htbActiveStyle : inactiveStyle);
 }
 
 void GUIFrontend::onNewPositionReceived(QString account, Position position)

@@ -207,6 +207,17 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
                      appFrontend,
                      &FrontEnd::onCurrentHighlightedReceivedNewMarketDepthQuote);
 
+    // Connect Level 1 quote updates to frontend for MarketFlags display
+    QObject::connect(tradeStationClient,
+                     &TSClient::newQuoteReceived,
+                     mainAlgo,
+                     &MainAlgo::onDisplayedStockReceivedNewQuote);
+
+    QObject::connect(mainAlgo,
+                     &MainAlgo::displayedStockReceivedNewQuote,
+                     appFrontend,
+                     &FrontEnd::onCurrentHighlightedReceivedNewQuote);
+
 
     QObject::connect(mainAlgo, &MainAlgo::receivedNewPosition, appFrontend, &FrontEnd::onNewPositionReceived);
 
