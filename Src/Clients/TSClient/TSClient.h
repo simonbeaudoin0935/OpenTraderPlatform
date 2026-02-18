@@ -53,7 +53,6 @@ class TSClient final : public QObject
     Q_OBJECT
 
   public:
-  
     enum class Error : quint8
     {
         Timeout,

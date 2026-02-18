@@ -31,7 +31,8 @@ void PositionWindow::setupUI()
 
     // Setup model columns (Position ID at END like OrderWindow)
     QStringList headers;
-    headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "Unrealized P/L" << "Realized P/L" << "Market Value" << "Position ID";
+    headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "Unrealized P/L" << "Realized P/L" << "Market Value"
+            << "Position ID";
     model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -47,14 +48,14 @@ void PositionWindow::setupUI()
     connect(tableView, &QTableView::clicked, this, &PositionWindow::onSymbolClicked);
 
     // Set column widths
-    tableView->setColumnWidth(0, 70);  // Symbol
-    tableView->setColumnWidth(1, 70);  // Quantity
-    tableView->setColumnWidth(2, 70);  // Avg Price
-    tableView->setColumnWidth(3, 70);  // Last
-    tableView->setColumnWidth(4, 90);  // Unrealized P/L
-    tableView->setColumnWidth(5, 90);  // Realized P/L
-    tableView->setColumnWidth(6, 90);  // Market Value
-    tableView->setColumnWidth(7, 90);  // Position ID
+    tableView->setColumnWidth(0, 70); // Symbol
+    tableView->setColumnWidth(1, 70); // Quantity
+    tableView->setColumnWidth(2, 70); // Avg Price
+    tableView->setColumnWidth(3, 70); // Last
+    tableView->setColumnWidth(4, 90); // Unrealized P/L
+    tableView->setColumnWidth(5, 90); // Realized P/L
+    tableView->setColumnWidth(6, 90); // Market Value
+    tableView->setColumnWidth(7, 90); // Position ID
 
     // Add widgets to layout
     mainLayout->addWidget(headerLabel);

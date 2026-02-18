@@ -48,7 +48,7 @@ void StreamPositions::processJsonObject(const QJsonObject& jsonObj)
     if (!position.isValid()) [[unlikely]]
     {
         CRITICAL << "Position update object invalid : "
-                << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
+                 << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
         OBJ_ASSUME_TRUE(position.isValid()); // ASSERT - this should never happen
         return;
     }
