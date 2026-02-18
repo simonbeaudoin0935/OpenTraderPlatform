@@ -215,6 +215,7 @@ class StockPriceChart : public QWidget
     void onReplayTimeChanged(const QTime& time);
     void onReplayTimeRangeQueryFinished();
     void updateCurrentTimeLine();
+    void updateReplayDayBoundaryLines();
 
   protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -273,6 +274,14 @@ class StockPriceChart : public QWidget
     // Current time vertical line and timer
     QCPItemLine* m_currentTimeLine;
     QTimer* m_timeLineTimer;
+
+    // Replay day boundary lines
+    QCPItemLine* m_replayStartLine;  // Blue dotted line at replay day start
+    QCPItemLine* m_replayEndLine;    // Red dotted line at replay day end
+    QCPItemText* m_replayStartLabel; // Time label for start line
+    QCPItemText* m_replayEndLabel;   // Time label for end line
+    QDateTime m_replayDayStart;      // Cached start time
+    QDateTime m_replayDayEnd;        // Cached end time
 
     // Chart watermark
     QCPItemText* m_symbolWatermark; // Stock symbol at center-top

@@ -103,6 +103,10 @@ void StockPriceChart::onReplayTimeRangeQueryFinished()
                          << std::get<1>(timeRangeResult).toString("yyyy-MM-dd hh:mm:ss t") << "(NY timezone) -"
                          << std::get<2>(timeRangeResult) << "bars available";
 
+        // Cache the replay day start and end times
+        m_replayDayStart = std::get<0>(timeRangeResult);
+        m_replayDayEnd = std::get<1>(timeRangeResult);
+
         // Update the toolbar with the time range and bar count info
         QTime startTime = std::get<0>(timeRangeResult).time();
         QTime endTime = std::get<1>(timeRangeResult).time();
@@ -111,12 +115,26 @@ void StockPriceChart::onReplayTimeRangeQueryFinished()
 
         // Pre-fill the time input widget with the earliest available time
         chartToolbar->setReplayStartTime(startTime);
+
+        // Update boundary lines if we have bars in the chart
+        updateReplayDayBoundaryLines();
     }
     else
     {
         WARNING << "No data found for" << m_symbol << "on selected date";
+
+        // Clear cached times
+        m_replayDayStart = QDateTime();
+        m_replayDayEnd = QDateTime();
+
         // Clear the info label when no data is found
         chartToolbar->updateReplayInfo(QTime(), QTime(), 0);
+
+        // Hide boundary lines
+        m_replayStartLine->setVisible(false);
+        m_replayEndLine->setVisible(false);
+        m_replayStartLabel->setVisible(false);
+        m_replayEndLabel->setVisible(false);
     }
 }
 
@@ -231,6 +249,21 @@ void StockPriceChart::setReplayModeActive(bool active)
     m_customPlot->setBackground(QBrush(bgColor));
     m_volumeAxisRect->setBackground(QBrush(bgColor));
 
+    // Show/hide replay boundary lines based on mode
+    if (active && m_replayDayStart.isValid() && m_replayDayEnd.isValid())
+    {
+        // Show boundary lines when entering replay mode if we have valid data
+        updateReplayDayBoundaryLines();
+    }
+    else
+    {
+        // Hide boundary lines when exiting replay mode
+        m_replayStartLine->setVisible(false);
+        m_replayEndLine->setVisible(false);
+        m_replayStartLabel->setVisible(false);
+        m_replayEndLabel->setVisible(false);
+    }
+
     m_customPlot->replot();
 
     qCInfo(ChartLog) << "Replay mode visual" << (active ? "activated" : "deactivated");
@@ -308,5 +341,83 @@ void StockPriceChart::updateCurrentTimeLine()
     m_currentTimeLine->end->setCoords(currentIndex, yRange.upper);
 
     // Use queued replot for better performance - allows batching multiple updates
+    m_customPlot->replot(QCustomPlot::rpQueuedReplot);
+}
+
+/**
+ * @brief Updates the positions of the replay day boundary lines.
+ *
+ * This method positions the blue start line and red end line to mark the temporal boundaries
+ * of the selected replay day. The lines are only visible in replay mode and span the full
+ * height of the chart.
+ *
+ * The positioning logic is similar to updateCurrentTimeLine(), converting QDateTime timestamps
+ * to fractional chart index positions based on the first bar (index 0).
+ */
+void StockPriceChart::updateReplayDayBoundaryLines()
+{
+    // Don't update if we don't have valid replay day timestamps
+    if (!m_replayDayStart.isValid() || !m_replayDayEnd.isValid())
+    {
+        m_replayStartLine->setVisible(false);
+        m_replayEndLine->setVisible(false);
+        m_replayStartLabel->setVisible(false);
+        m_replayEndLabel->setVisible(false);
+        return;
+    }
+
+    // Need at least one bar in the chart to calculate positions
+    if (indexToBar.isEmpty())
+    {
+        DEBUG << "Cannot update replay boundary lines: no bars in chart";
+        return;
+    }
+
+    // Get the timestamp of the bar at index 0 (the first bar received)
+    auto it = indexToBar.find(0);
+    OBJ_ASSUME_FALSE(it == indexToBar.end());
+
+    // TradeStation timestamps represent the closing time of the bar interval.
+    // Subtract 60 seconds to get the opening time (actual start of the bar).
+    QDateTime zeroIndexTime = it->getTimeStamp().addSecs(-60);
+
+    // Calculate index positions for start and end times
+    qint64 startSecondsDiff = zeroIndexTime.secsTo(m_replayDayStart);
+    qint64 endSecondsDiff = zeroIndexTime.secsTo(m_replayDayEnd);
+
+    // Convert to fractional index (each minute = 1 index, each second = 1/60.0 index)
+    double startIndex = startSecondsDiff / 60.0 - 0.5; // Center within the minute
+    double endIndex = endSecondsDiff / 60.0 - 0.5;
+
+    // Get the current Y-axis range
+    QCPRange yRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
+
+    // Position the start line (blue)
+    m_replayStartLine->start->setCoords(startIndex, yRange.lower);
+    m_replayStartLine->end->setCoords(startIndex, yRange.upper);
+
+    // Position the end line (red)
+    m_replayEndLine->start->setCoords(endIndex, yRange.lower);
+    m_replayEndLine->end->setCoords(endIndex, yRange.upper);
+
+    // Position labels at the top of the chart
+    m_replayStartLabel->position->setCoords(startIndex, yRange.upper);
+    m_replayStartLabel->setText(m_replayDayStart.time().toString("hh:mm"));
+
+    m_replayEndLabel->position->setCoords(endIndex, yRange.upper);
+    m_replayEndLabel->setText(m_replayDayEnd.time().toString("hh:mm"));
+
+    // Show the lines and labels if in replay mode
+    if (m_isReplayModeActive)
+    {
+        m_replayStartLine->setVisible(true);
+        m_replayEndLine->setVisible(true);
+        m_replayStartLabel->setVisible(true);
+        m_replayEndLabel->setVisible(true);
+    }
+
+    DEBUG << "Updated replay boundary lines: start at" << m_replayDayStart.toString("hh:mm") << "(index" << startIndex
+          << "), end at" << m_replayDayEnd.toString("hh:mm") << "(index" << endIndex << ")";
+
     m_customPlot->replot(QCustomPlot::rpQueuedReplot);
 }
