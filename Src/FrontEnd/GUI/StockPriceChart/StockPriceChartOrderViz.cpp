@@ -303,9 +303,9 @@ void StockPriceChart::ensureOpenPositionPLBox()
     {
         // Create text label (has its own background via setBrush)
         m_openPositionPLBox = new QCPItemText(m_customPlot);
-        m_openPositionPLBox->setPositionAlignment(Qt::AlignRight | Qt::AlignTop);
-        m_openPositionPLBox->position->setType(QCPItemPosition::ptAxisRectRatio);
-        m_openPositionPLBox->position->setCoords(0.98, 0.02); // Top-right corner
+        m_openPositionPLBox->setPositionAlignment(Qt::AlignLeft | Qt::AlignBottom);
+        m_openPositionPLBox->position->setType(QCPItemPosition::ptPlotCoords);
+        m_openPositionPLBox->position->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
         m_openPositionPLBox->setFont(QFont(font().family(), ORDER_VIZ_PL_FONT_SIZE, QFont::Bold));
         m_openPositionPLBox->setPadding(QMargins(6, 4, 6, 4));
         m_openPositionPLBox->setBrush(QBrush(QColor(40, 40, 40, 190)));
@@ -335,6 +335,9 @@ void StockPriceChart::updateOpenPositionPLBox(double currentPrice)
     {
         unrealizedPL = (currentPrice - avgEntry) * quantity;
     }
+
+    // Position label one bar to the right of current bar, above current price line
+    m_openPositionPLBox->position->setCoords(m_latestBarIndex + 1, currentPrice);
 
     // Format and display
     QString plText = QString("%1$%2").arg(unrealizedPL >= 0 ? "+" : "").arg(QString::number(unrealizedPL, 'f', 2));
