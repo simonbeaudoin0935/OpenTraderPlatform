@@ -22,9 +22,11 @@ MarketDepthTable::MarketDepthTable(QWidget* parent)
     , dwpLabel(new QLabel("DWP", this))
     , bidDWPLabel(new QLabel("", this))
     , askDWPLabel(new QLabel("", this))
+    , m_dataSourceLabel(new QLabel("--", this))
 {
     setupUI();
     setupStyles();
+    updateDataSourceIndicator();
 }
 
 MarketDepthTable::~MarketDepthTable()
@@ -59,7 +61,14 @@ void MarketDepthTable::setupUI()
     bidLabel->setFixedHeight(24);
     askLabel->setFixedHeight(24);
 
+    // Configure data source indicator (small, between BID and ASK)
+    m_dataSourceLabel->setAlignment(Qt::AlignCenter);
+    m_dataSourceLabel->setFixedHeight(24);
+    m_dataSourceLabel->setFixedWidth(30);
+    m_dataSourceLabel->setToolTip("Data source: L2 = Level 2 (full depth), L1 = Level 1 (best bid/ask only)");
+
     headerLayout->addWidget(bidLabel, 1);
+    headerLayout->addWidget(m_dataSourceLabel, 0);
     headerLayout->addWidget(askLabel, 1);
 
     // Create spread widget with its own layout
@@ -356,6 +365,10 @@ void MarketDepthTable::setMarketDepthItem(QStandardItem* item,
 
 void MarketDepthTable::updateData(const QVector<MarketDepthLevel>& bids, const QVector<MarketDepthLevel>& asks)
 {
+    // Update display mode to Level 2
+    m_displayMode = DisplayMode::Level2;
+    updateDataSourceIndicator();
+
     // Clear existing data
     model->removeRows(0, model->rowCount());
 
@@ -459,4 +472,115 @@ void MarketDepthTable::updateDWP(double bidDWP, double askDWP)
 {
     bidDWPLabel->setText(QString::number(bidDWP, 'f', 2));
     askDWPLabel->setText(QString::number(askDWP, 'f', 2));
+}
+
+void MarketDepthTable::updateLevel1Data(const Quote& quote)
+{
+    // Update display mode
+    m_displayMode = DisplayMode::Level1;
+    updateDataSourceIndicator();
+
+    // Clear existing data
+    model->removeRows(0, model->rowCount());
+
+    // Get best bid/ask from quote
+    double bestBid = quote.getBid();
+    double bestAsk = quote.getAsk();
+    int bidSize = quote.getBidSize();
+    int askSize = quote.getAskSize();
+
+    // Calculate spread
+    if (bestBid > 0 && bestAsk > 0)
+    {
+        double spread = bestAsk - bestBid;
+        spreadLabel->setText(QString("SPREAD: %1").arg(spread, 0, 'f', 2));
+    }
+    else
+    {
+        spreadLabel->setText("SPREAD: N/A");
+    }
+
+    // Clear DWP (not available for L1)
+    bidDWPLabel->setText("--");
+    askDWPLabel->setText("--");
+
+    // Add single row with best bid/ask
+    QList<QStandardItem*> rowItems;
+
+    // BID side: Name, Orders, Size, Price
+    auto* bidNameItem = new QStandardItem("L1");
+    bidNameItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    bidNameItem->setForeground(QColor("#00FF00"));
+    rowItems << bidNameItem;
+
+    auto* bidOrdersItem = new QStandardItem("--");
+    bidOrdersItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    bidOrdersItem->setForeground(QColor("#00FF00"));
+    rowItems << bidOrdersItem;
+
+    auto* bidSizeItem = new QStandardItem(QString::number(bidSize));
+    bidSizeItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    bidSizeItem->setForeground(QColor("#00FF00"));
+    rowItems << bidSizeItem;
+
+    auto* bidPriceItem = new QStandardItem(QString::number(bestBid, 'f', 2));
+    bidPriceItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    bidPriceItem->setForeground(QColor("#00FF00"));
+    rowItems << bidPriceItem;
+
+    // ASK side: Price, Size, Orders, Name
+    auto* askPriceItem = new QStandardItem(QString::number(bestAsk, 'f', 2));
+    askPriceItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    askPriceItem->setForeground(QColor("#00FF00"));
+    rowItems << askPriceItem;
+
+    auto* askSizeItem = new QStandardItem(QString::number(askSize));
+    askSizeItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    askSizeItem->setForeground(QColor("#00FF00"));
+    rowItems << askSizeItem;
+
+    auto* askOrdersItem = new QStandardItem("--");
+    askOrdersItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    askOrdersItem->setForeground(QColor("#00FF00"));
+    rowItems << askOrdersItem;
+
+    auto* askNameItem = new QStandardItem("L1");
+    askNameItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    askNameItem->setForeground(QColor("#00FF00"));
+    rowItems << askNameItem;
+
+    model->appendRow(rowItems);
+}
+
+void MarketDepthTable::clearData()
+{
+    m_displayMode = DisplayMode::NoData;
+    updateDataSourceIndicator();
+
+    model->removeRows(0, model->rowCount());
+    spreadLabel->setText("SPREAD: --");
+    bidDWPLabel->setText("--");
+    askDWPLabel->setText("--");
+}
+
+void MarketDepthTable::updateDataSourceIndicator()
+{
+    switch (m_displayMode)
+    {
+    case DisplayMode::Level2:
+        m_dataSourceLabel->setText("L2");
+        m_dataSourceLabel->setStyleSheet("QLabel { background-color: #006400; color: #00FF00; padding: 2px 4px; "
+                                         "border-radius: 3px; font-weight: bold; font-size: 10px; }");
+        break;
+    case DisplayMode::Level1:
+        m_dataSourceLabel->setText("L1");
+        m_dataSourceLabel->setStyleSheet("QLabel { background-color: #8B8000; color: #FFFF00; padding: 2px 4px; "
+                                         "border-radius: 3px; font-weight: bold; font-size: 10px; }");
+        break;
+    case DisplayMode::NoData:
+        m_dataSourceLabel->setText("--");
+        m_dataSourceLabel->setStyleSheet("QLabel { background-color: #3a3a3a; color: #808080; padding: 2px 4px; "
+                                         "border-radius: 3px; font-weight: bold; font-size: 10px; }");
+        break;
+    }
 }

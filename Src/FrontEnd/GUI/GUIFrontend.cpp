@@ -177,9 +177,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // Create MarketFlags status labels (start in inactive/grey state)
     // Inactive: dark grey background, muted text
     // Active: bright colored background matching the alert level
-    static const QString inactiveStyle =
-        "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
-        "border-radius: 4px; font-weight: bold; }";
+    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; }";
 
     m_haltedLabel = new QLabel("HALTED", m_mainWindow);
     Q_CHECK_PTR(m_haltedLabel);
@@ -745,21 +744,15 @@ void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
 
 void GUIFrontend::onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote)
 {
-    Q_UNUSED(symbol);
-
     // Style constants for MarketFlags labels
-    static const QString inactiveStyle =
-        "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
-        "border-radius: 4px; font-weight: bold; }";
-    static const QString haltedActiveStyle =
-        "QLabel { background-color: #DC143C; color: #ffffff; padding: 4px 8px; "
-        "border-radius: 4px; font-weight: bold; }";
-    static const QString delayedActiveStyle =
-        "QLabel { background-color: #FFD700; color: #000000; padding: 4px 8px; "
-        "border-radius: 4px; font-weight: bold; }";
-    static const QString htbActiveStyle =
-        "QLabel { background-color: #FF8C00; color: #ffffff; padding: 4px 8px; "
-        "border-radius: 4px; font-weight: bold; }";
+    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; }";
+    static const QString haltedActiveStyle = "QLabel { background-color: #DC143C; color: #ffffff; padding: 4px 8px; "
+                                             "border-radius: 4px; font-weight: bold; }";
+    static const QString delayedActiveStyle = "QLabel { background-color: #FFD700; color: #000000; padding: 4px 8px; "
+                                              "border-radius: 4px; font-weight: bold; }";
+    static const QString htbActiveStyle = "QLabel { background-color: #FF8C00; color: #ffffff; padding: 4px 8px; "
+                                          "border-radius: 4px; font-weight: bold; }";
 
     // Update MarketFlags labels style based on quote data
     const MarketFlags& flags = quote.getMarketFlags();
@@ -767,6 +760,12 @@ void GUIFrontend::onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quo
     m_haltedLabel->setStyleSheet(flags.isHalted() ? haltedActiveStyle : inactiveStyle);
     m_delayedLabel->setStyleSheet(flags.isDelayed() ? delayedActiveStyle : inactiveStyle);
     m_hardToBorrowLabel->setStyleSheet(flags.isHardToBorrow() ? htbActiveStyle : inactiveStyle);
+
+    // Update MarketDepthTable with Level 1 data if no Level 2 stream available
+    if (!TSClient::getInstance()->hasOpenMarketDepthStream(symbol))
+    {
+        ui->marketDepthTable->updateLevel1Data(quote);
+    }
 }
 
 void GUIFrontend::onNewPositionReceived(QString account, Position position)
