@@ -239,7 +239,7 @@ class OrderEmulator : public QObject
     /**
      * @brief Recalculate position P&L and emit update
      * @param p_symbol Stock ticker symbol
-     * 
+     *
      * Uses TradeStation mark-to-market formula:
      * - If Last is between bid/ask: use Last
      * - Otherwise: use closest bid or ask

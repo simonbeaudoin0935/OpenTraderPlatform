@@ -239,7 +239,7 @@ int scaledDelay = (baseDelay * 100) / replaySpeedPercent;
 3. **Symbol**: Must not be empty
 4. **Market Data**: Depth snapshot must exist for symbol
 5. **Balance**: Buy orders checked against available balance
-6. **Boxing Prevention**: 
+6. **Boxing Prevention**:
    - Long position + SELLSHORT = rejected
    - Short position + BUY (not cover) = rejected
 

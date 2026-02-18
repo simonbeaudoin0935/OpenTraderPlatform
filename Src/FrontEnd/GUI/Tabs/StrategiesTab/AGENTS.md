@@ -109,7 +109,7 @@ signals:
 **Key Methods**:
 ```cpp
 /// Create a strategy card for given strategy
-explicit StrategyCard(const QString& strategyId, 
+explicit StrategyCard(const QString& strategyId,
                      const QString& strategyName,
                      QWidget* parent = nullptr);
 
@@ -218,18 +218,18 @@ void loadRecentPlugins();
 bool validatePlugin(const QString& path) {
     // Check file exists
     if (!QFile::exists(path)) return false;
-    
+
     // Check file extension
     if (!path.endsWith(".so")) return false;
-    
+
     // Try to load as QLibrary
     QLibrary lib(path);
     if (!lib.load()) return false;
-    
+
     // Check for required symbols
     if (!lib.resolve("getStrategyName")) return false;
     if (!lib.resolve("createStrategy")) return false;
-    
+
     lib.unload();
     return true;
 }
@@ -493,7 +493,7 @@ void onStrategyCrashed(const QString& strategyId, const QString& error) {
         card->updateStatus(StrategyStatus::Crashed);
         card->showError(error);
     }
-    
+
     // Log the crash
     qCCritical(StrategyLog) << "Strategy crashed:" << strategyId << error;
 }

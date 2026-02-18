@@ -126,11 +126,11 @@ private:
     QLabel* askLabel;
     QLabel* spreadLabel;
     QLabel* dwpLabel;
-    
+
     // Update throttling
     QTimer* m_updateThrottle;
     MarketDepthQuote m_pendingQuote;
-    
+
     // State
     QString m_currentSymbol;
     static constexpr int MAX_LEVELS = 10;  // Show 10 levels each side
@@ -145,7 +145,7 @@ MarketDepthTable::MarketDepthTable(QWidget* parent) : QWidget(parent) {
     m_updateThrottle = new QTimer(this);
     m_updateThrottle->setInterval(100);  // Max 10 updates/sec
     m_updateThrottle->setSingleShot(true);
-    
+
     connect(m_updateThrottle, &QTimer::timeout, this, [this]() {
         updateTable(m_pendingQuote);
     });
@@ -156,7 +156,7 @@ void MarketDepthTable::updateMarketDepth(const QString& symbol,
                                          double dwp, double bidVol, double askVol) {
     m_pendingQuote = quote;
     m_currentSymbol = symbol;
-    
+
     if (!m_updateThrottle->isActive()) {
         updateTable(m_pendingQuote);
         m_updateThrottle->start();
@@ -177,7 +177,7 @@ void MarketDepthTable::setupStyles() {
             item->setForeground(QColor(0, 200, 0));  // Green
         }
     }
-    
+
     // Ask side (right) - red
     for (int row = 0; row < model->rowCount(); ++row) {
         for (int col = 3; col < 6; ++col) {
@@ -195,7 +195,7 @@ Best bid and ask are displayed in bold:
 ```cpp
 void MarketDepthTable::updateTable(const MarketDepthQuote& quote) {
     // ... populate table
-    
+
     // Bold best bid (first row, columns 0-2)
     for (int col = 0; col < 3; ++col) {
         QStandardItem* item = model->item(0, col);
@@ -203,7 +203,7 @@ void MarketDepthTable::updateTable(const MarketDepthQuote& quote) {
         font.setBold(true);
         item->setFont(font);
     }
-    
+
     // Bold best ask (first row, columns 3-5)
     for (int col = 3; col < 6; ++col) {
         QStandardItem* item = model->item(0, col);
@@ -222,11 +222,11 @@ Display spread between best bid and ask:
 void MarketDepthTable::updateSpread(const MarketDepthQuote& quote) {
     double spread = quote.getBestAsk() - quote.getBestBid();
     double spreadPercent = (spread / quote.getBestBid()) * 100.0;
-    
+
     QString spreadText = QString("Spread: $%1 (%2%)")
                             .arg(spread, 0, 'f', 2)
                             .arg(spreadPercent, 0, 'f', 3);
-    
+
     spreadLabel->setText(spreadText);
 }
 ```
@@ -269,7 +269,7 @@ public:
 protected:
     // Custom painting if needed
     void paintEvent(QPaintEvent* event) override;
-    
+
 private:
     int m_topMargin = 0;
 };
@@ -316,20 +316,20 @@ double calculateDWP(const MarketDepthQuote& quote) {
     double askWeightedSum = 0.0;
     double bidTotalVol = 0.0;
     double askTotalVol = 0.0;
-    
+
     for (const auto& bid : quote.getBids()) {
         bidWeightedSum += bid.price * bid.size;
         bidTotalVol += bid.size;
     }
-    
+
     for (const auto& ask : quote.getAsks()) {
         askWeightedSum += ask.price * ask.size;
         askTotalVol += ask.size;
     }
-    
+
     double bidDWP = bidWeightedSum / bidTotalVol;
     double askDWP = askWeightedSum / askTotalVol;
-    
+
     return (bidDWP + askDWP) / 2.0;
 }
 ```
@@ -363,7 +363,7 @@ Only calculate displayed values:
 void updateTable(const MarketDepthQuote& quote) {
     // Only show top 10 levels
     int levelsToShow = qMin(MAX_LEVELS, quote.getBids().size());
-    
+
     for (int i = 0; i < levelsToShow; ++i) {
         // Update only visible rows
         updateRow(i, quote.getBids()[i]);
@@ -398,13 +398,13 @@ Test market depth updates:
 ```cpp
 TEST(MarketDepthTable, UpdatesOnQuoteReceived) {
     MarketDepthTable table;
-    
+
     MarketDepthQuote quote;
     quote.addBid(99.95, 1500, 5);
     quote.addAsk(100.05, 2000, 8);
-    
+
     table.updateMarketDepth("AAPL", quote, 100.0, 1500, 2000);
-    
+
     // Verify table updated
     EXPECT_EQ(table.getRowCount(), 1);
     EXPECT_EQ(table.getBestBid(), 99.95);

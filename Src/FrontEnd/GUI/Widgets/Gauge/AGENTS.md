@@ -161,16 +161,16 @@ void Gauge::drawBar(QPainter& painter) {
     double greenAngle = (0.33 * 270);   // First 33%
     double yellowAngle = (0.33 * 270);  // Next 33%
     double redAngle = (0.34 * 270);     // Last 34%
-    
+
     // Draw green zone
     painter.setPen(Qt::NoPen);
     painter.setBrush(QColor(0, 200, 0));
     painter.drawPie(rect, startAngle, greenAngle);
-    
+
     // Draw yellow zone
     painter.setBrush(QColor(200, 200, 0));
     painter.drawPie(rect, startAngle + greenAngle, yellowAngle);
-    
+
     // Draw red zone
     painter.setBrush(QColor(200, 0, 0));
     painter.drawPie(rect, startAngle + greenAngle + yellowAngle, redAngle);
@@ -186,12 +186,12 @@ void Gauge::drawIndicator(QPainter& painter) {
     // Normalize value to 0-1 range
     double normalized = (m_value - m_minValue) / (m_maxValue - m_minValue);
     normalized = qBound(0.0, normalized, 1.0);  // Clamp to range
-    
+
     // Calculate angle (gauge spans 270 degrees)
     // Start at -225 degrees (bottom-left), end at 45 degrees (bottom-right)
     double angle = -225 + (normalized * 270);
     double radians = qDegreesToRadians(angle);
-    
+
     // Calculate needle endpoint
     QPointF center(width() / 2, height() / 2);
     double radius = qMin(width(), height()) / 2.5;
@@ -199,11 +199,11 @@ void Gauge::drawIndicator(QPainter& painter) {
         center.x() + radius * cos(radians),
         center.y() + radius * sin(radians)
     );
-    
+
     // Draw needle
     painter.setPen(QPen(Qt::white, 2));
     painter.drawLine(center, endPoint);
-    
+
     // Draw center circle
     painter.setBrush(Qt::white);
     painter.drawEllipse(center, 5, 5);
@@ -276,7 +276,7 @@ void Gauge::paintEvent(QPaintEvent* event) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);  // Smooth edges
     painter.setRenderHint(QPainter::TextAntialiasing);
-    
+
     // ... draw gauge components
 }
 ```
@@ -290,11 +290,11 @@ void Gauge::paintEvent(QPaintEvent* event) {
     // Paint to pixmap first (if needed)
     QPixmap buffer(size());
     QPainter bufferPainter(&buffer);
-    
+
     // ... draw to buffer
-    
+
     bufferPainter.end();
-    
+
     // Draw buffer to widget
     QPainter painter(this);
     painter.drawPixmap(0, 0, buffer);
@@ -309,12 +309,12 @@ Only repaint when value changes:
 void Gauge::setValue(double value) {
     // Clamp to range
     value = qBound(m_minValue, value, m_maxValue);
-    
+
     // Only update if value changed
     if (qFuzzyCompare(m_value, value)) {
         return;  // No change, skip update
     }
-    
+
     m_value = value;
     emit valueChanged(value);
     update();  // Trigger repaint
@@ -357,10 +357,10 @@ Test value clamping:
 TEST(Gauge, ClampsValueToRange) {
     Gauge gauge;
     gauge.setRange(0, 100);
-    
+
     gauge.setValue(-50);
     EXPECT_EQ(gauge.getValue(), 0);  // Clamped to min
-    
+
     gauge.setValue(150);
     EXPECT_EQ(gauge.getValue(), 100);  // Clamped to max
 }
@@ -372,9 +372,9 @@ Test signal emission:
 TEST(Gauge, EmitsValueChangedSignal) {
     Gauge gauge;
     QSignalSpy spy(&gauge, &Gauge::valueChanged);
-    
+
     gauge.setValue(42.5);
-    
+
     EXPECT_EQ(spy.count(), 1);
     EXPECT_DOUBLE_EQ(spy.at(0).at(0).toDouble(), 42.5);
 }

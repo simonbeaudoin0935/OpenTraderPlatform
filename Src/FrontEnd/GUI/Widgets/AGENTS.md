@@ -72,10 +72,10 @@ class MyWidget : public QWidget {
 
 public:
     explicit MyWidget(QWidget* parent = nullptr);
-    
+
     // Public interface for setting data
     void setData(const Data& data);
-    
+
     // Public interface for getting widget state
     Data getData() const;
 
@@ -88,10 +88,10 @@ private:
     void setupUI();       // Create internal widgets
     void setupStyles();   // Apply styling
     void updateDisplay(); // Update visual presentation
-    
+
     // Internal state
     Data m_currentData;
-    
+
     // Internal UI components
     QLabel* m_label;
     QPushButton* m_button;
@@ -149,7 +149,7 @@ Widgets should handle resizing gracefully:
 ```cpp
 void MyWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
-    
+
     // Adjust layout based on new size
     if (width() < COMPACT_THRESHOLD) {
         setCompactLayout();
@@ -173,7 +173,7 @@ void setupHeaderUI() {
     headerFont.setBold(true);
     headerLabel->setFont(headerFont);
     headerLabel->setAlignment(Qt::AlignCenter);
-    
+
     mainLayout->addWidget(headerLabel);
 }
 ```
@@ -221,14 +221,14 @@ bool MyWidget::validate() {
         m_input->setFocus();
         return false;
     }
-    
+
     if (m_quantityInput->value() <= 0) {
         QMessageBox::warning(this, tr("Validation Error"),
                            tr("Quantity must be greater than 0"));
         m_quantityInput->setFocus();
         return false;
     }
-    
+
     return true;
 }
 ```
@@ -242,12 +242,12 @@ class MyWidget : public QWidget {
 private:
     QTimer* m_updateThrottle;
     Data m_pendingData;
-    
+
     void setupThrottling() {
         m_updateThrottle = new QTimer(this);
         m_updateThrottle->setInterval(100);  // 100ms throttle
         m_updateThrottle->setSingleShot(true);
-        
+
         connect(m_updateThrottle, &QTimer::timeout,
                 this, &MyWidget::updateDisplay);
     }
@@ -276,7 +276,7 @@ MyWidget::MyWidget(QWidget* parent)
     setupUI();
     setupStyles();
     setupConnections();
-    
+
     // Load saved state if applicable
     restoreState();
 }
@@ -288,7 +288,7 @@ MyWidget::MyWidget(QWidget* parent)
 MyWidget::~MyWidget() {
     // Save state if applicable
     saveState();
-    
+
     // Qt handles child widget deletion automatically
     // Manual cleanup only needed for non-QObject resources
 }
@@ -318,14 +318,14 @@ For widgets with custom graphics (like Gauge):
 void MyWidget::paintEvent(QPaintEvent* event) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    
+
     // Draw background
     painter.fillRect(rect(), QColor(53, 53, 53));
-    
+
     // Draw custom content
     painter.setPen(Qt::white);
     painter.drawLine(0, height()/2, width(), height()/2);
-    
+
     // ... more custom painting
 }
 ```
@@ -341,10 +341,10 @@ void setupKeyboardNavigation() {
     // Set tab order
     setTabOrder(m_firstInput, m_secondInput);
     setTabOrder(m_secondInput, m_submitButton);
-    
+
     // Set focus policy
     m_firstInput->setFocusPolicy(Qt::StrongFocus);
-    
+
     // Add keyboard shortcuts
     QShortcut* submitShortcut = new QShortcut(QKeySequence(Qt::Key_Return), this);
     connect(submitShortcut, &QShortcut::activated,
@@ -372,11 +372,11 @@ Test widget logic independently:
 ```cpp
 TEST(OrderEntryWidget, ValidatesRequiredFields) {
     OrderEntryWidget widget;
-    
+
     // Test empty symbol validation
     widget.setSymbol("");
     EXPECT_FALSE(widget.validate());
-    
+
     // Test valid input
     widget.setSymbol("AAPL");
     widget.setQuantity(100);
@@ -392,11 +392,11 @@ Test widget in application context:
 TEST(OrderEntryWidget, EmitsCorrectSignal) {
     OrderEntryWidget widget;
     QSignalSpy spy(&widget, &OrderEntryWidget::orderPlaced);
-    
+
     widget.setSymbol("AAPL");
     widget.setQuantity(100);
     widget.submitOrder();
-    
+
     EXPECT_EQ(spy.count(), 1);
     PlaceOrderRequest request = spy.at(0).at(0).value<PlaceOrderRequest>();
     EXPECT_EQ(request.symbol, "AAPL");
@@ -415,7 +415,7 @@ void MyWidget::updateValue(double value) {
     if (qFuzzyCompare(m_value, value)) {
         return;  // No change, skip update
     }
-    
+
     m_value = value;
     update();  // Trigger repaint
 }
@@ -430,11 +430,11 @@ void MyWidget::paintEvent(QPaintEvent* event) {
     // Paint to pixmap first
     QPixmap buffer(size());
     buffer.fill(Qt::transparent);
-    
+
     QPainter bufferPainter(&buffer);
     // ... draw to buffer
     bufferPainter.end();
-    
+
     // Then paint buffer to widget
     QPainter painter(this);
     painter.drawPixmap(0, 0, buffer);
@@ -449,12 +449,12 @@ Cache computed values:
 class MyWidget : public QWidget {
 private:
     mutable QCache<int, QPixmap> m_renderCache;
-    
+
     const QPixmap& getCachedRender(int state) {
         if (QPixmap* cached = m_renderCache.object(state)) {
             return *cached;
         }
-        
+
         QPixmap* rendered = new QPixmap(renderState(state));
         m_renderCache.insert(state, rendered);
         return *rendered;

@@ -552,14 +552,14 @@ struct OrderMarker {
     int quantity;
     bool isBuy;               // true = buy, false = sell
     QString accountID;
-    
+
     enum class State {
         Pending,     // Hollow triangle
         Filled,      // Solid triangle
         Cancelled    // Gray X
     };
     State state;
-    
+
     // QCustomPlot visual elements (3 lines form triangle, 2 lines form X)
     QCPItemLine* markerLine1 = nullptr;
     QCPItemLine* markerLine2 = nullptr;

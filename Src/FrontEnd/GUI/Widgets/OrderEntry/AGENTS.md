@@ -303,36 +303,36 @@ void updateStickyPrice();
 private:
     // Header
     QLabel* m_headerLabel;
-    
+
     // Trade action selection
     QRadioButton* m_buyRadio;
     QRadioButton* m_buyToCoverRadio;
     QRadioButton* m_sellRadio;
     QRadioButton* m_sellToCoverRadio;
     QButtonGroup* m_tradeActionGroup;
-    
+
     // Order parameters
     QComboBox* m_orderTypeCombo;
     QSpinBox* m_quantityInput;
     QDoubleSpinBox* m_limitPriceInput;
     QDoubleSpinBox* m_stopPriceInput;
     QComboBox* m_durationCombo;
-    
+
     // Submission
     QPushButton* m_submitButton;
-    
+
     // Sticky price controls
     QCheckBox* m_stickyCheckBox;
     QRadioButton* m_aggressiveRadio;
     QRadioButton* m_passiveRadio;
     QButtonGroup* m_stickyModeGroup;
     QDoubleSpinBox* m_stickyOffsetInput;
-    
+
     // Options
     QCheckBox* m_confirmationCheckBox;
     QCheckBox* m_resultPopupCheckBox;
     QCheckBox* m_cancelAllConfirmationCheckBox;
-    
+
     // State
     GUIFrontend* m_guiFrontend;
     QList<Account> m_accounts;
@@ -368,14 +368,14 @@ bool OrderEntryWidget::validateInputs() {
                            tr("Please enter a symbol"));
         return false;
     }
-    
+
     if (m_quantityInput->value() <= 0) {
         QMessageBox::warning(this, tr("Validation Error"),
                            tr("Quantity must be greater than 0"));
         m_quantityInput->setFocus();
         return false;
     }
-    
+
     // Check price fields based on order type
     OrderType type = getSelectedOrderType();
     if (type == OrderType::Limit || type == OrderType::StopLimit) {
@@ -386,9 +386,9 @@ bool OrderEntryWidget::validateInputs() {
             return false;
         }
     }
-    
+
     // ... more validation
-    
+
     return true;
 }
 ```
@@ -439,14 +439,14 @@ Price updates trigger a green flash animation:
 void updateStickyPrice() {
     // Calculate new price
     double newPrice = calculateStickyPrice();
-    
+
     // Update price input
     m_limitPriceInput->setValue(newPrice);
-    
+
     // Visual feedback (green flash)
     QGraphicsOpacityEffect* effect = new QGraphicsOpacityEffect(m_limitPriceInput);
     m_limitPriceInput->setGraphicsEffect(effect);
-    
+
     QPropertyAnimation* animation = new QPropertyAnimation(effect, "opacity");
     animation->setDuration(500);
     animation->setStartValue(0.3);
@@ -527,7 +527,7 @@ TEST(OrderEntryWidget, ValidatesQuantity) {
     widget.setSymbol("AAPL");
     widget.setQuantity(0);
     EXPECT_FALSE(widget.validate());
-    
+
     widget.setQuantity(100);
     EXPECT_TRUE(widget.validate());
 }
@@ -537,7 +537,7 @@ TEST(OrderEntryWidget, RequiresLimitPriceForLimitOrders) {
     widget.setOrderType(OrderType::Limit);
     widget.setLimitPrice(0.0);
     EXPECT_FALSE(widget.validate());
-    
+
     widget.setLimitPrice(100.50);
     EXPECT_TRUE(widget.validate());
 }
@@ -551,11 +551,11 @@ Test signal emission:
 TEST(OrderEntryWidget, EmitsOrderPlacedSignal) {
     OrderEntryWidget widget;
     QSignalSpy spy(&widget, &OrderEntryWidget::orderPlaced);
-    
+
     widget.setSymbol("AAPL");
     widget.setQuantity(100);
     widget.submitOrder();
-    
+
     EXPECT_EQ(spy.count(), 1);
     PlaceOrderRequest request = spy.at(0).at(0).value<PlaceOrderRequest>();
     EXPECT_EQ(request.symbol, "AAPL");

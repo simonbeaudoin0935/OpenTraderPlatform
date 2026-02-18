@@ -431,7 +431,7 @@ The `onNewOrderReceived()` and `onNewPositionReceived()` handlers forward events
 ```cpp
 void GUIFrontend::onNewOrderReceived(QString account, Order order) {
     ui->orderWindow->updateOrder(account, order);
-    
+
     // Forward to chart for visualization (if symbol matches)
     if (order.getSymbol() == ui->priceChart->getCurrentSymbol()) {
         // Route based on order status

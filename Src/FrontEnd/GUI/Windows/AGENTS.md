@@ -101,7 +101,7 @@ enum class OrderStatus {
 private:
     // Map order ID to row index for fast updates
     QMap<QString, int> m_orderRowMap;
-    
+
     // Store complete Order objects for status checking
     QHash<QString, Order> m_orders;
 ```
@@ -200,10 +200,10 @@ double plPercent = ((avgPrice - lastPrice) / avgPrice) * 100.0;
 private:
     // Map position ID to row index
     QMap<QString, int> m_positionRowMap;
-    
+
     // Store positions for P&L updates
     QHash<QString, Position> m_positions;
-    
+
     // Cache last prices for P&L calculation
     QHash<QString, double> m_lastPrices;
 ```
@@ -292,7 +292,7 @@ public:
 private:
     void setupUI();       // Create widgets and layout
     void setupStyles();   // Apply dark theme
-    
+
     QTableView* m_tableView;
     QStandardItemModel* m_model;
     QLabel* m_headerLabel;
@@ -311,7 +311,7 @@ All windows have a prominent header:
 ```cpp
 void setupUI() {
     QVBoxLayout* layout = new QVBoxLayout(this);
-    
+
     // Header
     m_headerLabel = new QLabel("WINDOW TITLE", this);
     QFont headerFont;
@@ -319,7 +319,7 @@ void setupUI() {
     headerFont.setBold(true);
     m_headerLabel->setFont(headerFont);
     m_headerLabel->setAlignment(Qt::AlignCenter);
-    
+
     layout->addWidget(m_headerLabel);
     layout->addWidget(m_tableView);
 }
@@ -406,17 +406,17 @@ void setupTableView() {
 
 void showContextMenu(const QPoint& pos) {
     QMenu menu(this);
-    
+
     QModelIndex index = m_tableView->indexAt(pos);
     if (!index.isValid()) return;
-    
+
     QString id = getIdForRow(index.row());
-    
+
     QAction* action1 = menu.addAction("Action 1");
     connect(action1, &QAction::triggered, [this, id]() {
         handleAction(id);
     });
-    
+
     menu.exec(m_tableView->viewport()->mapToGlobal(pos));
 }
 ```
@@ -440,15 +440,15 @@ void setupModel() {
 ```cpp
 QList<QStandardItem*> createRowItems(const Data& data) {
     QList<QStandardItem*> items;
-    
+
     auto* item1 = new QStandardItem(data.field1);
     item1->setEditable(false);  // Make read-only
     items.append(item1);
-    
+
     auto* item2 = new QStandardItem(data.field2);
     item2->setEditable(false);
     items.append(item2);
-    
+
     return items;
 }
 ```
@@ -477,13 +477,13 @@ Reduce model updates:
 void updateMultipleRows(const QVector<Data>& dataList) {
     // Block signals during batch update
     m_model->blockSignals(true);
-    
+
     for (const auto& data : dataList) {
         updateRow(data.id, data);
     }
-    
+
     m_model->blockSignals(false);
-    
+
     // Emit single update signal
     emit m_model->dataChanged(m_model->index(0, 0),
                              m_model->index(m_model->rowCount()-1,
@@ -498,13 +498,13 @@ Only update visible P&L values:
 ```cpp
 void updateLastPrice(const QString& symbol, double price) {
     m_lastPrices[symbol] = price;
-    
+
     // Only update if window is visible
     if (!isVisible()) {
         m_pendingUpdates.insert(symbol);
         return;
     }
-    
+
     updatePLForSymbol(symbol);
 }
 ```
@@ -521,9 +521,9 @@ TEST(OrderWindow, AddsNewOrder) {
     Order order;
     order.setOrderId("ORD123");
     order.setSymbol("AAPL");
-    
+
     window.updateOrder("ACC1", order);
-    
+
     EXPECT_EQ(window.getRowCount(), 1);
     EXPECT_TRUE(window.hasOrder("ORD123"));
 }
@@ -533,13 +533,13 @@ TEST(OrderWindow, UpdatesExistingOrder) {
     Order order;
     order.setOrderId("ORD123");
     order.setStatus(Order::Status::OPN);
-    
+
     window.updateOrder("ACC1", order);
     EXPECT_EQ(window.getRowCount(), 1);
-    
+
     order.setStatus(Order::Status::FLL);
     window.updateOrder("ACC1", order);
-    
+
     EXPECT_EQ(window.getRowCount(), 1);  // Same row updated
 }
 ```

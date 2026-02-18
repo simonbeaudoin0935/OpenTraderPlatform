@@ -105,7 +105,7 @@ signals:
 **Key Methods**:
 ```cpp
 // Append new log message
-void appendLog(const QString& category, const QString& message, 
+void appendLog(const QString& category, const QString& message,
                QtMsgType level);
 
 // Update category filters
@@ -143,7 +143,7 @@ void saveLogsToFile();
 **Signal Interface**:
 ```cpp
 public slots:
-    void onLogMessageReceived(const QString& category, 
+    void onLogMessageReceived(const QString& category,
                              const QString& message,
                              QtMsgType level);
 ```
