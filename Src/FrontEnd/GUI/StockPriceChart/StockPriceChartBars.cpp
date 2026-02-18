@@ -122,6 +122,12 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         m_timeLineTimer->start();
         updateCurrentTimeLine(); // Update immediately
 
+        // Update replay boundary lines if in replay mode and we have cached times
+        if (m_isReplayModeActive && m_replayDayStart.isValid() && m_replayDayEnd.isValid())
+        {
+            updateReplayDayBoundaryLines();
+        }
+
         // Here we will fetch the bars from the beginning of the day up to this bar to fill in history
         QDateTime first = QDateTime(bar.getTimeStamp().date(),
                                     TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
