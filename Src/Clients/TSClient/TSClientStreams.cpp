@@ -5,6 +5,7 @@
 #include "Stream/MockNetworkAccessManager.h"
 #include "OrderEmulator.h"
 #include "MarketDepthQuote.h"
+#include "Quote.h"
 
 #define LOGGING_CATEGORY TSClientLog
 
@@ -707,6 +708,21 @@ void TSClient::onInjectQuoteData(const QString& p_symbol, std::shared_ptr<const 
     {
         WARNING << "onInjectQuoteData called with null data for" << p_symbol;
         return;
+    }
+
+    // Forward quote data to OrderEmulator for Level 1 order fill monitoring
+    if (m_orderEmulator)
+    {
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(*p_data, &parseError);
+        if (parseError.error == QJsonParseError::NoError && doc.isObject())
+        {
+            Quote quote(doc.object());
+            if (quote.isValid())
+            {
+                m_orderEmulator->updateQuote(p_symbol, quote);
+            }
+        }
     }
 
     if (!m_replayQuoteReplies.contains(p_symbol) || m_replayQuoteReplies[p_symbol].isNull())
