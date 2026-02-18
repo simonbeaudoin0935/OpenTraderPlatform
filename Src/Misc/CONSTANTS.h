@@ -151,6 +151,7 @@ namespace TSClientEndpoints
     inline constexpr const char* GET_BARS = "marketdata/barcharts/%1";
     inline constexpr const char* STREAM_BARS = "marketdata/stream/barcharts/%1";
     inline constexpr const char* STREAM_MARKET_DEPTH_QUOTE = "marketdata/stream/marketdepth/quotes/%1";
+    inline constexpr const char* STREAM_QUOTES = "marketdata/stream/quotes/%1";
 
     // Brokerage endpoints
     inline constexpr const char* GET_ACCOUNTS = "brokerage/accounts";
@@ -282,6 +283,38 @@ namespace MarketDepthConstants
      */
     inline constexpr int QUEUE_PROCESS_DELAY_MS = 1000;
 } // namespace MarketDepthConstants
+
+/**
+ * @namespace QuoteConstants
+ * @brief Constants related to level 1 quote stream data
+ */
+namespace QuoteConstants
+{
+    /**
+     * @brief Maximum number of symbols in a single quote stream request
+     *
+     * TradeStation Stream Quotes API accepts up to 100 comma-separated symbols per request.
+     *
+     * @doc https://api.tradestation.com/docs/specification/#tag/MarketData/operation/GetQuoteChangeStream
+     */
+    inline constexpr size_t MAX_SYMBOLS_PER_STREAM = 100;
+} // namespace QuoteConstants
+
+/**
+ * @namespace BarStreamConstants
+ * @brief Constants related to bar stream limits
+ */
+namespace BarStreamConstants
+{
+    /**
+     * @brief Soft limit for concurrent bar streams
+     *
+     * TradeStation does not document a hard concurrent bars stream limit, but
+     * empirical testing shows instability above ~100 concurrent streams.
+     * Keep this configurable so it can be tuned without code changes.
+     */
+    inline constexpr size_t MAX_CONCURRENT_BAR_STREAMS = 100;
+} // namespace BarStreamConstants
 
 /**
  * @namespace RecorderConstants

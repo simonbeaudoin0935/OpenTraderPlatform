@@ -363,6 +363,75 @@ TSClient::openStreamMarketDepthQuote(const QString& symbol, unsigned int depth)
     return stream;
 }
 
+QPointer<StreamQuote> TSClient::openStreamQuote(const QStringList& symbols)
+{
+    OBJ_ASSUME_FALSE(symbols.isEmpty());
+    OBJ_ASSUME_LTE(symbols.size(), static_cast<qsizetype>(QuoteConstants::MAX_SYMBOLS_PER_STREAM));
+
+    for (const QString& symbol: symbols)
+    {
+        OBJ_ASSUME_FALSE(symbol.isEmpty());
+        OBJ_ASSUME_FALSE(symbol.contains(','));
+    }
+
+    QPointer<StreamQuote> stream;
+
+    if (m_mode == Mode::Replay)
+    {
+        DEBUG << "Opening replay StreamQuote for" << symbols.size() << "symbols";
+
+        QMetaObject::invokeMethod(
+            this,
+            [this, &stream, &symbols]()
+            {
+                auto* mockReply = new MockNetworkReply(this);
+                Q_CHECK_PTR(mockReply);
+
+                for (const QString& symbol: symbols)
+                {
+                    m_replayQuoteReplies[symbol] = mockReply;
+                }
+
+                stream = new StreamQuote(symbols, mockReply, this);
+                Q_CHECK_PTR(stream);
+
+                auto c =
+                    connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+                OBJ_ASSUME_TRUE(c);
+
+                INFO << "Opened replay StreamQuote for" << symbols.size() << "symbols";
+            },
+            Qt::BlockingQueuedConnection);
+    }
+    else
+    {
+        DEBUG << "Opening live StreamQuote for" << symbols.size() << "symbols";
+
+        const QString endpoint = QString(TSClientEndpoints::STREAM_QUOTES).arg(symbols.join(','));
+        QNetworkRequest request = buildNetworkRequest(endpoint);
+
+        QMetaObject::invokeMethod(
+            this,
+            [this, &request, &stream, &symbols]()
+            {
+                QNetworkReply* reply = m_networkManager->get(request);
+                Q_CHECK_PTR(reply);
+
+                stream = new StreamQuote(symbols, reply, this);
+                Q_CHECK_PTR(stream);
+
+                auto c =
+                    connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+                OBJ_ASSUME_TRUE(c);
+
+                INFO << "Opened live StreamQuote for" << symbols.size() << "symbols";
+            },
+            Qt::BlockingQueuedConnection);
+    }
+
+    return stream;
+}
+
 void TSClient::closeStream(Stream* const stream)
 {
     OBJ_ASSUME_DIFF(stream, nullptr);
@@ -468,6 +537,7 @@ void TSClient::setMode(Mode p_mode)
         // Clear replay stream tracking
         m_replayBarReplies.clear();
         m_replayDepthReplies.clear();
+        m_replayQuoteReplies.clear();
     }
 }
 
@@ -491,6 +561,16 @@ bool TSClient::hasOpenMarketDepthStream(const QString& p_symbol) const
     }
 
     // For live mode, we don't track streams by symbol currently
+    return false;
+}
+
+bool TSClient::hasOpenQuoteStream(const QString& p_symbol) const
+{
+    if (m_mode == Mode::Replay)
+    {
+        return m_replayQuoteReplies.contains(p_symbol) && !m_replayQuoteReplies[p_symbol].isNull();
+    }
+
     return false;
 }
 
@@ -522,6 +602,21 @@ MockNetworkReply* TSClient::getMarketDepthReplyForSymbol(const QString& p_symbol
     }
 
     return m_replayDepthReplies[p_symbol].data();
+}
+
+MockNetworkReply* TSClient::getQuoteReplyForSymbol(const QString& p_symbol) const
+{
+    if (m_mode != Mode::Replay)
+    {
+        return nullptr;
+    }
+
+    if (!m_replayQuoteReplies.contains(p_symbol))
+    {
+        return nullptr;
+    }
+
+    return m_replayQuoteReplies[p_symbol].data();
 }
 
 void TSClient::onInjectBarData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data)
@@ -598,6 +693,29 @@ void TSClient::onInjectDepthData(const QString& p_symbol, std::shared_ptr<const 
     }
 
     m_replayDepthReplies[p_symbol]->injectData(*p_data);
+}
+
+void TSClient::onInjectQuoteData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data)
+{
+    if (m_mode != Mode::Replay)
+    {
+        WARNING << "onInjectQuoteData called but not in replay mode";
+        return;
+    }
+
+    if (!p_data)
+    {
+        WARNING << "onInjectQuoteData called with null data for" << p_symbol;
+        return;
+    }
+
+    if (!m_replayQuoteReplies.contains(p_symbol) || m_replayQuoteReplies[p_symbol].isNull())
+    {
+        // No stream open for this symbol - skip silently (expected for non-monitored stocks)
+        return;
+    }
+
+    m_replayQuoteReplies[p_symbol]->injectData(*p_data);
 }
 
 // ============================================================================

@@ -215,6 +215,7 @@ bool TSClient::isCleanedUp()
     // The isCleanedUp() check is now primarily about verifying no open streams remain.
     // Check all stream type counters
     return (StreamBars::getNumberOfBarsStreams() == 0 && StreamMarketDepthQuote::getNumberOfMarketDepthStreams() == 0 &&
-            StreamPositions::getNumberOfPositionStreams() == 0 && StreamOrders::getNumberOfOrderStreams() == 0);
+            StreamQuote::getNumberOfQuoteStreams() == 0 && StreamPositions::getNumberOfPositionStreams() == 0 &&
+            StreamOrders::getNumberOfOrderStreams() == 0);
 }
 #endif

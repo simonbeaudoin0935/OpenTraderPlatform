@@ -1,19 +1,29 @@
 #pragma once
 
-#include <QString>
+#include <optional>
+
 #include <QDateTime>
 #include <QJsonObject>
+#include <QMetaType>
+#include <QString>
+#include <QStringList>
+
+#include "MarketFlags.h"
 
 class Quote
 {
   public:
-    Quote();
+    Quote() = default;
     explicit Quote(const QJsonObject& json);
 
     // Getters
     QString getSymbol() const
     {
         return m_symbol;
+    }
+    QString getError() const
+    {
+        return m_error;
     }
     double getOpen() const
     {
@@ -99,22 +109,6 @@ class Quote
     {
         return m_tickSizeTier;
     }
-    bool isDelayed() const
-    {
-        return m_isDelayed;
-    }
-    bool isHardToBorrow() const
-    {
-        return m_isHardToBorrow;
-    }
-    bool isBats() const
-    {
-        return m_isBats;
-    }
-    bool isHalted() const
-    {
-        return m_isHalted;
-    }
     unsigned int getLastSize() const
     {
         return m_lastSize;
@@ -127,9 +121,52 @@ class Quote
     {
         return m_vwap;
     }
+    const std::optional<double>& getMinPrice() const
+    {
+        return m_minPrice;
+    }
+    const std::optional<double>& getMaxPrice() const
+    {
+        return m_maxPrice;
+    }
+    const std::optional<QDateTime>& getFirstNoticeDate() const
+    {
+        return m_firstNoticeDate;
+    }
+    const std::optional<QDateTime>& getLastTradingDate() const
+    {
+        return m_lastTradingDate;
+    }
+    const QStringList& getRestrictions() const
+    {
+        return m_restrictions;
+    }
+    const MarketFlags& getMarketFlags() const
+    {
+        return m_marketFlags;
+    }
+    bool isDelayed() const
+    {
+        return m_marketFlags.isDelayed();
+    }
+    bool isHardToBorrow() const
+    {
+        return m_marketFlags.isHardToBorrow();
+    }
+    bool isBats() const
+    {
+        return m_marketFlags.isBats();
+    }
+    bool isHalted() const
+    {
+        return m_marketFlags.isHalted();
+    }
+    std::optional<double> getBestBid() const;
+    std::optional<double> getBestAsk() const;
 
     // Validation
     bool isValid() const;
+    bool isEmpty() const;
 
     // JSON conversion
     QJsonObject toJson() const;
@@ -137,33 +174,39 @@ class Quote
     void fromJson(const QJsonObject& json);
 
   private:
+    // Members ordered by size (largest to smallest) to reduce padding
+    QDateTime m_high52WeekTimestamp;
+    QDateTime m_low52WeekTimestamp;
+    QDateTime m_tradeTime;
+    std::optional<QDateTime> m_firstNoticeDate;
+    std::optional<QDateTime> m_lastTradingDate;
+    QStringList m_restrictions;
     QString m_symbol;
+    QString m_error;
+    QString m_lastVenue;
+    MarketFlags m_marketFlags;
+    std::optional<double> m_minPrice;
+    std::optional<double> m_maxPrice;
+    unsigned long long m_volume = 0;
+    unsigned long long m_previousVolume = 0;
     double m_open = 0.0;
     double m_high = 0.0;
     double m_low = 0.0;
     double m_previousClose = 0.0;
     double m_last = 0.0;
     double m_ask = 0.0;
-    unsigned int m_askSize = 0;
     double m_bid = 0.0;
-    unsigned int m_bidSize = 0;
     double m_netChange = 0.0;
     double m_netChangePct = 0.0;
     double m_high52Week = 0.0;
-    QDateTime m_high52WeekTimestamp;
     double m_low52Week = 0.0;
-    QDateTime m_low52WeekTimestamp;
-    unsigned long long m_volume = 0;
-    unsigned long long m_previousVolume = 0;
     double m_close = 0.0;
-    unsigned int m_dailyOpenInterest = 0;
-    QDateTime m_tradeTime;
-    unsigned int m_tickSizeTier = 0;
-    bool m_isDelayed = false;
-    bool m_isHardToBorrow = false;
-    bool m_isBats = false;
-    bool m_isHalted = false;
-    unsigned int m_lastSize = 0;
-    QString m_lastVenue;
     double m_vwap = 0.0;
+    unsigned int m_askSize = 0;
+    unsigned int m_bidSize = 0;
+    unsigned int m_dailyOpenInterest = 0;
+    unsigned int m_tickSizeTier = 0;
+    unsigned int m_lastSize = 0;
 };
+
+Q_DECLARE_METATYPE(Quote)

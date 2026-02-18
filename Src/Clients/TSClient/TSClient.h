@@ -26,6 +26,7 @@
 #include "Quote.h"
 #include "StreamBars.h"
 #include "StreamMarketDepthQuote.h"
+#include "StreamQuote.h"
 #include "Balance.h"
 
 #include "Stream.h"
@@ -218,6 +219,14 @@ class TSClient final : public QObject
     openStreamMarketDepthQuote(const QString& symbol, unsigned int depth = 20);
 
     /*
+     * Creates a Quote Stream (Level 1 bid/ask stream)
+     *
+     * @param symbols Comma-delimited symbol list (max 100 symbols per stream request)
+     * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/GetQuoteChangeStream
+     */
+    [[nodiscard]] QPointer<StreamQuote> openStreamQuote(const QStringList& symbols);
+
+    /*
      * Creates a StreaOrders Stream
      *
      * @return : nullptr if the stream could not be created
@@ -249,7 +258,8 @@ class TSClient final : public QObject
     [[nodiscard]] static size_t getStreamCount()
     {
         return StreamBars::getNumberOfBarsStreams() + StreamMarketDepthQuote::getNumberOfMarketDepthStreams() +
-               StreamPositions::getNumberOfPositionStreams() + StreamOrders::getNumberOfOrderStreams();
+               StreamQuote::getNumberOfQuoteStreams() + StreamPositions::getNumberOfPositionStreams() +
+               StreamOrders::getNumberOfOrderStreams();
     }
     [[nodiscard]] bool isAuthenticated() const
     {
@@ -292,6 +302,13 @@ class TSClient final : public QObject
     [[nodiscard]] bool hasOpenMarketDepthStream(const QString& p_symbol) const;
 
     /**
+     * @brief Check if a quote stream exists for the given symbol
+     * @param p_symbol Stock ticker symbol
+     * @return true if a stream (real or mock) exists
+     */
+    [[nodiscard]] bool hasOpenQuoteStream(const QString& p_symbol) const;
+
+    /**
      * @brief Get the MockNetworkReply for a bar stream (replay mode only)
      * @param p_symbol Stock ticker symbol
      * @return Pointer to MockNetworkReply, or nullptr if not found
@@ -304,6 +321,13 @@ class TSClient final : public QObject
      * @return Pointer to MockNetworkReply, or nullptr if not found
      */
     [[nodiscard]] MockNetworkReply* getMarketDepthReplyForSymbol(const QString& p_symbol) const;
+
+    /**
+     * @brief Get the MockNetworkReply for a quote stream (replay mode only)
+     * @param p_symbol Stock ticker symbol
+     * @return Pointer to MockNetworkReply, or nullptr if not found
+     */
+    [[nodiscard]] MockNetworkReply* getQuoteReplyForSymbol(const QString& p_symbol) const;
 
     /**
      * @brief Check if the market depth queue is empty
@@ -356,6 +380,13 @@ class TSClient final : public QObject
      * Safely executes in TSClient's thread context.
      */
     void onInjectDepthData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
+
+    /**
+     * @brief Inject quote data into the appropriate MockNetworkReply (replay mode)
+     * @param p_symbol Stock ticker symbol
+     * @param p_data Shared pointer to JSON data
+     */
+    void onInjectQuoteData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
 
     /**
      * @brief Process the next queued market depth stream request
@@ -435,6 +466,7 @@ class TSClient final : public QObject
     Mode m_mode = Mode::Live;
     QMap<QString, QPointer<MockNetworkReply>> m_replayBarReplies;   // symbol -> MockNetworkReply for bars
     QMap<QString, QPointer<MockNetworkReply>> m_replayDepthReplies; // symbol -> MockNetworkReply for depth
+    QMap<QString, QPointer<MockNetworkReply>> m_replayQuoteReplies; // symbol -> MockNetworkReply for quotes
     QPointer<MockNetworkReply> m_replayOrdersReply;                 // MockNetworkReply for orders stream
     QPointer<MockNetworkReply> m_replayPositionsReply;              // MockNetworkReply for positions stream
 
