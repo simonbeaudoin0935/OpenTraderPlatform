@@ -357,6 +357,21 @@ void RecorderTab::onStartRecording()
         return;
     }
 
+    // Enforce maximum of 100 stocks (TradeStation Quote stream limit)
+    constexpr int MAX_STOCKS = 100;
+    if (m_stockTickers.size() > MAX_STOCKS)
+    {
+        int originalCount = m_stockTickers.size();
+        m_stockTickers = m_stockTickers.mid(0, MAX_STOCKS);
+        QMessageBox::warning(this,
+                             "Stock Limit Exceeded",
+                             QString("The CSV file contains %1 stocks, but the TradeStation Quote stream API "
+                                     "supports a maximum of %2 symbols.\n\n"
+                                     "Recording will proceed with the first %2 stocks only.")
+                                 .arg(originalCount)
+                                 .arg(MAX_STOCKS));
+    }
+
     // Create recording folders
     // Note: We don't use createRecordingFolders() utility because it uses qFatal() on error
     // which would crash the GUI. Instead, we handle errors gracefully with message boxes.
