@@ -190,16 +190,48 @@ struct PositionData {
 |--------|---------|
 | `placeOrder()` | Entry point for new orders; validates and queues |
 | `cancelOrder()` | Cancels open limit orders |
-| `updateMarketDepth()` | Receives depth snapshots; checks pending fills |
+| `updateMarketDepth()` | Receives Level 2 depth snapshots; checks pending fills |
+| `updateQuote()` | Receives Level 1 quote data; enables fills for symbols without L2 |
 | `onReceptionDelayElapsed()` | Processes pending orders after delay |
 | `onExecutionDelayElapsed()` | Fills orders after execution delay |
 | `canFillLimitOrder()` | Checks if limit order conditions are met |
 | `calculateMarketOrderFillPrice()` | Determines fill price for market orders |
 | `fillOrder()` | Marks order as filled, emits update |
 | `updatePosition()` | Creates/updates position, calculates P&L |
+| `recalculatePositionPnL()` | Updates unrealized P&L when market data changes |
 | `validateOrder()` | Full order validation before acceptance |
 | `pause()/resume()` | Freezes/resumes timers for replay pause |
 | `clear()` | Resets all state for new replay session |
+
+## Market Data Sources
+
+The OrderEmulator supports two data sources for order fills and position P&L:
+
+### Level 2 (Market Depth) - Primary
+- Full order book with multiple price levels
+- More accurate fill prices using actual depth
+- Limited to 10 symbols due to API stream limits
+- `updateMarketDepth()` receives depth snapshots
+
+### Level 1 (Quote) - Fallback
+- Best bid/ask only
+- Enables fills for all 100 symbols in replay
+- Used when Level 2 stream is not available for a symbol
+- `updateQuote()` receives quote data
+
+**Fill Price Logic**:
+```cpp
+if (hasMarketDepthData(symbol)) {
+    // Use L2: walk the book for accurate fill price
+    fillPrice = calculatePriceFromDepth(bids, asks, quantity);
+} else if (hasQuoteData(symbol)) {
+    // Use L1: bid/ask spread crossing
+    fillPrice = (isBuyOrder) ? quote.ask : quote.bid;
+} else {
+    // Reject: no market data
+    rejectOrder("No market data available");
+}
+```
 
 ## Position Tracking
 

@@ -56,13 +56,16 @@ TSClient is the core singleton class for all TradeStation API communication in L
 
 **Stream/** - WebSocket streaming
 - StreamBars: Live bar updates (1min, 5min, etc.) - **unlimited concurrent streams**
-- StreamQuotes: Real-time quote updates
-- StreamMarketDepthQuotes: Level 2 market depth - **maximum 10 concurrent streams**
+- StreamQuote: Level 1 quote updates (bid/ask, size, MarketFlags) - **single stream for up to 100 symbols**
+- StreamMarketDepthQuote: Level 2 market depth - **maximum 10 concurrent streams**
 - StreamOrders: Order status updates - **singleton (max 1)**
 - StreamPositions: Position updates - **singleton (max 1)**
 
 **Stream Concurrency Limits**:
 - **StreamBars**: No limit - can open as many as needed
+- **StreamQuote**: Single stream supporting up to 100 symbols per TradeStation API spec
+  - Use for Level 1 data: best bid/ask, sizes, and MarketFlags (IsHalted, IsDelayed, IsHardToBorrow)
+  - Falls back to L1 fills in OrderEmulator when Level 2 unavailable
 - **StreamMarketDepthQuote**: Hard limit of 10 concurrent streams (API restriction)
   - Opening 11+ streams triggers FIFO queue with QFuture-based async fulfillment
   - 1000ms delay before processing queue (TCP close propagation)
@@ -144,6 +147,8 @@ void TSClient::setMode(Mode mode) {
 | `placeOrder()` | Real API | MockNetworkAccessManager routes to OrderEmulator |
 | `cancelOrder()` | Real API | MockNetworkAccessManager routes to OrderEmulator |
 | `openStreamBars()` | Real WebSocket | MockNetworkReply receives ReplayEngine data |
+| `openStreamMarketDepthQuote()` | Real WebSocket | MockNetworkReply receives ReplayEngine data |
+| `openStreamQuote()` | Real WebSocket | MockNetworkReply receives ReplayEngine data |
 | `openStreamOrders()` | Real WebSocket | MockNetworkReply receives OrderEmulator signals |
 | `openStreamPositions()` | Real WebSocket | MockNetworkReply receives OrderEmulator signals |
 

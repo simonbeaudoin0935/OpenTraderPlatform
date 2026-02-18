@@ -96,6 +96,23 @@ Src/FrontEnd/GUI/
 └──────────────────────────────────────────┘
 ```
 
+### MarketFlags Labels (top controls area)
+
+Three always-visible QLabel indicators for Level 1 market status flags sit in the `topControlsLayout` at indices 5-7:
+
+| Label | Member | Active Color | Active Text |
+|-------|--------|-------------|------------|
+| Halted | `m_haltedLabel` | Red (`#CC0000`) | `HALTED` |
+| Delayed | `m_delayedLabel` | Yellow (`#CCAA00`) | `DELAYED` |
+| Hard to Borrow | `m_hardToBorrowLabel` | Orange (`#CC6600`) | `HTB` |
+
+**Behavior**: Labels are **always visible** (never hidden). When the flag is inactive, they display in grey with a dimmed style. When active, they switch to their colored active style.
+
+**Implementation**: `GUIFrontend::onCurrentHighlightedReceivedNewQuote()` reads `Quote::getMarketFlags()` and calls `setProperty("active", bool)` on each label. A dynamic property stylesheet drives the visual state change.
+
+**BATS flag**: Intentionally not displayed (removed by design — the IsBats flag is not user-relevant).
+
+
 ## Key Components
 
 ### StockPriceChart/ (Subdirectory)
@@ -422,6 +439,12 @@ connect(&MainAlgo::getInstance(), &MainAlgo::receivedNewPosition,
 
 connect(&MainAlgo::getInstance(), &MainAlgo::receivedNewOrder,
         this, &GUIFrontend::onNewOrderReceived);
+
+// Level 1 Quote → MarketFlags labels + MarketDepthTable L1 mode
+// Wired in MainApp: TSClient::newQuoteReceived → MainAlgo::onDisplayedStockReceivedNewQuote
+//                   → MainAlgo::displayedStockReceivedNewQuote → GUIFrontend::onCurrentHighlightedReceivedNewQuote
+connect(&MainAlgo::getInstance(), &MainAlgo::displayedStockReceivedNewQuote,
+        this, &GUIFrontend::onCurrentHighlightedReceivedNewQuote);
 ```
 
 **GUIFrontend order/position forwarding to chart**:

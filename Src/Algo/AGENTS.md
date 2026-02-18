@@ -118,6 +118,7 @@ signals:
         double bidTotalVol,
         double askTotalVol
     );
+    void displayedStockReceivedNewQuote(const Quote& quote);  // Level 1 quote
 
     // Trading events
     void receivedNewPosition(const QString& accountId, const Position& position);
@@ -141,6 +142,9 @@ public slots:
     void onRequestMissingBars(const QString& symbol,
                              const QDateTime& start,
                              const QDateTime& end);
+
+    // Level 1 quote routing (filters by currently displayed symbol)
+    void onDisplayedStockReceivedNewQuote(const Quote& quote);
 ```
 
 ## StockInstruments
