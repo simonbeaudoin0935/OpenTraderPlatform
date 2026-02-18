@@ -26,7 +26,19 @@ ReplayDataLoader::ReplayDataLoader(DataType p_dataType, QObject* p_parent) : QOb
 {
     // Generate unique connection name for this instance
     int instanceId = s_connectionCounter.fetch_add(1);
-    QString typeStr = (m_dataType == DataType::Bar) ? "Bars" : "Depth";
+    QString typeStr;
+    switch (m_dataType)
+    {
+    case DataType::Bar:
+        typeStr = "Bars";
+        break;
+    case DataType::MarketDepthQuote:
+        typeStr = "Depth";
+        break;
+    case DataType::Quote:
+        typeStr = "Quotes";
+        break;
+    }
     m_dbConnectionName = QString("Replay%1DB_%2").arg(typeStr).arg(instanceId);
 
     // Initialize buffer pointers
@@ -52,11 +64,16 @@ ReplayDataLoader::~ReplayDataLoader()
 QString ReplayDataLoader::getDbPath(QDate p_date) const
 {
     QString dateStr = p_date.toString("yyyy-MM-dd");
-    if (m_dataType == DataType::Bar)
+    switch (m_dataType)
     {
+    case DataType::Bar:
         return getCacheLocation() + "/RecordedLiveData/Bars/" + dateStr + ".db";
+    case DataType::MarketDepthQuote:
+        return getCacheLocation() + "/RecordedLiveData/MarketDepthQuotes/" + dateStr + ".db";
+    case DataType::Quote:
+        return getCacheLocation() + "/RecordedLiveData/Quotes/" + dateStr + ".db";
     }
-    return getCacheLocation() + "/RecordedLiveData/MarketDepthQuotes/" + dateStr + ".db";
+    Q_UNREACHABLE();
 }
 
 bool ReplayDataLoader::openDatabase(QDate p_date)
@@ -65,7 +82,9 @@ bool ReplayDataLoader::openDatabase(QDate p_date)
 
     if (!QFile::exists(dbPath))
     {
-        QString typeStr = (m_dataType == DataType::Bar) ? "bars" : "depth";
+        QString typeStr = (m_dataType == DataType::Bar)                ? "bars"
+                          : (m_dataType == DataType::MarketDepthQuote) ? "depth"
+                                                                       : "quotes";
         WARNING << "No" << typeStr << "replay database found for" << p_date.toString(Qt::ISODate);
         WARNING << "  Path:" << dbPath;
         return false;
@@ -111,7 +130,9 @@ bool ReplayDataLoader::loadDatabase(QDate p_date, QTime p_startTime)
     QDateTime startDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE);
     m_startEpochMs = startDateTime.toMSecsSinceEpoch();
 
-    QString typeStr = (m_dataType == DataType::Bar) ? "bars" : "depth";
+    QString typeStr = (m_dataType == DataType::Bar)                ? "bars"
+                      : (m_dataType == DataType::MarketDepthQuote) ? "depth"
+                                                                   : "quotes";
     INFO << "Loading" << typeStr << "replay database for" << p_date.toString(Qt::ISODate) << "starting at"
          << p_startTime.toString("hh:mm:ss") << "(epoch:" << m_startEpochMs << ")";
 
@@ -122,8 +143,19 @@ bool ReplayDataLoader::loadDatabase(QDate p_date, QTime p_startTime)
 
     // Get total count for progress tracking
     QSqlQuery countQuery(m_db);
-    QString countSql = (m_dataType == DataType::Bar) ? ReplayDataQueries::COUNT_BARS_FROM_TIME
-                                                     : ReplayDataQueries::COUNT_MARKET_DEPTH_FROM_TIME;
+    QString countSql;
+    switch (m_dataType)
+    {
+    case DataType::Bar:
+        countSql = ReplayDataQueries::COUNT_BARS_FROM_TIME;
+        break;
+    case DataType::MarketDepthQuote:
+        countSql = ReplayDataQueries::COUNT_MARKET_DEPTH_FROM_TIME;
+        break;
+    case DataType::Quote:
+        countSql = ReplayDataQueries::COUNT_QUOTES_FROM_TIME;
+        break;
+    }
     countQuery.prepare(countSql);
     countQuery.addBindValue(m_startEpochMs);
     if (countQuery.exec() && countQuery.next())
@@ -273,8 +305,19 @@ QDateTime ReplayDataLoader::getLastTimestamp() const
     }
 
     QSqlQuery query(m_db);
-    QString sql = (m_dataType == DataType::Bar) ? ReplayDataQueries::SELECT_LAST_BAR_TIMESTAMP
-                                                : ReplayDataQueries::SELECT_LAST_DEPTH_TIMESTAMP;
+    QString sql;
+    switch (m_dataType)
+    {
+    case DataType::Bar:
+        sql = ReplayDataQueries::SELECT_LAST_BAR_TIMESTAMP;
+        break;
+    case DataType::MarketDepthQuote:
+        sql = ReplayDataQueries::SELECT_LAST_DEPTH_TIMESTAMP;
+        break;
+    case DataType::Quote:
+        sql = ReplayDataQueries::SELECT_LAST_QUOTE_TIMESTAMP;
+        break;
+    }
     if (query.exec(sql) && query.next())
     {
         qint64 lastEpoch = query.value(0).toLongLong();
@@ -297,8 +340,19 @@ QStringList ReplayDataLoader::getAvailableStocks() const
     }
 
     QSqlQuery query(m_db);
-    QString sql = (m_dataType == DataType::Bar) ? ReplayDataQueries::SELECT_AVAILABLE_STOCKS_BARS
-                                                : ReplayDataQueries::SELECT_AVAILABLE_STOCKS_DEPTH;
+    QString sql;
+    switch (m_dataType)
+    {
+    case DataType::Bar:
+        sql = ReplayDataQueries::SELECT_AVAILABLE_STOCKS_BARS;
+        break;
+    case DataType::MarketDepthQuote:
+        sql = ReplayDataQueries::SELECT_AVAILABLE_STOCKS_DEPTH;
+        break;
+    case DataType::Quote:
+        sql = ReplayDataQueries::SELECT_AVAILABLE_STOCKS_QUOTES;
+        break;
+    }
     if (query.exec(sql))
     {
         while (query.next())
@@ -350,15 +404,37 @@ void ReplayDataLoader::loadBufferChunk(QVector<ReplayDataPoint>* p_buffer, bool 
 
     if (p_isInitial)
     {
-        QString sql = (m_dataType == DataType::Bar) ? ReplayDataQueries::SELECT_BARS_FROM_TIME
-                                                    : ReplayDataQueries::SELECT_MARKET_DEPTH_FROM_TIME;
+        QString sql;
+        switch (m_dataType)
+        {
+        case DataType::Bar:
+            sql = ReplayDataQueries::SELECT_BARS_FROM_TIME;
+            break;
+        case DataType::MarketDepthQuote:
+            sql = ReplayDataQueries::SELECT_MARKET_DEPTH_FROM_TIME;
+            break;
+        case DataType::Quote:
+            sql = ReplayDataQueries::SELECT_QUOTES_FROM_TIME;
+            break;
+        }
         query.prepare(sql);
         query.addBindValue(m_startEpochMs);
     }
     else
     {
-        QString sql = (m_dataType == DataType::Bar) ? ReplayDataQueries::SELECT_BARS_CHUNK
-                                                    : ReplayDataQueries::SELECT_MARKET_DEPTH_CHUNK;
+        QString sql;
+        switch (m_dataType)
+        {
+        case DataType::Bar:
+            sql = ReplayDataQueries::SELECT_BARS_CHUNK;
+            break;
+        case DataType::MarketDepthQuote:
+            sql = ReplayDataQueries::SELECT_MARKET_DEPTH_CHUNK;
+            break;
+        case DataType::Quote:
+            sql = ReplayDataQueries::SELECT_QUOTES_CHUNK;
+            break;
+        }
         query.prepare(sql);
         query.addBindValue(m_nextId);
     }
@@ -372,7 +448,18 @@ void ReplayDataLoader::loadBufferChunk(QVector<ReplayDataPoint>* p_buffer, bool 
             point.id = query.value(0).toLongLong();
             point.stockTicker = query.value(1).toString();
             point.epochMs = query.value(2).toLongLong();
-            point.jsonRawData = query.value(3).toByteArray();
+
+            // Quote data has objectType in column 3, jsonRawData in column 4
+            // Bar/Depth have jsonRawData in column 3
+            if (m_dataType == DataType::Quote)
+            {
+                point.objectType = query.value(3).toString();
+                point.jsonRawData = query.value(4).toByteArray();
+            }
+            else
+            {
+                point.jsonRawData = query.value(3).toByteArray();
+            }
             p_buffer->append(point);
 
             // Track next ID for cursor
@@ -464,8 +551,9 @@ void ReplayDataLoader::ensureIndexes()
 {
     QSqlQuery query(m_db);
 
-    if (m_dataType == DataType::Bar)
+    switch (m_dataType)
     {
+    case DataType::Bar:
         if (!query.exec(LiveStreamDBQueries::CREATE_BARS_EPOCH_INDEX))
         {
             WARNING << "Failed to create bars epoch index:" << query.lastError().text();
@@ -475,9 +563,9 @@ void ReplayDataLoader::ensureIndexes()
             WARNING << "Failed to create bars ticker index:" << query.lastError().text();
         }
         DEBUG << "Ensured bars database indexes exist";
-    }
-    else
-    {
+        break;
+
+    case DataType::MarketDepthQuote:
         if (!query.exec(LiveStreamDBQueries::CREATE_DEPTH_EPOCH_INDEX))
         {
             WARNING << "Failed to create depth epoch index:" << query.lastError().text();
@@ -487,5 +575,18 @@ void ReplayDataLoader::ensureIndexes()
             WARNING << "Failed to create depth ticker index:" << query.lastError().text();
         }
         DEBUG << "Ensured depth database indexes exist";
+        break;
+
+    case DataType::Quote:
+        if (!query.exec(LiveStreamDBQueries::CREATE_QUOTES_EPOCH_INDEX))
+        {
+            WARNING << "Failed to create quotes epoch index:" << query.lastError().text();
+        }
+        if (!query.exec(LiveStreamDBQueries::CREATE_QUOTES_TICKER_INDEX))
+        {
+            WARNING << "Failed to create quotes ticker index:" << query.lastError().text();
+        }
+        DEBUG << "Ensured quotes database indexes exist";
+        break;
     }
 }

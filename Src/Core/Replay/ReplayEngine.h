@@ -194,6 +194,13 @@ class ReplayEngine : public QObject
      */
     void injectDepthData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
 
+    /**
+     * @brief Inject quote data into TSClient (cross-thread via QueuedConnection)
+     * @param p_symbol Stock ticker symbol
+     * @param p_data Shared pointer to JSON data (avoids deep copy across threads)
+     */
+    void injectQuoteData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
+
   private slots:
     /**
      * @brief Bar timer tick — processes next bar data point
@@ -206,6 +213,11 @@ class ReplayEngine : public QObject
     void onDepthTimerTick();
 
     /**
+     * @brief Quote timer tick — processes next quote data point
+     */
+    void onQuoteTimerTick();
+
+    /**
      * @brief Called when bar loader has prefetched next buffer
      */
     void onBarBufferReady();
@@ -215,14 +227,21 @@ class ReplayEngine : public QObject
      */
     void onDepthBufferReady();
 
+    /**
+     * @brief Called when quote loader has prefetched next buffer
+     */
+    void onQuoteBufferReady();
+
   private:
     // Independent timers for each data stream
     QTimer m_barTimer;
     QTimer m_depthTimer;
+    QTimer m_quoteTimer;
 
     // Independent data loaders (owned, created on startReplay)
     ReplayDataLoader* m_barLoader = nullptr;
     ReplayDataLoader* m_depthLoader = nullptr;
+    ReplayDataLoader* m_quoteLoader = nullptr;
 
     TSClient* m_tsClient; // Reference, not owned
 
@@ -238,6 +257,7 @@ class ReplayEngine : public QObject
     // Track which streams have reached end of data
     bool m_barStreamEnded = false;
     bool m_depthStreamEnded = false;
+    bool m_quoteStreamEnded = false;
 
     // Track if we're paused before user pressed play for first time
     // True = startReplayPaused() was called, user hasn't pressed play yet
@@ -266,6 +286,11 @@ class ReplayEngine : public QObject
     void emitNextDepth();
 
     /**
+     * @brief Emit next quote data point, skipping stocks without active streams
+     */
+    void emitNextQuote();
+
+    /**
      * @brief Schedule next bar emission using wall-clock anchor
      */
     void scheduleNextBar();
@@ -274,6 +299,11 @@ class ReplayEngine : public QObject
      * @brief Schedule next depth emission using wall-clock anchor
      */
     void scheduleNextDepth();
+
+    /**
+     * @brief Schedule next quote emission using wall-clock anchor
+     */
+    void scheduleNextQuote();
 
     /**
      * @brief Calculate wall-clock delay for a data point based on its replay timestamp
@@ -288,7 +318,7 @@ class ReplayEngine : public QObject
     void updateReplayTime(qint64 p_epochMs);
 
     /**
-     * @brief Check if both streams have ended and emit replayEndReached if so
+     * @brief Check if all streams have ended and emit replayEndReached if so
      */
     void checkAllStreamsEnded();
 

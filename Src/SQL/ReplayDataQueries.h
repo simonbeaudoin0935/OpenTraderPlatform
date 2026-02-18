@@ -115,4 +115,56 @@ namespace ReplayDataQueries
      */
     const QString COUNT_MARKET_DEPTH_FROM_TIME = "SELECT COUNT(*) FROM market_depth_quotes WHERE epochMs >= ?";
 
+    // ============================================================================
+    // Quote queries (Level 1 data)
+    // ============================================================================
+
+    /**
+     * @brief Select next N quote records starting from given ID
+     *
+     * Parameters: 1) start ID, 2) limit count
+     */
+    const QString SELECT_QUOTES_CHUNK = "SELECT id, stockTicker, epochMs, objectType, jsonRawData FROM quotes "
+                                        "WHERE id >= ? "
+                                        "ORDER BY id ASC "
+                                        "LIMIT ?";
+
+    /**
+     * @brief Select quote records from a specific timestamp forward
+     *
+     * Parameters: 1) start epochMs, 2) limit count
+     */
+    const QString SELECT_QUOTES_FROM_TIME = "SELECT id, stockTicker, epochMs, objectType, jsonRawData FROM quotes "
+                                            "WHERE epochMs >= ? "
+                                            "ORDER BY id ASC "
+                                            "LIMIT ?";
+
+    /**
+     * @brief Get first (minimum) timestamp in quotes table
+     */
+    const QString SELECT_FIRST_QUOTE_TIMESTAMP = "SELECT MIN(epochMs) FROM quotes";
+
+    /**
+     * @brief Get last (maximum) timestamp in quotes table
+     */
+    const QString SELECT_LAST_QUOTE_TIMESTAMP = "SELECT MAX(epochMs) FROM quotes";
+
+    /**
+     * @brief Get list of distinct stock tickers in quotes table
+     */
+    const QString SELECT_AVAILABLE_STOCKS_QUOTES =
+        "SELECT DISTINCT stockTicker FROM quotes WHERE stockTicker != '' ORDER BY stockTicker";
+
+    /**
+     * @brief Count total quote records (for progress calculation)
+     */
+    const QString COUNT_QUOTES = "SELECT COUNT(*) FROM quotes";
+
+    /**
+     * @brief Count quote records from a specific timestamp
+     *
+     * Parameter: 1) start epochMs
+     */
+    const QString COUNT_QUOTES_FROM_TIME = "SELECT COUNT(*) FROM quotes WHERE epochMs >= ?";
+
 } // namespace ReplayDataQueries

@@ -309,6 +309,12 @@ class TSClient final : public QObject
     [[nodiscard]] bool hasOpenQuoteStream(const QString& p_symbol) const;
 
     /**
+     * @brief Check if any quote stream is currently open
+     * @return true if at least one quote stream exists
+     */
+    [[nodiscard]] bool hasOpenQuoteStream() const;
+
+    /**
      * @brief Get the MockNetworkReply for a bar stream (replay mode only)
      * @param p_symbol Stock ticker symbol
      * @return Pointer to MockNetworkReply, or nullptr if not found

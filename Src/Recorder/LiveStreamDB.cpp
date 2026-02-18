@@ -1,10 +1,13 @@
 #include <QtSql/QSqlQuery>
 #include <QtSql/QSqlError>
 #include <QDebug>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include "LiveStreamDB.h"
 #include "SQL/LiveStreamDBQueries.h"
 #include "TSClient.h"
+#include "StreamQuote.h"
 #include "Logging.h"
 #include "Assume.h"
 #include "CONSTANTS.h"
@@ -15,7 +18,28 @@ Q_LOGGING_CATEGORY(LiveStreamDBLog, "LiveStreamDB");
 LiveStreamDB::LiveStreamDB(StreamType type, const QString& dbPath, QStringList& p_stockTickers)
     : streamType(type), stockTickers(p_stockTickers)
 {
-    QString connectionName = (type == StreamType::Bars) ? "LiveBarsDB" : "LiveMarketDepthQuoteDB";
+    QString connectionName;
+    QString tableQuery;
+    QString dbTypeStr;
+
+    switch (type)
+    {
+    case StreamType::Bars:
+        connectionName = "LiveBarsDB";
+        tableQuery = LiveStreamDBQueries::CREATE_BARS_TABLE;
+        dbTypeStr = "bars";
+        break;
+    case StreamType::MarketDepthQuotes:
+        connectionName = "LiveMarketDepthQuoteDB";
+        tableQuery = LiveStreamDBQueries::CREATE_MARKET_DEPTH_QUOTES_TABLE;
+        dbTypeStr = "market depth quotes";
+        break;
+    case StreamType::Quotes:
+        connectionName = "LiveQuotesDB";
+        tableQuery = LiveStreamDBQueries::CREATE_QUOTES_TABLE;
+        dbTypeStr = "quotes";
+        break;
+    }
 
     setObjectName("LiveStreamDB::" + connectionName);
 
@@ -23,25 +47,20 @@ LiveStreamDB::LiveStreamDB(StreamType type, const QString& dbPath, QStringList& 
     db.setDatabaseName(dbPath);
     if (!db.open())
     {
-        qFatal("Failed to open live %s database: %s",
-               (type == StreamType::Bars) ? "bars" : "market depth quotes",
-               qPrintable(db.lastError().text()));
+        qFatal("Failed to open live %s database: %s", qPrintable(dbTypeStr), qPrintable(db.lastError().text()));
     }
 
     QSqlQuery query(db);
-    QString tableQuery = (type == StreamType::Bars) ? LiveStreamDBQueries::CREATE_BARS_TABLE
-                                                    : LiveStreamDBQueries::CREATE_MARKET_DEPTH_QUOTES_TABLE;
     query.exec(tableQuery);
     if (query.lastError().isValid())
     {
-        WARNING << "Failed to create" << ((type == StreamType::Bars) ? "bars" : "market depth quotes")
-                << "table:" << query.lastError().text();
+        WARNING << "Failed to create" << dbTypeStr << "table:" << query.lastError().text();
     }
 
-    QString dbType = (type == StreamType::Bars) ? "bars" : "market depth quotes";
-    INFO << "Live" << dbType << "database opened at" << dbPath;
+    INFO << "Live" << dbTypeStr << "database opened at" << dbPath;
 
     // Setup ramp-up timer (single-shot mode, we'll restart it for each symbol)
+    // Note: Quotes stream doesn't use ramp-up (single stream for all symbols)
     m_rampTimer.setSingleShot(true);
     connect(&m_rampTimer, &QTimer::timeout, this, &LiveStreamDB::openNextStream);
 }
@@ -86,6 +105,92 @@ bool LiveStreamDB::storeData(const QString& stock, qint64 timestamp, const QByte
     return true;
 }
 
+bool LiveStreamDB::storeQuoteData(const QString& stock,
+                                  qint64 timestamp,
+                                  const QString& objectType,
+                                  const QByteArray& rawData)
+{
+    QSqlQuery query(db);
+    query.prepare(LiveStreamDBQueries::INSERT_QUOTE);
+    query.addBindValue(stock);
+    query.addBindValue(timestamp);
+    query.addBindValue(objectType);
+    query.addBindValue(rawData);
+    if (!query.exec())
+    {
+        WARNING << "Failed to store quote for" << stock << ":" << query.lastError().text();
+        Q_UNREACHABLE();
+        return false;
+    }
+    return true;
+}
+
+void LiveStreamDB::processQuoteRawData(const QByteArray& rawData)
+{
+    // Accumulate data into buffer
+    m_quoteAccumulatorBuffer.append(rawData);
+
+    // Process complete JSON objects (newline-delimited)
+    qint64 timestamp = QDateTime::currentMSecsSinceEpoch();
+
+    while (true)
+    {
+        int newlinePos = m_quoteAccumulatorBuffer.indexOf('\n');
+        if (newlinePos == -1)
+        {
+            // No complete JSON object yet
+            break;
+        }
+
+        // Extract complete JSON line
+        QByteArray jsonLine = m_quoteAccumulatorBuffer.left(newlinePos);
+        m_quoteAccumulatorBuffer.remove(0, newlinePos + 1);
+
+        if (jsonLine.isEmpty())
+        {
+            continue;
+        }
+
+        // Parse JSON to determine object type and symbol
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(jsonLine, &parseError);
+
+        if (parseError.error != QJsonParseError::NoError)
+        {
+            WARNING << "Failed to parse quote JSON:" << parseError.errorString();
+            continue;
+        }
+
+        QJsonObject obj = doc.object();
+        QString objectType;
+        QString stockTicker;
+
+        if (obj.contains("Symbol"))
+        {
+            objectType = "QuoteStream";
+            stockTicker = obj.value("Symbol").toString();
+        }
+        else if (obj.contains("Heartbeat"))
+        {
+            objectType = "Heartbeat";
+            stockTicker = QString(); // Empty for heartbeat
+        }
+        else if (obj.contains("Error") || obj.contains("Message"))
+        {
+            objectType = "Error";
+            stockTicker = QString(); // Empty for error
+        }
+        else
+        {
+            WARNING << "Unknown quote stream object type:" << jsonLine.left(100);
+            objectType = "Unknown";
+            stockTicker = QString();
+        }
+
+        storeQuoteData(stockTicker, timestamp, objectType, jsonLine);
+    }
+}
+
 void LiveStreamDB::startRecording()
 {
     if (stockTickers.isEmpty())
@@ -94,6 +199,30 @@ void LiveStreamDB::startRecording()
         return;
     }
 
+    // Quotes use a single stream for all symbols - no ramp-up needed
+    if (streamType == StreamType::Quotes)
+    {
+        INFO << "Starting quote recording for" << stockTickers.size() << "symbols (single stream)";
+
+        m_streamQuote = TSClient::getInstance()->openStreamQuote(stockTickers);
+        OBJ_ASSUME_DIFF(m_streamQuote.data(), nullptr);
+
+        QObject::connect(m_streamQuote,
+                         &StreamQuote::receivedNewRawData,
+                         this,
+                         [this](const QByteArray& rawData) { processQuoteRawData(rawData); });
+
+        QObject::connect(m_streamQuote,
+                         &Stream::streamClosed,
+                         this,
+                         [this](Stream::StreamError reason, QString message)
+                         { handleStreamError("ALL_QUOTES", reason, message); });
+
+        INFO << "Quote stream opened for" << stockTickers.size() << "symbols";
+        return;
+    }
+
+    // Bars and MarketDepthQuotes use per-symbol streams with ramp-up
     QString dataType = (streamType == StreamType::Bars) ? "bars" : "market depth quotes";
     INFO << "Starting recording for" << stockTickers.size() << dataType << "streams with graduated ramp-up delay";
     INFO << "Ramp-up strategy: 0-100=" << RecorderConstants::STREAM_RAMP_UP_DELAY_TIER1_MS << "ms, "
@@ -246,11 +375,9 @@ void LiveStreamDB::stopRecording()
         m_currentRampIndex = -1;
     }
 
-    QString dataType = (streamType == StreamType::Bars) ? "bars" : "market depth quotes";
-    INFO << "Stopping recording for" << dataType;
-
     if (streamType == StreamType::Bars)
     {
+        INFO << "Stopping recording for bars";
         for (auto it = m_streamBars.begin(); it != m_streamBars.end(); ++it)
         {
             const QString& symbol = it.key();
@@ -262,9 +389,11 @@ void LiveStreamDB::stopRecording()
             }
         }
         m_streamBars.clear();
+        INFO << "Stopped recording for bars";
     }
-    else
+    else if (streamType == StreamType::MarketDepthQuotes)
     {
+        INFO << "Stopping recording for market depth quotes";
         for (auto it = m_streamMarketDepthQuotes.begin(); it != m_streamMarketDepthQuotes.end(); ++it)
         {
             const QString& symbol = it.key();
@@ -276,9 +405,20 @@ void LiveStreamDB::stopRecording()
             }
         }
         m_streamMarketDepthQuotes.clear();
+        INFO << "Stopped recording for market depth quotes";
     }
-
-    INFO << "Stopped recording for" << dataType;
+    else if (streamType == StreamType::Quotes)
+    {
+        INFO << "Stopping recording for quotes";
+        if (m_streamQuote)
+        {
+            DEBUG << "Closing quote stream for" << stockTickers.size() << "symbols";
+            TSClient::getInstance()->closeStream(m_streamQuote);
+            m_streamQuote = nullptr;
+        }
+        m_quoteAccumulatorBuffer.clear();
+        INFO << "Stopped recording for quotes";
+    }
 }
 
 void LiveStreamDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData)
@@ -429,7 +569,19 @@ void LiveStreamDB::attemptStreamRecovery(const QString& symbol)
 int LiveStreamDB::getRecordCount() const
 {
     QSqlQuery query(db);
-    QString tableName = (streamType == StreamType::Bars) ? "bars" : "market_depth_quotes";
+    QString tableName;
+    switch (streamType)
+    {
+    case StreamType::Bars:
+        tableName = "bars";
+        break;
+    case StreamType::MarketDepthQuotes:
+        tableName = "market_depth_quotes";
+        break;
+    case StreamType::Quotes:
+        tableName = "quotes";
+        break;
+    }
     query.prepare(LiveStreamDBQueries::SELECT_COUNT_FROM_TABLE.arg(tableName));
     if (query.exec() && query.next())
     {
@@ -454,7 +606,7 @@ int LiveStreamDB::getActiveStreamCount() const
             }
         }
     }
-    else
+    else if (streamType == StreamType::MarketDepthQuotes)
     {
         for (QPointer<StreamMarketDepthQuote> stream: m_streamMarketDepthQuotes)
         {
@@ -463,6 +615,14 @@ int LiveStreamDB::getActiveStreamCount() const
             {
                 activeCount++;
             }
+        }
+    }
+    else if (streamType == StreamType::Quotes)
+    {
+        // Single stream for all symbols
+        if (m_streamQuote != nullptr)
+        {
+            activeCount = 1;
         }
     }
 

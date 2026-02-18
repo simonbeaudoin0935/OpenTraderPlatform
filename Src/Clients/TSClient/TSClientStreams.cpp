@@ -575,6 +575,17 @@ bool TSClient::hasOpenQuoteStream(const QString& p_symbol) const
     return false;
 }
 
+bool TSClient::hasOpenQuoteStream() const
+{
+    if (m_mode == Mode::Replay)
+    {
+        return !m_replayQuoteReplies.isEmpty();
+    }
+
+    // Live mode: check static counter for actual stream count
+    return StreamQuote::getNumberOfQuoteStreams() > 0;
+}
+
 MockNetworkReply* TSClient::getBarReplyForSymbol(const QString& p_symbol) const
 {
     if (m_mode != Mode::Replay)

@@ -786,6 +786,13 @@ void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pl
                         Qt::QueuedConnection);
     ASSUME_TRUE(connected);
 
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::injectQuoteData,
+                        TSClient::getInstance(),
+                        &TSClient::onInjectQuoteData,
+                        Qt::QueuedConnection);
+    ASSUME_TRUE(connected);
+
     DEBUG << "ReplayEngine created and connected";
 
     // Start replay order/position streams with simulated account
@@ -861,6 +868,13 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
                         &ReplayEngine::injectDepthData,
                         TSClient::getInstance(),
                         &TSClient::onInjectDepthData,
+                        Qt::QueuedConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::injectQuoteData,
+                        TSClient::getInstance(),
+                        &TSClient::onInjectQuoteData,
                         Qt::QueuedConnection);
     ASSUME_TRUE(connected);
 

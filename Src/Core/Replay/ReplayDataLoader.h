@@ -43,7 +43,8 @@ class ReplayDataLoader : public QObject
     enum class DataType
     {
         Bar,
-        MarketDepthQuote
+        MarketDepthQuote,
+        Quote
     };
 
     /**
@@ -54,6 +55,7 @@ class ReplayDataLoader : public QObject
         qint64 id = 0; // Database ID for cursor tracking
         QString stockTicker;
         qint64 epochMs = 0;
+        QString objectType; // For quotes: "QuoteStream", "Heartbeat", "Error"
         QByteArray jsonRawData;
     };
 
