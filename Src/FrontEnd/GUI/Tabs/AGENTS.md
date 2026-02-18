@@ -8,6 +8,16 @@
 
 The Tabs folder contains all tab components that appear in the main QTabWidget of the GUIFrontend window. Each tab provides specific functionality for managing different aspects of the application.
 
+**Tab Order** (as displayed in GUI):
+1. **Trade** - Main trading interface (not in this directory, embedded in GUIFrontend)
+2. **Strategies** - Strategy plugin management
+3. **Recorder** - Live market data recording
+4. **Records Info** - Explore recorded market data (NEW)
+5. **Logging** - Live log display and filtering
+6. **Cache** - Bar cache management
+7. **Shortcuts** - Keyboard shortcut configuration
+8. **Config** - Application configuration
+
 ## Tab Components
 
 ### CacheTab (CacheTab.h/cpp)
@@ -207,6 +217,109 @@ public slots:
 
 **File Format**:
 CSV files are stored in `~/.cache/L2Trader/RecordedLiveData/Bars/`
+
+---
+
+### RecordsInfoTab (RecordsInfoTab.h/cpp)
+
+**Purpose**: Explore recorded market data
+
+**Features**:
+- Three-column layout for browsing recordings
+- List all recorded days with statistics
+- View stocks recorded for each day
+- Display detailed metrics per stock (bars + market depth)
+- Market depth availability indicator (API limited to 10 streams)
+- Read-only interface
+
+**UI Layout**:
+```
+┌─────────────────┬─────────────────┬─────────────────┐
+│   Recorded Days │ Stocks in Day   │  Stock Details  │
+│                 │                 │                 │
+│ Date  Bars Size │ Symbol Bars Dpt │ Symbol: AAPL    │
+│ 2026-02-05      │ AAPL   1234 Yes │                 │
+│ 2026-02-06      │ MSFT   2345 No  │ Bars Data:      │
+│ ...             │ ...             │ - Count: 1234   │
+│                 │                 │ - First: ...    │
+│                 │                 │ - Last: ...     │
+│                 │                 │ - Duration: ... │
+│                 │                 │                 │
+│                 │                 │ Market Depth:   │
+│                 │                 │ - Status: Avail │
+│                 │                 │ - Count: 567    │
+└─────────────────┴─────────────────┴─────────────────┘
+```
+
+**Key Methods**:
+```cpp
+// Scan RecordedLiveData/Bars directory for .db files
+void scanRecordedDays();
+
+// Load stocks from selected day's database
+void loadStocksForDay(const QDate& date);
+
+// Load detailed metrics for selected stock
+void loadStockDetails(const QDate& date, const QString& symbol);
+
+// Query metrics from both bars and depth databases
+StockMetrics queryStockMetrics(const QString& barsDbPath,
+                                const QString& depthDbPath,
+                                const QString& symbol);
+
+// Check if stock exists in market depth database
+bool checkStockInDatabase(const QString& dbPath, const QString& symbol);
+
+// Format helpers
+QString formatFileSize(qint64 bytes);
+QString formatDuration(qint64 durationMs);
+QString formatTimestamp(qint64 epochMs);
+```
+
+**Data Sources**:
+- Bars: `~/.cache/L2Trader/RecordedLiveData/Bars/{YYYY-MM-DD}.db`
+- Market Depth: `~/.cache/L2Trader/RecordedLiveData/MarketDepthQuotes/{YYYY-MM-DD}.db`
+
+**Database Queries**:
+```sql
+-- Get all stocks from bars database
+SELECT DISTINCT stockTicker FROM bars ORDER BY stockTicker;
+
+-- Get metrics for a stock
+SELECT COUNT(*), MIN(epochMs), MAX(epochMs) FROM bars WHERE stockTicker = ?;
+SELECT COUNT(*), MIN(epochMs), MAX(epochMs) FROM market_depth_quotes WHERE stockTicker = ?;
+```
+
+**Market Depth Limitation**:
+Due to TradeStation API limit (10 concurrent market depth streams), not all stocks will have market depth data. The tab shows:
+- "Yes" or "No" indicator in stocks table
+- "Available" or "Not Available" status in details panel
+- Market depth metrics only displayed when available
+
+**StockMetrics Structure**:
+```cpp
+struct StockMetrics {
+    QString symbol;
+    qint64 barCount;
+    qint64 firstTimestampMs;
+    qint64 lastTimestampMs;
+    bool hasMarketDepth;
+    qint64 depthCount;
+    qint64 depthFirstTimestampMs;
+    qint64 depthLastTimestampMs;
+};
+```
+
+**Signal Interface**:
+```cpp
+// No signals emitted (read-only tab)
+```
+
+**Usage**:
+1. Tab auto-scans recorded days on creation
+2. Click a date → stocks list populates
+3. Click a stock → details display on right
+4. Click "Refresh" to rescan directory
 
 ---
 

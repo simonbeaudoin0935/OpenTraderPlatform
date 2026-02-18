@@ -19,6 +19,7 @@
 #include "Tabs/LoggingTab.h"
 #include "Tabs/CacheTab.h"
 #include "Tabs/RecorderTab.h"
+#include "Tabs/RecordsInfoTab.h"
 #include "Tabs/ShortcutsTab.h"
 #include "Tabs/ConfigTab.h"
 #include "Tabs/StrategiesTab/StrategiesTab.h"
@@ -388,6 +389,25 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     StrategiesTab* strategiesTab = new StrategiesTab(mainAlgo);
     ui->tabWidget->addTab(strategiesTab, "Strategies");
 
+    // Set up the recorder tab
+    RecorderTab* recorderTab = new RecorderTab();
+    ui->tabWidget->addTab(recorderTab, "Recorder");
+
+    QMetaObject::Connection c;
+    c = connect(recorderTab,
+                &RecorderTab::recordingSizeChanged,
+                this,
+                [this](qint64 totalBytes)
+                {
+                    m_recordingSize = totalBytes;
+                    updateStatusBar();
+                });
+    OBJ_ASSUME_TRUE(c);
+
+    // Set up the records info tab
+    RecordsInfoTab* recordsInfoTab = new RecordsInfoTab();
+    ui->tabWidget->addTab(recordsInfoTab, "Records Info");
+
     // Set up the logging tab
     LoggingTab* loggingTab = new LoggingTab();
     ui->tabWidget->addTab(loggingTab, "Logging");
@@ -410,21 +430,6 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // Set up the cache tab
     CacheTab* cacheTab = new CacheTab();
     ui->tabWidget->addTab(cacheTab, "Cache");
-
-    // Set up the recorder tab
-    RecorderTab* recorderTab = new RecorderTab();
-    ui->tabWidget->addTab(recorderTab, "Recorder");
-
-    QMetaObject::Connection c;
-    c = connect(recorderTab,
-                &RecorderTab::recordingSizeChanged,
-                this,
-                [this](qint64 totalBytes)
-                {
-                    m_recordingSize = totalBytes;
-                    updateStatusBar();
-                });
-    OBJ_ASSUME_TRUE(c);
 
     // Set up the shortcuts tab
     ShortcutsTab* shortcutsTab = new ShortcutsTab();
