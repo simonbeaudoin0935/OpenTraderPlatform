@@ -573,7 +573,7 @@ void MyStrategy::onStart() {
     QVector<Position> positions = m_sdk->getPositions("SIM123456");
     QVector<Order> orders = m_sdk->getOrders("SIM123456");
     Balance balance = m_sdk->getBalance("SIM123456");
-    
+
     // Place orders - processed by OrderEmulator
     PlaceOrderRequest request;
     request.setAccountID("SIM123456");

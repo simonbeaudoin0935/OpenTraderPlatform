@@ -113,7 +113,7 @@ class Order
      * @brief Get the official TradeStation API status description for a given status
      * @param status The Order::Status enum value
      * @return The official status description string from TradeStation API
-     * 
+     *
      * This is the single source of truth for status descriptions matching
      * TradeStation's API documentation exactly.
      */

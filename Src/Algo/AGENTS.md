@@ -637,7 +637,7 @@ void MainAlgo::resumeLiveStreams() {
     //    (m_activeAccount may still be "SIM123456" from replay)
     auto accountsFuture = TSClient::getInstance().getAccounts();
     accountsFuture.waitForFinished();
-    
+
     if (accountsFuture.result().has_value()) {
         auto accounts = accountsFuture.result().value();
         if (!accounts.isEmpty()) {

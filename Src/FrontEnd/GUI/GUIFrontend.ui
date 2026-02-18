@@ -343,32 +343,32 @@
   <customwidget>
    <class>MarketDepthTable</class>
    <extends>QWidget</extends>
-   <header>GUI/MarketDepthTable.h</header>
+   <header>GUI/Widgets/MarketDepth/MarketDepthTable.h</header>
   </customwidget>
   <customwidget>
    <class>BalanceWindow</class>
    <extends>QWidget</extends>
-   <header>GUI/BalanceWindow.h</header>
+   <header>GUI/Windows/BalanceWindow.h</header>
   </customwidget>
   <customwidget>
    <class>PositionWindow</class>
    <extends>QWidget</extends>
-   <header>GUI/PositionWindow.h</header>
+   <header>GUI/Windows/PositionWindow.h</header>
   </customwidget>
   <customwidget>
    <class>OrderWindow</class>
    <extends>QWidget</extends>
-   <header>GUI/OrderWindow.h</header>
+   <header>GUI/Windows/OrderWindow.h</header>
   </customwidget>
   <customwidget>
    <class>OrderEntryWidget</class>
    <extends>QWidget</extends>
-   <header>GUI/OrderEntryWidget.h</header>
+   <header>GUI/Widgets/OrderEntry/OrderEntryWidget.h</header>
   </customwidget>
   <customwidget>
    <class>Gauge</class>
    <extends>QWidget</extends>
-   <header>GUI/Gauge/Gauge.h</header>
+   <header>GUI/Widgets/Gauge/Gauge.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

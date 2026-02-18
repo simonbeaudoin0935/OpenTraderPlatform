@@ -488,7 +488,7 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
         newPos.quantity = 0;
         newPos.averagePrice = 0;
         newPos.realizedPnL = 0;
-        newPos.isLong = true;  // Will be determined by first trade
+        newPos.isLong = true; // Will be determined by first trade
         m_positionData.insert(positionID, newPos);
         m_symbolToActivePosition.insert(symbol, positionID);
     }
@@ -513,7 +513,7 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
             double totalCost = (currentQty * currentAvgPrice) + (quantity * p_fillPrice);
             newQty = currentQty + quantity;
             newAvgPrice = (newQty > 0) ? (totalCost / newQty) : 0;
-            posData.isLong = true;  // Opening or adding to long position
+            posData.isLong = true; // Opening or adding to long position
         }
         else
         {
@@ -525,7 +525,7 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
             if (newQty > 0)
             {
                 newAvgPrice = p_fillPrice;
-                posData.isLong = true;  // Flipped to long
+                posData.isLong = true; // Flipped to long
             }
             else if (newQty == 0)
             {
@@ -544,7 +544,7 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
             double totalCost = ((-currentQty) * currentAvgPrice) + (quantity * p_fillPrice);
             newQty = currentQty - quantity;
             newAvgPrice = (newQty < 0) ? (totalCost / (-newQty)) : 0;
-            posData.isLong = false;  // Opening or adding to short position
+            posData.isLong = false; // Opening or adding to short position
         }
         else
         {
@@ -556,7 +556,7 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
             if (newQty < 0)
             {
                 newAvgPrice = p_fillPrice;
-                posData.isLong = false;  // Flipped to short
+                posData.isLong = false; // Flipped to short
             }
             else if (newQty == 0)
             {
@@ -580,8 +580,8 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
     bool wasLong = true;
     if (newQty == 0)
     {
-        closedAvgPrice = posData.averagePrice;  // Capture BEFORE it gets set to 0
-        wasLong = posData.isLong;               // Preserve whether it was Long or Short
+        closedAvgPrice = posData.averagePrice; // Capture BEFORE it gets set to 0
+        wasLong = posData.isLong;              // Preserve whether it was Long or Short
     }
 
     posData.quantity = newQty;
@@ -592,7 +592,7 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
     {
         // Store the closed position's realized P&L for balance calculation
         double finalPnL = posData.realizedPnL;
-        
+
         m_closedPositionPnL.insert(positionID, finalPnL);
         m_totalClosedPnL += finalPnL;
 
@@ -605,7 +605,7 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
         closedJson["AveragePrice"] = QString::number(closedAvgPrice, 'f', 4);
         closedJson["Last"] = QString::number(p_fillPrice, 'f', 4);
         closedJson["AssetType"] = "STOCK";
-        closedJson["LongShort"] = wasLong ? "Long" : "Short";  // Preserve historical direction
+        closedJson["LongShort"] = wasLong ? "Long" : "Short"; // Preserve historical direction
         closedJson["Timestamp"] = MainApp::currentAppReplayTime.toString(Qt::ISODate);
         closedJson["Bid"] = QString::number(p_fillPrice, 'f', 4);
         closedJson["Ask"] = QString::number(p_fillPrice, 'f', 4);

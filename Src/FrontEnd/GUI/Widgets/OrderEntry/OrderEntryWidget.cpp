@@ -9,7 +9,7 @@
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
 #include <QTimer>
-#include "GUIFrontend.h"
+#include "../../GUIFrontend.h"
 #include "Misc/Settings.h"
 #include "Assume.h"
 #include "TSClient.h"
@@ -392,7 +392,7 @@ void OrderEntryWidget::setupStyles()
                                  "   background-color: #2D2D2D;"
                                  "   color: #FFFFFF;"
                                  "   padding: 4px;"
-                                 "   border-bottom: 1px solid #3D3D2D;"
+                                 "   border-bottom: 1px solid #3D3D3D;"
                                  "}");
 
     // Submit button styling is now handled dynamically in onTradeActionChanged

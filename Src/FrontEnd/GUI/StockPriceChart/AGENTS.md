@@ -4,7 +4,80 @@
 
 **Location**: `Src/FrontEnd/GUI/StockPriceChart/`
 **Purpose**: Display live candlestick charts with real-time data, historical data loading, and market replay functionality
-**Main Classes**: `StockPriceChart`, `ChartToolbar`, `IndexToTimeTicker`
+**Main Class**: `StockPriceChart` (split across multiple source files)
+
+## File Structure
+
+The StockPriceChart class has been split into multiple source files for better organization and maintainability:
+
+```
+StockPriceChart/
+├── AGENTS.md                        # This file
+├── StockPriceChart.h                # Main class declaration
+├── StockPriceChart.cpp              # Constructor, destructor, symbol management (377 lines)
+├── StockPriceChartBars.cpp          # Bar management and drawing (820 lines)
+├── StockPriceChartReplay.cpp        # Replay mode functionality (312 lines)
+├── StockPriceChartOrderViz.cpp      # Order visualization (920 lines)
+├── StockPriceChartUtils.cpp         # Time/index utilities (297 lines)
+├── ChartToolbar.h/cpp               # Toolbar controls
+├── IndexToTimeTicker.h              # Custom axis ticker
+└── ZoomAndPanning.cpp               # Mouse interaction handling
+```
+
+### Source File Organization
+
+Following the TSClient pattern, the implementation is divided into logical units:
+
+**StockPriceChart.cpp** - Core functionality:
+- Constructor and destructor
+- `setSymbol()` - Switch displayed stock symbol
+- `populateAvailableReplayDays()` - Scan cache for available replay data
+
+**StockPriceChartBars.cpp** - Bar management and drawing:
+- `addLiveBar()` - Add new bar to chart
+- `updateCandlestickData()`, `updateVolumeData()` - Update visual data
+- `rescaleVolumeAxisToVisibleRange()` - Dynamic volume axis scaling
+- `drawBackgroundsForReceivedBars()` - Session background rendering
+- `clearBackgroundRects()`, `drawFixedBackgroundRect()` - Background management
+- `onRequestedMissingBarsReceived()`, `onRequestedMissingBarsFailed()` - Handle bar requests
+- `redrawLastPriceLine()` - Current price indicator
+- `checkForMissingBars()` - Detect and request missing data
+- `clearSymbol()`, `clearChart()` - Chart clearing operations
+
+**StockPriceChartReplay.cpp** - Replay mode:
+- `onReplayDayChanged()`, `onReplayTimeChanged()` - User replay controls
+- `onReplayTimeRangeQueryFinished()` - Handle time range queries
+- `onReplayDataLoadFailed()` - Error handling
+- `queryStockTimeRangeForDate()` - Query available data
+- `setReplayModeActive()` - Enable/disable replay mode
+- `updateCurrentTimeLine()` - Draw current time indicator
+
+**StockPriceChartOrderViz.cpp** - Order visualization:
+- `getExactIndexForTimestamp()` - Precise timestamp positioning
+- `createOrderMarker()`, `createBuyMarker()`, `createSellMarker()`, `createCancelledMarker()` - Marker creation
+- `updateMarkerState()`, `moveMarkerToPrice()`, `removeOrderMarker()` - Marker management
+- `clampIndexToValidRange()` - Boundary checking
+- `createPositionLine()` - Draw position connection lines
+- `updateOpenPositionDynamicLine()` - Live position tracking
+- `ensureOpenPositionPLBox()`, `updateOpenPositionPLBox()`, `hideOpenPositionPLBox()` - P&L display
+- `createClosedPositionPLLabel()` - Realized P&L labels
+- `calculateDCAPrice()` - Dollar-cost averaging calculation
+- `finalizeClosedPosition()` - Complete position visualization
+- `clearOrderVisualizations()` - Remove all visualizations
+- `loadHistoricalOrders()`, `loadHistoricalPositions()` - Load from database
+- `updateOrderVisualizationsVisibility()`, `cullOrderVisualizationsToVisibleRange()` - Performance optimization
+- `onOrderPlaced()`, `onOrderFilled()`, `onOrderCancelled()`, `onOrderAmended()` - Order event handlers
+- `onPositionOpened()`, `onPositionUpdated()`, `onPositionClosed()` - Position event handlers
+- `setOrderVisualizationsVisible()` - Toggle visibility
+
+**StockPriceChartUtils.cpp** - Time/index utilities:
+- `getPreviousTradingMinute()` - Find previous valid trading time
+- `adjustToValidTradingTime()` - Adjust timestamp to trading hours
+- `getPreviousFriday()` - Calculate previous Friday for weekends
+- `updateAxisLabelsDensity()` - Adjust axis label spacing
+- `addHistoricalBarsToIndexMapping()` - Build bidirectional index
+- `getTimestampForIndex()`, `getIndexForTimestamp()` - Index/time conversions
+- `indexToTimeString()` - Format index as time string
 
 ## Architecture
 
@@ -479,14 +552,14 @@ struct OrderMarker {
     int quantity;
     bool isBuy;               // true = buy, false = sell
     QString accountID;
-    
+
     enum class State {
         Pending,     // Hollow triangle
         Filled,      // Solid triangle
         Cancelled    // Gray X
     };
     State state;
-    
+
     // QCustomPlot visual elements (3 lines form triangle, 2 lines form X)
     QCPItemLine* markerLine1 = nullptr;
     QCPItemLine* markerLine2 = nullptr;

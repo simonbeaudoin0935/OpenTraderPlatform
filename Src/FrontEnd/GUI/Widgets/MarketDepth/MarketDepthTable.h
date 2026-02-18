@@ -15,8 +15,14 @@ class MarketDepthTable : public QWidget
     explicit MarketDepthTable(QWidget* parent = nullptr);
     ~MarketDepthTable();
 
-    // Update methods
+    /// Update market depth display with new bid/ask levels
+    /// @param bids Vector of bid levels (price, size, MPID)
+    /// @param asks Vector of ask levels (price, size, MPID)
     void updateData(const QVector<MarketDepthLevel>& bids, const QVector<MarketDepthLevel>& asks);
+
+    /// Update Depth-Weighted Price indicators
+    /// @param bidDWP Bid side depth-weighted price
+    /// @param askDWP Ask side depth-weighted price
     void updateDWP(double bidDWP, double askDWP);
 
   private:

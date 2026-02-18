@@ -36,8 +36,8 @@ namespace OrdersDatabaseQueries
     const QString SELECT_ORDER_EXISTS = "SELECT COUNT(*) FROM orders WHERE order_id = ?";
 
     const QString SELECT_ALL_ORDERS = "SELECT order_id, latency_ms, status, order_type, json_data, "
-                                     "filled_price, limit_price, stop_price, opened_datetime, closed_datetime "
-                                     "FROM orders";
+                                      "filled_price, limit_price, stop_price, opened_datetime, closed_datetime "
+                                      "FROM orders";
 
     const QString SELECT_ORDER_COUNT = "SELECT COUNT(*) FROM orders";
 

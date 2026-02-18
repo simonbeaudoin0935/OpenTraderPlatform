@@ -16,6 +16,9 @@ class BalanceWindow : public QWidget
     ~BalanceWindow();
 
   public slots:
+    /// Update account balance display
+    /// Shows cash balance, buying power, P&L, margin info, etc.
+    /// @param balance Balance data structure with account financials
     void updateBalance(const Balance& balance);
 
   private:

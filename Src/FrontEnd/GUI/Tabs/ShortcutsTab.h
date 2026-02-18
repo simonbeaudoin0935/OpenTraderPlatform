@@ -19,7 +19,14 @@ class ShortcutsTab : public QWidget
     ~ShortcutsTab() override = default;
 
   private slots:
+    /// Handle keyboard shortcut change
+    /// Validates and saves the new shortcut
+    /// @param p_id Shortcut identifier that changed
     void onShortcutChanged(ShortcutSettings::ShortcutId p_id);
+
+    /// Handle reset button click
+    /// Restores default shortcut for the specified action
+    /// @param p_id Shortcut identifier to reset
     void onResetButtonClicked(ShortcutSettings::ShortcutId p_id);
 
   private:

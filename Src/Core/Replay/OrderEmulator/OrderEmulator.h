@@ -239,7 +239,7 @@ class OrderEmulator : public QObject
     /**
      * @brief Recalculate position P&L and emit update
      * @param p_symbol Stock ticker symbol
-     * 
+     *
      * Uses TradeStation mark-to-market formula:
      * - If Last is between bid/ask: use Last
      * - Otherwise: use closest bid or ask
@@ -298,16 +298,16 @@ class OrderEmulator : public QObject
         QString symbol;
         int quantity = 0;
         double averagePrice = 0.0;
-        double realizedPnL = 0.0;  // Accumulated realized P&L for this position
-        bool isLong = true;        // true = Long position, false = Short position
+        double realizedPnL = 0.0; // Accumulated realized P&L for this position
+        bool isLong = true;       // true = Long position, false = Short position
     };
-    QMap<QString, PositionData> m_positionData;        // positionID → PositionData
-    QMap<QString, QString> m_symbolToActivePosition;   // symbol → active positionID
+    QMap<QString, PositionData> m_positionData;      // positionID → PositionData
+    QMap<QString, QString> m_symbolToActivePosition; // symbol → active positionID
 
     // Track closed positions' realized P&L (positionID → realized P&L at close)
     // Note: QMap had unexplained corruption issues, so we use m_totalClosedPnL as primary source
     QMap<QString, double> m_closedPositionPnL;
-    
+
     // Total realized P&L from all closed positions (primary source for balance calculation)
     double m_totalClosedPnL = 0.0;
 
