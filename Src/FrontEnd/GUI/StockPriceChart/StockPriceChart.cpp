@@ -176,6 +176,42 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_currentTimeLine->end->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
     m_currentTimeLine->setVisible(false); // Initially hidden until first bar is received
 
+    // Create replay day boundary lines
+    m_replayStartLine = new QCPItemLine(m_customPlot);
+    Q_CHECK_PTR(m_replayStartLine);
+    m_replayStartLine->setPen(QPen(QColor(ChartConstants::REPLAY_START_LINE_COLOR), 1, Qt::DotLine));
+    m_replayStartLine->start->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    m_replayStartLine->end->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    m_replayStartLine->setVisible(false);
+
+    m_replayEndLine = new QCPItemLine(m_customPlot);
+    Q_CHECK_PTR(m_replayEndLine);
+    m_replayEndLine->setPen(QPen(QColor(ChartConstants::REPLAY_END_LINE_COLOR), 1, Qt::DotLine));
+    m_replayEndLine->start->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    m_replayEndLine->end->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    m_replayEndLine->setVisible(false);
+
+    // Create replay day boundary labels
+    m_replayStartLabel = new QCPItemText(m_customPlot);
+    Q_CHECK_PTR(m_replayStartLabel);
+    m_replayStartLabel->setPositionAlignment(Qt::AlignTop | Qt::AlignHCenter);
+    m_replayStartLabel->position->setType(QCPItemPosition::ptPlotCoords);
+    m_replayStartLabel->position->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    m_replayStartLabel->setFont(QFont(font().family(), 10));
+    m_replayStartLabel->setColor(QColor(ChartConstants::REPLAY_START_LINE_COLOR));
+    m_replayStartLabel->setPadding(QMargins(3, 3, 3, 3));
+    m_replayStartLabel->setVisible(false);
+
+    m_replayEndLabel = new QCPItemText(m_customPlot);
+    Q_CHECK_PTR(m_replayEndLabel);
+    m_replayEndLabel->setPositionAlignment(Qt::AlignTop | Qt::AlignHCenter);
+    m_replayEndLabel->position->setType(QCPItemPosition::ptPlotCoords);
+    m_replayEndLabel->position->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    m_replayEndLabel->setFont(QFont(font().family(), 10));
+    m_replayEndLabel->setColor(QColor(ChartConstants::REPLAY_END_LINE_COLOR));
+    m_replayEndLabel->setPadding(QMargins(3, 3, 3, 3));
+    m_replayEndLabel->setVisible(false);
+
     // Create timer for updating the current time line position
     m_timeLineTimer = new QTimer(this);
     Q_CHECK_PTR(m_timeLineTimer);
