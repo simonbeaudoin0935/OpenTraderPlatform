@@ -172,7 +172,9 @@ void OrderEmulator::updateMarketDepth(const QString& p_symbol, const MarketDepth
 
         if (canFillLimitOrder(order, p_depth))
         {
-            double fillPrice = order.getLimitPrice().value_or(0.0);
+            // Fill at market price: a buy limit crossing the ask fills at the ask,
+            // not the (higher) limit price. Same logic as a market order.
+            double fillPrice = calculateMarketOrderFillPrice(order, p_depth);
 
             // Convert order to JSON for executing queue - copy all fields
             QJsonObject orderJson = orderToJsonObject(order);
@@ -233,7 +235,9 @@ void OrderEmulator::updateQuote(const QString& p_symbol, const Quote& p_quote)
 
         if (canFillLimitOrderFromQuote(order, p_quote))
         {
-            double fillPrice = order.getLimitPrice().value_or(0.0);
+            // Fill at market price: a buy limit crossing the ask fills at the ask,
+            // not the (higher) limit price. Same logic as a market order.
+            double fillPrice = calculateMarketOrderFillPriceFromQuote(order, p_quote);
 
             // Convert order to JSON for executing queue
             QJsonObject orderJson = orderToJsonObject(order);
@@ -1098,14 +1102,9 @@ void OrderEmulator::onReceptionDelayElapsed()
 
         if (canFill)
         {
-            if (isMarketOrder)
-            {
-                fillPrice = calculateMarketOrderFillPrice(order, depth);
-            }
-            else
-            {
-                fillPrice = order.getLimitPrice().value_or(getBestAsk(depth));
-            }
+            // Market and limit orders both fill at the current market price (ask for buy,
+            // bid for sell). The limit price is a ceiling/floor, not the execution price.
+            fillPrice = calculateMarketOrderFillPrice(order, depth);
             DEBUG << "Order" << orderID << "using Level 2 data for" << symbol;
         }
     }
@@ -1117,14 +1116,9 @@ void OrderEmulator::onReceptionDelayElapsed()
 
         if (canFill)
         {
-            if (isMarketOrder)
-            {
-                fillPrice = calculateMarketOrderFillPriceFromQuote(order, quote);
-            }
-            else
-            {
-                fillPrice = order.getLimitPrice().value_or(quote.getAsk());
-            }
+            // Market and limit orders both fill at the current market price (ask for buy,
+            // bid for sell). The limit price is a ceiling/floor, not the execution price.
+            fillPrice = calculateMarketOrderFillPriceFromQuote(order, quote);
             DEBUG << "Order" << orderID << "using Level 1 data for" << symbol;
         }
     }

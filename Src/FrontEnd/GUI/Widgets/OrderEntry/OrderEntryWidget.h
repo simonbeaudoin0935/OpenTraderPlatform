@@ -72,6 +72,12 @@ class OrderEntryWidget : public QWidget
     /// @param quote Market depth quote with current bid/ask levels
     void onMarketDepthUpdate(const QString& symbol, const MarketDepthQuote& quote);
 
+    /// Handle Level 1 quote updates for sticky price calculation (fallback when L2 unavailable)
+    /// @param symbol Stock symbol of the update
+    /// @param bid    Current best bid price
+    /// @param ask    Current best ask price
+    void onL1QuoteUpdate(const QString& symbol, double bid, double ask);
+
   signals:
     /// Emitted when user submits an order (after validation)
     /// @param order The order request details

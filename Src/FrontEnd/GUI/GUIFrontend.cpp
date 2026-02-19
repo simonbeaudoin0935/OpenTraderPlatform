@@ -745,7 +745,7 @@ void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
     ui->orderEntryWidget->onMarketDepthUpdate(symbol, quote);
 }
 
-void GUIFrontend::onCurrentHighlightedReceivedNewQuote(QString /*symbol*/, Quote quote)
+void GUIFrontend::onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote)
 {
     // Style constants for MarketFlags labels
     static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
@@ -771,6 +771,8 @@ void GUIFrontend::onCurrentHighlightedReceivedNewQuote(QString /*symbol*/, Quote
     if (ui->marketDepthTable->getDisplayMode() != MarketDepthTable::DisplayMode::Level2)
     {
         ui->marketDepthTable->updateLevel1Data(quote);
+        // Also feed the sticky price logic in OrderEntryWidget when L2 is not available.
+        ui->orderEntryWidget->onL1QuoteUpdate(symbol, quote.getBid(), quote.getAsk());
     }
 }
 
