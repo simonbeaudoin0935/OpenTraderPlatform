@@ -31,7 +31,7 @@ OrdersReceiver::OrdersReceiver(const QString& p_account, QObject* p_parent)
 
     // Load existing orders from database
     auto existingOrders = m_database->loadAllOrders();
-    INFO << "Loaded" << existingOrders.size() << "orders from database";
+    DEBUG << "Loaded" << existingOrders.size() << "orders from database";
 
     // Store the loaded latencies for restoring when we receive them in the snapshot
     for (auto it = existingOrders.constBegin(); it != existingOrders.constEnd(); ++it)
@@ -125,7 +125,7 @@ void OrdersReceiver::onReceivedNewOrder(Order order)
 
 void OrdersReceiver::onEndSnapshotReceived()
 {
-    INFO << "Received EndSnapshot for Orders stream";
+    DEBUG << "Received EndSnapshot for Orders stream";
     m_receivedEndSnapshot = true;
 
     // Validate that all snapshot orders exist in our database
@@ -137,7 +137,7 @@ void OrdersReceiver::onEndSnapshotReceived()
 
 void OrdersReceiver::validateSnapshotOrders()
 {
-    INFO << "Validating" << m_snapshotOrders.size() << "snapshot orders against database";
+    DEBUG << "Validating" << m_snapshotOrders.size() << "snapshot orders against database";
 
     for (auto it = m_snapshotOrders.constBegin(); it != m_snapshotOrders.constEnd(); ++it)
     {
@@ -149,7 +149,7 @@ void OrdersReceiver::validateSnapshotOrders()
         }
     }
 
-    INFO << "Snapshot validation complete";
+    DEBUG << "Snapshot validation complete";
 }
 
 void OrdersReceiver::stopStream(const QString& p_account)

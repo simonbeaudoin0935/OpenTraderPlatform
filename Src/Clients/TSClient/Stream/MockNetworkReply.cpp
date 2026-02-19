@@ -15,15 +15,12 @@ MockNetworkReply::MockNetworkReply(QObject* p_parent) : QNetworkReply(p_parent)
 
     // Set the QIODevice to open state for reading
     open(QIODevice::ReadOnly);
-
-    DEBUG << "MockNetworkReply created";
 }
 
 MockNetworkReply::~MockNetworkReply()
 {
     m_heartbeatTimer.stop();
     m_buffer.close();
-    DEBUG << "MockNetworkReply destroyed";
 }
 
 void MockNetworkReply::startHeartbeat(int p_intervalMs)
@@ -62,31 +59,14 @@ void MockNetworkReply::injectData(const QByteArray& p_data)
         return;
     }
 
-    if (p_data.isEmpty())
-    {
-        return;
-    }
-
-    // Debug: Log what data is being injected
-    QString dataPreview = QString::fromUtf8(p_data).left(200); // First 200 chars
-    DEBUG << "MockNetworkReply::injectData called with data:" << dataPreview;
-
-    // The Stream class expects newline-delimited JSON objects.
-    // The recorded data should already include newlines, but we add one
-    // as a safeguard if missing to ensure Stream can parse the data.
-    QByteArray dataToWrite = p_data;
-    if (!p_data.endsWith('\n'))
-    {
-        dataToWrite.append('\n');
-        DEBUG << "Added missing newline delimiter to injected data";
-    }
+    OBJ_ASSUME_FALSE(p_data.isEmpty());
 
     // Save current read position
     qint64 currentPos = m_buffer.pos();
 
     // Seek to end to append data
     m_buffer.seek(m_buffer.size());
-    m_buffer.write(dataToWrite);
+    m_buffer.write(p_data);
 
     // Restore read position
     m_buffer.seek(currentPos);

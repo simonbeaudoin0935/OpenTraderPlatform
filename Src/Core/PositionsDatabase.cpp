@@ -331,6 +331,6 @@ bool PositionsDatabase::clearAllPositions()
         return false;
     }
 
-    INFO << "Cleared all positions from database";
+    DEBUG << "Cleared all positions from database";
     return true;
 }
