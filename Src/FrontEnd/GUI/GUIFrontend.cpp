@@ -11,6 +11,9 @@
 #include <QScrollBar>
 #include <QRegularExpression>
 #include <QTimer>
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QFile>
 #include "Assume.h"
 
 #include "TSClient.h"
@@ -1501,6 +1504,54 @@ void GUIFrontend::onReplayModeEntered()
     // Clear chart data for fresh replay (bar caches are cleared separately by MainAlgo)
     ui->priceChart->clearChart();
 
+    // Clear market depth table — stale live data must not carry over into replay
+    ui->marketDepthTable->clearData();
+
+    // Probe replay databases to pre-set the market depth mode indicator so the user
+    // knows whether L2 or L1 data will be available before pressing play.
+    const QString displayedSymbol = MainAlgo::getInstance()->getDisplayedSymbol();
+    const QDate replayDate = MainApp::currentAppReplayTime.date();
+    if (!displayedSymbol.isEmpty() && replayDate.isValid())
+    {
+        const QString cacheDir = getCacheLocation();
+        const QString depthDbPath =
+            QString("%1/RecordedLiveData/MarketDepthQuotes/%2.db").arg(cacheDir, replayDate.toString("yyyy-MM-dd"));
+        const QString quotesDbPath =
+            QString("%1/RecordedLiveData/Quotes/%2.db").arg(cacheDir, replayDate.toString("yyyy-MM-dd"));
+
+        auto probeDb = [](const QString& p_dbPath, const QString& p_symbol, const QString& p_table) -> bool
+        {
+            if (!QFile::exists(p_dbPath))
+            {
+                return false;
+            }
+            const QString connName = QString("probe_%1").arg(p_dbPath);
+            bool found = false;
+            {
+                // Scope ensures db is destroyed before removeDatabase()
+                QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connName);
+                db.setDatabaseName(p_dbPath);
+                if (db.open())
+                {
+                    QSqlQuery q(db);
+                    q.prepare(QString("SELECT 1 FROM %1 WHERE stockTicker = ? LIMIT 1").arg(p_table));
+                    q.addBindValue(p_symbol);
+                    found = q.exec() && q.next();
+                    db.close();
+                }
+            }
+            QSqlDatabase::removeDatabase(connName);
+            return found;
+        };
+
+        const bool hasLevel2 = probeDb(depthDbPath, displayedSymbol, "market_depth_quotes");
+        const bool hasLevel1 = probeDb(quotesDbPath, displayedSymbol, "quotes");
+        ui->marketDepthTable->setExpectedDataMode(hasLevel2, hasLevel1);
+
+        qCInfo(GUIFrontendLog) << "Replay data mode for" << displayedSymbol << "on" << replayDate.toString(Qt::ISODate)
+                               << "— L2:" << hasLevel2 << "L1:" << hasLevel1;
+    }
+
     // Show replay widgets in toolbar and ensure play button is in stopped state
     ui->priceChart->toolbar()->setReplayWidgetsVisible(true);
     ui->priceChart->toolbar()->setReplayPlaying(false);
@@ -1546,6 +1597,9 @@ void GUIFrontend::onReplayModeExited()
 
     // Clear chart data (MainAlgo will clear caches and restart live stream)
     ui->priceChart->clearChart();
+
+    // Clear market depth table — replay data must not carry over into live mode
+    ui->marketDepthTable->clearData();
 
     // Restore chart visual
     ui->priceChart->setReplayModeActive(false);

@@ -47,6 +47,13 @@ class MarketDepthTable : public QWidget
     /// Clear all data and show NoData state
     void clearData();
 
+    /// Pre-set the display mode indicator without adding any data rows.
+    /// Called when entering replay mode to show what data will be available
+    /// before any replay data has been emitted.
+    /// @param p_hasLevel2 True if Level 2 depth data exists in the replay DB for this symbol
+    /// @param p_hasLevel1 True if Level 1 quote data exists in the replay DB for this symbol
+    void setExpectedDataMode(bool p_hasLevel2, bool p_hasLevel1);
+
   private:
     void setupUI();
     void setupStyles();

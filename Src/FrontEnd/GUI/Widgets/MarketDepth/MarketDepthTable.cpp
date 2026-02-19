@@ -563,6 +563,23 @@ void MarketDepthTable::clearData()
     askDWPLabel->setText("--");
 }
 
+void MarketDepthTable::setExpectedDataMode(bool p_hasLevel2, bool p_hasLevel1)
+{
+    if (p_hasLevel2)
+    {
+        m_displayMode = DisplayMode::Level2;
+    }
+    else if (p_hasLevel1)
+    {
+        m_displayMode = DisplayMode::Level1;
+    }
+    else
+    {
+        m_displayMode = DisplayMode::NoData;
+    }
+    updateDataSourceIndicator();
+}
+
 void MarketDepthTable::updateDataSourceIndicator()
 {
     switch (m_displayMode)
