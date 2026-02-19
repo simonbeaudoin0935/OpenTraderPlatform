@@ -4,6 +4,7 @@
 
 #include "Assume.h"
 #include "Logging.h"
+#include "MockNetworkReply.h"
 
 #define LOGGING_CATEGORY StreamLog
 
@@ -18,7 +19,8 @@ StreamQuote::StreamQuote(const QStringList& symbols, QNetworkReply* reply, QObje
         OBJ_ASSUME_FALSE(symbol.isEmpty());
     }
 
-    setObjectName(QString("Stream::Quote::%1symbols").arg(m_symbols.size()));
+    const QString suffix = qobject_cast<MockNetworkReply*>(reply) ? QStringLiteral("::mock") : QStringLiteral("::live");
+    setObjectName(QString("Stream::Quote::%1symbols%2").arg(m_symbols.size()).arg(suffix));
 
     s_numberOfQuoteStreams++;
     DEBUG << "Quote stream created - Symbols:" << m_symbols.size()

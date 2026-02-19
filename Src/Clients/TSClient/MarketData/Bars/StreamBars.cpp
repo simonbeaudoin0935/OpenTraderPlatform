@@ -1,6 +1,7 @@
 #include "StreamBars.h"
 #include "TSClient.h"
 #include "Logging.h"
+#include "MockNetworkReply.h"
 
 #define LOGGING_CATEGORY StreamLog
 
@@ -10,7 +11,8 @@ size_t StreamBars::s_numberOfBarsStreams = 0;
 StreamBars::StreamBars(const QString& symbol, QNetworkReply* reply, QObject* parent)
     : StreamMarketData(reply, parent), m_symbol(symbol)
 {
-    this->setObjectName("Stream::Bars::" + symbol);
+    const QString suffix = qobject_cast<MockNetworkReply*>(reply) ? QStringLiteral("::mock") : QStringLiteral("::live");
+    this->setObjectName("Stream::Bars::" + symbol + suffix);
 
     s_numberOfBarsStreams++;
 
