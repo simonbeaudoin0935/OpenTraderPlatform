@@ -15,6 +15,7 @@
 #include <QPromise>
 #include <QQueue>
 #include <QJsonObject>
+#include <QDate>
 #include <deque>
 
 #include "AuthToken.h"
@@ -394,6 +395,20 @@ class TSClient final : public QObject
      * @param p_data Shared pointer to JSON data
      */
     void onInjectQuoteData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
+
+    /**
+     * @brief Pre-roll quote state from start-of-day to p_startEpochMs (replay mode).
+     *
+     * The TradeStation Quote Stream is differential: the very first message per symbol
+     * is a full snapshot. When the replay starts mid-day, all snapshots have already
+     * passed. This method reads every QuoteStream record recorded before p_startEpochMs,
+     * merges them per-symbol into m_replayQuoteState (for the OrderEmulator), and injects
+     * the final merged state into any open MockNetworkReply so StreamQuote is also primed.
+     *
+     * Must be called via BlockingQueuedConnection from MainAlgo's thread before starting
+     * the ReplayEngine, so that the state is fully built before the first delta arrives.
+     */
+    void preRollQuoteState(QDate p_date, qint64 p_startEpochMs);
 
     /**
      * @brief Process the next queued market depth stream request

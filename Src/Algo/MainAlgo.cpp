@@ -12,6 +12,7 @@
 #include "Logging.h"
 #include "Assume.h"
 #include "OrderEmulator.h"
+#include "CONSTANTS.h"
 
 #define LOGGING_CATEGORY MainAlgoLog
 
@@ -811,6 +812,15 @@ void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pl
     // Start replay order/position streams with simulated account
     startReplayOrderStreams();
 
+    // Pre-roll: build initial quote state from start-of-day so the first delta
+    // never arrives before its symbol's snapshot.
+    const qint64 startEpochMs = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE).toMSecsSinceEpoch();
+    QMetaObject::invokeMethod(TSClient::getInstance(),
+                              "preRollQuoteState",
+                              Qt::BlockingQueuedConnection,
+                              Q_ARG(QDate, p_date),
+                              Q_ARG(qint64, startEpochMs));
+
     m_replayEngine->startReplay(p_date, p_startTime, p_speed);
 }
 
@@ -898,6 +908,15 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
     {
         startReplayOrderStreams();
     }
+
+    // Pre-roll: build initial quote state from start-of-day so the first delta
+    // never arrives before its symbol's snapshot.
+    const qint64 startEpochMs = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE).toMSecsSinceEpoch();
+    QMetaObject::invokeMethod(TSClient::getInstance(),
+                              "preRollQuoteState",
+                              Qt::BlockingQueuedConnection,
+                              Q_ARG(QDate, p_date),
+                              Q_ARG(qint64, startEpochMs));
 
     // Start in paused state - emit first bar then pause
     m_replayEngine->startReplayPaused(p_date, p_startTime, p_speed);
