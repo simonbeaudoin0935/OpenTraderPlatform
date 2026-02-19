@@ -219,6 +219,11 @@ The OrderEmulator supports two data sources for order fills and position P&L:
 - Used when Level 2 stream is not available for a symbol
 - `updateQuote()` receives quote data
 
+> **⚠️ Invariant**: `updateQuote()` always receives a **complete, merged** `Quote` object —
+> never a raw delta with zeroed fields. The merging is guaranteed by the callers:
+> `TSClient::onInjectQuoteData()` (replay) and `StreamQuote::processJsonObject()` (live).
+> The OrderEmulator does not need to handle partial quotes.
+
 **Fill Price Logic**:
 ```cpp
 if (hasMarketDepthData(symbol)) {

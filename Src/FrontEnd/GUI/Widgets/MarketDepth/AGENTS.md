@@ -100,8 +100,10 @@ Level 1 path:
         │  (cross-thread, QueuedConnection)
         ▼
     GUIFrontend::onCurrentHighlightedReceivedNewQuote()
-        │  Checks TSClient::hasOpenMarketDepthStream(symbol)
-        │  If no L2: call updateLevel1Data()
+        │  Checks: getDisplayMode() != DisplayMode::Level2
+        │  (NOT hasOpenMarketDepthStream — that is always true in replay
+        │   because a MockNetworkReply is always registered for depth)
+        │  If not Level2: call updateLevel1Data()
         └─► MarketDepthTable::updateLevel1Data(quote)
                 │  Sets DisplayMode::Level1, shows 1 row
                 └─► updateDataSourceIndicator()

@@ -68,7 +68,18 @@ The Recorder and Replay system enables capturing live market data streams and re
 │               │  Filters QuoteStream by open streams;                   │   │
 │               │  always emits Heartbeat/Error                            │   │
 │               ▼                                                          │   │
-│           ReplayDataPoint (with objectType) → injectQuoteData signal    │   │
+│           ReplayDataPoint (raw delta bytes) → injectQuoteData signal    │   │
+│                                                                          │   │
+│   TSClient::onInjectQuoteData()                                          │   │
+│       │  Merges delta into m_replayQuoteState[symbol]                   │   │
+│       │  Calls OrderEmulator::updateQuote(merged Quote)                 │   │
+│       │  Injects raw bytes into MockNetworkReply for displayed symbol   │   │
+│       ▼                                                                  │   │
+│   StreamQuote (via MockNetworkReply)                                     │   │
+│       │  Merges delta into m_symbolState[symbol]                        │   │
+│       │  Emits newQuoteReceived(merged Quote)                           │   │
+│       ▼                                                                  │   │
+│   MainAlgo → GUIFrontend → MarketDepthTable::updateLevel1Data()         │   │
 │                                                                          │   │
 │   TSClient (Replay Mode)                                                 │   │
 │       │                                                                  │   │
@@ -156,8 +167,14 @@ CREATE INDEX idx_quotes_object_type ON quotes(objectType);
 Key differences from bars/depth schema:
 - Column names use camelCase (`stockTicker`, `epochMs`, `jsonRawData`) instead of snake_case
 - Has an `objectType` column for filtering QuoteStream vs Heartbeat vs Error
-- All three object types are stored (heartbeats needed for accurate replay)
+- All three object types are stored (heartbeats needed for accurate replay timing)
 - `stockTicker` is empty string for Heartbeat/Error rows (they are stream-global)
+
+> **⚠️ Delta Protocol**: Raw JSON bytes are stored **as-is** — including partial delta
+> messages that contain only changed fields. Merging happens at parse time in
+> `StreamQuote::m_symbolState` (GUI path) and `TSClient::m_replayQuoteState`
+> (OrderEmulator path), **not** at record or playback time. See
+> `StreamQuote/AGENTS.md` for the full protocol description.
 
 ## Replay Flow
 

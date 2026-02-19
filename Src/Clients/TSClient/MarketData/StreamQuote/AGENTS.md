@@ -38,13 +38,51 @@ private:
     void processJsonObject(const QJsonObject& jsonObj) override;  // Parse incoming JSON
 
     QStringList m_symbols;
+    QMap<QString, QJsonObject> m_symbolState;  // Accumulated per-symbol state for delta merging
     static std::atomic<size_t> s_numberOfQuoteStreams;
 };
 ```
 
-### Stream Data Format
+### ⚠️ Delta Stream Protocol (Critical Architecture Detail)
 
-The TradeStation API sends newline-delimited JSON objects of three types:
+The TradeStation Quote Stream is **differential / incremental**. This is a fundamental property that affects all code touching quotes:
+
+- **First message per symbol**: Full snapshot with **all** fields (Bid, Ask, Open, High, Low, Volume, MarketFlags, …)
+- **Every subsequent message**: Delta patch — **only changed fields** are present. Missing fields must be inherited from the prior state.
+
+**Example sequence from a real recording**:
+```
+Message 1: {"Symbol":"GERN","Bid":"1.82","Ask":"1.83","Open":"1.79","Volume":"6756902",...}  ← full
+Message 2: {"Symbol":"GERN","AskSize":"21900","Volume":"6757155"}                            ← delta only
+Message 3: {"Symbol":"GERN","Volume":"6757535"}                                              ← delta only
+Message 4: {"Symbol":"GERN","AskSize":"22100"}                                               ← delta only
+```
+
+Parsing each message independently via `Quote::fromJson()` would yield `bid=0, ask=0` for messages 2–4 (because `parseDoubleField` defaults to `0.0` when the key is absent). This caused:
+- Sporadic L1 display (zeroed bid/ask between real values)
+- Position P&L oscillating between correct value and `-fullCost` in replay
+- OrderEmulator clobbering good snapshots with zero prices
+
+### Delta Merging in StreamQuote
+
+`StreamQuote` maintains `QMap<QString, QJsonObject> m_symbolState` — one accumulated JSON object per symbol. In `processJsonObject()`:
+
+```cpp
+// Merge: insert/overwrite only the keys present in this delta
+QJsonObject& state = m_symbolState[symbol];
+for (auto it = jsonObj.constBegin(); it != jsonObj.constEnd(); ++it)
+    state.insert(it.key(), it.value());
+
+// Parse the merged (always-complete) state
+Quote quote(state);
+emit newQuoteReceived(quote);  // always emitted, even volume-only deltas
+```
+
+The "always emit" design keeps MarketFlags display live and simplifies downstream consumers — they don't need to know which fields changed.
+
+Non-symbol messages (Heartbeat, Error) have no `"Symbol"` key and bypass the accumulator entirely.
+
+
 
 **QuoteStream** (actual quote data):
 ```json
@@ -120,11 +158,15 @@ connect(stream, &StreamQuote::newQuoteReceived, this, [](Quote quote) {
 In replay mode, `openStreamQuote()` creates a `MockNetworkReply` instead of a real WebSocket. Data is injected via:
 
 ```cpp
-TSClient::onInjectQuoteData(symbol, rawJsonData)
+TSClient::onInjectQuoteData(symbol, rawDeltaBytes)
     │
-    ├── Parse to Quote → emit newQuoteReceived (for OrderEmulator)
-    └── MockNetworkReply::injectData() (for StreamQuote parser)
+    ├── Merge delta into m_replayQuoteState[symbol] → build complete Quote → OrderEmulator::updateQuote()
+    └── MockNetworkReply::injectData(rawDeltaBytes) → StreamQuote parser → m_symbolState merge → newQuoteReceived
 ```
+
+**Important**: Raw delta bytes are stored and replayed as-is (no merging at record/playback time). Merging happens at parse time in two independent layers:
+1. `StreamQuote::m_symbolState` — for the GUI path (displayed symbol's MockNetworkReply → StreamQuote)
+2. `TSClient::m_replayQuoteState` — for the OrderEmulator path (all symbols)
 
 ### Recording
 

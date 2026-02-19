@@ -156,6 +156,21 @@ void TSClient::setMode(Mode mode) {
 - `MockNetworkReply`: Fake QNetworkReply that receives injected data
 - `MockNetworkAccessManager`: Intercepts HTTP requests, routes to OrderEmulator
 
+**Replay state members** (in `TSClient.h`):
+```cpp
+QMap<QString, QPointer<MockNetworkReply>> m_replayBarReplies;    // symbol → MockNetworkReply for bars
+QMap<QString, QPointer<MockNetworkReply>> m_replayDepthReplies;  // symbol → MockNetworkReply for depth
+QMap<QString, QPointer<MockNetworkReply>> m_replayQuoteReplies;  // symbol → MockNetworkReply for quotes
+QMap<QString, QJsonObject>               m_replayQuoteState;     // Accumulated merged quote state per symbol
+```
+
+**`onInjectQuoteData()` behaviour**:
+Receives raw delta bytes from `ReplayEngine`. Because the TradeStation Quote Stream is differential (see `StreamQuote/AGENTS.md`), raw deltas are merged into `m_replayQuoteState[symbol]` before parsing. This ensures `OrderEmulator::updateQuote()` always receives a complete `Quote`, never a partial one with `bid=0, ask=0`.
+
+`newQuoteReceived` is **NOT** emitted from `onInjectQuoteData` to avoid double-emission — for the displayed symbol the raw bytes are also injected into its `MockNetworkReply`, which feeds `StreamQuote::processJsonObject()`, which does its own merging via `m_symbolState` and emits `newQuoteReceived` from there.
+
+All replay state maps are cleared in `setMode(Live)` cleanup.
+
 See `Src/Core/Replay/OrderEmulator/AGENTS.md` for order emulation details.
 
 ### Request Tracking System
