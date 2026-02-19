@@ -123,6 +123,7 @@ PositionsDatabase::~PositionsDatabase()
     {
         m_db.close();
     }
+    m_db = QSqlDatabase(); // Release the copy before removal (Qt requirement)
     QSqlDatabase::removeDatabase(m_connectionName);
     s_instance = nullptr;
 }
