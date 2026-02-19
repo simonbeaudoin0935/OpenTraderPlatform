@@ -724,17 +724,8 @@ void TSClient::onInjectDepthData(const QString& p_symbol, std::shared_ptr<const 
 
 void TSClient::onInjectQuoteData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data)
 {
-    if (m_mode != Mode::Replay)
-    {
-        WARNING << "onInjectQuoteData called but not in replay mode";
-        return;
-    }
-
-    if (!p_data)
-    {
-        WARNING << "onInjectQuoteData called with null data for" << p_symbol;
-        return;
-    }
+    OBJ_ASSUME_TRUE(m_mode == Mode::Replay); // Should only be called in replay mode
+    OBJ_ASSUME_TRUE(p_data != nullptr);      // Should not be called with null data
 
     // Update OrderEmulator for Level 1 order fill monitoring.
     // TradeStation Quote Stream is differential: only changed fields are present per message.
@@ -753,9 +744,16 @@ void TSClient::onInjectQuoteData(const QString& p_symbol, std::shared_ptr<const 
                 state.insert(it.key(), it.value());
             }
 
-            Quote quote(state);
-            if (quote.isValid())
+            // Only update OrderEmulator once the initial snapshot (with Bid and Ask) has arrived.
+            // Deltas before the snapshot are dropped here; StreamQuote applies the same guard.
+            if (!state.contains("Bid") || !state.contains("Ask"))
             {
+                DEBUG << "Dropping delta for" << p_symbol << "- initial snapshot not yet received";
+            }
+            else
+            {
+                Quote quote(state);
+                OBJ_ASSUME_TRUE(quote.isValid());
                 m_orderEmulator->updateQuote(p_symbol, quote);
                 // NOTE: newQuoteReceived is NOT emitted here to avoid double emission.
                 // For the displayed symbol, StreamQuote handles it via MockNetworkReply injection below.

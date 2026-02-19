@@ -4,6 +4,7 @@
 
 #include <QJsonObject>
 #include <QMap>
+#include <QSet>
 #include <QStringList>
 
 #include "Quote.h"
@@ -38,6 +39,8 @@ class StreamQuote final : public StreamMarketData
     // TradeStation Quote Stream is differential: first message is a full snapshot,
     // subsequent messages are delta patches with only changed fields present.
     // We accumulate the full state per symbol here and always emit the merged result.
+    // We only start emitting once the initial snapshot (containing "Bid" and "Ask") has arrived.
     QMap<QString, QJsonObject> m_symbolState;
+    QSet<QString> m_symbolsWithSnapshot;
     static std::atomic<size_t> s_numberOfQuoteStreams;
 };

@@ -67,13 +67,20 @@ void StreamQuote::processJsonObject(const QJsonObject& jsonObj)
         state.insert(it.key(), it.value());
     }
 
-    Quote quote(state);
-    if (!quote.isValid()) [[unlikely]]
+    // The first message for each symbol is always the full snapshot (includes "Bid" and "Ask").
+    // Deltas that arrive before the snapshot are silently dropped.
+    if (!m_symbolsWithSnapshot.contains(symbol))
     {
-        // Not yet received a full snapshot for this symbol — log and wait
-        DEBUG << "Quote not yet valid for" << symbol << "(waiting for full snapshot)";
-        return;
+        if (!state.contains("Bid") || !state.contains("Ask"))
+        {
+            DEBUG << "Dropping delta for" << symbol << "- initial snapshot not yet received";
+            return;
+        }
+        m_symbolsWithSnapshot.insert(symbol);
     }
+
+    Quote quote(state);
+    OBJ_ASSUME_TRUE(quote.isValid());
 
     emit newQuoteReceived(quote);
 }

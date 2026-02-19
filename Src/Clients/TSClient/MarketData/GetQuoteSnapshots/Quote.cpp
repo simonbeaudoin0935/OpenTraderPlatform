@@ -123,8 +123,8 @@ bool Quote::isValid() const
         return false;
     }
 
-    if (m_open < 0.0 || m_high < 0.0 || m_low < 0.0 || m_previousClose < 0.0 || m_last < 0.0 || m_ask < 0.0 ||
-        m_bid < 0.0 || m_close < 0.0 || m_vwap < 0.0)
+    if (m_open < 0.0 || m_high < 0.0 || m_low < 0.0 || m_previousClose < 0.0 || m_last < 0.0 || m_ask <= 0.0 ||
+        m_bid <= 0.0 || m_close < 0.0 || m_vwap < 0.0)
     {
         return false;
     }
