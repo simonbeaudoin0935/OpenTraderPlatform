@@ -120,6 +120,13 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
         connect(m_toggleReplayPlayPauseShortcut, &QShortcut::activated, [this]() { onToggleReplayPlayPause(); });
     OBJ_ASSUME_TRUE(toggleReplayConnection);
 
+    // Add "r" shortcut to toggle replay mode on/off
+    m_toggleReplayModeShortcut =
+        new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::ToggleReplayMode), m_mainWindow);
+    auto toggleReplayModeConnection =
+        connect(m_toggleReplayModeShortcut, &QShortcut::activated, [this]() { onToggleReplayMode(); });
+    OBJ_ASSUME_TRUE(toggleReplayModeConnection);
+
     // Connect to shortcut changes to update active shortcuts
     auto shortcutChangeConnection = connect(&shortcutSettings,
                                             &ShortcutSettings::shortcutChanged,
@@ -1230,6 +1237,12 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
         m_toggleReplayPlayPauseShortcut->setKey(p_newSequence);
         qInfo() << "Updated toggle replay play/pause shortcut to:" << p_newSequence.toString();
         break;
+
+    case ShortcutSettings::ToggleReplayMode:
+        Q_CHECK_PTR(m_toggleReplayModeShortcut);
+        m_toggleReplayModeShortcut->setKey(p_newSequence);
+        qInfo() << "Updated toggle replay mode shortcut to:" << p_newSequence.toString();
+        break;
     }
 }
 
@@ -1243,6 +1256,18 @@ void GUIFrontend::onToggleReplayPlayPause()
 
     // Toggle via the toolbar method which clicks the button and emits the signal
     ui->priceChart->toolbar()->togglePlayPause();
+}
+
+void GUIFrontend::onToggleReplayMode()
+{
+    // Simulate a click on the data source label — identical to clicking the LIVE/REPLAY button
+    QMouseEvent fakeClick(QEvent::MouseButtonRelease,
+                          QPointF(),
+                          QPointF(),
+                          Qt::LeftButton,
+                          Qt::LeftButton,
+                          Qt::NoModifier);
+    eventFilter(m_dataSourceLabel, &fakeClick);
 }
 
 void GUIFrontend::onCancelAllOrders()
