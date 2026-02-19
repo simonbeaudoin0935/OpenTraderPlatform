@@ -214,6 +214,10 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         {
             TSClient::getInstance()->closeStream(oldInstrument->marketDepthQuoteReceiver.getStream());
         }
+        if (!oldInstrument->streamQuote.isNull())
+        {
+            TSClient::getInstance()->closeStream(oldInstrument->streamQuote);
+        }
 
         currentDisplayedStockInstrument = nullptr;
 
@@ -1152,6 +1156,10 @@ void MainAlgo::deleteAllStockInstruments()
         if (QPointer<StockInstruments> instrument = it.value(); instrument)
         {
             DEBUG << "Scheduling deletion of stock instrument for" << instrument->symbol;
+            if (!instrument->streamQuote.isNull())
+            {
+                TSClient::getInstance()->closeStream(instrument->streamQuote);
+            }
             instrument->deleteLater(); // Use deleteLater() for Qt objects with signals
         }
     }
@@ -1209,4 +1217,13 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
     ASSUME_TRUE(connected);
 
     INFO << "Stock instrument created and set as displayed for" << p_symbol;
+
+    // In replay mode, open a StreamQuote for this symbol so the replay engine
+    // emits quote rows (hasOpenQuoteStream() check) and the OrderEmulator gets updated.
+    if (TSClient::getInstance()->getMode() == TSClient::Mode::Replay)
+    {
+        currentDisplayedStockInstrument->streamQuote = TSClient::getInstance()->openStreamQuote({p_symbol});
+        OBJ_ASSUME_FALSE(currentDisplayedStockInstrument->streamQuote.isNull());
+        INFO << "Opened replay StreamQuote for displayed stock" << p_symbol;
+    }
 }

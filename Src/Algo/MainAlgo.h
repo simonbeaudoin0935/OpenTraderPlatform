@@ -37,6 +37,7 @@ class StockInstruments : public QObject
     BarCache barCache;
     BarReceiver barReceiver;
     MarketDepthQuoteReceiver marketDepthQuoteReceiver;
+    QPointer<StreamQuote> streamQuote; // Non-null only in replay mode; live quotes use RecorderTab's global stream
 };
 
 class MainAlgo final : public QObject
