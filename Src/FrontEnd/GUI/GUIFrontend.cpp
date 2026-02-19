@@ -868,6 +868,9 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated,
         {
             m_hasRestoredLastStock = true;
             restoreLastDisplayedStock();
+            // Clear focus from the stock input after restore — it should not
+            // have keyboard focus at startup (press 'i' to focus it explicitly)
+            QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
         }
 
         // Clear first-time flag on successful authentication
