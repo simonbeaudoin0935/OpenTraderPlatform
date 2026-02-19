@@ -717,6 +717,10 @@ void MainAlgo::onReplayEndReached()
         }
         instrument->barReceiver.pauseHeartbeat();
         instrument->marketDepthQuoteReceiver.pauseHeartbeat();
+        if (!instrument->streamQuote.isNull())
+        {
+            instrument->streamQuote->pauseHeartbeat();
+        }
     }
 }
 
@@ -927,6 +931,10 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
         OBJ_ASSUME_FALSE(instrument.isNull());
         instrument->barReceiver.pauseHeartbeat();
         instrument->marketDepthQuoteReceiver.pauseHeartbeat();
+        if (!instrument->streamQuote.isNull())
+        {
+            instrument->streamQuote->pauseHeartbeat();
+        }
     }
 }
 
@@ -956,6 +964,10 @@ void MainAlgo::pauseReplay()
         OBJ_ASSUME_FALSE(instrument.isNull());
         instrument->barReceiver.pauseHeartbeat();
         instrument->marketDepthQuoteReceiver.pauseHeartbeat();
+        if (!instrument->streamQuote.isNull())
+        {
+            instrument->streamQuote->pauseHeartbeat();
+        }
     }
 }
 
@@ -970,6 +982,10 @@ void MainAlgo::resumeReplay()
         OBJ_ASSUME_FALSE(instrument.isNull());
         instrument->barReceiver.resumeHeartbeat();
         instrument->marketDepthQuoteReceiver.resumeHeartbeat();
+        if (!instrument->streamQuote.isNull())
+        {
+            instrument->streamQuote->resumeHeartbeat();
+        }
     }
 
     m_replayEngine->resumeReplay();
