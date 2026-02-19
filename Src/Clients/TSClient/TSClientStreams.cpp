@@ -744,20 +744,15 @@ void TSClient::onInjectQuoteData(const QString& p_symbol, std::shared_ptr<const 
                 state.insert(it.key(), it.value());
             }
 
-            // Only update OrderEmulator once the initial snapshot (with Bid and Ask) has arrived.
-            // Deltas before the snapshot are dropped here; StreamQuote applies the same guard.
-            if (!state.contains("Bid") || !state.contains("Ask"))
-            {
-                DEBUG << "Dropping delta for" << p_symbol << "- initial snapshot not yet received";
-            }
-            else
-            {
-                Quote quote(state);
-                OBJ_ASSUME_TRUE(quote.isValid());
-                m_orderEmulator->updateQuote(p_symbol, quote);
-                // NOTE: newQuoteReceived is NOT emitted here to avoid double emission.
-                // For the displayed symbol, StreamQuote handles it via MockNetworkReply injection below.
-            }
+            // The initial snapshot MUST always arrive before any delta.
+            // If this fires, the snapshot was lost somewhere in the pipeline — that is a bug.
+            OBJ_ASSUME_TRUE(state.contains("Bid") && state.contains("Ask"));
+
+            Quote quote(state);
+            OBJ_ASSUME_TRUE(quote.isValid());
+            m_orderEmulator->updateQuote(p_symbol, quote);
+            // NOTE: newQuoteReceived is NOT emitted here to avoid double emission.
+            // For the displayed symbol, StreamQuote handles it via MockNetworkReply injection below.
         }
     }
 

@@ -67,17 +67,9 @@ void StreamQuote::processJsonObject(const QJsonObject& jsonObj)
         state.insert(it.key(), it.value());
     }
 
-    // The first message for each symbol is always the full snapshot (includes "Bid" and "Ask").
-    // Deltas that arrive before the snapshot are silently dropped.
-    if (!m_symbolsWithSnapshot.contains(symbol))
-    {
-        if (!state.contains("Bid") || !state.contains("Ask"))
-        {
-            DEBUG << "Dropping delta for" << symbol << "- initial snapshot not yet received";
-            return;
-        }
-        m_symbolsWithSnapshot.insert(symbol);
-    }
+    // The initial snapshot MUST always arrive before any delta for a given symbol.
+    // If this fires, the snapshot was lost somewhere in the pipeline — that is a bug.
+    OBJ_ASSUME_TRUE(state.contains("Bid") && state.contains("Ask"));
 
     Quote quote(state);
     OBJ_ASSUME_TRUE(quote.isValid());
