@@ -78,6 +78,7 @@ class RecorderTab : public QWidget
     QLabel* m_uptimeLabel;
     QLabel* m_barsRecordCountLabel;
     QLabel* m_depthRecordCountLabel;
+    QLabel* m_quotesRecordCountLabel;
     QLabel* m_recordingSizeLabel;
     QTimer* m_refreshTimer;
 
@@ -87,6 +88,7 @@ class RecorderTab : public QWidget
     QDateTime m_startTime;
     std::unique_ptr<LiveStreamDB> m_liveBarsDB;
     std::unique_ptr<LiveStreamDB> m_liveMarketDepthQuoteDB;
+    std::unique_ptr<LiveStreamDB> m_liveQuotesDB;
     QStringList m_stockTickers;
     QString m_stockCsvFilePath;
 };

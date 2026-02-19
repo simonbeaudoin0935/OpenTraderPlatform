@@ -123,6 +123,7 @@ OrdersDatabase::~OrdersDatabase()
     {
         m_db.close();
     }
+    m_db = QSqlDatabase(); // Release the copy before removal (Qt requirement)
     QSqlDatabase::removeDatabase(m_connectionName);
     s_instance = nullptr;
 }
@@ -344,7 +345,7 @@ QMap<QString, std::tuple<Order, std::optional<qint64>>> OrdersDatabase::loadAllO
         }
     }
 
-    INFO << "Loaded" << orders.size() << "orders from database";
+    DEBUG << "Loaded" << orders.size() << "orders from database";
     return orders;
 }
 

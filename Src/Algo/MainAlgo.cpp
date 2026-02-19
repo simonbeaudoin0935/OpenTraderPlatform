@@ -12,6 +12,7 @@
 #include "Logging.h"
 #include "Assume.h"
 #include "OrderEmulator.h"
+#include "CONSTANTS.h"
 
 #define LOGGING_CATEGORY MainAlgoLog
 
@@ -213,6 +214,10 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         if (oldInstrument->marketDepthQuoteReceiver.getStream())
         {
             TSClient::getInstance()->closeStream(oldInstrument->marketDepthQuoteReceiver.getStream());
+        }
+        if (!oldInstrument->streamQuote.isNull())
+        {
+            TSClient::getInstance()->closeStream(oldInstrument->streamQuote);
         }
 
         currentDisplayedStockInstrument = nullptr;
@@ -712,6 +717,19 @@ void MainAlgo::onReplayEndReached()
         }
         instrument->barReceiver.pauseHeartbeat();
         instrument->marketDepthQuoteReceiver.pauseHeartbeat();
+        if (!instrument->streamQuote.isNull())
+        {
+            instrument->streamQuote->pauseHeartbeat();
+        }
+    }
+}
+
+void MainAlgo::onDisplayedStockReceivedNewQuote(const QString& symbol, const Quote& quote)
+{
+    // Only forward quotes for the currently displayed stock
+    if (!currentDisplayedStockInstrument.isNull() && symbol == currentDisplayedStockInstrument->symbol)
+    {
+        emit displayedStockReceivedNewQuote(symbol, quote);
     }
 }
 
@@ -786,10 +804,26 @@ void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pl
                         Qt::QueuedConnection);
     ASSUME_TRUE(connected);
 
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::injectQuoteData,
+                        TSClient::getInstance(),
+                        &TSClient::onInjectQuoteData,
+                        Qt::QueuedConnection);
+    ASSUME_TRUE(connected);
+
     DEBUG << "ReplayEngine created and connected";
 
     // Start replay order/position streams with simulated account
     startReplayOrderStreams();
+
+    // Pre-roll: build initial quote state from start-of-day so the first delta
+    // never arrives before its symbol's snapshot.
+    const qint64 startEpochMs = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE).toMSecsSinceEpoch();
+    QMetaObject::invokeMethod(TSClient::getInstance(),
+                              "preRollQuoteState",
+                              Qt::BlockingQueuedConnection,
+                              Q_ARG(QDate, p_date),
+                              Q_ARG(qint64, startEpochMs));
 
     m_replayEngine->startReplay(p_date, p_startTime, p_speed);
 }
@@ -864,6 +898,13 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
                         Qt::QueuedConnection);
     ASSUME_TRUE(connected);
 
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::injectQuoteData,
+                        TSClient::getInstance(),
+                        &TSClient::onInjectQuoteData,
+                        Qt::QueuedConnection);
+    ASSUME_TRUE(connected);
+
     DEBUG << "ReplayEngine created and connected";
 
     // Only setup order/position streams on first entry to replay mode
@@ -871,6 +912,15 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
     {
         startReplayOrderStreams();
     }
+
+    // Pre-roll: build initial quote state from start-of-day so the first delta
+    // never arrives before its symbol's snapshot.
+    const qint64 startEpochMs = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE).toMSecsSinceEpoch();
+    QMetaObject::invokeMethod(TSClient::getInstance(),
+                              "preRollQuoteState",
+                              Qt::BlockingQueuedConnection,
+                              Q_ARG(QDate, p_date),
+                              Q_ARG(qint64, startEpochMs));
 
     // Start in paused state - emit first bar then pause
     m_replayEngine->startReplayPaused(p_date, p_startTime, p_speed);
@@ -881,6 +931,10 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
         OBJ_ASSUME_FALSE(instrument.isNull());
         instrument->barReceiver.pauseHeartbeat();
         instrument->marketDepthQuoteReceiver.pauseHeartbeat();
+        if (!instrument->streamQuote.isNull())
+        {
+            instrument->streamQuote->pauseHeartbeat();
+        }
     }
 }
 
@@ -910,6 +964,10 @@ void MainAlgo::pauseReplay()
         OBJ_ASSUME_FALSE(instrument.isNull());
         instrument->barReceiver.pauseHeartbeat();
         instrument->marketDepthQuoteReceiver.pauseHeartbeat();
+        if (!instrument->streamQuote.isNull())
+        {
+            instrument->streamQuote->pauseHeartbeat();
+        }
     }
 }
 
@@ -924,6 +982,10 @@ void MainAlgo::resumeReplay()
         OBJ_ASSUME_FALSE(instrument.isNull());
         instrument->barReceiver.resumeHeartbeat();
         instrument->marketDepthQuoteReceiver.resumeHeartbeat();
+        if (!instrument->streamQuote.isNull())
+        {
+            instrument->streamQuote->resumeHeartbeat();
+        }
     }
 
     m_replayEngine->resumeReplay();
@@ -1129,6 +1191,10 @@ void MainAlgo::deleteAllStockInstruments()
         if (QPointer<StockInstruments> instrument = it.value(); instrument)
         {
             DEBUG << "Scheduling deletion of stock instrument for" << instrument->symbol;
+            if (!instrument->streamQuote.isNull())
+            {
+                TSClient::getInstance()->closeStream(instrument->streamQuote);
+            }
             instrument->deleteLater(); // Use deleteLater() for Qt objects with signals
         }
     }
@@ -1186,4 +1252,13 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
     ASSUME_TRUE(connected);
 
     INFO << "Stock instrument created and set as displayed for" << p_symbol;
+
+    // In replay mode, open a StreamQuote for this symbol so the replay engine
+    // emits quote rows (hasOpenQuoteStream() check) and the OrderEmulator gets updated.
+    if (TSClient::getInstance()->getMode() == TSClient::Mode::Replay)
+    {
+        currentDisplayedStockInstrument->streamQuote = TSClient::getInstance()->openStreamQuote({p_symbol});
+        OBJ_ASSUME_FALSE(currentDisplayedStockInstrument->streamQuote.isNull());
+        INFO << "Opened replay StreamQuote for displayed stock" << p_symbol;
+    }
 }

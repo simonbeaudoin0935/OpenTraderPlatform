@@ -1009,6 +1009,28 @@ void OrderEntryWidget::onMarketDepthUpdate(const QString& symbol, const MarketDe
     }
 }
 
+void OrderEntryWidget::onL1QuoteUpdate(const QString& symbol, double bid, double ask)
+{
+    if (symbol != m_currentSymbol)
+    {
+        return;
+    }
+
+    if (bid > 0.0)
+    {
+        m_lastBestBid = bid;
+    }
+    if (ask > 0.0)
+    {
+        m_lastBestAsk = ask;
+    }
+
+    if (m_stickyEnabled)
+    {
+        updateStickyPrice();
+    }
+}
+
 void OrderEntryWidget::updateStickyPrice()
 {
     if (!m_stickyEnabled)

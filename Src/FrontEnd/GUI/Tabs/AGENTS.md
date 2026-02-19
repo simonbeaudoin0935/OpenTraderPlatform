@@ -173,22 +173,28 @@ connect(&LogBroadcaster::getInstance(), &LogBroadcaster::logMessage,
 
 **Features**:
 - Start/stop recording within the application
-- CSV file input for symbol list
+- CSV file input for symbol list (up to 100 symbols enforced)
 - Select timeframe for recording
+- Records all three stream types: Bars (per symbol), Market Depth (up to 10), Quotes (all symbols)
 - Recording status display
-- Output directory selection
 - Progress indicator
 - Live recording statistics
 
+**100-Symbol Limit**:
+After loading symbols from a CSV file, the count is validated. If more than 100 symbols are found:
+- The list is clipped to the first 100 symbols
+- A `QMessageBox::warning()` dialog is shown listing the excess count
+- Recording proceeds with the clipped 100-symbol list
+
 **Key Methods**:
 ```cpp
-// Start market data recording
+// Start market data recording (opens StreamBars, StreamMarketDepthQuote, StreamQuote)
 void startRecording();
 
 // Stop ongoing recording
 void stopRecording();
 
-// Load symbols from CSV file
+// Load symbols from CSV file — clips to 100, warns if exceeded
 void loadSymbolsFromCSV(const QString& filePath);
 
 // Update recording statistics
@@ -216,7 +222,10 @@ public slots:
 ```
 
 **File Format**:
-CSV files are stored in `~/.cache/L2Trader/RecordedLiveData/Bars/`
+CSV files are stored in:
+- `~/.cache/L2Trader/RecordedLiveData/Bars/` (one DB per symbol per day)
+- `~/.cache/L2Trader/RecordedLiveData/MarketDepthQuotes/` (one DB per symbol per day, up to 10)
+- `~/.cache/L2Trader/RecordedLiveData/Quotes/` (one DB for all symbols per day)
 
 ---
 
@@ -228,32 +237,40 @@ CSV files are stored in `~/.cache/L2Trader/RecordedLiveData/Bars/`
 - Three-column layout for browsing recordings
 - List all recorded days with statistics
 - View stocks recorded for each day
-- Display detailed metrics per stock (bars + market depth)
+- Display detailed metrics per stock (bars + market depth + quotes)
 - Market depth availability indicator (API limited to 10 streams)
+- Quote data availability indicator (Level 1 data for all symbols)
 - Read-only interface
 
 **UI Layout**:
 ```
-┌─────────────────┬─────────────────┬─────────────────┐
-│   Recorded Days │ Stocks in Day   │  Stock Details  │
-│                 │                 │                 │
-│ Date  Bars Size │ Symbol Bars Dpt │ Symbol: AAPL    │
-│ 2026-02-05      │ AAPL   1234 Yes │                 │
-│ 2026-02-06      │ MSFT   2345 No  │ Bars Data:      │
-│ ...             │ ...             │ - Count: 1234   │
-│                 │                 │ - First: ...    │
-│                 │                 │ - Last: ...     │
-│                 │                 │ - Duration: ... │
-│                 │                 │                 │
-│                 │                 │ Market Depth:   │
-│                 │                 │ - Status: Avail │
-│                 │                 │ - Count: 567    │
-└─────────────────┴─────────────────┴─────────────────┘
+┌─────────────────┬──────────────────────────┬──────────────────────┐
+│  Recorded Days  │  Stocks in Day           │  Stock Details       │
+│                 │                          │                      │
+│ Date  Bars Size │ Symbol Bars Depth Quotes │ Symbol: AAPL         │
+│ 2026-02-05      │ AAPL   1234  Yes   Yes   │                      │
+│ 2026-02-06      │ MSFT   2345  No    Yes   │ Bars Data:           │
+│ ...             │ ...                      │ - Count: 1234        │
+│                 │                          │ - First: ...         │
+│                 │                          │ - Last: ...          │
+│                 │                          │ - Duration: ...      │
+│                 │                          │                      │
+│                 │                          │ Market Depth:        │
+│                 │                          │ - Status: Available  │
+│                 │                          │ - Count: 567         │
+│                 │                          │                      │
+│                 │                          │ Quotes Data:         │
+│                 │                          │ - Status: Available  │
+│                 │                          │ - Count: 8901        │
+│                 │                          │ - Breakdown: 8880    │
+│                 │                          │   QuoteStream, 21    │
+│                 │                          │   Heartbeat, 0 Error │
+└─────────────────┴──────────────────────────┴──────────────────────┘
 ```
 
 **Key Methods**:
 ```cpp
-// Scan RecordedLiveData/Bars directory for .db files
+// Scan RecordedLiveData/{Bars,MarketDepthQuotes,Quotes} directories
 void scanRecordedDays();
 
 // Load stocks from selected day's database
@@ -262,13 +279,20 @@ void loadStocksForDay(const QDate& date);
 // Load detailed metrics for selected stock
 void loadStockDetails(const QDate& date, const QString& symbol);
 
-// Query metrics from both bars and depth databases
+// Query metrics from bars, depth, and quotes databases
 StockMetrics queryStockMetrics(const QString& barsDbPath,
                                 const QString& depthDbPath,
+                                const QString& quotesDbPath,
                                 const QString& symbol);
 
-// Check if stock exists in market depth database
+// Get database path for each type
+QString getBarsDbPath(QDate date);
+QString getDepthDbPath(QDate date);
+QString getQuotesDbPath(QDate date);
+
+// Check if symbol exists in a database
 bool checkStockInDatabase(const QString& dbPath, const QString& symbol);
+bool checkStockInQuotesDatabase(const QString& dbPath, const QString& symbol);
 
 // Format helpers
 QString formatFileSize(qint64 bytes);
@@ -279,35 +303,53 @@ QString formatTimestamp(qint64 epochMs);
 **Data Sources**:
 - Bars: `~/.cache/L2Trader/RecordedLiveData/Bars/{YYYY-MM-DD}.db`
 - Market Depth: `~/.cache/L2Trader/RecordedLiveData/MarketDepthQuotes/{YYYY-MM-DD}.db`
+- Quotes: `~/.cache/L2Trader/RecordedLiveData/Quotes/{YYYY-MM-DD}.db`
+
+**StockMetrics Structure**:
+```cpp
+struct StockMetrics {
+    QString symbol;
+
+    // Bars
+    qint64 barCount;
+    qint64 firstTimestampMs;
+    qint64 lastTimestampMs;
+
+    // Market Depth
+    bool hasMarketDepth;
+    qint64 depthCount;
+    qint64 depthFirstTimestampMs;
+    qint64 depthLastTimestampMs;
+
+    // Level 1 Quotes
+    bool hasQuotes;
+    qint64 quoteCount;
+    qint64 quoteFirstTimestampMs;
+    qint64 quoteLastTimestampMs;
+
+    // Quote object type breakdown
+    qint64 quoteStreamCount;    // "QuoteStream" rows
+    qint64 heartbeatCount;      // "Heartbeat" rows
+    qint64 errorCount;          // "Error" rows
+};
+```
 
 **Database Queries**:
 ```sql
 -- Get all stocks from bars database
 SELECT DISTINCT stockTicker FROM bars ORDER BY stockTicker;
 
--- Get metrics for a stock
+-- Get bar metrics for a stock
 SELECT COUNT(*), MIN(epochMs), MAX(epochMs) FROM bars WHERE stockTicker = ?;
+
+-- Get depth metrics
 SELECT COUNT(*), MIN(epochMs), MAX(epochMs) FROM market_depth_quotes WHERE stockTicker = ?;
-```
 
-**Market Depth Limitation**:
-Due to TradeStation API limit (10 concurrent market depth streams), not all stocks will have market depth data. The tab shows:
-- "Yes" or "No" indicator in stocks table
-- "Available" or "Not Available" status in details panel
-- Market depth metrics only displayed when available
+-- Get quote metrics
+SELECT COUNT(*), MIN(epochMs), MAX(epochMs) FROM quotes WHERE stockTicker = ?;
 
-**StockMetrics Structure**:
-```cpp
-struct StockMetrics {
-    QString symbol;
-    qint64 barCount;
-    qint64 firstTimestampMs;
-    qint64 lastTimestampMs;
-    bool hasMarketDepth;
-    qint64 depthCount;
-    qint64 depthFirstTimestampMs;
-    qint64 depthLastTimestampMs;
-};
+-- Get quote type breakdown
+SELECT objectType, COUNT(*) FROM quotes WHERE stockTicker = ? GROUP BY objectType;
 ```
 
 **Signal Interface**:
@@ -318,7 +360,7 @@ struct StockMetrics {
 **Usage**:
 1. Tab auto-scans recorded days on creation
 2. Click a date → stocks list populates
-3. Click a stock → details display on right
+3. Click a stock → details display on right with Bars, Depth, and Quotes sections
 4. Click "Refresh" to rescan directory
 
 ---

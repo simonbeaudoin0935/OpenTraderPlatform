@@ -42,6 +42,7 @@ class GUIFrontend : public FrontEnd
                                                          double bidAskImbalance,
                                                          double bidDWP,
                                                          double askDWP) override;
+    void onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote) override;
     void onNewPositionReceived(QString account, Position position) override;
     void onPositionDeleted(QString account, QString positionID) override;
     void onNewOrderReceived(QString account, Order order) override;
@@ -118,4 +119,9 @@ class GUIFrontend : public FrontEnd
     QLabel* m_sessionLabel = nullptr;     // Trading session indicator
     QLabel* m_timeDisplayLabel = nullptr; // Application time display (live or replay)
     QTimer* m_timeUpdateTimer = nullptr;  // Timer to update time display
+
+    // MarketFlags status labels
+    QLabel* m_haltedLabel = nullptr;       // "HALTED" - red
+    QLabel* m_delayedLabel = nullptr;      // "DELAYED" - yellow
+    QLabel* m_hardToBorrowLabel = nullptr; // "HTB" - orange
 };

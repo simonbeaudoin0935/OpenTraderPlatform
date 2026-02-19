@@ -2,6 +2,7 @@
 #include "TSClient.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "MockNetworkReply.h"
 
 #define LOGGING_CATEGORY StreamLog
 
@@ -11,7 +12,8 @@ size_t StreamOrders::s_numberOfOrderStreams = 0;
 StreamOrders::StreamOrders(const QString& accountID, QNetworkReply* reply, QObject* parent)
     : StreamBrokerage(reply, parent), m_accountID(accountID)
 {
-    this->setObjectName("Stream::Orders::" + accountID);
+    const QString suffix = qobject_cast<MockNetworkReply*>(reply) ? QStringLiteral("::mock") : QStringLiteral("::live");
+    this->setObjectName("Stream::Orders::" + accountID + suffix);
 
     // Assert that we're not creating a second orders stream
     OBJ_ASSUME_EQUAL(s_numberOfOrderStreams, 0u);

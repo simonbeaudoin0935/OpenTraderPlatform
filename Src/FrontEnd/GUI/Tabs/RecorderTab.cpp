@@ -29,12 +29,14 @@ RecorderTab::RecorderTab(QWidget* p_parent)
     , m_uptimeLabel(nullptr)
     , m_barsRecordCountLabel(nullptr)
     , m_depthRecordCountLabel(nullptr)
+    , m_quotesRecordCountLabel(nullptr)
     , m_recordingSizeLabel(nullptr)
     , m_refreshTimer(nullptr)
     , m_isRecording(false)
     , m_isAuthenticated(false)
     , m_liveBarsDB(nullptr)
     , m_liveMarketDepthQuoteDB(nullptr)
+    , m_liveQuotesDB(nullptr)
     , m_stockCsvFilePath("")
 {
     setupUI();
@@ -90,6 +92,9 @@ void RecorderTab::setupUI()
 
     m_depthRecordCountLabel = new QLabel("Market Depth Records: 0");
     statusLayout->addWidget(m_depthRecordCountLabel);
+
+    m_quotesRecordCountLabel = new QLabel("Quotes Records: 0");
+    statusLayout->addWidget(m_quotesRecordCountLabel);
 
     m_recordingSizeLabel = new QLabel("Recording Size: N/A");
     statusLayout->addWidget(m_recordingSizeLabel);
@@ -352,6 +357,21 @@ void RecorderTab::onStartRecording()
         return;
     }
 
+    // Enforce maximum of 100 stocks (TradeStation Quote stream limit)
+    constexpr int MAX_STOCKS = 100;
+    if (m_stockTickers.size() > MAX_STOCKS)
+    {
+        int originalCount = m_stockTickers.size();
+        m_stockTickers = m_stockTickers.mid(0, MAX_STOCKS);
+        QMessageBox::warning(this,
+                             "Stock Limit Exceeded",
+                             QString("The CSV file contains %1 stocks, but the TradeStation Quote stream API "
+                                     "supports a maximum of %2 symbols.\n\n"
+                                     "Recording will proceed with the first %2 stocks only.")
+                                 .arg(originalCount)
+                                 .arg(MAX_STOCKS));
+    }
+
     // Create recording folders
     // Note: We don't use createRecordingFolders() utility because it uses qFatal() on error
     // which would crash the GUI. Instead, we handle errors gracefully with message boxes.
@@ -405,18 +425,34 @@ void RecorderTab::onStartRecording()
         }
     }
 
+    QString quotesPath = recordedDataPath + "/Quotes";
+    QDir quotesDir(quotesPath);
+    if (!quotesDir.exists())
+    {
+        if (!quotesDir.mkpath("."))
+        {
+            QMessageBox::critical(this,
+                                  "Directory Error",
+                                  QString("Cannot create Quotes directory: %1").arg(quotesPath));
+            return;
+        }
+    }
+
     // Create database instances
     QString dateStr = QDate::currentDate().toString("yyyy-MM-dd");
     QString barsDbPath = barsPath + "/" + dateStr + ".db";
     QString marketDepthDbPath = marketDepthPath + "/" + dateStr + ".db";
+    QString quotesDbPath = quotesPath + "/" + dateStr + ".db";
 
     m_liveBarsDB = std::make_unique<LiveStreamDB>(LiveStreamDB::StreamType::Bars, barsDbPath, m_stockTickers);
     m_liveMarketDepthQuoteDB =
         std::make_unique<LiveStreamDB>(LiveStreamDB::StreamType::MarketDepthQuotes, marketDepthDbPath, m_stockTickers);
+    m_liveQuotesDB = std::make_unique<LiveStreamDB>(LiveStreamDB::StreamType::Quotes, quotesDbPath, m_stockTickers);
 
     // Start recording
     m_liveBarsDB->startRecording();
     m_liveMarketDepthQuoteDB->startRecording();
+    m_liveQuotesDB->startRecording();
 
     // Update state
     m_isRecording = true;
@@ -460,6 +496,13 @@ void RecorderTab::onStopRecording()
         m_liveMarketDepthQuoteDB->stopRecording();
         m_liveMarketDepthQuoteDB->finalizeUnrecoveredTimeouts();
         m_liveMarketDepthQuoteDB.reset();
+    }
+
+    if (m_liveQuotesDB)
+    {
+        m_liveQuotesDB->stopRecording();
+        m_liveQuotesDB->finalizeUnrecoveredTimeouts();
+        m_liveQuotesDB.reset();
     }
 
     // Update state
@@ -508,7 +551,13 @@ void RecorderTab::updateStatsDisplay()
         m_depthRecordCountLabel->setText(QString("Market Depth Records: %1").arg(depthCount));
     }
 
-    // Update total recording size (sum of both database files)
+    if (m_liveQuotesDB)
+    {
+        int quotesCount = m_liveQuotesDB->getRecordCount();
+        m_quotesRecordCountLabel->setText(QString("Quotes Records: %1").arg(quotesCount));
+    }
+
+    // Update total recording size (sum of all database files)
     qint64 totalDbSize = 0;
     if (m_liveBarsDB)
     {
@@ -517,6 +566,10 @@ void RecorderTab::updateStatsDisplay()
     if (m_liveMarketDepthQuoteDB)
     {
         totalDbSize += m_liveMarketDepthQuoteDB->getDatabaseFileSizeBytes();
+    }
+    if (m_liveQuotesDB)
+    {
+        totalDbSize += m_liveQuotesDB->getDatabaseFileSizeBytes();
     }
     m_recordingSizeLabel->setText(QString("Recording Size: %1").arg(formatFileSize(totalDbSize)));
     emit recordingSizeChanged(totalDbSize);
@@ -556,6 +609,22 @@ void RecorderTab::updateStreamTable()
     m_streamTable->setItem(row, 1, new QTableWidgetItem(QString::number(activeDepthStreams)));
     m_streamTable->setItem(row, 2, new QTableWidgetItem(QString::number(failedDepthStreams)));
     m_streamTable->setItem(row, 3, new QTableWidgetItem(QString::number(totalDepthStreams)));
+
+    // Quotes stream row (single stream for all symbols)
+    if (m_liveQuotesDB)
+    {
+        row++;
+        m_streamTable->insertRow(row);
+        m_streamTable->setItem(row, 0, new QTableWidgetItem("Quotes (L1)"));
+
+        int totalQuotesStreams = m_liveQuotesDB->getTotalConfiguredStreams();
+        int activeQuotesStreams = m_liveQuotesDB->getActiveStreamCount();
+        int failedQuotesStreams = totalQuotesStreams - activeQuotesStreams;
+
+        m_streamTable->setItem(row, 1, new QTableWidgetItem(QString::number(activeQuotesStreams)));
+        m_streamTable->setItem(row, 2, new QTableWidgetItem(QString::number(failedQuotesStreams)));
+        m_streamTable->setItem(row, 3, new QTableWidgetItem(QString::number(totalQuotesStreams)));
+    }
 }
 
 void RecorderTab::updateErrorTable()

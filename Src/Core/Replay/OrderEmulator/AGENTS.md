@@ -97,7 +97,10 @@ When limit price is at or better than market:
 - BUY limit: fills if ask ≤ limit price
 - SELL limit: fills if bid ≥ limit price
 
-Flow: Same as market orders, but fill price = limit price.
+**Fill price is always the current market price (ask for buys, bid for sells) — NOT the limit price.**
+The limit price is a ceiling (buy) or floor (sell) that controls whether the order is marketable.
+A buy limit at $15.94 when the ask is $15.70 crosses the spread and fills at $15.70, exactly as a
+market order would. This matches real exchange behaviour (price improvement).
 
 ### Limit Orders (Delayed Fill)
 
@@ -190,16 +193,55 @@ struct PositionData {
 |--------|---------|
 | `placeOrder()` | Entry point for new orders; validates and queues |
 | `cancelOrder()` | Cancels open limit orders |
-| `updateMarketDepth()` | Receives depth snapshots; checks pending fills |
+| `updateMarketDepth()` | Receives Level 2 depth snapshots; checks pending fills |
+| `updateQuote()` | Receives Level 1 quote data; enables fills for symbols without L2 |
 | `onReceptionDelayElapsed()` | Processes pending orders after delay |
 | `onExecutionDelayElapsed()` | Fills orders after execution delay |
 | `canFillLimitOrder()` | Checks if limit order conditions are met |
 | `calculateMarketOrderFillPrice()` | Determines fill price for market orders |
 | `fillOrder()` | Marks order as filled, emits update |
 | `updatePosition()` | Creates/updates position, calculates P&L |
+| `recalculatePositionPnL()` | Updates unrealized P&L when market data changes |
 | `validateOrder()` | Full order validation before acceptance |
 | `pause()/resume()` | Freezes/resumes timers for replay pause |
 | `clear()` | Resets all state for new replay session |
+
+## Market Data Sources
+
+The OrderEmulator supports two data sources for order fills and position P&L:
+
+### Level 2 (Market Depth) - Primary
+- Full order book with multiple price levels
+- More accurate fill prices using actual depth
+- Limited to 10 symbols due to API stream limits
+- `updateMarketDepth()` receives depth snapshots
+
+### Level 1 (Quote) - Fallback
+- Best bid/ask only
+- Enables fills for all 100 symbols in replay
+- Used when Level 2 stream is not available for a symbol
+- `updateQuote()` receives quote data
+
+> **⚠️ Invariant**: `updateQuote()` always receives a **complete, merged** `Quote` object —
+> never a raw delta with zeroed fields. The merging is guaranteed by the callers:
+> `TSClient::onInjectQuoteData()` (replay) and `StreamQuote::processJsonObject()` (live).
+> The OrderEmulator does not need to handle partial quotes.
+
+**Fill Price Logic** (market and limit orders use identical price calculation):
+```cpp
+if (hasMarketDepthData(symbol)) {
+    // Use L2: walk the book for accurate fill price (ask for buy, bid for sell)
+    fillPrice = calculateMarketOrderFillPrice(order, depth);
+} else if (hasQuoteData(symbol)) {
+    // Use L1: bid/ask crossing (ask for buy, bid for sell)
+    fillPrice = calculateMarketOrderFillPriceFromQuote(order, quote);
+} else {
+    // Reject: no market data
+    rejectOrder("No market data available");
+}
+// For limit orders: fill price = market price, not limit price.
+// The limit price only determines whether the order is marketable.
+```
 
 ## Position Tracking
 

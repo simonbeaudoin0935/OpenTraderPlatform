@@ -22,7 +22,7 @@ MockNetworkAccessManager::MockNetworkAccessManager(OrderEmulator* p_emulator, QO
 {
     OBJ_ASSUME_DIFF(p_emulator, nullptr);
     setObjectName("MockNetworkAccessManager");
-    INFO << "MockNetworkAccessManager created";
+    DEBUG << "MockNetworkAccessManager created";
 }
 
 MockNetworkAccessManager::~MockNetworkAccessManager()
@@ -34,7 +34,6 @@ QNetworkReply*
 MockNetworkAccessManager::createRequest(Operation p_op, const QNetworkRequest& p_request, QIODevice* p_outgoingData)
 {
     QString path = p_request.url().path();
-    DEBUG << "Intercepting request:" << p_op << path;
 
     switch (p_op)
     {
@@ -48,9 +47,8 @@ MockNetworkAccessManager::createRequest(Operation p_op, const QNetworkRequest& p
         return handleGet(p_request);
 
     default:
-        WARNING << "Unhandled operation type:" << p_op << "for path:" << path;
-        // Fall through to base implementation for unhandled operations
-        return QNetworkAccessManager::createRequest(p_op, p_request, p_outgoingData);
+        Q_UNREACHABLE();
+        return nullptr;
     }
 }
 

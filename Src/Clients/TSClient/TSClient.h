@@ -14,6 +14,8 @@
 #include <QFuture>
 #include <QPromise>
 #include <QQueue>
+#include <QJsonObject>
+#include <QDate>
 #include <deque>
 
 #include "AuthToken.h"
@@ -26,6 +28,7 @@
 #include "Quote.h"
 #include "StreamBars.h"
 #include "StreamMarketDepthQuote.h"
+#include "StreamQuote.h"
 #include "Balance.h"
 
 #include "Stream.h"
@@ -218,6 +221,14 @@ class TSClient final : public QObject
     openStreamMarketDepthQuote(const QString& symbol, unsigned int depth = 20);
 
     /*
+     * Creates a Quote Stream (Level 1 bid/ask stream)
+     *
+     * @param symbols Comma-delimited symbol list (max 100 symbols per stream request)
+     * @doc : https://api.tradestation.com/docs/specification/#tag/MarketData/operation/GetQuoteChangeStream
+     */
+    [[nodiscard]] QPointer<StreamQuote> openStreamQuote(const QStringList& symbols);
+
+    /*
      * Creates a StreaOrders Stream
      *
      * @return : nullptr if the stream could not be created
@@ -249,7 +260,8 @@ class TSClient final : public QObject
     [[nodiscard]] static size_t getStreamCount()
     {
         return StreamBars::getNumberOfBarsStreams() + StreamMarketDepthQuote::getNumberOfMarketDepthStreams() +
-               StreamPositions::getNumberOfPositionStreams() + StreamOrders::getNumberOfOrderStreams();
+               StreamQuote::getNumberOfQuoteStreams() + StreamPositions::getNumberOfPositionStreams() +
+               StreamOrders::getNumberOfOrderStreams();
     }
     [[nodiscard]] bool isAuthenticated() const
     {
@@ -292,6 +304,19 @@ class TSClient final : public QObject
     [[nodiscard]] bool hasOpenMarketDepthStream(const QString& p_symbol) const;
 
     /**
+     * @brief Check if a quote stream exists for the given symbol
+     * @param p_symbol Stock ticker symbol
+     * @return true if a stream (real or mock) exists
+     */
+    [[nodiscard]] bool hasOpenQuoteStream(const QString& p_symbol) const;
+
+    /**
+     * @brief Check if any quote stream is currently open
+     * @return true if at least one quote stream exists
+     */
+    [[nodiscard]] bool hasOpenQuoteStream() const;
+
+    /**
      * @brief Get the MockNetworkReply for a bar stream (replay mode only)
      * @param p_symbol Stock ticker symbol
      * @return Pointer to MockNetworkReply, or nullptr if not found
@@ -304,6 +329,13 @@ class TSClient final : public QObject
      * @return Pointer to MockNetworkReply, or nullptr if not found
      */
     [[nodiscard]] MockNetworkReply* getMarketDepthReplyForSymbol(const QString& p_symbol) const;
+
+    /**
+     * @brief Get the MockNetworkReply for a quote stream (replay mode only)
+     * @param p_symbol Stock ticker symbol
+     * @return Pointer to MockNetworkReply, or nullptr if not found
+     */
+    [[nodiscard]] MockNetworkReply* getQuoteReplyForSymbol(const QString& p_symbol) const;
 
     /**
      * @brief Check if the market depth queue is empty
@@ -358,6 +390,27 @@ class TSClient final : public QObject
     void onInjectDepthData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
 
     /**
+     * @brief Inject quote data into the appropriate MockNetworkReply (replay mode)
+     * @param p_symbol Stock ticker symbol
+     * @param p_data Shared pointer to JSON data
+     */
+    void onInjectQuoteData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data);
+
+    /**
+     * @brief Pre-roll quote state from start-of-day to p_startEpochMs (replay mode).
+     *
+     * The TradeStation Quote Stream is differential: the very first message per symbol
+     * is a full snapshot. When the replay starts mid-day, all snapshots have already
+     * passed. This method reads every QuoteStream record recorded before p_startEpochMs,
+     * merges them per-symbol into m_replayQuoteState (for the OrderEmulator), and injects
+     * the final merged state into any open MockNetworkReply so StreamQuote is also primed.
+     *
+     * Must be called via BlockingQueuedConnection from MainAlgo's thread before starting
+     * the ReplayEngine, so that the state is fully built before the first delta arrives.
+     */
+    void preRollQuoteState(QDate p_date, qint64 p_startEpochMs);
+
+    /**
      * @brief Process the next queued market depth stream request
      *
      * Called after a market depth stream is destroyed and the queue is not empty.
@@ -371,6 +424,13 @@ class TSClient final : public QObject
   signals:
     // Emited at basically every new message
     void totalDataReceivedBytesIncreased(qsizetype dataSize);
+
+    /**
+     * @brief Emitted when a new Level 1 quote is received (live or replay)
+     * @param symbol The stock symbol
+     * @param quote The parsed Quote object with bid/ask and market flags
+     */
+    void newQuoteReceived(const QString& symbol, const Quote& quote);
 
     /**
      * @brief Emitted when stream counts change
@@ -435,8 +495,10 @@ class TSClient final : public QObject
     Mode m_mode = Mode::Live;
     QMap<QString, QPointer<MockNetworkReply>> m_replayBarReplies;   // symbol -> MockNetworkReply for bars
     QMap<QString, QPointer<MockNetworkReply>> m_replayDepthReplies; // symbol -> MockNetworkReply for depth
-    QPointer<MockNetworkReply> m_replayOrdersReply;                 // MockNetworkReply for orders stream
-    QPointer<MockNetworkReply> m_replayPositionsReply;              // MockNetworkReply for positions stream
+    QMap<QString, QPointer<MockNetworkReply>> m_replayQuoteReplies; // symbol -> MockNetworkReply for quotes
+    QMap<QString, QJsonObject> m_replayQuoteState;     // Accumulated quote state per symbol (for delta merging)
+    QPointer<MockNetworkReply> m_replayOrdersReply;    // MockNetworkReply for orders stream
+    QPointer<MockNetworkReply> m_replayPositionsReply; // MockNetworkReply for positions stream
 
     // Order emulation for replay mode
     OrderEmulator* m_orderEmulator = nullptr;                 // Created when entering replay mode

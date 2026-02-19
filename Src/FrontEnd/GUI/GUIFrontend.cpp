@@ -11,11 +11,15 @@
 #include <QScrollBar>
 #include <QRegularExpression>
 #include <QTimer>
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QFile>
 #include "Assume.h"
 
 #include "TSClient.h"
 #include "GUIFrontend.h"
 #include "ui_GUIFrontend.h"
+#include "Quote.h"
 #include "Tabs/LoggingTab.h"
 #include "Tabs/CacheTab.h"
 #include "Tabs/RecorderTab.h"
@@ -173,6 +177,30 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     ui->topControlsLayout->insertWidget(4, m_sessionLabel);
     updateSessionLabel();
 
+    // Create MarketFlags status labels (start in inactive/grey state)
+    // Inactive: dark grey background, muted text
+    // Active: bright colored background matching the alert level
+    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; }";
+
+    m_haltedLabel = new QLabel("HALTED", m_mainWindow);
+    Q_CHECK_PTR(m_haltedLabel);
+    m_haltedLabel->setStyleSheet(inactiveStyle);
+    m_haltedLabel->setToolTip("Trading is halted for this symbol");
+    ui->topControlsLayout->insertWidget(5, m_haltedLabel);
+
+    m_delayedLabel = new QLabel("DELAYED", m_mainWindow);
+    Q_CHECK_PTR(m_delayedLabel);
+    m_delayedLabel->setStyleSheet(inactiveStyle);
+    m_delayedLabel->setToolTip("Data is delayed (not real-time)");
+    ui->topControlsLayout->insertWidget(6, m_delayedLabel);
+
+    m_hardToBorrowLabel = new QLabel("HTB", m_mainWindow);
+    Q_CHECK_PTR(m_hardToBorrowLabel);
+    m_hardToBorrowLabel->setStyleSheet(inactiveStyle);
+    m_hardToBorrowLabel->setToolTip("Hard to borrow - short selling may be restricted");
+    ui->topControlsLayout->insertWidget(7, m_hardToBorrowLabel);
+
     // Create time display widget (centered next to session label)
     m_timeDisplayLabel = new QLabel("00:00:00", m_mainWindow);
     Q_CHECK_PTR(m_timeDisplayLabel);
@@ -192,11 +220,11 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_timeDisplayLabel->setToolTip("Application time (New York timezone)\n"
                                    "🟢 Green: LIVE mode - real-time clock\n"
                                    "🟠 Amber: REPLAY mode - simulated time");
-    ui->topControlsLayout->insertWidget(5, m_timeDisplayLabel);
+    ui->topControlsLayout->insertWidget(8, m_timeDisplayLabel);
 
     // Add spacer to push mode labels to the right
     auto* rightSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
-    ui->topControlsLayout->insertSpacerItem(6, rightSpacer);
+    ui->topControlsLayout->insertSpacerItem(9, rightSpacer);
 
     // Create trading mode indicator (right side: SIM/LIVE) - clickable to toggle
     bool isSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
@@ -276,6 +304,12 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             &FrontEnd::currentHighlightedReceivedNewMarketDepthQuote,
             this,
             &GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote,
+            Qt::DirectConnection);
+
+    connect(this,
+            &FrontEnd::currentHighlightedReceivedNewQuote,
+            this,
+            &GUIFrontend::onCurrentHighlightedReceivedNewQuote,
             Qt::DirectConnection);
 
     connect(this, &FrontEnd::newPositionReceived, this, &GUIFrontend::onNewPositionReceived, Qt::DirectConnection);
@@ -709,6 +743,37 @@ void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
 
     // Forward market depth update to OrderEntryWidget for sticky price feature
     ui->orderEntryWidget->onMarketDepthUpdate(symbol, quote);
+}
+
+void GUIFrontend::onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote)
+{
+    // Style constants for MarketFlags labels
+    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; }";
+    static const QString haltedActiveStyle = "QLabel { background-color: #DC143C; color: #ffffff; padding: 4px 8px; "
+                                             "border-radius: 4px; font-weight: bold; }";
+    static const QString delayedActiveStyle = "QLabel { background-color: #FFD700; color: #000000; padding: 4px 8px; "
+                                              "border-radius: 4px; font-weight: bold; }";
+    static const QString htbActiveStyle = "QLabel { background-color: #FF8C00; color: #ffffff; padding: 4px 8px; "
+                                          "border-radius: 4px; font-weight: bold; }";
+
+    // Update MarketFlags labels style based on quote data
+    const MarketFlags& flags = quote.getMarketFlags();
+
+    m_haltedLabel->setStyleSheet(flags.isHalted() ? haltedActiveStyle : inactiveStyle);
+    m_delayedLabel->setStyleSheet(flags.isDelayed() ? delayedActiveStyle : inactiveStyle);
+    m_hardToBorrowLabel->setStyleSheet(flags.isHardToBorrow() ? htbActiveStyle : inactiveStyle);
+
+    // Update MarketDepthTable with Level 1 data when not in Level 2 mode.
+    // We check the table's DisplayMode rather than TSClient::hasOpenMarketDepthStream(),
+    // because in replay mode a MockNetworkReply is always registered for depth
+    // (making hasOpenMarketDepthStream always return true) even when no depth data exists.
+    if (ui->marketDepthTable->getDisplayMode() != MarketDepthTable::DisplayMode::Level2)
+    {
+        ui->marketDepthTable->updateLevel1Data(quote);
+        // Also feed the sticky price logic in OrderEntryWidget when L2 is not available.
+        ui->orderEntryWidget->onL1QuoteUpdate(symbol, quote.getBid(), quote.getAsk());
+    }
 }
 
 void GUIFrontend::onNewPositionReceived(QString account, Position position)
@@ -1444,6 +1509,54 @@ void GUIFrontend::onReplayModeEntered()
     // Clear chart data for fresh replay (bar caches are cleared separately by MainAlgo)
     ui->priceChart->clearChart();
 
+    // Clear market depth table — stale live data must not carry over into replay
+    ui->marketDepthTable->clearData();
+
+    // Probe replay databases to pre-set the market depth mode indicator so the user
+    // knows whether L2 or L1 data will be available before pressing play.
+    const QString displayedSymbol = MainAlgo::getInstance()->getDisplayedSymbol();
+    const QDate replayDate = MainApp::currentAppReplayTime.date();
+    if (!displayedSymbol.isEmpty() && replayDate.isValid())
+    {
+        const QString cacheDir = getCacheLocation();
+        const QString depthDbPath =
+            QString("%1/RecordedLiveData/MarketDepthQuotes/%2.db").arg(cacheDir, replayDate.toString("yyyy-MM-dd"));
+        const QString quotesDbPath =
+            QString("%1/RecordedLiveData/Quotes/%2.db").arg(cacheDir, replayDate.toString("yyyy-MM-dd"));
+
+        auto probeDb = [](const QString& p_dbPath, const QString& p_symbol, const QString& p_table) -> bool
+        {
+            if (!QFile::exists(p_dbPath))
+            {
+                return false;
+            }
+            const QString connName = QString("probe_%1").arg(p_dbPath);
+            bool found = false;
+            {
+                // Scope ensures db is destroyed before removeDatabase()
+                QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connName);
+                db.setDatabaseName(p_dbPath);
+                if (db.open())
+                {
+                    QSqlQuery q(db);
+                    q.prepare(QString("SELECT 1 FROM %1 WHERE stockTicker = ? LIMIT 1").arg(p_table));
+                    q.addBindValue(p_symbol);
+                    found = q.exec() && q.next();
+                    db.close();
+                }
+            }
+            QSqlDatabase::removeDatabase(connName);
+            return found;
+        };
+
+        const bool hasLevel2 = probeDb(depthDbPath, displayedSymbol, "market_depth_quotes");
+        const bool hasLevel1 = probeDb(quotesDbPath, displayedSymbol, "quotes");
+        ui->marketDepthTable->setExpectedDataMode(hasLevel2, hasLevel1);
+
+        qCInfo(GUIFrontendLog) << "Replay data mode for" << displayedSymbol << "on" << replayDate.toString(Qt::ISODate)
+                               << "— L2:" << hasLevel2 << "L1:" << hasLevel1;
+    }
+
     // Show replay widgets in toolbar and ensure play button is in stopped state
     ui->priceChart->toolbar()->setReplayWidgetsVisible(true);
     ui->priceChart->toolbar()->setReplayPlaying(false);
@@ -1489,6 +1602,9 @@ void GUIFrontend::onReplayModeExited()
 
     // Clear chart data (MainAlgo will clear caches and restart live stream)
     ui->priceChart->clearChart();
+
+    // Clear market depth table — replay data must not carry over into live mode
+    ui->marketDepthTable->clearData();
 
     // Restore chart visual
     ui->priceChart->setReplayModeActive(false);

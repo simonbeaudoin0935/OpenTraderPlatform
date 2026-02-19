@@ -30,6 +30,13 @@ RecordsInfoTab::RecordsInfoTab(QWidget* p_parent)
     , m_depthFirstTimeLabel(nullptr)
     , m_depthLastTimeLabel(nullptr)
     , m_depthDurationLabel(nullptr)
+    , m_quotesGroupBox(nullptr)
+    , m_quotesStatusLabel(nullptr)
+    , m_quotesCountLabel(nullptr)
+    , m_quotesBreakdownLabel(nullptr)
+    , m_quotesFirstTimeLabel(nullptr)
+    , m_quotesLastTimeLabel(nullptr)
+    , m_quotesDurationLabel(nullptr)
 {
     setupUI();
     scanRecordedDays();
@@ -86,8 +93,8 @@ void RecordsInfoTab::setupUI()
     middleLayout->addWidget(stocksLabel);
 
     m_stocksTable = new QTableWidget();
-    m_stocksTable->setColumnCount(3);
-    m_stocksTable->setHorizontalHeaderLabels({"Symbol", "Bars", "Depth"});
+    m_stocksTable->setColumnCount(4);
+    m_stocksTable->setHorizontalHeaderLabels({"Symbol", "Bars", "Depth", "Quotes"});
     m_stocksTable->horizontalHeader()->setStretchLastSection(true);
     m_stocksTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_stocksTable->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -143,6 +150,26 @@ void RecordsInfoTab::setupUI()
     depthLayout->addWidget(m_depthDurationLabel);
 
     rightLayout->addWidget(m_depthGroupBox);
+
+    // Quotes data group box
+    m_quotesGroupBox = new QGroupBox("Quotes Data (Level 1)");
+    QVBoxLayout* quotesLayout = new QVBoxLayout(m_quotesGroupBox);
+
+    m_quotesStatusLabel = new QLabel("Status: --");
+    m_quotesCountLabel = new QLabel("Count: --");
+    m_quotesBreakdownLabel = new QLabel("Breakdown: --");
+    m_quotesFirstTimeLabel = new QLabel("First: --");
+    m_quotesLastTimeLabel = new QLabel("Last: --");
+    m_quotesDurationLabel = new QLabel("Duration: --");
+
+    quotesLayout->addWidget(m_quotesStatusLabel);
+    quotesLayout->addWidget(m_quotesCountLabel);
+    quotesLayout->addWidget(m_quotesBreakdownLabel);
+    quotesLayout->addWidget(m_quotesFirstTimeLabel);
+    quotesLayout->addWidget(m_quotesLastTimeLabel);
+    quotesLayout->addWidget(m_quotesDurationLabel);
+
+    rightLayout->addWidget(m_quotesGroupBox);
     rightLayout->addStretch();
 
     splitter->addWidget(rightWidget);
@@ -180,6 +207,7 @@ void RecordsInfoTab::onRefreshClicked()
     clearStocksList();
     clearDetailsDisplay();
     m_depthAvailabilityCache.clear();
+    m_quotesAvailabilityCache.clear();
     scanRecordedDays();
 }
 
@@ -321,6 +349,7 @@ void RecordsInfoTab::loadStocksForDay(const QDate& p_date)
 
     QString barsDbPath = getBarsDbPath(p_date);
     QString depthDbPath = getMarketDepthDbPath(p_date);
+    QString quotesDbPath = getQuotesDbPath(p_date);
 
     // Check if bars database exists
     if (!QFileInfo::exists(barsDbPath))
@@ -360,8 +389,29 @@ void RecordsInfoTab::loadStocksForDay(const QDate& p_date)
         }
     }
 
+    // Check quotes availability for each stock
+    bool quotesDbExists = QFileInfo::exists(quotesDbPath);
+    QMap<QString, bool> quotesAvailability;
+
+    if (quotesDbExists)
+    {
+        for (const QString& symbol: stocks)
+        {
+            bool hasQuotes = checkStockInQuotesDatabase(quotesDbPath, symbol);
+            quotesAvailability[symbol] = hasQuotes;
+        }
+    }
+    else
+    {
+        for (const QString& symbol: stocks)
+        {
+            quotesAvailability[symbol] = false;
+        }
+    }
+
     // Cache the results
     m_depthAvailabilityCache[p_date] = depthAvailability;
+    m_quotesAvailabilityCache[p_date] = quotesAvailability;
 
     // Get bar counts for each stock
     QString connectionName = QString("stocks_%1").arg(p_date.toString("yyyyMMdd"));
@@ -402,6 +452,9 @@ void RecordsInfoTab::loadStocksForDay(const QDate& p_date)
             m_stocksTable->setItem(row, 0, symbolItem);
             m_stocksTable->setItem(row, 1, barsItem);
             m_stocksTable->setItem(row, 2, depthItem);
+
+            QTableWidgetItem* quotesItem = new QTableWidgetItem(quotesAvailability[symbol] ? "Yes" : "No");
+            m_stocksTable->setItem(row, 3, quotesItem);
         }
 
         db.close();
@@ -416,8 +469,9 @@ void RecordsInfoTab::loadStockDetails(const QDate& p_date, const QString& p_symb
 {
     QString barsDbPath = getBarsDbPath(p_date);
     QString depthDbPath = getMarketDepthDbPath(p_date);
+    QString quotesDbPath = getQuotesDbPath(p_date);
 
-    StockMetrics metrics = queryStockMetrics(barsDbPath, depthDbPath, p_symbol);
+    StockMetrics metrics = queryStockMetrics(barsDbPath, depthDbPath, quotesDbPath, p_symbol);
     updateDetailsDisplay(metrics);
 }
 
@@ -459,6 +513,43 @@ void RecordsInfoTab::updateDetailsDisplay(const StockMetrics& p_metrics)
         m_depthLastTimeLabel->setVisible(false);
         m_depthDurationLabel->setVisible(false);
     }
+
+    // Update quotes data
+    if (p_metrics.hasQuotes)
+    {
+        m_quotesStatusLabel->setText("Status: Available");
+        m_quotesStatusLabel->setStyleSheet("QLabel { color: #4CAF50; font-weight: bold; }");
+        m_quotesCountLabel->setText(QString("Count: %1 quotes").arg(p_metrics.quoteCount));
+
+        // Show breakdown by type
+        QString breakdown = QString("%1 QuoteStream, %2 Heartbeat, %3 Error")
+                                .arg(p_metrics.quoteStreamCount)
+                                .arg(p_metrics.heartbeatCount)
+                                .arg(p_metrics.errorCount);
+        m_quotesBreakdownLabel->setText(QString("Breakdown: %1").arg(breakdown));
+
+        m_quotesFirstTimeLabel->setText(QString("First: %1").arg(formatTimestamp(p_metrics.quoteFirstTimestampMs)));
+        m_quotesLastTimeLabel->setText(QString("Last: %1").arg(formatTimestamp(p_metrics.quoteLastTimestampMs)));
+
+        qint64 quotesDuration = p_metrics.quoteLastTimestampMs - p_metrics.quoteFirstTimestampMs;
+        m_quotesDurationLabel->setText(QString("Duration: %1").arg(formatDuration(quotesDuration)));
+
+        m_quotesCountLabel->setVisible(true);
+        m_quotesBreakdownLabel->setVisible(true);
+        m_quotesFirstTimeLabel->setVisible(true);
+        m_quotesLastTimeLabel->setVisible(true);
+        m_quotesDurationLabel->setVisible(true);
+    }
+    else
+    {
+        m_quotesStatusLabel->setText("Status: Not Available");
+        m_quotesStatusLabel->setStyleSheet("QLabel { color: #FF4444; font-weight: bold; }");
+        m_quotesCountLabel->setVisible(false);
+        m_quotesBreakdownLabel->setVisible(false);
+        m_quotesFirstTimeLabel->setVisible(false);
+        m_quotesLastTimeLabel->setVisible(false);
+        m_quotesDurationLabel->setVisible(false);
+    }
 }
 
 void RecordsInfoTab::clearStocksList()
@@ -484,6 +575,18 @@ void RecordsInfoTab::clearDetailsDisplay()
     m_depthFirstTimeLabel->setVisible(true);
     m_depthLastTimeLabel->setVisible(true);
     m_depthDurationLabel->setVisible(true);
+    m_quotesStatusLabel->setText("Status: --");
+    m_quotesStatusLabel->setStyleSheet("");
+    m_quotesCountLabel->setText("Count: --");
+    m_quotesBreakdownLabel->setText("Breakdown: --");
+    m_quotesFirstTimeLabel->setText("First: --");
+    m_quotesLastTimeLabel->setText("Last: --");
+    m_quotesDurationLabel->setText("Duration: --");
+    m_quotesCountLabel->setVisible(true);
+    m_quotesBreakdownLabel->setVisible(true);
+    m_quotesFirstTimeLabel->setVisible(true);
+    m_quotesLastTimeLabel->setVisible(true);
+    m_quotesDurationLabel->setVisible(true);
 }
 
 QString RecordsInfoTab::getBarsDbPath(const QDate& p_date) const
@@ -496,6 +599,12 @@ QString RecordsInfoTab::getMarketDepthDbPath(const QDate& p_date) const
 {
     QString cacheLocation = getCacheLocation();
     return QString("%1/RecordedLiveData/MarketDepthQuotes/%2.db").arg(cacheLocation, p_date.toString("yyyy-MM-dd"));
+}
+
+QString RecordsInfoTab::getQuotesDbPath(const QDate& p_date) const
+{
+    QString cacheLocation = getCacheLocation();
+    return QString("%1/RecordedLiveData/Quotes/%2.db").arg(cacheLocation, p_date.toString("yyyy-MM-dd"));
 }
 
 QString RecordsInfoTab::formatFileSize(qint64 p_bytes) const
@@ -627,8 +736,46 @@ bool RecordsInfoTab::checkStockInDatabase(const QString& p_dbPath, const QString
     return hasStock;
 }
 
-RecordsInfoTab::StockMetrics
-RecordsInfoTab::queryStockMetrics(const QString& p_barsDbPath, const QString& p_depthDbPath, const QString& p_symbol)
+bool RecordsInfoTab::checkStockInQuotesDatabase(const QString& p_dbPath, const QString& p_symbol)
+{
+    if (!QFileInfo::exists(p_dbPath))
+    {
+        return false;
+    }
+
+    QString connectionName = QString("checkQuote_%1_%2").arg(QDateTime::currentMSecsSinceEpoch()).arg(p_symbol);
+    bool hasStock = false;
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connectionName);
+        db.setDatabaseName(p_dbPath);
+
+        if (!db.open())
+        {
+            qWarning() << "Failed to open quotes database:" << p_dbPath << "-" << db.lastError().text();
+            QSqlDatabase::removeDatabase(connectionName);
+            return false;
+        }
+
+        QSqlQuery query(db);
+        query.prepare("SELECT COUNT(*) FROM quotes WHERE stockTicker = ? LIMIT 1");
+        query.addBindValue(p_symbol);
+
+        if (query.exec() && query.next())
+        {
+            hasStock = query.value(0).toInt() > 0;
+        }
+        query.finish();
+        db.close();
+    } // db goes out of scope here
+    QSqlDatabase::removeDatabase(connectionName);
+
+    return hasStock;
+}
+
+RecordsInfoTab::StockMetrics RecordsInfoTab::queryStockMetrics(const QString& p_barsDbPath,
+                                                               const QString& p_depthDbPath,
+                                                               const QString& p_quotesDbPath,
+                                                               const QString& p_symbol)
 {
     StockMetrics metrics;
     metrics.symbol = p_symbol;
@@ -693,6 +840,73 @@ RecordsInfoTab::queryStockMetrics(const QString& p_barsDbPath, const QString& p_
             }
         } // depthDb goes out of scope here
         QSqlDatabase::removeDatabase(depthConnectionName);
+    }
+
+    // Query quotes database if it exists
+    if (QFileInfo::exists(p_quotesDbPath))
+    {
+        QString quotesConnectionName =
+            QString("quotesMetrics_%1_%2").arg(QDateTime::currentMSecsSinceEpoch()).arg(p_symbol);
+        {
+            QSqlDatabase quotesDb = QSqlDatabase::addDatabase("QSQLITE", quotesConnectionName);
+            quotesDb.setDatabaseName(p_quotesDbPath);
+
+            if (quotesDb.open())
+            {
+                // Get count and timestamps for this symbol
+                QSqlQuery query(quotesDb);
+                query.prepare("SELECT COUNT(*), MIN(epochMs), MAX(epochMs) FROM quotes WHERE stockTicker = ?");
+                query.addBindValue(p_symbol);
+
+                if (query.exec() && query.next())
+                {
+                    qint64 count = query.value(0).toLongLong();
+                    if (count > 0)
+                    {
+                        metrics.hasQuotes = true;
+                        metrics.quoteCount = count;
+                        metrics.quoteFirstTimestampMs = query.value(1).toLongLong();
+                        metrics.quoteLastTimestampMs = query.value(2).toLongLong();
+                    }
+                }
+                query.finish();
+
+                // Get breakdown by objectType
+                if (metrics.hasQuotes)
+                {
+                    QSqlQuery typeQuery(quotesDb);
+                    typeQuery.prepare(
+                        "SELECT objectType, COUNT(*) FROM quotes WHERE stockTicker = ? GROUP BY objectType");
+                    typeQuery.addBindValue(p_symbol);
+
+                    if (typeQuery.exec())
+                    {
+                        while (typeQuery.next())
+                        {
+                            QString objectType = typeQuery.value(0).toString();
+                            qint64 typeCount = typeQuery.value(1).toLongLong();
+
+                            if (objectType == "QuoteStream")
+                            {
+                                metrics.quoteStreamCount = typeCount;
+                            }
+                            else if (objectType == "Heartbeat")
+                            {
+                                metrics.heartbeatCount = typeCount;
+                            }
+                            else if (objectType == "Error")
+                            {
+                                metrics.errorCount = typeCount;
+                            }
+                        }
+                    }
+                    typeQuery.finish();
+                }
+
+                quotesDb.close();
+            }
+        } // quotesDb goes out of scope here
+        QSqlDatabase::removeDatabase(quotesConnectionName);
     }
 
     return metrics;

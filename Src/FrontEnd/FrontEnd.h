@@ -9,6 +9,7 @@
 #include "Bar.h"
 #include "MarketDepthQuote.h"
 #include "Balance.h"
+#include "Quote.h"
 #include "TSClient.h" // For TSClient::AuthStateReason enum
 
 class FrontEnd : public QObject
@@ -36,6 +37,7 @@ class FrontEnd : public QObject
                                                        double bidAskImbalance,
                                                        double bidDWP,
                                                        double askDWP);
+    void currentHighlightedReceivedNewQuote(QString symbol, Quote quote);
 
   public slots:
 
@@ -56,6 +58,7 @@ class FrontEnd : public QObject
                                                                  double bidAskImbalance,
                                                                  double bidDWP,
                                                                  double askDWP) = 0;
+    virtual void onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote) = 0;
 
     // Replay mode notifications
     virtual void onReplayModeEntered() = 0;

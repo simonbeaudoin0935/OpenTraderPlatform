@@ -5,6 +5,17 @@
 #include "Stream/MockNetworkAccessManager.h"
 #include "OrderEmulator.h"
 #include "MarketDepthQuote.h"
+#include "Quote.h"
+#include "Settings.h"
+#include "CONSTANTS.h"
+
+#include <QDate>
+#include <QDateTime>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSqlDatabase>
+#include <QSqlError>
+#include <QSqlQuery>
 
 #define LOGGING_CATEGORY TSClientLog
 
@@ -363,6 +374,89 @@ TSClient::openStreamMarketDepthQuote(const QString& symbol, unsigned int depth)
     return stream;
 }
 
+QPointer<StreamQuote> TSClient::openStreamQuote(const QStringList& symbols)
+{
+    OBJ_ASSUME_FALSE(symbols.isEmpty());
+    OBJ_ASSUME_LTE(symbols.size(), static_cast<qsizetype>(QuoteConstants::MAX_SYMBOLS_PER_STREAM));
+
+    for (const QString& symbol: symbols)
+    {
+        OBJ_ASSUME_FALSE(symbol.isEmpty());
+        OBJ_ASSUME_FALSE(symbol.contains(','));
+    }
+
+    QPointer<StreamQuote> stream;
+
+    if (m_mode == Mode::Replay)
+    {
+        DEBUG << "Opening replay StreamQuote for" << symbols.size() << "symbols";
+
+        QMetaObject::invokeMethod(
+            this,
+            [this, &stream, &symbols]()
+            {
+                auto* mockReply = new MockNetworkReply(this);
+                Q_CHECK_PTR(mockReply);
+
+                for (const QString& symbol: symbols)
+                {
+                    m_replayQuoteReplies[symbol] = mockReply;
+                }
+
+                stream = new StreamQuote(symbols, mockReply, this);
+                Q_CHECK_PTR(stream);
+
+                auto c =
+                    connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+                OBJ_ASSUME_TRUE(c);
+
+                // Forward quote signals for MainAlgo/FrontEnd MarketFlags display
+                c = connect(stream,
+                            &StreamQuote::newQuoteReceived,
+                            this,
+                            [this](Quote quote) { emit newQuoteReceived(quote.getSymbol(), quote); });
+                OBJ_ASSUME_TRUE(c);
+
+                INFO << "Opened replay StreamQuote for" << symbols.size() << "symbols";
+            },
+            Qt::BlockingQueuedConnection);
+    }
+    else
+    {
+        DEBUG << "Opening live StreamQuote for" << symbols.size() << "symbols";
+
+        const QString endpoint = QString(TSClientEndpoints::STREAM_QUOTES).arg(symbols.join(','));
+        QNetworkRequest request = buildNetworkRequest(endpoint);
+
+        QMetaObject::invokeMethod(
+            this,
+            [this, &request, &stream, &symbols]()
+            {
+                QNetworkReply* reply = m_networkManager->get(request);
+                Q_CHECK_PTR(reply);
+
+                stream = new StreamQuote(symbols, reply, this);
+                Q_CHECK_PTR(stream);
+
+                auto c =
+                    connect(stream, &Stream::newAmountOfDataReceived, this, &TSClient::processNewAmountOfDataReceived);
+                OBJ_ASSUME_TRUE(c);
+
+                // Forward quote signals for MainAlgo/FrontEnd MarketFlags display
+                c = connect(stream,
+                            &StreamQuote::newQuoteReceived,
+                            this,
+                            [this](Quote quote) { emit newQuoteReceived(quote.getSymbol(), quote); });
+                OBJ_ASSUME_TRUE(c);
+
+                INFO << "Opened live StreamQuote for" << symbols.size() << "symbols";
+            },
+            Qt::BlockingQueuedConnection);
+    }
+
+    return stream;
+}
+
 void TSClient::closeStream(Stream* const stream)
 {
     OBJ_ASSUME_DIFF(stream, nullptr);
@@ -468,6 +562,8 @@ void TSClient::setMode(Mode p_mode)
         // Clear replay stream tracking
         m_replayBarReplies.clear();
         m_replayDepthReplies.clear();
+        m_replayQuoteReplies.clear();
+        m_replayQuoteState.clear();
     }
 }
 
@@ -492,6 +588,27 @@ bool TSClient::hasOpenMarketDepthStream(const QString& p_symbol) const
 
     // For live mode, we don't track streams by symbol currently
     return false;
+}
+
+bool TSClient::hasOpenQuoteStream(const QString& p_symbol) const
+{
+    if (m_mode == Mode::Replay)
+    {
+        return m_replayQuoteReplies.contains(p_symbol) && !m_replayQuoteReplies[p_symbol].isNull();
+    }
+
+    return false;
+}
+
+bool TSClient::hasOpenQuoteStream() const
+{
+    if (m_mode == Mode::Replay)
+    {
+        return !m_replayQuoteReplies.isEmpty();
+    }
+
+    // Live mode: check static counter for actual stream count
+    return StreamQuote::getNumberOfQuoteStreams() > 0;
 }
 
 MockNetworkReply* TSClient::getBarReplyForSymbol(const QString& p_symbol) const
@@ -522,6 +639,21 @@ MockNetworkReply* TSClient::getMarketDepthReplyForSymbol(const QString& p_symbol
     }
 
     return m_replayDepthReplies[p_symbol].data();
+}
+
+MockNetworkReply* TSClient::getQuoteReplyForSymbol(const QString& p_symbol) const
+{
+    if (m_mode != Mode::Replay)
+    {
+        return nullptr;
+    }
+
+    if (!m_replayQuoteReplies.contains(p_symbol))
+    {
+        return nullptr;
+    }
+
+    return m_replayQuoteReplies[p_symbol].data();
 }
 
 void TSClient::onInjectBarData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data)
@@ -598,6 +730,49 @@ void TSClient::onInjectDepthData(const QString& p_symbol, std::shared_ptr<const 
     }
 
     m_replayDepthReplies[p_symbol]->injectData(*p_data);
+}
+
+void TSClient::onInjectQuoteData(const QString& p_symbol, std::shared_ptr<const QByteArray> p_data)
+{
+    OBJ_ASSUME_TRUE(m_mode == Mode::Replay); // Should only be called in replay mode
+    OBJ_ASSUME_TRUE(p_data != nullptr);      // Should not be called with null data
+
+    // Update OrderEmulator for Level 1 order fill monitoring.
+    // TradeStation Quote Stream is differential: only changed fields are present per message.
+    // We accumulate full state in m_replayQuoteState so updateQuote always gets a complete Quote.
+    if (m_orderEmulator)
+    {
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(*p_data, &parseError);
+        if (parseError.error == QJsonParseError::NoError && doc.isObject())
+        {
+            // Merge delta into accumulated state
+            QJsonObject& state = m_replayQuoteState[p_symbol];
+            const QJsonObject delta = doc.object();
+            for (auto it = delta.constBegin(); it != delta.constEnd(); ++it)
+            {
+                state.insert(it.key(), it.value());
+            }
+
+            // The initial snapshot MUST always arrive before any delta.
+            // If this fires, the snapshot was lost somewhere in the pipeline — that is a bug.
+            OBJ_ASSUME_TRUE(state.contains("Bid") && state.contains("Ask"));
+
+            Quote quote(state);
+            OBJ_ASSUME_TRUE(quote.isValid());
+            m_orderEmulator->updateQuote(p_symbol, quote);
+            // NOTE: newQuoteReceived is NOT emitted here to avoid double emission.
+            // For the displayed symbol, StreamQuote handles it via MockNetworkReply injection below.
+        }
+    }
+
+    if (!m_replayQuoteReplies.contains(p_symbol) || m_replayQuoteReplies[p_symbol].isNull())
+    {
+        // No stream open for this symbol - skip silently (expected for non-displayed stocks)
+        return;
+    }
+
+    m_replayQuoteReplies[p_symbol]->injectData(*p_data);
 }
 
 // ============================================================================
@@ -689,4 +864,82 @@ void TSClient::processMarketDepthQueue()
     request.promise.finish();
 
     DEBUG << "Queued market depth stream fulfilled for" << request.symbol;
+}
+
+// ============================================================================
+// Quote State Pre-Roll
+// ============================================================================
+
+void TSClient::preRollQuoteState(QDate p_date, qint64 p_startEpochMs)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), this->thread());
+    OBJ_ASSUME_TRUE(m_mode == Mode::Replay);
+
+    const QString dbPath = getCacheLocation() + "/RecordedLiveData/Quotes/" + p_date.toString("yyyy-MM-dd") + ".db";
+
+    const QString connName = QString("PreRollQuotesDB_%1").arg(reinterpret_cast<quintptr>(this));
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connName);
+        db.setDatabaseName(dbPath);
+        if (!db.open())
+        {
+            WARNING << "preRollQuoteState: failed to open" << dbPath;
+            QSqlDatabase::removeDatabase(connName);
+            return;
+        }
+
+        QSqlQuery query(db);
+        query.prepare("SELECT stockTicker, jsonRawData FROM quotes "
+                      "WHERE objectType = 'QuoteStream' AND epochMs < ? "
+                      "ORDER BY epochMs ASC");
+        query.addBindValue(p_startEpochMs);
+
+        if (!query.exec())
+        {
+            WARNING << "preRollQuoteState: query failed:" << query.lastError().text();
+            db.close();
+        }
+        else
+        {
+            while (query.next())
+            {
+                const QString symbol = query.value(0).toString();
+                const QByteArray raw = query.value(1).toString().toUtf8();
+
+                QJsonParseError err;
+                const QJsonDocument doc = QJsonDocument::fromJson(raw, &err);
+                if (err.error != QJsonParseError::NoError || !doc.isObject())
+                    continue;
+
+                QJsonObject& state = m_replayQuoteState[symbol];
+                const QJsonObject delta = doc.object();
+                for (auto it = delta.constBegin(); it != delta.constEnd(); ++it)
+                    state.insert(it.key(), it.value());
+            }
+            db.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(connName);
+
+    INFO << "preRollQuoteState: built state for" << m_replayQuoteState.size() << "symbols up to epoch"
+         << p_startEpochMs;
+
+    // Inject the merged snapshot into any open MockNetworkReply so StreamQuote is also primed.
+    for (auto it = m_replayQuoteReplies.constBegin(); it != m_replayQuoteReplies.constEnd(); ++it)
+    {
+        const QString& symbol = it.key();
+        if (it.value().isNull())
+            continue;
+
+        const auto stateIt = m_replayQuoteState.constFind(symbol);
+        if (stateIt == m_replayQuoteState.constEnd())
+            continue;
+
+        const QJsonObject& state = stateIt.value();
+        OBJ_ASSUME_TRUE(state.contains("Bid") && state.contains("Ask"));
+
+        const QByteArray data = QJsonDocument(state).toJson(QJsonDocument::Compact);
+        it.value()->injectData(data);
+        DEBUG << "preRollQuoteState: injected snapshot for" << symbol;
+    }
 }

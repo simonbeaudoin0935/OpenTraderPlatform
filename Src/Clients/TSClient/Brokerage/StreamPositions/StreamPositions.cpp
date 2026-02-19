@@ -2,6 +2,7 @@
 #include "TSClient.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "MockNetworkReply.h"
 
 #define LOGGING_CATEGORY StreamLog
 
@@ -11,7 +12,8 @@ size_t StreamPositions::s_numberOfPositionStreams = 0;
 StreamPositions::StreamPositions(const QString& accountID, QNetworkReply* reply, QObject* parent)
     : StreamBrokerage(reply, parent), m_accountID(accountID)
 {
-    this->setObjectName("Stream::Positions::" + accountID);
+    const QString suffix = qobject_cast<MockNetworkReply*>(reply) ? QStringLiteral("::mock") : QStringLiteral("::live");
+    this->setObjectName("Stream::Positions::" + accountID + suffix);
 
     // Assert that we're not creating a second positions stream
     OBJ_ASSUME_EQUAL(s_numberOfPositionStreams, 0u);

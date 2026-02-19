@@ -56,13 +56,16 @@ TSClient is the core singleton class for all TradeStation API communication in L
 
 **Stream/** - WebSocket streaming
 - StreamBars: Live bar updates (1min, 5min, etc.) - **unlimited concurrent streams**
-- StreamQuotes: Real-time quote updates
-- StreamMarketDepthQuotes: Level 2 market depth - **maximum 10 concurrent streams**
+- StreamQuote: Level 1 quote updates (bid/ask, size, MarketFlags) - **single stream for up to 100 symbols**
+- StreamMarketDepthQuote: Level 2 market depth - **maximum 10 concurrent streams**
 - StreamOrders: Order status updates - **singleton (max 1)**
 - StreamPositions: Position updates - **singleton (max 1)**
 
 **Stream Concurrency Limits**:
 - **StreamBars**: No limit - can open as many as needed
+- **StreamQuote**: Single stream supporting up to 100 symbols per TradeStation API spec
+  - Use for Level 1 data: best bid/ask, sizes, and MarketFlags (IsHalted, IsDelayed, IsHardToBorrow)
+  - Falls back to L1 fills in OrderEmulator when Level 2 unavailable
 - **StreamMarketDepthQuote**: Hard limit of 10 concurrent streams (API restriction)
   - Opening 11+ streams triggers FIFO queue with QFuture-based async fulfillment
   - 1000ms delay before processing queue (TCP close propagation)
@@ -144,12 +147,42 @@ void TSClient::setMode(Mode mode) {
 | `placeOrder()` | Real API | MockNetworkAccessManager routes to OrderEmulator |
 | `cancelOrder()` | Real API | MockNetworkAccessManager routes to OrderEmulator |
 | `openStreamBars()` | Real WebSocket | MockNetworkReply receives ReplayEngine data |
+| `openStreamMarketDepthQuote()` | Real WebSocket | MockNetworkReply receives ReplayEngine data |
+| `openStreamQuote()` | Real WebSocket | MockNetworkReply receives ReplayEngine data |
 | `openStreamOrders()` | Real WebSocket | MockNetworkReply receives OrderEmulator signals |
 | `openStreamPositions()` | Real WebSocket | MockNetworkReply receives OrderEmulator signals |
 
 **Mock Infrastructure**:
 - `MockNetworkReply`: Fake QNetworkReply that receives injected data
 - `MockNetworkAccessManager`: Intercepts HTTP requests, routes to OrderEmulator
+
+**Replay state members** (in `TSClient.h`):
+```cpp
+QMap<QString, QPointer<MockNetworkReply>> m_replayBarReplies;    // symbol → MockNetworkReply for bars
+QMap<QString, QPointer<MockNetworkReply>> m_replayDepthReplies;  // symbol → MockNetworkReply for depth
+QMap<QString, QPointer<MockNetworkReply>> m_replayQuoteReplies;  // symbol → MockNetworkReply for quotes
+QMap<QString, QJsonObject>               m_replayQuoteState;     // Accumulated merged quote state per symbol
+```
+
+**`onInjectQuoteData()` behaviour**:
+Receives raw delta bytes from `ReplayEngine`. Because the TradeStation Quote Stream is differential (see `StreamQuote/AGENTS.md`), raw deltas are merged into `m_replayQuoteState[symbol]` before parsing. This ensures `OrderEmulator::updateQuote()` always receives a complete `Quote`, never a partial one with `bid=0, ask=0`.
+
+Both `onInjectQuoteData` and `StreamQuote::processJsonObject` assert `state.contains("Bid") && state.contains("Ask")` before emitting or forwarding a Quote — if the initial snapshot was never seen for a symbol the app crashes in debug mode, which is the intended behaviour (see `preRollQuoteState` below for why this must never happen at runtime).
+
+`newQuoteReceived` is **NOT** emitted from `onInjectQuoteData` to avoid double-emission — for the displayed symbol the raw bytes are also injected into its `MockNetworkReply`, which feeds `StreamQuote::processJsonObject()`, which does its own merging via `m_symbolState` and emits `newQuoteReceived` from there.
+
+**`preRollQuoteState(QDate p_date, qint64 p_startEpochMs)` — Mid-Day Replay Initialisation**:
+The Quote Stream records one full snapshot per symbol at stream open (market open, ~09:00 ET). When a replay starts mid-day, the `ReplayDataLoader` begins reading at `p_startTime`, skipping all records before it — including that initial snapshot. Without it, the first record received by `onInjectQuoteData` for every symbol would be a delta, which would trigger the snapshot-presence assertion and crash.
+
+`preRollQuoteState` is the fix:
+1. Opens the quotes DB directly via a temporary `QSQLITE` connection.
+2. Queries `SELECT stockTicker, jsonRawData FROM quotes WHERE objectType = 'QuoteStream' AND epochMs < p_startEpochMs ORDER BY epochMs ASC`.
+3. Merges every row into `m_replayQuoteState[symbol]` — same merge logic as `onInjectQuoteData` — building the full per-symbol state as it would have been at `p_startTime`.
+4. For each symbol that has an open `MockNetworkReply` (i.e. the currently displayed stock), serialises the merged `QJsonObject` back to compact JSON bytes and calls `injectData()` on the reply, priming `StreamQuote::m_symbolState` so the GUI also has correct bid/ask from the first live delta.
+
+Called from `MainAlgo::enterReplayModePaused` (and `enterReplayMode`) via **`Qt::BlockingQueuedConnection`** immediately after `createAndSetDisplayedStockInstrument` opens the `StreamQuote` and **before** `startReplayPaused` starts the `ReplayEngine`. This guarantees the full state is in place before the first live delta arrives.
+
+All replay state maps are cleared in `setMode(Live)` cleanup.
 
 See `Src/Core/Replay/OrderEmulator/AGENTS.md` for order emulation details.
 

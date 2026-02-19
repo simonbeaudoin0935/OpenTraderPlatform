@@ -3,6 +3,7 @@
 #include "Logging.h"
 #include "CONSTANTS.h"
 #include "Assume.h"
+#include "MockNetworkReply.h"
 
 #include <QTimer>
 
@@ -14,7 +15,8 @@ std::atomic<size_t> StreamMarketDepthQuote::s_numberOfMarketDepthStreams{0};
 StreamMarketDepthQuote::StreamMarketDepthQuote(const QString& symbol, QNetworkReply* reply, QObject* parent)
     : StreamMarketData(reply, parent), m_symbol(symbol)
 {
-    this->setObjectName("Stream::MarketDepthQuote::" + symbol);
+    const QString suffix = qobject_cast<MockNetworkReply*>(reply) ? QStringLiteral("::mock") : QStringLiteral("::live");
+    this->setObjectName("Stream::MarketDepthQuote::" + symbol + suffix);
 
     // Increment atomic counter
     s_numberOfMarketDepthStreams++;
