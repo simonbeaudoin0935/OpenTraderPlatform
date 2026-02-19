@@ -78,7 +78,10 @@ bool LiveStreamDB::isOpen() const
     return db.isOpen();
 }
 
-bool LiveStreamDB::storeData(const QString& stock, qint64 timestamp, const QByteArray& rawData)
+bool LiveStreamDB::storeData(const QString& stock,
+                             qint64 timestamp,
+                             const QString& objectType,
+                             const QByteArray& rawData)
 {
     int stockSeq = stockSequences.value(stock, 0) + 1;
     stockSequences[stock] = stockSeq;
@@ -90,6 +93,7 @@ bool LiveStreamDB::storeData(const QString& stock, qint64 timestamp, const QByte
     query.addBindValue(stock);
     query.addBindValue(stockSeq);
     query.addBindValue(timestamp);
+    query.addBindValue(objectType);
     query.addBindValue(rawData);
     if (!query.exec())
     {
@@ -190,6 +194,57 @@ void LiveStreamDB::processQuoteRawData(const QByteArray& rawData)
         storeQuoteData(stockTicker, timestamp, objectType, jsonLine);
     }
 }
+
+void LiveStreamDB::processStockStreamRawData(const QString& symbol, const QByteArray& rawData)
+{
+    // Accumulate data into per-symbol buffer
+    m_stockAccumulatorBuffers[symbol].append(rawData);
+
+    while (true)
+    {
+        int newlinePos = m_stockAccumulatorBuffers[symbol].indexOf('\n');
+        if (newlinePos == -1)
+        {
+            break;
+        }
+
+        QByteArray jsonLine = m_stockAccumulatorBuffers[symbol].left(newlinePos);
+        m_stockAccumulatorBuffers[symbol].remove(0, newlinePos + 1);
+
+        if (jsonLine.isEmpty())
+        {
+            continue;
+        }
+
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(jsonLine, &parseError);
+
+        if (parseError.error != QJsonParseError::NoError)
+        {
+            WARNING << "Failed to parse JSON for" << symbol << ":" << parseError.errorString();
+            continue;
+        }
+
+        QJsonObject obj = doc.object();
+        QString objectType;
+
+        if (obj.contains("Heartbeat"))
+        {
+            objectType = "Heartbeat";
+        }
+        else if (obj.contains("Error"))
+        {
+            objectType = "Error";
+        }
+        else
+        {
+            objectType = (streamType == StreamType::Bars) ? "Bar" : "MarketDepthQuote";
+        }
+
+        storeData(symbol, QDateTime::currentMSecsSinceEpoch(), objectType, jsonLine);
+    }
+}
+
 
 void LiveStreamDB::startRecording()
 {
@@ -436,7 +491,7 @@ void LiveStreamDB::onReceivedNewRawDataForStock(QString symbol, const QByteArray
         qInfo() << "Stream recovered from timeout for" << symbol;
     }
 
-    storeData(symbol, epochMs, rawData);
+    processStockStreamRawData(symbol, rawData);
 }
 
 void LiveStreamDB::handleStreamError(const QString& symbol, Stream::StreamError reason, const QString& message)

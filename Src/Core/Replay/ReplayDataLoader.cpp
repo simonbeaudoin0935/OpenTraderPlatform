@@ -449,17 +449,9 @@ void ReplayDataLoader::loadBufferChunk(QVector<ReplayDataPoint>* p_buffer, bool 
             point.stockTicker = query.value(1).toString();
             point.epochMs = query.value(2).toLongLong();
 
-            // Quote data has objectType in column 3, jsonRawData in column 4
-            // Bar/Depth have jsonRawData in column 3
-            if (m_dataType == DataType::Quote)
-            {
-                point.objectType = query.value(3).toString();
-                point.jsonRawData = query.value(4).toByteArray();
-            }
-            else
-            {
-                point.jsonRawData = query.value(3).toByteArray();
-            }
+            // All data types now have objectType in column 3, jsonRawData in column 4
+            point.objectType = query.value(3).toString();
+            point.jsonRawData = query.value(4).toByteArray();
             p_buffer->append(point);
 
             // Track next ID for cursor
