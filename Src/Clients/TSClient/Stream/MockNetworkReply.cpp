@@ -61,12 +61,16 @@ void MockNetworkReply::injectData(const QByteArray& p_data)
 
     OBJ_ASSUME_FALSE(p_data.isEmpty());
 
+    // The Stream class expects newline-delimited JSON objects.
+    // Ensure each injected chunk ends with a newline so Stream can parse it.
+    const QByteArray dataToWrite = p_data.endsWith('\n') ? p_data : p_data + '\n';
+
     // Save current read position
     qint64 currentPos = m_buffer.pos();
 
     // Seek to end to append data
     m_buffer.seek(m_buffer.size());
-    m_buffer.write(p_data);
+    m_buffer.write(dataToWrite);
 
     // Restore read position
     m_buffer.seek(currentPos);
