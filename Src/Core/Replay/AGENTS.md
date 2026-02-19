@@ -196,7 +196,13 @@ MainApp::enterReplayMode(date, startTime, speed)
     └── MainAlgo::enterReplayModePaused()
             │
             ├── Create ReplayEngine
-            ├── Connect signals (injectBarData, injectDepthData)
+            ├── Connect signals (injectBarData, injectDepthData, injectQuoteData)
+            ├── TSClient::preRollQuoteState() [BlockingQueuedConnection]
+            │       Reads all QuoteStream records from start-of-day to p_startTime,
+            │       builds m_replayQuoteState per symbol, and injects the merged
+            │       snapshot into any open MockNetworkReply (displayed symbol).
+            │       Must run before startReplayPaused so no delta arrives before
+            │       its symbol's snapshot. See TSClient AGENTS.md for details.
             ├── startReplayPaused() → emits first bar, then pauses
             └── pauseHeartbeat() on all stream receivers
 ```

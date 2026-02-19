@@ -97,7 +97,10 @@ When limit price is at or better than market:
 - BUY limit: fills if ask ≤ limit price
 - SELL limit: fills if bid ≥ limit price
 
-Flow: Same as market orders, but fill price = limit price.
+**Fill price is always the current market price (ask for buys, bid for sells) — NOT the limit price.**
+The limit price is a ceiling (buy) or floor (sell) that controls whether the order is marketable.
+A buy limit at $15.94 when the ask is $15.70 crosses the spread and fills at $15.70, exactly as a
+market order would. This matches real exchange behaviour (price improvement).
 
 ### Limit Orders (Delayed Fill)
 
@@ -224,18 +227,20 @@ The OrderEmulator supports two data sources for order fills and position P&L:
 > `TSClient::onInjectQuoteData()` (replay) and `StreamQuote::processJsonObject()` (live).
 > The OrderEmulator does not need to handle partial quotes.
 
-**Fill Price Logic**:
+**Fill Price Logic** (market and limit orders use identical price calculation):
 ```cpp
 if (hasMarketDepthData(symbol)) {
-    // Use L2: walk the book for accurate fill price
-    fillPrice = calculatePriceFromDepth(bids, asks, quantity);
+    // Use L2: walk the book for accurate fill price (ask for buy, bid for sell)
+    fillPrice = calculateMarketOrderFillPrice(order, depth);
 } else if (hasQuoteData(symbol)) {
-    // Use L1: bid/ask spread crossing
-    fillPrice = (isBuyOrder) ? quote.ask : quote.bid;
+    // Use L1: bid/ask crossing (ask for buy, bid for sell)
+    fillPrice = calculateMarketOrderFillPriceFromQuote(order, quote);
 } else {
     // Reject: no market data
     rejectOrder("No market data available");
 }
+// For limit orders: fill price = market price, not limit price.
+// The limit price only determines whether the order is marketable.
 ```
 
 ## Position Tracking

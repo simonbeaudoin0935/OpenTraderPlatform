@@ -167,7 +167,20 @@ QMap<QString, QJsonObject>               m_replayQuoteState;     // Accumulated 
 **`onInjectQuoteData()` behaviour**:
 Receives raw delta bytes from `ReplayEngine`. Because the TradeStation Quote Stream is differential (see `StreamQuote/AGENTS.md`), raw deltas are merged into `m_replayQuoteState[symbol]` before parsing. This ensures `OrderEmulator::updateQuote()` always receives a complete `Quote`, never a partial one with `bid=0, ask=0`.
 
+Both `onInjectQuoteData` and `StreamQuote::processJsonObject` assert `state.contains("Bid") && state.contains("Ask")` before emitting or forwarding a Quote — if the initial snapshot was never seen for a symbol the app crashes in debug mode, which is the intended behaviour (see `preRollQuoteState` below for why this must never happen at runtime).
+
 `newQuoteReceived` is **NOT** emitted from `onInjectQuoteData` to avoid double-emission — for the displayed symbol the raw bytes are also injected into its `MockNetworkReply`, which feeds `StreamQuote::processJsonObject()`, which does its own merging via `m_symbolState` and emits `newQuoteReceived` from there.
+
+**`preRollQuoteState(QDate p_date, qint64 p_startEpochMs)` — Mid-Day Replay Initialisation**:
+The Quote Stream records one full snapshot per symbol at stream open (market open, ~09:00 ET). When a replay starts mid-day, the `ReplayDataLoader` begins reading at `p_startTime`, skipping all records before it — including that initial snapshot. Without it, the first record received by `onInjectQuoteData` for every symbol would be a delta, which would trigger the snapshot-presence assertion and crash.
+
+`preRollQuoteState` is the fix:
+1. Opens the quotes DB directly via a temporary `QSQLITE` connection.
+2. Queries `SELECT stockTicker, jsonRawData FROM quotes WHERE objectType = 'QuoteStream' AND epochMs < p_startEpochMs ORDER BY epochMs ASC`.
+3. Merges every row into `m_replayQuoteState[symbol]` — same merge logic as `onInjectQuoteData` — building the full per-symbol state as it would have been at `p_startTime`.
+4. For each symbol that has an open `MockNetworkReply` (i.e. the currently displayed stock), serialises the merged `QJsonObject` back to compact JSON bytes and calls `injectData()` on the reply, priming `StreamQuote::m_symbolState` so the GUI also has correct bid/ask from the first live delta.
+
+Called from `MainAlgo::enterReplayModePaused` (and `enterReplayMode`) via **`Qt::BlockingQueuedConnection`** immediately after `createAndSetDisplayedStockInstrument` opens the `StreamQuote` and **before** `startReplayPaused` starts the `ReplayEngine`. This guarantees the full state is in place before the first live delta arrives.
 
 All replay state maps are cleared in `setMode(Live)` cleanup.
 
