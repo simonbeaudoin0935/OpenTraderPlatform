@@ -745,7 +745,7 @@ void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
     ui->orderEntryWidget->onMarketDepthUpdate(symbol, quote);
 }
 
-void GUIFrontend::onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote)
+void GUIFrontend::onCurrentHighlightedReceivedNewQuote(QString /*symbol*/, Quote quote)
 {
     // Style constants for MarketFlags labels
     static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
@@ -764,8 +764,11 @@ void GUIFrontend::onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quo
     m_delayedLabel->setStyleSheet(flags.isDelayed() ? delayedActiveStyle : inactiveStyle);
     m_hardToBorrowLabel->setStyleSheet(flags.isHardToBorrow() ? htbActiveStyle : inactiveStyle);
 
-    // Update MarketDepthTable with Level 1 data if no Level 2 stream available
-    if (!TSClient::getInstance()->hasOpenMarketDepthStream(symbol))
+    // Update MarketDepthTable with Level 1 data when not in Level 2 mode.
+    // We check the table's DisplayMode rather than TSClient::hasOpenMarketDepthStream(),
+    // because in replay mode a MockNetworkReply is always registered for depth
+    // (making hasOpenMarketDepthStream always return true) even when no depth data exists.
+    if (ui->marketDepthTable->getDisplayMode() != MarketDepthTable::DisplayMode::Level2)
     {
         ui->marketDepthTable->updateLevel1Data(quote);
     }

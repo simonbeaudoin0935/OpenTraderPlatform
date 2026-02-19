@@ -38,18 +38,40 @@ void StreamQuote::processJsonObject(const QJsonObject& jsonObj)
 {
     OBJ_ASSUME_FALSE(jsonObj.isEmpty());
 
-    Quote quote(jsonObj);
-    if (!quote.isValid()) [[unlikely]]
+    // Non-quote messages (Heartbeat, Error) lack a "Symbol" field — pass through
+    // without merging (no symbol to key on).
+    const QString symbol = jsonObj.value("Symbol").toString();
+    if (symbol.isEmpty())
     {
-        WARNING << "Quote invalid. Received data :" << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
+        Quote quote(jsonObj);
+        if (!quote.isEmpty())
+        {
+            emit newQuoteReceived(quote);
+        }
         return;
     }
 
-    OBJ_ASSUME_FALSE(quote.getSymbol().isEmpty());
-    if (!m_symbols.contains(quote.getSymbol())) [[unlikely]]
+    if (!m_symbols.contains(symbol)) [[unlikely]]
     {
-        WARNING << "Received quote for unexpected symbol" << quote.getSymbol();
+        WARNING << "Received quote for unexpected symbol" << symbol;
         OBJ_ASSUME_TRUE(false);
+        return;
+    }
+
+    // Merge delta into accumulated state: only keys present in this message are updated.
+    // This handles TradeStation's differential stream where each message after the first
+    // snapshot only contains changed fields.
+    QJsonObject& state = m_symbolState[symbol];
+    for (auto it = jsonObj.constBegin(); it != jsonObj.constEnd(); ++it)
+    {
+        state.insert(it.key(), it.value());
+    }
+
+    Quote quote(state);
+    if (!quote.isValid()) [[unlikely]]
+    {
+        // Not yet received a full snapshot for this symbol — log and wait
+        DEBUG << "Quote not yet valid for" << symbol << "(waiting for full snapshot)";
         return;
     }
 

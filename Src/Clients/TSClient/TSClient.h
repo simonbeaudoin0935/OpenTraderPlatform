@@ -14,6 +14,7 @@
 #include <QFuture>
 #include <QPromise>
 #include <QQueue>
+#include <QJsonObject>
 #include <deque>
 
 #include "AuthToken.h"
@@ -480,8 +481,9 @@ class TSClient final : public QObject
     QMap<QString, QPointer<MockNetworkReply>> m_replayBarReplies;   // symbol -> MockNetworkReply for bars
     QMap<QString, QPointer<MockNetworkReply>> m_replayDepthReplies; // symbol -> MockNetworkReply for depth
     QMap<QString, QPointer<MockNetworkReply>> m_replayQuoteReplies; // symbol -> MockNetworkReply for quotes
-    QPointer<MockNetworkReply> m_replayOrdersReply;                 // MockNetworkReply for orders stream
-    QPointer<MockNetworkReply> m_replayPositionsReply;              // MockNetworkReply for positions stream
+    QMap<QString, QJsonObject> m_replayQuoteState;     // Accumulated quote state per symbol (for delta merging)
+    QPointer<MockNetworkReply> m_replayOrdersReply;    // MockNetworkReply for orders stream
+    QPointer<MockNetworkReply> m_replayPositionsReply; // MockNetworkReply for positions stream
 
     // Order emulation for replay mode
     OrderEmulator* m_orderEmulator = nullptr;                 // Created when entering replay mode

@@ -2,6 +2,8 @@
 
 #include <atomic>
 
+#include <QJsonObject>
+#include <QMap>
 #include <QStringList>
 
 #include "Quote.h"
@@ -33,5 +35,9 @@ class StreamQuote final : public StreamMarketData
     void processJsonObject(const QJsonObject& jsonObj) override;
 
     QStringList m_symbols;
+    // TradeStation Quote Stream is differential: first message is a full snapshot,
+    // subsequent messages are delta patches with only changed fields present.
+    // We accumulate the full state per symbol here and always emit the merged result.
+    QMap<QString, QJsonObject> m_symbolState;
     static std::atomic<size_t> s_numberOfQuoteStreams;
 };

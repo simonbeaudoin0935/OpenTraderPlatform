@@ -553,6 +553,7 @@ void TSClient::setMode(Mode p_mode)
         m_replayBarReplies.clear();
         m_replayDepthReplies.clear();
         m_replayQuoteReplies.clear();
+        m_replayQuoteState.clear();
     }
 }
 
@@ -735,27 +736,36 @@ void TSClient::onInjectQuoteData(const QString& p_symbol, std::shared_ptr<const 
         return;
     }
 
-    // Forward quote data to OrderEmulator for Level 1 order fill monitoring
+    // Update OrderEmulator for Level 1 order fill monitoring.
+    // TradeStation Quote Stream is differential: only changed fields are present per message.
+    // We accumulate full state in m_replayQuoteState so updateQuote always gets a complete Quote.
     if (m_orderEmulator)
     {
         QJsonParseError parseError;
         QJsonDocument doc = QJsonDocument::fromJson(*p_data, &parseError);
         if (parseError.error == QJsonParseError::NoError && doc.isObject())
         {
-            Quote quote(doc.object());
+            // Merge delta into accumulated state
+            QJsonObject& state = m_replayQuoteState[p_symbol];
+            const QJsonObject delta = doc.object();
+            for (auto it = delta.constBegin(); it != delta.constEnd(); ++it)
+            {
+                state.insert(it.key(), it.value());
+            }
+
+            Quote quote(state);
             if (quote.isValid())
             {
                 m_orderEmulator->updateQuote(p_symbol, quote);
-
-                // Emit signal for MainAlgo/FrontEnd to update MarketFlags display
-                emit newQuoteReceived(p_symbol, quote);
+                // NOTE: newQuoteReceived is NOT emitted here to avoid double emission.
+                // For the displayed symbol, StreamQuote handles it via MockNetworkReply injection below.
             }
         }
     }
 
     if (!m_replayQuoteReplies.contains(p_symbol) || m_replayQuoteReplies[p_symbol].isNull())
     {
-        // No stream open for this symbol - skip silently (expected for non-monitored stocks)
+        // No stream open for this symbol - skip silently (expected for non-displayed stocks)
         return;
     }
 
