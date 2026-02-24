@@ -183,58 +183,70 @@ constexpr const char* DELETE_ALL_BARS = R"(
 
 ### LiveStreamDBQueries.h
 
-SQL for live stream data persistence:
+SQL for live stream data persistence (recording raw market data to SQLite):
 
 ```cpp
 namespace LiveStreamDBQueries {
 
-// Stream session tracking
-constexpr const char* CREATE_STREAM_SESSIONS_TABLE = R"(
-    CREATE TABLE IF NOT EXISTS stream_sessions (
-        session_id TEXT PRIMARY KEY,
-        symbol TEXT NOT NULL,
-        interval TEXT NOT NULL,
-        start_time TEXT NOT NULL,
-        end_time TEXT,
-        bar_count INTEGER DEFAULT 0
+// Bars table - one DB per symbol per day
+constexpr const char* CREATE_BARS_TABLE = R"(
+    CREATE TABLE IF NOT EXISTS bars (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        stockTicker TEXT NOT NULL,
+        stockTickerSeq INTEGER NOT NULL,
+        epochMs INTEGER NOT NULL,
+        jsonRawData TEXT NOT NULL
     )
 )";
-
-// Bar storage (same as DatabaseThreadQueries but separate table)
-constexpr const char* CREATE_STREAM_BARS_TABLE = R"(
-    CREATE TABLE IF NOT EXISTS stream_bars (
-        timestamp INTEGER NOT NULL,
-        session_id TEXT NOT NULL,
-        open REAL NOT NULL,
-        high REAL NOT NULL,
-        low REAL NOT NULL,
-        close REAL NOT NULL,
-        total_volume INTEGER NOT NULL,
-        trade_count INTEGER NOT NULL,
-        flags INTEGER NOT NULL,
-        PRIMARY KEY (timestamp, session_id),
-        FOREIGN KEY (session_id) REFERENCES stream_sessions(session_id)
-    )
+constexpr const char* CREATE_BARS_TICKER_INDEX = R"(
+    CREATE INDEX IF NOT EXISTS idx_bars_ticker_epoch ON bars(stockTicker, epochMs)
 )";
 
-// Session operations
-constexpr const char* INSERT_STREAM_SESSION = R"(
-    INSERT INTO stream_sessions
-    (session_id, symbol, interval, start_time)
+// Depth table - one DB per symbol per day
+constexpr const char* CREATE_DEPTH_TABLE = R"(
+    CREATE TABLE IF NOT EXISTS market_depth_quotes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        stockTicker TEXT NOT NULL,
+        stockTickerSeq INTEGER NOT NULL,
+        epochMs INTEGER NOT NULL,
+        jsonRawData TEXT NOT NULL
+    )
+)";
+constexpr const char* CREATE_DEPTH_TICKER_INDEX = R"(
+    CREATE INDEX IF NOT EXISTS idx_depth_ticker_epoch ON market_depth_quotes(stockTicker, epochMs)
+)";
+
+// Quotes table - one DB for ALL symbols per day (single stream)
+// Differs from bars/depth: no stockTickerSeq; has objectType column
+// stockTicker is empty string for Heartbeat/Error rows
+constexpr const char* CREATE_QUOTES_TABLE = R"(
+    CREATE TABLE IF NOT EXISTS quotes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        stockTicker TEXT NOT NULL,
+        epochMs INTEGER NOT NULL,
+        objectType TEXT NOT NULL,
+        jsonRawData TEXT NOT NULL
+    )
+)";
+constexpr const char* CREATE_QUOTES_TICKER_INDEX = R"(
+    CREATE INDEX IF NOT EXISTS idx_quotes_ticker_epoch ON quotes(stockTicker, epochMs)
+)";
+constexpr const char* CREATE_QUOTES_TYPE_INDEX = R"(
+    CREATE INDEX IF NOT EXISTS idx_quotes_object_type ON quotes(objectType)
+)";
+
+// Insert queries
+constexpr const char* INSERT_BAR = R"(
+    INSERT INTO bars (stockTicker, stockTickerSeq, epochMs, jsonRawData)
     VALUES (?, ?, ?, ?)
 )";
-
-constexpr const char* UPDATE_STREAM_SESSION_END = R"(
-    UPDATE stream_sessions
-    SET end_time = ?, bar_count = ?
-    WHERE session_id = ?
+constexpr const char* INSERT_DEPTH = R"(
+    INSERT INTO market_depth_quotes (stockTicker, stockTickerSeq, epochMs, jsonRawData)
+    VALUES (?, ?, ?, ?)
 )";
-
-// Bar operations
-constexpr const char* INSERT_STREAM_BAR = R"(
-    INSERT OR REPLACE INTO stream_bars
-    (timestamp, session_id, open, high, low, close, total_volume, trade_count, flags)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+constexpr const char* INSERT_QUOTE = R"(
+    INSERT INTO quotes (stockTicker, epochMs, objectType, jsonRawData)
+    VALUES (?, ?, ?, ?)
 )";
 
 }  // namespace LiveStreamDBQueries
@@ -275,44 +287,63 @@ constexpr const char* LOAD_CHART_STATE = R"(
 
 ### ReplayDataQueries.h
 
-SQL for replay data management:
+SQL for replay data loading from recorded databases:
 
 ```cpp
 namespace ReplayDataQueries {
 
-// Replay data table
-constexpr const char* CREATE_REPLAY_DATA_TABLE = R"(
-    CREATE TABLE IF NOT EXISTS replay_data (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        symbol TEXT NOT NULL,
-        timestamp INTEGER NOT NULL,
-        open REAL NOT NULL,
-        high REAL NOT NULL,
-        low REAL NOT NULL,
-        close REAL NOT NULL,
-        volume INTEGER NOT NULL,
-        UNIQUE(symbol, timestamp)
-    )
+// --- Bar queries ---
+
+// All bars from a date's DB, ordered chronologically
+constexpr const char* SELECT_ALL_BARS = R"(
+    SELECT stockTicker, epochMs, jsonRawData FROM bars
+    ORDER BY epochMs ASC
 )";
 
-// Import from CSV
-constexpr const char* INSERT_REPLAY_BAR = R"(
-    INSERT OR IGNORE INTO replay_data
-    (symbol, timestamp, open, high, low, close, volume)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+// Bar count and time range per symbol
+constexpr const char* SELECT_BAR_METRICS = R"(
+    SELECT COUNT(*), MIN(epochMs), MAX(epochMs)
+    FROM bars WHERE stockTicker = ?
 )";
 
-// Queries
-constexpr const char* SELECT_REPLAY_BARS = R"(
-    SELECT * FROM replay_data
-    WHERE symbol = ? AND timestamp BETWEEN ? AND ?
-    ORDER BY timestamp ASC
+// --- Market Depth queries ---
+
+constexpr const char* SELECT_ALL_DEPTH = R"(
+    SELECT stockTicker, epochMs, jsonRawData FROM market_depth_quotes
+    ORDER BY epochMs ASC
 )";
 
-constexpr const char* SELECT_REPLAY_DATE_RANGE = R"(
-    SELECT MIN(timestamp) as start, MAX(timestamp) as end
-    FROM replay_data
-    WHERE symbol = ?
+constexpr const char* SELECT_DEPTH_METRICS = R"(
+    SELECT COUNT(*), MIN(epochMs), MAX(epochMs)
+    FROM market_depth_quotes WHERE stockTicker = ?
+)";
+
+// --- Quote queries ---
+
+// All quotes ordered chronologically (used by ReplayDataLoader)
+constexpr const char* SELECT_ALL_QUOTES = R"(
+    SELECT stockTicker, epochMs, objectType, jsonRawData FROM quotes
+    ORDER BY epochMs ASC
+)";
+
+// Quote count and time range per symbol
+constexpr const char* SELECT_QUOTE_METRICS = R"(
+    SELECT COUNT(*), MIN(epochMs), MAX(epochMs)
+    FROM quotes WHERE stockTicker = ?
+)";
+
+// Breakdown by object type (for RecordsInfoTab display)
+constexpr const char* SELECT_QUOTE_TYPE_BREAKDOWN = R"(
+    SELECT objectType, COUNT(*) FROM quotes
+    WHERE stockTicker = ?
+    GROUP BY objectType
+)";
+
+// All distinct symbols in the quotes DB (excludes empty stockTicker for heartbeats)
+constexpr const char* SELECT_QUOTE_SYMBOLS = R"(
+    SELECT DISTINCT stockTicker FROM quotes
+    WHERE stockTicker != ''
+    ORDER BY stockTicker
 )";
 
 }  // namespace ReplayDataQueries

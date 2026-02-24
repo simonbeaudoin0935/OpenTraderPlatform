@@ -5,6 +5,8 @@
 #include "Settings.h"
 #include "Stream.h"
 #include "CONSTANTS.h"
+#include "OrdersDatabase.h"
+#include "PositionsDatabase.h"
 #include <QCoreApplication>
 #include <unistd.h>
 #include <cerrno>
@@ -193,10 +195,7 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
                      &FrontEnd::onTSClientDataUsageUpdate);
 
     // Connect TradeStation stream count updates to frontend
-    QObject::connect(tradeStationClient,
-                     &TSClient::openStreamCountChanged,
-                     appFrontend,
-                     &FrontEnd::onStreamCountUpdate);
+    QObject::connect(tradeStationClient, &TSClient::streamCountsChanged, appFrontend, &FrontEnd::onStreamCountUpdate);
 
     QObject::connect(mainAlgo,
                      &MainAlgo::displayedStockReceivedNewBar,
@@ -207,6 +206,17 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
                      &MainAlgo::displayedStockReceivedNewMarketDepthQuote,
                      appFrontend,
                      &FrontEnd::onCurrentHighlightedReceivedNewMarketDepthQuote);
+
+    // Connect Level 1 quote updates to frontend for MarketFlags display
+    QObject::connect(tradeStationClient,
+                     &TSClient::newQuoteReceived,
+                     mainAlgo,
+                     &MainAlgo::onDisplayedStockReceivedNewQuote);
+
+    QObject::connect(mainAlgo,
+                     &MainAlgo::displayedStockReceivedNewQuote,
+                     appFrontend,
+                     &FrontEnd::onCurrentHighlightedReceivedNewQuote);
 
 
     QObject::connect(mainAlgo, &MainAlgo::receivedNewPosition, appFrontend, &FrontEnd::onNewPositionReceived);
@@ -224,6 +234,9 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
 MainApp::~MainApp()
 {
     qInfo() << "MainApp destructor - cleaning up";
+
+    // Stop memory monitoring first to avoid cross-thread timer warnings
+    memoryMonitor.stopMonitoring();
 
     // Delete the frontend first
     delete appFrontend;
@@ -319,7 +332,11 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pla
         [this]() { tradeStationClient->setMode(TSClient::Mode::Replay); },
         Qt::BlockingQueuedConnection);
 
-    // 5. Clean slate: stop everything and recreate fresh, then start replay paused (MainAlgo thread)
+    // 5. Destroy and recreate database singletons to pick up new timestamped replay database path
+    OrdersDatabase::destroyInstance();
+    PositionsDatabase::destroyInstance();
+
+    // 6. Clean slate: stop everything and recreate fresh, then start replay paused (MainAlgo thread)
     QMetaObject::invokeMethod(
         mainAlgo,
         [this, displayedSymbol, p_date, p_startTime, p_speed]()
@@ -341,7 +358,7 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pla
         },
         Qt::QueuedConnection);
 
-    // 6. Update UI
+    // 7. Update UI
     appFrontend->onReplayModeEntered();
 
     qInfo() << "Replay mode entered with chart pre-populated";
@@ -386,7 +403,11 @@ void MainApp::exitReplayMode()
         [this]() { tradeStationClient->setMode(TSClient::Mode::Live); },
         Qt::BlockingQueuedConnection);
 
-    // 5. Recreate fresh live instruments and resume streams (MainAlgo thread)
+    // 5. Destroy and recreate database singletons to switch back to Live/Sim database
+    OrdersDatabase::destroyInstance();
+    PositionsDatabase::destroyInstance();
+
+    // 6. Recreate fresh live instruments and resume streams (MainAlgo thread)
     QMetaObject::invokeMethod(
         mainAlgo,
         [this, displayedSymbol]()
@@ -447,4 +468,33 @@ void MainApp::setReplaySpeed(ReplayEngine::PlaybackSpeed p_speed)
 bool MainApp::isReplayPaused() const
 {
     return mainAlgo->getReplayState() == ReplayEngine::PlaybackState::Paused;
+}
+
+void MainApp::preloadChartForReplay(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
+{
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "preloadChartForReplay called when not in replay mode");
+
+    qInfo() << "Preloading chart for replay:" << p_date.toString(Qt::ISODate) << "at"
+            << p_startTime.toString("hh:mm:ss");
+
+    // Get currently displayed symbol
+    QString displayedSymbol = mainAlgo->getDisplayedSymbol();
+
+    // Reload chart data for new day/time (MainAlgo thread)
+    QMetaObject::invokeMethod(
+        mainAlgo,
+        [this, displayedSymbol, p_date, p_startTime, p_speed]()
+        {
+            // Re-enter replay paused with new date/time
+            // This stops existing replay, reloads data, and emits first bar to update chart
+            mainAlgo->enterReplayModePaused(p_date, p_startTime, p_speed);
+        },
+        Qt::QueuedConnection);
+
+    qInfo() << "Chart preload initiated for" << displayedSymbol;
+}
+
+ReplayEngine* MainApp::getReplayEngine() const
+{
+    return mainAlgo->getReplayEngine();
 }

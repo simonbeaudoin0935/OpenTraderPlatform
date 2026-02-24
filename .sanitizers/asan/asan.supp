@@ -1,0 +1,16 @@
+# AddressSanitizer Suppressions
+# Suppress false positives from Qt and system libraries
+# Format: leak:<function_pattern>
+# More info: https://github.com/google/sanitizers/wiki/AddressSanitizerLeakSanitizer
+
+# Qt library suppressions
+# leak:*QApplication*
+# leak:*QWidget*
+
+# System library suppressions
+# leak:*libfontconfig*
+# leak:*libfreetype*
+# leak:*libX11*
+
+# Add project-specific suppressions here as needed
+# DO NOT suppress issues in Src/ - fix them instead!

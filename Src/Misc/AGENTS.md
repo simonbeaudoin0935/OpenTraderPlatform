@@ -67,6 +67,24 @@ namespace FileSystemConstants {
     const QString CACHE_DIR = "bars";
     const QString CONFIG_DIR = ".config/L2Trader";
 }
+
+namespace MarketDepthConstants {
+    constexpr size_t MAX_CONCURRENT_STREAMS = 10;    // TradeStation API hard limit
+    constexpr int QUEUE_PROCESS_DELAY_MS = 1000;     // Delay before opening queued stream (TCP close propagation)
+}
+
+namespace PollingConstants {
+    constexpr int BALANCE_POLLING_INTERVAL_MS = 1000;  // Poll balance every 1 second
+}
+```
+
+**Usage**:
+    constexpr int STREAM_RAMP_UP_DELAY_TIER1_MS = 500;   // First 100 streams
+    constexpr int STREAM_RAMP_UP_DELAY_TIER2_MS = 1000;  // Streams 101-200
+    constexpr int STREAM_RAMP_UP_DELAY_TIER3_MS = 2000;  // Streams 201+
+    constexpr int STREAM_RAMP_UP_TIER1_THRESHOLD = 100;  // Switch to tier 2 after this many
+    constexpr int STREAM_RAMP_UP_TIER2_THRESHOLD = 200;  // Switch to tier 3 after this many
+}
 ```
 
 **Usage**:
@@ -75,6 +93,25 @@ namespace FileSystemConstants {
 
 QTime marketOpen = TradingHours::TRADING_START_TIME;
 QString endpoint = TSClientEndpoints::BASE_URL + TSClientEndpoints::GET_BARS;
+
+// Check stream limits
+if (StreamMarketDepthQuote::getNumberOfMarketDepthStreams() >= MarketDepthConstants::MAX_CONCURRENT_STREAMS) {
+    // Will be queued
+}
+
+// Balance polling in MainAlgo
+m_balancePollingTimer->setInterval(PollingConstants::BALANCE_POLLING_INTERVAL_MS);
+
+// In LiveStreamDB - adaptive ramp-up based on stream count
+int delay;
+if (m_currentRampIndex <= RecorderConstants::STREAM_RAMP_UP_TIER1_THRESHOLD) {
+    delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER1_MS;  // Fast: 500ms
+} else if (m_currentRampIndex <= RecorderConstants::STREAM_RAMP_UP_TIER2_THRESHOLD) {
+    delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER2_MS;  // Medium: 1000ms
+} else {
+    delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER3_MS;  // Slow: 2000ms
+}
+m_rampTimer.start(delay);
 ```
 
 ### Assume.h

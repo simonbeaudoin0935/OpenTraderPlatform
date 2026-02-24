@@ -33,6 +33,14 @@ class PositionsDatabase : public QObject
      */
     static PositionsDatabase* getInstance(QObject* p_parent = nullptr);
 
+    /**
+     * @brief Destroy the singleton instance
+     *
+     * Called when switching between Live/Sim and Replay modes to recreate
+     * the database with the correct file path.
+     */
+    static void destroyInstance();
+
     ~PositionsDatabase();
 
     // Delete copy constructor and assignment operator

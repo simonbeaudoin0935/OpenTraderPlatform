@@ -74,6 +74,7 @@ class MarketDepthQuoteReceiver : public StreamReceiver
 
   private:
     void createMarketDepthQuoteStream();
+    void connectStreamSignals(); // Helper to connect stream signals after creation
 
     QString m_symbol;
     QPointer<StreamMarketDepthQuote> m_stream;

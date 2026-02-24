@@ -35,13 +35,14 @@ class GUIFrontend : public FrontEnd
     void onTSClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onTradeStationAccountsReceived(QVector<Account> results) override;
     void onMemoryUsageUpdate(qsizetype newDataUsage) override;
-    void onStreamCountUpdate(int count) override;
+    void onStreamCountUpdate(size_t barsCount, size_t marketDepthCount) override;
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
     void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol,
                                                          MarketDepthQuote quote,
                                                          double bidAskImbalance,
                                                          double bidDWP,
                                                          double askDWP) override;
+    void onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote) override;
     void onNewPositionReceived(QString account, Position position) override;
     void onPositionDeleted(QString account, QString positionID) override;
     void onNewOrderReceived(QString account, Order order) override;
@@ -59,7 +60,7 @@ class GUIFrontend : public FrontEnd
     bool eventFilter(QObject* p_watched, QEvent* p_event) override;
 
   private slots:
-    void onTradeStationAuthStateChanged(bool isAuthenticated, QString reason);
+    void onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, QString message);
     void onNewDisplayedStockSelection();
     void updateLiveLogDisplay(const QString& message);
     void onLoggerVisibilityChanged(bool visible);
@@ -68,6 +69,7 @@ class GUIFrontend : public FrontEnd
     void onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKeySequence& p_newSequence);
     void onCancelAllOrders();
     void onToggleReplayPlayPause();
+    void onToggleReplayMode();
     void onAccountInfoButtonClicked();
     void updateSessionLabel();
     void updateTimeDisplay();
@@ -98,10 +100,12 @@ class GUIFrontend : public FrontEnd
     QShortcut* m_sellToCoverShortcut;           // Execute sell to cover order shortcut
     QShortcut* m_cancelAllOrdersShortcut;       // Cancel all orders shortcut
     QShortcut* m_toggleReplayPlayPauseShortcut; // Toggle replay play/pause shortcut
+    QShortcut* m_toggleReplayModeShortcut;      // Toggle replay mode on/off shortcut
 
     qsizetype TSClientDataUsage = 0;
     qint64 memoryUsage = 0;
-    int streamCount = 0;
+    size_t barsStreamCount = 0;
+    size_t marketDepthStreamCount = 0;
     qint64 m_recordingSize = 0;
 
     void updateStatusBar();
@@ -117,4 +121,9 @@ class GUIFrontend : public FrontEnd
     QLabel* m_sessionLabel = nullptr;     // Trading session indicator
     QLabel* m_timeDisplayLabel = nullptr; // Application time display (live or replay)
     QTimer* m_timeUpdateTimer = nullptr;  // Timer to update time display
+
+    // MarketFlags status labels
+    QLabel* m_haltedLabel = nullptr;       // "HALTED" - red
+    QLabel* m_delayedLabel = nullptr;      // "DELAYED" - yellow
+    QLabel* m_hardToBorrowLabel = nullptr; // "HTB" - orange
 };

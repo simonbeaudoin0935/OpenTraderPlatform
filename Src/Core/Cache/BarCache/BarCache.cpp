@@ -156,7 +156,7 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first,
  * @param first The start time of the range (must be between 4:01 AM and 8:00 PM ET).
  * @param last The end time of the range (must be between 4:01 AM and 8:00 PM ET, and >= first).
  *
- * @return A QFuture containing a std::unique_ptr to a QVector<Bar> with the requested bars.
+ * @return A QFuture containing a std::shared_ptr to a QVector<Bar> with the requested bars.
  *
  * @pre date is a weekday (Monday to Friday).
  * @pre first and last are within trading hours (4:01 AM to 8:00 PM ET).
@@ -253,7 +253,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                               fullDayEnd)
         .then(this, // Execute in the thread of this BarCache object, aka the MainAlgo thread
               [this, date, first, last, fullDayStart, fullDayEnd, isCurrentDay, now, promise = std::move(promise)](
-                  std::optional<std::unique_ptr<QVector<Bar>>>&& dbBars) mutable
+                  std::optional<std::shared_ptr<QVector<Bar>>>&& dbBars) mutable
               {
                   // Check if we got bars from database
                   if (dbBars.has_value())

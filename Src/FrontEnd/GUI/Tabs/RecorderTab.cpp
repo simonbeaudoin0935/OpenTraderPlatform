@@ -29,12 +29,14 @@ RecorderTab::RecorderTab(QWidget* p_parent)
     , m_uptimeLabel(nullptr)
     , m_barsRecordCountLabel(nullptr)
     , m_depthRecordCountLabel(nullptr)
+    , m_quotesRecordCountLabel(nullptr)
     , m_recordingSizeLabel(nullptr)
     , m_refreshTimer(nullptr)
     , m_isRecording(false)
     , m_isAuthenticated(false)
     , m_liveBarsDB(nullptr)
     , m_liveMarketDepthQuoteDB(nullptr)
+    , m_liveQuotesDB(nullptr)
     , m_stockCsvFilePath("")
 {
     setupUI();
@@ -90,6 +92,9 @@ void RecorderTab::setupUI()
 
     m_depthRecordCountLabel = new QLabel("Market Depth Records: 0");
     statusLayout->addWidget(m_depthRecordCountLabel);
+
+    m_quotesRecordCountLabel = new QLabel("Quotes Records: 0");
+    statusLayout->addWidget(m_quotesRecordCountLabel);
 
     m_recordingSizeLabel = new QLabel("Recording Size: N/A");
     statusLayout->addWidget(m_recordingSizeLabel);
@@ -250,7 +255,9 @@ void RecorderTab::restoreLastCsvFilePath()
     m_stockCsvFileInput->setText(lastCsvPath);
 }
 
-void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, QString p_reason)
+void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated,
+                                                 TSClient::AuthStateReason p_reason,
+                                                 QString p_message)
 {
     m_isAuthenticated = p_isAuthenticated;
 
@@ -262,17 +269,21 @@ void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, QString
             m_startButton->setEnabled(true);
             m_startButton->setToolTip("Start recording market data");
         }
-        qInfo() << "RecorderTab: TradeStation authenticated -" << p_reason;
+        qInfo() << "RecorderTab: TradeStation authenticated -" << p_message;
     }
     else
     {
+        // Check if this is just a transient "Connecting" state during token refresh
+        // If so, don't stop recording - the refresh will complete momentarily
+        bool isTransientRefreshState = (p_reason == TSClient::AuthStateReason::Connecting);
+
         // Disable the start button and show reason
         m_startButton->setEnabled(false);
-        m_startButton->setToolTip(QString("Cannot start recording: %1").arg(p_reason));
-        qWarning() << "RecorderTab: TradeStation not authenticated -" << p_reason;
+        m_startButton->setToolTip(QString("Cannot start recording: %1").arg(p_message));
+        qWarning() << "RecorderTab: TradeStation not authenticated -" << p_message;
 
-        // If currently recording, we should stop
-        if (m_isRecording)
+        // If currently recording, we should stop ONLY if this is a real auth loss (not a refresh)
+        if (m_isRecording && !isTransientRefreshState)
         {
             qCritical() << "RecorderTab: Lost authentication during recording. Stopping recording.";
             onStopRecording();
@@ -281,7 +292,11 @@ void RecorderTab::onTradeStationAuthStateChanged(bool p_isAuthenticated, QString
                                  QString("Lost TradeStation authentication during recording.\n"
                                          "Recording has been stopped.\n\n"
                                          "Reason: %1")
-                                     .arg(p_reason));
+                                     .arg(p_message));
+        }
+        else if (m_isRecording && isTransientRefreshState)
+        {
+            qDebug() << "RecorderTab: Token refresh in progress during recording - ignoring transient auth state";
         }
     }
 }
@@ -325,7 +340,13 @@ void RecorderTab::onStartRecording()
         QStringList fields = line.split(',');
         if (!fields.isEmpty() && !fields[0].isEmpty())
         {
-            m_stockTickers.append(fields[0]);
+            QString ticker = fields[0].trimmed();
+            // Remove surrounding quotes (both single and double)
+            if ((ticker.startsWith('"') && ticker.endsWith('"')) || (ticker.startsWith('\'') && ticker.endsWith('\'')))
+            {
+                ticker = ticker.mid(1, ticker.length() - 2);
+            }
+            m_stockTickers.append(ticker);
         }
     }
     file.close();
@@ -334,6 +355,21 @@ void RecorderTab::onStartRecording()
     {
         QMessageBox::warning(this, "Configuration Error", "No stock tickers found in CSV file.");
         return;
+    }
+
+    // Enforce maximum of 100 stocks (TradeStation Quote stream limit)
+    constexpr int MAX_STOCKS = 100;
+    if (m_stockTickers.size() > MAX_STOCKS)
+    {
+        int originalCount = m_stockTickers.size();
+        m_stockTickers = m_stockTickers.mid(0, MAX_STOCKS);
+        QMessageBox::warning(this,
+                             "Stock Limit Exceeded",
+                             QString("The CSV file contains %1 stocks, but the TradeStation Quote stream API "
+                                     "supports a maximum of %2 symbols.\n\n"
+                                     "Recording will proceed with the first %2 stocks only.")
+                                 .arg(originalCount)
+                                 .arg(MAX_STOCKS));
     }
 
     // Create recording folders
@@ -389,18 +425,34 @@ void RecorderTab::onStartRecording()
         }
     }
 
+    QString quotesPath = recordedDataPath + "/Quotes";
+    QDir quotesDir(quotesPath);
+    if (!quotesDir.exists())
+    {
+        if (!quotesDir.mkpath("."))
+        {
+            QMessageBox::critical(this,
+                                  "Directory Error",
+                                  QString("Cannot create Quotes directory: %1").arg(quotesPath));
+            return;
+        }
+    }
+
     // Create database instances
     QString dateStr = QDate::currentDate().toString("yyyy-MM-dd");
     QString barsDbPath = barsPath + "/" + dateStr + ".db";
     QString marketDepthDbPath = marketDepthPath + "/" + dateStr + ".db";
+    QString quotesDbPath = quotesPath + "/" + dateStr + ".db";
 
     m_liveBarsDB = std::make_unique<LiveStreamDB>(LiveStreamDB::StreamType::Bars, barsDbPath, m_stockTickers);
     m_liveMarketDepthQuoteDB =
         std::make_unique<LiveStreamDB>(LiveStreamDB::StreamType::MarketDepthQuotes, marketDepthDbPath, m_stockTickers);
+    m_liveQuotesDB = std::make_unique<LiveStreamDB>(LiveStreamDB::StreamType::Quotes, quotesDbPath, m_stockTickers);
 
     // Start recording
     m_liveBarsDB->startRecording();
     m_liveMarketDepthQuoteDB->startRecording();
+    m_liveQuotesDB->startRecording();
 
     // Update state
     m_isRecording = true;
@@ -431,17 +483,26 @@ void RecorderTab::onStopRecording()
     // Stop refresh timer
     m_refreshTimer->stop();
 
-    // Finalize databases
+    // Stop recording and close streams
     if (m_liveBarsDB)
     {
+        m_liveBarsDB->stopRecording();
         m_liveBarsDB->finalizeUnrecoveredTimeouts();
         m_liveBarsDB.reset();
     }
 
     if (m_liveMarketDepthQuoteDB)
     {
+        m_liveMarketDepthQuoteDB->stopRecording();
         m_liveMarketDepthQuoteDB->finalizeUnrecoveredTimeouts();
         m_liveMarketDepthQuoteDB.reset();
+    }
+
+    if (m_liveQuotesDB)
+    {
+        m_liveQuotesDB->stopRecording();
+        m_liveQuotesDB->finalizeUnrecoveredTimeouts();
+        m_liveQuotesDB.reset();
     }
 
     // Update state
@@ -490,7 +551,13 @@ void RecorderTab::updateStatsDisplay()
         m_depthRecordCountLabel->setText(QString("Market Depth Records: %1").arg(depthCount));
     }
 
-    // Update total recording size (sum of both database files)
+    if (m_liveQuotesDB)
+    {
+        int quotesCount = m_liveQuotesDB->getRecordCount();
+        m_quotesRecordCountLabel->setText(QString("Quotes Records: %1").arg(quotesCount));
+    }
+
+    // Update total recording size (sum of all database files)
     qint64 totalDbSize = 0;
     if (m_liveBarsDB)
     {
@@ -499,6 +566,10 @@ void RecorderTab::updateStatsDisplay()
     if (m_liveMarketDepthQuoteDB)
     {
         totalDbSize += m_liveMarketDepthQuoteDB->getDatabaseFileSizeBytes();
+    }
+    if (m_liveQuotesDB)
+    {
+        totalDbSize += m_liveQuotesDB->getDatabaseFileSizeBytes();
     }
     m_recordingSizeLabel->setText(QString("Recording Size: %1").arg(formatFileSize(totalDbSize)));
     emit recordingSizeChanged(totalDbSize);
@@ -538,6 +609,22 @@ void RecorderTab::updateStreamTable()
     m_streamTable->setItem(row, 1, new QTableWidgetItem(QString::number(activeDepthStreams)));
     m_streamTable->setItem(row, 2, new QTableWidgetItem(QString::number(failedDepthStreams)));
     m_streamTable->setItem(row, 3, new QTableWidgetItem(QString::number(totalDepthStreams)));
+
+    // Quotes stream row (single stream for all symbols)
+    if (m_liveQuotesDB)
+    {
+        row++;
+        m_streamTable->insertRow(row);
+        m_streamTable->setItem(row, 0, new QTableWidgetItem("Quotes (L1)"));
+
+        int totalQuotesStreams = m_liveQuotesDB->getTotalConfiguredStreams();
+        int activeQuotesStreams = m_liveQuotesDB->getActiveStreamCount();
+        int failedQuotesStreams = totalQuotesStreams - activeQuotesStreams;
+
+        m_streamTable->setItem(row, 1, new QTableWidgetItem(QString::number(activeQuotesStreams)));
+        m_streamTable->setItem(row, 2, new QTableWidgetItem(QString::number(failedQuotesStreams)));
+        m_streamTable->setItem(row, 3, new QTableWidgetItem(QString::number(totalQuotesStreams)));
+    }
 }
 
 void RecorderTab::updateErrorTable()

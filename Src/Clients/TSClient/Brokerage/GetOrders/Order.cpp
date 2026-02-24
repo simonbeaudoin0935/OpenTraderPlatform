@@ -4,6 +4,7 @@
 #include "Order.h"
 #include "Logging.h"
 #include "CONSTANTS.h"
+#include "Assume.h"
 
 OrderNS::AdvancedOptions::AdvancedOptions(const QString& str)
 {
@@ -72,7 +73,17 @@ Order::Order(const QJsonObject& jsonObj, bool isUpdate_) : m_isUpdate(isUpdate_)
     // Parse numeric fields
     m_commissionsFee = jsonObj["CommissionFee"].toDouble(0.0);
     m_conversionRate = jsonObj["ConversionRate"].toDouble(1.0);
-    m_filledPrice = jsonObj["FilledPrice"].toDouble(0.0);
+
+    // FilledPrice may come as string or number
+    QJsonValue filledPriceVal = jsonObj["FilledPrice"];
+    if (filledPriceVal.isString())
+    {
+        m_filledPrice = filledPriceVal.toString().toDouble();
+    }
+    else
+    {
+        m_filledPrice = filledPriceVal.toDouble(0.0);
+    }
 
     // Parse optional limit price
     if (jsonObj.contains("LimitPrice"))
@@ -137,9 +148,19 @@ Order::Order(const QJsonObject& jsonObj, bool isUpdate_) : m_isUpdate(isUpdate_)
             {
                 m_tradeAction = "Sell";
             }
+            else if (openOrClose.isEmpty())
+            {
+                // No OpenOrClose field - use BuyOrSell directly (stocks)
+                m_tradeAction = buyOrSell;
+            }
             else
             {
+                // Unknown combination - this should not happen with valid TradeStation API data
+                qWarning() << "Order: Unknown BuyOrSell/OpenOrClose combination:" << "BuyOrSell=" << buyOrSell
+                           << "OpenOrClose=" << openOrClose;
                 m_tradeAction = buyOrSell + " " + openOrClose;
+                // ASSERT: This combination should be recognized
+                ASSUME_TRUE(false); // Force crash to expose unknown combinations
             }
         }
     }
@@ -256,11 +277,46 @@ Order::Order(const QJsonObject& jsonObj, bool isUpdate_) : m_isUpdate(isUpdate_)
 
 bool Order::isValid()
 {
-    // Check required fields
-    if (m_accountID.isEmpty() || m_orderID.isEmpty())
+    // Check required fields - these should NEVER be empty
+    if (m_accountID.isEmpty())
     {
-        return false;
+        qDebug() << "Order invalid: accountID empty";
     }
+    ASSUME_FALSE(m_accountID.isEmpty()); // ASSERT: accountID must not be empty
+
+    if (m_orderID.isEmpty())
+    {
+        qDebug() << "Order invalid: orderID empty";
+    }
+    ASSUME_FALSE(m_orderID.isEmpty()); // ASSERT: orderID must not be empty
+
+    if (m_symbol.isEmpty())
+    {
+        qDebug() << "Order invalid: symbol empty";
+    }
+    ASSUME_FALSE(m_symbol.isEmpty()); // ASSERT: symbol must not be empty
+
+    if (m_quantity.isEmpty())
+    {
+        qDebug() << "Order invalid: quantity empty";
+    }
+    ASSUME_FALSE(m_quantity.isEmpty()); // ASSERT: quantity must not be empty
+
+    if (m_tradeAction.isEmpty())
+    {
+        qDebug() << "Order invalid: tradeAction empty";
+    }
+    ASSUME_FALSE(m_tradeAction.isEmpty()); // ASSERT: tradeAction must not be empty
+
+    // Validate tradeAction - MUST be one of the recognized actions
+    bool validTradeAction = (m_tradeAction == "BUY" || m_tradeAction == "SELL" || m_tradeAction == "BUYTOCOVER" ||
+                             m_tradeAction == "SELLSHORT" || m_tradeAction == "Buy" || m_tradeAction == "Sell" ||
+                             m_tradeAction == "Buy to Cover" || m_tradeAction == "Sell Short");
+    if (!validTradeAction)
+    {
+        qDebug() << "Order invalid: tradeAction not recognized:" << m_tradeAction;
+    }
+    ASSUME_TRUE(validTradeAction); // ASSERT: tradeAction must be recognized
 
     return true;
 }

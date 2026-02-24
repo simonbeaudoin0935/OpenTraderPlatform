@@ -160,7 +160,10 @@ TSClient::TSClient()
         QTimer::singleShot(1000 * secondsToNextRefreshRequest, this, [this]() { refreshAccessToken(); });
 
         // Schedule an emition for when the event loop is started
-        QTimer::singleShot(0, this, [this]() { emit authStateChanged(true, "Auth token valid and not expired"); });
+        QTimer::singleShot(
+            0,
+            this,
+            [this]() { emit authStateChanged(true, AuthStateReason::ValidToken, "Auth token valid and not expired"); });
     }
     else
     {
@@ -210,7 +213,9 @@ bool TSClient::isCleanedUp()
 {
     // The pending requests tracking was removed from TSClient.
     // The isCleanedUp() check is now primarily about verifying no open streams remain.
-    // For now, just check the stream count.
-    return Stream::getNumberOpenStream() == 0;
+    // Check all stream type counters
+    return (StreamBars::getNumberOfBarsStreams() == 0 && StreamMarketDepthQuote::getNumberOfMarketDepthStreams() == 0 &&
+            StreamQuote::getNumberOfQuoteStreams() == 0 && StreamPositions::getNumberOfPositionStreams() == 0 &&
+            StreamOrders::getNumberOfOrderStreams() == 0);
 }
 #endif

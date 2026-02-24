@@ -17,12 +17,17 @@ The Recorder and Replay system enables capturing live market data streams and re
 │       ├──► StreamBars ──────────────► LiveStreamDB (Bars)                   │
 │       │                                    │                                 │
 │       │                                    ▼                                 │
-│       │                         {date}.db                                   │
+│       │                         RecordedLiveData/Bars/{date}.db             │
 │       │                                                                      │
-│       └──► StreamMarketDepthQuote ──► LiveStreamDB (Depth)                  │
+│       ├──► StreamMarketDepthQuote ──► LiveStreamDB (Depth)                  │
+│       │                                    │                                 │
+│       │                                    ▼                                 │
+│       │                    RecordedLiveData/MarketDepthQuotes/{date}.db      │
+│       │                                                                      │
+│       └──► StreamQuote (all symbols) ─► LiveStreamDB (Quotes)               │
 │                                            │                                 │
 │                                            ▼                                 │
-│                                    {date}.db                                │
+│                           RecordedLiveData/Quotes/{date}.db                 │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -44,18 +49,38 @@ The Recorder and Replay system enables capturing live market data streams and re
 │   ReplayEngine ◄────────────────────────────────────────────────────────┐   │
 │       │                                                                  │   │
 │       │  startReplayPaused() / startReplay()                            │   │
-│       ▼                                                                  │   │
-│   ReplayDataLoader                                                       │   │
 │       │                                                                  │   │
-│       │  Loads from SQLite DBs                                          │   │
-│       │  Ping-pong buffer strategy                                      │   │
-│       │  Merges bars + depth chronologically                            │   │
+│       ├── m_barTimer ──► ReplayDataLoader (Bar)                         │   │
+│       │       │  Loads from Bars SQLite DB                              │   │
+│       │       │  Ping-pong buffer strategy                              │   │
+│       │       ▼                                                          │   │
+│       │   ReplayDataPoint → injectBarData signal                        │   │
 │       │                                                                  │   │
-│       ▼                                                                  │   │
-│   ReplayDataPoint (bars/depth JSON)                                     │   │
+│       ├── m_depthTimer ──► ReplayDataLoader (MarketDepthQuote)          │   │
+│       │       │  Loads from Depth SQLite DB                              │   │
+│       │       │  Ping-pong buffer strategy                              │   │
+│       │       ▼                                                          │   │
+│       │   ReplayDataPoint → injectDepthData signal                      │   │
 │       │                                                                  │   │
-│       │  injectBarData / injectDepthData signals                        │   │
+│       └── m_quoteTimer ──► ReplayDataLoader (Quote)                     │   │
+│               │  Loads from Quotes SQLite DB                             │   │
+│               │  Ping-pong buffer strategy                               │   │
+│               │  Filters QuoteStream by open streams;                   │   │
+│               │  always emits Heartbeat/Error                            │   │
+│               ▼                                                          │   │
+│           ReplayDataPoint (raw delta bytes) → injectQuoteData signal    │   │
+│                                                                          │   │
+│   TSClient::onInjectQuoteData()                                          │   │
+│       │  Merges delta into m_replayQuoteState[symbol]                   │   │
+│       │  Calls OrderEmulator::updateQuote(merged Quote)                 │   │
+│       │  Injects raw bytes into MockNetworkReply for displayed symbol   │   │
 │       ▼                                                                  │   │
+│   StreamQuote (via MockNetworkReply)                                     │   │
+│       │  Merges delta into m_symbolState[symbol]                        │   │
+│       │  Emits newQuoteReceived(merged Quote)                           │   │
+│       ▼                                                                  │   │
+│   MainAlgo → GUIFrontend → MarketDepthTable::updateLevel1Data()         │   │
+│                                                                          │   │
 │   TSClient (Replay Mode)                                                 │   │
 │       │                                                                  │   │
 │       │  Routes to MockNetworkReply                                     │   │
@@ -84,8 +109,9 @@ The Recorder and Replay system enables capturing live market data streams and re
 
 | File | Purpose |
 |------|---------|
-| `ReplayEngine.h/cpp` | Orchestrates replay playback. Manages state (Stopped/Playing/Paused), speed, timing |
-| `ReplayDataLoader.h/cpp` | Loads data from SQLite DBs into memory buffers. Ping-pong buffering for efficiency |
+| `ReplayEngine.h/cpp` | Orchestrates replay playback with three independent streams (bars, depth, quotes). Each stream has its own single-shot QTimer and ReplayDataLoader. Uses wall-clock anchored timing for accurate speed control |
+| `ReplayDataLoader.h/cpp` | Loads one data type (Bar, MarketDepthQuote, or Quote) from its SQLite DB into memory buffers. Ping-pong buffering with prefetch at 80% |
+| `OrderEmulator/` | Subfolder containing order/position simulation. See `OrderEmulator/AGENTS.md` for details |
 
 ### Integration Points
 
@@ -124,6 +150,32 @@ CREATE TABLE depth_quotes (
 CREATE INDEX idx_depth_symbol_epoch ON depth_quotes(symbol, epoch_ms);
 ```
 
+### Quotes Database ({YYYY-MM-DD}.db in Quotes folder)
+
+```sql
+CREATE TABLE quotes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    stockTicker TEXT NOT NULL,       -- Empty string for Heartbeat/Error
+    epochMs INTEGER NOT NULL,
+    objectType TEXT NOT NULL,        -- "QuoteStream", "Heartbeat", or "Error"
+    jsonRawData TEXT NOT NULL
+);
+CREATE INDEX idx_quotes_ticker_epoch ON quotes(stockTicker, epochMs);
+CREATE INDEX idx_quotes_object_type ON quotes(objectType);
+```
+
+Key differences from bars/depth schema:
+- Column names use camelCase (`stockTicker`, `epochMs`, `jsonRawData`) instead of snake_case
+- Has an `objectType` column for filtering QuoteStream vs Heartbeat vs Error
+- All three object types are stored (heartbeats needed for accurate replay timing)
+- `stockTicker` is empty string for Heartbeat/Error rows (they are stream-global)
+
+> **⚠️ Delta Protocol**: Raw JSON bytes are stored **as-is** — including partial delta
+> messages that contain only changed fields. Merging happens at parse time in
+> `StreamQuote::m_symbolState` (GUI path) and `TSClient::m_replayQuoteState`
+> (OrderEmulator path), **not** at record or playback time. See
+> `StreamQuote/AGENTS.md` for the full protocol description.
+
 ## Replay Flow
 
 ### 1. Entering Replay Mode
@@ -144,7 +196,13 @@ MainApp::enterReplayMode(date, startTime, speed)
     └── MainAlgo::enterReplayModePaused()
             │
             ├── Create ReplayEngine
-            ├── Connect signals (injectBarData, injectDepthData)
+            ├── Connect signals (injectBarData, injectDepthData, injectQuoteData)
+            ├── TSClient::preRollQuoteState() [BlockingQueuedConnection]
+            │       Reads all QuoteStream records from start-of-day to p_startTime,
+            │       builds m_replayQuoteState per symbol, and injects the merged
+            │       snapshot into any open MockNetworkReply (displayed symbol).
+            │       Must run before startReplayPaused so no delta arrives before
+            │       its symbol's snapshot. See TSClient AGENTS.md for details.
             ├── startReplayPaused() → emits first bar, then pauses
             └── pauseHeartbeat() on all stream receivers
 ```
@@ -166,27 +224,45 @@ MainAlgo::resumeReplay()
     ├── resumeHeartbeat() on all stream receivers
     └── ReplayEngine::resumeReplay()
             │
+            ├── Adjust wall-clock anchor by pause duration
             ├── Set state = Playing
-            └── scheduleNextDataPoint() → starts timer
+            ├── scheduleNextBar() → starts bar timer
+            ├── scheduleNextDepth() → starts depth timer
+            └── scheduleNextQuote() → starts quote timer
 ```
 
 ### 3. Data Emission Loop
 
+Each stream (bars, depth, and quotes) has its own independent timer and emission loop:
+
 ```
-ReplayEngine::onTimerTick()
-    │
-    ├── emitCurrentDataPoint()
-    │       │
-    │       ├── Get next ReplayDataPoint from ReplayDataLoader
-    │       ├── emit injectBarData(symbol, jsonData) OR
-    │       └── emit injectDepthData(symbol, jsonData)
-    │
-    └── scheduleNextDataPoint()
-            │
-            ├── Calculate delta to next timestamp
-            ├── Scale by playback speed
-            └── Start single-shot timer
+ReplayEngine::onBarTimerTick()    onDepthTimerTick()    onQuoteTimerTick()
+    │                                 │                      │
+    ├── emitNextBar()                 ├── emitNextDepth()    ├── emitNextQuote()
+    │       │                         │       │              │       │
+    │       ├── Get next from         │       ├── Get next   │       ├── Get next from
+    │       │   m_barLoader           │       │   m_depth-   │       │   m_quoteLoader
+    │       ├── updateReplayTime()    │       │   Loader     │       ├── Filter symbol
+    │       └── emit injectBarData()  │       ├── updateTime │       │   (QuoteStream only;
+    │                                 │       └── emit       │       │    Heartbeat/Error
+    └── scheduleNextBar()             │         injectDepth  │       │    always pass)
+            │                         └── scheduleNext-      │       └── emit
+            └── m_barTimer.start(t)       Depth()            │         injectQuoteData()
+                                                             └── scheduleNextQuote()
 ```
+
+**Wall-Clock Anchored Timing**: All three streams share a single wall-clock anchor point.
+Instead of computing delay from timestamp deltas between consecutive points, each
+data point's delay is calculated as:
+```
+targetWallMs = m_wallClockAnchorMs + (replayEpochMs - m_replayEpochAnchorMs) * 100 / speed
+delay = max(0, targetWallMs - now)
+```
+This prevents timing drift from three independent timers and ensures accurate playback speed.
+
+**Quote filtering**: In `emitNextQuote()`, rows with `objectType == "QuoteStream"` are only
+emitted if `TSClient::hasOpenQuoteStream()` returns true. Heartbeat and Error rows always pass
+through to maintain stream health.
 
 ### 4. Pausing Replay
 
@@ -199,7 +275,7 @@ MainApp::pauseReplayPlayback()
     ▼
 MainAlgo::pauseReplay()
     │
-    ├── ReplayEngine::pauseReplay() → stops timer
+    ├── ReplayEngine::pauseReplay() → stops all three timers (bar, depth, quote)
     └── pauseHeartbeat() on ALL stock instruments
             │
             └── Stream::pauseHeartbeat() [thread-safe via invokeMethod]
@@ -220,7 +296,18 @@ Defined in `ReplayEngine::PlaybackSpeed`:
 | Fast10x (1000) | 10.0x | 10x faster |
 | AsFastAsPossible (-1) | Max | 0ms timer delays |
 
-Speed can be changed on-the-fly via `MainApp::setReplaySpeed()`.
+Speed can be changed on-the-fly via `MainApp::setReplaySpeed()`. When changed during
+playback, `setSpeed()` re-anchors the wall-clock mapping to the current instant and
+reschedules both stream timers, so the new speed takes effect immediately.
+
+### Pause/Resume Timing
+
+- **Pause**: Records `m_pauseWallClockMs = now`, stops both timers
+- **Resume**: Shifts `m_wallClockAnchorMs` forward by the pause duration so timing
+  stays accurate across pauses. If resuming after `startReplayPaused()`, the anchor
+  is set to "now" on first resume.
+- `updateReplayTime()` only advances `MainApp::currentAppReplayTime` forward (never backward),
+  so whichever stream has the latest timestamp drives the displayed clock.
 
 ## Heartbeat Timer Management
 
@@ -242,6 +329,7 @@ The `StreamReceiver` base class provides a unified interface for heartbeat manag
 |-----------|--------------|
 | Recorded Bars | `~/.cache/L2Trader/RecordedLiveData/Bars/{YYYY-MM-DD}.db` |
 | Recorded Depth | `~/.cache/L2Trader/RecordedLiveData/MarketDepthQuotes/{YYYY-MM-DD}.db` |
+| Recorded Quotes | `~/.cache/L2Trader/RecordedLiveData/Quotes/{YYYY-MM-DD}.db` |
 
 ## Common Tasks
 
@@ -249,11 +337,15 @@ The `StreamReceiver` base class provides a unified interface for heartbeat manag
 
 1. Add new `StreamType` to `LiveStreamDB` (recorder side)
 2. Add new table creation in `LiveStreamDB::createTable()`
-3. Add new `ReplayDataPoint::Type` in `ReplayDataLoader`
-4. Add loading logic in `ReplayDataLoader::loadBufferChunk()`
-5. Add injection signal in `ReplayEngine` (e.g., `injectNewDataType`)
-6. Connect signal to `TSClient::onInjectNewDataType()`
-7. Route to appropriate `MockNetworkReply` in TSClient
+3. Add new `DataType` enum value to `ReplayDataLoader`
+4. Create a new `ReplayDataLoader` instance in `ReplayEngine` for the data type
+5. Add a new `QTimer`, emit/schedule function pair, and stream-ended flag in `ReplayEngine`
+6. Add loading logic in `ReplayDataLoader::loadBufferChunk()` for the new table
+7. Add injection signal in `ReplayEngine` (e.g., `injectNewDataType`)
+8. Connect signal to `TSClient::onInjectNewDataType()`
+9. Route to appropriate `MockNetworkReply` in TSClient
+
+If the new stream records multiple object types (like Quotes), add an `objectType` field to `ReplayDataPoint` and filter in the emit function.
 
 ### Debugging Replay Issues
 
@@ -277,10 +369,79 @@ MainAlgoThread
     │
     └── MainAlgo
             ├── ReplayEngine
-            │       └── ReplayDataLoader
+            │       ├── m_barTimer + ReplayDataLoader (Bar)
+            │       ├── m_depthTimer + ReplayDataLoader (MarketDepthQuote)
+            │       └── m_quoteTimer + ReplayDataLoader (Quote)
             │
             ├── StockInstruments (BarReceiver, MarketDepthQuoteReceiver)
             └── PositionsReceiver, OrdersReceiver
 ```
 
 Cross-thread communication uses `Qt::QueuedConnection` or `Qt::BlockingQueuedConnection` for synchronization.
+
+## Order & Position Emulation
+
+When in replay mode, orders and positions are emulated locally rather than sent to any external API:
+
+```
+Strategy/GUI ──► placeOrder() ──► MockNetworkAccessManager
+                                          │
+                                          ▼
+                                    OrderEmulator
+                                          │
+                                    ┌─────┴─────┐
+                                    ▼           ▼
+                              OPN status   FLL status
+                                    │           │
+                                    └─────┬─────┘
+                                          ▼
+                                   MockNetworkReply (orders)
+                                          │
+                                          ▼
+                                    StreamOrders
+                                          │
+                                          ▼
+                                    OrdersReceiver
+                                          │
+                                          ▼
+                                         GUI
+```
+
+### Key Components
+
+| Component | Role |
+|-----------|------|
+| `OrderEmulator` | Simulates order lifecycle with realistic delays |
+| `MockNetworkAccessManager` | Intercepts HTTP requests, routes to emulator |
+| Mock StreamOrders/StreamPositions | Receive emulated updates via MockNetworkReply |
+
+### Market Depth Integration
+
+The OrderEmulator monitors market depth (Level 2) to fill pending limit orders:
+
+1. `ReplayEngine` emits `injectDepthData` signal
+2. `TSClient::onInjectDepthData()` receives it
+3. Depth is forwarded to `OrderEmulator::updateMarketDepth()`
+4. Emulator checks if any open limit orders can now fill
+5. Fills are processed with appropriate delays
+
+### Level 1 Quote Integration
+
+The OrderEmulator also uses Level 1 quotes as a fallback when no Level 2 data exists:
+
+1. `ReplayEngine` emits `injectQuoteData` signal
+2. `TSClient::onInjectQuoteData()` receives it
+3. Parsed Quote is forwarded to `OrderEmulator::updateQuote()`
+4. Emulator uses bid/ask from Quote when no depth snapshot exists
+5. `recalculatePositionPnL()` uses Quote bid/ask for mark-to-market
+
+**Priority**: Level 2 is always used when available. Level 1 is strictly a fallback.
+
+### Simulated Account
+
+A single simulated account `SIM123456` is used for all replay orders:
+- Starting balance: $100,000
+- Full order validation (balance, boxing prevention)
+- Position tracking with P&L calculations
+
+See `OrderEmulator/AGENTS.md` for detailed documentation.

@@ -11,6 +11,58 @@ The GUI directory contains the full-featured Qt Widgets desktop interface for L2
 
 For complete architectural details, see `Doc/FRONTEND.md`.
 
+## Directory Organization
+
+The GUI folder is organized into logical subfolders:
+
+```
+Src/FrontEnd/GUI/
+├── AGENTS.md (this file)
+├── GUIFrontend.cpp/h/ui (main window)
+├── Tabs/                           # Tab components
+│   ├── AGENTS.md
+│   ├── CacheTab.cpp/h              # Bar cache management
+│   ├── ConfigTab.cpp/h             # Application settings
+│   ├── LoggingTab.cpp/h            # Live log display
+│   ├── RecorderTab.cpp/h           # Market data recording
+│   ├── ShortcutsTab.cpp/h          # Keyboard shortcuts
+│   └── StrategiesTab/              # Strategy plugin management
+│       ├── AGENTS.md
+│       └── ... (strategy UI components)
+├── Widgets/                        # Reusable widget components
+│   ├── AGENTS.md
+│   ├── OrderEntry/                 # Order placement widget
+│   │   ├── AGENTS.md
+│   │   └── OrderEntryWidget.cpp/h
+│   ├── MarketDepth/                # Level 2 market depth display
+│   │   ├── AGENTS.md
+│   │   ├── MarketDepthTable.cpp/h
+│   │   └── MarketDepthTableView.cpp/h
+│   └── Gauge/                      # Circular gauge for metrics
+│       ├── AGENTS.md
+│       └── Gauge.cpp/h
+├── Windows/                        # Window-style displays
+│   ├── AGENTS.md
+│   ├── OrderWindow.cpp/h           # Orders table
+│   ├── PositionWindow.cpp/h        # Positions table
+│   └── BalanceWindow.cpp/h         # Account balance
+└── StockPriceChart/                # Real-time price chart
+    ├── AGENTS.md
+    ├── StockPriceChart.cpp/h
+    ├── ChartToolbar.cpp/h
+    └── ... (chart components)
+```
+
+**Navigation**: Each subfolder contains its own AGENTS.md with detailed documentation. See:
+- `Tabs/AGENTS.md` - Tab components (cache, logging, recorder, etc.)
+- `Tabs/StrategiesTab/AGENTS.md` - Strategy plugin management UI
+- `Widgets/AGENTS.md` - Reusable widget components overview
+- `Widgets/OrderEntry/AGENTS.md` - Order entry widget with sticky price
+- `Widgets/MarketDepth/AGENTS.md` - Level 2 market depth display
+- `Widgets/Gauge/AGENTS.md` - Circular gauge metrics display
+- `Windows/AGENTS.md` - Order/Position/Balance window displays
+- `StockPriceChart/AGENTS.md` - Real-time chart with replay mode
+
 ## Main Window Structure
 
 ### GUIFrontend (GUIFrontend.ui/h/cpp)
@@ -44,6 +96,23 @@ For complete architectural details, see `Doc/FRONTEND.md`.
 └──────────────────────────────────────────┘
 ```
 
+### MarketFlags Labels (top controls area)
+
+Three always-visible QLabel indicators for Level 1 market status flags sit in the `topControlsLayout` at indices 5-7:
+
+| Label | Member | Active Color | Active Text |
+|-------|--------|-------------|------------|
+| Halted | `m_haltedLabel` | Red (`#CC0000`) | `HALTED` |
+| Delayed | `m_delayedLabel` | Yellow (`#CCAA00`) | `DELAYED` |
+| Hard to Borrow | `m_hardToBorrowLabel` | Orange (`#CC6600`) | `HTB` |
+
+**Behavior**: Labels are **always visible** (never hidden). When the flag is inactive, they display in grey with a dimmed style. When active, they switch to their colored active style.
+
+**Implementation**: `GUIFrontend::onCurrentHighlightedReceivedNewQuote()` reads `Quote::getMarketFlags()` and calls `setProperty("active", bool)` on each label. A dynamic property stylesheet drives the visual state change.
+
+**BATS flag**: Intentionally not displayed (removed by design — the IsBats flag is not user-relevant).
+
+
 ## Key Components
 
 ### StockPriceChart/ (Subdirectory)
@@ -53,6 +122,8 @@ For complete architectural details, see `Doc/FRONTEND.md`.
 Key files:
 - `StockPriceChart.h/cpp`: Main chart widget
 - `StockPriceChart.ui`: Qt Designer layout
+- `ChartToolbar.h/cpp`: Toolbar with controls
+- `AGENTS.md`: Detailed component documentation
 
 **Features**:
 - Live candlestick updates
@@ -62,6 +133,18 @@ Key files:
 - Last price line with dynamic label
 - Missing bar detection and auto-request
 - Mouse interactions (pan, zoom, reset)
+- **Order visualization**: Buy/sell markers, position lines, P&L display
+- **Replay mode**: Play back historical market data
+
+**Order Visualization Feature**:
+- Buy markers: Green upward triangles at fill price/time
+- Sell markers: Red downward triangles at fill price/time
+- Position lines: Dotted green/red lines connecting entries to exits
+- P&L box: Real-time unrealized P&L for open positions
+- P&L labels: Realized P&L for closed positions
+- Toolbar toggle to show/hide visualizations
+
+See `StockPriceChart/AGENTS.md` for detailed order visualization documentation.
 
 **Bidirectional Index System**:
 ```
@@ -91,11 +174,19 @@ public slots:
     void addLiveBar(const QString& symbol, const Bar& bar);
     void onRequestedMissingBarsReceived(const QVector<Bar>& bars);
     void setSymbol(const QString& symbol);
+    // Order visualization slots
+    void onOrderPlaced(const Order& order);
+    void onOrderFilled(const Order& order);
+    void onOrderCancelled(const Order& order);
+    void onPositionUpdated(const Position& position);
+    void onPositionClosed(const Position& position);
 ```
 
-### MarketDepthTable (MarketDepthTable.h/cpp)
+### MarketDepthTable (Widgets/MarketDepth/)
 
 **Level 2 market depth display**
+
+See `Widgets/MarketDepth/AGENTS.md` for complete documentation.
 
 Layout:
 ```
@@ -117,9 +208,11 @@ Features:
 
 **Custom View**: `MarketDepthTableView` handles formatting and color coding
 
-### OrderEntryWidget (OrderEntryWidget.h/cpp)
+### OrderEntryWidget (Widgets/OrderEntry/)
 
 **Order placement interface**
+
+See `Widgets/OrderEntry/AGENTS.md` for complete documentation including sticky price feature.
 
 Fields:
 - Account selection (dropdown)
@@ -161,9 +254,11 @@ public slots:
     void updateStickyPrice(const MarketDepthQuote& quote);
 ```
 
-### PositionWindow (PositionWindow.h/cpp)
+### PositionWindow (Windows/)
 
 **Real-time position tracking**
+
+See `Windows/AGENTS.md` for complete documentation.
 
 Columns:
 - Symbol (clickable to load chart)
@@ -192,9 +287,11 @@ Columns:
 QMap<QString, int> m_positionRowMap;  // positionId → row index
 ```
 
-### OrderWindow (OrderWindow.h/cpp)
+### OrderWindow (Windows/)
 
 **Order management and status tracking**
+
+See `Windows/AGENTS.md` for complete documentation.
 
 Columns:
 - Order ID
@@ -217,9 +314,11 @@ Columns:
 QMap<QString, int> m_orderRowMap;  // orderId → row index
 ```
 
-### BalanceWindow (BalanceWindow.h/cpp)
+### BalanceWindow (Windows/)
 
 **Account balance display**
+
+See `Windows/AGENTS.md` for complete documentation.
 
 Shows:
 - Cash Available
@@ -232,6 +331,8 @@ Shows:
 **Update Frequency**: Configurable (default 5 seconds)
 
 ### Tabs/ (Subdirectory)
+
+See `Tabs/AGENTS.md` for complete documentation of all tab components.
 
 #### CacheTab (CacheTab.h/cpp)
 
@@ -274,9 +375,11 @@ Features:
 - Recording status display
 - Output directory selection
 
-### Gauge/ (Subdirectory)
+### Gauge/ (Widgets/Gauge/)
 
 **Circular gauge widgets for metrics**
+
+See `Widgets/Gauge/AGENTS.md` for complete documentation.
 
 Used for displaying:
 - **BAI** (Bid-Ask Imbalance)
@@ -290,11 +393,11 @@ Custom QWidget-based circular gauges with:
 - Color-coded ranges (green/yellow/red)
 - Smooth animations
 
-### StrategiesTab/ (Subdirectory)
+### StrategiesTab/ (Tabs/StrategiesTab/)
 
 **Strategy plugin management**
 
-See `Doc/STRATEGY.md` for complete details.
+See `Tabs/StrategiesTab/AGENTS.md` and `Doc/STRATEGY.md` for complete details.
 
 Features:
 - Load strategy plugins (.so files)
@@ -336,6 +439,33 @@ connect(&MainAlgo::getInstance(), &MainAlgo::receivedNewPosition,
 
 connect(&MainAlgo::getInstance(), &MainAlgo::receivedNewOrder,
         this, &GUIFrontend::onNewOrderReceived);
+
+// Level 1 Quote → MarketFlags labels + MarketDepthTable L1 mode
+// Wired in MainApp: TSClient::newQuoteReceived → MainAlgo::onDisplayedStockReceivedNewQuote
+//                   → MainAlgo::displayedStockReceivedNewQuote → GUIFrontend::onCurrentHighlightedReceivedNewQuote
+connect(&MainAlgo::getInstance(), &MainAlgo::displayedStockReceivedNewQuote,
+        this, &GUIFrontend::onCurrentHighlightedReceivedNewQuote);
+```
+
+**GUIFrontend order/position forwarding to chart**:
+
+The `onNewOrderReceived()` and `onNewPositionReceived()` handlers forward events to both the respective windows AND the StockPriceChart for visualization:
+
+```cpp
+void GUIFrontend::onNewOrderReceived(QString account, Order order) {
+    ui->orderWindow->updateOrder(account, order);
+
+    // Forward to chart for visualization (if symbol matches)
+    if (order.getSymbol() == ui->priceChart->getCurrentSymbol()) {
+        // Route based on order status
+        if (status == Order::Status::FLL) {
+            ui->priceChart->onOrderFilled(order);
+        } else if (status == Order::Status::OPN) {
+            ui->priceChart->onOrderPlaced(order);
+        }
+        // ... etc
+    }
+}
 ```
 
 ### From GUI to Backend

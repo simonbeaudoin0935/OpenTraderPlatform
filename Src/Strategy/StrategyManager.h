@@ -16,6 +16,7 @@
 #include "StrategyLogger.h"
 #include "StrategySignalHandler.h"
 #include "Balance.h"
+#include "Assume.h"
 
 class MainAlgo;
 
@@ -35,38 +36,41 @@ class StrategyCallbackAdapter : public QObject
     void onBar(const QString& symbol, const Bar& bar) const
     {
         // Only call if strategy monitors this symbol
-        if (m_monitoredSymbols.contains(symbol) && m_strategy)
+        if (m_monitoredSymbols.contains(symbol))
+        {
+            ASSUME_DIFF(m_strategy, nullptr);
             m_strategy->onBar(bar);
+        }
     }
 
     void onMarketDepth(const MarketDepthQuote& quote) const
     {
-        if (m_strategy)
-            m_strategy->onMarketDepth(quote);
+        ASSUME_DIFF(m_strategy, nullptr);
+        m_strategy->onMarketDepth(quote);
     }
 
     void onOrderUpdated(const Order& order) const
     {
-        if (m_strategy)
-            m_strategy->onOrderUpdated(order);
+        ASSUME_DIFF(m_strategy, nullptr);
+        m_strategy->onOrderUpdated(order);
     }
 
     void onPositionUpdated(const Position& position) const
     {
-        if (m_strategy)
-            m_strategy->onPositionUpdated(position);
+        ASSUME_DIFF(m_strategy, nullptr);
+        m_strategy->onPositionUpdated(position);
     }
 
     void onBalanceUpdated(double balance) const
     {
-        if (m_strategy)
-            m_strategy->onBalanceUpdated(balance);
+        ASSUME_DIFF(m_strategy, nullptr);
+        m_strategy->onBalanceUpdated(balance);
     }
 
     void callOnStop() const
     {
-        if (m_strategy)
-            m_strategy->onStop();
+        ASSUME_DIFF(m_strategy, nullptr);
+        m_strategy->onStop();
     }
 
   private:

@@ -238,3 +238,11 @@ QString Bar::toJsonString() const
     QJsonDocument doc(jsonObj);
     return QString(doc.toJson(QJsonDocument::Indented));
 }
+
+QDebug operator<<(QDebug debug, const Bar& bar)
+{
+    debug << bar.getTimeStamp().toString(Qt::ISODate) << "O:" << bar.getOpen() << "H:" << bar.getHigh()
+          << "L:" << bar.getLow() << "C:" << bar.getClose() << "V:" << bar.getTotalVolume()
+          << "Status:" << Bar::barStatusToString(bar.getBarStatus());
+    return debug;
+}

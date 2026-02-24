@@ -9,6 +9,8 @@
 #include "Bar.h"
 #include "MarketDepthQuote.h"
 #include "Balance.h"
+#include "Quote.h"
+#include "TSClient.h" // For TSClient::AuthStateReason enum
 
 class FrontEnd : public QObject
 {
@@ -25,11 +27,11 @@ class FrontEnd : public QObject
      * Data flow: Backend threads (TSClient, MainAlgo) → MainApp (queued) → FrontEnd → GUI widgets
      * Note: All GUI updates must occur on the main thread per Qt requirements
      */
-    void tradeStationAuthStateChanged(bool isAuthenticated, QString reason);
+    void tradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, QString message);
     void tradeStationAccountsReceived(QVector<Account> results);
 
     void tradeStationDataUsageUpdated(qsizetype newDataUsage);
-    void streamCountUpdated(int count);
+    void streamCountsUpdated(size_t barsCount, size_t marketDepthCount);
 
     void newPositionReceived(QString account, Position position);
     void positionDeleted(QString account, QString positionID);
@@ -42,13 +44,14 @@ class FrontEnd : public QObject
                                                        double bidAskImbalance,
                                                        double bidDWP,
                                                        double askDWP);
+    void currentHighlightedReceivedNewQuote(QString symbol, Quote quote);
 
   public slots:
 
     // Usage update
     virtual void onTSClientDataUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onMemoryUsageUpdate(qsizetype newDataUsage) = 0;
-    virtual void onStreamCountUpdate(int count) = 0;
+    virtual void onStreamCountUpdate(size_t barsCount, size_t marketDepthCount) = 0;
 
     virtual void onTradeStationAccountsReceived(QVector<Account> results) = 0;
     virtual void onNewPositionReceived(QString account, Position position) = 0;
@@ -62,6 +65,7 @@ class FrontEnd : public QObject
                                                                  double bidAskImbalance,
                                                                  double bidDWP,
                                                                  double askDWP) = 0;
+    virtual void onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote) = 0;
 
     // Replay mode notifications
     virtual void onReplayModeEntered() = 0;

@@ -2,16 +2,32 @@
 #include "TSClient.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "MockNetworkReply.h"
 
 #define LOGGING_CATEGORY StreamLog
 
+// Initialize static counter
+size_t StreamPositions::s_numberOfPositionStreams = 0;
 
 StreamPositions::StreamPositions(const QString& accountID, QNetworkReply* reply, QObject* parent)
     : StreamBrokerage(reply, parent), m_accountID(accountID)
 {
-    this->setObjectName("Stream::Positions::" + accountID);
+    const QString suffix = qobject_cast<MockNetworkReply*>(reply) ? QStringLiteral("::mock") : QStringLiteral("::live");
+    this->setObjectName("Stream::Positions::" + accountID + suffix);
 
-    DEBUG << "Stream created";
+    // Assert that we're not creating a second positions stream
+    OBJ_ASSUME_EQUAL(s_numberOfPositionStreams, 0u);
+
+    s_numberOfPositionStreams++;
+
+    DEBUG << "Stream created - Total position streams:" << s_numberOfPositionStreams;
+}
+
+StreamPositions::~StreamPositions()
+{
+    s_numberOfPositionStreams--;
+
+    DEBUG << "Stream destroyed - Total position streams:" << s_numberOfPositionStreams;
 }
 
 void StreamPositions::processJsonObject(const QJsonObject& jsonObj)
@@ -30,10 +46,12 @@ void StreamPositions::processJsonObject(const QJsonObject& jsonObj)
     Position position(jsonObj,
                       m_receivedEndSnapshot); // Pass the update flag based on EndSnapshot status
 
+    // ASSERT that position is valid (pre-condition: JSON should always produce valid Position)
     if (!position.isValid()) [[unlikely]]
     {
-        WARNING << "Position update object invalid : "
-                << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
+        CRITICAL << "Position update object invalid : "
+                 << QString(QJsonDocument(jsonObj).toJson(QJsonDocument::Indented));
+        OBJ_ASSUME_TRUE(position.isValid()); // ASSERT - this should never happen
         return;
     }
 

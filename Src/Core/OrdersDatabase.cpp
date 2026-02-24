@@ -14,6 +14,8 @@
 #include "Settings.h"
 #include "SQL/OrdersDatabaseQueries.h"
 #include "Assume.h"
+#include "MainApp.h"
+#include "TSClient.h"
 
 #define LOGGING_CATEGORY OrdersDatabaseLog
 Q_LOGGING_CATEGORY(OrdersDatabaseLog, "OrdersDatabase");
@@ -21,15 +23,68 @@ Q_LOGGING_CATEGORY(OrdersDatabaseLog, "OrdersDatabase");
 // Static singleton instance
 OrdersDatabase* OrdersDatabase::s_instance = nullptr;
 
+namespace
+{
+    /**
+ * @brief Determines the database path based on current trading mode
+ *
+ * Database structure:
+ * - Live:       ~/.cache/L2Trader/Orders/Live/Orders.db
+ * - Simulation: ~/.cache/L2Trader/Orders/Simulation/Orders.db
+ * - Replay:     ~/.cache/L2Trader/Orders/Replay/Orders_YYYY-MM-DD_HHMMSS.db
+ *
+ * @return Full path to the orders database file
+ */
+    QString determineDatabasePath()
+    {
+        QString baseDir = getCacheLocation();
+        baseDir += "/Orders/";
+
+        // Check TSClient mode first - if Replay, use replay path
+        TSClient* client = TSClient::getInstance();
+        if (client && client->getMode() == TSClient::Mode::Replay)
+        {
+            QString timestamp = client->getReplaySessionTimestamp();
+            ASSUME_TRUE(!timestamp.isEmpty());
+
+            QString replayDir = baseDir + "Replay/";
+            QDir().mkpath(replayDir);
+            return replayDir + "Orders_" + timestamp + ".db";
+        }
+
+        // Otherwise check TradingMode (Live vs Sim)
+        TradingMode tradingMode = MainApp::getTradingMode();
+        if (tradingMode == TradingMode::Sim)
+        {
+            QString simDir = baseDir + "Simulation/";
+            QDir().mkpath(simDir);
+            return simDir + "Orders.db";
+        }
+
+        // Default to Live
+        QString liveDir = baseDir + "Live/";
+        QDir().mkpath(liveDir);
+        return liveDir + "Orders.db";
+    }
+} // anonymous namespace
+
 OrdersDatabase* OrdersDatabase::getInstance(QObject* p_parent)
 {
     if (s_instance == nullptr)
     {
-        QString cacheDir = getCacheLocation();
-        QString dbPath = cacheDir + "/orders.db";
+        QString dbPath = determineDatabasePath();
         s_instance = new OrdersDatabase(dbPath, p_parent);
     }
     return s_instance;
+}
+
+void OrdersDatabase::destroyInstance()
+{
+    if (s_instance != nullptr)
+    {
+        delete s_instance;
+        s_instance = nullptr;
+    }
 }
 
 OrdersDatabase::OrdersDatabase(const QString& p_dbPath, QObject* p_parent)
@@ -68,6 +123,7 @@ OrdersDatabase::~OrdersDatabase()
     {
         m_db.close();
     }
+    m_db = QSqlDatabase(); // Release the copy before removal (Qt requirement)
     QSqlDatabase::removeDatabase(m_connectionName);
     s_instance = nullptr;
 }
@@ -251,19 +307,45 @@ QMap<QString, std::tuple<Order, std::optional<qint64>>> OrdersDatabase::loadAllO
         QString orderTypeStr = query.value(3).toString();
         QString jsonDataStr = query.value(4).toString();
 
-        // Reconstruct the Order object from JSON
+        // Additional columns
+        double filledPrice = query.value(5).toDouble();
+        QVariant limitPriceVar = query.value(6);
+        QVariant stopPriceVar = query.value(7);
+        QString openedDateTimeStr = query.value(8).toString();
+        QString closedDateTimeStr = query.value(9).toString();
+
+        // Reconstruct the Order object from JSON with additional fields
         QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonDataStr.toUtf8());
         if (jsonDoc.isObject())
         {
             QJsonObject jsonObj = jsonDoc.object();
             jsonObj["Status"] = statusStr;
             jsonObj["OrderType"] = orderTypeStr;
+            jsonObj["FilledPrice"] = QString::number(filledPrice, 'f', 4);
+
+            if (!limitPriceVar.isNull())
+            {
+                jsonObj["LimitPrice"] = QString::number(limitPriceVar.toDouble(), 'f', 4);
+            }
+            if (!stopPriceVar.isNull())
+            {
+                jsonObj["StopPrice"] = QString::number(stopPriceVar.toDouble(), 'f', 4);
+            }
+            if (!openedDateTimeStr.isEmpty())
+            {
+                jsonObj["OpenedDateTime"] = openedDateTimeStr;
+            }
+            if (!closedDateTimeStr.isEmpty())
+            {
+                jsonObj["ClosedDateTime"] = closedDateTimeStr;
+            }
+
             Order order(jsonObj);
             orders.insert(orderId, std::make_tuple(order, latencyMs));
         }
     }
 
-    INFO << "Loaded" << orders.size() << "orders from database";
+    DEBUG << "Loaded" << orders.size() << "orders from database";
     return orders;
 }
 

@@ -28,6 +28,16 @@ class ChartToolbar : public QWidget
 
   public:
     /**
+     * @brief State of the replay mode UI
+     */
+    enum class ReplayState
+    {
+        Inactive,         ///< Replay mode not active
+        PreloadingPaused, ///< First data loaded and paused, waiting for user to press Play
+        Playing,          ///< Actively replaying
+        Paused            ///< Paused during playback, can resume
+    };
+    /**
      * @brief Constructs a ChartToolbar widget.
      * @param parent The parent widget.
      */
@@ -80,6 +90,18 @@ class ChartToolbar : public QWidget
      * @param enabled True to auto-rescale volume Y-axis to visible range, false to use full data range.
      */
     void setVolumeAutoRescaleEnabled(bool enabled);
+
+    /**
+     * @brief Checks if order visualizations are visible.
+     * @return True if order markers and position lines are visible, false otherwise.
+     */
+    bool isOrderVisualizationsVisible() const;
+
+    /**
+     * @brief Sets the order visualizations visibility state.
+     * @param visible True to show order markers and position lines, false to hide.
+     */
+    void setOrderVisualizationsVisible(bool visible);
 
     /**
      * @brief Sets the available days for market replay.
@@ -171,6 +193,22 @@ class ChartToolbar : public QWidget
      */
     void scanAndPopulateReplayDays();
 
+    /**
+     * @brief Gets the current replay state.
+     * @return The current ReplayState enum value.
+     */
+    [[nodiscard]] ReplayState getReplayState() const;
+
+    /**
+     * @brief Sets the replay state and updates UI controls accordingly.
+     * @param state The new ReplayState.
+     *
+     * This method should be called by MainApp/StockPriceChart to coordinate state
+     * changes across the toolbar. It updates the enable/disable state of replay
+     * controls based on the new state.
+     */
+    void setReplayState(ReplayState state);
+
   signals:
     /**
      * @brief Emitted when the user selects a different timeframe.
@@ -195,6 +233,12 @@ class ChartToolbar : public QWidget
      * @param enabled True if volume Y-axis should auto-rescale to visible range.
      */
     void volumeAutoRescaleChanged(bool enabled);
+
+    /**
+     * @brief Emitted when the order visualizations visibility changes.
+     * @param visible True if order markers and position lines are visible.
+     */
+    void orderVisualizationsVisibilityChanged(bool visible);
 
     /**
      * @brief Emitted when the user selects a different replay day.
@@ -252,6 +296,12 @@ class ChartToolbar : public QWidget
     void onVolumeAutoRescaleCheckBoxChanged(int state);
 
     /**
+     * @brief Handles orders checkbox state changes.
+     * @param state The new state of the checkbox.
+     */
+    void onOrdersCheckBoxChanged(int state);
+
+    /**
      * @brief Handles replay day combobox selection changes.
      * @param index The index of the selected item.
      */
@@ -280,6 +330,7 @@ class ChartToolbar : public QWidget
     QCheckBox* autoCheckBox;              ///< Checkbox for auto timeframe selection
     QCheckBox* volumeCheckBox;            ///< Checkbox for volume chart visibility
     QCheckBox* volumeAutoRescaleCheckBox; ///< Checkbox for volume Y-axis auto-rescale to visible range
+    QCheckBox* ordersCheckBox;            ///< Checkbox for order visualizations visibility
 
     QLabel* replayLabel;          ///< Label showing "Replay:"
     QLabel* replayInfoLabel;      ///< Label showing replay time range and bar count info
@@ -291,6 +342,8 @@ class ChartToolbar : public QWidget
     QToolButton* settingsButton; ///< Settings button with cog icon
     QMenu* settingsMenu;         ///< Settings popup menu
     QComboBox* wheelRatioCombo;  ///< Combo box for wheel scrolling ratio
+
+    ReplayState m_replayState = ReplayState::Inactive; ///< Current replay UI state
 
     /**
      * @brief Populates the combobox with timeframe options.
@@ -308,4 +361,15 @@ class ChartToolbar : public QWidget
      * @return QDate extracted from filename, or invalid date if parsing fails.
      */
     QDate extractDateFromFileName(const QString& fileName);
+
+    /**
+     * @brief Updates the enabled/disabled state of replay controls based on m_replayState.
+     *
+     * Control enable/disable matrix:
+     * - Inactive: All controls disabled
+     * - PreloadingPaused: Day ENABLED, Time ENABLED, Speed ENABLED, Play ENABLED
+     * - Playing: Day DISABLED, Time DISABLED, Speed ENABLED, Play ENABLED
+     * - Paused: Day ENABLED, Time ENABLED, Speed ENABLED, Play ENABLED
+     */
+    void updateUIControlStates();
 };

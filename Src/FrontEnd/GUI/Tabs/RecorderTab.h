@@ -12,6 +12,8 @@
 #include <QLineEdit>
 #include <memory>
 
+#include "TSClient.h" // For TSClient::AuthStateReason enum
+
 // Forward declarations
 class LiveStreamDB;
 
@@ -24,14 +26,34 @@ class RecorderTab : public QWidget
     ~RecorderTab() override;
 
   private slots:
+    /// Start recording live market data streams
     void onStartRecording();
+
+    /// Stop recording and close database connections
     void onStopRecording();
+
+    /// Refresh recording statistics display
+    /// Updates record counts, size, uptime
     void refreshRecorderStats();
-    void onTradeStationAuthStateChanged(bool p_isAuthenticated, QString p_reason);
+
+    /// Handle TradeStation authentication state changes
+    /// Enables/disables recording based on auth state
+    /// @param p_isAuthenticated True if authenticated
+    /// @param p_reason Reason code for state change
+    /// @param p_message Human-readable message
+    void onTradeStationAuthStateChanged(bool p_isAuthenticated, TSClient::AuthStateReason p_reason, QString p_message);
+
+    /// Handle browse button click for CSV file selection
     void onBrowseButtonClicked();
+
+    /// Handle CSV file path text changes
+    /// Validates and saves the new path
+    /// @param p_text New file path
     void onCsvFilePathChanged(const QString& p_text);
 
   signals:
+    /// Emitted when total recording size changes
+    /// @param totalBytes Total bytes written to databases
     void recordingSizeChanged(qint64 totalBytes);
 
   private:
@@ -56,6 +78,7 @@ class RecorderTab : public QWidget
     QLabel* m_uptimeLabel;
     QLabel* m_barsRecordCountLabel;
     QLabel* m_depthRecordCountLabel;
+    QLabel* m_quotesRecordCountLabel;
     QLabel* m_recordingSizeLabel;
     QTimer* m_refreshTimer;
 
@@ -65,6 +88,7 @@ class RecorderTab : public QWidget
     QDateTime m_startTime;
     std::unique_ptr<LiveStreamDB> m_liveBarsDB;
     std::unique_ptr<LiveStreamDB> m_liveMarketDepthQuoteDB;
+    std::unique_ptr<LiveStreamDB> m_liveQuotesDB;
     QStringList m_stockTickers;
     QString m_stockCsvFilePath;
 };

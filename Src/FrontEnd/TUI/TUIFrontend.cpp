@@ -434,10 +434,11 @@ void TUIFrontend::displayStatusBar()
     mvwprintw(m_statusWin,
               0,
               2,
-              "Data: %lld KB | Memory: %lld KB | Streams: %d",
+              "Data: %lld KB | Memory: %lld KB | Bars: %zu | Depth: %zu",
               static_cast<long long>(m_dataUsage / 1024),
               static_cast<long long>(m_memoryUsage / 1024),
-              m_streamCount);
+              m_barsStreamCount,
+              m_marketDepthStreamCount);
 
     wattroff(m_statusWin, COLOR_PAIR(4));
     wnoutrefresh(m_statusWin);
@@ -526,9 +527,10 @@ void TUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
     }
 }
 
-void TUIFrontend::onStreamCountUpdate(int count)
+void TUIFrontend::onStreamCountUpdate(size_t barsCount, size_t marketDepthCount)
 {
-    m_streamCount = count;
+    m_barsStreamCount = barsCount;
+    m_marketDepthStreamCount = marketDepthCount;
     if (m_initialized)
     {
         displayStatusBar();
@@ -616,6 +618,13 @@ void TUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol
     Q_UNUSED(bidDWP);
     Q_UNUSED(askDWP);
     // Not applicable for minimal TUI
+}
+
+void TUIFrontend::onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote)
+{
+    Q_UNUSED(symbol);
+    Q_UNUSED(quote);
+    // MarketFlags display not applicable for minimal TUI
 }
 
 void TUIFrontend::saveLastDisplayedStock(const QString& symbol)
@@ -709,9 +718,12 @@ bool TUIFrontend::isValidStockSymbol(const QString& symbol) const
     return true;
 }
 
-void TUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated, const QString& reason)
+void TUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated,
+                                                 TSClient::AuthStateReason reason,
+                                                 const QString& message)
 {
     Q_UNUSED(reason);
+    Q_UNUSED(message);
 
     if (isAuthenticated)
     {

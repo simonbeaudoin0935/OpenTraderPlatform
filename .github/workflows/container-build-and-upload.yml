@@ -53,7 +53,7 @@ jobs:
           docker push ghcr.io/${{ vars.USERNAME }}/l2trader-builder:noble
 
   # Build the RPI cross-compilation container on ubuntu-latest (amd64)
-  build-image-rpi-bookworm:
+  build-image-rpi-trixie:
     runs-on: ubuntu-latest
     steps:
 
@@ -62,11 +62,11 @@ jobs:
 
       - name: Build image
         run: |
-          docker build -f .github/docker/Dockerfile.rpi.bookworm -t ghcr.io/${{ vars.USERNAME }}/l2trader-builder:rpi-bookworm .
+          docker build -f .github/docker/Dockerfile.rpi.trixie -t ghcr.io/${{ vars.USERNAME }}/l2trader-builder:rpi-trixie .
 
       # Don't push to GHCR if build was triggered by a PR
       - name: Push to GHCR
         if: ${{ github.event_name == 'push' }}
         run: |
           echo ${{ secrets.TOKEN_GHCR }} | docker login ghcr.io -u ${{ vars.USERNAME }} --password-stdin
-          docker push ghcr.io/${{ vars.USERNAME }}/l2trader-builder:rpi-bookworm
+          docker push ghcr.io/${{ vars.USERNAME }}/l2trader-builder:rpi-trixie

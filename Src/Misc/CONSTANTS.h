@@ -151,6 +151,7 @@ namespace TSClientEndpoints
     inline constexpr const char* GET_BARS = "marketdata/barcharts/%1";
     inline constexpr const char* STREAM_BARS = "marketdata/stream/barcharts/%1";
     inline constexpr const char* STREAM_MARKET_DEPTH_QUOTE = "marketdata/stream/marketdepth/quotes/%1";
+    inline constexpr const char* STREAM_QUOTES = "marketdata/stream/quotes/%1";
 
     // Brokerage endpoints
     inline constexpr const char* GET_ACCOUNTS = "brokerage/accounts";
@@ -162,6 +163,27 @@ namespace TSClientEndpoints
     inline constexpr const char* PLACE_ORDER = "orderexecution/orders";
     inline constexpr const char* CANCEL_ORDER = "orderexecution/orders/%1";
 } // namespace TSClientEndpoints
+
+/**
+ * @namespace PollingConstants
+ * @brief Polling intervals for various background tasks
+ */
+namespace PollingConstants
+{
+    // Balance polling interval (milliseconds)
+    inline constexpr int BALANCE_POLLING_INTERVAL_MS = 1000; // 1 second
+} // namespace PollingConstants
+
+/**
+ * @namespace StreamConstants
+ * @brief Constants related to streaming and heartbeat
+ */
+namespace StreamConstants
+{
+    // Heartbeat interval for mock streams in replay mode (milliseconds)
+    // Should be less than the stream heartbeat timeout (10 seconds)
+    inline constexpr int MOCK_HEARTBEAT_INTERVAL_MS = 5000;
+} // namespace StreamConstants
 
 /**
  * @namespace AuthConstants
@@ -202,6 +224,9 @@ namespace ChartConstants
     // Candlestick rendering
     inline constexpr double CANDLESTICK_BODY_WIDTH = 0.9; // 90% of available space
 
+    // Replay day boundary line colors (hex strings)
+    inline constexpr const char* REPLAY_START_LINE_COLOR = "#00BFFF"; // DeepSkyBlue (cyan-ish)
+    inline constexpr const char* REPLAY_END_LINE_COLOR = "#FF6B6B";   // Coral red (warm red)
 
 } // namespace ChartConstants
 
@@ -235,4 +260,91 @@ namespace MarketDepthConstants
 {
     // Default number of market depth levels to request from TradeStation
     inline constexpr int DEFAULT_MARKET_DEPTH_LEVELS = 10;
+
+    /**
+     * @brief Maximum number of concurrent market depth quote streams
+     *
+     * TradeStation API enforces a hard limit of 10 concurrent market depth quote streams.
+     * Attempting to open more than 10 streams results in immediate connection failure
+     * with QNetworkReply::UnknownContentError.
+     *
+     * @note This limit applies to both Live and Replay modes for consistency
+     */
+    inline constexpr size_t MAX_CONCURRENT_STREAMS = 10;
+
+    /**
+     * @brief Delay in milliseconds before processing queued stream requests
+     *
+     * When a market depth stream is closed and queued requests exist, we delay processing
+     * the next request to allow the TCP FIN packet to propagate to the TradeStation server.
+     * This prevents the server from seeing 11 concurrent connections due to network timing.
+     *
+     * @note Value of 1000ms provides sufficient time for TCP close to complete
+     */
+    inline constexpr int QUEUE_PROCESS_DELAY_MS = 1000;
 } // namespace MarketDepthConstants
+
+/**
+ * @namespace QuoteConstants
+ * @brief Constants related to level 1 quote stream data
+ */
+namespace QuoteConstants
+{
+    /**
+     * @brief Maximum number of symbols in a single quote stream request
+     *
+     * TradeStation Stream Quotes API accepts up to 100 comma-separated symbols per request.
+     *
+     * @doc https://api.tradestation.com/docs/specification/#tag/MarketData/operation/GetQuoteChangeStream
+     */
+    inline constexpr size_t MAX_SYMBOLS_PER_STREAM = 100;
+} // namespace QuoteConstants
+
+/**
+ * @namespace BarStreamConstants
+ * @brief Constants related to bar stream limits
+ */
+namespace BarStreamConstants
+{
+    /**
+     * @brief Soft limit for concurrent bar streams
+     *
+     * TradeStation does not document a hard concurrent bars stream limit, but
+     * empirical testing shows instability above ~100 concurrent streams.
+     * Keep this configurable so it can be tuned without code changes.
+     */
+    inline constexpr size_t MAX_CONCURRENT_BAR_STREAMS = 100;
+} // namespace BarStreamConstants
+
+/**
+ * @namespace RecorderConstants
+ * @brief Constants related to the recording system
+ */
+namespace RecorderConstants
+{
+    /**
+     * @brief Graduated ramp-up delays for stream opening during recorder startup
+     *
+     * When recording a large number of symbols, the TradeStation API has cumulative
+     * rate limits that become stricter as more streams are opened. We use a graduated
+     * delay strategy that slows down progressively:
+     *
+     * - Streams 1-100:   500ms delay (2 streams/second)
+     * - Streams 101-200: 1000ms delay (1 stream/second)
+     * - Streams 201+:    2000ms delay (0.5 streams/second)
+     *
+     * Testing shows:
+     * - 50 simultaneous streams: ✅ Works
+     * - 100 simultaneous streams: ❌ API rate limiting errors
+     * - 100+ with 500ms ramp-up: ✅ Works up to ~100 streams
+     * - 200+ requires slower ramp-up to avoid cumulative rate limits
+     *
+     * @note Applies to both bar and market depth streams
+     */
+    inline constexpr int STREAM_RAMP_UP_DELAY_TIER1_MS = 500;  // First 100 streams
+    inline constexpr int STREAM_RAMP_UP_DELAY_TIER2_MS = 1000; // Streams 101-200
+    inline constexpr int STREAM_RAMP_UP_DELAY_TIER3_MS = 2000; // Streams 201+
+
+    inline constexpr int STREAM_RAMP_UP_TIER1_THRESHOLD = 100; // Switch to tier 2 after this many
+    inline constexpr int STREAM_RAMP_UP_TIER2_THRESHOLD = 200; // Switch to tier 3 after this many
+} // namespace RecorderConstants

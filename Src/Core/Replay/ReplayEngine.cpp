@@ -13,9 +13,17 @@ ReplayEngine::ReplayEngine(QObject* p_parent, TSClient* p_tsClient) : QObject(p_
 {
     ASSUME_TRUE(p_tsClient != nullptr);
 
-    m_playbackTimer.setSingleShot(true);
-    bool connected =
-        connect(&m_playbackTimer, &QTimer::timeout, this, &ReplayEngine::onTimerTick, Qt::UniqueConnection);
+    m_barTimer.setSingleShot(true);
+    m_depthTimer.setSingleShot(true);
+    m_quoteTimer.setSingleShot(true);
+
+    bool connected = connect(&m_barTimer, &QTimer::timeout, this, &ReplayEngine::onBarTimerTick, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(&m_depthTimer, &QTimer::timeout, this, &ReplayEngine::onDepthTimerTick, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(&m_quoteTimer, &QTimer::timeout, this, &ReplayEngine::onQuoteTimerTick, Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
     DEBUG << "ReplayEngine created";
@@ -28,10 +36,89 @@ ReplayEngine::~ReplayEngine()
         stopReplay();
     }
 
-    delete m_dataLoader;
-    m_dataLoader = nullptr;
+    cleanupLoaders();
 
     DEBUG << "ReplayEngine destroyed";
+}
+
+bool ReplayEngine::initLoaders(QDate p_date, QTime p_startTime)
+{
+    // Create bar loader
+    if (m_barLoader == nullptr)
+    {
+        m_barLoader = new ReplayDataLoader(ReplayDataLoader::DataType::Bar, this);
+        bool connected = connect(m_barLoader,
+                                 &ReplayDataLoader::bufferReady,
+                                 this,
+                                 &ReplayEngine::onBarBufferReady,
+                                 Qt::UniqueConnection);
+        ASSUME_TRUE(connected);
+    }
+
+    // Create depth loader
+    if (m_depthLoader == nullptr)
+    {
+        m_depthLoader = new ReplayDataLoader(ReplayDataLoader::DataType::MarketDepthQuote, this);
+        bool connected = connect(m_depthLoader,
+                                 &ReplayDataLoader::bufferReady,
+                                 this,
+                                 &ReplayEngine::onDepthBufferReady,
+                                 Qt::UniqueConnection);
+        ASSUME_TRUE(connected);
+    }
+
+    // Create quote loader
+    if (m_quoteLoader == nullptr)
+    {
+        m_quoteLoader = new ReplayDataLoader(ReplayDataLoader::DataType::Quote, this);
+        bool connected = connect(m_quoteLoader,
+                                 &ReplayDataLoader::bufferReady,
+                                 this,
+                                 &ReplayEngine::onQuoteBufferReady,
+                                 Qt::UniqueConnection);
+        ASSUME_TRUE(connected);
+    }
+
+    // Load databases — any may succeed
+    bool barsLoaded = m_barLoader->loadDatabase(p_date, p_startTime);
+    bool depthLoaded = m_depthLoader->loadDatabase(p_date, p_startTime);
+    bool quotesLoaded = m_quoteLoader->loadDatabase(p_date, p_startTime);
+
+    if (!barsLoaded)
+    {
+        DEBUG << "No bar data available for replay";
+        m_barStreamEnded = true;
+    }
+    if (!depthLoaded)
+    {
+        DEBUG << "No depth data available for replay";
+        m_depthStreamEnded = true;
+    }
+    if (!quotesLoaded)
+    {
+        DEBUG << "No quote data available for replay";
+        m_quoteStreamEnded = true;
+    }
+
+    if (!barsLoaded && !depthLoaded && !quotesLoaded)
+    {
+        CRITICAL << "Failed to load any replay database for" << p_date.toString(Qt::ISODate);
+        return false;
+    }
+
+    return true;
+}
+
+void ReplayEngine::cleanupLoaders()
+{
+    delete m_barLoader;
+    m_barLoader = nullptr;
+
+    delete m_depthLoader;
+    m_depthLoader = nullptr;
+
+    delete m_quoteLoader;
+    m_quoteLoader = nullptr;
 }
 
 void ReplayEngine::startReplay(QDate p_date, QTime p_startTime, PlaybackSpeed p_speed)
@@ -42,56 +129,77 @@ void ReplayEngine::startReplay(QDate p_date, QTime p_startTime, PlaybackSpeed p_
         return;
     }
 
-    // Ensure any stale timer is stopped
-    m_playbackTimer.stop();
+    m_barTimer.stop();
+    m_depthTimer.stop();
+    m_quoteTimer.stop();
 
     INFO << "Starting replay for" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString("hh:mm:ss")
          << "speed:" << static_cast<int>(p_speed);
 
     m_speed = p_speed;
+    m_barStreamEnded = false;
+    m_depthStreamEnded = false;
+    m_quoteStreamEnded = false;
+    m_isPausedBeforePlay = false; // No longer in paused-before-play state
 
-    // Create data loader if needed
-    if (m_dataLoader == nullptr)
+    if (!initLoaders(p_date, p_startTime))
     {
-        m_dataLoader = new ReplayDataLoader(this);
-        bool connected = connect(m_dataLoader,
-                                 &ReplayDataLoader::bufferReady,
-                                 this,
-                                 &ReplayEngine::onBufferReady,
-                                 Qt::UniqueConnection);
-        ASSUME_TRUE(connected);
-    }
-
-    // Load database for the selected date, starting from specified time
-    if (!m_dataLoader->loadDatabase(p_date, p_startTime))
-    {
-        CRITICAL << "Failed to load replay database for" << p_date.toString(Qt::ISODate);
         return;
     }
 
-    // Check if we have any data
-    if (!m_dataLoader->hasMoreData())
+    // Find earliest first data point across all streams
+    qint64 initialEpoch = 0;
+    if (m_barLoader->hasMoreData())
     {
-        WARNING << "No data available for replay on" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString();
-        return;
+        initialEpoch = m_barLoader->peekNextDataPoint().epochMs;
+    }
+    if (m_depthLoader->hasMoreData())
+    {
+        qint64 depthEpoch = m_depthLoader->peekNextDataPoint().epochMs;
+        if (initialEpoch == 0 || (depthEpoch > 0 && depthEpoch < initialEpoch))
+        {
+            initialEpoch = depthEpoch;
+        }
+    }
+    if (m_quoteLoader->hasMoreData())
+    {
+        qint64 quoteEpoch = m_quoteLoader->peekNextDataPoint().epochMs;
+        if (initialEpoch == 0 || (quoteEpoch > 0 && quoteEpoch < initialEpoch))
+        {
+            initialEpoch = quoteEpoch;
+        }
     }
 
-    // Initialize replay time to first data point timestamp
-    // This ensures MainApp::getCurrentAppTime() returns valid time immediately
-    const ReplayDataLoader::ReplayDataPoint& firstPoint = m_dataLoader->peekNextDataPoint();
-    QDateTime initialTime = QDateTime::fromMSecsSinceEpoch(firstPoint.epochMs, TradingHours::MARKET_TIMEZONE);
-    MainApp::currentAppReplayTime = initialTime;
-    INFO << "Initialized replay time to first data point:" << initialTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    if (initialEpoch > 0)
+    {
+        QDateTime initialTime = QDateTime::fromMSecsSinceEpoch(initialEpoch, TradingHours::MARKET_TIMEZONE);
+        MainApp::currentAppReplayTime = initialTime;
+        INFO << "Initialized replay time to:" << initialTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    }
+
+    // Set wall-clock anchor: this replay-epoch maps to "now"
+    m_replayEpochAnchorMs = initialEpoch;
+    m_wallClockAnchorMs = QDateTime::currentMSecsSinceEpoch();
 
     m_state = PlaybackState::Playing;
-    m_lastEmittedTimestampMs = 0;
-    ++m_replayGeneration; // Invalidate any stale timer events from previous replay
-
     emit replayStarted();
 
-    // Emit first data point immediately, then schedule subsequent ones
-    emitCurrentDataPoint();
-    scheduleNextDataPoint();
+    // Emit first data point from each stream and schedule next
+    if (!m_barStreamEnded)
+    {
+        emitNextBar();
+        scheduleNextBar();
+    }
+    if (!m_depthStreamEnded)
+    {
+        emitNextDepth();
+        scheduleNextDepth();
+    }
+    if (!m_quoteStreamEnded)
+    {
+        emitNextQuote();
+        scheduleNextQuote();
+    }
 }
 
 void ReplayEngine::startReplayPaused(QDate p_date, QTime p_startTime, PlaybackSpeed p_speed)
@@ -105,52 +213,75 @@ void ReplayEngine::startReplayPaused(QDate p_date, QTime p_startTime, PlaybackSp
     INFO << "Starting replay (paused) for" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString("hh:mm:ss");
 
     m_speed = p_speed;
+    m_barStreamEnded = false;
+    m_depthStreamEnded = false;
+    m_quoteStreamEnded = false;
+    m_isPausedBeforePlay = true; // Set flag: paused before first play
 
-    // Create data loader if needed
-    if (m_dataLoader == nullptr)
+    if (!initLoaders(p_date, p_startTime))
     {
-        m_dataLoader = new ReplayDataLoader(this);
-        bool connected = connect(m_dataLoader,
-                                 &ReplayDataLoader::bufferReady,
-                                 this,
-                                 &ReplayEngine::onBufferReady,
-                                 Qt::UniqueConnection);
-        ASSUME_TRUE(connected);
-    }
-
-    // Load database for the selected date, starting from specified time
-    if (!m_dataLoader->loadDatabase(p_date, p_startTime))
-    {
-        CRITICAL << "Failed to load replay database for" << p_date.toString(Qt::ISODate);
+        QString errorMsg = QString("Failed to load replay data for %1").arg(p_date.toString(Qt::ISODate));
+        CRITICAL << errorMsg;
+        emit replayDataLoadFailed(errorMsg);
         return;
     }
 
-    // Check if we have any data
-    if (!m_dataLoader->hasMoreData())
+    // Find earliest first data point across all streams
+    qint64 initialEpoch = 0;
+    if (m_barLoader->hasMoreData())
     {
-        WARNING << "No data available for replay on" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString();
-        return;
+        initialEpoch = m_barLoader->peekNextDataPoint().epochMs;
+    }
+    if (m_depthLoader->hasMoreData())
+    {
+        qint64 depthEpoch = m_depthLoader->peekNextDataPoint().epochMs;
+        if (initialEpoch == 0 || (depthEpoch > 0 && depthEpoch < initialEpoch))
+        {
+            initialEpoch = depthEpoch;
+        }
+    }
+    if (m_quoteLoader->hasMoreData())
+    {
+        qint64 quoteEpoch = m_quoteLoader->peekNextDataPoint().epochMs;
+        if (initialEpoch == 0 || (quoteEpoch > 0 && quoteEpoch < initialEpoch))
+        {
+            initialEpoch = quoteEpoch;
+        }
     }
 
-    // Initialize replay time to first data point timestamp
-    const ReplayDataLoader::ReplayDataPoint& firstPoint = m_dataLoader->peekNextDataPoint();
-    QDateTime initialTime = QDateTime::fromMSecsSinceEpoch(firstPoint.epochMs, TradingHours::MARKET_TIMEZONE);
-    MainApp::currentAppReplayTime = initialTime;
-    INFO << "Initialized replay time to first data point:" << initialTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    if (initialEpoch > 0)
+    {
+        QDateTime initialTime = QDateTime::fromMSecsSinceEpoch(initialEpoch, TradingHours::MARKET_TIMEZONE);
+        MainApp::currentAppReplayTime = initialTime;
+        INFO << "Initialized replay time to:" << initialTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    }
 
-    ++m_replayGeneration; // Invalidate any stale timer events from previous replay
+    // Wall-clock anchor will be set on resume; for now just record the replay start epoch
+    m_replayEpochAnchorMs = initialEpoch;
+    m_wallClockAnchorMs = 0; // Will be set when user resumes
 
-    // Emit first data point to trigger chart population
+    // Emit first data points then immediately pause
     m_state = PlaybackState::Playing;
-    m_lastEmittedTimestampMs = 0;
     emit replayStarted();
-    emitCurrentDataPoint();
 
-    // Immediately pause instead of scheduling next data point
+    if (!m_barStreamEnded)
+    {
+        emitNextBar();
+    }
+    if (!m_depthStreamEnded)
+    {
+        emitNextDepth();
+    }
+    if (!m_quoteStreamEnded)
+    {
+        emitNextQuote();
+    }
+
+    // Immediately pause instead of scheduling next data points
     m_state = PlaybackState::Paused;
     emit replayPaused();
 
-    INFO << "Replay started in paused state after first data point";
+    INFO << "Replay started in paused state after first data points";
 }
 
 void ReplayEngine::stopReplay()
@@ -163,17 +294,76 @@ void ReplayEngine::stopReplay()
 
     INFO << "Stopping replay";
 
-    m_playbackTimer.stop();
+    m_barTimer.stop();
+    m_depthTimer.stop();
+    m_quoteTimer.stop();
     m_state = PlaybackState::Stopped;
-    m_lastEmittedTimestampMs = 0;
+    m_wallClockAnchorMs = 0;
+    m_replayEpochAnchorMs = 0;
+    m_pauseWallClockMs = 0;
+    m_barStreamEnded = false;
+    m_depthStreamEnded = false;
+    m_quoteStreamEnded = false;
+    m_isPausedBeforePlay = false; // Reset flag when stopping
 
-    // Clean up data loader
-    if (m_dataLoader != nullptr)
+    // Clean up data loaders
+    if (m_barLoader != nullptr)
     {
-        m_dataLoader->reset();
+        m_barLoader->reset();
+    }
+    if (m_depthLoader != nullptr)
+    {
+        m_depthLoader->reset();
+    }
+    if (m_quoteLoader != nullptr)
+    {
+        m_quoteLoader->reset();
     }
 
     emit replayStopped();
+}
+
+void ReplayEngine::setSpeed(PlaybackSpeed p_speed)
+{
+    if (m_speed == p_speed)
+    {
+        return;
+    }
+
+    PlaybackSpeed oldSpeed = m_speed;
+    m_speed = p_speed;
+
+    INFO << "Speed changed from" << static_cast<int>(oldSpeed) << "to" << static_cast<int>(p_speed);
+
+    // Re-anchor wall clock so the new speed applies from this instant
+    if (m_state == PlaybackState::Playing)
+    {
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        qint64 currentReplayMs = MainApp::currentAppReplayTime.isValid()
+                                     ? MainApp::currentAppReplayTime.toMSecsSinceEpoch()
+                                     : m_replayEpochAnchorMs;
+
+        m_wallClockAnchorMs = now;
+        m_replayEpochAnchorMs = currentReplayMs;
+
+        // Reschedule all timers with the new anchor/speed
+        m_barTimer.stop();
+        m_depthTimer.stop();
+        m_quoteTimer.stop();
+
+        if (!m_barStreamEnded)
+        {
+            scheduleNextBar();
+        }
+        if (!m_depthStreamEnded)
+        {
+            scheduleNextDepth();
+        }
+        if (!m_quoteStreamEnded)
+        {
+            scheduleNextQuote();
+        }
+    }
 }
 
 void ReplayEngine::pauseReplay()
@@ -186,7 +376,10 @@ void ReplayEngine::pauseReplay()
 
     DEBUG << "Pausing replay";
 
-    m_playbackTimer.stop();
+    m_barTimer.stop();
+    m_depthTimer.stop();
+    m_quoteTimer.stop();
+    m_pauseWallClockMs = QDateTime::currentMSecsSinceEpoch();
     m_state = PlaybackState::Paused;
 
     emit replayPaused();
@@ -202,164 +395,318 @@ void ReplayEngine::resumeReplay()
 
     DEBUG << "Resuming replay";
 
+    // Shift wall-clock anchor forward by the pause duration so timing stays correct
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_wallClockAnchorMs == 0)
+    {
+        // First resume after startReplayPaused — anchor to now
+        m_wallClockAnchorMs = now;
+    }
+    else if (m_pauseWallClockMs > 0)
+    {
+        m_wallClockAnchorMs += (now - m_pauseWallClockMs);
+    }
+    m_pauseWallClockMs = 0;
+
     m_state = PlaybackState::Playing;
 
-    // Schedule next data point (resume from where we left off)
-    scheduleNextDataPoint();
+    // Resume all streams from where they left off
+    if (!m_barStreamEnded)
+    {
+        scheduleNextBar();
+    }
+    if (!m_depthStreamEnded)
+    {
+        scheduleNextDepth();
+    }
+    if (!m_quoteStreamEnded)
+    {
+        scheduleNextQuote();
+    }
 
     emit replayResumed();
 }
 
-void ReplayEngine::onTimerTick()
+void ReplayEngine::onBarTimerTick()
 {
-    DEBUG << "onTimerTick ENTRY";
     if (m_state != PlaybackState::Playing)
     {
-        DEBUG << "onTimerTick: not playing, returning";
         return;
     }
 
-    emitCurrentDataPoint();
-    scheduleNextDataPoint();
-    DEBUG << "onTimerTick EXIT";
+    emitNextBar();
+    scheduleNextBar();
 }
 
-void ReplayEngine::onBufferReady()
+void ReplayEngine::onDepthTimerTick()
 {
-    DEBUG << "Prefetch buffer ready";
-
-    // If we were waiting for data and are still playing, continue
-    if (m_state == PlaybackState::Playing && !m_playbackTimer.isActive())
+    if (m_state != PlaybackState::Playing)
     {
-        scheduleNextDataPoint();
+        return;
+    }
+
+    emitNextDepth();
+    scheduleNextDepth();
+}
+
+void ReplayEngine::onQuoteTimerTick()
+{
+    if (m_state != PlaybackState::Playing)
+    {
+        return;
+    }
+
+    emitNextQuote();
+    scheduleNextQuote();
+}
+
+void ReplayEngine::onBarBufferReady()
+{
+    DEBUG << "Bar prefetch buffer ready";
+
+    if (m_state == PlaybackState::Playing && !m_barTimer.isActive() && !m_barStreamEnded)
+    {
+        scheduleNextBar();
     }
 }
 
-void ReplayEngine::emitCurrentDataPoint()
+void ReplayEngine::onDepthBufferReady()
 {
-    DEBUG << "emitCurrentDataPoint ENTRY";
-    // Loop until we find a data point for a stock we have a stream for
-    while (m_dataLoader != nullptr && m_dataLoader->hasMoreData())
-    {
-        ReplayDataLoader::ReplayDataPoint dataPoint = m_dataLoader->getNextDataPoint();
+    DEBUG << "Depth prefetch buffer ready";
 
-        // Check if we have an active stream for this stock
-        bool isBar = (dataPoint.type == ReplayDataLoader::ReplayDataPoint::Type::Bar);
-        if (!hasStreamForStock(dataPoint.stockTicker, isBar))
+    if (m_state == PlaybackState::Playing && !m_depthTimer.isActive() && !m_depthStreamEnded)
+    {
+        scheduleNextDepth();
+    }
+}
+
+void ReplayEngine::onQuoteBufferReady()
+{
+    DEBUG << "Quote prefetch buffer ready";
+
+    if (m_state == PlaybackState::Playing && !m_quoteTimer.isActive() && !m_quoteStreamEnded)
+    {
+        scheduleNextQuote();
+    }
+}
+
+void ReplayEngine::emitNextBar()
+{
+    // Loop until we find a bar for a stock we have a stream for
+    while (m_barLoader != nullptr && m_barLoader->hasMoreData())
+    {
+        ReplayDataLoader::ReplayDataPoint dataPoint = m_barLoader->getNextDataPoint();
+
+        if (!hasStreamForStock(dataPoint.stockTicker, true))
         {
-            // No stream for this stock - skip and try next in same call
             continue;
         }
 
-        // Update replay time (discrete jumps)
-        QDateTime newTime = QDateTime::fromMSecsSinceEpoch(dataPoint.epochMs, TradingHours::MARKET_TIMEZONE);
-        MainApp::currentAppReplayTime = newTime;
-        m_lastEmittedTimestampMs = dataPoint.epochMs;
+        updateReplayTime(dataPoint.epochMs);
 
-        emit replayTimeUpdated(newTime);
-
-        // Create shared_ptr to avoid copying data across thread boundary
         auto dataPtr = std::make_shared<const QByteArray>(dataPoint.jsonRawData);
+        emit injectBarData(dataPoint.stockTicker, dataPtr);
 
-        // Emit signal for cross-thread data injection into TSClient
-        if (isBar)
+        QDateTime newTime = QDateTime::fromMSecsSinceEpoch(dataPoint.epochMs, TradingHours::MARKET_TIMEZONE);
+        DEBUG << "Emitted bar for" << dataPoint.stockTicker << "at" << newTime.toString("hh:mm:ss.zzz");
+        return;
+    }
+}
+
+void ReplayEngine::emitNextDepth()
+{
+    // Loop until we find a depth quote for a stock we have a stream for
+    while (m_depthLoader != nullptr && m_depthLoader->hasMoreData())
+    {
+        ReplayDataLoader::ReplayDataPoint dataPoint = m_depthLoader->getNextDataPoint();
+
+        if (!hasStreamForStock(dataPoint.stockTicker, false))
         {
-            emit injectBarData(dataPoint.stockTicker, dataPtr);
-        }
-        else
-        {
-            emit injectDepthData(dataPoint.stockTicker, dataPtr);
+            continue;
         }
 
-        DEBUG << "Emitted" << (isBar ? "bar" : "depth") << "for" << dataPoint.stockTicker << "at"
+        updateReplayTime(dataPoint.epochMs);
+
+        auto dataPtr = std::make_shared<const QByteArray>(dataPoint.jsonRawData);
+        emit injectDepthData(dataPoint.stockTicker, dataPtr);
+
+        QDateTime newTime = QDateTime::fromMSecsSinceEpoch(dataPoint.epochMs, TradingHours::MARKET_TIMEZONE);
+        DEBUG << "Emitted depth for" << dataPoint.stockTicker << "at" << newTime.toString("hh:mm:ss.zzz");
+        return;
+    }
+}
+
+void ReplayEngine::scheduleNextBar()
+{
+    if (m_barLoader == nullptr)
+    {
+        return;
+    }
+
+    if (!m_barLoader->hasMoreData())
+    {
+        if (m_barLoader->isPrefetching())
+        {
+            DEBUG << "Bar stream: waiting for buffer prefetch...";
+            return; // onBarBufferReady will reschedule
+        }
+
+        INFO << "Bar stream reached end of data";
+        m_barStreamEnded = true;
+        checkAllStreamsEnded();
+        return;
+    }
+
+    const ReplayDataLoader::ReplayDataPoint& nextPoint = m_barLoader->peekNextDataPoint();
+    qint64 delay = calculateWallClockDelay(nextPoint.epochMs);
+    m_barTimer.start(static_cast<int>(delay));
+}
+
+void ReplayEngine::scheduleNextDepth()
+{
+    if (m_depthLoader == nullptr)
+    {
+        return;
+    }
+
+    if (!m_depthLoader->hasMoreData())
+    {
+        if (m_depthLoader->isPrefetching())
+        {
+            DEBUG << "Depth stream: waiting for buffer prefetch...";
+            return; // onDepthBufferReady will reschedule
+        }
+
+        INFO << "Depth stream reached end of data";
+        m_depthStreamEnded = true;
+        checkAllStreamsEnded();
+        return;
+    }
+
+    const ReplayDataLoader::ReplayDataPoint& nextPoint = m_depthLoader->peekNextDataPoint();
+    qint64 delay = calculateWallClockDelay(nextPoint.epochMs);
+    m_depthTimer.start(static_cast<int>(delay));
+}
+
+void ReplayEngine::emitNextQuote()
+{
+    // Loop until we find a quote for a stock we have a stream for,
+    // or a Heartbeat/Error (which should be emitted regardless)
+    while (m_quoteLoader != nullptr && m_quoteLoader->hasMoreData())
+    {
+        ReplayDataLoader::ReplayDataPoint dataPoint = m_quoteLoader->getNextDataPoint();
+
+        // Heartbeat and Error messages should always be emitted (no symbol filter)
+        // QuoteStream messages are filtered by open streams
+        if (dataPoint.objectType == "QuoteStream")
+        {
+            if (!m_tsClient->hasOpenQuoteStream())
+            {
+                continue;
+            }
+        }
+
+        updateReplayTime(dataPoint.epochMs);
+
+        auto dataPtr = std::make_shared<const QByteArray>(dataPoint.jsonRawData);
+        emit injectQuoteData(dataPoint.stockTicker, dataPtr);
+
+        QDateTime newTime = QDateTime::fromMSecsSinceEpoch(dataPoint.epochMs, TradingHours::MARKET_TIMEZONE);
+        DEBUG << "Emitted quote" << dataPoint.objectType << "for" << dataPoint.stockTicker << "at"
               << newTime.toString("hh:mm:ss.zzz");
         return;
     }
 }
 
-void ReplayEngine::scheduleNextDataPoint()
+void ReplayEngine::scheduleNextQuote()
 {
-    if (m_dataLoader == nullptr)
+    if (m_quoteLoader == nullptr)
     {
-        DEBUG << "scheduleNextDataPoint: m_dataLoader is null";
         return;
     }
 
-    // Check if more data is available
-    if (!m_dataLoader->hasMoreData())
+    if (!m_quoteLoader->hasMoreData())
     {
-        // Check if we're waiting for a buffer prefetch
-        if (m_dataLoader->isPrefetching())
+        if (m_quoteLoader->isPrefetching())
         {
-            DEBUG << "Waiting for buffer prefetch...";
-            return; // onBufferReady will reschedule when data arrives
+            DEBUG << "Quote stream: waiting for buffer prefetch...";
+            return; // onQuoteBufferReady will reschedule
         }
 
-        INFO << "Replay reached end of data";
-        m_state = PlaybackState::Stopped;
-        emit replayEndReached();
-        emit replayStopped();
+        INFO << "Quote stream reached end of data";
+        m_quoteStreamEnded = true;
+        checkAllStreamsEnded();
         return;
     }
 
-    // Peek at next data point to calculate delay
-    const ReplayDataLoader::ReplayDataPoint& nextPoint = m_dataLoader->peekNextDataPoint();
-
-    DEBUG << "scheduleNextDataPoint: next is" << nextPoint.stockTicker << "at epoch" << nextPoint.epochMs;
-
-    qint64 deltaMs = 0;
-    if (m_lastEmittedTimestampMs > 0)
-    {
-        deltaMs = nextPoint.epochMs - m_lastEmittedTimestampMs;
-
-        // Sanity check: negative delta means data is out of order
-        if (deltaMs < 0)
-        {
-            WARNING << "Negative timestamp delta detected:" << deltaMs << "ms - data may be out of order";
-            deltaMs = 0;
-        }
-    }
-
-    qint64 scaledDelay = calculateScaledDelay(deltaMs);
-
-    DEBUG << "scheduleNextDataPoint: deltaMs=" << deltaMs << "scaledDelay=" << scaledDelay;
-
-    m_playbackTimer.start(static_cast<int>(scaledDelay));
+    const ReplayDataLoader::ReplayDataPoint& nextPoint = m_quoteLoader->peekNextDataPoint();
+    qint64 delay = calculateWallClockDelay(nextPoint.epochMs);
+    m_quoteTimer.start(static_cast<int>(delay));
 }
 
-qint64 ReplayEngine::calculateScaledDelay(qint64 p_deltaMs) const
+qint64 ReplayEngine::calculateWallClockDelay(qint64 p_replayEpochMs) const
 {
     if (m_speed == PlaybackSpeed::AsFastAsPossible)
     {
-        return 0; // 0ms timer gives event loop minimal breathing room
+        return 0;
     }
 
-    // Speed is stored as percentage (100 = 1x, 200 = 2x, 50 = 0.5x)
-    // For 2x speed, we want half the delay: delta / 2
-    // For 0.5x speed, we want double the delay: delta * 2
-    // Formula: scaledDelay = delta * 100 / speed
-
     int speedValue = static_cast<int>(m_speed);
-    DEBUG << "calculateScaledDelay: m_speed=" << speedValue << "p_deltaMs=" << p_deltaMs;
-
     if (speedValue <= 0)
     {
         return 0;
     }
 
-    qint64 scaledDelay = (p_deltaMs * 100) / speedValue;
+    // How far into the replay this data point is (in replay-time ms)
+    qint64 replayOffsetMs = p_replayEpochMs - m_replayEpochAnchorMs;
 
-    // Clamp to reasonable bounds
-    if (scaledDelay < 0)
+    // Scale by speed: at 2x (200%), wall-clock offset is half the replay offset
+    // Formula: wallClockOffset = replayOffset * 100 / speed
+    qint64 wallClockOffsetMs = (replayOffsetMs * 100) / speedValue;
+
+    // Target wall-clock time for this data point
+    qint64 targetWallMs = m_wallClockAnchorMs + wallClockOffsetMs;
+
+    // Delay = how long from now until target
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    qint64 delay = targetWallMs - now;
+
+    // Clamp: if we're behind schedule, fire immediately
+    if (delay < 0)
     {
-        scaledDelay = 0;
+        delay = 0;
     }
-    else if (scaledDelay > 60000) // Cap at 1 minute max delay
+    else if (delay > 60000) // Cap at 1 minute
     {
-        scaledDelay = 60000;
+        delay = 60000;
     }
 
-    return scaledDelay;
+    return delay;
+}
+
+void ReplayEngine::updateReplayTime(qint64 p_epochMs)
+{
+    // Only advance time forward — never backward
+    QDateTime currentTime = MainApp::currentAppReplayTime;
+    qint64 currentMs = currentTime.isValid() ? currentTime.toMSecsSinceEpoch() : 0;
+
+    if (p_epochMs > currentMs)
+    {
+        QDateTime newTime = QDateTime::fromMSecsSinceEpoch(p_epochMs, TradingHours::MARKET_TIMEZONE);
+        MainApp::currentAppReplayTime = newTime;
+        emit replayTimeUpdated(newTime);
+    }
+}
+
+void ReplayEngine::checkAllStreamsEnded()
+{
+    if (m_barStreamEnded && m_depthStreamEnded && m_quoteStreamEnded)
+    {
+        INFO << "All replay streams reached end of data";
+        m_state = PlaybackState::Stopped;
+        emit replayEndReached();
+        emit replayStopped();
+    }
 }
 
 bool ReplayEngine::hasStreamForStock(const QString& p_symbol, bool p_isBar) const

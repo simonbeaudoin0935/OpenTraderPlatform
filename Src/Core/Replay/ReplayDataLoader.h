@@ -15,11 +15,14 @@ Q_DECLARE_LOGGING_CATEGORY(ReplayDataLoaderLog)
 
 /**
  * @class ReplayDataLoader
- * @brief Loads and manages recorded market data from SQLite databases
+ * @brief Loads recorded market data of a single type from a SQLite database
+ *
+ * Each instance handles ONE data type (bars OR market depth quotes) with its
+ * own database connection, cursor, and ping-pong buffers. ReplayEngine creates
+ * two instances — one for bars, one for depth — each with an independent timer.
  *
  * Handles:
- * - Loading bars and market depth data from replay database files
- * - Merging both data types into a single chronological sequence
+ * - Loading data from a single replay database file
  * - Ping-pong buffer strategy for memory efficiency with large datasets
  * - Async prefetching of next buffer while current is consumed
  *
@@ -35,6 +38,16 @@ class ReplayDataLoader : public QObject
 
   public:
     /**
+     * @brief The type of data this loader handles
+     */
+    enum class DataType
+    {
+        Bar,
+        MarketDepthQuote,
+        Quote
+    };
+
+    /**
      * @brief Single data point from replay database
      */
     struct ReplayDataPoint
@@ -42,21 +55,8 @@ class ReplayDataLoader : public QObject
         qint64 id = 0; // Database ID for cursor tracking
         QString stockTicker;
         qint64 epochMs = 0;
+        QString objectType; // For quotes: "QuoteStream", "Heartbeat", "Error"
         QByteArray jsonRawData;
-
-        enum class Type
-        {
-            Bar,
-            MarketDepthQuote
-        } type = Type::Bar;
-
-        /**
-         * @brief Comparison for chronological sorting
-         */
-        bool operator<(const ReplayDataPoint& p_other) const
-        {
-            return epochMs < p_other.epochMs;
-        }
     };
 
     /// Number of records per buffer (configurable for testing)
@@ -65,7 +65,7 @@ class ReplayDataLoader : public QObject
     /// Prefetch threshold: trigger prefetch when this % of buffer consumed
     static constexpr int PREFETCH_THRESHOLD_PERCENT = 80;
 
-    explicit ReplayDataLoader(QObject* p_parent = nullptr);
+    explicit ReplayDataLoader(DataType p_dataType, QObject* p_parent = nullptr);
     ~ReplayDataLoader() override;
 
     Q_DISABLE_COPY(ReplayDataLoader)
@@ -79,7 +79,7 @@ class ReplayDataLoader : public QObject
     bool loadDatabase(QDate p_date, QTime p_startTime);
 
     /**
-     * @brief Reset loader state, close databases
+     * @brief Reset loader state, close database
      */
     void reset();
 
@@ -132,6 +132,14 @@ class ReplayDataLoader : public QObject
      */
     [[nodiscard]] qint64 getCurrentPosition() const;
 
+    /**
+     * @brief Get the data type this loader handles
+     */
+    [[nodiscard]] DataType getDataType() const
+    {
+        return m_dataType;
+    }
+
   signals:
     /**
      * @brief Emitted when prefetch buffer is ready and swapped
@@ -144,11 +152,11 @@ class ReplayDataLoader : public QObject
     void dataExhausted();
 
   private:
-    // Database connections (unique names per instance)
-    QSqlDatabase m_barsDb;
-    QSqlDatabase m_depthDb;
-    QString m_barsDbConnectionName;
-    QString m_depthDbConnectionName;
+    const DataType m_dataType;
+
+    // Database connection (unique name per instance)
+    QSqlDatabase m_db;
+    QString m_dbConnectionName;
 
     // Ping-pong buffers
     QVector<ReplayDataPoint> m_bufferA;
@@ -158,16 +166,14 @@ class ReplayDataLoader : public QObject
     int m_activeBufferIndex = 0;
 
     // Database cursor tracking (next ID to read)
-    qint64 m_nextBarsId = 1;
-    qint64 m_nextDepthId = 1;
+    qint64 m_nextId = 1;
 
     // State
     QDate m_loadedDate;
     QTime m_startTime;
     qint64 m_startEpochMs = 0;
     bool m_isPrefetching = false;
-    bool m_endOfBarsReached = false;
-    bool m_endOfDepthReached = false;
+    bool m_endOfDataReached = false;
     bool m_loadingBufferReady = false;
 
     // Async prefetch
@@ -175,35 +181,31 @@ class ReplayDataLoader : public QObject
     mutable QMutex m_bufferMutex;
 
     // Statistics
-    qint64 m_totalBarsCount = 0;
-    qint64 m_totalDepthCount = 0;
+    qint64 m_totalCount = 0;
     qint64 m_recordsConsumed = 0;
 
     /**
-     * @brief Build database file paths for the given date
+     * @brief Build database file path for the given date and data type
      */
-    [[nodiscard]] QString getBarsDbPath(QDate p_date) const;
-    [[nodiscard]] QString getDepthDbPath(QDate p_date) const;
+    [[nodiscard]] QString getDbPath(QDate p_date) const;
 
     /**
-     * @brief Open database connections
+     * @brief Open database connection
      */
-    bool openDatabases(QDate p_date);
+    bool openDatabase(QDate p_date);
 
     /**
-     * @brief Close database connections
+     * @brief Close database connection
      */
-    void closeDatabases();
+    void closeDatabase();
 
     /**
      * @brief Ensure database indexes exist for efficient queries
-     * @param p_db Database connection
-     * @param p_isBarsDb true for bars database, false for depth database
      */
-    void ensureIndexes(QSqlDatabase& p_db, bool p_isBarsDb);
+    void ensureIndexes();
 
     /**
-     * @brief Load initial buffer of data from databases
+     * @brief Load initial buffer of data from database
      */
     bool loadInitialBuffer();
 
@@ -213,13 +215,6 @@ class ReplayDataLoader : public QObject
      * @param p_isInitial true if this is the initial load (use time-based query)
      */
     void loadBufferChunk(QVector<ReplayDataPoint>* p_buffer, bool p_isInitial);
-
-    /**
-     * @brief Merge bars and depth data chronologically
-     */
-    void mergeChronologically(QVector<ReplayDataPoint>& p_bars,
-                              QVector<ReplayDataPoint>& p_depth,
-                              QVector<ReplayDataPoint>* p_output);
 
     /**
      * @brief Trigger async prefetch of next buffer chunk

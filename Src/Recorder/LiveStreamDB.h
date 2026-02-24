@@ -6,9 +6,14 @@
 #include <QMap>
 #include <QStringList>
 #include <QObject>
+#include <QTimer>
+#include <QPointer>
 
 #include "StreamBars.h"
 #include "StreamMarketDepthQuote.h"
+
+// Forward declaration - full include in .cpp
+class StreamQuote;
 
 Q_DECLARE_LOGGING_CATEGORY(LiveStreamDBLog)
 
@@ -20,7 +25,8 @@ class LiveStreamDB : public QObject
     enum class StreamType
     {
         Bars,
-        MarketDepthQuotes
+        MarketDepthQuotes,
+        Quotes
     };
 
     LiveStreamDB(StreamType type, const QString& dbPath, QStringList& p_stockTickers);
@@ -28,6 +34,7 @@ class LiveStreamDB : public QObject
 
     bool isOpen() const;
     void startRecording();
+    void stopRecording();
 
     QMap<QString, int> getRecoveredTimeouts() const
     {
@@ -68,10 +75,13 @@ class LiveStreamDB : public QObject
 
   private slots:
     void onReceivedNewRawDataForStock(QString symbol, const QByteArray& rawData);
+    void openNextStream();
 
   private:
     bool storeData(const QString& stock, qint64 epochMs, const QByteArray& rawData);
+    bool storeQuoteData(const QString& stock, qint64 epochMs, const QString& objectType, const QByteArray& rawData);
     void handleStreamError(const QString& symbol, Stream::StreamError reason, const QString& message);
+    void processQuoteRawData(const QByteArray& rawData);
 
     StreamType streamType;
     QStringList stockTickers;
@@ -81,6 +91,10 @@ class LiveStreamDB : public QObject
     // Union-like storage for different stream types
     QMap<QString, QPointer<StreamBars>> m_streamBars;
     QMap<QString, QPointer<StreamMarketDepthQuote>> m_streamMarketDepthQuotes;
+    QPointer<StreamQuote> m_streamQuote; // Single stream for all symbols (Quotes type)
+
+    // Buffer for accumulating partial JSON from quote stream
+    QByteArray m_quoteAccumulatorBuffer;
 
     QMap<QString, QMap<Stream::StreamError, int>> m_streamErrorCounters;
     QSet<QString> unrecoveredTimeouts;
@@ -88,4 +102,8 @@ class LiveStreamDB : public QObject
     QMap<QString, int> unrecoveredTimeoutCounts;
     QMap<QString, int> recoveryAttempts;
     QMap<QString, int> successfulRecoveries;
+
+    // Stream ramp-up state
+    QTimer m_rampTimer;
+    int m_currentRampIndex = -1; // -1 = not ramping, >=0 = index of next symbol to open
 };

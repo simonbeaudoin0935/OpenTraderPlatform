@@ -16,8 +16,10 @@
 #include "Account.h"
 #include "BarCache.h"
 #include "Balance.h"
+#include "Quote.h"
 #include "StrategyManager.h"
 #include "Core/Replay/ReplayEngine.h"
+#include "TSClient.h" // For TSClient::AuthStateReason enum
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
@@ -35,6 +37,7 @@ class StockInstruments : public QObject
     BarCache barCache;
     BarReceiver barReceiver;
     MarketDepthQuoteReceiver marketDepthQuoteReceiver;
+    QPointer<StreamQuote> streamQuote; // Non-null only in replay mode; live quotes use RecorderTab's global stream
 };
 
 class MainAlgo final : public QObject
@@ -116,6 +119,9 @@ class MainAlgo final : public QObject
     /// @brief Pause live streams (positions/orders) for replay mode
     void pauseLiveStreams();
 
+    /// @brief Start replay mode order/position streams with simulated account
+    void startReplayOrderStreams();
+
     /// @brief Resume live streams after exiting replay mode
     void resumeLiveStreams();
 
@@ -131,6 +137,9 @@ class MainAlgo final : public QObject
 
     /// @brief Get replay engine state
     [[nodiscard]] ReplayEngine::PlaybackState getReplayState() const;
+
+    /// @brief Get pointer to replay engine for signal connections
+    [[nodiscard]] ReplayEngine* getReplayEngine() const;
 
   signals:
     /**
@@ -151,6 +160,7 @@ class MainAlgo final : public QObject
                                                    double bidAskImbalance,
                                                    double bidDWP,
                                                    double askDWP);
+    void displayedStockReceivedNewQuote(QString symbol, Quote quote);
 
     /**
      * @brief Signal emitted when a new position is received
@@ -194,8 +204,11 @@ class MainAlgo final : public QObject
     void replayEndReached();
 
   public slots:
-    void onTradeStationAuthStateChanged(bool isAuthenticated, const QString& reason);
+    void onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, const QString& message);
     void onSelectDisplayedStock(const QString& symbol);
+
+    // Handle quote updates for displayed stock (connected from TSClient)
+    void onDisplayedStockReceivedNewQuote(const QString& symbol, const Quote& quote);
 
   private slots:
     void onThreadStarted();

@@ -5,6 +5,8 @@
 #include <QJsonObject>
 #include <QMetaType>
 #include <QUrlQuery>
+#include <iostream>
+#include <QDebug>
 
 #include "CONSTANTS.h"
 
@@ -160,6 +162,8 @@ class Bar
     {
         m_close = c;
     }
+
+    friend QDebug operator<<(QDebug debug, const Bar& bar);
 
   private:
     // Members ordered by size (largest to smallest) to minimize padding

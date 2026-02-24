@@ -277,6 +277,19 @@
                 "reveal": "always",
                 "focus": true,
                 "panel": "shared"
+            }
+        },
+        {
+            "label": "build-then-run",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/Src/L2Trader",
+            "args": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
             },
             "dependsOn": [
                 "build"
@@ -301,7 +314,7 @@
         {
             "label": "analyze-ubsan-report",
             "type": "shell",
-            "command": "${workspaceFolder}/.sanitizers/analyze-ubsan.sh",
+            "command": "${workspaceFolder}/.sanitizers/ubsan/analyze-ubsan.sh",
             "presentation": {
                 "echo": true,
                 "reveal": "always",
@@ -341,133 +354,30 @@
             ]
         },
         {
-            "label": "run-barcache-test",
+            "label": "analyze-asan-report",
             "type": "shell",
-            "command": "${workspaceFolder}/build/All/Tests/test_barcache",
-            "args": [
-                "--cache-root-dir=/tmp/l2trader_test_cache",
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
+            "command": "${workspaceFolder}/.sanitizers/asan/analyze-asan.sh",
             "presentation": {
                 "echo": true,
                 "reveal": "always",
                 "focus": true,
-                "panel": "shared"
+                "panel": "shared",
+                "showReuseMessage": false
             },
-            "dependsOn": [
-                "build-all"
-            ]
+            "problemMatcher": []
         },
         {
-            "label": "run-barcache-test-ubsan",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/UBSan/Tests/test_barcache",
-            "args": [
-                "--cache-root-dir=/tmp/l2trader_test_cache",
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
+            "label": "run-asan-with-analysis",
+            "dependsOrder": "sequence",
             "dependsOn": [
-                "build-ubsan"
-            ]
-        },
-        {
-            "label": "run-barcache-test-asan",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/ASan/Tests/test_barcache",
-            "args": [
-                "--cache-root-dir=/tmp/l2trader_test_cache",
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
+                "run-asan",
+                "analyze-asan-report"
             ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
+            "group": {
+                "kind": "test",
+                "isDefault": false
             },
-            "dependsOn": [
-                "build-asan"
-            ]
-        },
-        {
-            "label": "run-fmpclient-test",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/Tests/test_fmpclient",
-            "args": [
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "dependsOn": [
-                "build-all"
-            ]
-        },
-        {
-            "label": "run-tsclient-test",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/Tests/test_tradestationclient",
-            "args": [
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "dependsOn": [
-                "build-all"
-            ]
-        },
-        {
-            "label": "run-tsclient-test-ubsan",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/UBSan/Tests/test_tradestationclient",
-            "args": [
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "dependsOn": [
-                "build-ubsan"
-            ]
-        },
-        {
-            "label": "run-tsclient-test-asan",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/ASan/Tests/test_tradestationclient",
-            "args": [
-                "--stock-csv=${workspaceFolder}/Example_Config/nasdaq_screener.csv"
-            ],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "dependsOn": [
-                "build-asan"
-            ]
+            "problemMatcher": []
         },
         {
             "label": "run-valgrind",
@@ -478,8 +388,8 @@
                 "--show-leak-kinds=all",
                 "--track-origins=yes",
                 "--verbose",
-                "--log-file=${workspaceFolder}/.valgrind/valgrind-report.txt",
-                "--suppressions=${workspaceFolder}/.valgrind/valgrind-qt.supp",
+                "--log-file=${workspaceFolder}/.sanitizers/valgrind/valgrind-report.txt",
+                "--suppressions=${workspaceFolder}/.sanitizers/valgrind/valgrind-qt.supp",
                 "${workspaceFolder}/build/GUI/Src/L2Trader"
             ],
             "group": "test",
@@ -497,9 +407,9 @@
         {
             "label": "analyze-valgrind-report",
             "type": "shell",
-            "command": "${workspaceFolder}/.valgrind/analyze-leaks.sh",
+            "command": "${workspaceFolder}/.sanitizers/valgrind/analyze-leaks.sh",
             "args": [
-                "${workspaceFolder}/.valgrind/valgrind-report.txt"
+                "${workspaceFolder}/.sanitizers/valgrind/valgrind-report.txt"
             ],
             "presentation": {
                 "echo": true,
@@ -530,7 +440,7 @@
             "args": [
                 "--leak-check=yes",
                 "--show-reachable=no",
-                "--suppressions=${workspaceFolder}/.valgrind/valgrind-qt.supp",
+                "--suppressions=${workspaceFolder}/.sanitizers/valgrind/valgrind-qt.supp",
                 "${workspaceFolder}/build/GUI/Src/L2Trader"
             ],
             "group": "test",

@@ -84,6 +84,25 @@ runs:
           done
           echo ""
           echo "To fix, remove trailing whitespace from these files."
+          echo "Run the following commands in your local terminal:"
+          echo ""
+          echo "# Remove trailing whitespace from all source files in Src and Tests directories"
+          echo "find Src Tests -type f \( \\"
+          echo "  -name \"*.cpp\" -o -name \"*.h\" -o -name \"*.hpp\" -o -name \"*.cc\" -o -name \"*.cxx\" -o -name \"*.c\" -o \\"
+          echo "  -name \"*.cmake\" -o -name \"CMakeLists.txt\" -o \\"
+          echo "  -name \"*.yml\" -o -name \"*.yaml\" -o \\"
+          echo "  -name \"*.sh\" -o -name \"*.py\" -o \\"
+          echo "  -name \"*.md\" -o -name \"*.txt\" \\"
+          echo "\) -print0 | xargs -0 sed -i 's/[[:space:]]*$//'"
+          echo ""
+          echo "# Remove trailing whitespace from source files in the root directory"
+          echo "find . -maxdepth 1 -type f \( \\"
+          echo "  -name \"*.cpp\" -o -name \"*.h\" -o -name \"*.hpp\" -o -name \"*.cc\" -o -name \"*.cxx\" -o -name \"*.c\" -o \\"
+          echo "  -name \"*.cmake\" -o -name \"CMakeLists.txt\" -o \\"
+          echo "  -name \"*.yml\" -o -name \"*.yaml\" -o \\"
+          echo "  -name \"*.sh\" -o -name \"*.py\" -o \\"
+          echo "  -name \"*.md\" -o -name \"*.txt\" \\"
+          echo "\) -print0 | xargs -0 sed -i 's/[[:space:]]*$//'"
           exit 1
         fi
 

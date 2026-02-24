@@ -3,6 +3,7 @@
 #include <QBuffer>
 #include <QLoggingCategory>
 #include <QNetworkReply>
+#include <QTimer>
 
 Q_DECLARE_LOGGING_CATEGORY(MockNetworkReplyLog)
 
@@ -47,6 +48,20 @@ class MockNetworkReply : public QNetworkReply
     void injectData(const QByteArray& p_data);
 
     /**
+     * @brief Start automatic heartbeat emission
+     * @param p_intervalMs Interval in milliseconds between heartbeats
+     *
+     * Heartbeats are JSON objects: {"Heartbeat": true, "Timestamp": "..."}
+     * Used for order/position streams that don't get heartbeats from replayed data.
+     */
+    void startHeartbeat(int p_intervalMs);
+
+    /**
+     * @brief Stop automatic heartbeat emission
+     */
+    void stopHeartbeat();
+
+    /**
      * @brief Check if there is data available to read
      */
     [[nodiscard]] qint64 bytesAvailable() const override;
@@ -75,7 +90,11 @@ class MockNetworkReply : public QNetworkReply
      */
     qint64 writeData(const char* p_data, qint64 p_len) override;
 
+  private slots:
+    void sendHeartbeat();
+
   private:
     QBuffer m_buffer;
+    QTimer m_heartbeatTimer;
     bool m_aborted = false;
 };
