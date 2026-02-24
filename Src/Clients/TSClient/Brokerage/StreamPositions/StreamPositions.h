@@ -28,7 +28,16 @@ class StreamPositions final : public StreamBrokerage
     }
 
   signals:
+    /**
+     * @brief Signal emitted when a new position is received from the stream
+     * Thread context: Emitted from TSClient worker thread
+     */
     void newPositionReceived(Position position);
+    
+    /**
+     * @brief Signal emitted when a position is deleted/closed
+     * Thread context: Emitted from TSClient worker thread
+     */
     void positionDeleted(QString positionID);
 
   private:

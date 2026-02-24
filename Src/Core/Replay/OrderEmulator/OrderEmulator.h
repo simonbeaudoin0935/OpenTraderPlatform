@@ -179,12 +179,14 @@ class OrderEmulator : public QObject
   signals:
     /**
      * @brief Emitted when an order status changes
+     * Thread context: Emitted from TSClient worker thread
      * @param p_jsonData JSON-formatted order data (for stream injection)
      */
     void orderStatusUpdate(const QByteArray& p_jsonData);
 
     /**
      * @brief Emitted when a position is created or updated
+     * Thread context: Emitted from TSClient worker thread
      * @param p_jsonData JSON-formatted position data (for stream injection)
      */
     void positionUpdate(const QByteArray& p_jsonData);

@@ -29,6 +29,10 @@ class StreamOrders final : public StreamBrokerage
     }
 
   signals:
+    /**
+     * @brief Signal emitted when a new order is received from the stream
+     * Thread context: Emitted from TSClient worker thread
+     */
     void newOrderReceived(Order order);
 
   private:

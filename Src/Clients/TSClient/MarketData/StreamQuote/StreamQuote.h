@@ -29,6 +29,10 @@ class StreamQuote final : public StreamMarketData
     }
 
   signals:
+    /**
+     * @brief Signal emitted when a new quote is received from the stream
+     * Thread context: Emitted from TSClient worker thread
+     */
     void newQuoteReceived(Quote quote);
 
   private:

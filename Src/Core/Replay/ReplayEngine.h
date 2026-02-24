@@ -145,43 +145,51 @@ class ReplayEngine : public QObject
   signals:
     /**
      * @brief Emitted when replay starts successfully
+     * Thread context: Emitted from MainAlgo worker thread
      */
     void replayStarted();
 
     /**
      * @brief Emitted when replay stops (user stop or end of data)
+     * Thread context: Emitted from MainAlgo worker thread
      */
     void replayStopped();
 
     /**
      * @brief Emitted when replay pauses
+     * Thread context: Emitted from MainAlgo worker thread
      */
     void replayPaused();
 
     /**
      * @brief Emitted when replay resumes
+     * Thread context: Emitted from MainAlgo worker thread
      */
     void replayResumed();
 
     /**
      * @brief Emitted when replay time advances
+     * Thread context: Emitted from MainAlgo worker thread
      * @param p_currentTime New current replay time (discrete jumps)
      */
     void replayTimeUpdated(QDateTime p_currentTime);
 
     /**
      * @brief Emitted when replay reaches end of available data (both streams)
+     * Thread context: Emitted from MainAlgo worker thread
      */
     void replayEndReached();
 
     /**
      * @brief Emitted when replay data loading fails
+     * Thread context: Emitted from MainAlgo worker thread
      * @param p_errorMessage Human-readable error message
      */
     void replayDataLoadFailed(const QString& p_errorMessage);
 
     /**
      * @brief Inject bar data into TSClient (cross-thread via QueuedConnection)
+     * Thread context: Emitted from MainAlgo worker thread, received on TSClient thread
      * @param p_symbol Stock ticker symbol
      * @param p_data Shared pointer to JSON data (avoids deep copy across threads)
      */
@@ -189,6 +197,7 @@ class ReplayEngine : public QObject
 
     /**
      * @brief Inject market depth data into TSClient (cross-thread via QueuedConnection)
+     * Thread context: Emitted from MainAlgo worker thread, received on TSClient thread
      * @param p_symbol Stock ticker symbol
      * @param p_data Shared pointer to JSON data (avoids deep copy across threads)
      */
@@ -196,6 +205,7 @@ class ReplayEngine : public QObject
 
     /**
      * @brief Inject quote data into TSClient (cross-thread via QueuedConnection)
+     * Thread context: Emitted from MainAlgo worker thread, received on TSClient thread
      * @param p_symbol Stock ticker symbol
      * @param p_data Shared pointer to JSON data (avoids deep copy across threads)
      */
