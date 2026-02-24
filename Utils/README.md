@@ -89,3 +89,42 @@ Both database types use the same schema:
 
 - `sqlite3` command-line tool
 - Bash shell
+
+## migrate_db_add_objecttype.sh
+
+Migrates existing bars and market depth quote databases recorded before the
+`objectType` column was introduced. Each row is classified as the primary data
+type (`Bar` / `MarketDepthQuote`), `Heartbeat`, or `Error` by inspecting the
+stored JSON. The script is **idempotent** — running it on an already-migrated
+database is a no-op.
+
+### Usage
+
+```bash
+# Migrate a single file
+./migrate_db_add_objecttype.sh 2025-11-17.db
+
+# Migrate all databases in a directory
+./migrate_db_add_objecttype.sh ~/.cache/L2Trader/RecordedLiveData/Bars/
+./migrate_db_add_objecttype.sh ~/.cache/L2Trader/RecordedLiveData/MarketDepthQuotes/
+```
+
+### Example Output
+
+```
+=== Migrating: 2025-11-17.db ===
+  Table:       bars
+  Total rows:  8730
+  Adding objectType column...
+  Classifying rows...
+  Classification results:
+    Bar                  8612 rows
+    Heartbeat              116 rows
+    Error                    2 rows
+  Migration complete.
+```
+
+### Requirements
+
+- `sqlite3` command-line tool (SQLite 3.38+ for `json_valid` / `json_extract`)
+- Bash shell

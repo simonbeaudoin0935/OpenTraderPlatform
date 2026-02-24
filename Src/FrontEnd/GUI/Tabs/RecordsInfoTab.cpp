@@ -21,12 +21,14 @@ RecordsInfoTab::RecordsInfoTab(QWidget* p_parent)
     , m_symbolLabel(nullptr)
     , m_barsGroupBox(nullptr)
     , m_barsCountLabel(nullptr)
+    , m_barsBreakdownLabel(nullptr)
     , m_barsFirstTimeLabel(nullptr)
     , m_barsLastTimeLabel(nullptr)
     , m_barsDurationLabel(nullptr)
     , m_depthGroupBox(nullptr)
     , m_depthStatusLabel(nullptr)
     , m_depthCountLabel(nullptr)
+    , m_depthBreakdownLabel(nullptr)
     , m_depthFirstTimeLabel(nullptr)
     , m_depthLastTimeLabel(nullptr)
     , m_depthDurationLabel(nullptr)
@@ -122,11 +124,13 @@ void RecordsInfoTab::setupUI()
     QVBoxLayout* barsLayout = new QVBoxLayout(m_barsGroupBox);
 
     m_barsCountLabel = new QLabel("Count: --");
+    m_barsBreakdownLabel = new QLabel("Breakdown: --");
     m_barsFirstTimeLabel = new QLabel("First: --");
     m_barsLastTimeLabel = new QLabel("Last: --");
     m_barsDurationLabel = new QLabel("Duration: --");
 
     barsLayout->addWidget(m_barsCountLabel);
+    barsLayout->addWidget(m_barsBreakdownLabel);
     barsLayout->addWidget(m_barsFirstTimeLabel);
     barsLayout->addWidget(m_barsLastTimeLabel);
     barsLayout->addWidget(m_barsDurationLabel);
@@ -139,12 +143,14 @@ void RecordsInfoTab::setupUI()
 
     m_depthStatusLabel = new QLabel("Status: --");
     m_depthCountLabel = new QLabel("Count: --");
+    m_depthBreakdownLabel = new QLabel("Breakdown: --");
     m_depthFirstTimeLabel = new QLabel("First: --");
     m_depthLastTimeLabel = new QLabel("Last: --");
     m_depthDurationLabel = new QLabel("Duration: --");
 
     depthLayout->addWidget(m_depthStatusLabel);
     depthLayout->addWidget(m_depthCountLabel);
+    depthLayout->addWidget(m_depthBreakdownLabel);
     depthLayout->addWidget(m_depthFirstTimeLabel);
     depthLayout->addWidget(m_depthLastTimeLabel);
     depthLayout->addWidget(m_depthDurationLabel);
@@ -481,6 +487,14 @@ void RecordsInfoTab::updateDetailsDisplay(const StockMetrics& p_metrics)
 
     // Update bars data
     m_barsCountLabel->setText(QString("Count: %1 bars").arg(p_metrics.barCount));
+
+    // Show breakdown by type
+    QString barsBreakdown = QString("%1 Bar, %2 Heartbeat, %3 Error")
+                                .arg(p_metrics.barDataCount)
+                                .arg(p_metrics.barHeartbeatCount)
+                                .arg(p_metrics.barErrorCount);
+    m_barsBreakdownLabel->setText(QString("Breakdown: %1").arg(barsBreakdown));
+
     m_barsFirstTimeLabel->setText(QString("First: %1").arg(formatTimestamp(p_metrics.firstTimestampMs)));
     m_barsLastTimeLabel->setText(QString("Last: %1").arg(formatTimestamp(p_metrics.lastTimestampMs)));
 
@@ -493,6 +507,14 @@ void RecordsInfoTab::updateDetailsDisplay(const StockMetrics& p_metrics)
         m_depthStatusLabel->setText("Status: Available");
         m_depthStatusLabel->setStyleSheet("QLabel { color: #4CAF50; font-weight: bold; }");
         m_depthCountLabel->setText(QString("Count: %1 quotes").arg(p_metrics.depthCount));
+
+        // Show breakdown by type
+        QString depthBreakdown = QString("%1 MarketDepthQuote, %2 Heartbeat, %3 Error")
+                                     .arg(p_metrics.depthDataCount)
+                                     .arg(p_metrics.depthHeartbeatCount)
+                                     .arg(p_metrics.depthErrorCount);
+        m_depthBreakdownLabel->setText(QString("Breakdown: %1").arg(depthBreakdown));
+
         m_depthFirstTimeLabel->setText(QString("First: %1").arg(formatTimestamp(p_metrics.depthFirstTimestampMs)));
         m_depthLastTimeLabel->setText(QString("Last: %1").arg(formatTimestamp(p_metrics.depthLastTimestampMs)));
 
@@ -500,6 +522,7 @@ void RecordsInfoTab::updateDetailsDisplay(const StockMetrics& p_metrics)
         m_depthDurationLabel->setText(QString("Duration: %1").arg(formatDuration(depthDuration)));
 
         m_depthCountLabel->setVisible(true);
+        m_depthBreakdownLabel->setVisible(true);
         m_depthFirstTimeLabel->setVisible(true);
         m_depthLastTimeLabel->setVisible(true);
         m_depthDurationLabel->setVisible(true);
@@ -509,6 +532,7 @@ void RecordsInfoTab::updateDetailsDisplay(const StockMetrics& p_metrics)
         m_depthStatusLabel->setText("Status: Not Available");
         m_depthStatusLabel->setStyleSheet("QLabel { color: #FF4444; font-weight: bold; }");
         m_depthCountLabel->setVisible(false);
+        m_depthBreakdownLabel->setVisible(false);
         m_depthFirstTimeLabel->setVisible(false);
         m_depthLastTimeLabel->setVisible(false);
         m_depthDurationLabel->setVisible(false);
@@ -562,16 +586,19 @@ void RecordsInfoTab::clearDetailsDisplay()
 {
     m_symbolLabel->setText("No stock selected");
     m_barsCountLabel->setText("Count: --");
+    m_barsBreakdownLabel->setText("Breakdown: --");
     m_barsFirstTimeLabel->setText("First: --");
     m_barsLastTimeLabel->setText("Last: --");
     m_barsDurationLabel->setText("Duration: --");
     m_depthStatusLabel->setText("Status: --");
     m_depthStatusLabel->setStyleSheet("");
     m_depthCountLabel->setText("Count: --");
+    m_depthBreakdownLabel->setText("Breakdown: --");
     m_depthFirstTimeLabel->setText("First: --");
     m_depthLastTimeLabel->setText("Last: --");
     m_depthDurationLabel->setText("Duration: --");
     m_depthCountLabel->setVisible(true);
+    m_depthBreakdownLabel->setVisible(true);
     m_depthFirstTimeLabel->setVisible(true);
     m_depthLastTimeLabel->setVisible(true);
     m_depthDurationLabel->setVisible(true);
@@ -799,6 +826,38 @@ RecordsInfoTab::StockMetrics RecordsInfoTab::queryStockMetrics(const QString& p_
                 metrics.lastTimestampMs = query.value(2).toLongLong();
             }
             query.finish();
+
+            // Get breakdown by objectType for bars
+            if (metrics.barCount > 0)
+            {
+                QSqlQuery typeQuery(barsDb);
+                typeQuery.prepare("SELECT objectType, COUNT(*) FROM bars WHERE stockTicker = ? GROUP BY objectType");
+                typeQuery.addBindValue(p_symbol);
+
+                if (typeQuery.exec())
+                {
+                    while (typeQuery.next())
+                    {
+                        QString objectType = typeQuery.value(0).toString();
+                        qint64 typeCount = typeQuery.value(1).toLongLong();
+
+                        if (objectType == "Bar")
+                        {
+                            metrics.barDataCount = typeCount;
+                        }
+                        else if (objectType == "Heartbeat")
+                        {
+                            metrics.barHeartbeatCount = typeCount;
+                        }
+                        else if (objectType == "Error")
+                        {
+                            metrics.barErrorCount = typeCount;
+                        }
+                    }
+                }
+                typeQuery.finish();
+            }
+
             barsDb.close();
         }
         else
@@ -836,6 +895,39 @@ RecordsInfoTab::StockMetrics RecordsInfoTab::queryStockMetrics(const QString& p_
                     }
                 }
                 query.finish();
+
+                // Get breakdown by objectType for market depth
+                if (metrics.hasMarketDepth)
+                {
+                    QSqlQuery typeQuery(depthDb);
+                    typeQuery.prepare(
+                        "SELECT objectType, COUNT(*) FROM market_depth_quotes WHERE stockTicker = ? GROUP BY objectType");
+                    typeQuery.addBindValue(p_symbol);
+
+                    if (typeQuery.exec())
+                    {
+                        while (typeQuery.next())
+                        {
+                            QString objectType = typeQuery.value(0).toString();
+                            qint64 typeCount = typeQuery.value(1).toLongLong();
+
+                            if (objectType == "MarketDepthQuote")
+                            {
+                                metrics.depthDataCount = typeCount;
+                            }
+                            else if (objectType == "Heartbeat")
+                            {
+                                metrics.depthHeartbeatCount = typeCount;
+                            }
+                            else if (objectType == "Error")
+                            {
+                                metrics.depthErrorCount = typeCount;
+                            }
+                        }
+                    }
+                    typeQuery.finish();
+                }
+
                 depthDb.close();
             }
         } // depthDb goes out of scope here

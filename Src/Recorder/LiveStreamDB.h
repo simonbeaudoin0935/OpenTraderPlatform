@@ -78,10 +78,11 @@ class LiveStreamDB : public QObject
     void openNextStream();
 
   private:
-    bool storeData(const QString& stock, qint64 epochMs, const QByteArray& rawData);
+    bool storeData(const QString& stock, qint64 epochMs, const QString& objectType, const QByteArray& rawData);
     bool storeQuoteData(const QString& stock, qint64 epochMs, const QString& objectType, const QByteArray& rawData);
     void handleStreamError(const QString& symbol, Stream::StreamError reason, const QString& message);
     void processQuoteRawData(const QByteArray& rawData);
+    void processStockStreamRawData(const QString& symbol, const QByteArray& rawData);
 
     StreamType streamType;
     QStringList stockTickers;
@@ -95,6 +96,8 @@ class LiveStreamDB : public QObject
 
     // Buffer for accumulating partial JSON from quote stream
     QByteArray m_quoteAccumulatorBuffer;
+    // Buffers for accumulating partial JSON from per-symbol bar/depth streams
+    QMap<QString, QByteArray> m_stockAccumulatorBuffers;
 
     QMap<QString, QMap<Stream::StreamError, int>> m_streamErrorCounters;
     QSet<QString> unrecoveredTimeouts;

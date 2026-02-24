@@ -47,15 +47,23 @@ class RecordsInfoTab : public QWidget
         qint64 barCount = 0;
         qint64 firstTimestampMs = 0;
         qint64 lastTimestampMs = 0;
+        // Breakdown by object type for bars
+        qint64 barDataCount = 0;
+        qint64 barHeartbeatCount = 0;
+        qint64 barErrorCount = 0;
         bool hasMarketDepth = false;
         qint64 depthCount = 0;
         qint64 depthFirstTimestampMs = 0;
         qint64 depthLastTimestampMs = 0;
+        // Breakdown by object type for market depth
+        qint64 depthDataCount = 0;
+        qint64 depthHeartbeatCount = 0;
+        qint64 depthErrorCount = 0;
         bool hasQuotes = false;
         qint64 quoteCount = 0;
         qint64 quoteFirstTimestampMs = 0;
         qint64 quoteLastTimestampMs = 0;
-        // Breakdown by object type
+        // Breakdown by object type for quotes
         qint64 quoteStreamCount = 0;
         qint64 heartbeatCount = 0;
         qint64 errorCount = 0;
@@ -110,12 +118,14 @@ class RecordsInfoTab : public QWidget
     QLabel* m_symbolLabel;
     QGroupBox* m_barsGroupBox;
     QLabel* m_barsCountLabel;
+    QLabel* m_barsBreakdownLabel;
     QLabel* m_barsFirstTimeLabel;
     QLabel* m_barsLastTimeLabel;
     QLabel* m_barsDurationLabel;
     QGroupBox* m_depthGroupBox;
     QLabel* m_depthStatusLabel;
     QLabel* m_depthCountLabel;
+    QLabel* m_depthBreakdownLabel;
     QLabel* m_depthFirstTimeLabel;
     QLabel* m_depthLastTimeLabel;
     QLabel* m_depthDurationLabel;

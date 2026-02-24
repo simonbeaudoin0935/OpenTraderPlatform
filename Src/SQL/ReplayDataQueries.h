@@ -22,7 +22,7 @@ namespace ReplayDataQueries
      *
      * Parameters: 1) start ID, 2) limit count
      */
-    const QString SELECT_BARS_CHUNK = "SELECT id, stockTicker, epochMs, jsonRawData FROM bars "
+    const QString SELECT_BARS_CHUNK = "SELECT id, stockTicker, epochMs, objectType, jsonRawData FROM bars "
                                       "WHERE id >= ? "
                                       "ORDER BY id ASC "
                                       "LIMIT ?";
@@ -32,10 +32,11 @@ namespace ReplayDataQueries
      *
      * Parameters: 1) start ID, 2) limit count
      */
-    const QString SELECT_MARKET_DEPTH_CHUNK = "SELECT id, stockTicker, epochMs, jsonRawData FROM market_depth_quotes "
-                                              "WHERE id >= ? "
-                                              "ORDER BY id ASC "
-                                              "LIMIT ?";
+    const QString SELECT_MARKET_DEPTH_CHUNK =
+        "SELECT id, stockTicker, epochMs, objectType, jsonRawData FROM market_depth_quotes "
+        "WHERE id >= ? "
+        "ORDER BY id ASC "
+        "LIMIT ?";
 
     /**
      * @brief Select bar records from a specific timestamp forward
@@ -44,7 +45,7 @@ namespace ReplayDataQueries
      *
      * Parameters: 1) start epochMs, 2) limit count
      */
-    const QString SELECT_BARS_FROM_TIME = "SELECT id, stockTicker, epochMs, jsonRawData FROM bars "
+    const QString SELECT_BARS_FROM_TIME = "SELECT id, stockTicker, epochMs, objectType, jsonRawData FROM bars "
                                           "WHERE epochMs >= ? "
                                           "ORDER BY id ASC "
                                           "LIMIT ?";
@@ -55,7 +56,7 @@ namespace ReplayDataQueries
      * Parameters: 1) start epochMs, 2) limit count
      */
     const QString SELECT_MARKET_DEPTH_FROM_TIME =
-        "SELECT id, stockTicker, epochMs, jsonRawData FROM market_depth_quotes "
+        "SELECT id, stockTicker, epochMs, objectType, jsonRawData FROM market_depth_quotes "
         "WHERE epochMs >= ? "
         "ORDER BY id ASC "
         "LIMIT ?";
