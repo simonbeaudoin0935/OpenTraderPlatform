@@ -20,6 +20,13 @@ class FrontEnd : public QObject
     virtual ~FrontEnd() = default;
 
   signals:
+    /**
+     * @brief Frontend signals (forwarded from backend components to GUI/TUI)
+     * Thread context: Emitted from Main/GUI thread
+     * 
+     * Data flow: Backend threads (TSClient, MainAlgo) → MainApp (queued) → FrontEnd → GUI widgets
+     * Note: All GUI updates must occur on the main thread per Qt requirements
+     */
     void tradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, QString message);
     void tradeStationAccountsReceived(QVector<Account> results);
 

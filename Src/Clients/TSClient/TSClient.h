@@ -422,7 +422,10 @@ class TSClient final : public QObject
     void processMarketDepthQueue();
 
   signals:
-    // Emited at basically every new message
+    /**
+     * @brief Signal emitted whenever network data is received
+     * Thread context: Emitted from TSClient worker thread
+     */
     void totalDataReceivedBytesIncreased(qsizetype dataSize);
 
     /**

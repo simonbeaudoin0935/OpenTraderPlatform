@@ -142,7 +142,19 @@ class MainAlgo final : public QObject
     [[nodiscard]] ReplayEngine* getReplayEngine() const;
 
   signals:
+    /**
+     * @brief Signal emitted when the displayed stock receives a new bar
+     * Thread context: Emitted from MainAlgo worker thread
+     */
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
+    
+    /**
+     * @brief Signal emitted when the displayed stock receives a new market depth quote
+     * Thread context: Emitted from MainAlgo worker thread
+     * 
+     * @param bidDWP Bid depth-weighted price
+     * @param askDWP Ask depth-weighted price
+     */
     void displayedStockReceivedNewMarketDepthQuote(QString symbol,
                                                    MarketDepthQuote quote,
                                                    double bidAskImbalance,
@@ -150,13 +162,40 @@ class MainAlgo final : public QObject
                                                    double askDWP);
     void displayedStockReceivedNewQuote(QString symbol, Quote quote);
 
+    /**
+     * @brief Signal emitted when a new position is received
+     * Thread context: Emitted from MainAlgo worker thread
+     */
     void receivedNewPosition(QString account, Position position);
+    
+    /**
+     * @brief Signal emitted when a position is deleted
+     * Thread context: Emitted from MainAlgo worker thread
+     */
     void positionDeleted(QString account, QString positionID);
+    
+    /**
+     * @brief Signal emitted when a new order is received
+     * Thread context: Emitted from MainAlgo worker thread
+     */
     void receivedNewOrder(QString account, Order order);
+    
+    /**
+     * @brief Signal emitted when TradeStation accounts are received
+     * Thread context: Emitted from MainAlgo worker thread
+     */
     void tradeStationAccountsReceived(QVector<Account> accounts);
+    
+    /**
+     * @brief Signal emitted when account balance is updated
+     * Thread context: Emitted from MainAlgo worker thread
+     */
     void balanceUpdated(Balance balance);
 
-    // Replay signals (forwarded from ReplayEngine)
+    /**
+     * @brief Replay control signals (forwarded from ReplayEngine)
+     * Thread context: Emitted from MainAlgo worker thread
+     */
     void replayStarted();
     void replayStopped();
     void replayPaused();

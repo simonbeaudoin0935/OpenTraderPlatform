@@ -47,6 +47,16 @@ class MarketDepthQuoteReceiver : public StreamReceiver
     }
 
   signals:
+    /**
+     * @brief Signal emitted when a new market depth quote is received and processed
+     * 
+     * Thread context: Emitted from MainAlgo worker thread
+     * Data flow: StreamMarketDepthQuote (TSClient thread) → MarketDepthQuoteReceiver slot (MainAlgo thread, queued)
+     *            → calculates metrics → emits this signal
+     * 
+     * @param bidDWP Bid depth-weighted price
+     * @param askDWP Ask depth-weighted price
+     */
     void receivedNewMarketDepthQuote(QString symbol,
                                      MarketDepthQuote marketDepthQuote,
                                      double bidAskImbalance,

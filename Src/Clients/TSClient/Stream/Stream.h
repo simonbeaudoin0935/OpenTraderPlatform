@@ -101,12 +101,23 @@ class Stream : public QObject
     }
 
   signals:
+    /**
+     * @brief Signal emitted when new data is received from the network
+     * Thread context: Emitted from TSClient worker thread
+     */
     void newAmountOfDataReceived(size_t bytes);
+    
+    /**
+     * @brief Signal emitted when raw data is received (before JSON parsing)
+     * Thread context: Emitted from TSClient worker thread
+     */
     void receivedNewRawData(const QByteArray& rawData);
 
     /**
      * @brief Emitted when the server sends an EndSnapshot status (Brokerage streams only).
      * Indicates the initial data snapshot is complete and subsequent messages are live updates.
+     * 
+     * Thread context: Emitted from TSClient worker thread
      */
     void endSnapshotReceived();
 
@@ -115,9 +126,8 @@ class Stream : public QObject
      *
      * - StreamError::Closed: Intentional close via TSClient::closeStream() — no action needed.
      * - Any other value: The stream ended due to an error — consumer should reconnect.
-     *
-     * @param reason The reason the stream closed.
-     * @param description Human-readable description of the closure reason.
+     * 
+     * Thread context: Emitted from TSClient worker thread
      */
     void streamClosed(Stream::StreamError reason, QString description);
 

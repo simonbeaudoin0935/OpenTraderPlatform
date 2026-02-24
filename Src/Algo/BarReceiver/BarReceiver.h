@@ -25,6 +25,13 @@ class BarReceiver : public StreamReceiver
     }
 
   signals:
+    /**
+     * @brief Signal emitted when a new bar is received from the stream
+     * 
+     * Thread context:
+     * - Emitted from: MainAlgo worker thread
+     * - Data flow: StreamBars (TSClient thread) → BarReceiver slot (MainAlgo thread, queued) → this signal
+     */
     void receivedNewBar(QString symbol, Bar newBar);
 
   private slots:

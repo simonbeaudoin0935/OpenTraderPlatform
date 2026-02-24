@@ -109,6 +109,30 @@ Use ASSUME macros from `Src/Misc/Assume.h` for both pre-conditions and post-cond
 - Qt::UniqueConnection: Always use for signal/slot connections
 - Q_CHECK_PTR(): Always validate dynamically allocated objects
 
+### Signal Documentation (REQUIRED)
+When creating new signals in Qt classes, **always** add thread context documentation:
+```cpp
+signals:
+    /**
+     * @brief Brief description of what the signal represents
+     * Thread context: Emitted from [ThreadName] thread
+     * @param paramName Parameter description (if applicable)
+     */
+    void mySignal(Type param);
+```
+
+Thread context patterns:
+- **TSClient thread**: For signals from TSClient, Stream*, StreamBars, StreamOrders, StreamPositions, StreamMarketDepthQuote, StreamQuote
+- **MainAlgo thread**: For signals from MainAlgo, receivers (BarReceiver, PositionsReceiver, OrdersReceiver, MarketDepthQuoteReceiver), ReplayEngine, OrderEmulator
+- **Main/GUI thread**: For signals from FrontEnd and GUI components
+
+For cross-thread signals, specify both source and destination:
+```cpp
+/**
+ * Thread context: Emitted from MainAlgo worker thread, received on TSClient thread
+ */
+```
+
 ### Centralization Rules
 - **Constants**: ALL in `Src/Misc/CONSTANTS.h` with appropriate namespaces
 - **SQL Queries**: ALL in `Src/SQL/<ClassName>Queries.h` headers

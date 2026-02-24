@@ -38,6 +38,10 @@ class StreamMarketDepthQuote final : public StreamMarketData
     static bool canOpenStream();
 
   signals:
+    /**
+     * @brief Signal emitted when a new market depth quote is received from the stream
+     * Thread context: Emitted from TSClient worker thread
+     */
     void newMarketDepthQuoteReceived(MarketDepthQuote quote);
 
   private:
