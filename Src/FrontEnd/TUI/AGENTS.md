@@ -33,12 +33,12 @@ public:
     void onPositionDeleted(const QString& accountId, const QString& positionId) override;
     void onTSClientDataUsageUpdate(qsizetype bytes) override;
     void onMemoryUsageUpdate(qsizetype bytes) override;
-    void onStreamCountUpdate(int count) override;
 
     // Not implemented (minimal TUI)
     void onTradeStationAccountsReceived(const QVector<Account>&) override {}
     void onCurrentHighlightedStockBarReceived(const QString&, const Bar&) override {}
-    void onCurrentHighlightedReceivedNewMarketDepthQuote(...) override {}
+    void onCurrentHighlightedReceivedNewLevel2(...) override {}
+    void onCurrentHighlightedReceivedNewTrade(...) override {}
     void onBalanceUpdated(const Balance&) override {}
 
 private:

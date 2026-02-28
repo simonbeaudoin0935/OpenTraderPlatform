@@ -4,17 +4,17 @@ This file provides AI agents with key information about the L2Trader project str
 
 ## Project Overview
 
-**L2Trader** is a real-time algorithmic trading application built with Qt6 that monitors stock market data, executes trading strategies, and provides comprehensive market analysis tools. It connects to TradeStation APIs for live market data, Level 2 market depth visualization, and position tracking.
+**L2Trader** is a real-time algorithmic trading application built with Qt6 that monitors stock market data, executes trading strategies, and provides comprehensive market analysis tools. It connects to **Databento** for market data (Level 2, trades, historical bars) and **TradeStation** for brokerage (orders, positions, accounts).
 
 **Architecture Pattern**: Model-View-Controller (MVC)
-- **Model**: Data structures (Bar, Position, Order, MarketDepthQuote)
+- **Model**: Data structures (Bar, Level2, Trade, Position, Order) in `Src/Core/Models/`
 - **View**: FrontEnd (GUIFrontend/TUIFrontend)
 - **Controller**: MainAlgo (trading algorithm coordination)
 
 ## Quick Facts
 
 - **Languages**: C++23, QML (minimal), CMake, Shell scripts
-- **Framework**: Qt6 (Core, Network, SQL, Widgets) + QCustomPlot (third-party charting library)
+- **Framework**: Qt6 (Core, Network, SQL, Widgets) + QCustomPlot + databento-cpp (in `Lib/`)
 - **Build System**: CMake 3.16+ with Ninja recommended
 - **Target**: Linux (Ubuntu 24.04), cross-platform (X86_64, ARM64)
 - **Lines of Code**: ~10,000+
@@ -36,7 +36,8 @@ For detailed information about specific subsystems, navigate to:
 - **Src/Core/Replay/OrderEmulator/AGENTS.md** - Order/position emulation for replay mode
 
 **API Communication**:
-- **Src/Clients/TSClient/AGENTS.md** - TradeStation API client, OAuth flow, async requests, streams
+- **Src/Clients/TSClient/AGENTS.md** - TradeStation API client (brokerage only: OAuth, orders, positions)
+- **Src/Clients/DBClient/** - Databento client (market data: Level 2, trades, bars, replay)
 
 **Trading Logic**:
 - **Src/Algo/AGENTS.md** - MainAlgo coordinator, receivers (bars, positions, orders), data processing
@@ -142,7 +143,8 @@ GitHub Actions workflows:
 ## Where to Find Information
 
 ### Need to Understand:
-- **API Communication?** → `Src/Clients/TSClient/AGENTS.md`
+- **Brokerage (Orders/Positions)?** → `Src/Clients/TSClient/AGENTS.md`
+- **Market Data (Databento)?** → `Src/Clients/DBClient/`
 - **Trading Logic?** → `Src/Algo/AGENTS.md`
 - **Caching System?** → `Src/Core/Cache/BarCache/AGENTS.md`
 - **GUI Components?** → `Src/FrontEnd/GUI/AGENTS.md`

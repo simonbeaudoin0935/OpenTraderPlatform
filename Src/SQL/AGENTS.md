@@ -181,76 +181,11 @@ constexpr const char* DELETE_ALL_BARS = R"(
 }  // namespace DatabaseThreadQueries
 ```
 
-### LiveStreamDBQueries.h
+### LiveStreamDBQueries.h — REMOVED
 
-SQL for live stream data persistence (recording raw market data to SQLite):
-
-```cpp
-namespace LiveStreamDBQueries {
-
-// Bars table - one DB per symbol per day
-constexpr const char* CREATE_BARS_TABLE = R"(
-    CREATE TABLE IF NOT EXISTS bars (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        stockTicker TEXT NOT NULL,
-        stockTickerSeq INTEGER NOT NULL,
-        epochMs INTEGER NOT NULL,
-        jsonRawData TEXT NOT NULL
-    )
-)";
-constexpr const char* CREATE_BARS_TICKER_INDEX = R"(
-    CREATE INDEX IF NOT EXISTS idx_bars_ticker_epoch ON bars(stockTicker, epochMs)
-)";
-
-// Depth table - one DB per symbol per day
-constexpr const char* CREATE_DEPTH_TABLE = R"(
-    CREATE TABLE IF NOT EXISTS market_depth_quotes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        stockTicker TEXT NOT NULL,
-        stockTickerSeq INTEGER NOT NULL,
-        epochMs INTEGER NOT NULL,
-        jsonRawData TEXT NOT NULL
-    )
-)";
-constexpr const char* CREATE_DEPTH_TICKER_INDEX = R"(
-    CREATE INDEX IF NOT EXISTS idx_depth_ticker_epoch ON market_depth_quotes(stockTicker, epochMs)
-)";
-
-// Quotes table - one DB for ALL symbols per day (single stream)
-// Differs from bars/depth: no stockTickerSeq; has objectType column
-// stockTicker is empty string for Heartbeat/Error rows
-constexpr const char* CREATE_QUOTES_TABLE = R"(
-    CREATE TABLE IF NOT EXISTS quotes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        stockTicker TEXT NOT NULL,
-        epochMs INTEGER NOT NULL,
-        objectType TEXT NOT NULL,
-        jsonRawData TEXT NOT NULL
-    )
-)";
-constexpr const char* CREATE_QUOTES_TICKER_INDEX = R"(
-    CREATE INDEX IF NOT EXISTS idx_quotes_ticker_epoch ON quotes(stockTicker, epochMs)
-)";
-constexpr const char* CREATE_QUOTES_TYPE_INDEX = R"(
-    CREATE INDEX IF NOT EXISTS idx_quotes_object_type ON quotes(objectType)
-)";
-
-// Insert queries
-constexpr const char* INSERT_BAR = R"(
-    INSERT INTO bars (stockTicker, stockTickerSeq, epochMs, jsonRawData)
-    VALUES (?, ?, ?, ?)
-)";
-constexpr const char* INSERT_DEPTH = R"(
-    INSERT INTO market_depth_quotes (stockTicker, stockTickerSeq, epochMs, jsonRawData)
-    VALUES (?, ?, ?, ?)
-)";
-constexpr const char* INSERT_QUOTE = R"(
-    INSERT INTO quotes (stockTicker, epochMs, objectType, jsonRawData)
-    VALUES (?, ?, ?, ?)
-)";
-
-}  // namespace LiveStreamDBQueries
-```
+This file was deleted in Phase 3 of the Databento migration. The old TradeStation-based
+recording system (LiveStreamDB, Recorder) no longer exists. Legacy replay queries were
+inlined into `ReplayDataLoader.cpp` as `LegacyReplayQueries` namespace.
 
 ### StockPriceChartQueries.h
 

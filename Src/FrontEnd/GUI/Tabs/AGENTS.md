@@ -11,12 +11,11 @@ The Tabs folder contains all tab components that appear in the main QTabWidget o
 **Tab Order** (as displayed in GUI):
 1. **Trade** - Main trading interface (not in this directory, embedded in GUIFrontend)
 2. **Strategies** - Strategy plugin management
-3. **Recorder** - Live market data recording
-4. **Records Info** - Explore recorded market data (NEW)
-5. **Logging** - Live log display and filtering
-6. **Cache** - Bar cache management
-7. **Shortcuts** - Keyboard shortcut configuration
-8. **Config** - Application configuration
+3. **Records Info** - Explore recorded market data
+4. **Logging** - Live log display and filtering
+5. **Cache** - Bar cache management
+6. **Shortcuts** - Keyboard shortcut configuration
+7. **Config** - Application configuration
 
 ## Tab Components
 
@@ -167,71 +166,21 @@ connect(&LogBroadcaster::getInstance(), &LogBroadcaster::logMessage,
 
 ---
 
-### RecorderTab (RecorderTab.h/cpp)
+### RecorderTab — REMOVED
 
-**Purpose**: Market data recording controls (integrated into main application)
-
-**Features**:
-- Start/stop recording within the application
-- CSV file input for symbol list (up to 100 symbols enforced)
-- Select timeframe for recording
-- Records all three stream types: Bars (per symbol), Market Depth (up to 10), Quotes (all symbols)
-- Recording status display
-- Progress indicator
-- Live recording statistics
-
-**100-Symbol Limit**:
-After loading symbols from a CSV file, the count is validated. If more than 100 symbols are found:
-- The list is clipped to the first 100 symbols
-- A `QMessageBox::warning()` dialog is shown listing the excess count
-- Recording proceeds with the clipped 100-symbol list
-
-**Key Methods**:
-```cpp
-// Start market data recording (opens StreamBars, StreamMarketDepthQuote, StreamQuote)
-void startRecording();
-
-// Stop ongoing recording
-void stopRecording();
-
-// Load symbols from CSV file — clips to 100, warns if exceeded
-void loadSymbolsFromCSV(const QString& filePath);
-
-// Update recording statistics
-void updateRecordingStats(int symbolsRecorded, qint64 bytesWritten);
-```
-
-**UI Components**:
-- Symbol list display (QListWidget)
-- Browse button for CSV file selection
-- Timeframe combo box (1min, 5min, 1day, etc.)
-- Start/Stop button
-- Output directory selector
-- Progress bar
-- Statistics labels
-
-**Signal Interface**:
-```cpp
-signals:
-    void recordingStarted(const QStringList& symbols, const QString& timeframe);
-    void recordingStopped();
-
-public slots:
-    void onRecordingStatusChanged(bool isRecording);
-    void onRecordingStatsUpdated(int count, qint64 bytes);
-```
-
-**File Format**:
-CSV files are stored in:
-- `~/.cache/L2Trader/RecordedLiveData/Bars/` (one DB per symbol per day)
-- `~/.cache/L2Trader/RecordedLiveData/MarketDepthQuotes/` (one DB per symbol per day, up to 10)
-- `~/.cache/L2Trader/RecordedLiveData/Quotes/` (one DB for all symbols per day)
+The RecorderTab was removed in Phase 3 of the Databento migration. The concept of "recording"
+market data via TradeStation streams no longer exists. Future Phase 7 will replace this with
+Databento `.dbn` archive downloads managed via the Archive Manager tab.
 
 ---
 
 ### RecordsInfoTab (RecordsInfoTab.h/cpp)
 
-**Purpose**: Explore recorded market data
+**Purpose**: Explore recorded market data (legacy TradeStation recordings)
+
+> **Note**: This tab currently browses legacy SQLite recordings from the old TradeStation-based
+> Recorder. In Phase 7 of the Databento migration, it will be rewritten as an "Archive Manager"
+> for `.dbn` files.
 
 **Features**:
 - Three-column layout for browsing recordings

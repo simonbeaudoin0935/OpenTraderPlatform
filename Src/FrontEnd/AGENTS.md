@@ -27,9 +27,9 @@ public slots:
     virtual void onTSClientDataUsageUpdate(qsizetype bytes) = 0;
     virtual void onTradeStationAccountsReceived(const QVector<Account>& accounts) = 0;
     virtual void onMemoryUsageUpdate(qsizetype bytes) = 0;
-    virtual void onStreamCountUpdate(size_t barsCount, size_t marketDepthCount) = 0;
     virtual void onCurrentHighlightedStockBarReceived(const QString& symbol, const Bar& bar) = 0;
-    virtual void onCurrentHighlightedReceivedNewMarketDepthQuote(...) = 0;
+    virtual void onCurrentHighlightedReceivedNewLevel2(const QString& symbol, const Level2& level2, double dwp, double bidTotalVol, double askTotalVol) = 0;
+    virtual void onCurrentHighlightedReceivedNewTrade(const QString& symbol, const Trade& trade) = 0;
     virtual void onNewPositionReceived(const QString& accountId, const Position& position) = 0;
     virtual void onPositionDeleted(const QString& accountId, const QString& positionId) = 0;
     virtual void onNewOrderReceived(const QString& accountId, const Order& order) = 0;
@@ -139,7 +139,6 @@ sequenceDiagram
     UI Components->>FrontEnd: Symbol entered
     FrontEnd->>MainAlgo: selectedDisplayedStock
     MainAlgo->>MainAlgo: Switch instruments
-    MainAlgo->>TSClient: Start streaming
 
     User->>UI Components: Place order
     UI Components->>FrontEnd: Order details
@@ -190,15 +189,6 @@ void onMemoryUsageUpdate(qsizetype bytes) {
     // Update periodically (500ms interval)
 }
 
-void onStreamCountUpdate(size_t barsCount, size_t marketDepthCount) {
-    // Display active stream counts (separate for bars and Level 2 market depth)
-    // GUI: Status bar displays "Bars: X | Depth: Y"
-    // TUI: Status window displays "Bars: X | Depth: Y"
-    // Helps monitor connection health and TradeStation API limits
-    // Note: Market depth has hard limit of 10 concurrent streams
-}
-```
-
 ### Account Management
 
 ```cpp
@@ -219,9 +209,9 @@ void onCurrentHighlightedStockBarReceived(const QString& symbol, const Bar& bar)
     // TUI: Text-based price display (future)
 }
 
-void onCurrentHighlightedReceivedNewMarketDepthQuote(
+void onCurrentHighlightedReceivedNewLevel2(
     const QString& symbol,
-    const MarketDepthQuote& quote,
+    const Level2& level2,
     double dwp,
     double bidTotalVol,
     double askTotalVol)
@@ -229,6 +219,14 @@ void onCurrentHighlightedReceivedNewMarketDepthQuote(
     // Update market depth display
     // GUI: Table with bid/ask levels
     // TUI: Not implemented (optional)
+}
+
+void onCurrentHighlightedReceivedNewTrade(
+    const QString& symbol,
+    const Trade& trade)
+{
+    // Update time & sales display
+    // TODO Phase 4: Populate T&S panel
 }
 ```
 

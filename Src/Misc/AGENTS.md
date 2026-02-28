@@ -56,10 +56,9 @@ namespace ChartConstants {
 }
 
 namespace BarFlags {
-    constexpr quint8 IS_REAL_TIME = 0x01;
-    constexpr quint8 IS_END_OF_DAY = 0x02;
-    constexpr quint8 IS_PREVIOUS = 0x04;
-    // ... bit flags for Bar status
+    // REMOVED — BarFlags namespace was deleted in Phase 3.
+    // Bar status is now tracked via BarStatus enum in Core/Models/Bar.h
+    // (Uninitialized, Null, Open, Closed)
 }
 
 namespace FileSystemConstants {
@@ -69,21 +68,12 @@ namespace FileSystemConstants {
 }
 
 namespace MarketDepthConstants {
-    constexpr size_t MAX_CONCURRENT_STREAMS = 10;    // TradeStation API hard limit
-    constexpr int QUEUE_PROCESS_DELAY_MS = 1000;     // Delay before opening queued stream (TCP close propagation)
+    // REMOVED — MAX_CONCURRENT_STREAMS and QUEUE_PROCESS_DELAY_MS were deleted
+    // in Phase 3. Databento has no stream concurrency limits.
 }
 
 namespace PollingConstants {
     constexpr int BALANCE_POLLING_INTERVAL_MS = 1000;  // Poll balance every 1 second
-}
-```
-
-**Usage**:
-    constexpr int STREAM_RAMP_UP_DELAY_TIER1_MS = 500;   // First 100 streams
-    constexpr int STREAM_RAMP_UP_DELAY_TIER2_MS = 1000;  // Streams 101-200
-    constexpr int STREAM_RAMP_UP_DELAY_TIER3_MS = 2000;  // Streams 201+
-    constexpr int STREAM_RAMP_UP_TIER1_THRESHOLD = 100;  // Switch to tier 2 after this many
-    constexpr int STREAM_RAMP_UP_TIER2_THRESHOLD = 200;  // Switch to tier 3 after this many
 }
 ```
 
@@ -94,24 +84,13 @@ namespace PollingConstants {
 QTime marketOpen = TradingHours::TRADING_START_TIME;
 QString endpoint = TSClientEndpoints::BASE_URL + TSClientEndpoints::GET_BARS;
 
-// Check stream limits
-if (StreamMarketDepthQuote::getNumberOfMarketDepthStreams() >= MarketDepthConstants::MAX_CONCURRENT_STREAMS) {
-    // Will be queued
-}
+// Check stream limits — NO LONGER APPLICABLE
+// Databento has no concurrent stream limits.
+// Old pattern (removed):
+// if (count >= MarketDepthConstants::MAX_CONCURRENT_STREAMS) { ... }
 
 // Balance polling in MainAlgo
 m_balancePollingTimer->setInterval(PollingConstants::BALANCE_POLLING_INTERVAL_MS);
-
-// In LiveStreamDB - adaptive ramp-up based on stream count
-int delay;
-if (m_currentRampIndex <= RecorderConstants::STREAM_RAMP_UP_TIER1_THRESHOLD) {
-    delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER1_MS;  // Fast: 500ms
-} else if (m_currentRampIndex <= RecorderConstants::STREAM_RAMP_UP_TIER2_THRESHOLD) {
-    delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER2_MS;  // Medium: 1000ms
-} else {
-    delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER3_MS;  // Slow: 2000ms
-}
-m_rampTimer.start(delay);
 ```
 
 ### Assume.h

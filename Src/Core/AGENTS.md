@@ -23,7 +23,7 @@ The Core directory contains the central application components that orchestrate 
 **Key Members**:
 ```cpp
 class MainApp : public QObject {
-    TSClient& m_tradeStationClient;      // Reference to singleton
+    TSClient& m_tradeStationClient;      // Reference to singleton (brokerage only)
     MainAlgo& m_mainAlgo;                // Reference to singleton
     FrontEnd* m_appFrontend;             // GUI or TUI instance
     MemoryMonitor* m_memoryMonitor;      // Resource tracking
@@ -151,39 +151,17 @@ Contains data caching subsystems.
 
 **Components**:
 - ReplayEngine: Controls replay playback, timing, and speed
-- ReplayDataLoader: Loads historical data from SQLite databases
+- ReplayDataLoader: Loads historical data from SQLite databases (legacy format)
+- OrderEmulator: Simulates order fills based on recorded market depth
 - See `Replay/AGENTS.md` for detailed replay architecture and workflow
+
+> **Note**: The replay system will be substantially revamped in Phase 7 of the
+> Databento migration. Databento's `DbnFileStore` provides native `.dbn` replay,
+> making ReplayEngine and ReplayDataLoader obsolete. OrderEmulator will be kept.
 
 **Features**:
 - Load data from CSV or database
 - Control playback speed (1x, 2x, 5x, 10x, etc.)
-- Pause/resume/seek functionality
-- Emit bars as if they were live
-- Timeline scrubbing
-
-**Usage Pattern**:
-```cpp
-ReplayEngine* engine = new ReplayEngine();
-engine->loadDataFromFile("AAPL_2024-01-01.csv");
-engine->setSpeed(2.0);  // 2x speed
-
-connect(engine, &ReplayEngine::barEmitted, this, [](const Bar& bar) {
-    // Process bar as if live
-});
-
-engine->start();   // Begin replay
-engine->pause();   // Pause
-engine->seek(QDateTime(...));  // Jump to timestamp
-engine->stop();    // End replay
-```
-
-**Data Format**:
-CSV with columns: timestamp, open, high, low, close, volume
-
-**State Persistence**:
-- Save replay position
-- Resume from last position
-- Bookmark important moments
 
 ## Architectural Patterns
 

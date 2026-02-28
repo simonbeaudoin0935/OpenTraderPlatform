@@ -1,12 +1,14 @@
-# TSClient - TradeStation API Client - Agent Instructions
+# TSClient - TradeStation Brokerage Client - Agent Instructions
 
-TSClient is the core singleton class for all TradeStation API communication in L2Trader. It handles authentication, REST API requests, and WebSocket streaming connections.
+> **TSClient handles brokerage operations only.** Market data (Level 2, trades, bars) comes from DBClient (Databento). See `Src/Clients/DBClient/`.
+
+TSClient is the singleton class for TradeStation **brokerage** API communication in L2Trader. It handles authentication, account/order REST requests, and order/position WebSocket streams.
 
 ## Overview
 
 **Location**: `Src/Clients/TSClient/`
 **Pattern**: Meyer's Singleton running in dedicated QThread
-**Primary Responsibility**: All communication with TradeStation API (REST + WebSocket)
+**Primary Responsibility**: Authentication, account management, order execution, and order/position streaming
 
 ## Key Characteristics
 
@@ -14,15 +16,15 @@ TSClient is the core singleton class for all TradeStation API communication in L
 - **Asynchronous**: All requests are non-blocking with callback-based responses
 - **OAuth 2.0**: Handles authentication, token storage, and automatic refresh
 - **Rate Limited**: Tracks and respects API rate limits
-- **Stream Management**: Handles multiple concurrent WebSocket streams
+- **Brokerage Only**: No market data — all market data comes from DBClient (Databento)
 
 ## File Structure
 
 ### Core Files
 - **TSClient.h/cpp**: Main singleton class, initialization, threading
-- **TSClientAsyncRequests.cpp**: Async REST API request implementations
+- **TSClientAsyncRequests.cpp**: Brokerage REST requests (accounts, balances, orders)
 - **TSClientRefreshToken.cpp**: OAuth token refresh logic
-- **TSClientStreams.cpp**: WebSocket stream management
+- **TSClientStreams.cpp**: StreamOrders + StreamPositions management
 
 ### Subdirectories
 
@@ -32,12 +34,6 @@ TSClient is the core singleton class for all TradeStation API communication in L
 - Automatic token refresh (20-minute expiry, refresh 5 seconds early)
 - GUI and TUI authentication flows
 - See `Doc/AUTHENTICATION.md` for detailed flow diagrams
-
-**MarketData/** - Market data API endpoints
-- Bar data (historical and intraday)
-- Quote snapshots
-- Option chains
-- Symbol search and validation
 
 **Brokerage/** - Account and position endpoints
 - Account information
@@ -54,24 +50,9 @@ TSClient is the core singleton class for all TradeStation API communication in L
 - Order status tracking
 - Replace/modify orders
 
-**Stream/** - WebSocket streaming
-- StreamBars: Live bar updates (1min, 5min, etc.) - **unlimited concurrent streams**
-- StreamQuote: Level 1 quote updates (bid/ask, size, MarketFlags) - **single stream for up to 100 symbols**
-- StreamMarketDepthQuote: Level 2 market depth - **maximum 10 concurrent streams**
+**Stream/** - WebSocket streaming (brokerage only)
 - StreamOrders: Order status updates - **singleton (max 1)**
 - StreamPositions: Position updates - **singleton (max 1)**
-
-**Stream Concurrency Limits**:
-- **StreamBars**: No limit - can open as many as needed
-- **StreamQuote**: Single stream supporting up to 100 symbols per TradeStation API spec
-  - Use for Level 1 data: best bid/ask, sizes, and MarketFlags (IsHalted, IsDelayed, IsHardToBorrow)
-  - Falls back to L1 fills in OrderEmulator when Level 2 unavailable
-- **StreamMarketDepthQuote**: Hard limit of 10 concurrent streams (API restriction)
-  - Opening 11+ streams triggers FIFO queue with QFuture-based async fulfillment
-  - 1000ms delay before processing queue (TCP close propagation)
-  - See "Stream Management" section below for details
-- **StreamPositions**: Singleton - exactly 1 stream allowed (asserted)
-- **StreamOrders**: Singleton - exactly 1 stream allowed (asserted)
 
 ## Architecture
 
@@ -87,7 +68,7 @@ TSClient Object (lives in Main Thread)
 TSClient Worker Thread
     │
     ├─→ QNetworkAccessManager (REST API)
-    ├─→ QWebSocket connections (Streams)
+    ├─→ QWebSocket connections (StreamOrders, StreamPositions)
     └─→ QTimer (Token refresh)
 ```
 
@@ -112,7 +93,7 @@ TSClient::~TSClient() {
 
 ### Replay Mode
 
-TSClient supports a `Mode` enum that determines how requests are handled:
+TSClient supports a `Mode` enum that determines how brokerage requests are handled:
 
 ```cpp
 enum class Mode {
@@ -146,43 +127,12 @@ void TSClient::setMode(Mode mode) {
 | `getBalances()` | Real API | MockNetworkAccessManager returns emulator balance |
 | `placeOrder()` | Real API | MockNetworkAccessManager routes to OrderEmulator |
 | `cancelOrder()` | Real API | MockNetworkAccessManager routes to OrderEmulator |
-| `openStreamBars()` | Real WebSocket | MockNetworkReply receives ReplayEngine data |
-| `openStreamMarketDepthQuote()` | Real WebSocket | MockNetworkReply receives ReplayEngine data |
-| `openStreamQuote()` | Real WebSocket | MockNetworkReply receives ReplayEngine data |
 | `openStreamOrders()` | Real WebSocket | MockNetworkReply receives OrderEmulator signals |
 | `openStreamPositions()` | Real WebSocket | MockNetworkReply receives OrderEmulator signals |
 
 **Mock Infrastructure**:
 - `MockNetworkReply`: Fake QNetworkReply that receives injected data
 - `MockNetworkAccessManager`: Intercepts HTTP requests, routes to OrderEmulator
-
-**Replay state members** (in `TSClient.h`):
-```cpp
-QMap<QString, QPointer<MockNetworkReply>> m_replayBarReplies;    // symbol → MockNetworkReply for bars
-QMap<QString, QPointer<MockNetworkReply>> m_replayDepthReplies;  // symbol → MockNetworkReply for depth
-QMap<QString, QPointer<MockNetworkReply>> m_replayQuoteReplies;  // symbol → MockNetworkReply for quotes
-QMap<QString, QJsonObject>               m_replayQuoteState;     // Accumulated merged quote state per symbol
-```
-
-**`onInjectQuoteData()` behaviour**:
-Receives raw delta bytes from `ReplayEngine`. Because the TradeStation Quote Stream is differential (see `StreamQuote/AGENTS.md`), raw deltas are merged into `m_replayQuoteState[symbol]` before parsing. This ensures `OrderEmulator::updateQuote()` always receives a complete `Quote`, never a partial one with `bid=0, ask=0`.
-
-Both `onInjectQuoteData` and `StreamQuote::processJsonObject` assert `state.contains("Bid") && state.contains("Ask")` before emitting or forwarding a Quote — if the initial snapshot was never seen for a symbol the app crashes in debug mode, which is the intended behaviour (see `preRollQuoteState` below for why this must never happen at runtime).
-
-`newQuoteReceived` is **NOT** emitted from `onInjectQuoteData` to avoid double-emission — for the displayed symbol the raw bytes are also injected into its `MockNetworkReply`, which feeds `StreamQuote::processJsonObject()`, which does its own merging via `m_symbolState` and emits `newQuoteReceived` from there.
-
-**`preRollQuoteState(QDate p_date, qint64 p_startEpochMs)` — Mid-Day Replay Initialisation**:
-The Quote Stream records one full snapshot per symbol at stream open (market open, ~09:00 ET). When a replay starts mid-day, the `ReplayDataLoader` begins reading at `p_startTime`, skipping all records before it — including that initial snapshot. Without it, the first record received by `onInjectQuoteData` for every symbol would be a delta, which would trigger the snapshot-presence assertion and crash.
-
-`preRollQuoteState` is the fix:
-1. Opens the quotes DB directly via a temporary `QSQLITE` connection.
-2. Queries `SELECT stockTicker, jsonRawData FROM quotes WHERE objectType = 'QuoteStream' AND epochMs < p_startEpochMs ORDER BY epochMs ASC`.
-3. Merges every row into `m_replayQuoteState[symbol]` — same merge logic as `onInjectQuoteData` — building the full per-symbol state as it would have been at `p_startTime`.
-4. For each symbol that has an open `MockNetworkReply` (i.e. the currently displayed stock), serialises the merged `QJsonObject` back to compact JSON bytes and calls `injectData()` on the reply, priming `StreamQuote::m_symbolState` so the GUI also has correct bid/ask from the first live delta.
-
-Called from `MainAlgo::enterReplayModePaused` (and `enterReplayMode`) via **`Qt::BlockingQueuedConnection`** immediately after `createAndSetDisplayedStockInstrument` opens the `StreamQuote` and **before** `startReplayPaused` starts the `ReplayEngine`. This guarantees the full state is in place before the first live delta arrives.
-
-All replay state maps are cleared in `setMode(Live)` cleanup.
 
 See `Src/Core/Replay/OrderEmulator/AGENTS.md` for order emulation details.
 
@@ -260,16 +210,16 @@ void TSClient::someAPICall(QString param,
 
 ### WebSocket Stream Pattern
 
-Streams follow a managed lifecycle:
+Brokerage streams (StreamOrders, StreamPositions) follow a managed lifecycle:
 
 ```cpp
-class StreamBars : public QObject {
+class StreamOrders : public QObject {
     // Created in TSClient thread
     // Manages WebSocket connection
-    // Emits signals for data
+    // Emits signals for order updates
 
 signals:
-    void barReceived(const Bar& bar);
+    void orderReceived(const Order& order);
     void errorOccurred(const QString& error);
     void streamClosed();
 
@@ -280,29 +230,9 @@ public slots:
 ```
 
 **Stream Management**:
-- TSClient maintains `QMap<QString, QPointer<Stream>>` for tracking
+- TSClient maintains QPointer references to the singleton streams
 - QPointer auto-nulls when stream deleted (important for cleanup)
-- Each stream type has dedicated class with per-type counters
-- Automatic reconnection on transient failures
-- Backpressure handling for high-frequency data
-
-**Per-Stream-Type Counters**:
-Each stream type maintains its own static counter for tracking:
-- `StreamBars::s_numberOfBarsStreams` (size_t, no limit)
-- `StreamMarketDepthQuote::s_numberOfMarketDepthStreams` (std::atomic<size_t>, max 10)
-- `StreamPositions::s_numberOfPositionStreams` (size_t, max 1)
-- `StreamOrders::s_numberOfOrderStreams` (size_t, max 1)
-
-**Market Depth Stream Queue**:
-The TradeStation API enforces a hard limit of 10 concurrent market depth streams. When this limit is reached:
-1. Requests are queued in a FIFO `std::deque<PendingMarketDepthRequest>`
-2. Each queued request includes a `QPromise<QPointer<StreamMarketDepthQuote>>`
-3. When a stream closes, the queue is processed after 1000ms delay (allows TCP FIN to propagate)
-4. Callers receive `std::expected<QPointer<Stream>, QFuture<QPointer<Stream>>>`:
-   - **Value channel**: Stream opened immediately (< 10 active)
-   - **Error channel**: QFuture that completes when queued stream opens (≥ 10 active)
-
-**Important**: Callers MUST handle QFuture properly - do not cancel futures as the stream will still be created and needs cleanup.
+- StreamOrders and StreamPositions are singletons (max 1 each, asserted)
 
 ## Key Signals
 
@@ -314,91 +244,43 @@ signals:
     // Data usage tracking
     void totalDataReceivedBytesIncreased(qsizetype bytesIncrease);
 
-    // Stream tracking (separate counts for bars and market depth)
-    void streamCountsChanged(size_t barsCount, size_t marketDepthCount);
-
     // Error reporting
     void errorOccurred(const QString& error);
 ```
 
 ## Common Usage Patterns
 
-### Making Async API Call
+### Making Brokerage API Call
 
 ```cpp
 // From any thread (usually MainAlgo)
 TSClient& client = TSClient::getInstance();
 
-client.getBars(symbol, interval, startDate, endDate,
+client.getBalances(accountId,
     [this](bool success, const QJsonDocument& response) {
         if (success) {
-            // Parse response
-            QVector<Bar> bars = parseBarsFromJson(response);
-            // Process bars
+            // Parse balance response
         } else {
-            qCWarning() << "Failed to get bars";
+            qCWarning() << "Failed to get balances";
         }
     }
 );
 ```
 
-### Opening a Stream
+### Opening Order/Position Streams
 
-**Bar Stream (unlimited)**:
 ```cpp
-StreamBars* stream = TSClient::getInstance().openStreamBars(symbol, interval);
+// Singleton streams - only one of each allowed
+StreamOrders* orderStream = TSClient::getInstance().openStreamOrders();
+StreamPositions* posStream = TSClient::getInstance().openStreamPositions();
 
-// Connect signals
-connect(stream, &StreamBars::barReceived, this, [this](const Bar& bar) {
-    // Handle new bar
-    processBar(bar);
+connect(orderStream, &StreamOrders::orderReceived, this, [this](const Order& order) {
+    processOrderUpdate(order);
 });
 
-connect(stream, &StreamBars::errorOccurred, this, [](const QString& error) {
-    qCWarning() << "Stream error:" << error;
+connect(posStream, &StreamPositions::positionReceived, this, [this](const Position& pos) {
+    processPositionUpdate(pos);
 });
-
-// Start streaming
-stream->start();
-
-// Later: close stream
-stream->stop();  // Will emit streamClosed() signal
-```
-
-**Market Depth Stream (max 10 concurrent)**:
-```cpp
-auto result = TSClient::getInstance().openStreamMarketDepthQuote(symbol, depth);
-
-if (result.has_value()) {
-    // Stream opened immediately (< 10 active)
-    QPointer<StreamMarketDepthQuote> stream = result.value();
-    connectStreamSignals(stream);
-    stream->start();
-} else {
-    // Stream queued (≥ 10 active) - received QFuture
-    QFuture<QPointer<StreamMarketDepthQuote>> future = result.error();
-
-    // Use .then() continuation for clean async handling (Qt6)
-    future.then(this, [this](QPointer<StreamMarketDepthQuote> stream) {
-        if (!stream.isNull()) {
-            connectStreamSignals(stream);
-            stream->start();
-        }
-    });
-
-    qInfo() << "Market depth stream queued for" << symbol;
-}
-```
-
-**Checking Stream Availability**:
-```cpp
-if (StreamMarketDepthQuote::canOpenStream()) {
-    // Can open immediately
-} else {
-    // Will be queued (10 streams already open)
-    size_t count = StreamMarketDepthQuote::getNumberOfMarketDepthStreams();
-    qDebug() << "Market depth streams at limit:" << count;
-}
 ```
 
 ### Checking Authentication
@@ -459,11 +341,11 @@ All endpoints defined in `Src/Misc/CONSTANTS.h`:
 ```cpp
 namespace TSClientEndpoints {
     constexpr const char* BASE_URL = "https://api.tradestation.com/v3";
-    constexpr const char* GET_BARS = "/marketdata/barcharts";
-    constexpr const char* GET_QUOTES = "/marketdata/quotes";
     constexpr const char* GET_ACCOUNTS = "/brokerage/accounts";
+    constexpr const char* GET_BALANCES = "/brokerage/accounts/{account_id}/balances";
+    constexpr const char* GET_ORDERS = "/brokerage/accounts/{account_id}/orders";
     constexpr const char* POST_ORDER = "/orderexecution/orders";
-    // ... many more
+    // ... other brokerage endpoints
 }
 ```
 
@@ -504,15 +386,12 @@ With real API:
 2. Store test credentials separately
 3. Clean up orders/positions after tests
 4. Respect rate limits
-5. Mock streams for high-frequency testing
 
 ## Performance Notes
 
 - Request tracking uses QHash (O(1) lookup)
 - Token refresh scheduled once, not polled
 - Network operations fully async (non-blocking)
-- Stream parsing optimized for high-frequency data
-- Memory pooling for frequent allocations (future)
 
 ## Common Pitfalls
 
@@ -521,14 +400,13 @@ With real API:
 3. **Don't ignore callback bool success** - Always check before using response
 4. **Don't assume immediate auth** - Connect to authStateChanged signal
 5. **Don't make sequential calls in loop** - Use batch endpoints when available
-6. **Don't cancel QFuture from market depth queue** - Stream still created, needs cleanup
-7. **Don't open 11+ market depth streams** - Check `canOpenStream()` or handle QFuture
-8. **Don't create multiple Positions/Orders streams** - Singletons, will assert
+6. **Don't create multiple Positions/Orders streams** - Singletons, will assert
 
 ## Related Documentation
 
 - **Doc/AUTHENTICATION.md**: Complete OAuth flow diagrams and security details
 - **Doc/ARCHITECTURE.md**: TSClient threading and lifecycle in system context
+- **Src/Clients/DBClient/**: Market data client (Databento) — all market data goes through DBClient
 - **Src/Misc/CONSTANTS.h**: All API endpoints and constants
 - **Qt Network Module Docs**: QNetworkAccessManager, QNetworkReply, QWebSocket
 
@@ -543,7 +421,7 @@ QLoggingCategory::setFilterRules("TSClient*=true");
 Categories:
 - `TSClient.auth` - Authentication flow
 - `TSClient.request` - REST API requests
-- `TSClient.stream` - WebSocket streams
+- `TSClient.stream` - WebSocket streams (orders/positions)
 - `TSClient.token` - Token management
 
 ### Monitor request tracking:
