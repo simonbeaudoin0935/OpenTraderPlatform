@@ -205,6 +205,11 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
                      appFrontend,
                      &FrontEnd::onCurrentHighlightedReceivedNewLevel2);
 
+    QObject::connect(mainAlgo,
+                     &MainAlgo::displayedStockReceivedNewTrade,
+                     appFrontend,
+                     &FrontEnd::onCurrentHighlightedReceivedNewTrade);
+
     QObject::connect(mainAlgo, &MainAlgo::receivedNewPosition, appFrontend, &FrontEnd::onNewPositionReceived);
 
     QObject::connect(mainAlgo, &MainAlgo::positionDeleted, appFrontend, &FrontEnd::onPositionDeleted);
@@ -239,6 +244,13 @@ void MainApp::start()
     // start the other threads
     tradeStationClient->start();
     mainAlgo->start();
+
+    // Auto-connect to Databento if API key is present
+    auto* dbClient = DBClient::getInstance();
+    if (dbClient->hasApiKey())
+    {
+        dbClient->connectLive();
+    }
 
     memoryMonitor.startMonitoring(500);
 

@@ -9,6 +9,7 @@
 #include "StrategyManager.h"
 #include "StrategySignalHandler.h"
 #include "TSClient.h"
+#include "DBClient.h"
 #include "Logging.h"
 #include "Assume.h"
 #include "OrderEmulator.h"
@@ -202,11 +203,12 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
                    this,
                    &MainAlgo::displayedStockReceivedNewLevel2);
 
+        // Disconnect trade forwarding from DBClient for old symbol
+        disconnect(DBClient::getInstance(), &DBClient::newTrade, this, nullptr);
+
         // Clean up the previous stock instrument to free resources (streams, database connections)
         QString oldSymbol = currentDisplayedStockInstrument->symbol;
         QPointer<StockInstruments> oldInstrument = currentDisplayedStockInstrument;
-
-        // TODO Phase 6: close DBClient stream for old instrument
 
         currentDisplayedStockInstrument = nullptr;
 
@@ -241,6 +243,16 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             &Level2Receiver::receivedNewLevel2,
             this,
             &MainAlgo::displayedStockReceivedNewLevel2);
+
+    // Forward trades for displayed symbol to FrontEnd
+    connect(DBClient::getInstance(),
+            &DBClient::newTrade,
+            this,
+            [this, symbol](const QString& sym, const Trade& trade)
+            {
+                if (sym == symbol)
+                    emit displayedStockReceivedNewTrade(sym, trade);
+            });
 }
 
 BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last)
@@ -546,6 +558,8 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
     , barCache(p_symbol, this)
     , barReceiver(p_symbol, this)
     , m_level2Receiver(p_symbol, this)
+    , m_level1Receiver(p_symbol, this)
+    , m_liveBarAccumulator(this)
 {
     this->setObjectName("StockInstrument::" + p_symbol);
 
@@ -555,6 +569,51 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
                              &barCache,
                              [this](const QString&, const Bar& bar) { barCache.storeBar(bar); });
     OBJ_ASSUME_TRUE(connected);
+
+    // Wire DBClient::newLevel2 → Level2Receiver (filtered by symbol)
+    auto* dbClient = DBClient::getInstance();
+    connected = connect(dbClient,
+                        &DBClient::newLevel2,
+                        this,
+                        [this](const QString& sym, const Level2& level2)
+                        {
+                            if (sym == symbol)
+                                m_level2Receiver.onReceivedNewLevel2(level2);
+                        });
+    OBJ_ASSUME_TRUE(connected);
+
+    // Wire DBClient::newLevel1 → Level1Receiver (filtered by symbol)
+    connected = connect(dbClient,
+                        &DBClient::newLevel1,
+                        this,
+                        [this](const QString& sym, const Level1& level1)
+                        {
+                            if (sym == symbol)
+                                m_level1Receiver.onReceivedNewLevel1(level1);
+                        });
+    OBJ_ASSUME_TRUE(connected);
+
+    // Wire DBClient::newTrade → LiveBarAccumulator (filtered by symbol)
+    connected = connect(dbClient,
+                        &DBClient::newTrade,
+                        &m_liveBarAccumulator,
+                        [this](const QString& sym, const Trade& trade)
+                        {
+                            if (sym == symbol)
+                                m_liveBarAccumulator.onNewTrade(symbol, trade);
+                        });
+    OBJ_ASSUME_TRUE(connected);
+
+    // Wire LiveBarAccumulator::barClosed → BarReceiver::receivedNewBar
+    connected =
+        connect(&m_liveBarAccumulator, &LiveBarAccumulator::barClosed, &barReceiver, &BarReceiver::receivedNewBar);
+    OBJ_ASSUME_TRUE(connected);
+
+    // Subscribe to live data if DBClient is connected
+    if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
+    {
+        dbClient->subscribeLive(p_symbol);
+    }
 
     DEBUG << "New instance";
 }
@@ -1118,14 +1177,14 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
 {
     INFO << "Creating and setting displayed stock instrument for" << p_symbol;
 
-    // Create new stock instrument (will open streams with current TSClient mode)
+    // Create new stock instrument (will subscribe via DBClient if connected)
     auto* newInstrument = new StockInstruments(p_symbol, this);
     Q_CHECK_PTR(newInstrument);
 
     stockInstruments[p_symbol] = newInstrument;
     currentDisplayedStockInstrument = newInstrument;
 
-    // Connect signals for the new displayed instrument
+    // Connect bar signals for the new displayed instrument
     bool connected = connect(&currentDisplayedStockInstrument->barReceiver,
                              &BarReceiver::receivedNewBar,
                              this,
@@ -1138,6 +1197,17 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
                         this,
                         &MainAlgo::displayedStockReceivedNewLevel2,
                         Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    // Forward trades for displayed symbol to FrontEnd
+    connected = connect(DBClient::getInstance(),
+                        &DBClient::newTrade,
+                        this,
+                        [this, p_symbol](const QString& sym, const Trade& trade)
+                        {
+                            if (sym == p_symbol)
+                                emit displayedStockReceivedNewTrade(sym, trade);
+                        });
     ASSUME_TRUE(connected);
 
     // Connect to strategy manager for bar delivery

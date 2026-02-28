@@ -8,13 +8,12 @@ Q_LOGGING_CATEGORY(LOGGING_CATEGORY, "Level2Receiver")
 Level2Receiver::Level2Receiver(const QString& symbol, QObject* parent) : StreamReceiver(parent), m_symbol(symbol)
 {
     setObjectName("Level2Receiver::" + symbol);
-    openStream();
 }
 
 void Level2Receiver::openStream()
 {
-    // TODO Phase 6: subscribe via DBClient (Schema::Mbp10)
-    DEBUG << "Level2Receiver: DBClient subscription not yet wired for" << m_symbol;
+    // Subscriptions are managed by StockInstruments via DBClient::subscribeLive()
+    DEBUG << "Level2Receiver ready for" << m_symbol << "(subscription via StockInstruments)";
 }
 
 // BAI = (Total Bid Size - Total Ask Size) / (Total Bid Size + Total Ask Size)

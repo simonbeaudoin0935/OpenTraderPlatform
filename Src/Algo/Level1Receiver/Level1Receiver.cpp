@@ -8,13 +8,12 @@ Q_LOGGING_CATEGORY(LOGGING_CATEGORY, "Level1Receiver")
 Level1Receiver::Level1Receiver(const QString& symbol, QObject* parent) : StreamReceiver(parent), m_symbol(symbol)
 {
     setObjectName("Level1Receiver::" + symbol);
-    openStream();
 }
 
 void Level1Receiver::openStream()
 {
-    // TODO Phase 6: subscribe via DBClient (Schema::Mbp1)
-    DEBUG << "Level1Receiver: DBClient subscription not yet wired for" << m_symbol;
+    // Subscriptions are managed by StockInstruments via DBClient::subscribeLive()
+    DEBUG << "Level1Receiver ready for" << m_symbol << "(subscription via StockInstruments)";
 }
 
 void Level1Receiver::onReceivedNewLevel1(Level1 level1)

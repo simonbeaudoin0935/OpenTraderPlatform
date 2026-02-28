@@ -8,6 +8,7 @@
 #include "MainApp.h"
 #include "BarCache.h"
 #include "DatabaseThread.h"
+#include "DBClient.h"
 #include "TSClient.h"
 #include "Settings.h"
 #include "Logging.h"
@@ -315,10 +316,61 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
 
                   DEBUG << "Fetching complete day from API:" << startDateTime << "to" << endDayTime;
 
-                  // TODO Phase 6: replace with DBClient::getHistoricalBars()
-                  CRITICAL << "Historical bars fetch not yet implemented (Phase 6) for" << m_symbol;
-                  promise.addResult(std::unexpected(TSClient::Error::Other));
-                  promise.finish();
+                  // Fetch from Databento via DBClient
+                  auto* dbClient = DBClient::getInstance();
+                  if (!dbClient->hasApiKey())
+                  {
+                      WARNING << "No Databento API key — cannot fetch historical bars for" << m_symbol;
+                      promise.addResult(std::unexpected(TSClient::Error::Other));
+                      promise.finish();
+                      return;
+                  }
+
+                  // Connect one-shot to historicalBarsReceived to resolve the promise
+                  auto sharedPromise =
+                      std::make_shared<QPromise<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(
+                          std::move(promise));
+
+                  auto conn = std::make_shared<QMetaObject::Connection>();
+                  *conn = connect(
+                      dbClient,
+                      &DBClient::historicalBarsReceived,
+                      this,
+                      [this, conn, sharedPromise, date, first, last](const QString& sym, const QVector<Bar>& bars)
+                      {
+                          if (sym != m_symbol)
+                              return; // Not our request
+
+                          disconnect(*conn); // One-shot
+
+                          if (bars.isEmpty())
+                          {
+                              DEBUG << "Historical fetch returned 0 bars for" << m_symbol;
+                              sharedPromise->addResult(std::make_shared<QVector<Bar>>());
+                              sharedPromise->finish();
+                              return;
+                          }
+
+                          auto fullDayBars = std::make_shared<QVector<Bar>>(bars);
+                          storeBarsInCache(date, fullDayBars);
+
+                          auto filteredBars = std::make_shared<QVector<Bar>>();
+                          for (const auto& bar: *fullDayBars)
+                          {
+                              if (bar.getTimeStamp().time() >= first && bar.getTimeStamp().time() <= last)
+                              {
+                                  filteredBars->append(bar);
+                              }
+                          }
+
+                          DEBUG << "Historical backfill complete:" << filteredBars->size() << "bars (of"
+                                << fullDayBars->size() << "total)";
+
+                          sharedPromise->addResult(filteredBars);
+                          sharedPromise->finish();
+                      });
+
+                  dbClient->fetchHistoricalBars(m_symbol, startDateTime, endDayTime);
               });
 
     return future;

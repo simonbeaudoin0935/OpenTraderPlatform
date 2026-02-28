@@ -29,7 +29,7 @@ class BarReceiver : public StreamReceiver
   protected:
     [[nodiscard]] QPointer<Stream> getStreamBase() const override
     {
-        return nullptr; // TODO Phase 6: wire to DBClient live bar stream
+        return nullptr; // Not used — bars arrive via LiveBarAccumulator signal chain
     }
 
   private:

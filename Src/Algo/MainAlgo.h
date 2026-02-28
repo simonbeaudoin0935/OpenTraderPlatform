@@ -10,6 +10,7 @@
 #include <atomic>
 
 #include "Level2Receiver.h"
+#include "Level1Receiver.h"
 #include "BarReceiver.h"
 #include "PositionsReceiver.h"
 #include "OrdersReceiver.h"
@@ -18,6 +19,7 @@
 #include "Balance.h"
 #include "Level2.h"
 #include "Trade.h"
+#include "LiveBarAccumulator.h"
 #include "StrategyManager.h"
 #include "Core/Replay/ReplayEngine.h"
 #include "TSClient.h" // For TSClient::AuthStateReason enum
@@ -38,6 +40,8 @@ class StockInstruments : public QObject
     BarCache barCache;
     BarReceiver barReceiver;
     Level2Receiver m_level2Receiver;
+    Level1Receiver m_level1Receiver;
+    LiveBarAccumulator m_liveBarAccumulator;
 };
 
 class MainAlgo final : public QObject
@@ -160,6 +164,12 @@ class MainAlgo final : public QObject
                                          double bidAskImbalance,
                                          double bidDWP,
                                          double askDWP);
+
+    /**
+     * @brief Signal emitted when the displayed stock receives a new trade
+     * Thread context: Emitted from MainAlgo worker thread
+     */
+    void displayedStockReceivedNewTrade(QString symbol, Trade trade);
 
     /**
      * @brief Signal emitted when a new position is received
