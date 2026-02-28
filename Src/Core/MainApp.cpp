@@ -7,6 +7,7 @@
 #include "CONSTANTS.h"
 #include "OrdersDatabase.h"
 #include "PositionsDatabase.h"
+#include "DBClient.h"
 #include <QCoreApplication>
 #include <unistd.h>
 #include <cerrno>
@@ -299,6 +300,12 @@ void MainApp::cleanupSingletons()
 
     // Delete TSClient singleton (which will stop its thread)
     TSClient::destroyInstance();
+
+    // Delete DBClient singleton
+    if (DBClient::isInstantiated())
+    {
+        DBClient::destroyInstance();
+    }
 
     // Delete DatabaseThread singleton (which will stop its thread)
     DatabaseThread::destroyInstance();

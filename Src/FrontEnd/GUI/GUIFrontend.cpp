@@ -34,6 +34,8 @@
 #include "Misc/ShortcutSettings.h"
 #include "Core/MainApp.h"
 #include "Assume.h"
+#include "DBClient.h"
+#include <QInputDialog>
 
 #define LOGGING_CATEGORY GUIFrontendLog
 
@@ -153,6 +155,41 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                 ASSUME_FALSE(TSClient::getInstance()->isAuthInProgress());
                 TSClient::getInstance()->launchAuthProcess();
             });
+
+    // Create and setup Databento connection button
+    m_databentoButton = new QPushButton("Connect to Databento", ui->statusbar);
+    m_databentoButton->setFlat(true);
+    m_databentoButton->setStyleSheet(
+        "QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
+    ui->statusbar->addPermanentWidget(m_databentoButton);
+
+    connect(m_databentoButton,
+            &QPushButton::clicked,
+            this,
+            [this]()
+            {
+                DEBUG << "Databento button clicked";
+                bool ok = false;
+                const QString apiKey = QInputDialog::getText(m_mainWindow,
+                                                             "Databento API Key",
+                                                             "Enter your Databento API key:",
+                                                             QLineEdit::Password,
+                                                             QString(),
+                                                             &ok);
+                if (ok && !apiKey.trimmed().isEmpty())
+                {
+                    DBClient::getInstance()->storeApiKey(apiKey.trimmed());
+                }
+            });
+
+    connect(DBClient::getInstance(),
+            &DBClient::connectionStateChanged,
+            this,
+            &GUIFrontend::onDatabentoConnectionStateChanged,
+            Qt::UniqueConnection);
+
+    // Reflect initial Databento connection state
+    DBClient::getInstance()->loadApiKey();
 
     // Setup account info button - hide initially until accounts are loaded
     m_accountInfoButton = ui->accountInfoButton;
@@ -908,6 +945,23 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated,
             tradeStationLoginButton->setEnabled(true);
         }
     }
+}
+
+void GUIFrontend::onDatabentoConnectionStateChanged(bool isConnected)
+{
+    if (isConnected)
+    {
+        m_databentoButton->setText("Databento Connected");
+        m_databentoButton->setStyleSheet(
+            "QPushButton { background-color: #E6FFE6; color: #4CAF50; padding: 2px 6px; border-radius: 3px; }");
+    }
+    else
+    {
+        m_databentoButton->setText("Connect to Databento");
+        m_databentoButton->setStyleSheet(
+            "QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
+    }
+    m_databentoButton->setEnabled(true);
 }
 
 QString GUIFrontend::bytesToString(qint64 bytes)

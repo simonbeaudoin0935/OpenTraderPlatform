@@ -61,6 +61,7 @@ class GUIFrontend : public FrontEnd
 
   private slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, QString message);
+    void onDatabentoConnectionStateChanged(bool isConnected);
     void onNewDisplayedStockSelection();
     void updateLiveLogDisplay(const QString& message);
     void onLoggerVisibilityChanged(bool visible);
@@ -90,6 +91,7 @@ class GUIFrontend : public FrontEnd
     std::unique_ptr<Ui::GUIFrontend> ui;  // Pointer to the UI object
     QMainWindow* m_mainWindow = nullptr;  // Main application window (owned by this)
     QPushButton* tradeStationLoginButton; // Login button in status bar
+    QPushButton* m_databentoButton;       // Databento connection button in status bar
     QPushButton* m_accountInfoButton;     // Info button for account details
 
     QShortcut* m_quitShortcut;                  // Quit application shortcut

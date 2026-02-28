@@ -144,6 +144,7 @@ target_include_directories(L2TraderStrategy PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/CancelOrder
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/PlaceOrder
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Stream
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/DBClient
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BreakingNewsFetcher
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StreamReceiver
@@ -203,6 +204,7 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/CancelOrder
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/PlaceOrder
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Stream
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/DBClient
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BreakingNewsFetcher
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StreamReceiver
