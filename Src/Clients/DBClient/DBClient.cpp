@@ -140,14 +140,23 @@ void DBClient::connectLive()
 
     INFO << "Building LiveThreaded client for dataset:" << m_dataset;
 
-    m_liveClient = std::make_unique<databento::LiveThreaded>(
-        databento::LiveThreaded::Builder().SetKey(key).SetDataset(dataset).BuildThreaded());
+    try
+    {
+        m_liveClient = std::make_unique<databento::LiveThreaded>(
+            databento::LiveThreaded::Builder().SetKey(key).SetDataset(dataset).BuildThreaded());
 
-    m_liveClient->Start([this](databento::Metadata&& metadata) { onMetadataReceived(std::move(metadata)); },
-                        [this](const databento::Record& record) { return onRecordReceived(record); },
-                        [this](const std::exception& ex) { return onException(ex); });
+        m_liveClient->Start([this](databento::Metadata&& metadata) { onMetadataReceived(std::move(metadata)); },
+                            [this](const databento::Record& record) { return onRecordReceived(record); },
+                            [this](const std::exception& ex) { return onException(ex); });
 
-    INFO << "Live session starting...";
+        INFO << "Live session starting...";
+    }
+    catch (const std::exception& ex)
+    {
+        CRITICAL << "Failed to connect live:" << ex.what();
+        m_liveClient.reset();
+        setConnectionState(ConnectionState::Disconnected);
+    }
 }
 
 void DBClient::disconnectLive()

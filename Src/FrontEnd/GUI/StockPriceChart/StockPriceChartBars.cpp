@@ -188,7 +188,6 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     case Bar::BarStatus::Open:
         if (m_latestBar.getBarStatus() == Bar::BarStatus::Closed)
         {
-#warning I hit this assert. fuck tradestation
             // New bar after previous one was closed
             OBJ_ASSUME_GT(bar.getTimeStamp(), m_latestBar.getTimeStamp());
 
