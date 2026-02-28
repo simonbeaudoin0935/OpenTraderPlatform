@@ -48,12 +48,15 @@ For detailed architecture documentation, see:
 - **C++23 compliant compiler**: GCC 11+ or Clang 12+
 - **CMake 3.16+**: Build system
 - **SQLite**: Database support (included with Qt SQL)
-- **QCustomPlot**: Charting library (included in repository)
+- **QCustomPlot**: Charting library (included in `Lib/QCustomPlot/`)
+- **OpenSSL**: Required by Databento client (`libssl-dev`)
+- **Zstandard**: Required by Databento client (`libzstd-dev`)
 
 ### API Keys
 
 You will need API credentials for:
-- **TradeStation API**: For real-time market data and trading (OAuth-based authentication using system browser)
+- **TradeStation API**: For order execution and position tracking (OAuth-based authentication using system browser)
+- **Databento API**: For real-time market data and historical data downloads (API key entered via in-app dialog)
 
 ## Installation
 
@@ -68,7 +71,7 @@ You will need API credentials for:
 2. **Install dependencies**:
    ```bash
    # On Ubuntu/Debian - Essential packages
-   sudo apt-get install qt6-base-dev libqt6sql6-sqlite cmake
+   sudo apt-get install qt6-base-dev libqt6sql6-sqlite cmake libssl-dev libzstd-dev
 
    # On Ubuntu/Debian - Optional packages (recommended for development)
    sudo apt-get install clang-format ccache

@@ -32,14 +32,14 @@ class PositionsReceiver : public StreamReceiver
      * Data flow: StreamPositions (TSClient thread) → PositionsReceiver slot (MainAlgo thread, queued) → this signal
      */
     void receivedNewPosition(QString account, Position position);
-    
+
     /**
      * @brief Signal emitted when a position is deleted/closed
      * 
      * Thread context: Emitted from MainAlgo worker thread
      */
     void positionDeleted(QString account, QString positionID);
-    
+
     /**
      * @brief Signal emitted when positions are loaded from database at startup
      * 

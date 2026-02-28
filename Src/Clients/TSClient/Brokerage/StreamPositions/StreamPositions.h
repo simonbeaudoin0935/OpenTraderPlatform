@@ -33,7 +33,7 @@ class StreamPositions final : public StreamBrokerage
      * Thread context: Emitted from TSClient worker thread
      */
     void newPositionReceived(Position position);
-    
+
     /**
      * @brief Signal emitted when a position is deleted/closed
      * Thread context: Emitted from TSClient worker thread

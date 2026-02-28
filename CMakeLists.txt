@@ -63,7 +63,6 @@ add_compile_options(
     -Wstrict-overflow=2      # Pointer arithmetic overflow warnings
     -Wfloat-equal            # Dangerous floating point comparisons
     -Wundef                  # Undefined macros in #if
-    -Wsuggest-override       # Missing override keyword
 )
 
 # Disable some warnings that are too noisy or incompatible with Qt
@@ -207,6 +206,11 @@ add_compile_definitions(
 if(UNIX AND NOT APPLE)
     link_libraries(stdc++_libbacktrace)
 endif()
+
+# Third-party libraries
+add_subdirectory(Lib/Databento)
+# databento-cpp requires exceptions and should not be subject to our strict warning flags
+target_compile_options(databento PRIVATE -fexceptions -w)
 
 # Add subdirectories
 add_subdirectory(Src)

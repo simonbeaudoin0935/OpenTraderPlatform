@@ -75,8 +75,8 @@ if(ENABLE_GUI)
     )
     # Add qcustomplot sources for GUI builds
     set(QCUSTOMPLOT_SOURCES
-        "${CMAKE_SOURCE_DIR}/qcustomplot/qcustomplot.cpp"
-        "${CMAKE_SOURCE_DIR}/qcustomplot/qcustomplot.h"
+        "${CMAKE_SOURCE_DIR}/Lib/QCustomPlot/qcustomplot.cpp"
+        "${CMAKE_SOURCE_DIR}/Lib/QCustomPlot/qcustomplot.h"
     )
 else()
     file(GLOB_RECURSE TUI_SOURCES
@@ -117,7 +117,7 @@ target_link_libraries(L2TraderCommon PUBLIC L2TraderStrategy)
 # Disable strict warnings for third-party qcustomplot code
 if(QCUSTOMPLOT_SOURCES)
     set_source_files_properties(${QCUSTOMPLOT_SOURCES} PROPERTIES
-        COMPILE_FLAGS "-Wno-error -Wno-shadow -Wno-double-promotion -Wno-float-equal -Wno-suggest-override"
+        COMPILE_FLAGS "-Wno-error -Wno-shadow -Wno-double-promotion -Wno-float-equal"
     )
 endif()
 
@@ -167,7 +167,7 @@ target_include_directories(L2TraderStrategy PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
     ${CMAKE_CURRENT_SOURCE_DIR}/Strategy
     ${CMAKE_CURRENT_SOURCE_DIR}/SQL
-    ${CMAKE_SOURCE_DIR}/qcustomplot
+    ${CMAKE_SOURCE_DIR}/Lib/QCustomPlot
 )
 
 # Link Qt libraries to the strategy library
@@ -227,16 +227,17 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
     ${CMAKE_CURRENT_SOURCE_DIR}/Strategy
     ${CMAKE_CURRENT_SOURCE_DIR}/SQL
+    ${CMAKE_SOURCE_DIR}/Lib/QCustomPlot
 )
 
 # Include qcustomplot as SYSTEM to suppress external library warnings
 target_include_directories(L2TraderCommon SYSTEM PRIVATE
-    ${CMAKE_SOURCE_DIR}/qcustomplot
+    ${CMAKE_SOURCE_DIR}/Lib/QCustomPlot
 )
 
 # Disable null-dereference error for this target because MOC-generated code includes
 # qcustomplot.h without SYSTEM treatment, triggering false positives in template code.
-target_compile_options(L2TraderCommon PRIVATE -Wno-error=null-dereference -Wno-error=unused-but-set-variable)
+target_compile_options(L2TraderCommon PRIVATE -Wno-error=null-dereference -Wno-error=unused-but-set-variable -Wno-error=float-equal)
 
 # Link Qt libraries to the common library
 target_link_libraries(L2TraderCommon PUBLIC
@@ -244,6 +245,7 @@ target_link_libraries(L2TraderCommon PUBLIC
     Qt6::Network
     Qt6::Sql
     Qt6::Concurrent
+    databento::databento
     dl
 )
 

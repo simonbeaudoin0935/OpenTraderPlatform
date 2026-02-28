@@ -147,7 +147,7 @@ class MainAlgo final : public QObject
      * Thread context: Emitted from MainAlgo worker thread
      */
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
-    
+
     /**
      * @brief Signal emitted when the displayed stock receives a new market depth quote
      * Thread context: Emitted from MainAlgo worker thread
@@ -167,25 +167,25 @@ class MainAlgo final : public QObject
      * Thread context: Emitted from MainAlgo worker thread
      */
     void receivedNewPosition(QString account, Position position);
-    
+
     /**
      * @brief Signal emitted when a position is deleted
      * Thread context: Emitted from MainAlgo worker thread
      */
     void positionDeleted(QString account, QString positionID);
-    
+
     /**
      * @brief Signal emitted when a new order is received
      * Thread context: Emitted from MainAlgo worker thread
      */
     void receivedNewOrder(QString account, Order order);
-    
+
     /**
      * @brief Signal emitted when TradeStation accounts are received
      * Thread context: Emitted from MainAlgo worker thread
      */
     void tradeStationAccountsReceived(QVector<Account> accounts);
-    
+
     /**
      * @brief Signal emitted when account balance is updated
      * Thread context: Emitted from MainAlgo worker thread
