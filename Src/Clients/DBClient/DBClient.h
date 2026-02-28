@@ -102,6 +102,37 @@ class DBClient : public QObject
      */
     void fetchHistoricalBars(const QString& p_symbol, const QDateTime& p_start, const QDateTime& p_end);
 
+    // ── Replay data download ──────────────────────────────────────────
+
+    /**
+     * @brief Download replay data (Mbp10 + Trades) for a symbol and date.
+     * Runs asynchronously on QThreadPool. Emits replayDownloadFinished on completion.
+     * Files are saved to ~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/
+     * @param p_symbol Ticker symbol
+     * @param p_date   Trading date to download
+     */
+    void downloadReplayData(const QString& p_symbol, const QDate& p_date);
+
+    /**
+     * @brief Get the directory path for replay data of a given date.
+     */
+    [[nodiscard]] static QString getReplayDataDir(const QDate& p_date);
+
+    /**
+     * @brief Get the file path for a specific schema's replay file.
+     * @param p_date Trading date
+     * @param p_symbol Ticker symbol
+     * @param p_schema "mbp10" or "trades"
+     */
+    [[nodiscard]] static QString
+    getReplayFilePath(const QDate& p_date, const QString& p_symbol, const QString& p_schema);
+
+    /**
+     * @brief Check if replay data exists for a symbol and date.
+     * @return true if both Mbp10 and Trades .dbn.zst files exist
+     */
+    [[nodiscard]] static bool hasReplayData(const QDate& p_date, const QString& p_symbol);
+
     // ── State queries ──────────────────────────────────────────────────
 
     [[nodiscard]] bool isConnected() const;
@@ -160,6 +191,17 @@ class DBClient : public QObject
      * @param p_bars   Vector of 1-minute OHLCV bars
      */
     void historicalBarsReceived(const QString& p_symbol, const QVector<Bar>& p_bars);
+
+    /**
+     * @brief Replay data download completed
+     * Thread context: Emitted from QThreadPool worker thread (auto-queued)
+     * @param p_symbol Ticker symbol
+     * @param p_date   Date downloaded
+     * @param p_success true if download succeeded
+     * @param p_errorMessage Error description (empty on success)
+     */
+    void
+    replayDownloadFinished(const QString& p_symbol, const QDate& p_date, bool p_success, const QString& p_errorMessage);
 
   private:
     explicit DBClient();

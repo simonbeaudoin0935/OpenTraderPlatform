@@ -102,11 +102,14 @@ class MainAlgo final : public QObject
     /// @param p_date Date to replay
     /// @param p_startTime Time to start replay
     /// @param p_speed Playback speed
-    void enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
+    void enterReplayMode(const QString& p_symbol, QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
 
     /// @brief Enter replay mode and immediately pause after first bar
     /// Used when entering replay mode to pre-populate chart
-    void enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
+    void enterReplayModePaused(const QString& p_symbol,
+                               QDate p_date,
+                               QTime p_startTime,
+                               ReplayEngine::PlaybackSpeed p_speed);
 
     /// @brief Exit replay mode and clean up
     void exitReplayMode();
@@ -125,6 +128,7 @@ class MainAlgo final : public QObject
 
     /// @brief Start replay mode order/position streams with simulated account
     void startReplayOrderStreams();
+    void connectReplaySignals(const QString& p_symbol);
 
     /// @brief Resume live streams after exiting replay mode
     void resumeLiveStreams();

@@ -358,7 +358,7 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pla
             mainAlgo->createAndSetDisplayedStockInstrument(displayedSymbol);
 
             // Start replay in paused state - emits first bar to populate chart
-            mainAlgo->enterReplayModePaused(p_date, p_startTime, p_speed);
+            mainAlgo->enterReplayModePaused(displayedSymbol, p_date, p_startTime, p_speed);
         },
         Qt::QueuedConnection);
 
@@ -440,7 +440,11 @@ void MainApp::startReplayPlayback(QDate p_date, QTime p_startTime, ReplayEngine:
     // Tell MainAlgo to start replay (MainAlgo thread)
     QMetaObject::invokeMethod(
         mainAlgo,
-        [this, p_date, p_startTime, p_speed]() { mainAlgo->enterReplayMode(p_date, p_startTime, p_speed); },
+        [this, p_date, p_startTime, p_speed]()
+        {
+            QString symbol = mainAlgo->getDisplayedSymbol();
+            mainAlgo->enterReplayMode(symbol, p_date, p_startTime, p_speed);
+        },
         Qt::QueuedConnection);
 
     qInfo() << "Replay playback start initiated";
@@ -491,7 +495,7 @@ void MainApp::preloadChartForReplay(QDate p_date, QTime p_startTime, ReplayEngin
         {
             // Re-enter replay paused with new date/time
             // This stops existing replay, reloads data, and emits first bar to update chart
-            mainAlgo->enterReplayModePaused(p_date, p_startTime, p_speed);
+            mainAlgo->enterReplayModePaused(displayedSymbol, p_date, p_startTime, p_speed);
         },
         Qt::QueuedConnection);
 

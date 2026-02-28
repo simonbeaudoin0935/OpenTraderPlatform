@@ -570,49 +570,55 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
                              [this](const QString&, const Bar& bar) { barCache.storeBar(bar); });
     OBJ_ASSUME_TRUE(connected);
 
-    // Wire DBClient::newLevel2 → Level2Receiver (filtered by symbol)
-    auto* dbClient = DBClient::getInstance();
-    connected = connect(dbClient,
-                        &DBClient::newLevel2,
-                        this,
-                        [this](const QString& sym, const Level2& level2)
-                        {
-                            if (sym == symbol)
-                                m_level2Receiver.onReceivedNewLevel2(level2);
-                        });
-    OBJ_ASSUME_TRUE(connected);
-
-    // Wire DBClient::newLevel1 → Level1Receiver (filtered by symbol)
-    connected = connect(dbClient,
-                        &DBClient::newLevel1,
-                        this,
-                        [this](const QString& sym, const Level1& level1)
-                        {
-                            if (sym == symbol)
-                                m_level1Receiver.onReceivedNewLevel1(level1);
-                        });
-    OBJ_ASSUME_TRUE(connected);
-
-    // Wire DBClient::newTrade → LiveBarAccumulator (filtered by symbol)
-    connected = connect(dbClient,
-                        &DBClient::newTrade,
-                        &m_liveBarAccumulator,
-                        [this](const QString& sym, const Trade& trade)
-                        {
-                            if (sym == symbol)
-                                m_liveBarAccumulator.onNewTrade(symbol, trade);
-                        });
-    OBJ_ASSUME_TRUE(connected);
-
     // Wire LiveBarAccumulator::barClosed → BarReceiver::receivedNewBar
     connected =
         connect(&m_liveBarAccumulator, &LiveBarAccumulator::barClosed, &barReceiver, &BarReceiver::receivedNewBar);
     OBJ_ASSUME_TRUE(connected);
 
-    // Subscribe to live data if DBClient is connected
-    if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
+    // In replay mode, data comes from ReplayEngine (connected by MainAlgo::connectReplaySignals)
+    // In live mode, data comes from DBClient signals
+    if (!MainApp::isInReplayMode())
     {
-        dbClient->subscribeLive(p_symbol);
+        auto* dbClient = DBClient::getInstance();
+
+        // Wire DBClient::newLevel2 → Level2Receiver (filtered by symbol)
+        connected = connect(dbClient,
+                            &DBClient::newLevel2,
+                            this,
+                            [this](const QString& sym, const Level2& level2)
+                            {
+                                if (sym == symbol)
+                                    m_level2Receiver.onReceivedNewLevel2(level2);
+                            });
+        OBJ_ASSUME_TRUE(connected);
+
+        // Wire DBClient::newLevel1 → Level1Receiver (filtered by symbol)
+        connected = connect(dbClient,
+                            &DBClient::newLevel1,
+                            this,
+                            [this](const QString& sym, const Level1& level1)
+                            {
+                                if (sym == symbol)
+                                    m_level1Receiver.onReceivedNewLevel1(level1);
+                            });
+        OBJ_ASSUME_TRUE(connected);
+
+        // Wire DBClient::newTrade → LiveBarAccumulator (filtered by symbol)
+        connected = connect(dbClient,
+                            &DBClient::newTrade,
+                            &m_liveBarAccumulator,
+                            [this](const QString& sym, const Trade& trade)
+                            {
+                                if (sym == symbol)
+                                    m_liveBarAccumulator.onNewTrade(symbol, trade);
+                            });
+        OBJ_ASSUME_TRUE(connected);
+
+        // Subscribe to live data if DBClient is connected
+        if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
+        {
+            dbClient->subscribeLive(p_symbol);
+        }
     }
 
     DEBUG << "New instance";
@@ -767,16 +773,19 @@ void MainAlgo::onReplayEndReached()
     }
 }
 
-void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
+void MainAlgo::enterReplayMode(const QString& p_symbol,
+                               QDate p_date,
+                               QTime p_startTime,
+                               ReplayEngine::PlaybackSpeed p_speed)
 {
-    INFO << "MainAlgo entering replay mode for" << p_date.toString(Qt::ISODate) << "at"
+    INFO << "MainAlgo entering replay mode for" << p_symbol << "on" << p_date.toString(Qt::ISODate) << "at"
          << p_startTime.toString("hh:mm:ss");
 
     // We assume that if we were able to click "Enter Replay Mode", then we must not already be in replay mode, so m_replayEngine should be null
     OBJ_ASSUME_TRUE(m_replayEngine == nullptr);
 
     // Create ReplayEngine on first use (lazy init, parent=this for thread affinity)
-    m_replayEngine = new ReplayEngine(this, TSClient::getInstance());
+    m_replayEngine = new ReplayEngine(this);
 
     // Forward signals to MainAlgo signals for UI consumption
     bool connected =
@@ -817,23 +826,23 @@ void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pl
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    // TODO Phase 6: connect ReplayEngine bar data directly to BarReceiver
-    // TODO Phase 6: connect ReplayEngine depth data directly to Level2Receiver
-    // TODO Phase 6: connect ReplayEngine quote data directly to Level1Receiver
+    // Connect replay data signals to StockInstruments receivers
+    connectReplaySignals(p_symbol);
 
     DEBUG << "ReplayEngine created and connected";
 
     // Start replay order/position streams with simulated account
     startReplayOrderStreams();
 
-    // TODO Phase 6: pre-roll quote state via DBClient
-
-    m_replayEngine->startReplay(p_date, p_startTime, p_speed);
+    m_replayEngine->startReplay(p_symbol, p_date, p_startTime, p_speed);
 }
 
-void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
+void MainAlgo::enterReplayModePaused(const QString& p_symbol,
+                                     QDate p_date,
+                                     QTime p_startTime,
+                                     ReplayEngine::PlaybackSpeed p_speed)
 {
-    INFO << "MainAlgo entering replay mode (paused) for" << p_date.toString(Qt::ISODate) << "at"
+    INFO << "MainAlgo entering replay mode (paused) for" << p_symbol << "on" << p_date.toString(Qt::ISODate) << "at"
          << p_startTime.toString("hh:mm:ss");
 
     bool isRecreatingEngine = (m_replayEngine != nullptr);
@@ -847,7 +856,7 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
     }
 
     // Create ReplayEngine (same setup as enterReplayMode)
-    m_replayEngine = new ReplayEngine(this, TSClient::getInstance());
+    m_replayEngine = new ReplayEngine(this);
 
     bool connected =
         connect(m_replayEngine, &ReplayEngine::replayStarted, this, &MainAlgo::replayStarted, Qt::UniqueConnection);
@@ -887,9 +896,8 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    // TODO Phase 6: connect ReplayEngine bar data directly to BarReceiver
-    // TODO Phase 6: connect ReplayEngine depth data directly to Level2Receiver
-    // TODO Phase 6: connect ReplayEngine quote data directly to Level1Receiver
+    // Connect replay data signals to StockInstruments receivers
+    connectReplaySignals(p_symbol);
 
     DEBUG << "ReplayEngine created and connected";
 
@@ -899,10 +907,8 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
         startReplayOrderStreams();
     }
 
-    // TODO Phase 6: pre-roll quote state via DBClient
-
-    // Start in paused state - emit first bar then pause
-    m_replayEngine->startReplayPaused(p_date, p_startTime, p_speed);
+    // Start in paused state - emit first record then pause
+    m_replayEngine->startReplayPaused(p_symbol, p_date, p_startTime, p_speed);
 
     // Pause heartbeat timers since we're starting in paused state
     for (auto& instrument: stockInstruments)
@@ -911,6 +917,45 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
         instrument->barReceiver.pauseHeartbeat();
         instrument->m_level2Receiver.pauseHeartbeat();
     }
+}
+
+void MainAlgo::connectReplaySignals(const QString& p_symbol)
+{
+    OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
+
+    auto it = stockInstruments.find(p_symbol);
+    if (it == stockInstruments.end() || it.value().isNull())
+    {
+        WARNING << "No StockInstruments found for" << p_symbol << "- replay signals not connected";
+        return;
+    }
+
+    StockInstruments* instrument = it.value();
+
+    // Replay Level2 → Level2Receiver
+    bool connected = connect(m_replayEngine,
+                             &ReplayEngine::replayLevel2,
+                             &instrument->m_level2Receiver,
+                             [instrument](const QString& /*sym*/, const Level2& l2)
+                             { instrument->m_level2Receiver.onReceivedNewLevel2(l2); });
+    ASSUME_TRUE(connected);
+
+    // Replay Trade → LiveBarAccumulator (builds bars from trades)
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::replayTrade,
+                        &instrument->m_liveBarAccumulator,
+                        &LiveBarAccumulator::onNewTrade);
+    ASSUME_TRUE(connected);
+
+    // Replay Trade → forward to FrontEnd as displayed stock trade
+    connected =
+        connect(m_replayEngine,
+                &ReplayEngine::replayTrade,
+                this,
+                [this](const QString& sym, const Trade& trade) { emit displayedStockReceivedNewTrade(sym, trade); });
+    ASSUME_TRUE(connected);
+
+    INFO << "Replay signals connected for" << p_symbol;
 }
 
 void MainAlgo::exitReplayMode()

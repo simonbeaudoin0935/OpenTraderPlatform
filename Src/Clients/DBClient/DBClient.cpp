@@ -1,13 +1,17 @@
 #include "DBClient.h"
 
+#include <QDir>
 #include <QMap>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QtConcurrent>
+#include <filesystem>
 
 #include <databento/enums.hpp>
 #include <databento/live.hpp>
 
 #include "Assume.h"
+#include "CONSTANTS.h"
 #include "DBRecordTranslator.h"
 #include "Logging.h"
 #include "SecureStorage.h"
@@ -259,6 +263,93 @@ void DBClient::fetchHistoricalBars(const QString& p_symbol, const QDateTime& p_s
 
             emit historicalBarsReceived(symbol, bars);
         }));
+}
+
+// ── Replay data download ───────────────────────────────────────────────────
+
+void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date)
+{
+    OBJ_ASSUME_TRUE(hasApiKey());
+    OBJ_ASSUME_TRUE(p_date.isValid());
+    OBJ_ASSUME_FALSE(p_symbol.isEmpty());
+
+    if (!m_historicalClient)
+    {
+        const std::string key = m_apiKey.toStdString();
+        m_historicalClient =
+            std::make_unique<databento::Historical>(databento::Historical::Builder().SetKey(key).Build());
+    }
+
+    const QString symbol = p_symbol;
+    const QDate date = p_date;
+    const QString dataset = m_dataset;
+    const std::string stdDataset = dataset.toStdString();
+    const std::string stdSymbol = symbol.toStdString();
+
+    // Build time range for full trading day (4:00 AM to 8:00 PM ET)
+    const QDateTime start(date, QTime(4, 0, 0), TradingHours::MARKET_TIMEZONE);
+    const QDateTime end(date, QTime(20, 0, 0), TradingHours::MARKET_TIMEZONE);
+    const std::string startStr = start.toUTC().toString(Qt::ISODate).toStdString();
+    const std::string endStr = end.toUTC().toString(Qt::ISODate).toStdString();
+
+    // Ensure output directory exists
+    const QString dir = getReplayDataDir(date);
+    QDir().mkpath(dir);
+
+    const QString mbp10Path = getReplayFilePath(date, symbol, "mbp10");
+    const QString tradesPath = getReplayFilePath(date, symbol, "trades");
+
+    databento::Historical* hist = m_historicalClient.get();
+
+    INFO << "Downloading replay data for" << symbol << "on" << date.toString(Qt::ISODate);
+
+    Q_UNUSED(QtConcurrent::run(
+        [this, hist, stdDataset, stdSymbol, startStr, endStr, mbp10Path, tradesPath, symbol, date]()
+        {
+            try
+            {
+                // Download Level 2 (Mbp10) data
+                sDEBUG << "Downloading Mbp10 for" << symbol;
+                hist->TimeseriesGetRangeToFile(stdDataset,
+                                               databento::DateTimeRange<std::string>{startStr, endStr},
+                                               {stdSymbol},
+                                               databento::Schema::Mbp10,
+                                               std::filesystem::path(mbp10Path.toStdString()));
+
+                // Download Trades data
+                sDEBUG << "Downloading Trades for" << symbol;
+                hist->TimeseriesGetRangeToFile(stdDataset,
+                                               databento::DateTimeRange<std::string>{startStr, endStr},
+                                               {stdSymbol},
+                                               databento::Schema::Trades,
+                                               std::filesystem::path(tradesPath.toStdString()));
+
+                sINFO << "Replay download complete for" << symbol << "on" << date.toString(Qt::ISODate);
+                emit replayDownloadFinished(symbol, date, true, {});
+            }
+            catch (const std::exception& ex)
+            {
+                sWARNING << "Replay download failed for" << symbol << ":" << ex.what();
+                emit replayDownloadFinished(symbol, date, false, QString::fromStdString(ex.what()));
+            }
+        }));
+}
+
+QString DBClient::getReplayDataDir(const QDate& p_date)
+{
+    const QString cacheLocation = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    return cacheLocation + "/ReplayData/" + p_date.toString(Qt::ISODate);
+}
+
+QString DBClient::getReplayFilePath(const QDate& p_date, const QString& p_symbol, const QString& p_schema)
+{
+    return getReplayDataDir(p_date) + "/" + p_symbol + "_" + p_schema + ".dbn.zst";
+}
+
+bool DBClient::hasReplayData(const QDate& p_date, const QString& p_symbol)
+{
+    return QFile::exists(getReplayFilePath(p_date, p_symbol, "mbp10")) &&
+           QFile::exists(getReplayFilePath(p_date, p_symbol, "trades"));
 }
 
 // ── State queries ──────────────────────────────────────────────────────────
