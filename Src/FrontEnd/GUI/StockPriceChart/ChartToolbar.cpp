@@ -1,4 +1,5 @@
 #include "ChartToolbar.h"
+#include "DBClient.h"
 #include <QHBoxLayout>
 #include <QCheckBox>
 
@@ -626,32 +627,32 @@ void ChartToolbar::scanAndPopulateReplayDays()
 {
     QList<QDate> availableDates;
 
-    // Get the cache directory path
-    QString cacheDirPath = QDir::homePath() + "/.cache/L2Trader/RecordedLiveData/Bars";
-    QDir barsDir(cacheDirPath);
+    // Scan ReplayData directory for date-named subdirectories containing .dbn.zst files
+    QString replayBaseDir = DBClient::getReplayDataDir(QDate::currentDate());
+    QDir base(replayBaseDir);
+    base.cdUp(); // Go from ReplayData/YYYY-MM-DD to ReplayData/
 
-    if (barsDir.exists())
+    if (base.exists())
     {
-        // Get all files in the Bars directory
-        QStringList filters;
-        filters << "*"; // All files
-        QStringList fileList = barsDir.entryList(filters, QDir::Files);
+        QStringList dateDirs = base.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
 
-        // Extract dates from filenames
-        for (const QString& fileName: fileList)
+        for (const QString& dirName: dateDirs)
         {
-            QDate date = extractDateFromFileName(fileName);
-            if (date.isValid() && !availableDates.contains(date))
+            QDate date = QDate::fromString(dirName, Qt::ISODate);
+            if (!date.isValid())
+                continue;
+
+            // Only include if directory has .dbn.zst files
+            QDir dateDir(base.absoluteFilePath(dirName));
+            if (!dateDir.entryList({"*.dbn.zst"}, QDir::Files).isEmpty())
             {
                 availableDates.append(date);
             }
         }
 
-        // Sort dates in descending order (most recent first)
         std::sort(availableDates.begin(), availableDates.end(), std::greater<QDate>());
     }
 
-    // Populate the combo box with the found dates
     setAvailableReplayDays(availableDates);
 }
 

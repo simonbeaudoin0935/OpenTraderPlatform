@@ -14,6 +14,7 @@
 #include "BarCache.h"
 #include "MainApp.h"
 #include "Order.h"
+#include "DBClient.h"
 #include "Position.h"
 #include "OrdersDatabase.h"
 #include "PositionsDatabase.h"
@@ -373,39 +374,30 @@ void StockPriceChart::setSymbol(const QString& symbol)
  */
 void StockPriceChart::populateAvailableReplayDays()
 {
-    QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
-    QString barsDir = QString("%1/RecordedLiveData/Bars").arg(cacheDir);
-
-    QDir dir(barsDir);
-    if (!dir.exists())
-    {
-        WARNING << "Bars directory does not exist:" << barsDir;
-        return;
-    }
-
-    // Get all .db files in the directory (format: YYYY-MM-DD.db)
-    QStringList filters;
-    filters << "*.db";
-    QStringList dbFiles = dir.entryList(filters, QDir::Files, QDir::Name);
+    // Scan ReplayData directory for date-named subdirectories containing .dbn.zst files
+    QString replayBaseDir = DBClient::getReplayDataDir(QDate::currentDate());
+    QDir base(replayBaseDir);
+    base.cdUp(); // Go from ReplayData/YYYY-MM-DD to ReplayData/
 
     QList<QDate> availableDates;
-    for (const QString& dbFile: dbFiles)
+    if (base.exists())
     {
-        // Extract date from filename (format: YYYY-MM-DD.db)
-        QString baseName = dbFile;
-        if (baseName.endsWith(".db"))
+        QStringList dateDirs = base.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString& dirName: dateDirs)
         {
-            baseName.chop(3); // Remove ".db"
-        }
-        QDate date = QDate::fromString(baseName, "yyyy-MM-dd");
-        if (date.isValid())
-        {
-            availableDates.append(date);
-        }
-    }
+            QDate date = QDate::fromString(dirName, Qt::ISODate);
+            if (!date.isValid())
+                continue;
 
-    // Sort dates in descending order (most recent first)
-    std::sort(availableDates.begin(), availableDates.end(), std::greater<QDate>());
+            QDir dateDir(base.absoluteFilePath(dirName));
+            if (!dateDir.entryList({"*.dbn.zst"}, QDir::Files).isEmpty())
+            {
+                availableDates.append(date);
+            }
+        }
+
+        std::sort(availableDates.begin(), availableDates.end(), std::greater<QDate>());
+    }
 
     chartToolbar->setAvailableReplayDays(availableDates);
 
