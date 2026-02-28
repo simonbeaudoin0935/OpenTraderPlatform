@@ -597,13 +597,10 @@ void ReplayEngine::emitNextQuote()
         ReplayDataLoader::ReplayDataPoint dataPoint = m_quoteLoader->getNextDataPoint();
 
         // Heartbeat and Error messages should always be emitted (no symbol filter)
-        // QuoteStream messages are filtered by open streams
+        // TODO Phase 6: filter by active DBClient subscriptions
         if (dataPoint.objectType == "QuoteStream")
         {
-            if (!m_tsClient->hasOpenQuoteStream())
-            {
-                continue;
-            }
+            // Legacy: always emit for now (replay will be revamped via DBClient .dbn)
         }
 
         updateReplayTime(dataPoint.epochMs);
@@ -711,12 +708,8 @@ void ReplayEngine::checkAllStreamsEnded()
 
 bool ReplayEngine::hasStreamForStock(const QString& p_symbol, bool p_isBar) const
 {
-    if (p_isBar)
-    {
-        return m_tsClient->hasOpenBarStream(p_symbol);
-    }
-    else
-    {
-        return m_tsClient->hasOpenMarketDepthStream(p_symbol);
-    }
+    Q_UNUSED(p_symbol);
+    Q_UNUSED(p_isBar);
+    // TODO Phase 6: check DBClient subscription state
+    return true; // Legacy replay: always assume stream is open
 }

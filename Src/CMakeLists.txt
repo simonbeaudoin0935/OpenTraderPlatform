@@ -42,15 +42,6 @@ file(GLOB_RECURSE CORE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Core/*.h"
 )
 
-# Recorder sources (excluding the standalone main.cpp)
-file(GLOB RECORDER_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/RecorderLogic.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/LiveStreamDB.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/StatusReporter.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/RecorderUtils.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/*.h"
-)
-
 # Strategy plugin system sources
 file(GLOB_RECURSE STRATEGY_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/*.cpp"
@@ -99,7 +90,6 @@ add_library(L2TraderCommon STATIC
     ${CLIENTS_SOURCES}
     ${ALGO_SOURCES}
     ${CORE_SOURCES}
-    ${RECORDER_SOURCES}
     ${FRONTEND_SOURCES}
     ${GUI_SOURCES}
     ${TUI_SOURCES}
@@ -134,12 +124,6 @@ target_include_directories(L2TraderStrategy PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/GetOrders
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/StreamOrders
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/StreamPositions
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/Bars
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/GetQuoteSnapshots
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/MockStream
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/StreamMarketDepthQuote
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/StreamQuote
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/CancelOrder
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/PlaceOrder
@@ -149,11 +133,13 @@ target_include_directories(L2TraderStrategy PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BreakingNewsFetcher
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StreamReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BarReceiver
-    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/MarketDepthQuoteReceiver
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/Level1Receiver
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/Level2Receiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/PositionsReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/OrdersReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StockScreener
     ${CMAKE_CURRENT_SOURCE_DIR}/Core
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Models
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache/BarCache
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Replay
@@ -164,7 +150,6 @@ target_include_directories(L2TraderStrategy PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/StockPriceChart
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Tabs
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI
-    ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
     ${CMAKE_CURRENT_SOURCE_DIR}/Strategy
     ${CMAKE_CURRENT_SOURCE_DIR}/SQL
     ${CMAKE_SOURCE_DIR}/Lib/QCustomPlot
@@ -194,12 +179,6 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/GetOrders
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/StreamOrders
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/StreamPositions
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/Bars
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/GetQuoteSnapshots
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/MockStream
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/StreamMarketDepthQuote
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/StreamQuote
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/CancelOrder
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/PlaceOrder
@@ -209,11 +188,13 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BreakingNewsFetcher
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StreamReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BarReceiver
-    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/MarketDepthQuoteReceiver
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/Level1Receiver
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/Level2Receiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/PositionsReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/OrdersReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StockScreener
     ${CMAKE_CURRENT_SOURCE_DIR}/Core
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Models
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache/BarCache
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Replay
@@ -224,7 +205,6 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/StockPriceChart
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Tabs
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI
-    ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
     ${CMAKE_CURRENT_SOURCE_DIR}/Strategy
     ${CMAKE_CURRENT_SOURCE_DIR}/SQL
     ${CMAKE_SOURCE_DIR}/Lib/QCustomPlot

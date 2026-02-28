@@ -35,14 +35,12 @@ class GUIFrontend : public FrontEnd
     void onTSClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onTradeStationAccountsReceived(QVector<Account> results) override;
     void onMemoryUsageUpdate(qsizetype newDataUsage) override;
-    void onStreamCountUpdate(size_t barsCount, size_t marketDepthCount) override;
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
-    void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol,
-                                                         MarketDepthQuote quote,
-                                                         double bidAskImbalance,
-                                                         double bidDWP,
-                                                         double askDWP) override;
-    void onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote) override;
+    void onCurrentHighlightedReceivedNewLevel2(QString symbol,
+                                               Level2 level2,
+                                               double bidAskImbalance,
+                                               double bidDWP,
+                                               double askDWP) override;
     void onNewPositionReceived(QString account, Position position) override;
     void onPositionDeleted(QString account, QString positionID) override;
     void onNewOrderReceived(QString account, Order order) override;
@@ -106,9 +104,6 @@ class GUIFrontend : public FrontEnd
 
     qsizetype TSClientDataUsage = 0;
     qint64 memoryUsage = 0;
-    size_t barsStreamCount = 0;
-    size_t marketDepthStreamCount = 0;
-    qint64 m_recordingSize = 0;
 
     void updateStatusBar();
 

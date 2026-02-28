@@ -34,7 +34,7 @@ class HistoricalBarsStrategy : public QObject, public StrategyBase
     void onOrderRejected(const Order& order, const std::string& reason) override;
     void onPositionUpdated(const Position& pos) override;
     void onBalanceUpdated(double newBalance) override;
-    void onMarketDepth(const MarketDepthQuote& depth) override;
+    void onLevel2(const Level2& p_level2) override;
     void onError(const std::string& error) override;
 
   private slots:

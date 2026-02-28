@@ -315,54 +315,10 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
 
                   DEBUG << "Fetching complete day from API:" << startDateTime << "to" << endDayTime;
 
-                  // Call the API and chain the result processing
-
-                  TSClient::getInstance()
-                      ->getBars(m_symbol,
-                                1,
-                                Bar::BarUnit::Minute,
-                                0,
-                                Bar::BarSessionTemplate::USEQ24Hour,
-                                startDateTime,
-                                endDayTime)
-                      .then(this,
-                            [this, date, startDateTime, endDayTime, promise = std::move(promise)](
-                                std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& bars) mutable
-                            {
-                                if (!bars.has_value())
-                                {
-                                    CRITICAL << "getBars() from API returned error for" << m_symbol
-                                             << "- Error:" << static_cast<int>(bars.error());
-                                    promise.addResult(std::unexpected(bars.error()));
-                                }
-                                else
-                                {
-                                    INFO << "Asynchronous getBars() from API completed for complete day" << date
-                                         << "with" << bars.value()->size() << "bars received";
-
-                                    // Shared_ptr is already provided by TSClient, so we can use it directly
-                                    std::shared_ptr<QVector<Bar>> barsFromApiHolesFilled =
-                                        std::make_shared<QVector<Bar>>(
-                                            fillHolesOfReceivedRequest(startDateTime, endDayTime, *bars.value()));
-
-                                    // Store the complete day in memory cache
-                                    storeBarsInCache(date, barsFromApiHolesFilled);
-
-                                    // Store in database via DatabaseThread (async, fire-and-forget)
-                                    // Note: We intentionally don't wait for the result or attach continuations
-                                    // to avoid lifetime/threading issues. The shared_ptr ensures the bars stay alive,
-                                    // and destroyed then the DatabaseThread processes them.
-                                    [[maybe_unused]] auto dbFuture =
-                                        DatabaseThread::getInstance()->storeBarsInDatabase(m_symbol,
-                                                                                           date,
-                                                                                           barsFromApiHolesFilled);
-
-                                    promise.addResult(barsFromApiHolesFilled);
-                                }
-                                promise.finish();
-
-                                INFO << "Completed fetching bars from API for day" << date;
-                            });
+                  // TODO Phase 6: replace with DBClient::getHistoricalBars()
+                  CRITICAL << "Historical bars fetch not yet implemented (Phase 6) for" << m_symbol;
+                  promise.addResult(std::unexpected(TSClient::Error::Other));
+                  promise.finish();
               });
 
     return future;
@@ -422,41 +378,18 @@ void BarCache::storeBarInCache(const Bar& bar)
 
     QVector<Bar>& dayVector = getOrCreateDayVector(date);
 
-    // Check if we're overwriting an existing bar (only if the index existed before resize)
-    if (bar.getIsRealtime())
-    {
-        if (bar.getBarStatus() == Bar::BarStatus::Closed)
-        {
-            DEBUG << "Real time cache insertion; received the closing bar";
-        }
-    }
-    else // Closing historical bar
+    // Log when overwriting existing bar slots
+    if (bar.getBarStatus() == Bar::BarStatus::Closed)
     {
         if (dayVector[index].getBarStatus() != Bar::BarStatus::Uninitialized)
         {
-            if (BarsConstants::timeToIndex(bar.getTimeStamp().time()) == BarsConstants::MINUTE_BARS_PER_DAY - 1)
+            if (dayVector[index] == bar)
             {
-                WARNING << "We received a double of the last bar of the day for symbol" << m_symbol
-                        << "at timestamp:" << bar.getTimeStamp()
-                        << "- Experimentally, this has proven to be possible from the API."
-                        << " It seems to be a little glitch from their side when the app sits idle after hours.";
+                DEBUG << "Duplicate closed bar at index" << index << "for" << bar.getTimeStamp() << "- ignoring.";
             }
             else
             {
-                CRITICAL
-                    << "Inserting historical bar into cache at index" << index << "for timestamp:" << bar.getTimeStamp()
-                    << "but that index slot already had a bar, which indicates a potential logical bug"
-                    << "On the other hand, this is possible if the stream had an error and the stream got restarted"
-                    << "and we are now recceiving the same closed bar due to the stream sending a bar at the beginning";
-
-                if (dayVector[index] == bar)
-                {
-                    DEBUG << "However, the existing bar is identical to the new bar, so ignoring.";
-                }
-                else
-                {
-                    //Q_UNREACHABLE();
-                }
+                WARNING << "Overwriting existing bar at index" << index << "for" << bar.getTimeStamp();
             }
         }
     }

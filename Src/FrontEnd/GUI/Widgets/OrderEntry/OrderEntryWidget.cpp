@@ -968,7 +968,7 @@ void OrderEntryWidget::saveStickyModeSetting(int id)
     appStateSettings->sync();
 }
 
-void OrderEntryWidget::onMarketDepthUpdate(const QString& symbol, const MarketDepthQuote& quote)
+void OrderEntryWidget::onMarketDepthUpdate(const QString& symbol, const Level2& level2)
 {
     // Only update if this is for the current symbol
     if (symbol != m_currentSymbol)
@@ -977,54 +977,20 @@ void OrderEntryWidget::onMarketDepthUpdate(const QString& symbol, const MarketDe
     }
 
     // Extract best bid and ask prices
-    const QVector<MarketDepthLevel>& bids = quote.getBids();
-    const QVector<MarketDepthLevel>& asks = quote.getAsks();
+    const auto& bids = level2.m_bids;
+    const auto& asks = level2.m_asks;
 
-    // TODO: Add check for account having "Matrix" label (Level 2 data permission)
-
-    if (!bids.isEmpty())
+    if (bids[0].m_price > 0.0)
     {
-        bool ok = false;
-        double bestBid = bids[0].getPrice().toDouble(&ok);
-        if (ok)
-        {
-            m_lastBestBid = bestBid;
-        }
+        m_lastBestBid = bids[0].m_price;
     }
 
-    if (!asks.isEmpty())
+    if (asks[0].m_price > 0.0)
     {
-        bool ok = false;
-        double bestAsk = asks[0].getPrice().toDouble(&ok);
-        if (ok)
-        {
-            m_lastBestAsk = bestAsk;
-        }
+        m_lastBestAsk = asks[0].m_price;
     }
 
     // Update sticky price if enabled
-    if (m_stickyEnabled)
-    {
-        updateStickyPrice();
-    }
-}
-
-void OrderEntryWidget::onL1QuoteUpdate(const QString& symbol, double bid, double ask)
-{
-    if (symbol != m_currentSymbol)
-    {
-        return;
-    }
-
-    if (bid > 0.0)
-    {
-        m_lastBestBid = bid;
-    }
-    if (ask > 0.0)
-    {
-        m_lastBestAsk = ask;
-    }
-
     if (m_stickyEnabled)
     {
         updateStickyPrice();

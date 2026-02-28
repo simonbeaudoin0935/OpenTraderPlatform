@@ -177,9 +177,9 @@ void HistoricalBarsStrategy::onBalanceUpdated(double p_balance)
     Q_UNUSED(p_balance);
 }
 
-void HistoricalBarsStrategy::onMarketDepth(const MarketDepthQuote& p_depth)
+void HistoricalBarsStrategy::onLevel2(const Level2& p_level2)
 {
-    Q_UNUSED(p_depth);
+    Q_UNUSED(p_level2);
 }
 
 void HistoricalBarsStrategy::onError(const std::string& p_error)

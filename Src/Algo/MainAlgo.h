@@ -9,14 +9,15 @@
 #include <memory>
 #include <atomic>
 
-#include "MarketDepthQuoteReceiver.h"
+#include "Level2Receiver.h"
 #include "BarReceiver.h"
 #include "PositionsReceiver.h"
 #include "OrdersReceiver.h"
 #include "Account.h"
 #include "BarCache.h"
 #include "Balance.h"
-#include "Quote.h"
+#include "Level2.h"
+#include "Trade.h"
 #include "StrategyManager.h"
 #include "Core/Replay/ReplayEngine.h"
 #include "TSClient.h" // For TSClient::AuthStateReason enum
@@ -36,8 +37,7 @@ class StockInstruments : public QObject
     QString symbol;
     BarCache barCache;
     BarReceiver barReceiver;
-    MarketDepthQuoteReceiver marketDepthQuoteReceiver;
-    QPointer<StreamQuote> streamQuote; // Non-null only in replay mode; live quotes use RecorderTab's global stream
+    Level2Receiver m_level2Receiver;
 };
 
 class MainAlgo final : public QObject
@@ -149,18 +149,17 @@ class MainAlgo final : public QObject
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
 
     /**
-     * @brief Signal emitted when the displayed stock receives a new market depth quote
+     * @brief Signal emitted when the displayed stock receives a new Level 2 book snapshot
      * Thread context: Emitted from MainAlgo worker thread
-     * 
+     *
      * @param bidDWP Bid depth-weighted price
      * @param askDWP Ask depth-weighted price
      */
-    void displayedStockReceivedNewMarketDepthQuote(QString symbol,
-                                                   MarketDepthQuote quote,
-                                                   double bidAskImbalance,
-                                                   double bidDWP,
-                                                   double askDWP);
-    void displayedStockReceivedNewQuote(QString symbol, Quote quote);
+    void displayedStockReceivedNewLevel2(QString symbol,
+                                         Level2 level2,
+                                         double bidAskImbalance,
+                                         double bidDWP,
+                                         double askDWP);
 
     /**
      * @brief Signal emitted when a new position is received
@@ -206,9 +205,6 @@ class MainAlgo final : public QObject
   public slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, const QString& message);
     void onSelectDisplayedStock(const QString& symbol);
-
-    // Handle quote updates for displayed stock (connected from TSClient)
-    void onDisplayedStockReceivedNewQuote(const QString& symbol, const Quote& quote);
 
   private slots:
     void onThreadStarted();

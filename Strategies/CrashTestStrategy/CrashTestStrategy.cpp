@@ -75,9 +75,9 @@ void CrashTestStrategy::onBar(const Bar& p_bar)
     Q_UNUSED(p_bar);
 }
 
-void CrashTestStrategy::onMarketDepth(const MarketDepthQuote& p_quote)
+void CrashTestStrategy::onLevel2(const Level2& p_level2)
 {
-    Q_UNUSED(p_quote);
+    Q_UNUSED(p_level2);
 }
 
 void CrashTestStrategy::onOrderUpdated(const Order& p_order)

@@ -2,9 +2,22 @@
 #include "CONSTANTS.h"
 #include "Assume.h"
 #include "Logging.h"
-#include "SQL/LiveStreamDBQueries.h"
 #include "SQL/ReplayDataQueries.h"
 #include "Settings.h"
+
+// Legacy TS recorded data index queries (will be removed when replay moves to DBClient .dbn files)
+namespace LegacyReplayQueries
+{
+    const QString CREATE_BARS_EPOCH_INDEX = "CREATE INDEX IF NOT EXISTS idx_bars_epochMs ON bars(epochMs)";
+    const QString CREATE_BARS_TICKER_INDEX = "CREATE INDEX IF NOT EXISTS idx_bars_stockTicker ON bars(stockTicker)";
+    const QString CREATE_DEPTH_EPOCH_INDEX =
+        "CREATE INDEX IF NOT EXISTS idx_market_depth_epochMs ON market_depth_quotes(epochMs)";
+    const QString CREATE_DEPTH_TICKER_INDEX =
+        "CREATE INDEX IF NOT EXISTS idx_market_depth_stockTicker ON market_depth_quotes(stockTicker)";
+    const QString CREATE_QUOTES_EPOCH_INDEX = "CREATE INDEX IF NOT EXISTS idx_quotes_epochMs ON quotes(epochMs)";
+    const QString CREATE_QUOTES_TICKER_INDEX =
+        "CREATE INDEX IF NOT EXISTS idx_quotes_stockTicker ON quotes(stockTicker)";
+} // namespace LegacyReplayQueries
 
 #include <QDir>
 #include <QSqlError>
@@ -546,11 +559,11 @@ void ReplayDataLoader::ensureIndexes()
     switch (m_dataType)
     {
     case DataType::Bar:
-        if (!query.exec(LiveStreamDBQueries::CREATE_BARS_EPOCH_INDEX))
+        if (!query.exec(LegacyReplayQueries::CREATE_BARS_EPOCH_INDEX))
         {
             WARNING << "Failed to create bars epoch index:" << query.lastError().text();
         }
-        if (!query.exec(LiveStreamDBQueries::CREATE_BARS_TICKER_INDEX))
+        if (!query.exec(LegacyReplayQueries::CREATE_BARS_TICKER_INDEX))
         {
             WARNING << "Failed to create bars ticker index:" << query.lastError().text();
         }
@@ -558,11 +571,11 @@ void ReplayDataLoader::ensureIndexes()
         break;
 
     case DataType::MarketDepthQuote:
-        if (!query.exec(LiveStreamDBQueries::CREATE_DEPTH_EPOCH_INDEX))
+        if (!query.exec(LegacyReplayQueries::CREATE_DEPTH_EPOCH_INDEX))
         {
             WARNING << "Failed to create depth epoch index:" << query.lastError().text();
         }
-        if (!query.exec(LiveStreamDBQueries::CREATE_DEPTH_TICKER_INDEX))
+        if (!query.exec(LegacyReplayQueries::CREATE_DEPTH_TICKER_INDEX))
         {
             WARNING << "Failed to create depth ticker index:" << query.lastError().text();
         }
@@ -570,11 +583,11 @@ void ReplayDataLoader::ensureIndexes()
         break;
 
     case DataType::Quote:
-        if (!query.exec(LiveStreamDBQueries::CREATE_QUOTES_EPOCH_INDEX))
+        if (!query.exec(LegacyReplayQueries::CREATE_QUOTES_EPOCH_INDEX))
         {
             WARNING << "Failed to create quotes epoch index:" << query.lastError().text();
         }
-        if (!query.exec(LiveStreamDBQueries::CREATE_QUOTES_TICKER_INDEX))
+        if (!query.exec(LegacyReplayQueries::CREATE_QUOTES_TICKER_INDEX))
         {
             WARNING << "Failed to create quotes ticker index:" << query.lastError().text();
         }

@@ -32,37 +32,27 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     OBJ_ASSUME_TRUE(bar.isValid());
 
     DEBUG << "Received bar for" << symbol << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
-          << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "isEndOfHistory:" << bar.getIsEndOfHistory()
-          << "O:" << bar.getOpen() << "H:" << bar.getHigh() << "L:" << bar.getLow() << "C:" << bar.getClose();
+          << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "O:" << bar.getOpen() << "H:" << bar.getHigh()
+          << "L:" << bar.getLow() << "C:" << bar.getClose();
 
-    // Putting unlikely because only at the start will this condition be true,
-    // so optimizing for the cruising case
+    // Track when we transition from historical backfill to live bars
     if (startedReceivingRealtimeBars == false) [[unlikely]]
     {
-        if (bar.getIsEndOfHistory())
+        // With DBClient, bars arrive without explicit end-of-history marker.
+        // Treat first closed bar as transition to live mode.
+        if (bar.getBarStatus() == Bar::BarStatus::Closed)
         {
-            OBJ_ASSUME_FALSE(bar.getIsRealtime());
             startedReceivingRealtimeBars = true;
         }
-    }
-    else if (bar.getIsRealtime() == false) [[unlikely]]
-    {
-        WARNING << "We received a double of the last bar of the day for symbol" << m_symbol
-                << "at timestamp:" << bar.getTimeStamp()
-                << "- Experimentally, this has proven to be possible from the API."
-                   " It seems to be a little glitch from their side when the app sits idle after hours.";
-
-        return; // Ignore this bar
     }
 
     // Is this the first bar ever received for this chart
     if (indexToBar.size() == 0) [[unlikely]]
     {
-        // Should be the case becase we call openBarStream() with barsback=1,
-        // so we always get at least one historical bar first
+        // First bar should be a historical closed bar in live mode
         if (MainApp::isInReplayMode() == false)
         {
-            OBJ_ASSUME_TRUE(bar.getIsEndOfHistory() == true);
+            OBJ_ASSUME_EQUAL(bar.getBarStatus(), Bar::BarStatus::Closed);
         }
 
         // Sanity check: semaphore should be available (count == 1) for the first bar
@@ -153,8 +143,8 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
     if (MainApp::isInReplayMode() == false)
     {
-        // Any live bar after the first one shall have the isEndOfHistory flag false
-        OBJ_ASSUME_TRUE(bar.getIsEndOfHistory() == false);
+        // Subsequent live bars should be Open or Closed, never Uninitialized
+        OBJ_ASSUME_DIFF(bar.getBarStatus(), Bar::BarStatus::Uninitialized);
     }
 
     switch (bar.getBarStatus())

@@ -130,9 +130,9 @@ void MainAlgo::onThreadStarted()
 
     // Market depth quotes: route to strategies monitoring the symbol
     connect(this,
-            &MainAlgo::displayedStockReceivedNewMarketDepthQuote,
+            &MainAlgo::displayedStockReceivedNewLevel2,
             &m_strategyManager,
-            &StrategyManager::onMarketDepthReceived,
+            &StrategyManager::onLevel2Received,
             Qt::QueuedConnection);
 
     // Orders: route only to strategy that placed the order
@@ -166,7 +166,7 @@ void MainAlgo::onThreadStarted()
  * bar cache and market depth quote receivers with appropriate signal connections.
  *
  * If a stock was previously selected, it ensures proper cleanup by:
- * - Disconnecting signals from the old stock's BarCache and MarketDepthQuoteReceiver
+ * - Disconnecting signals from the old stock's BarCache and Level2Receiver
  * - Closing any active streams for the old stock
  * - Removing the old StockInstruments from the map and scheduling its deletion
  *
@@ -197,28 +197,16 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
                    this,
                    &MainAlgo::displayedStockReceivedNewBar);
 
-        disconnect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver,
-                   &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+        disconnect(&currentDisplayedStockInstrument->m_level2Receiver,
+                   &Level2Receiver::receivedNewLevel2,
                    this,
-                   &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
+                   &MainAlgo::displayedStockReceivedNewLevel2);
 
         // Clean up the previous stock instrument to free resources (streams, database connections)
         QString oldSymbol = currentDisplayedStockInstrument->symbol;
         QPointer<StockInstruments> oldInstrument = currentDisplayedStockInstrument;
 
-        // Close streams BEFORE scheduling deletion to avoid race conditions with .then() callbacks
-        if (oldInstrument->barReceiver.getStream())
-        {
-            TSClient::getInstance()->closeStream(oldInstrument->barReceiver.getStream());
-        }
-        if (oldInstrument->marketDepthQuoteReceiver.getStream())
-        {
-            TSClient::getInstance()->closeStream(oldInstrument->marketDepthQuoteReceiver.getStream());
-        }
-        if (!oldInstrument->streamQuote.isNull())
-        {
-            TSClient::getInstance()->closeStream(oldInstrument->streamQuote);
-        }
+        // TODO Phase 6: close DBClient stream for old instrument
 
         currentDisplayedStockInstrument = nullptr;
 
@@ -249,10 +237,10 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             this,
             &MainAlgo::displayedStockReceivedNewBar);
 
-    connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver,
-            &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+    connect(&currentDisplayedStockInstrument->m_level2Receiver,
+            &Level2Receiver::receivedNewLevel2,
             this,
-            &MainAlgo::displayedStockReceivedNewMarketDepthQuote);
+            &MainAlgo::displayedStockReceivedNewLevel2);
 }
 
 BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last)
@@ -557,7 +545,7 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
     , symbol(p_symbol)
     , barCache(p_symbol, this)
     , barReceiver(p_symbol, this)
-    , marketDepthQuoteReceiver(p_symbol, this)
+    , m_level2Receiver(p_symbol, this)
 {
     this->setObjectName("StockInstrument::" + p_symbol);
 
@@ -716,26 +704,9 @@ void MainAlgo::onReplayEndReached()
             continue;
         }
         instrument->barReceiver.pauseHeartbeat();
-        instrument->marketDepthQuoteReceiver.pauseHeartbeat();
-        if (!instrument->streamQuote.isNull())
-        {
-            instrument->streamQuote->pauseHeartbeat();
-        }
+        instrument->m_level2Receiver.pauseHeartbeat();
     }
 }
-
-void MainAlgo::onDisplayedStockReceivedNewQuote(const QString& symbol, const Quote& quote)
-{
-    // Only forward quotes for the currently displayed stock
-    if (!currentDisplayedStockInstrument.isNull() && symbol == currentDisplayedStockInstrument->symbol)
-    {
-        emit displayedStockReceivedNewQuote(symbol, quote);
-    }
-}
-
-// ============================================================================
-// Replay Mode Methods
-// ============================================================================
 
 void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
 {
@@ -787,43 +758,16 @@ void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pl
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    // Cross-thread connections to TSClient for data injection
-    // ReplayEngine (MainAlgoThread) -> TSClient (TSClientThread)
-    // QueuedConnection ensures thread-safe delivery
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::injectBarData,
-                        TSClient::getInstance(),
-                        &TSClient::onInjectBarData,
-                        Qt::QueuedConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::injectDepthData,
-                        TSClient::getInstance(),
-                        &TSClient::onInjectDepthData,
-                        Qt::QueuedConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::injectQuoteData,
-                        TSClient::getInstance(),
-                        &TSClient::onInjectQuoteData,
-                        Qt::QueuedConnection);
-    ASSUME_TRUE(connected);
+    // TODO Phase 6: connect ReplayEngine bar data directly to BarReceiver
+    // TODO Phase 6: connect ReplayEngine depth data directly to Level2Receiver
+    // TODO Phase 6: connect ReplayEngine quote data directly to Level1Receiver
 
     DEBUG << "ReplayEngine created and connected";
 
     // Start replay order/position streams with simulated account
     startReplayOrderStreams();
 
-    // Pre-roll: build initial quote state from start-of-day so the first delta
-    // never arrives before its symbol's snapshot.
-    const qint64 startEpochMs = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE).toMSecsSinceEpoch();
-    QMetaObject::invokeMethod(TSClient::getInstance(),
-                              "preRollQuoteState",
-                              Qt::BlockingQueuedConnection,
-                              Q_ARG(QDate, p_date),
-                              Q_ARG(qint64, startEpochMs));
+    // TODO Phase 6: pre-roll quote state via DBClient
 
     m_replayEngine->startReplay(p_date, p_startTime, p_speed);
 }
@@ -884,26 +828,9 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::injectBarData,
-                        TSClient::getInstance(),
-                        &TSClient::onInjectBarData,
-                        Qt::QueuedConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::injectDepthData,
-                        TSClient::getInstance(),
-                        &TSClient::onInjectDepthData,
-                        Qt::QueuedConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::injectQuoteData,
-                        TSClient::getInstance(),
-                        &TSClient::onInjectQuoteData,
-                        Qt::QueuedConnection);
-    ASSUME_TRUE(connected);
+    // TODO Phase 6: connect ReplayEngine bar data directly to BarReceiver
+    // TODO Phase 6: connect ReplayEngine depth data directly to Level2Receiver
+    // TODO Phase 6: connect ReplayEngine quote data directly to Level1Receiver
 
     DEBUG << "ReplayEngine created and connected";
 
@@ -913,14 +840,7 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
         startReplayOrderStreams();
     }
 
-    // Pre-roll: build initial quote state from start-of-day so the first delta
-    // never arrives before its symbol's snapshot.
-    const qint64 startEpochMs = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE).toMSecsSinceEpoch();
-    QMetaObject::invokeMethod(TSClient::getInstance(),
-                              "preRollQuoteState",
-                              Qt::BlockingQueuedConnection,
-                              Q_ARG(QDate, p_date),
-                              Q_ARG(qint64, startEpochMs));
+    // TODO Phase 6: pre-roll quote state via DBClient
 
     // Start in paused state - emit first bar then pause
     m_replayEngine->startReplayPaused(p_date, p_startTime, p_speed);
@@ -930,11 +850,7 @@ void MainAlgo::enterReplayModePaused(QDate p_date, QTime p_startTime, ReplayEngi
     {
         OBJ_ASSUME_FALSE(instrument.isNull());
         instrument->barReceiver.pauseHeartbeat();
-        instrument->marketDepthQuoteReceiver.pauseHeartbeat();
-        if (!instrument->streamQuote.isNull())
-        {
-            instrument->streamQuote->pauseHeartbeat();
-        }
+        instrument->m_level2Receiver.pauseHeartbeat();
     }
 }
 
@@ -963,11 +879,7 @@ void MainAlgo::pauseReplay()
     {
         OBJ_ASSUME_FALSE(instrument.isNull());
         instrument->barReceiver.pauseHeartbeat();
-        instrument->marketDepthQuoteReceiver.pauseHeartbeat();
-        if (!instrument->streamQuote.isNull())
-        {
-            instrument->streamQuote->pauseHeartbeat();
-        }
+        instrument->m_level2Receiver.pauseHeartbeat();
     }
 }
 
@@ -981,11 +893,7 @@ void MainAlgo::resumeReplay()
     {
         OBJ_ASSUME_FALSE(instrument.isNull());
         instrument->barReceiver.resumeHeartbeat();
-        instrument->marketDepthQuoteReceiver.resumeHeartbeat();
-        if (!instrument->streamQuote.isNull())
-        {
-            instrument->streamQuote->resumeHeartbeat();
-        }
+        instrument->m_level2Receiver.resumeHeartbeat();
     }
 
     m_replayEngine->resumeReplay();
@@ -1191,10 +1099,6 @@ void MainAlgo::deleteAllStockInstruments()
         if (QPointer<StockInstruments> instrument = it.value(); instrument)
         {
             DEBUG << "Scheduling deletion of stock instrument for" << instrument->symbol;
-            if (!instrument->streamQuote.isNull())
-            {
-                TSClient::getInstance()->closeStream(instrument->streamQuote);
-            }
             instrument->deleteLater(); // Use deleteLater() for Qt objects with signals
         }
     }
@@ -1229,10 +1133,10 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
                              Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    connected = connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver,
-                        &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+    connected = connect(&currentDisplayedStockInstrument->m_level2Receiver,
+                        &Level2Receiver::receivedNewLevel2,
                         this,
-                        &MainAlgo::displayedStockReceivedNewMarketDepthQuote,
+                        &MainAlgo::displayedStockReceivedNewLevel2,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
@@ -1244,21 +1148,12 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    connected = connect(&currentDisplayedStockInstrument->marketDepthQuoteReceiver,
-                        &MarketDepthQuoteReceiver::receivedNewMarketDepthQuote,
+    connected = connect(&currentDisplayedStockInstrument->m_level2Receiver,
+                        &Level2Receiver::receivedNewLevel2,
                         &m_strategyManager,
-                        &StrategyManager::onMarketDepthReceived,
+                        &StrategyManager::onLevel2Received,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
     INFO << "Stock instrument created and set as displayed for" << p_symbol;
-
-    // In replay mode, open a StreamQuote for this symbol so the replay engine
-    // emits quote rows (hasOpenQuoteStream() check) and the OrderEmulator gets updated.
-    if (TSClient::getInstance()->getMode() == TSClient::Mode::Replay)
-    {
-        currentDisplayedStockInstrument->streamQuote = TSClient::getInstance()->openStreamQuote({p_symbol});
-        OBJ_ASSUME_FALSE(currentDisplayedStockInstrument->streamQuote.isNull());
-        INFO << "Opened replay StreamQuote for displayed stock" << p_symbol;
-    }
 }

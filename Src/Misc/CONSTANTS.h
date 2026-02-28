@@ -262,17 +262,6 @@ namespace MarketDepthConstants
     inline constexpr int DEFAULT_MARKET_DEPTH_LEVELS = 10;
 
     /**
-     * @brief Maximum number of concurrent market depth quote streams
-     *
-     * TradeStation API enforces a hard limit of 10 concurrent market depth quote streams.
-     * Attempting to open more than 10 streams results in immediate connection failure
-     * with QNetworkReply::UnknownContentError.
-     *
-     * @note This limit applies to both Live and Replay modes for consistency
-     */
-    inline constexpr size_t MAX_CONCURRENT_STREAMS = 10;
-
-    /**
      * @brief Delay in milliseconds before processing queued stream requests
      *
      * When a market depth stream is closed and queued requests exist, we delay processing
@@ -299,22 +288,6 @@ namespace QuoteConstants
      */
     inline constexpr size_t MAX_SYMBOLS_PER_STREAM = 100;
 } // namespace QuoteConstants
-
-/**
- * @namespace BarStreamConstants
- * @brief Constants related to bar stream limits
- */
-namespace BarStreamConstants
-{
-    /**
-     * @brief Soft limit for concurrent bar streams
-     *
-     * TradeStation does not document a hard concurrent bars stream limit, but
-     * empirical testing shows instability above ~100 concurrent streams.
-     * Keep this configurable so it can be tuned without code changes.
-     */
-    inline constexpr size_t MAX_CONCURRENT_BAR_STREAMS = 100;
-} // namespace BarStreamConstants
 
 /**
  * @namespace RecorderConstants

@@ -2,7 +2,6 @@
 
 #include "FrontEnd.h"
 #include "Bar.h"
-#include "Quote.h"
 #include "BarCache.h"
 #include <QMap>
 #include <QSocketNotifier>
@@ -29,10 +28,8 @@ class TUIFrontend : public FrontEnd
 
   public slots:
 
-    // Usage update
     void onTSClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onMemoryUsageUpdate(qsizetype newDataUsage) override;
-    void onStreamCountUpdate(size_t barsCount, size_t marketDepthCount) override;
 
     void onTradeStationAccountsReceived(QVector<Account> results) override;
     void onNewPositionReceived(QString account, Position position) override;
@@ -40,12 +37,11 @@ class TUIFrontend : public FrontEnd
     void onNewOrderReceived(QString account, Order order) override;
     void onBalanceUpdated(Balance balance) override;
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
-    void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol,
-                                                         MarketDepthQuote quote,
-                                                         double bidAskImbalance,
-                                                         double bidDWP,
-                                                         double askDWP) override;
-    void onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote) override;
+    void onCurrentHighlightedReceivedNewLevel2(QString symbol,
+                                               Level2 level2,
+                                               double bidAskImbalance,
+                                               double bidDWP,
+                                               double askDWP) override;
 
     // Replay mode notifications
     void onReplayModeEntered() override;
@@ -104,8 +100,6 @@ class TUIFrontend : public FrontEnd
     // Status info
     qsizetype m_dataUsage = 0;
     qsizetype m_memoryUsage = 0;
-    size_t m_barsStreamCount = 0;
-    size_t m_marketDepthStreamCount = 0;
 
     // Input handling
     QSocketNotifier* m_inputNotifier = nullptr;

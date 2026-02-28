@@ -434,11 +434,9 @@ void TUIFrontend::displayStatusBar()
     mvwprintw(m_statusWin,
               0,
               2,
-              "Data: %lld KB | Memory: %lld KB | Bars: %zu | Depth: %zu",
+              "Data: %lld KB | Memory: %lld KB",
               static_cast<long long>(m_dataUsage / 1024),
-              static_cast<long long>(m_memoryUsage / 1024),
-              m_barsStreamCount,
-              m_marketDepthStreamCount);
+              static_cast<long long>(m_memoryUsage / 1024));
 
     wattroff(m_statusWin, COLOR_PAIR(4));
     wnoutrefresh(m_statusWin);
@@ -527,17 +525,6 @@ void TUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
     }
 }
 
-void TUIFrontend::onStreamCountUpdate(size_t barsCount, size_t marketDepthCount)
-{
-    m_barsStreamCount = barsCount;
-    m_marketDepthStreamCount = marketDepthCount;
-    if (m_initialized)
-    {
-        displayStatusBar();
-        doupdate();
-    }
-}
-
 void TUIFrontend::onTradeStationAccountsReceived(QVector<Account> results)
 {
     Q_UNUSED(results);
@@ -606,25 +593,18 @@ void TUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
     }
 }
 
-void TUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol,
-                                                                  MarketDepthQuote quote,
-                                                                  double bidAskImbalance,
-                                                                  double bidDWP,
-                                                                  double askDWP)
+void TUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol,
+                                                        Level2 level2,
+                                                        double bidAskImbalance,
+                                                        double bidDWP,
+                                                        double askDWP)
 {
     Q_UNUSED(symbol);
-    Q_UNUSED(quote);
+    Q_UNUSED(level2);
     Q_UNUSED(bidAskImbalance);
     Q_UNUSED(bidDWP);
     Q_UNUSED(askDWP);
     // Not applicable for minimal TUI
-}
-
-void TUIFrontend::onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote)
-{
-    Q_UNUSED(symbol);
-    Q_UNUSED(quote);
-    // MarketFlags display not applicable for minimal TUI
 }
 
 void TUIFrontend::saveLastDisplayedStock(const QString& symbol)

@@ -11,11 +11,9 @@
 #include "Order.h"
 #include "PlaceOrder.h"
 #include "Position.h"
-#include "Quote.h"
+#include "Level2.h"
 
 Q_DECLARE_LOGGING_CATEGORY(OrderEmulatorLog)
-
-class MarketDepthQuote;
 
 /**
  * @class OrderEmulator
@@ -80,7 +78,7 @@ class OrderEmulator : public QObject
      * - Monitoring limit order fill conditions
      * - Updating position P&L in real-time
      */
-    void updateMarketDepth(const QString& p_symbol, const MarketDepthQuote& p_depth);
+    void updateMarketDepth(const QString& p_symbol, const Level2& p_depth);
 
     /**
      * @brief Update Level 1 quote snapshot for a symbol
@@ -91,7 +89,7 @@ class OrderEmulator : public QObject
      * market depth is not available for calculating fill prices.
      * Level 2 data takes priority over Level 1 when both are available.
      */
-    void updateQuote(const QString& p_symbol, const Quote& p_quote);
+    void updateLevel1(const QString& p_symbol, const Level1& p_level1);
 
     /**
      * @brief Update bar close price for a symbol
@@ -226,7 +224,7 @@ class OrderEmulator : public QObject
      * @param p_depth Current market depth
      * @return true if order can fill
      */
-    [[nodiscard]] bool canFillLimitOrder(const Order& p_order, const MarketDepthQuote& p_depth) const;
+    [[nodiscard]] bool canFillLimitOrder(const Order& p_order, const Level2& p_depth) const;
 
     /**
      * @brief Calculate fill price for a market order (book walking)
@@ -234,7 +232,7 @@ class OrderEmulator : public QObject
      * @param p_depth Current market depth
      * @return Weighted average fill price
      */
-    [[nodiscard]] double calculateMarketOrderFillPrice(const Order& p_order, const MarketDepthQuote& p_depth) const;
+    [[nodiscard]] double calculateMarketOrderFillPrice(const Order& p_order, const Level2& p_depth) const;
 
     /**
      * @brief Check if a limit order can fill using Level 1 quote data
@@ -242,7 +240,7 @@ class OrderEmulator : public QObject
      * @param p_quote Current quote (Level 1)
      * @return true if order can fill
      */
-    [[nodiscard]] bool canFillLimitOrderFromQuote(const Order& p_order, const Quote& p_quote) const;
+    [[nodiscard]] bool canFillLimitOrderFromLevel1(const Order& p_order, const Level1& p_level1) const;
 
     /**
      * @brief Calculate fill price for a market order using Level 1 quote
@@ -250,7 +248,7 @@ class OrderEmulator : public QObject
      * @param p_quote Current quote (Level 1)
      * @return Fill price (best bid for sell, best ask for buy)
      */
-    [[nodiscard]] double calculateMarketOrderFillPriceFromQuote(const Order& p_order, const Quote& p_quote) const;
+    [[nodiscard]] double calculateMarketOrderFillPriceFromLevel1(const Order& p_order, const Level1& p_level1) const;
 
     /**
      * @brief Fill an order and update position
@@ -345,10 +343,10 @@ class OrderEmulator : public QObject
     qint64 m_nextPositionID = 60000000;
 
     // Market depth snapshots
-    QMap<QString, MarketDepthQuote> m_depthSnapshots; // symbol → latest depth
+    QMap<QString, Level2> m_depthSnapshots; // symbol → latest depth
 
     // Level 1 quote snapshots (fallback when Level 2 unavailable)
-    QMap<QString, Quote> m_quoteSnapshots; // symbol → latest quote
+    QMap<QString, Level1> m_quoteSnapshots; // symbol → latest quote
 
     // Bar close prices (for mark-to-market calculation)
     QMap<QString, double> m_latestBarClose; // symbol → latest bar close price
