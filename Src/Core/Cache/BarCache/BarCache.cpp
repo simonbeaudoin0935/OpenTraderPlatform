@@ -447,8 +447,8 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
     {
         if (date < MainApp::getCurrentAppTime().date())
         {
-            // Past day - should have approximately a full day of bars (allow minor gaps from data provider)
-            OBJ_ASSUME_GTE(bars->size(), static_cast<qsizetype>(BarsConstants::MINUTE_BARS_PER_DAY * 0.90));
+            // Past day - thinly traded stocks may have many empty minutes,
+            // so only assert upper bound. Zero bars is caught by ASSUME_FALSE above.
             OBJ_ASSUME_LTE(bars->size(), BarsConstants::MINUTE_BARS_PER_DAY);
         }
         else
@@ -463,7 +463,7 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
     }
 
     OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().date(), bars->last().getTimeStamp().date());
-    OBJ_ASSUME_EQUAL(bars->first().getTimeStamp().time(), TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION);
+    OBJ_ASSUME_GTE(bars->first().getTimeStamp().time(), TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION);
     OBJ_ASSUME_LTE(bars->last().getTimeStamp().time(), TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
 
     QWriteLocker locker(&m_barCacheRwLock);
