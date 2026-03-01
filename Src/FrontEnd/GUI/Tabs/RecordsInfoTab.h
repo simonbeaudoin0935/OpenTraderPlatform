@@ -60,6 +60,7 @@ class RecordsInfoTab : public QWidget
     void onDownloadClicked();
     void
     onDownloadFinished(const QString& p_symbol, const QDate& p_date, bool p_success, const QString& p_errorMessage);
+    void onDaysTableContextMenu(const QPoint& p_pos);
 
   private:
     void setupUI();

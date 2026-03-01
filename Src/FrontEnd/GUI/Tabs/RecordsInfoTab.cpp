@@ -8,6 +8,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHeaderView>
+#include <QMenu>
 #include <QMessageBox>
 #include <QRegularExpression>
 #include <QSet>
@@ -250,6 +251,13 @@ void RecordsInfoTab::setupUI()
     m_daysTable->horizontalHeader()->setStretchLastSection(true);
     m_daysTable->verticalHeader()->setVisible(false);
     daysLayout->addWidget(m_daysTable);
+
+    m_daysTable->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_daysTable,
+            &QTableWidget::customContextMenuRequested,
+            this,
+            &RecordsInfoTab::onDaysTableContextMenu,
+            Qt::UniqueConnection);
     splitter->addWidget(daysWidget);
 
     connect(m_daysTable,
@@ -482,6 +490,43 @@ void RecordsInfoTab::onDownloadFinished(const QString& p_symbol,
 
 void RecordsInfoTab::onRefreshClicked()
 {
+    scanRecordedDays();
+}
+
+void RecordsInfoTab::onDaysTableContextMenu(const QPoint& p_pos)
+{
+    QTableWidgetItem* item = m_daysTable->itemAt(p_pos);
+    if (item == nullptr)
+        return;
+
+    int row = item->row();
+    QTableWidgetItem* dateItem = m_daysTable->item(row, 0);
+    if (dateItem == nullptr)
+        return;
+
+    QDate date = dateItem->data(Qt::UserRole).toDate();
+    if (!date.isValid())
+        return;
+
+    QMenu menu(this);
+    QAction* deleteAction = menu.addAction("Delete " + date.toString(Qt::ISODate));
+
+    QAction* chosen = menu.exec(m_daysTable->viewport()->mapToGlobal(p_pos));
+    if (chosen != deleteAction)
+        return;
+
+    auto answer = QMessageBox::question(
+        this,
+        "Delete Recorded Day",
+        QString("Delete all replay data for %1?\n\nThis cannot be undone.").arg(date.toString(Qt::ISODate)));
+    if (answer != QMessageBox::Yes)
+        return;
+
+    QString dirPath = DBClient::getReplayDataDir(date);
+    QDir dir(dirPath);
+    if (dir.exists())
+        dir.removeRecursively();
+
     scanRecordedDays();
 }
 
