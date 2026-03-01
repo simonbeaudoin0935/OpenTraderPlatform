@@ -15,6 +15,7 @@
 #include "qcustomplot.h"
 #include "Bar.h"
 #include "ChartToolbar.h"
+#include "ChartTimeUtils.h"
 #include "CONSTANTS.h"
 
 // Forward declarations
@@ -247,6 +248,7 @@ class StockPriceChart : public QWidget
 
     // Index-based positioning helpers
     void addHistoricalBarsToIndexMapping(const std::shared_ptr<QVector<Bar>>& bars);
+    void initializeTimeAnchor();
 
     QDateTime getPreviousTradingMinute(const QDateTime& timestamp) const;
     QDateTime adjustToValidTradingTime(const QDateTime& timestamp) const;
@@ -306,6 +308,9 @@ class StockPriceChart : public QWidget
     // Index-based positioning maps
     QMap<int, Bar> indexToBar;             // Map from index to Bar
     QMap<QDateTime, int> timestampToIndex; // Map from timestamp to index
+
+    // Time-anchored chart index 0 (set on symbol selection, not on first bar receipt)
+    QDateTime m_index0Timestamp;
 
     // Timeframe selector widget
     ChartToolbar* chartToolbar;

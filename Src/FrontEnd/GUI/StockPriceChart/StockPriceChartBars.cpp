@@ -30,6 +30,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     // Its a bug if we receive a new bar for a different symbol than current
     OBJ_ASSUME_EQUAL(symbol, m_symbol);
     OBJ_ASSUME_TRUE(bar.isValid());
+    OBJ_ASSUME_TRUE(m_index0Timestamp.isValid());
 
     DEBUG << "Received bar for" << symbol << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
           << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "O:" << bar.getOpen() << "H:" << bar.getHigh()
@@ -38,189 +39,29 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     // Track when we transition from historical backfill to live bars
     if (startedReceivingRealtimeBars == false) [[unlikely]]
     {
-        // With DBClient, bars arrive without explicit end-of-history marker.
-        // Treat first closed bar as transition to live mode.
         if (bar.getBarStatus() == Bar::BarStatus::Closed)
         {
             startedReceivingRealtimeBars = true;
         }
     }
 
-    // Is this the first bar ever received for this chart
-    if (indexToBar.size() == 0) [[unlikely]]
-    {
-        // First bar should be a historical closed bar in live mode
-        if (MainApp::isInReplayMode() == false)
-        {
-            OBJ_ASSUME_EQUAL(bar.getBarStatus(), Bar::BarStatus::Closed);
-        }
-
-        // Sanity check: semaphore should be available (count == 1) for the first bar
-        OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.available() == 1);
-
-        // Important that this be aquired here to block further requests until we finish processing this first bar.
-        // the ->setRange() calls below trigger a checkForMissingBars() immediately due to the direct connection
-        // of the signal/slot
-        bool acquired = m_missingBarsRequestSemaphore.tryAcquire();
-        OBJ_ASSUME_TRUE(acquired); // Should always succeed for first bar
-
-        DEBUG << "Received first bar " << bar;
-
-        // Now that we have the first bar, we can set up the custom time ticker
-        // that converts index values to time labels
-        QSharedPointer<IndexToTimeTicker> indexToTimeTicker(new IndexToTimeTicker);
-        indexToTimeTicker->setTimeFormat("hh:mm");
-        indexToTimeTicker->setIndexToTimestampFunction([this](int index) { return this->getTimestampForIndex(index); });
-        m_volumeAxisRect->axis(QCPAxis::atBottom)->setTicker(indexToTimeTicker);
-        m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabels(true);
-
-        // Also set the same ticker on main chart's X-axis so grid lines align with nice times
-        m_customPlot->xAxis->setTicker(indexToTimeTicker);
-
-        OBJ_ASSUME_EQUAL(timestampToIndex.size(), 0);
-
-        // The indexd of the first bar received when opening the stream is always 0
-        // Historical bars fetched will go in the negative indices, and future bars in positive indices
-        const int index = 0;
-
-        timestampToIndex[bar.getTimeStamp()] = index;
-        indexToBar[index] = bar;
-        m_latestBar = bar;
-        m_latestBarIndex = index;
-
-        // Update candlestick data
-        updateCandlestickData();
-        updateVolumeData();
-
-        // Center index 0 with 1 hour (60 bars) on each side
-        m_customPlot->xAxis->setRange(-60, 60);
-
-        double newPrice = bar.getClose();
-        double padding = newPrice * 0.0002;
-        double minRange = newPrice * 0.0005;
-        m_customPlot->axisRect()
-            ->axis(QCPAxis::atRight)
-            ->setRange(qMax(0.0, newPrice - minRange / 2 - padding), newPrice + minRange / 2 + padding);
-
-        m_customPlot->replot();
-
-        // Draw background rectangles for the session
-        drawBackgroundsForReceivedBars(QVector<Bar>{bar});
-
-        // Start the timer for updating the current time line
-        m_currentTimeLine->setVisible(true);
-        m_timeLineTimer->start();
-        updateCurrentTimeLine(); // Update immediately
-
-        // Update replay boundary lines if in replay mode and we have cached times
-        if (m_isReplayModeActive && m_replayDayStart.isValid() && m_replayDayEnd.isValid())
-        {
-            updateReplayDayBoundaryLines();
-        }
-
-        // Here we will fetch the bars from the beginning of the day up to this bar to fill in history
-        QDateTime first = QDateTime(bar.getTimeStamp().date(),
-                                    TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
-                                    TradingHours::MARKET_TIMEZONE);
-
-        QDateTime last = bar.getTimeStamp().addSecs(-60);
-
-        // Only fetch history if there are bars before the first streaming bar
-        if (last >= first)
-        {
-            DEBUG << "Requesting whole day bars from" << first.toString(Qt::ISODate) << "to"
-                  << last.toString(Qt::ISODate);
-            emit requestMissingBars(first, last);
-        }
-        else
-        {
-            DEBUG << "First bar is the earliest candle, no history to fetch";
-            m_missingBarsRequestSemaphore.release();
-        }
-
-        return;
-    }
-
     if (MainApp::isInReplayMode() == false)
     {
-        // Subsequent live bars should be Open or Closed, never Uninitialized
         OBJ_ASSUME_DIFF(bar.getBarStatus(), Bar::BarStatus::Uninitialized);
+        OBJ_ASSUME_DIFF(bar.getBarStatus(), Bar::BarStatus::Null);
     }
 
-    switch (bar.getBarStatus())
-    {
-    case Bar::BarStatus::Uninitialized:
-        // Should not receive uninitialized bars
-        Q_UNREACHABLE();
-        break;
+    // Compute chart index from bar timestamp (time-anchored — no special first-bar logic)
+    const int index = ChartTimeUtils::timestampToChartIndex(bar.getTimeStamp(), m_index0Timestamp);
 
-    case Bar::BarStatus::Null:
-        // Tradestation doesnt send 'null' bars, it is a construct that we created in this program
-        Q_UNREACHABLE();
-        break;
+    indexToBar[index] = bar;
+    timestampToIndex[bar.getTimeStamp()] = index;
+    m_latestBar = bar;
+    m_latestBarIndex = index;
 
-    case Bar::BarStatus::Closed:
-    {
-        if (startedReceivingRealtimeBars)
-        {
-            //                Q_ASSERT(m_latestBar.getBarStatus() == Bar::BarStatus::Open);
-            // TradeStation sends a 'closed' bar to close the current candle. Therefore, its timestamp is the one
-            // from the current candle
-            //                OBJ_ASSUME_EQUAL(bar.getTimeStamp(), m_latestBar.getTimeStamp());
-        }
-        else
-        {
-            OBJ_ASSUME_TRUE(m_latestBar.getBarStatus() == Bar::BarStatus::Closed);
-            OBJ_ASSUME_GT(bar.getTimeStamp(), m_latestBar.getTimeStamp());
-        }
-
-        // When we receive a closed bar, we shall not increase the latestBarIndex,
-        // because the next bar to be received will be an open bar for the next candle
-        // Therefore, we just replace the existing latest bar at latestBarIndex
-        indexToBar[m_latestBarIndex] = bar;
-
-        // Especially here, we need to store this bar with status = closed, because the
-        // next open bar will need to know that the previous bar was closed.
-        m_latestBar = bar;
-    }
-    break;
-
-    case Bar::BarStatus::Open:
-        if (m_latestBar.getBarStatus() == Bar::BarStatus::Closed)
-        {
-            // New bar after previous one was closed
-            OBJ_ASSUME_GT(bar.getTimeStamp(), m_latestBar.getTimeStamp());
-
-            const int newIndex = indexToBar.lastKey() + 1;
-
-            timestampToIndex[bar.getTimeStamp()] = newIndex;
-            indexToBar[newIndex] = bar;
-            m_latestBar = bar;
-            m_latestBarIndex = newIndex;
-        }
-        else
-        {
-            // Updating existing open bar
-            if (bar.getTimeStamp() != m_latestBar.getTimeStamp())
-            {
-                CRITICAL << "Timestamp mismatch when updating existing open bar: new bar timestamp"
-                         << bar.getTimeStamp().toString(Qt::ISODate) << "does not match latest bar timestamp"
-                         << m_latestBar.getTimeStamp().toString(Qt::ISODate);
-
-                return;
-            }
-
-            indexToBar[m_latestBarIndex] = bar;
-            m_latestBar = bar;
-        }
-        break;
-    }
-
-    // Update candlestick data
     updateCandlestickData();
     updateVolumeData();
 
-    // Draw session backgrounds if this bar belongs to a new date (e.g., next day's pre-market just started)
     if (!m_datesWithBackgrounds.contains(bar.getTimeStamp().date()))
     {
         drawBackgroundsForReceivedBars(QVector<Bar>{bar});
@@ -228,7 +69,6 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
     redrawLastPriceLine();
 
-    // Update open position dynamic line and P&L box with current price
     if (m_currentOpenPosition && !m_currentOpenPosition->isClosed)
     {
         double currentPrice = bar.getClose();
@@ -238,6 +78,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
     m_customPlot->replot();
 }
+
 
 /**
  * @brief Updates the candlestick data from indexToBar map.
@@ -485,7 +326,7 @@ void StockPriceChart::drawFixedBackgroundRect(const QDate& date,
                                               const QColor& color,
                                               QList<QCPItemRect*>& rectList)
 {
-    OBJ_ASSUME_FALSE(indexToBar.isEmpty());
+    OBJ_ASSUME_TRUE(m_index0Timestamp.isValid());
     OBJ_ASSUME_TRUE(date.dayOfWeek() >= Qt::Monday && date.dayOfWeek() <= Qt::Friday);
 
     QDateTime rangeStartDT(date, rangeStart, TradingHours::MARKET_TIMEZONE);
@@ -665,7 +506,11 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
         return;
     }
 
-    OBJ_ASSUME_FALSE(indexToBar.isEmpty());
+    if (!m_index0Timestamp.isValid() || indexToBar.isEmpty())
+    {
+        m_missingBarsRequestSemaphore.release();
+        return;
+    }
 
     DEBUG << "Check for missing bars for view range:" << viewStartTime.toString(Qt::ISODate) << "to"
           << viewEndTime.toString(Qt::ISODate);
@@ -737,6 +582,7 @@ void StockPriceChart::clearSymbol()
 
     indexToBar.clear();
     timestampToIndex.clear();
+    m_index0Timestamp = QDateTime(); // Reset time anchor
 
     m_latestBarIndex = -1;
     m_latestBar = Bar();
@@ -782,6 +628,7 @@ void StockPriceChart::clearChart()
     // Clear index mappings
     indexToBar.clear();
     timestampToIndex.clear();
+    m_index0Timestamp = QDateTime(); // Reset time anchor
 
     // Reset bar tracking
     m_latestBarIndex = -1;
@@ -810,6 +657,12 @@ void StockPriceChart::clearChart()
     m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(0, 100);
 
     m_customPlot->replot();
+
+    // Re-initialize time anchor (needed for replay restart and live mode re-entry)
+    if (!m_symbol.isEmpty())
+    {
+        initializeTimeAnchor();
+    }
 
     DEBUG << "Chart cleared for replay mode";
 }

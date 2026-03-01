@@ -364,9 +364,70 @@ void StockPriceChart::setSymbol(const QString& symbol)
     // Populate available replay days when symbol changes
     populateAvailableReplayDays();
 
-    // Historical orders/positions loaded after first bar is received (need bar data for index calculation)
+    // Compute index 0 from current time and request initial historical bars
+    initializeTimeAnchor();
 
     DEBUG << "Set chart symbol to" << symbol;
+}
+
+/**
+ * @brief Computes m_index0Timestamp from clock time and sets up the chart.
+ *
+ * This is called on symbol selection — no live data needed.
+ * Sets up the time ticker, view range, and requests initial historical bars.
+ */
+void StockPriceChart::initializeTimeAnchor()
+{
+    QDateTime now;
+    if (MainApp::isInReplayMode())
+    {
+        // Replay mode: index 0 should be set when replay starts (via clearChart + addLiveBar)
+        // For now, use current time; the replay engine will provide bars with correct timestamps
+        now = QDateTime::currentDateTimeUtc();
+    }
+    else
+    {
+        now = QDateTime::currentDateTimeUtc();
+    }
+
+    m_index0Timestamp = ChartTimeUtils::computeIndex0Timestamp(now);
+
+    DEBUG << "Time anchor set: index 0 =" << m_index0Timestamp.toString(Qt::ISODate);
+
+    // Set up custom time ticker
+    QSharedPointer<IndexToTimeTicker> indexToTimeTicker(new IndexToTimeTicker);
+    indexToTimeTicker->setTimeFormat("hh:mm");
+    indexToTimeTicker->setIndexToTimestampFunction([this](int index) { return this->getTimestampForIndex(index); });
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->setTicker(indexToTimeTicker);
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabels(true);
+    m_customPlot->xAxis->setTicker(indexToTimeTicker);
+
+    // Center view on index 0 with ~60 bars left, ~30 bars right
+    m_customPlot->xAxis->setRange(-60, 30);
+
+    // Start the current time line
+    m_currentTimeLine->setVisible(true);
+    m_timeLineTimer->start();
+    updateCurrentTimeLine();
+
+    // Request historical bars from 4:01 AM to index 0
+    OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.tryAcquire());
+
+    QDateTime first = QDateTime(m_index0Timestamp.date(),
+                                TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
+                                TradingHours::MARKET_TIMEZONE);
+    QDateTime last = m_index0Timestamp.addSecs(-60);
+
+    if (last >= first)
+    {
+        DEBUG << "Requesting initial bars from" << first.toString(Qt::ISODate) << "to" << last.toString(Qt::ISODate);
+        emit requestMissingBars(first, last);
+    }
+    else
+    {
+        DEBUG << "No historical bars to fetch (index 0 is first candle of day)";
+        m_missingBarsRequestSemaphore.release();
+    }
 }
 
 /**

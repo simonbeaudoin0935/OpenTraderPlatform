@@ -284,44 +284,33 @@ void StockPriceChart::setReplayModeActive(bool active)
  */
 void StockPriceChart::updateCurrentTimeLine()
 {
-    // The timer that triggers the update of the current time line should only have been activated
-    // after receiving the first real-time bar, so indexToBar should not be empty.
-    OBJ_ASSUME_FALSE(indexToBar.isEmpty());
-
-    // Get the timestamp of the bar at index 0 (the first bar received)
-    auto it = indexToBar.find(0);
-    OBJ_ASSUME_FALSE(it == indexToBar.end());
+    if (!m_index0Timestamp.isValid())
+    {
+        return;
+    }
 
     // Get the current application time (NY timezone)
     QDateTime currentTime = MainApp::getCurrentAppTime();
 
-    // TradeStation timestamps represent the closing time of the bar interval.
-    // Subtract 60 seconds to get the opening time (actual start of the bar).
-    QDateTime zeroIndexTime = it->getTimeStamp().addSecs(-60);
+    // Compute fractional chart index for current time
+    // index0 corresponds to m_index0Timestamp (bar close time), so subtract 60s to get bar open time
+    QDateTime index0Open = m_index0Timestamp.addSecs(-60);
+    qint64 secondsDiff = index0Open.secsTo(currentTime);
 
-    // Check if current time is within trading hours (4:00 AM - 8:00 PM ET)
+    // Clamp to trading hours
     QTime currentTimeOfDay = currentTime.time();
-
-    // Market open is at 4:00 AM (early pre-market), first bar timestamp is 4:01 AM
     QTime marketOpen = TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION.addSecs(-60);
-    QTime marketClose = TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION; // 8:00 PM
+    QTime marketClose = TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;
 
-    // Calculate the time difference in seconds
-    qint64 secondsDiff = zeroIndexTime.secsTo(currentTime);
-
-    // If we're before market open, cap at the start (4:00 AM position)
     if (currentTimeOfDay < marketOpen)
     {
-        // Position line at 4:00 AM (start of trading day)
         QDateTime marketOpenTime(currentTime.date(), marketOpen, TradingHours::MARKET_TIMEZONE);
-        secondsDiff = zeroIndexTime.secsTo(marketOpenTime);
+        secondsDiff = index0Open.secsTo(marketOpenTime);
     }
-    // If we're after market close, cap at the end (8:00 PM position)
     else if (currentTimeOfDay > marketClose)
     {
-        // Position line at 8:00 PM (end of trading day)
         QDateTime marketCloseTime(currentTime.date(), marketClose, TradingHours::MARKET_TIMEZONE);
-        secondsDiff = zeroIndexTime.secsTo(marketCloseTime);
+        secondsDiff = index0Open.secsTo(marketCloseTime);
     }
 
     // Convert to fractional index position
@@ -366,20 +355,15 @@ void StockPriceChart::updateReplayDayBoundaryLines()
         return;
     }
 
-    // Need at least one bar in the chart to calculate positions
-    if (indexToBar.isEmpty())
+    // Need time anchor to calculate positions
+    if (!m_index0Timestamp.isValid())
     {
-        DEBUG << "Cannot update replay boundary lines: no bars in chart";
+        DEBUG << "Cannot update replay boundary lines: no time anchor set";
         return;
     }
 
-    // Get the timestamp of the bar at index 0 (the first bar received)
-    auto it = indexToBar.find(0);
-    OBJ_ASSUME_FALSE(it == indexToBar.end());
-
-    // TradeStation timestamps represent the closing time of the bar interval.
-    // Subtract 60 seconds to get the opening time (actual start of the bar).
-    QDateTime zeroIndexTime = it->getTimeStamp().addSecs(-60);
+    // index0 timestamp is bar close time; subtract 60s to get bar open time
+    QDateTime zeroIndexTime = m_index0Timestamp.addSecs(-60);
 
     // Calculate index positions for start and end times
     qint64 startSecondsDiff = zeroIndexTime.secsTo(m_replayDayStart);
