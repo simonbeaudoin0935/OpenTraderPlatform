@@ -220,10 +220,6 @@ namespace ChartConstants
     // Candlestick rendering
     inline constexpr double CANDLESTICK_BODY_WIDTH = 0.9; // 90% of available space
 
-    // Replay day boundary line colors (hex strings)
-    inline constexpr const char* REPLAY_START_LINE_COLOR = "#00BFFF"; // DeepSkyBlue (cyan-ish)
-    inline constexpr const char* REPLAY_END_LINE_COLOR = "#FF6B6B";   // Coral red (warm red)
-
 } // namespace ChartConstants
 
 /**
