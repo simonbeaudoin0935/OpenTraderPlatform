@@ -100,9 +100,9 @@ CREATE INDEX IF NOT EXISTS idx_timestamp ON bars(timestamp);
 ```
 
 **Database Location**:
-- Pattern: `~/.local/share/L2Trader/bars/{symbol}_{timeframe}.db`
-- Example: `AAPL_1Min.db`, `MSFT_5Min.db`
-- One database per symbol-timeframe combination
+- Pattern: `~/.cache/L2Trader/Bars/{SYMBOL}.db`
+- Example: `NVDA.db`, `AAPL.db`
+- One database per symbol
 
 ### SQL Queries
 
@@ -228,15 +228,30 @@ Used by StockPriceChart to request missing data.
 
 ## Data Source Integration
 
-### Phase 6 Migration Note
+### Databento Integration (Complete)
 
-The BarCache data source layer is being migrated:
+Bars are sourced from Databento via `DBClient`:
+- **Historical**: `DBClient::fetchHistoricalBars()` → `historicalBarsReceived` signal → `BarCache::storeBarsInCache()`
+- **Live**: `DBClient::newTrade` → `LiveBarAccumulator::barClosed` → `BarReceiver::receivedNewBar` → `BarCache::storeBar()`
 
-- **Previously**: Bars were received via `StreamBars` (TradeStation streaming API) and persisted through `LiveStreamDB`.
-- **Current state**: `StreamBars` and `LiveStreamDB` have been removed (Phase 3 cleanup).
-- **Phase 6 (planned)**: Bars will be provided by `DBClient` signals. Historical backfill will use `DBClient::getHistoricalBars()` instead of the former `TSClient::GetBarsInRange()`.
+The BarCache is data-source agnostic — it accepts `Bar` objects from any source via `addBar()` / `storeBarsInCache()`.
 
-The BarCache itself (memory cache + SQLite persistence via DatabaseThread) remains unchanged and will accept bars from the new data source via the same `addBar()` / `mergeBarsIntoCache()` interface.
+### Bar Timestamp Convention
+
+**Open-time**: bars are timestamped at their open time (Databento native convention).
+- Bar covering 4:00:00–4:00:59 → timestamped `4:00`
+- First bar index 0 = 4:00 AM, last index 899 = 6:59 PM
+- 900 bars per day (XNAS.ITCH trading hours)
+
+### Database Location
+
+- Pattern: `~/.cache/L2Trader/Bars/{SYMBOL}.db`
+- Example: `NVDA.db`, `AAPL.db`
+- One database per symbol
+
+### Completeness Threshold
+
+`DatabaseThread` accepts a database cache hit at ≥90% of expected bars (vs strict equality). This prevents infinite refetch loops when the data provider has minor gaps (e.g., 898/900 bars).
 
 ## Data Retrieval Patterns
 
@@ -409,8 +424,8 @@ m_barCache.setPreloadDays(30);
 QVector<Bar> bars = m_barCache.getBarsForDateRange(startDate, endDate);
 
 if (bars.isEmpty()) {
-    // Not in cache — Phase 6 will use DBClient::getHistoricalBars()
-    // to backfill via signals, then merge into cache.
+    // Cache miss → request from Databento via DBClient::fetchHistoricalBars()
+    // Results arrive via historicalBarsReceived signal → storeBarsInCache()
 }
 ```
 

@@ -11,8 +11,10 @@
 | File | Description |
 |------|-------------|
 | `DBClient.h` | Singleton header — ConnectionState enum, live/historical API, signals |
-| `DBClient.cpp` | Implementation — LiveThreaded lifecycle, Historical fetching, callbacks |
+| `DBClient.cpp` | Implementation — LiveThreaded lifecycle, Historical fetching, replay download, callbacks |
 | `DBRecordTranslator.h` | Header-only static conversion functions (Databento record → domain type) |
+| `LiveBarAccumulator.h` | Accumulates Trade records into forming 1-minute OHLCV bars |
+| `LiveBarAccumulator.cpp` | Implementation — floor-to-open-time, minute-boundary rollover |
 
 ## Architecture
 
@@ -65,6 +67,36 @@ Access to `m_symbolMap` is protected by `m_symbolMapMutex` since the callback th
 | `newLevel1(QString, Level1)` | Databento callback thread | BBO snapshot |
 | `newTrade(QString, Trade)` | Databento callback thread | Trade print |
 | `historicalBarsReceived(QString, QVector<Bar>)` | QThreadPool worker | Historical OHLCV bars |
+| `replayDownloadFinished(QString, QDate, bool, QString)` | QThreadPool worker | Replay data download result (symbol, date, success, error) |
+
+## Replay Data Download
+
+`downloadReplayData(symbol, date)` downloads **Mbp10** (Level 2) + **Trades** for one symbol on one date:
+
+- Runs asynchronously via `QtConcurrent::run()` (sequential per call)
+- Files stored as `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst` and `_trades.dbn.zst`
+- Emits `replayDownloadFinished()` on completion (success or failure)
+- `hasReplayData(date, symbol)` checks if both files exist
+- `getReplayDataDir(date)` / `getReplayFilePath(date, symbol, schema)` provide path helpers
+
+Called from `RecordsInfoTab` download section (sequential queue — one symbol at a time).
+
+## LiveBarAccumulator
+
+Accumulates individual `Trade` records into forming 1-minute OHLCV bars using **open-time convention**:
+
+- A trade at 09:31:04 contributes to the bar timestamped **09:31:00** (floor to current minute)
+- On minute-boundary rollover: emits `barClosed()` for the completed bar, starts new forming bar
+- Every trade update: emits `barUpdated()` with the in-progress bar
+- Lives on MainAlgo thread; connected to `DBClient::newTrade`
+
+## Bar Timestamp Convention
+
+**Open-time** (Databento native): bars are timestamped at their **open** time.
+- Bar covering 4:00:00–4:00:59 → timestamped `4:00`
+- First bar of day: index 0 = `4:00 AM`
+- Last bar of day: index 899 = `6:59 PM`
+- 900 bars per day (4:00 AM – 6:59 PM, XNAS.ITCH hours)
 
 ## DBRecordTranslator
 
@@ -92,6 +124,6 @@ Header-only namespace with pure static conversion functions:
 
 ## Future Work
 
-- **Phase 5**: LiveBarAccumulator — accumulate TradeMsg into real-time 1-minute bars
-- **Phase 6**: Wire DBClient signals to MainAlgo receivers, BarCache historical backfill
-- **Phase 7**: DbnFileStore replay integration, replace old Recorder/ReplayEngine
+- **Data usage tracking**: Monitor and display Databento API costs
+- **Reconnection logic**: Auto-reconnect on network drops with exponential backoff
+- **Multi-dataset support**: Allow switching between XNAS.ITCH and other datasets

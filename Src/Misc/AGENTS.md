@@ -24,9 +24,24 @@ The Misc directory contains utility classes, application settings, logging infra
 namespace TradingHours {
     constexpr QTime TRADING_START_TIME(9, 30, 0);      // 9:30 AM ET
     constexpr QTime TRADING_END_TIME(16, 0, 0);        // 4:00 PM ET
-    constexpr QTime PRE_MARKET_START(4, 0, 0);         // 4:00 AM ET
-    constexpr QTime AFTER_HOURS_END(20, 0, 0);         // 8:00 PM ET
     const QString TIMEZONE = "America/New_York";
+}
+
+namespace BarsConstants {
+    // Session boundaries (open-time convention: timestamp = bar open)
+    // XNAS.ITCH trading hours: 4:00 AM – 6:59 PM ET (900 one-minute bars)
+    constexpr QTime EARLY_PRE_MARKET_START(4, 0, 0);   // First bar: 4:00
+    constexpr QTime EARLY_PRE_MARKET_END(5, 59, 0);    // Last early pre-market bar: 5:59
+    constexpr QTime PRE_MARKET_START(6, 0, 0);          // 6:00 AM ET
+    constexpr QTime PRE_MARKET_END(9, 29, 0);           // 9:29 AM ET
+    constexpr QTime REGULAR_MARKET_START(9, 30, 0);     // 9:30 AM ET
+    constexpr QTime REGULAR_MARKET_END(15, 59, 0);      // 3:59 PM ET
+    constexpr QTime AFTER_MARKET_START(16, 0, 0);       // 4:00 PM ET
+    constexpr QTime AFTER_MARKET_END(18, 59, 0);        // Last bar: 6:59 PM
+    constexpr int MINUTE_BARS_PER_DAY = 900;            // 4:00-18:59 = 15 hours
+
+    // timeToIndex(QTime) — maps 4:00→0, 18:59→899
+    // indexToTime(int)   — maps 0→4:00, 899→18:59
 }
 
 namespace TSClientEndpoints {
