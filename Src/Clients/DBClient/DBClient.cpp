@@ -244,8 +244,9 @@ void DBClient::fetchHistoricalBars(const QString& p_symbol, const QDateTime& p_s
                                          databento::DateTimeRange<std::string>{startStr, endStr},
                                          {stdSymbol},
                                          databento::Schema::Ohlcv1M,
-                                         [&bars, &symbol](const databento::Record& record) -> databento::KeepGoing
+                                         [&bars, &symbol, this](const databento::Record& record) -> databento::KeepGoing
                                          {
+                                             m_totalDataReceivedBytes += static_cast<qsizetype>(record.Size());
                                              if (record.Holds<databento::OhlcvMsg>())
                                              {
                                                  const auto& msg = record.Get<databento::OhlcvMsg>();
@@ -255,6 +256,7 @@ void DBClient::fetchHistoricalBars(const QString& p_symbol, const QDateTime& p_s
                                          });
 
                 sDEBUG << "Historical fetch complete for" << symbol << ":" << bars.size() << "bars";
+                emit dataUsageUpdated(m_totalDataReceivedBytes.load());
             }
             catch (const std::exception& ex)
             {
@@ -406,6 +408,13 @@ void DBClient::onMetadataReceived(databento::Metadata&& p_metadata)
 
 databento::KeepGoing DBClient::onRecordReceived(const databento::Record& p_record)
 {
+    // Track data usage
+    m_totalDataReceivedBytes += static_cast<qsizetype>(p_record.Size());
+    if (++m_recordCounter % k_emitEveryNRecords == 0)
+    {
+        emit dataUsageUpdated(m_totalDataReceivedBytes.load());
+    }
+
     // Update symbol map on SymbolMapping records
     {
         QMutexLocker lock(&m_symbolMapMutex);

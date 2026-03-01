@@ -29,6 +29,7 @@ class TUIFrontend : public FrontEnd
   public slots:
 
     void onTSClientDataUsageUpdate(qsizetype newDataUsage) override;
+    void onDBClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onMemoryUsageUpdate(qsizetype newDataUsage) override;
 
     void onTradeStationAccountsReceived(QVector<Account> results) override;

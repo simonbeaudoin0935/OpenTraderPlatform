@@ -335,6 +335,12 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             Qt::DirectConnection);
 
     connect(this,
+            &FrontEnd::databentoDataUsageUpdated,
+            this,
+            &GUIFrontend::onDBClientDataUsageUpdate,
+            Qt::DirectConnection);
+
+    connect(this,
             &FrontEnd::currentHighlightedStockBarReceived,
             this,
             &GUIFrontend::onCurrentHighlightedStockBarReceived,
@@ -677,8 +683,8 @@ void GUIFrontend::setupDarkTheme(QMainWindow* p_mainWindow)
 
 void GUIFrontend::updateStatusBar()
 {
-    QString message =
-        "TS usage : " + bytesToString(TSClientDataUsage) + " - Memory usage : " + bytesToString(memoryUsage);
+    QString message = "TS: " + bytesToString(TSClientDataUsage) + " | DB: " + bytesToString(m_dbClientDataUsage) +
+                      " | Mem: " + bytesToString(memoryUsage);
 
     ui->statusbar->showMessage(message);
 }
@@ -686,6 +692,12 @@ void GUIFrontend::updateStatusBar()
 void GUIFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
 {
     TSClientDataUsage = newDataUsage;
+    updateStatusBar();
+}
+
+void GUIFrontend::onDBClientDataUsageUpdate(qsizetype newDataUsage)
+{
+    m_dbClientDataUsage = newDataUsage;
     updateStatusBar();
 }
 

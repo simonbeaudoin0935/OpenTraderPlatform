@@ -33,6 +33,7 @@ class GUIFrontend : public FrontEnd
 
   public slots:
     void onTSClientDataUsageUpdate(qsizetype newDataUsage) override;
+    void onDBClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onTradeStationAccountsReceived(QVector<Account> results) override;
     void onMemoryUsageUpdate(qsizetype newDataUsage) override;
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
@@ -103,6 +104,7 @@ class GUIFrontend : public FrontEnd
     QShortcut* m_toggleReplayModeShortcut;      // Toggle replay mode on/off shortcut
 
     qsizetype TSClientDataUsage = 0;
+    qsizetype m_dbClientDataUsage = 0;
     qint64 memoryUsage = 0;
 
     void updateStatusBar();

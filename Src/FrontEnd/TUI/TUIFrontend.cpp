@@ -515,6 +515,11 @@ void TUIFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
     }
 }
 
+void TUIFrontend::onDBClientDataUsageUpdate(qsizetype /*newDataUsage*/)
+{
+    // TUI does not display DB usage separately (yet)
+}
+
 void TUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
 {
     m_memoryUsage = newDataUsage;

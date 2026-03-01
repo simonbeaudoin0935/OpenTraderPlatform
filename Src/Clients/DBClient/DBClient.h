@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <memory>
 
 #include <QLoggingCategory>
@@ -203,6 +204,13 @@ class DBClient : public QObject
     void
     replayDownloadFinished(const QString& p_symbol, const QDate& p_date, bool p_success, const QString& p_errorMessage);
 
+    /**
+     * @brief Cumulative data usage updated (live + historical bytes received)
+     * Thread context: Emitted from Databento callback thread or QThreadPool worker
+     * @param p_totalBytes Total bytes received since application start
+     */
+    void dataUsageUpdated(qsizetype p_totalBytes);
+
   private:
     explicit DBClient();
     ~DBClient() override;
@@ -233,6 +241,11 @@ class DBClient : public QObject
 
     // Configuration
     QString m_dataset;
+
+    // Data usage tracking
+    std::atomic<qsizetype> m_totalDataReceivedBytes{0};
+    std::atomic<int> m_recordCounter{0};
+    static constexpr int k_emitEveryNRecords = 100; ///< Throttle dataUsageUpdated signal
 
     static constexpr const char* k_defaultDataset = "XNAS.ITCH";
     static constexpr const char* k_settingsKeyDataset = "Databento/Dataset";

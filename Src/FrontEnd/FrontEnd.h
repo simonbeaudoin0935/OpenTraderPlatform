@@ -31,6 +31,7 @@ class FrontEnd : public QObject
     void tradeStationAccountsReceived(QVector<Account> results);
 
     void tradeStationDataUsageUpdated(qsizetype newDataUsage);
+    void databentoDataUsageUpdated(qsizetype newDataUsage);
 
     void newPositionReceived(QString account, Position position);
     void positionDeleted(QString account, QString positionID);
@@ -49,6 +50,7 @@ class FrontEnd : public QObject
 
     // Usage update
     virtual void onTSClientDataUsageUpdate(qsizetype newDataUsage) = 0;
+    virtual void onDBClientDataUsageUpdate(qsizetype newDataUsage) = 0;
     virtual void onMemoryUsageUpdate(qsizetype newDataUsage) = 0;
 
     virtual void onTradeStationAccountsReceived(QVector<Account> results) = 0;
