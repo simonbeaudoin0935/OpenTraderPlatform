@@ -1,11 +1,8 @@
 // Replay mode functionality for StockPriceChart
-// Contains: onReplayDayChanged, onReplayTimeChanged, onReplayTimeRangeQueryFinished,
-// onReplayDataLoadFailed, queryStockTimeRangeForDate, setReplayModeActive,
-// updateCurrentTimeLine
+// Contains: onReplayDayChanged, onReplayTimeChanged,
+// onReplayDataLoadFailed, setReplayModeActive,
+// updateCurrentTimeLine, updateReplayDayBoundaryLines
 
-#include <QtSql/QSqlDatabase>
-#include <QtSql/QSqlQuery>
-#include <QtSql/QSqlError>
 #include <QStandardPaths>
 #include <QDir>
 #include <QtMath>
@@ -15,9 +12,9 @@
 #include "Misc/Settings.h"
 #include "Logging.h"
 #include "Assume.h"
-#include "SQL/StockPriceChartQueries.h"
 #include "BarCache.h"
 #include "MainApp.h"
+#include "DBClient.h"
 #include "Order.h"
 #include "Position.h"
 #include "OrdersDatabase.h"
@@ -32,11 +29,35 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
         return;
     }
 
-    // Cancel any ongoing query
-    if (replayTimeRangeWatcher->isRunning())
+    // Check if replay data exists for this symbol on the selected date
+    bool hasData = DBClient::getInstance()->hasReplayData(date, m_symbol);
+
+    if (hasData)
     {
-        Q_UNREACHABLE(); // TO_DELETE
-        replayTimeRangeWatcher->cancel();
+        // Full day available: 4:00 AM to 18:59 (900 bars)
+        QTimeZone nyZone = TradingHours::MARKET_TIMEZONE;
+        m_replayDayStart = QDateTime(date, TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION, nyZone);
+        m_replayDayEnd = QDateTime(date, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION, nyZone);
+
+        chartToolbar->updateReplayInfo(TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
+                                       TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
+                                       BarsConstants::MINUTE_BARS_PER_DAY);
+
+        updateReplayDayBoundaryLines();
+    }
+    else
+    {
+        WARNING << "No replay data found for" << m_symbol << "on" << date.toString(Qt::ISODate);
+
+        m_replayDayStart = QDateTime();
+        m_replayDayEnd = QDateTime();
+
+        chartToolbar->updateReplayInfo(QTime(), QTime(), 0);
+
+        m_replayStartLine->setVisible(false);
+        m_replayEndLine->setVisible(false);
+        m_replayStartLabel->setVisible(false);
+        m_replayEndLabel->setVisible(false);
     }
 
     // If in replay mode, trigger preload with the new day and current time selection
@@ -50,11 +71,6 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
 
         MainApp::getInstance()->preloadChartForReplay(date, currentTime, currentSpeed);
     }
-
-    // Start asynchronous query for time range (for display info in toolbar)
-    QFuture<std::tuple<QDateTime, QDateTime, int>> future =
-        QtConcurrent::run([this, date]() { return queryStockTimeRangeForDate(m_symbol, date); });
-    replayTimeRangeWatcher->setFuture(future);
 }
 
 /**
@@ -85,60 +101,6 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
 }
 
 /**
- * @brief Handles completion of replay time range query.
- */
-void StockPriceChart::onReplayTimeRangeQueryFinished()
-{
-    if (replayTimeRangeWatcher->isCanceled())
-    {
-        return;
-    }
-
-    std::tuple<QDateTime, QDateTime, int> timeRangeResult = replayTimeRangeWatcher->result();
-
-    if (std::get<0>(timeRangeResult).isValid() && std::get<1>(timeRangeResult).isValid())
-    {
-        qCInfo(ChartLog) << "Found replay time range for" << m_symbol << "from"
-                         << std::get<0>(timeRangeResult).toString("yyyy-MM-dd hh:mm:ss t") << "to"
-                         << std::get<1>(timeRangeResult).toString("yyyy-MM-dd hh:mm:ss t") << "(NY timezone) -"
-                         << std::get<2>(timeRangeResult) << "bars available";
-
-        // Cache the replay day start and end times
-        m_replayDayStart = std::get<0>(timeRangeResult);
-        m_replayDayEnd = std::get<1>(timeRangeResult);
-
-        // Update the toolbar with the time range and bar count info
-        QTime startTime = std::get<0>(timeRangeResult).time();
-        QTime endTime = std::get<1>(timeRangeResult).time();
-        int barCount = std::get<2>(timeRangeResult);
-        chartToolbar->updateReplayInfo(startTime, endTime, barCount);
-
-        // Pre-fill the time input widget with the earliest available time
-        chartToolbar->setReplayStartTime(startTime);
-
-        // Update boundary lines if we have bars in the chart
-        updateReplayDayBoundaryLines();
-    }
-    else
-    {
-        WARNING << "No data found for" << m_symbol << "on selected date";
-
-        // Clear cached times
-        m_replayDayStart = QDateTime();
-        m_replayDayEnd = QDateTime();
-
-        // Clear the info label when no data is found
-        chartToolbar->updateReplayInfo(QTime(), QTime(), 0);
-
-        // Hide boundary lines
-        m_replayStartLine->setVisible(false);
-        m_replayEndLine->setVisible(false);
-        m_replayStartLabel->setVisible(false);
-        m_replayEndLabel->setVisible(false);
-    }
-}
-
-/**
  * @brief Handles replay data loading failure (database not found, corrupted, etc.)
  *
  * Shows error message to user and reverts to previous valid state.
@@ -154,86 +116,6 @@ void StockPriceChart::onReplayDataLoadFailed(const QString& errorMessage)
     qCCritical(ChartLog) << "Failed to preload replay data:" << errorMessage;
 }
 
-/**
- * @brief Queries the database for the first and last timestamps of a stock on a specific date.
- * @param symbol The stock symbol to query
- * @param date The date to query (in NY timezone)
- * @return A tuple of QDateTime objects representing the first and last timestamps (in NY timezone) and the bar count
- */
-std::tuple<QDateTime, QDateTime, int> StockPriceChart::queryStockTimeRangeForDate(const QString& symbol,
-                                                                                  const QDate& date)
-{
-    std::tuple<QDateTime, QDateTime, int> result;
-
-    // Build database path: ~/.cache/L2Trader/RecordedLiveData/Bars/YYYY-MM-DD.db
-    QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
-    QString dbPath = QString("%1/RecordedLiveData/Bars/%2.db").arg(cacheDir, date.toString("yyyy-MM-dd"));
-
-    if (!QFile::exists(dbPath))
-    {
-        WARNING << "Database file does not exist:" << dbPath;
-        return result;
-    }
-
-    // Use a scoped block to ensure QSqlQuery goes out of scope before removeDatabase
-    {
-        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "replay_query");
-        db.setDatabaseName(dbPath);
-
-        if (!db.open())
-        {
-            WARNING << "Failed to open database:" << db.lastError().text();
-            QSqlDatabase::removeDatabase("replay_query");
-            return result;
-        }
-
-        // Calculate epoch range for the date (start of day to end of day in NY timezone)
-        QTimeZone nyZone("America/New_York");
-        QDateTime dayStart(date, QTime(0, 0, 0), nyZone);
-        QDateTime dayEnd(date, QTime(23, 59, 59, 999), nyZone);
-        qint64 startEpochMs = dayStart.toMSecsSinceEpoch();
-        qint64 endEpochMs = dayEnd.toMSecsSinceEpoch();
-
-        // Query for min, max timestamps and count for the symbol
-        QSqlQuery query(db);
-        query.prepare(StockPriceChartQueries::SELECT_STOCK_TIME_RANGE);
-        query.addBindValue(symbol);
-        query.addBindValue(startEpochMs);
-        query.addBindValue(endEpochMs);
-
-        if (query.exec() && query.next())
-        {
-            qint64 minEpochMs = query.value(0).toLongLong();
-            qint64 maxEpochMs = query.value(1).toLongLong();
-            int barCount = query.value(2).toInt();
-
-            if (minEpochMs > 0 && maxEpochMs > 0)
-            {
-                // Convert from UTC to New York timezone
-                std::get<0>(result) = QDateTime::fromMSecsSinceEpoch(minEpochMs, Qt::UTC).toTimeZone(nyZone);
-                std::get<1>(result) = QDateTime::fromMSecsSinceEpoch(maxEpochMs, Qt::UTC).toTimeZone(nyZone);
-                std::get<2>(result) = barCount;
-
-                qCInfo(ChartLog) << "Database query result for" << symbol << "on" << date.toString("yyyy-MM-dd") << ":"
-                                 << barCount << "bars found";
-            }
-            else
-            {
-                qCInfo(ChartLog) << "No bars found for" << symbol << "on" << date.toString("yyyy-MM-dd");
-            }
-        }
-        else
-        {
-            WARNING << "Query failed:" << query.lastError().text();
-        }
-
-        db.close();
-    } // QSqlQuery and QSqlDatabase go out of scope here
-
-    QSqlDatabase::removeDatabase("replay_query");
-
-    return result;
-}
 
 void StockPriceChart::setReplayModeActive(bool active)
 {

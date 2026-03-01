@@ -48,7 +48,7 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
 
     replayTimeEdit = new QTimeEdit(this);
     replayTimeEdit->setDisplayFormat("hh:mm");
-    replayTimeEdit->setTime(QTime(9, 30)); // Default to 9:30 AM
+    replayTimeEdit->setTime(QTime(7, 0)); // Default to 7:00 AM (pre-market)
 
     replaySpeedCombo = new QComboBox(this);
     replaySpeedCombo->setMinimumWidth(80);

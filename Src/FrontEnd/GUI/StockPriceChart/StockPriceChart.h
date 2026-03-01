@@ -6,9 +6,6 @@
 #include <QMap>
 #include <QLoggingCategory>
 #include <QVBoxLayout>
-#include <QtConcurrent/QtConcurrent>
-#include <QFuture>
-#include <QFutureWatcher>
 #include <QSemaphore>
 #include <QTimer>
 
@@ -214,7 +211,6 @@ class StockPriceChart : public QWidget
     void onOrderVisualizationsVisibilityChanged(bool visible);
     void onReplayDayChanged(const QDate& date);
     void onReplayTimeChanged(const QTime& time);
-    void onReplayTimeRangeQueryFinished();
     void updateCurrentTimeLine();
     void updateReplayDayBoundaryLines();
 
@@ -227,14 +223,6 @@ class StockPriceChart : public QWidget
     // Track the current open bar
     Bar m_latestBar;
     int m_latestBarIndex = -1;
-
-    /**
-     * @brief Queries the database for the first and last timestamps of a stock on a specific date.
-     * @param symbol The stock symbol to query
-     * @param date The date to query
-     * @return A tuple of QDateTime objects representing the first and last timestamps, and the bar count
-     */
-    std::tuple<QDateTime, QDateTime, int> queryStockTimeRangeForDate(const QString& symbol, const QDate& date);
 
     void redrawLastPriceLine();
     void handleVerticalPanning(QWheelEvent* event);
@@ -324,9 +312,6 @@ class StockPriceChart : public QWidget
 
     // Volume auto-rescale state
     bool m_volumeAutoRescaleEnabled = true;
-
-    // Replay functionality
-    QFutureWatcher<std::tuple<QDateTime, QDateTime, int>>* replayTimeRangeWatcher;
 
     // Helper to convert index to time for axis labels
     QString indexToTimeString(double index) const;

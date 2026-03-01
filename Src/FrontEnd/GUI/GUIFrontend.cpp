@@ -1693,13 +1693,25 @@ bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
                 QMessageBox::warning(nullptr,
                                      "No Replay Data",
                                      "No recorded data found for replay.\n\n"
-                                     "Use the Recorder tab to record market data first.");
+                                     "Download data in the Records Info tab first.");
                 return true;
             }
 
             QDate replayDate = toolbar->getSelectedReplayDay();
             QTime replayTime = toolbar->getReplayStartTime();
             ReplayEngine::PlaybackSpeed speed = toolbar->getReplaySpeed();
+
+            // Validate that the currently displayed symbol has replay data for the selected date
+            QString currentSymbol = ui->priceChart->getCurrentSymbol();
+            if (!currentSymbol.isEmpty() && !DBClient::getInstance()->hasReplayData(replayDate, currentSymbol))
+            {
+                QMessageBox::warning(nullptr,
+                                     "No Replay Data for Symbol",
+                                     QString("No replay data found for %1 on %2.\n\n"
+                                             "Download data for this symbol first in the Records Info tab.")
+                                         .arg(currentSymbol, replayDate.toString(Qt::ISODate)));
+                return true;
+            }
 
             qCInfo(GUIFrontendLog) << "Entering replay mode for" << replayDate << "at" << replayTime;
             MainApp::getInstance()->enterReplayMode(replayDate, replayTime, speed);

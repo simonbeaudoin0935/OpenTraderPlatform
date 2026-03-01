@@ -250,13 +250,6 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
                       1); // 1 stretch - expand to fill space
     setLayout(layout);
 
-    // Initialize replay functionality
-    replayTimeRangeWatcher = new QFutureWatcher<std::tuple<QDateTime, QDateTime, int>>(this);
-    connect(replayTimeRangeWatcher,
-            &QFutureWatcher<std::tuple<QDateTime, QDateTime, int>>::finished,
-            this,
-            &StockPriceChart::onReplayTimeRangeQueryFinished);
-
     // Connect timeframe selector signals
     connect(chartToolbar,
             &ChartToolbar::volumeChartVisibilityChanged,
@@ -381,9 +374,9 @@ void StockPriceChart::initializeTimeAnchor()
     QDateTime now;
     if (MainApp::isInReplayMode())
     {
-        // Replay mode: index 0 should be set when replay starts (via clearChart + addLiveBar)
-        // For now, use current time; the replay engine will provide bars with correct timestamps
-        now = QDateTime::currentDateTimeUtc();
+        // Replay mode: use the replay date + start time as "now"
+        // MainApp::getCurrentAppTime() returns currentAppReplayTime in NY timezone
+        now = MainApp::getCurrentAppTime();
     }
     else
     {
