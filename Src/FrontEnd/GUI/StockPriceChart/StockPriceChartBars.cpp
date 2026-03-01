@@ -506,7 +506,7 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
         return;
     }
 
-    if (!m_index0Timestamp.isValid() || indexToBar.isEmpty())
+    if (!m_index0Timestamp.isValid())
     {
         m_missingBarsRequestSemaphore.release();
         return;
@@ -524,7 +524,17 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
     // Adjust to valid trading hours
     viewStartTimeRounded = adjustToValidTradingTime(viewStartTimeRounded);
 
-    const QDateTime firstBarTime = timestampToIndex.firstKey();
+    // Determine the earliest bar time we already have loaded
+    // If no bars loaded yet, treat index 0 as the boundary (need everything before it)
+    QDateTime firstBarTime;
+    if (!timestampToIndex.isEmpty())
+    {
+        firstBarTime = timestampToIndex.firstKey();
+    }
+    else
+    {
+        firstBarTime = m_index0Timestamp;
+    }
     OBJ_ASSUME_TRUE(firstBarTime.timeZone() == TradingHours::MARKET_TIMEZONE);
 
     if (viewStartTimeRounded >= firstBarTime)

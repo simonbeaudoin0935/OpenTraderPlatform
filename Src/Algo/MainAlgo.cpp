@@ -260,7 +260,14 @@ BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date,
     DEBUG << "Requested bars from current displayed stock cache: " << first << " to " << last;
 
     OBJ_ASSUME_LTE(first, last); // The Equal in less than equal is for when the program is launched at 4:02 AM
-    OBJ_ASSUME_DIFF(currentDisplayedStockInstrument, nullptr);
+
+    if (currentDisplayedStockInstrument == nullptr)
+    {
+        // Instrument not yet initialized (e.g., setSymbol fired before onSelectDisplayedStock arrived).
+        // Return empty result — checkForMissingBars will retry on next scroll/zoom.
+        DEBUG << "No instrument ready yet, returning empty bars";
+        return std::make_shared<QVector<Bar>>();
+    }
 
     return currentDisplayedStockInstrument->barCache.getBars(date, first, last);
 }

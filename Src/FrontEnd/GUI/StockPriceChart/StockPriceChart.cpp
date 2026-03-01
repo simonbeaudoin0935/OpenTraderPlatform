@@ -403,31 +403,14 @@ void StockPriceChart::initializeTimeAnchor()
     m_customPlot->xAxis->setTicker(indexToTimeTicker);
 
     // Center view on index 0 with ~60 bars left, ~30 bars right
+    // Note: the setRange call triggers checkForMissingBars via signal/slot,
+    // which will request historical bars once MainAlgo has the instrument ready.
     m_customPlot->xAxis->setRange(-60, 30);
 
     // Start the current time line
     m_currentTimeLine->setVisible(true);
     m_timeLineTimer->start();
     updateCurrentTimeLine();
-
-    // Request historical bars from 4:01 AM to index 0
-    OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.tryAcquire());
-
-    QDateTime first = QDateTime(m_index0Timestamp.date(),
-                                TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
-                                TradingHours::MARKET_TIMEZONE);
-    QDateTime last = m_index0Timestamp.addSecs(-60);
-
-    if (last >= first)
-    {
-        DEBUG << "Requesting initial bars from" << first.toString(Qt::ISODate) << "to" << last.toString(Qt::ISODate);
-        emit requestMissingBars(first, last);
-    }
-    else
-    {
-        DEBUG << "No historical bars to fetch (index 0 is first candle of day)";
-        m_missingBarsRequestSemaphore.release();
-    }
 }
 
 /**

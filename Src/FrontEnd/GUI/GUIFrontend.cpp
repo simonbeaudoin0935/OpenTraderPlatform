@@ -1337,8 +1337,16 @@ void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDate
 
     if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
     {
-        // The barCache had the bars ready immediately
-        ui->priceChart->onRequestedMissingBarsReceived(std::get<std::shared_ptr<QVector<Bar>>>(result));
+        auto bars = std::get<std::shared_ptr<QVector<Bar>>>(result);
+        if (bars->isEmpty())
+        {
+            // No bars available yet (instrument not ready or no cached data)
+            ui->priceChart->onRequestedMissingBarsFailed();
+        }
+        else
+        {
+            ui->priceChart->onRequestedMissingBarsReceived(bars);
+        }
     }
     else if (std::holds_alternative<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result))
     {

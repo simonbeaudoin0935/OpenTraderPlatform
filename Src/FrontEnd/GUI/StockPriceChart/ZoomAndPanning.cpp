@@ -48,10 +48,16 @@ void StockPriceChart::onAxisRangeChanged()
 
     // Check for missing bars when view extends beyond available data
     double minIndex = m_customPlot->xAxis->range().lower;
-    if (minIndex < indexToBar.firstKey())
+    if (!indexToBar.isEmpty() && minIndex < indexToBar.firstKey())
     {
         QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
         checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
+    }
+    else if (indexToBar.isEmpty() && m_index0Timestamp.isValid())
+    {
+        // No bars loaded yet — request from view start to index 0
+        QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
+        checkForMissingBars(requestTime, m_index0Timestamp);
     }
 }
 
