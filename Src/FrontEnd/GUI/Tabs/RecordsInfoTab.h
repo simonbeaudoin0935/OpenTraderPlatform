@@ -2,7 +2,6 @@
 
 #include <QDate>
 #include <QDateEdit>
-#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -55,7 +54,6 @@ class RecordsInfoTab : public QWidget
   private slots:
     void onRefreshClicked();
     void onDaySelected();
-    void onStockSelected();
     void onBrowseCsvClicked();
     void onDownloadClicked();
     void
@@ -66,9 +64,7 @@ class RecordsInfoTab : public QWidget
     void setupUI();
     void scanRecordedDays();
     void loadSymbolsForDay(const QDate& p_date);
-    void loadSymbolDetails(const QDate& p_date, const QString& p_symbol);
     void clearSymbolsList();
-    void clearDetailsDisplay();
     void dispatchDownloads();
     void finishDownload();
     void updateDaysTableRow(const QDate& p_date);
@@ -95,17 +91,6 @@ class RecordsInfoTab : public QWidget
     // UI - Middle (Symbols)
     QTableWidget* m_symbolsTable;
 
-    // UI - Right (Details)
-    QLabel* m_symbolLabel;
-    QGroupBox* m_mbp10GroupBox;
-    QLabel* m_mbp10StatusLabel;
-    QLabel* m_mbp10SizeLabel;
-    QLabel* m_mbp10PathLabel;
-    QGroupBox* m_tradesGroupBox;
-    QLabel* m_tradesStatusLabel;
-    QLabel* m_tradesSizeLabel;
-    QLabel* m_tradesPathLabel;
-
     static constexpr int MAX_CONCURRENT_DOWNLOADS = 5;
 
     // Download state
@@ -119,5 +104,4 @@ class RecordsInfoTab : public QWidget
 
     // Browser state
     QDate m_selectedDate;
-    QString m_selectedSymbol;
 };

@@ -26,15 +26,6 @@ RecordsInfoTab::RecordsInfoTab(QWidget* p_parent)
     , m_daysTable(nullptr)
     , m_refreshButton(nullptr)
     , m_symbolsTable(nullptr)
-    , m_symbolLabel(nullptr)
-    , m_mbp10GroupBox(nullptr)
-    , m_mbp10StatusLabel(nullptr)
-    , m_mbp10SizeLabel(nullptr)
-    , m_mbp10PathLabel(nullptr)
-    , m_tradesGroupBox(nullptr)
-    , m_tradesStatusLabel(nullptr)
-    , m_tradesSizeLabel(nullptr)
-    , m_tradesPathLabel(nullptr)
 {
     setupUI();
     scanRecordedDays();
@@ -274,8 +265,8 @@ void RecordsInfoTab::setupUI()
 
     m_symbolsTable = new QTableWidget();
     Q_CHECK_PTR(m_symbolsTable);
-    m_symbolsTable->setColumnCount(3);
-    m_symbolsTable->setHorizontalHeaderLabels({"Symbol", "Mbp10", "Trades"});
+    m_symbolsTable->setColumnCount(4);
+    m_symbolsTable->setHorizontalHeaderLabels({"Symbol", "Mbp10", "Trades", "Total"});
     m_symbolsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_symbolsTable->setSelectionMode(QAbstractItemView::SingleSelection);
     m_symbolsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -284,55 +275,10 @@ void RecordsInfoTab::setupUI()
     symbolsLayout->addWidget(m_symbolsTable);
     splitter->addWidget(symbolsWidget);
 
-    connect(m_symbolsTable,
-            &QTableWidget::itemSelectionChanged,
-            this,
-            &RecordsInfoTab::onStockSelected,
-            Qt::UniqueConnection);
-
-    // ── Panel 4: File Details ─────────────────────────────────────────────────
-    auto* detailsWidget = new QWidget();
-    auto* detailsLayout = new QVBoxLayout(detailsWidget);
-    detailsLayout->setContentsMargins(0, 0, 0, 0);
-    detailsLayout->addWidget(new QLabel("<b>File Details</b>"));
-
-    m_symbolLabel = new QLabel("No symbol selected");
-    Q_CHECK_PTR(m_symbolLabel);
-    m_symbolLabel->setStyleSheet("font-size: 14px; font-weight: bold;");
-    detailsLayout->addWidget(m_symbolLabel);
-
-    // Mbp10 group
-    m_mbp10GroupBox = new QGroupBox("Mbp10 (Level 2)");
-    auto* mbp10Layout = new QVBoxLayout(m_mbp10GroupBox);
-    m_mbp10StatusLabel = new QLabel("Status: —");
-    m_mbp10SizeLabel = new QLabel("Size: —");
-    m_mbp10PathLabel = new QLabel("Path: —");
-    m_mbp10PathLabel->setWordWrap(true);
-    mbp10Layout->addWidget(m_mbp10StatusLabel);
-    mbp10Layout->addWidget(m_mbp10SizeLabel);
-    mbp10Layout->addWidget(m_mbp10PathLabel);
-    detailsLayout->addWidget(m_mbp10GroupBox);
-
-    // Trades group
-    m_tradesGroupBox = new QGroupBox("Trades");
-    auto* tradesLayout = new QVBoxLayout(m_tradesGroupBox);
-    m_tradesStatusLabel = new QLabel("Status: —");
-    m_tradesSizeLabel = new QLabel("Size: —");
-    m_tradesPathLabel = new QLabel("Path: —");
-    m_tradesPathLabel->setWordWrap(true);
-    tradesLayout->addWidget(m_tradesStatusLabel);
-    tradesLayout->addWidget(m_tradesSizeLabel);
-    tradesLayout->addWidget(m_tradesPathLabel);
-    detailsLayout->addWidget(m_tradesGroupBox);
-
-    detailsLayout->addStretch();
-    splitter->addWidget(detailsWidget);
-
     // Set proportions: Download compact, tables get more space
     splitter->setStretchFactor(0, 1); // Download
     splitter->setStretchFactor(1, 2); // Days
-    splitter->setStretchFactor(2, 2); // Symbols
-    splitter->setStretchFactor(3, 2); // Details
+    splitter->setStretchFactor(2, 3); // Symbols
 
     mainLayout->addWidget(splitter);
 }
@@ -579,7 +525,6 @@ void RecordsInfoTab::scanRecordedDays()
 {
     m_daysTable->setRowCount(0);
     clearSymbolsList();
-    clearDetailsDisplay();
 
     // Scan ReplayData directory for date folders
     // Use a known date to derive the base directory, then go up one level
@@ -647,7 +592,6 @@ void RecordsInfoTab::onDaySelected()
 void RecordsInfoTab::loadSymbolsForDay(const QDate& p_date)
 {
     clearSymbolsList();
-    clearDetailsDisplay();
 
     QString dirPath = DBClient::getReplayDataDir(p_date);
     QDir dir(dirPath);
@@ -691,85 +635,30 @@ void RecordsInfoTab::loadSymbolsForDay(const QDate& p_date)
         m_symbolsTable->insertRow(row);
 
         m_symbolsTable->setItem(row, 0, new QTableWidgetItem(sf.symbol));
-        m_symbolsTable->setItem(row, 1, new QTableWidgetItem(sf.hasMbp10 ? "✓" : "—"));
-        m_symbolsTable->setItem(row, 2, new QTableWidgetItem(sf.hasTrades ? "✓" : "—"));
+
+        // Mbp10 size (or "—" if missing)
+        auto* mbp10Item = new QTableWidgetItem(sf.hasMbp10 ? formatFileSize(sf.mbp10Size) : "—");
+        if (!sf.hasMbp10)
+            mbp10Item->setForeground(Qt::darkGray);
+        m_symbolsTable->setItem(row, 1, mbp10Item);
+
+        // Trades size (or "—" if missing)
+        auto* tradesItem = new QTableWidgetItem(sf.hasTrades ? formatFileSize(sf.tradesSize) : "—");
+        if (!sf.hasTrades)
+            tradesItem->setForeground(Qt::darkGray);
+        m_symbolsTable->setItem(row, 2, tradesItem);
+
+        // Total size
+        qint64 total = sf.mbp10Size + sf.tradesSize;
+        m_symbolsTable->setItem(row, 3, new QTableWidgetItem(formatFileSize(total)));
     }
 
     m_symbolsTable->resizeColumnsToContents();
 }
 
-void RecordsInfoTab::onStockSelected()
-{
-    QList<QTableWidgetItem*> selected = m_symbolsTable->selectedItems();
-    if (selected.isEmpty())
-        return;
-
-    int row = selected.first()->row();
-    QTableWidgetItem* symItem = m_symbolsTable->item(row, 0);
-    if (symItem == nullptr)
-        return;
-
-    QString symbol = symItem->text();
-    if (symbol == m_selectedSymbol)
-        return;
-
-    m_selectedSymbol = symbol;
-    loadSymbolDetails(m_selectedDate, symbol);
-}
-
-void RecordsInfoTab::loadSymbolDetails(const QDate& p_date, const QString& p_symbol)
-{
-    m_symbolLabel->setText(p_symbol);
-
-    // Mbp10
-    QString mbp10Path = DBClient::getReplayFilePath(p_date, p_symbol, "mbp10");
-    QFileInfo mbp10Info(mbp10Path);
-    if (mbp10Info.exists())
-    {
-        m_mbp10StatusLabel->setText("Status: <span style='color:green;'>Available</span>");
-        m_mbp10SizeLabel->setText("Size: " + formatFileSize(mbp10Info.size()));
-        m_mbp10PathLabel->setText("Path: " + mbp10Path);
-    }
-    else
-    {
-        m_mbp10StatusLabel->setText("Status: <span style='color:red;'>Not found</span>");
-        m_mbp10SizeLabel->setText("Size: —");
-        m_mbp10PathLabel->setText("Path: " + mbp10Path);
-    }
-
-    // Trades
-    QString tradesPath = DBClient::getReplayFilePath(p_date, p_symbol, "trades");
-    QFileInfo tradesInfo(tradesPath);
-    if (tradesInfo.exists())
-    {
-        m_tradesStatusLabel->setText("Status: <span style='color:green;'>Available</span>");
-        m_tradesSizeLabel->setText("Size: " + formatFileSize(tradesInfo.size()));
-        m_tradesPathLabel->setText("Path: " + tradesPath);
-    }
-    else
-    {
-        m_tradesStatusLabel->setText("Status: <span style='color:red;'>Not found</span>");
-        m_tradesSizeLabel->setText("Size: —");
-        m_tradesPathLabel->setText("Path: " + tradesPath);
-    }
-}
-
 void RecordsInfoTab::clearSymbolsList()
 {
     m_symbolsTable->setRowCount(0);
-    m_selectedSymbol.clear();
-    clearDetailsDisplay();
-}
-
-void RecordsInfoTab::clearDetailsDisplay()
-{
-    m_symbolLabel->setText("No symbol selected");
-    m_mbp10StatusLabel->setText("Status: —");
-    m_mbp10SizeLabel->setText("Size: —");
-    m_mbp10PathLabel->setText("Path: —");
-    m_tradesStatusLabel->setText("Status: —");
-    m_tradesSizeLabel->setText("Size: —");
-    m_tradesPathLabel->setText("Path: —");
 }
 
 QString RecordsInfoTab::formatFileSize(qint64 p_bytes) const
