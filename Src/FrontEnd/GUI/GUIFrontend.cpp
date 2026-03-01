@@ -1356,7 +1356,15 @@ void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDate
             {
                 if (bars.has_value())
                 {
-                    ui->priceChart->onRequestedMissingBarsReceived(bars.value());
+                    if (bars.value()->isEmpty())
+                    {
+                        qCWarning(GUIFrontendLog) << "Historical fetch returned 0 bars";
+                        ui->priceChart->onRequestedMissingBarsFailed();
+                    }
+                    else
+                    {
+                        ui->priceChart->onRequestedMissingBarsReceived(bars.value());
+                    }
                 }
                 else
                 {
