@@ -288,13 +288,7 @@ void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date)
     OBJ_ASSUME_TRUE(p_date.isValid());
     OBJ_ASSUME_FALSE(p_symbol.isEmpty());
 
-    if (!m_historicalClient)
-    {
-        const std::string key = m_apiKey.toStdString();
-        m_historicalClient =
-            std::make_unique<databento::Historical>(databento::Historical::Builder().SetKey(key).Build());
-    }
-
+    const std::string key = m_apiKey.toStdString();
     const QString symbol = p_symbol;
     const QDate date = p_date;
     const QString dataset = m_dataset;
@@ -314,30 +308,31 @@ void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date)
     const QString mbp10Path = getReplayFilePath(date, symbol, "mbp10");
     const QString tradesPath = getReplayFilePath(date, symbol, "trades");
 
-    databento::Historical* hist = m_historicalClient.get();
-
     INFO << "Downloading replay data for" << symbol << "on" << date.toString(Qt::ISODate);
 
+    // Each concurrent download gets its own Historical client for thread safety
     Q_UNUSED(QtConcurrent::run(
-        [this, hist, stdDataset, stdSymbol, startStr, endStr, mbp10Path, tradesPath, symbol, date]()
+        [this, key, stdDataset, stdSymbol, startStr, endStr, mbp10Path, tradesPath, symbol, date]()
         {
             try
             {
+                auto hist = databento::Historical::Builder().SetKey(key).Build();
+
                 // Download Level 2 (Mbp10) data
                 sDEBUG << "Downloading Mbp10 for" << symbol;
-                hist->TimeseriesGetRangeToFile(stdDataset,
-                                               databento::DateTimeRange<std::string>{startStr, endStr},
-                                               {stdSymbol},
-                                               databento::Schema::Mbp10,
-                                               std::filesystem::path(mbp10Path.toStdString()));
+                hist.TimeseriesGetRangeToFile(stdDataset,
+                                              databento::DateTimeRange<std::string>{startStr, endStr},
+                                              {stdSymbol},
+                                              databento::Schema::Mbp10,
+                                              std::filesystem::path(mbp10Path.toStdString()));
 
                 // Download Trades data
                 sDEBUG << "Downloading Trades for" << symbol;
-                hist->TimeseriesGetRangeToFile(stdDataset,
-                                               databento::DateTimeRange<std::string>{startStr, endStr},
-                                               {stdSymbol},
-                                               databento::Schema::Trades,
-                                               std::filesystem::path(tradesPath.toStdString()));
+                hist.TimeseriesGetRangeToFile(stdDataset,
+                                              databento::DateTimeRange<std::string>{startStr, endStr},
+                                              {stdSymbol},
+                                              databento::Schema::Trades,
+                                              std::filesystem::path(tradesPath.toStdString()));
 
                 sINFO << "Replay download complete for" << symbol << "on" << date.toString(Qt::ISODate);
                 emit replayDownloadFinished(symbol, date, true, {});

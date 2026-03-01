@@ -9,6 +9,7 @@
 #include <QMap>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QSet>
 #include <QSplitter>
 #include <QTableWidget>
 #include <QVBoxLayout>
@@ -67,7 +68,9 @@ class RecordsInfoTab : public QWidget
     void loadSymbolDetails(const QDate& p_date, const QString& p_symbol);
     void clearSymbolsList();
     void clearDetailsDisplay();
-    void startNextDownload();
+    void dispatchDownloads();
+    void finishDownload();
+    void updateDaysTableRow(const QDate& p_date);
     void saveCsvPath();
     void saveManualSymbols();
 
@@ -102,12 +105,16 @@ class RecordsInfoTab : public QWidget
     QLabel* m_tradesSizeLabel;
     QLabel* m_tradesPathLabel;
 
+    static constexpr int MAX_CONCURRENT_DOWNLOADS = 5;
+
     // Download state
     QDate m_downloadDate;
     QStringList m_downloadQueue;
-    int m_downloadIndex = 0;
+    int m_nextDownloadIndex = 0;
+    int m_completedCount = 0;
     int m_downloadSuccessCount = 0;
     int m_downloadFailCount = 0;
+    QSet<QString> m_inFlightSymbols;
 
     // Browser state
     QDate m_selectedDate;

@@ -214,7 +214,7 @@ void RecordsInfoTab::setupUI()
     m_downloadProgressBar->setVisible(false);
     downloadLayout->addWidget(m_downloadProgressBar);
 
-    mainLayout->addWidget(downloadGroup);
+    mainLayout->addWidget(downloadGroup, 0);
 
     // Restore persisted values from AppState.ini
     if (appStateSettings != nullptr)
@@ -329,7 +329,7 @@ void RecordsInfoTab::setupUI()
     splitter->setStretchFactor(1, 2);
     splitter->setStretchFactor(2, 3);
 
-    mainLayout->addWidget(splitter);
+    mainLayout->addWidget(splitter, 1);
 }
 
 void RecordsInfoTab::saveCsvPath()
@@ -399,9 +399,11 @@ void RecordsInfoTab::onDownloadClicked()
 
     // Start sequential download
     m_downloadDate = date;
-    m_downloadIndex = 0;
+    m_nextDownloadIndex = 0;
+    m_completedCount = 0;
     m_downloadSuccessCount = 0;
     m_downloadFailCount = 0;
+    m_inFlightSymbols.clear();
 
     m_downloadButton->setEnabled(false);
     m_downloadProgressBar->setMaximum(m_downloadQueue.size());
@@ -415,35 +417,44 @@ void RecordsInfoTab::onDownloadClicked()
             &RecordsInfoTab::onDownloadFinished,
             Qt::UniqueConnection);
 
-    startNextDownload();
+    dispatchDownloads();
 }
 
-void RecordsInfoTab::startNextDownload()
+void RecordsInfoTab::dispatchDownloads()
 {
-    if (m_downloadIndex >= m_downloadQueue.size())
+    // Launch up to MAX_CONCURRENT_DOWNLOADS in parallel
+    while (m_inFlightSymbols.size() < MAX_CONCURRENT_DOWNLOADS && m_nextDownloadIndex < m_downloadQueue.size())
     {
-        // All done
-        m_downloadButton->setEnabled(true);
-        m_downloadStatusLabel->setText(QString("Done — %1 succeeded, %2 failed (of %3 total)")
-                                           .arg(m_downloadSuccessCount)
-                                           .arg(m_downloadFailCount)
-                                           .arg(m_downloadQueue.size()));
-
-        disconnect(DBClient::getInstance(),
-                   &DBClient::replayDownloadFinished,
-                   this,
-                   &RecordsInfoTab::onDownloadFinished);
-
-        // Refresh the browse table
-        scanRecordedDays();
-        return;
+        const QString& symbol = m_downloadQueue.at(m_nextDownloadIndex);
+        m_inFlightSymbols.insert(symbol);
+        m_nextDownloadIndex++;
+        DBClient::getInstance()->downloadReplayData(symbol, m_downloadDate);
     }
 
-    const QString& symbol = m_downloadQueue.at(m_downloadIndex);
-    m_downloadStatusLabel->setText(
-        QString("Downloading %1/%2: %3…").arg(m_downloadIndex + 1).arg(m_downloadQueue.size()).arg(symbol));
+    if (!m_inFlightSymbols.isEmpty())
+    {
+        m_downloadStatusLabel->setText(QString("Downloading %1/%2 (%3 in parallel)…")
+                                           .arg(m_completedCount)
+                                           .arg(m_downloadQueue.size())
+                                           .arg(m_inFlightSymbols.size()));
+    }
 
-    DBClient::getInstance()->downloadReplayData(symbol, m_downloadDate);
+    if (m_inFlightSymbols.isEmpty() && m_nextDownloadIndex >= m_downloadQueue.size())
+        finishDownload();
+}
+
+void RecordsInfoTab::finishDownload()
+{
+    m_downloadButton->setEnabled(true);
+    m_downloadStatusLabel->setText(QString("Done — %1 succeeded, %2 failed (of %3 total)")
+                                       .arg(m_downloadSuccessCount)
+                                       .arg(m_downloadFailCount)
+                                       .arg(m_downloadQueue.size()));
+
+    disconnect(DBClient::getInstance(), &DBClient::replayDownloadFinished, this, &RecordsInfoTab::onDownloadFinished);
+
+    // Full refresh of the browser
+    scanRecordedDays();
 }
 
 void RecordsInfoTab::onDownloadFinished(const QString& p_symbol,
@@ -452,14 +463,9 @@ void RecordsInfoTab::onDownloadFinished(const QString& p_symbol,
                                         const QString& p_errorMessage)
 {
     Q_UNUSED(p_errorMessage);
-    // Ignore signals from other downloads
     if (p_date != m_downloadDate)
         return;
-
-    if (m_downloadIndex >= m_downloadQueue.size())
-        return;
-
-    if (m_downloadQueue.at(m_downloadIndex) != p_symbol)
+    if (!m_inFlightSymbols.remove(p_symbol))
         return;
 
     if (p_success)
@@ -467,15 +473,64 @@ void RecordsInfoTab::onDownloadFinished(const QString& p_symbol,
     else
         m_downloadFailCount++;
 
-    m_downloadIndex++;
-    m_downloadProgressBar->setValue(m_downloadIndex);
+    m_completedCount++;
+    m_downloadProgressBar->setValue(m_completedCount);
 
-    startNextDownload();
+    // Live-update browser tables on success
+    if (p_success)
+        updateDaysTableRow(p_date);
+
+    dispatchDownloads();
 }
 
 void RecordsInfoTab::onRefreshClicked()
 {
     scanRecordedDays();
+}
+
+void RecordsInfoTab::updateDaysTableRow(const QDate& p_date)
+{
+    QString dirPath = DBClient::getReplayDataDir(p_date);
+    QDir dir(dirPath);
+    if (!dir.exists())
+        return;
+
+    QStringList dbnFiles = dir.entryList({"*.dbn.zst"}, QDir::Files);
+    qint64 totalSize = 0;
+    for (const QString& f: dbnFiles)
+        totalSize += QFileInfo(dir.absoluteFilePath(f)).size();
+
+    // Find existing row or insert new one
+    int targetRow = -1;
+    for (int row = 0; row < m_daysTable->rowCount(); ++row)
+    {
+        QTableWidgetItem* item = m_daysTable->item(row, 0);
+        if (item != nullptr && item->data(Qt::UserRole).toDate() == p_date)
+        {
+            targetRow = row;
+            break;
+        }
+    }
+
+    if (targetRow < 0)
+    {
+        targetRow = m_daysTable->rowCount();
+        m_daysTable->insertRow(targetRow);
+        auto* dateItem = new QTableWidgetItem(p_date.toString(Qt::ISODate));
+        dateItem->setData(Qt::UserRole, p_date);
+        m_daysTable->setItem(targetRow, 0, dateItem);
+    }
+
+    m_daysTable->setItem(targetRow, 1, new QTableWidgetItem(QString::number(dbnFiles.size())));
+    m_daysTable->setItem(targetRow, 2, new QTableWidgetItem(formatFileSize(totalSize)));
+    m_daysTable->resizeColumnsToContents();
+
+    // Auto-select the download date and refresh symbols
+    m_selectedDate = p_date;
+    m_daysTable->blockSignals(true);
+    m_daysTable->selectRow(targetRow);
+    m_daysTable->blockSignals(false);
+    loadSymbolsForDay(p_date);
 }
 
 void RecordsInfoTab::scanRecordedDays()
