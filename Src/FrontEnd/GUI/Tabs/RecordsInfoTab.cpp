@@ -139,13 +139,19 @@ QStringList RecordsInfoTab::buildDownloadQueue(const QDate& p_date) const
 
 void RecordsInfoTab::setupUI()
 {
-    auto* mainLayout = new QVBoxLayout(this);
+    auto* mainLayout = new QHBoxLayout(this);
 
-    // ── Download section ──────────────────────────────────────────────────────
-    auto* downloadGroup = new QGroupBox("Download Replay Data");
-    auto* downloadLayout = new QVBoxLayout(downloadGroup);
+    // ── Horizontal splitter: Download | Days | Symbols | Details ──────────────
+    auto* splitter = new QSplitter(Qt::Horizontal);
 
-    // Row 1: Date picker
+    // ── Panel 1: Download section ─────────────────────────────────────────────
+    auto* downloadWidget = new QWidget();
+    auto* downloadLayout = new QVBoxLayout(downloadWidget);
+    downloadLayout->setContentsMargins(4, 4, 4, 4);
+
+    downloadLayout->addWidget(new QLabel("<b>Download Replay Data</b>"));
+
+    // Date picker
     auto* dateRow = new QHBoxLayout();
     dateRow->addWidget(new QLabel("Date:"));
     m_dateEdit = new QDateEdit();
@@ -154,40 +160,37 @@ void RecordsInfoTab::setupUI()
     m_dateEdit->setMaximumDate(QDate::currentDate());
     m_dateEdit->setDisplayFormat("yyyy-MM-dd");
 
-    // Default to last weekday
     QDate defaultDate = QDate::currentDate().addDays(-1);
     while (defaultDate.dayOfWeek() > 5)
         defaultDate = defaultDate.addDays(-1);
     m_dateEdit->setDate(defaultDate);
 
     dateRow->addWidget(m_dateEdit);
-    dateRow->addStretch();
     downloadLayout->addLayout(dateRow);
 
-    // Row 2: CSV file picker
+    // CSV file picker
+    downloadLayout->addWidget(new QLabel("CSV File:"));
     auto* csvRow = new QHBoxLayout();
-    csvRow->addWidget(new QLabel("CSV File:"));
     m_csvPathEdit = new QLineEdit();
     Q_CHECK_PTR(m_csvPathEdit);
-    m_csvPathEdit->setPlaceholderText("Path to stock list CSV (e.g., NBI.csv)");
+    m_csvPathEdit->setPlaceholderText("Path to stock list CSV");
     csvRow->addWidget(m_csvPathEdit, 1);
 
-    m_browseCsvButton = new QPushButton("Browse…");
+    m_browseCsvButton = new QPushButton("…");
     Q_CHECK_PTR(m_browseCsvButton);
+    m_browseCsvButton->setFixedWidth(30);
     csvRow->addWidget(m_browseCsvButton);
     downloadLayout->addLayout(csvRow);
 
     connect(m_browseCsvButton, &QPushButton::clicked, this, &RecordsInfoTab::onBrowseCsvClicked, Qt::UniqueConnection);
     connect(m_csvPathEdit, &QLineEdit::editingFinished, this, &RecordsInfoTab::saveCsvPath, Qt::UniqueConnection);
 
-    // Row 3: Manual symbols
-    auto* manualRow = new QHBoxLayout();
-    manualRow->addWidget(new QLabel("Extra Symbols:"));
+    // Manual symbols
+    downloadLayout->addWidget(new QLabel("Extra Symbols:"));
     m_manualSymbolsEdit = new QLineEdit();
     Q_CHECK_PTR(m_manualSymbolsEdit);
-    m_manualSymbolsEdit->setPlaceholderText("Comma-separated (e.g., AAPL, NVDA, MSFT)");
-    manualRow->addWidget(m_manualSymbolsEdit, 1);
-    downloadLayout->addLayout(manualRow);
+    m_manualSymbolsEdit->setPlaceholderText("AAPL, NVDA, MSFT");
+    downloadLayout->addWidget(m_manualSymbolsEdit);
 
     connect(m_manualSymbolsEdit,
             &QLineEdit::editingFinished,
@@ -195,26 +198,26 @@ void RecordsInfoTab::setupUI()
             &RecordsInfoTab::saveManualSymbols,
             Qt::UniqueConnection);
 
-    // Row 4: Download button + status
-    auto* actionRow = new QHBoxLayout();
+    // Download button + status
     m_downloadButton = new QPushButton("Download");
     Q_CHECK_PTR(m_downloadButton);
-    actionRow->addWidget(m_downloadButton);
-
-    m_downloadStatusLabel = new QLabel("Idle");
-    Q_CHECK_PTR(m_downloadStatusLabel);
-    actionRow->addWidget(m_downloadStatusLabel, 1);
-    downloadLayout->addLayout(actionRow);
+    downloadLayout->addWidget(m_downloadButton);
 
     connect(m_downloadButton, &QPushButton::clicked, this, &RecordsInfoTab::onDownloadClicked, Qt::UniqueConnection);
 
-    // Row 5: Progress bar (hidden until download starts)
+    // Progress bar (hidden until download starts)
     m_downloadProgressBar = new QProgressBar();
     Q_CHECK_PTR(m_downloadProgressBar);
     m_downloadProgressBar->setVisible(false);
     downloadLayout->addWidget(m_downloadProgressBar);
 
-    mainLayout->addWidget(downloadGroup, 0);
+    m_downloadStatusLabel = new QLabel("Idle");
+    Q_CHECK_PTR(m_downloadStatusLabel);
+    m_downloadStatusLabel->setWordWrap(true);
+    downloadLayout->addWidget(m_downloadStatusLabel);
+
+    downloadLayout->addStretch();
+    splitter->addWidget(downloadWidget);
 
     // Restore persisted values from AppState.ini
     if (appStateSettings != nullptr)
@@ -223,26 +226,19 @@ void RecordsInfoTab::setupUI()
         m_manualSymbolsEdit->setText(appStateSettings->value("RecordsInfo/ManualSymbols").toString());
     }
 
-    // ── Browse section (existing) ─────────────────────────────────────────────
-
-    // Toolbar
-    auto* toolbar = new QHBoxLayout();
-    m_refreshButton = new QPushButton("Refresh");
-    Q_CHECK_PTR(m_refreshButton);
-    toolbar->addWidget(m_refreshButton);
-    toolbar->addStretch();
-    mainLayout->addLayout(toolbar);
-
-    connect(m_refreshButton, &QPushButton::clicked, this, &RecordsInfoTab::onRefreshClicked, Qt::UniqueConnection);
-
-    // Three-column splitter
-    auto* splitter = new QSplitter(Qt::Horizontal);
-
-    // Left: Days table
+    // ── Panel 2: Days table ───────────────────────────────────────────────────
     auto* daysWidget = new QWidget();
     auto* daysLayout = new QVBoxLayout(daysWidget);
     daysLayout->setContentsMargins(0, 0, 0, 0);
-    daysLayout->addWidget(new QLabel("<b>Recorded Days</b>"));
+
+    auto* daysHeader = new QHBoxLayout();
+    daysHeader->addWidget(new QLabel("<b>Recorded Days</b>"));
+    m_refreshButton = new QPushButton("Refresh");
+    Q_CHECK_PTR(m_refreshButton);
+    daysHeader->addWidget(m_refreshButton);
+    daysLayout->addLayout(daysHeader);
+
+    connect(m_refreshButton, &QPushButton::clicked, this, &RecordsInfoTab::onRefreshClicked, Qt::UniqueConnection);
 
     m_daysTable = new QTableWidget();
     Q_CHECK_PTR(m_daysTable);
@@ -262,7 +258,7 @@ void RecordsInfoTab::setupUI()
             &RecordsInfoTab::onDaySelected,
             Qt::UniqueConnection);
 
-    // Middle: Symbols table
+    // ── Panel 3: Symbols table ────────────────────────────────────────────────
     auto* symbolsWidget = new QWidget();
     auto* symbolsLayout = new QVBoxLayout(symbolsWidget);
     symbolsLayout->setContentsMargins(0, 0, 0, 0);
@@ -286,7 +282,7 @@ void RecordsInfoTab::setupUI()
             &RecordsInfoTab::onStockSelected,
             Qt::UniqueConnection);
 
-    // Right: Details
+    // ── Panel 4: File Details ─────────────────────────────────────────────────
     auto* detailsWidget = new QWidget();
     auto* detailsLayout = new QVBoxLayout(detailsWidget);
     detailsLayout->setContentsMargins(0, 0, 0, 0);
@@ -324,12 +320,13 @@ void RecordsInfoTab::setupUI()
     detailsLayout->addStretch();
     splitter->addWidget(detailsWidget);
 
-    // Set proportions
-    splitter->setStretchFactor(0, 2);
-    splitter->setStretchFactor(1, 2);
-    splitter->setStretchFactor(2, 3);
+    // Set proportions: Download compact, tables get more space
+    splitter->setStretchFactor(0, 1); // Download
+    splitter->setStretchFactor(1, 2); // Days
+    splitter->setStretchFactor(2, 2); // Symbols
+    splitter->setStretchFactor(3, 2); // Details
 
-    mainLayout->addWidget(splitter, 1);
+    mainLayout->addWidget(splitter);
 }
 
 void RecordsInfoTab::saveCsvPath()
