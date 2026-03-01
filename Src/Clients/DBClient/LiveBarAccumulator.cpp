@@ -15,7 +15,7 @@ void LiveBarAccumulator::onNewTrade(const QString& p_symbol, const Trade& p_trad
 {
     const float price = static_cast<float>(p_trade.m_price);
     const quint64 size = static_cast<quint64>(p_trade.m_size);
-    const QDateTime closeTime = barCloseTimeForTrade(p_trade.m_timestamp);
+    const QDateTime openTime = barOpenTimeForTrade(p_trade.m_timestamp);
 
     auto it = m_formingBars.find(p_symbol);
 
@@ -23,7 +23,7 @@ void LiveBarAccumulator::onNewTrade(const QString& p_symbol, const Trade& p_trad
     {
         // First trade ever for this symbol — start a new forming bar
         FormingBar forming;
-        forming.barCloseTime = closeTime;
+        forming.barOpenTime = openTime;
         forming.open = price;
         forming.high = price;
         forming.low = price;
@@ -37,14 +37,14 @@ void LiveBarAccumulator::onNewTrade(const QString& p_symbol, const Trade& p_trad
 
     FormingBar& forming = it.value();
 
-    if (closeTime != forming.barCloseTime)
+    if (openTime != forming.barOpenTime)
     {
         // Minute boundary crossed — close the current bar
         Bar closedBar = toBar(forming, Bar::BarStatus::Closed);
         emit barClosed(p_symbol, closedBar);
 
         // Start new forming bar
-        forming.barCloseTime = closeTime;
+        forming.barOpenTime = openTime;
         forming.open = price;
         forming.high = price;
         forming.low = price;
@@ -64,22 +64,21 @@ void LiveBarAccumulator::onNewTrade(const QString& p_symbol, const Trade& p_trad
     emit barUpdated(p_symbol, toBar(forming, Bar::BarStatus::Open));
 }
 
-QDateTime LiveBarAccumulator::barCloseTimeForTrade(const QDateTime& p_tradeTime)
+QDateTime LiveBarAccumulator::barOpenTimeForTrade(const QDateTime& p_tradeTime)
 {
-    // Ceiling to next whole minute:
-    //   trade at 09:31:04 → bar close 09:32:00
-    //   trade at 09:31:00.000 → bar close 09:32:00 (trade at exact minute boundary → next minute's bar)
+    // Floor to current whole minute (open-time convention):
+    //   trade at 09:31:04 → bar open 09:31:00
+    //   trade at 09:31:00.000 → bar open 09:31:00
     const QDateTime utc = p_tradeTime.toUTC();
     const qint64 epochSecs = utc.toSecsSinceEpoch();
     const qint64 minuteFloor = (epochSecs / 60) * 60;
-    const qint64 ceilMinute = minuteFloor + 60;
 
-    return QDateTime::fromSecsSinceEpoch(ceilMinute, TradingHours::MARKET_TIMEZONE);
+    return QDateTime::fromSecsSinceEpoch(minuteFloor, TradingHours::MARKET_TIMEZONE);
 }
 
 Bar LiveBarAccumulator::toBar(const FormingBar& p_forming, Bar::BarStatus p_status)
 {
-    return Bar(p_forming.barCloseTime,
+    return Bar(p_forming.barOpenTime,
                p_forming.open,
                p_forming.high,
                p_forming.low,

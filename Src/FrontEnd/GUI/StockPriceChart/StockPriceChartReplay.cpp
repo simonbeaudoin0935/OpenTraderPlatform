@@ -276,11 +276,11 @@ void StockPriceChart::setReplayModeActive(bool active)
  * The line is positioned based on the fractional index calculated from the current time.
  * Each minute corresponds to 1 index unit, so each second moves the line by 1/60 of an index.
  *
- * Note: TradeStation timestamps represent the closing time of a bar. For example, a bar covering
- * 4:00:00-4:00:59 has timestamp 4:01:00. Therefore, we subtract 60 seconds from the bar's
- * timestamp to get the opening time, which is the actual start of index 0.
+ * Note: Databento open-time convention — bars are timestamped at their opening time.
+ * For example, a bar covering 4:00:00-4:00:59 has timestamp 4:00:00.
+ * m_index0Timestamp is already the bar open time at index 0.
  *
- * The line stops advancing after market close (8:00 PM) and resumes at market open (4:00 AM).
+ * The line stops advancing after market close (6:59 PM) and resumes at market open (4:00 AM).
  */
 void StockPriceChart::updateCurrentTimeLine()
 {
@@ -293,24 +293,23 @@ void StockPriceChart::updateCurrentTimeLine()
     QDateTime currentTime = MainApp::getCurrentAppTime();
 
     // Compute fractional chart index for current time
-    // index0 corresponds to m_index0Timestamp (bar close time), so subtract 60s to get bar open time
-    QDateTime index0Open = m_index0Timestamp.addSecs(-60);
-    qint64 secondsDiff = index0Open.secsTo(currentTime);
+    // m_index0Timestamp is already bar open time
+    qint64 secondsDiff = m_index0Timestamp.secsTo(currentTime);
 
     // Clamp to trading hours
     QTime currentTimeOfDay = currentTime.time();
-    QTime marketOpen = TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION.addSecs(-60);
+    QTime marketOpen = TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION;
     QTime marketClose = TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;
 
     if (currentTimeOfDay < marketOpen)
     {
         QDateTime marketOpenTime(currentTime.date(), marketOpen, TradingHours::MARKET_TIMEZONE);
-        secondsDiff = index0Open.secsTo(marketOpenTime);
+        secondsDiff = m_index0Timestamp.secsTo(marketOpenTime);
     }
     else if (currentTimeOfDay > marketClose)
     {
         QDateTime marketCloseTime(currentTime.date(), marketClose, TradingHours::MARKET_TIMEZONE);
-        secondsDiff = index0Open.secsTo(marketCloseTime);
+        secondsDiff = m_index0Timestamp.secsTo(marketCloseTime);
     }
 
     // Convert to fractional index position
@@ -362,8 +361,8 @@ void StockPriceChart::updateReplayDayBoundaryLines()
         return;
     }
 
-    // index0 timestamp is bar close time; subtract 60s to get bar open time
-    QDateTime zeroIndexTime = m_index0Timestamp.addSecs(-60);
+    // m_index0Timestamp is already bar open time
+    QDateTime zeroIndexTime = m_index0Timestamp;
 
     // Calculate index positions for start and end times
     qint64 startSecondsDiff = zeroIndexTime.secsTo(m_replayDayStart);

@@ -211,11 +211,11 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_sessionLabel->setStyleSheet("QLabel { background-color: #555555; color: #ffffff; padding: 4px 8px; "
                                   "border-radius: 4px; font-weight: bold; font-family: monospace; }");
     m_sessionLabel->setToolTip("Current trading session:\n"
-                               "🌙 EARLY PRE-MARKET: 4:01 AM - 6:00 AM ET\n"
-                               "🌅 PRE-MARKET: 6:01 AM - 9:30 AM ET\n"
-                               "📈 REGULAR: 9:31 AM - 4:00 PM ET\n"
-                               "🌆 AFTER-HOURS: 4:01 PM - 8:00 PM ET\n"
-                               "🌙 CLOSED: 8:01 PM - 4:00 AM ET");
+                               "🌙 EARLY PRE-MARKET: 4:00 AM - 5:59 AM ET\n"
+                               "🌅 PRE-MARKET: 6:00 AM - 9:29 AM ET\n"
+                               "📈 REGULAR: 9:30 AM - 3:59 PM ET\n"
+                               "🌆 AFTER-HOURS: 4:00 PM - 6:59 PM ET\n"
+                               "🌙 CLOSED: 7:00 PM - 3:59 AM ET");
     ui->topControlsLayout->insertWidget(4, m_sessionLabel);
     updateSessionLabel();
 

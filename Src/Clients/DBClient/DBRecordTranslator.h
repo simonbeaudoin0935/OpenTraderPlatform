@@ -109,6 +109,7 @@ namespace DBRecordTranslator
     [[nodiscard]] inline Bar toBar(const QString& p_symbol, const databento::OhlcvMsg& p_msg)
     {
         Q_UNUSED(p_symbol);
+        // Databento ts_event is the bar open time — matches our convention directly
         return Bar(toDateTime(p_msg.hd.ts_event),
                    static_cast<float>(toDouble(p_msg.open)),
                    static_cast<float>(toDouble(p_msg.high)),

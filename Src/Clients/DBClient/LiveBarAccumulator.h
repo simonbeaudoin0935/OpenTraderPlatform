@@ -19,9 +19,9 @@ Q_DECLARE_LOGGING_CATEGORY(LiveBarAccumulatorLog)
  * updates (every trade) and bar closures (minute boundary rollover).
  *
  * ## Bar timestamp convention
- * Bars are timestamped with the **close time** of the interval, matching BarCache convention:
- *   - A trade at 09:31:04 contributes to the bar timestamped 09:32:00
- *   - The bar covering 09:31:00–09:31:59 is timestamped 09:32
+ * Bars are timestamped with the **open time** of the interval (Databento convention):
+ *   - A trade at 09:31:04 contributes to the bar timestamped 09:31:00
+ *   - The bar covering 09:31:00–09:31:59 is timestamped 09:31
  *
  * ## Threading
  * This object should live on the MainAlgo thread. Connect DBClient::newTrade → onNewTrade.
@@ -71,7 +71,7 @@ class LiveBarAccumulator : public QObject
      */
     struct FormingBar
     {
-        QDateTime barCloseTime; ///< The close-time timestamp for this bar's minute
+        QDateTime barOpenTime; ///< The open-time timestamp for this bar's minute
         float open = 0.0f;
         float high = 0.0f;
         float low = 0.0f;
@@ -80,10 +80,10 @@ class LiveBarAccumulator : public QObject
     };
 
     /**
-     * @brief Compute the bar close-time for a given trade timestamp.
-     * A trade at 09:31:04 → bar close time 09:32:00 (ceiling to next minute).
+     * @brief Compute the bar open-time for a given trade timestamp.
+     * A trade at 09:31:04 → bar open time 09:31:00 (floor to current minute).
      */
-    [[nodiscard]] static QDateTime barCloseTimeForTrade(const QDateTime& p_tradeTime);
+    [[nodiscard]] static QDateTime barOpenTimeForTrade(const QDateTime& p_tradeTime);
 
     /**
      * @brief Convert internal FormingBar to an immutable Bar object.

@@ -10,11 +10,7 @@
  *
  * Provides functions to:
  * 1. Compute the "index 0" bar timestamp from the current time
- * 2. Convert between bar timestamps and chart indices
- *
- * Chart indices are based on "trading minutes" — continuous counting that
- * skips overnight gaps and weekends. This means:
- * - Friday 20:00 bar is immediately adjacent to Monday 4:01 bar
+ * 2. Convert between bar timestamps and chart indices (4:00 AM = index 0)
  * - Intra-day gaps (sparse stocks) show as missing indices
  * - Index 0 is always "now" (or replay start time)
  */
@@ -24,13 +20,13 @@ namespace ChartTimeUtils
     /**
  * @brief Compute the index 0 bar timestamp for chart time-anchoring.
  *
- * Returns the bar close timestamp that should be at chart index 0.
- * During market hours, this is the current minute's bar close time.
- * Outside market hours, it's the last tradable bar (20:00) of the most
+ * Returns the bar open timestamp that should be at chart index 0.
+ * During market hours, this is the current minute's bar open time.
+ * Outside market hours, it's the last tradable bar (18:59) of the most
  * recent trading day.
  *
  * @param p_currentTime Current time (live clock or replay time)
- * @return QDateTime The bar timestamp for index 0 (always a valid bar close time on a weekday)
+ * @return QDateTime The bar timestamp for index 0 (always a valid bar open time on a weekday)
  */
     inline QDateTime computeIndex0Timestamp(const QDateTime& p_currentTime)
     {
@@ -40,29 +36,28 @@ namespace ChartTimeUtils
         const int dow = date.dayOfWeek();
         const bool isWeekday = (dow >= TradingHours::MONDAY && dow <= TradingHours::FRIDAY);
 
-        // During market hours on a weekday: bar close = floor(now) + 1 minute
+        // During market hours on a weekday: bar open = floor(now) to current minute
         if (isWeekday && time >= TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION &&
             time <= TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION)
         {
-            QTime barClose(time.hour(), time.minute(), 0);
-            barClose = barClose.addSecs(60);
+            QTime barOpen(time.hour(), time.minute(), 0);
 
-            if (barClose > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION)
-                barClose = TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;
+            if (barOpen > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION)
+                barOpen = TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;
 
-            return QDateTime(date, barClose, TradingHours::MARKET_TIMEZONE);
+            return QDateTime(date, barOpen, TradingHours::MARKET_TIMEZONE);
         }
 
-        // Outside market hours: find most recent trading day's 20:00
+        // Outside market hours: find most recent trading day's last bar
         QDate tradingDate = date;
 
-        // After 20:00 on a weekday → today's close
+        // After market close on a weekday → today's last bar
         if (isWeekday && time > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION)
             return QDateTime(tradingDate,
                              TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
                              TradingHours::MARKET_TIMEZONE);
 
-        // Before 4:01 on a weekday → previous day
+        // Before market open on a weekday → previous day
         if (isWeekday)
             tradingDate = tradingDate.addDays(-1);
 
@@ -124,9 +119,9 @@ namespace ChartTimeUtils
  * @brief Convert a bar timestamp to an absolute "trading minute" index.
  *
  * Trading minutes are a continuous count that skips weekends and overnight gaps.
- * Each trading day contributes 960 minutes (4:01 to 20:00).
+ * Each trading day contributes 900 minutes (4:00 to 18:59).
  *
- * @param p_barTimestamp A valid bar close timestamp (4:01-20:00 on a weekday)
+ * @param p_barTimestamp A valid bar open timestamp (4:00-18:59 on a weekday)
  * @return Absolute trading minute count
  */
     inline qint64 toAbsoluteTradingMinute(const QDateTime& p_barTimestamp)
@@ -140,7 +135,7 @@ namespace ChartTimeUtils
     /**
  * @brief Convert a bar timestamp to a chart index relative to index 0.
  *
- * @param p_barTimestamp The bar's close timestamp
+ * @param p_barTimestamp The bar's open timestamp
  * @param p_index0Timestamp The index 0 anchor timestamp (from computeIndex0Timestamp)
  * @return Chart index (negative = before index 0, positive = after)
  */
@@ -154,7 +149,7 @@ namespace ChartTimeUtils
  *
  * @param p_index Chart index
  * @param p_index0Timestamp The index 0 anchor timestamp
- * @return Bar close timestamp for the given index
+ * @return Bar open timestamp for the given index
  */
     inline QDateTime chartIndexToTimestamp(int p_index, const QDateTime& p_index0Timestamp)
     {

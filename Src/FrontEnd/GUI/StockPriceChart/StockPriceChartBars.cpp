@@ -251,21 +251,21 @@ void StockPriceChart::drawBackgroundsForReceivedBars(const QVector<Bar>& bars)
             continue;
         }
 
-        // Draw early pre-market rectangle (4:01am - 6:00am ET) - paler orange
+        // Draw early pre-market rectangle (4:00am - 5:59am ET) - paler orange
         drawFixedBackgroundRect(date,
                                 TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
                                 TradingHours::TIME_LAST_CANDLE_EARLY_PRE_MARKET_SESSION,
                                 QColor(255, 165, 0, 90),
                                 m_earlyPreMarketRects);
 
-        // Draw pre-market rectangle (6:01am - 9:30am ET)
+        // Draw pre-market rectangle (6:00am - 9:29am ET)
         drawFixedBackgroundRect(date,
                                 TradingHours::TIME_FIRST_CANDLE_PRE_MARKET_SESSION,
                                 TradingHours::TIME_LAST_CANDLE_PRE_MARKET_SESSION,
                                 QColor(255, 165, 0, 180),
                                 m_preMarketRects);
 
-        // Draw after-hours rectangle (4pm - 8:00pm ET)
+        // Draw after-hours rectangle (4:00pm - 6:59pm ET)
         drawFixedBackgroundRect(date,
                                 TradingHours::TIME_FIRST_CANDLE_AFTER_MARKET_SESSION,
                                 TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,

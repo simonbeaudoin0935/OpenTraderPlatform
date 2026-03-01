@@ -224,9 +224,22 @@ void DBClient::fetchHistoricalBars(const QString& p_symbol, const QDateTime& p_s
     const std::string stdDataset = dataset.toStdString();
     const std::string stdSymbol = symbol.toStdString();
 
+    // Databento's end parameter is exclusive: to include the bar at 18:59 (our last bar),
+    // we must request end = 19:00.
+    QDateTime exclusiveEnd = p_end.addSecs(60);
+
+    // Cap end time to current UTC to avoid requesting past dataset's available_end.
+    // Databento rejects requests where end > available_end with HTTP 422.
+    QDateTime nowUtc = QDateTime::currentDateTimeUtc();
+    if (exclusiveEnd.toUTC() > nowUtc)
+    {
+        exclusiveEnd = nowUtc;
+        DEBUG << "Capped historical end time to current UTC:" << exclusiveEnd.toUTC().toString(Qt::ISODate);
+    }
+
     // Convert QDateTime to ISO 8601 strings for the string-based DateTimeRange overload
     const std::string startStr = p_start.toUTC().toString(Qt::ISODate).toStdString();
-    const std::string endStr = p_end.toUTC().toString(Qt::ISODate).toStdString();
+    const std::string endStr = exclusiveEnd.toUTC().toString(Qt::ISODate).toStdString();
 
     // Capture a raw pointer for the Historical client (owned by this)
     databento::Historical* hist = m_historicalClient.get();
@@ -288,9 +301,9 @@ void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date)
     const std::string stdDataset = dataset.toStdString();
     const std::string stdSymbol = symbol.toStdString();
 
-    // Build time range for full trading day (4:00 AM to 8:00 PM ET)
+    // Build time range for full trading day (4:00 AM to 7:00 PM ET, exclusive end)
     const QDateTime start(date, QTime(4, 0, 0), TradingHours::MARKET_TIMEZONE);
-    const QDateTime end(date, QTime(20, 0, 0), TradingHours::MARKET_TIMEZONE);
+    const QDateTime end(date, QTime(19, 0, 0), TradingHours::MARKET_TIMEZONE);
     const std::string startStr = start.toUTC().toString(Qt::ISODate).toStdString();
     const std::string endStr = end.toUTC().toString(Qt::ISODate).toStdString();
 
