@@ -1,15 +1,27 @@
 #include "RecordsInfoTab.h"
 #include "DBClient.h"
 #include "Logging.h"
+#include "Settings.h"
 
 #include <QDir>
+#include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QHeaderView>
+#include <QMessageBox>
 #include <QRegularExpression>
 #include <QSet>
+#include <QTextStream>
 
 RecordsInfoTab::RecordsInfoTab(QWidget* p_parent)
     : QWidget(p_parent)
+    , m_dateEdit(nullptr)
+    , m_csvPathEdit(nullptr)
+    , m_browseCsvButton(nullptr)
+    , m_manualSymbolsEdit(nullptr)
+    , m_downloadButton(nullptr)
+    , m_downloadProgressBar(nullptr)
+    , m_downloadStatusLabel(nullptr)
     , m_daysTable(nullptr)
     , m_refreshButton(nullptr)
     , m_symbolsTable(nullptr)
@@ -27,9 +39,191 @@ RecordsInfoTab::RecordsInfoTab(QWidget* p_parent)
     scanRecordedDays();
 }
 
+QStringList RecordsInfoTab::parseSymbolCsv(const QString& p_filePath)
+{
+    QStringList symbols;
+    QFile file(p_filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return symbols;
+
+    QTextStream in(&file);
+    bool firstLine = true;
+
+    while (!in.atEnd())
+    {
+        QString line = in.readLine().trimmed();
+        if (line.isEmpty())
+            continue;
+
+        // Skip header row
+        if (firstLine)
+        {
+            firstLine = false;
+            continue;
+        }
+
+        // Extract first column — handle quoted fields
+        QString ticker;
+        if (line.startsWith('"'))
+        {
+            int endQuote = line.indexOf('"', 1);
+            if (endQuote > 1)
+                ticker = line.mid(1, endQuote - 1);
+        }
+        else
+        {
+            int comma = line.indexOf(',');
+            ticker = (comma >= 0) ? line.left(comma) : line;
+        }
+
+        ticker = ticker.trimmed().toUpper();
+        if (!ticker.isEmpty())
+            symbols.append(ticker);
+    }
+
+    return symbols;
+}
+
+QStringList RecordsInfoTab::parseManualSymbols() const
+{
+    QStringList symbols;
+    const QString text = m_manualSymbolsEdit->text().trimmed();
+    if (text.isEmpty())
+        return symbols;
+
+    const QStringList parts = text.split(',', Qt::SkipEmptyParts);
+    for (const QString& part: parts)
+    {
+        QString sym = part.trimmed().toUpper();
+        if (!sym.isEmpty())
+            symbols.append(sym);
+    }
+    return symbols;
+}
+
+QStringList RecordsInfoTab::buildDownloadQueue(const QDate& p_date) const
+{
+    QSet<QString> seen;
+    QStringList queue;
+
+    // CSV symbols first
+    const QString csvPath = m_csvPathEdit->text().trimmed();
+    if (!csvPath.isEmpty())
+    {
+        const QStringList csvSymbols = parseSymbolCsv(csvPath);
+        for (const QString& sym: csvSymbols)
+        {
+            if (!seen.contains(sym))
+            {
+                seen.insert(sym);
+                if (!DBClient::hasReplayData(p_date, sym))
+                    queue.append(sym);
+            }
+        }
+    }
+
+    // Manual symbols
+    const QStringList manualSymbols = parseManualSymbols();
+    for (const QString& sym: manualSymbols)
+    {
+        if (!seen.contains(sym))
+        {
+            seen.insert(sym);
+            if (!DBClient::hasReplayData(p_date, sym))
+                queue.append(sym);
+        }
+    }
+
+    return queue;
+}
+
 void RecordsInfoTab::setupUI()
 {
     auto* mainLayout = new QVBoxLayout(this);
+
+    // ── Download section ──────────────────────────────────────────────────────
+    auto* downloadGroup = new QGroupBox("Download Replay Data");
+    auto* downloadLayout = new QVBoxLayout(downloadGroup);
+
+    // Row 1: Date picker
+    auto* dateRow = new QHBoxLayout();
+    dateRow->addWidget(new QLabel("Date:"));
+    m_dateEdit = new QDateEdit();
+    Q_CHECK_PTR(m_dateEdit);
+    m_dateEdit->setCalendarPopup(true);
+    m_dateEdit->setMaximumDate(QDate::currentDate());
+    m_dateEdit->setDisplayFormat("yyyy-MM-dd");
+
+    // Default to last weekday
+    QDate defaultDate = QDate::currentDate().addDays(-1);
+    while (defaultDate.dayOfWeek() > 5)
+        defaultDate = defaultDate.addDays(-1);
+    m_dateEdit->setDate(defaultDate);
+
+    dateRow->addWidget(m_dateEdit);
+    dateRow->addStretch();
+    downloadLayout->addLayout(dateRow);
+
+    // Row 2: CSV file picker
+    auto* csvRow = new QHBoxLayout();
+    csvRow->addWidget(new QLabel("CSV File:"));
+    m_csvPathEdit = new QLineEdit();
+    Q_CHECK_PTR(m_csvPathEdit);
+    m_csvPathEdit->setPlaceholderText("Path to stock list CSV (e.g., NBI.csv)");
+    csvRow->addWidget(m_csvPathEdit, 1);
+
+    m_browseCsvButton = new QPushButton("Browse…");
+    Q_CHECK_PTR(m_browseCsvButton);
+    csvRow->addWidget(m_browseCsvButton);
+    downloadLayout->addLayout(csvRow);
+
+    connect(m_browseCsvButton, &QPushButton::clicked, this, &RecordsInfoTab::onBrowseCsvClicked, Qt::UniqueConnection);
+    connect(m_csvPathEdit, &QLineEdit::editingFinished, this, &RecordsInfoTab::saveCsvPath, Qt::UniqueConnection);
+
+    // Row 3: Manual symbols
+    auto* manualRow = new QHBoxLayout();
+    manualRow->addWidget(new QLabel("Extra Symbols:"));
+    m_manualSymbolsEdit = new QLineEdit();
+    Q_CHECK_PTR(m_manualSymbolsEdit);
+    m_manualSymbolsEdit->setPlaceholderText("Comma-separated (e.g., AAPL, NVDA, MSFT)");
+    manualRow->addWidget(m_manualSymbolsEdit, 1);
+    downloadLayout->addLayout(manualRow);
+
+    connect(m_manualSymbolsEdit,
+            &QLineEdit::editingFinished,
+            this,
+            &RecordsInfoTab::saveManualSymbols,
+            Qt::UniqueConnection);
+
+    // Row 4: Download button + status
+    auto* actionRow = new QHBoxLayout();
+    m_downloadButton = new QPushButton("Download");
+    Q_CHECK_PTR(m_downloadButton);
+    actionRow->addWidget(m_downloadButton);
+
+    m_downloadStatusLabel = new QLabel("Idle");
+    Q_CHECK_PTR(m_downloadStatusLabel);
+    actionRow->addWidget(m_downloadStatusLabel, 1);
+    downloadLayout->addLayout(actionRow);
+
+    connect(m_downloadButton, &QPushButton::clicked, this, &RecordsInfoTab::onDownloadClicked, Qt::UniqueConnection);
+
+    // Row 5: Progress bar (hidden until download starts)
+    m_downloadProgressBar = new QProgressBar();
+    Q_CHECK_PTR(m_downloadProgressBar);
+    m_downloadProgressBar->setVisible(false);
+    downloadLayout->addWidget(m_downloadProgressBar);
+
+    mainLayout->addWidget(downloadGroup);
+
+    // Restore persisted values from AppState.ini
+    if (appStateSettings != nullptr)
+    {
+        m_csvPathEdit->setText(appStateSettings->value("RecordsInfo/LastCsvPath").toString());
+        m_manualSymbolsEdit->setText(appStateSettings->value("RecordsInfo/ManualSymbols").toString());
+    }
+
+    // ── Browse section (existing) ─────────────────────────────────────────────
 
     // Toolbar
     auto* toolbar = new QHBoxLayout();
@@ -136,6 +330,147 @@ void RecordsInfoTab::setupUI()
     splitter->setStretchFactor(2, 3);
 
     mainLayout->addWidget(splitter);
+}
+
+void RecordsInfoTab::saveCsvPath()
+{
+    if (appStateSettings != nullptr)
+        appStateSettings->setValue("RecordsInfo/LastCsvPath", m_csvPathEdit->text().trimmed());
+}
+
+void RecordsInfoTab::saveManualSymbols()
+{
+    if (appStateSettings != nullptr)
+        appStateSettings->setValue("RecordsInfo/ManualSymbols", m_manualSymbolsEdit->text().trimmed());
+}
+
+void RecordsInfoTab::onBrowseCsvClicked()
+{
+    QString startDir = m_csvPathEdit->text().trimmed();
+    if (startDir.isEmpty())
+        startDir = QDir::currentPath();
+    else
+        startDir = QFileInfo(startDir).absolutePath();
+
+    QString filePath =
+        QFileDialog::getOpenFileName(this, "Select Stock List CSV", startDir, "CSV Files (*.csv);;All Files (*)");
+
+    if (!filePath.isEmpty())
+    {
+        m_csvPathEdit->setText(filePath);
+        saveCsvPath();
+    }
+}
+
+void RecordsInfoTab::onDownloadClicked()
+{
+    // Validate Databento connection
+    if (!DBClient::getInstance()->hasApiKey())
+    {
+        QMessageBox::warning(this,
+                             "Not Connected",
+                             "Databento API key is not configured.\n"
+                             "Connect via the status bar button first.");
+        return;
+    }
+
+    const QDate date = m_dateEdit->date();
+    if (!date.isValid() || date > QDate::currentDate())
+    {
+        QMessageBox::warning(this, "Invalid Date", "Please select a valid past date.");
+        return;
+    }
+
+    // Build the download queue (CSV + manual, deduplicated, skip already downloaded)
+    m_downloadQueue = buildDownloadQueue(date);
+
+    if (m_downloadQueue.isEmpty())
+    {
+        const QString csvPath = m_csvPathEdit->text().trimmed();
+        const QStringList manual = parseManualSymbols();
+        if (csvPath.isEmpty() && manual.isEmpty())
+        {
+            QMessageBox::warning(this, "No Symbols", "Please specify a CSV file or enter symbols manually.");
+            return;
+        }
+        m_downloadStatusLabel->setText("All symbols already downloaded for " + date.toString(Qt::ISODate));
+        return;
+    }
+
+    // Start sequential download
+    m_downloadDate = date;
+    m_downloadIndex = 0;
+    m_downloadSuccessCount = 0;
+    m_downloadFailCount = 0;
+
+    m_downloadButton->setEnabled(false);
+    m_downloadProgressBar->setMaximum(m_downloadQueue.size());
+    m_downloadProgressBar->setValue(0);
+    m_downloadProgressBar->setVisible(true);
+
+    // Connect to DBClient signal
+    connect(DBClient::getInstance(),
+            &DBClient::replayDownloadFinished,
+            this,
+            &RecordsInfoTab::onDownloadFinished,
+            Qt::UniqueConnection);
+
+    startNextDownload();
+}
+
+void RecordsInfoTab::startNextDownload()
+{
+    if (m_downloadIndex >= m_downloadQueue.size())
+    {
+        // All done
+        m_downloadButton->setEnabled(true);
+        m_downloadStatusLabel->setText(QString("Done — %1 succeeded, %2 failed (of %3 total)")
+                                           .arg(m_downloadSuccessCount)
+                                           .arg(m_downloadFailCount)
+                                           .arg(m_downloadQueue.size()));
+
+        disconnect(DBClient::getInstance(),
+                   &DBClient::replayDownloadFinished,
+                   this,
+                   &RecordsInfoTab::onDownloadFinished);
+
+        // Refresh the browse table
+        scanRecordedDays();
+        return;
+    }
+
+    const QString& symbol = m_downloadQueue.at(m_downloadIndex);
+    m_downloadStatusLabel->setText(
+        QString("Downloading %1/%2: %3…").arg(m_downloadIndex + 1).arg(m_downloadQueue.size()).arg(symbol));
+
+    DBClient::getInstance()->downloadReplayData(symbol, m_downloadDate);
+}
+
+void RecordsInfoTab::onDownloadFinished(const QString& p_symbol,
+                                        const QDate& p_date,
+                                        bool p_success,
+                                        const QString& p_errorMessage)
+{
+    Q_UNUSED(p_errorMessage);
+    // Ignore signals from other downloads
+    if (p_date != m_downloadDate)
+        return;
+
+    if (m_downloadIndex >= m_downloadQueue.size())
+        return;
+
+    if (m_downloadQueue.at(m_downloadIndex) != p_symbol)
+        return;
+
+    if (p_success)
+        m_downloadSuccessCount++;
+    else
+        m_downloadFailCount++;
+
+    m_downloadIndex++;
+    m_downloadProgressBar->setValue(m_downloadIndex);
+
+    startNextDownload();
 }
 
 void RecordsInfoTab::onRefreshClicked()
