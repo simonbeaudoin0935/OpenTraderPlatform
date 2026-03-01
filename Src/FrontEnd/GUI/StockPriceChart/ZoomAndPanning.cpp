@@ -8,7 +8,7 @@
  */
 void StockPriceChart::onAxisRangeChanged()
 {
-    if (indexToBar.isEmpty())
+    if (indexToBar.isEmpty() && !m_index0Timestamp.isValid())
         return;
 
     updateAxisLabelsDensity();

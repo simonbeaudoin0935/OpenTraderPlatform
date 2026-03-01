@@ -403,14 +403,28 @@ void StockPriceChart::initializeTimeAnchor()
     m_customPlot->xAxis->setTicker(indexToTimeTicker);
 
     // Center view on index 0 with ~60 bars left, ~30 bars right
-    // Note: the setRange call triggers checkForMissingBars via signal/slot,
-    // which will request historical bars once MainAlgo has the instrument ready.
     m_customPlot->xAxis->setRange(-60, 30);
 
     // Start the current time line
     m_currentTimeLine->setVisible(true);
     m_timeLineTimer->start();
     updateCurrentTimeLine();
+
+    // Defer initial bar request to next event loop iteration.
+    // This is necessary because setSymbol() fires before onSelectDisplayedStock
+    // reaches MainAlgo (queued cross-thread connection). The deferred call ensures
+    // the StockInstrument is created before we request bars from its cache.
+    QTimer::singleShot(0,
+                       this,
+                       [this]()
+                       {
+                           if (!m_index0Timestamp.isValid() || m_symbol.isEmpty())
+                               return;
+
+                           double minIndex = m_customPlot->xAxis->range().lower;
+                           QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
+                           checkForMissingBars(requestTime, m_index0Timestamp);
+                       });
 }
 
 /**

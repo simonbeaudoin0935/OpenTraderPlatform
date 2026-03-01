@@ -28,7 +28,8 @@ QFuture<std::expected<PlaceOrderResult, TSClient::Error>> StrategySDK::placeOrde
     if (!StrategyOrderValidator::validateOrder(m_strategyID, p_order))
     {
         return QtFuture::makeReadyFuture(
-            std::expected<PlaceOrderResult, TSClient::Error>(std::unexpected(TSClient::Error::RejectedByValidator)));
+            std::expected<PlaceOrderResult, TSClient::Error>(
+                std::unexpected(TSClient::Error::RejectedByValidator)));
     }
 
     uint64_t requestId = m_mainAlgo->getNextRequestId();
