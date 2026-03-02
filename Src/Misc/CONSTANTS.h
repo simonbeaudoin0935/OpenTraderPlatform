@@ -1,9 +1,11 @@
 #pragma once
 
+#include <QDate>
 #include <QTime>
 #include <QTimeZone>
 #include <QString>
 #include <QStringList>
+#include <array>
 
 #include "Assume.h"
 
@@ -323,3 +325,70 @@ namespace RecorderConstants
     inline constexpr int STREAM_RAMP_UP_TIER1_THRESHOLD = 100; // Switch to tier 2 after this many
     inline constexpr int STREAM_RAMP_UP_TIER2_THRESHOLD = 200; // Switch to tier 3 after this many
 } // namespace RecorderConstants
+
+/**
+ * @namespace MarketCalendar
+ * @brief NYSE market holiday calendar for 2026.
+ *
+ * Sources: NYSE official holiday schedule.
+ *
+ * Full-day closures (Mon-Fri):
+ *   Jan  1  – New Year's Day
+ *   Jan 19  – Martin Luther King Jr. Day
+ *   Feb 16  – Presidents' Day
+ *   Apr  3  – Good Friday
+ *   May 25  – Memorial Day
+ *   Jun 19  – Juneteenth
+ *   Jul  3  – Independence Day (observed; Jul 4 falls on Saturday)
+ *   Sep  7  – Labor Day
+ *   Nov 26  – Thanksgiving Day
+ *   Dec 25  – Christmas Day
+ *
+ * Early close at 1:00 PM ET:
+ *   Nov 25  – Day before Thanksgiving
+ *   Dec 24  – Christmas Eve
+ */
+namespace MarketCalendar
+{
+    inline const QTime EARLY_CLOSE_TIME = QTime(13, 0); // 1:00 PM ET
+
+    // Full-day NYSE closures in 2026 (Mon–Fri holidays)
+    inline const std::array<QDate, 10> HOLIDAYS_2026 = {
+        QDate(2026,  1,  1), // New Year's Day
+        QDate(2026,  1, 19), // Martin Luther King Jr. Day
+        QDate(2026,  2, 16), // Presidents' Day
+        QDate(2026,  4,  3), // Good Friday
+        QDate(2026,  5, 25), // Memorial Day
+        QDate(2026,  6, 19), // Juneteenth National Independence Day
+        QDate(2026,  7,  3), // Independence Day (observed)
+        QDate(2026,  9,  7), // Labor Day
+        QDate(2026, 11, 26), // Thanksgiving Day
+        QDate(2026, 12, 25), // Christmas Day
+    };
+
+    // Days with early close at 1:00 PM ET in 2026
+    inline const std::array<QDate, 2> EARLY_CLOSE_DAYS_2026 = {
+        QDate(2026, 11, 25), // Day before Thanksgiving
+        QDate(2026, 12, 24), // Christmas Eve
+    };
+
+    inline bool isHoliday(const QDate& date)
+    {
+        for (const QDate& h : HOLIDAYS_2026)
+        {
+            if (h == date)
+                return true;
+        }
+        return false;
+    }
+
+    inline bool isEarlyCloseDay(const QDate& date)
+    {
+        for (const QDate& d : EARLY_CLOSE_DAYS_2026)
+        {
+            if (d == date)
+                return true;
+        }
+        return false;
+    }
+} // namespace MarketCalendar
