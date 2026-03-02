@@ -960,6 +960,16 @@ void MainAlgo::connectReplaySignals(const QString& p_symbol)
                             emulator,
                             &OrderEmulator::updateMarketDepth);
         ASSUME_TRUE(connected);
+
+        // Bar close price → OrderEmulator (needed by recalculatePositionPnL for P&L updates)
+        // Both barUpdated (live candle) and barClosed (minute boundary) keep the price current.
+        auto feedBarClose = [emulator](const QString& sym, const Bar& bar)
+        { emulator->updateBarClose(sym, bar.getClose()); };
+
+        connected = connect(&instrument->m_liveBarAccumulator, &LiveBarAccumulator::barUpdated, emulator, feedBarClose);
+        ASSUME_TRUE(connected);
+        connected = connect(&instrument->m_liveBarAccumulator, &LiveBarAccumulator::barClosed, emulator, feedBarClose);
+        ASSUME_TRUE(connected);
     }
 
     // Replay Trade → LiveBarAccumulator (builds bars from trades)
