@@ -150,8 +150,13 @@ Order::Order(const QJsonObject& jsonObj, bool isUpdate_) : m_isUpdate(isUpdate_)
             }
             else if (openOrClose.isEmpty())
             {
-                // No OpenOrClose field - use BuyOrSell directly (stocks)
-                m_tradeAction = buyOrSell;
+                // No OpenOrClose field — stock orders: normalize API strings to display form
+                if (buyOrSell == "BuyToCover")
+                    m_tradeAction = "Buy to Cover";
+                else if (buyOrSell == "SellShort")
+                    m_tradeAction = "Sell Short";
+                else
+                    m_tradeAction = buyOrSell; // "Buy" or "Sell" pass through as-is
             }
             else
             {
@@ -311,6 +316,7 @@ bool Order::isValid()
     // Validate tradeAction - MUST be one of the recognized actions
     bool validTradeAction = (m_tradeAction == "BUY" || m_tradeAction == "SELL" || m_tradeAction == "BUYTOCOVER" ||
                              m_tradeAction == "SELLSHORT" || m_tradeAction == "Buy" || m_tradeAction == "Sell" ||
+                             m_tradeAction == "BuyToCover" || m_tradeAction == "SellShort" ||
                              m_tradeAction == "Buy to Cover" || m_tradeAction == "Sell Short");
     if (!validTradeAction)
     {
