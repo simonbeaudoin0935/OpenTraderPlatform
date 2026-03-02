@@ -9,7 +9,7 @@
 #include "Assume.h"
 #include "Logging.h"
 #include "MainApp.h"
-#include "MarketDepthQuote.h"
+#include "Level2.h"
 
 #define LOGGING_CATEGORY OrderEmulatorLog
 Q_LOGGING_CATEGORY(OrderEmulatorLog, "OrderEmulator");
@@ -42,25 +42,15 @@ namespace
     }
 
     // Get best bid price from market depth
-    double getBestBid(const MarketDepthQuote& p_depth)
+    double getBestBid(const Level2& p_depth)
     {
-        const auto& bids = p_depth.getBids();
-        if (bids.isEmpty())
-        {
-            return 0.0;
-        }
-        return bids.first().getPrice().toDouble();
+        return p_depth.m_bids[0].m_price;
     }
 
     // Get best ask price from market depth
-    double getBestAsk(const MarketDepthQuote& p_depth)
+    double getBestAsk(const Level2& p_depth)
     {
-        const auto& asks = p_depth.getAsks();
-        if (asks.isEmpty())
-        {
-            return 0.0;
-        }
-        return asks.first().getPrice().toDouble();
+        return p_depth.m_asks[0].m_price;
     }
 } // anonymous namespace
 
@@ -156,7 +146,7 @@ void OrderEmulator::cancelOrder(const QString& p_orderID, const QString& p_reque
     INFO << "Order cancelled:" << p_orderID;
 }
 
-void OrderEmulator::updateMarketDepth(const QString& p_symbol, const MarketDepthQuote& p_depth)
+void OrderEmulator::updateMarketDepth(const QString& p_symbol, const Level2& p_depth)
 {
     m_depthSnapshots.insert(p_symbol, p_depth);
 
@@ -212,9 +202,9 @@ void OrderEmulator::updateBarClose(const QString& p_symbol, double p_close)
     m_latestBarClose.insert(p_symbol, p_close);
 }
 
-void OrderEmulator::updateQuote(const QString& p_symbol, const Quote& p_quote)
+void OrderEmulator::updateLevel1(const QString& p_symbol, const Level1& p_level1)
 {
-    m_quoteSnapshots.insert(p_symbol, p_quote);
+    m_quoteSnapshots.insert(p_symbol, p_level1);
 
     // Only check limit orders if we don't have Level 2 data for this symbol
     // (Level 2 data is preferred and handled by updateMarketDepth)
@@ -233,11 +223,11 @@ void OrderEmulator::updateQuote(const QString& p_symbol, const Quote& p_quote)
             continue;
         }
 
-        if (canFillLimitOrderFromQuote(order, p_quote))
+        if (canFillLimitOrderFromLevel1(order, p_level1))
         {
             // Fill at market price: a buy limit crossing the ask fills at the ask,
             // not the (higher) limit price. Same logic as a market order.
-            double fillPrice = calculateMarketOrderFillPriceFromQuote(order, p_quote);
+            double fillPrice = calculateMarketOrderFillPriceFromLevel1(order, p_level1);
 
             // Convert order to JSON for executing queue
             QJsonObject orderJson = orderToJsonObject(order);
@@ -420,7 +410,7 @@ int OrderEmulator::calculateExecutionDelay() const
     return (baseDelay * 100) / qMax(1, m_replaySpeedPercent);
 }
 
-bool OrderEmulator::canFillLimitOrder(const Order& p_order, const MarketDepthQuote& p_depth) const
+bool OrderEmulator::canFillLimitOrder(const Order& p_order, const Level2& p_depth) const
 {
     if (!p_order.getLimitPrice().has_value())
     {
@@ -447,7 +437,7 @@ bool OrderEmulator::canFillLimitOrder(const Order& p_order, const MarketDepthQuo
     return false;
 }
 
-double OrderEmulator::calculateMarketOrderFillPrice(const Order& p_order, const MarketDepthQuote& p_depth) const
+double OrderEmulator::calculateMarketOrderFillPrice(const Order& p_order, const Level2& p_depth) const
 {
     QString tradeAction = p_order.getTradeAction();
 
@@ -462,7 +452,7 @@ double OrderEmulator::calculateMarketOrderFillPrice(const Order& p_order, const 
     return getBestBid(p_depth);
 }
 
-bool OrderEmulator::canFillLimitOrderFromQuote(const Order& p_order, const Quote& p_quote) const
+bool OrderEmulator::canFillLimitOrderFromLevel1(const Order& p_order, const Level1& p_level1) const
 {
     if (!p_order.getLimitPrice().has_value())
     {
@@ -475,31 +465,31 @@ bool OrderEmulator::canFillLimitOrderFromQuote(const Order& p_order, const Quote
     // BUY limit: fills if ask <= limit price
     if (tradeAction == "BUY" || tradeAction == "BUYTOCOVER" || tradeAction == "Buy" || tradeAction == "Buy to Cover")
     {
-        double ask = p_quote.getAsk();
+        double ask = p_level1.m_ask.m_price;
         return ask > 0 && ask <= limitPrice;
     }
 
     // SELL limit: fills if bid >= limit price
     if (tradeAction == "SELL" || tradeAction == "SELLSHORT" || tradeAction == "Sell" || tradeAction == "Sell Short")
     {
-        double bid = p_quote.getBid();
+        double bid = p_level1.m_bid.m_price;
         return bid > 0 && bid >= limitPrice;
     }
 
     return false;
 }
 
-double OrderEmulator::calculateMarketOrderFillPriceFromQuote(const Order& p_order, const Quote& p_quote) const
+double OrderEmulator::calculateMarketOrderFillPriceFromLevel1(const Order& p_order, const Level1& p_level1) const
 {
     QString tradeAction = p_order.getTradeAction();
 
     if (tradeAction == "BUY" || tradeAction == "BUYTOCOVER" || tradeAction == "Buy" || tradeAction == "Buy to Cover")
     {
-        return p_quote.getAsk();
+        return p_level1.m_ask.m_price;
     }
 
     // SELL
-    return p_quote.getBid();
+    return p_level1.m_bid.m_price;
 }
 
 QJsonObject OrderEmulator::createOrderJson(const QString& p_orderID,
@@ -777,6 +767,15 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
 
 void OrderEmulator::recalculatePositionPnL(const QString& p_symbol)
 {
+    // Throttle: emit at most once per PNL_THROTTLE_MS to avoid flooding the
+    // position pipeline with thousands of updates per second during fast replay.
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_lastPnLEmit.contains(p_symbol) && now - m_lastPnLEmit[p_symbol] < PNL_THROTTLE_MS)
+    {
+        return;
+    }
+    m_lastPnLEmit.insert(p_symbol, now);
+
     // Ensure we have an active position for this symbol
     if (!m_symbolToActivePosition.contains(p_symbol))
     {
@@ -811,15 +810,15 @@ void OrderEmulator::recalculatePositionPnL(const QString& p_symbol)
     double ask;
     if (hasLevel2)
     {
-        const MarketDepthQuote& depth = m_depthSnapshots[p_symbol];
+        const Level2& depth = m_depthSnapshots[p_symbol];
         bid = getBestBid(depth);
         ask = getBestAsk(depth);
     }
     else
     {
-        const Quote& quote = m_quoteSnapshots[p_symbol];
-        bid = quote.getBid();
-        ask = quote.getAsk();
+        const Level1& level1 = m_quoteSnapshots[p_symbol];
+        bid = level1.m_bid.m_price;
+        ask = level1.m_ask.m_price;
     }
 
     // TradeStation mark-to-market price calculation
@@ -1007,7 +1006,7 @@ bool OrderEmulator::validateOrder(const PlaceOrderRequest& p_request, QString& p
         }
         else
         {
-            bestAsk = m_quoteSnapshots.value(symbol).getAsk();
+            bestAsk = m_quoteSnapshots.value(symbol).m_ask.m_price;
         }
         double estimatedCost = p_request.getQuantity() * bestAsk;
         if (estimatedCost > m_balance)
@@ -1097,7 +1096,7 @@ void OrderEmulator::onReceptionDelayElapsed()
     if (hasLevel2)
     {
         // Use Level 2 (book walking for more accurate fills)
-        const MarketDepthQuote& depth = m_depthSnapshots.value(symbol);
+        const Level2& depth = m_depthSnapshots.value(symbol);
         canFill = isMarketOrder || canFillLimitOrder(order, depth);
 
         if (canFill)
@@ -1111,14 +1110,14 @@ void OrderEmulator::onReceptionDelayElapsed()
     else
     {
         // Use Level 1 (best bid/ask only)
-        const Quote& quote = m_quoteSnapshots.value(symbol);
-        canFill = isMarketOrder || canFillLimitOrderFromQuote(order, quote);
+        const Level1& level1 = m_quoteSnapshots.value(symbol);
+        canFill = isMarketOrder || canFillLimitOrderFromLevel1(order, level1);
 
         if (canFill)
         {
             // Market and limit orders both fill at the current market price (ask for buy,
             // bid for sell). The limit price is a ceiling/floor, not the execution price.
-            fillPrice = calculateMarketOrderFillPriceFromQuote(order, quote);
+            fillPrice = calculateMarketOrderFillPriceFromLevel1(order, level1);
             DEBUG << "Order" << orderID << "using Level 1 data for" << symbol;
         }
     }

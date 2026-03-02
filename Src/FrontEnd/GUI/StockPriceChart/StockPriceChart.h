@@ -6,16 +6,15 @@
 #include <QMap>
 #include <QLoggingCategory>
 #include <QVBoxLayout>
-#include <QtConcurrent/QtConcurrent>
-#include <QFuture>
-#include <QFutureWatcher>
 #include <QSemaphore>
 #include <QTimer>
 
 #include "qcustomplot.h"
 #include "Bar.h"
 #include "ChartToolbar.h"
+#include "ChartTimeUtils.h"
 #include "CONSTANTS.h"
+#include "QCPItemTriangle.h"
 
 // Forward declarations
 class Order;
@@ -50,7 +49,9 @@ struct OrderMarker
     State state = State::Pending;
 
     // Visual element (owned by QCustomPlot)
-    QCPItemText* priceLabel = nullptr; // Text label showing BUY/SELL/CANCELLED
+    // QCPItemTriangle for buy/sell markers, QCPItemText for cancelled/rejected
+    QCPAbstractItem* markerItem = nullptr;
+    bool isTriangleMarker = false; ///< true when markerItem is QCPItemTriangle
 };
 
 /**
@@ -213,9 +214,7 @@ class StockPriceChart : public QWidget
     void onOrderVisualizationsVisibilityChanged(bool visible);
     void onReplayDayChanged(const QDate& date);
     void onReplayTimeChanged(const QTime& time);
-    void onReplayTimeRangeQueryFinished();
     void updateCurrentTimeLine();
-    void updateReplayDayBoundaryLines();
 
   protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -227,13 +226,11 @@ class StockPriceChart : public QWidget
     Bar m_latestBar;
     int m_latestBarIndex = -1;
 
-    /**
-     * @brief Queries the database for the first and last timestamps of a stock on a specific date.
-     * @param symbol The stock symbol to query
-     * @param date The date to query
-     * @return A tuple of QDateTime objects representing the first and last timestamps, and the bar count
-     */
-    std::tuple<QDateTime, QDateTime, int> queryStockTimeRangeForDate(const QString& symbol, const QDate& date);
+    // Index of the live (open) bar currently stored in the QCP data containers.
+    // Used to do incremental updates (in-place mutation) instead of
+    // rebuilding all N bars on every trade tick.
+    int m_chartLiveBarIndex = -1;
+    bool m_chartLiveBarIsUp = true; // tracks which volume series the live bar is in
 
     void redrawLastPriceLine();
     void handleVerticalPanning(QWheelEvent* event);
@@ -247,6 +244,7 @@ class StockPriceChart : public QWidget
 
     // Index-based positioning helpers
     void addHistoricalBarsToIndexMapping(const std::shared_ptr<QVector<Bar>>& bars);
+    void initializeTimeAnchor();
 
     QDateTime getPreviousTradingMinute(const QDateTime& timestamp) const;
     QDateTime adjustToValidTradingTime(const QDateTime& timestamp) const;
@@ -275,14 +273,6 @@ class StockPriceChart : public QWidget
     QCPItemLine* m_currentTimeLine;
     QTimer* m_timeLineTimer;
 
-    // Replay day boundary lines
-    QCPItemLine* m_replayStartLine;  // Blue dotted line at replay day start
-    QCPItemLine* m_replayEndLine;    // Red dotted line at replay day end
-    QCPItemText* m_replayStartLabel; // Time label for start line
-    QCPItemText* m_replayEndLabel;   // Time label for end line
-    QDateTime m_replayDayStart;      // Cached start time
-    QDateTime m_replayDayEnd;        // Cached end time
-
     // Chart watermark
     QCPItemText* m_symbolWatermark; // Stock symbol at center-top
     bool m_isReplayModeActive = false;
@@ -307,6 +297,9 @@ class StockPriceChart : public QWidget
     QMap<int, Bar> indexToBar;             // Map from index to Bar
     QMap<QDateTime, int> timestampToIndex; // Map from timestamp to index
 
+    // Time-anchored chart index 0 (set on symbol selection, not on first bar receipt)
+    QDateTime m_index0Timestamp;
+
     // Timeframe selector widget
     ChartToolbar* chartToolbar;
 
@@ -319,9 +312,6 @@ class StockPriceChart : public QWidget
 
     // Volume auto-rescale state
     bool m_volumeAutoRescaleEnabled = true;
-
-    // Replay functionality
-    QFutureWatcher<std::tuple<QDateTime, QDateTime, int>>* replayTimeRangeWatcher;
 
     // Helper to convert index to time for axis labels
     QString indexToTimeString(double index) const;
@@ -378,7 +368,8 @@ class StockPriceChart : public QWidget
      * @param filled Whether the order is filled (solid) or pending (lighter color)
      * @return Pointer to the created OrderMarker
      */
-    OrderMarker* createOrderMarker(const QString& orderID, double index, double price, bool isBuy, bool filled);
+    OrderMarker*
+    createOrderMarker(const QString& orderID, double index, double price, bool isBuy, bool isEntry, bool filled);
 
     /**
      * @brief Creates a buy marker (upward triangle) at the specified position.
@@ -388,7 +379,7 @@ class StockPriceChart : public QWidget
      * @param filled Whether the order is filled (solid) or pending (hollow)
      * @return Pointer to the created OrderMarker
      */
-    OrderMarker* createBuyMarker(const QString& orderID, double index, double price, bool filled);
+    OrderMarker* createBuyMarker(const QString& orderID, double index, double price, bool isEntry, bool filled);
 
     /**
      * @brief Creates a sell marker (downward triangle) at the specified position.
@@ -398,7 +389,7 @@ class StockPriceChart : public QWidget
      * @param filled Whether the order is filled (solid) or pending (hollow)
      * @return Pointer to the created OrderMarker
      */
-    OrderMarker* createSellMarker(const QString& orderID, double index, double price, bool filled);
+    OrderMarker* createSellMarker(const QString& orderID, double index, double price, bool isEntry, bool filled);
 
     /**
      * @brief Creates a cancelled/rejected marker (gray X) at the specified position.

@@ -11,12 +11,11 @@ The Tabs folder contains all tab components that appear in the main QTabWidget o
 **Tab Order** (as displayed in GUI):
 1. **Trade** - Main trading interface (not in this directory, embedded in GUIFrontend)
 2. **Strategies** - Strategy plugin management
-3. **Recorder** - Live market data recording
-4. **Records Info** - Explore recorded market data (NEW)
-5. **Logging** - Live log display and filtering
-6. **Cache** - Bar cache management
-7. **Shortcuts** - Keyboard shortcut configuration
-8. **Config** - Application configuration
+3. **Records Info** - Explore recorded market data
+4. **Logging** - Live log display and filtering
+5. **Cache** - Bar cache management
+6. **Shortcuts** - Keyboard shortcut configuration
+7. **Config** - Application configuration
 
 ## Tab Components
 
@@ -167,201 +166,86 @@ connect(&LogBroadcaster::getInstance(), &LogBroadcaster::logMessage,
 
 ---
 
-### RecorderTab (RecorderTab.h/cpp)
+### RecorderTab — REMOVED
 
-**Purpose**: Market data recording controls (integrated into main application)
-
-**Features**:
-- Start/stop recording within the application
-- CSV file input for symbol list (up to 100 symbols enforced)
-- Select timeframe for recording
-- Records all three stream types: Bars (per symbol), Market Depth (up to 10), Quotes (all symbols)
-- Recording status display
-- Progress indicator
-- Live recording statistics
-
-**100-Symbol Limit**:
-After loading symbols from a CSV file, the count is validated. If more than 100 symbols are found:
-- The list is clipped to the first 100 symbols
-- A `QMessageBox::warning()` dialog is shown listing the excess count
-- Recording proceeds with the clipped 100-symbol list
-
-**Key Methods**:
-```cpp
-// Start market data recording (opens StreamBars, StreamMarketDepthQuote, StreamQuote)
-void startRecording();
-
-// Stop ongoing recording
-void stopRecording();
-
-// Load symbols from CSV file — clips to 100, warns if exceeded
-void loadSymbolsFromCSV(const QString& filePath);
-
-// Update recording statistics
-void updateRecordingStats(int symbolsRecorded, qint64 bytesWritten);
-```
-
-**UI Components**:
-- Symbol list display (QListWidget)
-- Browse button for CSV file selection
-- Timeframe combo box (1min, 5min, 1day, etc.)
-- Start/Stop button
-- Output directory selector
-- Progress bar
-- Statistics labels
-
-**Signal Interface**:
-```cpp
-signals:
-    void recordingStarted(const QStringList& symbols, const QString& timeframe);
-    void recordingStopped();
-
-public slots:
-    void onRecordingStatusChanged(bool isRecording);
-    void onRecordingStatsUpdated(int count, qint64 bytes);
-```
-
-**File Format**:
-CSV files are stored in:
-- `~/.cache/L2Trader/RecordedLiveData/Bars/` (one DB per symbol per day)
-- `~/.cache/L2Trader/RecordedLiveData/MarketDepthQuotes/` (one DB per symbol per day, up to 10)
-- `~/.cache/L2Trader/RecordedLiveData/Quotes/` (one DB for all symbols per day)
+The RecorderTab was removed in Phase 3 of the Databento migration. Recording is no longer done
+via live TradeStation streams. Instead, replay data is downloaded as `.dbn.zst` files via
+`DBClient::downloadReplayData()`, triggered from the RecordsInfoTab download section.
 
 ---
 
 ### RecordsInfoTab (RecordsInfoTab.h/cpp)
 
-**Purpose**: Explore recorded market data
+**Purpose**: Download and browse recorded Databento market data (`.dbn.zst` files)
 
 **Features**:
-- Three-column layout for browsing recordings
-- List all recorded days with statistics
-- View stocks recorded for each day
-- Display detailed metrics per stock (bars + market depth + quotes)
-- Market depth availability indicator (API limited to 10 streams)
-- Quote data availability indicator (Level 1 data for all symbols)
-- Read-only interface
+- **Download section** at top: date picker, CSV file input, manual symbols input, download button with progress
+- **Three-column browser** below: recorded days → symbols → file details (Mbp10/Trades)
+- Sequential download (one symbol at a time via `DBClient::downloadReplayData`)
+- CSV parser for stock lists (e.g., `Example_Config/NBI.csv`)
+- Skips already-downloaded symbols (`DBClient::hasReplayData`)
+- Persists last CSV path and manual symbols in `AppState.ini`
 
 **UI Layout**:
 ```
+┌─ Download Replay Data ──────────────────────────────────────────────┐
+│ Date:         [2026-02-28 ▼]                                        │
+│ CSV File:     [/path/to/NBI.csv                ] [Browse…]          │
+│ Extra Symbols:[AAPL, NVDA, MSFT                ]                    │
+│ [Download]    Downloading 5/260: ABUS…                              │
+│ ████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  5/260               │
+└─────────────────────────────────────────────────────────────────────┘
 ┌─────────────────┬──────────────────────────┬──────────────────────┐
-│  Recorded Days  │  Stocks in Day           │  Stock Details       │
-│                 │                          │                      │
-│ Date  Bars Size │ Symbol Bars Depth Quotes │ Symbol: AAPL         │
-│ 2026-02-05      │ AAPL   1234  Yes   Yes   │                      │
-│ 2026-02-06      │ MSFT   2345  No    Yes   │ Bars Data:           │
-│ ...             │ ...                      │ - Count: 1234        │
-│                 │                          │ - First: ...         │
-│                 │                          │ - Last: ...          │
-│                 │                          │ - Duration: ...      │
-│                 │                          │                      │
-│                 │                          │ Market Depth:        │
-│                 │                          │ - Status: Available  │
-│                 │                          │ - Count: 567         │
-│                 │                          │                      │
-│                 │                          │ Quotes Data:         │
-│                 │                          │ - Status: Available  │
-│                 │                          │ - Count: 8901        │
-│                 │                          │ - Breakdown: 8880    │
-│                 │                          │   QuoteStream, 21    │
-│                 │                          │   Heartbeat, 0 Error │
+│  Recorded Days  │  Symbols                 │  File Details        │
+│ Date  Files Size│ Symbol  Mbp10  Trades    │ Symbol: AAPL         │
+│ 2026-02-28      │ AAPL    ✓      ✓         │ Mbp10: Available     │
+│ 2026-02-27      │ MSFT    ✓      ✓         │   Size: 12.3 MB     │
+│ ...             │ ...                      │ Trades: Available    │
+│                 │                          │   Size: 2.1 MB       │
 └─────────────────┴──────────────────────────┴──────────────────────┘
 ```
 
 **Key Methods**:
 ```cpp
-// Scan RecordedLiveData/{Bars,MarketDepthQuotes,Quotes} directories
-void scanRecordedDays();
+// CSV parsing — static, extracts first-column tickers, skips header
+static QStringList parseSymbolCsv(const QString& filePath);
 
-// Load stocks from selected day's database
-void loadStocksForDay(const QDate& date);
+// Manual symbols — parses comma-separated text input
+QStringList parseManualSymbols() const;
 
-// Load detailed metrics for selected stock
-void loadStockDetails(const QDate& date, const QString& symbol);
+// Build download queue — merge CSV + manual, deduplicate, skip existing
+QStringList buildDownloadQueue(const QDate& date) const;
 
-// Query metrics from bars, depth, and quotes databases
-StockMetrics queryStockMetrics(const QString& barsDbPath,
-                                const QString& depthDbPath,
-                                const QString& quotesDbPath,
-                                const QString& symbol);
+// Sequential download — starts next symbol on replayDownloadFinished
+void startNextDownload();
 
-// Get database path for each type
-QString getBarsDbPath(QDate date);
-QString getDepthDbPath(QDate date);
-QString getQuotesDbPath(QDate date);
-
-// Check if symbol exists in a database
-bool checkStockInDatabase(const QString& dbPath, const QString& symbol);
-bool checkStockInQuotesDatabase(const QString& dbPath, const QString& symbol);
-
-// Format helpers
-QString formatFileSize(qint64 bytes);
-QString formatDuration(qint64 durationMs);
-QString formatTimestamp(qint64 epochMs);
+// Persistence
+void saveCsvPath();       // AppState: RecordsInfo/LastCsvPath
+void saveManualSymbols(); // AppState: RecordsInfo/ManualSymbols
 ```
+
+**Download Flow**:
+1. User clicks "Download" → `onDownloadClicked()`
+2. Validates: API key present, date valid, symbols non-empty
+3. Builds queue via `buildDownloadQueue()` (CSV + manual, deduplicated, minus already-downloaded)
+4. Disables button, shows progress bar
+5. Calls `DBClient::downloadReplayData(symbol, date)` for first symbol
+6. `onDownloadFinished()` fires → increments progress → calls `startNextDownload()`
+7. On all complete: re-enables button, refreshes browser, shows summary
 
 **Data Sources**:
-- Bars: `~/.cache/L2Trader/RecordedLiveData/Bars/{YYYY-MM-DD}.db`
-- Market Depth: `~/.cache/L2Trader/RecordedLiveData/MarketDepthQuotes/{YYYY-MM-DD}.db`
-- Quotes: `~/.cache/L2Trader/RecordedLiveData/Quotes/{YYYY-MM-DD}.db`
+- Mbp10: `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst`
+- Trades: `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_trades.dbn.zst`
 
-**StockMetrics Structure**:
-```cpp
-struct StockMetrics {
-    QString symbol;
-
-    // Bars
-    qint64 barCount;
-    qint64 firstTimestampMs;
-    qint64 lastTimestampMs;
-
-    // Market Depth
-    bool hasMarketDepth;
-    qint64 depthCount;
-    qint64 depthFirstTimestampMs;
-    qint64 depthLastTimestampMs;
-
-    // Level 1 Quotes
-    bool hasQuotes;
-    qint64 quoteCount;
-    qint64 quoteFirstTimestampMs;
-    qint64 quoteLastTimestampMs;
-
-    // Quote object type breakdown
-    qint64 quoteStreamCount;    // "QuoteStream" rows
-    qint64 heartbeatCount;      // "Heartbeat" rows
-    qint64 errorCount;          // "Error" rows
-};
-```
-
-**Database Queries**:
-```sql
--- Get all stocks from bars database
-SELECT DISTINCT stockTicker FROM bars ORDER BY stockTicker;
-
--- Get bar metrics for a stock
-SELECT COUNT(*), MIN(epochMs), MAX(epochMs) FROM bars WHERE stockTicker = ?;
-
--- Get depth metrics
-SELECT COUNT(*), MIN(epochMs), MAX(epochMs) FROM market_depth_quotes WHERE stockTicker = ?;
-
--- Get quote metrics
-SELECT COUNT(*), MIN(epochMs), MAX(epochMs) FROM quotes WHERE stockTicker = ?;
-
--- Get quote type breakdown
-SELECT objectType, COUNT(*) FROM quotes WHERE stockTicker = ? GROUP BY objectType;
-```
+**AppState.ini Keys**:
+- `RecordsInfo/LastCsvPath` — last CSV file path used
+- `RecordsInfo/ManualSymbols` — last comma-separated manual symbols
 
 **Signal Interface**:
 ```cpp
-// No signals emitted (read-only tab)
+// No signals emitted (self-contained tab)
+// Connects to DBClient::replayDownloadFinished for download tracking
 ```
-
-**Usage**:
-1. Tab auto-scans recorded days on creation
-2. Click a date → stocks list populates
-3. Click a stock → details display on right with Bars, Depth, and Quotes sections
-4. Click "Refresh" to rescan directory
 
 ---
 

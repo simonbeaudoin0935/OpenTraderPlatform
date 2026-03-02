@@ -322,6 +322,16 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
     size_t expectedCount = indexEnd - indexStart + 1;
     if (bars->size() != static_cast<qsizetype>(expectedCount))
     {
+        // Allow a shortfall (e.g., data provider doesn't cover the full after-market session).
+        // If we have ≥90% of expected bars, treat as complete to avoid infinite refetch loops.
+        double ratio = static_cast<double>(bars->size()) / static_cast<double>(expectedCount);
+        if (ratio >= 0.90)
+        {
+            DEBUG << "Database has" << bars->size() << "of" << expectedCount
+                  << "expected bars — accepting as sufficiently complete";
+            return bars;
+        }
+
         DEBUG << "Database does not have complete set of bars for" << symbol << "on date" << date << "- expected"
               << expectedCount << "bars but got" << bars->size();
 

@@ -63,7 +63,6 @@ add_compile_options(
     -Wstrict-overflow=2      # Pointer arithmetic overflow warnings
     -Wfloat-equal            # Dangerous floating point comparisons
     -Wundef                  # Undefined macros in #if
-    -Wsuggest-override       # Missing override keyword
 )
 
 # Disable some warnings that are too noisy or incompatible with Qt
@@ -106,16 +105,6 @@ if(ENABLE_ASAN)
     add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
     add_link_options(-fsanitize=address)
 endif()
-
-# Disable exceptions for this project. Now, this is separate from
-# the Qt library itself being built with exceptions disabled.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
-
-# Here, we do not define QT_NO_EXCEPTIONS, because we do not know
-# if the Qt library was built with exceptions disabled or not.
-# We can have the project built with exceptions disabled,
-# while still using a Qt library built with exceptions enabled.
-#add_compile_definitions(QT_NO_EXCEPTIONS)
 
 # Enable export of compile commands for IDE support
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -207,6 +196,11 @@ add_compile_definitions(
 if(UNIX AND NOT APPLE)
     link_libraries(stdc++_libbacktrace)
 endif()
+
+# Third-party libraries
+add_subdirectory(Lib/Databento)
+# databento-cpp should not be subject to our strict warning flags
+target_compile_options(databento PRIVATE -w)
 
 # Add subdirectories
 add_subdirectory(Src)

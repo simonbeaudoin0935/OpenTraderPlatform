@@ -1,8 +1,10 @@
 #pragma once
 
-#include <QWidget>
-#include <QVBoxLayout>
 #include <QSpinBox>
+#include <QVBoxLayout>
+#include <QWidget>
+
+class TimeAndSalesWidget;
 
 class ConfigTab : public QWidget
 {
@@ -12,15 +14,17 @@ class ConfigTab : public QWidget
     explicit ConfigTab(QWidget* parent = nullptr);
     ~ConfigTab() override = default;
 
+    /// Set the T&S widget to update when max entries changes
+    void setTimeAndSalesWidget(TimeAndSalesWidget* p_widget);
+
   private slots:
-    /// Handle market depth level setting change
-    /// @param value New number of market depth levels to display (1-20)
-    void onMarketDepthLevelChanged(int value);
+    void onTimeAndSalesMaxEntriesChanged(int value);
 
   private:
     void setupUI();
     void loadSettings();
     void saveSetting(const QString& key, const QVariant& value);
 
-    QSpinBox* m_marketDepthLevelSpinBox;
+    QSpinBox* m_timeAndSalesMaxEntriesSpinBox;
+    TimeAndSalesWidget* m_timeAndSalesWidget = nullptr;
 };

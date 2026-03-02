@@ -33,16 +33,16 @@ class GUIFrontend : public FrontEnd
 
   public slots:
     void onTSClientDataUsageUpdate(qsizetype newDataUsage) override;
+    void onDBClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onTradeStationAccountsReceived(QVector<Account> results) override;
     void onMemoryUsageUpdate(qsizetype newDataUsage) override;
-    void onStreamCountUpdate(size_t barsCount, size_t marketDepthCount) override;
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
-    void onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol,
-                                                         MarketDepthQuote quote,
-                                                         double bidAskImbalance,
-                                                         double bidDWP,
-                                                         double askDWP) override;
-    void onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote) override;
+    void onCurrentHighlightedReceivedNewLevel2(QString symbol,
+                                               Level2 level2,
+                                               double bidAskImbalance,
+                                               double bidDWP,
+                                               double askDWP) override;
+    void onCurrentHighlightedReceivedNewTrade(QString symbol, Trade trade) override;
     void onNewPositionReceived(QString account, Position position) override;
     void onPositionDeleted(QString account, QString positionID) override;
     void onNewOrderReceived(QString account, Order order) override;
@@ -61,6 +61,8 @@ class GUIFrontend : public FrontEnd
 
   private slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, QString message);
+    void onDatabentoConnectionStateChanged(bool isConnected);
+    void onDatabentoStatusUpdate(const QString& symbol, bool isHalted, const QString& haltReason, bool isSsr);
     void onNewDisplayedStockSelection();
     void updateLiveLogDisplay(const QString& message);
     void onLoggerVisibilityChanged(bool visible);
@@ -90,6 +92,7 @@ class GUIFrontend : public FrontEnd
     std::unique_ptr<Ui::GUIFrontend> ui;  // Pointer to the UI object
     QMainWindow* m_mainWindow = nullptr;  // Main application window (owned by this)
     QPushButton* tradeStationLoginButton; // Login button in status bar
+    QPushButton* m_databentoButton;       // Databento connection button in status bar
     QPushButton* m_accountInfoButton;     // Info button for account details
 
     QShortcut* m_quitShortcut;                  // Quit application shortcut
@@ -103,10 +106,8 @@ class GUIFrontend : public FrontEnd
     QShortcut* m_toggleReplayModeShortcut;      // Toggle replay mode on/off shortcut
 
     qsizetype TSClientDataUsage = 0;
+    qsizetype m_dbClientDataUsage = 0;
     qint64 memoryUsage = 0;
-    size_t barsStreamCount = 0;
-    size_t marketDepthStreamCount = 0;
-    qint64 m_recordingSize = 0;
 
     void updateStatusBar();
 

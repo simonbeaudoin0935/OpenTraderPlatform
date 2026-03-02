@@ -24,7 +24,6 @@ Src/FrontEnd/GUI/
 │   ├── CacheTab.cpp/h              # Bar cache management
 │   ├── ConfigTab.cpp/h             # Application settings
 │   ├── LoggingTab.cpp/h            # Live log display
-│   ├── RecorderTab.cpp/h           # Market data recording
 │   ├── ShortcutsTab.cpp/h          # Keyboard shortcuts
 │   └── StrategiesTab/              # Strategy plugin management
 │       ├── AGENTS.md
@@ -41,11 +40,11 @@ Src/FrontEnd/GUI/
 │   └── Gauge/                      # Circular gauge for metrics
 │       ├── AGENTS.md
 │       └── Gauge.cpp/h
-├── Windows/                        # Window-style displays
+├── Widgets/                        # Window-style displays
 │   ├── AGENTS.md
-│   ├── OrderWindow.cpp/h           # Orders table
-│   ├── PositionWindow.cpp/h        # Positions table
-│   └── BalanceWindow.cpp/h         # Account balance
+│   ├── OrderWidget.cpp/h           # Orders table
+│   ├── PositionWidget.cpp/h        # Positions table
+│   └── BalanceWidget.cpp/h         # Account balance
 └── StockPriceChart/                # Real-time price chart
     ├── AGENTS.md
     ├── StockPriceChart.cpp/h
@@ -54,13 +53,13 @@ Src/FrontEnd/GUI/
 ```
 
 **Navigation**: Each subfolder contains its own AGENTS.md with detailed documentation. See:
-- `Tabs/AGENTS.md` - Tab components (cache, logging, recorder, etc.)
+- `Tabs/AGENTS.md` - Tab components (cache, logging, strategies, etc.)
 - `Tabs/StrategiesTab/AGENTS.md` - Strategy plugin management UI
 - `Widgets/AGENTS.md` - Reusable widget components overview
 - `Widgets/OrderEntry/AGENTS.md` - Order entry widget with sticky price
 - `Widgets/MarketDepth/AGENTS.md` - Level 2 market depth display
 - `Widgets/Gauge/AGENTS.md` - Circular gauge metrics display
-- `Windows/AGENTS.md` - Order/Position/Balance window displays
+- `Widgets/AGENTS.md` - Order/Position/Balance window displays
 - `StockPriceChart/AGENTS.md` - Real-time chart with replay mode
 
 ## Main Window Structure
@@ -83,7 +82,6 @@ Src/FrontEnd/GUI/
 │  ┌────────────────────────────────────┐  │
 │  │ • Trade Tab                        │  │
 │  │ • Settings Tab                     │  │
-│  │ • Recorder Tab                     │  │
 │  └────────────────────────────────────┘  │
 │                                          │
 ├──────────────────────────────────────────┤
@@ -108,7 +106,7 @@ Three always-visible QLabel indicators for Level 1 market status flags sit in th
 
 **Behavior**: Labels are **always visible** (never hidden). When the flag is inactive, they display in grey with a dimmed style. When active, they switch to their colored active style.
 
-**Implementation**: `GUIFrontend::onCurrentHighlightedReceivedNewQuote()` reads `Quote::getMarketFlags()` and calls `setProperty("active", bool)` on each label. A dynamic property stylesheet drives the visual state change.
+**Implementation**: TODO Phase 4 — will be driven by Databento `StatusMsg` via `DBClient::tradingStatusChanged` signal. Currently not connected (stub).
 
 **BATS flag**: Intentionally not displayed (removed by design — the IsBats flag is not user-relevant).
 
@@ -251,14 +249,14 @@ signals:
 
 public slots:
     void setSymbol(const QString& symbol);
-    void updateStickyPrice(const MarketDepthQuote& quote);
+    void updateStickyPrice(const Level2& level2);
 ```
 
-### PositionWindow (Windows/)
+### PositionWidget (Widgets/)
 
 **Real-time position tracking**
 
-See `Windows/AGENTS.md` for complete documentation.
+See `Widgets/AGENTS.md` for complete documentation.
 
 Columns:
 - Symbol (clickable to load chart)
@@ -287,11 +285,11 @@ Columns:
 QMap<QString, int> m_positionRowMap;  // positionId → row index
 ```
 
-### OrderWindow (Windows/)
+### OrderWidget (Widgets/)
 
 **Order management and status tracking**
 
-See `Windows/AGENTS.md` for complete documentation.
+See `Widgets/AGENTS.md` for complete documentation.
 
 Columns:
 - Order ID
@@ -314,11 +312,11 @@ Columns:
 QMap<QString, int> m_orderRowMap;  // orderId → row index
 ```
 
-### BalanceWindow (Windows/)
+### BalanceWidget (Widgets/)
 
 **Account balance display**
 
-See `Windows/AGENTS.md` for complete documentation.
+See `Widgets/AGENTS.md` for complete documentation.
 
 Shows:
 - Cash Available
@@ -364,16 +362,10 @@ Features:
 - GUI.*
 - ... and more
 
-#### RecorderTab (RecorderTab.h/cpp)
+#### RecorderTab — REMOVED
 
-**Market data recording controls (integrated into main application)**
-
-Features:
-- Start/stop recording within the application
-- CSV file input for symbol list
-- Select timeframe
-- Recording status display
-- Output directory selection
+The RecorderTab was removed in Phase 3 of the Databento migration. Recording functionality
+will be replaced by Databento `.dbn` archive downloads in Phase 7.
 
 ### Gauge/ (Widgets/Gauge/)
 
@@ -440,11 +432,9 @@ connect(&MainAlgo::getInstance(), &MainAlgo::receivedNewPosition,
 connect(&MainAlgo::getInstance(), &MainAlgo::receivedNewOrder,
         this, &GUIFrontend::onNewOrderReceived);
 
-// Level 1 Quote → MarketFlags labels + MarketDepthTable L1 mode
-// Wired in MainApp: TSClient::newQuoteReceived → MainAlgo::onDisplayedStockReceivedNewQuote
-//                   → MainAlgo::displayedStockReceivedNewQuote → GUIFrontend::onCurrentHighlightedReceivedNewQuote
-connect(&MainAlgo::getInstance(), &MainAlgo::displayedStockReceivedNewQuote,
-        this, &GUIFrontend::onCurrentHighlightedReceivedNewQuote);
+// Level 2 data → MarketDepthTable
+connect(&MainAlgo::getInstance(), &MainAlgo::displayedStockReceivedNewLevel2,
+        this, &GUIFrontend::onCurrentHighlightedReceivedNewLevel2);
 ```
 
 **GUIFrontend order/position forwarding to chart**:
@@ -453,7 +443,7 @@ The `onNewOrderReceived()` and `onNewPositionReceived()` handlers forward events
 
 ```cpp
 void GUIFrontend::onNewOrderReceived(QString account, Order order) {
-    ui->orderWindow->updateOrder(account, order);
+    ui->orderWidget->updateOrder(account, order);
 
     // Forward to chart for visualization (if symbol matches)
     if (order.getSymbol() == ui->priceChart->getCurrentSymbol()) {
@@ -497,7 +487,7 @@ connect(ui->stockPriceChart, &StockPriceChart::requestMissingBars,
         });
 
 // Position window symbol clicked
-connect(m_positionWindow, &PositionWindow::symbolClicked,
+connect(m_positionWidget, &PositionWidget::symbolClicked,
         this, [this](const QString& symbol) {
             ui->symbolInput->setText(symbol);
             onSymbolEntered();
@@ -535,10 +525,10 @@ QTimer* m_updateThrottle = new QTimer(this);
 m_updateThrottle->setSingleShot(true);
 m_updateThrottle->setInterval(100);  // Max 10 updates/sec
 
-void onCurrentHighlightedReceivedNewMarketDepthQuote(...) {
-    m_pendingQuote = quote;
+void onCurrentHighlightedReceivedNewLevel2(...) {
+    m_pendingLevel2 = level2;
     if (!m_updateThrottle->isActive()) {
-        updateMarketDepth(m_pendingQuote);
+        updateMarketDepth(m_pendingLevel2);
         m_updateThrottle->start();
     }
 }

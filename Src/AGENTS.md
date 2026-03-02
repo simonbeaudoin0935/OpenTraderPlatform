@@ -7,15 +7,17 @@ This directory contains all source code for the L2Trader application.
 ### Core Application Components
 
 **Clients/** - External API clients
-- `TSClient/`: TradeStation API client (REST + WebSocket)
-  - Primary singleton for all market data and trading operations
+- `TSClient/`: TradeStation API client (brokerage only: orders, positions, accounts)
   - Runs in dedicated thread for async operations
   - See `Clients/TSClient/AGENTS.md` for details
+- `DBClient/`: Databento market data client (Level 2, trades, bars, replay)
+  - API key management + singleton stub (expansion in progress)
 
 **Core/** - Core application logic
 - `MainApp.cpp/h`: Application orchestrator (connects all components)
 - `MemoryMonitor.cpp/h`: System resource monitoring
 - `OrdersDatabase.cpp/h`: Order persistence to SQLite
+- `Models/`: Domain data types (Bar, Level2, Trade)
 - `Cache/`: Data caching subsystems
   - `BarCache/`: Historical and live bar data caching
 - `Replay/`: Market replay functionality for testing/analysis
@@ -23,7 +25,8 @@ This directory contains all source code for the L2Trader application.
 **Algo/** - Trading algorithm components
 - `MainAlgo.cpp/h`: Main algorithm coordinator singleton
 - `BarReceiver/`: Bar data reception and processing
-- `MarketDepthQuoteReceiver/`: Level 2 market depth processing
+- `Level2Receiver/`: Level 2 market depth processing (replaces old MarketDepthQuoteReceiver)
+- `Level1Receiver/`: Level 1 BBO processing for secondary stocks
 - `OrdersReceiver/`: Order status tracking
 - `PositionsReceiver/`: Position tracking
 - `StreamReceiver/`: Base class for stream receivers
@@ -37,11 +40,6 @@ This directory contains all source code for the L2Trader application.
 - Strategy management and lifecycle
 - SDK for strategy development
 - Signal handling for crash isolation
-
-**Recorder/** - Market data recording
-- Recording logic for capturing live market data
-- CSV file output
-- Integration with RecorderTab in GUI
 
 ### Supporting Components
 
@@ -60,7 +58,7 @@ This directory contains all source code for the L2Trader application.
 - **ALL** SQL queries centralized here
 - One header file per class/component
 - Organized by namespace
-- Examples: `OrdersDatabaseQueries.h`, `LiveStreamDBQueries.h`, `StockPriceChartQueries.h`
+- Examples: `OrdersDatabaseQueries.h`, `StockPriceChartQueries.h`
 
 **main.cpp** - Application entry point
 - Creates QApplication/QCoreApplication
@@ -73,10 +71,11 @@ This directory contains all source code for the L2Trader application.
 
 Three main threads:
 1. **Main Thread**: GUI/TUI event loop, MainApp orchestration
-2. **TSClient Thread**: All API communication (REST + WebSocket)
+2. **TSClient Thread**: Brokerage API communication (orders, positions, accounts)
 3. **MainAlgo Thread**: Trading logic, bar processing, position tracking
 
 Additional per-component threads:
+- **DBClient Thread**: Databento market data (future)
 - **Database Threads**: One per BarCache instance for SQLite operations
 - **Strategy Threads**: One per loaded strategy plugin
 
@@ -86,9 +85,9 @@ Cross-thread communication uses Qt signals/slots with automatic queuing:
 
 ```
 TSClient (thread) ─[authStateChanged]→ MainAlgo (thread)
-                 ─[newBar]→ MainAlgo (thread)
 
 MainAlgo (thread) ─[displayedStockReceivedNewBar]→ GUIFrontend (main)
+                  ─[displayedStockReceivedNewLevel2]→ GUIFrontend (main)
                   ─[receivedNewPosition]→ GUIFrontend (main)
 
 GUIFrontend (main) ─[selectedDisplayedStock]→ MainAlgo (thread)
@@ -103,7 +102,7 @@ GUIFrontend (main) ─[selectedDisplayedStock]→ MainAlgo (thread)
    - Example: `new QTimer(this)` - parent handles deletion
 
 3. **QPointer**: For Qt objects with uncertain lifetime
-   - Example: `QPointer<StreamBars> m_stream;` - auto-nulls on delete
+   - Example: `QPointer<StreamOrders> m_stream;` - auto-nulls on delete
 
 4. **std::unique_ptr**: For exclusive ownership
    - Example: `std::unique_ptr<PositionsReceiver> m_positionReceiver;`

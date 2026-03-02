@@ -1,1005 +1,673 @@
 #include "RecordsInfoTab.h"
+#include "DBClient.h"
 #include "Logging.h"
 #include "Settings.h"
-#include "Assume.h"
 
-#include <QHeaderView>
-#include <QFileInfo>
 #include <QDir>
-#include <QDateTime>
-#include <QTimeZone>
-#include <QSqlQuery>
-#include <QSqlError>
-#include <QVariant>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QHeaderView>
+#include <QMenu>
 #include <QMessageBox>
+#include <QRegularExpression>
+#include <QSet>
+#include <QTextStream>
 
 RecordsInfoTab::RecordsInfoTab(QWidget* p_parent)
     : QWidget(p_parent)
+    , m_dateEdit(nullptr)
+    , m_csvPathEdit(nullptr)
+    , m_browseCsvButton(nullptr)
+    , m_manualSymbolsEdit(nullptr)
+    , m_downloadButton(nullptr)
+    , m_downloadProgressBar(nullptr)
+    , m_downloadStatusLabel(nullptr)
     , m_daysTable(nullptr)
     , m_refreshButton(nullptr)
-    , m_stocksTable(nullptr)
-    , m_symbolLabel(nullptr)
-    , m_barsGroupBox(nullptr)
-    , m_barsCountLabel(nullptr)
-    , m_barsBreakdownLabel(nullptr)
-    , m_barsFirstTimeLabel(nullptr)
-    , m_barsLastTimeLabel(nullptr)
-    , m_barsDurationLabel(nullptr)
-    , m_depthGroupBox(nullptr)
-    , m_depthStatusLabel(nullptr)
-    , m_depthCountLabel(nullptr)
-    , m_depthBreakdownLabel(nullptr)
-    , m_depthFirstTimeLabel(nullptr)
-    , m_depthLastTimeLabel(nullptr)
-    , m_depthDurationLabel(nullptr)
-    , m_quotesGroupBox(nullptr)
-    , m_quotesStatusLabel(nullptr)
-    , m_quotesCountLabel(nullptr)
-    , m_quotesBreakdownLabel(nullptr)
-    , m_quotesFirstTimeLabel(nullptr)
-    , m_quotesLastTimeLabel(nullptr)
-    , m_quotesDurationLabel(nullptr)
+    , m_symbolsTable(nullptr)
 {
     setupUI();
     scanRecordedDays();
 }
 
+QStringList RecordsInfoTab::parseSymbolCsv(const QString& p_filePath)
+{
+    QStringList symbols;
+    QFile file(p_filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return symbols;
+
+    QTextStream in(&file);
+    bool firstLine = true;
+
+    while (!in.atEnd())
+    {
+        QString line = in.readLine().trimmed();
+        if (line.isEmpty())
+            continue;
+
+        // Skip header row
+        if (firstLine)
+        {
+            firstLine = false;
+            continue;
+        }
+
+        // Extract first column — handle quoted fields
+        QString ticker;
+        if (line.startsWith('"'))
+        {
+            int endQuote = line.indexOf('"', 1);
+            if (endQuote > 1)
+                ticker = line.mid(1, endQuote - 1);
+        }
+        else
+        {
+            int comma = line.indexOf(',');
+            ticker = (comma >= 0) ? line.left(comma) : line;
+        }
+
+        ticker = ticker.trimmed().toUpper();
+        if (!ticker.isEmpty())
+            symbols.append(ticker);
+    }
+
+    return symbols;
+}
+
+QStringList RecordsInfoTab::parseManualSymbols() const
+{
+    QStringList symbols;
+    const QString text = m_manualSymbolsEdit->text().trimmed();
+    if (text.isEmpty())
+        return symbols;
+
+    const QStringList parts = text.split(',', Qt::SkipEmptyParts);
+    for (const QString& part: parts)
+    {
+        QString sym = part.trimmed().toUpper();
+        if (!sym.isEmpty())
+            symbols.append(sym);
+    }
+    return symbols;
+}
+
+QStringList RecordsInfoTab::buildDownloadQueue(const QDate& p_date) const
+{
+    QSet<QString> seen;
+    QStringList queue;
+
+    // CSV symbols first
+    const QString csvPath = m_csvPathEdit->text().trimmed();
+    if (!csvPath.isEmpty())
+    {
+        const QStringList csvSymbols = parseSymbolCsv(csvPath);
+        for (const QString& sym: csvSymbols)
+        {
+            if (!seen.contains(sym))
+            {
+                seen.insert(sym);
+                if (!DBClient::hasReplayData(p_date, sym))
+                    queue.append(sym);
+            }
+        }
+    }
+
+    // Manual symbols
+    const QStringList manualSymbols = parseManualSymbols();
+    for (const QString& sym: manualSymbols)
+    {
+        if (!seen.contains(sym))
+        {
+            seen.insert(sym);
+            if (!DBClient::hasReplayData(p_date, sym))
+                queue.append(sym);
+        }
+    }
+
+    return queue;
+}
+
 void RecordsInfoTab::setupUI()
 {
-    QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    auto* mainLayout = new QHBoxLayout(this);
 
-    // Top bar with refresh button
-    QHBoxLayout* topBarLayout = new QHBoxLayout();
-    QLabel* titleLabel = new QLabel("Recorded Market Data");
-    titleLabel->setStyleSheet("QLabel { font-weight: bold; font-size: 14pt; }");
-    topBarLayout->addWidget(titleLabel);
-    topBarLayout->addStretch();
+    // ── Horizontal splitter: Download | Days | Symbols | Details ──────────────
+    auto* splitter = new QSplitter(Qt::Horizontal);
 
+    // ── Panel 1: Download section ─────────────────────────────────────────────
+    auto* downloadWidget = new QWidget();
+    auto* downloadLayout = new QVBoxLayout(downloadWidget);
+    downloadLayout->setContentsMargins(4, 4, 4, 4);
+
+    downloadLayout->addWidget(new QLabel("<b>Download Replay Data</b>"));
+
+    // Date picker
+    auto* dateRow = new QHBoxLayout();
+    dateRow->addWidget(new QLabel("Date:"));
+    m_dateEdit = new QDateEdit();
+    Q_CHECK_PTR(m_dateEdit);
+    m_dateEdit->setCalendarPopup(true);
+    m_dateEdit->setMaximumDate(QDate::currentDate());
+    m_dateEdit->setDisplayFormat("yyyy-MM-dd");
+
+    QDate defaultDate = QDate::currentDate().addDays(-1);
+    while (defaultDate.dayOfWeek() > 5)
+        defaultDate = defaultDate.addDays(-1);
+    m_dateEdit->setDate(defaultDate);
+
+    dateRow->addWidget(m_dateEdit);
+    downloadLayout->addLayout(dateRow);
+
+    // CSV file picker
+    downloadLayout->addWidget(new QLabel("CSV File:"));
+    auto* csvRow = new QHBoxLayout();
+    m_csvPathEdit = new QLineEdit();
+    Q_CHECK_PTR(m_csvPathEdit);
+    m_csvPathEdit->setPlaceholderText("Path to stock list CSV");
+    csvRow->addWidget(m_csvPathEdit, 1);
+
+    m_browseCsvButton = new QPushButton("…");
+    Q_CHECK_PTR(m_browseCsvButton);
+    m_browseCsvButton->setFixedWidth(30);
+    csvRow->addWidget(m_browseCsvButton);
+    downloadLayout->addLayout(csvRow);
+
+    connect(m_browseCsvButton, &QPushButton::clicked, this, &RecordsInfoTab::onBrowseCsvClicked, Qt::UniqueConnection);
+    connect(m_csvPathEdit, &QLineEdit::editingFinished, this, &RecordsInfoTab::saveCsvPath, Qt::UniqueConnection);
+
+    // Manual symbols
+    downloadLayout->addWidget(new QLabel("Extra Symbols:"));
+    m_manualSymbolsEdit = new QLineEdit();
+    Q_CHECK_PTR(m_manualSymbolsEdit);
+    m_manualSymbolsEdit->setPlaceholderText("AAPL, NVDA, MSFT");
+    downloadLayout->addWidget(m_manualSymbolsEdit);
+
+    connect(m_manualSymbolsEdit,
+            &QLineEdit::editingFinished,
+            this,
+            &RecordsInfoTab::saveManualSymbols,
+            Qt::UniqueConnection);
+
+    // Download button + status
+    m_downloadButton = new QPushButton("Download");
+    Q_CHECK_PTR(m_downloadButton);
+    downloadLayout->addWidget(m_downloadButton);
+
+    connect(m_downloadButton, &QPushButton::clicked, this, &RecordsInfoTab::onDownloadClicked, Qt::UniqueConnection);
+
+    // Progress bar (hidden until download starts)
+    m_downloadProgressBar = new QProgressBar();
+    Q_CHECK_PTR(m_downloadProgressBar);
+    m_downloadProgressBar->setVisible(false);
+    downloadLayout->addWidget(m_downloadProgressBar);
+
+    m_downloadStatusLabel = new QLabel("Idle");
+    Q_CHECK_PTR(m_downloadStatusLabel);
+    m_downloadStatusLabel->setWordWrap(true);
+    downloadLayout->addWidget(m_downloadStatusLabel);
+
+    downloadLayout->addStretch();
+    splitter->addWidget(downloadWidget);
+
+    // Restore persisted values from AppState.ini
+    if (appStateSettings != nullptr)
+    {
+        m_csvPathEdit->setText(appStateSettings->value("RecordsInfo/LastCsvPath").toString());
+        m_manualSymbolsEdit->setText(appStateSettings->value("RecordsInfo/ManualSymbols").toString());
+    }
+
+    // ── Panel 2: Days table ───────────────────────────────────────────────────
+    auto* daysWidget = new QWidget();
+    auto* daysLayout = new QVBoxLayout(daysWidget);
+    daysLayout->setContentsMargins(0, 0, 0, 0);
+
+    auto* daysHeader = new QHBoxLayout();
+    daysHeader->addWidget(new QLabel("<b>Recorded Days</b>"));
     m_refreshButton = new QPushButton("Refresh");
-    m_refreshButton->setMaximumWidth(100);
-    topBarLayout->addWidget(m_refreshButton);
+    Q_CHECK_PTR(m_refreshButton);
+    daysHeader->addWidget(m_refreshButton);
+    daysLayout->addLayout(daysHeader);
 
-    mainLayout->addLayout(topBarLayout);
-
-    // Three-column layout with splitter
-    QSplitter* splitter = new QSplitter(Qt::Horizontal);
-
-    // Left column: Recorded days table
-    QWidget* leftWidget = new QWidget();
-    QVBoxLayout* leftLayout = new QVBoxLayout(leftWidget);
-    leftLayout->setContentsMargins(0, 0, 0, 0);
-
-    QLabel* daysLabel = new QLabel("Recorded Days");
-    daysLabel->setStyleSheet("QLabel { font-weight: bold; }");
-    leftLayout->addWidget(daysLabel);
+    connect(m_refreshButton, &QPushButton::clicked, this, &RecordsInfoTab::onRefreshClicked, Qt::UniqueConnection);
 
     m_daysTable = new QTableWidget();
+    Q_CHECK_PTR(m_daysTable);
     m_daysTable->setColumnCount(3);
-    m_daysTable->setHorizontalHeaderLabels({"Date", "Bars", "Size"});
-    m_daysTable->horizontalHeader()->setStretchLastSection(true);
+    m_daysTable->setHorizontalHeaderLabels({"Date", "Files", "Total Size"});
     m_daysTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_daysTable->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_daysTable->setAlternatingRowColors(true);
-    m_daysTable->setSortingEnabled(true);
-    leftLayout->addWidget(m_daysTable);
+    m_daysTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_daysTable->horizontalHeader()->setStretchLastSection(true);
+    m_daysTable->verticalHeader()->setVisible(false);
+    daysLayout->addWidget(m_daysTable);
 
-    splitter->addWidget(leftWidget);
+    m_daysTable->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_daysTable,
+            &QTableWidget::customContextMenuRequested,
+            this,
+            &RecordsInfoTab::onDaysTableContextMenu,
+            Qt::UniqueConnection);
+    splitter->addWidget(daysWidget);
 
-    // Middle column: Stocks table
-    QWidget* middleWidget = new QWidget();
-    QVBoxLayout* middleLayout = new QVBoxLayout(middleWidget);
-    middleLayout->setContentsMargins(0, 0, 0, 0);
+    connect(m_daysTable,
+            &QTableWidget::itemSelectionChanged,
+            this,
+            &RecordsInfoTab::onDaySelected,
+            Qt::UniqueConnection);
 
-    QLabel* stocksLabel = new QLabel("Stocks in Selected Day");
-    stocksLabel->setStyleSheet("QLabel { font-weight: bold; }");
-    middleLayout->addWidget(stocksLabel);
+    // ── Panel 3: Symbols table ────────────────────────────────────────────────
+    auto* symbolsWidget = new QWidget();
+    auto* symbolsLayout = new QVBoxLayout(symbolsWidget);
+    symbolsLayout->setContentsMargins(0, 0, 0, 0);
+    symbolsLayout->addWidget(new QLabel("<b>Symbols</b>"));
 
-    m_stocksTable = new QTableWidget();
-    m_stocksTable->setColumnCount(4);
-    m_stocksTable->setHorizontalHeaderLabels({"Symbol", "Bars", "Depth", "Quotes"});
-    m_stocksTable->horizontalHeader()->setStretchLastSection(true);
-    m_stocksTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_stocksTable->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_stocksTable->setAlternatingRowColors(true);
-    m_stocksTable->setSortingEnabled(true);
-    middleLayout->addWidget(m_stocksTable);
+    m_symbolsTable = new QTableWidget();
+    Q_CHECK_PTR(m_symbolsTable);
+    m_symbolsTable->setColumnCount(4);
+    m_symbolsTable->setHorizontalHeaderLabels({"Symbol", "Mbp10", "Trades", "Total"});
+    m_symbolsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_symbolsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_symbolsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_symbolsTable->horizontalHeader()->setStretchLastSection(true);
+    m_symbolsTable->verticalHeader()->setVisible(false);
+    symbolsLayout->addWidget(m_symbolsTable);
+    splitter->addWidget(symbolsWidget);
 
-    splitter->addWidget(middleWidget);
-
-    // Right column: Stock details
-    QWidget* rightWidget = new QWidget();
-    QVBoxLayout* rightLayout = new QVBoxLayout(rightWidget);
-    rightLayout->setContentsMargins(0, 0, 0, 0);
-
-    QLabel* detailsLabel = new QLabel("Stock Details");
-    detailsLabel->setStyleSheet("QLabel { font-weight: bold; }");
-    rightLayout->addWidget(detailsLabel);
-
-    m_symbolLabel = new QLabel("No stock selected");
-    m_symbolLabel->setStyleSheet("QLabel { font-weight: bold; font-size: 12pt; }");
-    rightLayout->addWidget(m_symbolLabel);
-
-    // Bars data group box
-    m_barsGroupBox = new QGroupBox("Bars Data");
-    QVBoxLayout* barsLayout = new QVBoxLayout(m_barsGroupBox);
-
-    m_barsCountLabel = new QLabel("Count: --");
-    m_barsBreakdownLabel = new QLabel("Breakdown: --");
-    m_barsFirstTimeLabel = new QLabel("First: --");
-    m_barsLastTimeLabel = new QLabel("Last: --");
-    m_barsDurationLabel = new QLabel("Duration: --");
-
-    barsLayout->addWidget(m_barsCountLabel);
-    barsLayout->addWidget(m_barsBreakdownLabel);
-    barsLayout->addWidget(m_barsFirstTimeLabel);
-    barsLayout->addWidget(m_barsLastTimeLabel);
-    barsLayout->addWidget(m_barsDurationLabel);
-
-    rightLayout->addWidget(m_barsGroupBox);
-
-    // Market depth data group box
-    m_depthGroupBox = new QGroupBox("Market Depth Data");
-    QVBoxLayout* depthLayout = new QVBoxLayout(m_depthGroupBox);
-
-    m_depthStatusLabel = new QLabel("Status: --");
-    m_depthCountLabel = new QLabel("Count: --");
-    m_depthBreakdownLabel = new QLabel("Breakdown: --");
-    m_depthFirstTimeLabel = new QLabel("First: --");
-    m_depthLastTimeLabel = new QLabel("Last: --");
-    m_depthDurationLabel = new QLabel("Duration: --");
-
-    depthLayout->addWidget(m_depthStatusLabel);
-    depthLayout->addWidget(m_depthCountLabel);
-    depthLayout->addWidget(m_depthBreakdownLabel);
-    depthLayout->addWidget(m_depthFirstTimeLabel);
-    depthLayout->addWidget(m_depthLastTimeLabel);
-    depthLayout->addWidget(m_depthDurationLabel);
-
-    rightLayout->addWidget(m_depthGroupBox);
-
-    // Quotes data group box
-    m_quotesGroupBox = new QGroupBox("Quotes Data (Level 1)");
-    QVBoxLayout* quotesLayout = new QVBoxLayout(m_quotesGroupBox);
-
-    m_quotesStatusLabel = new QLabel("Status: --");
-    m_quotesCountLabel = new QLabel("Count: --");
-    m_quotesBreakdownLabel = new QLabel("Breakdown: --");
-    m_quotesFirstTimeLabel = new QLabel("First: --");
-    m_quotesLastTimeLabel = new QLabel("Last: --");
-    m_quotesDurationLabel = new QLabel("Duration: --");
-
-    quotesLayout->addWidget(m_quotesStatusLabel);
-    quotesLayout->addWidget(m_quotesCountLabel);
-    quotesLayout->addWidget(m_quotesBreakdownLabel);
-    quotesLayout->addWidget(m_quotesFirstTimeLabel);
-    quotesLayout->addWidget(m_quotesLastTimeLabel);
-    quotesLayout->addWidget(m_quotesDurationLabel);
-
-    rightLayout->addWidget(m_quotesGroupBox);
-    rightLayout->addStretch();
-
-    splitter->addWidget(rightWidget);
-
-    // Set initial splitter sizes (30% / 30% / 40%)
-    splitter->setSizes({300, 300, 400});
+    // Set proportions: Download compact, tables get more space
+    splitter->setStretchFactor(0, 1); // Download
+    splitter->setStretchFactor(1, 2); // Days
+    splitter->setStretchFactor(2, 3); // Symbols
 
     mainLayout->addWidget(splitter);
+}
 
-    // Connect signals
-    bool isConnectionUnique;
+void RecordsInfoTab::saveCsvPath()
+{
+    if (appStateSettings != nullptr)
+        appStateSettings->setValue("RecordsInfo/LastCsvPath", m_csvPathEdit->text().trimmed());
+}
 
-    isConnectionUnique =
-        connect(m_refreshButton, &QPushButton::clicked, this, &RecordsInfoTab::onRefreshClicked, Qt::UniqueConnection);
-    OBJ_ASSUME_TRUE(isConnectionUnique);
+void RecordsInfoTab::saveManualSymbols()
+{
+    if (appStateSettings != nullptr)
+        appStateSettings->setValue("RecordsInfo/ManualSymbols", m_manualSymbolsEdit->text().trimmed());
+}
 
-    isConnectionUnique = connect(m_daysTable,
-                                 &QTableWidget::itemSelectionChanged,
-                                 this,
-                                 &RecordsInfoTab::onDaySelected,
-                                 Qt::UniqueConnection);
-    OBJ_ASSUME_TRUE(isConnectionUnique);
+void RecordsInfoTab::onBrowseCsvClicked()
+{
+    QString startDir = m_csvPathEdit->text().trimmed();
+    if (startDir.isEmpty())
+        startDir = QDir::currentPath();
+    else
+        startDir = QFileInfo(startDir).absolutePath();
 
-    isConnectionUnique = connect(m_stocksTable,
-                                 &QTableWidget::itemSelectionChanged,
-                                 this,
-                                 &RecordsInfoTab::onStockSelected,
-                                 Qt::UniqueConnection);
-    OBJ_ASSUME_TRUE(isConnectionUnique);
+    QString filePath =
+        QFileDialog::getOpenFileName(this, "Select Stock List CSV", startDir, "CSV Files (*.csv);;All Files (*)");
+
+    if (!filePath.isEmpty())
+    {
+        m_csvPathEdit->setText(filePath);
+        saveCsvPath();
+    }
+}
+
+void RecordsInfoTab::onDownloadClicked()
+{
+    // Validate Databento connection
+    if (!DBClient::getInstance()->hasApiKey())
+    {
+        QMessageBox::warning(this,
+                             "Not Connected",
+                             "Databento API key is not configured.\n"
+                             "Connect via the status bar button first.");
+        return;
+    }
+
+    const QDate date = m_dateEdit->date();
+    if (!date.isValid() || date > QDate::currentDate())
+    {
+        QMessageBox::warning(this, "Invalid Date", "Please select a valid past date.");
+        return;
+    }
+
+    // Build the download queue (CSV + manual, deduplicated, skip already downloaded)
+    m_downloadQueue = buildDownloadQueue(date);
+
+    if (m_downloadQueue.isEmpty())
+    {
+        const QString csvPath = m_csvPathEdit->text().trimmed();
+        const QStringList manual = parseManualSymbols();
+        if (csvPath.isEmpty() && manual.isEmpty())
+        {
+            QMessageBox::warning(this, "No Symbols", "Please specify a CSV file or enter symbols manually.");
+            return;
+        }
+        m_downloadStatusLabel->setText("All symbols already downloaded for " + date.toString(Qt::ISODate));
+        return;
+    }
+
+    // Start sequential download
+    m_downloadDate = date;
+    m_nextDownloadIndex = 0;
+    m_completedCount = 0;
+    m_downloadSuccessCount = 0;
+    m_downloadFailCount = 0;
+    m_inFlightSymbols.clear();
+
+    m_downloadButton->setEnabled(false);
+    m_downloadProgressBar->setMaximum(m_downloadQueue.size());
+    m_downloadProgressBar->setValue(0);
+    m_downloadProgressBar->setVisible(true);
+
+    // Connect to DBClient signal
+    connect(DBClient::getInstance(),
+            &DBClient::replayDownloadFinished,
+            this,
+            &RecordsInfoTab::onDownloadFinished,
+            Qt::UniqueConnection);
+
+    dispatchDownloads();
+}
+
+void RecordsInfoTab::dispatchDownloads()
+{
+    // Launch up to MAX_CONCURRENT_DOWNLOADS in parallel
+    while (m_inFlightSymbols.size() < MAX_CONCURRENT_DOWNLOADS && m_nextDownloadIndex < m_downloadQueue.size())
+    {
+        const QString& symbol = m_downloadQueue.at(m_nextDownloadIndex);
+        m_inFlightSymbols.insert(symbol);
+        m_nextDownloadIndex++;
+        DBClient::getInstance()->downloadReplayData(symbol, m_downloadDate);
+    }
+
+    if (!m_inFlightSymbols.isEmpty())
+    {
+        m_downloadStatusLabel->setText(QString("Downloading %1/%2 (%3 in parallel)…")
+                                           .arg(m_completedCount)
+                                           .arg(m_downloadQueue.size())
+                                           .arg(m_inFlightSymbols.size()));
+    }
+
+    if (m_inFlightSymbols.isEmpty() && m_nextDownloadIndex >= m_downloadQueue.size())
+        finishDownload();
+}
+
+void RecordsInfoTab::finishDownload()
+{
+    m_downloadButton->setEnabled(true);
+    m_downloadStatusLabel->setText(QString("Done — %1 succeeded, %2 failed (of %3 total)")
+                                       .arg(m_downloadSuccessCount)
+                                       .arg(m_downloadFailCount)
+                                       .arg(m_downloadQueue.size()));
+
+    disconnect(DBClient::getInstance(), &DBClient::replayDownloadFinished, this, &RecordsInfoTab::onDownloadFinished);
+
+    // Full refresh of the browser
+    scanRecordedDays();
+}
+
+void RecordsInfoTab::onDownloadFinished(const QString& p_symbol,
+                                        const QDate& p_date,
+                                        bool p_success,
+                                        const QString& p_errorMessage)
+{
+    Q_UNUSED(p_errorMessage);
+    if (p_date != m_downloadDate)
+        return;
+    if (!m_inFlightSymbols.remove(p_symbol))
+        return;
+
+    if (p_success)
+        m_downloadSuccessCount++;
+    else
+        m_downloadFailCount++;
+
+    m_completedCount++;
+    m_downloadProgressBar->setValue(m_completedCount);
+
+    // Live-update browser tables on success
+    if (p_success)
+        updateDaysTableRow(p_date);
+
+    dispatchDownloads();
 }
 
 void RecordsInfoTab::onRefreshClicked()
 {
-    qDebug() << "Refreshing recorded days list";
-    clearStocksList();
-    clearDetailsDisplay();
-    m_depthAvailabilityCache.clear();
-    m_quotesAvailabilityCache.clear();
     scanRecordedDays();
 }
 
-void RecordsInfoTab::onDaySelected()
+void RecordsInfoTab::onDaysTableContextMenu(const QPoint& p_pos)
 {
-    QList<QTableWidgetItem*> selectedItems = m_daysTable->selectedItems();
-    if (selectedItems.isEmpty())
-    {
-        clearStocksList();
-        clearDetailsDisplay();
+    QTableWidgetItem* item = m_daysTable->itemAt(p_pos);
+    if (item == nullptr)
         return;
-    }
 
-    // Get date from first column of selected row
-    int row = selectedItems.first()->row();
+    int row = item->row();
     QTableWidgetItem* dateItem = m_daysTable->item(row, 0);
-    OBJ_ASSUME_DIFF(dateItem, nullptr);
-
-    QDate date = QDate::fromString(dateItem->text(), "yyyy-MM-dd");
-    if (!date.isValid())
-    {
-        qWarning() << "Invalid date selected:" << dateItem->text();
+    if (dateItem == nullptr)
         return;
-    }
 
-    m_selectedDate = date;
-    clearDetailsDisplay();
-    loadStocksForDay(date);
+    QDate date = dateItem->data(Qt::UserRole).toDate();
+    if (!date.isValid())
+        return;
+
+    QMenu menu(this);
+    QAction* deleteAction = menu.addAction("Delete " + date.toString(Qt::ISODate));
+
+    QAction* chosen = menu.exec(m_daysTable->viewport()->mapToGlobal(p_pos));
+    if (chosen != deleteAction)
+        return;
+
+    auto answer = QMessageBox::question(
+        this,
+        "Delete Recorded Day",
+        QString("Delete all replay data for %1?\n\nThis cannot be undone.").arg(date.toString(Qt::ISODate)));
+    if (answer != QMessageBox::Yes)
+        return;
+
+    QString dirPath = DBClient::getReplayDataDir(date);
+    QDir dir(dirPath);
+    if (dir.exists())
+        dir.removeRecursively();
+
+    scanRecordedDays();
 }
 
-void RecordsInfoTab::onStockSelected()
+void RecordsInfoTab::updateDaysTableRow(const QDate& p_date)
 {
-    QList<QTableWidgetItem*> selectedItems = m_stocksTable->selectedItems();
-    if (selectedItems.isEmpty() || !m_selectedDate.isValid())
-    {
-        clearDetailsDisplay();
+    QString dirPath = DBClient::getReplayDataDir(p_date);
+    QDir dir(dirPath);
+    if (!dir.exists())
         return;
+
+    QStringList dbnFiles = dir.entryList({"*.dbn.zst"}, QDir::Files);
+    qint64 totalSize = 0;
+    for (const QString& f: dbnFiles)
+        totalSize += QFileInfo(dir.absoluteFilePath(f)).size();
+
+    // Find existing row or insert new one
+    int targetRow = -1;
+    for (int row = 0; row < m_daysTable->rowCount(); ++row)
+    {
+        QTableWidgetItem* item = m_daysTable->item(row, 0);
+        if (item != nullptr && item->data(Qt::UserRole).toDate() == p_date)
+        {
+            targetRow = row;
+            break;
+        }
     }
 
-    // Get symbol from first column of selected row
-    int row = selectedItems.first()->row();
-    QTableWidgetItem* symbolItem = m_stocksTable->item(row, 0);
-    OBJ_ASSUME_DIFF(symbolItem, nullptr);
+    if (targetRow < 0)
+    {
+        targetRow = m_daysTable->rowCount();
+        m_daysTable->insertRow(targetRow);
+        auto* dateItem = new QTableWidgetItem(p_date.toString(Qt::ISODate));
+        dateItem->setData(Qt::UserRole, p_date);
+        m_daysTable->setItem(targetRow, 0, dateItem);
+    }
 
-    QString symbol = symbolItem->text();
-    m_selectedSymbol = symbol;
-    loadStockDetails(m_selectedDate, symbol);
+    m_daysTable->setItem(targetRow, 1, new QTableWidgetItem(QString::number(dbnFiles.size())));
+    m_daysTable->setItem(targetRow, 2, new QTableWidgetItem(formatFileSize(totalSize)));
+    m_daysTable->resizeColumnsToContents();
+
+    // Auto-select the download date and refresh symbols
+    m_selectedDate = p_date;
+    m_daysTable->blockSignals(true);
+    m_daysTable->selectRow(targetRow);
+    m_daysTable->blockSignals(false);
+    loadSymbolsForDay(p_date);
 }
 
 void RecordsInfoTab::scanRecordedDays()
 {
     m_daysTable->setRowCount(0);
-    m_daysTable->setSortingEnabled(false);
+    clearSymbolsList();
 
-    QString cacheLocation = getCacheLocation();
-    QString barsPath = cacheLocation + "/RecordedLiveData/Bars";
-    QDir barsDir(barsPath);
+    // Scan ReplayData directory for date folders
+    // Use a known date to derive the base directory, then go up one level
+    QString baseDir = DBClient::getReplayDataDir(QDate::currentDate());
+    QDir base(baseDir);
+    base.cdUp(); // Go from ReplayData/YYYY-MM-DD to ReplayData/
 
-    if (!barsDir.exists())
+    if (!base.exists())
     {
-        qInfo() << "No recorded data directory found at:" << barsPath;
-        m_daysTable->setSortingEnabled(true);
         return;
     }
 
-    // Get all .db files
-    QStringList filters;
-    filters << "*.db";
-    QFileInfoList fileList = barsDir.entryInfoList(filters, QDir::Files);
+    QStringList dateDirs = base.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::Reversed);
 
-    for (const QFileInfo& fileInfo: fileList)
+    for (const QString& dirName: dateDirs)
     {
-        QString baseName = fileInfo.baseName();
-        QDate date = QDate::fromString(baseName, "yyyy-MM-dd");
-
+        QDate date = QDate::fromString(dirName, Qt::ISODate);
         if (!date.isValid())
+            continue;
+
+        QDir dateDir(base.absoluteFilePath(dirName));
+        QStringList dbnFiles = dateDir.entryList({"*.dbn.zst"}, QDir::Files);
+
+        if (dbnFiles.isEmpty())
+            continue;
+
+        qint64 totalSize = 0;
+        for (const QString& f: dbnFiles)
         {
-            continue; // Skip files that don't match expected format
+            totalSize += QFileInfo(dateDir.absoluteFilePath(f)).size();
         }
 
-        // Get bar count from database
-        QString dbPath = fileInfo.absoluteFilePath();
-        QStringList stocks = getStocksFromDatabase(dbPath);
-        qint64 barCount = 0;
-
-        // Quick count query
-        QString connectionName = QString("scan_%1").arg(date.toString("yyyyMMdd"));
-        {
-            QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connectionName);
-            db.setDatabaseName(dbPath);
-
-            if (db.open())
-            {
-                QSqlQuery query(db);
-                if (query.exec("SELECT COUNT(*) FROM bars"))
-                {
-                    if (query.next())
-                    {
-                        barCount = query.value(0).toLongLong();
-                    }
-                }
-                query.finish();
-                db.close();
-            }
-        } // db goes out of scope here
-        QSqlDatabase::removeDatabase(connectionName);
-
-        // Get file size
-        qint64 fileSize = fileInfo.size();
-
-        // Add row to table
         int row = m_daysTable->rowCount();
         m_daysTable->insertRow(row);
 
-        QTableWidgetItem* dateItem = new QTableWidgetItem(date.toString("yyyy-MM-dd"));
-        QTableWidgetItem* barsItem = new QTableWidgetItem(QString::number(barCount));
-        QTableWidgetItem* sizeItem = new QTableWidgetItem(formatFileSize(fileSize));
-
-        // Store raw values for sorting
+        auto* dateItem = new QTableWidgetItem(date.toString(Qt::ISODate));
         dateItem->setData(Qt::UserRole, date);
-        barsItem->setData(Qt::UserRole, barCount);
-        sizeItem->setData(Qt::UserRole, fileSize);
-
         m_daysTable->setItem(row, 0, dateItem);
-        m_daysTable->setItem(row, 1, barsItem);
-        m_daysTable->setItem(row, 2, sizeItem);
+        m_daysTable->setItem(row, 1, new QTableWidgetItem(QString::number(dbnFiles.size())));
+        m_daysTable->setItem(row, 2, new QTableWidgetItem(formatFileSize(totalSize)));
     }
 
-    m_daysTable->setSortingEnabled(true);
-    m_daysTable->sortItems(0, Qt::DescendingOrder); // Most recent first
-
-    qInfo() << "Found" << m_daysTable->rowCount() << "recorded days";
+    m_daysTable->resizeColumnsToContents();
 }
 
-void RecordsInfoTab::loadStocksForDay(const QDate& p_date)
+void RecordsInfoTab::onDaySelected()
 {
-    clearStocksList();
-    m_stocksTable->setSortingEnabled(false);
-
-    QString barsDbPath = getBarsDbPath(p_date);
-    QString depthDbPath = getMarketDepthDbPath(p_date);
-    QString quotesDbPath = getQuotesDbPath(p_date);
-
-    // Check if bars database exists
-    if (!QFileInfo::exists(barsDbPath))
-    {
-        qWarning() << "Bars database not found:" << barsDbPath;
-        m_stocksTable->setSortingEnabled(true);
+    QList<QTableWidgetItem*> selected = m_daysTable->selectedItems();
+    if (selected.isEmpty())
         return;
-    }
 
-    // Get stocks from bars database
-    QStringList stocks = getStocksFromDatabase(barsDbPath);
-
-    if (stocks.isEmpty())
-    {
-        qInfo() << "No stocks found in database for" << p_date.toString("yyyy-MM-dd");
-        m_stocksTable->setSortingEnabled(true);
+    int row = selected.first()->row();
+    QTableWidgetItem* dateItem = m_daysTable->item(row, 0);
+    if (dateItem == nullptr)
         return;
-    }
 
-    // Check market depth availability for each stock
-    bool depthDbExists = QFileInfo::exists(depthDbPath);
-    QMap<QString, bool> depthAvailability;
+    QDate date = dateItem->data(Qt::UserRole).toDate();
+    if (!date.isValid() || date == m_selectedDate)
+        return;
 
-    if (depthDbExists)
+    m_selectedDate = date;
+    loadSymbolsForDay(date);
+}
+
+void RecordsInfoTab::loadSymbolsForDay(const QDate& p_date)
+{
+    clearSymbolsList();
+
+    QString dirPath = DBClient::getReplayDataDir(p_date);
+    QDir dir(dirPath);
+    if (!dir.exists())
+        return;
+
+    QStringList files = dir.entryList({"*.dbn.zst"}, QDir::Files);
+
+    // Extract unique symbols from filenames: {symbol}_mbp10.dbn.zst, {symbol}_trades.dbn.zst
+    static const QRegularExpression mbp10Re("^(.+)_mbp10\\.dbn\\.zst$");
+    static const QRegularExpression tradesRe("^(.+)_trades\\.dbn\\.zst$");
+
+    QMap<QString, SymbolFiles> symbolMap;
+
+    for (const QString& f: files)
     {
-        for (const QString& symbol: stocks)
+        QRegularExpressionMatch m = mbp10Re.match(f);
+        if (m.hasMatch())
         {
-            bool hasDepth = checkStockInDatabase(depthDbPath, symbol);
-            depthAvailability[symbol] = hasDepth;
-        }
-    }
-    else
-    {
-        for (const QString& symbol: stocks)
-        {
-            depthAvailability[symbol] = false;
-        }
-    }
-
-    // Check quotes availability for each stock
-    bool quotesDbExists = QFileInfo::exists(quotesDbPath);
-    QMap<QString, bool> quotesAvailability;
-
-    if (quotesDbExists)
-    {
-        for (const QString& symbol: stocks)
-        {
-            bool hasQuotes = checkStockInQuotesDatabase(quotesDbPath, symbol);
-            quotesAvailability[symbol] = hasQuotes;
-        }
-    }
-    else
-    {
-        for (const QString& symbol: stocks)
-        {
-            quotesAvailability[symbol] = false;
-        }
-    }
-
-    // Cache the results
-    m_depthAvailabilityCache[p_date] = depthAvailability;
-    m_quotesAvailabilityCache[p_date] = quotesAvailability;
-
-    // Get bar counts for each stock
-    QString connectionName = QString("stocks_%1").arg(p_date.toString("yyyyMMdd"));
-    {
-        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connectionName);
-        db.setDatabaseName(barsDbPath);
-
-        if (!db.open())
-        {
-            qCritical() << "Failed to open bars database:" << db.lastError().text();
-            QSqlDatabase::removeDatabase(connectionName);
-            m_stocksTable->setSortingEnabled(true);
-            return;
+            QString sym = m.captured(1);
+            symbolMap[sym].symbol = sym;
+            symbolMap[sym].hasMbp10 = true;
+            symbolMap[sym].mbp10Size = QFileInfo(dir.absoluteFilePath(f)).size();
+            continue;
         }
 
-        for (const QString& symbol: stocks)
+        m = tradesRe.match(f);
+        if (m.hasMatch())
         {
-            qint64 barCount = 0;
-            QSqlQuery query(db);
-            query.prepare("SELECT COUNT(*) FROM bars WHERE stockTicker = ?");
-            query.addBindValue(symbol);
-
-            if (query.exec() && query.next())
-            {
-                barCount = query.value(0).toLongLong();
-            }
-            query.finish();
-
-            int row = m_stocksTable->rowCount();
-            m_stocksTable->insertRow(row);
-
-            QTableWidgetItem* symbolItem = new QTableWidgetItem(symbol);
-            QTableWidgetItem* barsItem = new QTableWidgetItem(QString::number(barCount));
-            QTableWidgetItem* depthItem = new QTableWidgetItem(depthAvailability[symbol] ? "Yes" : "No");
-
-            barsItem->setData(Qt::UserRole, barCount);
-
-            m_stocksTable->setItem(row, 0, symbolItem);
-            m_stocksTable->setItem(row, 1, barsItem);
-            m_stocksTable->setItem(row, 2, depthItem);
-
-            QTableWidgetItem* quotesItem = new QTableWidgetItem(quotesAvailability[symbol] ? "Yes" : "No");
-            m_stocksTable->setItem(row, 3, quotesItem);
+            QString sym = m.captured(1);
+            symbolMap[sym].symbol = sym;
+            symbolMap[sym].hasTrades = true;
+            symbolMap[sym].tradesSize = QFileInfo(dir.absoluteFilePath(f)).size();
         }
-
-        db.close();
-    } // db goes out of scope here
-    QSqlDatabase::removeDatabase(connectionName);
-
-    m_stocksTable->setSortingEnabled(true);
-    qInfo() << "Loaded" << stocks.size() << "stocks for" << p_date.toString("yyyy-MM-dd");
-}
-
-void RecordsInfoTab::loadStockDetails(const QDate& p_date, const QString& p_symbol)
-{
-    QString barsDbPath = getBarsDbPath(p_date);
-    QString depthDbPath = getMarketDepthDbPath(p_date);
-    QString quotesDbPath = getQuotesDbPath(p_date);
-
-    StockMetrics metrics = queryStockMetrics(barsDbPath, depthDbPath, quotesDbPath, p_symbol);
-    updateDetailsDisplay(metrics);
-}
-
-void RecordsInfoTab::updateDetailsDisplay(const StockMetrics& p_metrics)
-{
-    m_symbolLabel->setText(p_metrics.symbol);
-
-    // Update bars data
-    m_barsCountLabel->setText(QString("Count: %1 bars").arg(p_metrics.barCount));
-
-    // Show breakdown by type
-    QString barsBreakdown = QString("%1 Bar, %2 Heartbeat, %3 Error")
-                                .arg(p_metrics.barDataCount)
-                                .arg(p_metrics.barHeartbeatCount)
-                                .arg(p_metrics.barErrorCount);
-    m_barsBreakdownLabel->setText(QString("Breakdown: %1").arg(barsBreakdown));
-
-    m_barsFirstTimeLabel->setText(QString("First: %1").arg(formatTimestamp(p_metrics.firstTimestampMs)));
-    m_barsLastTimeLabel->setText(QString("Last: %1").arg(formatTimestamp(p_metrics.lastTimestampMs)));
-
-    qint64 duration = p_metrics.lastTimestampMs - p_metrics.firstTimestampMs;
-    m_barsDurationLabel->setText(QString("Duration: %1").arg(formatDuration(duration)));
-
-    // Update market depth data
-    if (p_metrics.hasMarketDepth)
-    {
-        m_depthStatusLabel->setText("Status: Available");
-        m_depthStatusLabel->setStyleSheet("QLabel { color: #4CAF50; font-weight: bold; }");
-        m_depthCountLabel->setText(QString("Count: %1 quotes").arg(p_metrics.depthCount));
-
-        // Show breakdown by type
-        QString depthBreakdown = QString("%1 MarketDepthQuote, %2 Heartbeat, %3 Error")
-                                     .arg(p_metrics.depthDataCount)
-                                     .arg(p_metrics.depthHeartbeatCount)
-                                     .arg(p_metrics.depthErrorCount);
-        m_depthBreakdownLabel->setText(QString("Breakdown: %1").arg(depthBreakdown));
-
-        m_depthFirstTimeLabel->setText(QString("First: %1").arg(formatTimestamp(p_metrics.depthFirstTimestampMs)));
-        m_depthLastTimeLabel->setText(QString("Last: %1").arg(formatTimestamp(p_metrics.depthLastTimestampMs)));
-
-        qint64 depthDuration = p_metrics.depthLastTimestampMs - p_metrics.depthFirstTimestampMs;
-        m_depthDurationLabel->setText(QString("Duration: %1").arg(formatDuration(depthDuration)));
-
-        m_depthCountLabel->setVisible(true);
-        m_depthBreakdownLabel->setVisible(true);
-        m_depthFirstTimeLabel->setVisible(true);
-        m_depthLastTimeLabel->setVisible(true);
-        m_depthDurationLabel->setVisible(true);
-    }
-    else
-    {
-        m_depthStatusLabel->setText("Status: Not Available");
-        m_depthStatusLabel->setStyleSheet("QLabel { color: #FF4444; font-weight: bold; }");
-        m_depthCountLabel->setVisible(false);
-        m_depthBreakdownLabel->setVisible(false);
-        m_depthFirstTimeLabel->setVisible(false);
-        m_depthLastTimeLabel->setVisible(false);
-        m_depthDurationLabel->setVisible(false);
     }
 
-    // Update quotes data
-    if (p_metrics.hasQuotes)
+    for (auto it = symbolMap.constBegin(); it != symbolMap.constEnd(); ++it)
     {
-        m_quotesStatusLabel->setText("Status: Available");
-        m_quotesStatusLabel->setStyleSheet("QLabel { color: #4CAF50; font-weight: bold; }");
-        m_quotesCountLabel->setText(QString("Count: %1 quotes").arg(p_metrics.quoteCount));
+        const SymbolFiles& sf = it.value();
+        int row = m_symbolsTable->rowCount();
+        m_symbolsTable->insertRow(row);
 
-        // Show breakdown by type
-        QString breakdown = QString("%1 QuoteStream, %2 Heartbeat, %3 Error")
-                                .arg(p_metrics.quoteStreamCount)
-                                .arg(p_metrics.heartbeatCount)
-                                .arg(p_metrics.errorCount);
-        m_quotesBreakdownLabel->setText(QString("Breakdown: %1").arg(breakdown));
+        m_symbolsTable->setItem(row, 0, new QTableWidgetItem(sf.symbol));
 
-        m_quotesFirstTimeLabel->setText(QString("First: %1").arg(formatTimestamp(p_metrics.quoteFirstTimestampMs)));
-        m_quotesLastTimeLabel->setText(QString("Last: %1").arg(formatTimestamp(p_metrics.quoteLastTimestampMs)));
+        // Mbp10 size (or "—" if missing)
+        auto* mbp10Item = new QTableWidgetItem(sf.hasMbp10 ? formatFileSize(sf.mbp10Size) : "—");
+        if (!sf.hasMbp10)
+            mbp10Item->setForeground(Qt::darkGray);
+        m_symbolsTable->setItem(row, 1, mbp10Item);
 
-        qint64 quotesDuration = p_metrics.quoteLastTimestampMs - p_metrics.quoteFirstTimestampMs;
-        m_quotesDurationLabel->setText(QString("Duration: %1").arg(formatDuration(quotesDuration)));
+        // Trades size (or "—" if missing)
+        auto* tradesItem = new QTableWidgetItem(sf.hasTrades ? formatFileSize(sf.tradesSize) : "—");
+        if (!sf.hasTrades)
+            tradesItem->setForeground(Qt::darkGray);
+        m_symbolsTable->setItem(row, 2, tradesItem);
 
-        m_quotesCountLabel->setVisible(true);
-        m_quotesBreakdownLabel->setVisible(true);
-        m_quotesFirstTimeLabel->setVisible(true);
-        m_quotesLastTimeLabel->setVisible(true);
-        m_quotesDurationLabel->setVisible(true);
+        // Total size
+        qint64 total = sf.mbp10Size + sf.tradesSize;
+        m_symbolsTable->setItem(row, 3, new QTableWidgetItem(formatFileSize(total)));
     }
-    else
-    {
-        m_quotesStatusLabel->setText("Status: Not Available");
-        m_quotesStatusLabel->setStyleSheet("QLabel { color: #FF4444; font-weight: bold; }");
-        m_quotesCountLabel->setVisible(false);
-        m_quotesBreakdownLabel->setVisible(false);
-        m_quotesFirstTimeLabel->setVisible(false);
-        m_quotesLastTimeLabel->setVisible(false);
-        m_quotesDurationLabel->setVisible(false);
-    }
+
+    m_symbolsTable->resizeColumnsToContents();
 }
 
-void RecordsInfoTab::clearStocksList()
+void RecordsInfoTab::clearSymbolsList()
 {
-    m_stocksTable->setRowCount(0);
-    m_selectedSymbol.clear();
-}
-
-void RecordsInfoTab::clearDetailsDisplay()
-{
-    m_symbolLabel->setText("No stock selected");
-    m_barsCountLabel->setText("Count: --");
-    m_barsBreakdownLabel->setText("Breakdown: --");
-    m_barsFirstTimeLabel->setText("First: --");
-    m_barsLastTimeLabel->setText("Last: --");
-    m_barsDurationLabel->setText("Duration: --");
-    m_depthStatusLabel->setText("Status: --");
-    m_depthStatusLabel->setStyleSheet("");
-    m_depthCountLabel->setText("Count: --");
-    m_depthBreakdownLabel->setText("Breakdown: --");
-    m_depthFirstTimeLabel->setText("First: --");
-    m_depthLastTimeLabel->setText("Last: --");
-    m_depthDurationLabel->setText("Duration: --");
-    m_depthCountLabel->setVisible(true);
-    m_depthBreakdownLabel->setVisible(true);
-    m_depthFirstTimeLabel->setVisible(true);
-    m_depthLastTimeLabel->setVisible(true);
-    m_depthDurationLabel->setVisible(true);
-    m_quotesStatusLabel->setText("Status: --");
-    m_quotesStatusLabel->setStyleSheet("");
-    m_quotesCountLabel->setText("Count: --");
-    m_quotesBreakdownLabel->setText("Breakdown: --");
-    m_quotesFirstTimeLabel->setText("First: --");
-    m_quotesLastTimeLabel->setText("Last: --");
-    m_quotesDurationLabel->setText("Duration: --");
-    m_quotesCountLabel->setVisible(true);
-    m_quotesBreakdownLabel->setVisible(true);
-    m_quotesFirstTimeLabel->setVisible(true);
-    m_quotesLastTimeLabel->setVisible(true);
-    m_quotesDurationLabel->setVisible(true);
-}
-
-QString RecordsInfoTab::getBarsDbPath(const QDate& p_date) const
-{
-    QString cacheLocation = getCacheLocation();
-    return QString("%1/RecordedLiveData/Bars/%2.db").arg(cacheLocation, p_date.toString("yyyy-MM-dd"));
-}
-
-QString RecordsInfoTab::getMarketDepthDbPath(const QDate& p_date) const
-{
-    QString cacheLocation = getCacheLocation();
-    return QString("%1/RecordedLiveData/MarketDepthQuotes/%2.db").arg(cacheLocation, p_date.toString("yyyy-MM-dd"));
-}
-
-QString RecordsInfoTab::getQuotesDbPath(const QDate& p_date) const
-{
-    QString cacheLocation = getCacheLocation();
-    return QString("%1/RecordedLiveData/Quotes/%2.db").arg(cacheLocation, p_date.toString("yyyy-MM-dd"));
+    m_symbolsTable->setRowCount(0);
 }
 
 QString RecordsInfoTab::formatFileSize(qint64 p_bytes) const
 {
-    if (p_bytes >= 1024 * 1024 * 1024)
-    {
-        double gigabytes = static_cast<double>(p_bytes) / (1024 * 1024 * 1024);
-        return QString("%1 GB").arg(gigabytes, 0, 'f', 2);
-    }
-    else if (p_bytes >= 1024 * 1024)
-    {
-        double megabytes = static_cast<double>(p_bytes) / (1024 * 1024);
-        return QString("%1 MB").arg(megabytes, 0, 'f', 2);
-    }
-    else if (p_bytes >= 1024)
-    {
-        double kilobytes = static_cast<double>(p_bytes) / 1024;
-        return QString("%1 KB").arg(kilobytes, 0, 'f', 2);
-    }
-    else
-    {
-        return QString("%1 bytes").arg(p_bytes);
-    }
-}
-
-QString RecordsInfoTab::formatDuration(qint64 p_durationMs) const
-{
-    qint64 seconds = p_durationMs / 1000;
-    qint64 minutes = seconds / 60;
-    qint64 hours = minutes / 60;
-
-    seconds = seconds % 60;
-    minutes = minutes % 60;
-
-    if (hours > 0)
-    {
-        return QString("%1h %2m %3s").arg(hours).arg(minutes).arg(seconds);
-    }
-    else if (minutes > 0)
-    {
-        return QString("%1m %2s").arg(minutes).arg(seconds);
-    }
-    else
-    {
-        return QString("%1s").arg(seconds);
-    }
-}
-
-QString RecordsInfoTab::formatTimestamp(qint64 p_epochMs) const
-{
-    if (p_epochMs == 0)
-    {
-        return "--";
-    }
-
-    QDateTime dt = QDateTime::fromMSecsSinceEpoch(p_epochMs, QTimeZone("America/New_York"));
-    return dt.toString("yyyy-MM-dd hh:mm:ss.zzz");
-}
-
-QStringList RecordsInfoTab::getStocksFromDatabase(const QString& p_dbPath)
-{
-    QStringList stocks;
-
-    QString connectionName = QString("getStocks_%1").arg(QDateTime::currentMSecsSinceEpoch());
-    {
-        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connectionName);
-        db.setDatabaseName(p_dbPath);
-
-        if (!db.open())
-        {
-            qWarning() << "Failed to open database:" << p_dbPath << "-" << db.lastError().text();
-            QSqlDatabase::removeDatabase(connectionName);
-            return stocks;
-        }
-
-        QSqlQuery query(db);
-        if (query.exec("SELECT DISTINCT stockTicker FROM bars ORDER BY stockTicker"))
-        {
-            while (query.next())
-            {
-                stocks.append(query.value(0).toString());
-            }
-        }
-        else
-        {
-            qWarning() << "Failed to query stocks:" << query.lastError().text();
-        }
-        query.finish();
-        db.close();
-    } // db goes out of scope here
-    QSqlDatabase::removeDatabase(connectionName);
-
-    return stocks;
-}
-
-bool RecordsInfoTab::checkStockInDatabase(const QString& p_dbPath, const QString& p_symbol)
-{
-    if (!QFileInfo::exists(p_dbPath))
-    {
-        return false;
-    }
-
-    QString connectionName = QString("checkStock_%1_%2").arg(QDateTime::currentMSecsSinceEpoch()).arg(p_symbol);
-    bool hasStock = false;
-    {
-        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connectionName);
-        db.setDatabaseName(p_dbPath);
-
-        if (!db.open())
-        {
-            qWarning() << "Failed to open database:" << p_dbPath << "-" << db.lastError().text();
-            QSqlDatabase::removeDatabase(connectionName);
-            return false;
-        }
-
-        QSqlQuery query(db);
-        query.prepare("SELECT COUNT(*) FROM market_depth_quotes WHERE stockTicker = ? LIMIT 1");
-        query.addBindValue(p_symbol);
-
-        if (query.exec() && query.next())
-        {
-            hasStock = query.value(0).toInt() > 0;
-        }
-        query.finish();
-        db.close();
-    } // db goes out of scope here
-    QSqlDatabase::removeDatabase(connectionName);
-
-    return hasStock;
-}
-
-bool RecordsInfoTab::checkStockInQuotesDatabase(const QString& p_dbPath, const QString& p_symbol)
-{
-    if (!QFileInfo::exists(p_dbPath))
-    {
-        return false;
-    }
-
-    QString connectionName = QString("checkQuote_%1_%2").arg(QDateTime::currentMSecsSinceEpoch()).arg(p_symbol);
-    bool hasStock = false;
-    {
-        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connectionName);
-        db.setDatabaseName(p_dbPath);
-
-        if (!db.open())
-        {
-            qWarning() << "Failed to open quotes database:" << p_dbPath << "-" << db.lastError().text();
-            QSqlDatabase::removeDatabase(connectionName);
-            return false;
-        }
-
-        QSqlQuery query(db);
-        query.prepare("SELECT COUNT(*) FROM quotes WHERE stockTicker = ? LIMIT 1");
-        query.addBindValue(p_symbol);
-
-        if (query.exec() && query.next())
-        {
-            hasStock = query.value(0).toInt() > 0;
-        }
-        query.finish();
-        db.close();
-    } // db goes out of scope here
-    QSqlDatabase::removeDatabase(connectionName);
-
-    return hasStock;
-}
-
-RecordsInfoTab::StockMetrics RecordsInfoTab::queryStockMetrics(const QString& p_barsDbPath,
-                                                               const QString& p_depthDbPath,
-                                                               const QString& p_quotesDbPath,
-                                                               const QString& p_symbol)
-{
-    StockMetrics metrics;
-    metrics.symbol = p_symbol;
-
-    // Query bars database
-    QString barsConnectionName = QString("barsMetrics_%1_%2").arg(QDateTime::currentMSecsSinceEpoch()).arg(p_symbol);
-    {
-        QSqlDatabase barsDb = QSqlDatabase::addDatabase("QSQLITE", barsConnectionName);
-        barsDb.setDatabaseName(p_barsDbPath);
-
-        if (barsDb.open())
-        {
-            QSqlQuery query(barsDb);
-            query.prepare("SELECT COUNT(*), MIN(epochMs), MAX(epochMs) FROM bars WHERE stockTicker = ?");
-            query.addBindValue(p_symbol);
-
-            if (query.exec() && query.next())
-            {
-                metrics.barCount = query.value(0).toLongLong();
-                metrics.firstTimestampMs = query.value(1).toLongLong();
-                metrics.lastTimestampMs = query.value(2).toLongLong();
-            }
-            query.finish();
-
-            // Get breakdown by objectType for bars
-            if (metrics.barCount > 0)
-            {
-                QSqlQuery typeQuery(barsDb);
-                typeQuery.prepare("SELECT objectType, COUNT(*) FROM bars WHERE stockTicker = ? GROUP BY objectType");
-                typeQuery.addBindValue(p_symbol);
-
-                if (typeQuery.exec())
-                {
-                    while (typeQuery.next())
-                    {
-                        QString objectType = typeQuery.value(0).toString();
-                        qint64 typeCount = typeQuery.value(1).toLongLong();
-
-                        if (objectType == "Bar")
-                        {
-                            metrics.barDataCount = typeCount;
-                        }
-                        else if (objectType == "Heartbeat")
-                        {
-                            metrics.barHeartbeatCount = typeCount;
-                        }
-                        else if (objectType == "Error")
-                        {
-                            metrics.barErrorCount = typeCount;
-                        }
-                    }
-                }
-                typeQuery.finish();
-            }
-
-            barsDb.close();
-        }
-        else
-        {
-            qCritical() << "Failed to open bars database:" << barsDb.lastError().text();
-        }
-    } // barsDb goes out of scope here
-    QSqlDatabase::removeDatabase(barsConnectionName);
-
-    // Query market depth database if it exists
-    if (QFileInfo::exists(p_depthDbPath))
-    {
-        QString depthConnectionName =
-            QString("depthMetrics_%1_%2").arg(QDateTime::currentMSecsSinceEpoch()).arg(p_symbol);
-        {
-            QSqlDatabase depthDb = QSqlDatabase::addDatabase("QSQLITE", depthConnectionName);
-            depthDb.setDatabaseName(p_depthDbPath);
-
-            if (depthDb.open())
-            {
-                QSqlQuery query(depthDb);
-                query.prepare(
-                    "SELECT COUNT(*), MIN(epochMs), MAX(epochMs) FROM market_depth_quotes WHERE stockTicker = ?");
-                query.addBindValue(p_symbol);
-
-                if (query.exec() && query.next())
-                {
-                    qint64 count = query.value(0).toLongLong();
-                    if (count > 0)
-                    {
-                        metrics.hasMarketDepth = true;
-                        metrics.depthCount = count;
-                        metrics.depthFirstTimestampMs = query.value(1).toLongLong();
-                        metrics.depthLastTimestampMs = query.value(2).toLongLong();
-                    }
-                }
-                query.finish();
-
-                // Get breakdown by objectType for market depth
-                if (metrics.hasMarketDepth)
-                {
-                    QSqlQuery typeQuery(depthDb);
-                    typeQuery.prepare(
-                        "SELECT objectType, COUNT(*) FROM market_depth_quotes WHERE stockTicker = ? GROUP BY objectType");
-                    typeQuery.addBindValue(p_symbol);
-
-                    if (typeQuery.exec())
-                    {
-                        while (typeQuery.next())
-                        {
-                            QString objectType = typeQuery.value(0).toString();
-                            qint64 typeCount = typeQuery.value(1).toLongLong();
-
-                            if (objectType == "MarketDepthQuote")
-                            {
-                                metrics.depthDataCount = typeCount;
-                            }
-                            else if (objectType == "Heartbeat")
-                            {
-                                metrics.depthHeartbeatCount = typeCount;
-                            }
-                            else if (objectType == "Error")
-                            {
-                                metrics.depthErrorCount = typeCount;
-                            }
-                        }
-                    }
-                    typeQuery.finish();
-                }
-
-                depthDb.close();
-            }
-        } // depthDb goes out of scope here
-        QSqlDatabase::removeDatabase(depthConnectionName);
-    }
-
-    // Query quotes database if it exists
-    if (QFileInfo::exists(p_quotesDbPath))
-    {
-        QString quotesConnectionName =
-            QString("quotesMetrics_%1_%2").arg(QDateTime::currentMSecsSinceEpoch()).arg(p_symbol);
-        {
-            QSqlDatabase quotesDb = QSqlDatabase::addDatabase("QSQLITE", quotesConnectionName);
-            quotesDb.setDatabaseName(p_quotesDbPath);
-
-            if (quotesDb.open())
-            {
-                // Get count and timestamps for this symbol
-                QSqlQuery query(quotesDb);
-                query.prepare("SELECT COUNT(*), MIN(epochMs), MAX(epochMs) FROM quotes WHERE stockTicker = ?");
-                query.addBindValue(p_symbol);
-
-                if (query.exec() && query.next())
-                {
-                    qint64 count = query.value(0).toLongLong();
-                    if (count > 0)
-                    {
-                        metrics.hasQuotes = true;
-                        metrics.quoteCount = count;
-                        metrics.quoteFirstTimestampMs = query.value(1).toLongLong();
-                        metrics.quoteLastTimestampMs = query.value(2).toLongLong();
-                    }
-                }
-                query.finish();
-
-                // Get breakdown by objectType
-                if (metrics.hasQuotes)
-                {
-                    QSqlQuery typeQuery(quotesDb);
-                    typeQuery.prepare(
-                        "SELECT objectType, COUNT(*) FROM quotes WHERE stockTicker = ? GROUP BY objectType");
-                    typeQuery.addBindValue(p_symbol);
-
-                    if (typeQuery.exec())
-                    {
-                        while (typeQuery.next())
-                        {
-                            QString objectType = typeQuery.value(0).toString();
-                            qint64 typeCount = typeQuery.value(1).toLongLong();
-
-                            if (objectType == "QuoteStream")
-                            {
-                                metrics.quoteStreamCount = typeCount;
-                            }
-                            else if (objectType == "Heartbeat")
-                            {
-                                metrics.heartbeatCount = typeCount;
-                            }
-                            else if (objectType == "Error")
-                            {
-                                metrics.errorCount = typeCount;
-                            }
-                        }
-                    }
-                    typeQuery.finish();
-                }
-
-                quotesDb.close();
-            }
-        } // quotesDb goes out of scope here
-        QSqlDatabase::removeDatabase(quotesConnectionName);
-    }
-
-    return metrics;
+    if (p_bytes < 1024)
+        return QString::number(p_bytes) + " B";
+    if (p_bytes < 1024 * 1024)
+        return QString::number(p_bytes / 1024.0, 'f', 1) + " KB";
+    if (p_bytes < 1024 * 1024 * 1024)
+        return QString::number(p_bytes / (1024.0 * 1024.0), 'f', 1) + " MB";
+    return QString::number(p_bytes / (1024.0 * 1024.0 * 1024.0), 'f', 2) + " GB";
 }

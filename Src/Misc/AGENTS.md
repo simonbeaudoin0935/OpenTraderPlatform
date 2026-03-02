@@ -24,9 +24,24 @@ The Misc directory contains utility classes, application settings, logging infra
 namespace TradingHours {
     constexpr QTime TRADING_START_TIME(9, 30, 0);      // 9:30 AM ET
     constexpr QTime TRADING_END_TIME(16, 0, 0);        // 4:00 PM ET
-    constexpr QTime PRE_MARKET_START(4, 0, 0);         // 4:00 AM ET
-    constexpr QTime AFTER_HOURS_END(20, 0, 0);         // 8:00 PM ET
     const QString TIMEZONE = "America/New_York";
+}
+
+namespace BarsConstants {
+    // Session boundaries (open-time convention: timestamp = bar open)
+    // XNAS.ITCH trading hours: 4:00 AM – 6:59 PM ET (900 one-minute bars)
+    constexpr QTime EARLY_PRE_MARKET_START(4, 0, 0);   // First bar: 4:00
+    constexpr QTime EARLY_PRE_MARKET_END(5, 59, 0);    // Last early pre-market bar: 5:59
+    constexpr QTime PRE_MARKET_START(6, 0, 0);          // 6:00 AM ET
+    constexpr QTime PRE_MARKET_END(9, 29, 0);           // 9:29 AM ET
+    constexpr QTime REGULAR_MARKET_START(9, 30, 0);     // 9:30 AM ET
+    constexpr QTime REGULAR_MARKET_END(15, 59, 0);      // 3:59 PM ET
+    constexpr QTime AFTER_MARKET_START(16, 0, 0);       // 4:00 PM ET
+    constexpr QTime AFTER_MARKET_END(18, 59, 0);        // Last bar: 6:59 PM
+    constexpr int MINUTE_BARS_PER_DAY = 900;            // 4:00-18:59 = 15 hours
+
+    // timeToIndex(QTime) — maps 4:00→0, 18:59→899
+    // indexToTime(int)   — maps 0→4:00, 899→18:59
 }
 
 namespace TSClientEndpoints {
@@ -56,10 +71,9 @@ namespace ChartConstants {
 }
 
 namespace BarFlags {
-    constexpr quint8 IS_REAL_TIME = 0x01;
-    constexpr quint8 IS_END_OF_DAY = 0x02;
-    constexpr quint8 IS_PREVIOUS = 0x04;
-    // ... bit flags for Bar status
+    // REMOVED — BarFlags namespace was deleted in Phase 3.
+    // Bar status is now tracked via BarStatus enum in Core/Models/Bar.h
+    // (Uninitialized, Null, Open, Closed)
 }
 
 namespace FileSystemConstants {
@@ -69,21 +83,12 @@ namespace FileSystemConstants {
 }
 
 namespace MarketDepthConstants {
-    constexpr size_t MAX_CONCURRENT_STREAMS = 10;    // TradeStation API hard limit
-    constexpr int QUEUE_PROCESS_DELAY_MS = 1000;     // Delay before opening queued stream (TCP close propagation)
+    // REMOVED — MAX_CONCURRENT_STREAMS and QUEUE_PROCESS_DELAY_MS were deleted
+    // in Phase 3. Databento has no stream concurrency limits.
 }
 
 namespace PollingConstants {
     constexpr int BALANCE_POLLING_INTERVAL_MS = 1000;  // Poll balance every 1 second
-}
-```
-
-**Usage**:
-    constexpr int STREAM_RAMP_UP_DELAY_TIER1_MS = 500;   // First 100 streams
-    constexpr int STREAM_RAMP_UP_DELAY_TIER2_MS = 1000;  // Streams 101-200
-    constexpr int STREAM_RAMP_UP_DELAY_TIER3_MS = 2000;  // Streams 201+
-    constexpr int STREAM_RAMP_UP_TIER1_THRESHOLD = 100;  // Switch to tier 2 after this many
-    constexpr int STREAM_RAMP_UP_TIER2_THRESHOLD = 200;  // Switch to tier 3 after this many
 }
 ```
 
@@ -94,24 +99,13 @@ namespace PollingConstants {
 QTime marketOpen = TradingHours::TRADING_START_TIME;
 QString endpoint = TSClientEndpoints::BASE_URL + TSClientEndpoints::GET_BARS;
 
-// Check stream limits
-if (StreamMarketDepthQuote::getNumberOfMarketDepthStreams() >= MarketDepthConstants::MAX_CONCURRENT_STREAMS) {
-    // Will be queued
-}
+// Check stream limits — NO LONGER APPLICABLE
+// Databento has no concurrent stream limits.
+// Old pattern (removed):
+// if (count >= MarketDepthConstants::MAX_CONCURRENT_STREAMS) { ... }
 
 // Balance polling in MainAlgo
 m_balancePollingTimer->setInterval(PollingConstants::BALANCE_POLLING_INTERVAL_MS);
-
-// In LiveStreamDB - adaptive ramp-up based on stream count
-int delay;
-if (m_currentRampIndex <= RecorderConstants::STREAM_RAMP_UP_TIER1_THRESHOLD) {
-    delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER1_MS;  // Fast: 500ms
-} else if (m_currentRampIndex <= RecorderConstants::STREAM_RAMP_UP_TIER2_THRESHOLD) {
-    delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER2_MS;  // Medium: 1000ms
-} else {
-    delay = RecorderConstants::STREAM_RAMP_UP_DELAY_TIER3_MS;  // Slow: 2000ms
-}
-m_rampTimer.start(delay);
 ```
 
 ### Assume.h

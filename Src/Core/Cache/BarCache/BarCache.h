@@ -70,7 +70,7 @@ class BarCache : public QObject
     // Protects m_barCacheByDay. Each BarCache instance has its own lock (no cross-symbol contention).
     // QReadWriteLock allows concurrent readers, exclusive writer access.
     mutable QReadWriteLock m_barCacheRwLock;
-    
+
     // Day-based storage: one QVector per trading day. Vector index maps to minute within trading day.
     QMap<QDate, QVector<Bar>> m_barCacheByDay;
 };

@@ -211,11 +211,6 @@ void TSClient::processNewAmountOfDataReceived(size_t bytesReceived)
 #ifdef UNIT_TESTING
 bool TSClient::isCleanedUp()
 {
-    // The pending requests tracking was removed from TSClient.
-    // The isCleanedUp() check is now primarily about verifying no open streams remain.
-    // Check all stream type counters
-    return (StreamBars::getNumberOfBarsStreams() == 0 && StreamMarketDepthQuote::getNumberOfMarketDepthStreams() == 0 &&
-            StreamQuote::getNumberOfQuoteStreams() == 0 && StreamPositions::getNumberOfPositionStreams() == 0 &&
-            StreamOrders::getNumberOfOrderStreams() == 0);
+    return (StreamPositions::getNumberOfPositionStreams() == 0 && StreamOrders::getNumberOfOrderStreams() == 0);
 }
 #endif

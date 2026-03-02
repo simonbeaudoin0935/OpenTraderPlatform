@@ -3,8 +3,7 @@
 #include <QWidget>
 #include <QStandardItemModel>
 
-#include "MarketDepthQuote.h"
-#include "Quote.h"
+#include "Level2.h"
 
 class QLabel;
 class MarketDepthTableView;
@@ -27,11 +26,11 @@ class MarketDepthTable : public QWidget
     /// Update market depth display with Level 2 data (full book)
     /// @param bids Vector of bid levels (price, size, MPID)
     /// @param asks Vector of ask levels (price, size, MPID)
-    void updateData(const QVector<MarketDepthLevel>& bids, const QVector<MarketDepthLevel>& asks);
+    void updateData(const std::array<Level2Row, 10>& bids, const std::array<Level2Row, 10>& asks);
 
     /// Update market depth display with Level 1 data (best bid/ask only)
-    /// @param quote Quote containing best bid/ask
-    void updateLevel1Data(const Quote& quote);
+    /// @param level1 Level1 BBO data
+    void updateLevel1Data(const Level1& level1);
 
     /// Update Depth-Weighted Price indicators
     /// @param bidDWP Bid side depth-weighted price
@@ -57,7 +56,7 @@ class MarketDepthTable : public QWidget
   private:
     void setupUI();
     void setupStyles();
-    void setMarketDepthItem(QStandardItem* item, const MarketDepthLevel& level, const QString& field, int rowIndex);
+    void setMarketDepthItem(QStandardItem* item, const Level2Row& level, const QString& field, int rowIndex);
     void updateDataSourceIndicator();
 
     MarketDepthTableView* tableView;

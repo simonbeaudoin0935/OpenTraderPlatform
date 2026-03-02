@@ -5,7 +5,8 @@
 #include <memory>
 
 #include "Bar.h"
-#include "MarketDepthQuote.h"
+#include "Level2.h"
+#include "Trade.h"
 #include "Order.h"
 #include "Position.h"
 
@@ -24,7 +25,7 @@ class StrategySDK;
 ///
 /// Lifecycle:
 /// 1. onStart() - Called when strategy thread starts (one-time initialization)
-/// 2. onBar/onMarketDepth/onOrderUpdated/etc - Data callbacks during execution
+/// 2. onBar/onLevel2/onTrade/onOrderUpdated/etc - Data callbacks during execution
 /// 3. onStop() - Called when strategy stops (cleanup resources)
 /// 4. onPause() - Called when strategy is paused (optional state preservation)
 class StrategyBase
@@ -57,9 +58,19 @@ class StrategyBase
     virtual void onBar(const Bar& bar) = 0;
 
     /// @brief Called when market depth (L2) data is received
-    /// @param depth The market depth quote with bid/ask levels
+    /// @param level2 The Level 2 book snapshot
     /// @note Called on strategy's QThread
-    virtual void onMarketDepth(const MarketDepthQuote& depth) = 0;
+    virtual void onLevel2(const Level2& /*level2*/) {}
+
+    /// @brief Called when Level 1 (BBO) data is received
+    /// @param level1 The best bid/ask snapshot
+    /// @note Called on strategy's QThread
+    virtual void onLevel1(const Level1& /*level1*/) {}
+
+    /// @brief Called when a trade print is received
+    /// @param trade The individual trade execution
+    /// @note Called on strategy's QThread
+    virtual void onTrade(const Trade& /*trade*/) {}
 
     /// @brief Called when an order placed by this strategy is updated
     /// Receives all order status changes (ACK, OPN, FLL, REJ, CAN, etc.)

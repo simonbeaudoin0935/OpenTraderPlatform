@@ -222,10 +222,10 @@ The OrderEmulator supports two data sources for order fills and position P&L:
 - Used when Level 2 stream is not available for a symbol
 - `updateQuote()` receives quote data
 
-> **⚠️ Invariant**: `updateQuote()` always receives a **complete, merged** `Quote` object —
-> never a raw delta with zeroed fields. The merging is guaranteed by the callers:
-> `TSClient::onInjectQuoteData()` (replay) and `StreamQuote::processJsonObject()` (live).
-> The OrderEmulator does not need to handle partial quotes.
+> **⚠️ Note**: The `updateQuote()` method is a legacy interface from the TradeStation era.
+> The `Quote` type was removed in Phase 3 of the Databento migration. In the current codebase,
+> `OrderEmulator` uses `Level2` (from `Src/Core/Models/Level2.h`) for market depth data.
+> The fill logic uses `Level2.m_bids[0]`/`Level2.m_asks[0]` for BBO.
 
 **Fill Price Logic** (market and limit orders use identical price calculation):
 ```cpp

@@ -19,13 +19,11 @@
 #include "TSClient.h"
 #include "GUIFrontend.h"
 #include "ui_GUIFrontend.h"
-#include "Quote.h"
 #include "Tabs/LoggingTab.h"
-#include "Tabs/CacheTab.h"
-#include "Tabs/RecorderTab.h"
 #include "Tabs/RecordsInfoTab.h"
 #include "Tabs/ShortcutsTab.h"
 #include "Tabs/ConfigTab.h"
+#include "Tabs/CacheTab.h"
 #include "Tabs/StrategiesTab/StrategiesTab.h"
 #include "StockPriceChart/ChartToolbar.h"
 #include "StockPriceChart/StockPriceChart.h"
@@ -34,6 +32,8 @@
 #include "Misc/ShortcutSettings.h"
 #include "Core/MainApp.h"
 #include "Assume.h"
+#include "DBClient.h"
+#include <QInputDialog>
 
 #define LOGGING_CATEGORY GUIFrontendLog
 
@@ -154,6 +154,47 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                 TSClient::getInstance()->launchAuthProcess();
             });
 
+    // Create and setup Databento connection button
+    m_databentoButton = new QPushButton("Connect to Databento", ui->statusbar);
+    m_databentoButton->setFlat(true);
+    m_databentoButton->setStyleSheet(
+        "QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
+    ui->statusbar->addPermanentWidget(m_databentoButton);
+
+    connect(m_databentoButton,
+            &QPushButton::clicked,
+            this,
+            [this]()
+            {
+                DEBUG << "Databento button clicked";
+                bool ok = false;
+                const QString apiKey = QInputDialog::getText(m_mainWindow,
+                                                             "Databento API Key",
+                                                             "Enter your Databento API key:",
+                                                             QLineEdit::Password,
+                                                             QString(),
+                                                             &ok);
+                if (ok && !apiKey.trimmed().isEmpty())
+                {
+                    DBClient::getInstance()->storeApiKey(apiKey.trimmed());
+                }
+            });
+
+    connect(DBClient::getInstance(),
+            &DBClient::connectionStateChanged,
+            this,
+            &GUIFrontend::onDatabentoConnectionStateChanged,
+            Qt::UniqueConnection);
+
+    connect(DBClient::getInstance(),
+            &DBClient::newStatus,
+            this,
+            &GUIFrontend::onDatabentoStatusUpdate,
+            Qt::UniqueConnection);
+
+    // Reflect initial Databento connection state
+    DBClient::getInstance()->loadApiKey();
+
     // Setup account info button - hide initially until accounts are loaded
     m_accountInfoButton = ui->accountInfoButton;
     m_accountInfoButton->setVisible(false);
@@ -176,11 +217,11 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_sessionLabel->setStyleSheet("QLabel { background-color: #555555; color: #ffffff; padding: 4px 8px; "
                                   "border-radius: 4px; font-weight: bold; font-family: monospace; }");
     m_sessionLabel->setToolTip("Current trading session:\n"
-                               "🌙 EARLY PRE-MARKET: 4:01 AM - 6:00 AM ET\n"
-                               "🌅 PRE-MARKET: 6:01 AM - 9:30 AM ET\n"
-                               "📈 REGULAR: 9:31 AM - 4:00 PM ET\n"
-                               "🌆 AFTER-HOURS: 4:01 PM - 8:00 PM ET\n"
-                               "🌙 CLOSED: 8:01 PM - 4:00 AM ET");
+                               "🌙 EARLY PRE-MARKET: 4:00 AM - 5:59 AM ET\n"
+                               "🌅 PRE-MARKET: 6:00 AM - 9:29 AM ET\n"
+                               "📈 REGULAR: 9:30 AM - 3:59 PM ET\n"
+                               "🌆 AFTER-HOURS: 4:00 PM - 6:59 PM ET\n"
+                               "🌙 CLOSED: 7:00 PM - 3:59 AM ET");
     ui->topControlsLayout->insertWidget(4, m_sessionLabel);
     updateSessionLabel();
 
@@ -299,7 +340,11 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             &GUIFrontend::onTSClientDataUsageUpdate,
             Qt::DirectConnection);
 
-    connect(this, &FrontEnd::streamCountsUpdated, this, &GUIFrontend::onStreamCountUpdate, Qt::DirectConnection);
+    connect(this,
+            &FrontEnd::databentoDataUsageUpdated,
+            this,
+            &GUIFrontend::onDBClientDataUsageUpdate,
+            Qt::DirectConnection);
 
     connect(this,
             &FrontEnd::currentHighlightedStockBarReceived,
@@ -308,15 +353,15 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             Qt::DirectConnection);
 
     connect(this,
-            &FrontEnd::currentHighlightedReceivedNewMarketDepthQuote,
+            &FrontEnd::currentHighlightedReceivedNewLevel2,
             this,
-            &GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote,
+            &GUIFrontend::onCurrentHighlightedReceivedNewLevel2,
             Qt::DirectConnection);
 
     connect(this,
-            &FrontEnd::currentHighlightedReceivedNewQuote,
+            &FrontEnd::currentHighlightedReceivedNewTrade,
             this,
-            &GUIFrontend::onCurrentHighlightedReceivedNewQuote,
+            &GUIFrontend::onCurrentHighlightedReceivedNewTrade,
             Qt::DirectConnection);
 
     connect(this, &FrontEnd::newPositionReceived, this, &GUIFrontend::onNewPositionReceived, Qt::DirectConnection);
@@ -353,8 +398,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     ui->stockSymbolInput->setAlignment(Qt::AlignCenter);
 
     // Connect position window symbol click
-    connect(ui->positionWindow,
-            &PositionWindow::symbolClicked,
+    connect(ui->positionWidget,
+            &PositionWidget::symbolClicked,
             this,
             [this](const QString& symbol)
             {
@@ -363,8 +408,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             });
 
     // Connect order window symbol click
-    connect(ui->orderWindow,
-            &OrderWindow::symbolClicked,
+    connect(ui->orderWidget,
+            &OrderWidget::symbolClicked,
             this,
             [this](const QString& symbol)
             {
@@ -373,8 +418,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             });
 
     // Connect order window cancel order request
-    connect(ui->orderWindow,
-            &OrderWindow::cancelOrderRequested,
+    connect(ui->orderWidget,
+            &OrderWidget::cancelOrderRequested,
             this,
             [this](const QString& orderId)
             {
@@ -430,21 +475,6 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     StrategiesTab* strategiesTab = new StrategiesTab(mainAlgo);
     ui->tabWidget->addTab(strategiesTab, "Strategies");
 
-    // Set up the recorder tab
-    RecorderTab* recorderTab = new RecorderTab();
-    ui->tabWidget->addTab(recorderTab, "Recorder");
-
-    QMetaObject::Connection c;
-    c = connect(recorderTab,
-                &RecorderTab::recordingSizeChanged,
-                this,
-                [this](qint64 totalBytes)
-                {
-                    m_recordingSize = totalBytes;
-                    updateStatusBar();
-                });
-    OBJ_ASSUME_TRUE(c);
-
     // Set up the records info tab
     RecordsInfoTab* recordsInfoTab = new RecordsInfoTab();
     ui->tabWidget->addTab(recordsInfoTab, "Records Info");
@@ -478,6 +508,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
 
     // Set up the config tab
     ConfigTab* configTab = new ConfigTab();
+    configTab->setTimeAndSalesWidget(ui->timeAndSalesWidget);
     ui->tabWidget->addTab(configTab, "Config");
 
     // Set up the live log display at the bottom
@@ -665,14 +696,8 @@ void GUIFrontend::setupDarkTheme(QMainWindow* p_mainWindow)
 
 void GUIFrontend::updateStatusBar()
 {
-    QString message =
-        "TS usage : " + bytesToString(TSClientDataUsage) + " - Memory usage : " + bytesToString(memoryUsage) +
-        " - Bars : " + QString::number(barsStreamCount) + " - Depth : " + QString::number(marketDepthStreamCount);
-
-    if (m_recordingSize > 0)
-    {
-        message += " - Recording : " + bytesToString(m_recordingSize);
-    }
+    QString message = "TS: " + bytesToString(TSClientDataUsage) + " | DB: " + bytesToString(m_dbClientDataUsage) +
+                      " | Mem: " + bytesToString(memoryUsage);
 
     ui->statusbar->showMessage(message);
 }
@@ -680,6 +705,12 @@ void GUIFrontend::updateStatusBar()
 void GUIFrontend::onTSClientDataUsageUpdate(qsizetype newDataUsage)
 {
     TSClientDataUsage = newDataUsage;
+    updateStatusBar();
+}
+
+void GUIFrontend::onDBClientDataUsageUpdate(qsizetype newDataUsage)
+{
+    m_dbClientDataUsage = newDataUsage;
     updateStatusBar();
 }
 
@@ -724,68 +755,35 @@ void GUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
     updateStatusBar();
 }
 
-void GUIFrontend::onStreamCountUpdate(size_t barsCount, size_t marketDepthCount)
-{
-    barsStreamCount = barsCount;
-    marketDepthStreamCount = marketDepthCount;
-    updateStatusBar();
-}
-
 void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 {
     ui->priceChart->addLiveBar(symbol, bar);
 }
 
-void GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote(QString symbol,
-                                                                  MarketDepthQuote quote,
-                                                                  double bidAskImbalance,
-                                                                  double bidDWP,
-                                                                  double askDWP)
+void GUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol,
+                                                        Level2 level2,
+                                                        double bidAskImbalance,
+                                                        double bidDWP,
+                                                        double askDWP)
 {
-    ui->marketDepthTable->updateData(quote.getBids(), quote.getAsks());
+    ui->marketDepthTable->updateData(level2.m_bids, level2.m_asks);
     ui->marketDepthTable->updateDWP(bidDWP, askDWP);
 
     // Update the BAI gauge with the bid-ask imbalance
     ui->baiGauge->setValue(bidAskImbalance);
 
     // Forward market depth update to OrderEntryWidget for sticky price feature
-    ui->orderEntryWidget->onMarketDepthUpdate(symbol, quote);
+    ui->orderEntryWidget->onMarketDepthUpdate(symbol, level2);
 }
 
-void GUIFrontend::onCurrentHighlightedReceivedNewQuote(QString symbol, Quote quote)
+void GUIFrontend::onCurrentHighlightedReceivedNewTrade(QString symbol, Trade trade)
 {
-    // Style constants for MarketFlags labels
-    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
-                                         "border-radius: 4px; font-weight: bold; }";
-    static const QString haltedActiveStyle = "QLabel { background-color: #DC143C; color: #ffffff; padding: 4px 8px; "
-                                             "border-radius: 4px; font-weight: bold; }";
-    static const QString delayedActiveStyle = "QLabel { background-color: #FFD700; color: #000000; padding: 4px 8px; "
-                                              "border-radius: 4px; font-weight: bold; }";
-    static const QString htbActiveStyle = "QLabel { background-color: #FF8C00; color: #ffffff; padding: 4px 8px; "
-                                          "border-radius: 4px; font-weight: bold; }";
-
-    // Update MarketFlags labels style based on quote data
-    const MarketFlags& flags = quote.getMarketFlags();
-
-    m_haltedLabel->setStyleSheet(flags.isHalted() ? haltedActiveStyle : inactiveStyle);
-    m_delayedLabel->setStyleSheet(flags.isDelayed() ? delayedActiveStyle : inactiveStyle);
-    m_hardToBorrowLabel->setStyleSheet(flags.isHardToBorrow() ? htbActiveStyle : inactiveStyle);
-
-    // Update MarketDepthTable with Level 1 data when not in Level 2 mode.
-    // We check the table's DisplayMode rather than TSClient::hasOpenMarketDepthStream(),
-    // because in replay mode a MockNetworkReply is always registered for depth
-    // (making hasOpenMarketDepthStream always return true) even when no depth data exists.
-    if (ui->marketDepthTable->getDisplayMode() != MarketDepthTable::DisplayMode::Level2)
-    {
-        ui->marketDepthTable->updateLevel1Data(quote);
-        // Also feed the sticky price logic in OrderEntryWidget when L2 is not available.
-        ui->orderEntryWidget->onL1QuoteUpdate(symbol, quote.getBid(), quote.getAsk());
-    }
+    ui->timeAndSalesWidget->onNewTrade(symbol, trade);
 }
 
 void GUIFrontend::onNewPositionReceived(QString account, Position position)
 {
-    ui->positionWindow->updatePosition(account, position);
+    ui->positionWidget->updatePosition(account, position);
 
     // Forward position to chart for visualization
     // Only process positions for the currently displayed symbol
@@ -808,12 +806,12 @@ void GUIFrontend::onNewPositionReceived(QString account, Position position)
 
 void GUIFrontend::onPositionDeleted(QString account, QString positionID)
 {
-    ui->positionWindow->onPositionDeleted(account, positionID);
+    ui->positionWidget->onPositionDeleted(account, positionID);
 }
 
 void GUIFrontend::onNewOrderReceived(QString account, Order order)
 {
-    ui->orderWindow->updateOrder(account, order);
+    ui->orderWidget->updateOrder(account, order);
 
     // Forward order to chart for visualization
     // Only process orders for the currently displayed symbol
@@ -846,7 +844,7 @@ void GUIFrontend::onNewOrderReceived(QString account, Order order)
 
 void GUIFrontend::onBalanceUpdated(Balance balance)
 {
-    ui->balanceWindow->updateBalance(balance);
+    ui->balanceWidget->updateBalance(balance);
 }
 
 void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated,
@@ -907,6 +905,59 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated,
                 "QPushButton { background-color: #FFE6E6; color: #f44336; padding: 2px 6px; border-radius: 3px; }");
             tradeStationLoginButton->setEnabled(true);
         }
+    }
+}
+
+void GUIFrontend::onDatabentoConnectionStateChanged(bool isConnected)
+{
+    if (isConnected)
+    {
+        m_databentoButton->setText("Databento Connected");
+        m_databentoButton->setStyleSheet(
+            "QPushButton { background-color: #E6FFE6; color: #4CAF50; padding: 2px 6px; border-radius: 3px; }");
+    }
+    else
+    {
+        m_databentoButton->setText("Connect to Databento");
+        m_databentoButton->setStyleSheet(
+            "QPushButton { background-color: #00A0E9; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
+    }
+    m_databentoButton->setEnabled(true);
+}
+
+void GUIFrontend::onDatabentoStatusUpdate(const QString& symbol, bool isHalted, const QString& haltReason, bool isSsr)
+{
+    if (symbol != currentlyDisplayedSymbol)
+        return;
+
+    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; }";
+    static const QString haltedStyle = "QLabel { background-color: #cc0000; color: #ffffff; padding: 4px 8px; "
+                                       "border-radius: 4px; font-weight: bold; }";
+    static const QString ssrStyle = "QLabel { background-color: #e65c00; color: #ffffff; padding: 4px 8px; "
+                                    "border-radius: 4px; font-weight: bold; }";
+
+    if (isHalted)
+    {
+        m_haltedLabel->setStyleSheet(haltedStyle);
+        m_haltedLabel->setToolTip(haltReason.isEmpty() ? "Trading is halted for this symbol"
+                                                       : "Halt reason: " + haltReason);
+    }
+    else
+    {
+        m_haltedLabel->setStyleSheet(inactiveStyle);
+        m_haltedLabel->setToolTip("Trading is halted for this symbol");
+    }
+
+    if (isSsr)
+    {
+        m_hardToBorrowLabel->setStyleSheet(ssrStyle);
+        m_hardToBorrowLabel->setToolTip("Short sale restriction (SSR) active");
+    }
+    else
+    {
+        m_hardToBorrowLabel->setStyleSheet(inactiveStyle);
+        m_hardToBorrowLabel->setToolTip("Hard to borrow - short selling may be restricted");
     }
 }
 
@@ -1003,6 +1054,17 @@ void GUIFrontend::displayStock(const QString& symbol)
 
     ui->priceChart->clearSymbol();
     ui->priceChart->setSymbol(symbol);
+
+    ui->timeAndSalesWidget->clearData();
+
+    // Reset status indicators for the new symbol (they will be updated by live status stream)
+    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; }";
+    m_haltedLabel->setStyleSheet(inactiveStyle);
+    m_haltedLabel->setToolTip("Trading is halted for this symbol");
+    m_delayedLabel->setStyleSheet(inactiveStyle);
+    m_hardToBorrowLabel->setStyleSheet(inactiveStyle);
+    m_hardToBorrowLabel->setToolTip("Hard to borrow - short selling may be restricted");
 
     // Update the order entry widget with the new symbol
     ui->orderEntryWidget->setSymbol(symbol);
@@ -1276,7 +1338,7 @@ void GUIFrontend::onToggleReplayMode()
 void GUIFrontend::onCancelAllOrders()
 {
     // Get only cancellable order IDs from the order window (filters by status)
-    QStringList orderIds = ui->orderWindow->getCancellableOrderIds();
+    QStringList orderIds = ui->orderWidget->getCancellableOrderIds();
 
     if (orderIds.isEmpty())
     {
@@ -1340,8 +1402,16 @@ void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDate
 
     if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
     {
-        // The barCache had the bars ready immediately
-        ui->priceChart->onRequestedMissingBarsReceived(std::get<std::shared_ptr<QVector<Bar>>>(result));
+        auto bars = std::get<std::shared_ptr<QVector<Bar>>>(result);
+        if (bars->isEmpty())
+        {
+            // No bars available yet (instrument not ready or no cached data)
+            ui->priceChart->onRequestedMissingBarsFailed();
+        }
+        else
+        {
+            ui->priceChart->onRequestedMissingBarsReceived(bars);
+        }
     }
     else if (std::holds_alternative<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result))
     {
@@ -1351,7 +1421,15 @@ void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDate
             {
                 if (bars.has_value())
                 {
-                    ui->priceChart->onRequestedMissingBarsReceived(bars.value());
+                    if (bars.value()->isEmpty())
+                    {
+                        qCWarning(GUIFrontendLog) << "Historical fetch returned 0 bars";
+                        ui->priceChart->onRequestedMissingBarsFailed();
+                    }
+                    else
+                    {
+                        ui->priceChart->onRequestedMissingBarsReceived(bars.value());
+                    }
                 }
                 else
                 {
@@ -1531,59 +1609,19 @@ void GUIFrontend::onReplayModeEntered()
                                      "border-radius: 4px; font-weight: bold; font-weight: bold; }");
 
     // Clear live orders and positions from widgets (replay starts with clean slate)
-    ui->orderWindow->clearAllOrders();
-    ui->positionWindow->clearAllPositions();
+    ui->orderWidget->clearAllOrders();
+    ui->positionWidget->clearAllPositions();
 
     // Clear chart data for fresh replay (bar caches are cleared separately by MainAlgo)
     ui->priceChart->clearChart();
 
     // Clear market depth table — stale live data must not carry over into replay
     ui->marketDepthTable->clearData();
+    ui->timeAndSalesWidget->clearData();
 
-    // Probe replay databases to pre-set the market depth mode indicator so the user
-    // knows whether L2 or L1 data will be available before pressing play.
-    const QString displayedSymbol = MainAlgo::getInstance()->getDisplayedSymbol();
-    const QDate replayDate = MainApp::currentAppReplayTime.date();
-    if (!displayedSymbol.isEmpty() && replayDate.isValid())
-    {
-        const QString cacheDir = getCacheLocation();
-        const QString depthDbPath =
-            QString("%1/RecordedLiveData/MarketDepthQuotes/%2.db").arg(cacheDir, replayDate.toString("yyyy-MM-dd"));
-        const QString quotesDbPath =
-            QString("%1/RecordedLiveData/Quotes/%2.db").arg(cacheDir, replayDate.toString("yyyy-MM-dd"));
-
-        auto probeDb = [](const QString& p_dbPath, const QString& p_symbol, const QString& p_table) -> bool
-        {
-            if (!QFile::exists(p_dbPath))
-            {
-                return false;
-            }
-            const QString connName = QString("probe_%1").arg(p_dbPath);
-            bool found = false;
-            {
-                // Scope ensures db is destroyed before removeDatabase()
-                QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connName);
-                db.setDatabaseName(p_dbPath);
-                if (db.open())
-                {
-                    QSqlQuery q(db);
-                    q.prepare(QString("SELECT 1 FROM %1 WHERE stockTicker = ? LIMIT 1").arg(p_table));
-                    q.addBindValue(p_symbol);
-                    found = q.exec() && q.next();
-                    db.close();
-                }
-            }
-            QSqlDatabase::removeDatabase(connName);
-            return found;
-        };
-
-        const bool hasLevel2 = probeDb(depthDbPath, displayedSymbol, "market_depth_quotes");
-        const bool hasLevel1 = probeDb(quotesDbPath, displayedSymbol, "quotes");
-        ui->marketDepthTable->setExpectedDataMode(hasLevel2, hasLevel1);
-
-        qCInfo(GUIFrontendLog) << "Replay data mode for" << displayedSymbol << "on" << replayDate.toString(Qt::ISODate)
-                               << "— L2:" << hasLevel2 << "L1:" << hasLevel1;
-    }
+    // TODO Phase 6: probe DBClient .dbn replay file to detect available schemas (MBP-10, MBP-1, etc.)
+    // For now, clear the mode indicator (no legacy TS recorded data)
+    ui->marketDepthTable->setExpectedDataMode(false, false);
 
     // Show replay widgets in toolbar and ensure play button is in stopped state
     ui->priceChart->toolbar()->setReplayWidgetsVisible(true);
@@ -1633,6 +1671,7 @@ void GUIFrontend::onReplayModeExited()
 
     // Clear market depth table — replay data must not carry over into live mode
     ui->marketDepthTable->clearData();
+    ui->timeAndSalesWidget->clearData();
 
     // Restore chart visual
     ui->priceChart->setReplayModeActive(false);
@@ -1721,13 +1760,25 @@ bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
                 QMessageBox::warning(nullptr,
                                      "No Replay Data",
                                      "No recorded data found for replay.\n\n"
-                                     "Use the Recorder tab to record market data first.");
+                                     "Download data in the Records Info tab first.");
                 return true;
             }
 
             QDate replayDate = toolbar->getSelectedReplayDay();
             QTime replayTime = toolbar->getReplayStartTime();
             ReplayEngine::PlaybackSpeed speed = toolbar->getReplaySpeed();
+
+            // Validate that the currently displayed symbol has replay data for the selected date
+            QString currentSymbol = ui->priceChart->getCurrentSymbol();
+            if (!currentSymbol.isEmpty() && !DBClient::getInstance()->hasReplayData(replayDate, currentSymbol))
+            {
+                QMessageBox::warning(nullptr,
+                                     "No Replay Data for Symbol",
+                                     QString("No replay data found for %1 on %2.\n\n"
+                                             "Download data for this symbol first in the Records Info tab.")
+                                         .arg(currentSymbol, replayDate.toString(Qt::ISODate)));
+                return true;
+            }
 
             qCInfo(GUIFrontendLog) << "Entering replay mode for" << replayDate << "at" << replayTime;
             MainApp::getInstance()->enterReplayMode(replayDate, replayTime, speed);

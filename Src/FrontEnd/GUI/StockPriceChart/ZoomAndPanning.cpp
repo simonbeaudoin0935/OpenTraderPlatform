@@ -8,7 +8,7 @@
  */
 void StockPriceChart::onAxisRangeChanged()
 {
-    if (indexToBar.isEmpty())
+    if (indexToBar.isEmpty() && !m_index0Timestamp.isValid())
         return;
 
     updateAxisLabelsDensity();
@@ -24,34 +24,22 @@ void StockPriceChart::onAxisRangeChanged()
         m_currentTimeLine->end->setCoords(currentX, yRange.upper);
     }
 
-    // Update replay boundary lines' Y coordinates to match new Y-axis range
-    if (m_replayStartLine->visible())
-    {
-        QCPRange yRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
-        double startX = m_replayStartLine->start->coords().x();
-        double endX = m_replayEndLine->start->coords().x();
-
-        m_replayStartLine->start->setCoords(startX, yRange.lower);
-        m_replayStartLine->end->setCoords(startX, yRange.upper);
-
-        m_replayEndLine->start->setCoords(endX, yRange.lower);
-        m_replayEndLine->end->setCoords(endX, yRange.upper);
-
-        // Update label Y positions
-        m_replayStartLabel->position->setCoords(startX, yRange.upper);
-        m_replayEndLabel->position->setCoords(endX, yRange.upper);
-    }
-
     // Note: Background rectangles are created once when bars are received,
     // QCustomPlot handles clipping to visible range automatically.
     // No need to recreate them on every axis change.
 
     // Check for missing bars when view extends beyond available data
     double minIndex = m_customPlot->xAxis->range().lower;
-    if (minIndex < indexToBar.firstKey())
+    if (!indexToBar.isEmpty() && minIndex < indexToBar.firstKey())
     {
         QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
         checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
+    }
+    else if (indexToBar.isEmpty() && m_index0Timestamp.isValid())
+    {
+        // No bars loaded yet — request from view start to index 0
+        QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
+        checkForMissingBars(requestTime, m_index0Timestamp);
     }
 }
 

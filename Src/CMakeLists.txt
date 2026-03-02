@@ -42,15 +42,6 @@ file(GLOB_RECURSE CORE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Core/*.h"
 )
 
-# Recorder sources (excluding the standalone main.cpp)
-file(GLOB RECORDER_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/RecorderLogic.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/LiveStreamDB.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/StatusReporter.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/RecorderUtils.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Recorder/*.h"
-)
-
 # Strategy plugin system sources
 file(GLOB_RECURSE STRATEGY_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/*.cpp"
@@ -75,8 +66,8 @@ if(ENABLE_GUI)
     )
     # Add qcustomplot sources for GUI builds
     set(QCUSTOMPLOT_SOURCES
-        "${CMAKE_SOURCE_DIR}/qcustomplot/qcustomplot.cpp"
-        "${CMAKE_SOURCE_DIR}/qcustomplot/qcustomplot.h"
+        "${CMAKE_SOURCE_DIR}/Lib/QCustomPlot/qcustomplot.cpp"
+        "${CMAKE_SOURCE_DIR}/Lib/QCustomPlot/qcustomplot.h"
     )
 else()
     file(GLOB_RECURSE TUI_SOURCES
@@ -99,7 +90,6 @@ add_library(L2TraderCommon STATIC
     ${CLIENTS_SOURCES}
     ${ALGO_SOURCES}
     ${CORE_SOURCES}
-    ${RECORDER_SOURCES}
     ${FRONTEND_SOURCES}
     ${GUI_SOURCES}
     ${TUI_SOURCES}
@@ -117,7 +107,7 @@ target_link_libraries(L2TraderCommon PUBLIC L2TraderStrategy)
 # Disable strict warnings for third-party qcustomplot code
 if(QCUSTOMPLOT_SOURCES)
     set_source_files_properties(${QCUSTOMPLOT_SOURCES} PROPERTIES
-        COMPILE_FLAGS "-Wno-error -Wno-shadow -Wno-double-promotion -Wno-float-equal -Wno-suggest-override"
+        COMPILE_FLAGS "-Wno-error -Wno-shadow -Wno-double-promotion -Wno-float-equal"
     )
 endif()
 
@@ -134,25 +124,22 @@ target_include_directories(L2TraderStrategy PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/GetOrders
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/StreamOrders
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/StreamPositions
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/Bars
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/GetQuoteSnapshots
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/MockStream
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/StreamMarketDepthQuote
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/StreamQuote
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/CancelOrder
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/PlaceOrder
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Stream
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/DBClient
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BreakingNewsFetcher
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StreamReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BarReceiver
-    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/MarketDepthQuoteReceiver
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/Level1Receiver
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/Level2Receiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/PositionsReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/OrdersReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StockScreener
     ${CMAKE_CURRENT_SOURCE_DIR}/Core
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Models
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache/BarCache
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Replay
@@ -163,10 +150,9 @@ target_include_directories(L2TraderStrategy PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/StockPriceChart
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Tabs
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI
-    ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
     ${CMAKE_CURRENT_SOURCE_DIR}/Strategy
     ${CMAKE_CURRENT_SOURCE_DIR}/SQL
-    ${CMAKE_SOURCE_DIR}/qcustomplot
+    ${CMAKE_SOURCE_DIR}/Lib/QCustomPlot
 )
 
 # Link Qt libraries to the strategy library
@@ -193,25 +179,22 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/GetOrders
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/StreamOrders
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Brokerage/StreamPositions
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/Bars
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/GetQuoteSnapshots
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/MockStream
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/StreamMarketDepthQuote
-    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/MarketData/StreamQuote
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/CancelOrder
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/OrderExecution/PlaceOrder
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Stream
+    ${CMAKE_CURRENT_SOURCE_DIR}/Clients/DBClient
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BreakingNewsFetcher
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StreamReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/BarReceiver
-    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/MarketDepthQuoteReceiver
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/Level1Receiver
+    ${CMAKE_CURRENT_SOURCE_DIR}/Algo/Level2Receiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/PositionsReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/OrdersReceiver
     ${CMAKE_CURRENT_SOURCE_DIR}/Algo/StockScreener
     ${CMAKE_CURRENT_SOURCE_DIR}/Core
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Models
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Cache/BarCache
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Replay
@@ -222,19 +205,19 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/StockPriceChart
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Tabs
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI
-    ${CMAKE_CURRENT_SOURCE_DIR}/Recorder
     ${CMAKE_CURRENT_SOURCE_DIR}/Strategy
     ${CMAKE_CURRENT_SOURCE_DIR}/SQL
+    ${CMAKE_SOURCE_DIR}/Lib/QCustomPlot
 )
 
 # Include qcustomplot as SYSTEM to suppress external library warnings
 target_include_directories(L2TraderCommon SYSTEM PRIVATE
-    ${CMAKE_SOURCE_DIR}/qcustomplot
+    ${CMAKE_SOURCE_DIR}/Lib/QCustomPlot
 )
 
 # Disable null-dereference error for this target because MOC-generated code includes
 # qcustomplot.h without SYSTEM treatment, triggering false positives in template code.
-target_compile_options(L2TraderCommon PRIVATE -Wno-error=null-dereference -Wno-error=unused-but-set-variable)
+target_compile_options(L2TraderCommon PRIVATE -Wno-error=null-dereference -Wno-error=unused-but-set-variable -Wno-error=float-equal)
 
 # Link Qt libraries to the common library
 target_link_libraries(L2TraderCommon PUBLIC
@@ -242,6 +225,7 @@ target_link_libraries(L2TraderCommon PUBLIC
     Qt6::Network
     Qt6::Sql
     Qt6::Concurrent
+    databento::databento
     dl
 )
 

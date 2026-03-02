@@ -106,7 +106,7 @@ class Stream : public QObject
      * Thread context: Emitted from TSClient worker thread
      */
     void newAmountOfDataReceived(size_t bytes);
-    
+
     /**
      * @brief Signal emitted when raw data is received (before JSON parsing)
      * Thread context: Emitted from TSClient worker thread

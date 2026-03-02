@@ -108,49 +108,57 @@ void PositionsReceiver::onReceivedNewPosition(Position position)
     qCDebug(PositionsReceiverLog).noquote()
         << "New position for account (" << m_account << ") : " << position.toJsonString();
 
-    DEBUG << "PositionsReceiver::onReceivedNewPosition called for" << position.getSymbol()
-          << "qty:" << position.getQuantity();
-
     QString positionID = position.getPositionID();
     QDateTime currentTime = QDateTime::currentDateTime();
 
-    // Parse quantity to check if position is at 0
-    // Using epsilon comparison for floating point quantity
     double quantity = position.getQuantity().toDouble();
-    constexpr double EPSILON = 1e-9; // Tiny threshold for "zero"
+    double avgPrice = position.getAveragePrice().toDouble();
+    constexpr double EPSILON = 1e-9;
     bool quantityIsZero = (std::abs(quantity) < EPSILON);
 
-    // Check if this is a new position or an update
+    // Only write to the database on structural changes (open / add / reduce / close).
+    // Pure mark-to-market updates (same qty + same avg price) are skipped.
     bool positionExistsInDB = m_database->positionExists(positionID);
+
+    auto structureChanged = [&]() -> bool
+    {
+        auto it = m_lastKnownStructure.find(positionID);
+        if (it == m_lastKnownStructure.end())
+            return true; // Never seen before
+        return std::abs(it->quantity - quantity) > EPSILON || std::abs(it->averagePrice - avgPrice) > EPSILON;
+    };
 
     if (!positionExistsInDB)
     {
-        // New position - insert into database with opened time
+        // New position — always insert
         QDateTime openedTime = currentTime;
         m_positionOpenedTimes[positionID] = openedTime;
         m_database->insertPosition(position, openedTime);
+        m_lastKnownStructure[positionID] = {quantity, avgPrice};
         DEBUG << "Stored new position" << positionID << "in database, opened at" << openedTime.toString(Qt::ISODate);
     }
-    else
+    else if (structureChanged())
     {
-        // Existing position - update in database
-        // If quantity is now 0, set the closed datetime
+        // Structural change (qty or avg price changed) — update database
         std::optional<QDateTime> closedTime;
         if (quantityIsZero)
         {
             closedTime = currentTime;
             DEBUG << "Position" << positionID << "closed at" << currentTime.toString(Qt::ISODate);
-            // Remove from tracking map as position is closed
             m_positionOpenedTimes.remove(positionID);
+            m_lastKnownStructure.remove(positionID);
+        }
+        else
+        {
+            m_lastKnownStructure[positionID] = {quantity, avgPrice};
         }
 
         m_database->updatePosition(position, closedTime);
         DEBUG << "Updated position" << positionID << "in database";
     }
+    // else: pure mark-to-market update — skip DB write entirely
 
-    DEBUG << "About to emit receivedNewPosition signal for" << position.getSymbol();
     emit receivedNewPosition(m_account, position);
-    DEBUG << "Emitted receivedNewPosition signal";
 }
 
 void PositionsReceiver::onPositionDeleted(QString positionID)

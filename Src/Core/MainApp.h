@@ -26,11 +26,11 @@ enum class TradingMode : quint8
  */
 enum class TradingSession : quint8
 {
-    EarlyPreMarket, ///< Early pre-market: 4:01 AM - 6:00 AM ET
-    PreMarket,      ///< Pre-market: 6:01 AM - 9:30 AM ET
-    Regular,        ///< Regular trading hours: 9:31 AM - 4:00 PM ET
-    AfterHours,     ///< After-hours: 4:01 PM - 8:00 PM ET
-    Closed          ///< Market closed: 8:01 PM - 4:00 AM ET
+    EarlyPreMarket, ///< Early pre-market: 4:00 AM - 5:59 AM ET
+    PreMarket,      ///< Pre-market: 6:00 AM - 9:29 AM ET
+    Regular,        ///< Regular trading hours: 9:30 AM - 3:59 PM ET
+    AfterHours,     ///< After-hours: 4:00 PM - 6:59 PM ET
+    Closed          ///< Market closed: 7:00 PM - 3:59 AM ET
 };
 
 /**

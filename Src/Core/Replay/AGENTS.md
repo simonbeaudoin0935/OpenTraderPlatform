@@ -1,130 +1,80 @@
-# Recorder & Replay System - Agent Instructions
+# Replay System - Agent Instructions
+
+> **⚠️ TRANSITIONAL SUBSYSTEM — Databento Migration Phase 7**
+>
+> The entire replay system is being revamped as part of Phase 7 of the Databento
+> migration. The current `ReplayEngine` and `ReplayDataLoader` contain TODO stubs
+> and will be **replaced** by Databento `DbnFileStore::Replay()`. Recording is no
+> longer done via a custom recorder — it is replaced by Databento `.dbn` archive
+> downloads.
+>
+> **Do not reference deleted files or types** (see Deleted Components below).
+> The `OrderEmulator/` subdirectory is the only component that will survive the
+> revamp unchanged.
 
 ## Overview
 
-The Recorder and Replay system enables capturing live market data streams and replaying them later for strategy backtesting and debugging. This document describes the architecture for AI agents working on this codebase.
+The Replay system enables replaying historical market data for strategy backtesting and debugging. This document describes the current transitional state for AI agents working on this codebase.
 
-## Architecture Summary
+## Current State
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           RECORDING PHASE                                    │
-│  (Separate Recorder executable)                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│   TSClient (Live)                                                            │
-│       │                                                                      │
-│       ├──► StreamBars ──────────────► LiveStreamDB (Bars)                   │
-│       │                                    │                                 │
-│       │                                    ▼                                 │
-│       │                         RecordedLiveData/Bars/{date}.db             │
-│       │                                                                      │
-│       ├──► StreamMarketDepthQuote ──► LiveStreamDB (Depth)                  │
-│       │                                    │                                 │
-│       │                                    ▼                                 │
-│       │                    RecordedLiveData/MarketDepthQuotes/{date}.db      │
-│       │                                                                      │
-│       └──► StreamQuote (all symbols) ─► LiveStreamDB (Quotes)               │
-│                                            │                                 │
-│                                            ▼                                 │
-│                           RecordedLiveData/Quotes/{date}.db                 │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+The replay subsystem is in a transitional state:
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            REPLAY PHASE                                      │
-│  (Main L2Trader application)                                                 │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│   MainApp                                                                    │
-│       │                                                                      │
-│       │  enterReplayMode()                                                   │
-│       │  ─────────────────►                                                  │
-│       │                                                                      │
-│       ▼                                                                      │
-│   MainAlgo (MainAlgoThread)                                                  │
-│       │                                                                      │
-│       │  Creates & manages                                                   │
-│       ▼                                                                      │
-│   ReplayEngine ◄────────────────────────────────────────────────────────┐   │
-│       │                                                                  │   │
-│       │  startReplayPaused() / startReplay()                            │   │
-│       │                                                                  │   │
-│       ├── m_barTimer ──► ReplayDataLoader (Bar)                         │   │
-│       │       │  Loads from Bars SQLite DB                              │   │
-│       │       │  Ping-pong buffer strategy                              │   │
-│       │       ▼                                                          │   │
-│       │   ReplayDataPoint → injectBarData signal                        │   │
-│       │                                                                  │   │
-│       ├── m_depthTimer ──► ReplayDataLoader (MarketDepthQuote)          │   │
-│       │       │  Loads from Depth SQLite DB                              │   │
-│       │       │  Ping-pong buffer strategy                              │   │
-│       │       ▼                                                          │   │
-│       │   ReplayDataPoint → injectDepthData signal                      │   │
-│       │                                                                  │   │
-│       └── m_quoteTimer ──► ReplayDataLoader (Quote)                     │   │
-│               │  Loads from Quotes SQLite DB                             │   │
-│               │  Ping-pong buffer strategy                               │   │
-│               │  Filters QuoteStream by open streams;                   │   │
-│               │  always emits Heartbeat/Error                            │   │
-│               ▼                                                          │   │
-│           ReplayDataPoint (raw delta bytes) → injectQuoteData signal    │   │
-│                                                                          │   │
-│   TSClient::onInjectQuoteData()                                          │   │
-│       │  Merges delta into m_replayQuoteState[symbol]                   │   │
-│       │  Calls OrderEmulator::updateQuote(merged Quote)                 │   │
-│       │  Injects raw bytes into MockNetworkReply for displayed symbol   │   │
-│       ▼                                                                  │   │
-│   StreamQuote (via MockNetworkReply)                                     │   │
-│       │  Merges delta into m_symbolState[symbol]                        │   │
-│       │  Emits newQuoteReceived(merged Quote)                           │   │
-│       ▼                                                                  │   │
-│   MainAlgo → GUIFrontend → MarketDepthTable::updateLevel1Data()         │   │
-│                                                                          │   │
-│   TSClient (Replay Mode)                                                 │   │
-│       │                                                                  │   │
-│       │  Routes to MockNetworkReply                                     │   │
-│       ▼                                                                  │   │
-│   MockNetworkReply ──► Stream ──► BarReceiver/MarketDepthQuoteReceiver  │   │
-│                                         │                                │   │
-│                                         │  Heartbeat timers paused       │   │
-│                                         │  when replay paused            │   │
-│                                         └────────────────────────────────┘   │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+- **ReplayEngine** still exists but has TODO stubs (e.g., `hasStreamForStock()` always returns `true`).
+- **ReplayDataLoader** still exists and uses inlined SQL queries from the `LegacyReplayQueries` namespace (formerly in the deleted `LiveStreamDBQueries.h`).
+- **OrderEmulator/** is kept and fully functional — it uses the `Level2` type (from `Src/Core/Models/Level2.h`) instead of the deleted `MarketDepthQuote`.
+- **Recording** no longer uses a custom recorder executable. It is being replaced by Databento `.dbn` archive downloads.
 
-## Key Components
+### What Phase 7 Will Do
 
-### Recording Side (Src/Recorder/)
+Phase 7 will replace `ReplayEngine` and `ReplayDataLoader` with Databento `DbnFileStore::Replay()`, which natively handles bar, Level 2, and trade data from `.dbn` files. The `OrderEmulator/` will be retained and wired into the new replay pipeline.
+
+## Deleted Components (DO NOT REFERENCE)
+
+### Deleted Files
+
+| File | Status |
+|------|--------|
+| `LiveStreamDB.h/.cpp` | Deleted in Phase 3 |
+| `LiveStreamDBQueries.h` | Deleted — queries inlined into `ReplayDataLoader` as `LegacyReplayQueries` |
+| `RecorderLogic.h/.cpp` | Deleted |
+| `RecorderUtils.h/.cpp` | Deleted |
+| `StatusReporter.h/.cpp` | Deleted |
+| `main.cpp` (recorder binary) | Deleted |
+
+### Deleted Types
+
+| Type | Status |
+|------|--------|
+| `StreamBars` | Deleted |
+| `StreamMarketDepthQuote` | Deleted |
+| `StreamQuote` | Deleted |
+| `MarketDepthQuote` | Replaced by `Level2` (from `Src/Core/Models/Level2.h`) |
+| `Quote` | Removed entirely |
+| `MarketDepthQuoteReceiver` | Replaced by `Level2Receiver` |
+
+## File Structure (Current)
 
 | File | Purpose |
 |------|---------|
-| `main.cpp` | Recorder executable entry point. Sets up TSClient, LiveStreamDB instances, signal handlers |
-| `LiveStreamDB.h/cpp` | Writes raw JSON from streams to SQLite databases. Handles stream recovery on timeout |
-| `StatusReporter.h/cpp` | Periodic console output showing recording statistics |
-| `RecorderUtils.h/cpp` | Utility functions for the recorder |
+| `ReplayEngine.h/cpp` | Orchestrates replay playback. Currently has TODO stubs — `hasStreamForStock()` always returns `true`. Will be replaced by Databento `DbnFileStore::Replay()` in Phase 7 |
+| `ReplayDataLoader.h/cpp` | Loads legacy recorded data from SQLite databases. Uses inlined `LegacyReplayQueries` namespace. Will be replaced in Phase 7 |
+| `OrderEmulator/` | Order/position simulation for replay mode. Uses `Level2` type. Will survive Phase 7 revamp. See `OrderEmulator/AGENTS.md` for details |
 
-### Replay Side (Src/Core/Replay/)
-
-| File | Purpose |
-|------|---------|
-| `ReplayEngine.h/cpp` | Orchestrates replay playback with three independent streams (bars, depth, quotes). Each stream has its own single-shot QTimer and ReplayDataLoader. Uses wall-clock anchored timing for accurate speed control |
-| `ReplayDataLoader.h/cpp` | Loads one data type (Bar, MarketDepthQuote, or Quote) from its SQLite DB into memory buffers. Ping-pong buffering with prefetch at 80% |
-| `OrderEmulator/` | Subfolder containing order/position simulation. See `OrderEmulator/AGENTS.md` for details |
-
-### Integration Points
+## Integration Points
 
 | File | Role in Replay |
 |------|----------------|
 | `MainApp.cpp` | Entry point for mode switching: `enterReplayMode()`, `exitReplayMode()`, `setReplaySpeed()` |
 | `MainAlgo.cpp` | Creates ReplayEngine, manages stock instruments, pauses/resumes heartbeat timers |
 | `TSClient.cpp` | Switches between Live/Replay modes. In Replay, creates MockNetworkReply objects |
-| `MockNetworkReply.h/cpp` | Fake QNetworkReply that receives injected JSON data from ReplayEngine |
-| `Stream.h/cpp` | Has `pauseHeartbeat()`/`resumeHeartbeat()` for replay pause support |
-| `StreamReceiver.h` | Base class for receivers with common heartbeat management |
+| `MockNetworkReply.h/cpp` | Fake QNetworkReply that receives injected data from ReplayEngine |
 
-## Database Schema
+## Database Schema (Legacy — Will Be Replaced)
+
+> **Note**: These schemas describe the legacy SQLite databases written by the deleted
+> recorder. Phase 7 will replace these with Databento `.dbn` files. `ReplayDataLoader`
+> still reads from these databases using `LegacyReplayQueries`.
 
 ### Bars Database ({YYYY-MM-DD}.db in Bars folder)
 
@@ -155,26 +105,14 @@ CREATE INDEX idx_depth_symbol_epoch ON depth_quotes(symbol, epoch_ms);
 ```sql
 CREATE TABLE quotes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    stockTicker TEXT NOT NULL,       -- Empty string for Heartbeat/Error
+    stockTicker TEXT NOT NULL,
     epochMs INTEGER NOT NULL,
-    objectType TEXT NOT NULL,        -- "QuoteStream", "Heartbeat", or "Error"
+    objectType TEXT NOT NULL,
     jsonRawData TEXT NOT NULL
 );
 CREATE INDEX idx_quotes_ticker_epoch ON quotes(stockTicker, epochMs);
 CREATE INDEX idx_quotes_object_type ON quotes(objectType);
 ```
-
-Key differences from bars/depth schema:
-- Column names use camelCase (`stockTicker`, `epochMs`, `jsonRawData`) instead of snake_case
-- Has an `objectType` column for filtering QuoteStream vs Heartbeat vs Error
-- All three object types are stored (heartbeats needed for accurate replay timing)
-- `stockTicker` is empty string for Heartbeat/Error rows (they are stream-global)
-
-> **⚠️ Delta Protocol**: Raw JSON bytes are stored **as-is** — including partial delta
-> messages that contain only changed fields. Merging happens at parse time in
-> `StreamQuote::m_symbolState` (GUI path) and `TSClient::m_replayQuoteState`
-> (OrderEmulator path), **not** at record or playback time. See
-> `StreamQuote/AGENTS.md` for the full protocol description.
 
 ## Replay Flow
 
@@ -196,13 +134,7 @@ MainApp::enterReplayMode(date, startTime, speed)
     └── MainAlgo::enterReplayModePaused()
             │
             ├── Create ReplayEngine
-            ├── Connect signals (injectBarData, injectDepthData, injectQuoteData)
-            ├── TSClient::preRollQuoteState() [BlockingQueuedConnection]
-            │       Reads all QuoteStream records from start-of-day to p_startTime,
-            │       builds m_replayQuoteState per symbol, and injects the merged
-            │       snapshot into any open MockNetworkReply (displayed symbol).
-            │       Must run before startReplayPaused so no delta arrives before
-            │       its symbol's snapshot. See TSClient AGENTS.md for details.
+            ├── Connect signals (injectBarData, injectDepthData)
             ├── startReplayPaused() → emits first bar, then pauses
             └── pauseHeartbeat() on all stream receivers
 ```
@@ -227,44 +159,10 @@ MainAlgo::resumeReplay()
             ├── Adjust wall-clock anchor by pause duration
             ├── Set state = Playing
             ├── scheduleNextBar() → starts bar timer
-            ├── scheduleNextDepth() → starts depth timer
-            └── scheduleNextQuote() → starts quote timer
+            └── scheduleNextDepth() → starts depth timer
 ```
 
-### 3. Data Emission Loop
-
-Each stream (bars, depth, and quotes) has its own independent timer and emission loop:
-
-```
-ReplayEngine::onBarTimerTick()    onDepthTimerTick()    onQuoteTimerTick()
-    │                                 │                      │
-    ├── emitNextBar()                 ├── emitNextDepth()    ├── emitNextQuote()
-    │       │                         │       │              │       │
-    │       ├── Get next from         │       ├── Get next   │       ├── Get next from
-    │       │   m_barLoader           │       │   m_depth-   │       │   m_quoteLoader
-    │       ├── updateReplayTime()    │       │   Loader     │       ├── Filter symbol
-    │       └── emit injectBarData()  │       ├── updateTime │       │   (QuoteStream only;
-    │                                 │       └── emit       │       │    Heartbeat/Error
-    └── scheduleNextBar()             │         injectDepth  │       │    always pass)
-            │                         └── scheduleNext-      │       └── emit
-            └── m_barTimer.start(t)       Depth()            │         injectQuoteData()
-                                                             └── scheduleNextQuote()
-```
-
-**Wall-Clock Anchored Timing**: All three streams share a single wall-clock anchor point.
-Instead of computing delay from timestamp deltas between consecutive points, each
-data point's delay is calculated as:
-```
-targetWallMs = m_wallClockAnchorMs + (replayEpochMs - m_replayEpochAnchorMs) * 100 / speed
-delay = max(0, targetWallMs - now)
-```
-This prevents timing drift from three independent timers and ensures accurate playback speed.
-
-**Quote filtering**: In `emitNextQuote()`, rows with `objectType == "QuoteStream"` are only
-emitted if `TSClient::hasOpenQuoteStream()` returns true. Heartbeat and Error rows always pass
-through to maintain stream health.
-
-### 4. Pausing Replay
+### 3. Pausing Replay
 
 ```
 User clicks "Pause" or presses Spacebar
@@ -275,7 +173,7 @@ MainApp::pauseReplayPlayback()
     ▼
 MainAlgo::pauseReplay()
     │
-    ├── ReplayEngine::pauseReplay() → stops all three timers (bar, depth, quote)
+    ├── ReplayEngine::pauseReplay() → stops timers
     └── pauseHeartbeat() on ALL stock instruments
             │
             └── Stream::pauseHeartbeat() [thread-safe via invokeMethod]
@@ -298,11 +196,11 @@ Defined in `ReplayEngine::PlaybackSpeed`:
 
 Speed can be changed on-the-fly via `MainApp::setReplaySpeed()`. When changed during
 playback, `setSpeed()` re-anchors the wall-clock mapping to the current instant and
-reschedules both stream timers, so the new speed takes effect immediately.
+reschedules stream timers, so the new speed takes effect immediately.
 
 ### Pause/Resume Timing
 
-- **Pause**: Records `m_pauseWallClockMs = now`, stops both timers
+- **Pause**: Records `m_pauseWallClockMs = now`, stops timers
 - **Resume**: Shifts `m_wallClockAnchorMs` forward by the pause duration so timing
   stays accurate across pauses. If resuming after `startReplayPaused()`, the anchor
   is set to "now" on first resume.
@@ -319,11 +217,13 @@ Streams have a 10-second heartbeat timer that triggers if no data arrives. In re
 
 The `StreamReceiver` base class provides a unified interface for heartbeat management across:
 - BarReceiver
-- MarketDepthQuoteReceiver
+- Level2Receiver
 - PositionsReceiver
 - OrdersReceiver
 
-## File Locations
+## File Locations (Legacy)
+
+> **Note**: These paths apply to legacy recorded data. Phase 7 will use Databento `.dbn` archives instead.
 
 | Data Type | Path Pattern |
 |-----------|--------------|
@@ -332,20 +232,6 @@ The `StreamReceiver` base class provides a unified interface for heartbeat manag
 | Recorded Quotes | `~/.cache/L2Trader/RecordedLiveData/Quotes/{YYYY-MM-DD}.db` |
 
 ## Common Tasks
-
-### Adding a New Data Type to Replay
-
-1. Add new `StreamType` to `LiveStreamDB` (recorder side)
-2. Add new table creation in `LiveStreamDB::createTable()`
-3. Add new `DataType` enum value to `ReplayDataLoader`
-4. Create a new `ReplayDataLoader` instance in `ReplayEngine` for the data type
-5. Add a new `QTimer`, emit/schedule function pair, and stream-ended flag in `ReplayEngine`
-6. Add loading logic in `ReplayDataLoader::loadBufferChunk()` for the new table
-7. Add injection signal in `ReplayEngine` (e.g., `injectNewDataType`)
-8. Connect signal to `TSClient::onInjectNewDataType()`
-9. Route to appropriate `MockNetworkReply` in TSClient
-
-If the new stream records multiple object types (like Quotes), add an `objectType` field to `ReplayDataPoint` and filter in the emit function.
 
 ### Debugging Replay Issues
 
@@ -370,10 +256,9 @@ MainAlgoThread
     └── MainAlgo
             ├── ReplayEngine
             │       ├── m_barTimer + ReplayDataLoader (Bar)
-            │       ├── m_depthTimer + ReplayDataLoader (MarketDepthQuote)
-            │       └── m_quoteTimer + ReplayDataLoader (Quote)
+            │       └── m_depthTimer + ReplayDataLoader (Level2)
             │
-            ├── StockInstruments (BarReceiver, MarketDepthQuoteReceiver)
+            ├── StockInstruments (BarReceiver, Level2Receiver)
             └── PositionsReceiver, OrdersReceiver
 ```
 
@@ -424,18 +309,6 @@ The OrderEmulator monitors market depth (Level 2) to fill pending limit orders:
 3. Depth is forwarded to `OrderEmulator::updateMarketDepth()`
 4. Emulator checks if any open limit orders can now fill
 5. Fills are processed with appropriate delays
-
-### Level 1 Quote Integration
-
-The OrderEmulator also uses Level 1 quotes as a fallback when no Level 2 data exists:
-
-1. `ReplayEngine` emits `injectQuoteData` signal
-2. `TSClient::onInjectQuoteData()` receives it
-3. Parsed Quote is forwarded to `OrderEmulator::updateQuote()`
-4. Emulator uses bid/ask from Quote when no depth snapshot exists
-5. `recalculatePositionPnL()` uses Quote bid/ask for mark-to-market
-
-**Priority**: Level 2 is always used when available. Level 1 is strictly a fallback.
 
 ### Simulated Account
 

@@ -239,6 +239,28 @@
                </layout>
               </widget>
              </item>
+             <item>
+              <widget class="TimeAndSalesWidget" name="timeAndSalesWidget" native="true">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="minimumSize">
+                <size>
+                 <width>150</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>220</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+              </widget>
+             </item>
             </layout>
            </widget>
            <widget class="QWidget" name="tradeTabBottomWidget" native="true">
@@ -266,7 +288,7 @@
                <property name="childrenCollapsible">
                 <bool>true</bool>
                </property>
-               <widget class="BalanceWindow" name="balanceWindow" native="true">
+               <widget class="BalanceWidget" name="balanceWidget" native="true">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
                   <horstretch>0</horstretch>
@@ -274,7 +296,7 @@
                  </sizepolicy>
                 </property>
                </widget>
-               <widget class="PositionWindow" name="positionWindow" native="true">
+               <widget class="PositionWidget" name="positionWidget" native="true">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
                   <horstretch>0</horstretch>
@@ -282,7 +304,7 @@
                  </sizepolicy>
                 </property>
                </widget>
-               <widget class="OrderWindow" name="orderWindow" native="true">
+               <widget class="OrderWidget" name="orderWidget" native="true">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
                   <horstretch>0</horstretch>
@@ -346,19 +368,19 @@
    <header>GUI/Widgets/MarketDepth/MarketDepthTable.h</header>
   </customwidget>
   <customwidget>
-   <class>BalanceWindow</class>
+   <class>BalanceWidget</class>
    <extends>QWidget</extends>
-   <header>GUI/Windows/BalanceWindow.h</header>
+   <header>GUI/Widgets/BalanceWidget.h</header>
   </customwidget>
   <customwidget>
-   <class>PositionWindow</class>
+   <class>PositionWidget</class>
    <extends>QWidget</extends>
-   <header>GUI/Windows/PositionWindow.h</header>
+   <header>GUI/Widgets/PositionWidget.h</header>
   </customwidget>
   <customwidget>
-   <class>OrderWindow</class>
+   <class>OrderWidget</class>
    <extends>QWidget</extends>
-   <header>GUI/Windows/OrderWindow.h</header>
+   <header>GUI/Widgets/OrderWidget.h</header>
   </customwidget>
   <customwidget>
    <class>OrderEntryWidget</class>
@@ -369,6 +391,11 @@
    <class>Gauge</class>
    <extends>QWidget</extends>
    <header>GUI/Widgets/Gauge/Gauge.h</header>
+  </customwidget>
+  <customwidget>
+   <class>TimeAndSalesWidget</class>
+   <extends>QWidget</extends>
+   <header>GUI/Widgets/TimeAndSales/TimeAndSalesWidget.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

@@ -43,10 +43,10 @@ class StrategyCallbackAdapter : public QObject
         }
     }
 
-    void onMarketDepth(const MarketDepthQuote& quote) const
+    void onLevel2(const Level2& level2) const
     {
         ASSUME_DIFF(m_strategy, nullptr);
-        m_strategy->onMarketDepth(quote);
+        m_strategy->onLevel2(level2);
     }
 
     void onOrderUpdated(const Order& order) const
@@ -252,7 +252,7 @@ class StrategyManager final : public QObject
      * Called when MainAlgo receives market depth update
      * Broadcasts to all strategies monitoring that symbol
      */
-    void onMarketDepthReceived(const QString& p_symbol, const MarketDepthQuote& p_quote);
+    void onLevel2Received(const QString& p_symbol, const Level2& p_level2);
 
     /*
      * Called when an order is updated (any status change)

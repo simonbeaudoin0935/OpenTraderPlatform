@@ -1,4 +1,5 @@
 #include "ChartToolbar.h"
+#include "DBClient.h"
 #include <QHBoxLayout>
 #include <QCheckBox>
 
@@ -38,16 +39,13 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
     replayLabel = new QLabel("Replay:", this);
     replayLabel->setStyleSheet("font-weight: bold;");
 
-    replayInfoLabel = new QLabel("", this);
-    replayInfoLabel->setStyleSheet("color: #cccccc; font-size: 12px;");
-
     replayDayCombo = new QComboBox(this);
     replayDayCombo->setMinimumWidth(100);
     replayDayCombo->setMaximumWidth(120);
 
     replayTimeEdit = new QTimeEdit(this);
     replayTimeEdit->setDisplayFormat("hh:mm");
-    replayTimeEdit->setTime(QTime(9, 30)); // Default to 9:30 AM
+    replayTimeEdit->setTime(QTime(7, 0)); // Default to 7:00 AM (pre-market)
 
     replaySpeedCombo = new QComboBox(this);
     replaySpeedCombo->setMinimumWidth(80);
@@ -114,7 +112,6 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
     layout->addWidget(ordersCheckBox);
     layout->addStretch(); // Push replay widgets to the right
     layout->addWidget(replayLabel);
-    layout->addWidget(replayInfoLabel);
     layout->addWidget(replayDayCombo);
     layout->addWidget(replayTimeEdit);
     layout->addWidget(replaySpeedCombo);
@@ -444,7 +441,6 @@ void ChartToolbar::setSelectedReplayDay(const QDate& date)
 void ChartToolbar::setReplayWidgetsVisible(bool p_visible)
 {
     replayLabel->setVisible(p_visible);
-    replayInfoLabel->setVisible(p_visible);
     replayDayCombo->setVisible(p_visible);
     replayTimeEdit->setVisible(p_visible);
     replaySpeedCombo->setVisible(p_visible);
@@ -626,32 +622,32 @@ void ChartToolbar::scanAndPopulateReplayDays()
 {
     QList<QDate> availableDates;
 
-    // Get the cache directory path
-    QString cacheDirPath = QDir::homePath() + "/.cache/L2Trader/RecordedLiveData/Bars";
-    QDir barsDir(cacheDirPath);
+    // Scan ReplayData directory for date-named subdirectories containing .dbn.zst files
+    QString replayBaseDir = DBClient::getReplayDataDir(QDate::currentDate());
+    QDir base(replayBaseDir);
+    base.cdUp(); // Go from ReplayData/YYYY-MM-DD to ReplayData/
 
-    if (barsDir.exists())
+    if (base.exists())
     {
-        // Get all files in the Bars directory
-        QStringList filters;
-        filters << "*"; // All files
-        QStringList fileList = barsDir.entryList(filters, QDir::Files);
+        QStringList dateDirs = base.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
 
-        // Extract dates from filenames
-        for (const QString& fileName: fileList)
+        for (const QString& dirName: dateDirs)
         {
-            QDate date = extractDateFromFileName(fileName);
-            if (date.isValid() && !availableDates.contains(date))
+            QDate date = QDate::fromString(dirName, Qt::ISODate);
+            if (!date.isValid())
+                continue;
+
+            // Only include if directory has .dbn.zst files
+            QDir dateDir(base.absoluteFilePath(dirName));
+            if (!dateDir.entryList({"*.dbn.zst"}, QDir::Files).isEmpty())
             {
                 availableDates.append(date);
             }
         }
 
-        // Sort dates in descending order (most recent first)
         std::sort(availableDates.begin(), availableDates.end(), std::greater<QDate>());
     }
 
-    // Populate the combo box with the found dates
     setAvailableReplayDays(availableDates);
 }
 
@@ -718,19 +714,11 @@ QDate ChartToolbar::extractDateFromFileName(const QString& fileName)
 
 /**
  * @brief Updates the replay info label with time range and bar count.
+ * @deprecated No longer used — full-day Databento data makes range display unnecessary.
  */
-void ChartToolbar::updateReplayInfo(const QTime& startTime, const QTime& endTime, int barCount)
+void ChartToolbar::updateReplayInfo(const QTime& /*startTime*/, const QTime& /*endTime*/, int /*barCount*/)
 {
-    if (startTime.isValid() && endTime.isValid() && barCount > 0)
-    {
-        QString infoText =
-            QString("%1-%2 (%3 bars)").arg(startTime.toString("hh:mm")).arg(endTime.toString("hh:mm")).arg(barCount);
-        replayInfoLabel->setText(infoText);
-    }
-    else
-    {
-        replayInfoLabel->setText("No data");
-    }
+    // No-op: replayInfoLabel removed; full-day data makes this display unnecessary.
 }
 
 /**

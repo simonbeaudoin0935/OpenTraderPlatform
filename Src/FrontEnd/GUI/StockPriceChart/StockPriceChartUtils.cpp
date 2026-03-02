@@ -139,151 +139,69 @@ void StockPriceChart::updateAxisLabelsDensity()
 }
 
 /**
- * @brief Adds historical bars to the index mapping using negative indices.
+ * @brief Adds historical bars to the index mapping using time-anchored indices.
+ * Each bar's index is computed from its timestamp relative to m_index0Timestamp,
+ * so bars land at their correct temporal positions (gaps = empty indices).
  */
 void StockPriceChart::addHistoricalBarsToIndexMapping(const std::shared_ptr<QVector<Bar>>& bars)
 {
     OBJ_ASSUME_FALSE(bars->isEmpty());
-    OBJ_ASSUME_FALSE(indexToBar.isEmpty());
+    OBJ_ASSUME_TRUE(m_index0Timestamp.isValid());
 
-    int minIndex = indexToBar.firstKey();
+    DEBUG << "addHistoricalBarsToIndexMapping: adding" << bars->size() << "bars";
 
-    DEBUG << "addHistoricalBarsToIndexMapping: adding" << bars->size() << "bars, starting minIndex:" << minIndex;
-
-    for (auto it = bars->rbegin(); it != bars->rend(); ++it)
+    for (const Bar& bar: *bars)
     {
-        const Bar& bar = *it;
         const QDateTime& timestamp = bar.getTimeStamp();
+        const int index = ChartTimeUtils::timestampToChartIndex(timestamp, m_index0Timestamp);
 
-        //DEBUG << "Received historical bar" << "at" << bar.getTimeStamp().toString("yyyy-MM-dd hh:mm:ss")
-        //      << "Status:" << Bar::barStatusToString(bar.getBarStatus()) << "isEndOfHistory:" << bar.getIsEndOfHistory()
-        //      << "O:" << bar.getOpen() << "H:" << bar.getHigh() << "L:" << bar.getLow() << "C:" << bar.getClose();
-
-        //OBJ_ASSUME_TRUE(timestampToIndex.contains(timestamp));
-
-        --minIndex;
-        indexToBar[minIndex] = bar;
-        timestampToIndex[timestamp] = minIndex;
-
-        if (it - bars->rbegin() >= bars->size() - 3 || minIndex >= -3)
-        {
-            DEBUG << "  Assigned index" << minIndex << "to timestamp" << timestamp.toString("hh:mm:ss");
-        }
+        indexToBar[index] = bar;
+        timestampToIndex[timestamp] = index;
     }
 
-    DEBUG << "addHistoricalBarsToIndexMapping: completed, new minIndex:" << minIndex;
+    DEBUG << "addHistoricalBarsToIndexMapping: completed, index range [" << indexToBar.firstKey() << ","
+          << indexToBar.lastKey() << "]";
 }
 
 /**
- * @brief Gets the timestamp corresponding to an index.
+ * @brief Gets the timestamp corresponding to a chart index.
+ * Checks indexToBar first, then falls back to ChartTimeUtils for computed positions.
  */
 QDateTime StockPriceChart::getTimestampForIndex(int index) const
 {
+    // Fast path: bar exists at this index
     auto it = indexToBar.find(index);
     if (it != indexToBar.end())
     {
         return it.value().getTimeStamp();
     }
 
-    // If indexToBar is empty (e.g., after clearSymbol()), return invalid QDateTime
-    // The IndexToTimeTicker will handle this gracefully by displaying the index as a number
-    if (indexToBar.isEmpty())
+    // Compute from time anchor (works for any index, even without bars loaded)
+    if (m_index0Timestamp.isValid())
     {
-        return QDateTime();
+        return ChartTimeUtils::chartIndexToTimestamp(index, m_index0Timestamp);
     }
 
-    if (index < 0)
-    {
-        int firstIndex = indexToBar.firstKey();
-        QDateTime currentTime = indexToBar.first().getTimeStamp();
-        int deltaIndex = firstIndex - index;
-
-        for (int i = 0; i < deltaIndex; ++i)
-        {
-            currentTime = getPreviousTradingMinute(currentTime);
-        }
-
-        return currentTime;
-    }
-
-    int lastIndex = indexToBar.lastKey();
-    if (index > lastIndex)
-    {
-        QDateTime lastTime = indexToBar.last().getTimeStamp();
-        int deltaIndex = index - lastIndex;
-        return lastTime.addSecs(deltaIndex * 60);
-    }
-
-    return QDateTime::currentDateTime();
+    // No time anchor yet (chart not initialized) — return invalid
+    return QDateTime();
 }
 
 /**
- * @brief Gets the index corresponding to a timestamp.
+ * @brief Gets the chart index corresponding to a timestamp.
+ * Checks timestampToIndex first, then falls back to ChartTimeUtils.
  */
 int StockPriceChart::getIndexForTimestamp(const QDateTime& timestamp) const
 {
+    // Fast path: exact match in map
     auto it = timestampToIndex.find(timestamp);
     if (it != timestampToIndex.end())
     {
         return it.value();
     }
 
-    OBJ_ASSUME_FALSE(indexToBar.isEmpty());
-
-    QDateTime firstTime = indexToBar.first().getTimeStamp();
-    int firstIndex = indexToBar.firstKey();
-
-    if (timestamp < firstTime)
-    {
-        // Calculate minutes before first bar
-        qint64 minutesDiff = firstTime.toSecsSinceEpoch() - timestamp.toSecsSinceEpoch();
-        OBJ_ASSUME_EQUAL(minutesDiff % 60, 0); // Should be exact minutes
-        int indexDiff = minutesDiff / 60;
-        return firstIndex - indexDiff;
-    }
-
-    QDateTime lastTime = indexToBar.last().getTimeStamp();
-    int lastIndex = indexToBar.lastKey();
-
-    if (timestamp > lastTime)
-    {
-        // Calculate minutes after last bar
-        qint64 minutesDiff = timestamp.toSecsSinceEpoch() - lastTime.toSecsSinceEpoch();
-        OBJ_ASSUME_EQUAL(minutesDiff % 60, 0); // Should be exact minutes
-        int indexDiff = minutesDiff / 60;
-        return lastIndex + indexDiff;
-    }
-
-    // Timestamp is between existing bars - interpolate
-    auto lowerIt = timestampToIndex.lowerBound(timestamp);
-    if (lowerIt == timestampToIndex.begin())
-    {
-        // Should not happen since we checked < firstTime
-        return firstIndex;
-    }
-    else if (lowerIt == timestampToIndex.end())
-    {
-        // Should not happen since we checked > lastTime
-        return lastIndex;
-    }
-    else
-    {
-        // Interpolate between prev and next
-        auto prevIt = std::prev(lowerIt);
-        QDateTime prevTime = prevIt.key();
-        QDateTime nextTime = lowerIt.key();
-        int prevIndex = prevIt.value();
-        int nextIndex = lowerIt.value();
-
-        qint64 totalSeconds = prevTime.secsTo(nextTime);
-        qint64 secondsFromPrev = prevTime.secsTo(timestamp);
-
-        if (totalSeconds == 0)
-            return prevIndex;
-
-        double fraction = static_cast<double>(secondsFromPrev) / totalSeconds;
-        return prevIndex + static_cast<int>((nextIndex - prevIndex) * fraction);
-    }
+    // Compute from time anchor
+    OBJ_ASSUME_TRUE(m_index0Timestamp.isValid());
+    return ChartTimeUtils::timestampToChartIndex(timestamp, m_index0Timestamp);
 }
 
 

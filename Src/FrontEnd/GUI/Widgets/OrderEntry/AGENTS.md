@@ -62,19 +62,12 @@ Order duration options:
 
 **Update Logic**:
 
-The sticky price sources bid/ask from whichever data tier is available:
-- **Level 2 available** (`onMarketDepthUpdate`): uses `MarketDepthQuote` best bid/ask — called from `GUIFrontend::onCurrentHighlightedReceivedNewMarketDepthQuote`
-- **Level 1 only** (`onL1QuoteUpdate`): uses `Quote` bid/ask — called from `GUIFrontend::onCurrentHighlightedReceivedNewQuote` when `DisplayMode != Level2`
-
-L2 and L1 both write to the same `m_lastBestBid` / `m_lastBestAsk` members. Since L2 and L1 are never active simultaneously for the same symbol (replay records only one), there is no conflict.
+The sticky price sources bid/ask from Level 2 data:
+- **Level 2 available** (`onMarketDepthUpdate`): uses `Level2` best bid/ask — called from `GUIFrontend::onCurrentHighlightedReceivedNewLevel2`
 
 ```cpp
-/// Update sticky price from Level 2 market depth (primary data source)
-void onMarketDepthUpdate(const QString& symbol, const MarketDepthQuote& quote);
-
-/// Update sticky price from Level 1 quote — fallback when L2 is not available
-/// (e.g. replay of a symbol that was recorded without L2 data)
-void onL1QuoteUpdate(const QString& symbol, double bid, double ask);
+/// Update sticky price from Level 2 market depth
+void onMarketDepthUpdate(const QString& symbol, const Level2& level2);
 
 private:
 /// Calculate and apply sticky price from m_lastBestBid / m_lastBestAsk
@@ -156,18 +149,11 @@ void executeSellToCoverOrder();
 ### Market Data Updates
 
 ```cpp
-/// Handle L2 market depth update for sticky price (primary source)
+/// Handle L2 market depth update for sticky price
 /// Only updates if sticky price is enabled and symbol matches
 /// @param symbol Symbol of the update
-/// @param quote Market depth quote with bid/ask levels
-void onMarketDepthUpdate(const QString& symbol, const MarketDepthQuote& quote);
-
-/// Handle L1 quote update for sticky price (fallback when L2 unavailable)
-/// Called by GUIFrontend when DisplayMode != Level2
-/// @param symbol Symbol of the update
-/// @param bid    Current best bid price
-/// @param ask    Current best ask price
-void onL1QuoteUpdate(const QString& symbol, double bid, double ask);
+/// @param level2 Level 2 data with bid/ask levels
+void onMarketDepthUpdate(const QString& symbol, const Level2& level2);
 ```
 
 ## Signals
@@ -351,7 +337,7 @@ private:
     GUIFrontend* m_guiFrontend;
     QList<Account> m_accounts;
     QString m_currentSymbol;
-    MarketDepthQuote m_latestQuote;
+    Level2 m_latestLevel2;
     bool m_resultPopupEnabled;
     bool m_cancelAllConfirmationEnabled;
 ```
@@ -588,7 +574,7 @@ TEST(OrderEntryWidget, EmitsOrderPlacedSignal) {
 2. Verify symbol matches current widget symbol
 3. Ensure market data is valid (bid/ask > 0)
 4. Check order type is Limit or Stop Limit
-5. If in replay mode with L1-only data (no L2): `onL1QuoteUpdate` is the update path, not `onMarketDepthUpdate` — both are wired by GUIFrontend automatically based on `DisplayMode`
+5. If in replay mode with L1-only data (no L2): bid/ask comes from `Level1.m_bid`/`Level1.m_ask` — to be wired in Phase 6
 
 ### Validation Failing
 
@@ -613,8 +599,9 @@ TEST(OrderEntryWidget, EmitsOrderPlacedSignal) {
 
 - **GUIFrontend**: Parent container, provides account selection
 - **MainAlgo**: Receives order placement signals
-- **TSClient**: Executes orders via TradeStation API
-- **MarketDepthTable**: Provides market depth quotes for sticky price
+- **TSClient**: Executes orders via TradeStation API (brokerage only)
+- **MarketDepthTable**: Displays Level 2 market depth
+- **Level2** (`Src/Core/Models/Level2.h`): Market depth data type for sticky price
 - **PlaceOrder.h**: Order request data structures
 
 ## Related Documentation

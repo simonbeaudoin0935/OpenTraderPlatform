@@ -1,5 +1,6 @@
 #include "MarketDepthTable.h"
 #include "MarketDepthTableView.h"
+#include "Level2.h"
 #include <QHeaderView>
 #include <QLabel>
 #include <QHBoxLayout>
@@ -45,8 +46,7 @@ void MarketDepthTable::setupUI()
     int priceWidth = 56;
     int sizeWidth = 56;   // Restored to original value
     int ordersWidth = 51; // Increased from 46 (another 10% increase)
-    int nameWidth = 45;   // Previously reduced from 56 (20% reduction)
-    int totalWidth = (priceWidth + sizeWidth + ordersWidth + nameWidth) * 2;
+    int totalWidth = (priceWidth + sizeWidth + ordersWidth) * 2;
 
     // Setup header widget with BID/ASK labels
     QWidget* headerWidget = new QWidget(this);
@@ -143,8 +143,8 @@ void MarketDepthTable::setupUI()
 
     // Set up columns: BID and ASK sides with their respective columns
     QStringList headers;
-    headers << "Name" << "Orders" << "Size" << "Price"  // BID columns
-            << "Price" << "Size" << "Orders" << "Name"; // ASK columns
+    headers << "Orders" << "Size" << "Price"  // BID columns
+            << "Price" << "Size" << "Orders"; // ASK columns
     model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -159,23 +159,19 @@ void MarketDepthTable::setupUI()
 
     // BID side
     tableView->setColumnWidth(0,
-                              nameWidth); // Name
-    tableView->setColumnWidth(1,
                               ordersWidth); // Orders
-    tableView->setColumnWidth(2,
+    tableView->setColumnWidth(1,
                               sizeWidth); // Size
-    tableView->setColumnWidth(3,
+    tableView->setColumnWidth(2,
                               priceWidth); // Price
 
     // ASK side
-    tableView->setColumnWidth(4,
+    tableView->setColumnWidth(3,
                               priceWidth); // Price
-    tableView->setColumnWidth(5,
+    tableView->setColumnWidth(4,
                               sizeWidth); // Size
-    tableView->setColumnWidth(6,
+    tableView->setColumnWidth(5,
                               ordersWidth); // Orders
-    tableView->setColumnWidth(7,
-                              nameWidth); // Name
 
     // Set fixed width for the table view and widget
     tableView->setFixedWidth(totalWidth);
@@ -277,39 +273,32 @@ void MarketDepthTable::setupStyles()
 }
 
 void MarketDepthTable::setMarketDepthItem(QStandardItem* item,
-                                          const MarketDepthLevel& level,
+                                          const Level2Row& level,
                                           const QString& field,
                                           int priceLevel)
 {
     QString text;
     if (field == "Price")
     {
-        // Convert to double and format with exactly 2 decimal places
-        double price = level.getPrice().toDouble();
-        text = QString::number(price, 'f', 2);
+        text = QString::number(level.m_price, 'f', 2);
         item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     }
     else if (field == "Size")
     {
-        text = level.getSize();
+        text = QString::number(level.m_size);
         item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     }
     else if (field == "Orders")
     {
-        text = QString::number(level.getOrderCount());
+        text = QString::number(level.m_orderCount);
         item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    }
-    else if (field == "Name")
-    {
-        text = level.getName();
-        item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     }
 
     item->setText(text);
 
     // Set color based on whether it's a bid or ask and the price level
     int column = item->column();
-    if (column < 4)
+    if (column < 3)
     { // BID side
         switch (priceLevel)
         {
@@ -363,7 +352,7 @@ void MarketDepthTable::setMarketDepthItem(QStandardItem* item,
     }
 }
 
-void MarketDepthTable::updateData(const QVector<MarketDepthLevel>& bids, const QVector<MarketDepthLevel>& asks)
+void MarketDepthTable::updateData(const std::array<Level2Row, 10>& bids, const std::array<Level2Row, 10>& asks)
 {
     // Update display mode to Level 2
     m_displayMode = DisplayMode::Level2;
@@ -372,11 +361,11 @@ void MarketDepthTable::updateData(const QVector<MarketDepthLevel>& bids, const Q
     // Clear existing data
     model->removeRows(0, model->rowCount());
 
-    // Calculate spread if we have both bids and asks
-    if (!bids.isEmpty() && !asks.isEmpty())
+    // Calculate spread if we have data
+    if (bids[0].m_price > 0.0 && asks[0].m_price > 0.0)
     {
-        double bestBid = bids.first().getPrice().toDouble();
-        double bestAsk = asks.first().getPrice().toDouble();
+        double bestBid = bids[0].m_price;
+        double bestAsk = asks[0].m_price;
         double spread = bestAsk - bestBid;
         spreadLabel->setText(QString("SPREAD: %1").arg(spread, 0, 'f', 2));
     }
@@ -389,11 +378,11 @@ void MarketDepthTable::updateData(const QVector<MarketDepthLevel>& bids, const Q
     QSet<double> bidPrices, askPrices;
     for (const auto& bid: bids)
     {
-        bidPrices.insert(bid.getPrice().toDouble());
+        bidPrices.insert(bid.m_price);
     }
     for (const auto& ask: asks)
     {
-        askPrices.insert(ask.getPrice().toDouble());
+        askPrices.insert(ask.m_price);
     }
 
     // Sort price levels (descending for bids, ascending for asks)
@@ -402,67 +391,32 @@ void MarketDepthTable::updateData(const QVector<MarketDepthLevel>& bids, const Q
     std::sort(sortedBidPrices.begin(), sortedBidPrices.end(), std::greater<double>());
     std::sort(sortedAskPrices.begin(), sortedAskPrices.end());
 
-    // Find the maximum number of rows needed
-    int maxRows = qMax(bids.size(), asks.size());
-
-    // Add data row by row
-    for (int i = 0; i < maxRows; ++i)
+    // Add data row by row - always 10 rows
+    for (int i = 0; i < 10; ++i)
     {
         QList<QStandardItem*> rowItems;
 
-        // Add bid columns if available
-        if (i < bids.size())
-        {
-            const MarketDepthLevel& bid = bids[i];
-            double bidPrice = bid.getPrice().toDouble();
-            int priceLevel = sortedBidPrices.indexOf(bidPrice);
+        const Level2Row& bid = bids[i];
+        double bidPrice = bid.m_price;
+        int bidPriceLevel = sortedBidPrices.indexOf(bidPrice);
 
-            rowItems << new QStandardItem();
-            setMarketDepthItem(rowItems.last(), bid, "Name", priceLevel);
-            rowItems << new QStandardItem();
-            setMarketDepthItem(rowItems.last(), bid, "Orders", priceLevel);
-            rowItems << new QStandardItem();
-            setMarketDepthItem(rowItems.last(), bid, "Size", priceLevel);
-            rowItems << new QStandardItem();
-            setMarketDepthItem(rowItems.last(), bid, "Price", priceLevel);
-        }
-        else
-        {
-            // Add empty cells for bid
-            for (int j = 0; j < 4; ++j)
-            {
-                auto item = new QStandardItem("");
-                item->setForeground(QColor("#009900")); // Darker green for empty bid cells
-                rowItems << item;
-            }
-        }
+        rowItems << new QStandardItem();
+        setMarketDepthItem(rowItems.last(), bid, "Orders", bidPriceLevel);
+        rowItems << new QStandardItem();
+        setMarketDepthItem(rowItems.last(), bid, "Size", bidPriceLevel);
+        rowItems << new QStandardItem();
+        setMarketDepthItem(rowItems.last(), bid, "Price", bidPriceLevel);
 
-        // Add ask columns if available
-        if (i < asks.size())
-        {
-            const MarketDepthLevel& ask = asks[i];
-            double askPrice = ask.getPrice().toDouble();
-            int priceLevel = sortedAskPrices.indexOf(askPrice);
+        const Level2Row& ask = asks[i];
+        double askPrice = ask.m_price;
+        int askPriceLevel = sortedAskPrices.indexOf(askPrice);
 
-            rowItems << new QStandardItem();
-            setMarketDepthItem(rowItems.last(), ask, "Price", priceLevel);
-            rowItems << new QStandardItem();
-            setMarketDepthItem(rowItems.last(), ask, "Size", priceLevel);
-            rowItems << new QStandardItem();
-            setMarketDepthItem(rowItems.last(), ask, "Orders", priceLevel);
-            rowItems << new QStandardItem();
-            setMarketDepthItem(rowItems.last(), ask, "Name", priceLevel);
-        }
-        else
-        {
-            // Add empty cells for ask
-            for (int j = 0; j < 4; ++j)
-            {
-                auto item = new QStandardItem("");
-                item->setForeground(QColor("#FF0000")); // Red for empty ask cells
-                rowItems << item;
-            }
-        }
+        rowItems << new QStandardItem();
+        setMarketDepthItem(rowItems.last(), ask, "Price", askPriceLevel);
+        rowItems << new QStandardItem();
+        setMarketDepthItem(rowItems.last(), ask, "Size", askPriceLevel);
+        rowItems << new QStandardItem();
+        setMarketDepthItem(rowItems.last(), ask, "Orders", askPriceLevel);
 
         model->appendRow(rowItems);
     }
@@ -474,7 +428,7 @@ void MarketDepthTable::updateDWP(double bidDWP, double askDWP)
     askDWPLabel->setText(QString::number(askDWP, 'f', 2));
 }
 
-void MarketDepthTable::updateLevel1Data(const Quote& quote)
+void MarketDepthTable::updateLevel1Data(const Level1& level1)
 {
     // Update display mode
     m_displayMode = DisplayMode::Level1;
@@ -483,11 +437,11 @@ void MarketDepthTable::updateLevel1Data(const Quote& quote)
     // Clear existing data
     model->removeRows(0, model->rowCount());
 
-    // Get best bid/ask from quote
-    double bestBid = quote.getBid();
-    double bestAsk = quote.getAsk();
-    int bidSize = quote.getBidSize();
-    int askSize = quote.getAskSize();
+    // Get best bid/ask from Level1
+    double bestBid = level1.m_bid.m_price;
+    double bestAsk = level1.m_ask.m_price;
+    int bidSize = level1.m_bid.m_size;
+    int askSize = level1.m_ask.m_size;
 
     // Calculate spread
     if (bestBid > 0 && bestAsk > 0)
@@ -507,12 +461,7 @@ void MarketDepthTable::updateLevel1Data(const Quote& quote)
     // Add single row with best bid/ask
     QList<QStandardItem*> rowItems;
 
-    // BID side: Name, Orders, Size, Price
-    auto* bidNameItem = new QStandardItem("L1");
-    bidNameItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    bidNameItem->setForeground(QColor("#00FF00"));
-    rowItems << bidNameItem;
-
+    // BID side: Orders, Size, Price
     auto* bidOrdersItem = new QStandardItem("--");
     bidOrdersItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     bidOrdersItem->setForeground(QColor("#00FF00"));
@@ -528,7 +477,7 @@ void MarketDepthTable::updateLevel1Data(const Quote& quote)
     bidPriceItem->setForeground(QColor("#00FF00"));
     rowItems << bidPriceItem;
 
-    // ASK side: Price, Size, Orders, Name
+    // ASK side: Price, Size, Orders
     auto* askPriceItem = new QStandardItem(QString::number(bestAsk, 'f', 2));
     askPriceItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     askPriceItem->setForeground(QColor("#00FF00"));
@@ -543,11 +492,6 @@ void MarketDepthTable::updateLevel1Data(const Quote& quote)
     askOrdersItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     askOrdersItem->setForeground(QColor("#00FF00"));
     rowItems << askOrdersItem;
-
-    auto* askNameItem = new QStandardItem("L1");
-    askNameItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    askNameItem->setForeground(QColor("#00FF00"));
-    rowItems << askNameItem;
 
     model->appendRow(rowItems);
 }

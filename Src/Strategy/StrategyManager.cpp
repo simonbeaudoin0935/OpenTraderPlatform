@@ -526,7 +526,7 @@ void StrategyManager::onBarReceived(const QString& p_symbol, const Bar& p_bar)
     }
 }
 
-void StrategyManager::onMarketDepthReceived(const QString& p_symbol, const MarketDepthQuote& p_quote)
+void StrategyManager::onLevel2Received(const QString& p_symbol, const Level2& p_level2)
 {
     for (auto* instance: m_strategies)
     {
@@ -534,7 +534,7 @@ void StrategyManager::onMarketDepthReceived(const QString& p_symbol, const Marke
         {
             if (instance->p_strategy)
             {
-                instance->p_strategy->onMarketDepth(p_quote);
+                instance->p_strategy->onLevel2(p_level2);
             }
         }
     }

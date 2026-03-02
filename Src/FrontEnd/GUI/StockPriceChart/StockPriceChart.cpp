@@ -14,6 +14,7 @@
 #include "BarCache.h"
 #include "MainApp.h"
 #include "Order.h"
+#include "DBClient.h"
 #include "Position.h"
 #include "OrdersDatabase.h"
 #include "PositionsDatabase.h"
@@ -176,42 +177,6 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_currentTimeLine->end->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
     m_currentTimeLine->setVisible(false); // Initially hidden until first bar is received
 
-    // Create replay day boundary lines
-    m_replayStartLine = new QCPItemLine(m_customPlot);
-    Q_CHECK_PTR(m_replayStartLine);
-    m_replayStartLine->setPen(QPen(QColor(ChartConstants::REPLAY_START_LINE_COLOR), 1, Qt::DotLine));
-    m_replayStartLine->start->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
-    m_replayStartLine->end->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
-    m_replayStartLine->setVisible(false);
-
-    m_replayEndLine = new QCPItemLine(m_customPlot);
-    Q_CHECK_PTR(m_replayEndLine);
-    m_replayEndLine->setPen(QPen(QColor(ChartConstants::REPLAY_END_LINE_COLOR), 1, Qt::DotLine));
-    m_replayEndLine->start->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
-    m_replayEndLine->end->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
-    m_replayEndLine->setVisible(false);
-
-    // Create replay day boundary labels
-    m_replayStartLabel = new QCPItemText(m_customPlot);
-    Q_CHECK_PTR(m_replayStartLabel);
-    m_replayStartLabel->setPositionAlignment(Qt::AlignTop | Qt::AlignHCenter);
-    m_replayStartLabel->position->setType(QCPItemPosition::ptPlotCoords);
-    m_replayStartLabel->position->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
-    m_replayStartLabel->setFont(QFont(font().family(), 10));
-    m_replayStartLabel->setColor(QColor(ChartConstants::REPLAY_START_LINE_COLOR));
-    m_replayStartLabel->setPadding(QMargins(3, 3, 3, 3));
-    m_replayStartLabel->setVisible(false);
-
-    m_replayEndLabel = new QCPItemText(m_customPlot);
-    Q_CHECK_PTR(m_replayEndLabel);
-    m_replayEndLabel->setPositionAlignment(Qt::AlignTop | Qt::AlignHCenter);
-    m_replayEndLabel->position->setType(QCPItemPosition::ptPlotCoords);
-    m_replayEndLabel->position->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
-    m_replayEndLabel->setFont(QFont(font().family(), 10));
-    m_replayEndLabel->setColor(QColor(ChartConstants::REPLAY_END_LINE_COLOR));
-    m_replayEndLabel->setPadding(QMargins(3, 3, 3, 3));
-    m_replayEndLabel->setVisible(false);
-
     // Create timer for updating the current time line position
     m_timeLineTimer = new QTimer(this);
     Q_CHECK_PTR(m_timeLineTimer);
@@ -248,13 +213,6 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     layout->addWidget(m_customPlot,
                       1); // 1 stretch - expand to fill space
     setLayout(layout);
-
-    // Initialize replay functionality
-    replayTimeRangeWatcher = new QFutureWatcher<std::tuple<QDateTime, QDateTime, int>>(this);
-    connect(replayTimeRangeWatcher,
-            &QFutureWatcher<std::tuple<QDateTime, QDateTime, int>>::finished,
-            this,
-            &StockPriceChart::onReplayTimeRangeQueryFinished);
 
     // Connect timeframe selector signals
     connect(chartToolbar,
@@ -363,9 +321,67 @@ void StockPriceChart::setSymbol(const QString& symbol)
     // Populate available replay days when symbol changes
     populateAvailableReplayDays();
 
-    // Historical orders/positions loaded after first bar is received (need bar data for index calculation)
+    // Compute index 0 from current time and request initial historical bars
+    initializeTimeAnchor();
 
     DEBUG << "Set chart symbol to" << symbol;
+}
+
+/**
+ * @brief Computes m_index0Timestamp from clock time and sets up the chart.
+ *
+ * This is called on symbol selection — no live data needed.
+ * Sets up the time ticker, view range, and requests initial historical bars.
+ */
+void StockPriceChart::initializeTimeAnchor()
+{
+    QDateTime now;
+    if (MainApp::isInReplayMode())
+    {
+        // Replay mode: use the replay date + start time as "now"
+        // MainApp::getCurrentAppTime() returns currentAppReplayTime in NY timezone
+        now = MainApp::getCurrentAppTime();
+    }
+    else
+    {
+        now = QDateTime::currentDateTimeUtc();
+    }
+
+    m_index0Timestamp = ChartTimeUtils::computeIndex0Timestamp(now);
+
+    DEBUG << "Time anchor set: index 0 =" << m_index0Timestamp.toString(Qt::ISODate);
+
+    // Set up custom time ticker
+    QSharedPointer<IndexToTimeTicker> indexToTimeTicker(new IndexToTimeTicker);
+    indexToTimeTicker->setTimeFormat("hh:mm");
+    indexToTimeTicker->setIndexToTimestampFunction([this](int index) { return this->getTimestampForIndex(index); });
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->setTicker(indexToTimeTicker);
+    m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabels(true);
+    m_customPlot->xAxis->setTicker(indexToTimeTicker);
+
+    // Center view on index 0 with ~60 bars left, ~30 bars right
+    m_customPlot->xAxis->setRange(-60, 30);
+
+    // Start the current time line
+    m_currentTimeLine->setVisible(true);
+    m_timeLineTimer->start();
+    updateCurrentTimeLine();
+
+    // Defer initial bar request to next event loop iteration.
+    // This is necessary because setSymbol() fires before onSelectDisplayedStock
+    // reaches MainAlgo (queued cross-thread connection). The deferred call ensures
+    // the StockInstrument is created before we request bars from its cache.
+    QTimer::singleShot(0,
+                       this,
+                       [this]()
+                       {
+                           if (!m_index0Timestamp.isValid() || m_symbol.isEmpty())
+                               return;
+
+                           double minIndex = m_customPlot->xAxis->range().lower;
+                           QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
+                           checkForMissingBars(requestTime, m_index0Timestamp);
+                       });
 }
 
 /**
@@ -373,39 +389,30 @@ void StockPriceChart::setSymbol(const QString& symbol)
  */
 void StockPriceChart::populateAvailableReplayDays()
 {
-    QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
-    QString barsDir = QString("%1/RecordedLiveData/Bars").arg(cacheDir);
-
-    QDir dir(barsDir);
-    if (!dir.exists())
-    {
-        WARNING << "Bars directory does not exist:" << barsDir;
-        return;
-    }
-
-    // Get all .db files in the directory (format: YYYY-MM-DD.db)
-    QStringList filters;
-    filters << "*.db";
-    QStringList dbFiles = dir.entryList(filters, QDir::Files, QDir::Name);
+    // Scan ReplayData directory for date-named subdirectories containing .dbn.zst files
+    QString replayBaseDir = DBClient::getReplayDataDir(QDate::currentDate());
+    QDir base(replayBaseDir);
+    base.cdUp(); // Go from ReplayData/YYYY-MM-DD to ReplayData/
 
     QList<QDate> availableDates;
-    for (const QString& dbFile: dbFiles)
+    if (base.exists())
     {
-        // Extract date from filename (format: YYYY-MM-DD.db)
-        QString baseName = dbFile;
-        if (baseName.endsWith(".db"))
+        QStringList dateDirs = base.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString& dirName: dateDirs)
         {
-            baseName.chop(3); // Remove ".db"
-        }
-        QDate date = QDate::fromString(baseName, "yyyy-MM-dd");
-        if (date.isValid())
-        {
-            availableDates.append(date);
-        }
-    }
+            QDate date = QDate::fromString(dirName, Qt::ISODate);
+            if (!date.isValid())
+                continue;
 
-    // Sort dates in descending order (most recent first)
-    std::sort(availableDates.begin(), availableDates.end(), std::greater<QDate>());
+            QDir dateDir(base.absoluteFilePath(dirName));
+            if (!dateDir.entryList({"*.dbn.zst"}, QDir::Files).isEmpty())
+            {
+                availableDates.append(date);
+            }
+        }
+
+        std::sort(availableDates.begin(), availableDates.end(), std::greater<QDate>());
+    }
 
     chartToolbar->setAvailableReplayDays(availableDates);
 

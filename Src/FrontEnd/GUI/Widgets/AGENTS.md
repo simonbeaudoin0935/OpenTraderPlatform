@@ -542,7 +542,7 @@ CMake will automatically detect the new files.
 ## Related Components
 
 - **GUIFrontend**: Main window containing widgets
-- **Windows/**: Window-type components (OrderWindow, PositionWindow, etc.)
+- **Widgets/**: Window-type components (OrderWidget, PositionWidget, etc.)
 - **Tabs/**: Tab components for the main tab widget
 - **StockPriceChart/**: Specialized chart widget
 

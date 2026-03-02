@@ -1,13 +1,15 @@
 #include "ConfigTab.h"
+
 #include <QGroupBox>
-#include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QVBoxLayout>
 
-#include "Misc/Settings.h"
+#include "FrontEnd/GUI/Widgets/TimeAndSales/TimeAndSalesWidget.h"
 #include "Misc/CONSTANTS.h"
+#include "Misc/Settings.h"
 
-ConfigTab::ConfigTab(QWidget* parent) : QWidget(parent), m_marketDepthLevelSpinBox(nullptr)
+ConfigTab::ConfigTab(QWidget* parent) : QWidget(parent), m_timeAndSalesMaxEntriesSpinBox(nullptr)
 {
     setupUI();
     loadSettings();
@@ -17,30 +19,30 @@ void ConfigTab::setupUI()
 {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
-    // Market Data Configuration section
-    QGroupBox* marketDataGroupBox = new QGroupBox("Market Data Configuration");
-    QVBoxLayout* marketDataLayout = new QVBoxLayout(marketDataGroupBox);
+    // Display Configuration section
+    QGroupBox* displayGroupBox = new QGroupBox("Display Configuration");
+    QVBoxLayout* displayLayout = new QVBoxLayout(displayGroupBox);
 
-    // Market depth level control
-    QHBoxLayout* marketDepthLayout = new QHBoxLayout();
-    QLabel* marketDepthLabel = new QLabel("Market Depth Levels:");
-    m_marketDepthLevelSpinBox = new QSpinBox();
-    m_marketDepthLevelSpinBox->setMinimum(1);
-    m_marketDepthLevelSpinBox->setMaximum(20);
-    m_marketDepthLevelSpinBox->setValue(MarketDepthConstants::DEFAULT_MARKET_DEPTH_LEVELS);
-    m_marketDepthLevelSpinBox->setSingleStep(1);
-    m_marketDepthLevelSpinBox->setToolTip("Number of market depth levels to request from TradeStation (1-20).\n"
-                                          "Lower values reduce data usage when recording.");
-    connect(m_marketDepthLevelSpinBox,
+    // Time & Sales max entries control
+    QHBoxLayout* tsMaxEntriesLayout = new QHBoxLayout();
+    QLabel* tsMaxEntriesLabel = new QLabel("Time && Sales Max Entries:");
+    m_timeAndSalesMaxEntriesSpinBox = new QSpinBox();
+    m_timeAndSalesMaxEntriesSpinBox->setMinimum(50);
+    m_timeAndSalesMaxEntriesSpinBox->setMaximum(2000);
+    m_timeAndSalesMaxEntriesSpinBox->setValue(TimeAndSalesConstants::DEFAULT_MAX_ENTRIES);
+    m_timeAndSalesMaxEntriesSpinBox->setSingleStep(50);
+    m_timeAndSalesMaxEntriesSpinBox->setToolTip("Maximum number of trade entries displayed in the Time & Sales tape.\n"
+                                                "Higher values use more memory. Default: 200.");
+    connect(m_timeAndSalesMaxEntriesSpinBox,
             QOverload<int>::of(&QSpinBox::valueChanged),
             this,
-            &ConfigTab::onMarketDepthLevelChanged);
-    marketDepthLayout->addWidget(marketDepthLabel);
-    marketDepthLayout->addWidget(m_marketDepthLevelSpinBox);
-    marketDepthLayout->addStretch();
-    marketDataLayout->addLayout(marketDepthLayout);
+            &ConfigTab::onTimeAndSalesMaxEntriesChanged);
+    tsMaxEntriesLayout->addWidget(tsMaxEntriesLabel);
+    tsMaxEntriesLayout->addWidget(m_timeAndSalesMaxEntriesSpinBox);
+    tsMaxEntriesLayout->addStretch();
+    displayLayout->addLayout(tsMaxEntriesLayout);
 
-    mainLayout->addWidget(marketDataGroupBox);
+    mainLayout->addWidget(displayGroupBox);
     mainLayout->addStretch();
 }
 
@@ -48,10 +50,9 @@ void ConfigTab::loadSettings()
 {
     Q_CHECK_PTR(appStateSettings);
 
-    // Load market depth level, default to constant if not set
-    int marketDepthLevel =
-        appStateSettings->value("Config/MarketDepthLevel", MarketDepthConstants::DEFAULT_MARKET_DEPTH_LEVELS).toInt();
-    m_marketDepthLevelSpinBox->setValue(marketDepthLevel);
+    int maxEntries =
+        appStateSettings->value("Config/TimeAndSalesMaxEntries", TimeAndSalesConstants::DEFAULT_MAX_ENTRIES).toInt();
+    m_timeAndSalesMaxEntriesSpinBox->setValue(maxEntries);
 }
 
 void ConfigTab::saveSetting(const QString& key, const QVariant& value)
@@ -61,7 +62,23 @@ void ConfigTab::saveSetting(const QString& key, const QVariant& value)
     appStateSettings->sync();
 }
 
-void ConfigTab::onMarketDepthLevelChanged(int value)
+void ConfigTab::onTimeAndSalesMaxEntriesChanged(int value)
 {
-    saveSetting("Config/MarketDepthLevel", value);
+    saveSetting("Config/TimeAndSalesMaxEntries", value);
+
+    if (m_timeAndSalesWidget != nullptr)
+    {
+        m_timeAndSalesWidget->setMaxRows(value);
+    }
+}
+
+void ConfigTab::setTimeAndSalesWidget(TimeAndSalesWidget* p_widget)
+{
+    m_timeAndSalesWidget = p_widget;
+
+    // Apply the current setting immediately
+    if (m_timeAndSalesWidget != nullptr)
+    {
+        m_timeAndSalesWidget->setMaxRows(m_timeAndSalesMaxEntriesSpinBox->value());
+    }
 }

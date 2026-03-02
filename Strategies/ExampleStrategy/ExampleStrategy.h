@@ -28,7 +28,7 @@ class ExampleStrategy : public StrategyBase
 
     // Data callbacks
     void onBar(const Bar& p_bar) override;
-    void onMarketDepth(const MarketDepthQuote& p_quote) override;
+    void onLevel2(const Level2& p_level2) override;
     void onOrderUpdated(const Order& p_order) override;
     void onOrderFilled(const Order& p_order) override;
     void onOrderCancelled(const Order& p_order, const std::string& p_reason) override;

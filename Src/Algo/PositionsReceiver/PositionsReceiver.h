@@ -32,14 +32,14 @@ class PositionsReceiver : public StreamReceiver
      * Data flow: StreamPositions (TSClient thread) → PositionsReceiver slot (MainAlgo thread, queued) → this signal
      */
     void receivedNewPosition(QString account, Position position);
-    
+
     /**
      * @brief Signal emitted when a position is deleted/closed
      * 
      * Thread context: Emitted from MainAlgo worker thread
      */
     void positionDeleted(QString account, QString positionID);
-    
+
     /**
      * @brief Signal emitted when positions are loaded from database at startup
      * 
@@ -63,6 +63,15 @@ class PositionsReceiver : public StreamReceiver
     QPointer<PositionsDatabase> m_database = nullptr;
     bool m_receivedEndSnapshot = false;
     QMap<QString, QDateTime> m_positionOpenedTimes; // Track when positions were first opened
+
+    // Track last structural state per position to suppress pure mark-to-market DB writes.
+    // A "structural" change is a change in quantity or average price (open/add/reduce/close).
+    struct PositionStructure
+    {
+        double quantity = 0.0;
+        double averagePrice = 0.0;
+    };
+    QMap<QString, PositionStructure> m_lastKnownStructure; // positionID → last written state
 
     void createPositionsStream();
 };

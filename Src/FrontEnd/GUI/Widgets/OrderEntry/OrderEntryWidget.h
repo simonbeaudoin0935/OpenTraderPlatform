@@ -16,7 +16,7 @@
 
 #include "Account.h"
 #include "PlaceOrder.h"
-#include "MarketDepthQuote.h"
+#include "Level2.h"
 
 class GUIFrontend;
 
@@ -69,14 +69,8 @@ class OrderEntryWidget : public QWidget
     /// Handle market depth updates for sticky price calculation
     /// Updates best bid/ask prices when sticky mode is enabled
     /// @param symbol Stock symbol of the update
-    /// @param quote Market depth quote with current bid/ask levels
-    void onMarketDepthUpdate(const QString& symbol, const MarketDepthQuote& quote);
-
-    /// Handle Level 1 quote updates for sticky price calculation (fallback when L2 unavailable)
-    /// @param symbol Stock symbol of the update
-    /// @param bid    Current best bid price
-    /// @param ask    Current best ask price
-    void onL1QuoteUpdate(const QString& symbol, double bid, double ask);
+    /// @param level2 Level 2 book snapshot with current bid/ask levels
+    void onMarketDepthUpdate(const QString& symbol, const Level2& level2);
 
   signals:
     /// Emitted when user submits an order (after validation)

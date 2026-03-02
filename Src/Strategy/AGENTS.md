@@ -91,7 +91,9 @@ public:
     virtual void onBar(const QString& symbol, const Bar& bar) {}
     virtual void onPosition(const Position& position) {}
     virtual void onOrder(const Order& order) {}
-    virtual void onMarketDepth(const MarketDepthQuote& quote) {}
+    virtual void onLevel2(const QString& symbol, const Level2& level2) {}
+    virtual void onLevel1(const QString& symbol, const Level1& level1) {}
+    virtual void onTrade(const QString& symbol, const Trade& trade) {}
     virtual void onTick(qint64 milliseconds) {}  // Called every second
 
 signals:
@@ -100,8 +102,6 @@ signals:
     void metric(const QString& name, double value);
     void requestPlaceOrder(const PlaceOrderRequest& request);
     void requestCancelOrder(const QString& orderId);
-    void requestSubscribe(const QString& symbol, const QString& interval);
-    void requestUnsubscribe(const QString& symbol, const QString& interval);
 
 protected:
     StrategySDK* m_sdk;  // Access platform features

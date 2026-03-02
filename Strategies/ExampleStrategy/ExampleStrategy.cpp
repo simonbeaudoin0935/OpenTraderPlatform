@@ -34,19 +34,14 @@ void ExampleStrategy::onBar(const Bar& p_bar)
     }
 }
 
-void ExampleStrategy::onMarketDepth(const MarketDepthQuote& p_quote)
+void ExampleStrategy::onLevel2(const Level2& p_level2)
 {
-    // Log market depth update
-    if (!p_quote.isEmpty())
+    // Log Level 2 update (best bid/ask from top of book)
+    if (p_level2.m_bids[0].m_price > 0.0 && p_level2.m_asks[0].m_price > 0.0)
     {
-        auto bids = p_quote.getBids();
-        auto asks = p_quote.getAsks();
-        if (!bids.isEmpty() && !asks.isEmpty())
-        {
-            log(QString("[ExampleStrategy] Market depth bid: %1 ask: %2")
-                    .arg(bids[0].getPrice())
-                    .arg(asks[0].getPrice()));
-        }
+        log(QString("[ExampleStrategy] Level2 bid: %1 ask: %2")
+                .arg(p_level2.m_bids[0].m_price)
+                .arg(p_level2.m_asks[0].m_price));
     }
 }
 

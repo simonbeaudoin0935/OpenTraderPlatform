@@ -33,7 +33,6 @@ The BarCache system provides efficient two-tier (memory + disk) caching for hist
 **BarCache.h/cpp**: Main cache class
 - In-memory bar storage by date
 - Database persistence coordination
-- Stream lifecycle management
 - Thread-safe read/write operations
 
 **DatabaseThread.h/cpp**: Dedicated SQLite thread
@@ -42,55 +41,41 @@ The BarCache system provides efficient two-tier (memory + disk) caching for hist
 - Query execution
 - Connection pooling
 
-**LiveStreamDB.h/cpp**: Live stream data persistence
-- Records streaming bars to database
-- Real-time write batching
-- Crash recovery
-
-**Bar.h**: Bar data structure (optimized to ~104 bytes)
+**Bar.h** (`Src/Core/Models/Bar.h`): Bar data structure
 - OHLC data (float precision)
-- Volume and trade count
+- Volume (`quint64`)
 - Timestamp (QDateTime with timezone)
-- Status flags (bitfield packed)
+- `BarStatus` enum (`Uninitialized`, `Null`, `Open`, `Closed`)
 
 ## Bar Data Structure
 
-### Optimized Bar Class
+### Bar Class (`Src/Core/Models/Bar.h`)
 
 ```cpp
 class Bar {
-    QDateTime m_timestamp;      // 8 bytes (Unix timestamp + timezone)
-
-    // OHLC as float (sufficient precision for stock prices)
-    float m_open;               // 4 bytes
-    float m_high;               // 4 bytes
-    float m_low;                // 4 bytes
-    float m_close;              // 4 bytes
-
-    qint64 m_totalVolume;       // 8 bytes
-    int m_tradeCount;           // 4 bytes
-
-    // Bit-packed flags (1 byte total)
-    quint8 m_isRealTime : 1;
-    quint8 m_isEndOfDay : 1;
-    quint8 m_isPrevious : 1;
-    // ... other flags
+    QDateTime m_timeStamp;
+    quint64 m_totalVolume = 0;
+    float m_open = 0.0f;
+    float m_high = 0.0f;
+    float m_low = 0.0f;
+    float m_close = 0.0f;
+    BarStatus m_barStatus = BarStatus::Uninitialized;
 };
 ```
 
-**Memory Optimization**:
-- Before: ~152 bytes per bar
-- After: ~104 bytes per bar
-- **32% reduction**
-- Impact: For 10,000 bars, saves ~480 KB per symbol
+Source-agnostic: populated from Databento OhlcvMsg (historical),
+accumulated TradeMsg (live forming bar), or from the SQLite bar cache.
 
-### Bar Status Flags
+### BarStatus Enum
 
-Encoded as bitfield in single byte:
-- `isRealTime`: Bar from live stream vs historical API
-- `isEndOfDay`: Day's final bar
-- `isPrevious`: Previous day's bar
-- Additional flags defined in `Src/Misc/CONSTANTS.h` under `BarFlags`
+```cpp
+enum class BarStatus : quint8 {
+    Uninitialized = 0,  // Default-constructed, not yet populated
+    Null,               // Placeholder bar (no market data)
+    Open,               // Bar still forming (current interval)
+    Closed,             // Bar is finalized
+};
+```
 
 ## Database Schema
 
@@ -104,8 +89,7 @@ CREATE TABLE IF NOT EXISTS bars (
     low REAL NOT NULL,
     close REAL NOT NULL,
     total_volume INTEGER NOT NULL,
-    trade_count INTEGER NOT NULL,
-    flags INTEGER NOT NULL         -- Bitfield status flags
+    bar_status INTEGER NOT NULL    -- BarStatus enum value
 );
 ```
 
@@ -116,15 +100,14 @@ CREATE INDEX IF NOT EXISTS idx_timestamp ON bars(timestamp);
 ```
 
 **Database Location**:
-- Pattern: `~/.local/share/L2Trader/bars/{symbol}_{timeframe}.db`
-- Example: `AAPL_1Min.db`, `MSFT_5Min.db`
-- One database per symbol-timeframe combination
+- Pattern: `~/.cache/L2Trader/Bars/{SYMBOL}.db`
+- Example: `NVDA.db`, `AAPL.db`
+- One database per symbol
 
 ### SQL Queries
 
 All SQL defined in `Src/SQL/` headers:
 - `DatabaseThreadQueries.h`: Schema creation, CRUD operations
-- `LiveStreamDBQueries.h`: Stream persistence
 - `StockPriceChartQueries.h`: Chart data queries
 
 ## Thread Safety
@@ -243,40 +226,32 @@ QVector<QPair<QDateTime, QDateTime>> detectGaps(const QVector<Bar>& bars) {
 
 Used by StockPriceChart to request missing data.
 
-## Stream Integration
+## Data Source Integration
 
-### Live Bar Storage
+### Databento Integration (Complete)
 
-When streaming live bars:
+Bars are sourced from Databento via `DBClient`:
+- **Historical**: `DBClient::fetchHistoricalBars()` → `historicalBarsReceived` signal → `BarCache::storeBarsInCache()`
+- **Live**: `DBClient::newTrade` → `LiveBarAccumulator::barClosed` → `BarReceiver::receivedNewBar` → `BarCache::storeBar()`
 
-```cpp
-class BarCache {
-    QPointer<StreamBars> m_stream;  // Auto-null when stream closes
-    std::unique_ptr<LiveStreamDB> m_liveStreamDB;  // Persists stream data
+The BarCache is data-source agnostic — it accepts `Bar` objects from any source via `addBar()` / `storeBarsInCache()`.
 
-    void startStreaming(const QString& symbol, const QString& interval) {
-        // Create stream
-        m_stream = TSClient::getInstance().createStreamBars(symbol, interval);
+### Bar Timestamp Convention
 
-        // Create persistence
-        m_liveStreamDB = std::make_unique<LiveStreamDB>(symbol, interval);
+**Open-time**: bars are timestamped at their open time (Databento native convention).
+- Bar covering 4:00:00–4:00:59 → timestamped `4:00`
+- First bar index 0 = 4:00 AM, last index 899 = 6:59 PM
+- 900 bars per day (XNAS.ITCH trading hours)
 
-        // Connect signals
-        connect(m_stream, &StreamBars::barReceived, this,
-                [this](const Bar& bar) {
-                    addBar(bar);                  // Add to memory cache
-                    m_liveStreamDB->storeBar(bar); // Persist to database
-                });
-    }
-};
-```
+### Database Location
 
-### Stream Lifecycle
+- Pattern: `~/.cache/L2Trader/Bars/{SYMBOL}.db`
+- Example: `NVDA.db`, `AAPL.db`
+- One database per symbol
 
-1. **Start**: Create StreamBars, connect signals
-2. **Running**: Receive bars, store in cache + DB
-3. **Stop**: Close stream, flush pending writes
-4. **Cleanup**: QPointer auto-nulls on stream deletion
+### Completeness Threshold
+
+`DatabaseThread` accepts a database cache hit at ≥90% of expected bars (vs strict equality). This prevents infinite refetch loops when the data provider has minor gaps (e.g., 898/900 bars).
 
 ## Data Retrieval Patterns
 
@@ -376,16 +351,6 @@ if (!db.open()) {
 }
 ```
 
-### Stream Errors
-
-```cpp
-connect(m_stream, &StreamBars::errorOccurred, this,
-        [this](const QString& error) {
-            qCWarning() << "Stream error:" << error;
-            // Attempt reconnection or notify user
-        });
-```
-
 ### Data Corruption
 
 - Validate bars before insertion (OHLC relationships)
@@ -405,7 +370,7 @@ Test each component independently:
 ### Integration Tests
 
 Test full pipeline:
-- Stream → Cache → Database
+- Data source → Cache → Database
 - Database → Cache → UI
 - Missing bar detection and filling
 
@@ -459,14 +424,8 @@ m_barCache.setPreloadDays(30);
 QVector<Bar> bars = m_barCache.getBarsForDateRange(startDate, endDate);
 
 if (bars.isEmpty()) {
-    // Not in cache, request from API
-    TSClient::getInstance().getBars(symbol, interval, startDate, endDate,
-        [this](bool success, const QJsonDocument& response) {
-            if (success) {
-                QVector<Bar> apiBars = parseBars(response);
-                m_barCache.mergeBarsIntoCache(apiBars);
-            }
-        });
+    // Cache miss → request from Databento via DBClient::fetchHistoricalBars()
+    // Results arrive via historicalBarsReceived signal → storeBarsInCache()
 }
 ```
 
@@ -494,7 +453,6 @@ QLoggingCategory::setFilterRules("BarCache*=true");
 Categories:
 - `BarCache.memory` - Memory operations
 - `BarCache.database` - Database operations
-- `BarCache.stream` - Stream integration
 
 ### Monitor Cache Stats
 
@@ -509,7 +467,6 @@ qCDebug() << "Cache hit rate:" << m_barCache.getCacheHitRate();
 
 - `../../AGENTS.md`: Core application components
 - `../../../Algo/AGENTS.md`: Algorithm components using cache
-- `../../../Clients/TSClient/AGENTS.md`: API for fetching bars
 - `../../../SQL/AGENTS.md`: SQL query definitions
 
 ## Related Documentation

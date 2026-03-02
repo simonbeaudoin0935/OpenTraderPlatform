@@ -7,6 +7,7 @@
 #include "CONSTANTS.h"
 #include "OrdersDatabase.h"
 #include "PositionsDatabase.h"
+#include "DBClient.h"
 #include <QCoreApplication>
 #include <unistd.h>
 #include <cerrno>
@@ -194,30 +195,20 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
                      appFrontend,
                      &FrontEnd::onTSClientDataUsageUpdate);
 
-    // Connect TradeStation stream count updates to frontend
-    QObject::connect(tradeStationClient, &TSClient::streamCountsChanged, appFrontend, &FrontEnd::onStreamCountUpdate);
-
     QObject::connect(mainAlgo,
                      &MainAlgo::displayedStockReceivedNewBar,
                      appFrontend,
                      &FrontEnd::onCurrentHighlightedStockBarReceived);
 
     QObject::connect(mainAlgo,
-                     &MainAlgo::displayedStockReceivedNewMarketDepthQuote,
+                     &MainAlgo::displayedStockReceivedNewLevel2,
                      appFrontend,
-                     &FrontEnd::onCurrentHighlightedReceivedNewMarketDepthQuote);
-
-    // Connect Level 1 quote updates to frontend for MarketFlags display
-    QObject::connect(tradeStationClient,
-                     &TSClient::newQuoteReceived,
-                     mainAlgo,
-                     &MainAlgo::onDisplayedStockReceivedNewQuote);
+                     &FrontEnd::onCurrentHighlightedReceivedNewLevel2);
 
     QObject::connect(mainAlgo,
-                     &MainAlgo::displayedStockReceivedNewQuote,
+                     &MainAlgo::displayedStockReceivedNewTrade,
                      appFrontend,
-                     &FrontEnd::onCurrentHighlightedReceivedNewQuote);
-
+                     &FrontEnd::onCurrentHighlightedReceivedNewTrade);
 
     QObject::connect(mainAlgo, &MainAlgo::receivedNewPosition, appFrontend, &FrontEnd::onNewPositionReceived);
 
@@ -253,6 +244,17 @@ void MainApp::start()
     // start the other threads
     tradeStationClient->start();
     mainAlgo->start();
+
+    // Auto-connect to Databento if API key is present
+    auto* dbClient = DBClient::getInstance();
+
+    // Connect Databento data usage updates to frontend
+    QObject::connect(dbClient, &DBClient::dataUsageUpdated, appFrontend, &FrontEnd::onDBClientDataUsageUpdate);
+
+    if (dbClient->hasApiKey())
+    {
+        dbClient->connectLive();
+    }
 
     memoryMonitor.startMonitoring(500);
 
@@ -299,6 +301,12 @@ void MainApp::cleanupSingletons()
 
     // Delete TSClient singleton (which will stop its thread)
     TSClient::destroyInstance();
+
+    // Delete DBClient singleton
+    if (DBClient::isInstantiated())
+    {
+        DBClient::destroyInstance();
+    }
 
     // Delete DatabaseThread singleton (which will stop its thread)
     DatabaseThread::destroyInstance();
@@ -354,7 +362,7 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pla
             mainAlgo->createAndSetDisplayedStockInstrument(displayedSymbol);
 
             // Start replay in paused state - emits first bar to populate chart
-            mainAlgo->enterReplayModePaused(p_date, p_startTime, p_speed);
+            mainAlgo->enterReplayModePaused(displayedSymbol, p_date, p_startTime, p_speed);
         },
         Qt::QueuedConnection);
 
@@ -436,7 +444,11 @@ void MainApp::startReplayPlayback(QDate p_date, QTime p_startTime, ReplayEngine:
     // Tell MainAlgo to start replay (MainAlgo thread)
     QMetaObject::invokeMethod(
         mainAlgo,
-        [this, p_date, p_startTime, p_speed]() { mainAlgo->enterReplayMode(p_date, p_startTime, p_speed); },
+        [this, p_date, p_startTime, p_speed]()
+        {
+            QString symbol = mainAlgo->getDisplayedSymbol();
+            mainAlgo->enterReplayMode(symbol, p_date, p_startTime, p_speed);
+        },
         Qt::QueuedConnection);
 
     qInfo() << "Replay playback start initiated";
@@ -487,7 +499,7 @@ void MainApp::preloadChartForReplay(QDate p_date, QTime p_startTime, ReplayEngin
         {
             // Re-enter replay paused with new date/time
             // This stops existing replay, reloads data, and emits first bar to update chart
-            mainAlgo->enterReplayModePaused(p_date, p_startTime, p_speed);
+            mainAlgo->enterReplayModePaused(displayedSymbol, p_date, p_startTime, p_speed);
         },
         Qt::QueuedConnection);
 
