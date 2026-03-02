@@ -352,6 +352,12 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             &GUIFrontend::onCurrentHighlightedReceivedNewLevel2,
             Qt::DirectConnection);
 
+    connect(this,
+            &FrontEnd::currentHighlightedReceivedNewTrade,
+            this,
+            &GUIFrontend::onCurrentHighlightedReceivedNewTrade,
+            Qt::DirectConnection);
+
     connect(this, &FrontEnd::newPositionReceived, this, &GUIFrontend::onNewPositionReceived, Qt::DirectConnection);
 
     connect(this, &FrontEnd::positionDeleted, this, &GUIFrontend::onPositionDeleted, Qt::DirectConnection);
@@ -763,6 +769,11 @@ void GUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol,
     ui->orderEntryWidget->onMarketDepthUpdate(symbol, level2);
 }
 
+void GUIFrontend::onCurrentHighlightedReceivedNewTrade(QString symbol, Trade trade)
+{
+    ui->timeAndSalesWidget->onNewTrade(symbol, trade);
+}
+
 void GUIFrontend::onNewPositionReceived(QString account, Position position)
 {
     ui->positionWidget->updatePosition(account, position);
@@ -1000,6 +1011,8 @@ void GUIFrontend::displayStock(const QString& symbol)
 
     ui->priceChart->clearSymbol();
     ui->priceChart->setSymbol(symbol);
+
+    ui->timeAndSalesWidget->clearData();
 
     // Update the order entry widget with the new symbol
     ui->orderEntryWidget->setSymbol(symbol);
@@ -1552,6 +1565,7 @@ void GUIFrontend::onReplayModeEntered()
 
     // Clear market depth table — stale live data must not carry over into replay
     ui->marketDepthTable->clearData();
+    ui->timeAndSalesWidget->clearData();
 
     // TODO Phase 6: probe DBClient .dbn replay file to detect available schemas (MBP-10, MBP-1, etc.)
     // For now, clear the mode indicator (no legacy TS recorded data)
@@ -1605,6 +1619,7 @@ void GUIFrontend::onReplayModeExited()
 
     // Clear market depth table — replay data must not carry over into live mode
     ui->marketDepthTable->clearData();
+    ui->timeAndSalesWidget->clearData();
 
     // Restore chart visual
     ui->priceChart->setReplayModeActive(false);

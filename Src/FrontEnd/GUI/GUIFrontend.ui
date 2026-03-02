@@ -239,6 +239,22 @@
                </layout>
               </widget>
              </item>
+             <item>
+              <widget class="TimeAndSalesWidget" name="timeAndSalesWidget" native="true">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="minimumSize">
+                <size>
+                 <width>180</width>
+                 <height>0</height>
+                </size>
+               </property>
+              </widget>
+             </item>
             </layout>
            </widget>
            <widget class="QWidget" name="tradeTabBottomWidget" native="true">
@@ -369,6 +385,11 @@
    <class>Gauge</class>
    <extends>QWidget</extends>
    <header>GUI/Widgets/Gauge/Gauge.h</header>
+  </customwidget>
+  <customwidget>
+   <class>TimeAndSalesWidget</class>
+   <extends>QWidget</extends>
+   <header>GUI/Widgets/TimeAndSales/TimeAndSalesWidget.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

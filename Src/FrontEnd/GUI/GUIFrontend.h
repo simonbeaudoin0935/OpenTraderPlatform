@@ -42,6 +42,7 @@ class GUIFrontend : public FrontEnd
                                                double bidAskImbalance,
                                                double bidDWP,
                                                double askDWP) override;
+    void onCurrentHighlightedReceivedNewTrade(QString symbol, Trade trade) override;
     void onNewPositionReceived(QString account, Position position) override;
     void onPositionDeleted(QString account, QString positionID) override;
     void onNewOrderReceived(QString account, Order order) override;
