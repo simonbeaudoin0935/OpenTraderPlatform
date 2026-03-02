@@ -226,6 +226,11 @@ class StockPriceChart : public QWidget
     Bar m_latestBar;
     int m_latestBarIndex = -1;
 
+    // Index of the live (open) bar currently stored in the QCP data containers.
+    // Used to do incremental updates (remove+re-add only that bar) instead of
+    // rebuilding all N bars on every trade tick.
+    int m_chartLiveBarIndex = -1;
+
     void redrawLastPriceLine();
     void handleVerticalPanning(QWheelEvent* event);
     void handleHorizontalPanning(QWheelEvent* event);

@@ -51,7 +51,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         OBJ_ASSUME_DIFF(bar.getBarStatus(), Bar::BarStatus::Null);
     }
 
-    // Compute chart index from bar timestamp (time-anchored — no special first-bar logic)
+    // Compute chart index from bar timestamp
     const int index = ChartTimeUtils::timestampToChartIndex(bar.getTimeStamp(), m_index0Timestamp);
 
     indexToBar[index] = bar;
@@ -59,8 +59,46 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     m_latestBar = bar;
     m_latestBarIndex = index;
 
-    updateCandlestickData();
-    updateVolumeData();
+    // Incremental QCP data update — only touch the bar that changed.
+    // Closed bars already in the containers never change; only the live (open) bar ticks.
+    const Bar::BarStatus status = bar.getBarStatus();
+    if (status == Bar::BarStatus::Open || status == Bar::BarStatus::Closed)
+    {
+        QCPFinancialData candleData;
+        candleData.key = index;
+        candleData.open = bar.getOpen();
+        candleData.high = bar.getHigh();
+        candleData.low = bar.getLow();
+        candleData.close = bar.getClose();
+
+        const qint64 volume = bar.getTotalVolume();
+        const bool barIsUp = bar.getClose() >= bar.getOpen();
+
+        if (index == m_chartLiveBarIndex)
+        {
+            // Same live bar ticking: remove the stale entry then re-add.
+            // removeAfter(key - 0.5) removes all entries with key > (index - 0.5),
+            // i.e., exactly the one entry at this index (the highest key in the container).
+            const double removeKey = static_cast<double>(index) - 0.5;
+            m_candlesticks->data()->removeAfter(removeKey);
+            m_volumePos->data()->removeAfter(removeKey);
+            m_volumeNeg->data()->removeAfter(removeKey);
+        }
+        else
+        {
+            // New bar index: the previous live bar (if any) stays as-is — it is now a
+            // closed bar and its data is already correct in the containers.
+            m_chartLiveBarIndex = index;
+        }
+
+        m_candlesticks->data()->add(candleData);
+        if (barIsUp)
+            m_volumePos->data()->add({static_cast<double>(index), static_cast<double>(volume)});
+        else
+            m_volumeNeg->data()->add({static_cast<double>(index), static_cast<double>(volume)});
+
+        rescaleVolumeAxisToVisibleRange();
+    }
 
     if (!m_datesWithBackgrounds.contains(bar.getTimeStamp().date()))
     {
@@ -76,7 +114,9 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         updateOpenPositionPLBox(currentPrice);
     }
 
-    m_customPlot->replot();
+    // Queue a replot — QCustomPlot coalesces multiple rpQueuedReplot calls so that
+    // only one actual render happens per event-loop iteration regardless of trade rate.
+    m_customPlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 
@@ -596,9 +636,7 @@ void StockPriceChart::clearSymbol()
 
     m_latestBarIndex = -1;
     m_latestBar = Bar();
-
-    m_priceLabel->setVisible(false);
-    m_symbolWatermark->setText("");
+    m_chartLiveBarIndex = -1;
 
     // Stop and hide the current time line
     m_timeLineTimer->stop();
@@ -643,6 +681,7 @@ void StockPriceChart::clearChart()
     // Reset bar tracking
     m_latestBarIndex = -1;
     m_latestBar = Bar();
+    m_chartLiveBarIndex = -1;
 
     // Hide price label but keep symbol watermark (same symbol in replay)
     m_priceLabel->setVisible(false);
