@@ -130,7 +130,15 @@ void MainApp::restartApplication()
 
 TradingSession MainApp::getCurrentSession()
 {
-    QTime currentTime = getCurrentAppTime().time();
+    const QDateTime currentDateTime = getCurrentAppTime();
+    const Qt::DayOfWeek day = static_cast<Qt::DayOfWeek>(currentDateTime.date().dayOfWeek());
+
+    if (day == Qt::Saturday || day == Qt::Sunday)
+    {
+        return TradingSession::Weekend;
+    }
+
+    QTime currentTime = currentDateTime.time();
 
     // Check each session in order
     if (currentTime >= TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION &&

@@ -227,7 +227,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                "🌅 PRE-MARKET: 6:00 AM - 9:29 AM ET\n"
                                "📈 REGULAR: 9:30 AM - 3:59 PM ET\n"
                                "🌆 AFTER-HOURS: 4:00 PM - 6:59 PM ET\n"
-                               "🌙 CLOSED: 7:00 PM - 3:59 AM ET");
+                               "🌚 CLOSED: 7:00 PM - 3:59 AM ET\n"
+                               "🏖 WEEKEND: Saturday & Sunday");
     ui->topControlsLayout->insertWidget(4, m_sessionLabel);
     updateSessionLabel();
 
@@ -1568,8 +1569,13 @@ void GUIFrontend::updateSessionLabel()
         sessionText = "🌚 CLOSED";
         backgroundColor = "#1a1a2a"; // Dark blue-gray
         break;
+    case TradingSession::Weekend:
+        sessionText = "🏖 WEEKEND";
+        backgroundColor = "#2a2a2a"; // Dark gray
+        break;
     default:
-        Q_UNREACHABLE();
+        sessionText = "🌚 CLOSED";
+        backgroundColor = "#1a1a2a";
         break;
     }
 

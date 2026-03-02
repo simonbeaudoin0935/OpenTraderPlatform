@@ -30,7 +30,8 @@ enum class TradingSession : quint8
     PreMarket,      ///< Pre-market: 6:00 AM - 9:29 AM ET
     Regular,        ///< Regular trading hours: 9:30 AM - 3:59 PM ET
     AfterHours,     ///< After-hours: 4:00 PM - 6:59 PM ET
-    Closed          ///< Market closed: 7:00 PM - 3:59 AM ET
+    Closed,         ///< Market closed: 7:00 PM - 3:59 AM ET
+    Weekend         ///< Weekend: Saturday or Sunday
 };
 
 /**
