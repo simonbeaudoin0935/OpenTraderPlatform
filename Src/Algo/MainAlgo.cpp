@@ -952,6 +952,16 @@ void MainAlgo::connectReplaySignals(const QString& p_symbol)
                              { instrument->m_level2Receiver.onReceivedNewLevel2(l2); });
     ASSUME_TRUE(connected);
 
+    // Replay Level2 → OrderEmulator (so it has market data for order fills)
+    if (OrderEmulator* emulator = TSClient::getInstance()->getOrderEmulator())
+    {
+        connected = connect(m_replayEngine,
+                            &ReplayEngine::replayLevel2,
+                            emulator,
+                            &OrderEmulator::updateMarketDepth);
+        ASSUME_TRUE(connected);
+    }
+
     // Replay Trade → LiveBarAccumulator (builds bars from trades)
     connected = connect(m_replayEngine,
                         &ReplayEngine::replayTrade,
