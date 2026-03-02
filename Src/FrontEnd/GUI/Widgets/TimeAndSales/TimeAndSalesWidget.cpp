@@ -43,11 +43,31 @@ void TimeAndSalesWidget::setupUI()
 
 void TimeAndSalesWidget::setupStyles()
 {
-    m_headerLabel->setStyleSheet("font-weight: bold; padding: 2px; background-color: #1a1a2e; color: #e0e0e0;");
+    m_headerLabel->setStyleSheet("QLabel {"
+                                 "   background-color: #2D2D2D;"
+                                 "   color: white;"
+                                 "   font-weight: bold;"
+                                 "   padding: 4px;"
+                                 "   border-bottom: 1px solid #3D3D3D;"
+                                 "}");
 
-    m_table->setStyleSheet("QTableWidget { background-color: #0d0d1a; color: #e0e0e0; border: none; font-size: 11px; }"
-                           "QHeaderView::section { background-color: #1a1a2e; color: #a0a0a0; border: none; "
-                           "font-size: 10px; padding: 2px; }");
+    m_table->setStyleSheet("QTableWidget {"
+                           "   background-color: #242424;"
+                           "   alternate-background-color: #1C1C1C;"
+                           "   color: white;"
+                           "   border: none;"
+                           "   font-size: 11px;"
+                           "   gridline-color: #3D3D3D;"
+                           "}"
+                           "QHeaderView::section {"
+                           "   background-color: #2D2D2D;"
+                           "   color: #a0a0a0;"
+                           "   border: none;"
+                           "   border-right: 1px solid #3D3D3D;"
+                           "   font-size: 10px;"
+                           "   padding: 2px;"
+                           "}");
+    m_table->setAlternatingRowColors(true);
 }
 
 void TimeAndSalesWidget::onNewTrade(const QString& p_symbol, const Trade& p_trade)
