@@ -33,6 +33,9 @@ class TimeAndSalesWidget : public QWidget
     /// Clear all trades (e.g., on symbol change)
     void clearData();
 
+    /// Set the maximum number of rows to display
+    void setMaxRows(int p_maxRows);
+
   private:
     void setupUI();
     void setupStyles();
@@ -40,7 +43,7 @@ class TimeAndSalesWidget : public QWidget
     QLabel* m_headerLabel;
     QTableWidget* m_table;
 
-    static constexpr int MAX_ROWS = 500;
+    int m_maxRows = 200;
 
     // Column indices
     static constexpr int COL_TIME = 0;

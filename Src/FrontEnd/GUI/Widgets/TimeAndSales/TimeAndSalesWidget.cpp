@@ -29,6 +29,7 @@ void TimeAndSalesWidget::setupUI()
     m_table->verticalHeader()->setVisible(false);
     m_table->verticalHeader()->setDefaultSectionSize(18);
     m_table->horizontalHeader()->setStretchLastSection(true);
+    m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     m_table->setShowGrid(false);
     m_table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -88,7 +89,7 @@ void TimeAndSalesWidget::onNewTrade(const QString& p_symbol, const Trade& p_trad
     m_table->setItem(0, COL_SIZE, sizeItem);
 
     // Trim old rows to cap memory
-    while (m_table->rowCount() > MAX_ROWS)
+    while (m_table->rowCount() > m_maxRows)
     {
         m_table->removeRow(m_table->rowCount() - 1);
     }
@@ -97,4 +98,15 @@ void TimeAndSalesWidget::onNewTrade(const QString& p_symbol, const Trade& p_trad
 void TimeAndSalesWidget::clearData()
 {
     m_table->setRowCount(0);
+}
+
+void TimeAndSalesWidget::setMaxRows(int p_maxRows)
+{
+    m_maxRows = p_maxRows;
+
+    // Trim existing rows if needed
+    while (m_table->rowCount() > m_maxRows)
+    {
+        m_table->removeRow(m_table->rowCount() - 1);
+    }
 }

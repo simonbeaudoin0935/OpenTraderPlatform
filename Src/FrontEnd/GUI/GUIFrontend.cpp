@@ -502,6 +502,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
 
     // Set up the config tab
     ConfigTab* configTab = new ConfigTab();
+    configTab->setTimeAndSalesWidget(ui->timeAndSalesWidget);
     ui->tabWidget->addTab(configTab, "Config");
 
     // Set up the live log display at the bottom

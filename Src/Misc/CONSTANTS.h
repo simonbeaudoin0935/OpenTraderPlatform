@@ -266,6 +266,16 @@ namespace MarketDepthConstants
 } // namespace MarketDepthConstants
 
 /**
+ * @namespace TimeAndSalesConstants
+ * @brief Constants related to the Time & Sales tape widget
+ */
+namespace TimeAndSalesConstants
+{
+    /// Default maximum number of trade entries displayed in the Time & Sales widget
+    inline constexpr int DEFAULT_MAX_ENTRIES = 200;
+} // namespace TimeAndSalesConstants
+
+/**
  * @namespace QuoteConstants
  * @brief Constants related to level 1 quote stream data
  */
