@@ -142,7 +142,7 @@ TradingSession MainApp::getCurrentSession()
     // Full-day market holiday
     if (MarketCalendar::isHoliday(currentDate))
     {
-        return TradingSession::Closed;
+        return TradingSession::Holiday;
     }
 
     const QTime currentTime = currentDateTime.time();
