@@ -351,6 +351,11 @@ class OrderEmulator : public QObject
     // Bar close prices (for mark-to-market calculation)
     QMap<QString, double> m_latestBarClose; // symbol → latest bar close price
 
+    // P&L throttle: last time positionUpdate was emitted per symbol (ms since epoch)
+    // Prevents flooding the position pipeline on high-frequency Level2 ticks
+    static constexpr qint64 PNL_THROTTLE_MS = 100;
+    QMap<QString, qint64> m_lastPnLEmit; // symbol → last emit timestamp (ms)
+
     // Pending orders (awaiting reception delay)
     QVector<PendingOrder> m_pendingOrders;
     QTimer m_receptionTimer;

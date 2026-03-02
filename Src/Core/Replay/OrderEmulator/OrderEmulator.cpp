@@ -767,6 +767,15 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
 
 void OrderEmulator::recalculatePositionPnL(const QString& p_symbol)
 {
+    // Throttle: emit at most once per PNL_THROTTLE_MS to avoid flooding the
+    // position pipeline with thousands of updates per second during fast replay.
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_lastPnLEmit.contains(p_symbol) && now - m_lastPnLEmit[p_symbol] < PNL_THROTTLE_MS)
+    {
+        return;
+    }
+    m_lastPnLEmit.insert(p_symbol, now);
+
     // Ensure we have an active position for this symbol
     if (!m_symbolToActivePosition.contains(p_symbol))
     {
