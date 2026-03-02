@@ -337,10 +337,25 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                           DEBUG << "Historical fetch returned" << fullDayBars->size() << "bars for" << m_symbol
                                 << "— first:" << fullDayBars->first().getTimeStamp().toString(Qt::ISODate)
                                 << "last:" << fullDayBars->last().getTimeStamp().toString(Qt::ISODate);
-                          storeBarsInCache(date, fullDayBars);
+
+                          // Fill holes with Null bars so the day vector is contiguous
+                          QDateTime fullDayFirst(date,
+                                                 TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
+                                                 TradingHours::MARKET_TIMEZONE);
+                          QDateTime fullDayLast(date,
+                                                TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
+                                                TradingHours::MARKET_TIMEZONE);
+                          auto filledBars = std::make_shared<QVector<Bar>>(
+                              fillHolesOfReceivedRequest(fullDayFirst, fullDayLast, *fullDayBars));
+
+                          storeBarsInCache(date, filledBars);
+
+                          // Persist to database for next startup (fire-and-forget)
+                          [[maybe_unused]] auto dbFuture =
+                              DatabaseThread::getInstance()->storeBarsInDatabase(m_symbol, date, filledBars);
 
                           auto filteredBars = std::make_shared<QVector<Bar>>();
-                          for (const auto& bar: *fullDayBars)
+                          for (const auto& bar: *filledBars)
                           {
                               if (bar.getTimeStamp().time() >= first && bar.getTimeStamp().time() <= last)
                               {
@@ -349,7 +364,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                           }
 
                           DEBUG << "Historical backfill complete:" << filteredBars->size() << "bars (of"
-                                << fullDayBars->size() << "total)";
+                                << filledBars->size() << "total)";
 
                           sharedPromise->addResult(filteredBars);
                           sharedPromise->finish();
@@ -434,7 +449,10 @@ void BarCache::storeBarInCache(const Bar& bar)
     // Store the bar at the appropriate index
     dayVector[index] = bar;
 
-    DEBUG << "Inserted bar in cache at index" << index << "for timestamp:" << bar.getTimeStamp();
+    if (bar.getBarStatus() == Bar::BarStatus::Closed)
+    {
+        DEBUG << "Inserted bar in cache at index" << index << "for timestamp:" << bar.getTimeStamp();
+    }
 }
 
 void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector<Bar>>& bars)

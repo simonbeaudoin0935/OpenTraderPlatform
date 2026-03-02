@@ -582,6 +582,11 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
         connect(&m_liveBarAccumulator, &LiveBarAccumulator::barClosed, &barReceiver, &BarReceiver::receivedNewBar);
     OBJ_ASSUME_TRUE(connected);
 
+    // Wire LiveBarAccumulator::barUpdated → BarReceiver::receivedNewBar (in-progress candle)
+    connected =
+        connect(&m_liveBarAccumulator, &LiveBarAccumulator::barUpdated, &barReceiver, &BarReceiver::receivedNewBar);
+    OBJ_ASSUME_TRUE(connected);
+
     // In replay mode, data comes from ReplayEngine (connected by MainAlgo::connectReplaySignals)
     // In live mode, data comes from DBClient signals
     if (!MainApp::isInReplayMode())
