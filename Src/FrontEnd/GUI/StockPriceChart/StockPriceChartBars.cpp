@@ -59,43 +59,64 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     m_latestBar = bar;
     m_latestBarIndex = index;
 
-    // Incremental QCP data update — only touch the bar that changed.
-    // Closed bars already in the containers never change; only the live (open) bar ticks.
+    // Incremental QCP data update — O(1) in the common case.
+    // Closed bars already in the containers never change; only the live bar ticks.
     const Bar::BarStatus status = bar.getBarStatus();
     if (status == Bar::BarStatus::Open || status == Bar::BarStatus::Closed)
     {
-        QCPFinancialData candleData;
-        candleData.key = index;
-        candleData.open = bar.getOpen();
-        candleData.high = bar.getHigh();
-        candleData.low = bar.getLow();
-        candleData.close = bar.getClose();
-
         const qint64 volume = bar.getTotalVolume();
         const bool barIsUp = bar.getClose() >= bar.getOpen();
 
         if (index == m_chartLiveBarIndex)
         {
-            // Same live bar ticking: remove the stale entry then re-add.
-            // removeAfter(key - 0.5) removes all entries with key > (index - 0.5),
-            // i.e., exactly the one entry at this index (the highest key in the container).
-            const double removeKey = static_cast<double>(index) - 0.5;
-            m_candlesticks->data()->removeAfter(removeKey);
-            m_volumePos->data()->removeAfter(removeKey);
-            m_volumeNeg->data()->removeAfter(removeKey);
+            // --- Same live bar ticking: modify the last entry in-place (O(1)) ---
+
+            // Candle: update OHLC directly via mutable iterator (key unchanged)
+            {
+                auto it = std::prev(m_candlesticks->data()->end());
+                it->open = bar.getOpen();
+                it->high = bar.getHigh();
+                it->low = bar.getLow();
+                it->close = bar.getClose();
+            }
+
+            // Volume: in-place if direction unchanged, re-route between series if flipped
+            if (barIsUp == m_chartLiveBarIsUp)
+            {
+                // Same color bucket — just update the value in-place (O(1))
+                auto& series = barIsUp ? m_volumePos : m_volumeNeg;
+                auto it = std::prev(series->data()->end());
+                it->value = static_cast<double>(volume);
+            }
+            else
+            {
+                // Bar flipped direction (rare) — removeAfter on the old series, add to new
+                const double removeKey = static_cast<double>(index) - 0.5;
+                (m_chartLiveBarIsUp ? m_volumePos : m_volumeNeg)->data()->removeAfter(removeKey);
+                (barIsUp ? m_volumePos : m_volumeNeg)
+                    ->data()
+                    ->add({static_cast<double>(index), static_cast<double>(volume)});
+                m_chartLiveBarIsUp = barIsUp;
+            }
         }
         else
         {
-            // New bar index: the previous live bar (if any) stays as-is — it is now a
-            // closed bar and its data is already correct in the containers.
-            m_chartLiveBarIndex = index;
-        }
+            // --- New bar index: just append (O(1) since key > all existing keys) ---
+            QCPFinancialData candleData;
+            candleData.key = index;
+            candleData.open = bar.getOpen();
+            candleData.high = bar.getHigh();
+            candleData.low = bar.getLow();
+            candleData.close = bar.getClose();
+            m_candlesticks->data()->add(candleData);
 
-        m_candlesticks->data()->add(candleData);
-        if (barIsUp)
-            m_volumePos->data()->add({static_cast<double>(index), static_cast<double>(volume)});
-        else
-            m_volumeNeg->data()->add({static_cast<double>(index), static_cast<double>(volume)});
+            (barIsUp ? m_volumePos : m_volumeNeg)
+                ->data()
+                ->add({static_cast<double>(index), static_cast<double>(volume)});
+
+            m_chartLiveBarIndex = index;
+            m_chartLiveBarIsUp = barIsUp;
+        }
 
         rescaleVolumeAxisToVisibleRange();
     }
@@ -637,8 +658,7 @@ void StockPriceChart::clearSymbol()
     m_latestBarIndex = -1;
     m_latestBar = Bar();
     m_chartLiveBarIndex = -1;
-
-    // Stop and hide the current time line
+    m_chartLiveBarIsUp = true;
     m_timeLineTimer->stop();
     m_currentTimeLine->setVisible(false);
 
@@ -682,6 +702,7 @@ void StockPriceChart::clearChart()
     m_latestBarIndex = -1;
     m_latestBar = Bar();
     m_chartLiveBarIndex = -1;
+    m_chartLiveBarIsUp = true;
 
     // Hide price label but keep symbol watermark (same symbol in replay)
     m_priceLabel->setVisible(false);
