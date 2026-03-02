@@ -186,6 +186,12 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             &GUIFrontend::onDatabentoConnectionStateChanged,
             Qt::UniqueConnection);
 
+    connect(DBClient::getInstance(),
+            &DBClient::newStatus,
+            this,
+            &GUIFrontend::onDatabentoStatusUpdate,
+            Qt::UniqueConnection);
+
     // Reflect initial Databento connection state
     DBClient::getInstance()->loadApiKey();
 
@@ -919,6 +925,45 @@ void GUIFrontend::onDatabentoConnectionStateChanged(bool isConnected)
     m_databentoButton->setEnabled(true);
 }
 
+void GUIFrontend::onDatabentoStatusUpdate(const QString& symbol,
+                                           bool isHalted,
+                                           const QString& haltReason,
+                                           bool isSsr)
+{
+    if (symbol != currentlyDisplayedSymbol)
+        return;
+
+    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; }";
+    static const QString haltedStyle = "QLabel { background-color: #cc0000; color: #ffffff; padding: 4px 8px; "
+                                       "border-radius: 4px; font-weight: bold; }";
+    static const QString ssrStyle = "QLabel { background-color: #e65c00; color: #ffffff; padding: 4px 8px; "
+                                    "border-radius: 4px; font-weight: bold; }";
+
+    if (isHalted)
+    {
+        m_haltedLabel->setStyleSheet(haltedStyle);
+        m_haltedLabel->setToolTip(haltReason.isEmpty() ? "Trading is halted for this symbol"
+                                                        : "Halt reason: " + haltReason);
+    }
+    else
+    {
+        m_haltedLabel->setStyleSheet(inactiveStyle);
+        m_haltedLabel->setToolTip("Trading is halted for this symbol");
+    }
+
+    if (isSsr)
+    {
+        m_hardToBorrowLabel->setStyleSheet(ssrStyle);
+        m_hardToBorrowLabel->setToolTip("Short sale restriction (SSR) active");
+    }
+    else
+    {
+        m_hardToBorrowLabel->setStyleSheet(inactiveStyle);
+        m_hardToBorrowLabel->setToolTip("Hard to borrow - short selling may be restricted");
+    }
+}
+
 QString GUIFrontend::bytesToString(qint64 bytes)
 {
     if (bytes >= 1024 * 1024)
@@ -1014,6 +1059,15 @@ void GUIFrontend::displayStock(const QString& symbol)
     ui->priceChart->setSymbol(symbol);
 
     ui->timeAndSalesWidget->clearData();
+
+    // Reset status indicators for the new symbol (they will be updated by live status stream)
+    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; }";
+    m_haltedLabel->setStyleSheet(inactiveStyle);
+    m_haltedLabel->setToolTip("Trading is halted for this symbol");
+    m_delayedLabel->setStyleSheet(inactiveStyle);
+    m_hardToBorrowLabel->setStyleSheet(inactiveStyle);
+    m_hardToBorrowLabel->setToolTip("Hard to borrow - short selling may be restricted");
 
     // Update the order entry widget with the new symbol
     ui->orderEntryWidget->setSymbol(symbol);

@@ -205,6 +205,16 @@ class DBClient : public QObject
     replayDownloadFinished(const QString& p_symbol, const QDate& p_date, bool p_success, const QString& p_errorMessage);
 
     /**
+     * @brief Trading status update for a symbol from the live status stream.
+     * Thread context: Emitted from Databento callback thread (auto-queued)
+     * @param p_symbol              Resolved ticker symbol
+     * @param p_isHalted            true if trading is halted/paused/suspended
+     * @param p_haltReason          Human-readable reason for the halt (empty if not halted)
+     * @param p_isShortSellRestricted true if short selling is restricted (SSR/HTB)
+     */
+    void newStatus(const QString& p_symbol, bool p_isHalted, const QString& p_haltReason, bool p_isShortSellRestricted);
+
+    /**
      * @brief Cumulative data usage updated (live + historical bytes received)
      * Thread context: Emitted from Databento callback thread or QThreadPool worker
      * @param p_totalBytes Total bytes received since application start

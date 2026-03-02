@@ -62,6 +62,7 @@ class GUIFrontend : public FrontEnd
   private slots:
     void onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, QString message);
     void onDatabentoConnectionStateChanged(bool isConnected);
+    void onDatabentoStatusUpdate(const QString& symbol, bool isHalted, const QString& haltReason, bool isSsr);
     void onNewDisplayedStockSelection();
     void updateLiveLogDisplay(const QString& message);
     void onLoggerVisibilityChanged(bool visible);

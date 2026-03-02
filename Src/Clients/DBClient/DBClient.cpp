@@ -201,9 +201,10 @@ void DBClient::subscribeLive(const QString& p_symbol)
 
     m_liveClient->Subscribe({sym}, databento::Schema::Mbp10, databento::SType::RawSymbol);
     m_liveClient->Subscribe({sym}, databento::Schema::Trades, databento::SType::RawSymbol);
+    m_liveClient->Subscribe({sym}, databento::Schema::Status, databento::SType::RawSymbol);
 
     m_subscribedSymbols.insert(p_symbol);
-    INFO << "Subscribed to" << p_symbol << "(Mbp10 + Trades)";
+    INFO << "Subscribed to" << p_symbol << "(Mbp10 + Trades + Status)";
 }
 
 // ── Historical data ────────────────────────────────────────────────────────
@@ -450,6 +451,28 @@ databento::KeepGoing DBClient::onRecordReceived(const databento::Record& p_recor
         const auto& msg = p_record.Get<databento::TradeMsg>();
         Trade trade = DBRecordTranslator::toTrade(symbol, msg);
         emit newTrade(symbol, trade);
+    }
+    else if (p_record.Holds<databento::StatusMsg>())
+    {
+        const auto& msg = p_record.Get<databento::StatusMsg>();
+
+        using databento::StatusAction;
+        using databento::TriState;
+
+        const bool isHalted = msg.action == StatusAction::Halt || msg.action == StatusAction::Pause ||
+                               msg.action == StatusAction::Suspend ||
+                               msg.action == StatusAction::NotAvailableForTrading ||
+                               msg.is_trading == TriState::No;
+
+        const bool isSsr = msg.is_short_sell_restricted == TriState::Yes;
+
+        QString haltReason;
+        if (isHalted)
+        {
+            haltReason = QString::fromUtf8(databento::ToString(msg.reason));
+        }
+
+        emit newStatus(symbol, isHalted, haltReason, isSsr);
     }
 
     return databento::KeepGoing::Continue;
