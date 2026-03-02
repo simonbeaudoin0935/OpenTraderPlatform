@@ -1,10 +1,10 @@
-#include "BalanceWindow.h"
+#include "BalanceWidget.h"
 #include <QTableView>
 #include <QHeaderView>
 #include <QVBoxLayout>
 #include <QLabel>
 
-BalanceWindow::BalanceWindow(QWidget* parent)
+BalanceWidget::BalanceWidget(QWidget* parent)
     : QWidget(parent)
     , tableView(new QTableView(this))
     , model(new QStandardItemModel(this))
@@ -14,12 +14,12 @@ BalanceWindow::BalanceWindow(QWidget* parent)
     setupStyles();
 }
 
-BalanceWindow::~BalanceWindow()
+BalanceWidget::~BalanceWidget()
 {
     // Qt will handle deletion of child widgets
 }
 
-void BalanceWindow::setupUI()
+void BalanceWidget::setupUI()
 {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(0);
@@ -78,7 +78,7 @@ void BalanceWindow::setupUI()
     setFixedWidth(totalWidth);
 }
 
-void BalanceWindow::setupStyles()
+void BalanceWidget::setupStyles()
 {
     // Style the header label
     headerLabel->setStyleSheet("QLabel {"
@@ -104,12 +104,12 @@ void BalanceWindow::setupStyles()
                              "}");
 }
 
-void BalanceWindow::updateBalance(const Balance& balance)
+void BalanceWidget::updateBalance(const Balance& balance)
 {
     updateBalanceData(balance);
 }
 
-void BalanceWindow::updateBalanceData(const Balance& balance)
+void BalanceWidget::updateBalanceData(const Balance& balance)
 {
     // Row indices match the order in setupUI
     int row = 0;

@@ -40,11 +40,11 @@ Src/FrontEnd/GUI/
 │   └── Gauge/                      # Circular gauge for metrics
 │       ├── AGENTS.md
 │       └── Gauge.cpp/h
-├── Windows/                        # Window-style displays
+├── Widgets/                        # Window-style displays
 │   ├── AGENTS.md
-│   ├── OrderWindow.cpp/h           # Orders table
-│   ├── PositionWindow.cpp/h        # Positions table
-│   └── BalanceWindow.cpp/h         # Account balance
+│   ├── OrderWidget.cpp/h           # Orders table
+│   ├── PositionWidget.cpp/h        # Positions table
+│   └── BalanceWidget.cpp/h         # Account balance
 └── StockPriceChart/                # Real-time price chart
     ├── AGENTS.md
     ├── StockPriceChart.cpp/h
@@ -59,7 +59,7 @@ Src/FrontEnd/GUI/
 - `Widgets/OrderEntry/AGENTS.md` - Order entry widget with sticky price
 - `Widgets/MarketDepth/AGENTS.md` - Level 2 market depth display
 - `Widgets/Gauge/AGENTS.md` - Circular gauge metrics display
-- `Windows/AGENTS.md` - Order/Position/Balance window displays
+- `Widgets/AGENTS.md` - Order/Position/Balance window displays
 - `StockPriceChart/AGENTS.md` - Real-time chart with replay mode
 
 ## Main Window Structure
@@ -252,11 +252,11 @@ public slots:
     void updateStickyPrice(const Level2& level2);
 ```
 
-### PositionWindow (Windows/)
+### PositionWidget (Widgets/)
 
 **Real-time position tracking**
 
-See `Windows/AGENTS.md` for complete documentation.
+See `Widgets/AGENTS.md` for complete documentation.
 
 Columns:
 - Symbol (clickable to load chart)
@@ -285,11 +285,11 @@ Columns:
 QMap<QString, int> m_positionRowMap;  // positionId → row index
 ```
 
-### OrderWindow (Windows/)
+### OrderWidget (Widgets/)
 
 **Order management and status tracking**
 
-See `Windows/AGENTS.md` for complete documentation.
+See `Widgets/AGENTS.md` for complete documentation.
 
 Columns:
 - Order ID
@@ -312,11 +312,11 @@ Columns:
 QMap<QString, int> m_orderRowMap;  // orderId → row index
 ```
 
-### BalanceWindow (Windows/)
+### BalanceWidget (Widgets/)
 
 **Account balance display**
 
-See `Windows/AGENTS.md` for complete documentation.
+See `Widgets/AGENTS.md` for complete documentation.
 
 Shows:
 - Cash Available
@@ -443,7 +443,7 @@ The `onNewOrderReceived()` and `onNewPositionReceived()` handlers forward events
 
 ```cpp
 void GUIFrontend::onNewOrderReceived(QString account, Order order) {
-    ui->orderWindow->updateOrder(account, order);
+    ui->orderWidget->updateOrder(account, order);
 
     // Forward to chart for visualization (if symbol matches)
     if (order.getSymbol() == ui->priceChart->getCurrentSymbol()) {
@@ -487,7 +487,7 @@ connect(ui->stockPriceChart, &StockPriceChart::requestMissingBars,
         });
 
 // Position window symbol clicked
-connect(m_positionWindow, &PositionWindow::symbolClicked,
+connect(m_positionWidget, &PositionWidget::symbolClicked,
         this, [this](const QString& symbol) {
             ui->symbolInput->setText(symbol);
             onSymbolEntered();

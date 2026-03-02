@@ -9,12 +9,12 @@
 class QTableView;
 class QLabel;
 
-class PositionWindow : public QWidget
+class PositionWidget : public QWidget
 {
     Q_OBJECT
   public:
-    explicit PositionWindow(QWidget* parent = nullptr);
-    ~PositionWindow();
+    explicit PositionWidget(QWidget* parent = nullptr);
+    ~PositionWidget();
 
   public slots:
     /// Update or add a position to the display

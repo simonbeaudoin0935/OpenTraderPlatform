@@ -10,12 +10,12 @@
 class QTableView;
 class QLabel;
 
-class OrderWindow : public QWidget
+class OrderWidget : public QWidget
 {
     Q_OBJECT
   public:
-    explicit OrderWindow(QWidget* p_parent = nullptr);
-    ~OrderWindow();
+    explicit OrderWidget(QWidget* p_parent = nullptr);
+    ~OrderWidget();
 
   public slots:
     /// Update or add an order to the display

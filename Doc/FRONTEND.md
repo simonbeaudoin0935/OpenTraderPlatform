@@ -176,7 +176,7 @@ classDiagram
         +updateDWP(double, double)
     }
 
-    class PositionWindow {
+    class PositionWidget {
         -QTableView* tableView
         -QStandardItemModel* model
         -QMap~QString, int~ positionRowMap
@@ -184,7 +184,7 @@ classDiagram
         +symbolClicked(QString)*
     }
 
-    class OrderWindow {
+    class OrderWidget {
         -QTableView* m_tableView
         -QStandardItemModel* m_model
         -QMap~QString, int~ m_orderRowMap
@@ -205,8 +205,8 @@ classDiagram
     FrontEnd <|-- GUIFrontend : implements
     GUIFrontend --> StockPriceChart : contains
     GUIFrontend --> MarketDepthTable : contains
-    GUIFrontend --> PositionWindow : contains
-    GUIFrontend --> OrderWindow : contains
+    GUIFrontend --> PositionWidget : contains
+    GUIFrontend --> OrderWidget : contains
     GUIFrontend --> OrderEntryWidget : contains
 ```
 
@@ -265,7 +265,7 @@ Bid Price | Bid Size | Bid Count || Ask Price | Ask Size | Ask Count
 - **Spread**: Ask - Bid
 - **DWP (Depth-Weighted Price)**: Order book imbalance indicator
 
-#### 3. PositionWindow
+#### 3. PositionWidget
 
 Real-time position tracking with P/L calculations.
 
@@ -283,7 +283,7 @@ Real-time position tracking with P/L calculations.
 - 🔴 Red: Loss (P/L < 0)
 - ⚪ White: Break-even (P/L = 0)
 
-#### 4. OrderWindow
+#### 4. OrderWidget
 
 Order management and status tracking.
 
@@ -753,8 +753,8 @@ stateDiagram-v2
 
 ```cpp
 void GUIFrontend::onNewPositionReceived(const QString& accountId, const Position& position) {
-    // Update PositionWindow display
-    m_positionWindow->updatePosition(accountId, position);
+    // Update PositionWidget display
+    m_positionWidget->updatePosition(accountId, position);
     
     // Calculate P/L
     double pnl = (position.getLastPrice() - position.getAveragePrice()) * position.getQuantity();

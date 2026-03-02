@@ -3,11 +3,11 @@
 #include <QVBoxLayout>
 #include <QLabel>
 
-#include "OrderWindow.h"
+#include "OrderWidget.h"
 #include "Assume.h"
 #include "CONSTANTS.h"
 
-OrderWindow::OrderWindow(QWidget* p_parent)
+OrderWidget::OrderWidget(QWidget* p_parent)
     : QWidget(p_parent)
     , m_tableView(new QTableView(this))
     , m_model(new QStandardItemModel(this))
@@ -17,12 +17,12 @@ OrderWindow::OrderWindow(QWidget* p_parent)
     setupStyles();
 }
 
-OrderWindow::~OrderWindow()
+OrderWidget::~OrderWidget()
 {
     // Qt will handle deletion of child widgets
 }
 
-void OrderWindow::setupUI()
+void OrderWidget::setupUI()
 {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(0);
@@ -48,7 +48,7 @@ void OrderWindow::setupUI()
     m_tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
     // Connect click signal
-    auto c = connect(m_tableView, &QTableView::clicked, this, &OrderWindow::onSymbolClicked, Qt::UniqueConnection);
+    auto c = connect(m_tableView, &QTableView::clicked, this, &OrderWidget::onSymbolClicked, Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(c);
 
     // Set column widths
@@ -81,7 +81,7 @@ void OrderWindow::setupUI()
     setMinimumWidth(400);             // Ensure minimum usable width
 }
 
-void OrderWindow::setupStyles()
+void OrderWidget::setupStyles()
 {
     // Style the header label
     m_headerLabel->setStyleSheet("QLabel {"
@@ -110,12 +110,12 @@ void OrderWindow::setupStyles()
                                "}");
 }
 
-void OrderWindow::updateOrder(const QString& account, const Order& order)
+void OrderWidget::updateOrder(const QString& account, const Order& order)
 {
     Q_UNUSED(account);
     QString orderId = order.getOrderID();
 
-    qDebug() << "OrderWindow::updateOrder called for order ID:" << orderId << "Symbol:" << order.getSymbol()
+    qDebug() << "OrderWidget::updateOrder called for order ID:" << orderId << "Symbol:" << order.getSymbol()
              << "Quantity:" << order.getQuantity() << "TradeAction:" << order.getTradeAction()
              << "OrderType:" << static_cast<int>(order.getOrderType().type) << "LimitPrice:"
              << (order.getLimitPrice().has_value() ? QString::number(order.getLimitPrice().value()) : "not set")
@@ -148,21 +148,21 @@ void OrderWindow::updateOrder(const QString& account, const Order& order)
     }
 }
 
-void OrderWindow::updateOrderRow(const QString& account, const Order& order)
+void OrderWidget::updateOrderRow(const QString& account, const Order& order)
 {
     Q_UNUSED(account);
 
     QString orderId = order.getOrderID();
     if (!m_orderRowMap.contains(orderId))
     {
-        qWarning() << "OrderWindow::updateOrderRow: Order ID not found in map:" << orderId;
+        qWarning() << "OrderWidget::updateOrderRow: Order ID not found in map:" << orderId;
         return;
     }
 
     int row = m_orderRowMap[orderId];
     if (row < 0 || row >= m_model->rowCount())
     {
-        qWarning() << "OrderWindow::updateOrderRow: Invalid row index:" << row;
+        qWarning() << "OrderWidget::updateOrderRow: Invalid row index:" << row;
         return;
     }
 
@@ -174,7 +174,7 @@ void OrderWindow::updateOrderRow(const QString& account, const Order& order)
     }
 }
 
-QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
+QList<QStandardItem*> OrderWidget::createRowItems(const Order& order)
 {
     QList<QStandardItem*> items;
     [[maybe_unused]] bool isReceivedOrder = (order.getOrderStatus() == Order::Status::ACK);
@@ -420,7 +420,7 @@ QList<QStandardItem*> OrderWindow::createRowItems(const Order& order)
     return items;
 }
 
-void OrderWindow::onSymbolClicked(const QModelIndex& index)
+void OrderWidget::onSymbolClicked(const QModelIndex& index)
 {
     // Get the order ID from the last column of the clicked row
     QStandardItem* orderIdItem = m_model->item(index.row(), 10); // Order ID at column 10
@@ -455,12 +455,12 @@ void OrderWindow::onSymbolClicked(const QModelIndex& index)
     }
 }
 
-QStringList OrderWindow::getAllOrderIds() const
+QStringList OrderWidget::getAllOrderIds() const
 {
     return m_orderRowMap.keys();
 }
 
-QStringList OrderWindow::getCancellableOrderIds() const
+QStringList OrderWidget::getCancellableOrderIds() const
 {
     QStringList cancellableIds;
 
@@ -488,10 +488,10 @@ QStringList OrderWindow::getCancellableOrderIds() const
 }
 
 
-void OrderWindow::clearAllOrders()
+void OrderWidget::clearAllOrders()
 {
     m_model->removeRows(0, m_model->rowCount());
     m_orderRowMap.clear();
     m_orders.clear();
-    qDebug() << "OrderWindow cleared all orders";
+    qDebug() << "OrderWidget cleared all orders";
 }

@@ -52,9 +52,9 @@ graph TD
         GFW --> CT[CacheTab]
         GFW --> LT[LoggingTab]
         GFW --> RT[RecorderTab]
-        GFW --> PW[PositionWindow]
-        GFW --> OW[OrderWindow]
-        GFW --> BW[BalanceWindow]
+        GFW --> PW[PositionWidget]
+        GFW --> OW[OrderWidget]
+        GFW --> BW[BalanceWidget]
         GFW --> OEW[OrderEntryWidget]
     end
 
@@ -544,8 +544,8 @@ sequenceDiagram
     TSClient->>TSClient: Emit order update
     TSClient->>MainAlgo: Order status change
     MainAlgo->>GUIFrontend: receivedNewOrder (signal)
-    GUIFrontend->>OrderWindow: Update order display
-    OrderWindow->>User: Show order status
+    GUIFrontend->>OrderWidget: Update order display
+    OrderWidget->>User: Show order status
 ```
 
 ## Design Patterns

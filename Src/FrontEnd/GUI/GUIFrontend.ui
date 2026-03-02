@@ -266,7 +266,7 @@
                <property name="childrenCollapsible">
                 <bool>true</bool>
                </property>
-               <widget class="BalanceWindow" name="balanceWindow" native="true">
+               <widget class="BalanceWidget" name="balanceWidget" native="true">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
                   <horstretch>0</horstretch>
@@ -274,7 +274,7 @@
                  </sizepolicy>
                 </property>
                </widget>
-               <widget class="PositionWindow" name="positionWindow" native="true">
+               <widget class="PositionWidget" name="positionWidget" native="true">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
                   <horstretch>0</horstretch>
@@ -282,7 +282,7 @@
                  </sizepolicy>
                 </property>
                </widget>
-               <widget class="OrderWindow" name="orderWindow" native="true">
+               <widget class="OrderWidget" name="orderWidget" native="true">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
                   <horstretch>0</horstretch>
@@ -346,19 +346,19 @@
    <header>GUI/Widgets/MarketDepth/MarketDepthTable.h</header>
   </customwidget>
   <customwidget>
-   <class>BalanceWindow</class>
+   <class>BalanceWidget</class>
    <extends>QWidget</extends>
-   <header>GUI/Windows/BalanceWindow.h</header>
+   <header>GUI/Widgets/BalanceWidget.h</header>
   </customwidget>
   <customwidget>
-   <class>PositionWindow</class>
+   <class>PositionWidget</class>
    <extends>QWidget</extends>
-   <header>GUI/Windows/PositionWindow.h</header>
+   <header>GUI/Widgets/PositionWidget.h</header>
   </customwidget>
   <customwidget>
-   <class>OrderWindow</class>
+   <class>OrderWidget</class>
    <extends>QWidget</extends>
-   <header>GUI/Windows/OrderWindow.h</header>
+   <header>GUI/Widgets/OrderWidget.h</header>
   </customwidget>
   <customwidget>
    <class>OrderEntryWidget</class>

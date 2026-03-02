@@ -401,7 +401,7 @@ sequenceDiagram
     Receiver->>Receiver: Update position map, calculate P/L
     Receiver-->>MainAlgo: receivedNewPosition(account, position)
     MainAlgo-->>Frontend: receivedNewPosition(account, position)
-    Frontend->>Frontend: Update PositionWindow
+    Frontend->>Frontend: Update PositionWidget
 ```
 
 ### Stock Selection Flow
@@ -652,7 +652,7 @@ OrdersReceiver/PositionsReceiver
     ↓
 MainAlgo::onReceivedNewOrder/Position()
     ↓
-GUI (OrderWindow, PositionWindow)
+GUI (OrderWidget, PositionWidget)
 ```
 
 ### Key Differences from Live Mode

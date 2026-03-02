@@ -538,7 +538,7 @@ Position 3: Buy 10 → Buy 10 → Sell 20 (DCA closed, quantity=0)
 Position 4: Buy 10 → Sell 5 → ... (still open, 5 shares remaining)
 ```
 
-Each closed position appears as separate entry in PositionWindow with quantity=0 and realized P&L.
+Each closed position appears as separate entry in PositionWidget with quantity=0 and realized P&L.
 
 ### Data Structures
 

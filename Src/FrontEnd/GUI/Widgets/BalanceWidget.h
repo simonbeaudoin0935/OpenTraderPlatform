@@ -8,12 +8,12 @@
 class QTableView;
 class QLabel;
 
-class BalanceWindow : public QWidget
+class BalanceWidget : public QWidget
 {
     Q_OBJECT
   public:
-    explicit BalanceWindow(QWidget* parent = nullptr);
-    ~BalanceWindow();
+    explicit BalanceWidget(QWidget* parent = nullptr);
+    ~BalanceWidget();
 
   public slots:
     /// Update account balance display

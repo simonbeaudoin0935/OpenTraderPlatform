@@ -386,8 +386,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     ui->stockSymbolInput->setAlignment(Qt::AlignCenter);
 
     // Connect position window symbol click
-    connect(ui->positionWindow,
-            &PositionWindow::symbolClicked,
+    connect(ui->positionWidget,
+            &PositionWidget::symbolClicked,
             this,
             [this](const QString& symbol)
             {
@@ -396,8 +396,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             });
 
     // Connect order window symbol click
-    connect(ui->orderWindow,
-            &OrderWindow::symbolClicked,
+    connect(ui->orderWidget,
+            &OrderWidget::symbolClicked,
             this,
             [this](const QString& symbol)
             {
@@ -406,8 +406,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             });
 
     // Connect order window cancel order request
-    connect(ui->orderWindow,
-            &OrderWindow::cancelOrderRequested,
+    connect(ui->orderWidget,
+            &OrderWidget::cancelOrderRequested,
             this,
             [this](const QString& orderId)
             {
@@ -765,7 +765,7 @@ void GUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol,
 
 void GUIFrontend::onNewPositionReceived(QString account, Position position)
 {
-    ui->positionWindow->updatePosition(account, position);
+    ui->positionWidget->updatePosition(account, position);
 
     // Forward position to chart for visualization
     // Only process positions for the currently displayed symbol
@@ -788,12 +788,12 @@ void GUIFrontend::onNewPositionReceived(QString account, Position position)
 
 void GUIFrontend::onPositionDeleted(QString account, QString positionID)
 {
-    ui->positionWindow->onPositionDeleted(account, positionID);
+    ui->positionWidget->onPositionDeleted(account, positionID);
 }
 
 void GUIFrontend::onNewOrderReceived(QString account, Order order)
 {
-    ui->orderWindow->updateOrder(account, order);
+    ui->orderWidget->updateOrder(account, order);
 
     // Forward order to chart for visualization
     // Only process orders for the currently displayed symbol
@@ -826,7 +826,7 @@ void GUIFrontend::onNewOrderReceived(QString account, Order order)
 
 void GUIFrontend::onBalanceUpdated(Balance balance)
 {
-    ui->balanceWindow->updateBalance(balance);
+    ui->balanceWidget->updateBalance(balance);
 }
 
 void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated,
@@ -1273,7 +1273,7 @@ void GUIFrontend::onToggleReplayMode()
 void GUIFrontend::onCancelAllOrders()
 {
     // Get only cancellable order IDs from the order window (filters by status)
-    QStringList orderIds = ui->orderWindow->getCancellableOrderIds();
+    QStringList orderIds = ui->orderWidget->getCancellableOrderIds();
 
     if (orderIds.isEmpty())
     {
@@ -1544,8 +1544,8 @@ void GUIFrontend::onReplayModeEntered()
                                      "border-radius: 4px; font-weight: bold; font-weight: bold; }");
 
     // Clear live orders and positions from widgets (replay starts with clean slate)
-    ui->orderWindow->clearAllOrders();
-    ui->positionWindow->clearAllPositions();
+    ui->orderWidget->clearAllOrders();
+    ui->positionWidget->clearAllPositions();
 
     // Clear chart data for fresh replay (bar caches are cleared separately by MainAlgo)
     ui->priceChart->clearChart();

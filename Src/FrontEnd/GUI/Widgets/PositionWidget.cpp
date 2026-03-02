@@ -1,10 +1,10 @@
-#include "PositionWindow.h"
+#include "PositionWidget.h"
 #include <QTableView>
 #include <QHeaderView>
 #include <QVBoxLayout>
 #include <QLabel>
 
-PositionWindow::PositionWindow(QWidget* parent)
+PositionWidget::PositionWidget(QWidget* parent)
     : QWidget(parent)
     , tableView(new QTableView(this))
     , model(new QStandardItemModel(this))
@@ -14,12 +14,12 @@ PositionWindow::PositionWindow(QWidget* parent)
     setupStyles();
 }
 
-PositionWindow::~PositionWindow()
+PositionWidget::~PositionWidget()
 {
     // Qt will handle deletion of child widgets
 }
 
-void PositionWindow::setupUI()
+void PositionWidget::setupUI()
 {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(0);
@@ -29,7 +29,7 @@ void PositionWindow::setupUI()
     headerLabel->setFixedHeight(24);
     headerLabel->setAlignment(Qt::AlignCenter);
 
-    // Setup model columns (Position ID at END like OrderWindow)
+    // Setup model columns (Position ID at END like OrderWidget)
     QStringList headers;
     headers << "Symbol" << "Quantity" << "Avg Price" << "Last" << "Unrealized P/L" << "Realized P/L" << "Market Value"
             << "Position ID";
@@ -45,7 +45,7 @@ void PositionWindow::setupUI()
     tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     // Connect click signal
-    connect(tableView, &QTableView::clicked, this, &PositionWindow::onSymbolClicked);
+    connect(tableView, &QTableView::clicked, this, &PositionWidget::onSymbolClicked);
 
     // Set column widths
     tableView->setColumnWidth(0, 70); // Symbol
@@ -70,7 +70,7 @@ void PositionWindow::setupUI()
     setFixedWidth(totalWidth);
 }
 
-void PositionWindow::setupStyles()
+void PositionWidget::setupStyles()
 {
     // Style the header label
     headerLabel->setStyleSheet("QLabel {"
@@ -99,7 +99,7 @@ void PositionWindow::setupStyles()
                              "}");
 }
 
-void PositionWindow::updatePosition(const QString& account, const Position& position)
+void PositionWidget::updatePosition(const QString& account, const Position& position)
 {
     QString positionId = position.getPositionID();
 
@@ -117,7 +117,7 @@ void PositionWindow::updatePosition(const QString& account, const Position& posi
     }
 }
 
-void PositionWindow::updatePositionRow(const QString& account, const Position& position)
+void PositionWidget::updatePositionRow(const QString& account, const Position& position)
 {
     Q_UNUSED(account);
 
@@ -130,7 +130,7 @@ void PositionWindow::updatePositionRow(const QString& account, const Position& p
     }
 }
 
-QList<QStandardItem*> PositionWindow::createRowItems(const Position& position)
+QList<QStandardItem*> PositionWidget::createRowItems(const Position& position)
 {
     QList<QStandardItem*> items;
 
@@ -185,7 +185,7 @@ QList<QStandardItem*> PositionWindow::createRowItems(const Position& position)
     marketValueItem->setTextAlignment(Qt::AlignCenter);
     items << marketValueItem;
 
-    // Position ID (at end, like OrderWindow)
+    // Position ID (at end, like OrderWidget)
     auto positionIDItem = new QStandardItem(position.getPositionID());
     positionIDItem->setTextAlignment(Qt::AlignCenter);
     items << positionIDItem;
@@ -193,7 +193,7 @@ QList<QStandardItem*> PositionWindow::createRowItems(const Position& position)
     return items;
 }
 
-void PositionWindow::onPositionDeleted(const QString& account, const QString& positionID)
+void PositionWidget::onPositionDeleted(const QString& account, const QString& positionID)
 {
     Q_UNUSED(account);
 
@@ -208,7 +208,7 @@ void PositionWindow::onPositionDeleted(const QString& account, const QString& po
     }
 }
 
-void PositionWindow::onSymbolClicked(const QModelIndex& index)
+void PositionWidget::onSymbolClicked(const QModelIndex& index)
 {
     if (index.column() == 0)
     { // Only handle clicks on the Symbol column
@@ -218,9 +218,9 @@ void PositionWindow::onSymbolClicked(const QModelIndex& index)
 }
 
 
-void PositionWindow::clearAllPositions()
+void PositionWidget::clearAllPositions()
 {
     model->removeRows(0, model->rowCount());
     positionRowMap.clear();
-    qDebug() << "PositionWindow cleared all positions";
+    qDebug() << "PositionWidget cleared all positions";
 }
