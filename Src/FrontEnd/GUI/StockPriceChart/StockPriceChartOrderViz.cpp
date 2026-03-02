@@ -88,27 +88,16 @@ StockPriceChart::createOrderMarker(const QString& orderID, double index, double 
     marker->isBuy = isBuy;
     marker->state = filled ? OrderMarker::State::Filled : OrderMarker::State::Pending;
 
-    QCPAxis* yAxis = m_customPlot->axisRect()->axis(QCPAxis::atRight);
-    QCPItemText* textLabel = new QCPItemText(m_customPlot);
-    textLabel->position->setAxes(m_customPlot->xAxis, yAxis);
-    textLabel->position->setCoords(index, price);
-    textLabel->setFont(QFont("Arial", 14, QFont::Bold));
-    textLabel->setPadding(QMargins(4, 4, 4, 4));
+    auto* triangle = new QCPItemTriangle(m_customPlot, isBuy);
+    triangle->tip->setCoords(index, price);
+    triangle->setPixelSize(12, 10);
 
-    if (isBuy)
-    {
-        textLabel->setText("▲");
-        textLabel->setColor(filled ? ORDER_VIZ_GREEN : ORDER_VIZ_GREEN.lighter(130));
-        textLabel->setPositionAlignment(Qt::AlignTop | Qt::AlignHCenter);
-    }
-    else
-    {
-        textLabel->setText("▼");
-        textLabel->setColor(filled ? ORDER_VIZ_RED : ORDER_VIZ_RED.lighter(130));
-        textLabel->setPositionAlignment(Qt::AlignBottom | Qt::AlignHCenter);
-    }
+    const QColor color = isBuy ? (filled ? ORDER_VIZ_GREEN : ORDER_VIZ_GREEN.lighter(130))
+                               : (filled ? ORDER_VIZ_RED : ORDER_VIZ_RED.lighter(130));
+    triangle->setColor(color);
 
-    marker->priceLabel = textLabel;
+    marker->markerItem = triangle;
+    marker->isTriangleMarker = true;
     m_orderMarkers.insert(orderID, marker);
     return marker;
 }
@@ -130,10 +119,7 @@ OrderMarker* StockPriceChart::createCancelledMarker(const QString& orderID, doub
     marker->price = price;
     marker->state = OrderMarker::State::Cancelled;
 
-    // Get the right Y-axis
     QCPAxis* yAxis = m_customPlot->axisRect()->axis(QCPAxis::atRight);
-
-    // Create a simple text label showing cancelled state
     QCPItemText* textLabel = new QCPItemText(m_customPlot);
     textLabel->position->setAxes(m_customPlot->xAxis, yAxis);
     textLabel->position->setCoords(index, price);
@@ -142,7 +128,7 @@ OrderMarker* StockPriceChart::createCancelledMarker(const QString& orderID, doub
     textLabel->setColor(ORDER_VIZ_GRAY);
     textLabel->setPadding(QMargins(4, 4, 4, 4));
     textLabel->setPositionAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
-    marker->priceLabel = textLabel;
+    marker->markerItem = textLabel;
 
     m_orderMarkers.insert(orderID, marker);
     return marker;
@@ -150,56 +136,71 @@ OrderMarker* StockPriceChart::createCancelledMarker(const QString& orderID, doub
 
 void StockPriceChart::updateMarkerState(OrderMarker* marker, OrderMarker::State newState)
 {
-    if (!marker || !marker->priceLabel)
+    if (!marker || !marker->markerItem)
     {
         return;
     }
 
     marker->state = newState;
 
-    struct MarkerStyle
+    if (newState == OrderMarker::State::Cancelled || newState == OrderMarker::State::Rejected)
     {
-        QString text;
-        QColor color;
-    };
+        // Replace triangle with a grey ✖ text label
+        const QPointF coords = [&]() -> QPointF
+        {
+            if (marker->isTriangleMarker)
+                return static_cast<QCPItemTriangle*>(marker->markerItem)->tip->coords();
+            return static_cast<QCPItemText*>(marker->markerItem)->position->coords();
+        }();
 
-    auto getStyle = [&]() -> MarkerStyle
+        m_customPlot->removeItem(marker->markerItem);
+        marker->isTriangleMarker = false;
+
+        QCPAxis* yAxis = m_customPlot->axisRect()->axis(QCPAxis::atRight);
+        auto* textLabel = new QCPItemText(m_customPlot);
+        textLabel->position->setAxes(m_customPlot->xAxis, yAxis);
+        textLabel->position->setCoords(coords);
+        textLabel->setText("✖");
+        textLabel->setFont(QFont("Arial", 14, QFont::Bold));
+        textLabel->setColor(ORDER_VIZ_GRAY);
+        textLabel->setPadding(QMargins(4, 4, 4, 4));
+        textLabel->setPositionAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
+        marker->markerItem = textLabel;
+        return;
+    }
+
+    // Update triangle color for pending ↔ filled transitions
+    if (marker->isTriangleMarker)
     {
-        if (newState == OrderMarker::State::Cancelled || newState == OrderMarker::State::Rejected)
-        {
-            return {"✖", ORDER_VIZ_GRAY};
-        }
-
-        bool isPending = (newState == OrderMarker::State::Pending);
-        if (marker->isBuy)
-        {
-            QColor color = isPending ? ORDER_VIZ_GREEN.lighter(130) : ORDER_VIZ_GREEN;
-            return {"▲", color};
-        }
-        else
-        {
-            QColor color = isPending ? ORDER_VIZ_RED.lighter(130) : ORDER_VIZ_RED;
-            return {"▼", color};
-        }
-    };
-
-    MarkerStyle style = getStyle();
-    marker->priceLabel->setText(style.text);
-    marker->priceLabel->setColor(style.color);
+        auto* tri = static_cast<QCPItemTriangle*>(marker->markerItem);
+        const bool isPending = (newState == OrderMarker::State::Pending);
+        const QColor color = marker->isBuy ? (isPending ? ORDER_VIZ_GREEN.lighter(130) : ORDER_VIZ_GREEN)
+                                           : (isPending ? ORDER_VIZ_RED.lighter(130) : ORDER_VIZ_RED);
+        tri->setColor(color);
+    }
 }
 
 void StockPriceChart::moveMarkerToPrice(OrderMarker* marker, double newPrice)
 {
-    if (!marker || !marker->priceLabel)
+    if (!marker || !marker->markerItem)
     {
         return;
     }
 
     marker->price = newPrice;
 
-    // Move text label to new price
-    auto coords = marker->priceLabel->position->coords();
-    marker->priceLabel->position->setCoords(coords.x(), newPrice);
+    if (marker->isTriangleMarker)
+    {
+        auto* tri = static_cast<QCPItemTriangle*>(marker->markerItem);
+        const QPointF coords = tri->tip->coords();
+        tri->tip->setCoords(coords.x(), newPrice);
+    }
+    else
+    {
+        auto* txt = static_cast<QCPItemText*>(marker->markerItem);
+        const QPointF coords = txt->position->coords();
+        txt->position->setCoords(coords.x(), newPrice);
+    }
 }
 
 void StockPriceChart::removeOrderMarker(const QString& orderID)
@@ -212,10 +213,10 @@ void StockPriceChart::removeOrderMarker(const QString& orderID)
 
     OrderMarker* marker = it.value();
 
-    // Remove text label from plot
-    if (marker->priceLabel)
+    // Remove marker item from plot
+    if (marker->markerItem)
     {
-        m_customPlot->removeItem(marker->priceLabel);
+        m_customPlot->removeItem(marker->markerItem);
     }
 
     delete marker;
@@ -454,9 +455,9 @@ void StockPriceChart::clearOrderVisualizations()
     for (auto it = m_orderMarkers.begin(); it != m_orderMarkers.end(); ++it)
     {
         OrderMarker* marker = it.value();
-        if (marker->priceLabel)
+        if (marker->markerItem)
         {
-            m_customPlot->removeItem(marker->priceLabel);
+            m_customPlot->removeItem(marker->markerItem);
         }
         delete marker;
     }
@@ -605,9 +606,9 @@ void StockPriceChart::updateOrderVisualizationsVisibility()
     // Update visibility of all markers
     for (OrderMarker* marker: m_orderMarkers)
     {
-        if (marker->priceLabel)
+        if (marker->markerItem)
         {
-            marker->priceLabel->setVisible(m_orderVisualizationsVisible);
+            marker->markerItem->setVisible(m_orderVisualizationsVisible);
         }
     }
 
@@ -652,9 +653,9 @@ void StockPriceChart::cullOrderVisualizationsToVisibleRange()
         bool inRange = (index >= xRange.lower - 1 && index <= xRange.upper + 1);
         bool visible = m_orderVisualizationsVisible && inRange;
 
-        if (marker->priceLabel)
+        if (marker->markerItem)
         {
-            marker->priceLabel->setVisible(visible);
+            marker->markerItem->setVisible(visible);
         }
     }
 

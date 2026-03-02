@@ -925,10 +925,7 @@ void GUIFrontend::onDatabentoConnectionStateChanged(bool isConnected)
     m_databentoButton->setEnabled(true);
 }
 
-void GUIFrontend::onDatabentoStatusUpdate(const QString& symbol,
-                                           bool isHalted,
-                                           const QString& haltReason,
-                                           bool isSsr)
+void GUIFrontend::onDatabentoStatusUpdate(const QString& symbol, bool isHalted, const QString& haltReason, bool isSsr)
 {
     if (symbol != currentlyDisplayedSymbol)
         return;
@@ -944,7 +941,7 @@ void GUIFrontend::onDatabentoStatusUpdate(const QString& symbol,
     {
         m_haltedLabel->setStyleSheet(haltedStyle);
         m_haltedLabel->setToolTip(haltReason.isEmpty() ? "Trading is halted for this symbol"
-                                                        : "Halt reason: " + haltReason);
+                                                       : "Halt reason: " + haltReason);
     }
     else
     {

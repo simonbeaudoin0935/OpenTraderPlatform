@@ -460,9 +460,8 @@ databento::KeepGoing DBClient::onRecordReceived(const databento::Record& p_recor
         using databento::TriState;
 
         const bool isHalted = msg.action == StatusAction::Halt || msg.action == StatusAction::Pause ||
-                               msg.action == StatusAction::Suspend ||
-                               msg.action == StatusAction::NotAvailableForTrading ||
-                               msg.is_trading == TriState::No;
+                              msg.action == StatusAction::Suspend ||
+                              msg.action == StatusAction::NotAvailableForTrading || msg.is_trading == TriState::No;
 
         const bool isSsr = msg.is_short_sell_restricted == TriState::Yes;
 

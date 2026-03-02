@@ -14,6 +14,7 @@
 #include "ChartToolbar.h"
 #include "ChartTimeUtils.h"
 #include "CONSTANTS.h"
+#include "QCPItemTriangle.h"
 
 // Forward declarations
 class Order;
@@ -48,7 +49,9 @@ struct OrderMarker
     State state = State::Pending;
 
     // Visual element (owned by QCustomPlot)
-    QCPItemText* priceLabel = nullptr; // Text label showing BUY/SELL/CANCELLED
+    // QCPItemTriangle for buy/sell markers, QCPItemText for cancelled/rejected
+    QCPAbstractItem* markerItem = nullptr;
+    bool isTriangleMarker = false; ///< true when markerItem is QCPItemTriangle
 };
 
 /**

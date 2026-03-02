@@ -955,10 +955,7 @@ void MainAlgo::connectReplaySignals(const QString& p_symbol)
     // Replay Level2 → OrderEmulator (so it has market data for order fills)
     if (OrderEmulator* emulator = TSClient::getInstance()->getOrderEmulator())
     {
-        connected = connect(m_replayEngine,
-                            &ReplayEngine::replayLevel2,
-                            emulator,
-                            &OrderEmulator::updateMarketDepth);
+        connected = connect(m_replayEngine, &ReplayEngine::replayLevel2, emulator, &OrderEmulator::updateMarketDepth);
         ASSUME_TRUE(connected);
 
         // Bar close price → OrderEmulator (needed by recalculatePositionPnL for P&L updates)
