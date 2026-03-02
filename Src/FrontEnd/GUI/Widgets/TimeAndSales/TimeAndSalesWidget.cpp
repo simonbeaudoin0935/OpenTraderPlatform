@@ -28,12 +28,8 @@ void TimeAndSalesWidget::setupUI()
     m_table->setFocusPolicy(Qt::NoFocus);
     m_table->verticalHeader()->setVisible(false);
     m_table->verticalHeader()->setDefaultSectionSize(18);
-    m_table->horizontalHeader()->setStretchLastSection(true);
-    m_table->horizontalHeader()->setSectionResizeMode(COL_TIME, QHeaderView::Fixed);
-    m_table->horizontalHeader()->setSectionResizeMode(COL_PRICE, QHeaderView::Fixed);
-    m_table->horizontalHeader()->setSectionResizeMode(COL_SIZE, QHeaderView::Stretch);
-    m_table->setColumnWidth(COL_TIME, 62);  // fits "hh:mm:ss"
-    m_table->setColumnWidth(COL_PRICE, 50); // fits "1234.56"
+    m_table->horizontalHeader()->setStretchLastSection(false);
+    m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     m_table->setShowGrid(false);
     m_table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
