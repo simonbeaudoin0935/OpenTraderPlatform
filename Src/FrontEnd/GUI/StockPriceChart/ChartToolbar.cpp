@@ -39,9 +39,6 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
     replayLabel = new QLabel("Replay:", this);
     replayLabel->setStyleSheet("font-weight: bold;");
 
-    replayInfoLabel = new QLabel("", this);
-    replayInfoLabel->setStyleSheet("color: #cccccc; font-size: 12px;");
-
     replayDayCombo = new QComboBox(this);
     replayDayCombo->setMinimumWidth(100);
     replayDayCombo->setMaximumWidth(120);
@@ -115,7 +112,6 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
     layout->addWidget(ordersCheckBox);
     layout->addStretch(); // Push replay widgets to the right
     layout->addWidget(replayLabel);
-    layout->addWidget(replayInfoLabel);
     layout->addWidget(replayDayCombo);
     layout->addWidget(replayTimeEdit);
     layout->addWidget(replaySpeedCombo);
@@ -445,7 +441,6 @@ void ChartToolbar::setSelectedReplayDay(const QDate& date)
 void ChartToolbar::setReplayWidgetsVisible(bool p_visible)
 {
     replayLabel->setVisible(p_visible);
-    replayInfoLabel->setVisible(p_visible);
     replayDayCombo->setVisible(p_visible);
     replayTimeEdit->setVisible(p_visible);
     replaySpeedCombo->setVisible(p_visible);
@@ -719,19 +714,11 @@ QDate ChartToolbar::extractDateFromFileName(const QString& fileName)
 
 /**
  * @brief Updates the replay info label with time range and bar count.
+ * @deprecated No longer used — full-day Databento data makes range display unnecessary.
  */
-void ChartToolbar::updateReplayInfo(const QTime& startTime, const QTime& endTime, int barCount)
+void ChartToolbar::updateReplayInfo(const QTime& /*startTime*/, const QTime& /*endTime*/, int /*barCount*/)
 {
-    if (startTime.isValid() && endTime.isValid() && barCount > 0)
-    {
-        QString infoText =
-            QString("%1-%2 (%3 bars)").arg(startTime.toString("hh:mm")).arg(endTime.toString("hh:mm")).arg(barCount);
-        replayInfoLabel->setText(infoText);
-    }
-    else
-    {
-        replayInfoLabel->setText("No data");
-    }
+    // No-op: replayInfoLabel removed; full-day data makes this display unnecessary.
 }
 
 /**

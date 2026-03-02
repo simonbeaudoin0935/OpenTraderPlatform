@@ -4,11 +4,17 @@
 #include <QLoggingCategory>
 #include <QObject>
 #include <QTimer>
-#include <QVector>
+#include <memory>
 #include <variant>
 
 #include "Level2.h"
 #include "Trade.h"
+
+// Forward declaration — full type only needed in .cpp
+namespace databento
+{
+    class DbnFileStore;
+}
 
 Q_DECLARE_LOGGING_CATEGORY(ReplayEngineLog)
 
@@ -19,6 +25,10 @@ Q_DECLARE_LOGGING_CATEGORY(ReplayEngineLog)
  * ReplayEngine is composed into MainAlgo and runs in MainAlgoThread.
  * It reads Databento .dbn.zst replay files (Mbp10 + Trades), merges them
  * into a single time-ordered stream, and emits records at configurable speeds.
+ *
+ * Records are streamed directly from the compressed files — no preloading into
+ * RAM. The two files are merged on the fly using a 2-way lookahead: one peeked
+ * record from each stream, always emitting whichever has the earlier timestamp.
  *
  * Key responsibilities:
  * - Replay state (stopped, playing, paused)
@@ -53,16 +63,6 @@ class ReplayEngine : public QObject
         AsFastAsPossible = -1 ///< 0ms timer
     };
     Q_ENUM(PlaybackSpeed)
-
-    /**
-     * @brief A single replay record with timestamp and typed data
-     */
-    struct ReplayRecord
-    {
-        qint64 epochMs = 0;
-        QString symbol;
-        std::variant<Level2, Trade> data;
-    };
 
     explicit ReplayEngine(QObject* p_parent);
     ~ReplayEngine() override;
@@ -124,19 +124,46 @@ class ReplayEngine : public QObject
 
   private:
     /**
-     * @brief Load .dbn.zst files and merge into m_records
-     * @return true if records were loaded
+     * @brief A single lookahead record peeked from one of the two streams
      */
-    bool loadReplayFiles(const QString& p_symbol, QDate p_date, QTime p_startTime);
+    struct PeekedRecord
+    {
+        qint64 epochMs = 0;
+        std::variant<Level2, Trade> data;
+        bool valid = false;
+    };
+
+    /**
+     * @brief Open .dbn.zst files and prime the lookahead records, skipping before startTime
+     * @return true if at least one stream has records at or after startTime
+     */
+    bool openReplayStreams(const QString& p_symbol, QDate p_date, QTime p_startTime);
+
+    /**
+     * @brief Read the next mbp10 record at or after m_startEpochMs into m_nextMbp10
+     */
+    void advanceMbp10();
+
+    /**
+     * @brief Read the next trade record at or after m_startEpochMs into m_nextTrade
+     */
+    void advanceTrade();
 
     void emitNextRecord();
     void scheduleNext();
     [[nodiscard]] qint64 calculateWallClockDelay(qint64 p_replayEpochMs) const;
     void updateReplayTime(qint64 p_epochMs);
+    void closeStreams();
 
     QTimer m_timer;
-    QVector<ReplayRecord> m_records;
-    int m_currentIndex = 0;
+
+    // Streaming state — open file stores, one peeked record each
+    std::unique_ptr<databento::DbnFileStore> m_mbp10Store;
+    std::unique_ptr<databento::DbnFileStore> m_tradesStore;
+    PeekedRecord m_nextMbp10;
+    PeekedRecord m_nextTrade;
+    qint64 m_startEpochMs = 0;
+    QString m_currentSymbol;
 
     PlaybackState m_state = PlaybackState::Stopped;
     PlaybackSpeed m_speed = PlaybackSpeed::Normal;

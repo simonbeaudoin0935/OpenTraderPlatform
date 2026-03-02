@@ -333,7 +333,6 @@ class ChartToolbar : public QWidget
     QCheckBox* ordersCheckBox;            ///< Checkbox for order visualizations visibility
 
     QLabel* replayLabel;          ///< Label showing "Replay:"
-    QLabel* replayInfoLabel;      ///< Label showing replay time range and bar count info
     QComboBox* replayDayCombo;    ///< Dropdown for selecting replay day
     QTimeEdit* replayTimeEdit;    ///< Time input for replay start time
     QComboBox* replaySpeedCombo;  ///< Dropdown for selecting replay speed
