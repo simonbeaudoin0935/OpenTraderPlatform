@@ -63,6 +63,7 @@ class GUIFrontend : public FrontEnd
     void onTradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, QString message);
     void onDatabentoConnectionStateChanged(bool isConnected);
     void onDatabentoStatusUpdate(const QString& symbol, bool isHalted, const QString& haltReason, bool isSsr);
+    void onDatabentoGatewayError(const QString& errorText, bool isFatal);
     void onNewDisplayedStockSelection();
     void updateLiveLogDisplay(const QString& message);
     void onLoggerVisibilityChanged(bool visible);

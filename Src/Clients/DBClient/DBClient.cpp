@@ -424,6 +424,25 @@ databento::KeepGoing DBClient::onRecordReceived(const databento::Record& p_recor
         emit dataUsageUpdated(m_totalDataReceivedBytes.load());
     }
 
+    // Handle gateway-level error messages (no symbol resolution needed)
+    if (p_record.Holds<databento::ErrorMsg>())
+    {
+        const auto& msg = p_record.Get<databento::ErrorMsg>();
+        const QString errorText = QString::fromUtf8(msg.Err());
+
+        using databento::ErrorCode;
+        const bool isFatal = msg.code == ErrorCode::AuthFailed ||
+                             msg.code == ErrorCode::ApiKeyDeactivated ||
+                             msg.code == ErrorCode::InvalidSubscription ||
+                             msg.code == ErrorCode::ConnectionLimitExceeded;
+
+        CRITICAL << "Databento gateway error:" << errorText << "(code:" << static_cast<int>(msg.code)
+                 << "fatal:" << isFatal << ")";
+
+        emit liveGatewayError(errorText, isFatal);
+        return databento::KeepGoing::Continue;
+    }
+
     // Update symbol map on SymbolMapping records
     {
         QMutexLocker lock(&m_symbolMapMutex);

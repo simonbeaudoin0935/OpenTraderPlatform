@@ -192,6 +192,12 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             &GUIFrontend::onDatabentoStatusUpdate,
             Qt::UniqueConnection);
 
+    connect(DBClient::getInstance(),
+            &DBClient::liveGatewayError,
+            this,
+            &GUIFrontend::onDatabentoGatewayError,
+            Qt::UniqueConnection);
+
     // Reflect initial Databento connection state
     DBClient::getInstance()->loadApiKey();
 
@@ -958,6 +964,34 @@ void GUIFrontend::onDatabentoStatusUpdate(const QString& symbol, bool isHalted, 
     {
         m_hardToBorrowLabel->setStyleSheet(inactiveStyle);
         m_hardToBorrowLabel->setToolTip("Hard to borrow - short selling may be restricted");
+    }
+}
+
+void GUIFrontend::onDatabentoGatewayError(const QString& errorText, bool isFatal)
+{
+    if (isFatal)
+    {
+        // Update the button to a warning/error state
+        m_databentoButton->setText("Databento: Subscription Error");
+        m_databentoButton->setStyleSheet(
+            "QPushButton { background-color: #FF8C00; color: #ffffff; padding: 2px 6px; border-radius: 3px; }");
+        m_databentoButton->setEnabled(true);
+
+        // Show a prominent dialog so the user cannot miss it
+        QMessageBox msgBox(m_mainWindow);
+        msgBox.setWindowTitle("Databento Live Subscription Error");
+        msgBox.setIcon(QMessageBox::Critical);
+        msgBox.setText("<b>Live data subscription is not available.</b>");
+        msgBox.setInformativeText(
+            "Databento returned an error that prevents live streaming:\n\n" + errorText +
+            "\n\nCheck that your Databento account has an active live data subscription "
+            "for this dataset. Replay mode will still work with previously downloaded data.");
+        msgBox.setStandardButtons(QMessageBox::Ok);
+        msgBox.exec();
+    }
+    else
+    {
+        WARNING << "Non-fatal Databento gateway message:" << errorText;
     }
 }
 

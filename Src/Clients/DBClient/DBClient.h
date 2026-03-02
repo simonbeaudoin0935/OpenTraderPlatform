@@ -215,6 +215,14 @@ class DBClient : public QObject
     void newStatus(const QString& p_symbol, bool p_isHalted, const QString& p_haltReason, bool p_isShortSellRestricted);
 
     /**
+     * @brief Error received from the Databento Live Subscription Gateway.
+     * Thread context: Emitted from Databento callback thread (auto-queued)
+     * @param p_errorText   Human-readable error message from the gateway
+     * @param p_isFatal     true if this error terminates the session (e.g. InvalidSubscription, AuthFailed)
+     */
+    void liveGatewayError(const QString& p_errorText, bool p_isFatal);
+
+    /**
      * @brief Cumulative data usage updated (live + historical bytes received)
      * Thread context: Emitted from Databento callback thread or QThreadPool worker
      * @param p_totalBytes Total bytes received since application start
