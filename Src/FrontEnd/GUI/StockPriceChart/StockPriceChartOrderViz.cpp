@@ -91,7 +91,7 @@ StockPriceChart::createOrderMarker(const QString& orderID, double index, double 
     QCPAxis* yAxis = m_customPlot->axisRect()->axis(QCPAxis::atRight);
     QCPItemText* textLabel = new QCPItemText(m_customPlot);
     textLabel->position->setAxes(m_customPlot->xAxis, yAxis);
-    textLabel->position->setCoords(index + 0.5, price);
+    textLabel->position->setCoords(index, price);
     textLabel->setFont(QFont("Arial", 14, QFont::Bold));
     textLabel->setPadding(QMargins(4, 4, 4, 4));
 
@@ -136,8 +136,7 @@ OrderMarker* StockPriceChart::createCancelledMarker(const QString& orderID, doub
     // Create a simple text label showing cancelled state
     QCPItemText* textLabel = new QCPItemText(m_customPlot);
     textLabel->position->setAxes(m_customPlot->xAxis, yAxis);
-    // Apply +0.5 offset to align markers correctly with candle timing
-    textLabel->position->setCoords(index + 0.5, price);
+    textLabel->position->setCoords(index, price);
     textLabel->setText("✖");
     textLabel->setFont(QFont("Arial", 14, QFont::Bold));
     textLabel->setColor(ORDER_VIZ_GRAY);
@@ -373,7 +372,7 @@ void StockPriceChart::createClosedPositionPLLabel(PositionVisualization* posViz)
     posViz->plLabel->setPositionAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     posViz->plLabel->position->setType(QCPItemPosition::ptPlotCoords);
     posViz->plLabel->position->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
-    posViz->plLabel->position->setCoords(exitIndex + 0.5, exitPrice);
+    posViz->plLabel->position->setCoords(exitIndex, exitPrice);
     posViz->plLabel->setFont(QFont(font().family(), ORDER_VIZ_PL_FONT_SIZE));
 
     // Format P&L text
