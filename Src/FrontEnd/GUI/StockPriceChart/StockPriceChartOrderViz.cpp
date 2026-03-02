@@ -330,16 +330,9 @@ void StockPriceChart::updateOpenPositionPLBox(double currentPrice)
     // Calculate unrealized P&L
     double avgEntry = m_currentOpenPosition->avgEntryPrice;
     int quantity = m_currentOpenPosition->currentQuantity;
-    double unrealizedPL;
-
-    if (m_currentOpenPosition->isShort)
-    {
-        unrealizedPL = (avgEntry - currentPrice) * quantity;
-    }
-    else
-    {
-        unrealizedPL = (currentPrice - avgEntry) * quantity;
-    }
+    // Signed quantity: positive for long, negative for short.
+    // (currentPrice - avgEntry) * signedQty gives the correct P&L for both directions.
+    double unrealizedPL = (currentPrice - avgEntry) * quantity;
 
     // Position label one bar to the right of current bar, above current price line
     m_openPositionPLBox->position->setCoords(m_latestBarIndex + 1, currentPrice);
