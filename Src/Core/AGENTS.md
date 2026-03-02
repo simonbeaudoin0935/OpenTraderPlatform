@@ -150,20 +150,27 @@ Contains data caching subsystems.
 **Role**: Market data replay for backtesting and analysis
 
 **Components**:
-- ReplayEngine: Controls replay playback, timing, and speed
-- ReplayDataLoader: Loads historical data from SQLite databases (legacy format)
-- OrderEmulator: Simulates order fills based on recorded market depth
+- `ReplayEngine`: Controls replay playback using `databento::DbnFileStore` for `.dbn.zst` files
+- `OrderEmulator`: Simulates order fills based on real-time Level 2 depth updates
 - See `Replay/AGENTS.md` for detailed replay architecture and workflow
 
-> **Note**: The replay system will be substantially revamped in Phase 7 of the
-> Databento migration. Databento's `DbnFileStore` provides native `.dbn` replay,
-> making ReplayEngine and ReplayDataLoader obsolete. OrderEmulator will be kept.
+`ReplayDataLoader` was deleted as part of the Databento migration. `ReplayEngine` now reads directly from `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst` and `{SYMBOL}_trades.dbn.zst`.
 
-**Features**:
-- Load data from CSV or database
-- Control playback speed (1x, 2x, 5x, 10x, etc.)
+### TradingSession Enum
 
-## Architectural Patterns
+Defined in `Src/Core/` (used by `MainApp` and `MarketCalendar`):
+
+```cpp
+enum class TradingSession {
+    PreMarket,      // Before 9:30 AM ET
+    Regular,        // 9:30 AM – 4:00 PM ET
+    AfterHours,     // After 4:00 PM ET
+    Weekend,        // Saturday / Sunday
+    Holiday,        // NYSE full-day closure (see MarketCalendar::HOLIDAYS_2026)
+};
+```
+
+`Weekend` and `Holiday` values allow the app to distinguish non-trading days and suppress bar-gap warnings on those days.
 
 ### Component Coordination
 

@@ -90,6 +90,16 @@ namespace MarketDepthConstants {
 namespace PollingConstants {
     constexpr int BALANCE_POLLING_INTERVAL_MS = 1000;  // Poll balance every 1 second
 }
+
+namespace MarketCalendar {
+    // 10 full-day NYSE closures in 2026
+    const std::array<QDate, 10> HOLIDAYS_2026 = { ... };
+    // 2 early-close days at 1:00 PM ET
+    const std::array<QDate, 2> EARLY_CLOSE_DAYS_2026 = { ... };
+    const QTime EARLY_CLOSE_TIME = QTime(13, 0);
+    bool isHoliday(const QDate& date);
+    bool isEarlyCloseDay(const QDate& date);
+}
 ```
 
 **Usage**:

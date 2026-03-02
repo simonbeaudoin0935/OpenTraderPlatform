@@ -1,6 +1,6 @@
 # Algo/ Directory - Trading Algorithm Components - Agent Instructions
 
-The Algo directory contains the trading algorithm coordination logic and various receivers for processing market data and trading events. As of the Databento migration (Phase 3), market data receivers (Level2Receiver, Level1Receiver, BarReceiver) are stub implementations awaiting DBClient integration in Phase 6. TSClient is now brokerage-only (orders, positions, accounts).
+The Algo directory contains the trading algorithm coordination logic and various receivers for processing market data and trading events. TSClient is brokerage-only (orders, positions, accounts). Market data (Level 2, trades, bars) flows from DBClient in live mode and from ReplayEngine in replay mode.
 
 ## Overview
 
@@ -10,7 +10,7 @@ The Algo directory contains the trading algorithm coordination logic and various
 
 **Directory Contents**:
 - `MainAlgo.h/cpp` — Central coordinator singleton
-- `BarReceiver/` — Bar reception (Phase 6 stub)
+- `BarReceiver/` — Bar reception (wired to `LiveBarAccumulator`)
 - `Level2Receiver/` — Level 2 (10-level book) reception, replaces former `MarketDepthQuoteReceiver/`
 - `Level1Receiver/` — Level 1 (BBO) reception for secondary stocks (new)
 - `PositionsReceiver/` — Position tracking via StreamPositions
@@ -208,15 +208,15 @@ public:
 **Responsibilities**:
 - Manage BarCache for symbol
 - Own Level2Receiver that computes bid-ask imbalance and depth-weighted prices
-- Own BarReceiver (Phase 6 stub, not yet wired to any stream)
+- Own BarReceiver that processes bars built by `LiveBarAccumulator`
 
 ## Receiver Components
 
 ### BarReceiver/
 
-**Role**: Receive and process bar data (Phase 6 stub)
+**Role**: Receive and process bar data
 
-**Status**: ⚠️ Stub implementation — `getStreamBase()` returns `nullptr`. Will be wired to DBClient live bar stream in Phase 6.
+`BarReceiver` processes bars produced by `LiveBarAccumulator`. In live mode, bars come from `DBClient::newTrade` → `LiveBarAccumulator`. In replay mode, bars come from `ReplayEngine::replayTrade` → `LiveBarAccumulator`.
 
 ```cpp
 class BarReceiver : public StreamReceiver {
@@ -225,7 +225,7 @@ signals:
 
 protected:
     QPointer<Stream> getStreamBase() const override {
-        return nullptr; // TODO Phase 6: wire to DBClient live bar stream
+        return nullptr;  // No TradeStation stream — bars come via LiveBarAccumulator
     }
 
 private:
@@ -233,13 +233,13 @@ private:
 };
 ```
 
-Currently, bars are loaded into BarCache via REST API requests (historical), not via streaming.
+Historical bars are loaded into BarCache via REST API requests (TSClient historical endpoint).
 
 ### Level2Receiver/
 
 **Role**: Process Level 2 market depth data (10-level book snapshots)
 
-Replaces the former `MarketDepthQuoteReceiver/`. Uses the `Level2` model (from `Src/Core/Models/Level2.h`) which contains `std::array<Level2Row, 10>` for bids and asks. Subscribes to Databento `Schema::Mbp10` via DBClient (Phase 6 — currently a stub with `getStreamBase()` returning `nullptr`).
+Replaces the former `MarketDepthQuoteReceiver/`. Uses the `Level2` model (from `Src/Core/Models/Level2.h`) which contains `std::array<Level2Row, 10>` for bids and asks. Connected to `DBClient::newLevel2` in live mode and `ReplayEngine::replayLevel2` in replay mode.
 
 **Key Features**:
 - Computes metrics from 10-level book snapshots:
@@ -261,7 +261,8 @@ void onReceivedNewLevel2(Level2 level2);
 
 **Data Flow**:
 ```
-DBClient (Phase 6, Databento Schema::Mbp10)
+Live mode:
+DBClient::newLevel2 (Databento Schema::Mbp10)
     ↓
 Level2Receiver::onReceivedNewLevel2()
     ↓ (compute bidAskImbalance, bidDWP, askDWP)
@@ -269,6 +270,12 @@ Level2Receiver::onReceivedNewLevel2()
 MainAlgo (forwarded to displayedStockReceivedNewLevel2)
     ↓
 GUIFrontend → Level2Table display
+
+Replay mode:
+ReplayEngine::replayLevel2
+    ↓ (same slot and processing)
+Level2Receiver::onReceivedNewLevel2()
+    ...
 ```
 
 **BBO Access**: Best bid/ask is `Level2.m_bids[0]` and `Level2.m_asks[0]`. There is no separate Quote type.
@@ -277,7 +284,7 @@ GUIFrontend → Level2Table display
 
 **Role**: Receive Level 1 BBO updates for secondary (non-displayed) stocks
 
-New receiver added as part of the Databento migration. Subscribes to Databento `Schema::Mbp1` via DBClient (Phase 6 — currently a stub with `getStreamBase()` returning `nullptr`). Lightweight alternative to Level2Receiver for stocks that only need top-of-book data.
+New receiver added as part of the Databento migration. Subscribes to `DBClient::newLevel1` (Databento `Schema::Mbp1`). Lightweight alternative to Level2Receiver for stocks that only need top-of-book data.
 
 **Signal**:
 ```cpp
@@ -364,19 +371,19 @@ protected:
 ```
 
 **Derived Classes**:
-- `BarReceiver` — stub, `getStreamBase()` returns `nullptr` (Phase 6 TODO)
-- `Level2Receiver` — stub, `getStreamBase()` returns `nullptr` (Phase 6 TODO)
-- `Level1Receiver` — stub, `getStreamBase()` returns `nullptr` (Phase 6 TODO)
+- `BarReceiver` — `getStreamBase()` returns `nullptr` (bars come via `LiveBarAccumulator`, not a Stream)
+- `Level2Receiver` — `getStreamBase()` returns `nullptr` (data comes via `DBClient::newLevel2` signal)
+- `Level1Receiver` — `getStreamBase()` returns `nullptr` (data comes via `DBClient::newLevel1` signal)
 - `PositionsReceiver` — active, wraps `StreamPositions` from TSClient
 - `OrdersReceiver` — active, wraps `StreamOrders` from TSClient
 
 ## Data Flow Patterns
 
-### Level 2 Data Flow (Post-Databento)
+### Level 2 Data Flow
 
 ```mermaid
 sequenceDiagram
-    participant DBClient as DBClient (Phase 6)
+    participant DBClient as DBClient (live) / ReplayEngine (replay)
     participant L2R as Level2Receiver
     participant MainAlgo
     participant Frontend as GUIFrontend
@@ -435,7 +442,7 @@ All Algo components run on MainAlgo thread:
 **Cross-thread communication** via signals:
 ```
 TSClient thread ─[signal]→ MainAlgo thread   (orders, positions, accounts)
-DBClient thread ─[signal]→ MainAlgo thread   (market data, Phase 6)
+DBClient thread ─[signal]→ MainAlgo thread   (market data: Level2, Level1, Trade)
 MainAlgo thread ─[signal]→ Main/GUI thread   (UI updates)
 ```
 
@@ -554,7 +561,7 @@ if (!m_positionReceiver->hasActiveStream()) {
 
 ## Replay Mode
 
-MainAlgo coordinates replay mode for strategy testing. The ReplayEngine will be revamped in Phase 7 to use `.dbn` files from Databento recordings; the current code has TODO stubs for connecting ReplayEngine data to receivers.
+MainAlgo coordinates replay mode for strategy testing using Databento `.dbn.zst` files via `ReplayEngine`.
 
 ### Entering Replay Mode
 
@@ -568,14 +575,14 @@ void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pl
     connect(m_replayEngine, &ReplayEngine::replayStopped, this, &MainAlgo::replayStopped);
     // ... (paused, resumed, timeUpdated, endReached)
 
-    // 3. TODO Phase 6: connect ReplayEngine bar data → BarReceiver
-    // 4. TODO Phase 6: connect ReplayEngine depth data → Level2Receiver
-    // 5. TODO Phase 6: connect ReplayEngine quote data → Level1Receiver
+    // 3. Wire market data signals to receivers (connectReplaySignals)
+    connect(m_replayEngine, &ReplayEngine::replayLevel2, level2Receiver, &Level2Receiver::onReceivedNewLevel2);
+    connect(m_replayEngine, &ReplayEngine::replayTrade, m_liveBarAccumulator, &LiveBarAccumulator::onNewTrade);
 
-    // 6. Start replay order/position streams with simulated account
+    // 4. Start replay order/position streams with simulated account
     startReplayOrderStreams();
 
-    // 7. Start replay
+    // 5. Start replay
     m_replayEngine->startReplay(p_date, p_startTime, p_speed);
 }
 ```
@@ -662,7 +669,7 @@ GUI (OrderWidget, PositionWidget)
 | Account | Real TradeStation account | `SIM123456` simulated |
 | Orders | Real API (TSClient) | OrderEmulator |
 | Positions | Real API (TSClient) | OrderEmulator |
-| Market data | DBClient streams (Phase 6) | Recorded SQLite DB (Phase 7: `.dbn` files) |
+| Market data | `DBClient::newLevel2` / `newTrade` (live) | Recorded `.dbn.zst` files (ReplayEngine) |
 | Fills | Real market | Based on recorded depth |
 | Latency | Real network | Simulated (100-500ms) |
 | Balance | Real | $100,000 simulated |

@@ -1,118 +1,67 @@
 # Replay System - Agent Instructions
 
-> **⚠️ TRANSITIONAL SUBSYSTEM — Databento Migration Phase 7**
->
-> The entire replay system is being revamped as part of Phase 7 of the Databento
-> migration. The current `ReplayEngine` and `ReplayDataLoader` contain TODO stubs
-> and will be **replaced** by Databento `DbnFileStore::Replay()`. Recording is no
-> longer done via a custom recorder — it is replaced by Databento `.dbn` archive
-> downloads.
->
-> **Do not reference deleted files or types** (see Deleted Components below).
-> The `OrderEmulator/` subdirectory is the only component that will survive the
-> revamp unchanged.
-
 ## Overview
 
-The Replay system enables replaying historical market data for strategy backtesting and debugging. This document describes the current transitional state for AI agents working on this codebase.
+The replay system enables replaying historical market data for strategy backtesting and debugging. `ReplayEngine` reads Databento `.dbn.zst` archive files directly using `databento::DbnFileStore`. There is no custom data loader — Databento files are the sole replay data source.
 
-## Current State
-
-The replay subsystem is in a transitional state:
-
-- **ReplayEngine** still exists but has TODO stubs (e.g., `hasStreamForStock()` always returns `true`).
-- **ReplayDataLoader** still exists and uses inlined SQL queries from the `LegacyReplayQueries` namespace (formerly in the deleted `LiveStreamDBQueries.h`).
-- **OrderEmulator/** is kept and fully functional — it uses the `Level2` type (from `Src/Core/Models/Level2.h`) instead of the deleted `MarketDepthQuote`.
-- **Recording** no longer uses a custom recorder executable. It is being replaced by Databento `.dbn` archive downloads.
-
-### What Phase 7 Will Do
-
-Phase 7 will replace `ReplayEngine` and `ReplayDataLoader` with Databento `DbnFileStore::Replay()`, which natively handles bar, Level 2, and trade data from `.dbn` files. The `OrderEmulator/` will be retained and wired into the new replay pipeline.
-
-## Deleted Components (DO NOT REFERENCE)
-
-### Deleted Files
-
-| File | Status |
-|------|--------|
-| `LiveStreamDB.h/.cpp` | Deleted in Phase 3 |
-| `LiveStreamDBQueries.h` | Deleted — queries inlined into `ReplayDataLoader` as `LegacyReplayQueries` |
-| `RecorderLogic.h/.cpp` | Deleted |
-| `RecorderUtils.h/.cpp` | Deleted |
-| `StatusReporter.h/.cpp` | Deleted |
-| `main.cpp` (recorder binary) | Deleted |
-
-### Deleted Types
-
-| Type | Status |
-|------|--------|
-| `StreamBars` | Deleted |
-| `StreamMarketDepthQuote` | Deleted |
-| `StreamQuote` | Deleted |
-| `MarketDepthQuote` | Replaced by `Level2` (from `Src/Core/Models/Level2.h`) |
-| `Quote` | Removed entirely |
-| `MarketDepthQuoteReceiver` | Replaced by `Level2Receiver` |
-
-## File Structure (Current)
+## File Structure
 
 | File | Purpose |
 |------|---------|
-| `ReplayEngine.h/cpp` | Orchestrates replay playback. Currently has TODO stubs — `hasStreamForStock()` always returns `true`. Will be replaced by Databento `DbnFileStore::Replay()` in Phase 7 |
-| `ReplayDataLoader.h/cpp` | Loads legacy recorded data from SQLite databases. Uses inlined `LegacyReplayQueries` namespace. Will be replaced in Phase 7 |
-| `OrderEmulator/` | Order/position simulation for replay mode. Uses `Level2` type. Will survive Phase 7 revamp. See `OrderEmulator/AGENTS.md` for details |
+| `ReplayEngine.h/cpp` | Orchestrates replay playback using `databento::DbnFileStore` for Level 2 and Trades data |
+| `OrderEmulator/` | Order/position simulation for replay mode. See `OrderEmulator/AGENTS.md` for details |
+
+## Replay Data Source
+
+ReplayEngine uses two `databento::DbnFileStore` instances:
+
+| Member | Schema | File Path |
+|--------|--------|-----------|
+| `m_mbp10Store` | `Mbp10` (Level 2) | `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst` |
+| `m_tradesStore` | `Trades` | `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_trades.dbn.zst` |
+
+Files are downloaded by `DBClient::downloadReplayData(symbol, date)` before replay begins. Use `DBClient::hasReplayData(date, symbol)` to check availability.
+
+## Signals Emitted by ReplayEngine
+
+```cpp
+signals:
+    void replayLevel2(QString symbol, Level2 level2);
+    void replayTrade(QString symbol, Trade trade);
+    // Lifecycle signals
+    void replayStarted();
+    void replayStopped();
+    void replayPaused();
+    void replayResumed();
+    void replayTimeUpdated(QDateTime currentTime);
+    void replayEndReached();
+```
+
+## Signal Routing (MainAlgo::connectReplaySignals)
+
+```
+ReplayEngine::replayLevel2  ──► Level2Receiver::onReceivedNewLevel2
+                            ──► OrderEmulator::updateMarketDepth
+
+ReplayEngine::replayTrade   ──► LiveBarAccumulator (builds 1-min bars)
+                            ──► TimeAndSales widget
+
+LiveBarAccumulator::barUpdated ──► (chart receives forming bar)
+LiveBarAccumulator::barClosed  ──► OrderEmulator::updateBarClose
+```
+
+`LiveBarAccumulator` (from `Src/Clients/DBClient/`) is reused in replay to build bars from trade records, identical to how live mode works.
+
+## Integration Points
 
 ## Integration Points
 
 | File | Role in Replay |
 |------|----------------|
 | `MainApp.cpp` | Entry point for mode switching: `enterReplayMode()`, `exitReplayMode()`, `setReplaySpeed()` |
-| `MainAlgo.cpp` | Creates ReplayEngine, manages stock instruments, pauses/resumes heartbeat timers |
-| `TSClient.cpp` | Switches between Live/Replay modes. In Replay, creates MockNetworkReply objects |
-| `MockNetworkReply.h/cpp` | Fake QNetworkReply that receives injected data from ReplayEngine |
-
-## Database Schema (Legacy — Will Be Replaced)
-
-> **Note**: These schemas describe the legacy SQLite databases written by the deleted
-> recorder. Phase 7 will replace these with Databento `.dbn` files. `ReplayDataLoader`
-> still reads from these databases using `LegacyReplayQueries`.
-
-### Bars Database ({YYYY-MM-DD}.db in Bars folder)
-
-```sql
-CREATE TABLE bars (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    symbol TEXT NOT NULL,
-    epoch_ms INTEGER NOT NULL,
-    json_data TEXT NOT NULL
-);
-CREATE INDEX idx_bars_symbol_epoch ON bars(symbol, epoch_ms);
-```
-
-### Market Depth Database ({YYYY-MM-DD}.db in MarketDepthQuotes folder)
-
-```sql
-CREATE TABLE depth_quotes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    symbol TEXT NOT NULL,
-    epoch_ms INTEGER NOT NULL,
-    json_data TEXT NOT NULL
-);
-CREATE INDEX idx_depth_symbol_epoch ON depth_quotes(symbol, epoch_ms);
-```
-
-### Quotes Database ({YYYY-MM-DD}.db in Quotes folder)
-
-```sql
-CREATE TABLE quotes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    stockTicker TEXT NOT NULL,
-    epochMs INTEGER NOT NULL,
-    objectType TEXT NOT NULL,
-    jsonRawData TEXT NOT NULL
-);
-CREATE INDEX idx_quotes_ticker_epoch ON quotes(stockTicker, epochMs);
-CREATE INDEX idx_quotes_object_type ON quotes(objectType);
-```
+| `MainAlgo.cpp` | Creates ReplayEngine, calls `connectReplaySignals()`, manages stock instruments, pauses/resumes heartbeat timers |
+| `TSClient.cpp` | Switches to Replay mode: creates `MockNetworkReply` objects, routes orders to `OrderEmulator` |
+| `MockNetworkReply.h/cpp` | Fake QNetworkReply that receives injected data from OrderEmulator |
 
 ## Replay Flow
 
@@ -134,8 +83,8 @@ MainApp::enterReplayMode(date, startTime, speed)
     └── MainAlgo::enterReplayModePaused()
             │
             ├── Create ReplayEngine
-            ├── Connect signals (injectBarData, injectDepthData)
-            ├── startReplayPaused() → emits first bar, then pauses
+            ├── connectReplaySignals() — wire replayLevel2/replayTrade to receivers
+            ├── startReplayPaused() → emits first records, then pauses
             └── pauseHeartbeat() on all stream receivers
 ```
 
@@ -158,8 +107,8 @@ MainAlgo::resumeReplay()
             │
             ├── Adjust wall-clock anchor by pause duration
             ├── Set state = Playing
-            ├── scheduleNextBar() → starts bar timer
-            └── scheduleNextDepth() → starts depth timer
+            ├── scheduleNextMbp10() → starts Level2 timer
+            └── scheduleNextTrade() → starts Trades timer
 ```
 
 ### 3. Pausing Replay
@@ -175,8 +124,6 @@ MainAlgo::pauseReplay()
     │
     ├── ReplayEngine::pauseReplay() → stops timers
     └── pauseHeartbeat() on ALL stock instruments
-            │
-            └── Stream::pauseHeartbeat() [thread-safe via invokeMethod]
 ```
 
 ## Playback Speed
@@ -209,57 +156,40 @@ reschedules stream timers, so the new speed takes effect immediately.
 
 ## Heartbeat Timer Management
 
-Streams have a 10-second heartbeat timer that triggers if no data arrives. In replay mode:
+Streams have a 10-second heartbeat timer. In replay mode:
 
-1. **When paused**: Timers must be paused to prevent timeout errors
-2. **When resumed**: Timers must be restarted
+1. **When paused**: Timers paused to prevent timeout errors
+2. **When resumed**: Timers restarted
 3. **Thread safety**: `pauseHeartbeat()`/`resumeHeartbeat()` use `Qt::BlockingQueuedConnection` when called cross-thread
 
-The `StreamReceiver` base class provides a unified interface for heartbeat management across:
-- BarReceiver
-- Level2Receiver
-- PositionsReceiver
-- OrdersReceiver
+## Debugging Replay Issues
 
-## File Locations (Legacy)
-
-> **Note**: These paths apply to legacy recorded data. Phase 7 will use Databento `.dbn` archives instead.
-
-| Data Type | Path Pattern |
-|-----------|--------------|
-| Recorded Bars | `~/.cache/L2Trader/RecordedLiveData/Bars/{YYYY-MM-DD}.db` |
-| Recorded Depth | `~/.cache/L2Trader/RecordedLiveData/MarketDepthQuotes/{YYYY-MM-DD}.db` |
-| Recorded Quotes | `~/.cache/L2Trader/RecordedLiveData/Quotes/{YYYY-MM-DD}.db` |
-
-## Common Tasks
-
-### Debugging Replay Issues
-
-1. Enable `ReplayEngine` and `ReplayDataLoader` logging categories
+1. Enable `ReplayEngine` logging category
 2. Check heartbeat timer states in `Stream` logs
-3. Verify data exists in SQLite databases using sqlite3 CLI
-4. Check `MainApp::getDataSourceMode()` is correctly set to Replay
+3. Verify `.dbn.zst` files exist: `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst`
+4. Check `MainApp::getDataSourceMode()` is set to Replay
+5. Use `DBClient::hasReplayData(date, symbol)` to verify data availability
 
 ## Threading Model
 
 ```
-Main Thread (GUI)
-    │
-    ├── TSClient (singleton)
-    │       └── MockNetworkReply objects
-    │
-    └── GUIFrontend
-            └── StockPriceChart / ChartToolbar
-
 MainAlgoThread
     │
     └── MainAlgo
             ├── ReplayEngine
-            │       ├── m_barTimer + ReplayDataLoader (Bar)
-            │       └── m_depthTimer + ReplayDataLoader (Level2)
+            │       ├── m_mbp10Store (DbnFileStore — Level2)
+            │       ├── m_tradesStore (DbnFileStore — Trades)
+            │       ├── m_mbp10Timer (schedules Level2 events)
+            │       └── m_tradesTimer (schedules Trade events)
             │
-            ├── StockInstruments (BarReceiver, Level2Receiver)
+            ├── StockInstruments (Level2Receiver)
+            ├── LiveBarAccumulator
             └── PositionsReceiver, OrdersReceiver
+
+Main/GUI Thread
+    │
+    └── TSClient
+            └── MockNetworkReply objects (replay order injection)
 ```
 
 Cross-thread communication uses `Qt::QueuedConnection` or `Qt::BlockingQueuedConnection` for synchronization.
@@ -283,10 +213,10 @@ Strategy/GUI ──► placeOrder() ──► MockNetworkAccessManager
                                    MockNetworkReply (orders)
                                           │
                                           ▼
-                                    StreamOrders
+                                     StreamOrders
                                           │
                                           ▼
-                                    OrdersReceiver
+                                     OrdersReceiver
                                           │
                                           ▼
                                          GUI
@@ -302,13 +232,13 @@ Strategy/GUI ──► placeOrder() ──► MockNetworkAccessManager
 
 ### Market Depth Integration
 
-The OrderEmulator monitors market depth (Level 2) to fill pending limit orders:
+The OrderEmulator monitors Level 2 depth to fill pending limit orders:
 
-1. `ReplayEngine` emits `injectDepthData` signal
-2. `TSClient::onInjectDepthData()` receives it
-3. Depth is forwarded to `OrderEmulator::updateMarketDepth()`
-4. Emulator checks if any open limit orders can now fill
-5. Fills are processed with appropriate delays
+1. `ReplayEngine` emits `replayLevel2` signal
+2. `OrderEmulator::updateMarketDepth()` receives it
+3. Emulator checks if any open limit orders can now fill
+4. Fills are processed with appropriate delays
+5. `LiveBarAccumulator::barClosed` → `OrderEmulator::updateBarClose`
 
 ### Simulated Account
 

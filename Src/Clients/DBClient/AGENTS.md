@@ -66,8 +66,32 @@ Access to `m_symbolMap` is protected by `m_symbolMapMutex` since the callback th
 | `newLevel2(QString, Level2)` | Databento callback thread | 10-level book snapshot |
 | `newLevel1(QString, Level1)` | Databento callback thread | BBO snapshot |
 | `newTrade(QString, Trade)` | Databento callback thread | Trade print |
+| `newStatus(QString, bool, QString, bool)` | Databento callback thread | Trading status update — args: symbol, isHalted, haltReason, isSsr |
+| `liveGatewayError(QString, bool)` | Databento callback thread | Gateway error — args: errorText, isFatal |
 | `historicalBarsReceived(QString, QVector<Bar>)` | QThreadPool worker | Historical OHLCV bars |
 | `replayDownloadFinished(QString, QDate, bool, QString)` | QThreadPool worker | Replay data download result (symbol, date, success, error) |
+
+### Status Stream Subscription
+
+Each `subscribeLive()` call subscribes to three schemas simultaneously:
+- `Schema::Mbp10` → `newLevel2` signal
+- `Schema::Trades` → `newTrade` signal
+- `Schema::Status` → `newStatus` signal
+
+`StatusMsg` records carry trading halt and SSR (short-sale restriction) state. The `newStatus(symbol, isHalted, haltReason, isSsr)` signal is emitted for each `StatusMsg` after symbol resolution.
+
+### Gateway Error Handling
+
+`ErrorMsg` records are handled **before** symbol resolution (they carry no instrument_id) and immediately emit `liveGatewayError(errorText, isFatal)`. Fatal error codes:
+
+| Code | Meaning |
+|------|---------|
+| 1 | AuthFailed |
+| 2 | ApiKeyDeactivated |
+| 3 | ConnectionLimitExceeded |
+| 5 | InvalidSubscription |
+
+Non-fatal errors are logged but do not trigger UI changes.
 
 ## Replay Data Download
 

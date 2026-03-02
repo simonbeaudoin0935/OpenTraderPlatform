@@ -106,7 +106,11 @@ Three always-visible QLabel indicators for Level 1 market status flags sit in th
 
 **Behavior**: Labels are **always visible** (never hidden). When the flag is inactive, they display in grey with a dimmed style. When active, they switch to their colored active style.
 
-**Implementation**: TODO Phase 4 — will be driven by Databento `StatusMsg` via `DBClient::tradingStatusChanged` signal. Currently not connected (stub).
+**Implementation**: Connected to `DBClient::newStatus(symbol, isHalted, haltReason, isSsr)` signal. `GUIFrontend::onDatabentoStatusUpdate()` handles updates: HALTED sets the halted label red, HTB (isSsr) sets the HTB label orange. Labels reset on symbol change.
+
+**DELAYED label**: Intentionally always inactive — Databento has no "delayed feed" concept for live subscriptions, so this label is kept in the layout but never driven.
+
+**Gateway errors**: `DBClient::liveGatewayError(errorText, isFatal)` → `GUIFrontend::onDatabentoGatewayError()`. On a fatal error, a `QMessageBox` is shown to the user and the Databento connection button changes to amber with text "Databento: Subscription Error". Fatal error codes: AuthFailed=1, ApiKeyDeactivated=2, ConnectionLimitExceeded=3, InvalidSubscription=5.
 
 **BATS flag**: Intentionally not displayed (removed by design — the IsBats flag is not user-relevant).
 
@@ -364,8 +368,7 @@ Features:
 
 #### RecorderTab — REMOVED
 
-The RecorderTab was removed in Phase 3 of the Databento migration. Recording functionality
-will be replaced by Databento `.dbn` archive downloads in Phase 7.
+The RecorderTab was removed in Phase 3 of the Databento migration. Recording is done via Databento `.dbn` archive downloads.
 
 ### Gauge/ (Widgets/Gauge/)
 
