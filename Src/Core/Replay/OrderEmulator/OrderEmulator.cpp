@@ -1039,6 +1039,23 @@ bool OrderEmulator::validateOrder(const PlaceOrderRequest& p_request, QString& p
             return false;
         }
 
+        // BuyToCover but position is long (not short)
+        if (currentQty >= 0 && tradeAction == TradeAction::BuyToCover)
+        {
+            p_errorMessage = QString("EC602: You are short %1 shares!").arg(qAbs(currentQty));
+            return false;
+        }
+
+        // BuyToCover more shares than the short position
+        if (currentQty < 0 && tradeAction == TradeAction::BuyToCover &&
+            p_request.getQuantity() > qAbs(currentQty))
+        {
+            p_errorMessage = QString("EC602: You are short %1 shares (cannot cover %2)")
+                                 .arg(qAbs(currentQty))
+                                 .arg(p_request.getQuantity());
+            return false;
+        }
+
         // Trying to sell more than owned (not short selling)
         if (tradeAction == TradeAction::Sell && p_request.getQuantity() > currentQty)
         {
@@ -1058,6 +1075,13 @@ bool OrderEmulator::validateOrder(const PlaceOrderRequest& p_request, QString& p
                                      "Use 'Sell Short' to open a short position.")
                                  .arg(p_request.getQuantity())
                                  .arg(symbol);
+            return false;
+        }
+
+        // No position exists - can't BuyToCover when not short
+        if (tradeAction == TradeAction::BuyToCover)
+        {
+            p_errorMessage = QString("EC602: You are short 0.00 shares!");
             return false;
         }
     }
