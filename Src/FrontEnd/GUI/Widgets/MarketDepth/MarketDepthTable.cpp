@@ -46,8 +46,7 @@ void MarketDepthTable::setupUI()
     int priceWidth = 56;
     int sizeWidth = 56;   // Restored to original value
     int ordersWidth = 51; // Increased from 46 (another 10% increase)
-    int nameWidth = 45;   // Previously reduced from 56 (20% reduction)
-    int totalWidth = (priceWidth + sizeWidth + ordersWidth + nameWidth) * 2;
+    int totalWidth = (priceWidth + sizeWidth + ordersWidth) * 2;
 
     // Setup header widget with BID/ASK labels
     QWidget* headerWidget = new QWidget(this);
@@ -144,8 +143,8 @@ void MarketDepthTable::setupUI()
 
     // Set up columns: BID and ASK sides with their respective columns
     QStringList headers;
-    headers << "Name" << "Orders" << "Size" << "Price"  // BID columns
-            << "Price" << "Size" << "Orders" << "Name"; // ASK columns
+    headers << "Orders" << "Size" << "Price"  // BID columns
+            << "Price" << "Size" << "Orders"; // ASK columns
     model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -160,23 +159,19 @@ void MarketDepthTable::setupUI()
 
     // BID side
     tableView->setColumnWidth(0,
-                              nameWidth); // Name
-    tableView->setColumnWidth(1,
                               ordersWidth); // Orders
-    tableView->setColumnWidth(2,
+    tableView->setColumnWidth(1,
                               sizeWidth); // Size
-    tableView->setColumnWidth(3,
+    tableView->setColumnWidth(2,
                               priceWidth); // Price
 
     // ASK side
-    tableView->setColumnWidth(4,
+    tableView->setColumnWidth(3,
                               priceWidth); // Price
-    tableView->setColumnWidth(5,
+    tableView->setColumnWidth(4,
                               sizeWidth); // Size
-    tableView->setColumnWidth(6,
+    tableView->setColumnWidth(5,
                               ordersWidth); // Orders
-    tableView->setColumnWidth(7,
-                              nameWidth); // Name
 
     // Set fixed width for the table view and widget
     tableView->setFixedWidth(totalWidth);
@@ -298,17 +293,12 @@ void MarketDepthTable::setMarketDepthItem(QStandardItem* item,
         text = QString::number(level.m_orderCount);
         item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     }
-    else if (field == "Name")
-    {
-        text = "";
-        item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    }
 
     item->setText(text);
 
     // Set color based on whether it's a bid or ask and the price level
     int column = item->column();
-    if (column < 4)
+    if (column < 3)
     { // BID side
         switch (priceLevel)
         {
@@ -411,8 +401,6 @@ void MarketDepthTable::updateData(const std::array<Level2Row, 10>& bids, const s
         int bidPriceLevel = sortedBidPrices.indexOf(bidPrice);
 
         rowItems << new QStandardItem();
-        setMarketDepthItem(rowItems.last(), bid, "Name", bidPriceLevel);
-        rowItems << new QStandardItem();
         setMarketDepthItem(rowItems.last(), bid, "Orders", bidPriceLevel);
         rowItems << new QStandardItem();
         setMarketDepthItem(rowItems.last(), bid, "Size", bidPriceLevel);
@@ -429,8 +417,6 @@ void MarketDepthTable::updateData(const std::array<Level2Row, 10>& bids, const s
         setMarketDepthItem(rowItems.last(), ask, "Size", askPriceLevel);
         rowItems << new QStandardItem();
         setMarketDepthItem(rowItems.last(), ask, "Orders", askPriceLevel);
-        rowItems << new QStandardItem();
-        setMarketDepthItem(rowItems.last(), ask, "Name", askPriceLevel);
 
         model->appendRow(rowItems);
     }
@@ -475,12 +461,7 @@ void MarketDepthTable::updateLevel1Data(const Level1& level1)
     // Add single row with best bid/ask
     QList<QStandardItem*> rowItems;
 
-    // BID side: Name, Orders, Size, Price
-    auto* bidNameItem = new QStandardItem("L1");
-    bidNameItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    bidNameItem->setForeground(QColor("#00FF00"));
-    rowItems << bidNameItem;
-
+    // BID side: Orders, Size, Price
     auto* bidOrdersItem = new QStandardItem("--");
     bidOrdersItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     bidOrdersItem->setForeground(QColor("#00FF00"));
@@ -496,7 +477,7 @@ void MarketDepthTable::updateLevel1Data(const Level1& level1)
     bidPriceItem->setForeground(QColor("#00FF00"));
     rowItems << bidPriceItem;
 
-    // ASK side: Price, Size, Orders, Name
+    // ASK side: Price, Size, Orders
     auto* askPriceItem = new QStandardItem(QString::number(bestAsk, 'f', 2));
     askPriceItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     askPriceItem->setForeground(QColor("#00FF00"));
@@ -511,11 +492,6 @@ void MarketDepthTable::updateLevel1Data(const Level1& level1)
     askOrdersItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     askOrdersItem->setForeground(QColor("#00FF00"));
     rowItems << askOrdersItem;
-
-    auto* askNameItem = new QStandardItem("L1");
-    askNameItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    askNameItem->setForeground(QColor("#00FF00"));
-    rowItems << askNameItem;
 
     model->appendRow(rowItems);
 }
