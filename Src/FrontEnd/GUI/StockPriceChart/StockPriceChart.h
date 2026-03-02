@@ -368,7 +368,8 @@ class StockPriceChart : public QWidget
      * @param filled Whether the order is filled (solid) or pending (lighter color)
      * @return Pointer to the created OrderMarker
      */
-    OrderMarker* createOrderMarker(const QString& orderID, double index, double price, bool isBuy, bool filled);
+    OrderMarker*
+    createOrderMarker(const QString& orderID, double index, double price, bool isBuy, bool isEntry, bool filled);
 
     /**
      * @brief Creates a buy marker (upward triangle) at the specified position.
@@ -378,7 +379,7 @@ class StockPriceChart : public QWidget
      * @param filled Whether the order is filled (solid) or pending (hollow)
      * @return Pointer to the created OrderMarker
      */
-    OrderMarker* createBuyMarker(const QString& orderID, double index, double price, bool filled);
+    OrderMarker* createBuyMarker(const QString& orderID, double index, double price, bool isEntry, bool filled);
 
     /**
      * @brief Creates a sell marker (downward triangle) at the specified position.
@@ -388,7 +389,7 @@ class StockPriceChart : public QWidget
      * @param filled Whether the order is filled (solid) or pending (hollow)
      * @return Pointer to the created OrderMarker
      */
-    OrderMarker* createSellMarker(const QString& orderID, double index, double price, bool filled);
+    OrderMarker* createSellMarker(const QString& orderID, double index, double price, bool isEntry, bool filled);
 
     /**
      * @brief Creates a cancelled/rejected marker (gray X) at the specified position.

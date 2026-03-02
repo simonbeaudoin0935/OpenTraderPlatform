@@ -84,8 +84,12 @@ double StockPriceChart::getExactIndexForTimestamp(const QDateTime& timestamp) co
     return lowerIndex + fraction * (upperIndex - lowerIndex) - 0.5;
 }
 
-OrderMarker*
-StockPriceChart::createOrderMarker(const QString& orderID, double index, double price, bool isBuy, bool filled)
+OrderMarker* StockPriceChart::createOrderMarker(const QString& orderID,
+                                                double index,
+                                                double price,
+                                                bool isBuy,
+                                                bool isEntry,
+                                                bool filled)
 {
     auto* marker = new OrderMarker();
     marker->orderID = orderID;
@@ -93,7 +97,8 @@ StockPriceChart::createOrderMarker(const QString& orderID, double index, double 
     marker->isBuy = isBuy;
     marker->state = filled ? OrderMarker::State::Filled : OrderMarker::State::Pending;
 
-    auto* triangle = new QCPItemTriangle(m_customPlot, isBuy);
+    // entry = upright (tipUp=false), exit = upward (tipUp=true)
+    auto* triangle = new QCPItemTriangle(m_customPlot, !isEntry);
     triangle->tip->setCoords(index, price);
     triangle->setPixelSize(12, 10);
 
@@ -107,14 +112,16 @@ StockPriceChart::createOrderMarker(const QString& orderID, double index, double 
     return marker;
 }
 
-OrderMarker* StockPriceChart::createBuyMarker(const QString& orderID, double index, double price, bool filled)
+OrderMarker*
+StockPriceChart::createBuyMarker(const QString& orderID, double index, double price, bool isEntry, bool filled)
 {
-    return createOrderMarker(orderID, index, price, true, filled);
+    return createOrderMarker(orderID, index, price, true, isEntry, filled);
 }
 
-OrderMarker* StockPriceChart::createSellMarker(const QString& orderID, double index, double price, bool filled)
+OrderMarker*
+StockPriceChart::createSellMarker(const QString& orderID, double index, double price, bool isEntry, bool filled)
 {
-    return createOrderMarker(orderID, index, price, false, filled);
+    return createOrderMarker(orderID, index, price, false, isEntry, filled);
 }
 
 OrderMarker* StockPriceChart::createCancelledMarker(const QString& orderID, double index, double price)
@@ -697,6 +704,9 @@ void StockPriceChart::onOrderPlaced(const Order& order)
 
     double index = getExactIndexForTimestamp(order.getOpenedDateTime());
     bool isBuy = order.getTradeAction().toUpper().contains("BUY");
+    // entry: BUY (long entry) or SELLSHORT (short entry); exit: SELL (close long) or BUYTOCOVER (close short)
+    const QString action = order.getTradeAction().toUpper();
+    bool isEntry = (action == "BUY" || action == "SELLSHORT" || action.contains("OPEN"));
 
     int barCount = m_candlesticks ? m_candlesticks->data()->size() : 0;
     OBJ_ASSUME_GT(barCount, 0);
@@ -709,11 +719,11 @@ void StockPriceChart::onOrderPlaced(const Order& order)
     OrderMarker* marker;
     if (isBuy)
     {
-        marker = createBuyMarker(orderID, index, price, false);
+        marker = createBuyMarker(orderID, index, price, isEntry, false);
     }
     else
     {
-        marker = createSellMarker(orderID, index, price, false);
+        marker = createSellMarker(orderID, index, price, isEntry, false);
     }
 
     marker->symbol = order.getSymbol();
@@ -754,6 +764,8 @@ void StockPriceChart::onOrderFilled(const Order& order)
 
         double index = getExactIndexForTimestamp(order.getClosedDateTime());
         bool isBuy = order.getTradeAction().toUpper().contains("BUY");
+        const QString action = order.getTradeAction().toUpper();
+        bool isEntry = (action == "BUY" || action == "SELLSHORT" || action.contains("OPEN"));
 
         int barCount = m_candlesticks ? m_candlesticks->data()->size() : 0;
         OBJ_ASSUME_GT(barCount, 0);
@@ -766,11 +778,11 @@ void StockPriceChart::onOrderFilled(const Order& order)
         OrderMarker* marker;
         if (isBuy)
         {
-            marker = createBuyMarker(orderID, index, price, true);
+            marker = createBuyMarker(orderID, index, price, isEntry, true);
         }
         else
         {
-            marker = createSellMarker(orderID, index, price, true);
+            marker = createSellMarker(orderID, index, price, isEntry, true);
         }
 
         marker->symbol = order.getSymbol();
