@@ -12,24 +12,23 @@
  *
  * This strategy demonstrates event-driven price tracking and order management.
  * Rather than using a timer, every incoming market data event (trade print or
- * bar close) is checked against the cycle start time. When 30 seconds have
+ * bar close) is checked against the cycle start time. When N seconds have
  * elapsed, the state machine advances.
  *
- * Cycle description (alternates Long/Short each round):
+ * State machine (alternates Long/Short each round):
  *
- *   Long cycle:
- *     1. Idle → place LIMIT BUY 1 share at (last price + offset)
- *     2. WaitingLimitEntry → after 30s:
- *        - If filled: place MARKET SELL to close → WaitingClose
- *        - If not filled: cancel order → Idle, flip to Short
- *     3. WaitingClose → after 30s:
- *        - Log P&L → Idle, flip to Short
- *
- *   Short cycle mirrors Long cycle (SELL SHORT / BUY to close).
+ *   Idle           → wait N seconds → place LIMIT entry order → WaitingLimitEntry
+ *   WaitingLimitEntry:
+ *     fill arrives → EntryFilled, reset clock
+ *     timeout      → cancel entry → Idle, flip direction
+ *   EntryFilled    → wait N seconds → place MARKET close order → WaitingClose
+ *   WaitingClose:
+ *     fill arrives → log P&L → Idle, flip direction
+ *     timeout      → warning, reset → Idle, flip direction
  *
  * Config customParams:
  *   "entryOffsetCents"     : Cents above/below last price for limit entry (default: 10)
- *   "cycleDurationSeconds" : Duration of each phase in seconds (default: 30)
+ *   "cycleDurationSeconds" : Duration of each phase in seconds (default: 10)
  */
 class DumpPatternStrategy : public QObject, public StrategyBase
 {
@@ -58,9 +57,10 @@ class DumpPatternStrategy : public QObject, public StrategyBase
   private:
     enum class State
     {
-        Idle,              ///< Waiting for next cycle to start
+        Idle,              ///< Waiting for next cycle start (N seconds)
         WaitingLimitEntry, ///< Limit entry order placed, waiting for fill or timeout
-        WaitingClose,      ///< Close order placed, waiting for fill
+        EntryFilled,       ///< Entry filled; waiting N seconds before placing close order
+        WaitingClose,      ///< Close order placed, waiting for fill or timeout
     };
 
     /// @brief Update last price and check if the current phase has elapsed
@@ -72,6 +72,7 @@ class DumpPatternStrategy : public QObject, public StrategyBase
     // Phase transitions
     void startEntryPhase();
     void evaluateEntryPhase();
+    void startClosePhase();
     void evaluateClosePhase();
     void resetCycle();
 
@@ -95,7 +96,7 @@ class DumpPatternStrategy : public QObject, public StrategyBase
 
     // Config params
     double m_entryOffsetDollars = 0.10; ///< Dollar offset from last price for limit entry
-    int m_cycleDurationSec = 30;        ///< Seconds per phase
+    int m_cycleDurationSec = 10;        ///< Seconds per phase
 
     // Stats
     int m_cyclesCompleted = 0;

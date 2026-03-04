@@ -60,7 +60,7 @@ DumpPatternStrategy::DumpPatternStrategy(const StrategyConfig& p_config, Strateg
 void DumpPatternStrategy::onStart(StrategySDK* p_sdk)
 {
     m_sdk = p_sdk;
-    m_sdk->log(QString("DumpPatternStrategy started — offset=$%1, cycle=%2s")
+    m_sdk->log(QString("DumpPatternStrategy started — offset=$%1, phase=%2s")
                    .arg(m_entryOffsetDollars, 0, 'f', 2)
                    .arg(m_cycleDurationSec));
 
@@ -142,7 +142,10 @@ void DumpPatternStrategy::onOrderUpdated(const Order& p_order)
 
             if (m_state == State::WaitingLimitEntry)
             {
-                placeCloseOrder();
+                // Don't close immediately — wait one full phase first
+                m_state = State::EntryFilled;
+                m_cycleStartTime = m_sdk->getCurrentTime();
+                m_sdk->log(QString("Waiting %1s before placing close order ...").arg(m_cycleDurationSec));
             }
         }
         else if (status == Order::Status::CAN || status == Order::Status::TSC)
@@ -260,6 +263,10 @@ void DumpPatternStrategy::checkCycle()
         evaluateEntryPhase();
         break;
 
+    case State::EntryFilled:
+        startClosePhase();
+        break;
+
     case State::WaitingClose:
         evaluateClosePhase();
         break;
@@ -282,18 +289,17 @@ void DumpPatternStrategy::startEntryPhase()
 
 void DumpPatternStrategy::evaluateEntryPhase()
 {
-    // Check if we already transitioned to WaitingClose (fill arrived before timeout)
-    if (m_state == State::WaitingClose)
-    {
-        m_cycleStartTime = m_sdk->getCurrentTime();
-        return;
-    }
-
     // Not filled — cancel
     m_sdk->log(QString("Entry order not filled after %1s — cancelling").arg(m_cycleDurationSec));
     cancelEntryOrder();
     m_cyclesCancelled++;
     resetCycle();
+}
+
+void DumpPatternStrategy::startClosePhase()
+{
+    // Entry was filled; now place the close order
+    placeCloseOrder();
 }
 
 void DumpPatternStrategy::evaluateClosePhase()

@@ -6,6 +6,6 @@
   "customParams": {
     "accountID": "SIM123456",
     "entryOffsetCents": 10,
-    "cycleDurationSeconds": 30
+    "cycleDurationSeconds": 10
   }
 }
