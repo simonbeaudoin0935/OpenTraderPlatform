@@ -241,7 +241,7 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
     auto pluginResult = StrategyLoader::loadPlugin(p_config.soPath);
     if (!pluginResult)
     {
-        return std::unexpected("Failed to load strategy plugin: " + p_config.soPath);
+        return std::unexpected(pluginResult.error());
     }
 
     auto plugin = pluginResult.value();
