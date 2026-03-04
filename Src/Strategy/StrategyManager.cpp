@@ -61,6 +61,21 @@ QFuture<std::expected<CancelOrderResult, TSClient::Error>> StrategySDK::cancelOr
     return future;
 }
 
+QFuture<bool> StrategySDK::subscribeToSymbol(const QString& p_symbol)
+{
+    ASSUME_DIFF(m_mainAlgo, nullptr);
+
+    auto promise = std::make_shared<QPromise<bool>>();
+    QFuture<bool> future = promise->future();
+
+    QMetaObject::invokeMethod(
+        m_mainAlgo,
+        [this, p_symbol, promise]() { m_mainAlgo->processSubscribeToSymbol(m_strategyID, p_symbol, promise); },
+        Qt::QueuedConnection);
+
+    return future;
+}
+
 QVector<Position> StrategySDK::getPositions() const
 {
     return m_positions;
@@ -734,6 +749,20 @@ void StrategyManager::connectStrategyToDataSources(StrategyInstance* p_instance)
             &StrategyCallbackAdapter::onBar,
             Qt::QueuedConnection);
 
+    // Connect Level 2 market depth data
+    connect(m_mainAlgo,
+            &MainAlgo::displayedStockReceivedNewLevel2,
+            p_instance->p_adapter,
+            &StrategyCallbackAdapter::onLevel2,
+            Qt::QueuedConnection);
+
+    // Connect individual trade prints
+    connect(m_mainAlgo,
+            &MainAlgo::displayedStockReceivedNewTrade,
+            p_instance->p_adapter,
+            &StrategyCallbackAdapter::onTrade,
+            Qt::QueuedConnection);
+
     qInfo(StrategyManagerLog) << "Connected strategy to data sources:" << p_instance->strategyID;
 }
 
@@ -748,6 +777,57 @@ void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_inst
     QObject::disconnect(m_mainAlgo, nullptr, p_instance->p_adapter, nullptr);
 
     qInfo(StrategyManagerLog) << "Disconnected strategy from data sources:" << p_instance->strategyID;
+}
+
+void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
+                                              const QString& p_symbol,
+                                              StockInstruments* p_instrument,
+                                              ReplayEngine* p_replayEngine)
+{
+    auto* instance = findStrategy(p_strategyID);
+    if (!instance || !instance->p_adapter)
+    {
+        qWarning(StrategyManagerLog) << "connectSymbolToStrategy: strategy not found:" << p_strategyID;
+        return;
+    }
+
+    // Add symbol to adapter's monitored set (must happen on strategy thread)
+    QMetaObject::invokeMethod(
+        instance->p_adapter,
+        [adapter = instance->p_adapter, p_symbol]() { adapter->addMonitoredSymbol(p_symbol); },
+        Qt::BlockingQueuedConnection);
+
+    if (p_instrument)
+    {
+        // Connect instrument bar data → adapter
+        bool connected = connect(&p_instrument->barReceiver,
+                                 &BarReceiver::receivedNewBar,
+                                 instance->p_adapter,
+                                 &StrategyCallbackAdapter::onBar,
+                                 Qt::QueuedConnection);
+        ASSUME_TRUE(connected);
+
+        // Connect instrument level2 data → adapter
+        connected = connect(&p_instrument->m_level2Receiver,
+                            &Level2Receiver::receivedNewLevel2,
+                            instance->p_adapter,
+                            &StrategyCallbackAdapter::onLevel2,
+                            Qt::QueuedConnection);
+        ASSUME_TRUE(connected);
+    }
+
+    if (p_replayEngine)
+    {
+        // Connect replay trade events → adapter (for trade-by-trade price tracking)
+        bool connected = connect(p_replayEngine,
+                                 &ReplayEngine::replayTrade,
+                                 instance->p_adapter,
+                                 &StrategyCallbackAdapter::onTrade,
+                                 Qt::QueuedConnection);
+        ASSUME_TRUE(connected);
+    }
+
+    qInfo(StrategyManagerLog) << "Connected symbol" << p_symbol << "to strategy" << p_strategyID;
 }
 
 StrategyLogger* StrategyManager::getStrategyLogger(const QString& p_strategyID)

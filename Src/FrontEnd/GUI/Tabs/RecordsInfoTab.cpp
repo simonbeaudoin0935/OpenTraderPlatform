@@ -157,10 +157,10 @@ void RecordsInfoTab::setupUI()
     replayDirRow->addWidget(new QLabel("Data Folder:"));
     m_replayDirEdit = new QLineEdit();
     Q_CHECK_PTR(m_replayDirEdit);
-    const QString defaultReplayDir =
-        QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/ReplayData";
+    const QString defaultReplayDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/ReplayData";
     m_replayDirEdit->setPlaceholderText(defaultReplayDir);
-    m_replayDirEdit->setToolTip("Directory where replay data is stored.\nLeave empty to use the default cache location.");
+    m_replayDirEdit->setToolTip(
+        "Directory where replay data is stored.\nLeave empty to use the default cache location.");
     replayDirRow->addWidget(m_replayDirEdit, 1);
     m_browseReplayDirButton = new QPushButton("Browse…");
     Q_CHECK_PTR(m_browseReplayDirButton);
@@ -171,25 +171,22 @@ void RecordsInfoTab::setupUI()
     replayDirRow->addWidget(m_resetReplayDirButton);
     downloadLayout->addLayout(replayDirRow);
 
-    connect(m_replayDirEdit,
-            &QLineEdit::editingFinished,
-            this,
-            &RecordsInfoTab::saveReplayDir,
-            Qt::UniqueConnection);
+    connect(m_replayDirEdit, &QLineEdit::editingFinished, this, &RecordsInfoTab::saveReplayDir, Qt::UniqueConnection);
     connect(m_browseReplayDirButton,
             &QPushButton::clicked,
             this,
             &RecordsInfoTab::onBrowseReplayDirClicked,
             Qt::UniqueConnection);
-    connect(m_resetReplayDirButton,
-            &QPushButton::clicked,
-            this,
-            [this]()
-            {
-                m_replayDirEdit->clear();
-                saveReplayDir();
-            },
-            Qt::UniqueConnection);
+    connect(
+        m_resetReplayDirButton,
+        &QPushButton::clicked,
+        this,
+        [this]()
+        {
+            m_replayDirEdit->clear();
+            saveReplayDir();
+        },
+        Qt::UniqueConnection);
 
     // Date picker
     auto* dateRow = new QHBoxLayout();

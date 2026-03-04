@@ -19,6 +19,8 @@
 #include "Assume.h"
 
 class MainAlgo;
+class StockInstruments;
+class ReplayEngine;
 
 /// @brief Adapter to call StrategyBase methods from Qt slots
 /// Lives on strategy's thread and provides thread-safe callback invocation
@@ -43,10 +45,26 @@ class StrategyCallbackAdapter : public QObject
         }
     }
 
-    void onLevel2(const Level2& level2) const
+    void onLevel2(const QString& symbol,
+                  const Level2& level2,
+                  double /*bidAskImbalance*/,
+                  double /*bidDWP*/,
+                  double /*askDWP*/) const
     {
-        ASSUME_DIFF(m_strategy, nullptr);
-        m_strategy->onLevel2(level2);
+        if (m_monitoredSymbols.contains(symbol))
+        {
+            ASSUME_DIFF(m_strategy, nullptr);
+            m_strategy->onLevel2(level2);
+        }
+    }
+
+    void onTrade(const QString& symbol, const Trade& trade) const
+    {
+        if (m_monitoredSymbols.contains(symbol))
+        {
+            ASSUME_DIFF(m_strategy, nullptr);
+            m_strategy->onTrade(trade);
+        }
     }
 
     void onOrderUpdated(const Order& order) const
@@ -86,6 +104,16 @@ class StrategyCallbackAdapter : public QObject
     {
         ASSUME_DIFF(m_strategy, nullptr);
         m_strategy->onStop();
+    }
+
+    /// @brief Add a symbol to the monitored set so its data callbacks are forwarded
+    /// @note Called from MainAlgo thread via Qt::BlockingQueuedConnection
+    void addMonitoredSymbol(const QString& symbol)
+    {
+        if (!m_monitoredSymbols.contains(symbol))
+        {
+            m_monitoredSymbols.append(symbol);
+        }
     }
 
   private:
@@ -256,6 +284,20 @@ class StrategyManager final : public QObject
      * Returns empty vector if strategy not found
      */
     [[nodiscard]] QVector<Position> getStrategyOpenPositions(const QString& p_strategyID) const;
+
+    /*
+     * Connect a specific symbol's data sources to a strategy's adapter.
+     * Called by MainAlgo when a strategy calls subscribeToSymbol().
+     *
+     * @param p_strategyID Strategy requesting the subscription
+     * @param p_symbol Symbol to subscribe to
+     * @param p_instrument StockInstruments for the symbol (nullptr = use displayed-stock signals)
+     * @param p_replayEngine Secondary ReplayEngine for the symbol (nullptr if not applicable)
+     */
+    void connectSymbolToStrategy(const QString& p_strategyID,
+                                 const QString& p_symbol,
+                                 StockInstruments* p_instrument,
+                                 ReplayEngine* p_replayEngine);
 
   public slots:
     /*

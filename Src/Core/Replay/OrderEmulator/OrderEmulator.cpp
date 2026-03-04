@@ -1047,8 +1047,7 @@ bool OrderEmulator::validateOrder(const PlaceOrderRequest& p_request, QString& p
         }
 
         // BuyToCover more shares than the short position
-        if (currentQty < 0 && tradeAction == TradeAction::BuyToCover &&
-            p_request.getQuantity() > qAbs(currentQty))
+        if (currentQty < 0 && tradeAction == TradeAction::BuyToCover && p_request.getQuantity() > qAbs(currentQty))
         {
             p_errorMessage = QString("EC602: You are short %1 shares (cannot cover %2)")
                                  .arg(qAbs(currentQty))

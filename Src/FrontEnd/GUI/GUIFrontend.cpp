@@ -984,10 +984,9 @@ void GUIFrontend::onDatabentoGatewayError(const QString& errorText, bool isFatal
         msgBox.setWindowTitle("Databento Live Subscription Error");
         msgBox.setIcon(QMessageBox::Critical);
         msgBox.setText("<b>Live data subscription is not available.</b>");
-        msgBox.setInformativeText(
-            "Databento returned an error that prevents live streaming:\n\n" + errorText +
-            "\n\nCheck that your Databento account has an active live data subscription "
-            "for this dataset. Replay mode will still work with previously downloaded data.");
+        msgBox.setInformativeText("Databento returned an error that prevents live streaming:\n\n" + errorText +
+                                  "\n\nCheck that your Databento account has an active live data subscription "
+                                  "for this dataset. Replay mode will still work with previously downloaded data.");
         msgBox.setStandardButtons(QMessageBox::Ok);
         msgBox.exec();
     }

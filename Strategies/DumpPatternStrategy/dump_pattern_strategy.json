@@ -1,0 +1,11 @@
+{
+  "name": "DumpPatternStrategy",
+  "soPath": "~/.local/share/L2Trader/Strategies/DumpPatternStrategy.so",
+  "symbols": ["SPY"],
+  "positionSize": 1,
+  "customParams": {
+    "accountID": "SIM123456",
+    "entryOffsetCents": 10,
+    "cycleDurationSeconds": 30
+  }
+}

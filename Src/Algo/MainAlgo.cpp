@@ -747,6 +747,95 @@ void MainAlgo::processCancelOrder(
     DEBUG << "Processing cancelOrder: orderID=" << p_orderID;
 }
 
+void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
+                                        const QString& p_symbol,
+                                        std::shared_ptr<QPromise<bool>> p_promise)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+    ASSUME_DIFF(p_promise.get(), nullptr);
+
+    if (MainApp::isInReplayMode())
+    {
+        // Validate data exists for the replay date
+        if (!DBClient::hasReplayData(m_replayDate, p_symbol))
+        {
+            WARNING << "No replay data for" << p_symbol << "on" << m_replayDate.toString(Qt::ISODate)
+                    << "- subscription rejected";
+            p_promise->addResult(false);
+            return;
+        }
+
+        // If symbol is already loaded (displayed stock), just add to monitored symbols
+        if (stockInstruments.contains(p_symbol) && !m_secondaryReplayEngines.contains(p_symbol))
+        {
+            m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr, nullptr);
+            p_promise->addResult(true);
+            return;
+        }
+
+        // New secondary symbol: create StockInstruments + secondary ReplayEngine
+        StockInstruments* instrument = nullptr;
+        if (!stockInstruments.contains(p_symbol) || stockInstruments[p_symbol].isNull())
+        {
+            instrument = new StockInstruments(p_symbol, this);
+            Q_CHECK_PTR(instrument);
+            stockInstruments.insert(p_symbol, instrument);
+        }
+        else
+        {
+            instrument = stockInstruments[p_symbol];
+        }
+
+        auto* secondaryEngine = new ReplayEngine(this);
+        m_secondaryReplayEngines.insert(p_symbol, secondaryEngine);
+
+        // Wire secondary engine → StockInstruments (Level2 + Trades → bars)
+        connectSecondaryReplaySignals(p_symbol, secondaryEngine, instrument);
+
+        // Wire StockInstruments + secondary engine trade events → strategy adapter
+        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, instrument, secondaryEngine);
+
+        // Start secondary replay from the same date/time/speed as the primary
+        secondaryEngine->startReplay(p_symbol, m_replayDate, m_replayStartTime, m_replaySpeed);
+
+        INFO << "Secondary replay started for" << p_symbol << "at" << m_replayDate.toString(Qt::ISODate);
+    }
+    else
+    {
+        // Live/sim mode: add symbol to monitored set
+        // (data for arbitrary symbols via live DBClient streams is a future enhancement;
+        //  for now the strategy must use the symbol that's already streaming)
+        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr, nullptr);
+    }
+
+    p_promise->addResult(true);
+}
+
+void MainAlgo::connectSecondaryReplaySignals(const QString& p_symbol,
+                                             ReplayEngine* p_engine,
+                                             StockInstruments* p_instrument)
+{
+    OBJ_ASSUME_DIFF(p_engine, nullptr);
+    OBJ_ASSUME_DIFF(p_instrument, nullptr);
+
+    // Replay Level2 → Level2Receiver
+    bool connected = connect(p_engine,
+                             &ReplayEngine::replayLevel2,
+                             &p_instrument->m_level2Receiver,
+                             [p_instrument](const QString& /*sym*/, const Level2& l2)
+                             { p_instrument->m_level2Receiver.onReceivedNewLevel2(l2); });
+    ASSUME_TRUE(connected);
+
+    // Replay Trade → LiveBarAccumulator (builds bars from trades)
+    connected = connect(p_engine,
+                        &ReplayEngine::replayTrade,
+                        &p_instrument->m_liveBarAccumulator,
+                        &LiveBarAccumulator::onNewTrade);
+    ASSUME_TRUE(connected);
+
+    INFO << "Secondary replay signals connected for" << p_symbol;
+}
+
 void MainAlgo::onStrategyCrashNotified()
 {
     // Read crash notification from pipe
@@ -812,6 +901,11 @@ void MainAlgo::enterReplayMode(const QString& p_symbol,
     // We assume that if we were able to click "Enter Replay Mode", then we must not already be in replay mode, so m_replayEngine should be null
     OBJ_ASSUME_TRUE(m_replayEngine == nullptr);
 
+    // Store replay state for strategy subscription validation
+    m_replayDate = p_date;
+    m_replayStartTime = p_startTime;
+    m_replaySpeed = p_speed;
+
     // Create ReplayEngine on first use (lazy init, parent=this for thread affinity)
     m_replayEngine = new ReplayEngine(this);
 
@@ -872,6 +966,11 @@ void MainAlgo::enterReplayModePaused(const QString& p_symbol,
 {
     INFO << "MainAlgo entering replay mode (paused) for" << p_symbol << "on" << p_date.toString(Qt::ISODate) << "at"
          << p_startTime.toString("hh:mm:ss");
+
+    // Store replay state for strategy subscription validation
+    m_replayDate = p_date;
+    m_replayStartTime = p_startTime;
+    m_replaySpeed = p_speed;
 
     bool isRecreatingEngine = (m_replayEngine != nullptr);
 

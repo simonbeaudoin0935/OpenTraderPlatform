@@ -65,6 +65,14 @@ class StrategySDK : public QObject
     [[nodiscard]]
     QFuture<std::expected<CancelOrderResult, TSClient::Error>> cancelOrder(const QString& orderID);
 
+    /// @brief Subscribe to data feed for a symbol (bars, Level2, trades)
+    /// In replay mode: validates that data exists for the current replay date/symbol.
+    /// In live/sim mode: adds symbol to monitored set (live stream support is a future enhancement).
+    /// @param symbol Stock symbol to subscribe to (e.g., "SPY")
+    /// @return QFuture<true> if subscription accepted, QFuture<false> if rejected
+    [[nodiscard]]
+    QFuture<bool> subscribeToSymbol(const QString& symbol);
+
     /// @brief Get current positions for this strategy (thread-safe)
     /// @return Vector of positions currently held by this strategy
     [[nodiscard]]

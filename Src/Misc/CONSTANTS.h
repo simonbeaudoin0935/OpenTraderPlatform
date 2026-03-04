@@ -354,14 +354,14 @@ namespace MarketCalendar
 
     // Full-day NYSE closures in 2026 (Mon–Fri holidays)
     inline const std::array<QDate, 10> HOLIDAYS_2026 = {
-        QDate(2026,  1,  1), // New Year's Day
-        QDate(2026,  1, 19), // Martin Luther King Jr. Day
-        QDate(2026,  2, 16), // Presidents' Day
-        QDate(2026,  4,  3), // Good Friday
-        QDate(2026,  5, 25), // Memorial Day
-        QDate(2026,  6, 19), // Juneteenth National Independence Day
-        QDate(2026,  7,  3), // Independence Day (observed)
-        QDate(2026,  9,  7), // Labor Day
+        QDate(2026, 1, 1),   // New Year's Day
+        QDate(2026, 1, 19),  // Martin Luther King Jr. Day
+        QDate(2026, 2, 16),  // Presidents' Day
+        QDate(2026, 4, 3),   // Good Friday
+        QDate(2026, 5, 25),  // Memorial Day
+        QDate(2026, 6, 19),  // Juneteenth National Independence Day
+        QDate(2026, 7, 3),   // Independence Day (observed)
+        QDate(2026, 9, 7),   // Labor Day
         QDate(2026, 11, 26), // Thanksgiving Day
         QDate(2026, 12, 25), // Christmas Day
     };
@@ -374,7 +374,7 @@ namespace MarketCalendar
 
     inline bool isHoliday(const QDate& date)
     {
-        for (const QDate& h : HOLIDAYS_2026)
+        for (const QDate& h: HOLIDAYS_2026)
         {
             if (h == date)
                 return true;
@@ -384,7 +384,7 @@ namespace MarketCalendar
 
     inline bool isEarlyCloseDay(const QDate& date)
     {
-        for (const QDate& d : EARLY_CLOSE_DAYS_2026)
+        for (const QDate& d: EARLY_CLOSE_DAYS_2026)
         {
             if (d == date)
                 return true;
