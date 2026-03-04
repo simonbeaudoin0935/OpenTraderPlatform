@@ -696,6 +696,7 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
 
     // Resolve the promise with the result
     promise->addResult(p_result);
+    promise->finish();
 
     if (p_result.has_value())
     {
@@ -742,7 +743,10 @@ void MainAlgo::processCancelOrder(
 
     future.then(this,
                 [p_promise](std::expected<CancelOrderResult, TSClient::Error> result)
-                { p_promise->addResult(result); });
+                {
+                    p_promise->addResult(result);
+                    p_promise->finish();
+                });
 
     DEBUG << "Processing cancelOrder: orderID=" << p_orderID;
 }
@@ -762,6 +766,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
             WARNING << "No replay data for" << p_symbol << "on" << m_replayDate.toString(Qt::ISODate)
                     << "- subscription rejected";
             p_promise->addResult(false);
+            p_promise->finish();
             return;
         }
 
@@ -773,6 +778,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
                                                       stockInstruments[p_symbol],
                                                       m_replayEngine);
             p_promise->addResult(true);
+            p_promise->finish();
             return;
         }
 
@@ -812,6 +818,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
     }
 
     p_promise->addResult(true);
+    p_promise->finish();
 }
 
 void MainAlgo::connectSecondaryReplaySignals(const QString& p_symbol,

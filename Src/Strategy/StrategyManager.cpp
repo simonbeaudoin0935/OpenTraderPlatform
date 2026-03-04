@@ -35,6 +35,7 @@ QFuture<std::expected<PlaceOrderResult, TSClient::Error>> StrategySDK::placeOrde
 
     // Create a promise that will be resolved when order ACK is received
     auto promise = std::make_shared<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>();
+    promise->start();
     QFuture<std::expected<PlaceOrderResult, TSClient::Error>> future = promise->future();
 
     QMetaObject::invokeMethod(
@@ -51,6 +52,7 @@ QFuture<std::expected<CancelOrderResult, TSClient::Error>> StrategySDK::cancelOr
     ASSUME_DIFF(m_mainAlgo, nullptr);
 
     auto promise = std::make_shared<QPromise<std::expected<CancelOrderResult, TSClient::Error>>>();
+    promise->start();
     QFuture<std::expected<CancelOrderResult, TSClient::Error>> future = promise->future();
 
     QMetaObject::invokeMethod(
@@ -66,6 +68,7 @@ QFuture<bool> StrategySDK::subscribeToSymbol(const QString& p_symbol)
     ASSUME_DIFF(m_mainAlgo, nullptr);
 
     auto promise = std::make_shared<QPromise<bool>>();
+    promise->start();
     QFuture<bool> future = promise->future();
 
     QMetaObject::invokeMethod(
