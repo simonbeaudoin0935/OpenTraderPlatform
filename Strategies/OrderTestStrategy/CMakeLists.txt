@@ -88,5 +88,7 @@ message(STATUS "  Install dir: ~/.local/share/L2Trader/Strategies/")
 add_custom_command(TARGET OrderTestStrategy POST_BUILD
     COMMAND mkdir -p ~/.local/share/L2Trader/Strategies/
     COMMAND cp "${CMAKE_BINARY_DIR}/lib/OrderTestStrategy.so" ~/.local/share/L2Trader/Strategies/
-    COMMENT "Installing OrderTestStrategy.so to ~/.local/share/L2Trader/Strategies/"
+    COMMAND mkdir -p ~/.config/L2Trader/Strategies/
+    COMMAND cp "${CMAKE_CURRENT_SOURCE_DIR}/order_test_strategy.json" ~/.config/L2Trader/Strategies/
+    COMMENT "Installing OrderTestStrategy.so and order_test_strategy.json"
 )

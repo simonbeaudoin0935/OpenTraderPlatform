@@ -88,5 +88,7 @@ message(STATUS "  Install dir: ~/.local/share/L2Trader/Strategies/")
 add_custom_command(TARGET DumpPatternStrategy POST_BUILD
     COMMAND mkdir -p ~/.local/share/L2Trader/Strategies/
     COMMAND cp "${CMAKE_BINARY_DIR}/lib/DumpPatternStrategy.so" ~/.local/share/L2Trader/Strategies/
-    COMMENT "Installing DumpPatternStrategy.so to ~/.local/share/L2Trader/Strategies/"
+    COMMAND mkdir -p ~/.config/L2Trader/Strategies/
+    COMMAND cp "${CMAKE_CURRENT_SOURCE_DIR}/dump_pattern_strategy.json" ~/.config/L2Trader/Strategies/
+    COMMENT "Installing DumpPatternStrategy.so and dump_pattern_strategy.json"
 )
