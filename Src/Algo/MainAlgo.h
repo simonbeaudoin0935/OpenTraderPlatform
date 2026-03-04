@@ -95,6 +95,12 @@ class MainAlgo final : public QObject
     /// Routes result to strategy and emits GUI signal if displayed stock
     void onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOrderResult, TSClient::Error>& p_result);
 
+    /// @brief Process a strategy cancelOrder request (MainAlgo thread)
+    /// @param p_orderID ID of the order to cancel
+    /// @param p_promise Promise to resolve when cancellation result is received
+    void processCancelOrder(const QString& p_orderID,
+                            std::shared_ptr<QPromise<std::expected<CancelOrderResult, TSClient::Error>>> p_promise);
+
     /*
      * Replay mode control - called from MainApp via QMetaObject::invokeMethod
      */

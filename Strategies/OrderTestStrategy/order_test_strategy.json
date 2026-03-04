@@ -1,0 +1,12 @@
+{
+  "name": "OrderTestStrategy",
+  "soPath": "~/.local/share/L2Trader/Strategies/OrderTestStrategy.so",
+  "symbols": ["SPY"],
+  "positionSize": 1,
+  "riskLimit": 100.0,
+  "customParams": {
+    "accountID": "SIM123456",
+    "limitPrice": 1.0,
+    "timeoutSecs": 60
+  }
+}

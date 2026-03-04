@@ -27,8 +27,8 @@ class StrategyCallbackAdapter : public QObject
     Q_OBJECT
 
   public:
-    explicit StrategyCallbackAdapter(StrategyBase* p_strategy, const QVector<QString>& p_symbols)
-        : m_strategy(p_strategy), m_monitoredSymbols(p_symbols)
+    explicit StrategyCallbackAdapter(StrategyBase* p_strategy, StrategySDK* p_sdk, const QVector<QString>& p_symbols)
+        : m_strategy(p_strategy), m_sdk(p_sdk), m_monitoredSymbols(p_symbols)
     {
     }
 
@@ -52,18 +52,33 @@ class StrategyCallbackAdapter : public QObject
     void onOrderUpdated(const Order& order) const
     {
         ASSUME_DIFF(m_strategy, nullptr);
+        // Update SDK state before notifying strategy
+        if (m_sdk)
+        {
+            m_sdk->updateOrder(order);
+        }
         m_strategy->onOrderUpdated(order);
     }
 
     void onPositionUpdated(const Position& position) const
     {
         ASSUME_DIFF(m_strategy, nullptr);
+        // Update SDK state before notifying strategy
+        if (m_sdk)
+        {
+            m_sdk->updatePosition(position);
+        }
         m_strategy->onPositionUpdated(position);
     }
 
     void onBalanceUpdated(double balance) const
     {
         ASSUME_DIFF(m_strategy, nullptr);
+        // Update SDK state before notifying strategy
+        if (m_sdk)
+        {
+            m_sdk->updateBalance(balance);
+        }
         m_strategy->onBalanceUpdated(balance);
     }
 
@@ -75,6 +90,7 @@ class StrategyCallbackAdapter : public QObject
 
   private:
     StrategyBase* m_strategy;
+    StrategySDK* m_sdk;
     QVector<QString> m_monitoredSymbols;
 };
 
@@ -259,6 +275,12 @@ class StrategyManager final : public QObject
      * Routes to strategy that placed the order
      */
     void onOrderUpdated(const Order& p_order);
+
+    /*
+     * Called when an order update should be routed to a specific strategy only
+     * Used by MainAlgo when the owning strategy is known from m_orderMappings
+     */
+    void onOrderUpdatedForStrategy(const QString& p_strategyID, const Order& p_order);
 
     /*
      * Called when MainAlgo receives a new order (ignores account parameter)

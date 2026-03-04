@@ -14,6 +14,7 @@
 #include "TSClient.h"
 #include "StrategyOrderValidator.h"
 #include "StrategyConfig.h"
+#include "Balance.h"
 
 /// @brief Log level enumeration
 enum class LogLevel
@@ -79,6 +80,24 @@ class StrategySDK : public QObject
     [[nodiscard]]
     double getAccountBalance() const;
 
+    // -------------------------------------------------------------------------
+    // Internal state update methods — called by StrategyCallbackAdapter on the
+    // strategy thread to keep SDK state in sync with order/position/balance events.
+    // Not part of the strategy-facing public API.
+    // -------------------------------------------------------------------------
+
+    /// @brief Update internal order state (insert or replace)
+    /// @note Called from StrategyCallbackAdapter on strategy thread
+    void updateOrder(const Order& order);
+
+    /// @brief Update internal position state (insert or replace)
+    /// @note Called from StrategyCallbackAdapter on strategy thread
+    void updatePosition(const Position& position);
+
+    /// @brief Update internal balance state
+    /// @note Called from StrategyCallbackAdapter on strategy thread
+    void updateBalance(double balance);
+
     /// @brief Log a message (thread-safe)
     /// Logs are captured per-strategy and can be viewed in the Strategies tab.
     /// @param message Log message
@@ -117,4 +136,10 @@ class StrategySDK : public QObject
     QString m_strategyID;
     StrategyConfig m_config;
     StrategyLogger* m_logger; // Can be nullptr
+
+    // Per-strategy state — updated via updateOrder/updatePosition/updateBalance
+    // All accessed on strategy thread (serialized by Qt event loop)
+    QVector<Order> m_orders;
+    QVector<Position> m_positions;
+    double m_balance = 0.0;
 };

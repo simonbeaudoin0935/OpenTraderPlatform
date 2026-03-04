@@ -482,11 +482,11 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
         return;
     }
 
-    // This order belongs to a strategy - route it to that strategy
+    // This order belongs to a strategy - route it to that strategy only
     QString strategyID = *strategyIt;
     QMetaObject::invokeMethod(
         &m_strategyManager,
-        [this, order]() { m_strategyManager.onOrderUpdated(order); },
+        [this, strategyID, order]() { m_strategyManager.onOrderUpdatedForStrategy(strategyID, order); },
         Qt::QueuedConnection);
 }
 
@@ -729,6 +729,22 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
 
         // TODO: Route error to strategy via SDK
     }
+}
+
+void MainAlgo::processCancelOrder(
+    const QString& p_orderID,
+    std::shared_ptr<QPromise<std::expected<CancelOrderResult, TSClient::Error>>> p_promise)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+    ASSUME_DIFF(p_promise.get(), nullptr);
+
+    QFuture<std::expected<CancelOrderResult, TSClient::Error>> future = TSClient::getInstance()->cancelOrder(p_orderID);
+
+    future.then(this,
+                [p_promise](std::expected<CancelOrderResult, TSClient::Error> result)
+                { p_promise->addResult(result); });
+
+    DEBUG << "Processing cancelOrder: orderID=" << p_orderID;
 }
 
 void MainAlgo::onStrategyCrashNotified()

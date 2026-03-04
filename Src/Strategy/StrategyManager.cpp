@@ -48,24 +48,65 @@ QFuture<std::expected<PlaceOrderResult, TSClient::Error>> StrategySDK::placeOrde
 
 QFuture<std::expected<CancelOrderResult, TSClient::Error>> StrategySDK::cancelOrder(const QString& p_orderID)
 {
-    Q_UNUSED(p_orderID);
-    return QtFuture::makeReadyFuture(
-        std::expected<CancelOrderResult, TSClient::Error>(std::unexpected(TSClient::Error::Other)));
+    ASSUME_DIFF(m_mainAlgo, nullptr);
+
+    auto promise = std::make_shared<QPromise<std::expected<CancelOrderResult, TSClient::Error>>>();
+    QFuture<std::expected<CancelOrderResult, TSClient::Error>> future = promise->future();
+
+    QMetaObject::invokeMethod(
+        m_mainAlgo,
+        [this, p_orderID, promise]() { m_mainAlgo->processCancelOrder(p_orderID, promise); },
+        Qt::QueuedConnection);
+
+    return future;
 }
 
 QVector<Position> StrategySDK::getPositions() const
 {
-    return QVector<Position>();
+    return m_positions;
 }
 
 QVector<Order> StrategySDK::getOrders() const
 {
-    return QVector<Order>();
+    return m_orders;
 }
 
 double StrategySDK::getAccountBalance() const
 {
-    return 0.0;
+    return m_balance;
+}
+
+void StrategySDK::updateOrder(const Order& p_order)
+{
+    // Replace existing order with same ID, or append
+    for (auto& existing: m_orders)
+    {
+        if (existing.getOrderID() == p_order.getOrderID())
+        {
+            existing = p_order;
+            return;
+        }
+    }
+    m_orders.append(p_order);
+}
+
+void StrategySDK::updatePosition(const Position& p_position)
+{
+    // Replace existing position with same ID, or append
+    for (auto& existing: m_positions)
+    {
+        if (existing.getPositionID() == p_position.getPositionID())
+        {
+            existing = p_position;
+            return;
+        }
+    }
+    m_positions.append(p_position);
+}
+
+void StrategySDK::updateBalance(double p_balance)
+{
+    m_balance = p_balance;
 }
 
 void StrategySDK::log(const QString& p_message, LogLevel p_level)
@@ -208,7 +249,7 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
     p_strategy->setSdk(p_sdk);
 
     // Create callback adapter that will live on strategy's thread
-    auto p_adapter = new StrategyCallbackAdapter(p_strategy, p_config.symbols);
+    auto p_adapter = new StrategyCallbackAdapter(p_strategy, p_sdk, p_config.symbols);
 
     auto instance = new StrategyInstance();
     instance->strategyID = strategyID;
@@ -643,8 +684,7 @@ StrategyBase* StrategyManager::getStrategy(const QString& p_strategyID) const
 
 void StrategyManager::onOrderUpdated(const Order& p_order)
 {
-    // Broadcast to all strategies for now
-    // TODO: Later, route only to the strategy that placed the order
+    // Broadcast to all strategies (used as fallback when owning strategy is unknown)
     for (auto* instance: m_strategies)
     {
         if (instance && instance->p_strategy)
@@ -652,6 +692,22 @@ void StrategyManager::onOrderUpdated(const Order& p_order)
             instance->p_strategy->onOrderUpdated(p_order);
         }
     }
+}
+
+void StrategyManager::onOrderUpdatedForStrategy(const QString& p_strategyID, const Order& p_order)
+{
+    auto* instance = findStrategy(p_strategyID);
+    if (!instance || !instance->p_adapter)
+    {
+        qWarning(StrategyManagerLog) << "onOrderUpdatedForStrategy: strategy not found:" << p_strategyID;
+        return;
+    }
+
+    // Route via adapter (runs on strategy thread)
+    QMetaObject::invokeMethod(
+        instance->p_adapter,
+        [instance, p_order]() { instance->p_adapter->onOrderUpdated(p_order); },
+        Qt::QueuedConnection);
 }
 
 void StrategyManager::onMainAlgoOrderUpdated(const QString& p_account, const Order& p_order)

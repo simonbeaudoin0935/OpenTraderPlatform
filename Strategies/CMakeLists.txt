@@ -4,3 +4,4 @@
 add_subdirectory(ExampleStrategy)
 add_subdirectory(CrashTestStrategy)
 add_subdirectory(HistoricalBarsStrategy)
+add_subdirectory(OrderTestStrategy)
