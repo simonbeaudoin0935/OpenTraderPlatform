@@ -765,10 +765,13 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
             return;
         }
 
-        // If symbol is already loaded (displayed stock), just add to monitored symbols
+        // If symbol is already loaded (displayed stock), wire its instrument + primary engine
         if (stockInstruments.contains(p_symbol) && !m_secondaryReplayEngines.contains(p_symbol))
         {
-            m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr, nullptr);
+            m_strategyManager.connectSymbolToStrategy(p_strategyID,
+                                                      p_symbol,
+                                                      stockInstruments[p_symbol],
+                                                      m_replayEngine);
             p_promise->addResult(true);
             return;
         }
