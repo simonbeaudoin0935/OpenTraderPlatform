@@ -144,17 +144,16 @@ QNetworkReply* MockNetworkAccessManager::handlePost(const QNetworkRequest& p_req
             orderRequest.setOrderType(OrderType::Type::Market);
         }
 
-        // Generate request ID
-        QString requestID = QString::number(QDateTime::currentMSecsSinceEpoch());
+        // Route to emulator — it assigns and returns the canonical order ID
+        QString orderID = m_emulator->placeOrder(orderRequest);
 
-        // Route to emulator
-        m_emulator->placeOrder(orderRequest, requestID);
-
-        // Return immediate acknowledgment
+        // Return immediate acknowledgment using the emulator's assigned ID.
+        // This mirrors real TradeStation: the POST response contains the OrderID
+        // that StreamOrders will also use for fills, cancels, and all future updates.
         QJsonObject response;
         QJsonArray orders;
         QJsonObject orderResult;
-        orderResult["OrderID"] = requestID;
+        orderResult["OrderID"] = orderID;
         orderResult["Message"] = "Order received for processing";
         orders.append(orderResult);
         response["Orders"] = orders;

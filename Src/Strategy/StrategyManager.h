@@ -70,6 +70,8 @@ class StrategyCallbackAdapter : public QObject
     void onOrderUpdated(const Order& order) const
     {
         ASSUME_DIFF(m_strategy, nullptr);
+        qDebug() << "[StrategyCallbackAdapter::onOrderUpdated] orderID=" << order.getOrderID()
+                 << "status=" << static_cast<int>(order.getOrderStatus());
         // Update SDK state before notifying strategy
         if (m_sdk)
         {

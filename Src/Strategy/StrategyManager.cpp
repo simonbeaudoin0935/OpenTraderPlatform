@@ -714,6 +714,9 @@ void StrategyManager::onOrderUpdated(const Order& p_order)
 
 void StrategyManager::onOrderUpdatedForStrategy(const QString& p_strategyID, const Order& p_order)
 {
+    qDebug(StrategyManagerLog) << "onOrderUpdatedForStrategy: strategyID=" << p_strategyID
+                               << "orderID=" << p_order.getOrderID()
+                               << "status=" << static_cast<int>(p_order.getOrderStatus());
     auto* instance = findStrategy(p_strategyID);
     if (!instance || !instance->p_adapter)
     {
@@ -724,7 +727,11 @@ void StrategyManager::onOrderUpdatedForStrategy(const QString& p_strategyID, con
     // Route via adapter (runs on strategy thread)
     QMetaObject::invokeMethod(
         instance->p_adapter,
-        [instance, p_order]() { instance->p_adapter->onOrderUpdated(p_order); },
+        [instance, p_order]()
+        {
+            qDebug() << "[StrategyCallbackAdapter] dispatching onOrderUpdated orderID=" << p_order.getOrderID();
+            instance->p_adapter->onOrderUpdated(p_order);
+        },
         Qt::QueuedConnection);
 }
 

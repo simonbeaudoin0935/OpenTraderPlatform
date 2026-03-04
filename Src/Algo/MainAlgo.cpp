@@ -444,7 +444,7 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
 
 void MainAlgo::onReceivedNewPosition(const QString& account, Position position)
 {
-    DEBUG << "Received new position:" << position.toJsonString();
+    //DEBUG << "Received new position:" << position.toJsonString();
     emit receivedNewPosition(account, position);
 }
 
@@ -472,6 +472,10 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
 {
     Q_UNUSED(account);
 
+    DEBUG << "onReceivedNewOrder: orderID=" << order.getOrderID()
+          << "status=" << static_cast<int>(order.getOrderStatus())
+          << "mappings_size=" << m_orderMappings.size();
+
     // Lookup which strategy placed this order
     auto strategyIt = m_orderMappings.find(order.getOrderID());
 
@@ -484,6 +488,7 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
 
     // This order belongs to a strategy - route it to that strategy only
     QString strategyID = *strategyIt;
+    DEBUG << "Routing order update for orderID=" << order.getOrderID() << "to strategyID=" << strategyID;
     QMetaObject::invokeMethod(
         &m_strategyManager,
         [this, strategyID, order]() { m_strategyManager.onOrderUpdatedForStrategy(strategyID, order); },
@@ -714,7 +719,8 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
                 // Successful order - create permanent mapping for future updates
                 QString orderID = orderResultItem.getOrderID();
                 m_orderMappings[orderID] = strategyID;
-                DEBUG << "Created order mapping: OrderID=" << orderID << "→ strategyID=" << strategyID;
+                DEBUG << "Created order mapping: OrderID=" << orderID << "→ strategyID=" << strategyID
+                      << "(total mappings=" << m_orderMappings.size() << ")";
             }
         }
 
