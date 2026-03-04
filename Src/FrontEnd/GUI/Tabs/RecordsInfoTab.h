@@ -11,6 +11,7 @@
 #include <QSet>
 #include <QSplitter>
 #include <QTableWidget>
+#include <QTextEdit>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -73,7 +74,7 @@ class RecordsInfoTab : public QWidget
 
     [[nodiscard]] QString formatFileSize(qint64 p_bytes) const;
     [[nodiscard]] QStringList parseManualSymbols() const;
-    [[nodiscard]] QStringList buildDownloadQueue(const QDate& p_date) const;
+    [[nodiscard]] QStringList buildDownloadQueue(const QDate& p_date, QStringList* p_outSkipped = nullptr) const;
 
     // UI - Download section
     QDateEdit* m_dateEdit;
@@ -83,6 +84,7 @@ class RecordsInfoTab : public QWidget
     QPushButton* m_downloadButton;
     QProgressBar* m_downloadProgressBar;
     QLabel* m_downloadStatusLabel;
+    QTextEdit* m_skipLogEdit;
 
     // UI - Left (Days)
     QTableWidget* m_daysTable;

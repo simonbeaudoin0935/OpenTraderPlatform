@@ -23,6 +23,7 @@ RecordsInfoTab::RecordsInfoTab(QWidget* p_parent)
     , m_downloadButton(nullptr)
     , m_downloadProgressBar(nullptr)
     , m_downloadStatusLabel(nullptr)
+    , m_skipLogEdit(nullptr)
     , m_daysTable(nullptr)
     , m_refreshButton(nullptr)
     , m_symbolsTable(nullptr)
@@ -93,7 +94,7 @@ QStringList RecordsInfoTab::parseManualSymbols() const
     return symbols;
 }
 
-QStringList RecordsInfoTab::buildDownloadQueue(const QDate& p_date) const
+QStringList RecordsInfoTab::buildDownloadQueue(const QDate& p_date, QStringList* p_outSkipped) const
 {
     QSet<QString> seen;
     QStringList queue;
@@ -110,6 +111,8 @@ QStringList RecordsInfoTab::buildDownloadQueue(const QDate& p_date) const
                 seen.insert(sym);
                 if (!DBClient::hasReplayData(p_date, sym))
                     queue.append(sym);
+                else if (p_outSkipped != nullptr)
+                    p_outSkipped->append(sym);
             }
         }
     }
@@ -123,6 +126,8 @@ QStringList RecordsInfoTab::buildDownloadQueue(const QDate& p_date) const
             seen.insert(sym);
             if (!DBClient::hasReplayData(p_date, sym))
                 queue.append(sym);
+            else if (p_outSkipped != nullptr)
+                p_outSkipped->append(sym);
         }
     }
 
@@ -207,6 +212,14 @@ void RecordsInfoTab::setupUI()
     Q_CHECK_PTR(m_downloadStatusLabel);
     m_downloadStatusLabel->setWordWrap(true);
     downloadLayout->addWidget(m_downloadStatusLabel);
+
+    m_skipLogEdit = new QTextEdit();
+    Q_CHECK_PTR(m_skipLogEdit);
+    m_skipLogEdit->setReadOnly(true);
+    m_skipLogEdit->setPlaceholderText("Skipped symbols will appear here…");
+    m_skipLogEdit->setMaximumHeight(120);
+    m_skipLogEdit->setVisible(false);
+    downloadLayout->addWidget(m_skipLogEdit);
 
     downloadLayout->addStretch();
     splitter->addWidget(downloadWidget);
@@ -333,7 +346,23 @@ void RecordsInfoTab::onDownloadClicked()
     }
 
     // Build the download queue (CSV + manual, deduplicated, skip already downloaded)
-    m_downloadQueue = buildDownloadQueue(date);
+    QStringList skippedSymbols;
+    m_downloadQueue = buildDownloadQueue(date, &skippedSymbols);
+
+    // Show skip summary
+    m_skipLogEdit->clear();
+    if (!skippedSymbols.isEmpty())
+    {
+        const QString header = QString("⏭ Skipping %1 already-downloaded symbol%2:")
+                                   .arg(skippedSymbols.size())
+                                   .arg(skippedSymbols.size() == 1 ? "" : "s");
+        m_skipLogEdit->setPlainText(header + "\n" + skippedSymbols.join(", "));
+        m_skipLogEdit->setVisible(true);
+    }
+    else
+    {
+        m_skipLogEdit->setVisible(false);
+    }
 
     if (m_downloadQueue.isEmpty())
     {
