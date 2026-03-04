@@ -319,21 +319,34 @@ void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date)
             {
                 auto hist = databento::Historical::Builder().SetKey(key).Build();
 
-                // Download Level 2 (Mbp10) data
-                sDEBUG << "Downloading Mbp10 for" << symbol;
-                hist.TimeseriesGetRangeToFile(stdDataset,
-                                              databento::DateTimeRange<std::string>{startStr, endStr},
-                                              {stdSymbol},
-                                              databento::Schema::Mbp10,
-                                              std::filesystem::path(mbp10Path.toStdString()));
+                // Skip individual files that already exist (resume support)
+                if (!QFile::exists(mbp10Path))
+                {
+                    sDEBUG << "Downloading Mbp10 for" << symbol;
+                    hist.TimeseriesGetRangeToFile(stdDataset,
+                                                  databento::DateTimeRange<std::string>{startStr, endStr},
+                                                  {stdSymbol},
+                                                  databento::Schema::Mbp10,
+                                                  std::filesystem::path(mbp10Path.toStdString()));
+                }
+                else
+                {
+                    sDEBUG << "Skipping Mbp10 for" << symbol << "(already exists)";
+                }
 
-                // Download Trades data
-                sDEBUG << "Downloading Trades for" << symbol;
-                hist.TimeseriesGetRangeToFile(stdDataset,
-                                              databento::DateTimeRange<std::string>{startStr, endStr},
-                                              {stdSymbol},
-                                              databento::Schema::Trades,
-                                              std::filesystem::path(tradesPath.toStdString()));
+                if (!QFile::exists(tradesPath))
+                {
+                    sDEBUG << "Downloading Trades for" << symbol;
+                    hist.TimeseriesGetRangeToFile(stdDataset,
+                                                  databento::DateTimeRange<std::string>{startStr, endStr},
+                                                  {stdSymbol},
+                                                  databento::Schema::Trades,
+                                                  std::filesystem::path(tradesPath.toStdString()));
+                }
+                else
+                {
+                    sDEBUG << "Skipping Trades for" << symbol << "(already exists)";
+                }
 
                 sINFO << "Replay download complete for" << symbol << "on" << date.toString(Qt::ISODate);
                 emit replayDownloadFinished(symbol, date, true, {});

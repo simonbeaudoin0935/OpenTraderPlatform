@@ -485,7 +485,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
 
     // Set up the records info tab
     RecordsInfoTab* recordsInfoTab = new RecordsInfoTab();
-    ui->tabWidget->addTab(recordsInfoTab, "Records Info");
+    ui->tabWidget->addTab(recordsInfoTab, "Downloads");
 
     // Set up the logging tab
     LoggingTab* loggingTab = new LoggingTab();
@@ -1805,7 +1805,7 @@ bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
                 QMessageBox::warning(nullptr,
                                      "No Replay Data",
                                      "No recorded data found for replay.\n\n"
-                                     "Download data in the Records Info tab first.");
+                                     "Download data in the Downloads tab first.");
                 return true;
             }
 
@@ -1820,7 +1820,7 @@ bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
                 QMessageBox::warning(nullptr,
                                      "No Replay Data for Symbol",
                                      QString("No replay data found for %1 on %2.\n\n"
-                                             "Download data for this symbol first in the Records Info tab.")
+                                             "Download data for this symbol first in the Downloads tab.")
                                          .arg(currentSymbol, replayDate.toString(Qt::ISODate)));
                 return true;
             }
