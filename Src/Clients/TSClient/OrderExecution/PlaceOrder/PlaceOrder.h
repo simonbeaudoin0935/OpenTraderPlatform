@@ -121,15 +121,27 @@ class TimeInForce
 {
   public:
     // Constructor
-    TimeInForce(OrderDuration p_duration);
+    TimeInForce(OrderDuration p_duration) : duration(p_duration) {}
 
     // Setters
-    void setDuration(OrderDuration value);
-    void setExpiration(const std::optional<QString>& value);
+    void setDuration(OrderDuration value)
+    {
+        duration = value;
+    }
+    void setExpiration(const std::optional<QString>& value)
+    {
+        expiration = value;
+    }
 
     // Getters
-    OrderDuration getDuration() const;
-    std::optional<QString> getExpiration() const;
+    OrderDuration getDuration() const
+    {
+        return duration;
+    }
+    std::optional<QString> getExpiration() const
+    {
+        return expiration;
+    }
 
     // Convert to JSON
     QJsonObject toJson() const;

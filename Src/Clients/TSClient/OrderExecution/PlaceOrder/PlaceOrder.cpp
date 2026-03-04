@@ -43,26 +43,7 @@ OrderType OrderType::fromString(const QString& str)
 }
 
 // TimeInForce implementation
-TimeInForce::TimeInForce(OrderDuration p_duration) : duration(p_duration) {}
-
-void TimeInForce::setDuration(OrderDuration value)
-{
-    duration = value;
-}
-void TimeInForce::setExpiration(const std::optional<QString>& value)
-{
-    expiration = value;
-}
-
-OrderDuration TimeInForce::getDuration() const
-{
-    return duration;
-}
-std::optional<QString> TimeInForce::getExpiration() const
-{
-    return expiration;
-}
-
+// Constructor, setters, and getters are inline in the header.
 QJsonObject TimeInForce::toJson() const
 {
     QJsonObject json;
