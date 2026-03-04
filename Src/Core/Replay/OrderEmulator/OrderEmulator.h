@@ -196,7 +196,7 @@ class OrderEmulator : public QObject
     struct PendingOrder
     {
         PlaceOrderRequest request;
-        QString orderID;   // Canonical ID assigned by generateOrderID() at placeOrder() call time
+        QString orderID; // Canonical ID assigned by generateOrderID() at placeOrder() call time
         qint64 submitTimeMs;
         qint64 remainingDelayMs = 0; // For pause/resume
     };

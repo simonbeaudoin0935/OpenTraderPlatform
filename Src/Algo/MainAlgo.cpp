@@ -473,8 +473,7 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
     Q_UNUSED(account);
 
     DEBUG << "onReceivedNewOrder: orderID=" << order.getOrderID()
-          << "status=" << static_cast<int>(order.getOrderStatus())
-          << "mappings_size=" << m_orderMappings.size();
+          << "status=" << static_cast<int>(order.getOrderStatus()) << "mappings_size=" << m_orderMappings.size();
 
     // Lookup which strategy placed this order
     auto strategyIt = m_orderMappings.find(order.getOrderID());
