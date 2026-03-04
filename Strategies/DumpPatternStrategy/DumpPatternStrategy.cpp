@@ -26,9 +26,9 @@ extern "C"
         delete p_strategy;
     }
 
-    int getStrategyAPIVersion()
+    const char* getStrategyAPIVersion()
     {
-        return 1;
+        return "1.0.0";
     }
 
 } // extern "C"
