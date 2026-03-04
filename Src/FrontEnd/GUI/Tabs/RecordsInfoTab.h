@@ -56,6 +56,7 @@ class RecordsInfoTab : public QWidget
     void onRefreshClicked();
     void onDaySelected();
     void onBrowseCsvClicked();
+    void onBrowseReplayDirClicked();
     void onDownloadClicked();
     void
     onDownloadFinished(const QString& p_symbol, const QDate& p_date, bool p_success, const QString& p_errorMessage);
@@ -71,6 +72,7 @@ class RecordsInfoTab : public QWidget
     void updateDaysTableRow(const QDate& p_date);
     void saveCsvPath();
     void saveManualSymbols();
+    void saveReplayDir();
 
     [[nodiscard]] QString formatFileSize(qint64 p_bytes) const;
     [[nodiscard]] QStringList parseManualSymbols() const;
@@ -78,6 +80,9 @@ class RecordsInfoTab : public QWidget
 
     // UI - Download section
     QDateEdit* m_dateEdit;
+    QLineEdit* m_replayDirEdit;
+    QPushButton* m_browseReplayDirButton;
+    QPushButton* m_resetReplayDirButton;
     QLineEdit* m_csvPathEdit;
     QPushButton* m_browseCsvButton;
     QLineEdit* m_manualSymbolsEdit;

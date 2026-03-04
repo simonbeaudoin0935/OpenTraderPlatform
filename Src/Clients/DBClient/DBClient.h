@@ -115,6 +115,14 @@ class DBClient : public QObject
     void downloadReplayData(const QString& p_symbol, const QDate& p_date);
 
     /**
+     * @brief Get or set the base directory where replay data is stored.
+     * Defaults to ~/.cache/L2Trader/ReplayData. Can be overridden to point
+     * to an external drive or transferred folder.
+     */
+    [[nodiscard]] static QString getReplayBaseDir();
+    static void setReplayBaseDir(const QString& p_dir);
+
+    /**
      * @brief Get the directory path for replay data of a given date.
      */
     [[nodiscard]] static QString getReplayDataDir(const QDate& p_date);
@@ -243,6 +251,7 @@ class DBClient : public QObject
     [[nodiscard]] QString resolveSymbol(const databento::Record& p_record) const;
 
     static DBClient* m_instance;
+    static QString m_replayBaseDir; ///< Empty = use default cache location
 
     // API key
     QString m_apiKey;

@@ -12,11 +12,15 @@
 #include <QMessageBox>
 #include <QRegularExpression>
 #include <QSet>
+#include <QStandardPaths>
 #include <QTextStream>
 
 RecordsInfoTab::RecordsInfoTab(QWidget* p_parent)
     : QWidget(p_parent)
     , m_dateEdit(nullptr)
+    , m_replayDirEdit(nullptr)
+    , m_browseReplayDirButton(nullptr)
+    , m_resetReplayDirButton(nullptr)
     , m_csvPathEdit(nullptr)
     , m_browseCsvButton(nullptr)
     , m_manualSymbolsEdit(nullptr)
@@ -148,6 +152,45 @@ void RecordsInfoTab::setupUI()
 
     downloadLayout->addWidget(new QLabel("<b>Download Replay Data</b>"));
 
+    // Data folder selector
+    auto* replayDirRow = new QHBoxLayout();
+    replayDirRow->addWidget(new QLabel("Data Folder:"));
+    m_replayDirEdit = new QLineEdit();
+    Q_CHECK_PTR(m_replayDirEdit);
+    const QString defaultReplayDir =
+        QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/ReplayData";
+    m_replayDirEdit->setPlaceholderText(defaultReplayDir);
+    m_replayDirEdit->setToolTip("Directory where replay data is stored.\nLeave empty to use the default cache location.");
+    replayDirRow->addWidget(m_replayDirEdit, 1);
+    m_browseReplayDirButton = new QPushButton("Browse…");
+    Q_CHECK_PTR(m_browseReplayDirButton);
+    replayDirRow->addWidget(m_browseReplayDirButton);
+    m_resetReplayDirButton = new QPushButton("Reset");
+    Q_CHECK_PTR(m_resetReplayDirButton);
+    m_resetReplayDirButton->setToolTip("Reset to default: " + defaultReplayDir);
+    replayDirRow->addWidget(m_resetReplayDirButton);
+    downloadLayout->addLayout(replayDirRow);
+
+    connect(m_replayDirEdit,
+            &QLineEdit::editingFinished,
+            this,
+            &RecordsInfoTab::saveReplayDir,
+            Qt::UniqueConnection);
+    connect(m_browseReplayDirButton,
+            &QPushButton::clicked,
+            this,
+            &RecordsInfoTab::onBrowseReplayDirClicked,
+            Qt::UniqueConnection);
+    connect(m_resetReplayDirButton,
+            &QPushButton::clicked,
+            this,
+            [this]()
+            {
+                m_replayDirEdit->clear();
+                saveReplayDir();
+            },
+            Qt::UniqueConnection);
+
     // Date picker
     auto* dateRow = new QHBoxLayout();
     dateRow->addWidget(new QLabel("Date:"));
@@ -229,6 +272,13 @@ void RecordsInfoTab::setupUI()
     {
         m_csvPathEdit->setText(appStateSettings->value("RecordsInfo/LastCsvPath").toString());
         m_manualSymbolsEdit->setText(appStateSettings->value("RecordsInfo/ManualSymbols").toString());
+
+        const QString savedDir = appStateSettings->value("RecordsInfo/ReplayDataDir").toString();
+        if (!savedDir.isEmpty())
+        {
+            m_replayDirEdit->setText(savedDir);
+            DBClient::setReplayBaseDir(savedDir);
+        }
     }
 
     // ── Panel 2: Days table ───────────────────────────────────────────────────
@@ -289,7 +339,7 @@ void RecordsInfoTab::setupUI()
     splitter->addWidget(symbolsWidget);
 
     // Set proportions: Download compact, tables get more space
-    splitter->setStretchFactor(0, 1); // Download
+    splitter->setStretchFactor(0, 2); // Download (widened)
     splitter->setStretchFactor(1, 2); // Days
     splitter->setStretchFactor(2, 3); // Symbols
 
@@ -306,6 +356,33 @@ void RecordsInfoTab::saveManualSymbols()
 {
     if (appStateSettings != nullptr)
         appStateSettings->setValue("RecordsInfo/ManualSymbols", m_manualSymbolsEdit->text().trimmed());
+}
+
+void RecordsInfoTab::saveReplayDir()
+{
+    const QString dir = m_replayDirEdit->text().trimmed();
+    if (appStateSettings != nullptr)
+        appStateSettings->setValue("RecordsInfo/ReplayDataDir", dir);
+
+    // Apply immediately — empty string reverts to default
+    DBClient::setReplayBaseDir(dir);
+
+    // Refresh the days browser since the data root may have changed
+    scanRecordedDays();
+}
+
+void RecordsInfoTab::onBrowseReplayDirClicked()
+{
+    QString startDir = m_replayDirEdit->text().trimmed();
+    if (startDir.isEmpty())
+        startDir = DBClient::getReplayBaseDir();
+
+    QString dir = QFileDialog::getExistingDirectory(this, "Select Replay Data Folder", startDir);
+    if (!dir.isEmpty())
+    {
+        m_replayDirEdit->setText(dir);
+        saveReplayDir();
+    }
 }
 
 void RecordsInfoTab::onBrowseCsvClicked()

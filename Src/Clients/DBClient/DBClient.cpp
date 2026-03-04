@@ -28,6 +28,7 @@ namespace
 } // namespace
 
 DBClient* DBClient::m_instance = nullptr;
+QString DBClient::m_replayBaseDir;
 
 // ── Singleton lifecycle ────────────────────────────────────────────────────
 
@@ -359,10 +360,21 @@ void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date)
         }));
 }
 
+QString DBClient::getReplayBaseDir()
+{
+    if (!m_replayBaseDir.isEmpty())
+        return m_replayBaseDir;
+    return QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/ReplayData";
+}
+
+void DBClient::setReplayBaseDir(const QString& p_dir)
+{
+    m_replayBaseDir = p_dir;
+}
+
 QString DBClient::getReplayDataDir(const QDate& p_date)
 {
-    const QString cacheLocation = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
-    return cacheLocation + "/ReplayData/" + p_date.toString(Qt::ISODate);
+    return getReplayBaseDir() + "/" + p_date.toString(Qt::ISODate);
 }
 
 QString DBClient::getReplayFilePath(const QDate& p_date, const QString& p_symbol, const QString& p_schema)
