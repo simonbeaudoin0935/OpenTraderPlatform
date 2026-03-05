@@ -826,6 +826,14 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
     p_promise->finish();
 }
 
+void MainAlgo::processClaimSymbols(const QString& p_strategyID,
+                                   const QStringList& p_symbols,
+                                   std::shared_ptr<QPromise<QStringList>> p_promise)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+    m_strategyManager.processClaimSymbols(p_strategyID, p_symbols, p_promise);
+}
+
 void MainAlgo::connectSecondaryReplaySignals(const QString& p_symbol,
                                              ReplayEngine* p_engine,
                                              StockInstruments* p_instrument)

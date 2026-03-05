@@ -6,6 +6,7 @@
 #include <QMap>
 #include <QTimer>
 #include <QVector>
+#include <QStringList>
 #include <memory>
 #include <atomic>
 
@@ -110,6 +111,12 @@ class MainAlgo final : public QObject
     void processSubscribeToSymbol(const QString& p_strategyID,
                                   const QString& p_symbol,
                                   std::shared_ptr<QPromise<bool>> p_promise);
+
+    /// @brief Process a symbol claim request from a strategy.
+    /// Delegates to StrategyManager::processClaimSymbols().
+    void processClaimSymbols(const QString& p_strategyID,
+                             const QStringList& p_symbols,
+                             std::shared_ptr<QPromise<QStringList>> p_promise);
 
     /*
      * Replay mode control - called from MainApp via QMetaObject::invokeMethod

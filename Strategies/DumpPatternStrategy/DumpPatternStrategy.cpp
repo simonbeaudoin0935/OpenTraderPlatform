@@ -8,6 +8,7 @@
 #include "PlaceOrder.h"
 
 #include <QDebug>
+#include <QStringList>
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Factory functions required by the strategy plugin interface
@@ -73,14 +74,15 @@ void DumpPatternStrategy::onStart(StrategySDK* p_sdk)
     const QString& symbol = m_config.symbols.first();
     m_sdk->log(QString("Subscribing to %1 ...").arg(symbol));
 
-    // Subscribe to data feed; once confirmed, set cycle start time
-    m_sdk->subscribeToSymbol(symbol).then(
+    // Claim exclusive trading authority; once granted, set cycle start time
+    m_sdk->claimSymbols(QStringList{symbol}).then(
         this,
-        [this, symbol](bool accepted)
+        [this, symbol](const QStringList& approved)
         {
-            if (!accepted)
+            if (!approved.contains(symbol))
             {
-                m_sdk->log(QString("ERROR: no replay data for %1 — strategy idle").arg(symbol), LogLevel::Error);
+                m_sdk->log(QString("ERROR: symbol %1 not granted — already claimed by another strategy or no data").arg(symbol),
+                           LogLevel::Error);
                 return;
             }
             m_sdk->log(QString("Subscribed to %1 — waiting for first price ...").arg(symbol));

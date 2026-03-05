@@ -4,6 +4,7 @@
 #include <QThread>
 #include <QMap>
 #include <QString>
+#include <QStringList>
 #include <memory>
 #include <expected>
 
@@ -297,6 +298,31 @@ class StrategyManager final : public QObject
                                  StockInstruments* p_instrument,
                                  ReplayEngine* p_replayEngine);
 
+    /*
+     * Process a symbol claim request from a strategy.
+     * Called by MainAlgo::processClaimSymbols() on the MainAlgo thread.
+     *
+     * - Grants exclusive authority over symbols not already claimed by another strategy.
+     * - For each approved symbol: subscribes data feeds and updates SDK's m_claimedSymbols.
+     * - Returns the approved subset via the promise.
+     * - Emits symbolsClaimed(strategyID, approvedSymbols) for StrategyQuickView.
+     *
+     * @param p_strategyID Strategy requesting the claim
+     * @param p_symbols Symbols the strategy wants to claim
+     * @param p_promise Resolved with the approved subset
+     */
+    void processClaimSymbols(const QString& p_strategyID,
+                             const QStringList& p_symbols,
+                             std::shared_ptr<QPromise<QStringList>> p_promise);
+
+    /*
+     * Release all symbols claimed by a strategy.
+     * Called on strategy stop and unload to free the registry entries.
+     *
+     * @param p_strategyID Strategy whose claims are being released
+     */
+    void releaseSymbols(const QString& p_strategyID);
+
   public slots:
     /*
      * Called when MainAlgo receives a new bar
@@ -403,6 +429,14 @@ class StrategyManager final : public QObject
      */
     void strategyBalanceUpdated(const QString& strategyID, double newBalance);
 
+    /*
+     * Emitted when a strategy has been granted exclusive authority over symbols.
+     * strategyID: unique ID of the strategy
+     * claimedSymbols: symbols approved by the platform (subset of what was requested)
+     * Thread context: Emitted from MainAlgo thread
+     */
+    void symbolsClaimed(const QString& strategyID, const QStringList& claimedSymbols);
+
   private:
     enum class StrategyState
     {
@@ -429,6 +463,7 @@ class StrategyManager final : public QObject
 
     MainAlgo* m_mainAlgo;
     QMap<QString, StrategyInstance*> m_strategies;
+    QMap<QString, QString> m_symbolRegistry; ///< symbol → ownerStrategyID (exclusive claim registry)
     std::unique_ptr<StrategyRegistry> m_registry; ///< Registry of available strategies
 
     /*
