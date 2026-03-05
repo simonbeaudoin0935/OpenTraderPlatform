@@ -177,15 +177,8 @@ class MainAlgo final : public QObject
     /**
      * @brief Signal emitted when the displayed stock receives a new Level 2 book snapshot
      * Thread context: Emitted from MainAlgo worker thread
-     *
-     * @param bidDWP Bid depth-weighted price
-     * @param askDWP Ask depth-weighted price
      */
-    void displayedStockReceivedNewLevel2(QString symbol,
-                                         Level2 level2,
-                                         double bidAskImbalance,
-                                         double bidDWP,
-                                         double askDWP);
+    void displayedStockReceivedNewLevel2(QString symbol, Level2 level2);
 
     /**
      * @brief Signal emitted when the displayed stock receives a new trade

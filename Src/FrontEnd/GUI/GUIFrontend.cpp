@@ -768,19 +768,9 @@ void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
     ui->priceChart->addLiveBar(symbol, bar);
 }
 
-void GUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol,
-                                                        Level2 level2,
-                                                        double bidAskImbalance,
-                                                        double bidDWP,
-                                                        double askDWP)
+void GUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2)
 {
     ui->marketDepthTable->updateData(level2.m_bids, level2.m_asks);
-    ui->marketDepthTable->updateDWP(bidDWP, askDWP);
-
-    // Update the BAI gauge with the bid-ask imbalance
-    ui->baiGauge->setValue(bidAskImbalance);
-
-    // Forward market depth update to OrderEntryWidget for sticky price feature
     ui->orderEntryWidget->onMarketDepthUpdate(symbol, level2);
 }
 

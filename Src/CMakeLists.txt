@@ -146,7 +146,6 @@ target_include_directories(L2TraderStrategy PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Replay/OrderEmulator
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI
-    ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Gauge
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/StockPriceChart
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Tabs
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI
@@ -201,7 +200,6 @@ target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Replay/OrderEmulator
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI
-    ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Gauge
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/StockPriceChart
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/GUI/Tabs
     ${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/TUI

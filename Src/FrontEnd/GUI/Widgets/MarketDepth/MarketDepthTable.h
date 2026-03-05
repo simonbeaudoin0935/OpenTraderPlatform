@@ -32,11 +32,6 @@ class MarketDepthTable : public QWidget
     /// @param level1 Level1 BBO data
     void updateLevel1Data(const Level1& level1);
 
-    /// Update Depth-Weighted Price indicators
-    /// @param bidDWP Bid side depth-weighted price
-    /// @param askDWP Ask side depth-weighted price
-    void updateDWP(double bidDWP, double askDWP);
-
     /// Get the current display mode
     [[nodiscard]] DisplayMode getDisplayMode() const
     {
@@ -64,9 +59,6 @@ class MarketDepthTable : public QWidget
     QLabel* bidLabel;
     QLabel* askLabel;
     QLabel* spreadLabel;
-    QLabel* dwpLabel;
-    QLabel* bidDWPLabel;
-    QLabel* askDWPLabel;
     QLabel* m_dataSourceLabel = nullptr; ///< Shows L2/L1/-- indicator
 
     DisplayMode m_displayMode = DisplayMode::NoData;

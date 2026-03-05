@@ -45,11 +45,7 @@ class StrategyCallbackAdapter : public QObject
         }
     }
 
-    void onLevel2(const QString& symbol,
-                  const Level2& level2,
-                  double /*bidAskImbalance*/,
-                  double /*bidDWP*/,
-                  double /*askDWP*/) const
+    void onLevel2(const QString& symbol, const Level2& level2) const
     {
         if (m_monitoredSymbols.contains(symbol))
         {

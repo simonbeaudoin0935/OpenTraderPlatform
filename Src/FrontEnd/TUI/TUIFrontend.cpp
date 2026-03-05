@@ -598,17 +598,10 @@ void TUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
     }
 }
 
-void TUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol,
-                                                        Level2 level2,
-                                                        double bidAskImbalance,
-                                                        double bidDWP,
-                                                        double askDWP)
+void TUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2)
 {
     Q_UNUSED(symbol);
     Q_UNUSED(level2);
-    Q_UNUSED(bidAskImbalance);
-    Q_UNUSED(bidDWP);
-    Q_UNUSED(askDWP);
     // Not applicable for minimal TUI
 }
 

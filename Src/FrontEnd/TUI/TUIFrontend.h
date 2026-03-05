@@ -38,11 +38,7 @@ class TUIFrontend : public FrontEnd
     void onNewOrderReceived(QString account, Order order) override;
     void onBalanceUpdated(Balance balance) override;
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
-    void onCurrentHighlightedReceivedNewLevel2(QString symbol,
-                                               Level2 level2,
-                                               double bidAskImbalance,
-                                               double bidDWP,
-                                               double askDWP) override;
+    void onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2) override;
 
     // Replay mode notifications
     void onReplayModeEntered() override;

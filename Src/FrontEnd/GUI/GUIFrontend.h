@@ -37,11 +37,7 @@ class GUIFrontend : public FrontEnd
     void onTradeStationAccountsReceived(QVector<Account> results) override;
     void onMemoryUsageUpdate(qsizetype newDataUsage) override;
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
-    void onCurrentHighlightedReceivedNewLevel2(QString symbol,
-                                               Level2 level2,
-                                               double bidAskImbalance,
-                                               double bidDWP,
-                                               double askDWP) override;
+    void onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2) override;
     void onCurrentHighlightedReceivedNewTrade(QString symbol, Trade trade) override;
     void onNewPositionReceived(QString account, Position position) override;
     void onPositionDeleted(QString account, QString positionID) override;

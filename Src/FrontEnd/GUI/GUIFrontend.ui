@@ -160,73 +160,6 @@
                  <number>0</number>
                 </property>
                 <item>
-                 <widget class="QWidget" name="gaugeContainer" native="true">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <layout class="QGridLayout" name="gaugeGridLayout">
-                   <property name="spacing">
-                    <number>4</number>
-                   </property>
-                   <item row="0" column="0">
-                    <widget class="Gauge" name="baiGauge" native="true">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                       <horstretch>1</horstretch>
-                       <verstretch>1</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="label" stdset="0">
-                      <string>BAI</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="0" column="1">
-                    <widget class="Gauge" name="dwpHGauge" native="true">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                       <horstretch>1</horstretch>
-                       <verstretch>1</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="label" stdset="0">
-                      <string>DWP</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="0">
-                    <widget class="Gauge" name="oblrGauge" native="true">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                       <horstretch>1</horstretch>
-                       <verstretch>1</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="label" stdset="0">
-                      <string>OBLR</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="1">
-                    <widget class="Gauge" name="qrrGauge" native="true">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                       <horstretch>1</horstretch>
-                       <verstretch>1</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="label" stdset="0">
-                      <string>QRR</string>
-                     </property>
-                    </widget>
-                   </item>
-                  </layout>
-                 </widget>
-                </item>
-                <item>
                  <widget class="MarketDepthTable" name="marketDepthTable" native="true">
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
@@ -386,11 +319,6 @@
    <class>OrderEntryWidget</class>
    <extends>QWidget</extends>
    <header>GUI/Widgets/OrderEntry/OrderEntryWidget.h</header>
-  </customwidget>
-  <customwidget>
-   <class>Gauge</class>
-   <extends>QWidget</extends>
-   <header>GUI/Widgets/Gauge/Gauge.h</header>
   </customwidget>
   <customwidget>
    <class>TimeAndSalesWidget</class>
