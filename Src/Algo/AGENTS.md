@@ -84,7 +84,7 @@ MainAlgo::MainAlgo() {
 5. **Market Data Forwarding**
    - Connect Level2Receiver signals to `displayedStockReceivedNewLevel2` for the displayed stock
    - Connect BarReceiver signals to `displayedStockReceivedNewBar` for the displayed stock
-   - Calculate DWP, bid-ask imbalance when forwarding Level2 data (computed in Level2Receiver)
+   - Forward raw Level2 data (DWP/BAI computation removed — belongs in individual strategies)
 
 6. **Replay Coordination**
    - Create and manage ReplayEngine
@@ -135,9 +135,7 @@ signals:
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
     void displayedStockReceivedNewLevel2(QString symbol,
                                          Level2 level2,
-                                         double bidAskImbalance,
-                                         double bidDWP,
-                                         double askDWP);
+);  // Simplified: raw Level2 only; strategies compute their own metrics
 
     // Trading events
     void receivedNewPosition(QString account, Position position);
@@ -244,14 +242,12 @@ Replaces the former `MarketDepthQuoteReceiver/`. Uses the `Level2` model (from `
 **Key Features**:
 - Computes metrics from 10-level book snapshots:
   - **Bid-Ask Imbalance**: Ratio of bid vs ask volume across configurable levels
-  - **Depth-Weighted Price (DWP)**: Computed separately for bid and ask sides
-- Configurable analysis depth (`m_depthWeightedPriceLevel`, `m_bidAskImbalanceLevel`, default 5)
+  - Raw Level2 data forwarded to strategies and GUI; metrics computed per-strategy
 - No stream queuing logic (Databento has no concurrent stream limits)
 
 **Signal**:
 ```cpp
-void receivedNewLevel2(QString symbol, Level2 level2,
-                       double bidAskImbalance, double bidDWP, double askDWP);
+void receivedNewLevel2(QString symbol, Level2 level2);  // 2 params only
 ```
 
 **Slot** (invoked when Level2 data arrives):
@@ -265,7 +261,7 @@ Live mode:
 DBClient::newLevel2 (Databento Schema::Mbp10)
     ↓
 Level2Receiver::onReceivedNewLevel2()
-    ↓ (compute bidAskImbalance, bidDWP, askDWP)
+    ↓ (raw forward, no computation)
     ↓ emit receivedNewLevel2(...)
 MainAlgo (forwarded to displayedStockReceivedNewLevel2)
     ↓
