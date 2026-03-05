@@ -110,10 +110,13 @@ void PositionWidget::updatePosition(const QString& account, const Position& posi
     }
     else
     {
-        // Add new position - each round trip gets its own row
+        // Add new position - most recent at the top (row 0)
         QList<QStandardItem*> rowItems = createRowItems(position);
-        model->appendRow(rowItems);
-        positionRowMap[positionId] = model->rowCount() - 1;
+        // Shift all existing row indices down to make room at row 0
+        for (auto& rowIdx: positionRowMap)
+            rowIdx++;
+        model->insertRow(0, rowItems);
+        positionRowMap[positionId] = 0;
     }
 }
 
