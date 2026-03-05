@@ -160,7 +160,7 @@
                  <number>0</number>
                 </property>
                 <item>
-                 <widget class="MarketDepthTable" name="marketDepthTable" native="true">
+                 <widget class="Level2Widget" name="level2Widget" native="true">
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
                     <horstretch>0</horstretch>
@@ -296,9 +296,9 @@
    <header>GUI/StockPriceChart/StockPriceChart.h</header>
   </customwidget>
   <customwidget>
-   <class>MarketDepthTable</class>
+   <class>Level2Widget</class>
    <extends>QWidget</extends>
-   <header>GUI/Widgets/MarketDepth/MarketDepthTable.h</header>
+   <header>GUI/Widgets/Level2/Level2Widget.h</header>
   </customwidget>
   <customwidget>
    <class>BalanceWidget</class>

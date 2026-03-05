@@ -1,22 +1,22 @@
-# MarketDepth/ - Market Depth Display Widget - Agent Instructions
+# Level2/ - Level 2 Display Widget - Agent Instructions
 
 ## Overview
 
-**Location**: `Src/FrontEnd/GUI/Widgets/MarketDepth/`
-**Purpose**: Display Level 2 market depth data in real-time
-**Main Classes**: MarketDepthTable, MarketDepthTableView
+**Location**: `Src/FrontEnd/GUI/Widgets/Level2/`
+**Purpose**: Display Level 2 Level 2 data in real-time
+**Main Classes**: Level2Widget, Level2WidgetView
 
-The MarketDepth widget displays market data in the main trading view. It has two operating
+The Level2 widget displays market data in the main trading view. It has two operating
 modes: Level2 (full order book from `Level2` data) and NoData (no data available).
 
 ## Files
 
-- **MarketDepthTable.h/cpp** - Main market depth widget
-- **MarketDepthTableView.h/cpp** - Custom table view for formatting
+- **Level2Widget.h/cpp** - Main Level 2 widget
+- **Level2WidgetView.h/cpp** - Custom table view for formatting
 
-## MarketDepthTable
+## Level2Widget
 
-**Purpose**: Container widget managing Level 2 market depth display
+**Purpose**: Container widget managing Level 2 Level 2 display
 
 ### Display Modes
 
@@ -40,11 +40,11 @@ the current display mode:
 ### Public Interface
 
 ```cpp
-class MarketDepthTable : public QWidget {
+class Level2Widget : public QWidget {
     Q_OBJECT
 public:
-    explicit MarketDepthTable(QWidget* parent = nullptr);
-    ~MarketDepthTable();
+    explicit Level2Widget(QWidget* parent = nullptr);
+    ~Level2Widget();
 
 public slots:
     // Level 2: Update with full order book (sets DisplayMode::Level2)
@@ -78,7 +78,7 @@ emit displayedStockReceivedNewLevel2()
     ▼
 GUIFrontend::onCurrentHighlightedReceivedNewLevel2()
     │
-    └─► MarketDepthTable::updateData(Level2)
+    └─► Level2Widget::updateData(Level2)
             │  Sets DisplayMode::Level2
             └─► updateDataSourceIndicator()
 ```
@@ -121,7 +121,7 @@ Columns per side: Price (`double`), Size (`int`), Count (`int`) — sourced dire
 ```cpp
 private:
     // UI components
-    MarketDepthTableView* m_tableView;
+    Level2WidgetView* m_tableView;
     QStandardItemModel*   m_model;
     QLabel* m_bidLabel;
     QLabel* m_dataSourceLabel;  // L2/-- indicator between headers
@@ -157,15 +157,15 @@ QString formatPrice(double price) const;
 QString formatSize(int size) const;
 ```
 
-## MarketDepthTableView
+## Level2WidgetView
 
 **Purpose**: Custom QTableView with specialized formatting
 
 ```cpp
-class MarketDepthTableView : public QTableView {
+class Level2WidgetView : public QTableView {
     Q_OBJECT
 public:
-    explicit MarketDepthTableView(QWidget* parent = nullptr);
+    explicit Level2WidgetView(QWidget* parent = nullptr);
     void setTopMargin(int margin);
 
 private:

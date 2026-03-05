@@ -1,5 +1,5 @@
-#include "MarketDepthTable.h"
-#include "MarketDepthTableView.h"
+#include "Level2Widget.h"
+#include "Level2TableView.h"
 #include "Level2.h"
 #include <QHeaderView>
 #include <QLabel>
@@ -10,9 +10,9 @@
 #include <QList>
 #include <algorithm>
 
-MarketDepthTable::MarketDepthTable(QWidget* parent)
+Level2Widget::Level2Widget(QWidget* parent)
     : QWidget(parent)
-    , tableView(new MarketDepthTableView(this))
+    , tableView(new Level2TableView(this))
     , model(new QStandardItemModel(this))
     , bidLabel(new QLabel("BID", this))
     , askLabel(new QLabel("ASK", this))
@@ -24,12 +24,12 @@ MarketDepthTable::MarketDepthTable(QWidget* parent)
     updateDataSourceIndicator();
 }
 
-MarketDepthTable::~MarketDepthTable()
+Level2Widget::~Level2Widget()
 {
     // Qt will handle deletion of child widgets
 }
 
-void MarketDepthTable::setupUI()
+void Level2Widget::setupUI()
 {
     // Create main layout
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -106,6 +106,11 @@ void MarketDepthTable::setupUI()
     tableView->setFixedWidth(totalWidth);
     setFixedWidth(totalWidth);
 
+    // Fix height to exactly 10 bid + 10 ask levels (20 rows total)
+    // header(24) + spread(24) + 20 rows × default row height
+    const int rowHeight = tableView->verticalHeader()->defaultSectionSize();
+    setMaximumHeight(24 + 24 + 20 * rowHeight);
+
     // Add widgets to main layout
     mainLayout->addWidget(headerWidget, 0, Qt::AlignTop);
     mainLayout->addWidget(spreadWidget, 0, Qt::AlignTop);
@@ -132,7 +137,7 @@ void MarketDepthTable::setupUI()
             });
 }
 
-void MarketDepthTable::setupStyles()
+void Level2Widget::setupStyles()
 {
     // Style the header labels
     QString commonStyle = "QLabel {"
@@ -180,7 +185,7 @@ void MarketDepthTable::setupStyles()
                              "}");
 }
 
-void MarketDepthTable::setMarketDepthItem(QStandardItem* item,
+void Level2Widget::setMarketDepthItem(QStandardItem* item,
                                           const Level2Row& level,
                                           const QString& field,
                                           int priceLevel)
@@ -260,7 +265,7 @@ void MarketDepthTable::setMarketDepthItem(QStandardItem* item,
     }
 }
 
-void MarketDepthTable::updateData(const std::array<Level2Row, 10>& bids, const std::array<Level2Row, 10>& asks)
+void Level2Widget::updateData(const std::array<Level2Row, 10>& bids, const std::array<Level2Row, 10>& asks)
 {
     // Update display mode to Level 2
     m_displayMode = DisplayMode::Level2;
@@ -330,7 +335,7 @@ void MarketDepthTable::updateData(const std::array<Level2Row, 10>& bids, const s
     }
 }
 
-void MarketDepthTable::updateLevel1Data(const Level1& level1)
+void Level2Widget::updateLevel1Data(const Level1& level1)
 {
     // Update display mode
     m_displayMode = DisplayMode::Level1;
@@ -394,7 +399,7 @@ void MarketDepthTable::updateLevel1Data(const Level1& level1)
     model->appendRow(rowItems);
 }
 
-void MarketDepthTable::clearData()
+void Level2Widget::clearData()
 {
     m_displayMode = DisplayMode::NoData;
     updateDataSourceIndicator();
@@ -403,7 +408,7 @@ void MarketDepthTable::clearData()
     spreadLabel->setText("SPREAD: --");
 }
 
-void MarketDepthTable::setExpectedDataMode(bool p_hasLevel2, bool p_hasLevel1)
+void Level2Widget::setExpectedDataMode(bool p_hasLevel2, bool p_hasLevel1)
 {
     if (p_hasLevel2)
     {
@@ -420,7 +425,7 @@ void MarketDepthTable::setExpectedDataMode(bool p_hasLevel2, bool p_hasLevel1)
     updateDataSourceIndicator();
 }
 
-void MarketDepthTable::updateDataSourceIndicator()
+void Level2Widget::updateDataSourceIndicator()
 {
     switch (m_displayMode)
     {

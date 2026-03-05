@@ -770,7 +770,7 @@ void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 
 void GUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2)
 {
-    ui->marketDepthTable->updateData(level2.m_bids, level2.m_asks);
+    ui->level2Widget->updateData(level2.m_bids, level2.m_asks);
     ui->orderEntryWidget->onMarketDepthUpdate(symbol, level2);
 }
 
@@ -1650,12 +1650,12 @@ void GUIFrontend::onReplayModeEntered()
     ui->priceChart->clearChart();
 
     // Clear market depth table — stale live data must not carry over into replay
-    ui->marketDepthTable->clearData();
+    ui->level2Widget->clearData();
     ui->timeAndSalesWidget->clearData();
 
     // TODO Phase 6: probe DBClient .dbn replay file to detect available schemas (MBP-10, MBP-1, etc.)
     // For now, clear the mode indicator (no legacy TS recorded data)
-    ui->marketDepthTable->setExpectedDataMode(false, false);
+    ui->level2Widget->setExpectedDataMode(false, false);
 
     // Show replay widgets in toolbar and ensure play button is in stopped state
     ui->priceChart->toolbar()->setReplayWidgetsVisible(true);
@@ -1704,7 +1704,7 @@ void GUIFrontend::onReplayModeExited()
     ui->priceChart->clearChart();
 
     // Clear market depth table — replay data must not carry over into live mode
-    ui->marketDepthTable->clearData();
+    ui->level2Widget->clearData();
     ui->timeAndSalesWidget->clearData();
 
     // Restore chart visual

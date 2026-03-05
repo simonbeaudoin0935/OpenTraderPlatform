@@ -6,9 +6,9 @@
 #include "Level2.h"
 
 class QLabel;
-class MarketDepthTableView;
+class Level2TableView;
 
-class MarketDepthTable : public QWidget
+class Level2Widget : public QWidget
 {
     Q_OBJECT
   public:
@@ -20,8 +20,8 @@ class MarketDepthTable : public QWidget
         NoData  ///< No data available
     };
 
-    explicit MarketDepthTable(QWidget* parent = nullptr);
-    ~MarketDepthTable();
+    explicit Level2Widget(QWidget* parent = nullptr);
+    ~Level2Widget();
 
     /// Update market depth display with Level 2 data (full book)
     /// @param bids Vector of bid levels (price, size, MPID)
@@ -54,7 +54,7 @@ class MarketDepthTable : public QWidget
     void setMarketDepthItem(QStandardItem* item, const Level2Row& level, const QString& field, int rowIndex);
     void updateDataSourceIndicator();
 
-    MarketDepthTableView* tableView;
+    Level2TableView* tableView;
     QStandardItemModel* model;
     QLabel* bidLabel;
     QLabel* askLabel;
