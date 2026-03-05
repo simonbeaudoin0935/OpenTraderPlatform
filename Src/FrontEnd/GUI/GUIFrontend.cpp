@@ -25,6 +25,8 @@
 #include "Tabs/ConfigTab.h"
 #include "Tabs/CacheTab.h"
 #include "Tabs/StrategiesTab/StrategiesTab.h"
+#include "Widgets/StrategyQuickView/StrategyQuickView.h"
+#include "StrategyManager.h"
 #include "StockPriceChart/ChartToolbar.h"
 #include "StockPriceChart/StockPriceChart.h"
 #include "Misc/Logging.h"
@@ -482,6 +484,34 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // Set up the strategies tab (second tab)
     StrategiesTab* strategiesTab = new StrategiesTab(mainAlgo);
     ui->tabWidget->addTab(strategiesTab, "Strategies");
+
+    // Wire StrategyQuickView to StrategyManager signals
+    StrategyManager* stratMgr = mainAlgo->getStrategyManager();
+    connect(stratMgr,
+            &StrategyManager::strategyLoaded,
+            ui->strategyQuickView,
+            &StrategyQuickView::onStrategyLoaded,
+            Qt::QueuedConnection);
+    connect(stratMgr,
+            &StrategyManager::strategyUnloaded,
+            ui->strategyQuickView,
+            &StrategyQuickView::onStrategyUnloaded,
+            Qt::QueuedConnection);
+    connect(stratMgr,
+            &StrategyManager::strategyStatusChanged,
+            ui->strategyQuickView,
+            &StrategyQuickView::onStrategyStatusChanged,
+            Qt::QueuedConnection);
+    connect(stratMgr,
+            &StrategyManager::symbolsClaimed,
+            ui->strategyQuickView,
+            &StrategyQuickView::onSymbolsClaimed,
+            Qt::QueuedConnection);
+    connect(ui->strategyQuickView,
+            &StrategyQuickView::symbolSelected,
+            this,
+            &GUIFrontend::displayStock,
+            Qt::UniqueConnection);
 
     // Set up the records info tab
     RecordsInfoTab* recordsInfoTab = new RecordsInfoTab();

@@ -160,6 +160,16 @@
                  <number>0</number>
                 </property>
                 <item>
+                 <widget class="StrategyQuickView" name="strategyQuickView" native="true">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                 </widget>
+                </item>
+                <item>
                  <widget class="Level2Widget" name="level2Widget" native="true">
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
@@ -325,6 +335,11 @@
    <extends>QWidget</extends>
    <header>GUI/Widgets/TimeAndSales/TimeAndSalesWidget.h</header>
   </customwidget>
+  <customwidget>
+    <class>StrategyQuickView</class>
+    <extends>QWidget</extends>
+    <header>GUI/Widgets/StrategyQuickView/StrategyQuickView.h</header>
+   </customwidget>
  </customwidgets>
  <resources/>
  <connections/>
