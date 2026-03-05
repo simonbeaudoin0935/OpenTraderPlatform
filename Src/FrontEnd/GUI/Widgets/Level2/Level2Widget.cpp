@@ -106,10 +106,10 @@ void Level2Widget::setupUI()
     tableView->setFixedWidth(totalWidth);
     setFixedWidth(totalWidth);
 
-    // Fix height to exactly 10 bid + 10 ask levels (20 rows total)
-    // header(24) + spread(24) + 20 rows × default row height
+    // Fix height to exactly 10 levels: headerWidget(24) + spreadWidget(24) + viewportMargin(48) + 10 rows
     const int rowHeight = tableView->verticalHeader()->defaultSectionSize();
-    setMaximumHeight(24 + 24 + 20 * rowHeight);
+    setFixedHeight(96 + 10 * rowHeight);
+    tableView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     // Add widgets to main layout
     mainLayout->addWidget(headerWidget, 0, Qt::AlignTop);
