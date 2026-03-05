@@ -36,7 +36,8 @@ struct OrderMarker
     QDateTime timestamp; // Fill time for filled, placement time for pending
     double price;        // Fill price for filled, order price for pending
     int quantity;
-    bool isBuy; // true = buy, false = sell
+    bool isBuy;   // true = buy/buytocover, false = sell/sellshort
+    bool isEntry; // true = opening position (green), false = closing (red)
     QString accountID;
 
     enum class State
