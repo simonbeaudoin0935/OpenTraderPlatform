@@ -298,7 +298,11 @@ void DumpPatternStrategy::evaluateEntryPhase()
 
 void DumpPatternStrategy::startClosePhase()
 {
-    // Entry was filled; now place the close order
+    // Advance state SYNCHRONOUSLY before the async placeOrder call.
+    // Without this, concurrent checkCycle() calls (from multiple trade callbacks)
+    // would all see EntryFilled and each place a separate close order.
+    m_state = State::WaitingClose;
+    m_cycleStartTime = m_sdk->getCurrentTime();
     placeCloseOrder();
 }
 
@@ -424,8 +428,7 @@ void DumpPatternStrategy::placeCloseOrder()
             }
 
             m_closeOrderID = orders.first().getOrderID();
-            m_state = State::WaitingClose;
-            m_cycleStartTime = m_sdk->getCurrentTime();
+            // State and cycle start time were already advanced synchronously in startClosePhase()
             m_sdk->log(QString("Close order placed: %1").arg(m_closeOrderID));
         });
 }
