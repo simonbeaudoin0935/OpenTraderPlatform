@@ -1363,19 +1363,21 @@ void MainAlgo::deleteAllStockInstruments()
     // Clear the displayed pointer first
     currentDisplayedStockInstrument = nullptr;
 
-    // Delete all stock instruments using deleteLater()
-    // StockInstruments are QObject-derived with active connections (streams, receivers)
+    // Delete instruments directly (not deleteLater) so that each BarCache destructor
+    // queues closeDatabase to DatabaseThread before the next createAndSetDisplayedStockInstrument
+    // queues openDatabase. deleteLater would defer destruction past the next openDatabase call,
+    // causing the DB close to arrive on DatabaseThread after the new open — breaking the connection.
     for (auto it = stockInstruments.begin(); it != stockInstruments.end(); ++it)
     {
-        if (QPointer<StockInstruments> instrument = it.value(); instrument)
+        if (StockInstruments* instrument = it.value(); instrument)
         {
-            DEBUG << "Scheduling deletion of stock instrument for" << instrument->symbol;
-            instrument->deleteLater(); // Use deleteLater() for Qt objects with signals
+            DEBUG << "Deleting stock instrument for" << instrument->symbol;
+            delete instrument;
         }
     }
     stockInstruments.clear();
 
-    INFO << "All stock instruments scheduled for deletion";
+    INFO << "All stock instruments deleted";
 }
 
 void MainAlgo::stopAllStrategies()

@@ -255,11 +255,7 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
 
-    if (!m_databases.contains(symbol))
-    {
-        CRITICAL << "No database connection for symbol" << symbol;
-        return std::nullopt;
-    }
+    OBJ_ASSUME_TRUE(m_databases.contains(symbol)); // getBarsFromDatabase called without open connection
 
     QSqlDatabase& db = m_databases[symbol];
 
@@ -345,11 +341,7 @@ int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDa
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
 
-    if (!m_databases.contains(symbol))
-    {
-        CRITICAL << "No database connection for symbol" << symbol;
-        return 0;
-    }
+    OBJ_ASSUME_TRUE(m_databases.contains(symbol)); // storeBarsInDatabase called without open connection
 
     QSqlDatabase& db = m_databases[symbol];
 

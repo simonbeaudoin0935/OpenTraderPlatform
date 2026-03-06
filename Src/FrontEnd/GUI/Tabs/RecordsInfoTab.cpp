@@ -185,8 +185,7 @@ void RecordsInfoTab::setupUI()
         {
             m_replayDirEdit->clear();
             saveReplayDir();
-        },
-        Qt::UniqueConnection);
+        });
 
     // Date picker
     auto* dateRow = new QHBoxLayout();
