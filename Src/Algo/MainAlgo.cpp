@@ -425,13 +425,6 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
         Q_CHECK_PTR(m_orderReceiver);
         orderStreamStarted = true;
 
-        auto c3 = connect(m_orderReceiver,
-                          &OrdersReceiver::receivedNewOrder,
-                          this,
-                          &MainAlgo::receivedNewOrder,
-                          Qt::UniqueConnection);
-        OBJ_ASSUME_TRUE(c3);
-
         auto c4 = connect(m_orderReceiver,
                           &OrdersReceiver::receivedNewOrder,
                           this,
@@ -471,20 +464,8 @@ void MainAlgo::onLoadedPositionsFromDatabase(const QString& account, QMap<QStrin
 
 void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
 {
-    Q_UNUSED(account);
-
     DEBUG << "onReceivedNewOrder: orderID=" << order.getOrderID()
           << "status=" << static_cast<int>(order.getOrderStatus()) << "mappings_size=" << m_orderMappings.size();
-
-    // Lookup which strategy placed this order
-    auto strategyIt = m_orderMappings.find(order.getOrderID());
-
-    if (strategyIt == m_orderMappings.end())
-    {
-        // This order does not belong to any strategy we know about
-        WARNING << "Received order update for order ID:" << order.getOrderID() << "which has no associated strategy";
-        return;
-    }
 
     // Attach strategy log to the order and persist it on first arrival (if pending)
     auto logIt = m_orderIdToLog.find(order.getOrderID());
@@ -495,7 +476,17 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
         m_orderIdToLog.erase(logIt);
     }
 
-    // This order belongs to a strategy - route it to that strategy only
+    // Emit enriched order to FrontEnd (with strategy log attached if available)
+    emit receivedNewOrder(account, order);
+
+    // Route to the strategy that placed this order
+    auto strategyIt = m_orderMappings.find(order.getOrderID());
+    if (strategyIt == m_orderMappings.end())
+    {
+        WARNING << "Received order update for order ID:" << order.getOrderID() << "which has no associated strategy";
+        return;
+    }
+
     QString strategyID = *strategyIt;
     DEBUG << "Routing order update for orderID=" << order.getOrderID() << "to strategyID=" << strategyID;
     QMetaObject::invokeMethod(
@@ -1285,12 +1276,6 @@ void MainAlgo::startReplayOrderStreams()
                         &OrdersReceiver::receivedNewOrder,
                         this,
                         &MainAlgo::onReceivedNewOrder,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-    connected = connect(m_orderReceiver,
-                        &OrdersReceiver::receivedNewOrder,
-                        this,
-                        &MainAlgo::receivedNewOrder,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
     orderStreamStarted = true;
