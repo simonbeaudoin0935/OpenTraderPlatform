@@ -98,14 +98,13 @@ OrderMarker* StockPriceChart::createOrderMarker(const QString& orderID,
     marker->isEntry = isEntry;
     marker->state = filled ? OrderMarker::State::Filled : OrderMarker::State::Pending;
 
-    // entry = tip down (▼), exit = tip up (▲)
-    auto* triangle = new QCPItemTriangle(m_customPlot, !isEntry);
+    // Buys point down (▼), sells point up (▲) — regardless of entry/exit.
+    // BUY ▼, SELL ▲, SELLSHORT ▲, BUYTOCOVER ▼.
+    auto* triangle = new QCPItemTriangle(m_customPlot, !isBuy);
     triangle->tip->setCoords(index, price);
     triangle->setPixelSize(12, 10);
 
     // Entries are green (opening a position), exits are red (closing a position).
-    // This applies regardless of direction: SELLSHORT (short entry) = green ▼,
-    // BUYTOCOVER (short exit) = red ▲.
     const QColor color = isEntry ? (filled ? ORDER_VIZ_GREEN : ORDER_VIZ_GREEN.lighter(130))
                                  : (filled ? ORDER_VIZ_RED : ORDER_VIZ_RED.lighter(130));
     triangle->setColor(color);
