@@ -222,13 +222,6 @@ cmake --build build/test -j$(nproc)
 ctest --test-dir build/test --output-on-failure
 ```
 
-For GUI integration testing (requires `xvfb`, `xdotool`, `x11-utils`, `imagemagick`):
-```bash
-./Utils/test-gui.sh
-```
-
-See [DEVELOPMENT.md](Doc/DEVELOPMENT.md#testing) for details.
-
 ### Code Style
 
 - C++23 standard; 4-space indentation; Unix line endings
