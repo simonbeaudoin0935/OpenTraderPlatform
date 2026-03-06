@@ -33,13 +33,12 @@ Src/FrontEnd/GUI/
 │   ├── OrderEntry/                 # Order placement widget
 │   │   ├── AGENTS.md
 │   │   └── OrderEntryWidget.cpp/h
-│   ├── MarketDepth/                # Level 2 market depth display
+│   ├── Level2/                     # Level 2 market depth display (was MarketDepth/)
 │   │   ├── AGENTS.md
-│   │   ├── MarketDepthTable.cpp/h
-│   │   └── MarketDepthTableView.cpp/h
-│   └── Gauge/                      # Circular gauge for metrics
-│       ├── AGENTS.md
-│       └── Gauge.cpp/h
+│   │   ├── Level2Widget.cpp/h      # Main widget (was MarketDepthTable)
+│   │   └── Level2TableView.cpp/h   # Custom table view (was MarketDepthTableView)
+│   └── StrategyQuickView/          # Live strategy + claimed symbol tree
+│       └── StrategyQuickView.cpp/h
 ├── Widgets/                        # Window-style displays
 │   ├── AGENTS.md
 │   ├── OrderWidget.cpp/h           # Orders table
@@ -57,8 +56,7 @@ Src/FrontEnd/GUI/
 - `Tabs/StrategiesTab/AGENTS.md` - Strategy plugin management UI
 - `Widgets/AGENTS.md` - Reusable widget components overview
 - `Widgets/OrderEntry/AGENTS.md` - Order entry widget with sticky price
-- `Widgets/MarketDepth/AGENTS.md` - Level 2 market depth display
-- `Widgets/Gauge/AGENTS.md` - Circular gauge metrics display
+- `Widgets/Level2/AGENTS.md` - Level 2 market depth display (Level2Widget)
 - `Widgets/AGENTS.md` - Order/Position/Balance window displays
 - `StockPriceChart/AGENTS.md` - Real-time chart with replay mode
 
@@ -184,11 +182,11 @@ public slots:
     void onPositionClosed(const Position& position);
 ```
 
-### MarketDepthTable (Widgets/MarketDepth/)
+### Level2Widget (Widgets/Level2/)
 
 **Level 2 market depth display**
 
-See `Widgets/MarketDepth/AGENTS.md` for complete documentation.
+See `Widgets/Level2/AGENTS.md` for complete documentation.
 
 Layout:
 ```
@@ -208,7 +206,7 @@ Features:
 - Spread calculation
 - Real-time updates (throttled to 100ms)
 
-**Custom View**: `MarketDepthTableView` handles formatting and color coding
+**Custom View**: `Level2TableView` handles formatting and color coding
 
 ### OrderEntryWidget (Widgets/OrderEntry/)
 
@@ -370,23 +368,17 @@ Features:
 
 The RecorderTab was removed in Phase 3 of the Databento migration. Recording is done via Databento `.dbn` archive downloads.
 
-### Gauge/ (Widgets/Gauge/)
+### StrategyQuickView (Widgets/StrategyQuickView/)
 
-**Circular gauge widgets for metrics**
+**Live collapsible tree of active strategies and their claimed symbols.**
 
-See `Widgets/Gauge/AGENTS.md` for complete documentation.
-
-Used for displaying:
-- **BAI** (Bid-Ask Imbalance)
-- **DWP** (Depth-Weighted Price)
-- **OBLR** (Order Book Level Ratio)
-- **QRR** (Quote Refresh Rate)
-
-Custom QWidget-based circular gauges with:
-- Needle indicator
-- Min/max/current value display
-- Color-coded ranges (green/yellow/red)
-- Smooth animations
+- Root nodes: strategy name + status dot (green=running, grey=stopped)
+- Child nodes: symbols claimed by the strategy (light blue)
+- Clicking a symbol node emits `symbolSelected(symbol)` → `GUIFrontend::displayStock()`
+  (warm switch — no cold load since strategy already subscribed to that symbol)
+- Connects to `StrategyManager` signals: `strategyLoaded`, `strategyUnloaded`,
+  `strategyStatusChanged`, `symbolsClaimed`
+- Placed in `rightPanel` above `Level2Widget` in `GUIFrontend.ui`
 
 ### StrategiesTab/ (Tabs/StrategiesTab/)
 
@@ -435,7 +427,7 @@ connect(&MainAlgo::getInstance(), &MainAlgo::receivedNewPosition,
 connect(&MainAlgo::getInstance(), &MainAlgo::receivedNewOrder,
         this, &GUIFrontend::onNewOrderReceived);
 
-// Level 2 data → MarketDepthTable
+// Level 2 data → Level2Widget
 connect(&MainAlgo::getInstance(), &MainAlgo::displayedStockReceivedNewLevel2,
         this, &GUIFrontend::onCurrentHighlightedReceivedNewLevel2);
 ```
@@ -531,7 +523,7 @@ m_updateThrottle->setInterval(100);  // Max 10 updates/sec
 void onCurrentHighlightedReceivedNewLevel2(...) {
     m_pendingLevel2 = level2;
     if (!m_updateThrottle->isActive()) {
-        updateMarketDepth(m_pendingLevel2);
+        updateLevel2Display(m_pendingLevel2);
         m_updateThrottle->start();
     }
 }

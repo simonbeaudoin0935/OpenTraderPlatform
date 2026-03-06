@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(ExampleStrategy VERSION 1.0.0 LANGUAGES CXX)
+project(OrderTestStrategy VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,25 +8,25 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions -Wall -Wextra")
 # Find Qt6
 find_package(Qt6 COMPONENTS Core REQUIRED)
 
-# Get path to L2Trader source (this CMakeLists assumes it's being run from Strategies/ExampleStrategy)
+# Get path to L2Trader source
 set(L2TRADER_SRC "${CMAKE_CURRENT_SOURCE_DIR}/../../Src")
 
 # Create shared library for the strategy plugin
-add_library(ExampleStrategy SHARED
-    ExampleStrategy.cpp
-    ExampleStrategy.h
+add_library(OrderTestStrategy SHARED
+    OrderTestStrategy.cpp
+    OrderTestStrategy.h
 )
 
 # Link Qt6
-target_link_libraries(ExampleStrategy PRIVATE Qt6::Core)
+target_link_libraries(OrderTestStrategy PRIVATE Qt6::Core)
 
 # Link against L2TraderStrategy shared library
-target_link_libraries(ExampleStrategy PRIVATE 
+target_link_libraries(OrderTestStrategy PRIVATE
     L2TraderStrategy
 )
 
-# Include all L2Trader headers with explicit subdirectories
-target_include_directories(ExampleStrategy PRIVATE 
+# Include all L2Trader headers
+target_include_directories(OrderTestStrategy PRIVATE
     "${L2TRADER_SRC}"
     "${L2TRADER_SRC}/Algo"
     "${L2TRADER_SRC}/Algo/MarketDepthQuoteReceiver"
@@ -67,29 +67,28 @@ target_include_directories(ExampleStrategy PRIVATE
 
 # Set link directories to find L2TraderStrategy shared library
 set(L2TRADER_BUILD "${CMAKE_CURRENT_SOURCE_DIR}/../../build")
-target_link_directories(ExampleStrategy PRIVATE
+target_link_directories(OrderTestStrategy PRIVATE
     "${L2TRADER_BUILD}/GUI/Src"
     "${L2TRADER_BUILD}/TUI/Src"
 )
 
 # Set output directory
-set_target_properties(ExampleStrategy PROPERTIES
+set_target_properties(OrderTestStrategy PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     PREFIX ""
     SUFFIX ".so"
 )
 
-message(STATUS "Building ExampleStrategy plugin")
+message(STATUS "Building OrderTestStrategy plugin")
 message(STATUS "  L2Trader SDK path: ${L2TRADER_SRC}")
-message(STATUS "  Output: ${CMAKE_BINARY_DIR}/lib/ExampleStrategy.so")
+message(STATUS "  Output: ${CMAKE_BINARY_DIR}/lib/OrderTestStrategy.so")
 message(STATUS "  Install dir: ~/.local/share/L2Trader/Strategies/")
 
-# Post-build install command to copy .so to ~/.local/share/L2Trader/Strategies/
-add_custom_command(TARGET ExampleStrategy POST_BUILD
+# Post-build install command
+add_custom_command(TARGET OrderTestStrategy POST_BUILD
     COMMAND mkdir -p ~/.local/share/L2Trader/Strategies/
-    COMMAND cp "${CMAKE_BINARY_DIR}/lib/ExampleStrategy.so" ~/.local/share/L2Trader/Strategies/
+    COMMAND cp "${CMAKE_BINARY_DIR}/lib/OrderTestStrategy.so" ~/.local/share/L2Trader/Strategies/
     COMMAND mkdir -p ~/.config/L2Trader/Strategies/
-    COMMAND cp "${CMAKE_CURRENT_SOURCE_DIR}/example_strategy.json" ~/.config/L2Trader/Strategies/
-    COMMENT "Installing ExampleStrategy.so and example_strategy.json"
+    COMMAND cp "${CMAKE_CURRENT_SOURCE_DIR}/order_test_strategy.json" ~/.config/L2Trader/Strategies/
+    COMMENT "Installing OrderTestStrategy.so and order_test_strategy.json"
 )
-

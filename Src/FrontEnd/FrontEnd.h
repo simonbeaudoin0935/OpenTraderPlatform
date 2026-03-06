@@ -39,11 +39,7 @@ class FrontEnd : public QObject
     void balanceUpdated(Balance balance);
 
     void currentHighlightedStockBarReceived(QString symbol, Bar bar);
-    void currentHighlightedReceivedNewLevel2(QString symbol,
-                                             Level2 level2,
-                                             double bidAskImbalance,
-                                             double bidDWP,
-                                             double askDWP);
+    void currentHighlightedReceivedNewLevel2(QString symbol, Level2 level2);
     void currentHighlightedReceivedNewTrade(QString symbol, Trade trade);
 
   public slots:
@@ -60,11 +56,7 @@ class FrontEnd : public QObject
     virtual void onBalanceUpdated(Balance balance) = 0;
 
     virtual void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) = 0;
-    virtual void onCurrentHighlightedReceivedNewLevel2(QString symbol,
-                                                       Level2 level2,
-                                                       double bidAskImbalance,
-                                                       double bidDWP,
-                                                       double askDWP) = 0;
+    virtual void onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2) = 0;
     virtual void onCurrentHighlightedReceivedNewTrade(QString /*symbol*/, Trade /*trade*/) {}
 
     // Replay mode notifications

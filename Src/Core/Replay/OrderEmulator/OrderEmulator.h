@@ -53,11 +53,11 @@ class OrderEmulator : public QObject
     /**
      * @brief Place an order in the emulator
      * @param p_request The order request
-     * @param p_requestID Unique request ID for tracking
+     * @return The canonical order ID assigned by the emulator (use this as the OrderID everywhere)
      *
-     * Starts reception delay timer. Order status updates emitted via signals.
+     * Starts reception delay timer. Order status updates emitted via signals using the returned ID.
      */
-    void placeOrder(const PlaceOrderRequest& p_request, const QString& p_requestID);
+    [[nodiscard]] QString placeOrder(const PlaceOrderRequest& p_request);
 
     /**
      * @brief Cancel an open order
@@ -196,7 +196,7 @@ class OrderEmulator : public QObject
     struct PendingOrder
     {
         PlaceOrderRequest request;
-        QString requestID;
+        QString orderID; // Canonical ID assigned by generateOrderID() at placeOrder() call time
         qint64 submitTimeMs;
         qint64 remainingDelayMs = 0; // For pause/resume
     };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 #include <QObject>
 #include <QFuture>
 #include <QVector>
@@ -14,6 +15,7 @@
 #include "TSClient.h"
 #include "StrategyOrderValidator.h"
 #include "StrategyConfig.h"
+#include "Balance.h"
 
 /// @brief Log level enumeration
 enum class LogLevel
@@ -64,6 +66,24 @@ class StrategySDK : public QObject
     [[nodiscard]]
     QFuture<std::expected<CancelOrderResult, TSClient::Error>> cancelOrder(const QString& orderID);
 
+    /// @brief Claim exclusive trading authority over a list of symbols.
+    /// Strategies must claim symbols before subscribing to data feeds or placing orders.
+    /// The platform grants an approved subset (symbols not already owned by another strategy).
+    /// For each approved symbol: data feeds are subscribed and trading authority is granted.
+    /// Rejected symbols (already claimed by another strategy) are excluded from the result.
+    /// @param symbols List of symbols the strategy wants to trade (e.g., {"NVDA", "SPY"})
+    /// @return QFuture resolving to the approved subset of symbols
+    [[nodiscard]]
+    QFuture<QStringList> claimSymbols(const QStringList& symbols);
+
+    /// @brief Subscribe to data feed for a symbol (bars, Level2, trades)
+    /// In replay mode: validates that data exists for the current replay date/symbol.
+    /// In live/sim mode: adds symbol to monitored set (live stream support is a future enhancement).
+    /// @param symbol Stock symbol to subscribe to (e.g., "SPY")
+    /// @return QFuture<true> if subscription accepted, QFuture<false> if rejected
+    [[nodiscard]]
+    QFuture<bool> subscribeToSymbol(const QString& symbol);
+
     /// @brief Get current positions for this strategy (thread-safe)
     /// @return Vector of positions currently held by this strategy
     [[nodiscard]]
@@ -78,6 +98,31 @@ class StrategySDK : public QObject
     /// @return Account balance in dollars
     [[nodiscard]]
     double getAccountBalance() const;
+
+    // -------------------------------------------------------------------------
+    // Internal state update methods — called by StrategyCallbackAdapter on the
+    // strategy thread to keep SDK state in sync with order/position/balance events.
+    // Not part of the strategy-facing public API.
+    // -------------------------------------------------------------------------
+
+    /// @brief Update internal order state (insert or replace)
+    /// @note Called from StrategyCallbackAdapter on strategy thread
+    void updateOrder(const Order& order);
+
+    /// @brief Update internal position state (insert or replace)
+    /// @note Called from StrategyCallbackAdapter on strategy thread
+    void updatePosition(const Position& position);
+
+    /// @brief Update internal balance state
+    /// @note Called from StrategyCallbackAdapter on strategy thread
+    void updateBalance(double balance);
+
+    /// @brief Set the list of symbols this SDK instance has been granted exclusive authority over.
+    /// Called by StrategyManager on the strategy thread after claim processing.
+    void setClaimedSymbols(const QStringList& symbols);
+
+    /// @brief Clear all claimed symbols (called on strategy stop/unload).
+    void clearClaimedSymbols();
 
     /// @brief Log a message (thread-safe)
     /// Logs are captured per-strategy and can be viewed in the Strategies tab.
@@ -117,4 +162,11 @@ class StrategySDK : public QObject
     QString m_strategyID;
     StrategyConfig m_config;
     StrategyLogger* m_logger; // Can be nullptr
+
+    // Per-strategy state — updated via updateOrder/updatePosition/updateBalance
+    // All accessed on strategy thread (serialized by Qt event loop)
+    QVector<Order> m_orders;
+    QVector<Position> m_positions;
+    double m_balance = 0.0;
+    QStringList m_claimedSymbols; // Symbols granted exclusive trading authority
 };

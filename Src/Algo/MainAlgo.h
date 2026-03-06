@@ -6,6 +6,7 @@
 #include <QMap>
 #include <QTimer>
 #include <QVector>
+#include <QStringList>
 #include <memory>
 #include <atomic>
 
@@ -95,6 +96,28 @@ class MainAlgo final : public QObject
     /// Routes result to strategy and emits GUI signal if displayed stock
     void onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOrderResult, TSClient::Error>& p_result);
 
+    /// @brief Process a strategy cancelOrder request (MainAlgo thread)
+    /// @param p_orderID ID of the order to cancel
+    /// @param p_promise Promise to resolve when cancellation result is received
+    void processCancelOrder(const QString& p_orderID,
+                            std::shared_ptr<QPromise<std::expected<CancelOrderResult, TSClient::Error>>> p_promise);
+
+    /// @brief Subscribe a strategy to data feed for a symbol (MainAlgo thread)
+    /// In replay mode: validates data exists; optionally creates secondary ReplayEngine.
+    /// In live/sim: adds symbol to strategy's monitored symbols (live DBClient streams TODO).
+    /// @param p_strategyID Strategy requesting the subscription
+    /// @param p_symbol Symbol to subscribe to
+    /// @param p_promise Resolved with true if accepted, false if rejected
+    void processSubscribeToSymbol(const QString& p_strategyID,
+                                  const QString& p_symbol,
+                                  std::shared_ptr<QPromise<bool>> p_promise);
+
+    /// @brief Process a symbol claim request from a strategy.
+    /// Delegates to StrategyManager::processClaimSymbols().
+    void processClaimSymbols(const QString& p_strategyID,
+                             const QStringList& p_symbols,
+                             std::shared_ptr<QPromise<QStringList>> p_promise);
+
     /*
      * Replay mode control - called from MainApp via QMetaObject::invokeMethod
      */
@@ -129,6 +152,8 @@ class MainAlgo final : public QObject
     /// @brief Start replay mode order/position streams with simulated account
     void startReplayOrderStreams();
     void connectReplaySignals(const QString& p_symbol);
+    /// @brief Connect a secondary ReplayEngine to a StockInstruments (for strategy-subscribed symbols)
+    void connectSecondaryReplaySignals(const QString& p_symbol, ReplayEngine* p_engine, StockInstruments* p_instrument);
 
     /// @brief Resume live streams after exiting replay mode
     void resumeLiveStreams();
@@ -159,15 +184,8 @@ class MainAlgo final : public QObject
     /**
      * @brief Signal emitted when the displayed stock receives a new Level 2 book snapshot
      * Thread context: Emitted from MainAlgo worker thread
-     *
-     * @param bidDWP Bid depth-weighted price
-     * @param askDWP Ask depth-weighted price
      */
-    void displayedStockReceivedNewLevel2(QString symbol,
-                                         Level2 level2,
-                                         double bidAskImbalance,
-                                         double bidDWP,
-                                         double askDWP);
+    void displayedStockReceivedNewLevel2(QString symbol, Level2 level2);
 
     /**
      * @brief Signal emitted when the displayed stock receives a new trade
@@ -275,4 +293,13 @@ class MainAlgo final : public QObject
     QMap<uint64_t, std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>> m_pendingOrderPromises;
     QMap<uint64_t, QString> m_requestIdToStrategyId; // Temporary mapping until OrderID known
     QMap<QString, QString> m_orderMappings;          // OrderID → StrategyID (permanent)
+
+    // Replay state (set in enterReplayMode/enterReplayModePaused, used by strategy subscriptions)
+    QDate m_replayDate;
+    QTime m_replayStartTime;
+    ReplayEngine::PlaybackSpeed m_replaySpeed = ReplayEngine::PlaybackSpeed::Normal;
+
+    // Secondary replay engines for strategy-requested symbols (symbol → engine)
+    // These run alongside the primary m_replayEngine for the displayed stock
+    QMap<QString, ReplayEngine*> m_secondaryReplayEngines;
 };

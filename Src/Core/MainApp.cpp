@@ -131,7 +131,7 @@ void MainApp::restartApplication()
 TradingSession MainApp::getCurrentSession()
 {
     const QDateTime currentDateTime = getCurrentAppTime();
-    const QDate     currentDate     = currentDateTime.date();
+    const QDate currentDate = currentDateTime.date();
     const Qt::DayOfWeek day = static_cast<Qt::DayOfWeek>(currentDate.dayOfWeek());
 
     if (day == Qt::Saturday || day == Qt::Sunday)
@@ -146,7 +146,7 @@ TradingSession MainApp::getCurrentSession()
     }
 
     const QTime currentTime = currentDateTime.time();
-    const bool  earlyClose  = MarketCalendar::isEarlyCloseDay(currentDate);
+    const bool earlyClose = MarketCalendar::isEarlyCloseDay(currentDate);
 
     // Check each session in order
     if (currentTime >= TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION &&
@@ -162,17 +162,15 @@ TradingSession MainApp::getCurrentSession()
     }
 
     // On early-close days the regular session ends at 1:00 PM ET
-    const QTime regularEnd = earlyClose ? MarketCalendar::EARLY_CLOSE_TIME
-                                        : TradingHours::TIME_LAST_CANDLE_REGULAR_SESSION;
-    if (currentTime >= TradingHours::TIME_FIRST_CANDLE_REGULAR_SESSION &&
-        currentTime < regularEnd)
+    const QTime regularEnd =
+        earlyClose ? MarketCalendar::EARLY_CLOSE_TIME : TradingHours::TIME_LAST_CANDLE_REGULAR_SESSION;
+    if (currentTime >= TradingHours::TIME_FIRST_CANDLE_REGULAR_SESSION && currentTime < regularEnd)
     {
         return TradingSession::Regular;
     }
 
     // After-hours is suppressed entirely on early-close days (market fully closed after 1 PM)
-    if (!earlyClose &&
-        currentTime >= TradingHours::TIME_FIRST_CANDLE_AFTER_MARKET_SESSION &&
+    if (!earlyClose && currentTime >= TradingHours::TIME_FIRST_CANDLE_AFTER_MARKET_SESSION &&
         currentTime <= TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION)
     {
         return TradingSession::AfterHours;

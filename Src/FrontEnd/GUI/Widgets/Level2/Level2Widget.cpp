@@ -1,5 +1,5 @@
-#include "MarketDepthTable.h"
-#include "MarketDepthTableView.h"
+#include "Level2Widget.h"
+#include "Level2TableView.h"
 #include "Level2.h"
 #include <QHeaderView>
 #include <QLabel>
@@ -9,20 +9,14 @@
 #include <QSet>
 #include <QList>
 #include <algorithm>
-#include <QPixmap>
-#include <QPainter>
-#include <QFont>
 
-MarketDepthTable::MarketDepthTable(QWidget* parent)
+Level2Widget::Level2Widget(QWidget* parent)
     : QWidget(parent)
-    , tableView(new MarketDepthTableView(this))
+    , tableView(new Level2TableView(this))
     , model(new QStandardItemModel(this))
     , bidLabel(new QLabel("BID", this))
     , askLabel(new QLabel("ASK", this))
     , spreadLabel(new QLabel("SPREAD", this))
-    , dwpLabel(new QLabel("DWP", this))
-    , bidDWPLabel(new QLabel("", this))
-    , askDWPLabel(new QLabel("", this))
     , m_dataSourceLabel(new QLabel("--", this))
 {
     setupUI();
@@ -30,12 +24,12 @@ MarketDepthTable::MarketDepthTable(QWidget* parent)
     updateDataSourceIndicator();
 }
 
-MarketDepthTable::~MarketDepthTable()
+Level2Widget::~Level2Widget()
 {
     // Qt will handle deletion of child widgets
 }
 
-void MarketDepthTable::setupUI()
+void Level2Widget::setupUI()
 {
     // Create main layout
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -82,65 +76,6 @@ void MarketDepthTable::setupUI()
     spreadLabel->setFixedHeight(24);
     spreadLayout->addWidget(spreadLabel);
 
-    // Create DWP widget with its own layout
-    QWidget* dwpWidget = new QWidget(this);
-    dwpWidget->setFixedWidth(totalWidth);
-    QHBoxLayout* dwpLayout = new QHBoxLayout(dwpWidget);
-    dwpLayout->setSpacing(0);
-    dwpLayout->setContentsMargins(0, 0, 0, 0);
-
-    // Configure DWP labels
-    bidDWPLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    dwpLabel->setAlignment(Qt::AlignCenter);
-    askDWPLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-
-    bidDWPLabel->setFixedHeight(24);
-    dwpLabel->setFixedHeight(24);
-    askDWPLabel->setFixedHeight(24);
-
-    // Add question mark icon to DWP label
-    QPixmap questionIcon(16, 16);
-    questionIcon.fill(Qt::transparent);
-    QPainter painter(&questionIcon);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(Qt::white);
-    painter.setFont(QFont("Arial", 12, QFont::Bold));
-    painter.drawText(questionIcon.rect(), Qt::AlignCenter, "?");
-
-    // Create a layout for the DWP label to properly align the icon and text
-    QHBoxLayout* dwpLabelLayout = new QHBoxLayout();
-    dwpLabelLayout->setSpacing(4);
-    dwpLabelLayout->setContentsMargins(0, 0, 0, 0);
-    dwpLabelLayout->setAlignment(Qt::AlignCenter);
-
-    QLabel* iconLabel = new QLabel(this);
-    iconLabel->setPixmap(questionIcon);
-    iconLabel->setFixedSize(16, 16);
-    iconLabel->setAlignment(Qt::AlignCenter);
-
-    QLabel* textLabel = new QLabel("DWP", this);
-    textLabel->setStyleSheet("color: white;");
-    textLabel->setAlignment(Qt::AlignCenter);
-
-    dwpLabelLayout->addStretch();
-    dwpLabelLayout->addWidget(textLabel);
-    dwpLabelLayout->addWidget(iconLabel);
-    dwpLabelLayout->addStretch();
-
-    QWidget* dwpLabelContainer = new QWidget(this);
-    dwpLabelContainer->setLayout(dwpLabelLayout);
-    dwpLabelContainer->setFixedHeight(24);
-    dwpLabelContainer->setToolTip(
-        "Depth-Weighted Price : Estimate a volume-weighted average price within the order book to identify a 'fair value' beyond the NBBO");
-    dwpLabelContainer->setStyleSheet("QWidget {"
-                                     "   background-color: #2D2D2D;"
-                                     "   border-bottom: 1px solid #3D3D3D;"
-                                     "}");
-
-    dwpLayout->addWidget(bidDWPLabel, 1);
-    dwpLayout->addWidget(dwpLabelContainer, 1);
-    dwpLayout->addWidget(askDWPLabel, 1);
-
     // Set up columns: BID and ASK sides with their respective columns
     QStringList headers;
     headers << "Orders" << "Size" << "Price"  // BID columns
@@ -155,58 +90,54 @@ void MarketDepthTable::setupUI()
     tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     tableView->setAlternatingRowColors(true);
     tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    tableView->setTopMargin(48); // Increased to accommodate spread row
+    tableView->setTopMargin(48); // header(24) + spread(24)
 
     // BID side
-    tableView->setColumnWidth(0,
-                              ordersWidth); // Orders
-    tableView->setColumnWidth(1,
-                              sizeWidth); // Size
-    tableView->setColumnWidth(2,
-                              priceWidth); // Price
+    tableView->setColumnWidth(0, ordersWidth); // Orders
+    tableView->setColumnWidth(1, sizeWidth);   // Size
+    tableView->setColumnWidth(2, priceWidth);  // Price
 
     // ASK side
-    tableView->setColumnWidth(3,
-                              priceWidth); // Price
-    tableView->setColumnWidth(4,
-                              sizeWidth); // Size
-    tableView->setColumnWidth(5,
-                              ordersWidth); // Orders
+    tableView->setColumnWidth(3, priceWidth);  // Price
+    tableView->setColumnWidth(4, sizeWidth);   // Size
+    tableView->setColumnWidth(5, ordersWidth); // Orders
 
     // Set fixed width for the table view and widget
     tableView->setFixedWidth(totalWidth);
     setFixedWidth(totalWidth);
 
-    // Add widgets to main layout with zero spacing
+    // Fix height to exactly 10 levels: headerWidget(24) + spreadWidget(24) + viewportMargin(48) + 10 rows
+    const int rowHeight = tableView->verticalHeader()->defaultSectionSize();
+    setFixedHeight(96 + 10 * rowHeight);
+    tableView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    // Add widgets to main layout
     mainLayout->addWidget(headerWidget, 0, Qt::AlignTop);
     mainLayout->addWidget(spreadWidget, 0, Qt::AlignTop);
-    mainLayout->addWidget(dwpWidget, 0, Qt::AlignTop);
     mainLayout->addWidget(tableView, 1);
 
     // Ensure initial geometry is correct
     QTimer::singleShot(0,
                        this,
-                       [headerWidget, spreadWidget, dwpWidget, this]()
+                       [headerWidget, spreadWidget, this]()
                        {
                            int width = tableView->viewport()->width() + tableView->verticalHeader()->width();
                            headerWidget->setGeometry(0, 0, width, 24);
                            spreadWidget->setGeometry(0, 24, width, 24);
-                           dwpWidget->setGeometry(0, 48, width, 24);
                        });
 
     // Set up a connection to handle header widget resizing
     connect(tableView->horizontalHeader(),
             &QHeaderView::geometriesChanged,
-            [headerWidget, spreadWidget, dwpWidget, this]()
+            [headerWidget, spreadWidget, this]()
             {
                 int width = tableView->viewport()->width() + tableView->verticalHeader()->width();
                 headerWidget->setGeometry(0, 0, width, 24);
                 spreadWidget->setGeometry(0, 24, width, 24);
-                dwpWidget->setGeometry(0, 48, width, 24);
             });
 }
 
-void MarketDepthTable::setupStyles()
+void Level2Widget::setupStyles()
 {
     // Style the header labels
     QString commonStyle = "QLabel {"
@@ -228,24 +159,6 @@ void MarketDepthTable::setupStyles()
                                              "   border-top: 1px solid #3D3D3D;" // Add top border
                                              "}");
 
-    // Style the DWP labels
-    QString dwpStyle = "QLabel {"
-                       "   background-color: #2D2D2D;"
-                       "   padding: 4px;"
-                       "   border-bottom: 1px solid #3D3D3D;"
-                       "}";
-
-    bidDWPLabel->setStyleSheet(dwpStyle + "QLabel {"
-                                          "   color: #00FF00;"
-                                          "}");
-
-    dwpLabel->setStyleSheet(dwpStyle + "QLabel {"
-                                       "   color: #FFFFFF;"
-                                       "}");
-
-    askDWPLabel->setStyleSheet(dwpStyle + "QLabel {"
-                                          "   color: #FF0000;"
-                                          "}");
 
     // Style the table
     tableView->setStyleSheet("QTableView {"
@@ -272,7 +185,7 @@ void MarketDepthTable::setupStyles()
                              "}");
 }
 
-void MarketDepthTable::setMarketDepthItem(QStandardItem* item,
+void Level2Widget::setMarketDepthItem(QStandardItem* item,
                                           const Level2Row& level,
                                           const QString& field,
                                           int priceLevel)
@@ -352,7 +265,7 @@ void MarketDepthTable::setMarketDepthItem(QStandardItem* item,
     }
 }
 
-void MarketDepthTable::updateData(const std::array<Level2Row, 10>& bids, const std::array<Level2Row, 10>& asks)
+void Level2Widget::updateData(const std::array<Level2Row, 10>& bids, const std::array<Level2Row, 10>& asks)
 {
     // Update display mode to Level 2
     m_displayMode = DisplayMode::Level2;
@@ -422,13 +335,7 @@ void MarketDepthTable::updateData(const std::array<Level2Row, 10>& bids, const s
     }
 }
 
-void MarketDepthTable::updateDWP(double bidDWP, double askDWP)
-{
-    bidDWPLabel->setText(QString::number(bidDWP, 'f', 2));
-    askDWPLabel->setText(QString::number(askDWP, 'f', 2));
-}
-
-void MarketDepthTable::updateLevel1Data(const Level1& level1)
+void Level2Widget::updateLevel1Data(const Level1& level1)
 {
     // Update display mode
     m_displayMode = DisplayMode::Level1;
@@ -453,10 +360,6 @@ void MarketDepthTable::updateLevel1Data(const Level1& level1)
     {
         spreadLabel->setText("SPREAD: N/A");
     }
-
-    // Clear DWP (not available for L1)
-    bidDWPLabel->setText("--");
-    askDWPLabel->setText("--");
 
     // Add single row with best bid/ask
     QList<QStandardItem*> rowItems;
@@ -496,18 +399,16 @@ void MarketDepthTable::updateLevel1Data(const Level1& level1)
     model->appendRow(rowItems);
 }
 
-void MarketDepthTable::clearData()
+void Level2Widget::clearData()
 {
     m_displayMode = DisplayMode::NoData;
     updateDataSourceIndicator();
 
     model->removeRows(0, model->rowCount());
     spreadLabel->setText("SPREAD: --");
-    bidDWPLabel->setText("--");
-    askDWPLabel->setText("--");
 }
 
-void MarketDepthTable::setExpectedDataMode(bool p_hasLevel2, bool p_hasLevel1)
+void Level2Widget::setExpectedDataMode(bool p_hasLevel2, bool p_hasLevel1)
 {
     if (p_hasLevel2)
     {
@@ -524,7 +425,7 @@ void MarketDepthTable::setExpectedDataMode(bool p_hasLevel2, bool p_hasLevel1)
     updateDataSourceIndicator();
 }
 
-void MarketDepthTable::updateDataSourceIndicator()
+void Level2Widget::updateDataSourceIndicator()
 {
     switch (m_displayMode)
     {

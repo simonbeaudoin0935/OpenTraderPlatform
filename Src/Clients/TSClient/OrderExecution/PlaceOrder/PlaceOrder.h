@@ -121,15 +121,27 @@ class TimeInForce
 {
   public:
     // Constructor
-    TimeInForce(OrderDuration p_duration);
+    TimeInForce(OrderDuration p_duration) : duration(p_duration) {}
 
     // Setters
-    void setDuration(OrderDuration value);
-    void setExpiration(const std::optional<QString>& value);
+    void setDuration(OrderDuration value)
+    {
+        duration = value;
+    }
+    void setExpiration(const std::optional<QString>& value)
+    {
+        expiration = value;
+    }
 
     // Getters
-    OrderDuration getDuration() const;
-    std::optional<QString> getExpiration() const;
+    OrderDuration getDuration() const
+    {
+        return duration;
+    }
+    std::optional<QString> getExpiration() const
+    {
+        return expiration;
+    }
 
     // Convert to JSON
     QJsonObject toJson() const;
@@ -364,45 +376,117 @@ class PlaceOrderRequest
 {
   public:
     // Constructor
-    PlaceOrderRequest();
+    PlaceOrderRequest() : orderType(), quantity(0), timeInForce(OrderDuration::Day), tradeAction(TradeAction::Buy)
+    {
+        orderType.type = OrderType::Type::Market;
+    }
 
     // Setters for required fields
-    void setAccountID(const QString& value);
-    void setOrderType(OrderType::Type value);
-    void setQuantity(int value);
-    void setSymbol(const QString& value);
-    void setTimeInForce(const TimeInForce& value);
-    void setTradeAction(TradeAction value);
+    void setAccountID(const QString& value)
+    {
+        accountID = value;
+    }
+    void setOrderType(OrderType::Type value)
+    {
+        orderType.type = value;
+    }
+    void setQuantity(int value)
+    {
+        quantity = value;
+    }
+    void setSymbol(const QString& value)
+    {
+        symbol = value;
+    }
+    void setTimeInForce(const TimeInForce& value)
+    {
+        timeInForce = value;
+    }
+    void setTradeAction(TradeAction value)
+    {
+        tradeAction = value;
+    }
 
     // Setters for optional fields
     void setAdvancedOptions(const AdvancedOptionsRequest& value)
     {
         advancedOptions = value;
     }
-    void setLimitPrice(const double& value);
-    void setOrderConfirmID(const QString& value);
-    void setRoute(const QString& value);
-    void setStopPrice(const double& value);
-    void setOcaGroupName(const QString& value);
-    void setOcaGroupType(const QString& value);
+    void setLimitPrice(const double& value)
+    {
+        limitPrice = value;
+    }
+    void setOrderConfirmID(const QString& value); // validated — kept in .cpp
+    void setRoute(const QString& value)
+    {
+        route = value;
+    }
+    void setStopPrice(const double& value)
+    {
+        stopPrice = value;
+    }
+    void setOcaGroupName(const QString& value)
+    {
+        ocaGroupName = value;
+    }
+    void setOcaGroupType(const QString& value)
+    {
+        ocaGroupType = value;
+    }
 
     // Getters for all fields
-    QString getAccountID() const;
-    OrderType getOrderType() const;
-    int getQuantity() const;
-    QString getSymbol() const;
-    TimeInForce getTimeInForce() const;
-    TradeAction getTradeAction() const;
+    QString getAccountID() const
+    {
+        return accountID;
+    }
+    OrderType getOrderType() const
+    {
+        return orderType;
+    }
+    int getQuantity() const
+    {
+        return quantity;
+    }
+    QString getSymbol() const
+    {
+        return symbol;
+    }
+    TimeInForce getTimeInForce() const
+    {
+        return timeInForce;
+    }
+    TradeAction getTradeAction() const
+    {
+        return tradeAction;
+    }
     std::optional<AdvancedOptionsRequest> getAdvancedOptions() const
     {
         return advancedOptions;
     }
-    std::optional<double> getLimitPrice() const;
-    std::optional<QString> getOrderConfirmID() const;
-    std::optional<QString> getRoute() const;
-    std::optional<double> getStopPrice() const;
-    std::optional<QString> getOcaGroupName() const;
-    std::optional<QString> getOcaGroupType() const;
+    std::optional<double> getLimitPrice() const
+    {
+        return limitPrice;
+    }
+    std::optional<QString> getOrderConfirmID() const
+    {
+        return orderConfirmID;
+    }
+    std::optional<QString> getRoute() const
+    {
+        return route;
+    }
+    std::optional<double> getStopPrice() const
+    {
+        return stopPrice;
+    }
+    std::optional<QString> getOcaGroupName() const
+    {
+        return ocaGroupName;
+    }
+    std::optional<QString> getOcaGroupType() const
+    {
+        return ocaGroupType;
+    }
 
     // Validation
     bool isValid() const;
@@ -431,6 +515,8 @@ class PlaceOrderRequest
     std::optional<QString> orderConfirmID;
     std::optional<QString> route; // Defaults to "Intelligent" for stocks and options
     std::optional<double> stopPrice;
+    std::optional<QString> ocaGroupName;
+    std::optional<QString> ocaGroupType;
 };
 
 class OrderResultItem

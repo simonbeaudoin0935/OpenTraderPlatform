@@ -88,5 +88,7 @@ message(STATUS "  Install dir: ~/.local/share/L2Trader/Strategies/")
 add_custom_command(TARGET CrashTestStrategy POST_BUILD
     COMMAND mkdir -p ~/.local/share/L2Trader/Strategies/
     COMMAND cp "${CMAKE_BINARY_DIR}/lib/CrashTestStrategy.so" ~/.local/share/L2Trader/Strategies/
-    COMMENT "Installing CrashTestStrategy.so to ~/.local/share/L2Trader/Strategies/"
+    COMMAND mkdir -p ~/.config/L2Trader/Strategies/
+    COMMAND cp "${CMAKE_CURRENT_SOURCE_DIR}/crash_test_strategy.json" ~/.config/L2Trader/Strategies/
+    COMMENT "Installing CrashTestStrategy.so and crash_test_strategy.json"
 )

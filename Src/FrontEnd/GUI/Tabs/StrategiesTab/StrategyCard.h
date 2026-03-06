@@ -94,4 +94,5 @@ class StrategyCard : public QWidget
     int m_selectedLogLevel = -1;  // -1 means "All"
     bool m_logsAutoScroll = true; // Track if logs should auto-scroll
     int m_lastScrollValue = 0;    // Track last scroll position to detect user scrolling
+    int m_lastLogCount = -1;      // Skip setPlainText when log count hasn't changed
 };

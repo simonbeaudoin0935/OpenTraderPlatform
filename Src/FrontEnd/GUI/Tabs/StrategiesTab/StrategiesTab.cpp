@@ -7,6 +7,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QDebug>
+#include <QMessageBox>
 
 #include "StrategyManager.h"
 #include "MainAlgo.h"
@@ -131,6 +132,9 @@ void StrategiesTab::onLoadStrategyClicked()
             if (!result)
             {
                 qWarning() << "[StrategiesTab] Failed to load strategy:" << result.error();
+                QMessageBox::critical(this,
+                                      "Failed to Load Strategy",
+                                      "Could not load strategy plugin:\n\n" + result.error());
             }
         }
     }

@@ -43,26 +43,7 @@ OrderType OrderType::fromString(const QString& str)
 }
 
 // TimeInForce implementation
-TimeInForce::TimeInForce(OrderDuration p_duration) : duration(p_duration) {}
-
-void TimeInForce::setDuration(OrderDuration value)
-{
-    duration = value;
-}
-void TimeInForce::setExpiration(const std::optional<QString>& value)
-{
-    expiration = value;
-}
-
-OrderDuration TimeInForce::getDuration() const
-{
-    return duration;
-}
-std::optional<QString> TimeInForce::getExpiration() const
-{
-    return expiration;
-}
-
+// Constructor, setters, and getters are inline in the header.
 QJsonObject TimeInForce::toJson() const
 {
     QJsonObject json;
@@ -141,41 +122,9 @@ bool TimeInForce::isValidExpiration(const QString& expiration)
 }
 
 // PlaceOrderRequest implementation
-PlaceOrderRequest::PlaceOrderRequest()
-    : orderType(), quantity(0), timeInForce(OrderDuration::Day), tradeAction(TradeAction::Buy)
-{
-    orderType.type = OrderType::Type::Market;
-}
+// Setters/getters/constructor are inline in the header.
+// Only methods with non-trivial logic remain here.
 
-// Setters
-void PlaceOrderRequest::setAccountID(const QString& value)
-{
-    accountID = value;
-}
-void PlaceOrderRequest::setOrderType(OrderType::Type value)
-{
-    orderType.type = value;
-}
-void PlaceOrderRequest::setQuantity(int value)
-{
-    quantity = value;
-}
-void PlaceOrderRequest::setSymbol(const QString& value)
-{
-    symbol = value;
-}
-void PlaceOrderRequest::setTimeInForce(const TimeInForce& value)
-{
-    timeInForce = value;
-}
-void PlaceOrderRequest::setTradeAction(TradeAction value)
-{
-    tradeAction = value;
-}
-void PlaceOrderRequest::setLimitPrice(const double& value)
-{
-    limitPrice = value;
-}
 void PlaceOrderRequest::setOrderConfirmID(const QString& value)
 {
     // Check length is between 1 and 22 characters
@@ -187,57 +136,6 @@ void PlaceOrderRequest::setOrderConfirmID(const QString& value)
 
     orderConfirmID = value;
 }
-void PlaceOrderRequest::setRoute(const QString& value)
-{
-    route = value;
-}
-void PlaceOrderRequest::setStopPrice(const double& value)
-{
-    stopPrice = value;
-}
-
-// Getters
-QString PlaceOrderRequest::getAccountID() const
-{
-    return accountID;
-}
-OrderType PlaceOrderRequest::getOrderType() const
-{
-    return orderType;
-}
-int PlaceOrderRequest::getQuantity() const
-{
-    return quantity;
-}
-QString PlaceOrderRequest::getSymbol() const
-{
-    return symbol;
-}
-TimeInForce PlaceOrderRequest::getTimeInForce() const
-{
-    return timeInForce;
-}
-TradeAction PlaceOrderRequest::getTradeAction() const
-{
-    return tradeAction;
-}
-std::optional<double> PlaceOrderRequest::getLimitPrice() const
-{
-    return limitPrice;
-}
-std::optional<QString> PlaceOrderRequest::getOrderConfirmID() const
-{
-    return orderConfirmID;
-}
-std::optional<QString> PlaceOrderRequest::getRoute() const
-{
-    return route;
-}
-std::optional<double> PlaceOrderRequest::getStopPrice() const
-{
-    return stopPrice;
-}
-
 QJsonObject PlaceOrderRequest::toJson() const
 {
     QJsonObject json;

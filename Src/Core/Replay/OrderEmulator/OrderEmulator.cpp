@@ -72,10 +72,16 @@ OrderEmulator::~OrderEmulator()
     DEBUG << "OrderEmulator destroyed";
 }
 
-void OrderEmulator::placeOrder(const PlaceOrderRequest& p_request, const QString& p_requestID)
+QString OrderEmulator::placeOrder(const PlaceOrderRequest& p_request)
 {
+    // Generate the canonical order ID now — this is the single ID used everywhere
+    // (in the POST response to the caller AND in all subsequent orderStatusUpdate signals).
+    // This mirrors how real TradeStation works: the POST response contains the OrderID
+    // that StreamOrders will also use for fills/cancels/updates.
+    QString orderID = generateOrderID();
+
     DEBUG << "placeOrder called:" << p_request.getSymbol() << "qty:" << p_request.getQuantity()
-          << "type:" << OrderType::toString(p_request.getOrderType().type) << "requestID:" << p_requestID;
+          << "type:" << OrderType::toString(p_request.getOrderType().type) << "orderID:" << orderID;
 
     // Validate order
     QString errorMessage;
@@ -83,20 +89,19 @@ void OrderEmulator::placeOrder(const PlaceOrderRequest& p_request, const QString
     {
         WARNING << "Order validation failed:" << errorMessage;
 
-        // Create rejected order JSON
-        QJsonObject rejectJson = createOrderJson(generateOrderID(), p_request, Order::Status::REJ);
+        QJsonObject rejectJson = createOrderJson(orderID, p_request, Order::Status::REJ);
         rejectJson["StatusDescription"] = errorMessage;
 
         Order rejectedOrder(rejectJson);
         m_filledOrders.insert(rejectedOrder.getOrderID(), rejectedOrder);
         emit orderStatusUpdate(orderToJson(rejectedOrder));
-        return;
+        return orderID;
     }
 
     // Add to pending orders
     PendingOrder pending;
     pending.request = p_request;
-    pending.requestID = p_requestID;
+    pending.orderID = orderID;
     pending.submitTimeMs = QDateTime::currentMSecsSinceEpoch();
     m_pendingOrders.append(pending);
 
@@ -107,6 +112,7 @@ void OrderEmulator::placeOrder(const PlaceOrderRequest& p_request, const QString
     }
 
     DEBUG << "Order queued, pending count:" << m_pendingOrders.size();
+    return orderID;
 }
 
 void OrderEmulator::cancelOrder(const QString& p_orderID, const QString& p_requestID)
@@ -1047,8 +1053,7 @@ bool OrderEmulator::validateOrder(const PlaceOrderRequest& p_request, QString& p
         }
 
         // BuyToCover more shares than the short position
-        if (currentQty < 0 && tradeAction == TradeAction::BuyToCover &&
-            p_request.getQuantity() > qAbs(currentQty))
+        if (currentQty < 0 && tradeAction == TradeAction::BuyToCover && p_request.getQuantity() > qAbs(currentQty))
         {
             p_errorMessage = QString("EC602: You are short %1 shares (cannot cover %2)")
                                  .arg(qAbs(currentQty))
@@ -1099,8 +1104,10 @@ void OrderEmulator::onReceptionDelayElapsed()
     // Process the first pending order
     PendingOrder pending = m_pendingOrders.takeFirst();
 
-    // Create Order from request with OPN status
-    QString orderID = generateOrderID();
+    // Use the order ID that was assigned when placeOrder() was called (pending.orderID).
+    // This is the same ID returned to the caller in the POST response, so the strategy,
+    // the emulator, and StreamOrders all refer to the same canonical ID.
+    QString orderID = pending.orderID;
     QJsonObject orderJson = createOrderJson(orderID, pending.request, Order::Status::OPN);
     Order order(orderJson);
 

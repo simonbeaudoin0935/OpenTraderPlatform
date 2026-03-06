@@ -128,9 +128,13 @@ public:
     QVector<Order> getOrders(const QString& accountId);
     Balance getBalance(const QString& accountId);
 
-    // Data subscription
-    void subscribeToSymbol(const QString& symbol, const QString& interval);
-    void unsubscribeFromSymbol(const QString& symbol, const QString& interval);
+    // Data subscription and exclusive claiming
+    // claimSymbols() is the PRIMARY API — replaces subscribeToSymbol() as the
+    // symbol acquisition path. Grants exclusive trading authority.
+    QFuture<QStringList> claimSymbols(const QStringList& symbols);
+
+    // Legacy internal subscription (kept for secondary use cases)
+    QFuture<bool> subscribeToSymbol(const QString& symbol);
 
     // Order management
     QString placeOrder(const PlaceOrderRequest& request);
@@ -400,6 +404,59 @@ Visual representation of running strategy:
 - Real-time log stream
 - Metrics display (e.g., P/L, trade count)
 - Control buttons (Start/Stop/Remove)
+
+---
+
+## Symbol Claiming Mechanism
+
+### Purpose
+
+Strategies must claim exclusive authority over symbols before trading them.
+No two strategies can claim the same ticker simultaneously.
+
+### API
+
+```cpp
+// Primary symbol acquisition API — call in onStart()
+QFuture<QStringList> claimSymbols(const QStringList& symbols);
+// Returns the approved subset (symbols not already owned by another strategy).
+// For each approved symbol: data feeds are subscribed and trading authority is granted.
+```
+
+### Enforcement
+
+`StrategySDK::placeOrder()` checks that `p_order.getSymbol()` is in the strategy's
+claimed set before forwarding to MainAlgo. Unclaimed symbols are immediately rejected.
+
+### Platform Registry
+
+`StrategyManager::m_symbolRegistry` (`QMap<QString,QString>`) maps symbol → ownerStrategyID.
+`StrategyManager::processClaimSymbols()` grants or denies each requested symbol.
+`StrategyManager::releaseSymbols(strategyID)` frees all claims for a strategy.
+`releaseSymbols` is called automatically from `unloadStrategy()`.
+
+### New Signal
+
+```cpp
+// Emitted from MainAlgo thread when a strategy's claim is processed
+void symbolsClaimed(const QString& strategyID, const QStringList& claimedSymbols);
+```
+
+### Usage Pattern in Strategies
+
+```cpp
+void MyStrategy::onStart() {
+    m_sdk->claimSymbols({"NVDA", "SPY"}).then(this, [this](const QStringList& approved) {
+        if (!approved.contains("NVDA")) {
+            m_sdk->log("NVDA unavailable", LogLevel::Error);
+            return;
+        }
+        // Proceed with approved symbols
+    });
+}
+```
+
+---
 
 ## Error Handling
 

@@ -58,7 +58,7 @@ class StrategyLoader final
      * StrategySDK* sdk);
      *   extern "C" void destroyStrategy(StrategyBase* strategy);
      */
-    [[nodiscard]] static std::expected<LoadedPlugin, Error> loadPlugin(const QString& p_soPath);
+    [[nodiscard]] static std::expected<LoadedPlugin, QString> loadPlugin(const QString& p_soPath);
 
     /*
      * Unload a strategy plugin

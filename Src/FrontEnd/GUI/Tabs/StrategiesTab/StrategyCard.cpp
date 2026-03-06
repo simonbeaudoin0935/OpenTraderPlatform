@@ -314,6 +314,10 @@ void StrategyCard::updateLogs()
         }
     }
 
+    // Skip expensive setPlainText if nothing changed (prevents selection flicker)
+    if (logs.size() == m_lastLogCount)
+        return;
+
     // Display logs
     QString logsText;
     for (const auto& log: logs)
@@ -324,6 +328,7 @@ void StrategyCard::updateLogs()
 
     m_logsDisplay->setPlainText(logsText);
     m_logsStatsLabel->setText(QString("%1 logs").arg(logs.size()));
+    m_lastLogCount = logs.size();
 
     // Auto-scroll to bottom if enabled
     if (m_logsAutoScroll)
@@ -357,6 +362,7 @@ void StrategyCard::onLogsScrolled()
 void StrategyCard::onLogsLevelFilterChanged(int index)
 {
     m_selectedLogLevel = m_logsLevelFilter->itemData(index).toInt();
+    m_lastLogCount = -1; // force redraw with new filter
     updateLogs();
 }
 

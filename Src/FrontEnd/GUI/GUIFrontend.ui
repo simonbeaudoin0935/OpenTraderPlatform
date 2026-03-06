@@ -160,74 +160,17 @@
                  <number>0</number>
                 </property>
                 <item>
-                 <widget class="QWidget" name="gaugeContainer" native="true">
+                 <widget class="StrategyQuickView" name="strategyQuickView" native="true">
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
+                    <horstretch>1</horstretch>
+                    <verstretch>1</verstretch>
                    </sizepolicy>
                   </property>
-                  <layout class="QGridLayout" name="gaugeGridLayout">
-                   <property name="spacing">
-                    <number>4</number>
-                   </property>
-                   <item row="0" column="0">
-                    <widget class="Gauge" name="baiGauge" native="true">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                       <horstretch>1</horstretch>
-                       <verstretch>1</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="label" stdset="0">
-                      <string>BAI</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="0" column="1">
-                    <widget class="Gauge" name="dwpHGauge" native="true">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                       <horstretch>1</horstretch>
-                       <verstretch>1</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="label" stdset="0">
-                      <string>DWP</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="0">
-                    <widget class="Gauge" name="oblrGauge" native="true">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                       <horstretch>1</horstretch>
-                       <verstretch>1</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="label" stdset="0">
-                      <string>OBLR</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="1">
-                    <widget class="Gauge" name="qrrGauge" native="true">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                       <horstretch>1</horstretch>
-                       <verstretch>1</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="label" stdset="0">
-                      <string>QRR</string>
-                     </property>
-                    </widget>
-                   </item>
-                  </layout>
                  </widget>
                 </item>
                 <item>
-                 <widget class="MarketDepthTable" name="marketDepthTable" native="true">
+                 <widget class="Level2Widget" name="level2Widget" native="true">
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
                     <horstretch>0</horstretch>
@@ -363,9 +306,9 @@
    <header>GUI/StockPriceChart/StockPriceChart.h</header>
   </customwidget>
   <customwidget>
-   <class>MarketDepthTable</class>
+   <class>Level2Widget</class>
    <extends>QWidget</extends>
-   <header>GUI/Widgets/MarketDepth/MarketDepthTable.h</header>
+   <header>GUI/Widgets/Level2/Level2Widget.h</header>
   </customwidget>
   <customwidget>
    <class>BalanceWidget</class>
@@ -388,15 +331,15 @@
    <header>GUI/Widgets/OrderEntry/OrderEntryWidget.h</header>
   </customwidget>
   <customwidget>
-   <class>Gauge</class>
-   <extends>QWidget</extends>
-   <header>GUI/Widgets/Gauge/Gauge.h</header>
-  </customwidget>
-  <customwidget>
    <class>TimeAndSalesWidget</class>
    <extends>QWidget</extends>
    <header>GUI/Widgets/TimeAndSales/TimeAndSalesWidget.h</header>
   </customwidget>
+  <customwidget>
+    <class>StrategyQuickView</class>
+    <extends>QWidget</extends>
+    <header>GUI/Widgets/StrategyQuickView/StrategyQuickView.h</header>
+   </customwidget>
  </customwidgets>
  <resources/>
  <connections/>

@@ -2,11 +2,11 @@
 
 #include <QTableView>
 
-class MarketDepthTableView : public QTableView
+class Level2TableView : public QTableView
 {
     Q_OBJECT
   public:
-    explicit MarketDepthTableView(QWidget* parent = nullptr);
+    explicit Level2TableView(QWidget* parent = nullptr);
 
     /// Set top margin for the table view
     /// Used to adjust spacing from header

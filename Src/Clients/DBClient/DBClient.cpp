@@ -456,8 +456,7 @@ databento::KeepGoing DBClient::onRecordReceived(const databento::Record& p_recor
         const QString errorText = QString::fromUtf8(msg.Err());
 
         using databento::ErrorCode;
-        const bool isFatal = msg.code == ErrorCode::AuthFailed ||
-                             msg.code == ErrorCode::ApiKeyDeactivated ||
+        const bool isFatal = msg.code == ErrorCode::AuthFailed || msg.code == ErrorCode::ApiKeyDeactivated ||
                              msg.code == ErrorCode::InvalidSubscription ||
                              msg.code == ErrorCode::ConnectionLimitExceeded;
 

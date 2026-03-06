@@ -6,9 +6,9 @@
 #include "Level2.h"
 
 class QLabel;
-class MarketDepthTableView;
+class Level2TableView;
 
-class MarketDepthTable : public QWidget
+class Level2Widget : public QWidget
 {
     Q_OBJECT
   public:
@@ -20,8 +20,8 @@ class MarketDepthTable : public QWidget
         NoData  ///< No data available
     };
 
-    explicit MarketDepthTable(QWidget* parent = nullptr);
-    ~MarketDepthTable();
+    explicit Level2Widget(QWidget* parent = nullptr);
+    ~Level2Widget();
 
     /// Update market depth display with Level 2 data (full book)
     /// @param bids Vector of bid levels (price, size, MPID)
@@ -31,11 +31,6 @@ class MarketDepthTable : public QWidget
     /// Update market depth display with Level 1 data (best bid/ask only)
     /// @param level1 Level1 BBO data
     void updateLevel1Data(const Level1& level1);
-
-    /// Update Depth-Weighted Price indicators
-    /// @param bidDWP Bid side depth-weighted price
-    /// @param askDWP Ask side depth-weighted price
-    void updateDWP(double bidDWP, double askDWP);
 
     /// Get the current display mode
     [[nodiscard]] DisplayMode getDisplayMode() const
@@ -59,14 +54,11 @@ class MarketDepthTable : public QWidget
     void setMarketDepthItem(QStandardItem* item, const Level2Row& level, const QString& field, int rowIndex);
     void updateDataSourceIndicator();
 
-    MarketDepthTableView* tableView;
+    Level2TableView* tableView;
     QStandardItemModel* model;
     QLabel* bidLabel;
     QLabel* askLabel;
     QLabel* spreadLabel;
-    QLabel* dwpLabel;
-    QLabel* bidDWPLabel;
-    QLabel* askDWPLabel;
     QLabel* m_dataSourceLabel = nullptr; ///< Shows L2/L1/-- indicator
 
     DisplayMode m_displayMode = DisplayMode::NoData;

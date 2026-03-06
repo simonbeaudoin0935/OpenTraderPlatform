@@ -4,6 +4,7 @@
 #include "Assume.h"
 #include <QUuid>
 #include <QDebug>
+#include <QPromise>
 
 #define LOGGING_CATEGORY StrategyManagerLog
 
@@ -24,6 +25,16 @@ QFuture<std::expected<PlaceOrderResult, TSClient::Error>> StrategySDK::placeOrde
 {
     ASSUME_DIFF(m_mainAlgo, nullptr);
 
+    // Enforce: strategy may only trade symbols it has claimed exclusive authority over
+    if (!m_claimedSymbols.contains(p_order.getSymbol()))
+    {
+        qWarning(StrategyManagerLog)
+            << "Strategy" << m_strategyID << "rejected order for unclaimed symbol:" << p_order.getSymbol()
+            << "- call claimSymbols() first";
+        return QtFuture::makeReadyFuture(
+            std::expected<PlaceOrderResult, TSClient::Error>(std::unexpected(TSClient::Error::RejectedByValidator)));
+    }
+
     // Validate order before sending to MainAlgo
     if (!StrategyOrderValidator::validateOrder(m_strategyID, p_order))
     {
@@ -35,6 +46,7 @@ QFuture<std::expected<PlaceOrderResult, TSClient::Error>> StrategySDK::placeOrde
 
     // Create a promise that will be resolved when order ACK is received
     auto promise = std::make_shared<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>();
+    promise->start();
     QFuture<std::expected<PlaceOrderResult, TSClient::Error>> future = promise->future();
 
     QMetaObject::invokeMethod(
@@ -48,24 +60,108 @@ QFuture<std::expected<PlaceOrderResult, TSClient::Error>> StrategySDK::placeOrde
 
 QFuture<std::expected<CancelOrderResult, TSClient::Error>> StrategySDK::cancelOrder(const QString& p_orderID)
 {
-    Q_UNUSED(p_orderID);
-    return QtFuture::makeReadyFuture(
-        std::expected<CancelOrderResult, TSClient::Error>(std::unexpected(TSClient::Error::Other)));
+    ASSUME_DIFF(m_mainAlgo, nullptr);
+
+    auto promise = std::make_shared<QPromise<std::expected<CancelOrderResult, TSClient::Error>>>();
+    promise->start();
+    QFuture<std::expected<CancelOrderResult, TSClient::Error>> future = promise->future();
+
+    QMetaObject::invokeMethod(
+        m_mainAlgo,
+        [this, p_orderID, promise]() { m_mainAlgo->processCancelOrder(p_orderID, promise); },
+        Qt::QueuedConnection);
+
+    return future;
+}
+
+QFuture<bool> StrategySDK::subscribeToSymbol(const QString& p_symbol)
+{
+    ASSUME_DIFF(m_mainAlgo, nullptr);
+
+    auto promise = std::make_shared<QPromise<bool>>();
+    promise->start();
+    QFuture<bool> future = promise->future();
+
+    QMetaObject::invokeMethod(
+        m_mainAlgo,
+        [this, p_symbol, promise]() { m_mainAlgo->processSubscribeToSymbol(m_strategyID, p_symbol, promise); },
+        Qt::QueuedConnection);
+
+    return future;
+}
+
+QFuture<QStringList> StrategySDK::claimSymbols(const QStringList& p_symbols)
+{
+    ASSUME_DIFF(m_mainAlgo, nullptr);
+
+    auto promise = std::make_shared<QPromise<QStringList>>();
+    promise->start();
+    QFuture<QStringList> future = promise->future();
+
+    QMetaObject::invokeMethod(
+        m_mainAlgo,
+        [this, p_symbols, promise]() { m_mainAlgo->processClaimSymbols(m_strategyID, p_symbols, promise); },
+        Qt::QueuedConnection);
+
+    return future;
 }
 
 QVector<Position> StrategySDK::getPositions() const
 {
-    return QVector<Position>();
+    return m_positions;
 }
 
 QVector<Order> StrategySDK::getOrders() const
 {
-    return QVector<Order>();
+    return m_orders;
 }
 
 double StrategySDK::getAccountBalance() const
 {
-    return 0.0;
+    return m_balance;
+}
+
+void StrategySDK::updateOrder(const Order& p_order)
+{
+    // Replace existing order with same ID, or append
+    for (auto& existing: m_orders)
+    {
+        if (existing.getOrderID() == p_order.getOrderID())
+        {
+            existing = p_order;
+            return;
+        }
+    }
+    m_orders.append(p_order);
+}
+
+void StrategySDK::updatePosition(const Position& p_position)
+{
+    // Replace existing position with same ID, or append
+    for (auto& existing: m_positions)
+    {
+        if (existing.getPositionID() == p_position.getPositionID())
+        {
+            existing = p_position;
+            return;
+        }
+    }
+    m_positions.append(p_position);
+}
+
+void StrategySDK::updateBalance(double p_balance)
+{
+    m_balance = p_balance;
+}
+
+void StrategySDK::setClaimedSymbols(const QStringList& symbols)
+{
+    m_claimedSymbols = symbols;
+}
+
+void StrategySDK::clearClaimedSymbols()
+{
+    m_claimedSymbols.clear();
 }
 
 void StrategySDK::log(const QString& p_message, LogLevel p_level)
@@ -185,7 +281,7 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
     auto pluginResult = StrategyLoader::loadPlugin(p_config.soPath);
     if (!pluginResult)
     {
-        return std::unexpected("Failed to load strategy plugin: " + p_config.soPath);
+        return std::unexpected(pluginResult.error());
     }
 
     auto plugin = pluginResult.value();
@@ -208,7 +304,7 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
     p_strategy->setSdk(p_sdk);
 
     // Create callback adapter that will live on strategy's thread
-    auto p_adapter = new StrategyCallbackAdapter(p_strategy, p_config.symbols);
+    auto p_adapter = new StrategyCallbackAdapter(p_strategy, p_sdk, p_config.symbols);
 
     auto instance = new StrategyInstance();
     instance->strategyID = strategyID;
@@ -255,6 +351,9 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
     }
 
     qInfo(StrategyManagerLog) << "Unloading strategy:" << instance->config.name << "ID:" << p_strategyID;
+
+    // Release all symbol claims before disconnecting
+    releaseSymbols(p_strategyID);
 
     disconnectStrategyFromDataSources(instance);
 
@@ -643,8 +742,7 @@ StrategyBase* StrategyManager::getStrategy(const QString& p_strategyID) const
 
 void StrategyManager::onOrderUpdated(const Order& p_order)
 {
-    // Broadcast to all strategies for now
-    // TODO: Later, route only to the strategy that placed the order
+    // Broadcast to all strategies (used as fallback when owning strategy is unknown)
     for (auto* instance: m_strategies)
     {
         if (instance && instance->p_strategy)
@@ -652,6 +750,29 @@ void StrategyManager::onOrderUpdated(const Order& p_order)
             instance->p_strategy->onOrderUpdated(p_order);
         }
     }
+}
+
+void StrategyManager::onOrderUpdatedForStrategy(const QString& p_strategyID, const Order& p_order)
+{
+    qDebug(StrategyManagerLog) << "onOrderUpdatedForStrategy: strategyID=" << p_strategyID
+                               << "orderID=" << p_order.getOrderID()
+                               << "status=" << static_cast<int>(p_order.getOrderStatus());
+    auto* instance = findStrategy(p_strategyID);
+    if (!instance || !instance->p_adapter)
+    {
+        qWarning(StrategyManagerLog) << "onOrderUpdatedForStrategy: strategy not found:" << p_strategyID;
+        return;
+    }
+
+    // Route via adapter (runs on strategy thread)
+    QMetaObject::invokeMethod(
+        instance->p_adapter,
+        [instance, p_order]()
+        {
+            qDebug() << "[StrategyCallbackAdapter] dispatching onOrderUpdated orderID=" << p_order.getOrderID();
+            instance->p_adapter->onOrderUpdated(p_order);
+        },
+        Qt::QueuedConnection);
 }
 
 void StrategyManager::onMainAlgoOrderUpdated(const QString& p_account, const Order& p_order)
@@ -678,6 +799,20 @@ void StrategyManager::connectStrategyToDataSources(StrategyInstance* p_instance)
             &StrategyCallbackAdapter::onBar,
             Qt::QueuedConnection);
 
+    // Connect Level 2 market depth data
+    connect(m_mainAlgo,
+            &MainAlgo::displayedStockReceivedNewLevel2,
+            p_instance->p_adapter,
+            &StrategyCallbackAdapter::onLevel2,
+            Qt::QueuedConnection);
+
+    // Connect individual trade prints
+    connect(m_mainAlgo,
+            &MainAlgo::displayedStockReceivedNewTrade,
+            p_instance->p_adapter,
+            &StrategyCallbackAdapter::onTrade,
+            Qt::QueuedConnection);
+
     qInfo(StrategyManagerLog) << "Connected strategy to data sources:" << p_instance->strategyID;
 }
 
@@ -694,6 +829,57 @@ void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_inst
     qInfo(StrategyManagerLog) << "Disconnected strategy from data sources:" << p_instance->strategyID;
 }
 
+void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
+                                              const QString& p_symbol,
+                                              StockInstruments* p_instrument,
+                                              ReplayEngine* p_replayEngine)
+{
+    auto* instance = findStrategy(p_strategyID);
+    if (!instance || !instance->p_adapter)
+    {
+        qWarning(StrategyManagerLog) << "connectSymbolToStrategy: strategy not found:" << p_strategyID;
+        return;
+    }
+
+    // Add symbol to adapter's monitored set (must happen on strategy thread)
+    QMetaObject::invokeMethod(
+        instance->p_adapter,
+        [adapter = instance->p_adapter, p_symbol]() { adapter->addMonitoredSymbol(p_symbol); },
+        Qt::BlockingQueuedConnection);
+
+    if (p_instrument)
+    {
+        // Connect instrument bar data → adapter
+        bool connected = connect(&p_instrument->barReceiver,
+                                 &BarReceiver::receivedNewBar,
+                                 instance->p_adapter,
+                                 &StrategyCallbackAdapter::onBar,
+                                 Qt::QueuedConnection);
+        ASSUME_TRUE(connected);
+
+        // Connect instrument level2 data → adapter
+        connected = connect(&p_instrument->m_level2Receiver,
+                            &Level2Receiver::receivedNewLevel2,
+                            instance->p_adapter,
+                            &StrategyCallbackAdapter::onLevel2,
+                            Qt::QueuedConnection);
+        ASSUME_TRUE(connected);
+    }
+
+    if (p_replayEngine)
+    {
+        // Connect replay trade events → adapter (for trade-by-trade price tracking)
+        bool connected = connect(p_replayEngine,
+                                 &ReplayEngine::replayTrade,
+                                 instance->p_adapter,
+                                 &StrategyCallbackAdapter::onTrade,
+                                 Qt::QueuedConnection);
+        ASSUME_TRUE(connected);
+    }
+
+    qInfo(StrategyManagerLog) << "Connected symbol" << p_symbol << "to strategy" << p_strategyID;
+}
+
 StrategyLogger* StrategyManager::getStrategyLogger(const QString& p_strategyID)
 {
     auto instance = findStrategy(p_strategyID);
@@ -704,4 +890,78 @@ const StrategyLogger* StrategyManager::getStrategyLogger(const QString& p_strate
 {
     auto instance = findStrategy(p_strategyID);
     return instance && instance->p_logger ? instance->p_logger.get() : nullptr;
+}
+
+void StrategyManager::processClaimSymbols(const QString& p_strategyID,
+                                          const QStringList& p_symbols,
+                                          std::shared_ptr<QPromise<QStringList>> p_promise)
+{
+    QStringList approved;
+
+    for (const QString& symbol: p_symbols)
+    {
+        if (m_symbolRegistry.contains(symbol))
+        {
+            const QString& owner = m_symbolRegistry[symbol];
+            if (owner != p_strategyID)
+            {
+                qWarning(StrategyManagerLog) << "Symbol claim denied:" << symbol << "already owned by" << owner
+                                             << "(requested by" << p_strategyID << ")";
+                continue; // excluded from approved list
+            }
+            // Same strategy re-claiming — allow
+        }
+        m_symbolRegistry[symbol] = p_strategyID;
+        approved.append(symbol);
+
+        // Subscribe data feeds for this symbol
+        // Reuse existing processSubscribeToSymbol machinery (with a discarded bool promise)
+        auto boolPromise = std::make_shared<QPromise<bool>>();
+        boolPromise->start();
+        m_mainAlgo->processSubscribeToSymbol(p_strategyID, symbol, boolPromise);
+    }
+
+    // Update SDK's claimed symbols on the strategy thread
+    auto* instance = findStrategy(p_strategyID);
+    if (instance && instance->p_sdk)
+    {
+        QMetaObject::invokeMethod(instance->p_sdk,
+                                  [sdk = instance->p_sdk, approved]() { sdk->setClaimedSymbols(approved); },
+                                  Qt::QueuedConnection);
+    }
+
+    // Update monitored symbols list for StrategyQuickView
+    if (instance)
+    {
+        instance->monitoredSymbols = QVector<QString>(approved.begin(), approved.end());
+    }
+
+    qInfo(StrategyManagerLog) << "Strategy" << p_strategyID << "claimed symbols:" << approved;
+
+    emit symbolsClaimed(p_strategyID, approved);
+
+    p_promise->addResult(approved);
+    p_promise->finish();
+}
+
+void StrategyManager::releaseSymbols(const QString& p_strategyID)
+{
+    const QStringList released = m_symbolRegistry.keys(p_strategyID);
+    for (const QString& symbol: released)
+    {
+        m_symbolRegistry.remove(symbol);
+    }
+    if (!released.isEmpty())
+    {
+        qInfo(StrategyManagerLog) << "Released symbols for strategy" << p_strategyID << ":" << released;
+    }
+
+    // Clear the SDK's claimed symbols
+    auto* instance = findStrategy(p_strategyID);
+    if (instance && instance->p_sdk)
+    {
+        QMetaObject::invokeMethod(instance->p_sdk,
+                                  [sdk = instance->p_sdk]() { sdk->clearClaimedSymbols(); },
+                                  Qt::QueuedConnection);
+    }
 }

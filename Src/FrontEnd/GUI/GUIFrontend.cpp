@@ -25,6 +25,8 @@
 #include "Tabs/ConfigTab.h"
 #include "Tabs/CacheTab.h"
 #include "Tabs/StrategiesTab/StrategiesTab.h"
+#include "Widgets/StrategyQuickView/StrategyQuickView.h"
+#include "StrategyManager.h"
 #include "StockPriceChart/ChartToolbar.h"
 #include "StockPriceChart/StockPriceChart.h"
 #include "Misc/Logging.h"
@@ -483,6 +485,34 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     StrategiesTab* strategiesTab = new StrategiesTab(mainAlgo);
     ui->tabWidget->addTab(strategiesTab, "Strategies");
 
+    // Wire StrategyQuickView to StrategyManager signals
+    StrategyManager* stratMgr = mainAlgo->getStrategyManager();
+    connect(stratMgr,
+            &StrategyManager::strategyLoaded,
+            ui->strategyQuickView,
+            &StrategyQuickView::onStrategyLoaded,
+            Qt::QueuedConnection);
+    connect(stratMgr,
+            &StrategyManager::strategyUnloaded,
+            ui->strategyQuickView,
+            &StrategyQuickView::onStrategyUnloaded,
+            Qt::QueuedConnection);
+    connect(stratMgr,
+            &StrategyManager::strategyStatusChanged,
+            ui->strategyQuickView,
+            &StrategyQuickView::onStrategyStatusChanged,
+            Qt::QueuedConnection);
+    connect(stratMgr,
+            &StrategyManager::symbolsClaimed,
+            ui->strategyQuickView,
+            &StrategyQuickView::onSymbolsClaimed,
+            Qt::QueuedConnection);
+    connect(ui->strategyQuickView,
+            &StrategyQuickView::symbolSelected,
+            this,
+            &GUIFrontend::displayStock,
+            Qt::UniqueConnection);
+
     // Set up the records info tab
     RecordsInfoTab* recordsInfoTab = new RecordsInfoTab();
     ui->tabWidget->addTab(recordsInfoTab, "Downloads");
@@ -768,19 +798,9 @@ void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
     ui->priceChart->addLiveBar(symbol, bar);
 }
 
-void GUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol,
-                                                        Level2 level2,
-                                                        double bidAskImbalance,
-                                                        double bidDWP,
-                                                        double askDWP)
+void GUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2)
 {
-    ui->marketDepthTable->updateData(level2.m_bids, level2.m_asks);
-    ui->marketDepthTable->updateDWP(bidDWP, askDWP);
-
-    // Update the BAI gauge with the bid-ask imbalance
-    ui->baiGauge->setValue(bidAskImbalance);
-
-    // Forward market depth update to OrderEntryWidget for sticky price feature
+    ui->level2Widget->updateData(level2.m_bids, level2.m_asks);
     ui->orderEntryWidget->onMarketDepthUpdate(symbol, level2);
 }
 
@@ -984,10 +1004,9 @@ void GUIFrontend::onDatabentoGatewayError(const QString& errorText, bool isFatal
         msgBox.setWindowTitle("Databento Live Subscription Error");
         msgBox.setIcon(QMessageBox::Critical);
         msgBox.setText("<b>Live data subscription is not available.</b>");
-        msgBox.setInformativeText(
-            "Databento returned an error that prevents live streaming:\n\n" + errorText +
-            "\n\nCheck that your Databento account has an active live data subscription "
-            "for this dataset. Replay mode will still work with previously downloaded data.");
+        msgBox.setInformativeText("Databento returned an error that prevents live streaming:\n\n" + errorText +
+                                  "\n\nCheck that your Databento account has an active live data subscription "
+                                  "for this dataset. Replay mode will still work with previously downloaded data.");
         msgBox.setStandardButtons(QMessageBox::Ok);
         msgBox.exec();
     }
@@ -1661,12 +1680,12 @@ void GUIFrontend::onReplayModeEntered()
     ui->priceChart->clearChart();
 
     // Clear market depth table — stale live data must not carry over into replay
-    ui->marketDepthTable->clearData();
+    ui->level2Widget->clearData();
     ui->timeAndSalesWidget->clearData();
 
     // TODO Phase 6: probe DBClient .dbn replay file to detect available schemas (MBP-10, MBP-1, etc.)
     // For now, clear the mode indicator (no legacy TS recorded data)
-    ui->marketDepthTable->setExpectedDataMode(false, false);
+    ui->level2Widget->setExpectedDataMode(false, false);
 
     // Show replay widgets in toolbar and ensure play button is in stopped state
     ui->priceChart->toolbar()->setReplayWidgetsVisible(true);
@@ -1715,7 +1734,7 @@ void GUIFrontend::onReplayModeExited()
     ui->priceChart->clearChart();
 
     // Clear market depth table — replay data must not carry over into live mode
-    ui->marketDepthTable->clearData();
+    ui->level2Widget->clearData();
     ui->timeAndSalesWidget->clearData();
 
     // Restore chart visual

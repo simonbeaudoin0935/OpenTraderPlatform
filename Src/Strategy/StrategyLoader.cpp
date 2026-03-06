@@ -1,19 +1,20 @@
 #include "StrategyLoader.h"
 #include <QDebug>
 
-std::expected<StrategyLoader::LoadedPlugin, StrategyLoader::Error> StrategyLoader::loadPlugin(const QString& p_soPath)
+std::expected<StrategyLoader::LoadedPlugin, QString> StrategyLoader::loadPlugin(const QString& p_soPath)
 {
     if (p_soPath.isEmpty())
     {
-        return std::unexpected(Error::InvalidConfig);
+        return std::unexpected(QString("Invalid strategy configuration: .so path is empty"));
     }
 
     // Attempt to open the .so file
     void* handle = dlopen(p_soPath.toStdString().c_str(), RTLD_LAZY);
     if (!handle)
     {
-        qWarning() << "Failed to load strategy plugin:" << p_soPath << "Error:" << dlerror();
-        return std::unexpected(Error::FailedToOpen);
+        QString detail = QString::fromUtf8(dlerror());
+        qWarning() << "Failed to load strategy plugin:" << p_soPath << "Error:" << detail;
+        return std::unexpected("Failed to open plugin: " + detail);
     }
 
     // Clear any existing error
@@ -24,19 +25,21 @@ std::expected<StrategyLoader::LoadedPlugin, StrategyLoader::Error> StrategyLoade
     const char* dlerrorStr = dlerror();
     if (!getVersionFn || dlerrorStr)
     {
-        qWarning() << "Strategy plugin missing getStrategyAPIVersion:" << p_soPath << "Error:" << dlerrorStr;
+        QString detail = QString::fromUtf8(dlerrorStr);
+        qWarning() << "Strategy plugin missing getStrategyAPIVersion:" << p_soPath << "Error:" << detail;
         dlclose(handle);
-        return std::unexpected(Error::MissingVersionFn);
+        return std::unexpected("Missing getStrategyAPIVersion: " + detail);
     }
 
     // Get and verify API version
     QString apiVersion = QString::fromUtf8(getVersionFn());
     if (!versionCompatible(apiVersion))
     {
+        QString detail = QString("expected %1, got %2").arg(EXPECTED_API_VERSION, apiVersion);
         qWarning() << "Strategy plugin API version mismatch:" << "Expected:" << EXPECTED_API_VERSION
                    << "Got:" << apiVersion;
         dlclose(handle);
-        return std::unexpected(Error::VersionMismatch);
+        return std::unexpected("API version mismatch: " + detail);
     }
 
     // Resolve createStrategy factory
@@ -45,9 +48,10 @@ std::expected<StrategyLoader::LoadedPlugin, StrategyLoader::Error> StrategyLoade
     dlerrorStr = dlerror();
     if (!createFn || dlerrorStr)
     {
-        qWarning() << "Strategy plugin missing createStrategy:" << p_soPath << "Error:" << dlerrorStr;
+        QString detail = QString::fromUtf8(dlerrorStr);
+        qWarning() << "Strategy plugin missing createStrategy:" << p_soPath << "Error:" << detail;
         dlclose(handle);
-        return std::unexpected(Error::MissingFactoryFn);
+        return std::unexpected("Missing createStrategy: " + detail);
     }
 
     // Resolve destroyStrategy factory
@@ -56,9 +60,10 @@ std::expected<StrategyLoader::LoadedPlugin, StrategyLoader::Error> StrategyLoade
     dlerrorStr = dlerror();
     if (!destroyFn || dlerrorStr)
     {
-        qWarning() << "Strategy plugin missing destroyStrategy:" << p_soPath << "Error:" << dlerrorStr;
+        QString detail = QString::fromUtf8(dlerrorStr);
+        qWarning() << "Strategy plugin missing destroyStrategy:" << p_soPath << "Error:" << detail;
         dlclose(handle);
-        return std::unexpected(Error::MissingDestroyFn);
+        return std::unexpected("Missing destroyStrategy: " + detail);
     }
 
     qInfo() << "Successfully loaded strategy plugin:" << p_soPath << "API version:" << apiVersion;

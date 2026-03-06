@@ -95,15 +95,19 @@ OrderMarker* StockPriceChart::createOrderMarker(const QString& orderID,
     marker->orderID = orderID;
     marker->price = price;
     marker->isBuy = isBuy;
+    marker->isEntry = isEntry;
     marker->state = filled ? OrderMarker::State::Filled : OrderMarker::State::Pending;
 
-    // entry = upright (tipUp=false), exit = upward (tipUp=true)
+    // entry = tip down (▼), exit = tip up (▲)
     auto* triangle = new QCPItemTriangle(m_customPlot, !isEntry);
     triangle->tip->setCoords(index, price);
     triangle->setPixelSize(12, 10);
 
-    const QColor color = isBuy ? (filled ? ORDER_VIZ_GREEN : ORDER_VIZ_GREEN.lighter(130))
-                               : (filled ? ORDER_VIZ_RED : ORDER_VIZ_RED.lighter(130));
+    // Entries are green (opening a position), exits are red (closing a position).
+    // This applies regardless of direction: SELLSHORT (short entry) = green ▼,
+    // BUYTOCOVER (short exit) = red ▲.
+    const QColor color = isEntry ? (filled ? ORDER_VIZ_GREEN : ORDER_VIZ_GREEN.lighter(130))
+                                 : (filled ? ORDER_VIZ_RED : ORDER_VIZ_RED.lighter(130));
     triangle->setColor(color);
 
     marker->markerItem = triangle;
@@ -186,8 +190,8 @@ void StockPriceChart::updateMarkerState(OrderMarker* marker, OrderMarker::State 
     {
         auto* tri = static_cast<QCPItemTriangle*>(marker->markerItem);
         const bool isPending = (newState == OrderMarker::State::Pending);
-        const QColor color = marker->isBuy ? (isPending ? ORDER_VIZ_GREEN.lighter(130) : ORDER_VIZ_GREEN)
-                                           : (isPending ? ORDER_VIZ_RED.lighter(130) : ORDER_VIZ_RED);
+        const QColor color = marker->isEntry ? (isPending ? ORDER_VIZ_GREEN.lighter(130) : ORDER_VIZ_GREEN)
+                                             : (isPending ? ORDER_VIZ_RED.lighter(130) : ORDER_VIZ_RED);
         tri->setColor(color);
     }
 }

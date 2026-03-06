@@ -4,6 +4,7 @@
 #include <QThread>
 #include <QMap>
 #include <QString>
+#include <QStringList>
 #include <memory>
 #include <expected>
 
@@ -19,6 +20,8 @@
 #include "Assume.h"
 
 class MainAlgo;
+class StockInstruments;
+class ReplayEngine;
 
 /// @brief Adapter to call StrategyBase methods from Qt slots
 /// Lives on strategy's thread and provides thread-safe callback invocation
@@ -27,8 +30,8 @@ class StrategyCallbackAdapter : public QObject
     Q_OBJECT
 
   public:
-    explicit StrategyCallbackAdapter(StrategyBase* p_strategy, const QVector<QString>& p_symbols)
-        : m_strategy(p_strategy), m_monitoredSymbols(p_symbols)
+    explicit StrategyCallbackAdapter(StrategyBase* p_strategy, StrategySDK* p_sdk, const QVector<QString>& p_symbols)
+        : m_strategy(p_strategy), m_sdk(p_sdk), m_monitoredSymbols(p_symbols)
     {
     }
 
@@ -43,27 +46,56 @@ class StrategyCallbackAdapter : public QObject
         }
     }
 
-    void onLevel2(const Level2& level2) const
+    void onLevel2(const QString& symbol, const Level2& level2) const
     {
-        ASSUME_DIFF(m_strategy, nullptr);
-        m_strategy->onLevel2(level2);
+        if (m_monitoredSymbols.contains(symbol))
+        {
+            ASSUME_DIFF(m_strategy, nullptr);
+            m_strategy->onLevel2(level2);
+        }
+    }
+
+    void onTrade(const QString& symbol, const Trade& trade) const
+    {
+        if (m_monitoredSymbols.contains(symbol))
+        {
+            ASSUME_DIFF(m_strategy, nullptr);
+            m_strategy->onTrade(trade);
+        }
     }
 
     void onOrderUpdated(const Order& order) const
     {
         ASSUME_DIFF(m_strategy, nullptr);
+        qDebug() << "[StrategyCallbackAdapter::onOrderUpdated] orderID=" << order.getOrderID()
+                 << "status=" << static_cast<int>(order.getOrderStatus());
+        // Update SDK state before notifying strategy
+        if (m_sdk)
+        {
+            m_sdk->updateOrder(order);
+        }
         m_strategy->onOrderUpdated(order);
     }
 
     void onPositionUpdated(const Position& position) const
     {
         ASSUME_DIFF(m_strategy, nullptr);
+        // Update SDK state before notifying strategy
+        if (m_sdk)
+        {
+            m_sdk->updatePosition(position);
+        }
         m_strategy->onPositionUpdated(position);
     }
 
     void onBalanceUpdated(double balance) const
     {
         ASSUME_DIFF(m_strategy, nullptr);
+        // Update SDK state before notifying strategy
+        if (m_sdk)
+        {
+            m_sdk->updateBalance(balance);
+        }
         m_strategy->onBalanceUpdated(balance);
     }
 
@@ -73,8 +105,19 @@ class StrategyCallbackAdapter : public QObject
         m_strategy->onStop();
     }
 
+    /// @brief Add a symbol to the monitored set so its data callbacks are forwarded
+    /// @note Called from MainAlgo thread via Qt::BlockingQueuedConnection
+    void addMonitoredSymbol(const QString& symbol)
+    {
+        if (!m_monitoredSymbols.contains(symbol))
+        {
+            m_monitoredSymbols.append(symbol);
+        }
+    }
+
   private:
     StrategyBase* m_strategy;
+    StrategySDK* m_sdk;
     QVector<QString> m_monitoredSymbols;
 };
 
@@ -241,6 +284,45 @@ class StrategyManager final : public QObject
      */
     [[nodiscard]] QVector<Position> getStrategyOpenPositions(const QString& p_strategyID) const;
 
+    /*
+     * Connect a specific symbol's data sources to a strategy's adapter.
+     * Called by MainAlgo when a strategy calls subscribeToSymbol().
+     *
+     * @param p_strategyID Strategy requesting the subscription
+     * @param p_symbol Symbol to subscribe to
+     * @param p_instrument StockInstruments for the symbol (nullptr = use displayed-stock signals)
+     * @param p_replayEngine Secondary ReplayEngine for the symbol (nullptr if not applicable)
+     */
+    void connectSymbolToStrategy(const QString& p_strategyID,
+                                 const QString& p_symbol,
+                                 StockInstruments* p_instrument,
+                                 ReplayEngine* p_replayEngine);
+
+    /*
+     * Process a symbol claim request from a strategy.
+     * Called by MainAlgo::processClaimSymbols() on the MainAlgo thread.
+     *
+     * - Grants exclusive authority over symbols not already claimed by another strategy.
+     * - For each approved symbol: subscribes data feeds and updates SDK's m_claimedSymbols.
+     * - Returns the approved subset via the promise.
+     * - Emits symbolsClaimed(strategyID, approvedSymbols) for StrategyQuickView.
+     *
+     * @param p_strategyID Strategy requesting the claim
+     * @param p_symbols Symbols the strategy wants to claim
+     * @param p_promise Resolved with the approved subset
+     */
+    void processClaimSymbols(const QString& p_strategyID,
+                             const QStringList& p_symbols,
+                             std::shared_ptr<QPromise<QStringList>> p_promise);
+
+    /*
+     * Release all symbols claimed by a strategy.
+     * Called on strategy stop and unload to free the registry entries.
+     *
+     * @param p_strategyID Strategy whose claims are being released
+     */
+    void releaseSymbols(const QString& p_strategyID);
+
   public slots:
     /*
      * Called when MainAlgo receives a new bar
@@ -259,6 +341,12 @@ class StrategyManager final : public QObject
      * Routes to strategy that placed the order
      */
     void onOrderUpdated(const Order& p_order);
+
+    /*
+     * Called when an order update should be routed to a specific strategy only
+     * Used by MainAlgo when the owning strategy is known from m_orderMappings
+     */
+    void onOrderUpdatedForStrategy(const QString& p_strategyID, const Order& p_order);
 
     /*
      * Called when MainAlgo receives a new order (ignores account parameter)
@@ -341,6 +429,14 @@ class StrategyManager final : public QObject
      */
     void strategyBalanceUpdated(const QString& strategyID, double newBalance);
 
+    /*
+     * Emitted when a strategy has been granted exclusive authority over symbols.
+     * strategyID: unique ID of the strategy
+     * claimedSymbols: symbols approved by the platform (subset of what was requested)
+     * Thread context: Emitted from MainAlgo thread
+     */
+    void symbolsClaimed(const QString& strategyID, const QStringList& claimedSymbols);
+
   private:
     enum class StrategyState
     {
@@ -367,6 +463,7 @@ class StrategyManager final : public QObject
 
     MainAlgo* m_mainAlgo;
     QMap<QString, StrategyInstance*> m_strategies;
+    QMap<QString, QString> m_symbolRegistry; ///< symbol → ownerStrategyID (exclusive claim registry)
     std::unique_ptr<StrategyRegistry> m_registry; ///< Registry of available strategies
 
     /*
