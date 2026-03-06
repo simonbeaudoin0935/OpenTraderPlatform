@@ -1206,19 +1206,28 @@ void MainAlgo::pauseLiveStreams()
 {
     INFO << "Pausing live streams for replay mode";
 
-    // These receivers must exist when entering replay mode from live
-    OBJ_ASSUME_DIFF(m_positionReceiver, nullptr);
-    OBJ_ASSUME_DIFF(m_orderReceiver, nullptr);
+    // Receivers may be null if the user enters replay before account setup completed
+    if (m_positionReceiver)
+    {
+        m_positionReceiver->stopStream(m_activeAccount.getAccountId());
+        positionStreamStarted = false;
+        DEBUG << "Positions stream stopped";
+    }
+    else
+    {
+        DEBUG << "No position stream to stop (not yet started)";
+    }
 
-    // Stop streams - this closes them gracefully and disables auto-reconnect
-    // The receivers remain alive but with null streams
-    m_positionReceiver->stopStream(m_activeAccount.getAccountId());
-    positionStreamStarted = false;
-    DEBUG << "Positions stream stopped";
-
-    m_orderReceiver->stopStream(m_activeAccount.getAccountId());
-    orderStreamStarted = false;
-    DEBUG << "Orders stream stopped";
+    if (m_orderReceiver)
+    {
+        m_orderReceiver->stopStream(m_activeAccount.getAccountId());
+        orderStreamStarted = false;
+        DEBUG << "Orders stream stopped";
+    }
+    else
+    {
+        DEBUG << "No order stream to stop (not yet started)";
+    }
 }
 
 void MainAlgo::startReplayOrderStreams()
