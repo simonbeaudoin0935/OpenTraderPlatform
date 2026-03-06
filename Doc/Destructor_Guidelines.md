@@ -457,7 +457,7 @@ void MainApp::cleanupSingletons() {
 
 ## References
 
-- [Architecture Improvements](./Improvements/Architecture_Improvements.md) - Section 1.1.1
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - Threading model and graceful shutdown sequence
 - [Copilot Instructions](../.github/copilot-instructions.md) - Graceful Teardown section
 - [Qt Documentation](https://doc.qt.io) - QObject, QThread lifecycle
 
