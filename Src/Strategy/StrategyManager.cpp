@@ -1,6 +1,7 @@
 #include "StrategyManager.h"
 #include "StrategySDK.h"
 #include "../Algo/MainAlgo.h"
+#include "../Core/MainApp.h"
 #include "Assume.h"
 #include "OrdersDatabase.h"
 #include <QUuid>
@@ -260,8 +261,7 @@ StrategySDK::getHistoricalBars(const QString& /* symbol */, const QDate& day, co
 
 QDateTime StrategySDK::getCurrentTime() const
 {
-    // Return current time in America/New_York timezone (market timezone)
-    return QDateTime::currentDateTime().toTimeZone(QTimeZone("America/New_York"));
+    return MainApp::getCurrentAppTime();
 }
 
 // StrategyManager implementation

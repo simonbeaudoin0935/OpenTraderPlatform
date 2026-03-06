@@ -467,13 +467,31 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
     DEBUG << "onReceivedNewOrder: orderID=" << order.getOrderID()
           << "status=" << static_cast<int>(order.getOrderStatus()) << "mappings_size=" << m_orderMappings.size();
 
-    // Attach strategy log to the order and persist it on first arrival (if pending)
+    // Attach strategy log for the full lifetime of the order.
+    // Persist to DB on first arrival; keep in memory until the order is terminal
+    // so that every subsequent update (e.g. Filled) also carries the log.
     auto logIt = m_orderIdToLog.find(order.getOrderID());
     if (logIt != m_orderIdToLog.end())
     {
         order.setStrategyLog(*logIt);
-        OrdersDatabase::getInstance()->updateOrderStrategyLog(order.getOrderID(), *logIt);
-        m_orderIdToLog.erase(logIt);
+
+        // Persist only on the first update (ACK/OPN) — idempotent but saves extra queries
+        const Order::Status status = order.getOrderStatus();
+        if (status == Order::Status::ACK || status == Order::Status::OPN)
+        {
+            OrdersDatabase::getInstance()->updateOrderStrategyLog(order.getOrderID(), *logIt);
+        }
+
+        // Remove from map only when the order is in a terminal state
+        const bool isTerminal =
+            (status == Order::Status::FLL || status == Order::Status::FLP || status == Order::Status::FPR ||
+             status == Order::Status::CAN || status == Order::Status::UCN || status == Order::Status::TSC ||
+             status == Order::Status::REJ || status == Order::Status::EXP || status == Order::Status::OUT ||
+             status == Order::Status::DON);
+        if (isTerminal)
+        {
+            m_orderIdToLog.erase(logIt);
+        }
     }
 
     // Emit enriched order to FrontEnd (with strategy log attached if available)
