@@ -188,6 +188,15 @@ void DumpPatternStrategy::onOrderUpdated(const Order& p_order)
                            .arg(pnl, 0, 'f', 2)
                            .arg(m_totalPnL, 0, 'f', 2));
 
+            const QString& symbol = m_config.symbols.first();
+            m_sdk->logToChart(symbol,
+                              QString("Cycle #%1 complete: %2 P&L = $%3 (entry $%4 → exit $%5)")
+                                  .arg(m_cyclesCompleted)
+                                  .arg(pnl >= 0 ? "WIN" : "LOSS")
+                                  .arg(pnl, 0, 'f', 2)
+                                  .arg(m_entryFillPrice, 0, 'f', 2)
+                                  .arg(closeFill, 0, 'f', 2));
+
             if (m_state == State::WaitingClose)
             {
                 resetCycle();
@@ -284,6 +293,14 @@ void DumpPatternStrategy::startEntryPhase()
         return;
     }
 
+    const QString& symbol = m_config.symbols.first();
+    const QString direction = m_isLong ? "LONG" : "SHORT";
+    m_sdk->logToChart(symbol,
+                      QString("Cycle #%1: initiating %2 entry @ $%3")
+                          .arg(m_cyclesCompleted + m_cyclesCancelled + 1)
+                          .arg(direction)
+                          .arg(m_lastPrice, 0, 'f', 2));
+
     placeEntryOrder();
     m_cycleStartTime = m_sdk->getCurrentTime();
     m_state = State::WaitingLimitEntry;
@@ -293,6 +310,13 @@ void DumpPatternStrategy::evaluateEntryPhase()
 {
     // Not filled — cancel
     m_sdk->log(QString("Entry order not filled after %1s — cancelling").arg(m_cycleDurationSec));
+
+    const QString& symbol = m_config.symbols.first();
+    m_sdk->logToChart(symbol,
+                      QString("Entry timed out after %1s — cancelling %2 order")
+                          .arg(m_cycleDurationSec)
+                          .arg(m_isLong ? "BUY" : "SELL SHORT"));
+
     cancelEntryOrder();
     m_cyclesCancelled++;
     resetCycle();
@@ -305,6 +329,13 @@ void DumpPatternStrategy::startClosePhase()
     // would all see EntryFilled and each place a separate close order.
     m_state = State::WaitingClose;
     m_cycleStartTime = m_sdk->getCurrentTime();
+
+    const QString& symbol = m_config.symbols.first();
+    m_sdk->logToChart(symbol,
+                      QString("Closing %1 position — entry was @ $%2")
+                          .arg(m_isLong ? "LONG" : "SHORT")
+                          .arg(m_entryFillPrice, 0, 'f', 2));
+
     placeCloseOrder();
 }
 
@@ -351,6 +382,11 @@ void DumpPatternStrategy::placeEntryOrder()
     req.setTradeAction(m_isLong ? TradeAction::Buy : TradeAction::SellShort);
     req.setLimitPrice(limitPrice);
     req.setTimeInForce(TimeInForce(OrderDuration::Day));
+    req.setStrategyLog(QString("Cycle #%1 %2 LIMIT entry @ $%3 (last=$%4)")
+                           .arg(m_cyclesCompleted + m_cyclesCancelled + 1)
+                           .arg(m_isLong ? "BUY" : "SELL SHORT")
+                           .arg(limitPrice, 0, 'f', 2)
+                           .arg(m_lastPrice, 0, 'f', 2));
 
     m_sdk->log(QString("Placing %1 LIMIT order for %2 @ $%3 (last=$%4)")
                    .arg(m_isLong ? "BUY" : "SELL SHORT")
@@ -404,6 +440,10 @@ void DumpPatternStrategy::placeCloseOrder()
     // Long was filled → market sell; Short was filled → buy to cover
     req.setTradeAction(m_isLong ? TradeAction::Sell : TradeAction::BuyToCover);
     req.setTimeInForce(TimeInForce(OrderDuration::Day));
+    req.setStrategyLog(QString("Cycle #%1 %2 MARKET close (entry was @ $%3)")
+                           .arg(m_cyclesCompleted + 1)
+                           .arg(m_isLong ? "SELL" : "BUY TO COVER")
+                           .arg(m_entryFillPrice, 0, 'f', 2));
 
     m_sdk->log(
         QString("Placing %1 MARKET order for %2 (close position)").arg(m_isLong ? "SELL" : "BUY TO COVER").arg(symbol));
