@@ -19,14 +19,15 @@ namespace OrdersDatabaseQueries
                                         "opened_datetime TEXT, "
                                         "closed_datetime TEXT, "
                                         "latency_ms INTEGER, "
+                                        "strategy_log TEXT, "
                                         "json_data TEXT NOT NULL"
                                         ")";
 
     const QString INSERT_ORDER = "INSERT INTO orders ("
                                  "order_id, account_id, symbol, quantity, trade_action, order_type, "
                                  "status, status_description, limit_price, stop_price, filled_price, "
-                                 "opened_datetime, closed_datetime, latency_ms, json_data"
-                                 ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                                 "opened_datetime, closed_datetime, latency_ms, strategy_log, json_data"
+                                 ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     const QString UPDATE_ORDER = "UPDATE orders SET "
                                  "status = ?, status_description = ?, filled_price = ?, "
@@ -36,10 +37,29 @@ namespace OrdersDatabaseQueries
     const QString SELECT_ORDER_EXISTS = "SELECT COUNT(*) FROM orders WHERE order_id = ?";
 
     const QString SELECT_ALL_ORDERS = "SELECT order_id, latency_ms, status, order_type, json_data, "
-                                      "filled_price, limit_price, stop_price, opened_datetime, closed_datetime "
+                                      "filled_price, limit_price, stop_price, opened_datetime, closed_datetime, "
+                                      "strategy_log "
                                       "FROM orders";
+
+    const QString UPDATE_ORDER_STRATEGY_LOG = "UPDATE orders SET strategy_log = ? WHERE order_id = ?";
 
     const QString SELECT_ORDER_COUNT = "SELECT COUNT(*) FROM orders";
 
     const QString DELETE_ALL_ORDERS = "DELETE FROM orders";
+
+    // Strategy log markers — one row per sdk->logToChart() call
+    const QString CREATE_STRATEGY_LOGS_TABLE = "CREATE TABLE IF NOT EXISTS strategy_logs ("
+                                               "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                                               "strategy_id TEXT NOT NULL, "
+                                               "symbol TEXT NOT NULL, "
+                                               "timestamp TEXT NOT NULL, "
+                                               "message TEXT NOT NULL"
+                                               ")";
+
+    const QString INSERT_STRATEGY_LOG = "INSERT INTO strategy_logs "
+                                        "(strategy_id, symbol, timestamp, message) "
+                                        "VALUES (?, ?, ?, ?)";
+
+    const QString SELECT_STRATEGY_LOGS_FOR_SYMBOL = "SELECT id, strategy_id, symbol, timestamp, message "
+                                                    "FROM strategy_logs WHERE symbol = ?";
 } // namespace OrdersDatabaseQueries

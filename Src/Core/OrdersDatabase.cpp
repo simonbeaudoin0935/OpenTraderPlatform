@@ -135,7 +135,12 @@ void OrdersDatabase::createTable()
     if (!query.exec(OrdersDatabaseQueries::CREATE_ORDERS_TABLE))
     {
         CRITICAL << "Failed to create orders table:" << query.lastError().text();
-        // Failed to create orders table
+        Q_UNREACHABLE();
+    }
+
+    if (!query.exec(OrdersDatabaseQueries::CREATE_STRATEGY_LOGS_TABLE))
+    {
+        CRITICAL << "Failed to create strategy_logs table:" << query.lastError().text();
         Q_UNREACHABLE();
     }
 }
@@ -194,6 +199,16 @@ bool OrdersDatabase::insertOrder(const Order& p_order, std::optional<qint64> p_l
     else
     {
         query.addBindValue(QVariant()); // NULL value for SQL
+    }
+
+    // Optional strategy log message
+    if (p_order.getStrategyLog().has_value())
+    {
+        query.addBindValue(p_order.getStrategyLog().value());
+    }
+    else
+    {
+        query.addBindValue(QVariant()); // NULL
     }
 
     // Store a minimal order representation in JSON
@@ -313,6 +328,7 @@ QMap<QString, std::tuple<Order, std::optional<qint64>>> OrdersDatabase::loadAllO
         QVariant stopPriceVar = query.value(7);
         QString openedDateTimeStr = query.value(8).toString();
         QString closedDateTimeStr = query.value(9).toString();
+        QVariant strategyLogVar = query.value(10);
 
         // Reconstruct the Order object from JSON with additional fields
         QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonDataStr.toUtf8());
@@ -341,6 +357,10 @@ QMap<QString, std::tuple<Order, std::optional<qint64>>> OrdersDatabase::loadAllO
             }
 
             Order order(jsonObj);
+            if (!strategyLogVar.isNull())
+            {
+                order.setStrategyLog(strategyLogVar.toString());
+            }
             orders.insert(orderId, std::make_tuple(order, latencyMs));
         }
     }
@@ -382,4 +402,69 @@ bool OrdersDatabase::clearAllOrders()
 
     INFO << "Cleared all orders from database";
     return true;
+}
+
+bool OrdersDatabase::updateOrderStrategyLog(const QString& p_orderID, const QString& p_log)
+{
+    QSqlQuery query(m_db);
+    query.prepare(OrdersDatabaseQueries::UPDATE_ORDER_STRATEGY_LOG);
+    query.addBindValue(p_log);
+    query.addBindValue(p_orderID);
+
+    if (!query.exec())
+    {
+        WARNING << "Failed to update strategy_log for order" << p_orderID << ":" << query.lastError().text();
+        return false;
+    }
+
+    DEBUG << "Updated strategy_log for order" << p_orderID;
+    return true;
+}
+
+bool OrdersDatabase::insertStrategyLog(const StrategyLogEntry& p_entry)
+{
+    QSqlQuery query(m_db);
+    query.prepare(OrdersDatabaseQueries::INSERT_STRATEGY_LOG);
+    query.addBindValue(p_entry.strategyID);
+    query.addBindValue(p_entry.symbol);
+    query.addBindValue(p_entry.timestamp.toString(Qt::ISODate));
+    query.addBindValue(p_entry.message);
+
+    if (!query.exec())
+    {
+        WARNING << "Failed to insert strategy log:" << query.lastError().text();
+        return false;
+    }
+
+    DEBUG << "Inserted strategy log for" << p_entry.symbol << "from" << p_entry.strategyID;
+    return true;
+}
+
+QVector<StrategyLogEntry> OrdersDatabase::loadStrategyLogs(const QString& p_symbol) const
+{
+    QVector<StrategyLogEntry> entries;
+
+    QSqlQuery query(m_db);
+    query.prepare(OrdersDatabaseQueries::SELECT_STRATEGY_LOGS_FOR_SYMBOL);
+    query.addBindValue(p_symbol);
+
+    if (!query.exec())
+    {
+        WARNING << "Failed to load strategy logs for" << p_symbol << ":" << query.lastError().text();
+        return entries;
+    }
+
+    while (query.next())
+    {
+        StrategyLogEntry entry;
+        entry.id = query.value(0).toInt();
+        entry.strategyID = query.value(1).toString();
+        entry.symbol = query.value(2).toString();
+        entry.timestamp = QDateTime::fromString(query.value(3).toString(), Qt::ISODate);
+        entry.message = query.value(4).toString();
+        entries.append(entry);
+    }
+
+    DEBUG << "Loaded" << entries.size() << "strategy log entries for" << p_symbol;
+    return entries;
 }

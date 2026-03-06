@@ -8,6 +8,7 @@
 #include <QVBoxLayout>
 #include <QSemaphore>
 #include <QTimer>
+#include <functional>
 
 #include "qcustomplot.h"
 #include "Bar.h"
@@ -15,6 +16,7 @@
 #include "ChartTimeUtils.h"
 #include "CONSTANTS.h"
 #include "QCPItemTriangle.h"
+#include "OrdersDatabase.h"
 
 // Forward declarations
 class Order;
@@ -205,6 +207,12 @@ class StockPriceChart : public QWidget
      */
     void setOrderVisualizationsVisible(bool visible);
 
+    /**
+     * @brief Called when a strategy emits a log-to-chart message.
+     * Creates a log marker on the chart in real time.
+     */
+    void onStrategyLogEmitted(const StrategyLogEntry& entry);
+
   public slots:
     void onReplayDataLoadFailed(const QString& errorMessage);
 
@@ -338,6 +346,59 @@ class StockPriceChart : public QWidget
 
     // Whether order visualizations are visible (toggle support)
     bool m_orderVisualizationsVisible = true;
+
+    // ========== Hover Tooltip ==========
+
+    /**
+     * @brief Associates a QCustomPlot item with a pixel-anchor getter + tooltip text.
+     * Used in eventFilter to hit-test all tooltipped items on every mouse move.
+     */
+    struct HoverTarget
+    {
+        QCPAbstractItem* item;           ///< Owned by QCustomPlot; used as a live/removed guard
+        std::function<QPointF()> getPos; ///< Returns current pixel coordinates of the item's anchor
+        QString tooltip;
+    };
+
+    QVector<HoverTarget> m_hoverTargets;
+
+    /**
+     * @brief Register an item for hover tooltip hit-testing.
+     */
+    void registerTooltip(QCPAbstractItem* item, std::function<QPointF()> getPos, const QString& tooltip);
+
+    /**
+     * @brief Remove a previously registered item from tooltip hit-testing.
+     */
+    void unregisterTooltip(QCPAbstractItem* item);
+
+    // ========== Log Markers ==========
+
+    /** @brief Represents a strategy log marker on the chart. */
+    struct LogMarker
+    {
+        int dbId = 0;
+        QString symbol;
+        QDateTime timestamp;
+        QString message;
+        QString strategyID;
+        QCPItemEllipse* markerItem = nullptr; ///< Owned by QCustomPlot
+    };
+
+    QVector<LogMarker*> m_logMarkers;
+
+    /**
+     * @brief Create and add a single log marker to the chart.
+     * @param entry The log entry to visualise
+     * @return Pointer to the created LogMarker (owned by m_logMarkers)
+     */
+    LogMarker* createLogMarker(const StrategyLogEntry& entry);
+
+    /**
+     * @brief Load all strategy log entries for the current symbol from OrdersDatabase.
+     * Must be called after bars are loaded.
+     */
+    void loadStrategyLogMarkers();
 
     // Colors for order visualization
     static constexpr QColor ORDER_VIZ_GREEN{0, 255, 100};  // #00FF64 - Bright lime green

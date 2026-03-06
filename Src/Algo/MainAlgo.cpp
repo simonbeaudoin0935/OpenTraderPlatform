@@ -14,6 +14,7 @@
 #include "Assume.h"
 #include "OrderEmulator.h"
 #include "CONSTANTS.h"
+#include "OrdersDatabase.h"
 
 #define LOGGING_CATEGORY MainAlgoLog
 
@@ -485,6 +486,15 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
         return;
     }
 
+    // Attach strategy log to the order and persist it on first arrival (if pending)
+    auto logIt = m_orderIdToLog.find(order.getOrderID());
+    if (logIt != m_orderIdToLog.end())
+    {
+        order.setStrategyLog(*logIt);
+        OrdersDatabase::getInstance()->updateOrderStrategyLog(order.getOrderID(), *logIt);
+        m_orderIdToLog.erase(logIt);
+    }
+
     // This order belongs to a strategy - route it to that strategy only
     QString strategyID = *strategyIt;
     DEBUG << "Routing order update for orderID=" << order.getOrderID() << "to strategyID=" << strategyID;
@@ -662,6 +672,12 @@ void MainAlgo::processPlaceOrder(uint64_t p_requestId,
     // Store temporary mapping: requestId -> strategyID (will be replaced with OrderID -> strategyID when ACK received)
     m_requestIdToStrategyId[p_requestId] = p_strategyID;
 
+    // If the request carries a strategy log, hold it until we have the OrderID from ACK
+    if (p_orderRequest.getStrategyLog().has_value())
+    {
+        m_pendingOrderLogs[p_requestId] = p_orderRequest.getStrategyLog().value();
+    }
+
     // Store the promise for resolution when order is acknowledged
     m_pendingOrderPromises[p_requestId] = p_promise;
 
@@ -720,6 +736,12 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
                 m_orderMappings[orderID] = strategyID;
                 DEBUG << "Created order mapping: OrderID=" << orderID << "→ strategyID=" << strategyID
                       << "(total mappings=" << m_orderMappings.size() << ")";
+
+                // Promote any pending strategy log from requestId → orderID scope
+                if (m_pendingOrderLogs.contains(p_requestId))
+                {
+                    m_orderIdToLog[orderID] = m_pendingOrderLogs.take(p_requestId);
+                }
             }
         }
 
@@ -728,7 +750,9 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
     }
     else
     {
-        // Order placement failed
+        // Order placement failed - discard any pending log for this request
+        m_pendingOrderLogs.remove(p_requestId);
+
         TSClient::Error error = p_result.error();
         WARNING << "Order placement failed: requestId=" << p_requestId << "strategyID=" << strategyID
                 << "error=" << QtEnum::toString(error);
@@ -1440,4 +1464,14 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
     ASSUME_TRUE(connected);
 
     INFO << "Stock instrument created and set as displayed for" << p_symbol;
+}
+
+void MainAlgo::processStrategyLog(const StrategyLogEntry& p_entry)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+    OBJ_ASSUME_FALSE(p_entry.symbol.isEmpty());
+    OBJ_ASSUME_FALSE(p_entry.message.isEmpty());
+
+    OrdersDatabase::getInstance()->insertStrategyLog(p_entry);
+    emit strategyLogEmitted(p_entry);
 }

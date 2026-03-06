@@ -113,6 +113,15 @@ OrderMarker* StockPriceChart::createOrderMarker(const QString& orderID,
     marker->markerItem = triangle;
     marker->isTriangleMarker = true;
     m_orderMarkers.insert(orderID, marker);
+
+    // Register for hover tooltip (anchor: tip of triangle)
+    {
+        QString directionStr = isBuy ? "BUY" : "SELL";
+        QString stateStr = filled ? "Filled" : "Pending";
+        QString tooltipText = QString("%1 %2  |  price: %3").arg(stateStr, directionStr).arg(price, 0, 'f', 2);
+        registerTooltip(triangle, [triangle]() { return triangle->tip->pixelPosition(); }, tooltipText);
+    }
+
     return marker;
 }
 
@@ -146,6 +155,12 @@ OrderMarker* StockPriceChart::createCancelledMarker(const QString& orderID, doub
     textLabel->setPositionAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
     marker->markerItem = textLabel;
 
+    // Register for hover tooltip
+    {
+        QString tooltipText = QString("Cancelled  |  price: %1").arg(price, 0, 'f', 2);
+        registerTooltip(textLabel, [textLabel]() { return textLabel->position->pixelPosition(); }, tooltipText);
+    }
+
     m_orderMarkers.insert(orderID, marker);
     return marker;
 }
@@ -169,6 +184,7 @@ void StockPriceChart::updateMarkerState(OrderMarker* marker, OrderMarker::State 
             return static_cast<QCPItemText*>(marker->markerItem)->position->coords();
         }();
 
+        unregisterTooltip(marker->markerItem);
         m_customPlot->removeItem(marker->markerItem);
         marker->isTriangleMarker = false;
 
@@ -182,6 +198,9 @@ void StockPriceChart::updateMarkerState(OrderMarker* marker, OrderMarker::State 
         textLabel->setPadding(QMargins(4, 4, 4, 4));
         textLabel->setPositionAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
         marker->markerItem = textLabel;
+
+        QString tooltipText = QString("Cancelled  |  price: %1").arg(coords.y(), 0, 'f', 2);
+        registerTooltip(textLabel, [textLabel]() { return textLabel->position->pixelPosition(); }, tooltipText);
         return;
     }
 
@@ -232,6 +251,7 @@ void StockPriceChart::removeOrderMarker(const QString& orderID)
     // Remove marker item from plot
     if (marker->markerItem)
     {
+        unregisterTooltip(marker->markerItem);
         m_customPlot->removeItem(marker->markerItem);
     }
 
@@ -503,6 +523,20 @@ void StockPriceChart::clearOrderVisualizations()
     // Hide P&L box
     hideOpenPositionPLBox();
 
+    // Remove all log markers
+    for (LogMarker* lm: m_logMarkers)
+    {
+        if (lm->markerItem)
+        {
+            m_customPlot->removeItem(lm->markerItem);
+        }
+        delete lm;
+    }
+    m_logMarkers.clear();
+
+    // All QCPAbstractItem* in hover targets are now stale — clear them
+    m_hoverTargets.clear();
+
     DEBUG << "Order visualizations cleared";
 }
 
@@ -735,6 +769,20 @@ void StockPriceChart::onOrderPlaced(const Order& order)
     marker->quantity = order.getQuantity().toInt();
     marker->accountID = order.getAccountID();
 
+    // Rebuild tooltip now that quantity is known
+    {
+        QString dirStr = isBuy ? "BUY" : "SELL";
+        QString tip = QString("Pending %1  |  %2 shares @ %3").arg(dirStr).arg(marker->quantity).arg(price, 0, 'f', 2);
+        if (order.getStrategyLog().has_value())
+        {
+            tip += QString("\n\"%1\"").arg(order.getStrategyLog().value());
+        }
+        registerTooltip(
+            marker->markerItem,
+            [tri = static_cast<QCPItemTriangle*>(marker->markerItem)]() { return tri->tip->pixelPosition(); },
+            tip);
+    }
+
     m_customPlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
@@ -760,6 +808,22 @@ void StockPriceChart::onOrderFilled(const Order& order)
         }
 
         marker->timestamp = order.getClosedDateTime();
+
+        // Update tooltip with final fill price and strategy log
+        if (marker->markerItem)
+        {
+            QString dirStr = marker->isBuy ? "BUY" : "SELL";
+            QString tip =
+                QString("Filled %1  |  %2 shares @ %3").arg(dirStr).arg(marker->quantity).arg(fillPrice, 0, 'f', 2);
+            if (order.getStrategyLog().has_value())
+            {
+                tip += QString("\n\"%1\"").arg(order.getStrategyLog().value());
+            }
+            registerTooltip(
+                marker->markerItem,
+                [tri = static_cast<QCPItemTriangle*>(marker->markerItem)]() { return tri->tip->pixelPosition(); },
+                tip);
+        }
     }
     else
     {
@@ -793,6 +857,21 @@ void StockPriceChart::onOrderFilled(const Order& order)
         marker->timestamp = order.getClosedDateTime();
         marker->quantity = order.getQuantity().toInt();
         marker->accountID = order.getAccountID();
+
+        // Build full tooltip with strategy log if present
+        {
+            QString dirStr = isBuy ? "BUY" : "SELL";
+            QString tip =
+                QString("Filled %1  |  %2 shares @ %3").arg(dirStr).arg(marker->quantity).arg(price, 0, 'f', 2);
+            if (order.getStrategyLog().has_value())
+            {
+                tip += QString("\n\"%1\"").arg(order.getStrategyLog().value());
+            }
+            registerTooltip(
+                marker->markerItem,
+                [tri = static_cast<QCPItemTriangle*>(marker->markerItem)]() { return tri->tip->pixelPosition(); },
+                tip);
+        }
     }
 
     m_customPlot->replot(QCustomPlot::rpQueuedReplot);
@@ -934,4 +1013,125 @@ void StockPriceChart::setOrderVisualizationsVisible(bool visible)
 {
     m_orderVisualizationsVisible = visible;
     updateOrderVisualizationsVisibility();
+}
+
+// ========== Tooltip Registration ==========
+
+void StockPriceChart::registerTooltip(QCPAbstractItem* item, std::function<QPointF()> getPos, const QString& tooltip)
+{
+    // Replace existing entry for same item, or append a new one
+    for (auto& target: m_hoverTargets)
+    {
+        if (target.item == item)
+        {
+            target.getPos = std::move(getPos);
+            target.tooltip = tooltip;
+            return;
+        }
+    }
+    m_hoverTargets.append({item, std::move(getPos), tooltip});
+}
+
+void StockPriceChart::unregisterTooltip(QCPAbstractItem* item)
+{
+    m_hoverTargets.erase(std::remove_if(m_hoverTargets.begin(),
+                                        m_hoverTargets.end(),
+                                        [item](const HoverTarget& t) { return t.item == item; }),
+                         m_hoverTargets.end());
+}
+
+// ========== Log Markers ==========
+
+StockPriceChart::LogMarker* StockPriceChart::createLogMarker(const StrategyLogEntry& entry)
+{
+    double index = getExactIndexForTimestamp(entry.timestamp);
+    int barCount = m_candlesticks ? m_candlesticks->data()->size() : 0;
+    if (barCount == 0)
+    {
+        return nullptr;
+    }
+    index = clampIndexToValidRange(index, barCount);
+
+    // Pin the marker to a fixed fraction of the visible Y range (top quarter)
+    QCPAxis* yAxis = m_customPlot->axisRect()->axis(QCPAxis::atRight);
+    const double yMin = yAxis->range().lower;
+    const double yMax = yAxis->range().upper;
+    const double markerY = yMin + (yMax - yMin) * 0.88;
+
+    auto* ellipse = new QCPItemEllipse(m_customPlot);
+    ellipse->topLeft->setAxes(m_customPlot->xAxis, yAxis);
+    ellipse->bottomRight->setAxes(m_customPlot->xAxis, yAxis);
+
+    // 8px circle around the marker point (converted to axis coords)
+    const double halfW = 4.0 / m_customPlot->axisRect()->width() * (m_customPlot->xAxis->range().size());
+    const double halfH = 4.0 / m_customPlot->axisRect()->height() * yAxis->range().size();
+    ellipse->topLeft->setCoords(index - halfW, markerY + halfH);
+    ellipse->bottomRight->setCoords(index + halfW, markerY - halfH);
+
+    static constexpr QColor LOG_MARKER_COLOR{100, 140, 255, 220}; // Blue-purple
+    ellipse->setPen(QPen(LOG_MARKER_COLOR, 1));
+    ellipse->setBrush(QBrush(LOG_MARKER_COLOR));
+
+    auto* lm = new LogMarker();
+    lm->dbId = entry.id;
+    lm->symbol = entry.symbol;
+    lm->timestamp = entry.timestamp;
+    lm->message = entry.message;
+    lm->strategyID = entry.strategyID;
+    lm->markerItem = ellipse;
+    m_logMarkers.append(lm);
+
+    // Tooltip text
+    const QString tip = QString("● Strategy Log  [%1]\n\"%2\"\nStrategy: %3")
+                            .arg(entry.timestamp.toString("HH:mm:ss"), entry.message, entry.strategyID);
+    registerTooltip(
+        ellipse,
+        [ellipse]() { return (ellipse->topLeft->pixelPosition() + ellipse->bottomRight->pixelPosition()) / 2.0; },
+        tip);
+
+    return lm;
+}
+
+void StockPriceChart::loadStrategyLogMarkers()
+{
+    if (m_symbol.isEmpty())
+    {
+        return;
+    }
+
+    OrdersDatabase* db = OrdersDatabase::getInstance();
+    if (!db || !db->isOpen())
+    {
+        return;
+    }
+
+    const QVector<StrategyLogEntry> entries = db->loadStrategyLogs(m_symbol);
+    for (const StrategyLogEntry& entry: entries)
+    {
+        createLogMarker(entry);
+    }
+
+    if (!entries.isEmpty())
+    {
+        m_customPlot->replot(QCustomPlot::rpQueuedReplot);
+    }
+
+    qCDebug(ChartLog) << "loadStrategyLogMarkers() - Loaded" << entries.size() << "log markers for" << m_symbol;
+}
+
+void StockPriceChart::onStrategyLogEmitted(const StrategyLogEntry& entry)
+{
+    if (entry.symbol != m_symbol)
+    {
+        return;
+    }
+
+    int barCount = m_candlesticks ? m_candlesticks->data()->size() : 0;
+    if (barCount == 0)
+    {
+        return;
+    }
+
+    createLogMarker(entry);
+    m_customPlot->replot(QCustomPlot::rpQueuedReplot);
 }

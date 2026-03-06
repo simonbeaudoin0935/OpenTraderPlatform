@@ -5,11 +5,21 @@
 #include <QString>
 #include <QDateTime>
 #include <QMap>
+#include <QVector>
 #include <QLoggingCategory>
 
 #include "Order.h"
 
 Q_DECLARE_LOGGING_CATEGORY(OrdersDatabaseLog)
+
+struct StrategyLogEntry
+{
+    int id = 0; // DB-assigned, 0 before insert
+    QString strategyID;
+    QString symbol;
+    QDateTime timestamp; // America/New_York timezone
+    QString message;
+};
 
 /**
  * @brief Database for persisting order history (Singleton)
@@ -101,6 +111,28 @@ class OrdersDatabase : public QObject
      * @return true if successful, false otherwise
      */
     bool clearAllOrders();
+
+    /**
+     * @brief Update the strategy_log field for an existing order.
+     * @param p_orderID Order to update
+     * @param p_log     Log message to attach
+     * @return true if successful, false otherwise
+     */
+    bool updateOrderStrategyLog(const QString& p_orderID, const QString& p_log);
+
+    /**
+     * @brief Insert a strategy log entry into the strategy_logs table.
+     * @param p_entry The log entry to insert (id field is ignored; assigned by DB)
+     * @return true if successful, false otherwise
+     */
+    bool insertStrategyLog(const StrategyLogEntry& p_entry);
+
+    /**
+     * @brief Load all strategy log entries for a given symbol.
+     * @param p_symbol The stock symbol to filter by
+     * @return Vector of log entries ordered by timestamp ascending
+     */
+    QVector<StrategyLogEntry> loadStrategyLogs(const QString& p_symbol) const;
 
   private:
     explicit OrdersDatabase(const QString& p_dbPath, QObject* p_parent = nullptr);

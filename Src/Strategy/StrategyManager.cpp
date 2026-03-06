@@ -2,6 +2,7 @@
 #include "StrategySDK.h"
 #include "../Algo/MainAlgo.h"
 #include "Assume.h"
+#include "OrdersDatabase.h"
 #include <QUuid>
 #include <QDebug>
 #include <QPromise>
@@ -28,9 +29,9 @@ QFuture<std::expected<PlaceOrderResult, TSClient::Error>> StrategySDK::placeOrde
     // Enforce: strategy may only trade symbols it has claimed exclusive authority over
     if (!m_claimedSymbols.contains(p_order.getSymbol()))
     {
-        qWarning(StrategyManagerLog)
-            << "Strategy" << m_strategyID << "rejected order for unclaimed symbol:" << p_order.getSymbol()
-            << "- call claimSymbols() first";
+        qWarning(StrategyManagerLog) << "Strategy" << m_strategyID
+                                     << "rejected order for unclaimed symbol:" << p_order.getSymbol()
+                                     << "- call claimSymbols() first";
         return QtFuture::makeReadyFuture(
             std::expected<PlaceOrderResult, TSClient::Error>(std::unexpected(TSClient::Error::RejectedByValidator)));
     }
@@ -197,6 +198,25 @@ void StrategySDK::log(const QString& p_message, LogLevel p_level)
 const StrategyConfig& StrategySDK::getConfig() const
 {
     return m_config;
+}
+
+void StrategySDK::logToChart(const QString& p_symbol, const QString& p_message)
+{
+    ASSUME_DIFF(m_mainAlgo, nullptr);
+    ASSUME_FALSE(p_symbol.isEmpty());
+    ASSUME_FALSE(p_message.isEmpty());
+    ASSUME_TRUE(m_claimedSymbols.contains(p_symbol));
+
+    StrategyLogEntry entry;
+    entry.strategyID = m_strategyID;
+    entry.symbol = p_symbol;
+    entry.timestamp = getCurrentTime();
+    entry.message = p_message;
+
+    QMetaObject::invokeMethod(
+        m_mainAlgo,
+        [this, entry]() { m_mainAlgo->processStrategyLog(entry); },
+        Qt::QueuedConnection);
 }
 
 const QString& StrategySDK::getStrategyName() const
@@ -925,9 +945,10 @@ void StrategyManager::processClaimSymbols(const QString& p_strategyID,
     auto* instance = findStrategy(p_strategyID);
     if (instance && instance->p_sdk)
     {
-        QMetaObject::invokeMethod(instance->p_sdk,
-                                  [sdk = instance->p_sdk, approved]() { sdk->setClaimedSymbols(approved); },
-                                  Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+            instance->p_sdk,
+            [sdk = instance->p_sdk, approved]() { sdk->setClaimedSymbols(approved); },
+            Qt::QueuedConnection);
     }
 
     // Update monitored symbols list for StrategyQuickView
@@ -960,8 +981,9 @@ void StrategyManager::releaseSymbols(const QString& p_strategyID)
     auto* instance = findStrategy(p_strategyID);
     if (instance && instance->p_sdk)
     {
-        QMetaObject::invokeMethod(instance->p_sdk,
-                                  [sdk = instance->p_sdk]() { sdk->clearClaimedSymbols(); },
-                                  Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+            instance->p_sdk,
+            [sdk = instance->p_sdk]() { sdk->clearClaimedSymbols(); },
+            Qt::QueuedConnection);
     }
 }

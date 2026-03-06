@@ -1,5 +1,6 @@
 #include "StockPriceChart.h"
 #include "Logging.h"
+#include <QToolTip>
 
 #define LOGGING_CATEGORY ChartLog
 
@@ -116,6 +117,32 @@ bool StockPriceChart::eventFilter(QObject* obj, QEvent* event)
         wheelEvent(static_cast<QWheelEvent*>(event));
         return true;
     }
+
+    if (obj == m_customPlot && event->type() == QEvent::MouseMove)
+    {
+        auto* me = static_cast<QMouseEvent*>(event);
+        const QPointF mousePos = me->position();
+        constexpr double HIT_RADIUS_PX = 12.0;
+
+        bool hitFound = false;
+        for (const HoverTarget& target: m_hoverTargets)
+        {
+            const QPointF itemPos = target.getPos();
+            const double dist = QLineF(mousePos, itemPos).length();
+            if (dist <= HIT_RADIUS_PX)
+            {
+                QToolTip::showText(me->globalPosition().toPoint(), target.tooltip, m_customPlot);
+                hitFound = true;
+                break;
+            }
+        }
+        if (!hitFound)
+        {
+            QToolTip::hideText();
+        }
+        // Don't consume the event — let QCustomPlot handle panning etc.
+    }
+
     return QWidget::eventFilter(obj, event);
 }
 

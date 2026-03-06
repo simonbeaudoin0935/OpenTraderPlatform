@@ -185,10 +185,7 @@ void Level2Widget::setupStyles()
                              "}");
 }
 
-void Level2Widget::setMarketDepthItem(QStandardItem* item,
-                                          const Level2Row& level,
-                                          const QString& field,
-                                          int priceLevel)
+void Level2Widget::setMarketDepthItem(QStandardItem* item, const Level2Row& level, const QString& field, int priceLevel)
 {
     QString text;
     if (field == "Price")

@@ -433,6 +433,10 @@ class PlaceOrderRequest
     {
         ocaGroupType = value;
     }
+    void setStrategyLog(const QString& value)
+    {
+        strategyLog = value;
+    }
 
     // Getters for all fields
     QString getAccountID() const
@@ -487,6 +491,10 @@ class PlaceOrderRequest
     {
         return ocaGroupType;
     }
+    std::optional<QString> getStrategyLog() const
+    {
+        return strategyLog;
+    }
 
     // Validation
     bool isValid() const;
@@ -517,6 +525,7 @@ class PlaceOrderRequest
     std::optional<double> stopPrice;
     std::optional<QString> ocaGroupName;
     std::optional<QString> ocaGroupType;
+    std::optional<QString> strategyLog; // Optional log message attached by the strategy at order time
 };
 
 class OrderResultItem
