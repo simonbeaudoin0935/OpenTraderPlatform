@@ -1304,6 +1304,13 @@ void MainAlgo::startReplayOrderStreams()
     simAccounts.append(simAccount);
     emit tradeStationAccountsReceived(simAccounts);
     DEBUG << "Emitted simulated account for replay mode";
+
+    // Start balance polling so the balances widget updates during replay
+    if (!m_balancePollingStarted)
+    {
+        startBalancePolling();
+        m_balancePollingStarted = true;
+    }
 }
 
 void MainAlgo::resumeLiveStreams()
