@@ -5,6 +5,7 @@
 #include <QCheckBox>
 #include <QMap>
 #include <QSpinBox>
+#include <QPushButton>
 
 class LoggingTab : public QWidget
 {
@@ -45,6 +46,10 @@ class LoggingTab : public QWidget
     /// @param checked True to disable all INFO messages
     void onGlobalInfoDisableToggled(bool checked);
 
+    /// Handle clear log folder button click
+    /// Deletes all log files from the log folder (excluding the current session log)
+    void onClearLogsFolderClicked();
+
   private:
     void setupUI();
     void populateCategoryCheckboxes();
@@ -57,4 +62,5 @@ class LoggingTab : public QWidget
     QSpinBox* logDepthSpinBox;
     QCheckBox* globalDebugDisableCheckBox;
     QCheckBox* globalInfoDisableCheckBox;
+    QPushButton* clearLogsButton;
 };

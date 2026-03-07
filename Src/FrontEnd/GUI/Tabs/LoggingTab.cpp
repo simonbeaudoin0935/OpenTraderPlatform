@@ -4,6 +4,9 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPushButton>
+#include <QMessageBox>
+#include <QDir>
 
 #include "Misc/Logging.h"
 #include "Misc/Settings.h"
@@ -15,6 +18,7 @@ LoggingTab::LoggingTab(QWidget* parent)
     , logDepthSpinBox(nullptr)
     , globalDebugDisableCheckBox(nullptr)
     , globalInfoDisableCheckBox(nullptr)
+    , clearLogsButton(nullptr)
 {
     setupUI();
     populateCategoryCheckboxes();
@@ -60,6 +64,12 @@ void LoggingTab::setupUI()
     globalInfoDisableCheckBox->setChecked(LoggingConfig::instance().isInfoDisabled());
     connect(globalInfoDisableCheckBox, &QCheckBox::toggled, this, &LoggingTab::onGlobalInfoDisableToggled);
     loggerControlsLayout->addWidget(globalInfoDisableCheckBox);
+
+    // Clear log folder button
+    clearLogsButton = new QPushButton("Clear Log Folder");
+    clearLogsButton->setStyleSheet("QPushButton { background-color: #FF4444; color: white; }");
+    connect(clearLogsButton, &QPushButton::clicked, this, &LoggingTab::onClearLogsFolderClicked, Qt::UniqueConnection);
+    loggerControlsLayout->addWidget(clearLogsButton);
 
     mainLayout->addWidget(loggerControlsGroupBox);
 
@@ -168,4 +178,70 @@ void LoggingTab::onGlobalInfoDisableToggled(bool checked)
 {
     LoggingConfig::instance().setInfoDisabled(checked);
     qInfo() << "Global info messages" << (checked ? "disabled" : "enabled");
+}
+
+void LoggingTab::onClearLogsFolderClicked()
+{
+    QString logsDirPath = getLogsFolderPath();
+    QDir logsDir(logsDirPath);
+
+    if (!logsDir.exists())
+    {
+        QMessageBox::information(this, "Log Folder", "Log folder does not exist.");
+        return;
+    }
+
+    QStringList logFiles = logsDir.entryList({"*.log.ansi"}, QDir::Files);
+
+    if (logFiles.isEmpty())
+    {
+        QMessageBox::information(this, "Log Folder", "No log files found to delete.");
+        return;
+    }
+
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this,
+        "Confirm Deletion",
+        QString("Are you sure you want to delete %1 log file(s) from:\n%2\n\nThe current session log will be skipped.")
+            .arg(logFiles.size())
+            .arg(logsDirPath),
+        QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes)
+    {
+        return;
+    }
+
+    int deletedCount = 0;
+    int skippedCount = 0;
+    for (const QString& fileName: logFiles)
+    {
+        QString filePath = logsDir.filePath(fileName);
+        if (!QFile::remove(filePath))
+        {
+            skippedCount++;
+        }
+        else
+        {
+            deletedCount++;
+        }
+    }
+
+    qInfo() << "Log folder cleared:" << deletedCount << "file(s) deleted," << skippedCount << "file(s) skipped.";
+
+    if (skippedCount > 0)
+    {
+        QMessageBox::information(
+            this,
+            "Log Folder Cleared",
+            QString("Deleted %1 log file(s). %2 file(s) could not be deleted (current session log is kept).")
+                .arg(deletedCount)
+                .arg(skippedCount));
+    }
+    else
+    {
+        QMessageBox::information(this,
+                                 "Log Folder Cleared",
+                                 QString("Successfully deleted %1 log file(s).").arg(deletedCount));
+    }
 }

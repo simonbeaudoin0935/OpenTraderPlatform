@@ -59,6 +59,7 @@ namespace QtEnum
 
 void initLogging();
 void reinstallColoredMessageHandler();
+QString getLogsFolderPath();
 
 // Singleton to broadcast log messages to GUI
 class LogBroadcaster : public QObject
