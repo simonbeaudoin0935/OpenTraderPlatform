@@ -548,6 +548,10 @@ void MainAlgo::requestBalance()
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
 
+    // Don't request balance if not authenticated — TSClient will assert on empty API key
+    if (!TSClient::getInstance()->isAuthenticated())
+        return;
+
     OBJ_ASSUME_FALSE(m_activeAccount.getAccountId().isEmpty());
 
 
@@ -1324,7 +1328,9 @@ void MainAlgo::resumeLiveStreams()
     // Skip account fetch if not authenticated (e.g. replay-only without TS credentials)
     if (!TSClient::getInstance()->isAuthenticated())
     {
-        INFO << "Not authenticated with TradeStation — skipping account fetch after replay mode";
+        INFO << "Not authenticated with TradeStation — stopping balance polling and skipping account fetch after replay mode";
+        stopBalancePolling();
+        m_balancePollingStarted = false;
         return;
     }
 
