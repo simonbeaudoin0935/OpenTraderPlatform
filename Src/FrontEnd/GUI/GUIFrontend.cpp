@@ -657,6 +657,9 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                m_hasRestoredLastStock = true;
                                restoreLastDisplayedStock();
                                restoreReplayState();
+                               // Restore strategies AFTER replay mode is set up (enterReplayMode posts
+                               // stopAllStrategies via QueuedConnection; this queues behind it).
+                               QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
                                QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
                            }
                        });
@@ -982,6 +985,9 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated,
             m_hasRestoredLastStock = true;
             restoreLastDisplayedStock();
             restoreReplayState();
+            // Restore strategies AFTER replay mode is set up (enterReplayMode posts
+            // stopAllStrategies via QueuedConnection; this queues behind it).
+            QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
             // Clear focus from the stock input after restore — it should not
             // have keyboard focus at startup (press 'i' to focus it explicitly)
             QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });

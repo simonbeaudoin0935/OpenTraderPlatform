@@ -169,6 +169,10 @@ class MainAlgo final : public QObject
     /// @brief Stop all running strategies (for clean mode transitions)
     void stopAllStrategies();
 
+    /// @brief Restore previously loaded strategies from StrategiesState.ini.
+    /// Must be called on the MainAlgo thread after all mode transitions are complete.
+    void restoreStrategiesState();
+
     /// @brief Create a stock instrument and set it as displayed
     /// @param p_symbol The stock symbol to create and display
     void createAndSetDisplayedStockInstrument(const QString& p_symbol);

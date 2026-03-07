@@ -1003,7 +1003,10 @@ void StrategyManager::persistStrategiesState()
     if (!strategiesStateSettings)
         return;
 
-    strategiesStateSettings->beginWriteArray("LoadedStrategies");
+    // Pass explicit size so QSettings IniFormat writes the correct "size=N" key.
+    // Without it, Qt sets size to the last setArrayIndex() value (0-based) rather
+    // than the element count, causing beginReadArray() to return 0 on next launch.
+    strategiesStateSettings->beginWriteArray("LoadedStrategies", m_strategies.size());
     int index = 0;
     for (auto it = m_strategies.constBegin(); it != m_strategies.constEnd(); ++it)
     {
