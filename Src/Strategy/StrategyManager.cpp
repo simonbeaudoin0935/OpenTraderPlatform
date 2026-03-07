@@ -14,7 +14,7 @@
 
 #include "Logging.h"
 
-Q_LOGGING_CATEGORY(StrategyManagerLog, "StrategyManager", QtWarningMsg)
+Q_LOGGING_CATEGORY(StrategyManagerLog, "StrategyManager")
 
 // StrategySDK implementation
 StrategySDK::StrategySDK(MainAlgo* p_mainAlgo,
@@ -1016,7 +1016,8 @@ void StrategyManager::persistStrategiesState()
         strategiesStateSettings->setArrayIndex(index++);
         const StrategyInstance* instance = it.value();
         QJsonDocument doc(instance->config.toJson());
-        strategiesStateSettings->setValue("config", doc.toJson(QJsonDocument::Compact));
+        // Store as QString so QSettings INI reads it back as a string (not @ByteArray).
+        strategiesStateSettings->setValue("config", QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
         strategiesStateSettings->setValue("wasRunning", instance->state == StrategyState::RUNNING);
     }
     strategiesStateSettings->endArray();
