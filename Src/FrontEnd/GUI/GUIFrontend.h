@@ -80,6 +80,8 @@ class GUIFrontend : public FrontEnd
     void displayStock(const QString& symbol);
     void saveLastDisplayedStock(const QString& symbol);
     void restoreLastDisplayedStock();
+    void saveReplayState(bool active, const QDate& date = QDate(), const QTime& startTime = QTime());
+    void restoreReplayState();
     QString formatAccountInfo(const Account& account) const;
     MainAlgo* mainAlgo;
     QString currentlyDisplayedSymbol;

@@ -579,7 +579,21 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                            0); // tradeTabBottomWidget gets stretch factor 0 (minimum size)
 
     // NOTE: Don't restore the last displayed stock here - wait for authentication
-    // It will be restored in onTradeStationAuthStateChanged() when authenticated
+    // It will be restored in onTradeStationAuthStateChanged() when authenticated.
+    // As a fallback, schedule a restore in case TS auth never fires (e.g. no credentials).
+    QTimer::singleShot(500,
+                       this,
+                       [this]()
+                       {
+                           if (!m_hasRestoredLastStock)
+                           {
+                               qInfo(GUIFrontendLog) << "TS auth never fired — restoring state via fallback timer";
+                               m_hasRestoredLastStock = true;
+                               restoreLastDisplayedStock();
+                               restoreReplayState();
+                               QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
+                           }
+                       });
 }
 
 GUIFrontend::~GUIFrontend()
@@ -901,6 +915,7 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated,
         {
             m_hasRestoredLastStock = true;
             restoreLastDisplayedStock();
+            restoreReplayState();
             // Clear focus from the stock input after restore — it should not
             // have keyboard focus at startup (press 'i' to focus it explicitly)
             QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
@@ -1248,6 +1263,59 @@ void GUIFrontend::restoreLastDisplayedStock()
 
     // Display the stock without saving again
     displayStock(lastSymbol);
+}
+
+void GUIFrontend::saveReplayState(bool active, const QDate& date, const QTime& startTime)
+{
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("Replay/Active", active);
+    if (active && date.isValid())
+    {
+        appStateSettings->setValue("Replay/Date", date.toString(Qt::ISODate));
+    }
+    if (active && startTime.isValid())
+    {
+        appStateSettings->setValue("Replay/StartTime", startTime.toString(Qt::ISODate));
+    }
+    appStateSettings->sync();
+}
+
+void GUIFrontend::restoreReplayState()
+{
+    Q_CHECK_PTR(appStateSettings);
+
+    if (!appStateSettings->value("Replay/Active", false).toBool())
+    {
+        return;
+    }
+
+    QDate savedDate = QDate::fromString(appStateSettings->value("Replay/Date").toString(), Qt::ISODate);
+    QTime savedTime = QTime::fromString(appStateSettings->value("Replay/StartTime").toString(), Qt::ISODate);
+
+    if (!savedDate.isValid())
+    {
+        qWarning() << "Saved replay date is invalid, skipping replay restore";
+        return;
+    }
+
+    ChartToolbar* toolbar = ui->priceChart->toolbar();
+
+    // Populate the replay day list so setSelectedReplayDay works
+    toolbar->scanAndPopulateReplayDays();
+
+    if (!DBClient::getInstance()->hasReplayData(savedDate, ui->priceChart->getCurrentSymbol()))
+    {
+        qWarning() << "Saved replay date" << savedDate << "has no data, skipping replay restore";
+        return;
+    }
+
+    toolbar->setSelectedReplayDay(savedDate);
+
+    QTime startTime = savedTime.isValid() ? savedTime : toolbar->getReplayStartTime();
+    ReplayEngine::PlaybackSpeed speed = toolbar->getReplaySpeed();
+
+    qInfo() << "Restoring replay state: date=" << savedDate << "time=" << startTime;
+    MainApp::getInstance()->enterReplayMode(savedDate, startTime, speed);
 }
 
 void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order)
@@ -1673,6 +1741,10 @@ void GUIFrontend::onReplayModeEntered()
 {
     qCInfo(GUIFrontendLog) << "Replay mode entered";
 
+    // Persist replay state so we can restore it on next launch
+    ChartToolbar* toolbar = ui->priceChart->toolbar();
+    saveReplayState(true, toolbar->getSelectedReplayDay(), toolbar->getReplayStartTime());
+
     // Update data source indicator to show REPLAY
     ASSUME_DIFF(m_dataSourceLabel, nullptr);
     m_dataSourceLabel->setText("🔴 REPLAY");
@@ -1723,6 +1795,9 @@ void GUIFrontend::onReplayModeEntered()
 void GUIFrontend::onReplayModeExited()
 {
     qCInfo(GUIFrontendLog) << "Replay mode exited";
+
+    // Clear persisted replay state
+    saveReplayState(false);
 
     // Update data source indicator to show LIVE
     ASSUME_DIFF(m_dataSourceLabel, nullptr);
