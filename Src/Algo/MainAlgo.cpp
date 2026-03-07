@@ -1314,6 +1314,13 @@ void MainAlgo::resumeLiveStreams()
     OBJ_ASSUME_DIFF(m_positionReceiver, nullptr);
     OBJ_ASSUME_DIFF(m_orderReceiver, nullptr);
 
+    // Skip account fetch if not authenticated (e.g. replay-only without TS credentials)
+    if (!TSClient::getInstance()->isAuthenticated())
+    {
+        INFO << "Not authenticated with TradeStation — skipping account fetch after replay mode";
+        return;
+    }
+
     // Fetch real accounts from API (replay mode uses fake "SIM123456")
     INFO << "Fetching real accounts from API after replay mode";
     QFuture<std::expected<QVector<Account>, TSClient::Error>> future = TSClient::getInstance()->getAccounts();
