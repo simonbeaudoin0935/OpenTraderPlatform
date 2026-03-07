@@ -494,9 +494,10 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
 
     m_customPlot->replot();
 
-    // Now that we have bars, load historical orders and positions
+    // Now that we have bars, load historical orders, positions, and log markers
     loadHistoricalOrders();
     loadHistoricalPositions();
+    loadStrategyLogMarkers();
 }
 
 /**

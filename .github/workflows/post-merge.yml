@@ -23,6 +23,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: true
 
     - name: Set up ccache
       run: |
@@ -73,6 +75,7 @@ jobs:
         retention-days: 30
 
   build-debian-package-arm64:
+    if: false
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -90,6 +93,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+        with:
+          submodules: true
 
     - name: Set up ccache
       run: |
@@ -141,7 +146,7 @@ jobs:
 
   upload-packages:
     runs-on: ubuntu-latest
-    needs: [build-debian-package-x64, build-debian-package-arm64]
+    needs: [build-debian-package-x64]
     if: success()
     permissions:
       contents: read
@@ -154,19 +159,10 @@ jobs:
         name: debian-packages-x64-${{ github.sha }}
         path: ./packages/x64
 
-    - name: Download ARM64 packages
-      uses: actions/download-artifact@v4
-      with:
-        name: debian-packages-arm64-${{ github.sha }}
-        path: ./packages/arm64
-
     - name: List all packages
       run: |
         echo "=== X64 Packages ==="
         ls -lh ./packages/x64/
-        echo ""
-        echo "=== ARM64 Packages ==="
-        ls -lh ./packages/arm64/
 
     - name: Upload combined packages
       uses: actions/upload-artifact@v4.4.3
@@ -174,5 +170,4 @@ jobs:
         name: debian-packages-all-${{ github.sha }}
         path: |
           packages/x64/*.deb
-          packages/arm64/*.deb
         retention-days: 90

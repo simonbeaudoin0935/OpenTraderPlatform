@@ -130,6 +130,13 @@ class StrategySDK : public QObject
     /// @param level Log level (Debug, Info, Warning, Error)
     void log(const QString& message, LogLevel level = LogLevel::Info);
 
+    /// @brief Emit a chart log marker for a symbol (thread-safe).
+    /// A small marker will appear on the chart at the current time for the given symbol.
+    /// The user can hover over the marker to read the message.
+    /// @param symbol Stock symbol the log is associated with (must be a claimed symbol)
+    /// @param message Log message to display in the chart tooltip
+    void logToChart(const QString& symbol, const QString& message);
+
     /// @brief Get strategy configuration (thread-safe)
     /// @return Reference to strategy config passed at initialization
     [[nodiscard]]

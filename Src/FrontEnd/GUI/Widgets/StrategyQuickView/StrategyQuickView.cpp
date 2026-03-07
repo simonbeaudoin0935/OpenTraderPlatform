@@ -5,9 +5,7 @@
 #include <QVBoxLayout>
 #include <QFont>
 
-StrategyQuickView::StrategyQuickView(QWidget* parent)
-    : QWidget(parent)
-    , m_tree(new QTreeWidget(this))
+StrategyQuickView::StrategyQuickView(QWidget* parent) : QWidget(parent), m_tree(new QTreeWidget(this))
 {
     setupUI();
     setupStyles();
@@ -44,42 +42,41 @@ void StrategyQuickView::setupUI()
 
 void StrategyQuickView::setupStyles()
 {
-    m_tree->setStyleSheet(
-        "QTreeWidget {"
-        "  background-color: #1C1C1C;"
-        "  color: #CCCCCC;"
-        "  border: none;"
-        "  font-size: 12px;"
-        "}"
-        "QTreeWidget::item {"
-        "  padding: 2px 4px;"
-        "  border: none;"
-        "}"
-        "QTreeWidget::item:hover {"
-        "  background-color: #2A2A2A;"
-        "}"
-        "QTreeWidget::item:selected {"
-        "  background-color: #2C539E;"
-        "  color: white;"
-        "}"
-        "QHeaderView::section {"
-        "  background-color: #2D2D2D;"
-        "  color: #AAAAAA;"
-        "  padding: 4px;"
-        "  border-bottom: 1px solid #3D3D3D;"
-        "  font-size: 11px;"
-        "  font-weight: bold;"
-        "}"
-        "QTreeWidget::branch:has-children:!has-siblings:closed,"
-        "QTreeWidget::branch:closed:has-children:has-siblings {"
-        "  border-image: none;"
-        "  image: none;"
-        "}"
-        "QTreeWidget::branch:open:has-children:!has-siblings,"
-        "QTreeWidget::branch:open:has-children:has-siblings {"
-        "  border-image: none;"
-        "  image: none;"
-        "}");
+    m_tree->setStyleSheet("QTreeWidget {"
+                          "  background-color: #1C1C1C;"
+                          "  color: #CCCCCC;"
+                          "  border: none;"
+                          "  font-size: 12px;"
+                          "}"
+                          "QTreeWidget::item {"
+                          "  padding: 2px 4px;"
+                          "  border: none;"
+                          "}"
+                          "QTreeWidget::item:hover {"
+                          "  background-color: #2A2A2A;"
+                          "}"
+                          "QTreeWidget::item:selected {"
+                          "  background-color: #2C539E;"
+                          "  color: white;"
+                          "}"
+                          "QHeaderView::section {"
+                          "  background-color: #2D2D2D;"
+                          "  color: #AAAAAA;"
+                          "  padding: 4px;"
+                          "  border-bottom: 1px solid #3D3D3D;"
+                          "  font-size: 11px;"
+                          "  font-weight: bold;"
+                          "}"
+                          "QTreeWidget::branch:has-children:!has-siblings:closed,"
+                          "QTreeWidget::branch:closed:has-children:has-siblings {"
+                          "  border-image: none;"
+                          "  image: none;"
+                          "}"
+                          "QTreeWidget::branch:open:has-children:!has-siblings,"
+                          "QTreeWidget::branch:open:has-children:has-siblings {"
+                          "  border-image: none;"
+                          "  image: none;"
+                          "}");
 }
 
 void StrategyQuickView::onStrategyLoaded(const QString& strategyID, const QString& name)

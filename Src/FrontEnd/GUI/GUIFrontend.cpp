@@ -385,6 +385,13 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // When the chart requests missing bars, call the extracted method to handle the request
     connect(ui->priceChart, &StockPriceChart::requestMissingBars, this, &GUIFrontend::requestMissingBarsFromCache);
 
+    // Forward strategy log markers to the chart
+    connect(MainAlgo::getInstance(),
+            &MainAlgo::strategyLogEmitted,
+            ui->priceChart,
+            &StockPriceChart::onStrategyLogEmitted,
+            Qt::QueuedConnection);
+
     // Connect the stock symbol input to its slot
     connect(ui->stockSymbolInput, &QLineEdit::returnPressed, this, &GUIFrontend::onNewDisplayedStockSelection);
 

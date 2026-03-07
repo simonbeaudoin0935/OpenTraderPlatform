@@ -28,7 +28,7 @@ class OrdersReceiver : public StreamReceiver
   signals:
     /**
      * @brief Signal emitted when a new order is received from the stream
-     * 
+     *
      * Thread context: Emitted from MainAlgo worker thread
      * Data flow: StreamOrders (TSClient thread) → OrdersReceiver slot (MainAlgo thread, queued) → this signal
      */

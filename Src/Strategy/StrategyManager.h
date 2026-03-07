@@ -463,7 +463,7 @@ class StrategyManager final : public QObject
 
     MainAlgo* m_mainAlgo;
     QMap<QString, StrategyInstance*> m_strategies;
-    QMap<QString, QString> m_symbolRegistry; ///< symbol → ownerStrategyID (exclusive claim registry)
+    QMap<QString, QString> m_symbolRegistry;      ///< symbol → ownerStrategyID (exclusive claim registry)
     std::unique_ptr<StrategyRegistry> m_registry; ///< Registry of available strategies
 
     /*

@@ -177,16 +177,14 @@ void RecordsInfoTab::setupUI()
             this,
             &RecordsInfoTab::onBrowseReplayDirClicked,
             Qt::UniqueConnection);
-    connect(
-        m_resetReplayDirButton,
-        &QPushButton::clicked,
-        this,
-        [this]()
-        {
-            m_replayDirEdit->clear();
-            saveReplayDir();
-        },
-        Qt::UniqueConnection);
+    connect(m_resetReplayDirButton,
+            &QPushButton::clicked,
+            this,
+            [this]()
+            {
+                m_replayDirEdit->clear();
+                saveReplayDir();
+            });
 
     // Date picker
     auto* dateRow = new QHBoxLayout();

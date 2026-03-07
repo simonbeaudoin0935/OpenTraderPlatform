@@ -23,7 +23,8 @@
 #include "LiveBarAccumulator.h"
 #include "StrategyManager.h"
 #include "Core/Replay/ReplayEngine.h"
-#include "TSClient.h" // For TSClient::AuthStateReason enum
+#include "TSClient.h"       // For TSClient::AuthStateReason enum
+#include "OrdersDatabase.h" // For StrategyLogEntry
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
@@ -101,6 +102,10 @@ class MainAlgo final : public QObject
     /// @param p_promise Promise to resolve when cancellation result is received
     void processCancelOrder(const QString& p_orderID,
                             std::shared_ptr<QPromise<std::expected<CancelOrderResult, TSClient::Error>>> p_promise);
+
+    /// @brief Store a strategy log entry and emit strategyLogEmitted (MainAlgo thread)
+    /// @param p_entry Log entry to persist and broadcast
+    void processStrategyLog(const StrategyLogEntry& p_entry);
 
     /// @brief Subscribe a strategy to data feed for a symbol (MainAlgo thread)
     /// In replay mode: validates data exists; optionally creates secondary ReplayEngine.
@@ -224,6 +229,12 @@ class MainAlgo final : public QObject
     void balanceUpdated(Balance balance);
 
     /**
+     * @brief Emitted when a strategy calls logToChart() — carries the log entry to the chart.
+     * Thread context: Emitted from MainAlgo worker thread
+     */
+    void strategyLogEmitted(StrategyLogEntry entry);
+
+    /**
      * @brief Replay control signals (forwarded from ReplayEngine)
      * Thread context: Emitted from MainAlgo worker thread
      */
@@ -292,7 +303,9 @@ class MainAlgo final : public QObject
     std::atomic<uint64_t> m_requestIdCounter{0};
     QMap<uint64_t, std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>> m_pendingOrderPromises;
     QMap<uint64_t, QString> m_requestIdToStrategyId; // Temporary mapping until OrderID known
-    QMap<QString, QString> m_orderMappings;          // OrderID → StrategyID (permanent)
+    QMap<uint64_t, QString> m_pendingOrderLogs;      // Temporary: requestId → strategyLog until OrderID known
+    QMap<QString, QString> m_orderIdToLog;  // Permanent: OrderID → strategyLog (until order received via stream)
+    QMap<QString, QString> m_orderMappings; // OrderID → StrategyID (permanent)
 
     // Replay state (set in enterReplayMode/enterReplayModePaused, used by strategy subscriptions)
     QDate m_replayDate;

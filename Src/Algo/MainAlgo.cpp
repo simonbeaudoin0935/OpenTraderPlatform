@@ -14,6 +14,7 @@
 #include "Assume.h"
 #include "OrderEmulator.h"
 #include "CONSTANTS.h"
+#include "OrdersDatabase.h"
 
 #define LOGGING_CATEGORY MainAlgoLog
 
@@ -424,13 +425,6 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
         Q_CHECK_PTR(m_orderReceiver);
         orderStreamStarted = true;
 
-        auto c3 = connect(m_orderReceiver,
-                          &OrdersReceiver::receivedNewOrder,
-                          this,
-                          &MainAlgo::receivedNewOrder,
-                          Qt::UniqueConnection);
-        OBJ_ASSUME_TRUE(c3);
-
         auto c4 = connect(m_orderReceiver,
                           &OrdersReceiver::receivedNewOrder,
                           this,
@@ -470,22 +464,47 @@ void MainAlgo::onLoadedPositionsFromDatabase(const QString& account, QMap<QStrin
 
 void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
 {
-    Q_UNUSED(account);
-
     DEBUG << "onReceivedNewOrder: orderID=" << order.getOrderID()
           << "status=" << static_cast<int>(order.getOrderStatus()) << "mappings_size=" << m_orderMappings.size();
 
-    // Lookup which strategy placed this order
-    auto strategyIt = m_orderMappings.find(order.getOrderID());
+    // Attach strategy log for the full lifetime of the order.
+    // Persist to DB on first arrival; keep in memory until the order is terminal
+    // so that every subsequent update (e.g. Filled) also carries the log.
+    auto logIt = m_orderIdToLog.find(order.getOrderID());
+    if (logIt != m_orderIdToLog.end())
+    {
+        order.setStrategyLog(*logIt);
 
+        // Persist only on the first update (ACK/OPN) — idempotent but saves extra queries
+        const Order::Status status = order.getOrderStatus();
+        if (status == Order::Status::ACK || status == Order::Status::OPN)
+        {
+            OrdersDatabase::getInstance()->updateOrderStrategyLog(order.getOrderID(), *logIt);
+        }
+
+        // Remove from map only when the order is in a terminal state
+        const bool isTerminal =
+            (status == Order::Status::FLL || status == Order::Status::FLP || status == Order::Status::FPR ||
+             status == Order::Status::CAN || status == Order::Status::UCN || status == Order::Status::TSC ||
+             status == Order::Status::REJ || status == Order::Status::EXP || status == Order::Status::OUT ||
+             status == Order::Status::DON);
+        if (isTerminal)
+        {
+            m_orderIdToLog.erase(logIt);
+        }
+    }
+
+    // Emit enriched order to FrontEnd (with strategy log attached if available)
+    emit receivedNewOrder(account, order);
+
+    // Route to the strategy that placed this order
+    auto strategyIt = m_orderMappings.find(order.getOrderID());
     if (strategyIt == m_orderMappings.end())
     {
-        // This order does not belong to any strategy we know about
         WARNING << "Received order update for order ID:" << order.getOrderID() << "which has no associated strategy";
         return;
     }
 
-    // This order belongs to a strategy - route it to that strategy only
     QString strategyID = *strategyIt;
     DEBUG << "Routing order update for orderID=" << order.getOrderID() << "to strategyID=" << strategyID;
     QMetaObject::invokeMethod(
@@ -662,6 +681,12 @@ void MainAlgo::processPlaceOrder(uint64_t p_requestId,
     // Store temporary mapping: requestId -> strategyID (will be replaced with OrderID -> strategyID when ACK received)
     m_requestIdToStrategyId[p_requestId] = p_strategyID;
 
+    // If the request carries a strategy log, hold it until we have the OrderID from ACK
+    if (p_orderRequest.getStrategyLog().has_value())
+    {
+        m_pendingOrderLogs[p_requestId] = p_orderRequest.getStrategyLog().value();
+    }
+
     // Store the promise for resolution when order is acknowledged
     m_pendingOrderPromises[p_requestId] = p_promise;
 
@@ -720,6 +745,12 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
                 m_orderMappings[orderID] = strategyID;
                 DEBUG << "Created order mapping: OrderID=" << orderID << "→ strategyID=" << strategyID
                       << "(total mappings=" << m_orderMappings.size() << ")";
+
+                // Promote any pending strategy log from requestId → orderID scope
+                if (m_pendingOrderLogs.contains(p_requestId))
+                {
+                    m_orderIdToLog[orderID] = m_pendingOrderLogs.take(p_requestId);
+                }
             }
         }
 
@@ -728,7 +759,9 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
     }
     else
     {
-        // Order placement failed
+        // Order placement failed - discard any pending log for this request
+        m_pendingOrderLogs.remove(p_requestId);
+
         TSClient::Error error = p_result.error();
         WARNING << "Order placement failed: requestId=" << p_requestId << "strategyID=" << strategyID
                 << "error=" << QtEnum::toString(error);
@@ -1182,19 +1215,28 @@ void MainAlgo::pauseLiveStreams()
 {
     INFO << "Pausing live streams for replay mode";
 
-    // These receivers must exist when entering replay mode from live
-    OBJ_ASSUME_DIFF(m_positionReceiver, nullptr);
-    OBJ_ASSUME_DIFF(m_orderReceiver, nullptr);
+    // Receivers may be null if the user enters replay before account setup completed
+    if (m_positionReceiver)
+    {
+        m_positionReceiver->stopStream(m_activeAccount.getAccountId());
+        positionStreamStarted = false;
+        DEBUG << "Positions stream stopped";
+    }
+    else
+    {
+        DEBUG << "No position stream to stop (not yet started)";
+    }
 
-    // Stop streams - this closes them gracefully and disables auto-reconnect
-    // The receivers remain alive but with null streams
-    m_positionReceiver->stopStream(m_activeAccount.getAccountId());
-    positionStreamStarted = false;
-    DEBUG << "Positions stream stopped";
-
-    m_orderReceiver->stopStream(m_activeAccount.getAccountId());
-    orderStreamStarted = false;
-    DEBUG << "Orders stream stopped";
+    if (m_orderReceiver)
+    {
+        m_orderReceiver->stopStream(m_activeAccount.getAccountId());
+        orderStreamStarted = false;
+        DEBUG << "Orders stream stopped";
+    }
+    else
+    {
+        DEBUG << "No order stream to stop (not yet started)";
+    }
 }
 
 void MainAlgo::startReplayOrderStreams()
@@ -1252,12 +1294,6 @@ void MainAlgo::startReplayOrderStreams()
                         &OrdersReceiver::receivedNewOrder,
                         this,
                         &MainAlgo::onReceivedNewOrder,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-    connected = connect(m_orderReceiver,
-                        &OrdersReceiver::receivedNewOrder,
-                        this,
-                        &MainAlgo::receivedNewOrder,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
     orderStreamStarted = true;
@@ -1363,19 +1399,21 @@ void MainAlgo::deleteAllStockInstruments()
     // Clear the displayed pointer first
     currentDisplayedStockInstrument = nullptr;
 
-    // Delete all stock instruments using deleteLater()
-    // StockInstruments are QObject-derived with active connections (streams, receivers)
+    // Delete instruments directly (not deleteLater) so that each BarCache destructor
+    // queues closeDatabase to DatabaseThread before the next createAndSetDisplayedStockInstrument
+    // queues openDatabase. deleteLater would defer destruction past the next openDatabase call,
+    // causing the DB close to arrive on DatabaseThread after the new open — breaking the connection.
     for (auto it = stockInstruments.begin(); it != stockInstruments.end(); ++it)
     {
-        if (QPointer<StockInstruments> instrument = it.value(); instrument)
+        if (StockInstruments* instrument = it.value(); instrument)
         {
-            DEBUG << "Scheduling deletion of stock instrument for" << instrument->symbol;
-            instrument->deleteLater(); // Use deleteLater() for Qt objects with signals
+            DEBUG << "Deleting stock instrument for" << instrument->symbol;
+            delete instrument;
         }
     }
     stockInstruments.clear();
 
-    INFO << "All stock instruments scheduled for deletion";
+    INFO << "All stock instruments deleted";
 }
 
 void MainAlgo::stopAllStrategies()
@@ -1438,4 +1476,14 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
     ASSUME_TRUE(connected);
 
     INFO << "Stock instrument created and set as displayed for" << p_symbol;
+}
+
+void MainAlgo::processStrategyLog(const StrategyLogEntry& p_entry)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+    OBJ_ASSUME_FALSE(p_entry.symbol.isEmpty());
+    OBJ_ASSUME_FALSE(p_entry.message.isEmpty());
+
+    OrdersDatabase::getInstance()->insertStrategyLog(p_entry);
+    emit strategyLogEmitted(p_entry);
 }

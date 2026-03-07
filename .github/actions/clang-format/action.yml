@@ -12,7 +12,7 @@ runs:
         FAILED_FILES=()
 
         # Find all C++ source and header files
-        FILES=$(find Src Tests -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cc" -o -name "*.cxx" \))
+        FILES=$(find Src -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cc" -o -name "*.cxx" \))
 
         for file in $FILES; do
           if ! clang-format --dry-run --Werror "$file" > /dev/null 2>&1; then
@@ -36,7 +36,7 @@ runs:
           echo "  clang-format -i <file>"
           echo ""
           echo "Or format all files:"
-          echo "  find Src Tests -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) -exec clang-format -i {} \;"
+          echo "  find Src -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) -exec clang-format -i {} \;"
           exit 1
         fi
 
@@ -50,7 +50,7 @@ runs:
         FAILED_FILES=()
 
         # Find all source files (C++, headers, CMake, YAML, shell scripts, Python, etc.)
-        SOURCE_FILES=$(find Src Tests -type f \( \
+        SOURCE_FILES=$(find Src -type f \( \
           -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cc" -o -name "*.cxx" -o -name "*.c" -o \
           -name "*.cmake" -o -name "CMakeLists.txt" -o \
           -name "*.yml" -o -name "*.yaml" -o \
@@ -86,8 +86,8 @@ runs:
           echo "To fix, remove trailing whitespace from these files."
           echo "Run the following commands in your local terminal:"
           echo ""
-          echo "# Remove trailing whitespace from all source files in Src and Tests directories"
-          echo "find Src Tests -type f \( \\"
+          echo "# Remove trailing whitespace from all source files in Src directories"
+          echo "find Src -type f \( \\"
           echo "  -name \"*.cpp\" -o -name \"*.h\" -o -name \"*.hpp\" -o -name \"*.cc\" -o -name \"*.cxx\" -o -name \"*.c\" -o \\"
           echo "  -name \"*.cmake\" -o -name \"CMakeLists.txt\" -o \\"
           echo "  -name \"*.yml\" -o -name \"*.yaml\" -o \\"

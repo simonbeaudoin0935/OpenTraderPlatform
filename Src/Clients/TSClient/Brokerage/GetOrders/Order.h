@@ -222,6 +222,16 @@ class Order
         m_latencyMs = p_latencyMs;
     }
 
+    std::optional<QString> getStrategyLog() const
+    {
+        return m_strategyLog;
+    }
+
+    void setStrategyLog(const QString& p_log)
+    {
+        m_strategyLog = p_log;
+    }
+
     QString m_accountID;
     std::optional<OrderNS::AdvancedOptions> m_advancedOptions;
     QDateTime m_closedDateTime;
@@ -266,6 +276,9 @@ class Order
     // Ack/fill latency in milliseconds, computed once at the moment we receive the ack or fill
     // and stored as-is in the database. This value never changes after initial computation.
     std::optional<qint64> m_latencyMs;
+
+    // Optional log message attached by the strategy when the order was placed.
+    std::optional<QString> m_strategyLog;
 };
 
 Q_DECLARE_METATYPE(Order)

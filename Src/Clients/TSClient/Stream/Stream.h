@@ -116,7 +116,7 @@ class Stream : public QObject
     /**
      * @brief Emitted when the server sends an EndSnapshot status (Brokerage streams only).
      * Indicates the initial data snapshot is complete and subsequent messages are live updates.
-     * 
+     *
      * Thread context: Emitted from TSClient worker thread
      */
     void endSnapshotReceived();
@@ -126,7 +126,7 @@ class Stream : public QObject
      *
      * - StreamError::Closed: Intentional close via TSClient::closeStream() — no action needed.
      * - Any other value: The stream ended due to an error — consumer should reconnect.
-     * 
+     *
      * Thread context: Emitted from TSClient worker thread
      */
     void streamClosed(Stream::StreamError reason, QString description);
