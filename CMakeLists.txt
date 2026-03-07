@@ -198,6 +198,18 @@ if(UNIX AND NOT APPLE)
 endif()
 
 # Third-party libraries
+# Initialize Databento submodule if it hasn't been cloned yet (e.g. CI shallow clone)
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Lib/Databento/CMakeLists.txt")
+    message(STATUS "Databento submodule not initialized — running git submodule update --init")
+    execute_process(
+        COMMAND git submodule update --init Lib/Databento
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        RESULT_VARIABLE GIT_SUBMODULE_RESULT
+    )
+    if(NOT GIT_SUBMODULE_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to initialize Databento submodule (exit code ${GIT_SUBMODULE_RESULT})")
+    endif()
+endif()
 add_subdirectory(Lib/Databento)
 # databento-cpp should not be subject to our strict warning flags
 target_compile_options(databento PRIVATE -w)
