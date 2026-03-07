@@ -15,7 +15,10 @@ DEB_HOST_GNU_TYPE ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
 
 override_dh_auto_configure:
 	# Configure with CMake using Ninja for faster parallel builds
-	dh_auto_configure -- -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_GUI=ON -DBUILD_TESTS=OFF -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+	# FETCHCONTENT_FULLY_DISCONNECTED=OFF overrides the Debian default (ON) so that
+	# Databento can download its bundled dependencies (nlohmann_json, httplib, date)
+	# which do not have suitable system packages on Ubuntu Noble.
+	dh_auto_configure -- -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_GUI=ON -DBUILD_TESTS=OFF -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DFETCHCONTENT_FULLY_DISCONNECTED=OFF
 
 override_dh_auto_build:
 	# Build with Ninja using all available cores
