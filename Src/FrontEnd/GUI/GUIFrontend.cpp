@@ -579,7 +579,21 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                            0); // tradeTabBottomWidget gets stretch factor 0 (minimum size)
 
     // NOTE: Don't restore the last displayed stock here - wait for authentication
-    // It will be restored in onTradeStationAuthStateChanged() when authenticated
+    // It will be restored in onTradeStationAuthStateChanged() when authenticated.
+    // As a fallback, schedule a restore in case TS auth never fires (e.g. no credentials).
+    QTimer::singleShot(500,
+                       this,
+                       [this]()
+                       {
+                           if (!m_hasRestoredLastStock)
+                           {
+                               qInfo(GUIFrontendLog) << "TS auth never fired — restoring state via fallback timer";
+                               m_hasRestoredLastStock = true;
+                               restoreLastDisplayedStock();
+                               restoreReplayState();
+                               QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
+                           }
+                       });
 }
 
 GUIFrontend::~GUIFrontend()
