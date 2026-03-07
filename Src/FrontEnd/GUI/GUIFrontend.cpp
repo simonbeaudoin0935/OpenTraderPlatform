@@ -20,7 +20,7 @@
 #include "GUIFrontend.h"
 #include "ui_GUIFrontend.h"
 #include "Tabs/LoggingTab.h"
-#include "Tabs/RecordsInfoTab.h"
+#include "Tabs/DownloadsTab.h"
 #include "Tabs/ShortcutsTab.h"
 #include "Tabs/ConfigTab.h"
 #include "Tabs/CacheTab.h"
@@ -520,9 +520,9 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             &GUIFrontend::displayStock,
             Qt::UniqueConnection);
 
-    // Set up the records info tab
-    RecordsInfoTab* recordsInfoTab = new RecordsInfoTab();
-    ui->tabWidget->addTab(recordsInfoTab, "Downloads");
+    // Set up the downloads tab
+    DownloadsTab* downloadsTab = new DownloadsTab();
+    ui->tabWidget->addTab(downloadsTab, "Downloads");
 
     // Set up the logging tab
     LoggingTab* loggingTab = new LoggingTab();

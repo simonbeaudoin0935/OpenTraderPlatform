@@ -1,4 +1,4 @@
-#include "RecordsInfoTab.h"
+#include "DownloadsTab.h"
 #include "DBClient.h"
 #include "Logging.h"
 #include "Settings.h"
@@ -15,7 +15,7 @@
 #include <QStandardPaths>
 #include <QTextStream>
 
-RecordsInfoTab::RecordsInfoTab(QWidget* p_parent)
+DownloadsTab::DownloadsTab(QWidget* p_parent)
     : QWidget(p_parent)
     , m_dateEdit(nullptr)
     , m_replayDirEdit(nullptr)
@@ -36,7 +36,7 @@ RecordsInfoTab::RecordsInfoTab(QWidget* p_parent)
     scanRecordedDays();
 }
 
-QStringList RecordsInfoTab::parseSymbolCsv(const QString& p_filePath)
+QStringList DownloadsTab::parseSymbolCsv(const QString& p_filePath)
 {
     QStringList symbols;
     QFile file(p_filePath);
@@ -81,7 +81,7 @@ QStringList RecordsInfoTab::parseSymbolCsv(const QString& p_filePath)
     return symbols;
 }
 
-QStringList RecordsInfoTab::parseManualSymbols() const
+QStringList DownloadsTab::parseManualSymbols() const
 {
     QStringList symbols;
     const QString text = m_manualSymbolsEdit->text().trimmed();
@@ -98,7 +98,7 @@ QStringList RecordsInfoTab::parseManualSymbols() const
     return symbols;
 }
 
-QStringList RecordsInfoTab::buildDownloadQueue(const QDate& p_date, QStringList* p_outSkipped) const
+QStringList DownloadsTab::buildDownloadQueue(const QDate& p_date, QStringList* p_outSkipped) const
 {
     QSet<QString> seen;
     QStringList queue;
@@ -138,7 +138,7 @@ QStringList RecordsInfoTab::buildDownloadQueue(const QDate& p_date, QStringList*
     return queue;
 }
 
-void RecordsInfoTab::setupUI()
+void DownloadsTab::setupUI()
 {
     auto* mainLayout = new QHBoxLayout(this);
 
@@ -171,11 +171,11 @@ void RecordsInfoTab::setupUI()
     replayDirRow->addWidget(m_resetReplayDirButton);
     downloadLayout->addLayout(replayDirRow);
 
-    connect(m_replayDirEdit, &QLineEdit::editingFinished, this, &RecordsInfoTab::saveReplayDir, Qt::UniqueConnection);
+    connect(m_replayDirEdit, &QLineEdit::editingFinished, this, &DownloadsTab::saveReplayDir, Qt::UniqueConnection);
     connect(m_browseReplayDirButton,
             &QPushButton::clicked,
             this,
-            &RecordsInfoTab::onBrowseReplayDirClicked,
+            &DownloadsTab::onBrowseReplayDirClicked,
             Qt::UniqueConnection);
     connect(m_resetReplayDirButton,
             &QPushButton::clicked,
@@ -217,8 +217,8 @@ void RecordsInfoTab::setupUI()
     csvRow->addWidget(m_browseCsvButton);
     downloadLayout->addLayout(csvRow);
 
-    connect(m_browseCsvButton, &QPushButton::clicked, this, &RecordsInfoTab::onBrowseCsvClicked, Qt::UniqueConnection);
-    connect(m_csvPathEdit, &QLineEdit::editingFinished, this, &RecordsInfoTab::saveCsvPath, Qt::UniqueConnection);
+    connect(m_browseCsvButton, &QPushButton::clicked, this, &DownloadsTab::onBrowseCsvClicked, Qt::UniqueConnection);
+    connect(m_csvPathEdit, &QLineEdit::editingFinished, this, &DownloadsTab::saveCsvPath, Qt::UniqueConnection);
 
     // Manual symbols
     downloadLayout->addWidget(new QLabel("Extra Symbols:"));
@@ -230,7 +230,7 @@ void RecordsInfoTab::setupUI()
     connect(m_manualSymbolsEdit,
             &QLineEdit::editingFinished,
             this,
-            &RecordsInfoTab::saveManualSymbols,
+            &DownloadsTab::saveManualSymbols,
             Qt::UniqueConnection);
 
     // Download button + status
@@ -238,7 +238,7 @@ void RecordsInfoTab::setupUI()
     Q_CHECK_PTR(m_downloadButton);
     downloadLayout->addWidget(m_downloadButton);
 
-    connect(m_downloadButton, &QPushButton::clicked, this, &RecordsInfoTab::onDownloadClicked, Qt::UniqueConnection);
+    connect(m_downloadButton, &QPushButton::clicked, this, &DownloadsTab::onDownloadClicked, Qt::UniqueConnection);
 
     // Progress bar (hidden until download starts)
     m_downloadProgressBar = new QProgressBar();
@@ -268,11 +268,32 @@ void RecordsInfoTab::setupUI()
         m_csvPathEdit->setText(appStateSettings->value("RecordsInfo/LastCsvPath").toString());
         m_manualSymbolsEdit->setText(appStateSettings->value("RecordsInfo/ManualSymbols").toString());
 
-        const QString savedDir = appStateSettings->value("RecordsInfo/ReplayDataDir").toString();
+        QString savedDir = appStateSettings->value("RecordsInfo/ReplayDataDir").toString();
         if (!savedDir.isEmpty())
         {
-            m_replayDirEdit->setText(savedDir);
-            DBClient::setReplayBaseDir(savedDir);
+            // Migrate stale path: if the saved dir uses the old cache location and the
+            // new data location equivalent exists, transparently update to the new path.
+            const QString oldBase = getCacheLocation() + "/ReplayData";
+            const QString newBase = getDataLocation() + "/ReplayData";
+            if (savedDir == oldBase && QDir(newBase).exists())
+            {
+                qInfo() << "DownloadsTab: migrating ReplayDataDir from" << savedDir << "to" << newBase;
+                savedDir = newBase;
+                appStateSettings->setValue("RecordsInfo/ReplayDataDir", savedDir);
+            }
+
+            // Guard: only apply if the directory actually exists; otherwise fall back to default.
+            if (QDir(savedDir).exists())
+            {
+                m_replayDirEdit->setText(savedDir);
+                DBClient::setReplayBaseDir(savedDir);
+            }
+            else
+            {
+                qWarning() << "DownloadsTab: saved ReplayDataDir" << savedDir
+                           << "does not exist, reverting to default";
+                appStateSettings->remove("RecordsInfo/ReplayDataDir");
+            }
         }
     }
 
@@ -288,7 +309,7 @@ void RecordsInfoTab::setupUI()
     daysHeader->addWidget(m_refreshButton);
     daysLayout->addLayout(daysHeader);
 
-    connect(m_refreshButton, &QPushButton::clicked, this, &RecordsInfoTab::onRefreshClicked, Qt::UniqueConnection);
+    connect(m_refreshButton, &QPushButton::clicked, this, &DownloadsTab::onRefreshClicked, Qt::UniqueConnection);
 
     m_daysTable = new QTableWidget();
     Q_CHECK_PTR(m_daysTable);
@@ -305,14 +326,14 @@ void RecordsInfoTab::setupUI()
     connect(m_daysTable,
             &QTableWidget::customContextMenuRequested,
             this,
-            &RecordsInfoTab::onDaysTableContextMenu,
+            &DownloadsTab::onDaysTableContextMenu,
             Qt::UniqueConnection);
     splitter->addWidget(daysWidget);
 
     connect(m_daysTable,
             &QTableWidget::itemSelectionChanged,
             this,
-            &RecordsInfoTab::onDaySelected,
+            &DownloadsTab::onDaySelected,
             Qt::UniqueConnection);
 
     // ── Panel 3: Symbols table ────────────────────────────────────────────────
@@ -341,19 +362,19 @@ void RecordsInfoTab::setupUI()
     mainLayout->addWidget(splitter);
 }
 
-void RecordsInfoTab::saveCsvPath()
+void DownloadsTab::saveCsvPath()
 {
     if (appStateSettings != nullptr)
         appStateSettings->setValue("RecordsInfo/LastCsvPath", m_csvPathEdit->text().trimmed());
 }
 
-void RecordsInfoTab::saveManualSymbols()
+void DownloadsTab::saveManualSymbols()
 {
     if (appStateSettings != nullptr)
         appStateSettings->setValue("RecordsInfo/ManualSymbols", m_manualSymbolsEdit->text().trimmed());
 }
 
-void RecordsInfoTab::saveReplayDir()
+void DownloadsTab::saveReplayDir()
 {
     const QString dir = m_replayDirEdit->text().trimmed();
     if (appStateSettings != nullptr)
@@ -366,7 +387,7 @@ void RecordsInfoTab::saveReplayDir()
     scanRecordedDays();
 }
 
-void RecordsInfoTab::onBrowseReplayDirClicked()
+void DownloadsTab::onBrowseReplayDirClicked()
 {
     QString startDir = m_replayDirEdit->text().trimmed();
     if (startDir.isEmpty())
@@ -380,7 +401,7 @@ void RecordsInfoTab::onBrowseReplayDirClicked()
     }
 }
 
-void RecordsInfoTab::onBrowseCsvClicked()
+void DownloadsTab::onBrowseCsvClicked()
 {
     QString startDir = m_csvPathEdit->text().trimmed();
     if (startDir.isEmpty())
@@ -398,7 +419,7 @@ void RecordsInfoTab::onBrowseCsvClicked()
     }
 }
 
-void RecordsInfoTab::onDownloadClicked()
+void DownloadsTab::onDownloadClicked()
 {
     // Validate Databento connection
     if (!DBClient::getInstance()->hasApiKey())
@@ -466,13 +487,13 @@ void RecordsInfoTab::onDownloadClicked()
     connect(DBClient::getInstance(),
             &DBClient::replayDownloadFinished,
             this,
-            &RecordsInfoTab::onDownloadFinished,
+            &DownloadsTab::onDownloadFinished,
             Qt::UniqueConnection);
 
     dispatchDownloads();
 }
 
-void RecordsInfoTab::dispatchDownloads()
+void DownloadsTab::dispatchDownloads()
 {
     // Launch up to MAX_CONCURRENT_DOWNLOADS in parallel
     while (m_inFlightSymbols.size() < MAX_CONCURRENT_DOWNLOADS && m_nextDownloadIndex < m_downloadQueue.size())
@@ -495,7 +516,7 @@ void RecordsInfoTab::dispatchDownloads()
         finishDownload();
 }
 
-void RecordsInfoTab::finishDownload()
+void DownloadsTab::finishDownload()
 {
     m_downloadButton->setEnabled(true);
     m_downloadStatusLabel->setText(QString("Done — %1 succeeded, %2 failed (of %3 total)")
@@ -503,13 +524,13 @@ void RecordsInfoTab::finishDownload()
                                        .arg(m_downloadFailCount)
                                        .arg(m_downloadQueue.size()));
 
-    disconnect(DBClient::getInstance(), &DBClient::replayDownloadFinished, this, &RecordsInfoTab::onDownloadFinished);
+    disconnect(DBClient::getInstance(), &DBClient::replayDownloadFinished, this, &DownloadsTab::onDownloadFinished);
 
     // Full refresh of the browser
     scanRecordedDays();
 }
 
-void RecordsInfoTab::onDownloadFinished(const QString& p_symbol,
+void DownloadsTab::onDownloadFinished(const QString& p_symbol,
                                         const QDate& p_date,
                                         bool p_success,
                                         const QString& p_errorMessage)
@@ -535,12 +556,12 @@ void RecordsInfoTab::onDownloadFinished(const QString& p_symbol,
     dispatchDownloads();
 }
 
-void RecordsInfoTab::onRefreshClicked()
+void DownloadsTab::onRefreshClicked()
 {
     scanRecordedDays();
 }
 
-void RecordsInfoTab::onDaysTableContextMenu(const QPoint& p_pos)
+void DownloadsTab::onDaysTableContextMenu(const QPoint& p_pos)
 {
     QTableWidgetItem* item = m_daysTable->itemAt(p_pos);
     if (item == nullptr)
@@ -577,7 +598,7 @@ void RecordsInfoTab::onDaysTableContextMenu(const QPoint& p_pos)
     scanRecordedDays();
 }
 
-void RecordsInfoTab::updateDaysTableRow(const QDate& p_date)
+void DownloadsTab::updateDaysTableRow(const QDate& p_date)
 {
     QString dirPath = DBClient::getReplayDataDir(p_date);
     QDir dir(dirPath);
@@ -622,7 +643,7 @@ void RecordsInfoTab::updateDaysTableRow(const QDate& p_date)
     loadSymbolsForDay(p_date);
 }
 
-void RecordsInfoTab::scanRecordedDays()
+void DownloadsTab::scanRecordedDays()
 {
     m_daysTable->setRowCount(0);
     clearSymbolsList();
@@ -671,7 +692,7 @@ void RecordsInfoTab::scanRecordedDays()
     m_daysTable->resizeColumnsToContents();
 }
 
-void RecordsInfoTab::onDaySelected()
+void DownloadsTab::onDaySelected()
 {
     QList<QTableWidgetItem*> selected = m_daysTable->selectedItems();
     if (selected.isEmpty())
@@ -690,7 +711,7 @@ void RecordsInfoTab::onDaySelected()
     loadSymbolsForDay(date);
 }
 
-void RecordsInfoTab::loadSymbolsForDay(const QDate& p_date)
+void DownloadsTab::loadSymbolsForDay(const QDate& p_date)
 {
     clearSymbolsList();
 
@@ -757,12 +778,12 @@ void RecordsInfoTab::loadSymbolsForDay(const QDate& p_date)
     m_symbolsTable->resizeColumnsToContents();
 }
 
-void RecordsInfoTab::clearSymbolsList()
+void DownloadsTab::clearSymbolsList()
 {
     m_symbolsTable->setRowCount(0);
 }
 
-QString RecordsInfoTab::formatFileSize(qint64 p_bytes) const
+QString DownloadsTab::formatFileSize(qint64 p_bytes) const
 {
     if (p_bytes < 1024)
         return QString::number(p_bytes) + " B";

@@ -267,7 +267,7 @@ constexpr const char* SELECT_QUOTE_METRICS = R"(
     FROM quotes WHERE stockTicker = ?
 )";
 
-// Breakdown by object type (for RecordsInfoTab display)
+// Breakdown by object type (for DownloadsTab display)
 constexpr const char* SELECT_QUOTE_TYPE_BREAKDOWN = R"(
     SELECT objectType, COUNT(*) FROM quotes
     WHERE stockTicker = ?

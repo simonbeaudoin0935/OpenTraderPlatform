@@ -16,7 +16,7 @@
 #include <QWidget>
 
 /**
- * @class RecordsInfoTab
+ * @class DownloadsTab
  * @brief Tab for exploring and downloading recorded Databento market data (.dbn.zst files)
  *
  * Provides:
@@ -27,13 +27,13 @@
  * - ~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{symbol}_mbp10.dbn.zst
  * - ~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{symbol}_trades.dbn.zst
  */
-class RecordsInfoTab : public QWidget
+class DownloadsTab : public QWidget
 {
     Q_OBJECT
 
   public:
-    explicit RecordsInfoTab(QWidget* p_parent = nullptr);
-    ~RecordsInfoTab() override = default;
+    explicit DownloadsTab(QWidget* p_parent = nullptr);
+    ~DownloadsTab() override = default;
 
     struct SymbolFiles
     {

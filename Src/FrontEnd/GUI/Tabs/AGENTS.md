@@ -170,11 +170,11 @@ connect(&LogBroadcaster::getInstance(), &LogBroadcaster::logMessage,
 
 The RecorderTab was removed in Phase 3 of the Databento migration. Recording is no longer done
 via live TradeStation streams. Instead, replay data is downloaded as `.dbn.zst` files via
-`DBClient::downloadReplayData()`, triggered from the RecordsInfoTab download section.
+`DBClient::downloadReplayData()`, triggered from the DownloadsTab download section.
 
 ---
 
-### RecordsInfoTab (RecordsInfoTab.h/cpp)
+### DownloadsTab (DownloadsTab.h/cpp)
 
 **Purpose**: Download and browse recorded Databento market data (`.dbn.zst` files)
 

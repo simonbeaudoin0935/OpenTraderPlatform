@@ -103,7 +103,7 @@ Non-fatal errors are logged but do not trigger UI changes.
 - `hasReplayData(date, symbol)` checks if both files exist
 - `getReplayDataDir(date)` / `getReplayFilePath(date, symbol, schema)` provide path helpers
 
-Called from `RecordsInfoTab` download section (sequential queue — one symbol at a time).
+Called from `DownloadsTab` download section (sequential queue — one symbol at a time).
 
 ## LiveBarAccumulator
 
