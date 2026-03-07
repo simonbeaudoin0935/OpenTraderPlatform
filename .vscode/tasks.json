@@ -7,7 +7,7 @@
             "command": "cmake",
             "args": [
                 "--build",
-                "${workspaceFolder}/build",
+                "${workspaceFolder}/build/GUI",
                 "--target",
                 "clean"
             ],
@@ -29,7 +29,7 @@
                 "-S",
                 "${workspaceFolder}",
                 "-B",
-                "${workspaceFolder}/build",
+                "${workspaceFolder}/build/GUI",
                 "-DCMAKE_BUILD_TYPE=Debug",
                 "-DENABLE_GUI=ON",
                 "-DBUILD_TESTS=OFF"
@@ -123,7 +123,7 @@
             "command": "cmake",
             "args": [
                 "--build",
-                "${workspaceFolder}/build",
+                "${workspaceFolder}/build/GUI",
                 "--parallel"
             ],
             "group": "build",
@@ -269,7 +269,7 @@
         {
             "label": "run",
             "type": "shell",
-            "command": "${workspaceFolder}/build/Src/L2Trader",
+            "command": "${workspaceFolder}/build/GUI/Src/L2Trader",
             "args": [],
             "group": "test",
             "presentation": {
@@ -282,7 +282,7 @@
         {
             "label": "build-then-run",
             "type": "shell",
-            "command": "${workspaceFolder}/build/Src/L2Trader",
+            "command": "${workspaceFolder}/build/GUI/Src/L2Trader",
             "args": [],
             "group": "test",
             "presentation": {
