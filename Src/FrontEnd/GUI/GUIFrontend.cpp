@@ -385,6 +385,18 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // When the chart requests missing bars, call the extracted method to handle the request
     connect(ui->priceChart, &StockPriceChart::requestMissingBars, this, &GUIFrontend::requestMissingBarsFromCache);
 
+    // Persist replay start time whenever it changes so next launch restores it
+    connect(ui->priceChart->toolbar(),
+            &ChartToolbar::replayStartTimeChanged,
+            this,
+            [this](const QTime& time)
+            {
+                Q_CHECK_PTR(appStateSettings);
+                appStateSettings->setValue("Replay/StartTime", time.toString(Qt::ISODate));
+                appStateSettings->sync();
+            },
+            Qt::UniqueConnection);
+
     // Forward strategy log markers to the chart
     connect(MainAlgo::getInstance(),
             &MainAlgo::strategyLogEmitted,
@@ -1349,7 +1361,9 @@ void GUIFrontend::saveReplayState(bool active, const QDate& date, const QTime& s
     {
         appStateSettings->setValue("Replay/Date", date.toString(Qt::ISODate));
     }
-    if (active && startTime.isValid())
+    // Always persist the start time so the widget restores to it on next launch,
+    // regardless of whether replay is currently active.
+    if (startTime.isValid())
     {
         appStateSettings->setValue("Replay/StartTime", startTime.toString(Qt::ISODate));
     }
@@ -1360,13 +1374,18 @@ void GUIFrontend::restoreReplayState()
 {
     Q_CHECK_PTR(appStateSettings);
 
+    // Always restore the start time widget, even if replay isn't active,
+    // so the user's last-used time is shown on next launch.
+    QTime savedTime = QTime::fromString(appStateSettings->value("Replay/StartTime").toString(), Qt::ISODate);
+    if (savedTime.isValid())
+        ui->priceChart->toolbar()->setReplayStartTime(savedTime);
+
     if (!appStateSettings->value("Replay/Active", false).toBool())
     {
         return;
     }
 
     QDate savedDate = QDate::fromString(appStateSettings->value("Replay/Date").toString(), Qt::ISODate);
-    QTime savedTime = QTime::fromString(appStateSettings->value("Replay/StartTime").toString(), Qt::ISODate);
 
     if (!savedDate.isValid())
     {
