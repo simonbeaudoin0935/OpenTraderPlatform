@@ -50,6 +50,12 @@ int main(int argc, char* argv[])
     appStateSettings = new QSettings(appStateFilePath, QSettings::IniFormat);
     appStateSettings->setFallbacksEnabled(false);
 
+    // Initialize strategies state settings for persisting loaded strategies across sessions.
+    // Stored alongside AppState.ini in XDG_STATE_HOME (~/.local/state/L2Trader/).
+    QString strategiesStateFilePath = getStateLocation() + "/StrategiesState.ini";
+    strategiesStateSettings = new QSettings(strategiesStateFilePath, QSettings::IniFormat);
+    strategiesStateSettings->setFallbacksEnabled(false);
+
     qInfo() << "Cache root directory:" << getCacheLocation();
     qInfo() << "Data root directory:" << getDataLocation();
     qInfo() << "State root directory:" << getStateLocation();

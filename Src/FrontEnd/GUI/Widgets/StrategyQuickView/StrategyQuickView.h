@@ -4,10 +4,20 @@
 #include <QTreeWidget>
 #include <QMap>
 #include <QStringList>
+#include <QTimer>
+
+class MainAlgo;
 
 /// @brief Compact live view of active strategies and their claimed symbols.
 /// Displays a collapsible tree: strategy nodes (root) → symbol nodes (children).
+///
+/// Header row contains a "Load ⊕" button for loading new strategies.
+/// Symbol rows show live position columns: Qty | Avg Price | P&L.
 /// Clicking a symbol node emits symbolSelected(symbol) → GUIFrontend::displayStock().
+///
+/// Right-clicking a strategy row opens a context menu: Start / Stop / Display Logs.
+/// Right-clicking a symbol row passes up to the parent strategy context menu.
+///
 /// Updated via StrategyManager signals: strategyLoaded, strategyUnloaded,
 /// strategyStatusChanged, symbolsClaimed.
 class StrategyQuickView : public QWidget
@@ -18,11 +28,20 @@ class StrategyQuickView : public QWidget
     explicit StrategyQuickView(QWidget* parent = nullptr);
     ~StrategyQuickView() override = default;
 
+    /// @brief Provide access to MainAlgo for position data and context-menu actions.
+    void setMainAlgo(MainAlgo* p_mainAlgo);
+
   signals:
     /// @brief Emitted when user clicks a symbol node in the tree.
     /// Thread context: Emitted from Main/GUI thread
     /// @param symbol The symbol that was selected (e.g. "NVDA")
     void symbolSelected(const QString& symbol);
+
+    /// @brief Emitted when user triggers "Display Logs" from the context menu.
+    /// Thread context: Emitted from Main/GUI thread
+    /// @param strategyID  Strategy instance ID
+    /// @param strategyName Display name of the strategy
+    void displayLogsRequested(const QString& strategyID, const QString& strategyName);
 
   public slots:
     /// @brief Add a strategy row to the tree.
@@ -38,15 +57,28 @@ class StrategyQuickView : public QWidget
     /// @brief Update the symbol children for a strategy after claim is granted.
     void onSymbolsClaimed(const QString& strategyID, const QStringList& claimedSymbols);
 
+  private slots:
+    void onLoadButtonClicked();
+    void onRefreshPositions();
+    void onContextMenuRequested(const QPoint& pos);
+
   private:
     QTreeWidget* m_tree;
+    MainAlgo* m_mainAlgo{nullptr};
+    QTimer* m_positionTimer;
 
     /// strategyID → top-level QTreeWidgetItem (strategy node)
     QMap<QString, QTreeWidgetItem*> m_strategyItems;
+    /// strategyID → strategy display name (for context menus)
+    QMap<QString, QString> m_strategyNames;
 
     void setupUI();
     void setupStyles();
 
     /// @brief Create or update symbol child items for a strategy node.
     void updateSymbolChildren(QTreeWidgetItem* strategyItem, const QStringList& symbols);
+
+    /// @brief Find the strategy ID that owns the given tree item (strategy or child).
+    QString strategyIDForItem(QTreeWidgetItem* item) const;
 };
+

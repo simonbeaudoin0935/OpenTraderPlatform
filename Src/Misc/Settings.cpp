@@ -6,6 +6,7 @@
 #include <QDir>
 
 QSettings* appStateSettings;
+QSettings* strategiesStateSettings;
 
 QString cacheRootDir;
 QString stockCsvFile;

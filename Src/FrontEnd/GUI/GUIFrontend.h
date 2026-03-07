@@ -6,6 +6,7 @@
 #include <QShortcut>
 #include <QKeySequence>
 #include <QLabel>
+#include <QSplitter>
 #include <QEvent>
 #include <memory>
 
@@ -15,6 +16,7 @@
 
 // Forward declarations
 class PlaceOrderRequest;
+class StrategyLogWidget;
 
 // Forward declare the generated UI class
 namespace Ui
@@ -126,4 +128,9 @@ class GUIFrontend : public FrontEnd
     QLabel* m_haltedLabel = nullptr;       // "HALTED" - red
     QLabel* m_delayedLabel = nullptr;      // "DELAYED" - yellow
     QLabel* m_hardToBorrowLabel = nullptr; // "HTB" - orange
+
+    // Bottom logger split: platform log (left) + strategy log (right, shown on demand)
+    QWidget*           m_loggerContainer   = nullptr; ///< Outer container replacing liveLogDisplay in mainSplitter
+    QSplitter*         m_loggerSplitter    = nullptr; ///< Horizontal splitter inside m_loggerContainer
+    StrategyLogWidget* m_strategyLogWidget = nullptr; ///< Strategy log panel (right; hidden until "Display Logs")
 };

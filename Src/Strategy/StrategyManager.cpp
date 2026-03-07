@@ -4,9 +4,11 @@
 #include "../Core/MainApp.h"
 #include "Assume.h"
 #include "OrdersDatabase.h"
+#include "Settings.h"
 #include <QUuid>
 #include <QDebug>
 #include <QPromise>
+#include <QJsonDocument>
 
 #define LOGGING_CATEGORY StrategyManagerLog
 
@@ -359,6 +361,8 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
 
     emit strategyLoaded(strategyID, p_config.name);
 
+    persistStrategiesState();
+
     return strategyID;
 }
 
@@ -442,6 +446,8 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
 
     emit strategyUnloaded(p_strategyID);
 
+    persistStrategiesState();
+
     return "";
 }
 
@@ -483,6 +489,10 @@ QString StrategyManager::startStrategy(const QString& p_strategyID)
                          // Update state to RUNNING
                          instance->state = StrategyState::RUNNING;
                          emit strategyStatusChanged(instance->strategyID, true, "");
+
+                         // Persist updated running state (back on MainAlgo thread)
+                         QMetaObject::invokeMethod(
+                             this, [this]() { persistStrategiesState(); }, Qt::QueuedConnection);
                      });
 
     // Start the thread
@@ -986,4 +996,67 @@ void StrategyManager::releaseSymbols(const QString& p_strategyID)
             [sdk = instance->p_sdk]() { sdk->clearClaimedSymbols(); },
             Qt::QueuedConnection);
     }
+}
+
+void StrategyManager::persistStrategiesState()
+{
+    if (!strategiesStateSettings)
+        return;
+
+    strategiesStateSettings->beginWriteArray("LoadedStrategies");
+    int index = 0;
+    for (auto it = m_strategies.constBegin(); it != m_strategies.constEnd(); ++it)
+    {
+        strategiesStateSettings->setArrayIndex(index++);
+        const StrategyInstance* instance = it.value();
+        QJsonDocument doc(instance->config.toJson());
+        strategiesStateSettings->setValue("config", doc.toJson(QJsonDocument::Compact));
+        strategiesStateSettings->setValue("wasRunning", instance->state == StrategyState::RUNNING);
+    }
+    strategiesStateSettings->endArray();
+    strategiesStateSettings->sync();
+}
+
+void StrategyManager::restoreStrategiesState()
+{
+    if (!strategiesStateSettings)
+        return;
+
+    int size = strategiesStateSettings->beginReadArray("LoadedStrategies");
+    qInfo(StrategyManagerLog) << "Restoring" << size << "strategies from StrategiesState.ini";
+
+    for (int i = 0; i < size; ++i)
+    {
+        strategiesStateSettings->setArrayIndex(i);
+        QString configJson = strategiesStateSettings->value("config").toString();
+        bool wasRunning = strategiesStateSettings->value("wasRunning", false).toBool();
+
+        if (configJson.isEmpty())
+            continue;
+
+        QJsonDocument doc = QJsonDocument::fromJson(configJson.toUtf8());
+        if (doc.isNull() || !doc.isObject())
+        {
+            qWarning(StrategyManagerLog) << "Invalid config JSON in StrategiesState.ini at index" << i << ", skipping";
+            continue;
+        }
+
+        StrategyConfig config = StrategyConfig::fromJson(doc.object());
+        auto result = loadStrategy(config);
+        if (!result)
+        {
+            qWarning(StrategyManagerLog) << "Failed to restore strategy:" << config.name << "-" << result.error();
+            continue;
+        }
+
+        if (wasRunning)
+        {
+            QString error = startStrategy(result.value());
+            if (!error.isEmpty())
+            {
+                qWarning(StrategyManagerLog) << "Failed to auto-start restored strategy:" << config.name << "-" << error;
+            }
+        }
+    }
+    strategiesStateSettings->endArray();
 }

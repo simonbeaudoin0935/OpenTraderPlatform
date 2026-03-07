@@ -323,6 +323,14 @@ class StrategyManager final : public QObject
      */
     void releaseSymbols(const QString& p_strategyID);
 
+    /*
+     * Restore previously loaded strategies from StrategiesState.ini.
+     * Called once during startup (MainAlgo::onThreadStarted) after all data
+     * source connections are established.
+     * Failures (missing .so, corrupt config) are logged as warnings and skipped.
+     */
+    void restoreStrategiesState();
+
   public slots:
     /*
      * Called when MainAlgo receives a new bar
@@ -487,4 +495,10 @@ class StrategyManager final : public QObject
      * Disconnect StrategyInstance from data sources
      */
     void disconnectStrategyFromDataSources(StrategyInstance* p_instance);
+
+    /*
+     * Persist the current set of loaded strategies to StrategiesState.ini.
+     * Called after every load/start/unload operation.
+     */
+    void persistStrategiesState();
 };

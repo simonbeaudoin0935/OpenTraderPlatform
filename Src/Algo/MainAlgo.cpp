@@ -157,6 +157,9 @@ void MainAlgo::onThreadStarted()
             &m_strategyManager,
             &StrategyManager::onMainAlgoBalanceUpdated,
             Qt::QueuedConnection);
+
+    // Restore strategies that were loaded in the previous session
+    m_strategyManager.restoreStrategiesState();
 }
 
 /**
