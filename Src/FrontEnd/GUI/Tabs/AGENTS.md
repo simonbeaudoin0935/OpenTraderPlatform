@@ -234,8 +234,8 @@ void saveManualSymbols(); // AppState: RecordsInfo/ManualSymbols
 7. On all complete: re-enables button, refreshes browser, shows summary
 
 **Data Sources**:
-- Mbp10: `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst`
-- Trades: `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_trades.dbn.zst`
+- Mbp10: `~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst`
+- Trades: `~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_trades.dbn.zst`
 
 **AppState.ini Keys**:
 - `RecordsInfo/LastCsvPath` — last CSV file path used

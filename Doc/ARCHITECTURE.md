@@ -337,8 +337,8 @@ private:
 **Thread**: MainAlgo thread
 **Data Sources**:
 ```
-~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst   (Level 2)
-~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_trades.dbn.zst  (Trades)
+~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst   (Level 2)
+~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_trades.dbn.zst  (Trades)
 ```
 
 **Playback Speed**: Configurable via `PlaybackSpeed` enum — from `SuperSlow` (0.01×) to `AsFastAsPossible` (0ms timer delay). Speed can be changed during playback.

@@ -29,15 +29,15 @@ namespace
  * @brief Determines the database path based on current trading mode
  *
  * Database structure:
- * - Live:       ~/.cache/L2Trader/Orders/Live/Orders.db
- * - Simulation: ~/.cache/L2Trader/Orders/Simulation/Orders.db
- * - Replay:     ~/.cache/L2Trader/Orders/Replay/Orders_YYYY-MM-DD_HHMMSS.db
+ * - Live:       ~/.local/share/L2Trader/Orders/Live/Orders.db
+ * - Simulation: ~/.local/share/L2Trader/Orders/Simulation/Orders.db
+ * - Replay:     ~/.local/share/L2Trader/Orders/Replay/Orders_YYYY-MM-DD_HHMMSS.db
  *
  * @return Full path to the orders database file
  */
     QString determineDatabasePath()
     {
-        QString baseDir = getCacheLocation();
+        QString baseDir = getDataLocation();
         baseDir += "/Orders/";
 
         // Check TSClient mode first - if Replay, use replay path

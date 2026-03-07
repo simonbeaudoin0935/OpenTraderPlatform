@@ -402,7 +402,7 @@ L2Trader supports three distinct trading modes. Understanding the difference is 
 ### Database Structure
 
 ```
-~/.cache/L2Trader/
+~/.local/share/L2Trader/
 ├── Orders/
 │   ├── Live/
 │   │   └── Orders.db              (single file, all live orders)
