@@ -474,6 +474,12 @@ class StrategyManager final : public QObject
     QMap<QString, QString> m_symbolRegistry;      ///< symbol → ownerStrategyID (exclusive claim registry)
     std::unique_ptr<StrategyRegistry> m_registry; ///< Registry of available strategies
 
+    /// Guards persistStrategiesState() from firing during destructor teardown
+    /// or bulk stopAllStrategies() mode transitions.  Re-enabled at the start
+    /// of restoreStrategiesState() so that individual loadStrategy() calls
+    /// triggered by restore DO write back to the file.
+    bool m_persistEnabled = true;
+
     /*
      * Generate unique strategy instance ID
      */

@@ -278,6 +278,8 @@ StrategyManager::~StrategyManager()
 {
     qInfo(StrategyManagerLog) << "StrategyManager shutdown: unloading" << m_strategies.size() << "active strategies";
 
+    m_persistEnabled = false; // Don't overwrite persisted state during shutdown teardown
+
     QVector<QString> strategyIDs = getActiveStrategies();
     for (const auto& strategyID: strategyIDs)
     {
@@ -535,6 +537,8 @@ void StrategyManager::stopAllStrategies()
 {
     QVector<QString> activeStrategies = getActiveStrategies();
     INFO << "Stopping all strategies, count:" << activeStrategies.size();
+
+    m_persistEnabled = false; // Don't persist the emptied state during bulk teardown
 
     for (const QString& strategyID: activeStrategies)
     {
@@ -1003,7 +1007,7 @@ void StrategyManager::releaseSymbols(const QString& p_strategyID)
 
 void StrategyManager::persistStrategiesState()
 {
-    if (!strategiesStateSettings)
+    if (!strategiesStateSettings || !m_persistEnabled)
         return;
 
     // Pass explicit size so QSettings IniFormat writes the correct "size=N" key.
@@ -1028,6 +1032,8 @@ void StrategyManager::restoreStrategiesState()
 {
     if (!strategiesStateSettings)
         return;
+
+    m_persistEnabled = true; // Re-enable so loadStrategy() calls below update the file
 
     int size = strategiesStateSettings->beginReadArray("LoadedStrategies");
     qInfo(StrategyManagerLog) << "Restoring" << size << "strategies from StrategiesState.ini";
