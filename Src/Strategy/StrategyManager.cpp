@@ -708,6 +708,9 @@ void StrategyManager::onPositionUpdated(const Position& p_position)
     {
         if (instance && instance->p_strategy)
         {
+            // Update SDK state so getStrategyOpenPositions() returns current data
+            if (instance->p_sdk)
+                instance->p_sdk->updatePosition(p_position);
             instance->p_strategy->onPositionUpdated(p_position);
         }
     }
