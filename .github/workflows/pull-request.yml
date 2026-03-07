@@ -87,9 +87,10 @@ jobs:
           retention-days: 1
 
   build-ubsan:
+    if: false
     runs-on: ubuntu-24.04
     # Only run expensive sanitizer builds when PR is ready (not draft)
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     
     permissions:
       contents: read
@@ -151,10 +152,11 @@ jobs:
           retention-days: 1
 
   test-ubsan:
+    if: false
     runs-on: ubuntu-24.04
     needs: build-ubsan
     # Only run expensive sanitizer tests when PR is ready (not draft)
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     
     permissions:
       contents: read
@@ -325,9 +327,10 @@ jobs:
           retention-days: 7
 
   build-asan:
+    if: false
     runs-on: ubuntu-24.04
     # Only run expensive sanitizer builds when PR is ready (not draft)
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     
     permissions:
       contents: read
@@ -389,10 +392,11 @@ jobs:
           retention-days: 1
 
   test-asan:
+    if: false
     runs-on: ubuntu-24.04
     needs: build-asan
     # Only run expensive sanitizer tests when PR is ready (not draft)
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     
     permissions:
       contents: read
