@@ -157,10 +157,10 @@ void RecordsInfoTab::setupUI()
     replayDirRow->addWidget(new QLabel("Data Folder:"));
     m_replayDirEdit = new QLineEdit();
     Q_CHECK_PTR(m_replayDirEdit);
-    const QString defaultReplayDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/ReplayData";
+    const QString defaultReplayDir = getDataLocation() + "/ReplayData";
     m_replayDirEdit->setPlaceholderText(defaultReplayDir);
     m_replayDirEdit->setToolTip(
-        "Directory where replay data is stored.\nLeave empty to use the default cache location.");
+        "Directory where replay data is stored.\nLeave empty to use the default data location.");
     replayDirRow->addWidget(m_replayDirEdit, 1);
     m_browseReplayDirButton = new QPushButton("Browse…");
     Q_CHECK_PTR(m_browseReplayDirButton);

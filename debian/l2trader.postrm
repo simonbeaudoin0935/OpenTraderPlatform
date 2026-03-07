@@ -14,8 +14,11 @@ case "$1" in
                 # Remove L2Trader cache
                 rm -rf "$user_home/.cache/L2Trader" 2>/dev/null || true
                 
-                # Remove L2Trader local data (strategies, logs, etc.)
+                # Remove L2Trader local data (strategy binaries, orders, positions, replay data)
                 rm -rf "$user_home/.local/share/L2Trader" 2>/dev/null || true
+                
+                # Remove L2Trader state (logs, app state)
+                rm -rf "$user_home/.local/state/L2Trader" 2>/dev/null || true
             fi
         done
         ;;

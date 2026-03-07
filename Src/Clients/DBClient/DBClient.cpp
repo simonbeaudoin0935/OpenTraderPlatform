@@ -364,7 +364,7 @@ QString DBClient::getReplayBaseDir()
 {
     if (!m_replayBaseDir.isEmpty())
         return m_replayBaseDir;
-    return QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/ReplayData";
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/ReplayData";
 }
 
 void DBClient::setReplayBaseDir(const QString& p_dir)

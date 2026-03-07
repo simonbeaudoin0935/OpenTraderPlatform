@@ -12,3 +12,5 @@ extern QString stockCsvFile;
 extern QString recordedDataDir;
 
 QString getCacheLocation();
+QString getDataLocation();
+QString getStateLocation();

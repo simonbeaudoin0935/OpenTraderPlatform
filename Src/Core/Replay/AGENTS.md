@@ -17,8 +17,8 @@ ReplayEngine uses two `databento::DbnFileStore` instances:
 
 | Member | Schema | File Path |
 |--------|--------|-----------|
-| `m_mbp10Store` | `Mbp10` (Level 2) | `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst` |
-| `m_tradesStore` | `Trades` | `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_trades.dbn.zst` |
+| `m_mbp10Store` | `Mbp10` (Level 2) | `~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst` |
+| `m_tradesStore` | `Trades` | `~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_trades.dbn.zst` |
 
 Files are downloaded by `DBClient::downloadReplayData(symbol, date)` before replay begins. Use `DBClient::hasReplayData(date, symbol)` to check availability.
 
@@ -166,7 +166,7 @@ Streams have a 10-second heartbeat timer. In replay mode:
 
 1. Enable `ReplayEngine` logging category
 2. Check heartbeat timer states in `Stream` logs
-3. Verify `.dbn.zst` files exist: `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst`
+3. Verify `.dbn.zst` files exist: `~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst`
 4. Check `MainApp::getDataSourceMode()` is set to Replay
 5. Use `DBClient::hasReplayData(date, symbol)` to verify data availability
 
