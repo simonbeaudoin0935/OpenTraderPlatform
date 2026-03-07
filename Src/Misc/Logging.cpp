@@ -315,6 +315,16 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext& context, con
     LogBroadcaster::instance().broadcastLogMessage(htmlMsg);
 }
 
+QString getLogsFolderPath()
+{
+    QString xdgStateHome = QProcessEnvironment::systemEnvironment().value("XDG_STATE_HOME");
+    if (xdgStateHome.isEmpty())
+    {
+        xdgStateHome = QDir::homePath() + "/.local/state";
+    }
+    return xdgStateHome + "/" + QCoreApplication::applicationName() + "/logs";
+}
+
 void initLogging()
 {
     // Install signal handlers for crash reporting
@@ -323,25 +333,8 @@ void initLogging()
     signal(SIGFPE, crashHandler);
     signal(SIGILL, crashHandler);
 
-    // Get XDG-compliant state directory for logs
-    // XDG_STATE_HOME defines where user-specific state files should be stored
-    // Defaults to ~/.local/state if not set
-    QString xdgStateHome = QProcessEnvironment::systemEnvironment().value("XDG_STATE_HOME");
-    if (xdgStateHome.isEmpty())
-    {
-        xdgStateHome = QDir::homePath() + "/.local/state";
-    }
-
-    // Create application-specific state directory
-    QString appStateDir = xdgStateHome + "/" + QCoreApplication::applicationName();
-    QDir stateDir(appStateDir);
-    if (!stateDir.exists())
-    {
-        stateDir.mkpath(".");
-    }
-
-    // Create logs subdirectory within state directory
-    QString logsDirPath = appStateDir + "/logs";
+    // Get XDG-compliant logs directory
+    QString logsDirPath = getLogsFolderPath();
     QDir logsDir(logsDirPath);
     if (!logsDir.exists())
     {
