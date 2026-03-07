@@ -169,8 +169,13 @@ void StrategyLogWidget::onRefreshTimer()
     for (int i = firstNew; i < logs.size(); ++i)
     {
         const auto& msg = logs[i];
+        const QString color     = levelToHtmlColor(msg.level);
+        const QString levelStr  = levelToString(msg.level);
+        const QString timestamp = msg.timestamp.toString("hh:mm:ss.zzz");
+        const QString safeMsg   = msg.message.toHtmlEscaped();
+
         m_logDisplay->append(
-            QString("[%1] %2: %3").arg(msg.timestamp.toString("hh:mm:ss.zzz"), levelToString(msg.level), msg.message));
+            QString("<span style='color:%1'>[%2] %3: %4</span>").arg(color, timestamp, levelStr, safeMsg));
     }
 
     if (m_autoScroll)
@@ -206,5 +211,24 @@ QString StrategyLogWidget::levelToString(QtMsgType level)
             return "FATAL";
         default:
             return "???";
+    }
+}
+
+QString StrategyLogWidget::levelToHtmlColor(QtMsgType level)
+{
+    switch (level)
+    {
+        case QtDebugMsg:
+            return "#00CED1"; // Cyan   — matches Logging.cpp
+        case QtInfoMsg:
+            return "#32CD32"; // Green
+        case QtWarningMsg:
+            return "#FFD700"; // Yellow
+        case QtCriticalMsg:
+            return "#FF4500"; // Red-orange
+        case QtFatalMsg:
+            return "#FF00FF"; // Magenta
+        default:
+            return "#CCCCCC"; // Light grey fallback
     }
 }

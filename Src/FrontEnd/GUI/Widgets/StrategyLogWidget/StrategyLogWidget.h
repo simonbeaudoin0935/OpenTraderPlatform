@@ -71,4 +71,5 @@ class StrategyLogWidget : public QWidget
     QTimer* m_timer;
 
     static QString levelToString(QtMsgType level);
+    static QString levelToHtmlColor(QtMsgType level);
 };
