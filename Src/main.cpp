@@ -14,6 +14,7 @@
 
 #include <QtGlobal>
 #include <QDateTime>
+#include <QDir>
 
 #include <iostream>
 
@@ -41,12 +42,17 @@ int main(int argc, char* argv[])
 
     parseArguments(QCoreApplication::arguments());
 
-    // Initialize app state settings for persistent UI state
-    appStateSettings =
-        new QSettings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::applicationName(), "AppState");
+    // Initialize app state settings for persistent UI state.
+    // Stored in XDG_STATE_HOME (~/.local/state/L2Trader/AppState.ini) because
+    // it holds previous session state, not user configuration.
+    QString appStateFilePath = getStateLocation() + "/AppState.ini";
+    QDir().mkpath(getStateLocation());
+    appStateSettings = new QSettings(appStateFilePath, QSettings::IniFormat);
     appStateSettings->setFallbacksEnabled(false);
 
     qInfo() << "Cache root directory:" << getCacheLocation();
+    qInfo() << "Data root directory:" << getDataLocation();
+    qInfo() << "State root directory:" << getStateLocation();
 
     MainApp* mainApp = MainApp::getInstance();
 

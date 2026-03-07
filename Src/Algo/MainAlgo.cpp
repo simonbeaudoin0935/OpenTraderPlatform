@@ -1304,6 +1304,13 @@ void MainAlgo::startReplayOrderStreams()
     simAccounts.append(simAccount);
     emit tradeStationAccountsReceived(simAccounts);
     DEBUG << "Emitted simulated account for replay mode";
+
+    // Start balance polling so the balances widget updates during replay
+    if (!m_balancePollingStarted)
+    {
+        startBalancePolling();
+        m_balancePollingStarted = true;
+    }
 }
 
 void MainAlgo::resumeLiveStreams()
@@ -1313,6 +1320,13 @@ void MainAlgo::resumeLiveStreams()
     // Receivers exist but their streams were stopped in pauseLiveStreams
     OBJ_ASSUME_DIFF(m_positionReceiver, nullptr);
     OBJ_ASSUME_DIFF(m_orderReceiver, nullptr);
+
+    // Skip account fetch if not authenticated (e.g. replay-only without TS credentials)
+    if (!TSClient::getInstance()->isAuthenticated())
+    {
+        INFO << "Not authenticated with TradeStation — skipping account fetch after replay mode";
+        return;
+    }
 
     // Fetch real accounts from API (replay mode uses fake "SIM123456")
     INFO << "Fetching real accounts from API after replay mode";

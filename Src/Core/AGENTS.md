@@ -154,7 +154,7 @@ Contains data caching subsystems.
 - `OrderEmulator`: Simulates order fills based on real-time Level 2 depth updates
 - See `Replay/AGENTS.md` for detailed replay architecture and workflow
 
-`ReplayDataLoader` was deleted as part of the Databento migration. `ReplayEngine` now reads directly from `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst` and `{SYMBOL}_trades.dbn.zst`.
+`ReplayDataLoader` was deleted as part of the Databento migration. `ReplayEngine` now reads directly from `~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst` and `{SYMBOL}_trades.dbn.zst`.
 
 ### TradingSession Enum
 
@@ -277,9 +277,9 @@ L2Trader uses three distinct trading modes, each with its own database storage:
 
 | Mode | Endpoint | Database Path | Description |
 |------|----------|---------------|-------------|
-| **Live** | `api.tradestation.com` | `~/.cache/L2Trader/Orders/Live/Orders.db` | Real money trading |
-| **Simulation** | `sim-api.tradestation.com` | `~/.cache/L2Trader/Orders/Simulation/Orders.db` | Paper trading via real API |
-| **Replay** | (None - local emulation) | `~/.cache/L2Trader/Orders/Replay/Orders_YYYY-MM-DD_HHMMSS.db` | Historical playback |
+| **Live** | `api.tradestation.com` | `~/.local/share/L2Trader/Orders/Live/Orders.db` | Real money trading |
+| **Simulation** | `sim-api.tradestation.com` | `~/.local/share/L2Trader/Orders/Simulation/Orders.db` | Paper trading via real API |
+| **Replay** | (None - local emulation) | `~/.local/share/L2Trader/Orders/Replay/Orders_YYYY-MM-DD_HHMMSS.db` | Historical playback |
 
 **Important Distinction**:
 - **Simulation** uses the real TradeStation sim API endpoint (`sim-api.tradestation.com`) - orders go through real network requests, just to a paper trading account
@@ -287,7 +287,7 @@ L2Trader uses three distinct trading modes, each with its own database storage:
 
 **Directory Structure**:
 ```
-~/.cache/L2Trader/
+~/.local/share/L2Trader/
 ├── Orders/
 │   ├── Live/
 │   │   └── Orders.db              (single file, all live trading history)

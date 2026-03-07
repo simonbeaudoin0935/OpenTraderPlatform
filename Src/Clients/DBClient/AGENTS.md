@@ -98,7 +98,7 @@ Non-fatal errors are logged but do not trigger UI changes.
 `downloadReplayData(symbol, date)` downloads **Mbp10** (Level 2) + **Trades** for one symbol on one date:
 
 - Runs asynchronously via `QtConcurrent::run()` (sequential per call)
-- Files stored as `~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst` and `_trades.dbn.zst`
+- Files stored as `~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst` and `_trades.dbn.zst`
 - Emits `replayDownloadFinished()` on completion (success or failure)
 - `hasReplayData(date, symbol)` checks if both files exist
 - `getReplayDataDir(date)` / `getReplayFilePath(date, symbol, schema)` provide path helpers

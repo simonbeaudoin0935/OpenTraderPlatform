@@ -24,8 +24,8 @@
  * - A three-column browser for existing recorded data (days, symbols, file details)
  *
  * Data is stored in:
- * - ~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{symbol}_mbp10.dbn.zst
- * - ~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/{symbol}_trades.dbn.zst
+ * - ~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{symbol}_mbp10.dbn.zst
+ * - ~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{symbol}_trades.dbn.zst
  */
 class RecordsInfoTab : public QWidget
 {

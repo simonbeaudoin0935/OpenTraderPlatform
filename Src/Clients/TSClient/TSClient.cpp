@@ -174,7 +174,11 @@ TSClient::TSClient()
 QNetworkRequest TSClient::buildNetworkRequest(const QString& endpoint, const QUrlQuery& query) const
 {
     OBJ_ASSUME_FALSE(m_baseUrl.isEmpty());
-    OBJ_ASSUME_FALSE(m_apiKey.isEmpty());
+    // In replay mode the mock network manager handles the request without real credentials
+    if (m_mode != Mode::Replay)
+    {
+        OBJ_ASSUME_FALSE(m_apiKey.isEmpty());
+    }
     OBJ_ASSUME_FALSE(endpoint.isEmpty());
     // Ensure no unformatted parameters remain
     OBJ_ASSUME_FALSE(endpoint.contains(QRegularExpression("%\\d+")));

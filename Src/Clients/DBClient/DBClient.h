@@ -108,7 +108,7 @@ class DBClient : public QObject
     /**
      * @brief Download replay data (Mbp10 + Trades) for a symbol and date.
      * Runs asynchronously on QThreadPool. Emits replayDownloadFinished on completion.
-     * Files are saved to ~/.cache/L2Trader/ReplayData/{YYYY-MM-DD}/
+     * Files are saved to ~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/
      * @param p_symbol Ticker symbol
      * @param p_date   Trading date to download
      */
@@ -116,7 +116,7 @@ class DBClient : public QObject
 
     /**
      * @brief Get or set the base directory where replay data is stored.
-     * Defaults to ~/.cache/L2Trader/ReplayData. Can be overridden to point
+     * Defaults to ~/.local/share/L2Trader/ReplayData. Can be overridden to point
      * to an external drive or transferred folder.
      */
     [[nodiscard]] static QString getReplayBaseDir();
