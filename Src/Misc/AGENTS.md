@@ -77,7 +77,8 @@ namespace BarFlags {
 }
 
 namespace FileSystemConstants {
-    const QString LOGS_DIR = "logs";
+    const QString APP_LOGS_DIR = "AppLogs";       // ~/.local/state/L2Trader/AppLogs/
+    const QString STRATEGIES_LOGS_DIR = "StrategiesLogs"; // ~/.local/state/L2Trader/StrategiesLogs/
     const QString CACHE_DIR = "bars";
     const QString CONFIG_DIR = ".config/L2Trader";
 }
@@ -204,9 +205,9 @@ LoggingConfig::getInstance().setFileLoggingEnabled(true);
 ```
 
 **Log File Location**:
-- Linux: `~/.local/share/L2Trader/logs/L2Trader_YYYY-MM-DD.log`
-- Rotated daily
-- Old logs kept for 30 days (configurable)
+- Linux: `~/.local/state/L2Trader/AppLogs/L2Trader_YYYY-MM-DD_hh-mm-ss.log.ansi`
+- One file per app invocation (timestamped, not rotated)
+- `.ansi` extension — contains ANSI color escape codes; strip with `sed 's/\x1b\[[0-9;]*m//g'`
 
 **Custom Message Handler**:
 ```cpp
