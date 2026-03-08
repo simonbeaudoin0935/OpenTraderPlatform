@@ -548,8 +548,10 @@ void MainAlgo::requestBalance()
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
 
-    // Don't request balance if not authenticated — TSClient will assert on empty API key
-    if (!TSClient::getInstance()->isAuthenticated())
+    // Don't request balance if not authenticated — TSClient will assert on empty API key.
+    // Exception: in replay mode, the mock network manager handles requests without real credentials.
+    if (!TSClient::getInstance()->isAuthenticated()
+        && TSClient::getInstance()->getMode() != TSClient::Mode::Replay)
         return;
 
     OBJ_ASSUME_FALSE(m_activeAccount.getAccountId().isEmpty());
