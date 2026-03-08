@@ -125,7 +125,7 @@ class StockPriceChart : public QWidget
      * @brief Clears all chart data, index mappings, and background rects.
      * Used when entering replay mode to start fresh.
      */
-    void clearChart();
+    void clearChart(bool p_replot = true);
 
     /**
      * @brief Populates the replay day dropdown with available dates from cache.

@@ -104,7 +104,7 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
         MainApp::currentAppReplayTime =
             QDateTime(currentDate, time, TradingHours::MARKET_TIMEZONE);
 
-        clearChart();
+        clearChart(/*p_replot=*/false);
 
         // Restore the X view range, shifting by the anchor delta.
         // Y range is restored in onHistoricalBarsReceived via m_preservedYRange.

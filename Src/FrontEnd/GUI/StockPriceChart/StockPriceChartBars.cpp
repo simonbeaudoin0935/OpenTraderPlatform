@@ -698,7 +698,7 @@ void StockPriceChart::clearSymbol()
     m_customPlot->replot();
 }
 
-void StockPriceChart::clearChart()
+void StockPriceChart::clearChart(bool p_replot)
 {
     INFO << "Clearing chart data for replay mode";
 
@@ -744,7 +744,8 @@ void StockPriceChart::clearChart()
     m_customPlot->xAxis->setRange(0, 30);
     m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(0, 100);
 
-    m_customPlot->replot();
+    if (p_replot)
+        m_customPlot->replot();
 
     // Re-initialize time anchor (needed for replay restart and live mode re-entry)
     if (!m_symbol.isEmpty())
