@@ -24,10 +24,7 @@ Src/FrontEnd/GUI/
 │   ├── CacheTab.cpp/h              # Bar cache management
 │   ├── ConfigTab.cpp/h             # Application settings
 │   ├── LoggingTab.cpp/h            # Live log display
-│   ├── ShortcutsTab.cpp/h          # Keyboard shortcuts
-│   └── StrategiesTab/              # Strategy plugin management
-│       ├── AGENTS.md
-│       └── ... (strategy UI components)
+│   └── ShortcutsTab.cpp/h          # Keyboard shortcuts
 ├── Widgets/                        # Reusable widget components
 │   ├── AGENTS.md
 │   ├── OrderEntry/                 # Order placement widget
@@ -37,8 +34,10 @@ Src/FrontEnd/GUI/
 │   │   ├── AGENTS.md
 │   │   ├── Level2Widget.cpp/h      # Main widget (was MarketDepthTable)
 │   │   └── Level2TableView.cpp/h   # Custom table view (was MarketDepthTableView)
-│   └── StrategyQuickView/          # Live strategy + claimed symbol tree
-│       └── StrategyQuickView.cpp/h
+│   ├── StrategyQuickView/          # Live strategy + claimed symbol tree (in Trade tab)
+│   │   └── StrategyQuickView.cpp/h
+│   └── StrategyLogWidget/          # Per-strategy log display (bottom splitter panel)
+│       └── StrategyLogWidget.cpp/h
 ├── Widgets/                        # Window-style displays
 │   ├── AGENTS.md
 │   ├── OrderWidget.cpp/h           # Orders table
@@ -52,8 +51,7 @@ Src/FrontEnd/GUI/
 ```
 
 **Navigation**: Each subfolder contains its own AGENTS.md with detailed documentation. See:
-- `Tabs/AGENTS.md` - Tab components (cache, logging, strategies, etc.)
-- `Tabs/StrategiesTab/AGENTS.md` - Strategy plugin management UI
+- `Tabs/AGENTS.md` - Tab components (cache, logging, etc.)
 - `Widgets/AGENTS.md` - Reusable widget components overview
 - `Widgets/OrderEntry/AGENTS.md` - Order entry widget with sticky price
 - `Widgets/Level2/AGENTS.md` - Level 2 market depth display (Level2Widget)
@@ -296,7 +294,7 @@ See `Widgets/AGENTS.md` for complete documentation.
 Columns:
 - Order ID
 - Symbol (clickable to load chart)
-- Action (Buy, Sell, etc.)
+- Action (BUY, SELL, SHORT, COVER) — note: "SELLSHORT" displayed as "SHORT", "BUYTOCOVER" as "COVER"
 - Quantity
 - Type (Market, Limit, etc.)
 - Price
@@ -370,28 +368,51 @@ The RecorderTab was removed in Phase 3 of the Databento migration. Recording is 
 
 ### StrategyQuickView (Widgets/StrategyQuickView/)
 
-**Live collapsible tree of active strategies and their claimed symbols.**
+**Live collapsible tree of active strategies and their claimed symbols — embedded in the Trade tab.**
 
-- Root nodes: strategy name + status dot (green=running, grey=stopped)
-- Child nodes: symbols claimed by the strategy (light blue)
-- Clicking a symbol node emits `symbolSelected(symbol)` → `GUIFrontend::displayStock()`
-  (warm switch — no cold load since strategy already subscribed to that symbol)
-- Connects to `StrategyManager` signals: `strategyLoaded`, `strategyUnloaded`,
-  `strategyStatusChanged`, `symbolsClaimed`
-- Placed in `rightPanel` above `Level2Widget` in `GUIFrontend.ui`
+**Columns** (5):
+| Col | Header | Content |
+|-----|--------|---------|
+| 0 | Strategy / Symbol | Strategy name (root) or symbol (child); elastic stretch |
+| 1 | Qty | Position quantity for symbol rows |
+| 2 | Avg Price | Average fill price for symbol rows |
+| 3 | U/P&L | Unrealized P&L (`getUnrealizedProfitLoss()`) — fixed 65px |
+| 4 | R/P&L | Realized/intraday P&L (`getTodaysProfitLoss()`) — fixed 65px |
 
-### StrategiesTab/ (Tabs/StrategiesTab/)
+**Header toolbar** (above tree):
+- "Load ⊕" button (top-right corner) — opens `StrategyLoadDialog`
 
-**Strategy plugin management**
+**Right-click context menu** (strategy-level rows):
+- **Start** — `StrategyManager::startStrategy(id)` (visible when stopped/loaded)
+- **Stop / Unload** — `StrategyManager::unloadStrategy(id)` (visible when running/error)
+- **Display Logs** — shows `StrategyLogWidget` in the bottom horizontal splitter
 
-See `Tabs/StrategiesTab/AGENTS.md` and `Doc/STRATEGY.md` for complete details.
+**Symbol selection**: Clicking a symbol row emits `symbolSelected(symbol)` → `GUIFrontend::displayStock()`
+(warm switch — no cold load since strategy already subscribed to that symbol)
 
-Features:
-- Load strategy plugins (.so files)
-- Start/stop strategies
-- View strategy status and logs
-- Crash isolation per strategy
-- Strategy cards with metrics
+**Connections**: `StrategyManager` signals: `strategyLoaded`, `strategyUnloaded`,
+`strategyStatusChanged`, `symbolsClaimed`
+
+**Placed in**: `rightPanel` above `Level2Widget` in `GUIFrontend.ui`
+
+### StrategyLogWidget (Widgets/StrategyLogWidget/)
+
+**Per-strategy log viewer shown at the bottom of the main window alongside the platform logger.**
+
+- Appears in the **right panel** of a `QSplitter(Horizontal)` that wraps the bottom logger area
+- Left panel = existing `liveLogDisplay` (platform logs); right panel = `StrategyLogWidget`
+- Starts hidden (zero-width); expands when "Display Logs" is triggered from StrategyQuickView
+- Title bar: "Strategy Log: \<name\>" + level filter combo + Close (×) button
+- QTimer (1000 ms) appends only new messages (tracks `m_lastLogIndex` into `StrategyLogger` buffer)
+- `setStrategy(id, name)` / `clearStrategy()` public API
+
+### StrategiesTab/ — REMOVED
+
+The StrategiesTab (`Tabs/StrategiesTab/`) was removed. All strategy management is now handled via:
+- **StrategiesQuickView** widget (Trade tab) — load, start, stop, display logs
+- **StrategyLogWidget** (bottom splitter) — per-strategy log display
+
+`StrategyLoadDialog` was moved to `Src/FrontEnd/GUI/Dialogs/` when the tab was removed.
 
 ## Dark Theme
 

@@ -12,36 +12,47 @@ void StockPriceChart::onAxisRangeChanged()
     if (indexToBar.isEmpty() && !m_index0Timestamp.isValid())
         return;
 
-    updateAxisLabelsDensity();
-    redrawLastPriceLine();
-    rescaleVolumeAxisToVisibleRange();
+    // Debounce: if a deferred update is already queued, just let it run.
+    // This coalesces rapid successive rangeChanged signals (e.g. X and Y both
+    // firing in a single wheel event, or the bidirectional X-axis sync round-trip).
+    if (m_axisRangeChangePending)
+        return;
 
-    // Update the current time line's Y coordinates to match new Y-axis range
-    if (m_currentTimeLine->visible())
-    {
-        QCPRange yRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
-        double currentX = m_currentTimeLine->start->coords().x();
-        m_currentTimeLine->start->setCoords(currentX, yRange.lower);
-        m_currentTimeLine->end->setCoords(currentX, yRange.upper);
-    }
+    m_axisRangeChangePending = true;
+    QTimer::singleShot(0, this, [this]() {
+        m_axisRangeChangePending = false;
 
-    // Note: Background rectangles are created once when bars are received,
-    // QCustomPlot handles clipping to visible range automatically.
-    // No need to recreate them on every axis change.
+        updateAxisLabelsDensity();
+        redrawLastPriceLine();
+        rescaleVolumeAxisToVisibleRange();
 
-    // Check for missing bars when view extends beyond available data
-    double minIndex = m_customPlot->xAxis->range().lower;
-    if (!indexToBar.isEmpty() && minIndex < indexToBar.firstKey())
-    {
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
-        checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
-    }
-    else if (indexToBar.isEmpty() && m_index0Timestamp.isValid())
-    {
-        // No bars loaded yet — request from view start to index 0
-        QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
-        checkForMissingBars(requestTime, m_index0Timestamp);
-    }
+        // Update the current time line's Y coordinates to match new Y-axis range
+        if (m_currentTimeLine->visible())
+        {
+            QCPRange yRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
+            double currentX = m_currentTimeLine->start->coords().x();
+            m_currentTimeLine->start->setCoords(currentX, yRange.lower);
+            m_currentTimeLine->end->setCoords(currentX, yRange.upper);
+        }
+
+        // Note: Background rectangles are created once when bars are received,
+        // QCustomPlot handles clipping to visible range automatically.
+        // No need to recreate them on every axis change.
+
+        // Check for missing bars when view extends beyond available data
+        double minIndex = m_customPlot->xAxis->range().lower;
+        if (!indexToBar.isEmpty() && minIndex < indexToBar.firstKey())
+        {
+            QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
+            checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
+        }
+        else if (indexToBar.isEmpty() && m_index0Timestamp.isValid())
+        {
+            // No bars loaded yet — request from view start to index 0
+            QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
+            checkForMissingBars(requestTime, m_index0Timestamp);
+        }
+    });
 }
 
 /**

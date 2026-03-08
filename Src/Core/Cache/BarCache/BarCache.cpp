@@ -172,7 +172,9 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first,
 BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& first, const QTime& last)
 {
     const QDateTime now = MainApp::getCurrentAppTime();
-    const bool isCurrentDay = (date == now.date());
+    // In replay mode, the replay date is a historical date — treat it as a past day so we
+    // always fetch the full day from the API (not capped at the replay start time).
+    const bool isCurrentDay = !MainApp::isInReplayMode() && (date == now.date());
 
     // The smaller increment in bar time is 1 minute, so we can safely assume seconds and milliseconds are zero
     OBJ_ASSUME_EQUAL(first.second(), 0);

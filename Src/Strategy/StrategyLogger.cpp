@@ -1,11 +1,54 @@
 #include "StrategyLogger.h"
 #include <QDir>
-#include <QStandardPaths>
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
 
-StrategyLogger::StrategyLogger(const QString& p_strategyName) : m_strategyName(p_strategyName) {}
+StrategyLogger::StrategyLogger(const QString& p_strategyName) : m_strategyName(p_strategyName)
+{
+    QString xdgStateHome = qEnvironmentVariable("XDG_STATE_HOME");
+    if (xdgStateHome.isEmpty())
+        xdgStateHome = QDir::homePath() + "/.local/state";
+    QString logDirPath = xdgStateHome + "/L2Trader/StrategiesLogs";
+
+    QDir logDir(logDirPath);
+    if (!logDir.exists())
+        logDir.mkpath(".");
+
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss");
+    m_filePath = logDirPath + "/" + QString("strategy_%1_%2.log").arg(m_strategyName, timestamp);
+
+    m_file = std::make_unique<QFile>(m_filePath);
+    if (m_file->open(QIODevice::WriteOnly | QIODevice::Text))
+    {
+        m_stream = std::make_unique<QTextStream>(m_file.get());
+        qInfo() << "StrategyLogger: logging to" << m_filePath;
+    }
+    else
+    {
+        qWarning() << "StrategyLogger: failed to open log file:" << m_filePath;
+        m_file.reset();
+    }
+}
+
+static QString levelToString(QtMsgType p_level)
+{
+    switch (p_level)
+    {
+    case QtDebugMsg:
+        return "DEBUG";
+    case QtInfoMsg:
+        return "INFO";
+    case QtWarningMsg:
+        return "WARNING";
+    case QtCriticalMsg:
+        return "CRITICAL";
+    case QtFatalMsg:
+        return "FATAL";
+    default:
+        return "UNKNOWN";
+    }
+}
 
 void StrategyLogger::log(QtMsgType p_level, const QString& p_message)
 {
@@ -16,12 +59,19 @@ void StrategyLogger::log(QtMsgType p_level, const QString& p_message)
     msg.level = p_level;
     msg.message = p_message;
 
+    // Append to in-memory circular buffer for live UI display
     m_messages.append(msg);
-
-    // Maintain circular buffer - remove oldest if we exceed max
     if (m_messages.size() > MAX_MESSAGES)
-    {
         m_messages.removeFirst();
+
+    // Write to file immediately
+    if (m_stream)
+    {
+        *m_stream << QString("[%1] %2 - %3\n")
+                         .arg(msg.timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz"),
+                              levelToString(p_level),
+                              p_message);
+        m_stream->flush();
     }
 }
 
@@ -39,9 +89,7 @@ QVector<StrategyLogMessage> StrategyLogger::getMessagesSince(const QDateTime& p_
     for (const auto& msg: m_messages)
     {
         if (msg.timestamp >= p_since)
-        {
             result.append(msg);
-        }
     }
     return result;
 }
@@ -53,9 +101,7 @@ QVector<StrategyLogMessage> StrategyLogger::getRecentMessages(int p_count) const
     QVector<StrategyLogMessage> result;
     int start = std::max(0LL, m_messages.size() - p_count);
     for (int i = start; i < m_messages.size(); ++i)
-    {
         result.append(m_messages[i]);
-    }
     return result;
 }
 
@@ -73,72 +119,11 @@ int StrategyLogger::messageCount() const
 
 QString StrategyLogger::getLogFilePath() const
 {
-    QString logDir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
-    logDir = logDir + "/L2Trader/logs";
-
-    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss");
-    QString fileName = QString("strategy_%1_%2.log").arg(m_strategyName, timestamp);
-
-    return logDir + "/" + fileName;
+    return m_filePath;
 }
 
-QString StrategyLogger::saveToFile()
+QString StrategyLogger::saveToFile() const
 {
-    QString filePath = getLogFilePath();
-    QFileInfo fileInfo(filePath);
-    QDir logDir(fileInfo.dir());
-
-    // Create directory if it doesn't exist
-    if (!logDir.exists())
-    {
-        if (!logDir.mkpath("."))
-        {
-            qWarning() << "Failed to create log directory:" << logDir.path();
-            return QString();
-        }
-    }
-
-    QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
-    {
-        qWarning() << "Failed to open log file for writing:" << filePath;
-        return QString();
-    }
-
-    QTextStream stream(&file);
-
-    {
-        QMutexLocker locker(&m_mutex);
-        for (const auto& msg: m_messages)
-        {
-            QString levelStr;
-            switch (msg.level)
-            {
-            case QtDebugMsg:
-                levelStr = "DEBUG";
-                break;
-            case QtInfoMsg:
-                levelStr = "INFO";
-                break;
-            case QtWarningMsg:
-                levelStr = "WARNING";
-                break;
-            case QtCriticalMsg:
-                levelStr = "CRITICAL";
-                break;
-            case QtFatalMsg:
-                levelStr = "FATAL";
-                break;
-            default:
-                levelStr = "UNKNOWN";
-            }
-
-            stream << QString("[%1] %2 - %3\n")
-                          .arg(msg.timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz"), levelStr, msg.message);
-        }
-    }
-
-    file.close();
-    qInfo() << "Saved strategy logs to:" << filePath;
-    return filePath;
+    // File is written incrementally — nothing to flush; just return the path.
+    return m_filePath;
 }

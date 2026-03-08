@@ -4,15 +4,17 @@
 #include "../Core/MainApp.h"
 #include "Assume.h"
 #include "OrdersDatabase.h"
+#include "Settings.h"
 #include <QUuid>
 #include <QDebug>
 #include <QPromise>
+#include <QJsonDocument>
 
 #define LOGGING_CATEGORY StrategyManagerLog
 
 #include "Logging.h"
 
-Q_LOGGING_CATEGORY(StrategyManagerLog, "StrategyManager", QtWarningMsg)
+Q_LOGGING_CATEGORY(StrategyManagerLog, "StrategyManager")
 
 // StrategySDK implementation
 StrategySDK::StrategySDK(MainAlgo* p_mainAlgo,
@@ -276,6 +278,8 @@ StrategyManager::~StrategyManager()
 {
     qInfo(StrategyManagerLog) << "StrategyManager shutdown: unloading" << m_strategies.size() << "active strategies";
 
+    m_persistEnabled = false; // Don't overwrite persisted state during shutdown teardown
+
     QVector<QString> strategyIDs = getActiveStrategies();
     for (const auto& strategyID: strategyIDs)
     {
@@ -359,6 +363,8 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
 
     emit strategyLoaded(strategyID, p_config.name);
 
+    persistStrategiesState();
+
     return strategyID;
 }
 
@@ -393,11 +399,10 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
         instance->p_adapter->callOnStop();
     }
 
-    // Save logs before shutdown
+    // Log the file path (logs are written incrementally, nothing to flush)
     if (instance->p_logger)
     {
-        QString logFile = instance->p_logger->saveToFile();
-        qInfo(StrategyManagerLog) << "Saved strategy logs to:" << logFile;
+        qInfo(StrategyManagerLog) << "Strategy log file:" << instance->p_logger->getLogFilePath();
     }
 
     // Signal thread to quit gracefully
@@ -442,6 +447,8 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
 
     emit strategyUnloaded(p_strategyID);
 
+    persistStrategiesState();
+
     return "";
 }
 
@@ -483,6 +490,10 @@ QString StrategyManager::startStrategy(const QString& p_strategyID)
                          // Update state to RUNNING
                          instance->state = StrategyState::RUNNING;
                          emit strategyStatusChanged(instance->strategyID, true, "");
+
+                         // Persist updated running state (back on MainAlgo thread)
+                         QMetaObject::invokeMethod(
+                             this, [this]() { persistStrategiesState(); }, Qt::QueuedConnection);
                      });
 
     // Start the thread
@@ -525,6 +536,8 @@ void StrategyManager::stopAllStrategies()
 {
     QVector<QString> activeStrategies = getActiveStrategies();
     INFO << "Stopping all strategies, count:" << activeStrategies.size();
+
+    m_persistEnabled = false; // Don't persist the emptied state during bulk teardown
 
     for (const QString& strategyID: activeStrategies)
     {
@@ -698,6 +711,9 @@ void StrategyManager::onPositionUpdated(const Position& p_position)
     {
         if (instance && instance->p_strategy)
         {
+            // Update SDK state so getStrategyOpenPositions() returns current data
+            if (instance->p_sdk)
+                instance->p_sdk->updatePosition(p_position);
             instance->p_strategy->onPositionUpdated(p_position);
         }
     }
@@ -986,4 +1002,73 @@ void StrategyManager::releaseSymbols(const QString& p_strategyID)
             [sdk = instance->p_sdk]() { sdk->clearClaimedSymbols(); },
             Qt::QueuedConnection);
     }
+}
+
+void StrategyManager::persistStrategiesState()
+{
+    if (!strategiesStateSettings || !m_persistEnabled)
+        return;
+
+    // Pass explicit size so QSettings IniFormat writes the correct "size=N" key.
+    // Without it, Qt sets size to the last setArrayIndex() value (0-based) rather
+    // than the element count, causing beginReadArray() to return 0 on next launch.
+    strategiesStateSettings->beginWriteArray("LoadedStrategies", m_strategies.size());
+    int index = 0;
+    for (auto it = m_strategies.constBegin(); it != m_strategies.constEnd(); ++it)
+    {
+        strategiesStateSettings->setArrayIndex(index++);
+        const StrategyInstance* instance = it.value();
+        QJsonDocument doc(instance->config.toJson());
+        // Store as QString so QSettings INI reads it back as a string (not @ByteArray).
+        strategiesStateSettings->setValue("config", QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
+        strategiesStateSettings->setValue("wasRunning", instance->state == StrategyState::RUNNING);
+    }
+    strategiesStateSettings->endArray();
+    strategiesStateSettings->sync();
+}
+
+void StrategyManager::restoreStrategiesState()
+{
+    if (!strategiesStateSettings)
+        return;
+
+    m_persistEnabled = true; // Re-enable so loadStrategy() calls below update the file
+
+    int size = strategiesStateSettings->beginReadArray("LoadedStrategies");
+    qInfo(StrategyManagerLog) << "Restoring" << size << "strategies from StrategiesState.ini";
+
+    for (int i = 0; i < size; ++i)
+    {
+        strategiesStateSettings->setArrayIndex(i);
+        QString configJson = strategiesStateSettings->value("config").toString();
+        bool wasRunning = strategiesStateSettings->value("wasRunning", false).toBool();
+
+        if (configJson.isEmpty())
+            continue;
+
+        QJsonDocument doc = QJsonDocument::fromJson(configJson.toUtf8());
+        if (doc.isNull() || !doc.isObject())
+        {
+            qWarning(StrategyManagerLog) << "Invalid config JSON in StrategiesState.ini at index" << i << ", skipping";
+            continue;
+        }
+
+        StrategyConfig config = StrategyConfig::fromJson(doc.object());
+        auto result = loadStrategy(config);
+        if (!result)
+        {
+            qWarning(StrategyManagerLog) << "Failed to restore strategy:" << config.name << "-" << result.error();
+            continue;
+        }
+
+        if (wasRunning)
+        {
+            QString error = startStrategy(result.value());
+            if (!error.isEmpty())
+            {
+                qWarning(StrategyManagerLog) << "Failed to auto-start restored strategy:" << config.name << "-" << error;
+            }
+        }
+    }
+    strategiesStateSettings->endArray();
 }

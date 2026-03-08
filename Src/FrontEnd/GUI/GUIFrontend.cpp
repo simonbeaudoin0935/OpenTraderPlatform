@@ -24,8 +24,8 @@
 #include "Tabs/ShortcutsTab.h"
 #include "Tabs/ConfigTab.h"
 #include "Tabs/CacheTab.h"
-#include "Tabs/StrategiesTab/StrategiesTab.h"
 #include "Widgets/StrategyQuickView/StrategyQuickView.h"
+#include "Widgets/StrategyLogWidget/StrategyLogWidget.h"
 #include "StrategyManager.h"
 #include "StockPriceChart/ChartToolbar.h"
 #include "StockPriceChart/StockPriceChart.h"
@@ -385,6 +385,17 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // When the chart requests missing bars, call the extracted method to handle the request
     connect(ui->priceChart, &StockPriceChart::requestMissingBars, this, &GUIFrontend::requestMissingBarsFromCache);
 
+    // Persist replay start time whenever it changes so next launch restores it
+    connect(ui->priceChart->toolbar(),
+            &ChartToolbar::replayStartTimeChanged,
+            this,
+            [this](const QTime& time)
+            {
+                Q_CHECK_PTR(appStateSettings);
+                appStateSettings->setValue("Replay/StartTime", time.toString(Qt::ISODate));
+                appStateSettings->sync();
+            });
+
     // Forward strategy log markers to the chart
     connect(MainAlgo::getInstance(),
             &MainAlgo::strategyLogEmitted,
@@ -488,10 +499,6 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                         Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(orderEntryConnection);
 
-    // Set up the strategies tab (second tab)
-    StrategiesTab* strategiesTab = new StrategiesTab(mainAlgo);
-    ui->tabWidget->addTab(strategiesTab, "Strategies");
-
     // Wire StrategyQuickView to StrategyManager signals
     StrategyManager* stratMgr = mainAlgo->getStrategyManager();
     connect(stratMgr,
@@ -533,12 +540,10 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     connect(loggingTab, &LoggingTab::logDepthChanged, this, &GUIFrontend::onLogDepthChanged);
 
     // Set initial logger visibility and log depth based on persisted settings
+    // Note: visibility is handled in the logger split block below after reparenting.
     if (ui->liveLogDisplay)
     {
         Q_CHECK_PTR(appStateSettings);
-        bool loggerVisible = appStateSettings->value("Logging/LoggerVisible", true).toBool();
-        ui->liveLogDisplay->setVisible(loggerVisible);
-
         int logDepth = appStateSettings->value("Logging/LogDepth", 1000).toInt();
         maxLiveLogLines = logDepth;
     }
@@ -571,6 +576,78 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                 Qt::QueuedConnection);
     }
 
+    // Split the bottom logger area: wrap liveLogDisplay in a horizontal splitter
+    // so a per-strategy log panel can be shown on the right on demand.
+    {
+        // Build: [m_loggerContainer (QWidget)]
+        //           └─ [m_loggerSplitter (QSplitter, Horizontal)]
+        //                  ├─ liveLogDisplay   (left – always visible)
+        //                  └─ m_strategyLogWidget (right – hidden until "Display Logs")
+        m_loggerContainer = new QWidget(m_mainWindow);
+        auto* containerLayout = new QVBoxLayout(m_loggerContainer);
+        containerLayout->setContentsMargins(0, 0, 0, 0);
+        containerLayout->setSpacing(0);
+
+        m_loggerSplitter = new QSplitter(Qt::Horizontal, m_loggerContainer);
+        m_loggerSplitter->setHandleWidth(4);
+        containerLayout->addWidget(m_loggerSplitter);
+
+        // Reparent liveLogDisplay into the horizontal splitter
+        if (ui->liveLogDisplay)
+        {
+            // Remove from its current parent (mainSplitter), re-add to loggerSplitter
+            ui->liveLogDisplay->setParent(m_loggerSplitter);
+            m_loggerSplitter->addWidget(ui->liveLogDisplay);
+        }
+
+        m_strategyLogWidget = new StrategyLogWidget(mainAlgo, m_loggerSplitter);
+        m_loggerSplitter->addWidget(m_strategyLogWidget);
+        m_strategyLogWidget->hide();
+
+        // Give platform log all the width by default
+        m_loggerSplitter->setStretchFactor(0, 1);
+        m_loggerSplitter->setStretchFactor(1, 0);
+
+        // Replace liveLogDisplay with the container in mainSplitter
+        ui->mainSplitter->addWidget(m_loggerContainer);
+
+        // Propagate show/hide for initial visibility state
+        Q_CHECK_PTR(appStateSettings);
+        bool loggerVisible = appStateSettings->value("Logging/LoggerVisible", true).toBool();
+        m_loggerContainer->setVisible(loggerVisible);
+    }
+
+    // Connect strategy log display requests from StrategyQuickView
+    connect(ui->strategyQuickView,
+            &StrategyQuickView::displayLogsRequested,
+            this,
+            [this](const QString& strategyID, const QString& strategyName)
+            {
+                OBJ_ASSUME_DIFF(m_strategyLogWidget, nullptr);
+                m_strategyLogWidget->setStrategy(strategyID, strategyName);
+                m_strategyLogWidget->show();
+                // Expand right panel to ~40% of the logger area if currently collapsed
+                if (m_loggerSplitter && m_loggerSplitter->sizes().at(1) == 0)
+                {
+                    int total = m_loggerSplitter->width();
+                    m_loggerSplitter->setSizes({total * 6 / 10, total * 4 / 10});
+                }
+            });
+
+    // Collapse strategy log panel when its close button is pressed
+    connect(m_strategyLogWidget,
+            &StrategyLogWidget::closeRequested,
+            this,
+            [this]()
+            {
+                OBJ_ASSUME_DIFF(m_strategyLogWidget, nullptr);
+                m_strategyLogWidget->clearStrategy();
+                m_strategyLogWidget->hide();
+            });
+
+    // Provide StrategyQuickView with access to MainAlgo (for position polling + context menu)
+    ui->strategyQuickView->setMainAlgo(mainAlgo);
+
     // Configure the splitter to make the bottom panel (with balances, positions, orders, order entry) as compact as possible
     // Give the top widget (chart) a stretch factor of 1 and bottom widget a stretch factor of 0
     ui->tradeTabSplitter->setStretchFactor(0,
@@ -591,6 +668,9 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                m_hasRestoredLastStock = true;
                                restoreLastDisplayedStock();
                                restoreReplayState();
+                               // Restore strategies AFTER replay mode is set up (enterReplayMode posts
+                               // stopAllStrategies via QueuedConnection; this queues behind it).
+                               QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
                                QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
                            }
                        });
@@ -916,6 +996,9 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated,
             m_hasRestoredLastStock = true;
             restoreLastDisplayedStock();
             restoreReplayState();
+            // Restore strategies AFTER replay mode is set up (enterReplayMode posts
+            // stopAllStrategies via QueuedConnection; this queues behind it).
+            QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
             // Clear focus from the stock input after restore — it should not
             // have keyboard focus at startup (press 'i' to focus it explicitly)
             QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
@@ -1198,7 +1281,11 @@ void GUIFrontend::updateLiveLogDisplay(const QString& message)
 
 void GUIFrontend::onLoggerVisibilityChanged(bool visible)
 {
-    if (ui->liveLogDisplay)
+    if (m_loggerContainer)
+    {
+        m_loggerContainer->setVisible(visible);
+    }
+    else if (ui->liveLogDisplay)
     {
         ui->liveLogDisplay->setVisible(visible);
     }
@@ -1273,7 +1360,9 @@ void GUIFrontend::saveReplayState(bool active, const QDate& date, const QTime& s
     {
         appStateSettings->setValue("Replay/Date", date.toString(Qt::ISODate));
     }
-    if (active && startTime.isValid())
+    // Always persist the start time so the widget restores to it on next launch,
+    // regardless of whether replay is currently active.
+    if (startTime.isValid())
     {
         appStateSettings->setValue("Replay/StartTime", startTime.toString(Qt::ISODate));
     }
@@ -1284,13 +1373,18 @@ void GUIFrontend::restoreReplayState()
 {
     Q_CHECK_PTR(appStateSettings);
 
+    // Always restore the start time widget, even if replay isn't active,
+    // so the user's last-used time is shown on next launch.
+    QTime savedTime = QTime::fromString(appStateSettings->value("Replay/StartTime").toString(), Qt::ISODate);
+    if (savedTime.isValid())
+        ui->priceChart->toolbar()->setReplayStartTime(savedTime);
+
     if (!appStateSettings->value("Replay/Active", false).toBool())
     {
         return;
     }
 
     QDate savedDate = QDate::fromString(appStateSettings->value("Replay/Date").toString(), Qt::ISODate);
-    QTime savedTime = QTime::fromString(appStateSettings->value("Replay/StartTime").toString(), Qt::ISODate);
 
     if (!savedDate.isValid())
     {

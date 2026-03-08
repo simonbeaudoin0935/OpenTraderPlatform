@@ -106,7 +106,9 @@ void Level2Widget::setupUI()
     tableView->setFixedWidth(totalWidth);
     setFixedWidth(totalWidth);
 
-    // Fix height to exactly 10 levels: headerWidget(24) + spreadWidget(24) + viewportMargin(48) + 10 rows
+    // Apply an initial estimated height so layout is coherent at startup.
+    // The precise height is corrected in the singleShot timer below once
+    // the viewport geometry is known.
     const int rowHeight = tableView->verticalHeader()->defaultSectionSize();
     setFixedHeight(96 + 10 * rowHeight);
     tableView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -116,7 +118,10 @@ void Level2Widget::setupUI()
     mainLayout->addWidget(spreadWidget, 0, Qt::AlignTop);
     mainLayout->addWidget(tableView, 1);
 
-    // Ensure initial geometry is correct
+    // After the first layout pass the viewport geometry is known.
+    // Re-snap the fixed height to exactly the top of the viewport + 10 rows,
+    // eliminating any partial-row gap at the bottom caused by frame borders,
+    // horizontal header height, or viewport margin interactions.
     QTimer::singleShot(0,
                        this,
                        [headerWidget, spreadWidget, this]()
@@ -124,6 +129,13 @@ void Level2Widget::setupUI()
                            int width = tableView->viewport()->width() + tableView->verticalHeader()->width();
                            headerWidget->setGeometry(0, 0, width, 24);
                            spreadWidget->setGeometry(0, 24, width, 24);
+
+                           // viewport()->pos() is relative to tableView; map to Level2Widget
+                           int viewportTop = tableView->y() + tableView->viewport()->y();
+                           int rowH = tableView->verticalHeader()->sectionSize(0);
+                           if (rowH <= 0)
+                               rowH = tableView->verticalHeader()->defaultSectionSize();
+                           setFixedHeight(viewportTop + 10 * rowH);
                        });
 
     // Set up a connection to handle header widget resizing

@@ -9,6 +9,7 @@
 #include <QSemaphore>
 #include <QTimer>
 #include <functional>
+#include <optional>
 
 #include "qcustomplot.h"
 #include "Bar.h"
@@ -16,6 +17,7 @@
 #include "ChartTimeUtils.h"
 #include "CONSTANTS.h"
 #include "QCPItemTriangle.h"
+#include "QCPItemLogDot.h"
 #include "OrdersDatabase.h"
 
 // Forward declarations
@@ -124,7 +126,7 @@ class StockPriceChart : public QWidget
      * @brief Clears all chart data, index mappings, and background rects.
      * Used when entering replay mode to start fresh.
      */
-    void clearChart();
+    void clearChart(bool p_replot = true);
 
     /**
      * @brief Populates the replay day dropdown with available dates from cache.
@@ -282,6 +284,10 @@ class StockPriceChart : public QWidget
     QCPItemLine* m_currentTimeLine;
     QTimer* m_timeLineTimer;
 
+    // Debounce timer for onAxisRangeChanged — coalesces rapid successive calls
+    // (e.g. both X and Y fire rangeChanged in a single wheel event)
+    bool m_axisRangeChangePending = false;
+
     // Chart watermark
     QCPItemText* m_symbolWatermark; // Stock symbol at center-top
     bool m_isReplayModeActive = false;
@@ -329,6 +335,10 @@ class StockPriceChart : public QWidget
 
     /// True after first batch of historical bars sets Y-axis range (prevents resetting on subsequent loads)
     bool m_initialYAxisRangeSet = false;
+
+    /// When set, the next initial Y-axis range computation is skipped and this range is used instead.
+    /// Set by onReplayTimeChanged to preserve the user's zoom level across start-time changes.
+    std::optional<QCPRange> m_preservedYRange;
 
     // ========== Order Visualization Members ==========
 
@@ -382,7 +392,7 @@ class StockPriceChart : public QWidget
         QDateTime timestamp;
         QString message;
         QString strategyID;
-        QCPItemEllipse* markerItem = nullptr; ///< Owned by QCustomPlot
+        QCPItemLogDot* markerItem = nullptr; ///< Owned by QCustomPlot
     };
 
     QVector<LogMarker*> m_logMarkers;

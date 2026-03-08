@@ -387,23 +387,38 @@ StrategyManager::getInstance().unloadStrategy("MyStrategy");
 
 ## GUI Integration
 
-### StrategiesTab (in FrontEnd/GUI/StrategiesTab/)
+### StrategyQuickView (in Trade tab)
 
-**UI for strategy management**:
-- Load button (file dialog for .so files)
-- List of loaded strategies
-- Start/Stop buttons per strategy
-- Status indicators (LOADED, RUNNING, STOPPED, ERROR, CRASHED)
-- Log display per strategy
-- Metrics display per strategy
+All strategy management is handled from **StrategyQuickView** embedded in the Trade tab:
+- **Load** button (top-right corner) — opens `StrategyLoadDialog`
+- Right-click **Start / Stop / Unload** on a strategy row
+- Right-click **Display Logs** → opens `StrategyLogWidget` in bottom panel
+- Strategy → symbol hierarchy with live position columns (Qty, Avg Price, U/P&L, R/P&L)
 
-**StrategyCard Widget**:
-Visual representation of running strategy:
-- Strategy name and version
-- Status badge (color-coded)
-- Real-time log stream
-- Metrics display (e.g., P/L, trade count)
-- Control buttons (Start/Stop/Remove)
+> **Note**: The dedicated StrategiesTab was removed. `StrategyLoadDialog` was moved to
+> `Src/FrontEnd/GUI/Dialogs/`.
+
+### StrategyLogWidget (bottom splitter panel)
+
+Per-strategy log viewer displayed alongside the platform logger at the bottom of the main window.
+Polls `StrategyLogger::getMessages()` every 1000 ms and appends only new entries.
+
+## Strategy Logging
+
+### StrategyLogger (StrategyLogger.h/cpp)
+
+**Per-strategy log system — writes incrementally to disk** (same model as platform `AppLogs`).
+
+**File location**: `~/.local/state/L2Trader/StrategiesLogs/strategy_{Name}_YYYY-MM-DD_hh-mm-ss.log`
+
+**Key design points**:
+- File opened at **construction time** (timestamp = strategy load time; fixed for the session)
+- Every `log()` call writes and flushes to disk immediately (no buffering)
+- In-memory circular buffer (10 000 messages) preserved for live UI polling via `getMessages()`
+- Plain text format (no ANSI codes): `[yyyy-MM-dd hh:mm:ss.zzz] LEVEL - message`
+- `saveToFile()` is now a const no-op; `getLogFilePath()` returns the fixed path
+
+**Thread safety**: `log()` is called from the strategy's own thread — no cross-thread access.
 
 ---
 

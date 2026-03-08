@@ -6,6 +6,7 @@
 #include "CONSTANTS.h"
 
 extern QSettings* appStateSettings;
+extern QSettings* strategiesStateSettings;
 
 extern QString cacheRootDir;
 extern QString stockCsvFile;

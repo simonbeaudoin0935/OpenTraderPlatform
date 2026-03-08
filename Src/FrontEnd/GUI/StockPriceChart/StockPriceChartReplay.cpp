@@ -60,8 +60,11 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
 /**
  * @brief Handles replay start time changes.
  *
- * When user changes the start time in paused state, triggers chart preload
- * with the new time but keeping the current day selected.
+ * When user changes the start time in paused state, clears the chart,
+ * updates the replay time anchor to the new time, and triggers a chart
+ * preload so all historical bars up to the new start are loaded.
+ * The X/Y view range is preserved: X is shifted by the anchor delta so
+ * the same bars remain in view, Y is restored unchanged.
  */
 void StockPriceChart::onReplayTimeChanged(const QTime& time)
 {
@@ -79,6 +82,34 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
 
         qCInfo(ChartLog) << "Preloading chart for new replay time:" << currentDate.toString(Qt::ISODate) << "at"
                          << time.toString("hh:mm");
+
+        // Save current view ranges before clearing so we can restore them.
+        // The X range must be shifted by the anchor delta (old start → new start in minutes)
+        // so the same bars stay in view after the anchor moves.
+        // The Y range is saved in m_preservedYRange so the initial-range logic in
+        // onHistoricalBarsReceived restores it instead of auto-computing from bars.
+        const QCPRange savedXRange = m_customPlot->xAxis->range();
+        if (m_initialYAxisRangeSet)
+        {
+            m_preservedYRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
+        }
+        const int deltaMinutes = m_index0Timestamp.isValid()
+            ? static_cast<int>(QDateTime(currentDate, m_index0Timestamp.time(), TradingHours::MARKET_TIMEZONE)
+                                   .secsTo(QDateTime(currentDate, time, TradingHours::MARKET_TIMEZONE)) / 60)
+            : 0;
+
+        // Update the global replay time anchor BEFORE clearing the chart so that
+        // initializeTimeAnchor() (called inside clearChart) uses the new start time
+        // and checkForMissingBars loads all historical bars up to the new position.
+        MainApp::currentAppReplayTime =
+            QDateTime(currentDate, time, TradingHours::MARKET_TIMEZONE);
+
+        clearChart(/*p_replot=*/false);
+
+        // Restore the X view range, shifting by the anchor delta.
+        // Y range is restored in onHistoricalBarsReceived via m_preservedYRange.
+        m_customPlot->xAxis->setRange(savedXRange.lower - deltaMinutes, savedXRange.upper - deltaMinutes);
+        m_customPlot->replot();
 
         MainApp::getInstance()->preloadChartForReplay(currentDate, time, currentSpeed);
     }

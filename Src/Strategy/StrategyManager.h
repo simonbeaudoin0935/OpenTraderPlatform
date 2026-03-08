@@ -323,6 +323,14 @@ class StrategyManager final : public QObject
      */
     void releaseSymbols(const QString& p_strategyID);
 
+    /*
+     * Restore previously loaded strategies from StrategiesState.ini.
+     * Called once during startup (MainAlgo::onThreadStarted) after all data
+     * source connections are established.
+     * Failures (missing .so, corrupt config) are logged as warnings and skipped.
+     */
+    void restoreStrategiesState();
+
   public slots:
     /*
      * Called when MainAlgo receives a new bar
@@ -466,6 +474,12 @@ class StrategyManager final : public QObject
     QMap<QString, QString> m_symbolRegistry;      ///< symbol → ownerStrategyID (exclusive claim registry)
     std::unique_ptr<StrategyRegistry> m_registry; ///< Registry of available strategies
 
+    /// Guards persistStrategiesState() from firing during destructor teardown
+    /// or bulk stopAllStrategies() mode transitions.  Re-enabled at the start
+    /// of restoreStrategiesState() so that individual loadStrategy() calls
+    /// triggered by restore DO write back to the file.
+    bool m_persistEnabled = true;
+
     /*
      * Generate unique strategy instance ID
      */
@@ -487,4 +501,10 @@ class StrategyManager final : public QObject
      * Disconnect StrategyInstance from data sources
      */
     void disconnectStrategyFromDataSources(StrategyInstance* p_instance);
+
+    /*
+     * Persist the current set of loaded strategies to StrategiesState.ini.
+     * Called after every load/start/unload operation.
+     */
+    void persistStrategiesState();
 };

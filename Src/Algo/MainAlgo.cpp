@@ -548,6 +548,12 @@ void MainAlgo::requestBalance()
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
 
+    // Don't request balance if not authenticated — TSClient will assert on empty API key.
+    // Exception: in replay mode, the mock network manager handles requests without real credentials.
+    if (!TSClient::getInstance()->isAuthenticated()
+        && TSClient::getInstance()->getMode() != TSClient::Mode::Replay)
+        return;
+
     OBJ_ASSUME_FALSE(m_activeAccount.getAccountId().isEmpty());
 
 
@@ -1324,7 +1330,9 @@ void MainAlgo::resumeLiveStreams()
     // Skip account fetch if not authenticated (e.g. replay-only without TS credentials)
     if (!TSClient::getInstance()->isAuthenticated())
     {
-        INFO << "Not authenticated with TradeStation — skipping account fetch after replay mode";
+        INFO << "Not authenticated with TradeStation — stopping balance polling and skipping account fetch after replay mode";
+        stopBalancePolling();
+        m_balancePollingStarted = false;
         return;
     }
 
@@ -1435,6 +1443,11 @@ void MainAlgo::stopAllStrategies()
     INFO << "Stopping all strategies for mode transition";
     m_strategyManager.stopAllStrategies();
     INFO << "All strategies stopped";
+}
+
+void MainAlgo::restoreStrategiesState()
+{
+    m_strategyManager.restoreStrategiesState();
 }
 
 void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
