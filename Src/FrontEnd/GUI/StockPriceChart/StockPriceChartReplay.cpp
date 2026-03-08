@@ -86,8 +86,13 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
         // Save current view ranges before clearing so we can restore them.
         // The X range must be shifted by the anchor delta (old start → new start in minutes)
         // so the same bars stay in view after the anchor moves.
+        // The Y range is saved in m_preservedYRange so the initial-range logic in
+        // onHistoricalBarsReceived restores it instead of auto-computing from bars.
         const QCPRange savedXRange = m_customPlot->xAxis->range();
-        const QCPRange savedYRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
+        if (m_initialYAxisRangeSet)
+        {
+            m_preservedYRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
+        }
         const int deltaMinutes = m_index0Timestamp.isValid()
             ? static_cast<int>(QDateTime(currentDate, m_index0Timestamp.time(), TradingHours::MARKET_TIMEZONE)
                                    .secsTo(QDateTime(currentDate, time, TradingHours::MARKET_TIMEZONE)) / 60)
@@ -101,9 +106,9 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
 
         clearChart();
 
-        // Restore the view ranges, shifting X by the anchor delta
+        // Restore the X view range, shifting by the anchor delta.
+        // Y range is restored in onHistoricalBarsReceived via m_preservedYRange.
         m_customPlot->xAxis->setRange(savedXRange.lower - deltaMinutes, savedXRange.upper - deltaMinutes);
-        m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(savedYRange);
         m_customPlot->replot();
 
         MainApp::getInstance()->preloadChartForReplay(currentDate, time, currentSpeed);

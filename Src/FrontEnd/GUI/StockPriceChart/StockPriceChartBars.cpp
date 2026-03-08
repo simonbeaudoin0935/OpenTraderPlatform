@@ -460,28 +460,37 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
     // Only set initial Y-axis range on the first batch of historical bars
     if (!m_initialYAxisRangeSet)
     {
-        // Compute min/max price from the last 60 non-null bars to set initial Y-axis range
-        // We skip Null (void) bars since they have 0 prices and would distort the range
-        double minPrice = std::numeric_limits<double>::max();
-        double maxPrice = std::numeric_limits<double>::lowest();
-        int barsAnalyzed = 0;
-
-        for (int i = barsPtr->size() - 1; i >= 0 && barsAnalyzed < 60; --i)
+        if (m_preservedYRange.has_value())
         {
-            const Bar& bar = barsPtr->at(i);
-            if (bar.getBarStatus() == Bar::BarStatus::Null)
-            {
-                continue;
-            }
-            minPrice = qMin(minPrice, bar.getLow());
-            maxPrice = qMax(maxPrice, bar.getHigh());
-            ++barsAnalyzed;
+            // User had previously zoomed — restore their range instead of auto-computing
+            m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(m_preservedYRange.value());
+            m_preservedYRange.reset();
         }
-
-        if (minPrice < maxPrice)
+        else
         {
-            double padding = (maxPrice - minPrice) * 0.05; // 5% padding
-            m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(minPrice - padding, maxPrice + padding);
+            // Compute min/max price from the last 60 non-null bars to set initial Y-axis range
+            // We skip Null (void) bars since they have 0 prices and would distort the range
+            double minPrice = std::numeric_limits<double>::max();
+            double maxPrice = std::numeric_limits<double>::lowest();
+            int barsAnalyzed = 0;
+
+            for (int i = barsPtr->size() - 1; i >= 0 && barsAnalyzed < 60; --i)
+            {
+                const Bar& bar = barsPtr->at(i);
+                if (bar.getBarStatus() == Bar::BarStatus::Null)
+                {
+                    continue;
+                }
+                minPrice = qMin(minPrice, bar.getLow());
+                maxPrice = qMax(maxPrice, bar.getHigh());
+                ++barsAnalyzed;
+            }
+
+            if (minPrice < maxPrice)
+            {
+                double padding = (maxPrice - minPrice) * 0.05; // 5% padding
+                m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(minPrice - padding, maxPrice + padding);
+            }
         }
 
         m_initialYAxisRangeSet = true;
@@ -666,6 +675,7 @@ void StockPriceChart::clearSymbol()
     // Reset state flags for new symbol
     startedReceivingRealtimeBars = false;
     m_initialYAxisRangeSet = false;
+    m_preservedYRange.reset(); // Discard any saved range — new symbol, fresh start
 
     // Reset semaphore to available state (1) for new symbol
     // If it was acquired (count == 0), release it; if already available, do nothing

@@ -9,6 +9,7 @@
 #include <QSemaphore>
 #include <QTimer>
 #include <functional>
+#include <optional>
 
 #include "qcustomplot.h"
 #include "Bar.h"
@@ -333,6 +334,10 @@ class StockPriceChart : public QWidget
 
     /// True after first batch of historical bars sets Y-axis range (prevents resetting on subsequent loads)
     bool m_initialYAxisRangeSet = false;
+
+    /// When set, the next initial Y-axis range computation is skipped and this range is used instead.
+    /// Set by onReplayTimeChanged to preserve the user's zoom level across start-time changes.
+    std::optional<QCPRange> m_preservedYRange;
 
     // ========== Order Visualization Members ==========
 
