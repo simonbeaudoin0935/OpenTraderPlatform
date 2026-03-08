@@ -1,6 +1,5 @@
 #include "StrategyLogger.h"
 #include <QDir>
-#include <QStandardPaths>
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
@@ -73,8 +72,10 @@ int StrategyLogger::messageCount() const
 
 QString StrategyLogger::getLogFilePath() const
 {
-    QString logDir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
-    logDir = logDir + "/L2Trader/logs";
+    QString xdgStateHome = qEnvironmentVariable("XDG_STATE_HOME");
+    if (xdgStateHome.isEmpty())
+        xdgStateHome = QDir::homePath() + "/.local/state";
+    QString logDir = xdgStateHome + "/L2Trader/StrategiesLogs";
 
     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss");
     QString fileName = QString("strategy_%1_%2.log").arg(m_strategyName, timestamp);

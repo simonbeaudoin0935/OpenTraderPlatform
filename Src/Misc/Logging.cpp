@@ -322,7 +322,7 @@ QString getLogsFolderPath()
     {
         xdgStateHome = QDir::homePath() + "/.local/state";
     }
-    return xdgStateHome + "/" + QCoreApplication::applicationName() + "/logs";
+    return xdgStateHome + "/" + QCoreApplication::applicationName() + "/AppLogs";
 }
 
 void initLogging()
