@@ -153,6 +153,17 @@ class StockPriceChart : public QWidget
     void setReplayModeActive(bool active);
 
     /**
+     * @brief Updates the active display timescale and scales candlestick + volume bar widths.
+     *
+     * Must be called whenever the user switches timescale so that candles visually fill
+     * their correct time slot.  Width = minutesPerBar(tf) × CANDLESTICK_BODY_WIDTH.
+     * Only intraday timescales (1m–4h) are handled; daily+ are no-ops pending multi-day view.
+     * Thread context: Called from Main/GUI thread.
+     * @param tf New display timescale.
+     */
+    void setDisplayTimeFrame(TimeFrame tf);
+
+    /**
      * @brief Gets the chart toolbar widget.
      * @return Pointer to the ChartToolbar.
      */
@@ -315,6 +326,9 @@ class StockPriceChart : public QWidget
 
     // Time-anchored chart index 0 (set on symbol selection, not on first bar receipt)
     QDateTime m_index0Timestamp;
+
+    // Active display timescale — controls candlestick and volume bar widths
+    TimeFrame m_displayTimeFrame = TimeFrame::ONE_MINUTE;
 
     // Timeframe selector widget
     ChartToolbar* chartToolbar;

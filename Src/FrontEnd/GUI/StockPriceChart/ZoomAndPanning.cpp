@@ -1,4 +1,5 @@
 #include "StockPriceChart.h"
+#include "BarUtils.h"
 #include "Logging.h"
 #include <QToolTip>
 
@@ -371,9 +372,13 @@ void StockPriceChart::checkAutoTimeFrame()
     static constexpr int UPPER_THRESHOLD = 200; // switch to coarser TF above this
     static constexpr int LOWER_THRESHOLD = 60;  // switch to finer   TF below this
 
-    const int visibleBars = static_cast<int>(m_customPlot->xAxis->range().size());
+    // Convert axis range (in trading-minute index units) to visible candle count.
+    // For 5m bars: 450 visible index units = 90 candles; for 1m: 1 unit = 1 candle.
     const TimeFrame currentTf = chartToolbar->getCurrentTimeFrame();
     const int currentIdx = TF_ORDER.indexOf(currentTf);
+    const int minutesVisible = static_cast<int>(m_customPlot->xAxis->range().size());
+    const int minutesPerCandle = BarUtils::minutesPerBar(currentTf);
+    const int visibleBars = (minutesPerCandle > 0) ? minutesVisible / minutesPerCandle : minutesVisible;
 
     TimeFrame targetTf = currentTf;
     if (visibleBars > UPPER_THRESHOLD && currentIdx < TF_ORDER.size() - 1)

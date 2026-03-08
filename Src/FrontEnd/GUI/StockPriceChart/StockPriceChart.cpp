@@ -10,6 +10,7 @@
 #include "Misc/Settings.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "BarUtils.h"
 #include "SQL/StockPriceChartQueries.h"
 #include "BarCache.h"
 #include "MainApp.h"
@@ -305,6 +306,18 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
             &StockPriceChart::onAxisRangeChanged);
 
     setSymbol("");
+}
+
+void StockPriceChart::setDisplayTimeFrame(TimeFrame tf)
+{
+    if (!BarUtils::isIntradayTimeFrame(tf))
+        return;
+
+    m_displayTimeFrame = tf;
+    const double w = BarUtils::minutesPerBar(tf) * ChartConstants::CANDLESTICK_BODY_WIDTH;
+    m_candlesticks->setWidth(w);
+    m_volumePos->setWidth(w);
+    m_volumeNeg->setWidth(w);
 }
 
 StockPriceChart::~StockPriceChart()

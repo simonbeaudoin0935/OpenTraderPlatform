@@ -450,6 +450,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
 
     // Sync m_currentTimeFrame from the toolbar which already restored its state from AppState
     m_currentTimeFrame = ui->priceChart->toolbar()->getCurrentTimeFrame();
+    // Scale candlestick widths to match the restored timescale (1m default if nothing was saved)
+    ui->priceChart->setDisplayTimeFrame(m_currentTimeFrame);
 
     // Connect position window symbol click
     connect(ui->positionWidget,
@@ -1725,6 +1727,7 @@ void GUIFrontend::onTimeFrameChanged(TimeFrame tf)
     }
 
     // Clear the chart and let it re-request bars with the new timescale
+    ui->priceChart->setDisplayTimeFrame(tf);
     ui->priceChart->clearChart();
 }
 
