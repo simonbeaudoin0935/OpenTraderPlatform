@@ -17,6 +17,7 @@
 #include "Core/Models/Bar.h"
 #include "Core/Models/Level2.h"
 #include "Core/Models/Trade.h"
+#include "Misc/TimeFrame.h"
 
 Q_DECLARE_LOGGING_CATEGORY(DBClientLog)
 
@@ -95,13 +96,23 @@ class DBClient : public QObject
     // ── Historical data ────────────────────────────────────────────────
 
     /**
-     * @brief Fetch historical 1-minute OHLCV bars for a symbol.
+     * @brief Fetch historical OHLCV bars for a symbol at the requested timescale.
+     *
      * Runs asynchronously on QThreadPool. Emits historicalBarsReceived on completion.
+     * Non-native timescales are fetched from their source schema and aggregated in-app:
+     *   5m / 15m / 30m  — fetched as 1m then aggregated
+     *   4h              — fetched as 1h then aggregated
+     *   1w / 1M         — fetched as 1d then aggregated
+     *
      * @param p_symbol Ticker symbol
      * @param p_start  Range start (inclusive, market timezone)
-     * @param p_end    Range end (exclusive, market timezone)
+     * @param p_end    Range end (inclusive, market timezone)
+     * @param p_tf     Timescale of bars to return (default: ONE_MINUTE)
      */
-    void fetchHistoricalBars(const QString& p_symbol, const QDateTime& p_start, const QDateTime& p_end);
+    void fetchHistoricalBars(const QString& p_symbol,
+                             const QDateTime& p_start,
+                             const QDateTime& p_end,
+                             TimeFrame p_tf = TimeFrame::ONE_MINUTE);
 
     // ── Replay data download ──────────────────────────────────────────
 

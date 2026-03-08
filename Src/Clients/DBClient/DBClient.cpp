@@ -6,11 +6,13 @@
 #include <QStandardPaths>
 #include <QtConcurrent>
 #include <filesystem>
+#include <algorithm>
 
 #include <databento/enums.hpp>
 #include <databento/live.hpp>
 
 #include "Assume.h"
+#include "BarUtils.h"
 #include "CONSTANTS.h"
 #include "DBRecordTranslator.h"
 #include "Logging.h"
@@ -210,7 +212,30 @@ void DBClient::subscribeLive(const QString& p_symbol)
 
 // ── Historical data ────────────────────────────────────────────────────────
 
-void DBClient::fetchHistoricalBars(const QString& p_symbol, const QDateTime& p_start, const QDateTime& p_end)
+namespace
+{
+    /**
+ * @brief Map a TimeFrame to the Databento schema used to fetch it.
+ * Non-native timescales are fetched from their source schema then aggregated.
+ */
+    databento::Schema schemaForTimeFrame(TimeFrame tf)
+    {
+        switch (BarUtils::aggregateSourceTimeFrame(tf))
+        {
+        case TimeFrame::ONE_HOUR:
+            return databento::Schema::Ohlcv1H;
+        case TimeFrame::ONE_DAY:
+            return databento::Schema::Ohlcv1D;
+        default: // ONE_MINUTE (native and all 5m/15m/30m derivatives)
+            return databento::Schema::Ohlcv1M;
+        }
+    }
+} // anonymous namespace
+
+void DBClient::fetchHistoricalBars(const QString& p_symbol,
+                                   const QDateTime& p_start,
+                                   const QDateTime& p_end,
+                                   TimeFrame p_tf)
 {
     OBJ_ASSUME_TRUE(hasApiKey());
 
@@ -225,13 +250,17 @@ void DBClient::fetchHistoricalBars(const QString& p_symbol, const QDateTime& p_s
     const QString dataset = m_dataset;
     const std::string stdDataset = dataset.toStdString();
     const std::string stdSymbol = symbol.toStdString();
+    const TimeFrame tf = p_tf;
 
-    // Databento's end parameter is exclusive: to include the bar at 18:59 (our last bar),
-    // we must request end = 19:00.
-    QDateTime exclusiveEnd = p_end.addSecs(60);
+    // Resolve which Databento schema to actually fetch (may differ from requested tf for non-native)
+    const TimeFrame sourceTf = BarUtils::aggregateSourceTimeFrame(tf);
+    const databento::Schema schema = schemaForTimeFrame(tf);
+
+    // Databento end is exclusive. Add one source-bar-width so the last bar is included.
+    const qint64 stepSecs = static_cast<qint64>(BarUtils::minutesPerBar(sourceTf)) * 60;
+    QDateTime exclusiveEnd = p_end.addSecs(stepSecs);
 
     // Cap end time to current UTC to avoid requesting past dataset's available_end.
-    // Databento rejects requests where end > available_end with HTTP 422.
     QDateTime nowUtc = QDateTime::currentDateTimeUtc();
     if (exclusiveEnd.toUTC() > nowUtc)
     {
@@ -239,17 +268,16 @@ void DBClient::fetchHistoricalBars(const QString& p_symbol, const QDateTime& p_s
         DEBUG << "Capped historical end time to current UTC:" << exclusiveEnd.toUTC().toString(Qt::ISODate);
     }
 
-    // Convert QDateTime to ISO 8601 strings for the string-based DateTimeRange overload
     const std::string startStr = p_start.toUTC().toString(Qt::ISODate).toStdString();
     const std::string endStr = exclusiveEnd.toUTC().toString(Qt::ISODate).toStdString();
 
-    // Capture a raw pointer for the Historical client (owned by this)
     databento::Historical* hist = m_historicalClient.get();
 
-    INFO << "Fetching historical bars for" << symbol << "from" << p_start.toString() << "to" << p_end.toString();
+    INFO << "Fetching historical bars for" << symbol << "tf=" << static_cast<int>(tf) << "from" << p_start.toString()
+         << "to" << p_end.toString();
 
     Q_UNUSED(QtConcurrent::run(
-        [this, hist, stdDataset, stdSymbol, startStr, endStr, symbol]()
+        [this, hist, stdDataset, stdSymbol, startStr, endStr, symbol, tf, sourceTf, schema]()
         {
             QVector<Bar> bars;
 
@@ -258,7 +286,7 @@ void DBClient::fetchHistoricalBars(const QString& p_symbol, const QDateTime& p_s
                 hist->TimeseriesGetRange(stdDataset,
                                          databento::DateTimeRange<std::string>{startStr, endStr},
                                          {stdSymbol},
-                                         databento::Schema::Ohlcv1M,
+                                         schema,
                                          [&bars, &symbol, this](const databento::Record& record) -> databento::KeepGoing
                                          {
                                              m_totalDataReceivedBytes += static_cast<qsizetype>(record.Size());
@@ -270,12 +298,20 @@ void DBClient::fetchHistoricalBars(const QString& p_symbol, const QDateTime& p_s
                                              return databento::KeepGoing::Continue;
                                          });
 
-                sDEBUG << "Historical fetch complete for" << symbol << ":" << bars.size() << "bars";
+                sDEBUG << "Historical fetch complete for" << symbol << ":" << bars.size()
+                       << "source bars at tf=" << static_cast<int>(sourceTf);
                 emit dataUsageUpdated(m_totalDataReceivedBytes.load());
             }
             catch (const std::exception& ex)
             {
                 sWARNING << "Historical fetch failed for" << symbol << ":" << ex.what();
+            }
+
+            // Aggregate if the requested tf differs from the fetched source tf
+            if (tf != sourceTf && !bars.isEmpty())
+            {
+                bars = BarUtils::aggregateBars(bars, tf);
+                sDEBUG << "Aggregated to" << bars.size() << "bars at tf=" << static_cast<int>(tf);
             }
 
             emit historicalBarsReceived(symbol, bars);
