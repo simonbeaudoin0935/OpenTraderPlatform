@@ -60,8 +60,9 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
 /**
  * @brief Handles replay start time changes.
  *
- * When user changes the start time in paused state, triggers chart preload
- * with the new time but keeping the current day selected.
+ * When user changes the start time in paused state, clears the chart,
+ * updates the replay time anchor to the new time, and triggers a chart
+ * preload so all historical bars up to the new start are loaded.
  */
 void StockPriceChart::onReplayTimeChanged(const QTime& time)
 {
@@ -79,6 +80,14 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
 
         qCInfo(ChartLog) << "Preloading chart for new replay time:" << currentDate.toString(Qt::ISODate) << "at"
                          << time.toString("hh:mm");
+
+        // Update the global replay time anchor BEFORE clearing the chart so that
+        // initializeTimeAnchor() (called inside clearChart) uses the new start time
+        // and checkForMissingBars loads all historical bars up to the new position.
+        MainApp::currentAppReplayTime =
+            QDateTime(currentDate, time, TradingHours::MARKET_TIMEZONE);
+
+        clearChart();
 
         MainApp::getInstance()->preloadChartForReplay(currentDate, time, currentSpeed);
     }
