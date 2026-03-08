@@ -79,12 +79,14 @@ void StrategyQuickView::setupUI()
     m_tree->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_tree->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
-    // Column widths
+    // Column widths — COL_NAME is elastic; P&L columns are pinned to equal fixed widths
     m_tree->header()->setSectionResizeMode(COL_NAME, QHeaderView::Stretch);
     m_tree->header()->setSectionResizeMode(COL_QTY, QHeaderView::ResizeToContents);
     m_tree->header()->setSectionResizeMode(COL_PRICE, QHeaderView::ResizeToContents);
-    m_tree->header()->setSectionResizeMode(COL_PNL, QHeaderView::ResizeToContents);
-    m_tree->header()->setSectionResizeMode(COL_RPNL, QHeaderView::ResizeToContents);
+    m_tree->header()->setSectionResizeMode(COL_PNL, QHeaderView::Fixed);
+    m_tree->header()->setSectionResizeMode(COL_RPNL, QHeaderView::Fixed);
+    m_tree->setColumnWidth(COL_PNL, 65);
+    m_tree->setColumnWidth(COL_RPNL, 65);
 
     // Symbol click → display stock
     connect(m_tree,
