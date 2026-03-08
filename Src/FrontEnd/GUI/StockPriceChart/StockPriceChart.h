@@ -282,6 +282,10 @@ class StockPriceChart : public QWidget
     QCPItemLine* m_currentTimeLine;
     QTimer* m_timeLineTimer;
 
+    // Debounce timer for onAxisRangeChanged — coalesces rapid successive calls
+    // (e.g. both X and Y fire rangeChanged in a single wheel event)
+    bool m_axisRangeChangePending = false;
+
     // Chart watermark
     QCPItemText* m_symbolWatermark; // Stock symbol at center-top
     bool m_isReplayModeActive = false;
