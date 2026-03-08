@@ -394,8 +394,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                 Q_CHECK_PTR(appStateSettings);
                 appStateSettings->setValue("Replay/StartTime", time.toString(Qt::ISODate));
                 appStateSettings->sync();
-            },
-            Qt::UniqueConnection);
+            });
 
     // Forward strategy log markers to the chart
     connect(MainAlgo::getInstance(),
