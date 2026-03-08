@@ -63,6 +63,8 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
  * When user changes the start time in paused state, clears the chart,
  * updates the replay time anchor to the new time, and triggers a chart
  * preload so all historical bars up to the new start are loaded.
+ * The X/Y view range is preserved: X is shifted by the anchor delta so
+ * the same bars remain in view, Y is restored unchanged.
  */
 void StockPriceChart::onReplayTimeChanged(const QTime& time)
 {
@@ -81,6 +83,16 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
         qCInfo(ChartLog) << "Preloading chart for new replay time:" << currentDate.toString(Qt::ISODate) << "at"
                          << time.toString("hh:mm");
 
+        // Save current view ranges before clearing so we can restore them.
+        // The X range must be shifted by the anchor delta (old start → new start in minutes)
+        // so the same bars stay in view after the anchor moves.
+        const QCPRange savedXRange = m_customPlot->xAxis->range();
+        const QCPRange savedYRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
+        const int deltaMinutes = m_index0Timestamp.isValid()
+            ? static_cast<int>(QDateTime(currentDate, m_index0Timestamp.time(), TradingHours::MARKET_TIMEZONE)
+                                   .secsTo(QDateTime(currentDate, time, TradingHours::MARKET_TIMEZONE)) / 60)
+            : 0;
+
         // Update the global replay time anchor BEFORE clearing the chart so that
         // initializeTimeAnchor() (called inside clearChart) uses the new start time
         // and checkForMissingBars loads all historical bars up to the new position.
@@ -88,6 +100,11 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
             QDateTime(currentDate, time, TradingHours::MARKET_TIMEZONE);
 
         clearChart();
+
+        // Restore the view ranges, shifting X by the anchor delta
+        m_customPlot->xAxis->setRange(savedXRange.lower - deltaMinutes, savedXRange.upper - deltaMinutes);
+        m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(savedYRange);
+        m_customPlot->replot();
 
         MainApp::getInstance()->preloadChartForReplay(currentDate, time, currentSpeed);
     }
