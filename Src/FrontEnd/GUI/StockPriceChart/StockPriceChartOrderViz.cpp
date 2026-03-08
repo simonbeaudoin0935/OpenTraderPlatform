@@ -1051,25 +1051,14 @@ StockPriceChart::LogMarker* StockPriceChart::createLogMarker(const StrategyLogEn
     }
     index = clampIndexToValidRange(index, barCount);
 
-    // Pin the marker to a fixed fraction of the visible Y range (top quarter)
-    QCPAxis* yAxis = m_customPlot->axisRect()->axis(QCPAxis::atRight);
-    const double yMin = yAxis->range().lower;
-    const double yMax = yAxis->range().upper;
-    const double markerY = yMin + (yMax - yMin) * 0.88;
-
-    auto* ellipse = new QCPItemEllipse(m_customPlot);
-    ellipse->topLeft->setAxes(m_customPlot->xAxis, yAxis);
-    ellipse->bottomRight->setAxes(m_customPlot->xAxis, yAxis);
-
-    // 8px circle around the marker point (converted to axis coords)
-    const double halfW = 4.0 / m_customPlot->axisRect()->width() * (m_customPlot->xAxis->range().size());
-    const double halfH = 4.0 / m_customPlot->axisRect()->height() * yAxis->range().size();
-    ellipse->topLeft->setCoords(index - halfW, markerY + halfH);
-    ellipse->bottomRight->setCoords(index + halfW, markerY - halfH);
+    // Fixed-size dot anchored to the X axis — Y is always a fixed pixel
+    // distance above the bottom of the axis rect (see QCPItemLogDot).
+    auto* dot = new QCPItemLogDot(m_customPlot, /*radius=*/4, /*bottomOffset=*/12);
+    dot->center->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    dot->center->setCoords(index, 0.0); // Y coord unused — dot always draws at bottom
 
     static constexpr QColor LOG_MARKER_COLOR{100, 140, 255, 220}; // Blue-purple
-    ellipse->setPen(QPen(LOG_MARKER_COLOR, 1));
-    ellipse->setBrush(QBrush(LOG_MARKER_COLOR));
+    dot->setColor(LOG_MARKER_COLOR);
 
     auto* lm = new LogMarker();
     lm->dbId = entry.id;
@@ -1077,16 +1066,13 @@ StockPriceChart::LogMarker* StockPriceChart::createLogMarker(const StrategyLogEn
     lm->timestamp = entry.timestamp;
     lm->message = entry.message;
     lm->strategyID = entry.strategyID;
-    lm->markerItem = ellipse;
+    lm->markerItem = dot;
     m_logMarkers.append(lm);
 
     // Tooltip text
     const QString tip = QString("● Strategy Log  [%1]\n\"%2\"\nStrategy: %3")
                             .arg(entry.timestamp.toString("HH:mm:ss"), entry.message, entry.strategyID);
-    registerTooltip(
-        ellipse,
-        [ellipse]() { return (ellipse->topLeft->pixelPosition() + ellipse->bottomRight->pixelPosition()) / 2.0; },
-        tip);
+    registerTooltip(dot, [dot]() { return dot->dotPixelPosition(); }, tip);
 
     return lm;
 }

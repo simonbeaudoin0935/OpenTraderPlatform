@@ -17,6 +17,7 @@
 #include "ChartTimeUtils.h"
 #include "CONSTANTS.h"
 #include "QCPItemTriangle.h"
+#include "QCPItemLogDot.h"
 #include "OrdersDatabase.h"
 
 // Forward declarations
@@ -391,7 +392,7 @@ class StockPriceChart : public QWidget
         QDateTime timestamp;
         QString message;
         QString strategyID;
-        QCPItemEllipse* markerItem = nullptr; ///< Owned by QCustomPlot
+        QCPItemLogDot* markerItem = nullptr; ///< Owned by QCustomPlot
     };
 
     QVector<LogMarker*> m_logMarkers;
