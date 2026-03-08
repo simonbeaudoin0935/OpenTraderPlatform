@@ -113,6 +113,23 @@ Accumulates individual `Trade` records into forming 1-minute OHLCV bars using **
 - On minute-boundary rollover: emits `barClosed()` for the completed bar, starts new forming bar
 - Every trade update: emits `barUpdated()` with the in-progress bar
 - Lives on MainAlgo thread; connected to `DBClient::newTrade`
+- `barClosed` is fed into `BarAggregator` which derives higher-timescale bars in real-time
+
+## Multi-Timescale Historical Fetch
+
+`fetchHistoricalBars(symbol, start, end, TimeFrame tf)` fetches bars at any supported timescale:
+
+**Databento native schemas**:
+- `ONE_MINUTE` → `Schema::Ohlcv1M` (fetched directly)
+- `ONE_HOUR` → `Schema::Ohlcv1H` (fetched directly)
+- `ONE_DAY` → `Schema::Ohlcv1D` (fetched directly)
+
+**In-app aggregation** (fetches source, then reduces):
+- `FIVE_MINUTES`, `FIFTEEN_MINUTES`, `THIRTY_MINUTES` → fetch `Ohlcv1M` then aggregate
+- `FOUR_HOURS` → fetch `Ohlcv1H` then aggregate
+- `ONE_WEEK`, `ONE_MONTH` → fetch `Ohlcv1D` then aggregate
+
+Aggregation happens inside `aggregateBars(bars, targetTf)` (anonymous namespace in `DBClient.cpp`). The `exclusiveEnd` calculation uses the source TF's bar width to correctly include the last bar of any timescale.
 
 ## Bar Timestamp Convention
 

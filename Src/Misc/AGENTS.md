@@ -315,38 +315,65 @@ if (!SecureStorage::isSecureStorageAvailable()) {
 - Clear values from memory after use
 - Fallback is NOT cryptographically secure
 
-### TimeFrame.h/cpp
+### TimeFrame.h
 
-**Trading timeframe definitions and utilities**
+**Trading timeframe definitions and free-function utilities**
 
-**Enum**:
+**Enum** (values = minutes per bar):
 ```cpp
 enum class TimeFrame {
-    OneMinute,
-    FiveMinute,
-    FifteenMinute,
-    ThirtyMinute,
-    OneHour,
-    Daily,
-    Weekly,
-    Monthly
+    ONE_MINUTE    = 1,
+    FIVE_MINUTES  = 5,
+    FIFTEEN_MINUTES = 15,
+    THIRTY_MINUTES  = 30,
+    ONE_HOUR      = 60,
+    FOUR_HOURS    = 240,
+    ONE_DAY       = 1440,   // 24 * 60
+    ONE_WEEK      = 10080,  // 7 * 24 * 60
+    ONE_MONTH     = 43200   // ~30 * 24 * 60
 };
 ```
 
-**Utilities**:
+**Free functions**:
 ```cpp
-// Convert to string for API
-QString TimeFrame::toString(TimeFrame tf);  // "1min", "5min", etc.
-
-// Convert from string
-TimeFrame TimeFrame::fromString(const QString& str);
-
-// Get duration in seconds
-int TimeFrame::toSeconds(TimeFrame tf);
-
-// Human-readable name
-QString TimeFrame::toDisplayName(TimeFrame tf);  // "1 Minute", "5 Minutes", etc.
+QString timeFrameToString(TimeFrame tf);   // "1m", "5m", "1h", etc.
+TimeFrame stringToTimeFrame(const QString& str);  // inverse; returns ONE_MINUTE on error
 ```
+
+### BarUtils.h
+
+**Header-only timescale arithmetic helpers** (all `constexpr` / `inline`)
+
+Located at `Src/Misc/BarUtils.h`. Contains the `BarUtils` namespace:
+
+```cpp
+namespace BarUtils {
+    // Minutes per bar for any TimeFrame
+    int minutesPerBar(TimeFrame tf);
+
+    // Number of bars in a full trading day (4:00 AM – 6:59 PM)
+    int barsPerDay(TimeFrame tf);
+
+    // 0-based bar index within a day for an intraday timestamp
+    // (daily+ timescales always return 0)
+    int barIndex(TimeFrame tf, const QDateTime& dt);
+
+    // Convert a 0-based intraday index back to a QTime (open of that bar)
+    QTime indexToBarTime(TimeFrame tf, int index);
+
+    // Whether a TimeFrame fits within a single trading day
+    bool isIntradayTimeFrame(TimeFrame tf);
+
+    // Whether Databento natively provides this schema (1m, 1h, 1d)
+    bool isNativeTimeFrame(TimeFrame tf);
+
+    // The source TF to fetch from Databento before aggregating:
+    //   5m/15m/30m → ONE_MINUTE,  4h → ONE_HOUR,  1w/1M → ONE_DAY
+    TimeFrame aggregateSourceTimeFrame(TimeFrame tf);
+}
+```
+
+**Usage**: Include `"Misc/BarUtils.h"` in any file needing timescale arithmetic. Used by `BarCache`, `DatabaseThread`, `DBClient`, and `BarAggregator`.
 
 ### ShortcutSettings.h/cpp
 

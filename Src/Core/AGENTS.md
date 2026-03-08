@@ -134,16 +134,17 @@ Contains data caching subsystems.
 **BarCache/** - Historical and live bar data caching
 - See `Cache/BarCache/AGENTS.md` for detailed information
 - In-memory + SQLite two-tier cache
-- Per-symbol, per-timeframe caching
+- **Multi-timescale**: stores all 9 TimeFrames (1m through 1M) independently
+- Memory structure: `QMap<TimeFrame, QMap<QDate, QVector<Bar>>>`
+- SQLite schema v2 includes `timescale` column (auto-migrated from v1 on open)
 - Automatic preloading from database
-- Stream management for live data
 
 **Key Features**:
 - Thread-safe via QReadWriteLock
 - Memory optimization (Bar class ~104 bytes)
-- Efficient historical data retrieval
-- Automatic database persistence
-- Gap detection and filling
+- All public methods accept a `TimeFrame tf` parameter
+- Efficient historical data retrieval with gap detection and auto-fill
+- Automatic database persistence via DatabaseThread
 
 ### Replay/ Subdirectory
 
