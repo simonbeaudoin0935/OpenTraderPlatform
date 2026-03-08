@@ -10,6 +10,7 @@
 #include "Bar.h"
 #include "TSClient.h"
 #include "CONSTANTS.h"
+#include "TimeFrame.h"
 
 Q_DECLARE_LOGGING_CATEGORY(BarCacheLog)
 
@@ -30,21 +31,29 @@ class BarCache : public QObject
                          QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>
         GetBarsResult_t;
 
-    /*
-     * Get Bars between two date-times
+    /**
+     * @brief Get bars between two times on a single trading day.
      *
-     * @note : Both date-times must be in America/New_York timezone
+     * @param tf    Timescale of bars to retrieve
+     * @param day   Trading day
+     * @param first Start time (inclusive, America/New_York)
+     * @param last  End time (inclusive, America/New_York)
      */
-    GetBarsResult_t getBars(const QDate& day, const QTime& first, const QTime& last);
+    GetBarsResult_t getBars(TimeFrame tf, const QDate& day, const QTime& first, const QTime& last);
 
     void clearDatabase();
 
     /**
      * @brief Store a single bar in the cache.
      *
-     * This is called by BarReceiver when new bars arrive from the stream.
+     * Called by BarReceiver (live 1m bars) and by the aggregation pipeline
+     * (higher-TF derived bars). The caller must supply the TimeFrame explicitly
+     * because bars do not carry a timescale field.
+     *
+     * @param tf  Timescale of the bar
+     * @param bar The bar to store
      */
-    void storeBar(const Bar& bar);
+    void storeBar(TimeFrame tf, const Bar& bar);
 
   private:
     [[nodiscard]]
@@ -52,25 +61,28 @@ class BarCache : public QObject
                                                                                         const QDateTime& last);
 
     std::optional<std::unique_ptr<QVector<Bar>>>
-    getBarsFromCache(const QDate& date, const QTime& start, const QTime& end) const;
+    getBarsFromCache(TimeFrame tf, const QDate& date, const QTime& start, const QTime& end) const;
 
-    void storeBarInCache(const Bar& bar);
+    void storeBarInCache(TimeFrame tf, const Bar& bar);
 
-    void storeBarsInCache(const QDate& date, const std::shared_ptr<QVector<Bar>>& bars);
+    void storeBarsInCache(TimeFrame tf, const QDate& date, const std::shared_ptr<QVector<Bar>>& bars);
 
     void handleReceivedAllPendingGetBarsRequests();
-    QVector<Bar>
-    fillHolesOfReceivedRequest(const QDateTime& first, const QDateTime& last, const QVector<Bar>& barsFromAPI) const;
+    QVector<Bar> fillHolesOfReceivedRequest(TimeFrame tf,
+                                            const QDateTime& first,
+                                            const QDateTime& last,
+                                            const QVector<Bar>& barsFromAPI) const;
 
-    QVector<Bar>& getOrCreateDayVector(const QDate& date);
+    QVector<Bar>& getOrCreateDayVector(TimeFrame tf, const QDate& date);
 
     const QString m_symbol;
     QString m_dbPath; // Path to the database file (managed by DatabaseThread)
 
-    // Protects m_barCacheByDay. Each BarCache instance has its own lock (no cross-symbol contention).
+    // Protects m_barCacheByTimeFrame. Each BarCache instance has its own lock.
     // QReadWriteLock allows concurrent readers, exclusive writer access.
     mutable QReadWriteLock m_barCacheRwLock;
 
-    // Day-based storage: one QVector per trading day. Vector index maps to minute within trading day.
-    QMap<QDate, QVector<Bar>> m_barCacheByDay;
+    // Two-level storage: timescale → (day → bar vector).
+    // Vector indices map to bar slots within a trading day per BarUtils::barsPerDay(tf).
+    QMap<TimeFrame, QMap<QDate, QVector<Bar>>> m_barCacheByTimeFrame;
 };

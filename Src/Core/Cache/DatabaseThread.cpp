@@ -11,6 +11,7 @@
 #include "Assume.h"
 #include "SQL/DatabaseThreadQueries.h"
 #include "CONSTANTS.h"
+#include "BarUtils.h"
 
 #define LOGGING_CATEGORY DatabaseThreadLog
 
@@ -100,7 +101,7 @@ void DatabaseThread::closeDatabase(const QString& symbol)
 }
 
 QFuture<std::optional<std::shared_ptr<QVector<Bar>>>>
-DatabaseThread::getBarsFromDatabase(const QString& symbol, QDate date, QTime start, QTime end)
+DatabaseThread::getBarsFromDatabase(const QString& symbol, TimeFrame tf, QDate date, QTime start, QTime end)
 {
     // Make sure we're not called from the database thread itself, that
     // would be illogical.
@@ -112,9 +113,9 @@ DatabaseThread::getBarsFromDatabase(const QString& symbol, QDate date, QTime sta
 
     QMetaObject::invokeMethod(
         this,
-        [this, symbol, date, start, end, promise = std::move(promise)]() mutable
+        [this, symbol, tf, date, start, end, promise = std::move(promise)]() mutable
         {
-            auto result = getBarsFromDatabaseInternal(symbol, date, start, end);
+            auto result = getBarsFromDatabaseInternal(symbol, tf, date, start, end);
             promise.addResult(std::move(result));
             promise.finish();
         },
@@ -124,8 +125,10 @@ DatabaseThread::getBarsFromDatabase(const QString& symbol, QDate date, QTime sta
 }
 
 [[nodiscard]]
-QFuture<int>
-DatabaseThread::storeBarsInDatabase(const QString& symbol, const QDate& date, const std::shared_ptr<QVector<Bar>> bars)
+QFuture<int> DatabaseThread::storeBarsInDatabase(const QString& symbol,
+                                                 TimeFrame tf,
+                                                 const QDate& date,
+                                                 const std::shared_ptr<QVector<Bar>> bars)
 {
     QPromise<int> promise;
     QFuture<int> future = promise.future();
@@ -133,9 +136,9 @@ DatabaseThread::storeBarsInDatabase(const QString& symbol, const QDate& date, co
 
     QMetaObject::invokeMethod(
         this,
-        [this, symbol, date, barsPtr = std::move(bars), promise = std::move(promise)]() mutable
+        [this, symbol, tf, date, barsPtr = std::move(bars), promise = std::move(promise)]() mutable
         {
-            int result = storeBarsInDatabaseInternal(symbol, date, *barsPtr);
+            int result = storeBarsInDatabaseInternal(symbol, tf, date, *barsPtr);
             promise.addResult(result);
             promise.finish();
         },
@@ -206,7 +209,28 @@ bool DatabaseThread::openDatabaseInternal(const QString& symbol, const QString& 
         return false;
     }
 
-    // Create table if not exists
+    // ── Schema version check ────────────────────────────────────────────────
+    // Probe for the timescale column (v2 schema). If it's missing, the DB was
+    // created with the old v1 schema. Drop the table so it is recreated below.
+    // Since BarCache is a rebuildable cache, no data migration is needed.
+    {
+        QSqlQuery probe(db);
+        if (!probe.exec(DatabaseThreadQueries::PROBE_SCHEMA_V2))
+        {
+            INFO << "Old schema detected for" << symbol << "— dropping bars table to upgrade to v2";
+            QSqlQuery drop(db);
+            if (!drop.exec(DatabaseThreadQueries::DROP_BAR_CACHE_TABLE))
+            {
+                CRITICAL << "Failed to drop old bars table for" << symbol << ":" << drop.lastError().text();
+                db.close();
+                QSqlDatabase::removeDatabase(connectionName);
+                return false;
+            }
+            INFO << "Dropped old bars table for" << symbol;
+        }
+    }
+
+    // Create table if not exists (v2 schema)
     QSqlQuery query(db);
     bool success = query.exec(DatabaseThreadQueries::CREATE_BAR_CACHE_TABLE);
 
@@ -251,7 +275,7 @@ void DatabaseThread::closeDatabaseInternal(const QString& symbol)
 }
 
 std::optional<std::shared_ptr<QVector<Bar>>>
-DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, QTime start, QTime end)
+DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, TimeFrame tf, QDate date, QTime start, QTime end)
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
 
@@ -267,16 +291,17 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
 
     DEBUG << "Checking database cache for" << symbol << "at date" << date << "from" << start << "to" << end;
 
-    size_t indexStart = BarsConstants::timeToIndex(start);
-    size_t indexEnd = BarsConstants::timeToIndex(end);
+    int indexStart = BarUtils::barIndex(tf, start);
+    int indexEnd = BarUtils::barIndex(tf, end);
 
-    OBJ_ASSUME_LT(indexStart, indexEnd);
+    OBJ_ASSUME_LTE(indexStart, indexEnd);
 
     QSqlQuery query(db);
-    query.prepare(DatabaseThreadQueries::SELECT_BARS_BY_DATE_AND_INDEX);
+    query.prepare(DatabaseThreadQueries::SELECT_BARS_BY_TIMESCALE_DATE_AND_INDEX);
+    query.addBindValue(static_cast<int>(tf));
     query.addBindValue(date.toString("yyyy-MM-dd"));
-    query.addBindValue(static_cast<int>(indexStart));
-    query.addBindValue(static_cast<int>(indexEnd));
+    query.addBindValue(indexStart);
+    query.addBindValue(indexEnd);
 
     std::shared_ptr<QVector<Bar>> bars = std::make_shared<QVector<Bar>>();
 
@@ -285,7 +310,7 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
         while (query.next())
         {
             int index = query.value(0).toInt();
-            QTime time = BarsConstants::indexToTime(static_cast<size_t>(index));
+            QTime time = BarUtils::indexToBarTime(tf, index);
             QDateTime ts(date, time, QTimeZone("America/New_York"));
             double open = query.value(1).toDouble();
             double high = query.value(2).toDouble();
@@ -315,7 +340,7 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
         return std::nullopt;
     }
 
-    size_t expectedCount = indexEnd - indexStart + 1;
+    int expectedCount = indexEnd - indexStart + 1;
     if (bars->size() != static_cast<qsizetype>(expectedCount))
     {
         // Allow a shortfall (e.g., data provider doesn't cover the full after-market session).
@@ -337,7 +362,10 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, QDate date, Q
     return bars;
 }
 
-int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDate& date, const QVector<Bar>& bars)
+int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol,
+                                                TimeFrame tf,
+                                                const QDate& date,
+                                                const QVector<Bar>& bars)
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
 
@@ -366,10 +394,11 @@ int DatabaseThread::storeBarsInDatabaseInternal(const QString& symbol, const QDa
     for (const Bar& bar: bars)
     {
         QString dateStr = date.toString("yyyy-MM-dd");
-        size_t index = BarsConstants::timeToIndex(bar.getTimeStamp().time());
+        int index = BarUtils::barIndex(tf, bar.getTimeStamp().time());
 
+        query.addBindValue(static_cast<int>(tf));
         query.addBindValue(dateStr);
-        query.addBindValue(static_cast<int>(index));
+        query.addBindValue(index);
         query.addBindValue(bar.getOpen());
         query.addBindValue(bar.getHigh());
         query.addBindValue(bar.getLow());
