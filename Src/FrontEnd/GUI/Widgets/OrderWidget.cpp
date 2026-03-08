@@ -35,7 +35,7 @@ void OrderWidget::setupUI()
     // Setup model columns
     QStringList headers;
     headers << "Status" << "Symbol" << "Action" << "Qty" << "Type" << "Limit" << "Stop" << "Date" << "Time"
-            << "Ack/Fill Latency" << "Order ID";
+            << "Latency" << "Order ID";
     m_model->setHorizontalHeaderLabels(headers);
 
     // Configure table view
@@ -61,7 +61,7 @@ void OrderWidget::setupUI()
     m_tableView->setColumnWidth(6, 60);   // Stop
     m_tableView->setColumnWidth(7, 80);   // Date
     m_tableView->setColumnWidth(8, 80);   // Time
-    m_tableView->setColumnWidth(9, 120);  // Ack/Fill Latency
+    m_tableView->setColumnWidth(9, 60);   // Latency
     m_tableView->setColumnWidth(10, 100); // Order ID
 
     // Add widgets to layout
