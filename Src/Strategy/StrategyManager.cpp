@@ -227,13 +227,16 @@ const QString& StrategySDK::getStrategyName() const
     return m_config.name;
 }
 
-std::shared_ptr<QVector<Bar>>
-StrategySDK::getHistoricalBars(const QString& /* symbol */, const QDate& day, const QTime& first, const QTime& last)
+std::shared_ptr<QVector<Bar>> StrategySDK::getHistoricalBars(const QString& /* symbol */,
+                                                             const QDate& day,
+                                                             const QTime& first,
+                                                             const QTime& last,
+                                                             TimeFrame tf)
 {
     ASSUME_DIFF(m_mainAlgo, nullptr);
 
     // Request bars from MainAlgo (which has access to all StockInstruments and their BarCaches)
-    auto result = m_mainAlgo->requestMissingBarsDisplayedStock(day, first, last);
+    auto result = m_mainAlgo->requestMissingBarsDisplayedStock(day, first, last, tf);
 
     // Result is a variant of either std::shared_ptr<QVector<Bar>> or QFuture
     if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
@@ -492,8 +495,7 @@ QString StrategyManager::startStrategy(const QString& p_strategyID)
                          emit strategyStatusChanged(instance->strategyID, true, "");
 
                          // Persist updated running state (back on MainAlgo thread)
-                         QMetaObject::invokeMethod(
-                             this, [this]() { persistStrategiesState(); }, Qt::QueuedConnection);
+                         QMetaObject::invokeMethod(this, [this]() { persistStrategiesState(); }, Qt::QueuedConnection);
                      });
 
     // Start the thread
@@ -1066,7 +1068,8 @@ void StrategyManager::restoreStrategiesState()
             QString error = startStrategy(result.value());
             if (!error.isEmpty())
             {
-                qWarning(StrategyManagerLog) << "Failed to auto-start restored strategy:" << config.name << "-" << error;
+                qWarning(StrategyManagerLog)
+                    << "Failed to auto-start restored strategy:" << config.name << "-" << error;
             }
         }
     }
