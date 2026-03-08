@@ -494,6 +494,13 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
         }
 
         m_initialYAxisRangeSet = true;
+
+        // Immediately sync the current time line's Y coords to the just-applied range.
+        // Without this, the debounced onAxisRangeChanged would update the coords only
+        // after the next event loop tick — after replot() below — making the line
+        // temporarily invisible (its Y coords would still span the reset (0,100) range
+        // rather than the actual price range).
+        updateCurrentTimeLine();
     }
 
     //#warning TODO: optimize redraws
