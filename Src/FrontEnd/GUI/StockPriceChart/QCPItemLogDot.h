@@ -32,9 +32,18 @@ class QCPItemLogDot : public QCPAbstractItem
 
     QCPItemPosition* const center; ///< Anchor: only the X coordinate is used
 
-    void setColor(const QColor& p_color) { m_color = p_color; }
-    void setRadius(int p_radius) { m_radius = p_radius; }
-    void setBottomOffset(int p_bottomOffset) { m_bottomOffset = p_bottomOffset; }
+    void setColor(const QColor& p_color)
+    {
+        m_color = p_color;
+    }
+    void setRadius(int p_radius)
+    {
+        m_radius = p_radius;
+    }
+    void setBottomOffset(int p_bottomOffset)
+    {
+        m_bottomOffset = p_bottomOffset;
+    }
 
     /** @brief Returns the pixel position where the dot is drawn (useful for tooltips). */
     QPointF dotPixelPosition() const

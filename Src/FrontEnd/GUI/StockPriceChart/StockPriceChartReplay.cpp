@@ -93,16 +93,17 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
         {
             m_preservedYRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
         }
-        const int deltaMinutes = m_index0Timestamp.isValid()
-            ? static_cast<int>(QDateTime(currentDate, m_index0Timestamp.time(), TradingHours::MARKET_TIMEZONE)
-                                   .secsTo(QDateTime(currentDate, time, TradingHours::MARKET_TIMEZONE)) / 60)
-            : 0;
+        const int deltaMinutes =
+            m_index0Timestamp.isValid()
+                ? static_cast<int>(QDateTime(currentDate, m_index0Timestamp.time(), TradingHours::MARKET_TIMEZONE)
+                                       .secsTo(QDateTime(currentDate, time, TradingHours::MARKET_TIMEZONE)) /
+                                   60)
+                : 0;
 
         // Update the global replay time anchor BEFORE clearing the chart so that
         // initializeTimeAnchor() (called inside clearChart) uses the new start time
         // and checkForMissingBars loads all historical bars up to the new position.
-        MainApp::currentAppReplayTime =
-            QDateTime(currentDate, time, TradingHours::MARKET_TIMEZONE);
+        MainApp::currentAppReplayTime = QDateTime(currentDate, time, TradingHours::MARKET_TIMEZONE);
 
         clearChart(/*p_replot=*/false);
 

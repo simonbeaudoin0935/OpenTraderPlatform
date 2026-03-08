@@ -285,6 +285,15 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     chartToolbar->setWheelRatio(savedRatio);
     wheelZoomRatio = savedRatio;
 
+    // Restore timescale and auto-mode from AppState
+    const bool autoEnabled = appStateSettings->value("Chart/AutoTimeFrame", false).toBool();
+    chartToolbar->setAutoTimeFrameEnabled(autoEnabled);
+    if (!autoEnabled)
+    {
+        const int savedTf = appStateSettings->value("Chart/TimeFrame", static_cast<int>(TimeFrame::ONE_MINUTE)).toInt();
+        chartToolbar->setCurrentTimeFrame(static_cast<TimeFrame>(savedTf));
+    }
+
     // Connect axis range change signals
     connect(m_customPlot->xAxis,
             QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),

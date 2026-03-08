@@ -385,6 +385,29 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // When the chart requests missing bars, call the extracted method to handle the request
     connect(ui->priceChart, &StockPriceChart::requestMissingBars, this, &GUIFrontend::requestMissingBarsFromCache);
 
+    // Connect chart toolbar timescale selector
+    connect(ui->priceChart->toolbar(),
+            &ChartToolbar::timeFrameChanged,
+            this,
+            &GUIFrontend::onTimeFrameChanged,
+            Qt::UniqueConnection);
+
+    // Persist auto-timescale mode toggle
+    connect(ui->priceChart->toolbar(),
+            &ChartToolbar::autoTimeFrameChanged,
+            this,
+            [this](bool enabled)
+            {
+                Q_CHECK_PTR(appStateSettings);
+                appStateSettings->setValue("Chart/AutoTimeFrame", enabled);
+                if (!enabled)
+                {
+                    // Also persist the currently selected TF when switching auto off
+                    appStateSettings->setValue("Chart/TimeFrame", static_cast<int>(m_currentTimeFrame));
+                }
+                appStateSettings->sync();
+            });
+
     // Persist replay start time whenever it changes so next launch restores it
     connect(ui->priceChart->toolbar(),
             &ChartToolbar::replayStartTimeChanged,
@@ -424,6 +447,9 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
 
     // Center the text in the stock symbol input
     ui->stockSymbolInput->setAlignment(Qt::AlignCenter);
+
+    // Sync m_currentTimeFrame from the toolbar which already restored its state from AppState
+    m_currentTimeFrame = ui->priceChart->toolbar()->getCurrentTimeFrame();
 
     // Connect position window symbol click
     connect(ui->positionWidget,
@@ -658,22 +684,23 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // NOTE: Don't restore the last displayed stock here - wait for authentication
     // It will be restored in onTradeStationAuthStateChanged() when authenticated.
     // As a fallback, schedule a restore in case TS auth never fires (e.g. no credentials).
-    QTimer::singleShot(500,
-                       this,
-                       [this]()
-                       {
-                           if (!m_hasRestoredLastStock)
-                           {
-                               qInfo(GUIFrontendLog) << "TS auth never fired — restoring state via fallback timer";
-                               m_hasRestoredLastStock = true;
-                               restoreLastDisplayedStock();
-                               restoreReplayState();
-                               // Restore strategies AFTER replay mode is set up (enterReplayMode posts
-                               // stopAllStrategies via QueuedConnection; this queues behind it).
-                               QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
-                               QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
-                           }
-                       });
+    QTimer::singleShot(
+        500,
+        this,
+        [this]()
+        {
+            if (!m_hasRestoredLastStock)
+            {
+                qInfo(GUIFrontendLog) << "TS auth never fired — restoring state via fallback timer";
+                m_hasRestoredLastStock = true;
+                restoreLastDisplayedStock();
+                restoreReplayState();
+                // Restore strategies AFTER replay mode is set up (enterReplayMode posts
+                // stopAllStrategies via QueuedConnection; this queues behind it).
+                QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
+                QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
+            }
+        });
 }
 
 GUIFrontend::~GUIFrontend()
@@ -1617,12 +1644,12 @@ void GUIFrontend::onCancelAllOrders()
 
 void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDateTime& to)
 {
-    OBJ_ASSUME_EQUAL(from.date(), to.date()); // Currently only support same-day requests
-
     DEBUG << "Request missing bars from " << from << " to " << to;
 
-    BarCache::GetBarsResult_t result =
-        MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from.date(), from.time(), to.time());
+    BarCache::GetBarsResult_t result = MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from.date(),
+                                                                                                 from.time(),
+                                                                                                 to.time(),
+                                                                                                 m_currentTimeFrame);
 
     if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
     {
@@ -1679,6 +1706,26 @@ void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDate
         qCritical() << "Unexpected result type from requestMissingBarsDisplayedStock";
         ui->priceChart->onRequestedMissingBarsFailed();
     }
+}
+
+void GUIFrontend::onTimeFrameChanged(TimeFrame tf)
+{
+    if (tf == m_currentTimeFrame)
+        return;
+
+    DEBUG << "Timescale changed to" << static_cast<int>(tf);
+    m_currentTimeFrame = tf;
+
+    // Persist when auto is off (Phase 9)
+    if (!ui->priceChart->toolbar()->isAutoTimeFrameEnabled())
+    {
+        Q_CHECK_PTR(appStateSettings);
+        appStateSettings->setValue("Chart/TimeFrame", static_cast<int>(tf));
+        appStateSettings->sync();
+    }
+
+    // Clear the chart and let it re-request bars with the new timescale
+    ui->priceChart->clearChart();
 }
 
 QString GUIFrontend::formatAccountInfo(const Account& account) const

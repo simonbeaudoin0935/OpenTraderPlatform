@@ -16,6 +16,7 @@
 #include "ChartToolbar.h"
 #include "ChartTimeUtils.h"
 #include "CONSTANTS.h"
+#include "Misc/TimeFrame.h"
 #include "QCPItemTriangle.h"
 #include "QCPItemLogDot.h"
 #include "OrdersDatabase.h"
@@ -331,7 +332,12 @@ class StockPriceChart : public QWidget
     // Helper to convert index to time for axis labels
     QString indexToTimeString(double index) const;
 
+    void checkAutoTimeFrame();
+
     bool startedReceivingRealtimeBars = false;
+
+    // Last auto-selected timescale — used to avoid re-triggering on every axis change
+    TimeFrame m_lastAutoTimeFrame = TimeFrame::ONE_MINUTE;
 
     /// True after first batch of historical bars sets Y-axis range (prevents resetting on subsequent loads)
     bool m_initialYAxisRangeSet = false;
