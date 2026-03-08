@@ -17,7 +17,9 @@
 #include "OrdersReceiver.h"
 #include "Account.h"
 #include "BarCache.h"
+#include "TimeFrame.h"
 #include "Balance.h"
+#include "BarAggregator/BarAggregator.h"
 #include "Level2.h"
 #include "Trade.h"
 #include "LiveBarAccumulator.h"
@@ -44,6 +46,7 @@ class StockInstruments : public QObject
     Level2Receiver m_level2Receiver;
     Level1Receiver m_level1Receiver;
     LiveBarAccumulator m_liveBarAccumulator;
+    BarAggregator m_barAggregator;
 };
 
 class MainAlgo final : public QObject
@@ -67,7 +70,8 @@ class MainAlgo final : public QObject
     /// @brief Get the currently displayed stock symbol
     [[nodiscard]] QString getDisplayedSymbol() const;
 
-    BarCache::GetBarsResult_t requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last);
+    BarCache::GetBarsResult_t
+    requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last, TimeFrame tf = TimeFrame::ONE_MINUTE);
 
     /*
      * Strategy order management - called by StrategySDK

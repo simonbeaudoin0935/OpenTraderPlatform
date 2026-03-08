@@ -256,7 +256,7 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             });
 }
 
-BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last)
+BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last, TimeFrame tf)
 {
     DEBUG << "Requested bars from current displayed stock cache: " << first << " to " << last;
 
@@ -270,7 +270,7 @@ BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date,
         return std::make_shared<QVector<Bar>>();
     }
 
-    return currentDisplayedStockInstrument->barCache.getBars(date, first, last);
+    return currentDisplayedStockInstrument->barCache.getBars(tf, date, first, last);
 }
 
 /*
@@ -550,8 +550,7 @@ void MainAlgo::requestBalance()
 
     // Don't request balance if not authenticated — TSClient will assert on empty API key.
     // Exception: in replay mode, the mock network manager handles requests without real credentials.
-    if (!TSClient::getInstance()->isAuthenticated()
-        && TSClient::getInstance()->getMode() != TSClient::Mode::Replay)
+    if (!TSClient::getInstance()->isAuthenticated() && TSClient::getInstance()->getMode() != TSClient::Mode::Replay)
         return;
 
     OBJ_ASSUME_FALSE(m_activeAccount.getAccountId().isEmpty());
@@ -596,14 +595,15 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
     , m_level2Receiver(p_symbol, this)
     , m_level1Receiver(p_symbol, this)
     , m_liveBarAccumulator(this)
+    , m_barAggregator(this)
 {
     this->setObjectName("StockInstrument::" + p_symbol);
 
-    // Connect BarReceiver to BarCache for storage
+    // Connect BarReceiver to BarCache for 1m bar storage
     bool connected = connect(&barReceiver,
                              &BarReceiver::receivedNewBar,
                              &barCache,
-                             [this](const QString&, const Bar& bar) { barCache.storeBar(bar); });
+                             [this](const QString&, const Bar& bar) { barCache.storeBar(TimeFrame::ONE_MINUTE, bar); });
     OBJ_ASSUME_TRUE(connected);
 
     // Wire LiveBarAccumulator::barClosed → BarReceiver::receivedNewBar
@@ -614,6 +614,17 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
     // Wire LiveBarAccumulator::barUpdated → BarReceiver::receivedNewBar (in-progress candle)
     connected =
         connect(&m_liveBarAccumulator, &LiveBarAccumulator::barUpdated, &barReceiver, &BarReceiver::receivedNewBar);
+    OBJ_ASSUME_TRUE(connected);
+
+    // Wire closed 1m bars → BarAggregator for higher-TF accumulation
+    connected = connect(&m_liveBarAccumulator,
+                        &LiveBarAccumulator::barClosed,
+                        &m_barAggregator,
+                        &BarAggregator::onNewBar);
+    OBJ_ASSUME_TRUE(connected);
+
+    // Wire BarAggregator::barClosed → BarCache for higher-TF storage
+    connected = connect(&m_barAggregator, &BarAggregator::barClosed, &barCache, &BarCache::storeBar);
     OBJ_ASSUME_TRUE(connected);
 
     // In replay mode, data comes from ReplayEngine (connected by MainAlgo::connectReplaySignals)
@@ -1330,7 +1341,8 @@ void MainAlgo::resumeLiveStreams()
     // Skip account fetch if not authenticated (e.g. replay-only without TS credentials)
     if (!TSClient::getInstance()->isAuthenticated())
     {
-        INFO << "Not authenticated with TradeStation — stopping balance polling and skipping account fetch after replay mode";
+        INFO
+            << "Not authenticated with TradeStation — stopping balance polling and skipping account fetch after replay mode";
         stopBalancePolling();
         m_balancePollingStarted = false;
         return;
