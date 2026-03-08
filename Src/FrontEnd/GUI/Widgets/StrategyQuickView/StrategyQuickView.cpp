@@ -20,7 +20,8 @@
 static constexpr int COL_NAME  = 0;
 static constexpr int COL_QTY   = 1;
 static constexpr int COL_PRICE = 2;
-static constexpr int COL_PNL   = 3;
+static constexpr int COL_PNL   = 3; // Unrealized P&L
+static constexpr int COL_RPNL  = 4; // Realized P&L
 
 StrategyQuickView::StrategyQuickView(QWidget* parent)
     : QWidget(parent), m_tree(new QTreeWidget(this)), m_positionTimer(new QTimer(this))
@@ -69,8 +70,8 @@ void StrategyQuickView::setupUI()
     // Tree widget
     layout->addWidget(m_tree, 1);
 
-    m_tree->setColumnCount(4);
-    m_tree->setHeaderLabels({"Strategy / Symbol", "Qty", "Avg Price", "P&L"});
+    m_tree->setColumnCount(5);
+    m_tree->setHeaderLabels({"Strategy / Symbol", "Qty", "Avg Price", "U/P&L", "R/P&L"});
     m_tree->setRootIsDecorated(true);
     m_tree->setExpandsOnDoubleClick(true);
     m_tree->setIndentation(14);
@@ -83,6 +84,7 @@ void StrategyQuickView::setupUI()
     m_tree->header()->setSectionResizeMode(COL_QTY, QHeaderView::ResizeToContents);
     m_tree->header()->setSectionResizeMode(COL_PRICE, QHeaderView::ResizeToContents);
     m_tree->header()->setSectionResizeMode(COL_PNL, QHeaderView::ResizeToContents);
+    m_tree->header()->setSectionResizeMode(COL_RPNL, QHeaderView::ResizeToContents);
 
     // Symbol click → display stock
     connect(m_tree,
@@ -209,9 +211,11 @@ void StrategyQuickView::updateSymbolChildren(QTreeWidgetItem* strategyItem, cons
         child->setText(COL_QTY, "—");
         child->setText(COL_PRICE, "—");
         child->setText(COL_PNL, "—");
+        child->setText(COL_RPNL, "—");
         child->setTextAlignment(COL_QTY, Qt::AlignRight | Qt::AlignVCenter);
         child->setTextAlignment(COL_PRICE, Qt::AlignRight | Qt::AlignVCenter);
         child->setTextAlignment(COL_PNL, Qt::AlignRight | Qt::AlignVCenter);
+        child->setTextAlignment(COL_RPNL, Qt::AlignRight | Qt::AlignVCenter);
 
         QFont font = child->font(COL_NAME);
         font.setBold(false);
@@ -270,10 +274,13 @@ void StrategyQuickView::onRefreshPositions()
 
                 QString pnl = pos->getUnrealizedProfitLoss();
                 child->setText(COL_PNL, pnl);
+                bool upnlPositive = !pnl.startsWith('-') && pnl != "—";
+                child->setForeground(COL_PNL, QColor(upnlPositive ? "#00C800" : "#FF4444"));
 
-                // Colour P&L green/red
-                bool positive = !pnl.startsWith('-') && pnl != "—";
-                child->setForeground(COL_PNL, QColor(positive ? "#00C800" : "#FF4444"));
+                QString rpnl = pos->getTodaysProfitLoss();
+                child->setText(COL_RPNL, rpnl);
+                bool rpnlPositive = !rpnl.startsWith('-') && rpnl != "—";
+                child->setForeground(COL_RPNL, QColor(rpnlPositive ? "#00C800" : "#FF4444"));
             }
             else
             {
@@ -281,6 +288,8 @@ void StrategyQuickView::onRefreshPositions()
                 child->setText(COL_PRICE, "—");
                 child->setText(COL_PNL, "—");
                 child->setForeground(COL_PNL, QColor("#888888"));
+                child->setText(COL_RPNL, "—");
+                child->setForeground(COL_RPNL, QColor("#888888"));
             }
         }
     }
