@@ -399,11 +399,10 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
         instance->p_adapter->callOnStop();
     }
 
-    // Save logs before shutdown
+    // Log the file path (logs are written incrementally, nothing to flush)
     if (instance->p_logger)
     {
-        QString logFile = instance->p_logger->saveToFile();
-        qInfo(StrategyManagerLog) << "Saved strategy logs to:" << logFile;
+        qInfo(StrategyManagerLog) << "Strategy log file:" << instance->p_logger->getLogFilePath();
     }
 
     // Signal thread to quit gracefully
