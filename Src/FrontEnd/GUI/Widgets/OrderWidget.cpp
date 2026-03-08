@@ -54,7 +54,7 @@ void OrderWidget::setupUI()
     // Set column widths
     m_tableView->setColumnWidth(0, 100);  // Status
     m_tableView->setColumnWidth(1, 70);   // Symbol
-    m_tableView->setColumnWidth(2, 80);   // Action
+    m_tableView->setColumnWidth(2, 53);   // Action
     m_tableView->setColumnWidth(3, 50);   // Quantity
     m_tableView->setColumnWidth(4, 70);   // Type
     m_tableView->setColumnWidth(5, 60);   // Limit
@@ -259,8 +259,13 @@ QList<QStandardItem*> OrderWidget::createRowItems(const Order& order)
     symbolItem->setTextAlignment(Qt::AlignCenter);
     items << symbolItem;
 
-    // Trade Action
-    auto actionItem = new QStandardItem(order.getTradeAction());
+    // Trade Action — shorten verbose action names for display
+    QString displayAction = order.getTradeAction();
+    if (displayAction.compare("SELLSHORT", Qt::CaseInsensitive) == 0)
+        displayAction = "SHORT";
+    else if (displayAction.compare("BUYTOCOVER", Qt::CaseInsensitive) == 0)
+        displayAction = "COVER";
+    auto actionItem = new QStandardItem(displayAction);
     Q_CHECK_PTR(actionItem);
     actionItem->setTextAlignment(Qt::AlignCenter);
     // Color code buy/sell
