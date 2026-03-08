@@ -290,8 +290,7 @@ void DownloadsTab::setupUI()
             }
             else
             {
-                qWarning() << "DownloadsTab: saved ReplayDataDir" << savedDir
-                           << "does not exist, reverting to default";
+                qWarning() << "DownloadsTab: saved ReplayDataDir" << savedDir << "does not exist, reverting to default";
                 appStateSettings->remove("RecordsInfo/ReplayDataDir");
             }
         }
@@ -330,11 +329,7 @@ void DownloadsTab::setupUI()
             Qt::UniqueConnection);
     splitter->addWidget(daysWidget);
 
-    connect(m_daysTable,
-            &QTableWidget::itemSelectionChanged,
-            this,
-            &DownloadsTab::onDaySelected,
-            Qt::UniqueConnection);
+    connect(m_daysTable, &QTableWidget::itemSelectionChanged, this, &DownloadsTab::onDaySelected, Qt::UniqueConnection);
 
     // ── Panel 3: Symbols table ────────────────────────────────────────────────
     auto* symbolsWidget = new QWidget();
@@ -531,9 +526,9 @@ void DownloadsTab::finishDownload()
 }
 
 void DownloadsTab::onDownloadFinished(const QString& p_symbol,
-                                        const QDate& p_date,
-                                        bool p_success,
-                                        const QString& p_errorMessage)
+                                      const QDate& p_date,
+                                      bool p_success,
+                                      const QString& p_errorMessage)
 {
     Q_UNUSED(p_errorMessage);
     if (p_date != m_downloadDate)

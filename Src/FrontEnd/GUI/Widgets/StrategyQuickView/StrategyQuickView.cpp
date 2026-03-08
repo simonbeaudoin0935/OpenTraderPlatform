@@ -17,11 +17,11 @@
 #include <QMessageBox>
 
 // Column indices
-static constexpr int COL_NAME  = 0;
-static constexpr int COL_QTY   = 1;
+static constexpr int COL_NAME = 0;
+static constexpr int COL_QTY = 1;
 static constexpr int COL_PRICE = 2;
-static constexpr int COL_PNL   = 3; // Unrealized P&L
-static constexpr int COL_RPNL  = 4; // Realized P&L
+static constexpr int COL_PNL = 3;  // Unrealized P&L
+static constexpr int COL_RPNL = 4; // Realized P&L
 
 StrategyQuickView::StrategyQuickView(QWidget* parent)
     : QWidget(parent), m_tree(new QTreeWidget(this)), m_positionTimer(new QTimer(this))
@@ -57,10 +57,9 @@ void StrategyQuickView::setupUI()
 
     auto* loadButton = new QPushButton("⊕ Load", header);
     loadButton->setFixedHeight(20);
-    loadButton->setStyleSheet(
-        "QPushButton { background-color: #3A5A3A; color: #88DD88; border: 1px solid #4A7A4A;"
-        "              font-size: 10px; padding: 0 6px; border-radius: 2px; }"
-        "QPushButton:hover { background-color: #4A7A4A; }");
+    loadButton->setStyleSheet("QPushButton { background-color: #3A5A3A; color: #88DD88; border: 1px solid #4A7A4A;"
+                              "              font-size: 10px; padding: 0 6px; border-radius: 2px; }"
+                              "QPushButton:hover { background-color: #4A7A4A; }");
     loadButton->setToolTip("Load a strategy plugin");
     headerLayout->addWidget(loadButton);
     connect(loadButton, &QPushButton::clicked, this, &StrategyQuickView::onLoadButtonClicked);
@@ -365,4 +364,3 @@ QString StrategyQuickView::strategyIDForItem(QTreeWidgetItem* item) const
     // If it's a symbol child, delegate to parent
     return strategyIDForItem(item->parent());
 }
-
