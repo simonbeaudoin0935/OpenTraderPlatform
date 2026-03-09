@@ -4,4 +4,4 @@
 	branch = v0.49.0
 [submodule "Strategies"]
 	path = Strategies
-	url = https://github.com/simonbeaudoin0935/L2Trader-Strategies
+	url = git@github.com:simonbeaudoin0935/L2Trader-Strategies.git
