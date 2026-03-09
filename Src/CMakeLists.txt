@@ -95,7 +95,7 @@ add_library(L2TraderCommon STATIC
     ${TUI_SOURCES}
     ${GUI_UI_FILES}
     ${QCUSTOMPLOT_SOURCES}
-    ${CMAKE_SOURCE_DIR}/Resources/Resources.qrc
+    ${CMAKE_SOURCE_DIR}/Rsc/Resources.qrc
 )
 
 # Add dependency on logging generation
