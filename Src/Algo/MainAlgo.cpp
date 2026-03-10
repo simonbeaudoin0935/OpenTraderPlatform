@@ -61,17 +61,34 @@ MainAlgo::~MainAlgo()
     // Thread affinity assertion - destructor must be called from main thread
     OBJ_ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
 
-    // Stop balance polling timer if it exists
-    // Note: We're in the destructor, so we can't use QMetaObject::invokeMethod
-    // since the thread might already be stopping. Just stop the timer directly.
-    if (m_balancePollingTimer && m_balancePollingTimer->isActive())
-    {
-        m_balancePollingTimer->stop();
-        DEBUG << "Stopped balance polling timer in destructor";
-    }
+    // CRITICAL: Destroy all thread-owned objects that have QTimer members on the MainAlgo
+    // thread BEFORE calling thread.quit(). If we destroy them from the main thread after
+    // the thread has stopped, Qt warns "Timers cannot be stopped from another thread".
+    // The MainAlgo event loop is still running at this point, so BlockingQueuedConnection is safe.
+    QMetaObject::invokeMethod(
+        this,
+        [this]()
+        {
+            // Stop and destroy balance polling timer on its own thread
+            m_balancePollingTimer.reset();
 
-    // CRITICAL: Stop thread BEFORE destroying thread-owned objects to prevent cross-thread access
-    // Request thread to stop
+            // Stop and delete replay engines on the correct thread (they own QTimer members)
+            if (m_replayEngine != nullptr)
+            {
+                m_replayEngine->stopReplay();
+                delete m_replayEngine;
+                m_replayEngine = nullptr;
+            }
+            for (auto* engine: std::as_const(m_secondaryReplayEngines))
+            {
+                engine->stopReplay();
+                delete engine;
+            }
+            m_secondaryReplayEngines.clear();
+        },
+        Qt::BlockingQueuedConnection);
+
+    // CRITICAL: Stop thread BEFORE Qt's parent-child deletion destroys thread-owned objects
     thread.quit();
 
     // Wait for thread to finish (with timeout)
@@ -643,10 +660,8 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
     OBJ_ASSUME_TRUE(connected);
 
     // Wire in-progress 1m bar updates → BarAggregator for real-time live candle animation
-    connected = connect(&m_liveBarAccumulator,
-                        &LiveBarAccumulator::barUpdated,
-                        &m_barAggregator,
-                        &BarAggregator::onBarUpdated);
+    connected =
+        connect(&m_liveBarAccumulator, &LiveBarAccumulator::barUpdated, &m_barAggregator, &BarAggregator::onBarUpdated);
     OBJ_ASSUME_TRUE(connected);
 
     // Wire BarAggregator::barClosed → BarCache for higher-TF storage
