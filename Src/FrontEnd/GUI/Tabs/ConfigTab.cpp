@@ -12,15 +12,15 @@
 
 namespace
 {
-// Default auto-TF thresholds (lower, upper) in minutes for each timeframe
-const QMap<TimeFrame, std::pair<int, int>> DEFAULT_AUTO_TF_THRESHOLDS = {
-    {TimeFrame::ONE_MINUTE, {30, 150}},      // 30min to 2.5h
-    {TimeFrame::FIVE_MINUTES, {120, 480}},   // 2h to 8h
-    {TimeFrame::FIFTEEN_MINUTES, {240, 960}}, // 4h to 16h
-    {TimeFrame::THIRTY_MINUTES, {480, 1440}}, // 8h to 24h
-    {TimeFrame::ONE_HOUR, {720, 2880}},      // 12h to 2 days
-    {TimeFrame::FOUR_HOURS, {1440, 10080}},  // 1 day to 1 week
-};
+    // Default auto-TF thresholds (lower, upper) in minutes for each timeframe
+    const QMap<TimeFrame, std::pair<int, int>> DEFAULT_AUTO_TF_THRESHOLDS = {
+        {TimeFrame::ONE_MINUTE, {30, 150}},       // 30min to 2.5h
+        {TimeFrame::FIVE_MINUTES, {120, 480}},    // 2h to 8h
+        {TimeFrame::FIFTEEN_MINUTES, {240, 960}}, // 4h to 16h
+        {TimeFrame::THIRTY_MINUTES, {480, 1440}}, // 8h to 24h
+        {TimeFrame::ONE_HOUR, {720, 2880}},       // 12h to 2 days
+        {TimeFrame::FOUR_HOURS, {1440, 10080}},   // 1 day to 1 week
+    };
 } // namespace
 
 ConfigTab::ConfigTab(QWidget* parent) : QWidget(parent), m_timeAndSalesMaxEntriesSpinBox(nullptr)
@@ -60,11 +60,10 @@ void ConfigTab::setupUI()
 
     // Auto-Timeframe Configuration section
     QGroupBox* autoTfGroupBox = new QGroupBox("Auto-Timeframe Thresholds (minutes)");
-    autoTfGroupBox->setToolTip(
-        "Configure the visible range (in minutes) at which the chart automatically\n"
-        "switches between timeframes when 'Auto' is enabled.\n\n"
-        "Lower: Switch to finer timeframe when visible range drops below this\n"
-        "Upper: Switch to coarser timeframe when visible range exceeds this");
+    autoTfGroupBox->setToolTip("Configure the visible range (in minutes) at which the chart automatically\n"
+                               "switches between timeframes when 'Auto' is enabled.\n\n"
+                               "Lower: Switch to finer timeframe when visible range drops below this\n"
+                               "Upper: Switch to coarser timeframe when visible range exceeds this");
     QVBoxLayout* autoTfLayout = new QVBoxLayout(autoTfGroupBox);
 
     // Create threshold controls for each intraday timeframe
@@ -75,7 +74,7 @@ void ConfigTab::setupUI()
                                           TimeFrame::ONE_HOUR,
                                           TimeFrame::FOUR_HOURS};
 
-    for (TimeFrame tf : intradayTfs)
+    for (TimeFrame tf: intradayTfs)
     {
         QHBoxLayout* rowLayout = new QHBoxLayout();
 

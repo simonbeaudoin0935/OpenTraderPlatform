@@ -133,8 +133,9 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     auto createTimeFrameShortcut = [this, &shortcutSettings](ShortcutSettings::ShortcutId id, TimeFrame tf)
     {
         QShortcut* shortcut = new QShortcut(shortcutSettings.getShortcut(id), m_mainWindow);
-        auto conn = connect(shortcut, &QShortcut::activated, [this, tf]()
-                            { ui->priceChart->toolbar()->setCurrentTimeFrame(tf); });
+        auto conn = connect(shortcut,
+                            &QShortcut::activated,
+                            [this, tf]() { ui->priceChart->toolbar()->setCurrentTimeFrame(tf); });
         OBJ_ASSUME_TRUE(conn);
         return shortcut;
     };

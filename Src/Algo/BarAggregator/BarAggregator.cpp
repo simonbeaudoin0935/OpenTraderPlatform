@@ -106,8 +106,8 @@ void BarAggregator::onBarUpdated(const QString& /*symbol*/, const Bar& bar)
         {
             // Start accumulation from the first in-progress bar of a new period.
             // Volume is set to 0 — it will be committed properly when the 1m bar closes via onNewBar.
-            DEBUG << "Starting new accumulation for tf=" << static_cast<int>(tf)
-                  << "at" << bar.getTimeStamp().toString("hh:mm:ss");
+            DEBUG << "Starting new accumulation for tf=" << static_cast<int>(tf) << "at"
+                  << bar.getTimeStamp().toString("hh:mm:ss");
             acc.active = true;
             acc.openTime = bar.getTimeStamp();
             acc.open = bar.getOpen();

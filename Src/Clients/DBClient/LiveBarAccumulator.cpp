@@ -41,8 +41,8 @@ void LiveBarAccumulator::onNewTrade(const QString& p_symbol, const Trade& p_trad
     if (openTime != forming.barOpenTime)
     {
         // Minute boundary crossed — close the current bar
-        DEBUG << "Minute boundary: closing bar at" << forming.barOpenTime.toString("hh:mm:ss")
-              << "starting new at" << openTime.toString("hh:mm:ss");
+        DEBUG << "Minute boundary: closing bar at" << forming.barOpenTime.toString("hh:mm:ss") << "starting new at"
+              << openTime.toString("hh:mm:ss");
         Bar closedBar = toBar(forming, Bar::BarStatus::Closed);
         emit barClosed(p_symbol, closedBar);
 

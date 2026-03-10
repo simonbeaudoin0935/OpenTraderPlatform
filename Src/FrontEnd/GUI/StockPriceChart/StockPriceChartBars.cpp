@@ -99,9 +99,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
                 // Bar flipped direction (rare) — removeAfter on the old series, add to new
                 const double removeKey = displayKey - 0.5;
                 (m_chartLiveBarIsUp ? m_volumePos : m_volumeNeg)->data()->removeAfter(removeKey);
-                (barIsUp ? m_volumePos : m_volumeNeg)
-                    ->data()
-                    ->add({displayKey, static_cast<double>(volume)});
+                (barIsUp ? m_volumePos : m_volumeNeg)->data()->add({displayKey, static_cast<double>(volume)});
                 m_chartLiveBarIsUp = barIsUp;
             }
         }
@@ -116,9 +114,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
             candleData.close = bar.getClose();
             m_candlesticks->data()->add(candleData);
 
-            (barIsUp ? m_volumePos : m_volumeNeg)
-                ->data()
-                ->add({displayKey, static_cast<double>(volume)});
+            (barIsUp ? m_volumePos : m_volumeNeg)->data()->add({displayKey, static_cast<double>(volume)});
 
             m_chartLiveBarIndex = index;
             m_chartLiveBarIsUp = barIsUp;
