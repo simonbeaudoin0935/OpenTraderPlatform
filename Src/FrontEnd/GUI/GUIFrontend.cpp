@@ -1381,20 +1381,17 @@ void GUIFrontend::restoreLastDisplayedStock()
     displayStock(lastSymbol);
 }
 
-void GUIFrontend::saveReplayState(bool active, const QDate& date, const QTime& startTime)
+void GUIFrontend::saveReplayState(const QDate& date, const QTime& startTime)
 {
     Q_CHECK_PTR(appStateSettings);
-    appStateSettings->setValue("Replay/Active", active);
-    if (active && date.isValid())
-    {
+    // Persist date and start time as UI preferences so selectors restore on next launch.
+    // We intentionally do NOT persist an "Active" flag — replay always starts in
+    // inactive state on the next launch regardless of how the app was closed.
+    appStateSettings->remove("Replay/Active"); // clean up legacy key if present
+    if (date.isValid())
         appStateSettings->setValue("Replay/Date", date.toString(Qt::ISODate));
-    }
-    // Always persist the start time so the widget restores to it on next launch,
-    // regardless of whether replay is currently active.
     if (startTime.isValid())
-    {
         appStateSettings->setValue("Replay/StartTime", startTime.toString(Qt::ISODate));
-    }
     appStateSettings->sync();
 }
 
@@ -1402,43 +1399,21 @@ void GUIFrontend::restoreReplayState()
 {
     Q_CHECK_PTR(appStateSettings);
 
-    // Always restore the start time widget, even if replay isn't active,
-    // so the user's last-used time is shown on next launch.
+    // Restore UI widget preferences (date selector + start time).
+    // Replay is never auto-started on launch — the user must press the button explicitly.
     QTime savedTime = QTime::fromString(appStateSettings->value("Replay/StartTime").toString(), Qt::ISODate);
     if (savedTime.isValid())
         ui->priceChart->toolbar()->setReplayStartTime(savedTime);
 
-    if (!appStateSettings->value("Replay/Active", false).toBool())
-    {
-        return;
-    }
-
     QDate savedDate = QDate::fromString(appStateSettings->value("Replay/Date").toString(), Qt::ISODate);
-
     if (!savedDate.isValid())
-    {
-        qWarning() << "Saved replay date is invalid, skipping replay restore";
         return;
-    }
 
     ChartToolbar* toolbar = ui->priceChart->toolbar();
-
-    // Populate the replay day list so setSelectedReplayDay works
     toolbar->scanAndPopulateReplayDays();
 
-    if (!DBClient::getInstance()->hasReplayData(savedDate, ui->priceChart->getCurrentSymbol()))
-    {
-        qWarning() << "Saved replay date" << savedDate << "has no data, skipping replay restore";
-        return;
-    }
-
-    toolbar->setSelectedReplayDay(savedDate);
-
-    QTime startTime = savedTime.isValid() ? savedTime : toolbar->getReplayStartTime();
-    ReplayEngine::PlaybackSpeed speed = toolbar->getReplaySpeed();
-
-    qInfo() << "Restoring replay state: date=" << savedDate << "time=" << startTime;
-    MainApp::getInstance()->enterReplayMode(savedDate, startTime, speed);
+    if (DBClient::getInstance()->hasReplayData(savedDate, ui->priceChart->getCurrentSymbol()))
+        toolbar->setSelectedReplayDay(savedDate);
 }
 
 void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order)
@@ -1887,7 +1862,7 @@ void GUIFrontend::onReplayModeEntered()
 
     // Persist replay state so we can restore it on next launch
     ChartToolbar* toolbar = ui->priceChart->toolbar();
-    saveReplayState(true, toolbar->getSelectedReplayDay(), toolbar->getReplayStartTime());
+    saveReplayState(toolbar->getSelectedReplayDay(), toolbar->getReplayStartTime());
 
     // Update data source indicator to show REPLAY
     ASSUME_DIFF(m_dataSourceLabel, nullptr);
@@ -1940,8 +1915,8 @@ void GUIFrontend::onReplayModeExited()
 {
     qCInfo(GUIFrontendLog) << "Replay mode exited";
 
-    // Clear persisted replay state
-    saveReplayState(false);
+    // Note: date/startTime preferences are kept in AppState.ini so the selectors
+    // remember the last-used values. No "Active" flag is persisted.
 
     // Update data source indicator to show LIVE
     ASSUME_DIFF(m_dataSourceLabel, nullptr);
