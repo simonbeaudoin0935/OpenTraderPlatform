@@ -553,10 +553,17 @@ void ChartToolbar::onPlayPauseClicked()
 {
     bool playing = playPauseButton->isChecked();
 
-    // Update state based on button press
+    // Emit BEFORE updating m_replayState so that connected handlers (e.g.
+    // StockPriceChart) can read the pre-transition state to decide whether
+    // to resume an existing engine (PreloadingPaused/Paused → Playing) or
+    // start a fresh one (Inactive → Playing).  Both connections are on the
+    // GUI thread and fire synchronously, so the state is still the old value
+    // when they execute.
+    emit replayPlayPauseToggled(playing);
+
+    // Now update state based on button press
     if (playing)
     {
-        // Transitioning to Playing
         setReplayState(ReplayState::Playing);
     }
     else
@@ -569,7 +576,6 @@ void ChartToolbar::onPlayPauseClicked()
     }
 
     updatePlayPauseButton();
-    emit replayPlayPauseToggled(playing);
 }
 
 /**
