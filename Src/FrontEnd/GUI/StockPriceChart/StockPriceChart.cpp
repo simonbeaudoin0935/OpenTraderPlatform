@@ -329,6 +329,11 @@ void StockPriceChart::setDisplayTimeFrame(TimeFrame tf)
     m_volumeNeg->setWidth(w);
 }
 
+void StockPriceChart::preserveCurrentYRange()
+{
+    m_preservedYRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
+}
+
 StockPriceChart::~StockPriceChart()
 {
     // Qt parent-child hierarchy handles cleanup

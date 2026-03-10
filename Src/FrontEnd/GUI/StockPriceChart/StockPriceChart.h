@@ -153,6 +153,13 @@ class StockPriceChart : public QWidget
     void setReplayModeActive(bool active);
 
     /**
+     * @brief Snapshots the current Y-axis range into m_preservedYRange so that
+     *        the next clearChart() + bar reload restores it instead of auto-scaling.
+     * Call this immediately before clearChart() when switching timescale (not a full reset).
+     */
+    void preserveCurrentYRange();
+
+    /**
      * @brief Updates the active display timescale and scales candlestick + volume bar widths.
      *
      * Must be called whenever the user switches timescale so that candles visually fill
