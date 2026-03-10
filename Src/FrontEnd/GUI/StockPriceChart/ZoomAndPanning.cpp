@@ -369,26 +369,48 @@ void StockPriceChart::checkAutoTimeFrame()
                                                 TimeFrame::ONE_WEEK,
                                                 TimeFrame::ONE_MONTH};
 
-    static constexpr int UPPER_THRESHOLD = 200; // switch to coarser TF above this
-    static constexpr int LOWER_THRESHOLD = 60;  // switch to finer   TF below this
+    const int minutesVisible = static_cast<int>(m_customPlot->xAxis->range().size());
 
-    // Convert axis range (in trading-minute index units) to visible candle count.
-    // For 5m bars: 450 visible index units = 90 candles; for 1m: 1 unit = 1 candle.
+    // Thresholds in MINUTES (not bars) to avoid oscillation when switching timeframes.
+    // These define the ideal visible time range for each timeframe.
+    // When we exceed the upper threshold, switch to a coarser TF.
+    // When we go below the lower threshold, switch to a finer TF.
+    auto getThresholdsForTimeFrame = [](TimeFrame tf) -> std::pair<int, int>
+    {
+        // Returns {lowerMinutes, upperMinutes} - the comfortable range for this TF
+        switch (tf)
+        {
+        case TimeFrame::ONE_MINUTE:
+            return {30, 150}; // 30min to 2.5h feels good at 1m
+        case TimeFrame::FIVE_MINUTES:
+            return {120, 480}; // 2h to 8h feels good at 5m
+        case TimeFrame::FIFTEEN_MINUTES:
+            return {240, 960}; // 4h to 16h feels good at 15m
+        case TimeFrame::THIRTY_MINUTES:
+            return {480, 1440}; // 8h to 24h feels good at 30m
+        case TimeFrame::ONE_HOUR:
+            return {720, 2880}; // 12h to 2 days feels good at 1h
+        case TimeFrame::FOUR_HOURS:
+            return {1440, 10080}; // 1 day to 1 week feels good at 4h
+        default:
+            return {0, INT_MAX}; // Don't auto-switch for daily+
+        }
+    };
+
     const TimeFrame currentTf = chartToolbar->getCurrentTimeFrame();
     const int currentIdx = TF_ORDER.indexOf(currentTf);
-    const int minutesVisible = static_cast<int>(m_customPlot->xAxis->range().size());
-    const int minutesPerCandle = BarUtils::minutesPerBar(currentTf);
-    const int visibleBars = (minutesPerCandle > 0) ? minutesVisible / minutesPerCandle : minutesVisible;
+    auto [lowerMins, upperMins] = getThresholdsForTimeFrame(currentTf);
 
     TimeFrame targetTf = currentTf;
-    if (visibleBars > UPPER_THRESHOLD && currentIdx < TF_ORDER.size() - 1)
+    if (minutesVisible > upperMins && currentIdx < TF_ORDER.size() - 1)
         targetTf = TF_ORDER[currentIdx + 1];
-    else if (visibleBars < LOWER_THRESHOLD && currentIdx > 0)
+    else if (minutesVisible < lowerMins && currentIdx > 0)
         targetTf = TF_ORDER[currentIdx - 1];
 
-    if (targetTf != currentTf && targetTf != m_lastAutoTimeFrame)
+    if (targetTf != currentTf)
     {
-        m_lastAutoTimeFrame = targetTf;
+        DEBUG << "Auto-TF: switching from" << timeFrameToString(currentTf) << "to" << timeFrameToString(targetTf)
+              << "(visible range:" << minutesVisible << "min, thresholds:" << lowerMins << "-" << upperMins << ")";
         // Update the toolbar (blocks signals to prevent double-trigger, then emits manually)
         const QSignalBlocker blocker(chartToolbar);
         chartToolbar->setCurrentTimeFrame(targetTf);
