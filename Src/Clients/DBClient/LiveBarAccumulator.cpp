@@ -22,6 +22,7 @@ void LiveBarAccumulator::onNewTrade(const QString& p_symbol, const Trade& p_trad
     if (it == m_formingBars.end())
     {
         // First trade ever for this symbol — start a new forming bar
+        DEBUG << "First trade for" << p_symbol << "at" << openTime.toString("hh:mm:ss");
         FormingBar forming;
         forming.barOpenTime = openTime;
         forming.open = price;
@@ -40,6 +41,8 @@ void LiveBarAccumulator::onNewTrade(const QString& p_symbol, const Trade& p_trad
     if (openTime != forming.barOpenTime)
     {
         // Minute boundary crossed — close the current bar
+        DEBUG << "Minute boundary: closing bar at" << forming.barOpenTime.toString("hh:mm:ss")
+              << "starting new at" << openTime.toString("hh:mm:ss");
         Bar closedBar = toBar(forming, Bar::BarStatus::Closed);
         emit barClosed(p_symbol, closedBar);
 
