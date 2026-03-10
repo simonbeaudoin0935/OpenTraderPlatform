@@ -637,9 +637,16 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
         connect(&m_liveBarAccumulator, &LiveBarAccumulator::barUpdated, &barReceiver, &BarReceiver::receivedNewBar);
     OBJ_ASSUME_TRUE(connected);
 
-    // Wire closed 1m bars → BarAggregator for higher-TF accumulation
+    // Wire closed 1m bars → BarAggregator for higher-TF accumulation (OHLCV + period-close detection)
     connected =
         connect(&m_liveBarAccumulator, &LiveBarAccumulator::barClosed, &m_barAggregator, &BarAggregator::onNewBar);
+    OBJ_ASSUME_TRUE(connected);
+
+    // Wire in-progress 1m bar updates → BarAggregator for real-time live candle animation
+    connected = connect(&m_liveBarAccumulator,
+                        &LiveBarAccumulator::barUpdated,
+                        &m_barAggregator,
+                        &BarAggregator::onBarUpdated);
     OBJ_ASSUME_TRUE(connected);
 
     // Wire BarAggregator::barClosed → BarCache for higher-TF storage

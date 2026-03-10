@@ -78,16 +78,50 @@ void BarAggregator::onNewBar(const QString& /*symbol*/, const Bar& bar)
             acc.update(bar);
         }
 
-        // Always emit barUpdated so the chart can show the live candle
-        emit barUpdated(tf, acc.toBar());
+        // Emit in-progress candle update (Open status = live, still accumulating)
+        emit barUpdated(tf, acc.toBar(Bar::BarStatus::Open));
 
         // If this 1m bar closes the TF period, emit barClosed and reset
         if (isClosed && isBarClosing(tf, ts))
         {
-            Bar closedBar = acc.toBar();
+            Bar closedBar = acc.toBar(Bar::BarStatus::Closed);
             acc.reset();
             DEBUG << "Bar closed for tf=" << static_cast<int>(tf) << "at" << closedBar.getTimeStamp();
             emit barClosed(tf, closedBar);
         }
+    }
+}
+
+void BarAggregator::onBarUpdated(const QString& /*symbol*/, const Bar& bar)
+{
+    // Only process in-progress (Open) bars — real-time price ticks between 1m closes
+    if (bar.getBarStatus() != Bar::BarStatus::Open)
+        return;
+
+    for (TimeFrame tf: AGGREGATED_TIMEFRAMES)
+    {
+        AccumulatingBar& acc = m_accum[tf];
+
+        if (!acc.active)
+        {
+            // Start accumulation from the first in-progress bar of a new period.
+            // Volume is set to 0 — it will be committed properly when the 1m bar closes via onNewBar.
+            acc.active = true;
+            acc.openTime = bar.getTimeStamp();
+            acc.open = bar.getOpen();
+            acc.high = bar.getHigh();
+            acc.low = bar.getLow();
+            acc.close = bar.getClose();
+            acc.volume = 0;
+        }
+        else
+        {
+            // Update price only (H/L/C) — volume is intentionally not touched here
+            acc.high = std::max(acc.high, static_cast<double>(bar.getHigh()));
+            acc.low = std::min(acc.low, static_cast<double>(bar.getLow()));
+            acc.close = bar.getClose();
+        }
+
+        emit barUpdated(tf, acc.toBar(Bar::BarStatus::Open));
     }
 }
