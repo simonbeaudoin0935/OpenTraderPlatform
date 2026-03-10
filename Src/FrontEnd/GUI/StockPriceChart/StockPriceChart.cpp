@@ -10,6 +10,7 @@
 #include "Misc/Settings.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "BarUtils.h"
 #include "SQL/StockPriceChartQueries.h"
 #include "BarCache.h"
 #include "MainApp.h"
@@ -250,14 +251,23 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
                     QTime startTime = chartToolbar->getReplayStartTime();
                     ReplayEngine::PlaybackSpeed speed = chartToolbar->getReplaySpeed();
 
-                    if (MainApp::getInstance()->isReplayPaused())
+                    // Use the toolbar's own ReplayState (GUI thread) to determine
+                    // whether to resume or start fresh. Do NOT use isReplayPaused()
+                    // which reads MainAlgo state cross-thread — it returns false when
+                    // enterReplayModePaused is still queued but not yet executed,
+                    // causing a double-enter race that fires the m_replayEngine==null ASSERT.
+                    const ChartToolbar::ReplayState toolbarState = chartToolbar->getReplayState();
+                    const bool shouldResume = (toolbarState == ChartToolbar::ReplayState::Paused ||
+                                               toolbarState == ChartToolbar::ReplayState::PreloadingPaused);
+
+                    if (shouldResume)
                     {
-                        // Resume from pause
+                        // Resume an existing (or preloading) session
                         MainApp::getInstance()->resumeReplayPlayback();
                     }
                     else if (date.isValid())
                     {
-                        // Start new playback
+                        // Start new playback (no engine created yet)
                         MainApp::getInstance()->startReplayPlayback(date, startTime, speed);
                     }
                     else
@@ -279,11 +289,30 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
             this,
             [](ReplayEngine::PlaybackSpeed speed) { MainApp::getInstance()->setReplaySpeed(speed); });
 
+    // When auto-timeframe is enabled, immediately check if we need to switch
+    connect(chartToolbar,
+            &ChartToolbar::autoTimeFrameChanged,
+            this,
+            [this](bool enabled)
+            {
+                if (enabled)
+                    checkAutoTimeFrame();
+            });
+
     // Load wheel zoom ratio from settings
     Q_CHECK_PTR(appStateSettings);
     qreal savedRatio = appStateSettings->value("Chart/WheelZoomRatio", 1.0).toReal();
     chartToolbar->setWheelRatio(savedRatio);
     wheelZoomRatio = savedRatio;
+
+    // Restore timescale and auto-mode from AppState
+    const bool autoEnabled = appStateSettings->value("Chart/AutoTimeFrame", false).toBool();
+    chartToolbar->setAutoTimeFrameEnabled(autoEnabled);
+    if (!autoEnabled)
+    {
+        const int savedTf = appStateSettings->value("Chart/TimeFrame", static_cast<int>(TimeFrame::ONE_MINUTE)).toInt();
+        chartToolbar->setCurrentTimeFrame(static_cast<TimeFrame>(savedTf));
+    }
 
     // Connect axis range change signals
     connect(m_customPlot->xAxis,
@@ -296,6 +325,24 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
             &StockPriceChart::onAxisRangeChanged);
 
     setSymbol("");
+}
+
+void StockPriceChart::setDisplayTimeFrame(TimeFrame tf)
+{
+    if (!BarUtils::isIntradayTimeFrame(tf))
+        return;
+
+    m_displayTimeFrame = tf;
+    const double w = BarUtils::minutesPerBar(tf) * ChartConstants::CANDLESTICK_BODY_WIDTH;
+    m_candlesticks->setWidth(w);
+    m_volumePos->setWidth(w);
+    m_volumeNeg->setWidth(w);
+}
+
+void StockPriceChart::preserveCurrentRanges()
+{
+    m_preservedXRange = m_customPlot->xAxis->range();
+    m_preservedYRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
 }
 
 StockPriceChart::~StockPriceChart()
@@ -359,8 +406,16 @@ void StockPriceChart::initializeTimeAnchor()
     m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabels(true);
     m_customPlot->xAxis->setTicker(indexToTimeTicker);
 
-    // Center view on index 0 with ~60 bars left, ~30 bars right
-    m_customPlot->xAxis->setRange(-60, 30);
+    // Center view on index 0 with ~60 bars left, ~30 bars right (unless preserved)
+    if (m_preservedXRange.has_value())
+    {
+        m_customPlot->xAxis->setRange(m_preservedXRange.value());
+        m_preservedXRange.reset();
+    }
+    else
+    {
+        m_customPlot->xAxis->setRange(-60, 30);
+    }
 
     // Start the current time line
     m_currentTimeLine->setVisible(true);

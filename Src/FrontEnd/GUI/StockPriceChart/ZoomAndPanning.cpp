@@ -1,5 +1,7 @@
 #include "StockPriceChart.h"
+#include "BarUtils.h"
 #include "Logging.h"
+#include "Misc/Settings.h"
 #include <QToolTip>
 
 #define LOGGING_CATEGORY ChartLog
@@ -19,40 +21,47 @@ void StockPriceChart::onAxisRangeChanged()
         return;
 
     m_axisRangeChangePending = true;
-    QTimer::singleShot(0, this, [this]() {
-        m_axisRangeChangePending = false;
+    QTimer::singleShot(0,
+                       this,
+                       [this]()
+                       {
+                           m_axisRangeChangePending = false;
 
-        updateAxisLabelsDensity();
-        redrawLastPriceLine();
-        rescaleVolumeAxisToVisibleRange();
+                           updateAxisLabelsDensity();
+                           redrawLastPriceLine();
+                           rescaleVolumeAxisToVisibleRange();
 
-        // Update the current time line's Y coordinates to match new Y-axis range
-        if (m_currentTimeLine->visible())
-        {
-            QCPRange yRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
-            double currentX = m_currentTimeLine->start->coords().x();
-            m_currentTimeLine->start->setCoords(currentX, yRange.lower);
-            m_currentTimeLine->end->setCoords(currentX, yRange.upper);
-        }
+                           // Update the current time line's Y coordinates to match new Y-axis range
+                           if (m_currentTimeLine->visible())
+                           {
+                               QCPRange yRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
+                               double currentX = m_currentTimeLine->start->coords().x();
+                               m_currentTimeLine->start->setCoords(currentX, yRange.lower);
+                               m_currentTimeLine->end->setCoords(currentX, yRange.upper);
+                           }
 
-        // Note: Background rectangles are created once when bars are received,
-        // QCustomPlot handles clipping to visible range automatically.
-        // No need to recreate them on every axis change.
+                           // Note: Background rectangles are created once when bars are received,
+                           // QCustomPlot handles clipping to visible range automatically.
+                           // No need to recreate them on every axis change.
 
-        // Check for missing bars when view extends beyond available data
-        double minIndex = m_customPlot->xAxis->range().lower;
-        if (!indexToBar.isEmpty() && minIndex < indexToBar.firstKey())
-        {
-            QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
-            checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
-        }
-        else if (indexToBar.isEmpty() && m_index0Timestamp.isValid())
-        {
-            // No bars loaded yet — request from view start to index 0
-            QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
-            checkForMissingBars(requestTime, m_index0Timestamp);
-        }
-    });
+                           // Check for missing bars when view extends beyond available data
+                           double minIndex = m_customPlot->xAxis->range().lower;
+                           if (!indexToBar.isEmpty() && minIndex < indexToBar.firstKey())
+                           {
+                               QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
+                               checkForMissingBars(requestTime, indexToBar.first().getTimeStamp());
+                           }
+                           else if (indexToBar.isEmpty() && m_index0Timestamp.isValid())
+                           {
+                               // No bars loaded yet — request from view start to index 0
+                               QDateTime requestTime = getTimestampForIndex(static_cast<int>(minIndex));
+                               checkForMissingBars(requestTime, m_index0Timestamp);
+                           }
+
+                           // Auto-timescale switching
+                           if (chartToolbar->isAutoTimeFrameEnabled())
+                               checkAutoTimeFrame();
+                       });
 }
 
 /**
@@ -329,4 +338,91 @@ void StockPriceChart::handleBothAxesZoom(QWheelEvent* event, bool isOverVolumeCh
         m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(qMax(0.0, newMinY), newMaxY);
     }
     m_customPlot->replot();
+}
+
+/**
+ * @brief Checks whether the auto-timescale logic should switch to a different TimeFrame
+ *        based on how many bars are currently visible in the chart x-axis range.
+ *
+ * Thresholds (with built-in hysteresis band):
+ *   visible > 200  →  switch to the next coarser TimeFrame
+ *   visible <  60  →  switch to the next finer   TimeFrame
+ *   60 ≤ visible ≤ 200  →  keep the current TimeFrame
+ *
+ * The gap between 60 and 200 is the hysteresis band that prevents rapid oscillation:
+ * switching up to a coarser TF instantly halves (or more) the visible bar count,
+ * landing it comfortably inside the band.
+ */
+void StockPriceChart::checkAutoTimeFrame()
+{
+    // Don't auto-switch while the chart is empty — the reset range (0,30) after clearChart
+    // would immediately trigger a "too few bars" downgrade back to 1m.
+    if (indexToBar.isEmpty())
+        return;
+
+    static const QVector<TimeFrame> TF_ORDER = {TimeFrame::ONE_MINUTE,
+                                                TimeFrame::FIVE_MINUTES,
+                                                TimeFrame::FIFTEEN_MINUTES,
+                                                TimeFrame::THIRTY_MINUTES,
+                                                TimeFrame::ONE_HOUR,
+                                                TimeFrame::FOUR_HOURS,
+                                                TimeFrame::ONE_DAY,
+                                                TimeFrame::ONE_WEEK,
+                                                TimeFrame::ONE_MONTH};
+
+    const int minutesVisible = static_cast<int>(m_customPlot->xAxis->range().size());
+
+    // Read thresholds from settings (with defaults) for each timeframe.
+    // These define the ideal visible time range for each timeframe.
+    // When we exceed the upper threshold, switch to a coarser TF.
+    // When we go below the lower threshold, switch to a finer TF.
+    auto getThresholdsForTimeFrame = [](TimeFrame tf) -> std::pair<int, int>
+    {
+        // Default thresholds (lower, upper) in minutes
+        static const QMap<TimeFrame, std::pair<int, int>> defaults = {
+            {TimeFrame::ONE_MINUTE, {30, 150}},
+            {TimeFrame::FIVE_MINUTES, {120, 480}},
+            {TimeFrame::FIFTEEN_MINUTES, {240, 960}},
+            {TimeFrame::THIRTY_MINUTES, {480, 1440}},
+            {TimeFrame::ONE_HOUR, {720, 2880}},
+            {TimeFrame::FOUR_HOURS, {1440, 10080}},
+        };
+
+        if (!defaults.contains(tf))
+            return {0, INT_MAX}; // Don't auto-switch for daily+
+
+        auto defaultVals = defaults.value(tf);
+        QString tfKey = timeFrameToString(tf);
+
+        Q_CHECK_PTR(appStateSettings);
+        int lower = appStateSettings->value("Config/AutoTF/" + tfKey + "/Lower", defaultVals.first).toInt();
+        int upper = appStateSettings->value("Config/AutoTF/" + tfKey + "/Upper", defaultVals.second).toInt();
+
+        return {lower, upper};
+    };
+
+    const TimeFrame currentTf = chartToolbar->getCurrentTimeFrame();
+    const int currentIdx = TF_ORDER.indexOf(currentTf);
+    auto [lowerMins, upperMins] = getThresholdsForTimeFrame(currentTf);
+
+    TimeFrame targetTf = currentTf;
+    if (minutesVisible > upperMins && currentIdx < TF_ORDER.size() - 1)
+        targetTf = TF_ORDER[currentIdx + 1];
+    else if (minutesVisible < lowerMins && currentIdx > 0)
+        targetTf = TF_ORDER[currentIdx - 1];
+
+    if (targetTf != currentTf)
+    {
+        DEBUG << "Auto-TF: switching from" << timeFrameToString(currentTf) << "to" << timeFrameToString(targetTf)
+              << "(visible range:" << minutesVisible << "min, thresholds:" << lowerMins << "-" << upperMins << ")";
+
+        // Update the toolbar visually without triggering its signal
+        // (setCurrentTimeFrame would normally emit timeFrameChanged via onComboBoxChanged)
+        {
+            const QSignalBlocker blocker(chartToolbar);
+            chartToolbar->setCurrentTimeFrame(targetTf);
+        }
+        // Now emit manually after the blocker is destroyed
+        emit chartToolbar->timeFrameChanged(targetTf);
+    }
 }

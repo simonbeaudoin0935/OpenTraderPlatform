@@ -13,6 +13,7 @@
 #include "FrontEnd.h"
 #include "MainAlgo.h"
 #include "Misc/ShortcutSettings.h"
+#include "Misc/TimeFrame.h"
 
 // Forward declarations
 class PlaceOrderRequest;
@@ -41,6 +42,8 @@ class GUIFrontend : public FrontEnd
     void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
     void onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2) override;
     void onCurrentHighlightedReceivedNewTrade(QString symbol, Trade trade) override;
+    void onDisplayedStockAggregatorBarUpdated(QString symbol, TimeFrame tf, Bar bar) override;
+    void onDisplayedStockAggregatorBarClosed(QString symbol, TimeFrame tf, Bar bar) override;
     void onNewPositionReceived(QString account, Position position) override;
     void onPositionDeleted(QString account, QString positionID) override;
     void onNewOrderReceived(QString account, Order order) override;
@@ -78,6 +81,7 @@ class GUIFrontend : public FrontEnd
   private:
     void setupDarkTheme(QMainWindow* mainWindow);
     void requestMissingBarsFromCache(const QDateTime& from, const QDateTime& to);
+    void onTimeFrameChanged(TimeFrame tf);
     bool isValidStockSymbol(const QString& symbol) const;
     void displayStock(const QString& symbol);
     void saveLastDisplayedStock(const QString& symbol);
@@ -87,6 +91,7 @@ class GUIFrontend : public FrontEnd
     QString formatAccountInfo(const Account& account) const;
     MainAlgo* mainAlgo;
     QString currentlyDisplayedSymbol;
+    TimeFrame m_currentTimeFrame = TimeFrame::ONE_MINUTE;
 
     static QString bytesToString(qint64 bytes);
 
@@ -105,6 +110,17 @@ class GUIFrontend : public FrontEnd
     QShortcut* m_cancelAllOrdersShortcut;       // Cancel all orders shortcut
     QShortcut* m_toggleReplayPlayPauseShortcut; // Toggle replay play/pause shortcut
     QShortcut* m_toggleReplayModeShortcut;      // Toggle replay mode on/off shortcut
+
+    // Timescale shortcuts
+    QShortcut* m_timeFrame1mShortcut;
+    QShortcut* m_timeFrame5mShortcut;
+    QShortcut* m_timeFrame15mShortcut;
+    QShortcut* m_timeFrame30mShortcut;
+    QShortcut* m_timeFrame1hShortcut;
+    QShortcut* m_timeFrame4hShortcut;
+    QShortcut* m_timeFrame1dShortcut;
+    QShortcut* m_timeFrame1wShortcut;
+    QShortcut* m_timeFrame1MShortcut;
 
     qsizetype TSClientDataUsage = 0;
     qsizetype m_dbClientDataUsage = 0;
@@ -130,7 +146,7 @@ class GUIFrontend : public FrontEnd
     QLabel* m_hardToBorrowLabel = nullptr; // "HTB" - orange
 
     // Bottom logger split: platform log (left) + strategy log (right, shown on demand)
-    QWidget*           m_loggerContainer   = nullptr; ///< Outer container replacing liveLogDisplay in mainSplitter
-    QSplitter*         m_loggerSplitter    = nullptr; ///< Horizontal splitter inside m_loggerContainer
+    QWidget* m_loggerContainer = nullptr;             ///< Outer container replacing liveLogDisplay in mainSplitter
+    QSplitter* m_loggerSplitter = nullptr;            ///< Horizontal splitter inside m_loggerContainer
     StrategyLogWidget* m_strategyLogWidget = nullptr; ///< Strategy log panel (right; hidden until "Display Logs")
 };

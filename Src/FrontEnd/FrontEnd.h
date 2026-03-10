@@ -11,6 +11,7 @@
 #include "Trade.h"
 #include "Balance.h"
 #include "TSClient.h" // For TSClient::AuthStateReason enum
+#include "TimeFrame.h"
 
 class FrontEnd : public QObject
 {
@@ -58,6 +59,10 @@ class FrontEnd : public QObject
     virtual void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) = 0;
     virtual void onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2) = 0;
     virtual void onCurrentHighlightedReceivedNewTrade(QString /*symbol*/, Trade /*trade*/) {}
+
+    // Higher-TF live bar updates from BarAggregator (GUI only; TUI ignores by default)
+    virtual void onDisplayedStockAggregatorBarUpdated(QString /*symbol*/, TimeFrame /*tf*/, Bar /*bar*/) {}
+    virtual void onDisplayedStockAggregatorBarClosed(QString /*symbol*/, TimeFrame /*tf*/, Bar /*bar*/) {}
 
     // Replay mode notifications
     virtual void onReplayModeEntered() = 0;

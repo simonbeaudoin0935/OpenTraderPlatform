@@ -731,3 +731,104 @@ avgEntryPrice = totalCostBasis / totalSharesBought;
 2. Verify getExactIndexForTimestamp() returns valid index
 3. Check bars exist for the timestamps
 
+## Dynamic Timescale Feature
+
+### Overview
+
+The chart supports multiple timeframes (1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M) with seamless switching and automatic timeframe selection based on zoom level.
+
+### Timeframe Selection
+
+**Manual Selection** (Toolbar dropdown or keyboard shortcuts):
+- `1` = 1-minute
+- `2` = 5-minute  
+- `3` = 15-minute
+- `4` = 30-minute
+- `5` = 1-hour
+- `6` = 4-hour
+- `7` = 1-day
+- `8` = 1-week
+- `9` = 1-month
+
+**Auto-Timeframe** (when "Auto" checkbox enabled):
+- Automatically switches timeframes based on visible time range
+- Each timeframe has configurable lower/upper thresholds (in minutes)
+- Switching happens on zoom in/out
+
+### Auto-Timeframe Thresholds
+
+Configured in Config tab (`Src/FrontEnd/GUI/Tabs/ConfigTab.cpp`):
+
+| Timeframe | Default Lower | Default Upper | Description |
+|-----------|---------------|---------------|-------------|
+| 1m | 30 min | 150 min | Switch up when > 2.5h visible |
+| 5m | 120 min | 480 min | 2-8h comfortable range |
+| 15m | 240 min | 960 min | 4-16h comfortable range |
+| 30m | 480 min | 1440 min | 8-24h comfortable range |
+| 1h | 720 min | 2880 min | 12h-2 days comfortable range |
+| 4h | 1440 min | 10080 min | 1 day-1 week comfortable range |
+
+Settings stored in `AppState.ini` under `Config/AutoTF/<timeframe>/Lower|Upper`.
+
+### Timescale-Aware Replay Start Time
+
+When switching timeframes in replay mode, the start time selector adjusts its step granularity:
+
+| Timeframe | Display Format | Step Boundaries |
+|-----------|----------------|-----------------|
+| 1m | hh:mm | Every minute (no snapping) |
+| 5m | hh:mm | 0, 5, 10, 15... minutes |
+| 15m | hh:mm | 0, 15, 30, 45 minutes |
+| 30m | hh:mm | 0, 30 minutes |
+| 1h | hh:00 | Every hour |
+| 4h | hh:00 | 0, 4, 8, 12, 16, 20 hours |
+
+Implementation in `ChartToolbar::calculateSteppedTime()` and `snapTimeToStep()`.
+
+### Candle Alignment
+
+QCustomPlot centers candlesticks on their `key` value. To align the left edge of each candle with its bar's open time, we offset the key by `minutesPerBar / 2.0`:
+
+```cpp
+// In addLiveBar(), updateCandlestickData(), updateVolumeData():
+const double keyOffset = BarUtils::minutesPerBar(m_displayTimeFrame) / 2.0;
+const double displayKey = index + keyOffset;
+```
+
+This ensures:
+- A 13:00 bar's left edge is at the 13:00 mark
+- A 13:00 bar's right edge is at 13:05 (for 5m bars) or 13:01 (for 1m bars)
+
+### Range Preservation
+
+When switching timeframes, both X and Y axis ranges are preserved:
+
+```cpp
+// Before clearChart():
+preserveCurrentRanges();  // Saves both X and Y to optionals
+
+// In clearChart() and initializeTimeAnchor():
+// Check m_preservedXRange and m_preservedYRange before resetting
+```
+
+### Key Files for Dynamic Timescale
+
+| File | Responsibility |
+|------|----------------|
+| `ChartToolbar.h/cpp` | Timeframe selector, auto checkbox, step granularity |
+| `ZoomAndPanning.cpp` | `checkAutoTimeFrame()` - auto-switching logic |
+| `StockPriceChartBars.cpp` | Candle/volume positioning with offset |
+| `StockPriceChart.cpp` | `setDisplayTimeFrame()`, range preservation |
+| `ConfigTab.cpp` | Configurable auto-TF thresholds |
+| `GUIFrontend.cpp` | `onTimeFrameChanged()` handler |
+
+### Implementation Notes
+
+1. **Stale Request Handling**: Uses atomic token (`m_currentMissingBarsRequestToken`) instead of semaphore to handle rapid timescale switching without crashes.
+
+2. **No Oscillation**: Auto-TF uses minute-based thresholds (not bar counts) to prevent oscillation when switching changes the visible bar count.
+
+3. **Order Marker Alignment**: `getExactIndexForTimestamp()` no longer subtracts 0.5 since candles are now aligned with their open time.
+
+4. **Signal Blocking**: When auto-TF switches, `QSignalBlocker` is scoped to only block during `setCurrentTimeFrame()`, then the signal is emitted after to ensure GUIFrontend receives it.
+

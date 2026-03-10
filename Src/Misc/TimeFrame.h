@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <QMetaType>
 
 /**
  * @enum TimeFrame
@@ -21,6 +22,9 @@ enum class TimeFrame
     ONE_WEEK = 10080, // 7 * 24 * 60 minutes
     ONE_MONTH = 43200 // 30 * 24 * 60 minutes (approximate)
 };
+
+// Required for Qt queued (cross-thread) signal/slot connections carrying TimeFrame arguments
+Q_DECLARE_METATYPE(TimeFrame)
 
 /**
  * @brief Converts a TimeFrame enum value to its string representation.

@@ -40,10 +40,9 @@ double StockPriceChart::getExactIndexForTimestamp(const QDateTime& timestamp) co
     // Find the closest bar timestamp
     auto it = timestampToIndex.lowerBound(timestamp);
 
-    // With open-time bar convention, bar[i].timestamp is the LEFT edge of candle i in
-    // QCPFinancial (which centers the candle at integer index i, so left edge = i - 0.5).
-    // Subtract 0.5 from all returned values so that a timestamp exactly at bar[i]'s open
-    // maps to chart coordinate i - 0.5, matching the white time-line's own -0.5 offset.
+    // With our candle offset fix, candles are drawn with their left edge at the bar's
+    // open time. Markers should be placed directly at the computed index without any
+    // additional offset.
 
     if (it == timestampToIndex.end())
     {
@@ -53,7 +52,7 @@ double StockPriceChart::getExactIndexForTimestamp(const QDateTime& timestamp) co
         QDateTime lastBarTime = it.key();
         qint64 msDiff = lastBarTime.msecsTo(timestamp);
         // Assume 1-minute bars: 60000ms per index
-        return lastIndex + (msDiff / 60000.0) - 0.5;
+        return lastIndex + (msDiff / 60000.0);
     }
 
     if (it == timestampToIndex.begin())
@@ -62,7 +61,7 @@ double StockPriceChart::getExactIndexForTimestamp(const QDateTime& timestamp) co
         int firstIndex = it.value();
         QDateTime firstBarTime = it.key();
         qint64 msDiff = timestamp.msecsTo(firstBarTime);
-        return firstIndex - (msDiff / 60000.0) - 0.5;
+        return firstIndex - (msDiff / 60000.0);
     }
 
     // Interpolate between two bars
@@ -77,11 +76,11 @@ double StockPriceChart::getExactIndexForTimestamp(const QDateTime& timestamp) co
 
     if (totalMs <= 0)
     {
-        return lowerIndex - 0.5;
+        return lowerIndex;
     }
 
     double fraction = static_cast<double>(elapsedMs) / static_cast<double>(totalMs);
-    return lowerIndex + fraction * (upperIndex - lowerIndex) - 0.5;
+    return lowerIndex + fraction * (upperIndex - lowerIndex);
 }
 
 OrderMarker* StockPriceChart::createOrderMarker(const QString& orderID,

@@ -143,7 +143,33 @@ Benefits: O(m) historical insertion, no full rebuild, stable existing indices.
 - `Scroll` — Both axes zoom
 - `Right Click` — Reset to last 30 bars
 
-**ChartToolbar**: Contains symbol display, replay play/pause button, speed selector, and order-visualization toggle.
+**ChartToolbar**: Contains symbol display, timeframe selector, auto-TF checkbox, replay play/pause button, speed selector, and order-visualization toggle.
+
+#### Dynamic Timescale
+
+The chart supports seamless switching between multiple timeframes:
+
+**Available Timeframes** (keyboard shortcuts):
+- `1` = 1-minute (default)
+- `2` = 5-minute
+- `3` = 15-minute
+- `4` = 30-minute
+- `5` = 1-hour
+- `6` = 4-hour
+- `7` = 1-day (future)
+- `8` = 1-week (future)
+- `9` = 1-month (future)
+
+**Auto-Timeframe Switching**: When the "Auto" checkbox is enabled, the chart automatically switches timeframes based on the visible time range:
+- Zooming in (less time visible) → smaller timeframes
+- Zooming out (more time visible) → larger timeframes
+- Thresholds configurable in Config tab
+
+**Range Preservation**: Both X and Y axis ranges are preserved when switching timeframes manually or automatically, preventing jarring view changes.
+
+**Candle Alignment**: Candle left edges align with bar open time (a 13:00 bar spans 13:00-13:05 for 5m TF).
+
+**Replay Start Time Granularity**: When switching timeframes in replay mode, the start time selector steps align with the active timeframe (5m TF → steps by 5 minutes, 1h TF → steps by 1 hour).
 
 #### Level2Widget (`Widgets/Level2/`)
 

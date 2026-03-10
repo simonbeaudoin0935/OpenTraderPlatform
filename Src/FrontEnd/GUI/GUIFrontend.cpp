@@ -129,6 +129,27 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
         connect(m_toggleReplayModeShortcut, &QShortcut::activated, [this]() { onToggleReplayMode(); });
     OBJ_ASSUME_TRUE(toggleReplayModeConnection);
 
+    // Timescale shortcuts (1-9 keys)
+    auto createTimeFrameShortcut = [this, &shortcutSettings](ShortcutSettings::ShortcutId id, TimeFrame tf)
+    {
+        QShortcut* shortcut = new QShortcut(shortcutSettings.getShortcut(id), m_mainWindow);
+        auto conn = connect(shortcut,
+                            &QShortcut::activated,
+                            [this, tf]() { ui->priceChart->toolbar()->setCurrentTimeFrame(tf); });
+        OBJ_ASSUME_TRUE(conn);
+        return shortcut;
+    };
+
+    m_timeFrame1mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame1m, TimeFrame::ONE_MINUTE);
+    m_timeFrame5mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame5m, TimeFrame::FIVE_MINUTES);
+    m_timeFrame15mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame15m, TimeFrame::FIFTEEN_MINUTES);
+    m_timeFrame30mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame30m, TimeFrame::THIRTY_MINUTES);
+    m_timeFrame1hShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame1h, TimeFrame::ONE_HOUR);
+    m_timeFrame4hShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame4h, TimeFrame::FOUR_HOURS);
+    m_timeFrame1dShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame1d, TimeFrame::ONE_DAY);
+    m_timeFrame1wShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame1w, TimeFrame::ONE_WEEK);
+    m_timeFrame1MShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame1M, TimeFrame::ONE_MONTH);
+
     // Connect to shortcut changes to update active shortcuts
     auto shortcutChangeConnection = connect(&shortcutSettings,
                                             &ShortcutSettings::shortcutChanged,
@@ -385,6 +406,29 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // When the chart requests missing bars, call the extracted method to handle the request
     connect(ui->priceChart, &StockPriceChart::requestMissingBars, this, &GUIFrontend::requestMissingBarsFromCache);
 
+    // Connect chart toolbar timescale selector
+    connect(ui->priceChart->toolbar(),
+            &ChartToolbar::timeFrameChanged,
+            this,
+            &GUIFrontend::onTimeFrameChanged,
+            Qt::UniqueConnection);
+
+    // Persist auto-timescale mode toggle
+    connect(ui->priceChart->toolbar(),
+            &ChartToolbar::autoTimeFrameChanged,
+            this,
+            [this](bool enabled)
+            {
+                Q_CHECK_PTR(appStateSettings);
+                appStateSettings->setValue("Chart/AutoTimeFrame", enabled);
+                if (!enabled)
+                {
+                    // Also persist the currently selected TF when switching auto off
+                    appStateSettings->setValue("Chart/TimeFrame", static_cast<int>(m_currentTimeFrame));
+                }
+                appStateSettings->sync();
+            });
+
     // Persist replay start time whenever it changes so next launch restores it
     connect(ui->priceChart->toolbar(),
             &ChartToolbar::replayStartTimeChanged,
@@ -424,6 +468,11 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
 
     // Center the text in the stock symbol input
     ui->stockSymbolInput->setAlignment(Qt::AlignCenter);
+
+    // Sync m_currentTimeFrame from the toolbar which already restored its state from AppState
+    m_currentTimeFrame = ui->priceChart->toolbar()->getCurrentTimeFrame();
+    // Scale candlestick widths to match the restored timescale (1m default if nothing was saved)
+    ui->priceChart->setDisplayTimeFrame(m_currentTimeFrame);
 
     // Connect position window symbol click
     connect(ui->positionWidget,
@@ -658,22 +707,23 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // NOTE: Don't restore the last displayed stock here - wait for authentication
     // It will be restored in onTradeStationAuthStateChanged() when authenticated.
     // As a fallback, schedule a restore in case TS auth never fires (e.g. no credentials).
-    QTimer::singleShot(500,
-                       this,
-                       [this]()
-                       {
-                           if (!m_hasRestoredLastStock)
-                           {
-                               qInfo(GUIFrontendLog) << "TS auth never fired — restoring state via fallback timer";
-                               m_hasRestoredLastStock = true;
-                               restoreLastDisplayedStock();
-                               restoreReplayState();
-                               // Restore strategies AFTER replay mode is set up (enterReplayMode posts
-                               // stopAllStrategies via QueuedConnection; this queues behind it).
-                               QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
-                               QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
-                           }
-                       });
+    QTimer::singleShot(
+        500,
+        this,
+        [this]()
+        {
+            if (!m_hasRestoredLastStock)
+            {
+                qInfo(GUIFrontendLog) << "TS auth never fired — restoring state via fallback timer";
+                m_hasRestoredLastStock = true;
+                restoreLastDisplayedStock();
+                restoreReplayState();
+                // Restore strategies AFTER replay mode is set up (enterReplayMode posts
+                // stopAllStrategies via QueuedConnection; this queues behind it).
+                QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
+                QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
+            }
+        });
 }
 
 GUIFrontend::~GUIFrontend()
@@ -896,6 +946,25 @@ void GUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
 
 void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 {
+    // When showing a higher TF, 1m bars are not rendered directly — the aggregator
+    // path (onDisplayedStockAggregatorBar*) handles live candle updates instead.
+    if (m_currentTimeFrame != TimeFrame::ONE_MINUTE)
+        return;
+
+    ui->priceChart->addLiveBar(symbol, bar);
+}
+
+void GUIFrontend::onDisplayedStockAggregatorBarUpdated(QString symbol, TimeFrame tf, Bar bar)
+{
+    if (tf != m_currentTimeFrame)
+        return;
+    ui->priceChart->addLiveBar(symbol, bar);
+}
+
+void GUIFrontend::onDisplayedStockAggregatorBarClosed(QString symbol, TimeFrame tf, Bar bar)
+{
+    if (tf != m_currentTimeFrame)
+        return;
     ui->priceChart->addLiveBar(symbol, bar);
 }
 
@@ -1532,6 +1601,43 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
         m_toggleReplayModeShortcut->setKey(p_newSequence);
         qInfo() << "Updated toggle replay mode shortcut to:" << p_newSequence.toString();
         break;
+
+    case ShortcutSettings::TimeFrame1m:
+        Q_CHECK_PTR(m_timeFrame1mShortcut);
+        m_timeFrame1mShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame5m:
+        Q_CHECK_PTR(m_timeFrame5mShortcut);
+        m_timeFrame5mShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame15m:
+        Q_CHECK_PTR(m_timeFrame15mShortcut);
+        m_timeFrame15mShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame30m:
+        Q_CHECK_PTR(m_timeFrame30mShortcut);
+        m_timeFrame30mShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame1h:
+        Q_CHECK_PTR(m_timeFrame1hShortcut);
+        m_timeFrame1hShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame4h:
+        Q_CHECK_PTR(m_timeFrame4hShortcut);
+        m_timeFrame4hShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame1d:
+        Q_CHECK_PTR(m_timeFrame1dShortcut);
+        m_timeFrame1dShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame1w:
+        Q_CHECK_PTR(m_timeFrame1wShortcut);
+        m_timeFrame1wShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame1M:
+        Q_CHECK_PTR(m_timeFrame1MShortcut);
+        m_timeFrame1MShortcut->setKey(p_newSequence);
+        break;
     }
 }
 
@@ -1617,12 +1723,12 @@ void GUIFrontend::onCancelAllOrders()
 
 void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDateTime& to)
 {
-    OBJ_ASSUME_EQUAL(from.date(), to.date()); // Currently only support same-day requests
-
     DEBUG << "Request missing bars from " << from << " to " << to;
 
-    BarCache::GetBarsResult_t result =
-        MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from.date(), from.time(), to.time());
+    BarCache::GetBarsResult_t result = MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from.date(),
+                                                                                                 from.time(),
+                                                                                                 to.time(),
+                                                                                                 m_currentTimeFrame);
 
     if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
     {
@@ -1679,6 +1785,29 @@ void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDate
         qCritical() << "Unexpected result type from requestMissingBarsDisplayedStock";
         ui->priceChart->onRequestedMissingBarsFailed();
     }
+}
+
+void GUIFrontend::onTimeFrameChanged(TimeFrame tf)
+{
+    if (tf == m_currentTimeFrame)
+        return;
+
+    DEBUG << "Timescale changed to" << static_cast<int>(tf);
+    m_currentTimeFrame = tf;
+
+    // Persist when auto is off (Phase 9)
+    if (!ui->priceChart->toolbar()->isAutoTimeFrameEnabled())
+    {
+        Q_CHECK_PTR(appStateSettings);
+        appStateSettings->setValue("Chart/TimeFrame", static_cast<int>(tf));
+        appStateSettings->sync();
+    }
+
+    // Clear the chart and let it re-request bars with the new timescale.
+    // Preserve X and Y ranges so the view doesn't jump after the reload.
+    ui->priceChart->setDisplayTimeFrame(tf);
+    ui->priceChart->preserveCurrentRanges();
+    ui->priceChart->clearChart();
 }
 
 QString GUIFrontend::formatAccountInfo(const Account& account) const

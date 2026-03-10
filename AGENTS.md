@@ -148,10 +148,22 @@ GitHub Actions workflows:
 - **Trading Logic?** → `Src/Algo/AGENTS.md`
 - **Caching System?** → `Src/Core/Cache/BarCache/AGENTS.md`
 - **GUI Components?** → `Src/FrontEnd/GUI/AGENTS.md`
+- **Dynamic Timescale?** → `Src/FrontEnd/GUI/StockPriceChart/AGENTS.md` (search "Dynamic Timescale Feature")
 - **Constants/Utilities?** → `Src/Misc/AGENTS.md`
 - **SQL Patterns?** → `Src/SQL/AGENTS.md`
 - **Strategy Plugins?** → `Src/Strategy/AGENTS.md`
 - **Overall Architecture?** → `Doc/ARCHITECTURE.md`
 - **OAuth/Security?** → `Doc/AUTHENTICATION.md`
+
+## Key Features
+
+### Dynamic Timescale (Chart)
+
+The GUI chart supports multiple timeframes with seamless switching:
+- **Manual selection**: Keyboard shortcuts `1-9` for 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M
+- **Auto-timeframe**: Automatically switches timeframe based on zoom level (configurable thresholds in Config tab)
+- **Range preservation**: X and Y axis ranges preserved when switching
+- **Candle alignment**: Left edge aligned with bar open time
+- See `Src/FrontEnd/GUI/StockPriceChart/AGENTS.md` for implementation details.
 
 Start with the root AGENTS.md (this file), then navigate to component-specific files as needed.

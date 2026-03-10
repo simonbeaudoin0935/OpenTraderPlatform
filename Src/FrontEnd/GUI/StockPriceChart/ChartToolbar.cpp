@@ -272,6 +272,7 @@ TimeFrame ChartToolbar::getCurrentTimeFrame() const
  */
 void ChartToolbar::setCurrentTimeFrame(TimeFrame timeframe)
 {
+    m_currentTimeFrame = timeframe;
     for (int i = 0; i < comboBox->count(); ++i)
     {
         if (static_cast<TimeFrame>(comboBox->itemData(i).toInt()) == timeframe)
@@ -280,6 +281,7 @@ void ChartToolbar::setCurrentTimeFrame(TimeFrame timeframe)
             break;
         }
     }
+    updateTimeEditStep();
 }
 
 /**
@@ -354,6 +356,8 @@ void ChartToolbar::onComboBoxChanged(int index)
     if (index >= 0 && index < comboBox->count())
     {
         TimeFrame selectedTimeFrame = static_cast<TimeFrame>(comboBox->itemData(index).toInt());
+        m_currentTimeFrame = selectedTimeFrame;
+        updateTimeEditStep();
         emit timeFrameChanged(selectedTimeFrame);
     }
 }
@@ -461,6 +465,7 @@ QTime ChartToolbar::getReplayStartTime() const
 void ChartToolbar::setReplayStartTime(const QTime& time)
 {
     replayTimeEdit->setTime(time);
+    m_lastReplayTime = time; // Track for step direction detection
 }
 
 /**
@@ -527,8 +532,8 @@ void ChartToolbar::onReplayDayChanged(int index)
  * @brief Handles replay time edit changes.
  *
  * When in Playing state, silently ignores the change.
- * When in paused states (PreloadingPaused or Paused), emits replayStartTimeChanged signal
- * to trigger chart preload with the new time.
+ * When in paused states (PreloadingPaused or Paused), calculates stepped time
+ * based on direction of change and emits replayStartTimeChanged signal.
  */
 void ChartToolbar::onReplayTimeChanged(const QTime& time)
 {
@@ -538,7 +543,21 @@ void ChartToolbar::onReplayTimeChanged(const QTime& time)
         return;
     }
 
-    emit replayStartTimeChanged(time);
+    // Calculate stepped time based on direction of change
+    QTime steppedTime = calculateSteppedTime(m_lastReplayTime, time);
+
+    if (steppedTime != time)
+    {
+        // Block signals to avoid recursion, then set stepped time
+        replayTimeEdit->blockSignals(true);
+        replayTimeEdit->setTime(steppedTime);
+        replayTimeEdit->blockSignals(false);
+    }
+
+    // Update last time for next change detection
+    m_lastReplayTime = steppedTime;
+
+    emit replayStartTimeChanged(steppedTime);
 }
 
 /**
@@ -553,10 +572,17 @@ void ChartToolbar::onPlayPauseClicked()
 {
     bool playing = playPauseButton->isChecked();
 
-    // Update state based on button press
+    // Emit BEFORE updating m_replayState so that connected handlers (e.g.
+    // StockPriceChart) can read the pre-transition state to decide whether
+    // to resume an existing engine (PreloadingPaused/Paused → Playing) or
+    // start a fresh one (Inactive → Playing).  Both connections are on the
+    // GUI thread and fire synchronously, so the state is still the old value
+    // when they execute.
+    emit replayPlayPauseToggled(playing);
+
+    // Now update state based on button press
     if (playing)
     {
-        // Transitioning to Playing
         setReplayState(ReplayState::Playing);
     }
     else
@@ -569,7 +595,6 @@ void ChartToolbar::onPlayPauseClicked()
     }
 
     updatePlayPauseButton();
-    emit replayPlayPauseToggled(playing);
 }
 
 /**
@@ -861,4 +886,161 @@ void ChartToolbar::updateUIControlStates()
         playPauseButton->setEnabled(true);
         break;
     }
+}
+
+/**
+ * @brief Updates the replay time edit step size based on current timeframe.
+ *
+ * Adjusts granularity so up/down arrows increment by the appropriate amount:
+ * - 1m: 1 minute steps (default QTimeEdit behavior)
+ * - 5m, 15m, 30m: Step by those minute amounts
+ * - 1h, 4h: 1 hour steps (focus on hour section)
+ *
+ * Also snaps the current time to align with the new step granularity.
+ */
+void ChartToolbar::updateTimeEditStep()
+{
+    QTime currentTime = replayTimeEdit->time();
+
+    // Determine step based on timeframe
+    switch (m_currentTimeFrame)
+    {
+    case TimeFrame::ONE_MINUTE:
+        // Default 1 minute stepping, show full precision
+        replayTimeEdit->setDisplayFormat("hh:mm");
+        break;
+
+    case TimeFrame::FIVE_MINUTES:
+    case TimeFrame::FIFTEEN_MINUTES:
+    case TimeFrame::THIRTY_MINUTES:
+        // Minute stepping with alignment
+        replayTimeEdit->setDisplayFormat("hh:mm");
+        break;
+
+    case TimeFrame::ONE_HOUR:
+    case TimeFrame::FOUR_HOURS:
+        // Hour stepping - remove minutes from display to emphasize hour control
+        replayTimeEdit->setDisplayFormat("hh:00");
+        break;
+
+    default:
+        // Daily, weekly, monthly - for now, keep hour display
+        replayTimeEdit->setDisplayFormat("hh:00");
+        break;
+    }
+
+    // Snap current time to align with the timeframe
+    QTime snappedTime = snapTimeToStep(currentTime);
+    if (snappedTime != currentTime)
+    {
+        // Block signals to avoid triggering chart reload for alignment snap
+        replayTimeEdit->blockSignals(true);
+        replayTimeEdit->setTime(snappedTime);
+        replayTimeEdit->blockSignals(false);
+    }
+
+    // Update last time tracker for step direction detection
+    m_lastReplayTime = snappedTime;
+}
+
+/**
+ * @brief Calculates stepped time based on direction of change.
+ *
+ * Detects whether the user stepped up or down (by comparing old vs new time)
+ * and applies the full timeframe step in that direction.
+ *
+ * @param oldTime Previous time value.
+ * @param newTime New time value from user input (typically 1 minute different).
+ * @return Time stepped by the appropriate timeframe amount.
+ */
+QTime ChartToolbar::calculateSteppedTime(const QTime& oldTime, const QTime& newTime) const
+{
+    int stepMinutes = static_cast<int>(m_currentTimeFrame);
+
+    // For 1m timeframe, no special handling needed
+    if (stepMinutes <= 1)
+    {
+        return newTime;
+    }
+
+    // If old time is invalid, just snap the new time
+    if (!oldTime.isValid())
+    {
+        return snapTimeToStep(newTime);
+    }
+
+    // Detect direction: compare total minutes
+    int oldTotalMins = oldTime.hour() * 60 + oldTime.minute();
+    int newTotalMins = newTime.hour() * 60 + newTime.minute();
+
+    if (newTotalMins == oldTotalMins)
+    {
+        // No change, return as-is
+        return newTime;
+    }
+
+    // Determine step direction
+    int direction = (newTotalMins > oldTotalMins) ? 1 : -1;
+
+    // Calculate new time by stepping from old time
+    int steppedMins = oldTotalMins + (direction * stepMinutes);
+
+    // Clamp to valid range (0:00 to 23:59)
+    steppedMins = qBound(0, steppedMins, 23 * 60 + 59);
+
+    // Snap to step boundary
+    if (stepMinutes >= 60)
+    {
+        // Hour-based: snap to hour boundary
+        int stepHours = stepMinutes / 60;
+        int hour = steppedMins / 60;
+        hour = (hour / stepHours) * stepHours;
+        return QTime(hour, 0, 0);
+    }
+    else
+    {
+        // Minute-based: snap minutes to step boundary
+        int hour = steppedMins / 60;
+        int minute = steppedMins % 60;
+        minute = (minute / stepMinutes) * stepMinutes;
+        return QTime(hour, minute, 0);
+    }
+}
+
+/**
+ * @brief Snaps time to the nearest valid step for the current timeframe.
+ *
+ * Aligns time to boundaries appropriate for the timeframe:
+ * - 1m: No snapping needed (1 minute resolution)
+ * - 5m: Snap to 0, 5, 10, 15... minutes
+ * - 15m: Snap to 0, 15, 30, 45 minutes
+ * - 30m: Snap to 0, 30 minutes
+ * - 1h, 4h: Snap to hour boundary
+ *
+ * @param time The time to snap.
+ * @return Time aligned to the current timeframe granularity.
+ */
+QTime ChartToolbar::snapTimeToStep(const QTime& time) const
+{
+    int hour = time.hour();
+    int minute = time.minute();
+
+    int stepMinutes = static_cast<int>(m_currentTimeFrame);
+
+    if (stepMinutes >= 60)
+    {
+        // Hour-based timeframes: snap to hour boundary
+        // For 4h timeframe, snap to 0, 4, 8, 12, 16, 20 hours
+        int stepHours = stepMinutes / 60;
+        hour = (hour / stepHours) * stepHours;
+        minute = 0;
+    }
+    else if (stepMinutes > 1)
+    {
+        // Minute-based timeframes: snap minutes to step boundary
+        minute = (minute / stepMinutes) * stepMinutes;
+    }
+    // For 1m timeframe, no snapping needed
+
+    return QTime(hour, minute, 0);
 }

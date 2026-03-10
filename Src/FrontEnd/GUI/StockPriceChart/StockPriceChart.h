@@ -6,8 +6,8 @@
 #include <QMap>
 #include <QLoggingCategory>
 #include <QVBoxLayout>
-#include <QSemaphore>
 #include <QTimer>
+#include <atomic>
 #include <functional>
 #include <optional>
 
@@ -16,6 +16,7 @@
 #include "ChartToolbar.h"
 #include "ChartTimeUtils.h"
 #include "CONSTANTS.h"
+#include "Misc/TimeFrame.h"
 #include "QCPItemTriangle.h"
 #include "QCPItemLogDot.h"
 #include "OrdersDatabase.h"
@@ -150,6 +151,24 @@ class StockPriceChart : public QWidget
     void onRequestedMissingBarsReceived(const std::shared_ptr<QVector<Bar>>& barsPtr);
     void onRequestedMissingBarsFailed();
     void setReplayModeActive(bool active);
+
+    /**
+     * @brief Snapshots the current X and Y axis ranges so that
+     *        the next clearChart() + bar reload restores them instead of auto-scaling.
+     * Call this immediately before clearChart() when switching timescale (not a full reset).
+     */
+    void preserveCurrentRanges();
+
+    /**
+     * @brief Updates the active display timescale and scales candlestick + volume bar widths.
+     *
+     * Must be called whenever the user switches timescale so that candles visually fill
+     * their correct time slot.  Width = minutesPerBar(tf) × CANDLESTICK_BODY_WIDTH.
+     * Only intraday timescales (1m–4h) are handled; daily+ are no-ops pending multi-day view.
+     * Thread context: Called from Main/GUI thread.
+     * @param tf New display timescale.
+     */
+    void setDisplayTimeFrame(TimeFrame tf);
 
     /**
      * @brief Gets the chart toolbar widget.
@@ -315,12 +334,16 @@ class StockPriceChart : public QWidget
     // Time-anchored chart index 0 (set on symbol selection, not on first bar receipt)
     QDateTime m_index0Timestamp;
 
+    // Active display timescale — controls candlestick and volume bar widths
+    TimeFrame m_displayTimeFrame = TimeFrame::ONE_MINUTE;
+
     // Timeframe selector widget
     ChartToolbar* chartToolbar;
 
-    // Binary semaphore to track if a missing bars request is in progress
-    // Initialized with count 1 (not acquired). Acquire before requesting, release when received.
-    QSemaphore m_missingBarsRequestSemaphore{1};
+    /// Request token for missing bars requests. Incremented on each new request.
+    /// When a response arrives, it's only processed if its token matches m_currentMissingBarsRequestToken.
+    /// This prevents stale responses (from cancelled requests due to rapid timescale switching) from being processed.
+    std::atomic<uint64_t> m_currentMissingBarsRequestToken{0};
 
     // Wheel zoom sensitivity ratio
     qreal wheelZoomRatio = 1.0;
@@ -331,6 +354,8 @@ class StockPriceChart : public QWidget
     // Helper to convert index to time for axis labels
     QString indexToTimeString(double index) const;
 
+    void checkAutoTimeFrame();
+
     bool startedReceivingRealtimeBars = false;
 
     /// True after first batch of historical bars sets Y-axis range (prevents resetting on subsequent loads)
@@ -339,6 +364,10 @@ class StockPriceChart : public QWidget
     /// When set, the next initial Y-axis range computation is skipped and this range is used instead.
     /// Set by onReplayTimeChanged to preserve the user's zoom level across start-time changes.
     std::optional<QCPRange> m_preservedYRange;
+
+    /// When set, the next X-axis range setup is skipped and this range is used instead.
+    /// Set by preserveCurrentRanges() to preserve zoom level across timescale changes.
+    std::optional<QCPRange> m_preservedXRange;
 
     // ========== Order Visualization Members ==========
 

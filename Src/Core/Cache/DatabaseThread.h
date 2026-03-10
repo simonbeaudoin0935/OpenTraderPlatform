@@ -13,6 +13,7 @@
 
 #include "Bar.h"
 #include "CONSTANTS.h"
+#include "TimeFrame.h"
 
 Q_DECLARE_LOGGING_CATEGORY(DatabaseThreadLog)
 
@@ -31,6 +32,12 @@ Q_DECLARE_LOGGING_CATEGORY(DatabaseThreadLog)
  * All public methods are thread-safe and can be called from any thread.
  * The actual work is executed on the dedicated database thread via
  * QMetaObject::invokeMethod with Qt::QueuedConnection.
+ *
+ * ## Schema versioning
+ * On openDatabase(), the v2 multi-timescale schema is probed.
+ * If the existing table is the old v1 schema (no timescale column), it is
+ * dropped and recreated. Since the BarCache is a rebuildable cache (Databento
+ * is the source of truth), no data migration is needed.
  */
 class DatabaseThread final : public QObject
 {
@@ -56,6 +63,10 @@ class DatabaseThread final : public QObject
 
     /**
      * @brief Open or create a database for a symbol.
+     *
+     * On open, the schema version is checked. If the table is missing the
+     * timescale column (v1 schema), it is dropped and recreated as v2.
+     *
      * @param symbol The stock symbol (used as connection name)
      * @param dbPath Full path to the SQLite database file
      * @return QFuture that resolves to true on success, false on failure
@@ -69,25 +80,27 @@ class DatabaseThread final : public QObject
     void closeDatabase(const QString& symbol);
 
     /**
-     * @brief Retrieve bars from the database for a given date and time range.
+     * @brief Retrieve bars from the database for a given timescale, date and time range.
      * @param symbol The stock symbol
-     * @param date The date to query
-     * @param start Start time of the range
-     * @param end End time of the range
+     * @param tf     The timescale (determines bar index formula)
+     * @param date   The date to query
+     * @param start  Start time of the range
+     * @param end    End time of the range
      * @return QFuture with optional vector of bars (nullopt if incomplete data)
      */
     [[nodiscard]] QFuture<std::optional<std::shared_ptr<QVector<Bar>>>>
-    getBarsFromDatabase(const QString& symbol, QDate date, QTime start, QTime end);
+    getBarsFromDatabase(const QString& symbol, TimeFrame tf, QDate date, QTime start, QTime end);
 
     /**
-     * @brief Store bars in the database.
+     * @brief Store bars in the database for a given timescale.
      * @param symbol The stock symbol
-     * @param date The date of the bars
-     * @param bars Vector of bars to store
+     * @param tf     The timescale of the bars
+     * @param date   The date of the bars
+     * @param bars   Vector of bars to store
      * @return QFuture that resolves to the number of bars successfully stored
      */
     [[nodiscard]] QFuture<int>
-    storeBarsInDatabase(const QString& symbol, const QDate& date, std::shared_ptr<QVector<Bar>> bars);
+    storeBarsInDatabase(const QString& symbol, TimeFrame tf, const QDate& date, std::shared_ptr<QVector<Bar>> bars);
 
     /**
      * @brief Clear all bars from a symbol's database.
@@ -110,9 +123,9 @@ class DatabaseThread final : public QObject
     void closeDatabaseInternal(const QString& symbol);
 
     std::optional<std::shared_ptr<QVector<Bar>>>
-    getBarsFromDatabaseInternal(const QString& symbol, QDate date, QTime start, QTime end);
+    getBarsFromDatabaseInternal(const QString& symbol, TimeFrame tf, QDate date, QTime start, QTime end);
 
-    int storeBarsInDatabaseInternal(const QString& symbol, const QDate& date, const QVector<Bar>& bars);
+    int storeBarsInDatabaseInternal(const QString& symbol, TimeFrame tf, const QDate& date, const QVector<Bar>& bars);
 
     bool clearDatabaseInternal(const QString& symbol);
 

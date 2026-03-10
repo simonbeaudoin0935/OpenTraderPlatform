@@ -68,9 +68,7 @@ void StrategyLogger::log(QtMsgType p_level, const QString& p_message)
     if (m_stream)
     {
         *m_stream << QString("[%1] %2 - %3\n")
-                         .arg(msg.timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz"),
-                              levelToString(p_level),
-                              p_message);
+                         .arg(msg.timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz"), levelToString(p_level), p_message);
         m_stream->flush();
     }
 }

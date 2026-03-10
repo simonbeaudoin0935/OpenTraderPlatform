@@ -194,6 +194,7 @@ public:
     BarCache barCache;
     BarReceiver barReceiver;
     Level2Receiver m_level2Receiver;
+    BarAggregator m_barAggregator;  // Accumulates 1m bars into higher-TF bars
 };
 ```
 
@@ -201,12 +202,54 @@ public:
 - Created when symbol first selected via `onSelectDisplayedStock()`
 - Previous instrument is cleaned up (`deleteLater()`) when a different symbol is selected
 - Only one StockInstruments exists at a time (the displayed stock)
-- Manages its own bar cache, bar receiver, and Level 2 receiver
+- Manages its own bar cache, bar receiver, Level 2 receiver, and bar aggregator
 
 **Responsibilities**:
-- Manage BarCache for symbol
+- Manage BarCache for symbol (all timescales)
 - Own Level2Receiver that computes bid-ask imbalance and depth-weighted prices
 - Own BarReceiver that processes bars built by `LiveBarAccumulator`
+- Own BarAggregator wired as: `LiveBarAccumulator::barClosed → BarAggregator::onNewBar → BarCache::storeBar(tf, bar)`
+
+## BarAggregator
+
+**Role**: Real-time aggregation of closed 1-minute bars into higher-timescale bars
+
+**Location**: `Src/Algo/BarAggregator/BarAggregator.h/.cpp`
+
+**Purpose**: Derives live 5m, 15m, 30m, 1h, 4h, 1d, 1w, and 1M bars from the stream of closed 1m bars. Runs on the MainAlgo thread.
+
+```cpp
+class BarAggregator : public QObject {
+    Q_OBJECT
+public:
+    explicit BarAggregator(QObject* parent = nullptr);
+
+public slots:
+    void onNewBar(const QString& symbol, const Bar& bar);  // feed closed 1m bars here
+
+signals:
+    // Thread context: emitted from MainAlgo thread
+    void barUpdated(TimeFrame tf, const QString& symbol, const Bar& bar);  // in-progress bar
+    void barClosed(TimeFrame tf, const QString& symbol, const Bar& bar);   // completed bar
+};
+```
+
+**Accumulation logic**:
+- Maintains one `Accumulator` struct per target TimeFrame per symbol
+- Intraday close detection: `(minutesFromOpen + 1) % tfMinutes == 0`
+- Daily bar closes at `TIME_LAST_CANDLE_AFTER_MARKET_SESSION`
+- Weekly bar closes on Friday at `TIME_LAST_CANDLE_AFTER_MARKET_SESSION`
+- Monthly bar closes when the next trading day falls in a different calendar month
+
+**Wiring** (in `StockInstruments` constructor):
+```cpp
+connect(&barReceiver.m_liveBarAccumulator, &LiveBarAccumulator::barClosed,
+        &m_barAggregator, &BarAggregator::onNewBar);
+connect(&m_barAggregator, &BarAggregator::barClosed,
+        &barCache, [&barCache](TimeFrame tf, const QString& sym, const Bar& bar) {
+            barCache.storeBar(tf, sym, bar);
+        });
+```
 
 ## Receiver Components
 

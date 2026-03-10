@@ -69,6 +69,7 @@ signals:
 - Database paths
 - Logging configuration
 - Performance tuning options
+- **Auto-Timeframe Thresholds** (see below)
 
 **Key Methods**:
 ```cpp
@@ -93,6 +94,53 @@ bool validateConfig();
 signals:
     void configChanged();
     void tradingModeChanged(TradingMode mode);
+```
+
+#### Auto-Timeframe Thresholds Section
+
+The ConfigTab includes an "Auto-Timeframe Thresholds" group box that allows users to configure when the chart automatically switches timeframes based on visible time range.
+
+**UI Layout**:
+```
+┌─ Auto-Timeframe Thresholds ─────────────────────────────┐
+│ Timeframe  Lower (min)  Upper (min)                      │
+│ 1m         [30     ▲▼]  [150    ▲▼]                     │
+│ 5m         [120    ▲▼]  [480    ▲▼]                     │
+│ 15m        [240    ▲▼]  [960    ▲▼]                     │
+│ 30m        [480    ▲▼]  [1440   ▲▼]                     │
+│ 1h         [720    ▲▼]  [2880   ▲▼]                     │
+│ 4h         [1440   ▲▼]  [10080  ▲▼]                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Behavior**:
+- When visible minutes < lower threshold → switch to smaller timeframe
+- When visible minutes > upper threshold → switch to larger timeframe
+- Overlapping thresholds provide hysteresis to prevent oscillation
+- Settings stored in `AppState.ini` under `Config/AutoTF/<TF>/Lower` and `Upper`
+
+**Default Values**:
+| Timeframe | Lower (min) | Upper (min) |
+|-----------|-------------|-------------|
+| 1m        | 30          | 150         |
+| 5m        | 120         | 480         |
+| 15m       | 240         | 960         |
+| 30m       | 480         | 1440        |
+| 1h        | 720         | 2880        |
+| 4h        | 1440        | 10080       |
+
+**Implementation**:
+```cpp
+// Storage structure in ConfigTab.h
+struct TfThresholdWidgets {
+    QSpinBox* lowerSpinBox;
+    QSpinBox* upperSpinBox;
+};
+QMap<TimeFrame, TfThresholdWidgets> m_tfThresholds;
+
+// Values read by ZoomAndPanning::checkAutoTimeFrame()
+const int lowerThreshold = settings.value(
+    QString("Config/AutoTF/%1/Lower").arg(tfKey), defaultLower).toInt();
 ```
 
 ---

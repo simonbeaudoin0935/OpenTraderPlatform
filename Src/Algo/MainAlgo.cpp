@@ -61,17 +61,34 @@ MainAlgo::~MainAlgo()
     // Thread affinity assertion - destructor must be called from main thread
     OBJ_ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
 
-    // Stop balance polling timer if it exists
-    // Note: We're in the destructor, so we can't use QMetaObject::invokeMethod
-    // since the thread might already be stopping. Just stop the timer directly.
-    if (m_balancePollingTimer && m_balancePollingTimer->isActive())
-    {
-        m_balancePollingTimer->stop();
-        DEBUG << "Stopped balance polling timer in destructor";
-    }
+    // CRITICAL: Destroy all thread-owned objects that have QTimer members on the MainAlgo
+    // thread BEFORE calling thread.quit(). If we destroy them from the main thread after
+    // the thread has stopped, Qt warns "Timers cannot be stopped from another thread".
+    // The MainAlgo event loop is still running at this point, so BlockingQueuedConnection is safe.
+    QMetaObject::invokeMethod(
+        this,
+        [this]()
+        {
+            // Stop and destroy balance polling timer on its own thread
+            m_balancePollingTimer.reset();
 
-    // CRITICAL: Stop thread BEFORE destroying thread-owned objects to prevent cross-thread access
-    // Request thread to stop
+            // Stop and delete replay engines on the correct thread (they own QTimer members)
+            if (m_replayEngine != nullptr)
+            {
+                m_replayEngine->stopReplay();
+                delete m_replayEngine;
+                m_replayEngine = nullptr;
+            }
+            for (auto* engine: std::as_const(m_secondaryReplayEngines))
+            {
+                engine->stopReplay();
+                delete engine;
+            }
+            m_secondaryReplayEngines.clear();
+        },
+        Qt::BlockingQueuedConnection);
+
+    // CRITICAL: Stop thread BEFORE Qt's parent-child deletion destroys thread-owned objects
     thread.quit();
 
     // Wait for thread to finish (with timeout)
@@ -199,6 +216,16 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
                    this,
                    &MainAlgo::displayedStockReceivedNewBar);
 
+        disconnect(&currentDisplayedStockInstrument->m_barAggregator,
+                   &BarAggregator::barUpdated,
+                   this,
+                   &MainAlgo::onAggregatorBarUpdated);
+
+        disconnect(&currentDisplayedStockInstrument->m_barAggregator,
+                   &BarAggregator::barClosed,
+                   this,
+                   &MainAlgo::onAggregatorBarClosed);
+
         disconnect(&currentDisplayedStockInstrument->m_level2Receiver,
                    &Level2Receiver::receivedNewLevel2,
                    this,
@@ -240,6 +267,17 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             this,
             &MainAlgo::displayedStockReceivedNewBar);
 
+    // Forward BarAggregator higher-TF updates so the chart can show live higher-TF candles
+    connect(&currentDisplayedStockInstrument->m_barAggregator,
+            &BarAggregator::barUpdated,
+            this,
+            &MainAlgo::onAggregatorBarUpdated);
+
+    connect(&currentDisplayedStockInstrument->m_barAggregator,
+            &BarAggregator::barClosed,
+            this,
+            &MainAlgo::onAggregatorBarClosed);
+
     connect(&currentDisplayedStockInstrument->m_level2Receiver,
             &Level2Receiver::receivedNewLevel2,
             this,
@@ -256,7 +294,7 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             });
 }
 
-BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last)
+BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last, TimeFrame tf)
 {
     DEBUG << "Requested bars from current displayed stock cache: " << first << " to " << last;
 
@@ -270,7 +308,7 @@ BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date,
         return std::make_shared<QVector<Bar>>();
     }
 
-    return currentDisplayedStockInstrument->barCache.getBars(date, first, last);
+    return currentDisplayedStockInstrument->barCache.getBars(tf, date, first, last);
 }
 
 /*
@@ -550,8 +588,7 @@ void MainAlgo::requestBalance()
 
     // Don't request balance if not authenticated — TSClient will assert on empty API key.
     // Exception: in replay mode, the mock network manager handles requests without real credentials.
-    if (!TSClient::getInstance()->isAuthenticated()
-        && TSClient::getInstance()->getMode() != TSClient::Mode::Replay)
+    if (!TSClient::getInstance()->isAuthenticated() && TSClient::getInstance()->getMode() != TSClient::Mode::Replay)
         return;
 
     OBJ_ASSUME_FALSE(m_activeAccount.getAccountId().isEmpty());
@@ -596,14 +633,15 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
     , m_level2Receiver(p_symbol, this)
     , m_level1Receiver(p_symbol, this)
     , m_liveBarAccumulator(this)
+    , m_barAggregator(this)
 {
     this->setObjectName("StockInstrument::" + p_symbol);
 
-    // Connect BarReceiver to BarCache for storage
+    // Connect BarReceiver to BarCache for 1m bar storage
     bool connected = connect(&barReceiver,
                              &BarReceiver::receivedNewBar,
                              &barCache,
-                             [this](const QString&, const Bar& bar) { barCache.storeBar(bar); });
+                             [this](const QString&, const Bar& bar) { barCache.storeBar(TimeFrame::ONE_MINUTE, bar); });
     OBJ_ASSUME_TRUE(connected);
 
     // Wire LiveBarAccumulator::barClosed → BarReceiver::receivedNewBar
@@ -614,6 +652,20 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
     // Wire LiveBarAccumulator::barUpdated → BarReceiver::receivedNewBar (in-progress candle)
     connected =
         connect(&m_liveBarAccumulator, &LiveBarAccumulator::barUpdated, &barReceiver, &BarReceiver::receivedNewBar);
+    OBJ_ASSUME_TRUE(connected);
+
+    // Wire closed 1m bars → BarAggregator for higher-TF accumulation (OHLCV + period-close detection)
+    connected =
+        connect(&m_liveBarAccumulator, &LiveBarAccumulator::barClosed, &m_barAggregator, &BarAggregator::onNewBar);
+    OBJ_ASSUME_TRUE(connected);
+
+    // Wire in-progress 1m bar updates → BarAggregator for real-time live candle animation
+    connected =
+        connect(&m_liveBarAccumulator, &LiveBarAccumulator::barUpdated, &m_barAggregator, &BarAggregator::onBarUpdated);
+    OBJ_ASSUME_TRUE(connected);
+
+    // Wire BarAggregator::barClosed → BarCache for higher-TF storage
+    connected = connect(&m_barAggregator, &BarAggregator::barClosed, &barCache, &BarCache::storeBar);
     OBJ_ASSUME_TRUE(connected);
 
     // In replay mode, data comes from ReplayEngine (connected by MainAlgo::connectReplaySignals)
@@ -934,6 +986,18 @@ void MainAlgo::onStrategyCrashNotified()
 
     // Now safely call StrategyManager::markStrategyFailed on the same thread
     m_strategyManager.markStrategyFailed(strategyID, errorMsg);
+}
+
+void MainAlgo::onAggregatorBarUpdated(TimeFrame tf, const Bar& bar)
+{
+    if (currentDisplayedStockInstrument != nullptr)
+        emit displayedStockAggregatorBarUpdated(currentDisplayedStockInstrument->symbol, tf, bar);
+}
+
+void MainAlgo::onAggregatorBarClosed(TimeFrame tf, const Bar& bar)
+{
+    if (currentDisplayedStockInstrument != nullptr)
+        emit displayedStockAggregatorBarClosed(currentDisplayedStockInstrument->symbol, tf, bar);
 }
 
 void MainAlgo::onReplayEndReached()
@@ -1330,7 +1394,8 @@ void MainAlgo::resumeLiveStreams()
     // Skip account fetch if not authenticated (e.g. replay-only without TS credentials)
     if (!TSClient::getInstance()->isAuthenticated())
     {
-        INFO << "Not authenticated with TradeStation — stopping balance polling and skipping account fetch after replay mode";
+        INFO
+            << "Not authenticated with TradeStation — stopping balance polling and skipping account fetch after replay mode";
         stopBalancePolling();
         m_balancePollingStarted = false;
         return;
@@ -1467,6 +1532,21 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
                              this,
                              &MainAlgo::displayedStockReceivedNewBar,
                              Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    // Forward higher-TF aggregator events so the chart can show live higher-TF candles
+    connected = connect(&currentDisplayedStockInstrument->m_barAggregator,
+                        &BarAggregator::barUpdated,
+                        this,
+                        &MainAlgo::onAggregatorBarUpdated,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(&currentDisplayedStockInstrument->m_barAggregator,
+                        &BarAggregator::barClosed,
+                        this,
+                        &MainAlgo::onAggregatorBarClosed,
+                        Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
     connected = connect(&currentDisplayedStockInstrument->m_level2Receiver,

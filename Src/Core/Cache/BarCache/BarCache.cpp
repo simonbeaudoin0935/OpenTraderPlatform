@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QPromise>
 #include <memory>
+#include <tuple>
 
 #include "MainApp.h"
 #include "BarCache.h"
@@ -13,6 +14,7 @@
 #include "Settings.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "BarUtils.h"
 
 #define LOGGING_CATEGORY BarCacheLog
 Q_LOGGING_CATEGORY(BarCacheLog, "BarCache")
@@ -42,22 +44,13 @@ BarCache::BarCache(const QString& symbol, QObject* parent) : QObject(parent), m_
     DEBUG << "Bars directory:" << barsDir;
     DEBUG << "Using database file:" << m_dbPath;
 
-    // Open database via DatabaseThread (async, thread-safe)
-    // We don't wait for the result here - operations will queue until ready
-    DatabaseThread::getInstance()
-        ->openDatabase(m_symbol, m_dbPath)
-        .then(this,
-              [this](bool success)
-              {
-                  if (success)
-                  {
-                      INFO << "Database opened successfully for" << m_symbol;
-                  }
-                  else
-                  {
-                      CRITICAL << "Failed to open database for" << m_symbol;
-                  }
-              });
+    // Open database via DatabaseThread (async, thread-safe).
+    // We don't wait for the result here — operations queue until the DB is ready.
+    // DatabaseThread logs success/failure internally; no .then() callback needed
+    // (using .then(this, lambda) is unsafe here because a rapid symbol switch can
+    // destroy this BarCache before the future resolves, making the QPointer null
+    // and triggering a Q_ASSERT in Qt's continuation machinery).
+    std::ignore = DatabaseThread::getInstance()->openDatabase(m_symbol, m_dbPath);
 }
 
 BarCache::~BarCache()
@@ -68,32 +61,34 @@ BarCache::~BarCache()
     DEBUG << "Destroyed";
 }
 
-void BarCache::storeBar(const Bar& bar)
+void BarCache::storeBar(TimeFrame tf, const Bar& bar)
 {
-    storeBarInCache(bar);
+    storeBarInCache(tf, bar);
 }
 
 
-// Get or create a day vector for a given date
-QVector<Bar>& BarCache::getOrCreateDayVector(const QDate& date)
+// Get or create a day vector for a given timescale and date
+QVector<Bar>& BarCache::getOrCreateDayVector(TimeFrame tf, const QDate& date)
 {
     ASSUME_GTE(date.dayOfWeek(), Qt::Monday);
     ASSUME_LTE(date.dayOfWeek(), Qt::Friday);
 
     // NOTE: Caller must already hold m_barCacheRwLock write lock
 
-    if (!m_barCacheByDay.contains(date))
+    auto& dayMap = m_barCacheByTimeFrame[tf];
+    if (!dayMap.contains(date))
     {
-        DEBUG << "m_barCacheByDay map doesn't contain day " << date << ", creating new vector.";
+        DEBUG << "Creating new bar vector for timescale" << static_cast<int>(tf) << "day" << date;
 
-        // Pre-allocate to full capacity with uninitialized bars by default ctor of Bar
-        m_barCacheByDay[date] = QVector<Bar>(BarsConstants::MINUTE_BARS_PER_DAY);
+        // Pre-allocate to full capacity with default-constructed (Uninitialized) bars
+        dayMap[date] = QVector<Bar>(BarUtils::barsPerDay(tf));
     }
 
-    return m_barCacheByDay[date];
+    return dayMap[date];
 }
 
-QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first,
+QVector<Bar> BarCache::fillHolesOfReceivedRequest(TimeFrame tf,
+                                                  const QDateTime& first,
                                                   const QDateTime& last,
                                                   const QVector<Bar>& barsFromAPI) const
 {
@@ -109,7 +104,8 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first,
 
     qsizetype i = 0;
 
-    for (QDateTime expectedTime = first; expectedTime <= last; expectedTime = expectedTime.addSecs(60))
+    const qint64 stepSecs = static_cast<qint64>(BarUtils::minutesPerBar(tf)) * 60;
+    for (QDateTime expectedTime = first; expectedTime <= last; expectedTime = expectedTime.addSecs(stepSecs))
     {
         Bar bar;
 
@@ -169,7 +165,7 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(const QDateTime& first,
  * @note Holes in the data (periods with no trading activity) are filled with null bars.
  * @warning Currently returns the complete day, not just the requested range (bug noted in code).
  */
-BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& first, const QTime& last)
+BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, const QTime& first, const QTime& last)
 {
     const QDateTime now = MainApp::getCurrentAppTime();
     // In replay mode, the replay date is a historical date — treat it as a past day so we
@@ -194,10 +190,12 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
 
     if (isCurrentDay)
     {
-        // Floor now.time() to the current minute boundary because open-time convention
-        // timestamps bars with their open time (e.g., at 11:17:33, the current
-        // bar covering 11:17:00-11:17:59 is timestamped 11:17:00)
-        QTime nowFloored(now.time().hour(), now.time().minute(), 0, 0);
+        // Floor now.time() to the current bar boundary for this timescale
+        int minutesFromOpen = (now.time().hour() - 4) * 60 + now.time().minute();
+        int barBoundaryMinutes = (minutesFromOpen / BarUtils::minutesPerBar(tf)) * BarUtils::minutesPerBar(tf);
+        int boundaryHour = 4 + barBoundaryMinutes / 60;
+        int boundaryMin = barBoundaryMinutes % 60;
+        QTime nowFloored(boundaryHour, boundaryMin, 0, 0);
         OBJ_ASSUME_LTE(last, nowFloored); // Can't request bars for later today than now
     }
 
@@ -205,7 +203,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
 
     // With the new "complete day or nothing" rule:
     // If the day exists in cache, we have ALL bars for that day (or all bars up to now for current day)
-    if (std::optional<std::unique_ptr<QVector<Bar>>> barsFromCache = getBarsFromCache(date, first, last);
+    if (std::optional<std::unique_ptr<QVector<Bar>>> barsFromCache = getBarsFromCache(tf, date, first, last);
         barsFromCache.has_value())
     {
         DEBUG << "Returning bars from in-memory cache for day" << date;
@@ -213,7 +211,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
         return std::move(barsFromCache.value());
     }
 
-    DEBUG << " m_barCacheByDay map doesn't contain bars  for day " << date << "checking database";
+    DEBUG << " m_barCacheByTimeFrame map doesn't contain bars for day " << date << "checking database";
 
     // Create a shared promise for the final result.
     // Using shared_ptr because the promise needs to survive across multiple nested async
@@ -225,7 +223,6 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
 
     // Always fetch the FULL day from database (to warm cache) even if only partial range requested
     // This ensures we cache complete days and avoid repeated database queries for the same day
-    // Full day: 4:00 AM (early pre-market open) to 6:59 PM (after-market close) = 900 bars total
     QTime fullDayStart = TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION; // 4:00 AM
     QTime fullDayEnd = TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;        // 6:59 PM
 
@@ -233,11 +230,12 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
     // Request the FULL day, not just the requested range
     DatabaseThread::getInstance()
         ->getBarsFromDatabase(m_symbol,
+                              tf,
                               date,
                               fullDayStart,
                               fullDayEnd)
         .then(this, // Execute in the thread of this BarCache object, aka the MainAlgo thread
-              [this, date, first, last, fullDayStart, fullDayEnd, isCurrentDay, now, promise = std::move(promise)](
+              [this, tf, date, first, last, fullDayStart, fullDayEnd, isCurrentDay, now, promise = std::move(promise)](
                   std::optional<std::shared_ptr<QVector<Bar>>>&& dbBars) mutable
               {
                   // Check if we got bars from database
@@ -248,7 +246,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                       DEBUG << "Loaded full day from database:" << fullDayBars->size() << "bars";
 
                       // Store the complete day in memory cache
-                      storeBarsInCache(date, fullDayBars);
+                      storeBarsInCache(tf, date, fullDayBars);
 
                       // Now filter to the requested range and return
                       auto filteredBars = std::make_shared<QVector<Bar>>();
@@ -268,8 +266,56 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                       return;
                   }
 
-                  // Database doesn't have complete day - fetch from API
-                  DEBUG << "Database miss, fetching from API";
+                  // Database doesn't have complete day.
+                  // Before going to the API, check if the source timescale is already in
+                  // memory and aggregate from it — avoids a redundant Databento fetch.
+                  // Example: switching 1m→5m when 1m bars are already cached in memory.
+                  const TimeFrame sourceTf = BarUtils::aggregateSourceTimeFrame(tf);
+                  if (sourceTf != tf)
+                  {
+                      auto sourceIt = m_barCacheByTimeFrame.constFind(sourceTf);
+                      if (sourceIt != m_barCacheByTimeFrame.constEnd())
+                      {
+                          auto dayIt = sourceIt->constFind(date);
+                          if (dayIt != sourceIt->constEnd() && !dayIt->isEmpty())
+                          {
+                              DEBUG << "Aggregating" << static_cast<int>(tf) << "m bars from in-memory"
+                                    << static_cast<int>(sourceTf) << "m cache (no API fetch needed)";
+
+                              QVector<Bar> aggregated = BarUtils::aggregateBars(*dayIt, tf);
+
+                              auto fullDayBars = std::make_shared<QVector<Bar>>(fillHolesOfReceivedRequest(
+                                  tf,
+                                  QDateTime(date,
+                                            TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
+                                            TradingHours::MARKET_TIMEZONE),
+                                  QDateTime(date,
+                                            TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
+                                            TradingHours::MARKET_TIMEZONE),
+                                  aggregated));
+
+                              storeBarsInCache(tf, date, fullDayBars);
+
+                              // Persist to database (fire-and-forget)
+                              [[maybe_unused]] auto dbFuture =
+                                  DatabaseThread::getInstance()->storeBarsInDatabase(m_symbol, tf, date, fullDayBars);
+
+                              auto filteredBars = std::make_shared<QVector<Bar>>();
+                              for (const auto& bar: *fullDayBars)
+                              {
+                                  if (bar.getTimeStamp().time() >= first && bar.getTimeStamp().time() <= last)
+                                      filteredBars->append(bar);
+                              }
+
+                              promise.addResult(filteredBars);
+                              promise.finish();
+                              return;
+                          }
+                      }
+                  }
+
+                  // No source-TF cache hit — fetch from Databento API
+                  DEBUG << "No in-memory source cache for" << static_cast<int>(tf) << "m — fetching from API";
 
                   QDateTime startDateTime = QDateTime(date,
                                                       TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
@@ -320,7 +366,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                       dbClient,
                       &DBClient::historicalBarsReceived,
                       this,
-                      [this, conn, sharedPromise, date, first, last](const QString& sym, const QVector<Bar>& bars)
+                      [this, conn, sharedPromise, tf, date, first, last](const QString& sym, const QVector<Bar>& bars)
                       {
                           if (sym != m_symbol)
                               return; // Not our request
@@ -348,13 +394,13 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                                                 TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
                                                 TradingHours::MARKET_TIMEZONE);
                           auto filledBars = std::make_shared<QVector<Bar>>(
-                              fillHolesOfReceivedRequest(fullDayFirst, fullDayLast, *fullDayBars));
+                              fillHolesOfReceivedRequest(tf, fullDayFirst, fullDayLast, *fullDayBars));
 
-                          storeBarsInCache(date, filledBars);
+                          storeBarsInCache(tf, date, filledBars);
 
                           // Persist to database for next startup (fire-and-forget)
                           [[maybe_unused]] auto dbFuture =
-                              DatabaseThread::getInstance()->storeBarsInDatabase(m_symbol, date, filledBars);
+                              DatabaseThread::getInstance()->storeBarsInDatabase(m_symbol, tf, date, filledBars);
 
                           auto filteredBars = std::make_shared<QVector<Bar>>();
                           for (const auto& bar: *filledBars)
@@ -372,7 +418,7 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
                           sharedPromise->finish();
                       });
 
-                  dbClient->fetchHistoricalBars(m_symbol, startDateTime, endDayTime);
+                  dbClient->fetchHistoricalBars(m_symbol, startDateTime, endDayTime, tf);
               });
 
     return future;
@@ -380,28 +426,29 @@ BarCache::GetBarsResult_t BarCache::getBars(const QDate& date, const QTime& firs
 
 
 std::optional<std::unique_ptr<QVector<Bar>>>
-BarCache::getBarsFromCache(const QDate& date, const QTime& start, const QTime& end) const
+BarCache::getBarsFromCache(TimeFrame tf, const QDate& date, const QTime& start, const QTime& end) const
 {
     QReadLocker locker(&m_barCacheRwLock);
 
-    if (!m_barCacheByDay.contains(date))
+    const auto tfIt = m_barCacheByTimeFrame.find(tf);
+    if (tfIt == m_barCacheByTimeFrame.end() || !tfIt->contains(date))
     {
-        DEBUG << "m_barCacheByDay map doesn't contain day " << date;
+        DEBUG << "Cache miss for timescale" << static_cast<int>(tf) << "day" << date;
         return std::nullopt;
     }
 
-    DEBUG << "m_barCacheByDay map contains day " << date;
+    DEBUG << "Cache hit for timescale" << static_cast<int>(tf) << "day" << date;
 
     // Day exists in cache - extract the requested range
-    const QVector<Bar>& dayVector = m_barCacheByDay[date];
+    const QVector<Bar>& dayVector = (*tfIt)[date];
 
-    // a day vector is always pre-allocated to 900 bars
-    OBJ_ASSUME_EQUAL(dayVector.size(), BarsConstants::MINUTE_BARS_PER_DAY);
+    // A day vector is always pre-allocated to barsPerDay(tf) slots
+    OBJ_ASSUME_EQUAL(dayVector.size(), BarUtils::barsPerDay(tf));
 
     std::unique_ptr<QVector<Bar>> result = std::make_unique<QVector<Bar>>();
-    result->reserve((start.secsTo(end) / 60) + 1);
+    result->reserve(BarUtils::barIndex(tf, end) - BarUtils::barIndex(tf, start) + 1);
 
-    for (size_t index = BarsConstants::timeToIndex(start); index <= BarsConstants::timeToIndex(end); ++index)
+    for (int index = BarUtils::barIndex(tf, start); index <= BarUtils::barIndex(tf, end); ++index)
     {
         if (dayVector[index].getBarStatus() == Bar::BarStatus::Uninitialized)
         {
@@ -416,7 +463,7 @@ BarCache::getBarsFromCache(const QDate& date, const QTime& start, const QTime& e
     return result;
 }
 
-void BarCache::storeBarInCache(const Bar& bar)
+void BarCache::storeBarInCache(TimeFrame tf, const Bar& bar)
 {
     QDateTime dateTime = bar.getTimeStamp();
 
@@ -426,11 +473,11 @@ void BarCache::storeBarInCache(const Bar& bar)
     QTime time = dateTime.time();
 
     // Calculate the index for this bar in the day's vector
-    size_t index = BarsConstants::timeToIndex(time);
+    int index = BarUtils::barIndex(tf, time);
 
     QWriteLocker locker(&m_barCacheRwLock);
 
-    QVector<Bar>& dayVector = getOrCreateDayVector(date);
+    QVector<Bar>& dayVector = getOrCreateDayVector(tf, date);
 
     // Log when overwriting existing bar slots
     if (bar.getBarStatus() == Bar::BarStatus::Closed)
@@ -457,7 +504,7 @@ void BarCache::storeBarInCache(const Bar& bar)
     }
 }
 
-void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector<Bar>>& bars)
+void BarCache::storeBarsInCache(TimeFrame tf, const QDate& date, const std::shared_ptr<QVector<Bar>>& bars)
 {
     OBJ_ASSUME_FALSE(bars->isEmpty());
 
@@ -469,7 +516,7 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
         {
             // Past day - thinly traded stocks may have many empty minutes,
             // so only assert upper bound. Zero bars is caught by ASSUME_FALSE above.
-            OBJ_ASSUME_LTE(bars->size(), BarsConstants::MINUTE_BARS_PER_DAY);
+            OBJ_ASSUME_LTE(bars->size(), BarUtils::barsPerDay(tf));
         }
         else
         {
@@ -477,8 +524,8 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
             OBJ_ASSUME_LTE(bars->size(),
                            static_cast<qsizetype>(
                                MainApp::getCurrentAppTime().time() > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION
-                                   ? BarsConstants::MINUTE_BARS_PER_DAY
-                                   : BarsConstants::timeToIndex(MainApp::getCurrentAppTime().time()) + 1));
+                                   ? BarUtils::barsPerDay(tf)
+                                   : BarUtils::barIndex(tf, MainApp::getCurrentAppTime().time()) + 1));
         }
     }
 
@@ -488,27 +535,28 @@ void BarCache::storeBarsInCache(const QDate& date, const std::shared_ptr<QVector
 
     QWriteLocker locker(&m_barCacheRwLock);
 
-    if (bars->size() == BarsConstants::MINUTE_BARS_PER_DAY)
+    if (bars->size() == BarUtils::barsPerDay(tf))
     {
         // Full day
-        m_barCacheByDay.insert(date, *bars);
+        m_barCacheByTimeFrame[tf].insert(date, *bars);
 
         DEBUG << "Inserted full day in cache for" << date;
     }
     else
     {
-        // Partial day - need to create day vector if it doesn't exist
-        if (!m_barCacheByDay.contains(date))
+        // Partial day - slot bars into the pre-allocated day vector
+        // getOrCreateDayVector is called inside the write lock (locker already held above)
+        auto& dayMap = m_barCacheByTimeFrame[tf];
+        if (!dayMap.contains(date))
         {
-            m_barCacheByDay[date] = QVector<Bar>(BarsConstants::MINUTE_BARS_PER_DAY);
+            dayMap[date] = QVector<Bar>(BarUtils::barsPerDay(tf));
         }
-
-        QVector<Bar>& dayVector = m_barCacheByDay[date];
+        QVector<Bar>& dayVector = dayMap[date];
 
         // Insert/overwrite bars into existing day vector
         for (const Bar& bar: *bars)
         {
-            size_t index = BarsConstants::timeToIndex(bar.getTimeStamp().time());
+            int index = BarUtils::barIndex(tf, bar.getTimeStamp().time());
             dayVector[index] = bar;
         }
 

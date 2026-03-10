@@ -371,4 +371,35 @@ class ChartToolbar : public QWidget
      * - Paused: Day ENABLED, Time ENABLED, Speed ENABLED, Play ENABLED
      */
     void updateUIControlStates();
+
+    /**
+     * @brief Updates the replay time edit step size based on current timeframe.
+     *
+     * Adjusts granularity so up/down arrows increment by the appropriate amount:
+     * - 1m: 1 minute steps
+     * - 5m: 5 minute steps
+     * - 15m: 15 minute steps
+     * - 30m: 30 minute steps
+     * - 1h: 1 hour steps
+     * - 4h: 4 hour steps (currently 1h for simplicity)
+     */
+    void updateTimeEditStep();
+
+    /**
+     * @brief Calculates stepped time based on direction of change.
+     * @param oldTime Previous time value.
+     * @param newTime New time value from user input.
+     * @return Time stepped by the appropriate timeframe amount.
+     */
+    QTime calculateSteppedTime(const QTime& oldTime, const QTime& newTime) const;
+
+    /**
+     * @brief Snaps time to the nearest valid step for the current timeframe.
+     * @param time The time to snap.
+     * @return Time aligned to the current timeframe granularity.
+     */
+    QTime snapTimeToStep(const QTime& time) const;
+
+    TimeFrame m_currentTimeFrame = TimeFrame::ONE_MINUTE; ///< Current timeframe for step calculations
+    QTime m_lastReplayTime;                               ///< Previous time for detecting step direction
 };

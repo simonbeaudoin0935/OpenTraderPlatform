@@ -81,4 +81,3 @@ class StrategyQuickView : public QWidget
     /// @brief Find the strategy ID that owns the given tree item (strategy or child).
     QString strategyIDForItem(QTreeWidgetItem* item) const;
 };
-

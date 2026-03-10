@@ -16,6 +16,7 @@
 #include "StrategyOrderValidator.h"
 #include "StrategyConfig.h"
 #include "Balance.h"
+#include "TimeFrame.h"
 
 /// @brief Log level enumeration
 enum class LogLevel
@@ -153,10 +154,14 @@ class StrategySDK : public QObject
     /// @param day Trading day (in America/New_York timezone)
     /// @param first Start time of bar range (in America/New_York timezone)
     /// @param last End time of bar range (in America/New_York timezone)
+    /// @param tf Timescale of bars to retrieve (default: ONE_MINUTE)
     /// @return Shared vector of bars, or empty vector on error
     [[nodiscard]]
-    std::shared_ptr<QVector<Bar>>
-    getHistoricalBars(const QString& symbol, const QDate& day, const QTime& first, const QTime& last);
+    std::shared_ptr<QVector<Bar>> getHistoricalBars(const QString& symbol,
+                                                    const QDate& day,
+                                                    const QTime& first,
+                                                    const QTime& last,
+                                                    TimeFrame tf = TimeFrame::ONE_MINUTE);
 
     /// @brief Get current application time (thread-safe)
     /// Returns the current time in America/New_York timezone

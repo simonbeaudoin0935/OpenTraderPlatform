@@ -28,10 +28,7 @@ StrategyLogWidget::StrategyLogWidget(MainAlgo* p_mainAlgo, QWidget* parent)
             QOverload<int>::of(&QComboBox::currentIndexChanged),
             this,
             &StrategyLogWidget::onLevelFilterChanged);
-    connect(m_logDisplay->verticalScrollBar(),
-            &QScrollBar::valueChanged,
-            this,
-            &StrategyLogWidget::onScrolled);
+    connect(m_logDisplay->verticalScrollBar(), &QScrollBar::valueChanged, this, &StrategyLogWidget::onScrolled);
     connect(m_closeButton, &QPushButton::clicked, this, &StrategyLogWidget::closeRequested);
 }
 
@@ -73,41 +70,40 @@ void StrategyLogWidget::setupUI()
 void StrategyLogWidget::setupStyles()
 {
     // Header background matches the logging tab aesthetic
-    setStyleSheet(
-        "StrategyLogWidget {"
-        "  background-color: #1A1A1A;"
-        "  border-left: 1px solid #3A3A3A;"
-        "}"
-        "QLabel {"
-        "  color: #AAAAAA;"
-        "  font-size: 11px;"
-        "  font-weight: bold;"
-        "}"
-        "QComboBox {"
-        "  background-color: #2D2D2D;"
-        "  color: #CCCCCC;"
-        "  border: 1px solid #3D3D3D;"
-        "  font-size: 10px;"
-        "  padding: 1px 4px;"
-        "}"
-        "QPushButton {"
-        "  background-color: #3D3D3D;"
-        "  color: #AAAAAA;"
-        "  border: none;"
-        "  font-size: 11px;"
-        "  font-weight: bold;"
-        "  border-radius: 2px;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: #E05050;"
-        "  color: white;"
-        "}"
-        "QTextEdit {"
-        "  background-color: #111111;"
-        "  color: #CCCCCC;"
-        "  border: none;"
-        "  selection-background-color: #2C539E;"
-        "}");
+    setStyleSheet("StrategyLogWidget {"
+                  "  background-color: #1A1A1A;"
+                  "  border-left: 1px solid #3A3A3A;"
+                  "}"
+                  "QLabel {"
+                  "  color: #AAAAAA;"
+                  "  font-size: 11px;"
+                  "  font-weight: bold;"
+                  "}"
+                  "QComboBox {"
+                  "  background-color: #2D2D2D;"
+                  "  color: #CCCCCC;"
+                  "  border: 1px solid #3D3D3D;"
+                  "  font-size: 10px;"
+                  "  padding: 1px 4px;"
+                  "}"
+                  "QPushButton {"
+                  "  background-color: #3D3D3D;"
+                  "  color: #AAAAAA;"
+                  "  border: none;"
+                  "  font-size: 11px;"
+                  "  font-weight: bold;"
+                  "  border-radius: 2px;"
+                  "}"
+                  "QPushButton:hover {"
+                  "  background-color: #E05050;"
+                  "  color: white;"
+                  "}"
+                  "QTextEdit {"
+                  "  background-color: #111111;"
+                  "  color: #CCCCCC;"
+                  "  border: none;"
+                  "  selection-background-color: #2C539E;"
+                  "}");
 }
 
 void StrategyLogWidget::setStrategy(const QString& p_strategyID, const QString& p_strategyName)
@@ -169,10 +165,10 @@ void StrategyLogWidget::onRefreshTimer()
     for (int i = firstNew; i < logs.size(); ++i)
     {
         const auto& msg = logs[i];
-        const QString color     = levelToHtmlColor(msg.level);
-        const QString levelStr  = levelToString(msg.level);
+        const QString color = levelToHtmlColor(msg.level);
+        const QString levelStr = levelToString(msg.level);
         const QString timestamp = msg.timestamp.toString("hh:mm:ss.zzz");
-        const QString safeMsg   = msg.message.toHtmlEscaped();
+        const QString safeMsg = msg.message.toHtmlEscaped();
 
         m_logDisplay->append(
             QString("<span style='color:%1'>[%2] %3: %4</span>").arg(color, timestamp, levelStr, safeMsg));
@@ -199,18 +195,18 @@ QString StrategyLogWidget::levelToString(QtMsgType level)
 {
     switch (level)
     {
-        case QtDebugMsg:
-            return "DEBUG";
-        case QtInfoMsg:
-            return "INFO";
-        case QtWarningMsg:
-            return "WARN";
-        case QtCriticalMsg:
-            return "CRIT";
-        case QtFatalMsg:
-            return "FATAL";
-        default:
-            return "???";
+    case QtDebugMsg:
+        return "DEBUG";
+    case QtInfoMsg:
+        return "INFO";
+    case QtWarningMsg:
+        return "WARN";
+    case QtCriticalMsg:
+        return "CRIT";
+    case QtFatalMsg:
+        return "FATAL";
+    default:
+        return "???";
     }
 }
 
@@ -218,17 +214,17 @@ QString StrategyLogWidget::levelToHtmlColor(QtMsgType level)
 {
     switch (level)
     {
-        case QtDebugMsg:
-            return "#00CED1"; // Cyan   — matches Logging.cpp
-        case QtInfoMsg:
-            return "#32CD32"; // Green
-        case QtWarningMsg:
-            return "#FFD700"; // Yellow
-        case QtCriticalMsg:
-            return "#FF4500"; // Red-orange
-        case QtFatalMsg:
-            return "#FF00FF"; // Magenta
-        default:
-            return "#CCCCCC"; // Light grey fallback
+    case QtDebugMsg:
+        return "#00CED1"; // Cyan   — matches Logging.cpp
+    case QtInfoMsg:
+        return "#32CD32"; // Green
+    case QtWarningMsg:
+        return "#FFD700"; // Yellow
+    case QtCriticalMsg:
+        return "#FF4500"; // Red-orange
+    case QtFatalMsg:
+        return "#FF00FF"; // Magenta
+    default:
+        return "#CCCCCC"; // Light grey fallback
     }
 }
