@@ -1512,6 +1512,21 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
                              Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
+    // Forward higher-TF aggregator events so the chart can show live higher-TF candles
+    connected = connect(&currentDisplayedStockInstrument->m_barAggregator,
+                        &BarAggregator::barUpdated,
+                        this,
+                        &MainAlgo::onAggregatorBarUpdated,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(&currentDisplayedStockInstrument->m_barAggregator,
+                        &BarAggregator::barClosed,
+                        this,
+                        &MainAlgo::onAggregatorBarClosed,
+                        Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
     connected = connect(&currentDisplayedStockInstrument->m_level2Receiver,
                         &Level2Receiver::receivedNewLevel2,
                         this,
