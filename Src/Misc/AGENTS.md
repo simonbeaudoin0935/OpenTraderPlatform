@@ -271,6 +271,26 @@ Settings organized by component:
 - `BarCache/*` - Cache configuration
 - `Auth/*` - Authentication preferences
 - `Logging/*` - Log configuration
+- `Config/AutoTF/*` - Auto-timeframe threshold settings (see below)
+
+**Auto-Timeframe Settings Keys**:
+```ini
+# AppState.ini structure for auto-TF thresholds
+[Config]
+AutoTF/1m/Lower=30
+AutoTF/1m/Upper=150
+AutoTF/5m/Lower=120
+AutoTF/5m/Upper=480
+AutoTF/15m/Lower=240
+AutoTF/15m/Upper=960
+AutoTF/30m/Lower=480
+AutoTF/30m/Upper=1440
+AutoTF/1h/Lower=720
+AutoTF/1h/Upper=2880
+AutoTF/4h/Lower=1440
+AutoTF/4h/Upper=10080
+```
+These thresholds (in minutes) control when the chart auto-switches timeframes based on visible time range. Configurable in the GUI Config tab.
 
 ### SecureStorage.h/cpp
 
