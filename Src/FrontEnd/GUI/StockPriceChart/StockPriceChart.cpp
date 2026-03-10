@@ -251,14 +251,23 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
                     QTime startTime = chartToolbar->getReplayStartTime();
                     ReplayEngine::PlaybackSpeed speed = chartToolbar->getReplaySpeed();
 
-                    if (MainApp::getInstance()->isReplayPaused())
+                    // Use the toolbar's own ReplayState (GUI thread) to determine
+                    // whether to resume or start fresh. Do NOT use isReplayPaused()
+                    // which reads MainAlgo state cross-thread — it returns false when
+                    // enterReplayModePaused is still queued but not yet executed,
+                    // causing a double-enter race that fires the m_replayEngine==null ASSERT.
+                    const ChartToolbar::ReplayState toolbarState = chartToolbar->getReplayState();
+                    const bool shouldResume = (toolbarState == ChartToolbar::ReplayState::Paused ||
+                                               toolbarState == ChartToolbar::ReplayState::PreloadingPaused);
+
+                    if (shouldResume)
                     {
-                        // Resume from pause
+                        // Resume an existing (or preloading) session
                         MainApp::getInstance()->resumeReplayPlayback();
                     }
                     else if (date.isValid())
                     {
-                        // Start new playback
+                        // Start new playback (no engine created yet)
                         MainApp::getInstance()->startReplayPlayback(date, startTime, speed);
                     }
                     else
