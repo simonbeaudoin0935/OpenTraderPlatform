@@ -28,7 +28,17 @@ class ShortcutSettings : public QObject
         ExecuteSellToCoverOrder,
         CancelAllOrders,
         ToggleReplayPlayPause,
-        ToggleReplayMode
+        ToggleReplayMode,
+        // Timescale shortcuts
+        TimeFrame1m,
+        TimeFrame5m,
+        TimeFrame15m,
+        TimeFrame30m,
+        TimeFrame1h,
+        TimeFrame4h,
+        TimeFrame1d,
+        TimeFrame1w,
+        TimeFrame1M
     };
     Q_ENUM(ShortcutId)
 

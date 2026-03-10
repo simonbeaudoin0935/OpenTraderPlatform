@@ -48,6 +48,33 @@ QString ShortcutSettings::getSettingsKey(ShortcutId p_id) const
     case ToggleReplayMode:
         key += "ToggleReplayMode";
         break;
+    case TimeFrame1m:
+        key += "TimeFrame1m";
+        break;
+    case TimeFrame5m:
+        key += "TimeFrame5m";
+        break;
+    case TimeFrame15m:
+        key += "TimeFrame15m";
+        break;
+    case TimeFrame30m:
+        key += "TimeFrame30m";
+        break;
+    case TimeFrame1h:
+        key += "TimeFrame1h";
+        break;
+    case TimeFrame4h:
+        key += "TimeFrame4h";
+        break;
+    case TimeFrame1d:
+        key += "TimeFrame1d";
+        break;
+    case TimeFrame1w:
+        key += "TimeFrame1w";
+        break;
+    case TimeFrame1M:
+        key += "TimeFrame1M";
+        break;
     }
     return key;
 }
@@ -74,6 +101,24 @@ QString ShortcutSettings::getShortcutName(ShortcutId p_id) const
         return "Toggle Replay Play/Pause";
     case ToggleReplayMode:
         return "Toggle Replay Mode";
+    case TimeFrame1m:
+        return "Timescale 1 minute";
+    case TimeFrame5m:
+        return "Timescale 5 minutes";
+    case TimeFrame15m:
+        return "Timescale 15 minutes";
+    case TimeFrame30m:
+        return "Timescale 30 minutes";
+    case TimeFrame1h:
+        return "Timescale 1 hour";
+    case TimeFrame4h:
+        return "Timescale 4 hours";
+    case TimeFrame1d:
+        return "Timescale 1 day";
+    case TimeFrame1w:
+        return "Timescale 1 week";
+    case TimeFrame1M:
+        return "Timescale 1 month";
     default:
         return "Unknown";
     }
@@ -101,6 +146,24 @@ QKeySequence ShortcutSettings::getDefaultShortcut(ShortcutId p_id) const
         return QKeySequence(Qt::Key_Space);
     case ToggleReplayMode:
         return QKeySequence("r");
+    case TimeFrame1m:
+        return QKeySequence("1");
+    case TimeFrame5m:
+        return QKeySequence("2");
+    case TimeFrame15m:
+        return QKeySequence("3");
+    case TimeFrame30m:
+        return QKeySequence("4");
+    case TimeFrame1h:
+        return QKeySequence("5");
+    case TimeFrame4h:
+        return QKeySequence("6");
+    case TimeFrame1d:
+        return QKeySequence("7");
+    case TimeFrame1w:
+        return QKeySequence("8");
+    case TimeFrame1M:
+        return QKeySequence("9");
     default:
         return QKeySequence();
     }
@@ -192,5 +255,14 @@ QList<ShortcutSettings::ShortcutId> ShortcutSettings::getAllShortcutIds() const
             ExecuteSellToCoverOrder,
             CancelAllOrders,
             ToggleReplayPlayPause,
-            ToggleReplayMode};
+            ToggleReplayMode,
+            TimeFrame1m,
+            TimeFrame5m,
+            TimeFrame15m,
+            TimeFrame30m,
+            TimeFrame1h,
+            TimeFrame4h,
+            TimeFrame1d,
+            TimeFrame1w,
+            TimeFrame1M};
 }

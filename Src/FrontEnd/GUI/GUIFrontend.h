@@ -111,6 +111,17 @@ class GUIFrontend : public FrontEnd
     QShortcut* m_toggleReplayPlayPauseShortcut; // Toggle replay play/pause shortcut
     QShortcut* m_toggleReplayModeShortcut;      // Toggle replay mode on/off shortcut
 
+    // Timescale shortcuts
+    QShortcut* m_timeFrame1mShortcut;
+    QShortcut* m_timeFrame5mShortcut;
+    QShortcut* m_timeFrame15mShortcut;
+    QShortcut* m_timeFrame30mShortcut;
+    QShortcut* m_timeFrame1hShortcut;
+    QShortcut* m_timeFrame4hShortcut;
+    QShortcut* m_timeFrame1dShortcut;
+    QShortcut* m_timeFrame1wShortcut;
+    QShortcut* m_timeFrame1MShortcut;
+
     qsizetype TSClientDataUsage = 0;
     qsizetype m_dbClientDataUsage = 0;
     qint64 memoryUsage = 0;

@@ -129,6 +129,26 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
         connect(m_toggleReplayModeShortcut, &QShortcut::activated, [this]() { onToggleReplayMode(); });
     OBJ_ASSUME_TRUE(toggleReplayModeConnection);
 
+    // Timescale shortcuts (1-9 keys)
+    auto createTimeFrameShortcut = [this, &shortcutSettings](ShortcutSettings::ShortcutId id, TimeFrame tf)
+    {
+        QShortcut* shortcut = new QShortcut(shortcutSettings.getShortcut(id), m_mainWindow);
+        auto conn = connect(shortcut, &QShortcut::activated, [this, tf]()
+                            { ui->priceChart->toolbar()->setCurrentTimeFrame(tf); });
+        OBJ_ASSUME_TRUE(conn);
+        return shortcut;
+    };
+
+    m_timeFrame1mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame1m, TimeFrame::ONE_MINUTE);
+    m_timeFrame5mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame5m, TimeFrame::FIVE_MINUTES);
+    m_timeFrame15mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame15m, TimeFrame::FIFTEEN_MINUTES);
+    m_timeFrame30mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame30m, TimeFrame::THIRTY_MINUTES);
+    m_timeFrame1hShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame1h, TimeFrame::ONE_HOUR);
+    m_timeFrame4hShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame4h, TimeFrame::FOUR_HOURS);
+    m_timeFrame1dShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame1d, TimeFrame::ONE_DAY);
+    m_timeFrame1wShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame1w, TimeFrame::ONE_WEEK);
+    m_timeFrame1MShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame1M, TimeFrame::ONE_MONTH);
+
     // Connect to shortcut changes to update active shortcuts
     auto shortcutChangeConnection = connect(&shortcutSettings,
                                             &ShortcutSettings::shortcutChanged,
@@ -1579,6 +1599,43 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
         Q_CHECK_PTR(m_toggleReplayModeShortcut);
         m_toggleReplayModeShortcut->setKey(p_newSequence);
         qInfo() << "Updated toggle replay mode shortcut to:" << p_newSequence.toString();
+        break;
+
+    case ShortcutSettings::TimeFrame1m:
+        Q_CHECK_PTR(m_timeFrame1mShortcut);
+        m_timeFrame1mShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame5m:
+        Q_CHECK_PTR(m_timeFrame5mShortcut);
+        m_timeFrame5mShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame15m:
+        Q_CHECK_PTR(m_timeFrame15mShortcut);
+        m_timeFrame15mShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame30m:
+        Q_CHECK_PTR(m_timeFrame30mShortcut);
+        m_timeFrame30mShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame1h:
+        Q_CHECK_PTR(m_timeFrame1hShortcut);
+        m_timeFrame1hShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame4h:
+        Q_CHECK_PTR(m_timeFrame4hShortcut);
+        m_timeFrame4hShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame1d:
+        Q_CHECK_PTR(m_timeFrame1dShortcut);
+        m_timeFrame1dShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame1w:
+        Q_CHECK_PTR(m_timeFrame1wShortcut);
+        m_timeFrame1wShortcut->setKey(p_newSequence);
+        break;
+    case ShortcutSettings::TimeFrame1M:
+        Q_CHECK_PTR(m_timeFrame1MShortcut);
+        m_timeFrame1MShortcut->setKey(p_newSequence);
         break;
     }
 }
