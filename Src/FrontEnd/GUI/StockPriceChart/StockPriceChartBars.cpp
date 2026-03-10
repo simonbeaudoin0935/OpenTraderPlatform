@@ -398,11 +398,8 @@ void StockPriceChart::drawFixedBackgroundRect(const QDate& date,
     qreal sessionStartIndex = static_cast<qreal>(getIndexForTimestamp(rangeStartDT));
     qreal sessionEndIndex = static_cast<qreal>(getIndexForTimestamp(rangeEndDT));
 
-    // Extend by half a candle width on each side so the background hugs the edge candles.
-    // For 5m bars width=4.5 the half-width is 2.5; for 1m it stays 0.5 (as before).
-    const qreal halfCandleWidth = BarUtils::minutesPerBar(m_displayTimeFrame) * 0.5;
-    sessionStartIndex -= halfCandleWidth;
-    sessionEndIndex += halfCandleWidth;
+    sessionStartIndex -= 0.5; // Make start index inclusive of the first candle
+    sessionEndIndex += 0.5;   // Make end index inclusive of the last candle
 
     // Create rectangle with fixed coordinates
     QCPItemRect* rect = new QCPItemRect(m_customPlot);
