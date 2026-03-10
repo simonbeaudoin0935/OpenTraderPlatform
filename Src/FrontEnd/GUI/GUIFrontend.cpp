@@ -1803,9 +1803,9 @@ void GUIFrontend::onTimeFrameChanged(TimeFrame tf)
     }
 
     // Clear the chart and let it re-request bars with the new timescale.
-    // Preserve Y range so candles don't get squished after the reload.
+    // Preserve X and Y ranges so the view doesn't jump after the reload.
     ui->priceChart->setDisplayTimeFrame(tf);
-    ui->priceChart->preserveCurrentYRange();
+    ui->priceChart->preserveCurrentRanges();
     ui->priceChart->clearChart();
 }
 

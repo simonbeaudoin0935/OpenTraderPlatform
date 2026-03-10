@@ -289,6 +289,16 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
             this,
             [](ReplayEngine::PlaybackSpeed speed) { MainApp::getInstance()->setReplaySpeed(speed); });
 
+    // When auto-timeframe is enabled, immediately check if we need to switch
+    connect(chartToolbar,
+            &ChartToolbar::autoTimeFrameChanged,
+            this,
+            [this](bool enabled)
+            {
+                if (enabled)
+                    checkAutoTimeFrame();
+            });
+
     // Load wheel zoom ratio from settings
     Q_CHECK_PTR(appStateSettings);
     qreal savedRatio = appStateSettings->value("Chart/WheelZoomRatio", 1.0).toReal();
@@ -329,8 +339,9 @@ void StockPriceChart::setDisplayTimeFrame(TimeFrame tf)
     m_volumeNeg->setWidth(w);
 }
 
-void StockPriceChart::preserveCurrentYRange()
+void StockPriceChart::preserveCurrentRanges()
 {
+    m_preservedXRange = m_customPlot->xAxis->range();
     m_preservedYRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
 }
 
@@ -395,8 +406,16 @@ void StockPriceChart::initializeTimeAnchor()
     m_volumeAxisRect->axis(QCPAxis::atBottom)->setTickLabels(true);
     m_customPlot->xAxis->setTicker(indexToTimeTicker);
 
-    // Center view on index 0 with ~60 bars left, ~30 bars right
-    m_customPlot->xAxis->setRange(-60, 30);
+    // Center view on index 0 with ~60 bars left, ~30 bars right (unless preserved)
+    if (m_preservedXRange.has_value())
+    {
+        m_customPlot->xAxis->setRange(m_preservedXRange.value());
+        m_preservedXRange.reset();
+    }
+    else
+    {
+        m_customPlot->xAxis->setRange(-60, 30);
+    }
 
     // Start the current time line
     m_currentTimeLine->setVisible(true);
