@@ -55,6 +55,11 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     // Compute chart index from bar timestamp
     const int index = ChartTimeUtils::timestampToChartIndex(bar.getTimeStamp(), m_index0Timestamp);
 
+    // QCustomPlot centers candlesticks on their key. To align the left edge of the candle
+    // with the bar's open time, we offset the key by half the candle width.
+    const double keyOffset = BarUtils::minutesPerBar(m_displayTimeFrame) / 2.0;
+    const double displayKey = index + keyOffset;
+
     indexToBar[index] = bar;
     timestampToIndex[bar.getTimeStamp()] = index;
     m_latestBar = bar;
@@ -92,11 +97,11 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
             else
             {
                 // Bar flipped direction (rare) — removeAfter on the old series, add to new
-                const double removeKey = static_cast<double>(index) - 0.5;
+                const double removeKey = displayKey - 0.5;
                 (m_chartLiveBarIsUp ? m_volumePos : m_volumeNeg)->data()->removeAfter(removeKey);
                 (barIsUp ? m_volumePos : m_volumeNeg)
                     ->data()
-                    ->add({static_cast<double>(index), static_cast<double>(volume)});
+                    ->add({displayKey, static_cast<double>(volume)});
                 m_chartLiveBarIsUp = barIsUp;
             }
         }
@@ -104,7 +109,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
         {
             // --- New bar index: just append (O(1) since key > all existing keys) ---
             QCPFinancialData candleData;
-            candleData.key = index;
+            candleData.key = displayKey;
             candleData.open = bar.getOpen();
             candleData.high = bar.getHigh();
             candleData.low = bar.getLow();
@@ -113,7 +118,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
             (barIsUp ? m_volumePos : m_volumeNeg)
                 ->data()
-                ->add({static_cast<double>(index), static_cast<double>(volume)});
+                ->add({displayKey, static_cast<double>(volume)});
 
             m_chartLiveBarIndex = index;
             m_chartLiveBarIsUp = barIsUp;
@@ -150,6 +155,9 @@ void StockPriceChart::updateCandlestickData()
     // Convert our bar data to QCPFinancialData format
     QVector<QCPFinancialData> financialData;
 
+    // QCustomPlot centers candlesticks on their key. Offset by half width to align left edge.
+    const double keyOffset = BarUtils::minutesPerBar(m_displayTimeFrame) / 2.0;
+
     for (auto it = indexToBar.begin(); it != indexToBar.end(); ++it)
     {
         const int index = it.key();
@@ -160,7 +168,7 @@ void StockPriceChart::updateCandlestickData()
         if (status == Bar::BarStatus::Open || status == Bar::BarStatus::Closed)
         {
             QCPFinancialData barData;
-            barData.key = index; // Use index as the x-axis value
+            barData.key = index + keyOffset;
             barData.open = bar.getOpen();
             barData.high = bar.getHigh();
             barData.low = bar.getLow();
@@ -181,6 +189,9 @@ void StockPriceChart::updateVolumeData()
     m_volumePos->data()->clear();
     m_volumeNeg->data()->clear();
 
+    // QCustomPlot centers bars on their key. Offset by half width to align left edge.
+    const double keyOffset = BarUtils::minutesPerBar(m_displayTimeFrame) / 2.0;
+
     for (auto it = indexToBar.begin(); it != indexToBar.end(); ++it)
     {
         const int index = it.key();
@@ -193,15 +204,16 @@ void StockPriceChart::updateVolumeData()
             // Determine if bar is up or down based on close vs open
             bool isUp = bar.getClose() >= bar.getOpen();
             qint64 volume = bar.getTotalVolume();
+            const double displayKey = index + keyOffset;
 
             // Add to appropriate bar series
             if (isUp)
             {
-                m_volumePos->addData(index, volume);
+                m_volumePos->addData(displayKey, volume);
             }
             else
             {
-                m_volumeNeg->addData(index, volume);
+                m_volumeNeg->addData(displayKey, volume);
             }
         }
     }
@@ -444,9 +456,16 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
 
     DEBUG << "Received missing bars response with" << barsPtr->size() << "bars";
 
-    // Sanity check: semaphore should be acquired (count == 0) when we receive the response
-    OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.available() == 0);
-    m_missingBarsRequestSemaphore.release();
+    // Check if this response is still expected (no timescale switch happened mid-request).
+    // If the token changed, this is a stale response from a cancelled request - ignore it.
+    uint64_t expectedToken = m_currentMissingBarsRequestToken.load();
+    if (expectedToken == 0)
+    {
+        DEBUG << "Ignoring stale missing bars response (request was cancelled)";
+        return;
+    }
+    // Mark request as completed
+    m_currentMissingBarsRequestToken.store(0);
 
     OBJ_ASSUME_FALSE(barsPtr->isEmpty());
 
@@ -522,11 +541,17 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
  */
 void StockPriceChart::onRequestedMissingBarsFailed()
 {
-    DEBUG << "Missing bars request failed, releasing semaphore";
+    DEBUG << "Missing bars request failed";
 
-    // Sanity check: semaphore should be acquired (count == 0) when we receive the failure notification
-    OBJ_ASSUME_TRUE(m_missingBarsRequestSemaphore.available() == 0);
-    m_missingBarsRequestSemaphore.release();
+    // Check if this failure is still relevant (no timescale switch happened mid-request)
+    uint64_t expectedToken = m_currentMissingBarsRequestToken.load();
+    if (expectedToken == 0)
+    {
+        DEBUG << "Ignoring stale missing bars failure (request was cancelled)";
+        return;
+    }
+    // Mark request as completed
+    m_currentMissingBarsRequestToken.store(0);
 }
 
 /**
@@ -578,8 +603,8 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 {
     Q_UNUSED(viewEndTime);
 
-    // Try to acquire the semaphore - if it fails, a request is already in progress
-    if (!m_missingBarsRequestSemaphore.tryAcquire())
+    // Check if a request is already in progress (token != 0 means request pending)
+    if (m_currentMissingBarsRequestToken.load() != 0)
     {
         DEBUG << "Missing bars request already in progress, skipping";
         return;
@@ -587,7 +612,6 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 
     if (!m_index0Timestamp.isValid())
     {
-        m_missingBarsRequestSemaphore.release();
         return;
     }
 
@@ -618,8 +642,7 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 
     if (viewStartTimeRounded >= firstBarTime)
     {
-        // View is within available bars - release semaphore before returning
-        m_missingBarsRequestSemaphore.release();
+        // View is within available bars - no request needed
         return;
     }
 
@@ -656,6 +679,9 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 
     OBJ_ASSUME_LT(requestStartTime, requestEndTime);
 
+    // Mark request as in-flight by setting a non-zero token
+    m_currentMissingBarsRequestToken.fetch_add(1);
+
     emit requestMissingBars(requestStartTime, requestEndTime);
 }
 
@@ -685,13 +711,8 @@ void StockPriceChart::clearSymbol()
     m_initialYAxisRangeSet = false;
     m_preservedYRange.reset(); // Discard any saved range — new symbol, fresh start
 
-    // Reset semaphore to available state (1) for new symbol
-    // If it was acquired (count == 0), release it; if already available, do nothing
-    if (m_missingBarsRequestSemaphore.available() == 0)
-    {
-        DEBUG << "Releasing semaphore during clearSymbol - previous request was in-flight";
-        m_missingBarsRequestSemaphore.release();
-    }
+    // Cancel any in-flight missing bars request (stale responses will be ignored)
+    m_currentMissingBarsRequestToken.store(0);
 
     m_customPlot->xAxis->setRange(0, 30);
     m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(0, 100);
@@ -734,16 +755,18 @@ void StockPriceChart::clearChart(bool p_replot)
     startedReceivingRealtimeBars = false;
     m_initialYAxisRangeSet = false;
 
-    // Reset semaphore to available state
-    if (m_missingBarsRequestSemaphore.available() == 0)
-    {
-        DEBUG << "Releasing semaphore during clearChart - previous request was in-flight";
-        m_missingBarsRequestSemaphore.release();
-    }
+    // Cancel any in-flight missing bars request (stale responses will be ignored)
+    m_currentMissingBarsRequestToken.store(0);
 
-    // Reset view range
-    m_customPlot->xAxis->setRange(0, 30);
-    m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(0, 100);
+    // Reset view range (unless preserved for timescale switch)
+    if (!m_preservedXRange.has_value())
+    {
+        m_customPlot->xAxis->setRange(0, 30);
+    }
+    if (!m_preservedYRange.has_value())
+    {
+        m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(0, 100);
+    }
 
     if (p_replot)
         m_customPlot->replot();

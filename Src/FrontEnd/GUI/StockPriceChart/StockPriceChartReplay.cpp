@@ -199,10 +199,8 @@ void StockPriceChart::updateCurrentTimeLine()
     // Each minute is 1 index unit, so each second is 1/60.0 of an index
     double currentIndex = secondsDiff / 60.0;
 
-    // There is a particularity with how the index and bar printing works;
-    // a bar is placed at an index, but half of the bar is before and half after the index.
-    // To center the line within the current minute, we subtract 0.5
-    currentIndex -= 0.5; // Center the line within the current minute
+    // No offset needed - candles are drawn with their left edge at bar open time,
+    // so the timeline position naturally aligns with the current time within the candle.
 
     // Get the current Y-axis range for the line
     QCPRange yRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();

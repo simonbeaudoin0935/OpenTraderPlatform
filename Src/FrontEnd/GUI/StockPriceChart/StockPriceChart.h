@@ -6,8 +6,8 @@
 #include <QMap>
 #include <QLoggingCategory>
 #include <QVBoxLayout>
-#include <QSemaphore>
 #include <QTimer>
+#include <atomic>
 #include <functional>
 #include <optional>
 
@@ -153,11 +153,11 @@ class StockPriceChart : public QWidget
     void setReplayModeActive(bool active);
 
     /**
-     * @brief Snapshots the current Y-axis range into m_preservedYRange so that
-     *        the next clearChart() + bar reload restores it instead of auto-scaling.
+     * @brief Snapshots the current X and Y axis ranges so that
+     *        the next clearChart() + bar reload restores them instead of auto-scaling.
      * Call this immediately before clearChart() when switching timescale (not a full reset).
      */
-    void preserveCurrentYRange();
+    void preserveCurrentRanges();
 
     /**
      * @brief Updates the active display timescale and scales candlestick + volume bar widths.
@@ -340,9 +340,10 @@ class StockPriceChart : public QWidget
     // Timeframe selector widget
     ChartToolbar* chartToolbar;
 
-    // Binary semaphore to track if a missing bars request is in progress
-    // Initialized with count 1 (not acquired). Acquire before requesting, release when received.
-    QSemaphore m_missingBarsRequestSemaphore{1};
+    /// Request token for missing bars requests. Incremented on each new request.
+    /// When a response arrives, it's only processed if its token matches m_currentMissingBarsRequestToken.
+    /// This prevents stale responses (from cancelled requests due to rapid timescale switching) from being processed.
+    std::atomic<uint64_t> m_currentMissingBarsRequestToken{0};
 
     // Wheel zoom sensitivity ratio
     qreal wheelZoomRatio = 1.0;
@@ -357,15 +358,16 @@ class StockPriceChart : public QWidget
 
     bool startedReceivingRealtimeBars = false;
 
-    // Last auto-selected timescale — used to avoid re-triggering on every axis change
-    TimeFrame m_lastAutoTimeFrame = TimeFrame::ONE_MINUTE;
-
     /// True after first batch of historical bars sets Y-axis range (prevents resetting on subsequent loads)
     bool m_initialYAxisRangeSet = false;
 
     /// When set, the next initial Y-axis range computation is skipped and this range is used instead.
     /// Set by onReplayTimeChanged to preserve the user's zoom level across start-time changes.
     std::optional<QCPRange> m_preservedYRange;
+
+    /// When set, the next X-axis range setup is skipped and this range is used instead.
+    /// Set by preserveCurrentRanges() to preserve zoom level across timescale changes.
+    std::optional<QCPRange> m_preservedXRange;
 
     // ========== Order Visualization Members ==========
 
