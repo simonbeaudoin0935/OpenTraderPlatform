@@ -199,6 +199,16 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
                    this,
                    &MainAlgo::displayedStockReceivedNewBar);
 
+        disconnect(&currentDisplayedStockInstrument->m_barAggregator,
+                   &BarAggregator::barUpdated,
+                   this,
+                   &MainAlgo::onAggregatorBarUpdated);
+
+        disconnect(&currentDisplayedStockInstrument->m_barAggregator,
+                   &BarAggregator::barClosed,
+                   this,
+                   &MainAlgo::onAggregatorBarClosed);
+
         disconnect(&currentDisplayedStockInstrument->m_level2Receiver,
                    &Level2Receiver::receivedNewLevel2,
                    this,
@@ -239,6 +249,17 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             &BarReceiver::receivedNewBar,
             this,
             &MainAlgo::displayedStockReceivedNewBar);
+
+    // Forward BarAggregator higher-TF updates so the chart can show live higher-TF candles
+    connect(&currentDisplayedStockInstrument->m_barAggregator,
+            &BarAggregator::barUpdated,
+            this,
+            &MainAlgo::onAggregatorBarUpdated);
+
+    connect(&currentDisplayedStockInstrument->m_barAggregator,
+            &BarAggregator::barClosed,
+            this,
+            &MainAlgo::onAggregatorBarClosed);
 
     connect(&currentDisplayedStockInstrument->m_level2Receiver,
             &Level2Receiver::receivedNewLevel2,
@@ -617,10 +638,8 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
     OBJ_ASSUME_TRUE(connected);
 
     // Wire closed 1m bars → BarAggregator for higher-TF accumulation
-    connected = connect(&m_liveBarAccumulator,
-                        &LiveBarAccumulator::barClosed,
-                        &m_barAggregator,
-                        &BarAggregator::onNewBar);
+    connected =
+        connect(&m_liveBarAccumulator, &LiveBarAccumulator::barClosed, &m_barAggregator, &BarAggregator::onNewBar);
     OBJ_ASSUME_TRUE(connected);
 
     // Wire BarAggregator::barClosed → BarCache for higher-TF storage
@@ -945,6 +964,18 @@ void MainAlgo::onStrategyCrashNotified()
 
     // Now safely call StrategyManager::markStrategyFailed on the same thread
     m_strategyManager.markStrategyFailed(strategyID, errorMsg);
+}
+
+void MainAlgo::onAggregatorBarUpdated(TimeFrame tf, const Bar& bar)
+{
+    if (currentDisplayedStockInstrument != nullptr)
+        emit displayedStockAggregatorBarUpdated(currentDisplayedStockInstrument->symbol, tf, bar);
+}
+
+void MainAlgo::onAggregatorBarClosed(TimeFrame tf, const Bar& bar)
+{
+    if (currentDisplayedStockInstrument != nullptr)
+        emit displayedStockAggregatorBarClosed(currentDisplayedStockInstrument->symbol, tf, bar);
 }
 
 void MainAlgo::onReplayEndReached()

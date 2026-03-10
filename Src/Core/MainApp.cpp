@@ -219,6 +219,16 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
                      &FrontEnd::onCurrentHighlightedStockBarReceived);
 
     QObject::connect(mainAlgo,
+                     &MainAlgo::displayedStockAggregatorBarUpdated,
+                     appFrontend,
+                     &FrontEnd::onDisplayedStockAggregatorBarUpdated);
+
+    QObject::connect(mainAlgo,
+                     &MainAlgo::displayedStockAggregatorBarClosed,
+                     appFrontend,
+                     &FrontEnd::onDisplayedStockAggregatorBarClosed);
+
+    QObject::connect(mainAlgo,
                      &MainAlgo::displayedStockReceivedNewLevel2,
                      appFrontend,
                      &FrontEnd::onCurrentHighlightedReceivedNewLevel2);

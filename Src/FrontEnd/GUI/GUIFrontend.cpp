@@ -925,6 +925,25 @@ void GUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
 
 void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 {
+    // When showing a higher TF, 1m bars are not rendered directly — the aggregator
+    // path (onDisplayedStockAggregatorBar*) handles live candle updates instead.
+    if (m_currentTimeFrame != TimeFrame::ONE_MINUTE)
+        return;
+
+    ui->priceChart->addLiveBar(symbol, bar);
+}
+
+void GUIFrontend::onDisplayedStockAggregatorBarUpdated(QString symbol, TimeFrame tf, Bar bar)
+{
+    if (tf != m_currentTimeFrame)
+        return;
+    ui->priceChart->addLiveBar(symbol, bar);
+}
+
+void GUIFrontend::onDisplayedStockAggregatorBarClosed(QString symbol, TimeFrame tf, Bar bar)
+{
+    if (tf != m_currentTimeFrame)
+        return;
     ui->priceChart->addLiveBar(symbol, bar);
 }
 

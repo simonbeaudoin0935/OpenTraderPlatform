@@ -195,6 +195,14 @@ class MainAlgo final : public QObject
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
 
     /**
+     * @brief Signals emitted when the BarAggregator produces a higher-TF bar for the displayed stock.
+     * barUpdated: in-progress (open) bar tick; barClosed: completed bar.
+     * Thread context: Emitted from MainAlgo worker thread
+     */
+    void displayedStockAggregatorBarUpdated(QString symbol, TimeFrame tf, Bar bar);
+    void displayedStockAggregatorBarClosed(QString symbol, TimeFrame tf, Bar bar);
+
+    /**
      * @brief Signal emitted when the displayed stock receives a new Level 2 book snapshot
      * Thread context: Emitted from MainAlgo worker thread
      */
@@ -275,6 +283,10 @@ class MainAlgo final : public QObject
 
     // Handle replay end - pause heartbeat timers
     void onReplayEndReached();
+
+    // Forward higher-TF bar aggregator events to displayed-stock signals
+    void onAggregatorBarUpdated(TimeFrame tf, const Bar& bar);
+    void onAggregatorBarClosed(TimeFrame tf, const Bar& bar);
 
 
   private:
