@@ -1,6 +1,7 @@
 #include "StockPriceChart.h"
 #include "BarUtils.h"
 #include "Logging.h"
+#include "Misc/Settings.h"
 #include <QToolTip>
 
 #define LOGGING_CATEGORY ChartLog
@@ -371,30 +372,33 @@ void StockPriceChart::checkAutoTimeFrame()
 
     const int minutesVisible = static_cast<int>(m_customPlot->xAxis->range().size());
 
-    // Thresholds in MINUTES (not bars) to avoid oscillation when switching timeframes.
+    // Read thresholds from settings (with defaults) for each timeframe.
     // These define the ideal visible time range for each timeframe.
     // When we exceed the upper threshold, switch to a coarser TF.
     // When we go below the lower threshold, switch to a finer TF.
     auto getThresholdsForTimeFrame = [](TimeFrame tf) -> std::pair<int, int>
     {
-        // Returns {lowerMinutes, upperMinutes} - the comfortable range for this TF
-        switch (tf)
-        {
-        case TimeFrame::ONE_MINUTE:
-            return {30, 150}; // 30min to 2.5h feels good at 1m
-        case TimeFrame::FIVE_MINUTES:
-            return {120, 480}; // 2h to 8h feels good at 5m
-        case TimeFrame::FIFTEEN_MINUTES:
-            return {240, 960}; // 4h to 16h feels good at 15m
-        case TimeFrame::THIRTY_MINUTES:
-            return {480, 1440}; // 8h to 24h feels good at 30m
-        case TimeFrame::ONE_HOUR:
-            return {720, 2880}; // 12h to 2 days feels good at 1h
-        case TimeFrame::FOUR_HOURS:
-            return {1440, 10080}; // 1 day to 1 week feels good at 4h
-        default:
+        // Default thresholds (lower, upper) in minutes
+        static const QMap<TimeFrame, std::pair<int, int>> defaults = {
+            {TimeFrame::ONE_MINUTE, {30, 150}},
+            {TimeFrame::FIVE_MINUTES, {120, 480}},
+            {TimeFrame::FIFTEEN_MINUTES, {240, 960}},
+            {TimeFrame::THIRTY_MINUTES, {480, 1440}},
+            {TimeFrame::ONE_HOUR, {720, 2880}},
+            {TimeFrame::FOUR_HOURS, {1440, 10080}},
+        };
+
+        if (!defaults.contains(tf))
             return {0, INT_MAX}; // Don't auto-switch for daily+
-        }
+
+        auto defaultVals = defaults.value(tf);
+        QString tfKey = timeFrameToString(tf);
+
+        Q_CHECK_PTR(appStateSettings);
+        int lower = appStateSettings->value("Config/AutoTF/" + tfKey + "/Lower", defaultVals.first).toInt();
+        int upper = appStateSettings->value("Config/AutoTF/" + tfKey + "/Upper", defaultVals.second).toInt();
+
+        return {lower, upper};
     };
 
     const TimeFrame currentTf = chartToolbar->getCurrentTimeFrame();
@@ -411,10 +415,14 @@ void StockPriceChart::checkAutoTimeFrame()
     {
         DEBUG << "Auto-TF: switching from" << timeFrameToString(currentTf) << "to" << timeFrameToString(targetTf)
               << "(visible range:" << minutesVisible << "min, thresholds:" << lowerMins << "-" << upperMins << ")";
-        // Update the toolbar (blocks signals to prevent double-trigger, then emits manually)
-        const QSignalBlocker blocker(chartToolbar);
-        chartToolbar->setCurrentTimeFrame(targetTf);
-        // Re-emit so GUIFrontend receives the change
+
+        // Update the toolbar visually without triggering its signal
+        // (setCurrentTimeFrame would normally emit timeFrameChanged via onComboBoxChanged)
+        {
+            const QSignalBlocker blocker(chartToolbar);
+            chartToolbar->setCurrentTimeFrame(targetTf);
+        }
+        // Now emit manually after the blocker is destroyed
         emit chartToolbar->timeFrameChanged(targetTf);
     }
 }
