@@ -1,9 +1,9 @@
 # Generate logging categories
-set(LOGGING_GENERATED_H "${CMAKE_CURRENT_SOURCE_DIR}/Misc/Logging_generated.h")
+set(LOGGING_GENERATED_H "${CMAKE_CURRENT_SOURCE_DIR}/Misc/Logging/Logging_generated.h")
 add_custom_command(
     OUTPUT ${LOGGING_GENERATED_H}
-    COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/Misc/generate_logging_categories.py" > ${LOGGING_GENERATED_H}
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/Misc/generate_logging_categories.py"
+    COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/Misc/Logging/generate_logging_categories.py" > ${LOGGING_GENERATED_H}
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/Misc/Logging/generate_logging_categories.py"
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Generating logging categories"
 )
@@ -115,6 +115,7 @@ endif()
 target_include_directories(L2TraderStrategy PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/Misc
+    ${CMAKE_CURRENT_SOURCE_DIR}/Misc/Logging
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Auth
@@ -170,6 +171,7 @@ target_link_libraries(L2TraderStrategy PUBLIC
 target_include_directories(L2TraderCommon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/Misc
+    ${CMAKE_CURRENT_SOURCE_DIR}/Misc/Logging
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient
     ${CMAKE_CURRENT_SOURCE_DIR}/Clients/TSClient/Auth
