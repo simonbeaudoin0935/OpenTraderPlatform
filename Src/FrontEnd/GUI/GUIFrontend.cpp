@@ -278,20 +278,20 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_timeDisplayLabel->setToolTip("Application time (New York timezone)\n"
                                    "🟢 Green: LIVE mode - real-time clock\n"
                                    "🟠 Amber: REPLAY mode - simulated time");
-    ui->topControlsLayout->insertWidget(8, m_timeDisplayLabel);
+    ui->topControlsLayout->insertWidget(5, m_timeDisplayLabel);
 
     // Replay controls bar — shown to the right of the clock, only visible in replay mode
     m_replayControlsBar = new ReplayControlsBar(m_mainWindow);
     Q_CHECK_PTR(m_replayControlsBar);
     m_replayControlsBar->setVisible(false); // hidden until replay mode is entered
-    ui->topControlsLayout->insertWidget(9, m_replayControlsBar);
+    ui->topControlsLayout->insertWidget(6, m_replayControlsBar);
 
     // Connect chart to replay controls bar so chart slots respond to user input
     ui->priceChart->connectReplayControls(m_replayControlsBar);
 
     // Add spacer to push mode labels to the right
     auto* rightSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
-    ui->topControlsLayout->insertSpacerItem(10, rightSpacer);
+    ui->topControlsLayout->insertSpacerItem(7, rightSpacer);
 
     // Create trading mode indicator (right side: SIM/LIVE) - clickable to toggle
     bool isSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
