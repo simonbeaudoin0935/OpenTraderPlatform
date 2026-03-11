@@ -308,11 +308,23 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
         this,
         [this]()
         {
+            // If in replay but brokerage is already LIVE, just exit replay — no restart needed.
+            if (MainApp::isInReplayMode() && MainApp::getTradingMode() == TradingMode::Live)
+            {
+                MainApp::getInstance()->exitReplayMode();
+                return;
+            }
+
+            QString warning =
+                MainApp::isInReplayMode()
+                    ? "This will exit replay mode and restart the application to connect to the LIVE API.\n\n"
+                      "⚠️ WARNING: LIVE mode uses REAL MONEY!"
+                    : "This will restart the application to connect to the LIVE API.\n\n"
+                      "⚠️ WARNING: LIVE mode uses REAL MONEY!";
+
             QMessageBox::StandardButton reply = QMessageBox::question(nullptr,
                                                                       "Switch to LIVE mode",
-                                                                      "Switch from SIM to LIVE mode?\n\n"
-                                                                      "This will restart the application.\n\n"
-                                                                      "⚠️ WARNING: LIVE mode uses REAL MONEY!",
+                                                                      "Switch to LIVE (real money) mode?\n\n" + warning,
                                                                       QMessageBox::Yes | QMessageBox::No,
                                                                       QMessageBox::No);
             if (reply == QMessageBox::Yes)
@@ -329,11 +341,21 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
         this,
         [this]()
         {
+            // If in replay but brokerage is already SIM, just exit replay — no restart needed.
+            if (MainApp::isInReplayMode() && MainApp::getTradingMode() == TradingMode::Sim)
+            {
+                MainApp::getInstance()->exitReplayMode();
+                return;
+            }
+
+            QString detail = MainApp::isInReplayMode()
+                                 ? "This will exit replay mode and restart the application to connect to the SIM API."
+                                 : "This will restart the application to connect to the SIM API.";
+
             QMessageBox::StandardButton reply =
                 QMessageBox::question(nullptr,
                                       "Switch to SIM mode",
-                                      "Switch from LIVE to SIM (paper trading) mode?\n\n"
-                                      "This will restart the application.",
+                                      "Switch to SIM (paper trading) mode?\n\n" + detail,
                                       QMessageBox::Yes | QMessageBox::No,
                                       QMessageBox::No);
             if (reply == QMessageBox::Yes)
