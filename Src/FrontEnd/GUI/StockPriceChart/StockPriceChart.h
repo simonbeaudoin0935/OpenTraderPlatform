@@ -15,6 +15,7 @@
 #include "Bar.h"
 #include "ChartToolbar.h"
 #include "ChartTimeUtils.h"
+#include "Widgets/ReplayControlsBar/ReplayControlsBar.h"
 #include "CONSTANTS.h"
 #include "Misc/TimeFrame.h"
 #include "QCPItemTriangle.h"
@@ -179,6 +180,18 @@ class StockPriceChart : public QWidget
         return chartToolbar;
     }
 
+    /**
+     * @brief Connects the application-level ReplayControlsBar to this chart.
+     *
+     * Must be called once after both StockPriceChart and ReplayControlsBar have been
+     * constructed.  Wires day/time/speed/play signals from the bar to the chart's
+     * replay handlers so the chart can respond to user input without knowing that the
+     * controls live outside its own hierarchy.
+     *
+     * @param controls Pointer to the ReplayControlsBar owned by GUIFrontend.
+     */
+    void connectReplayControls(ReplayControlsBar* controls);
+
     // ========== Order Visualization Slots ==========
 
     /**
@@ -339,6 +352,9 @@ class StockPriceChart : public QWidget
 
     // Timeframe selector widget
     ChartToolbar* chartToolbar;
+
+    // Replay controls bar (owned by GUIFrontend, connected via connectReplayControls)
+    ReplayControlsBar* m_replayControls = nullptr;
 
     /// Request token for missing bars requests. Incremented on each new request.
     /// When a response arrives, it's only processed if its token matches m_currentMissingBarsRequestToken.

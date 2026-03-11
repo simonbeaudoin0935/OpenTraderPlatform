@@ -2,8 +2,8 @@
 set(LOGGING_GENERATED_H "${CMAKE_CURRENT_SOURCE_DIR}/Misc/Logging/Logging_generated.h")
 add_custom_command(
     OUTPUT ${LOGGING_GENERATED_H}
-    COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/Misc/Logging/generate_logging_categories.py" > ${LOGGING_GENERATED_H}
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/Misc/Logging/generate_logging_categories.py"
+    COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/../Utils/generate_logging_categories.py" > ${LOGGING_GENERATED_H}
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/../Utils/generate_logging_categories.py"
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Generating logging categories"
 )

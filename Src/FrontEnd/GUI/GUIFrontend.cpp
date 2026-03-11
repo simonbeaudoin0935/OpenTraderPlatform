@@ -26,6 +26,7 @@
 #include "Tabs/CacheTab.h"
 #include "Widgets/StrategyQuickView/StrategyQuickView.h"
 #include "Widgets/StrategyLogWidget/StrategyLogWidget.h"
+#include "Widgets/ReplayControlsBar/ReplayControlsBar.h"
 #include "StrategyManager.h"
 #include "StockPriceChart/ChartToolbar.h"
 #include "StockPriceChart/StockPriceChart.h"
@@ -301,9 +302,18 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                    "🟠 Amber: REPLAY mode - simulated time");
     ui->topControlsLayout->insertWidget(8, m_timeDisplayLabel);
 
+    // Replay controls bar — shown to the right of the clock, only visible in replay mode
+    m_replayControlsBar = new ReplayControlsBar(m_mainWindow);
+    Q_CHECK_PTR(m_replayControlsBar);
+    m_replayControlsBar->setVisible(false); // hidden until replay mode is entered
+    ui->topControlsLayout->insertWidget(9, m_replayControlsBar);
+
+    // Connect chart to replay controls bar so chart slots respond to user input
+    ui->priceChart->connectReplayControls(m_replayControlsBar);
+
     // Add spacer to push mode labels to the right
     auto* rightSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
-    ui->topControlsLayout->insertSpacerItem(9, rightSpacer);
+    ui->topControlsLayout->insertSpacerItem(10, rightSpacer);
 
     // Create trading mode indicator (right side: SIM/LIVE) - clickable to toggle
     bool isSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
@@ -344,13 +354,11 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_timeUpdateTimer->start(1000); // Update every second
     updateTimeDisplay();            // Initial update
 
-    // In LIVE trading mode, hide data source label and replay widgets (replay not available with real money)
-    // In SIM mode, show data source label but hide replay widgets until user enters replay mode
+    // In LIVE trading mode, hide data source label (replay not available with real money)
     if (!isSimMode)
     {
         m_dataSourceLabel->setVisible(false);
     }
-    ui->priceChart->toolbar()->setReplayWidgetsVisible(false);
 
     // Connect app frontend signals and slots
     connect(this,
@@ -430,8 +438,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             });
 
     // Persist replay start time whenever it changes so next launch restores it
-    connect(ui->priceChart->toolbar(),
-            &ChartToolbar::replayStartTimeChanged,
+    connect(m_replayControlsBar,
+            &ReplayControlsBar::replayStartTimeChanged,
             this,
             [this](const QTime& time)
             {
@@ -1446,7 +1454,7 @@ void GUIFrontend::restoreReplayState()
     // so the user's last-used time is shown on next launch.
     QTime savedTime = QTime::fromString(appStateSettings->value("Replay/StartTime").toString(), Qt::ISODate);
     if (savedTime.isValid())
-        ui->priceChart->toolbar()->setReplayStartTime(savedTime);
+        m_replayControlsBar->setReplayStartTime(savedTime);
 
     if (!appStateSettings->value("Replay/Active", false).toBool())
     {
@@ -1461,10 +1469,8 @@ void GUIFrontend::restoreReplayState()
         return;
     }
 
-    ChartToolbar* toolbar = ui->priceChart->toolbar();
-
     // Populate the replay day list so setSelectedReplayDay works
-    toolbar->scanAndPopulateReplayDays();
+    m_replayControlsBar->scanAndPopulateReplayDays();
 
     if (!DBClient::getInstance()->hasReplayData(savedDate, ui->priceChart->getCurrentSymbol()))
     {
@@ -1472,10 +1478,10 @@ void GUIFrontend::restoreReplayState()
         return;
     }
 
-    toolbar->setSelectedReplayDay(savedDate);
+    m_replayControlsBar->setSelectedReplayDay(savedDate);
 
-    QTime startTime = savedTime.isValid() ? savedTime : toolbar->getReplayStartTime();
-    ReplayEngine::PlaybackSpeed speed = toolbar->getReplaySpeed();
+    QTime startTime = savedTime.isValid() ? savedTime : m_replayControlsBar->getReplayStartTime();
+    ReplayEngine::PlaybackSpeed speed = m_replayControlsBar->getReplaySpeed();
 
     qInfo() << "Restoring replay state: date=" << savedDate << "time=" << startTime;
     MainApp::getInstance()->enterReplayMode(savedDate, startTime, speed);
@@ -1649,8 +1655,8 @@ void GUIFrontend::onToggleReplayPlayPause()
         return;
     }
 
-    // Toggle via the toolbar method which clicks the button and emits the signal
-    ui->priceChart->toolbar()->togglePlayPause();
+    // Toggle via the replay controls bar method which clicks the button and emits the signal
+    m_replayControlsBar->togglePlayPause();
 }
 
 void GUIFrontend::onToggleReplayMode()
@@ -1802,6 +1808,9 @@ void GUIFrontend::onTimeFrameChanged(TimeFrame tf)
         appStateSettings->setValue("Chart/TimeFrame", static_cast<int>(tf));
         appStateSettings->sync();
     }
+
+    // Sync the replay time-edit step granularity to the new timeframe
+    m_replayControlsBar->setCurrentTimeFrame(tf);
 
     // Clear the chart and let it re-request bars with the new timescale.
     // Preserve X and Y ranges so the view doesn't jump after the reload.
@@ -1965,8 +1974,7 @@ void GUIFrontend::onReplayModeEntered()
     qCInfo(GUIFrontendLog) << "Replay mode entered";
 
     // Persist replay state so we can restore it on next launch
-    ChartToolbar* toolbar = ui->priceChart->toolbar();
-    saveReplayState(true, toolbar->getSelectedReplayDay(), toolbar->getReplayStartTime());
+    saveReplayState(true, m_replayControlsBar->getSelectedReplayDay(), m_replayControlsBar->getReplayStartTime());
 
     // Update data source indicator to show REPLAY
     ASSUME_DIFF(m_dataSourceLabel, nullptr);
@@ -1989,12 +1997,12 @@ void GUIFrontend::onReplayModeEntered()
     // For now, clear the mode indicator (no legacy TS recorded data)
     ui->level2Widget->setExpectedDataMode(false, false);
 
-    // Show replay widgets in toolbar and ensure play button is in stopped state
-    ui->priceChart->toolbar()->setReplayWidgetsVisible(true);
-    ui->priceChart->toolbar()->setReplayPlaying(false);
+    // Show replay controls bar and ensure play button is in stopped state
+    m_replayControlsBar->setVisible(true);
+    m_replayControlsBar->setReplayPlaying(false);
 
-    // Set toolbar to PreloadingPaused state (data loaded, waiting for user to press play)
-    ui->priceChart->toolbar()->setReplayState(ChartToolbar::ReplayState::PreloadingPaused);
+    // Set controls to PreloadingPaused state (data loaded, waiting for user to press play)
+    m_replayControlsBar->setReplayState(ReplayControlsBar::ReplayState::PreloadingPaused);
 
     // Connect replay engine error signal to chart error handler
     ReplayEngine* replayEngine = MainApp::getInstance()->getReplayEngine();
@@ -2028,12 +2036,12 @@ void GUIFrontend::onReplayModeExited()
     m_dataSourceLabel->setStyleSheet("QLabel { background-color: #228B22; color: #ffffff; padding: 4px 8px; "
                                      "border-radius: 4px; font-weight: bold; }");
 
-    // Reset play button state and hide replay widgets
-    ui->priceChart->toolbar()->setReplayPlaying(false);
-    ui->priceChart->toolbar()->setReplayWidgetsVisible(false);
+    // Reset play button state and hide replay controls bar
+    m_replayControlsBar->setReplayPlaying(false);
+    m_replayControlsBar->setVisible(false);
 
-    // Set toolbar state back to Inactive
-    ui->priceChart->toolbar()->setReplayState(ChartToolbar::ReplayState::Inactive);
+    // Set controls state back to Inactive
+    m_replayControlsBar->setReplayState(ReplayControlsBar::ReplayState::Inactive);
 
     // Clear chart data (MainAlgo will clear caches and restart live stream)
     ui->priceChart->clearChart();
@@ -2118,13 +2126,12 @@ bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
         else
         {
             // Currently in live mode - enter replay mode (without starting playback)
-            // Playback starts when user clicks Play button in ChartToolbar
-            ChartToolbar* toolbar = ui->priceChart->toolbar();
+            // Playback starts when user clicks Play button in ReplayControlsBar
 
             // Scan for available replay days if not already populated
-            toolbar->scanAndPopulateReplayDays();
+            m_replayControlsBar->scanAndPopulateReplayDays();
 
-            if (!toolbar->getSelectedReplayDay().isValid())
+            if (!m_replayControlsBar->getSelectedReplayDay().isValid())
             {
                 QMessageBox::warning(nullptr,
                                      "No Replay Data",
@@ -2133,9 +2140,9 @@ bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
                 return true;
             }
 
-            QDate replayDate = toolbar->getSelectedReplayDay();
-            QTime replayTime = toolbar->getReplayStartTime();
-            ReplayEngine::PlaybackSpeed speed = toolbar->getReplaySpeed();
+            QDate replayDate = m_replayControlsBar->getSelectedReplayDay();
+            QTime replayTime = m_replayControlsBar->getReplayStartTime();
+            ReplayEngine::PlaybackSpeed speed = m_replayControlsBar->getReplaySpeed();
 
             // Validate that the currently displayed symbol has replay data for the selected date
             QString currentSymbol = ui->priceChart->getCurrentSymbol();

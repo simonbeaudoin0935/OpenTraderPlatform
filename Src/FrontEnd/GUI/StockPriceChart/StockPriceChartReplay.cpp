@@ -34,21 +34,19 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
 
     if (hasData)
     {
-        chartToolbar->updateReplayInfo(TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
-                                       TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
-                                       BarsConstants::MINUTE_BARS_PER_DAY);
+        // Data available — no toolbar info update needed (time range shown via chart itself)
     }
     else
     {
         WARNING << "No replay data found for" << m_symbol << "on" << date.toString(Qt::ISODate);
-        chartToolbar->updateReplayInfo(QTime(), QTime(), 0);
     }
 
     // If in replay mode, trigger preload with the new day and current time selection
     if (MainApp::isInReplayMode())
     {
-        QTime currentTime = chartToolbar->getReplayStartTime();
-        ReplayEngine::PlaybackSpeed currentSpeed = chartToolbar->getReplaySpeed();
+        OBJ_ASSUME_DIFF(m_replayControls, nullptr);
+        QTime currentTime = m_replayControls->getReplayStartTime();
+        ReplayEngine::PlaybackSpeed currentSpeed = m_replayControls->getReplaySpeed();
 
         qCInfo(ChartLog) << "Preloading chart for new replay day:" << date.toString(Qt::ISODate) << "at"
                          << currentTime.toString("hh:mm");
@@ -77,8 +75,9 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
     // If in replay mode, trigger preload with the current day and new time
     if (MainApp::isInReplayMode())
     {
-        QDate currentDate = chartToolbar->getSelectedReplayDay();
-        ReplayEngine::PlaybackSpeed currentSpeed = chartToolbar->getReplaySpeed();
+        OBJ_ASSUME_DIFF(m_replayControls, nullptr);
+        QDate currentDate = m_replayControls->getSelectedReplayDay();
+        ReplayEngine::PlaybackSpeed currentSpeed = m_replayControls->getReplaySpeed();
 
         qCInfo(ChartLog) << "Preloading chart for new replay time:" << currentDate.toString(Qt::ISODate) << "at"
                          << time.toString("hh:mm");
@@ -124,9 +123,6 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
 void StockPriceChart::onReplayDataLoadFailed(const QString& errorMessage)
 {
     WARNING << "Replay data load failed:" << errorMessage;
-
-    // Update toolbar info display to show failure
-    chartToolbar->updateReplayInfo(QTime(), QTime(), 0);
 
     // Log detailed error
     qCCritical(ChartLog) << "Failed to preload replay data:" << errorMessage;

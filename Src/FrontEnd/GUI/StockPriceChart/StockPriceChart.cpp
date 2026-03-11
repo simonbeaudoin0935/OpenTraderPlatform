@@ -225,8 +225,6 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
             &ChartToolbar::orderVisualizationsVisibilityChanged,
             this,
             &StockPriceChart::onOrderVisualizationsVisibilityChanged);
-    connect(chartToolbar, &ChartToolbar::replayDayChanged, this, &StockPriceChart::onReplayDayChanged);
-    connect(chartToolbar, &ChartToolbar::replayStartTimeChanged, this, &StockPriceChart::onReplayTimeChanged);
     connect(chartToolbar,
             &ChartToolbar::wheelRatioChanged,
             this,
@@ -238,56 +236,6 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
                 appStateSettings->setValue("Chart/WheelZoomRatio", ratio);
                 appStateSettings->sync();
             });
-
-    // Connect replay play/pause button
-    connect(chartToolbar,
-            &ChartToolbar::replayPlayPauseToggled,
-            this,
-            [this](bool playing)
-            {
-                if (playing)
-                {
-                    QDate date = chartToolbar->getSelectedReplayDay();
-                    QTime startTime = chartToolbar->getReplayStartTime();
-                    ReplayEngine::PlaybackSpeed speed = chartToolbar->getReplaySpeed();
-
-                    // Use the toolbar's own ReplayState (GUI thread) to determine
-                    // whether to resume or start fresh. Do NOT use isReplayPaused()
-                    // which reads MainAlgo state cross-thread — it returns false when
-                    // enterReplayModePaused is still queued but not yet executed,
-                    // causing a double-enter race that fires the m_replayEngine==null ASSERT.
-                    const ChartToolbar::ReplayState toolbarState = chartToolbar->getReplayState();
-                    const bool shouldResume = (toolbarState == ChartToolbar::ReplayState::Paused ||
-                                               toolbarState == ChartToolbar::ReplayState::PreloadingPaused);
-
-                    if (shouldResume)
-                    {
-                        // Resume an existing (or preloading) session
-                        MainApp::getInstance()->resumeReplayPlayback();
-                    }
-                    else if (date.isValid())
-                    {
-                        // Start new playback (no engine created yet)
-                        MainApp::getInstance()->startReplayPlayback(date, startTime, speed);
-                    }
-                    else
-                    {
-                        qWarning() << "Cannot start replay: no valid date selected";
-                        chartToolbar->setReplayPlaying(false);
-                    }
-                }
-                else
-                {
-                    // Pause playback (stay in replay mode)
-                    MainApp::getInstance()->pauseReplayPlayback();
-                }
-            });
-
-    // Connect replay speed change
-    connect(chartToolbar,
-            &ChartToolbar::replaySpeedChanged,
-            this,
-            [](ReplayEngine::PlaybackSpeed speed) { MainApp::getInstance()->setReplaySpeed(speed); });
 
     // When auto-timeframe is enabled, immediately check if we need to switch
     connect(chartToolbar,
@@ -343,6 +291,63 @@ void StockPriceChart::preserveCurrentRanges()
 {
     m_preservedXRange = m_customPlot->xAxis->range();
     m_preservedYRange = m_customPlot->axisRect()->axis(QCPAxis::atRight)->range();
+}
+
+void StockPriceChart::connectReplayControls(ReplayControlsBar* controls)
+{
+    OBJ_ASSUME_DIFF(controls, nullptr);
+    m_replayControls = controls;
+
+    connect(m_replayControls, &ReplayControlsBar::replayDayChanged, this, &StockPriceChart::onReplayDayChanged);
+    connect(m_replayControls, &ReplayControlsBar::replayStartTimeChanged, this, &StockPriceChart::onReplayTimeChanged);
+    connect(m_replayControls,
+            &ReplayControlsBar::replaySpeedChanged,
+            this,
+            [](ReplayEngine::PlaybackSpeed speed) { MainApp::getInstance()->setReplaySpeed(speed); });
+
+    connect(m_replayControls,
+            &ReplayControlsBar::replayPlayPauseToggled,
+            this,
+            [this](bool playing)
+            {
+                if (playing)
+                {
+                    QDate date = m_replayControls->getSelectedReplayDay();
+                    QTime startTime = m_replayControls->getReplayStartTime();
+                    ReplayEngine::PlaybackSpeed speed = m_replayControls->getReplaySpeed();
+
+                    // Use the controls' own ReplayState (GUI thread) to determine
+                    // whether to resume or start fresh. Do NOT use isReplayPaused()
+                    // which reads MainAlgo state cross-thread — it returns false when
+                    // enterReplayModePaused is still queued but not yet executed,
+                    // causing a double-enter race that fires the m_replayEngine==null ASSERT.
+                    const ReplayControlsBar::ReplayState ctrlState = m_replayControls->getReplayState();
+                    const bool shouldResume = (ctrlState == ReplayControlsBar::ReplayState::Paused ||
+                                               ctrlState == ReplayControlsBar::ReplayState::PreloadingPaused);
+
+                    if (shouldResume)
+                    {
+                        MainApp::getInstance()->resumeReplayPlayback();
+                    }
+                    else if (date.isValid())
+                    {
+                        MainApp::getInstance()->startReplayPlayback(date, startTime, speed);
+                    }
+                    else
+                    {
+                        qWarning() << "Cannot start replay: no valid date selected";
+                        m_replayControls->setReplayPlaying(false);
+                    }
+                }
+                else
+                {
+                    MainApp::getInstance()->pauseReplayPlayback();
+                }
+            });
+
+    // Populate replay days immediately if a symbol is already set
+    if (!m_symbol.isEmpty())
+        populateAvailableReplayDays();
 }
 
 StockPriceChart::~StockPriceChart()
@@ -469,7 +474,7 @@ void StockPriceChart::populateAvailableReplayDays()
         std::sort(availableDates.begin(), availableDates.end(), std::greater<QDate>());
     }
 
-    chartToolbar->setAvailableReplayDays(availableDates);
-
+    if (m_replayControls)
+        m_replayControls->setAvailableReplayDays(availableDates);
     qCInfo(ChartLog) << "Found" << availableDates.size() << "available replay dates";
 }

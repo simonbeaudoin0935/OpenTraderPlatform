@@ -14,6 +14,7 @@
 #include "MainAlgo.h"
 #include "Misc/ShortcutSettings.h"
 #include "Misc/TimeFrame.h"
+#include "Widgets/ReplayControlsBar/ReplayControlsBar.h"
 
 // Forward declarations
 class PlaceOrderRequest;
@@ -139,6 +140,8 @@ class GUIFrontend : public FrontEnd
     QLabel* m_sessionLabel = nullptr;     // Trading session indicator
     QLabel* m_timeDisplayLabel = nullptr; // Application time display (live or replay)
     QTimer* m_timeUpdateTimer = nullptr;  // Timer to update time display
+
+    ReplayControlsBar* m_replayControlsBar = nullptr; // Replay controls in top toolbar
 
     // MarketFlags status labels
     QLabel* m_haltedLabel = nullptr;       // "HALTED" - red

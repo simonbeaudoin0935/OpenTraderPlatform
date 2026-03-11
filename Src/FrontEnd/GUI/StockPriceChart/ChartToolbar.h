@@ -5,38 +5,26 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QCheckBox>
-#include <QTimeEdit>
-#include <QPushButton>
-#include <QDir>
-#include <QRegularExpression>
 #include <QToolButton>
 #include <QMenu>
 #include <QWidgetAction>
 #include "Misc/TimeFrame.h"
-#include "Core/Replay/ReplayEngine.h"
 
 /**
  * @class ChartToolbar
- * @brief A toolbar widget for chart controls above the price chart.
+ * @brief A toolbar widget for chart-specific controls above the price chart.
  *
- * Provides controls for selecting chart timeframe intervals, auto timeframe,
- * volume chart visibility, and market replay functionality.
+ * Provides controls for selecting the chart timeframe interval, auto timeframe,
+ * volume chart visibility, order visualizations, and wheel sensitivity.
+ *
+ * Replay controls were moved to ReplayControlsBar in the application-level top
+ * toolbar so that they remain accessible regardless of which chart is focused.
  */
 class ChartToolbar : public QWidget
 {
     Q_OBJECT
 
   public:
-    /**
-     * @brief State of the replay mode UI
-     */
-    enum class ReplayState
-    {
-        Inactive,         ///< Replay mode not active
-        PreloadingPaused, ///< First data loaded and paused, waiting for user to press Play
-        Playing,          ///< Actively replaying
-        Paused            ///< Paused during playback, can resume
-    };
     /**
      * @brief Constructs a ChartToolbar widget.
      * @param parent The parent widget.
@@ -104,77 +92,6 @@ class ChartToolbar : public QWidget
     void setOrderVisualizationsVisible(bool visible);
 
     /**
-     * @brief Sets the available days for market replay.
-     * @param days List of dates available for replay.
-     */
-    void setAvailableReplayDays(const QList<QDate>& days);
-
-    /**
-     * @brief Gets the currently selected replay day.
-     * @return The selected date for replay.
-     */
-    QDate getSelectedReplayDay() const;
-
-    /**
-     * @brief Sets the selected replay day.
-     * @param date The date to select for replay.
-     */
-    void setSelectedReplayDay(const QDate& date);
-
-    /**
-     * @brief Sets the visibility of all replay-related widgets.
-     * @param p_visible True to show replay widgets, false to hide them.
-     *
-     * This controls the visibility of: replay label, day selector, time edit,
-     * speed selector, play/pause button, and info label.
-     */
-    void setReplayWidgetsVisible(bool p_visible);
-
-    /**
-     * @brief Gets the replay start time.
-     * @return The selected start time for replay.
-     */
-    QTime getReplayStartTime() const;
-
-    /**
-     * @brief Sets the replay start time.
-     * @param time The start time for replay.
-     */
-    void setReplayStartTime(const QTime& time);
-
-    /**
-     * @brief Gets the selected replay speed.
-     * @return The selected PlaybackSpeed enum value.
-     */
-    ReplayEngine::PlaybackSpeed getReplaySpeed() const;
-
-    /**
-     * @brief Checks if replay is currently playing.
-     * @return True if replay is playing, false otherwise.
-     */
-    bool isReplayPlaying() const;
-
-    /**
-     * @brief Sets the replay play/pause state (visual only, no signal).
-     * @param playing True to start playing, false to pause.
-     */
-    void setReplayPlaying(bool playing);
-
-    /**
-     * @brief Toggles play/pause state and emits the signal.
-     * Use this when triggering from keyboard shortcuts.
-     */
-    void togglePlayPause();
-
-    /**
-     * @brief Updates the replay info label with time range and bar count.
-     * @param startTime The start time of available data.
-     * @param endTime The end time of available data.
-     * @param barCount The number of bars available.
-     */
-    void updateReplayInfo(const QTime& startTime, const QTime& endTime, int barCount);
-
-    /**
      * @brief Gets the current wheel scrolling ratio.
      * @return The wheel scrolling ratio.
      */
@@ -186,220 +103,68 @@ class ChartToolbar : public QWidget
      */
     void setWheelRatio(qreal ratio);
 
-    /**
-     * @brief Scans the cache directory and populates available replay days.
-     * Looks for files in ~/.cache/L2Trader/RecordedLiveData/Bars/
-     * and extracts dates from filenames.
-     */
-    void scanAndPopulateReplayDays();
-
-    /**
-     * @brief Gets the current replay state.
-     * @return The current ReplayState enum value.
-     */
-    [[nodiscard]] ReplayState getReplayState() const;
-
-    /**
-     * @brief Sets the replay state and updates UI controls accordingly.
-     * @param state The new ReplayState.
-     *
-     * This method should be called by MainApp/StockPriceChart to coordinate state
-     * changes across the toolbar. It updates the enable/disable state of replay
-     * controls based on the new state.
-     */
-    void setReplayState(ReplayState state);
-
   signals:
     /**
      * @brief Emitted when the user selects a different timeframe.
+     * Thread context: Emitted from Main/GUI thread
      * @param timeframe The newly selected TimeFrame.
      */
     void timeFrameChanged(TimeFrame timeframe);
 
     /**
      * @brief Emitted when the auto timeframe selection state changes.
+     * Thread context: Emitted from Main/GUI thread
      * @param enabled True if auto selection is enabled, false otherwise.
      */
     void autoTimeFrameChanged(bool enabled);
 
     /**
      * @brief Emitted when the volume chart visibility changes.
+     * Thread context: Emitted from Main/GUI thread
      * @param visible True if volume chart is visible, false otherwise.
      */
     void volumeChartVisibilityChanged(bool visible);
 
     /**
      * @brief Emitted when the volume auto-rescale state changes.
+     * Thread context: Emitted from Main/GUI thread
      * @param enabled True if volume Y-axis should auto-rescale to visible range.
      */
     void volumeAutoRescaleChanged(bool enabled);
 
     /**
      * @brief Emitted when the order visualizations visibility changes.
+     * Thread context: Emitted from Main/GUI thread
      * @param visible True if order markers and position lines are visible.
      */
     void orderVisualizationsVisibilityChanged(bool visible);
 
     /**
-     * @brief Emitted when the user selects a different replay day.
-     * @param date The newly selected date for replay.
-     */
-    void replayDayChanged(const QDate& date);
-
-    /**
-     * @brief Emitted when the replay start time changes.
-     * @param time The new start time for replay.
-     */
-    void replayStartTimeChanged(const QTime& time);
-
-    /**
-     * @brief Emitted when the play/pause button is toggled.
-     * @param playing True if replay should start playing, false if paused.
-     */
-    void replayPlayPauseToggled(bool playing);
-
-    /**
-     * @brief Emitted when the replay speed changes.
-     * @param speed The new playback speed.
-     */
-    void replaySpeedChanged(ReplayEngine::PlaybackSpeed speed);
-
-    /**
      * @brief Emitted when the wheel scrolling ratio changes.
+     * Thread context: Emitted from Main/GUI thread
      * @param ratio The new wheel scrolling ratio (e.g., 0.5 for less sensitive, 2.0 for more sensitive).
      */
     void wheelRatioChanged(qreal ratio);
 
   private slots:
-    /**
-     * @brief Handles combobox selection changes.
-     * @param index The index of the selected item.
-     */
     void onComboBoxChanged(int index);
-
-    /**
-     * @brief Handles checkbox state changes.
-     * @param state The new state of the checkbox.
-     */
     void onAutoCheckBoxChanged(int state);
-
-    /**
-     * @brief Handles volume chart visibility checkbox state changes.
-     * @param state The new state of the checkbox.
-     */
     void onVolumeCheckBoxChanged(int state);
-
-    /**
-     * @brief Handles volume auto-rescale checkbox state changes.
-     * @param state The new state of the checkbox.
-     */
     void onVolumeAutoRescaleCheckBoxChanged(int state);
-
-    /**
-     * @brief Handles orders checkbox state changes.
-     * @param state The new state of the checkbox.
-     */
     void onOrdersCheckBoxChanged(int state);
-
-    /**
-     * @brief Handles replay day combobox selection changes.
-     * @param index The index of the selected item.
-     */
-    void onReplayDayChanged(int index);
-
-    /**
-     * @brief Handles replay time edit changes.
-     * @param time The new time.
-     */
-    void onReplayTimeChanged(const QTime& time);
-
-    /**
-     * @brief Handles play/pause button clicks.
-     */
-    void onPlayPauseClicked();
-
-    /**
-     * @brief Handles wheel ratio combo box changes.
-     * @param index The index of the selected item.
-     */
     void onWheelRatioChanged(int index);
 
   private:
-    QComboBox* comboBox;                  ///< The dropdown selection widget for timeframe
-    QLabel* label;                        ///< Label showing "Timeframe:"
-    QCheckBox* autoCheckBox;              ///< Checkbox for auto timeframe selection
-    QCheckBox* volumeCheckBox;            ///< Checkbox for volume chart visibility
-    QCheckBox* volumeAutoRescaleCheckBox; ///< Checkbox for volume Y-axis auto-rescale to visible range
-    QCheckBox* ordersCheckBox;            ///< Checkbox for order visualizations visibility
-
-    QLabel* replayLabel;          ///< Label showing "Replay:"
-    QComboBox* replayDayCombo;    ///< Dropdown for selecting replay day
-    QTimeEdit* replayTimeEdit;    ///< Time input for replay start time
-    QComboBox* replaySpeedCombo;  ///< Dropdown for selecting replay speed
-    QPushButton* playPauseButton; ///< Play/pause button for replay
+    QComboBox* comboBox;                  ///< Timeframe dropdown
+    QLabel* label;                        ///< "Timeframe:" label
+    QCheckBox* autoCheckBox;              ///< Auto timeframe selection
+    QCheckBox* volumeCheckBox;            ///< Volume chart visibility
+    QCheckBox* volumeAutoRescaleCheckBox; ///< Volume Y-axis auto-rescale
+    QCheckBox* ordersCheckBox;            ///< Order visualizations visibility
 
     QToolButton* settingsButton; ///< Settings button with cog icon
     QMenu* settingsMenu;         ///< Settings popup menu
-    QComboBox* wheelRatioCombo;  ///< Combo box for wheel scrolling ratio
+    QComboBox* wheelRatioCombo;  ///< Wheel scrolling sensitivity
 
-    ReplayState m_replayState = ReplayState::Inactive; ///< Current replay UI state
-
-    /**
-     * @brief Populates the combobox with timeframe options.
-     */
     void populateTimeFrames();
-
-    /**
-     * @brief Updates the play/pause button text based on current state.
-     */
-    void updatePlayPauseButton();
-
-    /**
-     * @brief Extracts date from a filename in the Bars directory.
-     * @param fileName The filename to parse.
-     * @return QDate extracted from filename, or invalid date if parsing fails.
-     */
-    QDate extractDateFromFileName(const QString& fileName);
-
-    /**
-     * @brief Updates the enabled/disabled state of replay controls based on m_replayState.
-     *
-     * Control enable/disable matrix:
-     * - Inactive: All controls disabled
-     * - PreloadingPaused: Day ENABLED, Time ENABLED, Speed ENABLED, Play ENABLED
-     * - Playing: Day DISABLED, Time DISABLED, Speed ENABLED, Play ENABLED
-     * - Paused: Day ENABLED, Time ENABLED, Speed ENABLED, Play ENABLED
-     */
-    void updateUIControlStates();
-
-    /**
-     * @brief Updates the replay time edit step size based on current timeframe.
-     *
-     * Adjusts granularity so up/down arrows increment by the appropriate amount:
-     * - 1m: 1 minute steps
-     * - 5m: 5 minute steps
-     * - 15m: 15 minute steps
-     * - 30m: 30 minute steps
-     * - 1h: 1 hour steps
-     * - 4h: 4 hour steps (currently 1h for simplicity)
-     */
-    void updateTimeEditStep();
-
-    /**
-     * @brief Calculates stepped time based on direction of change.
-     * @param oldTime Previous time value.
-     * @param newTime New time value from user input.
-     * @return Time stepped by the appropriate timeframe amount.
-     */
-    QTime calculateSteppedTime(const QTime& oldTime, const QTime& newTime) const;
-
-    /**
-     * @brief Snaps time to the nearest valid step for the current timeframe.
-     * @param time The time to snap.
-     * @return Time aligned to the current timeframe granularity.
-     */
-    QTime snapTimeToStep(const QTime& time) const;
-
-    TimeFrame m_currentTimeFrame = TimeFrame::ONE_MINUTE; ///< Current timeframe for step calculations
-    QTime m_lastReplayTime;                               ///< Previous time for detecting step direction
 };
