@@ -252,6 +252,7 @@ void ReplayControlsBar::setReplayState(ReplayState state)
 {
     m_replayState = state;
     updateUIControlStates();
+    updatePlayPauseButton();
 }
 
 // ---------------------------------------------------------------------------
@@ -332,10 +333,17 @@ void ReplayControlsBar::updatePlayPauseButton()
 {
     if (m_playPauseBtn->isChecked())
     {
+        // Replay is running — offer to pause
         m_playPauseBtn->setText("⏸ Pause");
+    }
+    else if (m_replayState == ReplayState::PreloadingPaused || m_replayState == ReplayState::Inactive)
+    {
+        // Never started yet — pressing the button will begin from scratch
+        m_playPauseBtn->setText("▶ Start");
     }
     else
     {
+        // Was playing at least once, currently paused — pressing the button resumes
         m_playPauseBtn->setText("▶ Play");
     }
 }
