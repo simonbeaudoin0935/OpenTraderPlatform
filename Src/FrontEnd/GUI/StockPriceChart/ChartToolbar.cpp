@@ -57,6 +57,8 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
     replaySpeedCombo->addItem("2x", static_cast<int>(ReplayEngine::PlaybackSpeed::Double));
     replaySpeedCombo->addItem("5x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast5x));
     replaySpeedCombo->addItem("10x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast10x));
+    replaySpeedCombo->addItem("50x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast50x));
+    replaySpeedCombo->addItem("100x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast100x));
     replaySpeedCombo->addItem("Max", static_cast<int>(ReplayEngine::PlaybackSpeed::AsFastAsPossible));
     replaySpeedCombo->setCurrentIndex(3); // Default to 1x
     replaySpeedCombo->setToolTip("Replay playback speed");

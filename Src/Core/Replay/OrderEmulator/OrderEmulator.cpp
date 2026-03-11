@@ -175,6 +175,9 @@ void OrderEmulator::updateMarketDepth(const QString& p_symbol, const Level2& p_d
             // Convert order to JSON for executing queue - copy all fields
             QJsonObject orderJson = orderToJsonObject(order);
 
+            // Log BEFORE erase — order reference becomes dangling after erase
+            DEBUG << "Limit order can now fill:" << order.getOrderID() << "at" << fillPrice;
+
             // Add to executing orders with delay
             ExecutingOrder executing;
             executing.orderJson = orderJson;
@@ -187,8 +190,6 @@ void OrderEmulator::updateMarketDepth(const QString& p_symbol, const Level2& p_d
             {
                 m_executionTimer.start(calculateExecutionDelay());
             }
-
-            DEBUG << "Limit order can now fill:" << order.getOrderID() << "at" << fillPrice;
         }
         else
         {
@@ -238,6 +239,9 @@ void OrderEmulator::updateLevel1(const QString& p_symbol, const Level1& p_level1
             // Convert order to JSON for executing queue
             QJsonObject orderJson = orderToJsonObject(order);
 
+            // Log BEFORE erase — order reference becomes dangling after erase
+            DEBUG << "Limit order can now fill (L1):" << order.getOrderID() << "at" << fillPrice;
+
             // Add to executing orders with delay
             ExecutingOrder executing;
             executing.orderJson = orderJson;
@@ -250,8 +254,6 @@ void OrderEmulator::updateLevel1(const QString& p_symbol, const Level1& p_level1
             {
                 m_executionTimer.start(calculateExecutionDelay());
             }
-
-            DEBUG << "Limit order can now fill (L1):" << order.getOrderID() << "at" << fillPrice;
         }
         else
         {

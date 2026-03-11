@@ -337,8 +337,40 @@ void ReplayEngine::onTimerTick()
     if (m_state != PlaybackState::Playing)
         return;
 
-    emitNextRecord();
-    scheduleNext();
+    // Use a batch loop whenever the calculated delay is 0ms.
+    // At high speeds (50x, 100x) most inter-record gaps are sub-millisecond and
+    // QTimer has only ~1ms precision, so nearly every event gets QTimer(0).
+    // Returning to the event loop for each such record causes the same flooding
+    // as AsFastAsPossible — batch-process them all within a wall-clock budget instead.
+    const qint64 startWallMs = QDateTime::currentMSecsSinceEpoch();
+
+    while (m_state == PlaybackState::Playing)
+    {
+        emitNextRecord();
+
+        if (!m_nextMbp10.valid && !m_nextTrade.valid)
+        {
+            INFO << "Replay reached end of data (batch loop)";
+            m_state = PlaybackState::Stopped;
+            emit replayEndReached();
+            emit replayStopped();
+            return;
+        }
+
+        // Yield after time budget to keep event loop responsive for GUI events
+        if (QDateTime::currentMSecsSinceEpoch() - startWallMs >= ReplayConstants::MAX_SPEED_BATCH_BUDGET_MS)
+            break;
+
+        // If the next record has a non-zero delay, break out and let the timer handle it
+        qint64 nextEpoch = m_nextMbp10.valid ? m_nextMbp10.epochMs : m_nextTrade.epochMs;
+        if (m_nextTrade.valid && m_nextTrade.epochMs < nextEpoch)
+            nextEpoch = m_nextTrade.epochMs;
+        if (calculateWallClockDelay(nextEpoch) > 0)
+            break;
+    }
+
+    if (m_state == PlaybackState::Playing)
+        scheduleNext();
 }
 
 void ReplayEngine::emitNextRecord()

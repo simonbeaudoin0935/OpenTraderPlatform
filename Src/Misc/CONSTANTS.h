@@ -184,6 +184,23 @@ namespace StreamConstants
 } // namespace StreamConstants
 
 /**
+ * @namespace ReplayConstants
+ * @brief Constants for replay engine performance tuning
+ */
+namespace ReplayConstants
+{
+    // Wall-clock time budget (ms) for each batch of records in AsFastAsPossible mode.
+    // Records are processed in a tight loop per timer tick, yielding after this budget
+    // so the event loop can service GUI events and other timers.
+    inline constexpr qint64 MAX_SPEED_BATCH_BUDGET_MS = 16;
+
+    // GUI update interval (ms) when AsFastAsPossible mode is active.
+    // Cross-thread signals to the GUI are buffered and emitted at this rate
+    // to prevent the GUI event queue from flooding.
+    inline constexpr int GUI_THROTTLE_INTERVAL_MS = 33; // ~30 fps
+} // namespace ReplayConstants
+
+/**
  * @namespace AuthConstants
  * @brief Authentication and token-related constants
  */

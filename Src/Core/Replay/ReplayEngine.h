@@ -60,6 +60,8 @@ class ReplayEngine : public QObject
         Double = 200,         ///< 2.0x speed
         Fast5x = 500,         ///< 5.0x speed
         Fast10x = 1000,       ///< 10.0x speed
+        Fast50x = 5000,       ///< 50.0x speed
+        Fast100x = 10000,     ///< 100.0x speed
         AsFastAsPossible = -1 ///< 0ms timer
     };
     Q_ENUM(PlaybackSpeed)

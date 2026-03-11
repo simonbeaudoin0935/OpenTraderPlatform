@@ -69,6 +69,9 @@ MainAlgo::~MainAlgo()
         this,
         [this]()
         {
+            // Stop GUI throttle timer on its own thread
+            m_guiThrottleTimer.stop();
+
             // Stop and destroy balance polling timer on its own thread
             m_balancePollingTimer.reset();
 
@@ -118,6 +121,12 @@ void MainAlgo::onThreadStarted()
     m_balancePollingTimer = std::make_unique<QTimer>(this);
 
     connect(m_balancePollingTimer.get(), &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
+
+    // GUI throttle timer — fires periodically when AsFastAsPossible mode is active
+    // to flush buffered GUI updates at a capped rate
+    m_guiThrottleTimer.setParent(this);
+    m_guiThrottleTimer.setInterval(ReplayConstants::GUI_THROTTLE_INTERVAL_MS);
+    connect(&m_guiThrottleTimer, &QTimer::timeout, this, &MainAlgo::onGuiThrottleTimerTick, Qt::UniqueConnection);
 
     // Initialize signal handler system (set up crash notification pipe)
     StrategySignalHandler::initialize();
@@ -214,7 +223,7 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         disconnect(&currentDisplayedStockInstrument->barReceiver,
                    &BarReceiver::receivedNewBar,
                    this,
-                   &MainAlgo::displayedStockReceivedNewBar);
+                   &MainAlgo::onDisplayedBarReceived);
 
         disconnect(&currentDisplayedStockInstrument->m_barAggregator,
                    &BarAggregator::barUpdated,
@@ -229,7 +238,7 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         disconnect(&currentDisplayedStockInstrument->m_level2Receiver,
                    &Level2Receiver::receivedNewLevel2,
                    this,
-                   &MainAlgo::displayedStockReceivedNewLevel2);
+                   &MainAlgo::onDisplayedLevel2Received);
 
         // Disconnect trade forwarding from DBClient for old symbol
         disconnect(DBClient::getInstance(), &DBClient::newTrade, this, nullptr);
@@ -265,7 +274,7 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
     connect(&currentDisplayedStockInstrument->barReceiver,
             &BarReceiver::receivedNewBar,
             this,
-            &MainAlgo::displayedStockReceivedNewBar);
+            &MainAlgo::onDisplayedBarReceived);
 
     // Forward BarAggregator higher-TF updates so the chart can show live higher-TF candles
     connect(&currentDisplayedStockInstrument->m_barAggregator,
@@ -281,7 +290,7 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
     connect(&currentDisplayedStockInstrument->m_level2Receiver,
             &Level2Receiver::receivedNewLevel2,
             this,
-            &MainAlgo::displayedStockReceivedNewLevel2);
+            &MainAlgo::onDisplayedLevel2Received);
 
     // Forward trades for displayed symbol to FrontEnd
     connect(DBClient::getInstance(),
@@ -290,7 +299,7 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             [this, symbol](const QString& sym, const Trade& trade)
             {
                 if (sym == symbol)
-                    emit displayedStockReceivedNewTrade(sym, trade);
+                    onDisplayedTradeReceived(sym, trade);
             });
 }
 
@@ -990,19 +999,135 @@ void MainAlgo::onStrategyCrashNotified()
 
 void MainAlgo::onAggregatorBarUpdated(TimeFrame tf, const Bar& bar)
 {
-    if (currentDisplayedStockInstrument != nullptr)
-        emit displayedStockAggregatorBarUpdated(currentDisplayedStockInstrument->symbol, tf, bar);
+    if (currentDisplayedStockInstrument == nullptr)
+        return;
+
+    if (m_guiThrottleActive)
+    {
+        m_pendingAggregatorBarUpdate = {tf, bar};
+        m_pendingAggregatorSymbol = currentDisplayedStockInstrument->symbol;
+        return;
+    }
+    emit displayedStockAggregatorBarUpdated(currentDisplayedStockInstrument->symbol, tf, bar);
 }
 
 void MainAlgo::onAggregatorBarClosed(TimeFrame tf, const Bar& bar)
 {
+    // Bar closes are infrequent (once per minute boundary per TF) — never throttle
     if (currentDisplayedStockInstrument != nullptr)
         emit displayedStockAggregatorBarClosed(currentDisplayedStockInstrument->symbol, tf, bar);
+}
+
+// ---------------------------------------------------------------------------
+// GUI throttle gate slots
+// ---------------------------------------------------------------------------
+
+void MainAlgo::onDisplayedBarReceived(const QString& symbol, const Bar& bar)
+{
+    if (m_guiThrottleActive)
+    {
+        m_pendingBar = {symbol, bar};
+        return;
+    }
+    emit displayedStockReceivedNewBar(symbol, bar);
+}
+
+void MainAlgo::onDisplayedLevel2Received(const QString& symbol, const Level2& level2)
+{
+    if (m_guiThrottleActive)
+    {
+        m_pendingLevel2 = {symbol, level2};
+        return;
+    }
+    emit displayedStockReceivedNewLevel2(symbol, level2);
+}
+
+void MainAlgo::onDisplayedTradeReceived(const QString& symbol, const Trade& trade)
+{
+    if (m_guiThrottleActive)
+    {
+        m_pendingTrade = {symbol, trade};
+        return;
+    }
+    emit displayedStockReceivedNewTrade(symbol, trade);
+}
+
+void MainAlgo::onReplayTimeReceived(const QDateTime& time)
+{
+    if (m_guiThrottleActive)
+    {
+        m_pendingReplayTime = time;
+        return;
+    }
+    emit replayTimeUpdated(time);
+}
+
+void MainAlgo::onGuiThrottleTimerTick()
+{
+    if (m_pendingBar.has_value())
+    {
+        emit displayedStockReceivedNewBar(m_pendingBar->first, m_pendingBar->second);
+        m_pendingBar.reset();
+    }
+
+    if (m_pendingLevel2.has_value())
+    {
+        emit displayedStockReceivedNewLevel2(m_pendingLevel2->first, m_pendingLevel2->second);
+        m_pendingLevel2.reset();
+    }
+
+    if (m_pendingTrade.has_value())
+    {
+        emit displayedStockReceivedNewTrade(m_pendingTrade->first, m_pendingTrade->second);
+        m_pendingTrade.reset();
+    }
+
+    if (m_pendingAggregatorBarUpdate.has_value())
+    {
+        emit displayedStockAggregatorBarUpdated(m_pendingAggregatorSymbol,
+                                                m_pendingAggregatorBarUpdate->first,
+                                                m_pendingAggregatorBarUpdate->second);
+        m_pendingAggregatorBarUpdate.reset();
+    }
+
+    if (m_pendingReplayTime.has_value())
+    {
+        emit replayTimeUpdated(*m_pendingReplayTime);
+        m_pendingReplayTime.reset();
+    }
+}
+
+void MainAlgo::activateGuiThrottle()
+{
+    if (m_guiThrottleActive)
+        return;
+
+    INFO << "Activating GUI throttle for AsFastAsPossible replay mode (" << ReplayConstants::GUI_THROTTLE_INTERVAL_MS
+         << "ms interval)";
+
+    m_guiThrottleActive = true;
+    m_guiThrottleTimer.start();
+}
+
+void MainAlgo::deactivateGuiThrottle()
+{
+    if (!m_guiThrottleActive)
+        return;
+
+    INFO << "Deactivating GUI throttle";
+
+    m_guiThrottleTimer.stop();
+    m_guiThrottleActive = false;
+
+    // Flush any remaining buffered data so nothing is lost
+    onGuiThrottleTimerTick();
 }
 
 void MainAlgo::onReplayEndReached()
 {
     INFO << "Replay ended, pausing heartbeat timers to prevent stream timeout";
+
+    deactivateGuiThrottle();
 
     // Pause heartbeat timers on ALL mock streams, not just the displayed one
     for (auto& instrument: stockInstruments)
@@ -1055,7 +1180,7 @@ void MainAlgo::enterReplayMode(const QString& p_symbol,
     connected = connect(m_replayEngine,
                         &ReplayEngine::replayTimeUpdated,
                         this,
-                        &MainAlgo::replayTimeUpdated,
+                        &MainAlgo::onReplayTimeReceived,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
@@ -1078,6 +1203,10 @@ void MainAlgo::enterReplayMode(const QString& p_symbol,
     connectReplaySignals(p_symbol);
 
     DEBUG << "ReplayEngine created and connected";
+
+    // Activate GUI throttle if starting at max speed
+    if (p_speed == ReplayEngine::PlaybackSpeed::AsFastAsPossible)
+        activateGuiThrottle();
 
     // Start replay order/position streams with simulated account
     startReplayOrderStreams();
@@ -1130,7 +1259,7 @@ void MainAlgo::enterReplayModePaused(const QString& p_symbol,
     connected = connect(m_replayEngine,
                         &ReplayEngine::replayTimeUpdated,
                         this,
-                        &MainAlgo::replayTimeUpdated,
+                        &MainAlgo::onReplayTimeReceived,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
@@ -1153,6 +1282,10 @@ void MainAlgo::enterReplayModePaused(const QString& p_symbol,
     connectReplaySignals(p_symbol);
 
     DEBUG << "ReplayEngine created and connected";
+
+    // Activate GUI throttle if starting at max speed
+    if (p_speed == ReplayEngine::PlaybackSpeed::AsFastAsPossible)
+        activateGuiThrottle();
 
     // Only setup order/position streams on first entry to replay mode
     if (!isRecreatingEngine)
@@ -1218,14 +1351,19 @@ void MainAlgo::connectReplaySignals(const QString& p_symbol)
     ASSUME_TRUE(connected);
 
     // Replay Trade → forward to FrontEnd as displayed stock trade
-    connected =
-        connect(m_replayEngine,
-                &ReplayEngine::replayTrade,
-                this,
-                [this](const QString& sym, const Trade& trade) { emit displayedStockReceivedNewTrade(sym, trade); });
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::replayTrade,
+                        this,
+                        [this](const QString& sym, const Trade& trade) { onDisplayedTradeReceived(sym, trade); });
     ASSUME_TRUE(connected);
 
     INFO << "Replay signals connected for" << p_symbol;
+
+    // Set initial speed on emulator so latency is scaled from the start
+    if (OrderEmulator* emulator = TSClient::getInstance()->getOrderEmulator())
+    {
+        emulator->setReplaySpeed(static_cast<int>(m_replaySpeed));
+    }
 }
 
 void MainAlgo::exitReplayMode()
@@ -1233,6 +1371,8 @@ void MainAlgo::exitReplayMode()
     INFO << "MainAlgo exiting replay mode";
 
     OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
+
+    deactivateGuiThrottle();
 
     m_replayEngine->stopReplay();
 
@@ -1279,6 +1419,18 @@ void MainAlgo::setReplaySpeed(ReplayEngine::PlaybackSpeed p_speed)
     {
         m_replayEngine->setSpeed(p_speed);
     }
+
+    // Sync speed to OrderEmulator so latency is scaled correctly
+    if (OrderEmulator* emulator = TSClient::getInstance()->getOrderEmulator())
+    {
+        emulator->setReplaySpeed(static_cast<int>(p_speed));
+    }
+
+    // Toggle GUI throttle based on speed
+    if (p_speed == ReplayEngine::PlaybackSpeed::AsFastAsPossible)
+        activateGuiThrottle();
+    else
+        deactivateGuiThrottle();
 }
 
 void MainAlgo::pauseLiveStreams()
@@ -1530,7 +1682,7 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
     bool connected = connect(&currentDisplayedStockInstrument->barReceiver,
                              &BarReceiver::receivedNewBar,
                              this,
-                             &MainAlgo::displayedStockReceivedNewBar,
+                             &MainAlgo::onDisplayedBarReceived,
                              Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
@@ -1552,7 +1704,7 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
     connected = connect(&currentDisplayedStockInstrument->m_level2Receiver,
                         &Level2Receiver::receivedNewLevel2,
                         this,
-                        &MainAlgo::displayedStockReceivedNewLevel2,
+                        &MainAlgo::onDisplayedLevel2Received,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
@@ -1563,7 +1715,7 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
                         [this, p_symbol](const QString& sym, const Trade& trade)
                         {
                             if (sym == p_symbol)
-                                emit displayedStockReceivedNewTrade(sym, trade);
+                                onDisplayedTradeReceived(sym, trade);
                         });
     ASSUME_TRUE(connected);
 

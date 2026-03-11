@@ -9,6 +9,7 @@
 #include <QStringList>
 #include <memory>
 #include <atomic>
+#include <optional>
 
 #include "Level2Receiver.h"
 #include "Level1Receiver.h"
@@ -288,6 +289,13 @@ class MainAlgo final : public QObject
     void onAggregatorBarUpdated(TimeFrame tf, const Bar& bar);
     void onAggregatorBarClosed(TimeFrame tf, const Bar& bar);
 
+    // GUI throttle gate slots — buffer data when throttle is active, emit immediately otherwise
+    void onDisplayedBarReceived(const QString& symbol, const Bar& bar);
+    void onDisplayedLevel2Received(const QString& symbol, const Level2& level2);
+    void onDisplayedTradeReceived(const QString& symbol, const Trade& trade);
+    void onReplayTimeReceived(const QDateTime& time);
+    void onGuiThrottleTimerTick();
+
 
   private:
     static MainAlgo* m_instance;
@@ -335,4 +343,21 @@ class MainAlgo final : public QObject
     // Secondary replay engines for strategy-requested symbols (symbol → engine)
     // These run alongside the primary m_replayEngine for the displayed stock
     QMap<QString, ReplayEngine*> m_secondaryReplayEngines;
+
+    // --- GUI throttle for AsFastAsPossible replay mode ---
+    // When active, high-frequency GUI-bound signals are buffered and emitted
+    // at a capped rate to prevent flooding the GUI thread's event queue.
+    QTimer m_guiThrottleTimer;
+    bool m_guiThrottleActive = false;
+
+    void activateGuiThrottle();
+    void deactivateGuiThrottle();
+
+    // Buffered latest state for throttled GUI emission (only latest matters)
+    std::optional<std::pair<QString, Bar>> m_pendingBar;
+    std::optional<std::pair<QString, Level2>> m_pendingLevel2;
+    std::optional<std::pair<QString, Trade>> m_pendingTrade;
+    std::optional<QDateTime> m_pendingReplayTime;
+    std::optional<std::pair<TimeFrame, Bar>> m_pendingAggregatorBarUpdate;
+    QString m_pendingAggregatorSymbol;
 };
