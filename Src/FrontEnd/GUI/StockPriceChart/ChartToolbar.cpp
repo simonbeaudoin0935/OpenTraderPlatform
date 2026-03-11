@@ -55,6 +55,21 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
     wheelRatioAction->setDefaultWidget(wheelRatioWidget);
     settingsMenu->addAction(wheelRatioAction);
 
+    // Stock status indicators (right-aligned, before settings button)
+    static const QString inactiveStatusStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+                                               "border-radius: 4px; font-weight: bold; }";
+    m_haltedLabel = new QLabel("HALTED", this);
+    m_haltedLabel->setStyleSheet(inactiveStatusStyle);
+    m_haltedLabel->setToolTip("Trading is halted for this symbol");
+
+    m_delayedLabel = new QLabel("DELAYED", this);
+    m_delayedLabel->setStyleSheet(inactiveStatusStyle);
+    m_delayedLabel->setToolTip("Data is delayed (not real-time)");
+
+    m_hardToBorrowLabel = new QLabel("HTB", this);
+    m_hardToBorrowLabel->setStyleSheet(inactiveStatusStyle);
+    m_hardToBorrowLabel->setToolTip("Hard to borrow - short selling may be restricted");
+
     populateTimeFrames();
     setCurrentTimeFrame(TimeFrame::ONE_MINUTE);
 
@@ -68,6 +83,9 @@ ChartToolbar::ChartToolbar(QWidget* parent) : QWidget(parent)
     layout->addWidget(volumeAutoRescaleCheckBox);
     layout->addWidget(ordersCheckBox);
     layout->addStretch();
+    layout->addWidget(m_haltedLabel);
+    layout->addWidget(m_delayedLabel);
+    layout->addWidget(m_hardToBorrowLabel);
     layout->addWidget(settingsButton);
 
     connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ChartToolbar::onComboBoxChanged);
@@ -308,6 +326,54 @@ void ChartToolbar::onWheelRatioChanged(int index)
     }
 
     emit wheelRatioChanged(ratio);
+}
+
+void ChartToolbar::setHalted(bool halted, const QString& reason)
+{
+    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; }";
+    static const QString activeStyle = "QLabel { background-color: #cc0000; color: #ffffff; padding: 4px 8px; "
+                                       "border-radius: 4px; font-weight: bold; }";
+
+    if (halted)
+    {
+        m_haltedLabel->setStyleSheet(activeStyle);
+        m_haltedLabel->setToolTip(reason.isEmpty() ? "Trading is halted for this symbol" : "Halt reason: " + reason);
+    }
+    else
+    {
+        m_haltedLabel->setStyleSheet(inactiveStyle);
+        m_haltedLabel->setToolTip("Trading is halted for this symbol");
+    }
+}
+
+void ChartToolbar::setDelayed(bool delayed)
+{
+    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; }";
+    static const QString activeStyle = "QLabel { background-color: #ccaa00; color: #ffffff; padding: 4px 8px; "
+                                       "border-radius: 4px; font-weight: bold; }";
+
+    m_delayedLabel->setStyleSheet(delayed ? activeStyle : inactiveStyle);
+}
+
+void ChartToolbar::setHardToBorrow(bool active)
+{
+    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
+                                         "border-radius: 4px; font-weight: bold; }";
+    static const QString activeStyle = "QLabel { background-color: #e65c00; color: #ffffff; padding: 4px 8px; "
+                                       "border-radius: 4px; font-weight: bold; }";
+
+    if (active)
+    {
+        m_hardToBorrowLabel->setStyleSheet(activeStyle);
+        m_hardToBorrowLabel->setToolTip("Short sale restriction (SSR) active");
+    }
+    else
+    {
+        m_hardToBorrowLabel->setStyleSheet(inactiveStyle);
+        m_hardToBorrowLabel->setToolTip("Hard to borrow - short selling may be restricted");
+    }
 }
 
 void ChartToolbar::populateTimeFrames()

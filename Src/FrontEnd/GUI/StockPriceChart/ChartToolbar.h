@@ -92,6 +92,25 @@ class ChartToolbar : public QWidget
     void setOrderVisualizationsVisible(bool visible);
 
     /**
+     * @brief Sets the halted state of the chart's symbol.
+     * @param halted True if trading is halted, false otherwise.
+     * @param reason Optional halt reason (shown in tooltip when halted).
+     */
+    void setHalted(bool halted, const QString& reason = {});
+
+    /**
+     * @brief Sets the delayed-data state of the chart's symbol.
+     * @param delayed True if data is delayed (not real-time), false otherwise.
+     */
+    void setDelayed(bool delayed);
+
+    /**
+     * @brief Sets the hard-to-borrow / short-sale-restriction state.
+     * @param active True if SSR/HTB is active, false otherwise.
+     */
+    void setHardToBorrow(bool active);
+
+    /**
      * @brief Gets the current wheel scrolling ratio.
      * @return The wheel scrolling ratio.
      */
@@ -165,6 +184,10 @@ class ChartToolbar : public QWidget
     QToolButton* settingsButton; ///< Settings button with cog icon
     QMenu* settingsMenu;         ///< Settings popup menu
     QComboBox* wheelRatioCombo;  ///< Wheel scrolling sensitivity
+
+    QLabel* m_haltedLabel;       ///< "HALTED" status indicator
+    QLabel* m_delayedLabel;      ///< "DELAYED" status indicator
+    QLabel* m_hardToBorrowLabel; ///< "HTB" (hard-to-borrow / SSR) status indicator
 
     void populateTimeFrames();
 };

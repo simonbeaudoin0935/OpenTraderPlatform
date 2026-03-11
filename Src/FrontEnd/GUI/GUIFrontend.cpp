@@ -257,29 +257,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     ui->topControlsLayout->insertWidget(4, m_sessionLabel);
     updateSessionLabel();
 
-    // Create MarketFlags status labels (start in inactive/grey state)
-    // Inactive: dark grey background, muted text
-    // Active: bright colored background matching the alert level
-    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
-                                         "border-radius: 4px; font-weight: bold; }";
-
-    m_haltedLabel = new QLabel("HALTED", m_mainWindow);
-    Q_CHECK_PTR(m_haltedLabel);
-    m_haltedLabel->setStyleSheet(inactiveStyle);
-    m_haltedLabel->setToolTip("Trading is halted for this symbol");
-    ui->topControlsLayout->insertWidget(5, m_haltedLabel);
-
-    m_delayedLabel = new QLabel("DELAYED", m_mainWindow);
-    Q_CHECK_PTR(m_delayedLabel);
-    m_delayedLabel->setStyleSheet(inactiveStyle);
-    m_delayedLabel->setToolTip("Data is delayed (not real-time)");
-    ui->topControlsLayout->insertWidget(6, m_delayedLabel);
-
-    m_hardToBorrowLabel = new QLabel("HTB", m_mainWindow);
-    Q_CHECK_PTR(m_hardToBorrowLabel);
-    m_hardToBorrowLabel->setStyleSheet(inactiveStyle);
-    m_hardToBorrowLabel->setToolTip("Hard to borrow - short selling may be restricted");
-    ui->topControlsLayout->insertWidget(7, m_hardToBorrowLabel);
+    // Status labels (HALTED, DELAYED, HTB) live in the chart toolbar — see ChartToolbar.
 
     // Create time display widget (centered next to session label)
     m_timeDisplayLabel = new QLabel("00:00:00", m_mainWindow);
@@ -1140,35 +1118,8 @@ void GUIFrontend::onDatabentoStatusUpdate(const QString& symbol, bool isHalted, 
     if (symbol != currentlyDisplayedSymbol)
         return;
 
-    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
-                                         "border-radius: 4px; font-weight: bold; }";
-    static const QString haltedStyle = "QLabel { background-color: #cc0000; color: #ffffff; padding: 4px 8px; "
-                                       "border-radius: 4px; font-weight: bold; }";
-    static const QString ssrStyle = "QLabel { background-color: #e65c00; color: #ffffff; padding: 4px 8px; "
-                                    "border-radius: 4px; font-weight: bold; }";
-
-    if (isHalted)
-    {
-        m_haltedLabel->setStyleSheet(haltedStyle);
-        m_haltedLabel->setToolTip(haltReason.isEmpty() ? "Trading is halted for this symbol"
-                                                       : "Halt reason: " + haltReason);
-    }
-    else
-    {
-        m_haltedLabel->setStyleSheet(inactiveStyle);
-        m_haltedLabel->setToolTip("Trading is halted for this symbol");
-    }
-
-    if (isSsr)
-    {
-        m_hardToBorrowLabel->setStyleSheet(ssrStyle);
-        m_hardToBorrowLabel->setToolTip("Short sale restriction (SSR) active");
-    }
-    else
-    {
-        m_hardToBorrowLabel->setStyleSheet(inactiveStyle);
-        m_hardToBorrowLabel->setToolTip("Hard to borrow - short selling may be restricted");
-    }
+    ui->priceChart->toolbar()->setHalted(isHalted, haltReason);
+    ui->priceChart->toolbar()->setHardToBorrow(isSsr);
 }
 
 void GUIFrontend::onDatabentoGatewayError(const QString& errorText, bool isFatal)
@@ -1295,13 +1246,9 @@ void GUIFrontend::displayStock(const QString& symbol)
     ui->timeAndSalesWidget->clearData();
 
     // Reset status indicators for the new symbol (they will be updated by live status stream)
-    static const QString inactiveStyle = "QLabel { background-color: #3a3a3a; color: #808080; padding: 4px 8px; "
-                                         "border-radius: 4px; font-weight: bold; }";
-    m_haltedLabel->setStyleSheet(inactiveStyle);
-    m_haltedLabel->setToolTip("Trading is halted for this symbol");
-    m_delayedLabel->setStyleSheet(inactiveStyle);
-    m_hardToBorrowLabel->setStyleSheet(inactiveStyle);
-    m_hardToBorrowLabel->setToolTip("Hard to borrow - short selling may be restricted");
+    ui->priceChart->toolbar()->setHalted(false);
+    ui->priceChart->toolbar()->setDelayed(false);
+    ui->priceChart->toolbar()->setHardToBorrow(false);
 
     // Update the order entry widget with the new symbol
     ui->orderEntryWidget->setSymbol(symbol);

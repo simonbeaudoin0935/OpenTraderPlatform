@@ -143,11 +143,6 @@ class GUIFrontend : public FrontEnd
 
     ReplayControlsBar* m_replayControlsBar = nullptr; // Replay controls in top toolbar
 
-    // MarketFlags status labels
-    QLabel* m_haltedLabel = nullptr;       // "HALTED" - red
-    QLabel* m_delayedLabel = nullptr;      // "DELAYED" - yellow
-    QLabel* m_hardToBorrowLabel = nullptr; // "HTB" - orange
-
     // Bottom logger split: platform log (left) + strategy log (right, shown on demand)
     QWidget* m_loggerContainer = nullptr;             ///< Outer container replacing liveLogDisplay in mainSplitter
     QSplitter* m_loggerSplitter = nullptr;            ///< Horizontal splitter inside m_loggerContainer
