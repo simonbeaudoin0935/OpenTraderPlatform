@@ -1,4 +1,6 @@
 #include "Logging.h"
+#include "ALogger.h"
+#include "CONSTANTS.h"
 #include "Logging_generated.h"
 
 #include <QDateTime>
@@ -15,6 +17,9 @@
 #include <stacktrace>
 #include <sstream>
 #include <mutex>
+#include <optional>
+#include <atomic>
+#include <unistd.h>
 
 // ANSI color codes
 #define RESET_COLOR "\033[0m"
@@ -27,12 +32,20 @@
 #define WHITE_COLOR "\033[37m"
 #define GRAY_COLOR "\033[90m"
 
-// Mutex to protect log file and stdout access
-static std::recursive_mutex loggingMutex;
+// Async logger instances — file receives plain text, stdout/stderr receives ANSI-coloured text.
+static std::optional<ALogger> g_fileALogger;
+static std::optional<ALogger> g_stdoutALogger;
 
-// Global log file stream
-static QTextStream* logStream = nullptr;
-static QFile logFile;
+// Underlying file handle kept open for the lifetime of the process.
+static QFile g_logFile;
+
+// Lightweight mutex — only guards LoggingConfig reads and LogBroadcaster emit.
+// I/O itself is handled inside ALogger's own mutex.
+static std::mutex g_filterMutex;
+
+// Replay time: −1 means "not in replay mode". Updated atomically so that
+// coloredMessageOutput() never needs to take a lock just for the timestamp.
+static std::atomic<qint64> g_replayTimeMs{-1};
 
 // Forward declaration
 void printStackTrace();
@@ -40,8 +53,11 @@ void printStackTrace();
 // Signal handler for crashes
 void crashHandler(int sig)
 {
-    // Lock the logging mutex to prevent interleaved output
-    std::lock_guard<std::recursive_mutex> lock(loggingMutex);
+    // Drain pending async buffers first so no log lines are lost before the crash message.
+    if (g_fileALogger)
+        g_fileALogger->syncFlush();
+    if (g_stdoutALogger)
+        g_stdoutALogger->syncFlush();
 
     std::string signalMsg = "\nReceived signal " + std::to_string(sig) + " - ";
     switch (sig)
@@ -64,17 +80,17 @@ void crashHandler(int sig)
     }
     signalMsg += "\n";
 
-    // Write signal message to both log file and stderr
-    if (logStream)
+    // Write crash message directly to both destinations (bypass async — we are crashing).
+    if (g_logFile.isOpen())
     {
-        *logStream << QString::fromStdString(signalMsg);
-        logStream->flush();
+        int fd = g_logFile.handle();
+        if (fd >= 0)
+            ::write(fd, signalMsg.data(), signalMsg.size());
     }
-    std::cerr << RED_COLOR << signalMsg << RESET_COLOR;
+    ::write(STDERR_FILENO, signalMsg.data(), signalMsg.size());
 
     printStackTrace();
 
-    // Re-raise the signal to get default behavior (core dump, etc.)
     signal(sig, SIG_DFL);
     raise(sig);
 }
@@ -82,26 +98,16 @@ void crashHandler(int sig)
 // Function to print stack trace using C++23 stacktrace API
 void printStackTrace()
 {
-    std::lock_guard<std::recursive_mutex> lock(loggingMutex);
-
-    // Capture current stacktrace
     std::stacktrace trace = std::stacktrace::current();
 
     std::ostringstream stackTraceMsg;
     stackTraceMsg << "\nStack trace (" << trace.size() << " frames):\n";
 
-    // Convert stacktrace to string with proper formatting
     for (size_t i = 0; i < trace.size(); ++i)
     {
         const auto& entry = trace[i];
         stackTraceMsg << "  #" << i << " ";
-
-        // Get description which includes source file and line number when available
-        std::string description = std::to_string(entry);
-
-        // The description format from std::stacktrace_entry is already quite good
-        // It includes function name, source file, and line number when debug info is available
-        stackTraceMsg << description << "\n";
+        stackTraceMsg << std::to_string(entry) << "\n";
     }
 
     stackTraceMsg << "\nNote: Stack trace quality depends on debug symbols being present in the binary.\n";
@@ -109,13 +115,13 @@ void printStackTrace()
 
     std::string msg = stackTraceMsg.str();
 
-    // Write to both log file and stderr
-    if (logStream)
+    if (g_logFile.isOpen())
     {
-        *logStream << QString::fromStdString(msg);
-        logStream->flush();
+        int fd = g_logFile.handle();
+        if (fd >= 0)
+            ::write(fd, msg.data(), msg.size());
     }
-    std::cerr << msg << std::endl;
+    ::write(STDERR_FILENO, msg.data(), msg.size());
 }
 
 // LogBroadcaster implementation
@@ -135,7 +141,6 @@ LoggingConfig::LoggingConfig()
     : m_settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::applicationName(), "Logging")
 {
     m_settings.setFallbacksEnabled(false);
-    // Populate categories list and load enabled state for all known categories
     for (int i = 0; i < logging_categories_count; ++i)
     {
         QString category = QString::fromUtf8(logging_categories[i]);
@@ -160,7 +165,6 @@ void LoggingConfig::setCategoryEnabled(const QString& category, bool enabled)
 {
     m_categoryEnabled[category] = enabled;
 
-    // Write all current category states to settings
     for (auto it = m_categoryEnabled.begin(); it != m_categoryEnabled.end(); ++it)
     {
         m_settings.setValue(QString("Categories/%1").arg(it.key()), it.value());
@@ -176,13 +180,11 @@ QStringList LoggingConfig::getCategories() const
 
 void LoggingConfig::writeConfigToDisk()
 {
-    // Write all current category states to settings
     for (auto it = m_categoryEnabled.begin(); it != m_categoryEnabled.end(); ++it)
     {
         m_settings.setValue(QString("Categories/%1").arg(it.key()), it.value());
     }
 
-    // Write global settings
     m_settings.setValue("Global/DisableDebug", isDebugDisabled());
     m_settings.setValue("Global/DisableInfo", isInfoDisabled());
 
@@ -211,68 +213,74 @@ void LoggingConfig::setInfoDisabled(bool disabled)
     m_settings.sync();
 }
 
+void setCurrentReplayTime(const QDateTime& dt)
+{
+    g_replayTimeMs.store(dt.toMSecsSinceEpoch(), std::memory_order_relaxed);
+}
+
+void clearReplayTime()
+{
+    g_replayTimeMs.store(-1, std::memory_order_relaxed);
+}
+
 void coloredMessageOutput(QtMsgType type, const QMessageLogContext& context, const QString& msg)
 {
-    QString colorCode;
-    QString typeText;
+    // Build the timestamp. In replay mode append the simulated market time.
+    qint64 replayMs = g_replayTimeMs.load(std::memory_order_relaxed);
     QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
+    if (replayMs >= 0)
+        timestamp += "-[" + QDateTime::fromMSecsSinceEpoch(replayMs).toString("hh:mm:ss.zzz") + "]";
+
     QString category =
         (strcmp(context.category, "default") == 0) ? "" : QString(context.category ? context.category : "");
 
-    // Broadcast to GUI with HTML color formatting
+    QString colorCode;
+    QString typeText;
     QString htmlColorCode;
-    switch (type)
-    {
-    case QtDebugMsg:
-        htmlColorCode = "#00CED1"; // Cyan
-        break;
-    case QtInfoMsg:
-        htmlColorCode = "#32CD32"; // Green
-        break;
-    case QtWarningMsg:
-        htmlColorCode = "#FFD700"; // Yellow
-        break;
-    case QtCriticalMsg:
-        htmlColorCode = "#FF4500"; // Red
-        break;
-    case QtFatalMsg:
-        htmlColorCode = "#FF00FF"; // Magenta
-        break;
-    }
 
     switch (type)
     {
     case QtDebugMsg:
         colorCode = CYAN_COLOR;
         typeText = "DEBG";
+        htmlColorCode = "#00CED1";
         break;
     case QtInfoMsg:
         colorCode = GREEN_COLOR;
         typeText = "INFO";
+        htmlColorCode = "#32CD32";
         break;
     case QtWarningMsg:
         colorCode = YELLOW_COLOR;
         typeText = "WARN";
+        htmlColorCode = "#FFD700";
         break;
     case QtCriticalMsg:
         colorCode = RED_COLOR;
         typeText = "CRIT";
+        htmlColorCode = "#FF4500";
         break;
     case QtFatalMsg:
         colorCode = MAGENTA_COLOR;
         typeText = "FATAL";
+        htmlColorCode = "#FF00FF";
         break;
     }
 
-    QString formattedMsg = QString("%1[%2] %3 %4:%5 %6%7")
-                               .arg(colorCode)
-                               .arg(timestamp)
-                               .arg(typeText)
-                               .arg(category)
-                               .arg(RESET_COLOR)
-                               .arg(msg)
-                               .arg(RESET_COLOR);
+    // Plain text — written to the log file (no ANSI codes, readable with cat/grep).
+    QString plainMsg = QString("[%1] %2 %3: %4\n").arg(timestamp).arg(typeText).arg(category).arg(msg);
 
+    // ANSI-coloured — written to stdout/stderr for terminal display.
+    QString coloredMsg = QString("%1[%2] %3 %4:%5 %6%7\n")
+                             .arg(colorCode)
+                             .arg(timestamp)
+                             .arg(typeText)
+                             .arg(category)
+                             .arg(RESET_COLOR)
+                             .arg(msg)
+                             .arg(RESET_COLOR);
+
+    // HTML — broadcast to the GUI log widget.
     QString htmlMsg = QString("<span style='color:%1'>[%2] %3 %4:</span> %5")
                           .arg(htmlColorCode)
                           .arg(timestamp)
@@ -280,39 +288,34 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext& context, con
                           .arg(category)
                           .arg(msg);
 
-    std::lock_guard<std::recursive_mutex> lock(loggingMutex);
-
-    // Always write to log file (without ANSI colors)
-    if (logStream)
+    // Always write plain text to file (unfiltered).
+    if (g_fileALogger)
     {
-        *logStream << formattedMsg << "\n";
-        logStream->flush();
+        QByteArray bytes = plainMsg.toUtf8();
+        g_fileALogger->write(bytes.constData(), static_cast<size_t>(bytes.size()));
     }
 
-    // Check global disable settings first
-    if ((type == QtDebugMsg && LoggingConfig::instance().isDebugDisabled()) ||
-        (type == QtInfoMsg && LoggingConfig::instance().isInfoDisabled()))
+    // Filtered paths: check category/level before writing to stdout and GUI.
     {
-        return;
+        std::lock_guard<std::mutex> lock(g_filterMutex);
+
+        if ((type == QtDebugMsg && LoggingConfig::instance().isDebugDisabled()) ||
+            (type == QtInfoMsg && LoggingConfig::instance().isInfoDisabled()))
+        {
+            return;
+        }
+
+        if (!LoggingConfig::instance().isCategoryEnabled(category))
+            return;
+
+        if (g_stdoutALogger)
+        {
+            QByteArray bytes = coloredMsg.toUtf8();
+            g_stdoutALogger->write(bytes.constData(), static_cast<size_t>(bytes.size()));
+        }
+
+        LogBroadcaster::instance().broadcastLogMessage(htmlMsg);
     }
-
-    // Filter console output based on category enabled state
-    if (!LoggingConfig::instance().isCategoryEnabled(category))
-    {
-        return;
-    }
-
-#ifdef GUI_ENABLED
-    // GUI mode: write to stdout as normal
-    std::cout << formattedMsg.toStdString() << std::endl;
-    std::cout.flush();
-#else
-    // TUI mode: write to stderr to avoid interfering with ncurses on stdout
-    std::cerr << formattedMsg.toStdString() << std::endl;
-    std::cerr.flush();
-#endif
-
-    LogBroadcaster::instance().broadcastLogMessage(htmlMsg);
 }
 
 QString getLogsFolderPath()
@@ -327,56 +330,59 @@ QString getLogsFolderPath()
 
 void initLogging()
 {
-    // Install signal handlers for crash reporting
     signal(SIGSEGV, crashHandler);
     signal(SIGABRT, crashHandler);
     signal(SIGFPE, crashHandler);
     signal(SIGILL, crashHandler);
 
-    // Get XDG-compliant logs directory
     QString logsDirPath = getLogsFolderPath();
     QDir logsDir(logsDirPath);
     if (!logsDir.exists())
-    {
         logsDir.mkpath(".");
-    }
 
-    // Generate timestamped log file name in XDG state directory
-    QString logFileName = QString("%1/%2_%3.log.ansi")
+    // Plain text log file — no .ansi extension needed.
+    QString logFileName = QString("%1/%2_%3.log")
                               .arg(logsDirPath,
                                    QCoreApplication::applicationName(),
                                    QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss"));
-    logFile.setFileName(logFileName);
+    g_logFile.setFileName(logFileName);
 
-    // Open log file
-    if (logFile.open(QIODevice::WriteOnly | QIODevice::Text))
-    {
-        logStream = new QTextStream(&logFile);
-        qInfo() << "Logging initialized. Log file:" << logFileName;
-    }
-    else
-    {
+    if (!g_logFile.open(QIODevice::WriteOnly | QIODevice::Text))
         qFatal("Could not open log file: %s", logFileName.toUtf8().constData());
-    }
 
-    // Install custom colored message handler
+    int logFileFd = g_logFile.handle();
+
+#ifdef GUI_ENABLED
+    int stdioFd = STDOUT_FILENO;
+#else
+    int stdioFd = STDERR_FILENO;
+#endif
+
+    g_fileALogger.emplace(logFileFd, "file");
+    g_stdoutALogger.emplace(stdioFd, "stdout");
+
     qInstallMessageHandler(coloredMessageOutput);
 
-    // Initial info: list categories (adjust to match generated symbol names)
+    qInfo() << "Logging initialized. Log file:" << logFileName;
+
     qInfo() << "Logging categories:";
     QStringList categories = LoggingConfig::instance().getCategories();
     for (const QString& category: categories)
     {
         bool enabled = LoggingConfig::instance().isCategoryEnabled(category);
-        QString status = enabled ? "enabled" : "disabled";
-        qInfo().noquote() << "  -" << category << "(" << status << ")";
+        qInfo().noquote() << "  -" << category << "(" << (enabled ? "enabled" : "disabled") << ")";
     }
+}
 
-    // LoggingConfig handles loading and saving category states
+void shutdownLogging()
+{
+    // Drain and join both logger threads before closing the file.
+    g_fileALogger.reset();
+    g_stdoutALogger.reset();
+    g_logFile.close();
 }
 
 void reinstallColoredMessageHandler()
 {
-    // Reinstall our custom colored message handler (useful after QTest overrides it)
     qInstallMessageHandler(coloredMessageOutput);
 }

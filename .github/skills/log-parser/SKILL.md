@@ -22,7 +22,7 @@ L2Trader writes a timestamped log file for every invocation. There are two log d
 
 **Platform log** filenames:
 ```
-L2Trader_YYYY-MM-DD_hh-mm-ss.log.ansi
+L2Trader_YYYY-MM-DD_hh-mm-ss.log
 ```
 
 **Strategy log** filenames:
@@ -30,17 +30,15 @@ L2Trader_YYYY-MM-DD_hh-mm-ss.log.ansi
 strategy_{StrategyName}_YYYY-MM-DD_hh-mm-ss.log
 ```
 
-The `.ansi` extension indicates the file contains ANSI color escape codes. To find and read the **most recent platform log**:
-
 ```bash
 # Find the latest log file (assign to variable first to avoid nested command substitution)
 LATEST=$(ls -t ~/.local/state/L2Trader/AppLogs/ | head -1) && echo "$LATEST"
 
-# Read it (plain text, stripping ANSI escape codes)
-LATEST=$(ls -t ~/.local/state/L2Trader/AppLogs/ | head -1) && sed 's/\x1b\[[0-9;]*m//g' ~/.local/state/L2Trader/AppLogs/"$LATEST"
+# Read it
+LATEST=$(ls -t ~/.local/state/L2Trader/AppLogs/ | head -1) && cat ~/.local/state/L2Trader/AppLogs/"$LATEST"
 
 # Grep for errors/warnings in the latest log
-LATEST=$(ls -t ~/.local/state/L2Trader/AppLogs/ | head -1) && sed 's/\x1b\[[0-9;]*m//g' ~/.local/state/L2Trader/AppLogs/"$LATEST" | grep -E "WARN|CRIT|FATAL|error"
+LATEST=$(ls -t ~/.local/state/L2Trader/AppLogs/ | head -1) && grep -E "WARN|CRIT|FATAL|error" ~/.local/state/L2Trader/AppLogs/"$LATEST"
 ```
 
 To find and read the **most recent strategy log**:
@@ -55,10 +53,33 @@ LATEST=$(ls -t ~/.local/state/L2Trader/StrategiesLogs/ | head -1) && cat ~/.loca
 
 > **Important for AI agents**: Always use the two-step pattern above — assign `LATEST` first, then reference `"$LATEST"` — never use `$(...)` inside another `$(...)` (nested command substitution is blocked by the shell security policy).
 
+### Log line format
+
+Every platform log line follows this format:
+```
+[hh:mm:ss.zzz] LEVL Category: message
+```
+
+Where `LEVL` is one of `DEBG`, `INFO`, `WARN`, `CRIT`, or `FATAL`.
+
+#### Replay mode timestamps
+
+When the app was running in **replay mode**, log lines include a second timestamp for the simulated market time:
+```
+[hh:mm:ss.zzz]-[hh:mm:ss.zzz] LEVL Category: message
+```
+- **Left bracket** — real wall-clock time the log was issued
+- **Right bracket** — simulated replay market time at that moment
+
+Example:
+```
+[20:19:39.112]-[13:23:21.678] DEBG TSClient: TSClient shutting down
+```
+
 ### Notes
 
 - The first lines of every platform log list which logging categories are enabled/disabled — useful context when diagnosing missing output.
+- Platform logs are plain text — no ANSI escape codes — readable directly with `cat` or `grep`.
 - In TUI mode, platform logs are written to **stderr** in addition to the file (stdout is the ncurses UI).
 - If the app crashed, look for `FATAL`, `SIGABRT`, or `SIGSEGV` near the end of the platform log.
-- Strategy logs do not use ANSI codes (plain text, no `.ansi` extension).
 

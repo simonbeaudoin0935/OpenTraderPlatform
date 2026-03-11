@@ -406,8 +406,9 @@ void StockPriceChart::drawFixedBackgroundRect(const QDate& date,
     qreal sessionStartIndex = static_cast<qreal>(getIndexForTimestamp(rangeStartDT));
     qreal sessionEndIndex = static_cast<qreal>(getIndexForTimestamp(rangeEndDT));
 
-    sessionStartIndex -= 0.5; // Make start index inclusive of the first candle
-    sessionEndIndex += 0.5;   // Make end index inclusive of the last candle
+    // Bars are left-aligned: candle at index N is drawn from N to N+1 (key set to N+0.5 so
+    // QCustomPlot centers it correctly). The rectangle must align with those left edges.
+    sessionEndIndex += 1.0; // Extend to the right edge of the last candle
 
     // Create rectangle with fixed coordinates
     QCPItemRect* rect = new QCPItemRect(m_customPlot);
