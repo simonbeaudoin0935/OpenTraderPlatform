@@ -8,7 +8,7 @@
 #include <QMessageBox>
 #include <QDir>
 
-#include "Misc/Logging.h"
+#include "Misc/Logging/Logging.h"
 #include "Misc/Settings.h"
 
 LoggingTab::LoggingTab(QWidget* parent)

@@ -29,7 +29,7 @@
 #include "StrategyManager.h"
 #include "StockPriceChart/ChartToolbar.h"
 #include "StockPriceChart/StockPriceChart.h"
-#include "Misc/Logging.h"
+#include "Misc/Logging/Logging.h"
 #include "Misc/Settings.h"
 #include "Misc/ShortcutSettings.h"
 #include "Core/MainApp.h"

@@ -1,5 +1,5 @@
 build/
-Src/Misc/Logging_generated.h
+Src/Misc/Logging/Logging_generated.h
 compile_commands.json
 
 # CodeQL artifacts
