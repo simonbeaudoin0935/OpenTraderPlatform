@@ -77,7 +77,9 @@ void TradingModeBar::applyStyles()
 
 bool TradingModeBar::eventFilter(QObject* watched, QEvent* event)
 {
-    if (event->type() == QEvent::MouseButtonRelease)
+    // Use MouseButtonPress (not Release): QLabel ignores press events by default,
+    // so Qt never delivers the release back to the label. Fire on press instead.
+    if (event->type() == QEvent::MouseButtonPress)
     {
         if (watched == m_liveLabel && m_activeMode != Mode::Live)
         {
