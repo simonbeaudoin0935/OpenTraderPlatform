@@ -1,7 +1,7 @@
 #pragma once
 
 #include <QWidget>
-#include <QLabel>
+#include <QPushButton>
 #include "Core/MainApp.h"
 
 /**
@@ -63,13 +63,12 @@ class TradingModeBar : public QWidget
     void replayExitRequested();
 
   private:
-    QLabel* m_liveLabel;
-    QLabel* m_simLabel;
-    QLabel* m_replayLabel;
+    QPushButton* m_liveBtn;
+    QPushButton* m_simBtn;
+    QPushButton* m_replayBtn;
 
     Mode m_activeMode = Mode::Live;
 
     void applyStyles();
-    void setupLabel(QLabel* label, const QString& text, const QString& tooltip);
-    bool eventFilter(QObject* watched, QEvent* event) override;
+    void setupButton(QPushButton* btn, const QString& text, const QString& tooltip);
 };
