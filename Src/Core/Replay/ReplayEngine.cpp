@@ -257,6 +257,7 @@ void ReplayEngine::stopReplay()
     m_wallClockAnchorMs = 0;
     m_replayEpochAnchorMs = 0;
     m_pauseWallClockMs = 0;
+    clearReplayTime();
     closeStreams();
 
     emit replayStopped();
@@ -413,6 +414,7 @@ void ReplayEngine::updateReplayTime(qint64 p_epochMs)
     {
         QDateTime newTime = QDateTime::fromMSecsSinceEpoch(p_epochMs, TradingHours::MARKET_TIMEZONE);
         MainApp::currentAppReplayTime = newTime;
+        setCurrentReplayTime(newTime);
         emit replayTimeUpdated(newTime);
     }
 }

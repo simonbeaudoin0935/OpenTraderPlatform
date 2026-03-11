@@ -71,5 +71,9 @@ int main(int argc, char* argv[])
     qInfo() << "Application event loop exited, cleaning up singletons";
     MainApp::cleanupSingletons();
 
+    // Drain and shut down the async log buffers after all singletons are gone
+    // so the final log lines from cleanupSingletons() are not lost.
+    shutdownLogging();
+
     return exitCode;
 }

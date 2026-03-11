@@ -59,7 +59,14 @@ namespace QtEnum
 
 void initLogging();
 void reinstallColoredMessageHandler();
+void shutdownLogging();
 QString getLogsFolderPath();
+
+// Replay time injection — called by ReplayEngine when the simulated market time advances.
+// When set, every log line gains a dual timestamp: [real_time]-[replay_time].
+// Call clearReplayTime() when replay stops so the suffix is removed.
+void setCurrentReplayTime(const QDateTime& dt);
+void clearReplayTime();
 
 // Singleton to broadcast log messages to GUI
 class LogBroadcaster : public QObject
