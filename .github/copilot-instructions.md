@@ -106,7 +106,7 @@ Use ASSUME macros from `Src/Misc/Assume.h` for both pre-conditions and post-cond
 ### Code Style
 - Early exit: Handle errors first, minimize indentation
 - [[nodiscard]]: Mark functions where return values must be checked
-- Qt::UniqueConnection: Always use for signal/slot connections
+- Qt::UniqueConnection: Only use for **named-slot** connections (not lambdas — Qt::UniqueConnection silently fails with lambda functors)
 - Q_CHECK_PTR(): Always validate dynamically allocated objects
 
 ### Signal Documentation (REQUIRED)
