@@ -414,10 +414,10 @@ namespace AsyncLogger
 {
     // Total capacity of each circular log buffer (one for file, one for stdout/stderr).
     // Large enough to absorb bursts without dropping messages.
-    inline constexpr size_t BUFFER_SIZE_BYTES = 10ULL * 1024 * 1024; // 10 MB
+    inline constexpr size_t BUFFER_SIZE_BYTES = 1024 * 1024; // 1 MB
 
     // Wake the consumer thread immediately once this many bytes are pending.
-    inline constexpr size_t FLUSH_THRESHOLD_BYTES = 1ULL * 1024 * 1024; // 1 MB
+    inline constexpr size_t FLUSH_THRESHOLD_BYTES = 512 * 1024; // 512 KB
 
     // Maximum time the consumer thread sleeps before flushing whatever is pending.
     inline constexpr int FLUSH_TIMEOUT_MS = 1000; // 1 s
