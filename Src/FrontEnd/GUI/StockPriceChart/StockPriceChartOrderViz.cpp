@@ -738,14 +738,18 @@ void StockPriceChart::onOrderPlaced(const Order& order)
     double price = limitPrice.has_value() ? limitPrice.value() : stopPrice.value();
     OBJ_ASSUME_GT(price, 0.01);
 
+    // Defer if chart has no bars yet — loadHistoricalOrders() will pick this up once bars arrive
+    int barCount = m_candlesticks ? m_candlesticks->data()->size() : 0;
+    if (barCount == 0)
+    {
+        return;
+    }
+
     double index = getExactIndexForTimestamp(order.getOpenedDateTime());
     bool isBuy = order.getTradeAction().toUpper().contains("BUY");
     // entry: BUY (long entry) or SELLSHORT (short entry); exit: SELL (close long) or BUYTOCOVER (close short)
     const QString action = order.getTradeAction().toUpper();
     bool isEntry = (action == "BUY" || action == "SELLSHORT" || action.contains("OPEN"));
-
-    int barCount = m_candlesticks ? m_candlesticks->data()->size() : 0;
-    OBJ_ASSUME_GT(barCount, 0);
 
     index = clampIndexToValidRange(index, barCount);
 
@@ -828,13 +832,17 @@ void StockPriceChart::onOrderFilled(const Order& order)
         double price = order.getFilledPrice();
         OBJ_ASSUME_GT(price, 0.01);
 
+        // Defer if chart has no bars yet — loadHistoricalOrders() will pick this up once bars arrive
+        int barCount = m_candlesticks ? m_candlesticks->data()->size() : 0;
+        if (barCount == 0)
+        {
+            return;
+        }
+
         double index = getExactIndexForTimestamp(order.getClosedDateTime());
         bool isBuy = order.getTradeAction().toUpper().contains("BUY");
         const QString action = order.getTradeAction().toUpper();
         bool isEntry = (action == "BUY" || action == "SELLSHORT" || action.contains("OPEN"));
-
-        int barCount = m_candlesticks ? m_candlesticks->data()->size() : 0;
-        OBJ_ASSUME_GT(barCount, 0);
 
         index = clampIndexToValidRange(index, barCount);
 

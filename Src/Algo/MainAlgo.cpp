@@ -277,18 +277,25 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         // Disconnect trade forwarding from DBClient for old symbol
         disconnect(DBClient::getInstance(), &DBClient::newTrade, this, nullptr);
 
-        // Clean up the previous stock instrument to free resources (streams, database connections)
+        // Clean up or detach the previous SymbolContext
         QString oldSymbol = m_currentDisplayedSymbolContext->symbol;
-        QPointer<SymbolContext> oldInstrument = m_currentDisplayedSymbolContext;
-
+        QPointer<SymbolContext> oldContext = m_currentDisplayedSymbolContext;
         m_currentDisplayedSymbolContext = nullptr;
 
-        int removed = m_symbolContexts.remove(oldSymbol);
-        OBJ_ASSUME_EQUAL(removed, 1); // Should always remove exactly one entry
-
-        // Schedule deletion after streams are closed
-        oldInstrument->deleteLater();
-        DEBUG << "Scheduled cleanup for StockInstrument:" << oldSymbol;
+        if (m_strategyManager.isSymbolClaimed(oldSymbol))
+        {
+            // A strategy still owns this symbol — keep the SymbolContext alive
+            // in the map so switching back reuses it with live accumulator state.
+            DEBUG << "Keeping SymbolContext alive for strategy-claimed symbol:" << oldSymbol;
+        }
+        else
+        {
+            // No strategy needs this symbol — free its resources
+            int removed = m_symbolContexts.remove(oldSymbol);
+            OBJ_ASSUME_EQUAL(removed, 1);
+            oldContext->deleteLater();
+            DEBUG << "Scheduled cleanup for SymbolContext:" << oldSymbol;
+        }
     }
 
     // Change the stock selected pointer to the new selected stock
