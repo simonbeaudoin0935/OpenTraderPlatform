@@ -112,7 +112,6 @@ void MainAlgo::onThreadStarted()
 
     // GUI throttle timer — fires periodically when AsFastAsPossible mode is active
     // to flush buffered GUI updates at a capped rate
-    m_guiThrottleTimer.setParent(this);
     m_guiThrottleTimer.setInterval(ReplayConstants::GUI_THROTTLE_INTERVAL_MS);
     connect(&m_guiThrottleTimer, &QTimer::timeout, this, &MainAlgo::onGuiThrottleTimerTick, Qt::UniqueConnection);
 
@@ -305,21 +304,17 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             &MainAlgo::onAggregatorBarClosed);
 
     // Forward 10s bar updates via the aggregator signal path (reuses GUIFrontend's existing TF filter)
-    connect(
-        &m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
-        &LiveBarAccumulator::barUpdated,
-        this,
-        [this, symbol](const QString&, const Bar& bar)
-        { emit displayedStockAggregatorBarUpdated(symbol, TimeFrame::TEN_SECONDS, bar); },
-        Qt::UniqueConnection);
+    connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
+            &LiveBarAccumulator::barUpdated,
+            this,
+            [this, symbol](const QString&, const Bar& bar)
+            { emit displayedStockAggregatorBarUpdated(symbol, TimeFrame::TEN_SECONDS, bar); });
 
-    connect(
-        &m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
-        &LiveBarAccumulator::barClosed,
-        this,
-        [this, symbol](const QString&, const Bar& bar)
-        { emit displayedStockAggregatorBarClosed(symbol, TimeFrame::TEN_SECONDS, bar); },
-        Qt::UniqueConnection);
+    connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
+            &LiveBarAccumulator::barClosed,
+            this,
+            [this, symbol](const QString&, const Bar& bar)
+            { emit displayedStockAggregatorBarClosed(symbol, TimeFrame::TEN_SECONDS, bar); });
 
     connect(&m_currentDisplayedSymbolContext->m_level2Receiver,
             &Level2Receiver::receivedNewLevel2,
@@ -339,17 +334,16 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
 
 BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last, TimeFrame tf)
 {
-    DEBUG << "Requested bars from current displayed stock cache: " << first << " to " << last;
-
-    OBJ_ASSUME_LTE(first, last); // The Equal in less than equal is for when the program is launched at 4:02 AM
-
     if (m_currentDisplayedSymbolContext == nullptr)
     {
         // Instrument not yet initialized (e.g., setSymbol fired before onSelectDisplayedStock arrived).
         // Return empty result — checkForMissingBars will retry on next scroll/zoom.
-        DEBUG << "No instrument ready yet, returning empty bars";
         return std::make_shared<QVector<Bar>>();
     }
+
+    DEBUG << "Requested bars from current displayed stock cache: " << first << " to " << last;
+
+    OBJ_ASSUME_LTE(first, last); // The Equal in less than equal is for when the program is launched at 4:02 AM
 
     return m_currentDisplayedSymbolContext->barCache.getBars(tf, date, first, last);
 }
