@@ -381,7 +381,8 @@ StockPriceChart::~StockPriceChart()
  */
 void StockPriceChart::setSymbol(const QString& symbol)
 {
-    // Clear order visualizations from previous symbol immediately
+    // Clear all bar data, index mappings and in-flight requests from the previous symbol.
+    clearSymbol();
     clearOrderVisualizations();
 
     m_symbol = symbol;
