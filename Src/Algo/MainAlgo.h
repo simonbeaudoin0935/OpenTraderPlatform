@@ -375,6 +375,10 @@ class MainAlgo final : public QObject
     QTime m_replayStartTime;
     Playback::Speed m_replaySpeed = Playback::Speed::Normal;
 
+    // Handle for the display-symbol trade forwarding lambda so we can disconnect only it
+    // (not the permanent onNewTradeReceived routing connection) when switching symbols.
+    QMetaObject::Connection m_displayTradeConnection;
+
     // --- GUI throttle for AsFastAsPossible replay mode ---
     // When active, high-frequency GUI-bound signals are buffered and emitted
     // at a capped rate to prevent flooding the GUI thread's event queue.

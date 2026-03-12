@@ -274,8 +274,11 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
                    this,
                    &MainAlgo::onDisplayedLevel2Received);
 
-        // Disconnect trade forwarding from DBClient for old symbol
-        disconnect(DBClient::getInstance(), &DBClient::newTrade, this, nullptr);
+        // Disconnect only the display-symbol trade forwarding lambda.
+        // Do NOT use disconnect(DBClient, signal, this, nullptr) — that would also remove
+        // the permanent onNewTradeReceived routing connection set up in onThreadStarted.
+        QObject::disconnect(m_displayTradeConnection);
+        m_displayTradeConnection = {};
 
         // Clean up or detach the previous SymbolContext
         QString oldSymbol = m_currentDisplayedSymbolContext->symbol;
@@ -302,6 +305,7 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
     if (m_symbolContexts.contains(symbol))
     {
         m_currentDisplayedSymbolContext = m_symbolContexts[symbol];
+        DEBUG << "onSelectDisplayedStock: reusing existing SymbolContext for" << symbol;
     }
     else
     {
@@ -309,7 +313,10 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         Q_CHECK_PTR(m_currentDisplayedSymbolContext);
 
         m_symbolContexts.insert(symbol, m_currentDisplayedSymbolContext);
+        DEBUG << "onSelectDisplayedStock: created new SymbolContext for" << symbol;
     }
+    DEBUG << "onSelectDisplayedStock: wiring display signals for" << symbol
+          << "| active SymbolContexts:" << m_symbolContexts.keys();
 
     // Redoo the plumbing we disconnected at the top of this function
     connect(&m_currentDisplayedSymbolContext->barReceiver,
@@ -346,15 +353,15 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             this,
             &MainAlgo::onDisplayedLevel2Received);
 
-    // Forward trades for displayed symbol to FrontEnd
-    connect(DBClient::getInstance(),
-            &DBClient::newTrade,
-            this,
-            [this, symbol](const QString& sym, const Trade& trade)
-            {
-                if (sym == symbol)
-                    onDisplayedTradeReceived(sym, trade);
-            });
+    // Forward trades for displayed symbol to FrontEnd (store handle for clean targeted disconnect)
+    m_displayTradeConnection = connect(DBClient::getInstance(),
+                                       &DBClient::newTrade,
+                                       this,
+                                       [this, symbol](const QString& sym, const Trade& trade)
+                                       {
+                                           if (sym == symbol)
+                                               onDisplayedTradeReceived(sym, trade);
+                                       });
 }
 
 BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last, TimeFrame tf)
