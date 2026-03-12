@@ -381,9 +381,14 @@ StockPriceChart::~StockPriceChart()
  */
 void StockPriceChart::setSymbol(const QString& symbol)
 {
-    // Preserve the current X (time) range so the new symbol opens at the same view position.
+    // Preserve the current X (time) range so the new symbol opens at the same view position,
+    // but only when the chart actually has content (valid time anchor).
+    // If there's no valid anchor (e.g., first load) we skip so the default (-60, 30) is used.
     // Y range intentionally NOT preserved — the new symbol has different price levels.
-    m_preservedXRange = m_customPlot->xAxis->range();
+    if (m_index0Timestamp.isValid())
+    {
+        m_preservedXRange = m_customPlot->xAxis->range();
+    }
 
     // Clear all bar data, index mappings and in-flight requests from the previous symbol.
     clearSymbol();

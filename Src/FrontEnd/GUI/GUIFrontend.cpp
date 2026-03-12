@@ -1282,7 +1282,6 @@ void GUIFrontend::displayStock(const QString& symbol)
 
     currentlyDisplayedSymbol = symbol;
 
-    ui->priceChart->clearSymbol();
     ui->priceChart->setSymbol(symbol);
 
     ui->timeAndSalesWidget->clearData();
