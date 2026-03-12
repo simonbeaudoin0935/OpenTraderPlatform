@@ -381,6 +381,10 @@ StockPriceChart::~StockPriceChart()
  */
 void StockPriceChart::setSymbol(const QString& symbol)
 {
+    // Preserve the current X (time) range so the new symbol opens at the same view position.
+    // Y range intentionally NOT preserved — the new symbol has different price levels.
+    m_preservedXRange = m_customPlot->xAxis->range();
+
     // Clear all bar data, index mappings and in-flight requests from the previous symbol.
     clearSymbol();
     clearOrderVisualizations();
