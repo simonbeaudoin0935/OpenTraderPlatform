@@ -143,7 +143,7 @@ sudo apt install lttng-tools lttng-modules-dkms babeltrace2
 APP=./build/LTTng/Src/L2Trader .sanitizers/lttng/run-with-lttng.sh
 ```
 
-Traces are saved to `~/.local/share/L2Trader/lttng-traces/<timestamp>/kernel/` and `.../ust/`. No sudo password is needed — see `/etc/sudoers.d/l2trader-lttng`.
+Traces are saved to `~/.local/state/L2Trader/lttng-traces/<timestamp>/kernel/` and `.../ust/`. No sudo password is needed — see `/etc/sudoers.d/l2trader-lttng`.
 
 **Query a trace with babeltrace2 or open in TraceCompass.** For query recipes and event reference, see the [LTTng Copilot skill](.github/skills/lttng/SKILL.md).
 

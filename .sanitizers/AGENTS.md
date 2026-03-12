@@ -81,7 +81,7 @@ This directory contains runtime sanitizers and memory analysis tools organized b
 **Prerequisites**: `sudo apt install lttng-tools lttng-modules-dkms babeltrace2`
 **Requires sudo**: Yes (kernel module needs elevated privileges)
 **Performance**: Negligible overhead (ring-buffer, asynchronous)
-**Trace output**: `~/.local/share/L2Trader/lttng-traces/<timestamp>/`
+**Trace output**: `~/.local/state/L2Trader/lttng-traces/<timestamp>/`
 
 **VSCode tasks**: `run-lttng`, `run-lttng-instrumented`, `build-with-lttng`
 
@@ -131,7 +131,7 @@ For trace queries and event reference, see `.github/skills/lttng/SKILL.md`.
 **LTTng**:
 ```bash
 # View the latest trace
-LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
+LATEST=$(ls -td ~/.local/state/L2Trader/lttng-traces/*/ | head -1)
 babeltrace2 "${LATEST}ust" 2>/dev/null | head -50
 # See .github/skills/lttng/SKILL.md for full query reference
 ```

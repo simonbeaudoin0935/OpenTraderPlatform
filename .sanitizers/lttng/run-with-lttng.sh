@@ -12,8 +12,8 @@
 #   [ust]     - run as user  → l2trader:* UST tracepoints (instrumented build only)
 #
 # Trace output (CTF, open directly in TraceCompass):
-#   ~/.local/share/L2Trader/lttng-traces/<timestamp>/kernel/
-#   ~/.local/share/L2Trader/lttng-traces/<timestamp>/ust/
+#   ~/.local/state/L2Trader/lttng-traces/<timestamp>/kernel/
+#   ~/.local/state/L2Trader/lttng-traces/<timestamp>/ust/
 #
 # After the app exits (or Ctrl-C), run:
 #   .sanitizers/lttng/analyze-lttng.sh
@@ -23,7 +23,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Allow caller to override the binary (e.g., for instrumented build/LTTng)
 APP="${APP:-${SCRIPT_DIR}/../../build/GUI/Src/L2Trader}"
-TRACE_BASE="${HOME}/.local/share/L2Trader/lttng-traces"
+TRACE_BASE="${HOME}/.local/state/L2Trader/lttng-traces"
 TRACE_DIR="${TRACE_BASE}/$(date +%Y-%m-%d_%H-%M-%S)"
 KERNEL_SESSION="l2trader-kernel"
 UST_SESSION="l2trader-ust"

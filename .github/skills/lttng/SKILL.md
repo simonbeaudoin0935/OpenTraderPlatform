@@ -26,7 +26,7 @@ This file teaches GitHub Copilot how to locate, open, and extract information fr
 >
 > The **only** safe use of `$(...)` is the initial session path assignment:
 > ```bash
-> LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
+> LATEST=$(ls -td ~/.local/state/L2Trader/lttng-traces/*/ | head -1)
 > ```
 > Everything after that must use direct pipelines.
 
@@ -39,7 +39,7 @@ This file teaches GitHub Copilot how to locate, open, and extract information fr
 Every run of `run-with-lttng.sh` (or the VSCode tasks `run-lttng` / `run-lttng-instrumented`) creates a timestamped directory under:
 
 ```
-~/.local/share/L2Trader/lttng-traces/<YYYY-MM-DD_hh-mm-ss>/
+~/.local/state/L2Trader/lttng-traces/<YYYY-MM-DD_hh-mm-ss>/
 ```
 
 Each session directory contains two sub-directories:
@@ -51,7 +51,7 @@ Each session directory contains two sub-directories:
 
 ```bash
 # Find the latest trace session (always use two-step pattern — no nested $(...))
-LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1) && echo "Latest: $LATEST"
+LATEST=$(ls -td ~/.local/state/L2Trader/lttng-traces/*/ | head -1) && echo "Latest: $LATEST"
 
 KERNEL_DIR="${LATEST}kernel"
 UST_DIR="${LATEST}ust"
@@ -66,7 +66,7 @@ UST_DIR="${LATEST}ust"
 Before querying, always start by discovering what event types are present:
 
 ```bash
-LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
+LATEST=$(ls -td ~/.local/state/L2Trader/lttng-traces/*/ | head -1)
 
 # All distinct kernel event types recorded
 babeltrace2 "${LATEST}kernel" 2>/dev/null \
@@ -99,7 +99,7 @@ babeltrace2 "${LATEST}kernel" 2>/dev/null | tail -3
 ### Thread scheduling
 
 ```bash
-LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
+LATEST=$(ls -td ~/.local/state/L2Trader/lttng-traces/*/ | head -1)
 KERNEL_DIR="${LATEST}kernel"
 
 # All threads that were scheduled (unique TID → name mappings)
@@ -167,7 +167,7 @@ babeltrace2 "$KERNEL_DIR" 2>/dev/null \
 UST events are only present when the app was built with `LTTNG_ENABLED=ON` (VSCode task `build-with-lttng`) and launched via `run-lttng-instrumented`.
 
 ```bash
-LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
+LATEST=$(ls -td ~/.local/state/L2Trader/lttng-traces/*/ | head -1)
 UST_DIR="${LATEST}ust"
 
 # Confirm UST events are present
@@ -237,7 +237,7 @@ babeltrace2 "$UST_DIR" 2>/dev/null \
 `babeltrace2` merges multiple trace directories by timestamp automatically:
 
 ```bash
-LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
+LATEST=$(ls -td ~/.local/state/L2Trader/lttng-traces/*/ | head -1)
 
 # Merged timeline — filter to a narrow time window (replace with timestamp of interest)
 babeltrace2 "${LATEST}kernel" "${LATEST}ust" 2>/dev/null \
@@ -257,7 +257,7 @@ This is useful for correlating any application-level event (fetch complete, bar 
 ## Skill: Inspect a Specific Time Window
 
 ```bash
-LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
+LATEST=$(ls -td ~/.local/state/L2Trader/lttng-traces/*/ | head -1)
 
 # Events in a specific second from both streams
 TIME="21:57:14"
@@ -276,15 +276,15 @@ babeltrace2 "${LATEST}kernel" \
 
 TraceCompass provides visual analysis with timeline, Memory Usage, and Control Flow views.
 
-1. **File → Open Trace…** → select `~/.local/share/L2Trader/lttng-traces/<session>/kernel/`
-2. **File → Open Trace…** → select `~/.local/share/L2Trader/lttng-traces/<session>/ust/`
+1. **File → Open Trace…** → select `~/.local/state/L2Trader/lttng-traces/<session>/kernel/`
+2. **File → Open Trace…** → select `~/.local/state/L2Trader/lttng-traces/<session>/ust/`
 3. Most useful views:
    - **Memory Usage** — RSS growth over time per process (needs `kmem_mm_page_alloc/free`)
    - **Control Flow** — thread scheduling as swimlanes; spot runaway threads visually
    - **LTTng-UST** — filterable event list for all `l2trader:*` tracepoints
    - **System Calls** — syscall density per thread
 
-> Kernel traces are written as root and then `chown`'d back to the user by the run script. If TraceCompass shows a permissions error: `sudo chown -R $USER:$USER ~/.local/share/L2Trader/lttng-traces/`
+> Kernel traces are written as root and then `chown`'d back to the user by the run script. If TraceCompass shows a permissions error: `sudo chown -R $USER:$USER ~/.local/state/L2Trader/lttng-traces/`
 
 ---
 
@@ -292,10 +292,10 @@ TraceCompass provides visual analysis with timeline, Memory Usage, and Control F
 
 ```bash
 # List all sessions, newest first, with sizes
-du -sh ~/.local/share/L2Trader/lttng-traces/*/ 2>/dev/null | sort -rh
+du -sh ~/.local/state/L2Trader/lttng-traces/*/ 2>/dev/null | sort -rh
 
 # Delete old sessions (keeps the 5 most recent)
-ls -td ~/.local/share/L2Trader/lttng-traces/*/ | tail -n +6 | xargs rm -rf
+ls -td ~/.local/state/L2Trader/lttng-traces/*/ | tail -n +6 | xargs rm -rf
 ```
 
 ---
