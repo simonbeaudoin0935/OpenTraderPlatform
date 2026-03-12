@@ -12,8 +12,7 @@
 #include "StrategySDK.h"
 #include "StrategyLoader.h"
 #include "StrategyConfig.h"
-#include "StrategyConfigLoader.h"
-#include "StrategyRegistry.h"
+
 #include "StrategyLogger.h"
 #include "StrategySignalHandler.h"
 #include "Balance.h"
@@ -226,22 +225,6 @@ class StrategyManager final : public QObject
      * Get strategy instance by ID (for direct callback routing)
      */
     [[nodiscard]] StrategyBase* getStrategy(const QString& p_strategyID) const;
-
-    /*
-     * Get the strategy registry (available strategies from configs)
-     */
-    [[nodiscard]] StrategyRegistry* getRegistry()
-    {
-        return m_registry.get();
-    }
-
-    /*
-     * Get the strategy registry (const version)
-     */
-    [[nodiscard]] const StrategyRegistry* getRegistry() const
-    {
-        return m_registry.get();
-    }
 
     /*
      * Get strategy logger by strategy ID
@@ -466,8 +449,7 @@ class StrategyManager final : public QObject
 
     MainAlgo* m_mainAlgo;
     QMap<QString, StrategyInstance*> m_strategies;
-    QMap<QString, QString> m_symbolRegistry;      ///< symbol → ownerStrategyID (exclusive claim registry)
-    std::unique_ptr<StrategyRegistry> m_registry; ///< Registry of available strategies
+    QMap<QString, QString> m_symbolRegistry; ///< symbol → ownerStrategyID (exclusive claim registry)
 
     /// Guards persistStrategiesState() from firing during destructor teardown
     /// or bulk stopAllStrategies() mode transitions.  Re-enabled at the start

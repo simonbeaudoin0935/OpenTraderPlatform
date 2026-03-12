@@ -271,8 +271,7 @@ QDateTime StrategySDK::getCurrentTime() const
 
 // StrategyManager implementation
 
-StrategyManager::StrategyManager(MainAlgo* p_mainAlgo)
-    : QObject(nullptr), m_mainAlgo(p_mainAlgo), m_registry(std::make_unique<StrategyRegistry>())
+StrategyManager::StrategyManager(MainAlgo* p_mainAlgo) : QObject(nullptr), m_mainAlgo(p_mainAlgo)
 {
     ASSUME_DIFF(m_mainAlgo, nullptr);
 }
