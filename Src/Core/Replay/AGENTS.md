@@ -2,18 +2,19 @@
 
 ## Overview
 
-The replay system enables replaying historical market data for strategy backtesting and debugging. `ReplayEngine` reads Databento `.dbn.zst` archive files directly using `databento::DbnFileStore`. There is no custom data loader — Databento files are the sole replay data source.
+The replay system enables replaying historical market data for strategy backtesting and debugging. Replay playback logic lives in `DBClient`, which reads Databento `.dbn.zst` archive files directly using `databento::DbnFileStore`. In replay mode, DBClient emits the same `newLevel2`/`newTrade` signals as live mode, enabling a unified data pipeline.
 
 ## File Structure
 
 | File | Purpose |
 |------|---------|
-| `ReplayEngine.h/cpp` | Orchestrates replay playback using `databento::DbnFileStore` for Level 2 and Trades data |
 | `OrderEmulator/` | Order/position simulation for replay mode. See `OrderEmulator/AGENTS.md` for details |
+
+> **Note**: `ReplayEngine.h/cpp` was removed. All playback logic now resides in `Src/Clients/DBClient/DBClient.cpp`. Playback enums are in `Src/Clients/DBClient/PlaybackTypes.h`.
 
 ## Replay Data Source
 
-ReplayEngine uses two `databento::DbnFileStore` instances:
+DBClient uses two `databento::DbnFileStore` instances for replay:
 
 | Member | Schema | File Path |
 |--------|--------|-----------|
@@ -22,44 +23,50 @@ ReplayEngine uses two `databento::DbnFileStore` instances:
 
 Files are downloaded by `DBClient::downloadReplayData(symbol, date)` before replay begins. Use `DBClient::hasReplayData(date, symbol)` to check availability.
 
-## Signals Emitted by ReplayEngine
+## Unified Signal Pipeline
+
+In replay mode, DBClient emits the **same signals** as live mode:
 
 ```cpp
-signals:
-    void replayLevel2(QString symbol, Level2 level2);
-    void replayTrade(QString symbol, Trade trade);
-    // Lifecycle signals
-    void replayStarted();
-    void replayStopped();
-    void replayPaused();
-    void replayResumed();
-    void replayTimeUpdated(QDateTime currentTime);
-    void replayEndReached();
+// These signals are emitted in both live AND replay modes:
+void newLevel2(QString symbol, Level2 level2);
+void newTrade(QString symbol, Trade trade);
+
+// Replay lifecycle signals:
+void replayStarted();
+void replayStopped();
+void replayPaused();
+void replayResumed();
+void replayTimeUpdated(QDateTime currentTime);
+void replayEndReached();
+void replayDataLoadFailed(QString symbol, QString errorMessage);
 ```
 
-## Signal Routing (MainAlgo::connectReplaySignals)
+## Signal Routing (Unified Live/Replay)
 
 ```
-ReplayEngine::replayLevel2  ──► Level2Receiver::onReceivedNewLevel2
-                            ──► OrderEmulator::updateMarketDepth
+DBClient::newLevel2      ──► MainAlgo::onNewLevel2Received()
+                              ──► SymbolContext::enqueueLevel2()
+                              ──► QThreadPool drain() → Level2Receiver
+                         ──► OrderEmulator::updateMarketDepth (replay only)
 
-ReplayEngine::replayTrade   ──► LiveBarAccumulator (builds 1-min bars)
-                            ──► TimeAndSales widget
+DBClient::newTrade       ──► MainAlgo::onNewTradeReceived()
+                              ──► SymbolContext::enqueueTrade()
+                              ──► QThreadPool drain() → LiveBarAccumulator
 
-LiveBarAccumulator::barUpdated ──► (chart receives forming bar)
-LiveBarAccumulator::barClosed  ──► OrderEmulator::updateBarClose
+LiveBarAccumulator::barClosed  ──► BarReceiver → BarCache + GUI
+                               ──► OrderEmulator::updateBarClose (replay only)
 ```
 
 `LiveBarAccumulator` (from `Src/Clients/DBClient/`) is reused in replay to build bars from trade records, identical to how live mode works.
 
 ## Integration Points
 
-## Integration Points
-
 | File | Role in Replay |
 |------|----------------|
 | `MainApp.cpp` | Entry point for mode switching: `enterReplayMode()`, `exitReplayMode()`, `setReplaySpeed()` |
-| `MainAlgo.cpp` | Creates ReplayEngine, calls `connectReplaySignals()`, manages stock instruments, pauses/resumes heartbeat timers |
+| `MainAlgo.cpp` | Forwards DBClient replay signals, manages SymbolContexts, pauses/resumes heartbeat timers |
+| `DBClient.cpp` | Replay playback engine: opens `.dbn.zst` files, timer-based emission, speed control |
 | `TSClient.cpp` | Switches to Replay mode: creates `MockNetworkReply` objects, routes orders to `OrderEmulator` |
 | `MockNetworkReply.h/cpp` | Fake QNetworkReply that receives injected data from OrderEmulator |
 
@@ -82,9 +89,9 @@ MainApp::enterReplayMode(date, startTime, speed)
     ├── MainAlgo::createAndSetDisplayedStockInstrument()
     └── MainAlgo::enterReplayModePaused()
             │
-            ├── Create ReplayEngine
-            ├── connectReplaySignals() — wire replayLevel2/replayTrade to receivers
-            ├── startReplayPaused() → emits first records, then pauses
+            ├── Connect DBClient replay signals to MainAlgo (replayStarted, etc.)
+            ├── Connect DBClient::newLevel2 to OrderEmulator::updateMarketDepth
+            ├── DBClient::startReplayPaused() → opens .dbn.zst, emits first records, pauses
             └── pauseHeartbeat() on all stream receivers
 ```
 
@@ -103,12 +110,11 @@ MainApp::resumeReplayPlayback() or startReplayPlayback()
 MainAlgo::resumeReplay()
     │
     ├── resumeHeartbeat() on all stream receivers
-    └── ReplayEngine::resumeReplay()
+    └── DBClient::resumeReplay()
             │
             ├── Adjust wall-clock anchor by pause duration
             ├── Set state = Playing
-            ├── scheduleNextMbp10() → starts Level2 timer
-            └── scheduleNextTrade() → starts Trades timer
+            └── scheduleNextReplayTick() → starts QTimer-based event loop
 ```
 
 ### 3. Pausing Replay
@@ -122,13 +128,13 @@ MainApp::pauseReplayPlayback()
     ▼
 MainAlgo::pauseReplay()
     │
-    ├── ReplayEngine::pauseReplay() → stops timers
-    └── pauseHeartbeat() on ALL stock instruments
+    ├── DBClient::pauseReplay() → stops timer, records pause time
+    └── pauseHeartbeat() on ALL SymbolContexts
 ```
 
 ## Playback Speed
 
-Defined in `ReplayEngine::PlaybackSpeed`:
+Defined in `Playback::Speed` (from `Src/Clients/DBClient/PlaybackTypes.h`):
 
 | Enum Value | Speed | Effect |
 |------------|-------|--------|
@@ -139,15 +145,15 @@ Defined in `ReplayEngine::PlaybackSpeed`:
 | Double (200) | 2.0x | 2x faster |
 | Fast5x (500) | 5.0x | 5x faster |
 | Fast10x (1000) | 10.0x | 10x faster |
-| AsFastAsPossible (-1) | Max | 0ms timer delays |
+| AsFastAsPossible (-1) | Max | 0ms timer delays, batch budget limited |
 
 Speed can be changed on-the-fly via `MainApp::setReplaySpeed()`. When changed during
-playback, `setSpeed()` re-anchors the wall-clock mapping to the current instant and
-reschedules stream timers, so the new speed takes effect immediately.
+playback, `setReplaySpeed()` re-anchors the wall-clock mapping to the current instant and
+reschedules the replay timer, so the new speed takes effect immediately.
 
 ### Pause/Resume Timing
 
-- **Pause**: Records `m_pauseWallClockMs = now`, stops timers
+- **Pause**: Records `m_pauseWallClockMs = now`, stops timer
 - **Resume**: Shifts `m_wallClockAnchorMs` forward by the pause duration so timing
   stays accurate across pauses. If resuming after `startReplayPaused()`, the anchor
   is set to "now" on first resume.
@@ -164,27 +170,38 @@ Streams have a 10-second heartbeat timer. In replay mode:
 
 ## Debugging Replay Issues
 
-1. Enable `ReplayEngine` logging category
+1. Enable `DBClient` logging category
 2. Check heartbeat timer states in `Stream` logs
 3. Verify `.dbn.zst` files exist: `~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst`
 4. Check `MainApp::getDataSourceMode()` is set to Replay
 5. Use `DBClient::hasReplayData(date, symbol)` to verify data availability
+6. Use LTTng `replay_tick` tracepoint to monitor batch sizes and event emission rate
 
 ## Threading Model
 
 ```
-MainAlgoThread
+DBClient Thread
+    │
+    └── DBClient
+            ├── m_mbp10Store (DbnFileStore — Level2 replay)
+            ├── m_tradesStore (DbnFileStore — Trades replay)
+            ├── m_replayTimer (QTimer — drives replay tick loop)
+            └── emits newLevel2/newTrade (same as live mode)
+                    │
+                    ▼
+MainAlgo Thread (routing)
     │
     └── MainAlgo
-            ├── ReplayEngine
-            │       ├── m_mbp10Store (DbnFileStore — Level2)
-            │       ├── m_tradesStore (DbnFileStore — Trades)
-            │       ├── m_mbp10Timer (schedules Level2 events)
-            │       └── m_tradesTimer (schedules Trade events)
-            │
-            ├── SymbolContext (Level2Receiver)
-            ├── LiveBarAccumulator
-            └── PositionsReceiver, OrdersReceiver
+            ├── m_symbolContexts[symbol]->enqueueLevel2/Trade()
+            ├── PositionsReceiver, OrdersReceiver
+            └── forwards to GUI via displayedStock* signals
+                    │
+                    ▼
+QThreadPool Workers (drain loops)
+    │
+    └── SymbolContext::drain()
+            ├── Level2Receiver::onReceivedNewLevel2()
+            └── LiveBarAccumulator::onNewTrade()
 
 Main/GUI Thread
     │
@@ -234,8 +251,8 @@ Strategy/GUI ──► placeOrder() ──► MockNetworkAccessManager
 
 The OrderEmulator monitors Level 2 depth to fill pending limit orders:
 
-1. `ReplayEngine` emits `replayLevel2` signal
-2. `OrderEmulator::updateMarketDepth()` receives it
+1. DBClient emits `newLevel2` signal
+2. MainAlgo's `connectReplaySignals()` wires it to `OrderEmulator::updateMarketDepth()`
 3. Emulator checks if any open limit orders can now fill
 4. Fills are processed with appropriate delays
 5. `LiveBarAccumulator::barClosed` → `OrderEmulator::updateBarClose`

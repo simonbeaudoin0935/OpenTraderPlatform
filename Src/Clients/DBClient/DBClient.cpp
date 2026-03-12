@@ -21,6 +21,7 @@
 #include "MainApp.h"
 #include "SecureStorage.h"
 #include "Settings.h"
+#include "LTTng/LTTngTracepoints.h"
 
 #define LOGGING_CATEGORY DBClientLog
 
@@ -1013,10 +1014,12 @@ void DBClient::onReplayTimerTick()
         return;
 
     const qint64 startWallMs = QDateTime::currentMSecsSinceEpoch();
+    int eventsEmitted = 0;
 
     while (m_playbackState == PlaybackState::Playing)
     {
         emitNextReplayRecord();
+        ++eventsEmitted;
 
         if (!m_nextMbp10.valid && !m_nextTrade.valid)
         {
@@ -1024,6 +1027,7 @@ void DBClient::onReplayTimerTick()
             m_playbackState = PlaybackState::Stopped;
             emit replayEndReached();
             emit replayStopped();
+            L2T_TP(l2trader, replay_tick, eventsEmitted, static_cast<long>(m_replayEpochAnchorMs));
             return;
         }
 
@@ -1036,6 +1040,8 @@ void DBClient::onReplayTimerTick()
         if (calculateWallClockDelay(nextEpoch) > 0)
             break;
     }
+
+    L2T_TP(l2trader, replay_tick, eventsEmitted, static_cast<long>(m_replayEpochAnchorMs));
 
     if (m_playbackState == PlaybackState::Playing)
         scheduleNextReplayTick();

@@ -195,6 +195,14 @@ The cache is **3-level**. Event names reflect which level fired:
 | **Gap fill** | `fillholes_done` | Gap-fill pass finished | `symbol`, `tf_seconds`, `bars_out`, `void_bars` |
 | **Chart** | `chart_missing_bars_request` | Chart fired `requestMissingBars` | `symbol`, `tf_seconds`, `from`, `to` |
 | **Live** | `livebar_closed` | A live bar interval completed | `symbol`, `interval_seconds` |
+| **Actor model** | `symbolctx_enqueue` | Event pushed to SymbolContext queue | `symbol`, `event_type`, `queue_depth` |
+| **Actor model** | `symbolctx_pool_submit` | QRunnable submitted to QThreadPool | `symbol` |
+| **Actor model** | `symbolctx_drain_start` | Pool thread begins draining a symbol's queue | `symbol` |
+| **Actor model** | `symbolctx_drain_end` | Pool thread finished draining | `symbol`, `items_processed` |
+| **Actor model** | `symbolctx_process_level2` | About to process a Level2 event in drain loop | `symbol` |
+| **Actor model** | `symbolctx_process_trade` | About to process a Trade event in drain loop | `symbol` |
+| **Actor model** | `symbolctx_shutdown_wait` | SymbolContext destructor waiting for drain to finish | `symbol` |
+| **Replay** | `replay_tick` | DBClient replay timer tick completed | `events_emitted`, `current_epoch_ms` |
 
 ### Querying individual events
 
@@ -237,6 +245,32 @@ babeltrace2 "$UST_DIR" 2>/dev/null \
     | grep "l2trader:livebar_closed" \
     | grep -oP 'interval_seconds = \d+' \
     | sort | uniq -c | sort -rn
+```
+
+### Querying thread pool / actor model events
+
+```bash
+# Per-symbol drain throughput (how many items processed per drain call)
+babeltrace2 "$UST_DIR" 2>/dev/null \
+    | grep "l2trader:symbolctx_drain_end" \
+    | grep -oP 'symbol = "[^"]*", items_processed = \d+'
+
+# Queue depth at enqueue time (detect backpressure — high values mean the drain can't keep up)
+babeltrace2 "$UST_DIR" 2>/dev/null \
+    | grep "l2trader:symbolctx_enqueue" \
+    | grep -oP 'symbol = "[^"]*", event_type = "[^"]*", queue_depth = \d+'
+
+# Pool submit frequency (how often new QRunnables are spawned)
+echo -n "Pool submits: " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:symbolctx_pool_submit" || true
+
+# Replay tick event batch sizes
+babeltrace2 "$UST_DIR" 2>/dev/null \
+    | grep "l2trader:replay_tick" \
+    | grep -oP 'events_emitted = \d+, current_epoch_ms = \d+'
+
+# Shutdown wait events (should be brief — if not, drain is stuck)
+babeltrace2 "$UST_DIR" 2>/dev/null \
+    | grep "l2trader:symbolctx_shutdown_wait"
 ```
 
 ---

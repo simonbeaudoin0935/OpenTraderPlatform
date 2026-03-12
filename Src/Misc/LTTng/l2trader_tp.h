@@ -186,6 +186,56 @@ TRACEPOINT_EVENT(l2trader,
                  TP_ARGS(const char*, symbol, int, interval_seconds),
                  TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, interval_seconds, interval_seconds)))
 
+/* ------------------------------------------------------------------
+ * SymbolContext — actor-model drain loop
+ *
+ * These tracepoints instrument the thread-pool actor model used by
+ * SymbolContext. They enable visual analysis of per-symbol throughput,
+ * queue backpressure, and thread pool utilisation via TraceCompass.
+ * ------------------------------------------------------------------ */
+
+/** Fired when a Level2 or Trade event is pushed into a SymbolContext queue. */
+TRACEPOINT_EVENT(l2trader,
+                 symbolctx_enqueue,
+                 TP_ARGS(const char*, symbol, const char*, event_type, int, queue_depth),
+                 TP_FIELDS(ctf_string(symbol, symbol) ctf_string(event_type, event_type)
+                               ctf_integer(int, queue_depth, queue_depth)))
+
+/** Fired when a QRunnable is submitted to the global thread pool for a SymbolContext. */
+TRACEPOINT_EVENT(l2trader, symbolctx_pool_submit, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+
+/** Fired at the top of SymbolContext::drain() — a pool thread begins processing. */
+TRACEPOINT_EVENT(l2trader, symbolctx_drain_start, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+
+/** Fired at exit of SymbolContext::drain() — pool thread done, queue empty. */
+TRACEPOINT_EVENT(l2trader,
+                 symbolctx_drain_end,
+                 TP_ARGS(const char*, symbol, int, items_processed),
+                 TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, items_processed, items_processed)))
+
+/** Fired before processLevel2() call inside the drain loop. */
+TRACEPOINT_EVENT(l2trader,
+                 symbolctx_process_level2,
+                 TP_ARGS(const char*, symbol),
+                 TP_FIELDS(ctf_string(symbol, symbol)))
+
+/** Fired before processTrade() call inside the drain loop. */
+TRACEPOINT_EVENT(l2trader, symbolctx_process_trade, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+
+/** Fired in SymbolContext destructor while waiting for drain to finish. */
+TRACEPOINT_EVENT(l2trader, symbolctx_shutdown_wait, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+
+/* ------------------------------------------------------------------
+ * DBClient — replay tick
+ * ------------------------------------------------------------------ */
+
+/** Fired on each replay timer tick with the number of events emitted in this batch. */
+TRACEPOINT_EVENT(l2trader,
+                 replay_tick,
+                 TP_ARGS(int, events_emitted, long, current_epoch_ms),
+                 TP_FIELDS(ctf_integer(int, events_emitted, events_emitted)
+                               ctf_integer(long, current_epoch_ms, current_epoch_ms)))
+
 #endif /* _L2TRADER_TP_H */
 
 #include <lttng/tracepoint-event.h>

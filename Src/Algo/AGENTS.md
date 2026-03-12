@@ -1,11 +1,11 @@
 # Algo/ Directory - Trading Algorithm Components - Agent Instructions
 
-The Algo directory contains the trading algorithm coordination logic and various receivers for processing market data and trading events. TSClient is brokerage-only (orders, positions, accounts). Market data (Level 2, trades, bars) flows from DBClient in live mode and from ReplayEngine in replay mode.
+The Algo directory contains the trading algorithm coordination logic and various receivers for processing market data and trading events. TSClient is brokerage-only (orders, positions, accounts). Market data (Level 2, trades, bars) flows from DBClient in both live and replay modes through a unified pipeline.
 
 ## Overview
 
 **Location**: `Src/Algo/`
-**Purpose**: Trading algorithm coordination, data reception, and processing
+**Purpose**: Trading algorithm coordination, data routing, and SymbolContext actor model
 **Key Component**: MainAlgo singleton running in dedicated thread
 
 **Directory Contents**:
@@ -87,8 +87,7 @@ MainAlgo::MainAlgo() {
    - Forward raw Level2 data (DWP/BAI computation removed — belongs in individual strategies)
 
 6. **Replay Coordination**
-   - Create and manage ReplayEngine
-   - Forward replay control signals (start, stop, pause, resume) to UI
+   - Forward replay control signals (start, stop, pause, resume) from DBClient to UI
    - Manage replay order/position streams with simulated account
 
 7. **Strategy Management**
@@ -100,7 +99,7 @@ MainAlgo::MainAlgo() {
 class MainAlgo {
     QThread thread;
 
-    // Per-symbol instruments
+    // Per-symbol actors (each with FIFO queue + drain loop)
     QMap<QString, QPointer<SymbolContext>> m_symbolContexts;
     QPointer<SymbolContext> m_currentDisplayedSymbolContext;
 
@@ -118,9 +117,6 @@ class MainAlgo {
     // Strategy management
     StrategyManager m_strategyManager;
 
-    // Replay engine (owned, runs in MainAlgo thread)
-    ReplayEngine* m_replayEngine = nullptr;
-
     // Crash monitoring
     std::unique_ptr<QSocketNotifier> m_crashNotifier;
 };
@@ -133,9 +129,8 @@ class MainAlgo {
 signals:
     // Market data for displayed stock
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
-    void displayedStockReceivedNewLevel2(QString symbol,
-                                         Level2 level2,
-);  // Simplified: raw Level2 only; strategies compute their own metrics
+    void displayedStockReceivedNewLevel2(QString symbol, Level2 level2);
+    void displayedStockReceivedNewTrade(QString symbol, Trade trade);
 
     // Trading events
     void receivedNewPosition(QString account, Position position);
@@ -146,7 +141,7 @@ signals:
     void tradeStationAccountsReceived(QVector<Account> accounts);
     void balanceUpdated(Balance balance);
 
-    // Replay control (forwarded from ReplayEngine)
+    // Replay control (forwarded from DBClient)
     void replayStarted();
     void replayStopped();
     void replayPaused();
@@ -285,7 +280,7 @@ connect(&m_barAggregator, &BarAggregator::barClosed,
 
 **Role**: Receive and process bar data
 
-`BarReceiver` processes bars produced by `LiveBarAccumulator`. In live mode, bars come from `DBClient::newTrade` → `LiveBarAccumulator`. In replay mode, bars come from `ReplayEngine::replayTrade` → `LiveBarAccumulator`.
+`BarReceiver` processes bars produced by `LiveBarAccumulator`. Bars come from `DBClient::newTrade` → MainAlgo routing → `SymbolContext::enqueueTrade()` → `LiveBarAccumulator::onNewTrade()` (via DirectConnection in drain loop). This path is identical for both live and replay modes.
 
 ```cpp
 class BarReceiver : public StreamReceiver {
@@ -302,13 +297,13 @@ private:
 };
 ```
 
-Historical bars are loaded into BarCache via REST API requests (TSClient historical endpoint).
+Historical bars are loaded into BarCache via Databento historical API requests.
 
 ### Level2Receiver/
 
 **Role**: Process Level 2 market depth data (10-level book snapshots)
 
-Replaces the former `MarketDepthQuoteReceiver/`. Uses the `Level2` model (from `Src/Core/Models/Level2.h`) which contains `std::array<Level2Row, 10>` for bids and asks. Connected to `DBClient::newLevel2` in live mode and `ReplayEngine::replayLevel2` in replay mode.
+Replaces the former `MarketDepthQuoteReceiver/`. Uses the `Level2` model (from `Src/Core/Models/Level2.h`) which contains `std::array<Level2Row, 10>` for bids and asks. Connected via `SymbolContext::enqueueLevel2()` → `Level2Receiver::onReceivedNewLevel2()` (DirectConnection in drain loop). Same path for live and replay.
 
 **Key Features**:
 - Computes metrics from 10-level book snapshots:
@@ -326,23 +321,20 @@ void receivedNewLevel2(QString symbol, Level2 level2);  // 2 params only
 void onReceivedNewLevel2(Level2 level2);
 ```
 
-**Data Flow**:
+**Data Flow** (identical for live and replay):
 ```
-Live mode:
-DBClient::newLevel2 (Databento Schema::Mbp10)
-    ↓
-Level2Receiver::onReceivedNewLevel2()
-    ↓ (raw forward, no computation)
+DBClient::newLevel2 (Databento Schema::Mbp10 or replay .dbn.zst)
+    ↓ [signal → MainAlgo thread]
+MainAlgo::onNewLevel2Received()
+    ↓ m_symbolContexts[sym]->enqueueLevel2()
+SymbolContext FIFO queue
+    ↓ [QThreadPool drain()]
+Level2Receiver::onReceivedNewLevel2() [DirectConnection]
     ↓ emit receivedNewLevel2(...)
-MainAlgo (forwarded to displayedStockReceivedNewLevel2)
+    ↓ [QueuedConnection → MainAlgo thread]
+MainAlgo → displayedStockReceivedNewLevel2
     ↓
 GUIFrontend → Level2Table display
-
-Replay mode:
-ReplayEngine::replayLevel2
-    ↓ (same slot and processing)
-Level2Receiver::onReceivedNewLevel2()
-    ...
 ```
 
 **BBO Access**: Best bid/ask is `Level2.m_bids[0]` and `Level2.m_asks[0]`. There is no separate Quote type.
@@ -636,31 +628,30 @@ if (!m_positionReceiver->hasActiveStream()) {
 
 ## Replay Mode
 
-MainAlgo coordinates replay mode for strategy testing using Databento `.dbn.zst` files via `ReplayEngine`.
+MainAlgo coordinates replay mode for strategy testing using Databento `.dbn.zst` files. Replay playback logic lives in DBClient (not a separate ReplayEngine class). DBClient emits `newLevel2`/`newTrade` in replay mode — the same signals as live mode — enabling a unified routing pipeline.
 
 ### Entering Replay Mode
 
 ```cpp
-void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed) {
-    // 1. Create ReplayEngine (lazy init, parent=this for thread affinity)
-    m_replayEngine = new ReplayEngine(this, TSClient::getInstance());
-
-    // 2. Forward replay control signals to MainAlgo signals for UI
-    connect(m_replayEngine, &ReplayEngine::replayStarted, this, &MainAlgo::replayStarted);
-    connect(m_replayEngine, &ReplayEngine::replayStopped, this, &MainAlgo::replayStopped);
+void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p_speed) {
+    // 1. Forward DBClient replay control signals to MainAlgo signals for UI
+    connect(DBClient::getInstance(), &DBClient::replayStarted, this, &MainAlgo::replayStarted);
+    connect(DBClient::getInstance(), &DBClient::replayStopped, this, &MainAlgo::replayStopped);
     // ... (paused, resumed, timeUpdated, endReached)
 
-    // 3. Wire market data signals to receivers (connectReplaySignals)
-    connect(m_replayEngine, &ReplayEngine::replayLevel2, level2Receiver, &Level2Receiver::onReceivedNewLevel2);
-    connect(m_replayEngine, &ReplayEngine::replayTrade, m_liveBarAccumulator, &LiveBarAccumulator::onNewTrade);
+    // 2. Wire OrderEmulator market depth feed
+    connect(DBClient::getInstance(), &DBClient::newLevel2,
+            orderEmulator, &OrderEmulator::updateMarketDepth);
 
-    // 4. Start replay order/position streams with simulated account
+    // 3. Start replay order/position streams with simulated account
     startReplayOrderStreams();
 
-    // 5. Start replay
-    m_replayEngine->startReplay(p_date, p_startTime, p_speed);
+    // 4. Start replay (DBClient opens .dbn.zst files and begins timer-based emission)
+    DBClient::getInstance()->startReplayPaused(symbol, p_date, p_startTime, p_speed);
 }
 ```
+
+Note: Level2/Trade routing to SymbolContext is handled automatically by the centralized routing established in `start()`. No separate replay wiring needed for data flow.
 
 ### Exiting Replay Mode
 
@@ -744,7 +735,8 @@ GUI (OrderWidget, PositionWidget)
 | Account | Real TradeStation account | `SIM123456` simulated |
 | Orders | Real API (TSClient) | OrderEmulator |
 | Positions | Real API (TSClient) | OrderEmulator |
-| Market data | `DBClient::newLevel2` / `newTrade` (live) | Recorded `.dbn.zst` files (ReplayEngine) |
+| Market data | `DBClient::newLevel2` / `newTrade` (Databento live) | `DBClient::newLevel2` / `newTrade` (from `.dbn.zst` files) |
+| Data pipeline | DBClient → MainAlgo → SymbolContext | Same — unified pipeline |
 | Fills | Real market | Based on recorded depth |
 | Latency | Real network | Simulated (100-500ms) |
 | Balance | Real | $100,000 simulated |

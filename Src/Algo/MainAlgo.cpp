@@ -13,6 +13,7 @@
 #include "DBClient.h"
 #include "Logging.h"
 #include "Assume.h"
+#include "LTTng/LTTngTracepoints.h"
 #include "OrderEmulator.h"
 #include "CONSTANTS.h"
 #include "OrdersDatabase.h"
@@ -750,6 +751,7 @@ SymbolContext::~SymbolContext()
     m_destroying.store(true, std::memory_order_release);
 
     // Wait for any running drain to complete
+    L2T_TP(l2trader, symbolctx_shutdown_wait, symbol.toUtf8().constData());
     QMutexLocker lock(&m_queueMutex);
     while (m_draining.load(std::memory_order_acquire))
     {
@@ -763,30 +765,44 @@ SymbolContext::~SymbolContext()
 
 void SymbolContext::enqueueLevel2(const Level2& p_level2)
 {
+    int depth = 0;
     {
         QMutexLocker lock(&m_queueMutex);
         m_queue.enqueue(WorkItem{p_level2});
+        depth = m_queue.size();
     }
+    L2T_TP(l2trader, symbolctx_enqueue, symbol.toUtf8().constData(), "L2", depth);
     if (!m_draining.exchange(true, std::memory_order_acq_rel))
     {
+        L2T_TP(l2trader, symbolctx_pool_submit, symbol.toUtf8().constData());
         QThreadPool::globalInstance()->start(QRunnable::create([this] { drain(); }));
     }
 }
 
 void SymbolContext::enqueueTrade(const Trade& p_trade)
 {
+    int depth = 0;
     {
         QMutexLocker lock(&m_queueMutex);
         m_queue.enqueue(WorkItem{p_trade});
+        depth = m_queue.size();
     }
+    L2T_TP(l2trader, symbolctx_enqueue, symbol.toUtf8().constData(), "Trade", depth);
     if (!m_draining.exchange(true, std::memory_order_acq_rel))
     {
+        L2T_TP(l2trader, symbolctx_pool_submit, symbol.toUtf8().constData());
         QThreadPool::globalInstance()->start(QRunnable::create([this] { drain(); }));
     }
 }
 
 void SymbolContext::drain()
 {
+    // Thread assertion: drain runs on a pool thread, never on the GUI or MainAlgo thread
+    OBJ_ASSUME_DIFF(QThread::currentThread(), QCoreApplication::instance()->thread());
+
+    L2T_TP(l2trader, symbolctx_drain_start, symbol.toUtf8().constData());
+    int itemsProcessed = 0;
+
     for (;;)
     {
         WorkItem item;
@@ -798,27 +814,43 @@ void SymbolContext::drain()
                 m_drainDone.wakeAll();
                 // ABA re-check: an enqueue may have happened between isEmpty() and store(false)
                 if (m_queue.isEmpty())
+                {
+                    L2T_TP(l2trader, symbolctx_drain_end, symbol.toUtf8().constData(), itemsProcessed);
                     return;
+                }
                 if (!m_draining.exchange(true, std::memory_order_acq_rel))
-                    continue;
-                return;
+                {
+                    L2T_TP(l2trader, symbolctx_drain_end, symbol.toUtf8().constData(), itemsProcessed);
+                    return;
+                }
+                continue;
             }
             item = m_queue.dequeue();
         }
 
         if (m_destroying.load(std::memory_order_acquire))
+        {
+            L2T_TP(l2trader, symbolctx_drain_end, symbol.toUtf8().constData(), itemsProcessed);
             return;
+        }
 
         std::visit(
             [this](auto&& event)
             {
                 using T = std::decay_t<decltype(event)>;
                 if constexpr (std::is_same_v<T, Level2>)
+                {
+                    L2T_TP(l2trader, symbolctx_process_level2, symbol.toUtf8().constData());
                     processLevel2(event);
+                }
                 else if constexpr (std::is_same_v<T, Trade>)
+                {
+                    L2T_TP(l2trader, symbolctx_process_trade, symbol.toUtf8().constData());
                     processTrade(event);
+                }
             },
             item);
+        ++itemsProcessed;
     }
 }
 
