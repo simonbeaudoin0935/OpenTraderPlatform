@@ -293,6 +293,8 @@ class StockPriceChart : public QWidget
                                  const QColor& color,
                                  QList<QCPItemRect*>& rectList);
     void drawHolidayDayMarker(const QDate& date, const QString& holidayName);
+    void startLoadingSpinner();
+    void stopLoadingSpinner();
 
     QString m_symbol;
     QCustomPlot* m_customPlot;
@@ -303,6 +305,11 @@ class StockPriceChart : public QWidget
     // Current time vertical line and timer
     QCPItemLine* m_currentTimeLine;
     QTimer* m_timeLineTimer;
+
+    // Loading spinner shown while a missing-bars request is in flight
+    QCPItemText* m_loadingSpinner; // Text item on the overlay layer
+    QTimer* m_loadingSpinnerTimer; // Drives the animation frames
+    int m_loadingSpinnerFrame = 0;
 
     // Debounce timer for onAxisRangeChanged — coalesces rapid successive calls
     // (e.g. both X and Y fire rangeChanged in a single wheel event)

@@ -529,8 +529,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
     }
     // Mark request as completed
     m_currentMissingBarsRequestToken.store(0);
-
-    OBJ_ASSUME_FALSE(barsPtr->isEmpty());
+    stopLoadingSpinner();
 
     addHistoricalBarsToIndexMapping(barsPtr);
 
@@ -622,9 +621,9 @@ void StockPriceChart::onRequestedMissingBarsFailed()
     }
     // Mark request as completed
     m_currentMissingBarsRequestToken.store(0);
+    stopLoadingSpinner();
 
     // Record the failed date as a known-empty day (holiday or non-trading day)
-    // so checkForMissingBars will skip it in future iterations instead of retrying forever.
     if (m_lastRequestedDate.isValid())
     {
         DEBUG << "Recording" << m_lastRequestedDate << "as known-empty (no bars returned)";
@@ -685,6 +684,21 @@ void StockPriceChart::redrawLastPriceLine()
     m_priceLabel->setColor(lineColor);
     m_priceLabel->position->setCoords(m_customPlot->xAxis->range().upper, displayPrice);
     m_priceLabel->setVisible(true);
+}
+
+void StockPriceChart::startLoadingSpinner()
+{
+    m_loadingSpinnerFrame = 0;
+    m_loadingSpinner->setText("⠋ Loading…");
+    m_loadingSpinner->setVisible(true);
+    m_loadingSpinnerTimer->start();
+}
+
+void StockPriceChart::stopLoadingSpinner()
+{
+    m_loadingSpinnerTimer->stop();
+    m_loadingSpinner->setVisible(false);
+    m_customPlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 /**
@@ -787,6 +801,7 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 
     // Mark request as in-flight by setting a non-zero token
     m_currentMissingBarsRequestToken.fetch_add(1);
+    startLoadingSpinner();
 
     L2T_TP(l2trader,
            chart_missing_bars_request,
@@ -828,6 +843,7 @@ void StockPriceChart::clearSymbol()
     m_currentMissingBarsRequestToken.store(0);
     m_lastRequestedDate = QDate();
     m_knownEmptyDates.clear();
+    stopLoadingSpinner();
 
     m_customPlot->xAxis->setRange(0, 30);
     m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(0, 100);
@@ -874,6 +890,7 @@ void StockPriceChart::clearChart(bool p_replot)
     m_currentMissingBarsRequestToken.store(0);
     m_lastRequestedDate = QDate();
     m_knownEmptyDates.clear();
+    stopLoadingSpinner();
 
     // Reset view range (unless preserved for timescale switch)
     if (!m_preservedXRange.has_value())
