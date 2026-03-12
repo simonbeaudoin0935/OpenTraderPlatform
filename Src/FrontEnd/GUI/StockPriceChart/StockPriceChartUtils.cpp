@@ -153,7 +153,7 @@ void StockPriceChart::addHistoricalBarsToIndexMapping(const std::shared_ptr<QVec
     for (const Bar& bar: *bars)
     {
         const QDateTime& timestamp = bar.getTimeStamp();
-        const int index = ChartTimeUtils::timestampToChartIndex(timestamp, m_index0Timestamp);
+        const int index = ChartTimeUtils::timestampToChartIndex(timestamp, m_index0Timestamp, m_displayTimeFrame);
 
         indexToBar[index] = bar;
         timestampToIndex[timestamp] = index;
@@ -179,7 +179,7 @@ QDateTime StockPriceChart::getTimestampForIndex(int index) const
     // Compute from time anchor (works for any index, even without bars loaded)
     if (m_index0Timestamp.isValid())
     {
-        return ChartTimeUtils::chartIndexToTimestamp(index, m_index0Timestamp);
+        return ChartTimeUtils::chartIndexToTimestamp(index, m_index0Timestamp, m_displayTimeFrame);
     }
 
     // No time anchor yet (chart not initialized) — return invalid
@@ -201,7 +201,7 @@ int StockPriceChart::getIndexForTimestamp(const QDateTime& timestamp) const
 
     // Compute from time anchor
     OBJ_ASSUME_TRUE(m_index0Timestamp.isValid());
-    return ChartTimeUtils::timestampToChartIndex(timestamp, m_index0Timestamp);
+    return ChartTimeUtils::timestampToChartIndex(timestamp, m_index0Timestamp, m_displayTimeFrame);
 }
 
 

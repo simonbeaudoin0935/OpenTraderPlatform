@@ -9,7 +9,10 @@
 
 Q_LOGGING_CATEGORY(LiveBarAccumulatorLog, "LiveBarAccumulator")
 
-LiveBarAccumulator::LiveBarAccumulator(QObject* p_parent) : QObject(p_parent) {}
+LiveBarAccumulator::LiveBarAccumulator(QObject* p_parent, int p_intervalSeconds)
+    : QObject(p_parent), m_intervalSeconds(p_intervalSeconds)
+{
+}
 
 void LiveBarAccumulator::onNewTrade(const QString& p_symbol, const Trade& p_trade)
 {
@@ -40,9 +43,9 @@ void LiveBarAccumulator::onNewTrade(const QString& p_symbol, const Trade& p_trad
 
     if (openTime != forming.barOpenTime)
     {
-        // Minute boundary crossed — close the current bar
-        DEBUG << "Minute boundary: closing bar at" << forming.barOpenTime.toString("hh:mm:ss") << "starting new at"
-              << openTime.toString("hh:mm:ss");
+        // Interval boundary crossed — close the current bar
+        DEBUG << "Interval boundary (" << m_intervalSeconds << "s): closing bar at"
+              << forming.barOpenTime.toString("hh:mm:ss") << "starting new at" << openTime.toString("hh:mm:ss");
         Bar closedBar = toBar(forming, Bar::BarStatus::Closed);
         emit barClosed(p_symbol, closedBar);
 
@@ -67,16 +70,16 @@ void LiveBarAccumulator::onNewTrade(const QString& p_symbol, const Trade& p_trad
     emit barUpdated(p_symbol, toBar(forming, Bar::BarStatus::Open));
 }
 
-QDateTime LiveBarAccumulator::barOpenTimeForTrade(const QDateTime& p_tradeTime)
+QDateTime LiveBarAccumulator::barOpenTimeForTrade(const QDateTime& p_tradeTime) const
 {
-    // Floor to current whole minute (open-time convention):
-    //   trade at 09:31:04 → bar open 09:31:00
-    //   trade at 09:31:00.000 → bar open 09:31:00
+    // Floor to current interval boundary (open-time convention):
+    //   For 60s: trade at 09:31:04 → bar open 09:31:00
+    //   For 10s: trade at 09:31:14 → bar open 09:31:10
     const QDateTime utc = p_tradeTime.toUTC();
     const qint64 epochSecs = utc.toSecsSinceEpoch();
-    const qint64 minuteFloor = (epochSecs / 60) * 60;
+    const qint64 intervalFloor = (epochSecs / m_intervalSeconds) * m_intervalSeconds;
 
-    return QDateTime::fromSecsSinceEpoch(minuteFloor, TradingHours::MARKET_TIMEZONE);
+    return QDateTime::fromSecsSinceEpoch(intervalFloor, TradingHours::MARKET_TIMEZONE);
 }
 
 Bar LiveBarAccumulator::toBar(const FormingBar& p_forming, Bar::BarStatus p_status)

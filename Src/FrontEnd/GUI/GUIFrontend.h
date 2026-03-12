@@ -112,6 +112,7 @@ class GUIFrontend : public FrontEnd
     QShortcut* m_toggleReplayModeShortcut;      // Toggle replay mode on/off shortcut
 
     // Timescale shortcuts
+    QShortcut* m_timeFrame10sShortcut;
     QShortcut* m_timeFrame1mShortcut;
     QShortcut* m_timeFrame5mShortcut;
     QShortcut* m_timeFrame15mShortcut;

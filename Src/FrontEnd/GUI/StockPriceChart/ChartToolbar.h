@@ -13,6 +13,7 @@
 #include <QMenu>
 #include <QWidgetAction>
 #include "Misc/TimeFrame.h"
+#include "Misc/BarUtils.h"
 #include "Core/Replay/ReplayEngine.h"
 
 /**
