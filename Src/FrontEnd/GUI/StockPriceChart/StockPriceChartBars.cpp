@@ -659,13 +659,23 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 
     if (viewStartTimeRounded.date() < firstBarTime.date())
     {
-        requestStartTime = viewStartTimeRounded;
-        requestStartTime.setTime(TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION);
+        // Always request the trading day immediately before our earliest loaded day.
+        // Using viewStartTimeRounded directly would skip all intermediate days when
+        // the user pans left by more than one day in a single gesture: the far day
+        // would load, firstKey() would jump there, and the in-between days would
+        // never be requested (view appears within available bars). By anchoring on
+        // firstBarTime we fill the gap chain one trading day at a time.
+        QDate requestDate = firstBarTime.date().addDays(-1);
+        while (requestDate.dayOfWeek() > 5) // skip Saturday (6) and Sunday (7)
+            requestDate = requestDate.addDays(-1);
 
-        requestEndTime = viewStartTimeRounded;
-        requestEndTime.setTime(TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
+        requestStartTime = QDateTime(requestDate,
+                                     TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
+                                     TradingHours::MARKET_TIMEZONE);
+        requestEndTime =
+            QDateTime(requestDate, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION, TradingHours::MARKET_TIMEZONE);
 
-        DEBUG << "Requesting previous day from" << requestStartTime << "to" << requestEndTime;
+        DEBUG << "Requesting day before first loaded bar:" << requestStartTime << "to" << requestEndTime;
     }
     else
     {
