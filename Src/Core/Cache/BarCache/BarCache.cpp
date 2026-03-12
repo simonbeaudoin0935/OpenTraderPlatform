@@ -13,6 +13,7 @@
 #include "TSClient.h"
 #include "Settings.h"
 #include "Logging.h"
+#include "LTTng/LTTngTracepoints.h"
 #include "Assume.h"
 #include "BarUtils.h"
 
@@ -82,6 +83,13 @@ QVector<Bar>& BarCache::getOrCreateDayVector(TimeFrame tf, const QDate& date)
 
         // Pre-allocate to full capacity with default-constructed (Uninitialized) bars
         dayMap[date] = QVector<Bar>(BarUtils::barsPerDay(tf));
+
+        L2T_TP(l2trader,
+               barcache_day_alloc,
+               m_symbol.toUtf8().constData(),
+               static_cast<int>(tf),
+               date.toString("yyyy-MM-dd").toUtf8().constData(),
+               BarUtils::barsPerDay(tf));
     }
 
     return dayMap[date];
@@ -317,6 +325,12 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
                   // No source-TF cache hit — fetch from Databento API
                   DEBUG << "No in-memory source cache for" << static_cast<int>(tf) << "m — fetching from API";
 
+                  L2T_TP(l2trader,
+                         barcache_api_fetch_start,
+                         m_symbol.toUtf8().constData(),
+                         static_cast<int>(tf),
+                         date.toString("yyyy-MM-dd").toUtf8().constData());
+
                   QDateTime startDateTime = QDateTime(date,
                                                       TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
                                                       TradingHours::MARKET_TIMEZONE);
@@ -385,6 +399,13 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
                           DEBUG << "Historical fetch returned" << fullDayBars->size() << "bars for" << m_symbol
                                 << "— first:" << fullDayBars->first().getTimeStamp().toString(Qt::ISODate)
                                 << "last:" << fullDayBars->last().getTimeStamp().toString(Qt::ISODate);
+
+                          L2T_TP(l2trader,
+                                 barcache_api_fetch_done,
+                                 m_symbol.toUtf8().constData(),
+                                 static_cast<int>(tf),
+                                 date.toString("yyyy-MM-dd").toUtf8().constData(),
+                                 static_cast<int>(fullDayBars->size()));
 
                           // Fill holes with Null bars so the day vector is contiguous
                           QDateTime fullDayFirst(date,
@@ -497,6 +518,8 @@ void BarCache::storeBarInCache(TimeFrame tf, const Bar& bar)
 
     // Store the bar at the appropriate index
     dayVector[index] = bar;
+
+    L2T_TP(l2trader, barcache_store_bar_live, m_symbol.toUtf8().constData(), static_cast<int>(tf), index);
 
     if (bar.getBarStatus() == Bar::BarStatus::Closed)
     {

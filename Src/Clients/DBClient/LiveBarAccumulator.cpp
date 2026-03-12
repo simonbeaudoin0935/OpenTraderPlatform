@@ -4,6 +4,7 @@
 
 #include "CONSTANTS.h"
 #include "Logging.h"
+#include "LTTng/LTTngTracepoints.h"
 
 #define LOGGING_CATEGORY LiveBarAccumulatorLog
 
@@ -48,6 +49,8 @@ void LiveBarAccumulator::onNewTrade(const QString& p_symbol, const Trade& p_trad
               << forming.barOpenTime.toString("hh:mm:ss") << "starting new at" << openTime.toString("hh:mm:ss");
         Bar closedBar = toBar(forming, Bar::BarStatus::Closed);
         emit barClosed(p_symbol, closedBar);
+
+        L2T_TP(l2trader, livebar_closed, p_symbol.toUtf8().constData(), m_intervalSeconds);
 
         // Start new forming bar
         forming.barOpenTime = openTime;

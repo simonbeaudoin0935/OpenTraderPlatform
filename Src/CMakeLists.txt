@@ -253,3 +253,9 @@ add_executable(L2Trader
 )
 
 target_link_libraries(L2Trader PRIVATE L2TraderCommon)
+
+# LTTng UST: link tracepoint provider library when enabled
+if(LTTNG_ENABLED)
+    target_include_directories(L2TraderCommon PUBLIC ${LTTNG_UST_INCLUDE_DIRS})
+    target_link_libraries(L2TraderCommon PUBLIC ${LTTNG_UST_LIBRARIES})
+endif()

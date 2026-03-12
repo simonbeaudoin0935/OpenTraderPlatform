@@ -89,5 +89,42 @@ if [ -n "$TOP_TIDS" ]; then
 fi
 echo ""
 
+# ------------------------------------------------------------------
+# 5. LTTng UST tracepoints (only present in instrumented build)
+# ------------------------------------------------------------------
+UST_EVENTS=$(babeltrace2 "$TRACE_DIR" 2>/dev/null | grep -c "l2trader:" || true)
+if [ "${UST_EVENTS}" -gt 0 ] 2>/dev/null; then
+    echo "--- UST: BarCache API fetches (barcache_api_fetch_start) ---"
+    babeltrace2 "$TRACE_DIR" 2>/dev/null \
+        | grep "l2trader:barcache_api_fetch_start" \
+        | grep -oP 'symbol = "[^"]*", tf_seconds = \d+, date = "[^"]*"' \
+        | sort | uniq -c | sort -rn | head -20
+    echo ""
+
+    echo "--- UST: BarCache day-vector allocations (barcache_day_alloc) ---"
+    babeltrace2 "$TRACE_DIR" 2>/dev/null \
+        | grep "l2trader:barcache_day_alloc" \
+        | grep -oP 'symbol = "[^"]*", tf_seconds = \d+, date = "[^"]*", slots = \d+' \
+        | sort | uniq -c | sort -rn | head -20
+    echo ""
+
+    echo "--- UST: DB completeness misses (db_completeness_miss) ---"
+    babeltrace2 "$TRACE_DIR" 2>/dev/null \
+        | grep "l2trader:db_completeness_miss" \
+        | grep -oP 'symbol = "[^"]*".*expected = \d+, got = \d+' \
+        | sort | uniq -c | sort -rn | head -20
+    echo ""
+
+    echo "--- UST: live bar store rate (barcache_store_bar_live) ---"
+    babeltrace2 "$TRACE_DIR" 2>/dev/null \
+        | grep "l2trader:barcache_store_bar_live" \
+        | grep -oP 'tf_seconds = \d+' \
+        | sort | uniq -c | sort -rn | head -10
+    echo ""
+else
+    echo "--- UST tracepoints: not present (rerun with run-lttng-instrumented task) ---"
+    echo ""
+fi
+
 echo "=== Analysis complete ==="
 echo "For full trace: babeltrace2 $TRACE_DIR | less"

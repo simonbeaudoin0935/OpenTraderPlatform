@@ -18,7 +18,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP="${SCRIPT_DIR}/../../build/GUI/Src/L2Trader"
+# Allow caller to override the binary (e.g., for instrumented build/LTTng)
+APP="${APP:-${SCRIPT_DIR}/../../build/GUI/Src/L2Trader}"
 TRACE_BASE="${HOME}/.local/share/L2Trader/lttng-traces"
 SESSION="l2trader-oom-hunt"
 TRACE_DIR="${TRACE_BASE}/$(date +%Y-%m-%d_%H-%M-%S)"
@@ -65,6 +66,14 @@ sudo lttng enable-event --kernel 'sched_switch,sched_process_fork,sched_process_
 sudo lttng start
 
 echo "LTTng recording started."
+echo "  > App binary: $APP"
+if [[ "$APP" == *"/LTTng/"* ]]; then
+    echo "  > UST tracepoints: ACTIVE (instrumented build)"
+    # Enable userspace tracepoints from the l2trader provider
+    sudo lttng enable-event --userspace 'l2trader:*' 2>/dev/null || true
+else
+    echo "  > UST tracepoints: inactive (use build-with-lttng task for instrumented binary)"
+fi
 echo "  > Switch to 10s timescale, enter replay mode, hit Play to reproduce OOM"
 echo "  > Close the app (or Ctrl-C here) to stop tracing"
 echo ""

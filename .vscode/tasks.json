@@ -473,6 +473,82 @@
             "problemMatcher": []
         },
         {
+            "label": "configure-lttng",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-G",
+                "Ninja",
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build/LTTng",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DENABLE_GUI=ON",
+                "-DBUILD_TESTS=OFF",
+                "-DLTTNG_ENABLED=ON"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "build-with-lttng",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/LTTng",
+                "--parallel"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "configure-lttng"
+            ]
+        },
+        {
+            "label": "run-lttng-instrumented",
+            "type": "shell",
+            "command": "APP=${workspaceFolder}/build/LTTng/Src/L2Trader ${workspaceFolder}/.sanitizers/lttng/run-with-lttng.sh",
+            "args": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": [
+                "build-with-lttng"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "run-lttng-instrumented-with-analysis",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "run-lttng-instrumented",
+                "analyze-lttng"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": false
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "analyze-lttng",
             "type": "shell",
             "command": "${workspaceFolder}/.sanitizers/lttng/analyze-lttng.sh",
