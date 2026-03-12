@@ -181,34 +181,62 @@ private slots:
 
 ## SymbolContext
 
-**Role**: Per-symbol data container and processor
+**Role**: Per-symbol passive actor — holds all data/receivers for one symbol and processes events via a thread-pool-backed work queue.
 
-**Composition Pattern** (preferred over pointers):
+**Actor Model Pattern**:
 ```cpp
 class SymbolContext : public QObject {
 public:
     explicit SymbolContext(const QString& p_symbol, QObject* p_parent = nullptr);
     ~SymbolContext();
 
+    void enqueueLevel2(const Level2& p_level2);  // Thread-safe enqueue
+    void enqueueTrade(const Trade& p_trade);      // Thread-safe enqueue
+
     QString symbol;
     BarCache barCache;
     BarReceiver barReceiver;
     Level2Receiver m_level2Receiver;
-    BarAggregator m_barAggregator;  // Accumulates 1m bars into higher-TF bars
+    LiveBarAccumulator m_liveBarAccumulator;     // 1-minute bar accumulator
+    LiveBarAccumulator m_live10sBarAccumulator;  // 10-second bar accumulator
+    BarAggregator m_barAggregator;
+
+private:
+    using WorkItem = std::variant<Level2, Trade>;
+    void drain();
+    void processLevel2(const Level2& l2);
+    void processTrade(const Trade& trade);
+
+    QMutex m_queueMutex;
+    QQueue<WorkItem> m_queue;
+    std::atomic<bool> m_draining{false};
+    std::atomic<bool> m_destroying{false};
+    QWaitCondition m_drainDone;
 };
 ```
+
+**Threading Guarantees**:
+- `enqueueLevel2()` / `enqueueTrade()` are thread-safe (mutex-protected push)
+- Only ONE pool thread drains a symbol at a time → sequential per symbol, parallel across symbols
+- ABA-safe drain loop: re-checks queue after clearing `m_draining` flag
+- Destructor sets `m_destroying` and waits for running drain to finish
+
+**DirectConnection Rule**:
+All internal signal-slot connections within SymbolContext use `Qt::DirectConnection` so they execute on the pool thread during `drain()`. External connections (to MainAlgo, GUI, StrategyManager) keep `Qt::AutoConnection` → become `QueuedConnection` when emitted from the pool thread.
+
+**Centralized Routing**:
+SymbolContext does NOT connect to DBClient directly. MainAlgo wires:
+```
+DBClient::newLevel2 → MainAlgo::onNewLevel2Received → symbolContext->enqueueLevel2()
+DBClient::newTrade  → MainAlgo::onNewTradeReceived  → symbolContext->enqueueTrade()
+```
+This is the same handler for both live and replay modes — no mode-checking required.
 
 **Lifecycle**:
 - Created when symbol first selected via `onSelectDisplayedStock()`
 - Previous instrument is cleaned up (`deleteLater()`) when a different symbol is selected
 - Only one SymbolContext exists at a time (the displayed stock)
-- Manages its own bar cache, bar receiver, Level 2 receiver, and bar aggregator
-
-**Responsibilities**:
-- Manage BarCache for symbol (all timescales)
-- Own Level2Receiver that computes bid-ask imbalance and depth-weighted prices
-- Own BarReceiver that processes bars built by `LiveBarAccumulator`
-- Own BarAggregator wired as: `LiveBarAccumulator::barClosed → BarAggregator::onNewBar → BarCache::storeBar(tf, bar)`
+- MainAlgo subscribes to DBClient live data on creation (if not in replay mode)
 
 ## BarAggregator
 
@@ -420,18 +448,20 @@ protected:
 
 ### Level 2 Data Flow
 
-```mermaid
-sequenceDiagram
-    participant DBClient as DBClient (live) / ReplayEngine (replay)
-    participant L2R as Level2Receiver
-    participant MainAlgo
-    participant Frontend as GUIFrontend
-
-    DBClient->>L2R: onReceivedNewLevel2(Level2)
-    L2R->>L2R: Calculate bidAskImbalance, bidDWP, askDWP
-    L2R-->>MainAlgo: receivedNewLevel2(symbol, level2, imbalance, bidDWP, askDWP)
-    MainAlgo-->>Frontend: displayedStockReceivedNewLevel2(...)
-    Frontend->>Frontend: Update Level2Table
+```
+DBClient thread → emit newLevel2(symbol, level2)
+                    ↓ QueuedConnection
+MainAlgo thread → onNewLevel2Received(symbol, level2)
+                    → m_symbolContexts[symbol]->enqueueLevel2(level2)
+                    ↓ QThreadPool::globalInstance()
+Pool thread     → drain() → processLevel2()
+                    → m_level2Receiver.onReceivedNewLevel2() [DirectConnection]
+                    → emit receivedNewLevel2(...)
+                    ↓ QueuedConnection (pool → MainAlgo thread)
+MainAlgo thread → onDisplayedLevel2Received()
+                    → emit displayedStockReceivedNewLevel2()
+                    ↓ QueuedConnection (MainAlgo → GUI thread)
+GUI thread      → update Level2Table
 ```
 
 ### Position Update Flow
@@ -471,18 +501,24 @@ sequenceDiagram
 
 ### Thread Boundaries
 
-All Algo components run on MainAlgo thread:
-- MainAlgo
-- SymbolContext instances
-- All receivers (Level2Receiver, Level1Receiver, BarReceiver, PositionsReceiver, OrdersReceiver)
-- ReplayEngine
+**MainAlgo thread** (routing + lightweight coordination):
+- MainAlgo singleton
 - StrategyManager
+- PositionsReceiver, OrdersReceiver
+- GUI throttle timer
+
+**QThreadPool** (heavy per-symbol processing):
+- SymbolContext::drain() runs on pool threads
+- Level2Receiver, BarReceiver, LiveBarAccumulator, BarAggregator execute on pool thread via DirectConnection
+- One pool thread per symbol at a time (sequential per symbol, parallel across symbols)
 
 **Cross-thread communication** via signals:
 ```
-TSClient thread ─[signal]→ MainAlgo thread   (orders, positions, accounts)
-DBClient thread ─[signal]→ MainAlgo thread   (market data: Level2, Level1, Trade)
-MainAlgo thread ─[signal]→ Main/GUI thread   (UI updates)
+TSClient thread  ─[QueuedConnection]→  MainAlgo thread  (orders, positions, accounts)
+DBClient thread  ─[QueuedConnection]→  MainAlgo thread  (market data routing)
+MainAlgo thread  ─[enqueue+pool]→      QThreadPool      (per-symbol processing)
+Pool thread      ─[QueuedConnection]→  MainAlgo thread   (processed results)
+MainAlgo thread  ─[QueuedConnection]→  Main/GUI thread   (UI updates)
 ```
 
 ### Thread Safety Assertions

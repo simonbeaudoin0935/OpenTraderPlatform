@@ -1,3 +1,4 @@
+#include <QRunnable>
 #include <QThread>
 #include <QTimer>
 #include <QSocketNotifier>
@@ -183,6 +184,26 @@ void MainAlgo::onThreadStarted()
             &m_strategyManager,
             &StrategyManager::onMainAlgoBalanceUpdated,
             Qt::QueuedConnection);
+
+    // Centralized routing: all DBClient market data → MainAlgo → SymbolContext actor queues
+    connect(DBClient::getInstance(), &DBClient::newLevel2, this, &MainAlgo::onNewLevel2Received);
+    connect(DBClient::getInstance(), &DBClient::newTrade, this, &MainAlgo::onNewTradeReceived);
+}
+
+// ── Centralized routing slots ──────────────────────────────────────────────
+
+void MainAlgo::onNewLevel2Received(const QString& p_symbol, const Level2& p_level2)
+{
+    auto sc = m_symbolContexts.value(p_symbol);
+    if (!sc.isNull())
+        sc->enqueueLevel2(p_level2);
+}
+
+void MainAlgo::onNewTradeReceived(const QString& p_symbol, const Trade& p_trade)
+{
+    auto sc = m_symbolContexts.value(p_symbol);
+    if (!sc.isNull())
+        sc->enqueueTrade(p_trade);
 }
 
 /**
@@ -670,97 +691,160 @@ SymbolContext::SymbolContext(const QString& p_symbol, QObject* p_parent)
     , m_live10sBarAccumulator(this, 10)
     , m_barAggregator(this)
 {
-    this->setObjectName("StockInstrument::" + p_symbol);
+    this->setObjectName("SymbolContext::" + p_symbol);
+
+    // All internal connections use Qt::DirectConnection so they execute on the
+    // pool thread during drain(). This is safe because drain guarantees only one
+    // pool thread accesses a symbol's internals at a time.
 
     // Connect BarReceiver to BarCache for 1m bar storage
-    bool connected = connect(&barReceiver,
-                             &BarReceiver::receivedNewBar,
-                             &barCache,
-                             [this](const QString&, const Bar& bar) { barCache.storeBar(TimeFrame::ONE_MINUTE, bar); });
+    bool connected = connect(
+        &barReceiver,
+        &BarReceiver::receivedNewBar,
+        &barCache,
+        [this](const QString&, const Bar& bar) { barCache.storeBar(TimeFrame::ONE_MINUTE, bar); },
+        Qt::DirectConnection);
     OBJ_ASSUME_TRUE(connected);
 
     // Wire LiveBarAccumulator::barClosed → BarReceiver::receivedNewBar
-    connected =
-        connect(&m_liveBarAccumulator, &LiveBarAccumulator::barClosed, &barReceiver, &BarReceiver::receivedNewBar);
+    connected = connect(&m_liveBarAccumulator,
+                        &LiveBarAccumulator::barClosed,
+                        &barReceiver,
+                        &BarReceiver::receivedNewBar,
+                        Qt::DirectConnection);
     OBJ_ASSUME_TRUE(connected);
 
     // Wire LiveBarAccumulator::barUpdated → BarReceiver::receivedNewBar (in-progress candle)
-    connected =
-        connect(&m_liveBarAccumulator, &LiveBarAccumulator::barUpdated, &barReceiver, &BarReceiver::receivedNewBar);
+    connected = connect(&m_liveBarAccumulator,
+                        &LiveBarAccumulator::barUpdated,
+                        &barReceiver,
+                        &BarReceiver::receivedNewBar,
+                        Qt::DirectConnection);
     OBJ_ASSUME_TRUE(connected);
 
     // Wire closed 1m bars → BarAggregator for higher-TF accumulation (OHLCV + period-close detection)
-    connected =
-        connect(&m_liveBarAccumulator, &LiveBarAccumulator::barClosed, &m_barAggregator, &BarAggregator::onNewBar);
+    connected = connect(&m_liveBarAccumulator,
+                        &LiveBarAccumulator::barClosed,
+                        &m_barAggregator,
+                        &BarAggregator::onNewBar,
+                        Qt::DirectConnection);
     OBJ_ASSUME_TRUE(connected);
 
     // Wire in-progress 1m bar updates → BarAggregator for real-time live candle animation
-    connected =
-        connect(&m_liveBarAccumulator, &LiveBarAccumulator::barUpdated, &m_barAggregator, &BarAggregator::onBarUpdated);
+    connected = connect(&m_liveBarAccumulator,
+                        &LiveBarAccumulator::barUpdated,
+                        &m_barAggregator,
+                        &BarAggregator::onBarUpdated,
+                        Qt::DirectConnection);
     OBJ_ASSUME_TRUE(connected);
 
     // Wire BarAggregator::barClosed → BarCache for higher-TF storage
-    connected = connect(&m_barAggregator, &BarAggregator::barClosed, &barCache, &BarCache::storeBar);
+    connected =
+        connect(&m_barAggregator, &BarAggregator::barClosed, &barCache, &BarCache::storeBar, Qt::DirectConnection);
     OBJ_ASSUME_TRUE(connected);
 
     // Wire 10s accumulator barClosed → BarCache for 10s bar storage
-    connected = connect(&m_live10sBarAccumulator,
-                        &LiveBarAccumulator::barClosed,
-                        &barCache,
-                        [this](const QString&, const Bar& bar) { barCache.storeBar(TimeFrame::TEN_SECONDS, bar); });
+    connected = connect(
+        &m_live10sBarAccumulator,
+        &LiveBarAccumulator::barClosed,
+        &barCache,
+        [this](const QString&, const Bar& bar) { barCache.storeBar(TimeFrame::TEN_SECONDS, bar); },
+        Qt::DirectConnection);
     OBJ_ASSUME_TRUE(connected);
 
-    // In replay mode, data comes from ReplayEngine (connected by MainAlgo::connectReplaySignals)
-    // In live mode, data comes from DBClient signals
-    if (!MainApp::isInReplayMode())
-    {
-        auto* dbClient = DBClient::getInstance();
-
-        // Wire DBClient::newLevel2 → Level2Receiver (filtered by symbol)
-        connected = connect(dbClient,
-                            &DBClient::newLevel2,
-                            this,
-                            [this](const QString& sym, const Level2& level2)
-                            {
-                                if (sym == symbol)
-                                    m_level2Receiver.onReceivedNewLevel2(level2);
-                            });
-        OBJ_ASSUME_TRUE(connected);
-
-        // Wire DBClient::newTrade → 1m and 10s bar accumulators (filtered by symbol)
-        connected = connect(dbClient,
-                            &DBClient::newTrade,
-                            &m_liveBarAccumulator,
-                            [this](const QString& sym, const Trade& trade)
-                            {
-                                if (sym == symbol)
-                                    m_liveBarAccumulator.onNewTrade(symbol, trade);
-                            });
-        OBJ_ASSUME_TRUE(connected);
-
-        connected = connect(dbClient,
-                            &DBClient::newTrade,
-                            &m_live10sBarAccumulator,
-                            [this](const QString& sym, const Trade& trade)
-                            {
-                                if (sym == symbol)
-                                    m_live10sBarAccumulator.onNewTrade(symbol, trade);
-                            });
-        OBJ_ASSUME_TRUE(connected);
-
-        // Subscribe to live data if DBClient is connected
-        if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
-        {
-            dbClient->subscribeLive(p_symbol);
-        }
-    }
+    // DBClient wiring is handled centrally by MainAlgo routing (onNewLevel2Received / onNewTradeReceived).
+    // Live subscription is also managed by MainAlgo when creating the SymbolContext.
 
     DEBUG << "New instance";
 }
 
 SymbolContext::~SymbolContext()
 {
+    // Signal that we're destroying — drain() will exit early on pending items
+    m_destroying.store(true, std::memory_order_release);
+
+    // Wait for any running drain to complete
+    QMutexLocker lock(&m_queueMutex);
+    while (m_draining.load(std::memory_order_acquire))
+    {
+        m_drainDone.wait(&m_queueMutex);
+    }
+
     DEBUG << "Deleted instance";
+}
+
+// ── Actor model: enqueue / drain ───────────────────────────────────────────
+
+void SymbolContext::enqueueLevel2(const Level2& p_level2)
+{
+    {
+        QMutexLocker lock(&m_queueMutex);
+        m_queue.enqueue(WorkItem{p_level2});
+    }
+    if (!m_draining.exchange(true, std::memory_order_acq_rel))
+    {
+        QThreadPool::globalInstance()->start(QRunnable::create([this] { drain(); }));
+    }
+}
+
+void SymbolContext::enqueueTrade(const Trade& p_trade)
+{
+    {
+        QMutexLocker lock(&m_queueMutex);
+        m_queue.enqueue(WorkItem{p_trade});
+    }
+    if (!m_draining.exchange(true, std::memory_order_acq_rel))
+    {
+        QThreadPool::globalInstance()->start(QRunnable::create([this] { drain(); }));
+    }
+}
+
+void SymbolContext::drain()
+{
+    for (;;)
+    {
+        WorkItem item;
+        {
+            QMutexLocker lock(&m_queueMutex);
+            if (m_queue.isEmpty())
+            {
+                m_draining.store(false, std::memory_order_release);
+                m_drainDone.wakeAll();
+                // ABA re-check: an enqueue may have happened between isEmpty() and store(false)
+                if (m_queue.isEmpty())
+                    return;
+                if (!m_draining.exchange(true, std::memory_order_acq_rel))
+                    continue;
+                return;
+            }
+            item = m_queue.dequeue();
+        }
+
+        if (m_destroying.load(std::memory_order_acquire))
+            return;
+
+        std::visit(
+            [this](auto&& event)
+            {
+                using T = std::decay_t<decltype(event)>;
+                if constexpr (std::is_same_v<T, Level2>)
+                    processLevel2(event);
+                else if constexpr (std::is_same_v<T, Trade>)
+                    processTrade(event);
+            },
+            item);
+    }
+}
+
+void SymbolContext::processLevel2(const Level2& p_level2)
+{
+    m_level2Receiver.onReceivedNewLevel2(p_level2);
+}
+
+void SymbolContext::processTrade(const Trade& p_trade)
+{
+    m_liveBarAccumulator.onNewTrade(symbol, p_trade);
+    m_live10sBarAccumulator.onNewTrade(symbol, p_trade);
 }
 
 uint64_t MainAlgo::getNextRequestId()
@@ -1715,12 +1799,22 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
 {
     INFO << "Creating and setting displayed stock instrument for" << p_symbol;
 
-    // Create new stock instrument (will subscribe via DBClient if connected)
+    // Create new stock instrument
     auto* newInstrument = new SymbolContext(p_symbol, this);
     Q_CHECK_PTR(newInstrument);
 
     m_symbolContexts[p_symbol] = newInstrument;
     m_currentDisplayedSymbolContext = newInstrument;
+
+    // Subscribe to live data if DBClient is connected (not in replay mode)
+    if (!MainApp::isInReplayMode())
+    {
+        auto* dbClient = DBClient::getInstance();
+        if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
+        {
+            dbClient->subscribeLive(p_symbol);
+        }
+    }
 
     // Connect bar signals for the new displayed instrument
     bool connected = connect(&m_currentDisplayedSymbolContext->barReceiver,

@@ -1,15 +1,20 @@
 #pragma once
 #include <QLoggingCategory>
+#include <QMutex>
 #include <QObject>
 #include <QPointer>
+#include <QQueue>
 #include <QThread>
+#include <QThreadPool>
 #include <QMap>
 #include <QTimer>
 #include <QVector>
 #include <QStringList>
+#include <QWaitCondition>
 #include <memory>
 #include <atomic>
 #include <optional>
+#include <variant>
 
 #include "Level2Receiver.h"
 #include "BarReceiver.h"
@@ -33,12 +38,28 @@ Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 class QSocketNotifier;
 
 
+/**
+ * @brief Per-symbol passive actor — holds all data and receivers for one symbol.
+ *
+ * Thread-pool actor model: events are enqueued thread-safely, then drained by
+ * exactly one QThreadPool thread at a time (sequential per symbol, parallel across symbols).
+ *
+ * Internal signal-slot connections use Qt::DirectConnection so they execute on the
+ * pool thread during drain(). External connections (to MainAlgo, GUI, StrategyManager)
+ * keep Qt::AutoConnection → become QueuedConnection from the pool thread.
+ */
 class SymbolContext : public QObject
 {
 
   public:
     explicit SymbolContext(const QString& p_symbol, QObject* p_parent = nullptr);
     ~SymbolContext();
+
+    /// @brief Enqueue a Level2 event for processing (thread-safe, called from any thread)
+    void enqueueLevel2(const Level2& p_level2);
+
+    /// @brief Enqueue a Trade event for processing (thread-safe, called from any thread)
+    void enqueueTrade(const Trade& p_trade);
 
     QString symbol;
     BarCache barCache;
@@ -47,6 +68,19 @@ class SymbolContext : public QObject
     LiveBarAccumulator m_liveBarAccumulator;    ///< 1-minute bar accumulator (default 60s interval)
     LiveBarAccumulator m_live10sBarAccumulator; ///< 10-second bar accumulator
     BarAggregator m_barAggregator;
+
+  private:
+    using WorkItem = std::variant<Level2, Trade>;
+
+    void drain();
+    void processLevel2(const Level2& p_level2);
+    void processTrade(const Trade& p_trade);
+
+    QMutex m_queueMutex;
+    QQueue<WorkItem> m_queue;
+    std::atomic<bool> m_draining{false};
+    std::atomic<bool> m_destroying{false};
+    QWaitCondition m_drainDone;
 };
 
 class MainAlgo final : public QObject
@@ -294,6 +328,10 @@ class MainAlgo final : public QObject
     void onDisplayedTradeReceived(const QString& symbol, const Trade& trade);
     void onReplayTimeReceived(const QDateTime& time);
     void onGuiThrottleTimerTick();
+
+    // Centralized routing: DBClient → SymbolContext actor queue
+    void onNewLevel2Received(const QString& p_symbol, const Level2& p_level2);
+    void onNewTradeReceived(const QString& p_symbol, const Trade& p_trade);
 
 
   private:
