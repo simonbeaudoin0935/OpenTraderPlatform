@@ -292,6 +292,7 @@ class StockPriceChart : public QWidget
                                  const QTime& rangeEnd,
                                  const QColor& color,
                                  QList<QCPItemRect*>& rectList);
+    void drawHolidayDayMarker(const QDate& date, const QString& holidayName);
 
     QString m_symbol;
     QCustomPlot* m_customPlot;
@@ -322,7 +323,8 @@ class StockPriceChart : public QWidget
     QList<QCPItemRect*> m_earlyPreMarketRects;
     QList<QCPItemRect*> m_preMarketRects;
     QList<QCPItemRect*> m_afterHoursRects;
-    QSet<QDate> m_datesWithBackgrounds; // Track which dates already have backgrounds drawn
+    QSet<QDate> m_datesWithBackgrounds;  // Track which dates already have backgrounds drawn
+    QList<QCPItemText*> m_holidayLabels; // Watermark text items for holidays, cleared with clearBackgroundRects()
     // The double associatives maps indexToBar and timestampToIndex are used to avoid caring about
     // the time when the market is
     //QList<QCPItemRect*> m_closedMarketRects;
@@ -344,6 +346,15 @@ class StockPriceChart : public QWidget
     /// When a response arrives, it's only processed if its token matches m_currentMissingBarsRequestToken.
     /// This prevents stale responses (from cancelled requests due to rapid timescale switching) from being processed.
     std::atomic<uint64_t> m_currentMissingBarsRequestToken{0};
+
+    /// Date of the most recently issued missing-bars request.
+    /// Used in onRequestedMissingBarsFailed to record which date returned no data (holiday/non-trading day).
+    QDate m_lastRequestedDate;
+
+    /// Dates known to have no trading data (holidays, early closes with zero bars).
+    /// Populated by onRequestedMissingBarsFailed; skipped when computing the previous trading day.
+    /// Cleared on symbol change.
+    QSet<QDate> m_knownEmptyDates;
 
     // Wheel zoom sensitivity ratio
     qreal wheelZoomRatio = 1.0;
