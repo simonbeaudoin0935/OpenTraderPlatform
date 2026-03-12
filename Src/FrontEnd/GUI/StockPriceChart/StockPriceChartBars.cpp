@@ -771,10 +771,26 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
         // firstBarTime we fill the gap chain one trading day at a time.
         //
         // Also skip weekends AND m_knownEmptyDates (holidays / non-trading days
-        // that previously returned zero bars) to avoid infinite retry loops.
+        // that previously returned zero bars) AND statically-known NYSE holidays
+        // so we never send an API request for a day that can never have bars.
         QDate requestDate = firstBarTime.date().addDays(-1);
-        while (requestDate.dayOfWeek() > 5 || m_knownEmptyDates.contains(requestDate))
+        while (requestDate.dayOfWeek() > 5 || m_knownEmptyDates.contains(requestDate) ||
+               !MarketCalendar::getHolidayName(requestDate).isEmpty())
+        {
+            // Draw a holiday marker inline as we skip past it, so the chart
+            // never shows a blank gap — even on the first visit.
+            if (requestDate.dayOfWeek() <= 5 && !m_knownEmptyDates.contains(requestDate))
+            {
+                const QString name = MarketCalendar::getHolidayName(requestDate);
+                if (!name.isEmpty())
+                {
+                    m_knownEmptyDates.insert(requestDate);
+                    if (m_index0Timestamp.isValid())
+                        drawHolidayDayMarker(requestDate, name);
+                }
+            }
             requestDate = requestDate.addDays(-1);
+        }
 
         requestStartTime = QDateTime(requestDate,
                                      TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
