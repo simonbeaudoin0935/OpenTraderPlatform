@@ -9,6 +9,29 @@ This file teaches GitHub Copilot how to locate, open, and extract information fr
 
 ---
 
+> ### ⚠️ Shell Security Policy — Mandatory Pattern Rules
+>
+> The shell security policy **blocks nested command substitution**: any `VAR=$(command | pipeline)` after the first `LATEST=` assignment will be rejected with *"contains dangerous shell expansion patterns"*.
+>
+> **Rule**: Never assign `$(...)` pipeline output to a variable. Run pipelines directly and let them print.
+>
+> ```bash
+> # ✗ BLOCKED — nested $() assigned to variable
+> HITS=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_hit" || true)
+> echo "Hits: $HITS"
+>
+> # ✓ CORRECT — pipeline runs directly, output goes to stdout
+> echo -n "Cache hits: " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_hit" || true
+> ```
+>
+> The **only** safe use of `$(...)` is the initial session path assignment:
+> ```bash
+> LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
+> ```
+> Everything after that must use direct pipelines.
+
+---
+
 ## Skill: Open the Latest LTTng Trace Session
 
 ### Where are the traces?
@@ -118,10 +141,9 @@ babeltrace2 "$KERNEL_DIR" 2>/dev/null \
     | tr -d '[' \
     | sort | uniq -c | sort -rn | head -20
 
-# Physical page alloc/free balance (requires kmem events; net = pages still held)
-ALLOC=$(babeltrace2 "$KERNEL_DIR" 2>/dev/null | grep -c "kmem_mm_page_alloc" || true)
-FREE=$(babeltrace2 "$KERNEL_DIR" 2>/dev/null | grep -c "kmem_mm_page_free" || true)
-echo "Pages allocated: $ALLOC  freed: $FREE  net: $((ALLOC - FREE))"
+# Physical page alloc/free balance (requires kmem events)
+echo -n "Pages allocated: " && babeltrace2 "$KERNEL_DIR" 2>/dev/null | grep -c "kmem_mm_page_alloc" || true
+echo -n "Pages freed:     " && babeltrace2 "$KERNEL_DIR" 2>/dev/null | grep -c "kmem_mm_page_free" || true
 ```
 
 ### System calls — general
@@ -178,10 +200,9 @@ babeltrace2 "$UST_DIR" 2>/dev/null \
     | grep "l2trader:barcache_api_fetch_done" \
     | grep -oP 'symbol = "[^"]*", tf_seconds = \d+, date = "[^"]*", bars_count = \d+'
 
-# Cache hit/miss counts
-HITS=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_hit" || true)
-MISSES=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_miss" || true)
-echo "Cache hits: $HITS  misses: $MISSES"
+# Cache hit/miss counts (run each line independently — no VAR=$() assignment)
+echo -n "Cache hits:   " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_hit" || true
+echo -n "Cache misses: " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_miss" || true
 
 # DB completeness misses (data exists but was rejected as incomplete)
 babeltrace2 "$UST_DIR" 2>/dev/null \
@@ -193,10 +214,9 @@ babeltrace2 "$UST_DIR" 2>/dev/null \
     | grep "l2trader:fillholes_done" \
     | grep -oP 'tf_seconds = \d+, bars_out = \d+, void_bars = \d+'
 
-# Full vs partial day stores
-FULL=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_store_full_day" || true)
-PARTIAL=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_store_partial" || true)
-echo "Full day stores: $FULL  Partial: $PARTIAL"
+# Full vs partial day stores (run each line independently)
+echo -n "Full day stores: " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_store_full_day" || true
+echo -n "Partial stores:  " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_store_partial" || true
 
 # Chart-driven backfill requests (symbol + timeframe + time range)
 babeltrace2 "$UST_DIR" 2>/dev/null \
