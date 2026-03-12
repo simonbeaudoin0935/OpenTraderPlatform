@@ -111,6 +111,39 @@ if [ "${UST_EVENTS}" -gt 0 ] 2>/dev/null; then
         | sort | uniq -c | sort -rn | head -20
     echo ""
 
+    echo "--- UST: fillHolesOfReceivedRequest — step_secs=0 means OOM bug returned ---"
+    babeltrace2 "$UST_DIR" 2>/dev/null \
+        | grep "l2trader:fillholes_run" \
+        | grep -oP 'tf_seconds = \d+, step_secs = \d+, bars_in = \d+, expected_slots = \d+' \
+        | sort | uniq -c | sort -rn | head -20
+    echo ""
+
+    echo "--- UST: fillHolesOfReceivedRequest results (bars_out, void_bars) ---"
+    babeltrace2 "$UST_DIR" 2>/dev/null \
+        | grep "l2trader:fillholes_done" \
+        | grep -oP 'tf_seconds = \d+, bars_out = \d+, void_bars = \d+' \
+        | sort | uniq -c | sort -rn | head -20
+    echo ""
+
+    echo "--- UST: Cache hit rate ---"
+    HITS=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_hit" || true)
+    MISSES=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_miss" || true)
+    echo "  Hits: ${HITS}  Misses: ${MISSES}"
+    echo ""
+
+    echo "--- UST: storeBarsInCache — full vs partial ---"
+    FULL=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_store_full_day" || true)
+    PARTIAL=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_store_partial" || true)
+    echo "  Full day stores: ${FULL}  Partial stores: ${PARTIAL}"
+    echo ""
+
+    echo "--- UST: Chart missing-bars requests (how often chart triggers a fetch) ---"
+    babeltrace2 "$UST_DIR" 2>/dev/null \
+        | grep "l2trader:chart_missing_bars_request" \
+        | grep -oP 'symbol = "[^"]*", tf_seconds = \d+' \
+        | sort | uniq -c | sort -rn | head -20
+    echo ""
+
     echo "--- UST: BarCache day-vector allocations (barcache_day_alloc) ---"
     babeltrace2 "$UST_DIR" 2>/dev/null \
         | grep "l2trader:barcache_day_alloc" \

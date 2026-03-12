@@ -76,8 +76,75 @@ TRACEPOINT_EVENT(l2trader,
                                ctf_integer(int, expected, expected) ctf_integer(int, got, got)))
 
 /* ------------------------------------------------------------------
- * LiveBarAccumulator — bar closed
+ * BarCache — fillHolesOfReceivedRequest
  * ------------------------------------------------------------------ */
+
+/**
+ * Fired at entry of fillHolesOfReceivedRequest.
+ * step_secs=0 would indicate the old integer-division bug has returned.
+ */
+TRACEPOINT_EVENT(l2trader,
+                 fillholes_run,
+                 TP_ARGS(const char*, symbol, int, tf_seconds, int, step_secs, int, bars_in, int, expected_slots),
+                 TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, tf_seconds, tf_seconds)
+                               ctf_integer(int, step_secs, step_secs) ctf_integer(int, bars_in, bars_in)
+                                   ctf_integer(int, expected_slots, expected_slots)))
+
+/**
+ * Fired at exit of fillHolesOfReceivedRequest with the output counts.
+ */
+TRACEPOINT_EVENT(l2trader,
+                 fillholes_done,
+                 TP_ARGS(const char*, symbol, int, tf_seconds, int, bars_out, int, void_bars),
+                 TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, tf_seconds, tf_seconds)
+                               ctf_integer(int, bars_out, bars_out) ctf_integer(int, void_bars, void_bars)))
+
+/* ------------------------------------------------------------------
+ * BarCache — cache hit / miss
+ * ------------------------------------------------------------------ */
+
+/** Fired when getBarsFromCache returns data (no fetch needed). */
+TRACEPOINT_EVENT(l2trader,
+                 barcache_cache_hit,
+                 TP_ARGS(const char*, symbol, int, tf_seconds, const char*, date, int, bars_returned),
+                 TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, tf_seconds, tf_seconds) ctf_string(date, date)
+                               ctf_integer(int, bars_returned, bars_returned)))
+
+/** Fired when getBarsFromCache returns nullopt (fetch required). */
+TRACEPOINT_EVENT(l2trader,
+                 barcache_cache_miss,
+                 TP_ARGS(const char*, symbol, int, tf_seconds, const char*, date),
+                 TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, tf_seconds, tf_seconds) ctf_string(date, date)))
+
+/* ------------------------------------------------------------------
+ * BarCache — storeBarsInCache full vs partial
+ * ------------------------------------------------------------------ */
+
+/** Fired when a complete day (bars == barsPerDay) is inserted into memory cache. */
+TRACEPOINT_EVENT(l2trader,
+                 barcache_store_full_day,
+                 TP_ARGS(const char*, symbol, int, tf_seconds, const char*, date, int, bars_count),
+                 TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, tf_seconds, tf_seconds) ctf_string(date, date)
+                               ctf_integer(int, bars_count, bars_count)))
+
+/** Fired when a partial day is slotted into the pre-allocated day vector. */
+TRACEPOINT_EVENT(l2trader,
+                 barcache_store_partial,
+                 TP_ARGS(const char*, symbol, int, tf_seconds, const char*, date, int, bars_count, int, expected_slots),
+                 TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, tf_seconds, tf_seconds) ctf_string(date, date)
+                               ctf_integer(int, bars_count, bars_count)
+                                   ctf_integer(int, expected_slots, expected_slots)))
+
+/* ------------------------------------------------------------------
+ * Chart — missing bars request
+ * ------------------------------------------------------------------ */
+
+/** Fired each time the chart fires requestMissingBars. */
+TRACEPOINT_EVENT(l2trader,
+                 chart_missing_bars_request,
+                 TP_ARGS(const char*, symbol, int, tf_seconds, const char*, from, const char*, to),
+                 TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, tf_seconds, tf_seconds) ctf_string(from, from)
+                               ctf_string(to, to)))
 
 /** Fired each time a bar interval closes and is emitted downstream. */
 TRACEPOINT_EVENT(l2trader,

@@ -18,6 +18,7 @@
 #include "Assume.h"
 #include "BarUtils.h"
 #include "SQL/StockPriceChartQueries.h"
+#include "LTTng/LTTngTracepoints.h"
 #include "BarCache.h"
 #include "MainApp.h"
 #include "Order.h"
@@ -681,6 +682,13 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 
     // Mark request as in-flight by setting a non-zero token
     m_currentMissingBarsRequestToken.fetch_add(1);
+
+    L2T_TP(l2trader,
+           chart_missing_bars_request,
+           m_symbol.toUtf8().constData(),
+           static_cast<int>(m_displayTimeFrame),
+           requestStartTime.toString(Qt::ISODate).toUtf8().constData(),
+           requestEndTime.toString(Qt::ISODate).toUtf8().constData());
 
     emit requestMissingBars(requestStartTime, requestEndTime);
 }
