@@ -17,11 +17,11 @@ This file teaches GitHub Copilot how to locate, open, and extract information fr
 >
 > ```bash
 > # ✗ BLOCKED — nested $() assigned to variable
-> HITS=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_hit" || true)
+> HITS=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_l1_hit" || true)
 > echo "Hits: $HITS"
 >
 > # ✓ CORRECT — pipeline runs directly, output goes to stdout
-> echo -n "Cache hits: " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_hit" || true
+> echo -n "Cache hits: " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_l1_hit" || true
 > ```
 >
 > The **only** safe use of `$(...)` is the initial session path assignment:
@@ -176,21 +176,25 @@ babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:" || echo "0 — not inst
 
 ### Available `l2trader:*` events
 
-| Event | Fired when | Key fields |
-|---|---|---|
-| `barcache_api_fetch_start` | Before a Databento historical bar fetch | `symbol`, `tf_seconds`, `date` |
-| `barcache_api_fetch_done` | After fetch completes | `symbol`, `tf_seconds`, `date`, `bars_count` |
-| `barcache_day_alloc` | A day-vector is allocated in memory | `symbol`, `tf_seconds`, `date`, `num_slots` |
-| `barcache_store_bar_live` | A live/replay bar is stored in cache | `symbol`, `tf_seconds`, `index` |
-| `barcache_store_full_day` | A complete day written to DB | `symbol`, `tf_seconds`, `date`, `bars_count` |
-| `barcache_store_partial` | A partial day written to DB | `symbol`, `tf_seconds`, `date`, `bars_count`, `expected` |
-| `barcache_cache_hit` | DB lookup succeeded | `symbol`, `tf_seconds`, `date`, `bars_count` |
-| `barcache_cache_miss` | DB lookup returned nothing → triggers API fetch | `symbol`, `tf_seconds`, `date` |
-| `db_completeness_miss` | DB has data but below 90% completeness threshold | `symbol`, `tf_seconds`, `date`, `expected`, `got` |
-| `fillholes_run` | Start of gap-filling pass after a fetch | `tf_seconds`, `step_secs`, `bars_in`, `expected_slots` |
-| `fillholes_done` | End of gap-filling pass | `tf_seconds`, `bars_out`, `void_bars` |
-| `livebar_closed` | A live bar interval completed | `symbol`, `interval_seconds` |
-| `chart_missing_bars_request` | Chart requested a backfill from BarCache | `symbol`, `tf_seconds`, `start`, `end` |
+The cache is **3-level**. Event names reflect which level fired:
+
+| Level | Event | Meaning | Key fields |
+|---|---|---|---|
+| **L1 (RAM)** | `barcache_l1_hit` | Day found in `m_barCacheByTimeFrame` — no I/O | `symbol`, `tf_seconds`, `date`, `bars_returned` |
+| **L1 (RAM)** | `barcache_l1_miss` | Day not in RAM — L2 (SQLite) will be checked next. Does **not** imply an API fetch. | `symbol`, `tf_seconds`, `date` |
+| **L2 (SQLite)** | `barcache_l2_hit` | DB returned ≥90% of expected bars — loaded into L1 | `symbol`, `tf_seconds`, `date`, `bars_returned`, `expected` |
+| **L2 (SQLite)** | `barcache_l2_miss` | DB returned 0 bars for that day — L3 (API) fetch will follow | `symbol`, `tf_seconds`, `date` |
+| **L2 (SQLite)** | `barcache_l2_partial` | DB has some bars but below 90% threshold — L3 fetch will follow | `symbol`, `tf_seconds`, `date`, `expected`, `got` |
+| **L3 (API)** | `barcache_api_fetch_start` | Databento historical bars request dispatched | `symbol`, `tf_seconds`, `date` |
+| **L3 (API)** | `barcache_api_fetch_done` | Fetch returned | `symbol`, `tf_seconds`, `date`, `bars_count` |
+| **Store** | `barcache_day_alloc` | New day-vector allocated in RAM | `symbol`, `tf_seconds`, `date`, `num_slots` |
+| **Store** | `barcache_store_bar_live` | Live/replay bar slotted into L1 | `symbol`, `tf_seconds`, `index` |
+| **Store** | `barcache_store_full_day` | Full day written to L1 (then DB) | `symbol`, `tf_seconds`, `date`, `bars_count` |
+| **Store** | `barcache_store_partial` | Partial day slotted into pre-allocated day vector | `symbol`, `tf_seconds`, `date`, `bars_count`, `expected_slots` |
+| **Gap fill** | `fillholes_run` | Gap-fill pass started after an L3 fetch | `symbol`, `tf_seconds`, `step_secs`, `bars_in`, `expected_slots` |
+| **Gap fill** | `fillholes_done` | Gap-fill pass finished | `symbol`, `tf_seconds`, `bars_out`, `void_bars` |
+| **Chart** | `chart_missing_bars_request` | Chart fired `requestMissingBars` | `symbol`, `tf_seconds`, `from`, `to` |
+| **Live** | `livebar_closed` | A live bar interval completed | `symbol`, `interval_seconds` |
 
 ### Querying individual events
 
@@ -200,13 +204,18 @@ babeltrace2 "$UST_DIR" 2>/dev/null \
     | grep "l2trader:barcache_api_fetch_done" \
     | grep -oP 'symbol = "[^"]*", tf_seconds = \d+, date = "[^"]*", bars_count = \d+'
 
-# Cache hit/miss counts (run each line independently — no VAR=$() assignment)
-echo -n "Cache hits:   " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_hit" || true
-echo -n "Cache misses: " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_miss" || true
+# L1 (memory) hit/miss
+echo -n "L1 hits:  " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_l1_hit" || true
+echo -n "L1 misses:" && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_l1_miss" || true
 
-# DB completeness misses (data exists but was rejected as incomplete)
+# L2 (SQLite) hit/miss/partial
+echo -n "L2 hits:    " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_l2_hit" || true
+echo -n "L2 misses:  " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_l2_miss" || true
+echo -n "L2 partial: " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_l2_partial" || true
+
+# L2 partial detail (what data was present vs expected)
 babeltrace2 "$UST_DIR" 2>/dev/null \
-    | grep "l2trader:db_completeness_miss" \
+    | grep "l2trader:barcache_l2_partial" \
     | grep -oP 'symbol = "[^"]*".*expected = \d+, got = \d+'
 
 # Gap-filling pass summary (bars_in → bars_out after null-bar injection)

@@ -476,7 +476,7 @@ BarCache::getBarsFromCache(TimeFrame tf, const QDate& date, const QTime& start, 
     {
         DEBUG << "Cache miss for timescale" << static_cast<int>(tf) << "day" << date;
         L2T_TP(l2trader,
-               barcache_cache_miss,
+               barcache_l1_miss,
                m_symbol.toUtf8().constData(),
                static_cast<int>(tf),
                date.toString("yyyy-MM-dd").toUtf8().constData());
@@ -508,7 +508,7 @@ BarCache::getBarsFromCache(TimeFrame tf, const QDate& date, const QTime& start, 
     DEBUG << "Loaded complete day from memory cache:" << date << "with" << result->size() << "bars";
 
     L2T_TP(l2trader,
-           barcache_cache_hit,
+           barcache_l1_hit,
            m_symbol.toUtf8().constData(),
            static_cast<int>(tf),
            date.toString("yyyy-MM-dd").toUtf8().constData(),
