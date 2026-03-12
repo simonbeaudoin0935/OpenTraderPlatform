@@ -535,6 +535,13 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
     loadHistoricalOrders();
     loadHistoricalPositions();
     loadStrategyLogMarkers();
+
+    // Re-check whether the view still extends beyond the newly loaded bars.
+    // This drives the automatic day-by-day backfill when the user has zoomed
+    // out far enough to expose multiple missing days: each arriving day releases
+    // the token and immediately schedules the next request without requiring any
+    // further user interaction.
+    onAxisRangeChanged();
 }
 
 /**
