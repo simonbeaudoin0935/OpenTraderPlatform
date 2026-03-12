@@ -1731,6 +1731,20 @@ void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDate
 {
     DEBUG << "Request missing bars from " << from << " to " << to;
 
+    // Guard against the race where setSymbol() fires on the GUI thread but the queued
+    // onSelectDisplayedStock() hasn't reached MainAlgo yet (cross-thread delivery).
+    // In that case MainAlgo's currentDisplayedStockInstrument still points to the OLD
+    // symbol, so we would paint bars from the wrong BarCache.  Retry in 50ms — by that
+    // time the queued event will have been processed.
+    const QString expectedSymbol = ui->priceChart->getCurrentSymbol();
+    if (MainAlgo::getInstance()->getDisplayedSymbol() != expectedSymbol)
+    {
+        DEBUG << "Symbol mismatch (MainAlgo:" << MainAlgo::getInstance()->getDisplayedSymbol()
+              << "vs chart:" << expectedSymbol << ") — retrying in 50ms";
+        QTimer::singleShot(50, this, [this, from, to]() { requestMissingBarsFromCache(from, to); });
+        return;
+    }
+
     BarCache::GetBarsResult_t result = MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from.date(),
                                                                                                  from.time(),
                                                                                                  to.time(),
