@@ -112,7 +112,7 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(TimeFrame tf,
 
     qsizetype i = 0;
 
-    const qint64 stepSecs = static_cast<qint64>(BarUtils::minutesPerBar(tf)) * 60;
+    const qint64 stepSecs = static_cast<qint64>(BarUtils::secondsPerBar(tf));
     for (QDateTime expectedTime = first; expectedTime <= last; expectedTime = expectedTime.addSecs(stepSecs))
     {
         Bar bar;
