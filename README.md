@@ -127,7 +127,7 @@ See [DEVELOPMENT.md](Doc/DEVELOPMENT.md#code-quality-tools) for more details on 
 
 ### LTTng Kernel Tracing (for thread/memory diagnostics)
 
-LTTng captures kernel-level events (heap growth, thread scheduling) with nanosecond precision and **zero code changes** to the app. Use it to identify which thread is causing memory explosions or runaway allocations.
+LTTng captures kernel-level events (heap growth, thread scheduling) and L2Trader userspace tracepoints with nanosecond precision. Use it to diagnose performance issues, memory growth, or unexpected thread behaviour.
 
 **Install once:**
 ```bash
@@ -136,34 +136,24 @@ sudo apt install lttng-tools lttng-modules-dkms babeltrace2
 
 **Run the app under LTTng (via VSCode task `run-lttng`, or manually):**
 ```bash
-# Start tracing and launch the app — sudo required for kernel events
+# Kernel-only tracing (normal build)
 .sanitizers/lttng/run-with-lttng.sh
+
+# Kernel + UST userspace tracepoints (instrumented build)
+APP=./build/LTTng/Src/L2Trader .sanitizers/lttng/run-with-lttng.sh
 ```
 
-The script traces `mmap`/`brk` syscalls and `sched_switch` events. Traces are saved to `~/.local/share/L2Trader/lttng-traces/<timestamp>/`.
+Traces are saved to `~/.local/share/L2Trader/lttng-traces/<timestamp>/kernel/` and `.../ust/`. No sudo password is needed — see `/etc/sudoers.d/l2trader-lttng`.
 
-**Analyze the captured trace (VSCode task `analyze-lttng`, or manually):**
-```bash
-# Uses the most recent trace automatically
-.sanitizers/lttng/analyze-lttng.sh
-
-# Or point at a specific capture
-.sanitizers/lttng/analyze-lttng.sh ~/.local/share/L2Trader/lttng-traces/2026-03-12_10-00-00/
-```
-
-The analysis script reports:
-- **Top allocator TIDs** — which thread made the most `mmap`/`brk` calls
-- **Thread name → TID mapping** — human-readable thread names alongside TIDs
-- **Alloc call rate per second** — shows the exact moment the explosion starts
-- **Cross-reference** — maps the hottest TIDs back to their Qt thread names
+**Query a trace with babeltrace2 or open in TraceCompass.** For query recipes and event reference, see the [LTTng Copilot skill](.github/skills/lttng/SKILL.md).
 
 **VSCode tasks available:**
 
 | Task | Description |
 |------|-------------|
-| `run-lttng` | Build + launch app under LTTng (prompts for sudo) |
-| `analyze-lttng` | Analyze the most recent trace |
-| `run-lttng-with-analysis` | Both in sequence |
+| `run-lttng` | Launch app under kernel-only LTTng |
+| `run-lttng-instrumented` | Launch instrumented build (kernel + UST) |
+| `build-with-lttng` | Build the LTTNG_ENABLED binary |
 
 ### Building TUI Mode (headless)
 

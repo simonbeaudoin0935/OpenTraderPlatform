@@ -38,90 +38,118 @@ UST_DIR="${LATEST}ust"
 
 ---
 
-## Skill: List All Events in a Trace
+## Skill: Discover What Is in a Trace
+
+Before querying, always start by discovering what event types are present:
 
 ```bash
 LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
 
-# List all kernel event types present
-babeltrace2 "${LATEST}kernel" 2>/dev/null | grep -oP 'event\.name = "[^"]*"' | sort -u
+# All distinct kernel event types recorded
+babeltrace2 "${LATEST}kernel" 2>/dev/null \
+    | grep -oP 'name = "[^"]*"' | sort -u
 
-# List all UST event types present
-babeltrace2 "${LATEST}ust" 2>/dev/null | grep -oP 'l2trader:\w+' | sort -u
+# All distinct UST event types recorded
+babeltrace2 "${LATEST}ust" 2>/dev/null \
+    | grep -oP 'l2trader:\w+' | sort -u
 
-# Full raw dump of all UST events (pipe to less for interactive reading)
+# Total event counts per type (kernel)
+babeltrace2 "${LATEST}kernel" 2>/dev/null \
+    | grep -oP 'name = "[^"]*"' | sort | uniq -c | sort -rn | head -30
+
+# Total event counts per type (UST)
+babeltrace2 "${LATEST}ust" 2>/dev/null \
+    | grep -oP 'l2trader:\w+' | sort | uniq -c | sort -rn
+
+# Raw dump of the first 50 UST events (understand field names and structure)
 babeltrace2 "${LATEST}ust" 2>/dev/null | head -100
+
+# Time range of the trace
+babeltrace2 "${LATEST}kernel" 2>/dev/null | head -3
+babeltrace2 "${LATEST}kernel" 2>/dev/null | tail -3
 ```
 
 ---
 
-## Skill: Identify Which Thread Is Allocating Memory (OOM / Memory Leak Diagnosis)
+## Skill: Query Kernel Events
 
-### Step 1 — Find the top allocator TIDs from kernel events
+### Thread scheduling
 
 ```bash
 LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
 KERNEL_DIR="${LATEST}kernel"
 
-# Top TIDs by mmap/brk/mremap call count (highest = runaway allocator)
+# All threads that were scheduled (unique TID → name mappings)
+babeltrace2 "$KERNEL_DIR" 2>/dev/null \
+    | grep "sched_switch" \
+    | grep -oP 'next_comm = "[^"]*", next_tid = \d+' \
+    | sort -u
+
+# How much CPU time each thread got (rough — count of sched_switch to it)
+babeltrace2 "$KERNEL_DIR" 2>/dev/null \
+    | grep "sched_switch" \
+    | grep -oP 'next_comm = "[^"]*"' \
+    | sort | uniq -c | sort -rn | head -20
+
+# Thread wakeup events (sched_process_fork = new thread spawned)
+babeltrace2 "$KERNEL_DIR" 2>/dev/null \
+    | grep "sched_process_fork" | head -20
+```
+
+### Memory (heap syscalls)
+
+```bash
+# Total mmap/brk/mremap calls per thread (higher = more allocations)
 babeltrace2 "$KERNEL_DIR" 2>/dev/null \
     | grep -E "syscall_entry_mmap|syscall_entry_brk|syscall_entry_mremap" \
     | grep -oP 'tid = \d+' \
     | sort | uniq -c | sort -rn | head -20
-```
 
-### Step 2 — Map TIDs to thread names
-
-```bash
-# Scheduler events record the thread name (comm) alongside the TID
+# Resolve those TIDs to thread names
 babeltrace2 "$KERNEL_DIR" 2>/dev/null \
     | grep "sched_switch" \
     | grep -oP 'next_comm = "[^"]*", next_tid = \d+' \
-    | sort -u | head -40
-```
+    | sort -u
 
-### Step 3 — Cross-reference a specific TID
-
-```bash
-TID=12345   # replace with TID from Step 1
-
-COUNT=$(babeltrace2 "$KERNEL_DIR" 2>/dev/null \
-    | grep -E "syscall_entry_mmap|syscall_entry_brk" \
-    | grep "tid = ${TID}" | wc -l)
-
-NAME=$(babeltrace2 "$KERNEL_DIR" 2>/dev/null \
-    | grep "sched_switch" \
-    | grep "next_tid = ${TID}" \
-    | grep -oP 'next_comm = "[^"]*"' \
-    | sort -u | head -1)
-
-echo "TID ${TID} (${NAME}): ${COUNT} alloc calls"
-```
-
-### Step 4 — Find *when* the explosion started (mmap rate per second)
-
-```bash
+# Allocation call rate per second (find *when* growth happened)
 babeltrace2 "$KERNEL_DIR" 2>/dev/null \
     | grep -E "syscall_entry_mmap|syscall_entry_brk" \
     | grep -oP '\[\d{2}:\d{2}:\d{2}' \
     | tr -d '[' \
     | sort | uniq -c | sort -rn | head -20
+
+# Physical page alloc/free balance (requires kmem events; net = pages still held)
+ALLOC=$(babeltrace2 "$KERNEL_DIR" 2>/dev/null | grep -c "kmem_mm_page_alloc" || true)
+FREE=$(babeltrace2 "$KERNEL_DIR" 2>/dev/null | grep -c "kmem_mm_page_free" || true)
+echo "Pages allocated: $ALLOC  freed: $FREE  net: $((ALLOC - FREE))"
+```
+
+### System calls — general
+
+```bash
+# All syscall types observed (entry events only)
+babeltrace2 "$KERNEL_DIR" 2>/dev/null \
+    | grep "syscall_entry" \
+    | grep -oP 'name = "[^"]*"' | sort | uniq -c | sort -rn | head -20
+
+# Activity by a specific TID (replace 12345)
+TID=12345
+babeltrace2 "$KERNEL_DIR" 2>/dev/null \
+    | grep "tid = ${TID}" | head -50
 ```
 
 ---
 
-## Skill: Query UST Tracepoints (Instrumented Build Only)
+## Skill: Query UST Tracepoints
 
-UST events are only present when the app was built with `LTTNG_ENABLED=ON` (the `build-with-lttng` VSCode task) and launched via the `run-lttng-instrumented` task.
-
-All events are in the `l2trader` provider. Check presence first:
+UST events are only present when the app was built with `LTTNG_ENABLED=ON` (VSCode task `build-with-lttng`) and launched via `run-lttng-instrumented`.
 
 ```bash
 LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
 UST_DIR="${LATEST}ust"
 
-UST_EVENTS=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:" || true)
-echo "UST events found: $UST_EVENTS"
+# Confirm UST events are present
+babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:" || echo "0 — not instrumented build"
 ```
 
 ### Available `l2trader:*` events
@@ -135,104 +163,131 @@ echo "UST events found: $UST_EVENTS"
 | `barcache_store_full_day` | A complete day written to DB | `symbol`, `tf_seconds`, `date`, `bars_count` |
 | `barcache_store_partial` | A partial day written to DB | `symbol`, `tf_seconds`, `date`, `bars_count`, `expected` |
 | `barcache_cache_hit` | DB lookup succeeded | `symbol`, `tf_seconds`, `date`, `bars_count` |
-| `barcache_cache_miss` | DB lookup returned nothing → triggers fetch | `symbol`, `tf_seconds`, `date` |
+| `barcache_cache_miss` | DB lookup returned nothing → triggers API fetch | `symbol`, `tf_seconds`, `date` |
 | `db_completeness_miss` | DB has data but below 90% completeness threshold | `symbol`, `tf_seconds`, `date`, `expected`, `got` |
-| `fillholes_run` | Start of gap-filling after fetch | `tf_seconds`, `step_secs`, `bars_in`, `expected_slots` |
-| `fillholes_done` | End of gap-filling | `tf_seconds`, `bars_out`, `void_bars` |
+| `fillholes_run` | Start of gap-filling pass after a fetch | `tf_seconds`, `step_secs`, `bars_in`, `expected_slots` |
+| `fillholes_done` | End of gap-filling pass | `tf_seconds`, `bars_out`, `void_bars` |
 | `livebar_closed` | A live bar interval completed | `symbol`, `interval_seconds` |
 | `chart_missing_bars_request` | Chart requested a backfill from BarCache | `symbol`, `tf_seconds`, `start`, `end` |
 
-### Common queries
+### Querying individual events
 
 ```bash
-LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
-UST_DIR="${LATEST}ust"
-
-# How many bars were fetched per (symbol, timeframe, date)?
+# All fetches — what was requested, how many bars came back
 babeltrace2 "$UST_DIR" 2>/dev/null \
     | grep "l2trader:barcache_api_fetch_done" \
     | grep -oP 'symbol = "[^"]*", tf_seconds = \d+, date = "[^"]*", bars_count = \d+'
 
-# Cache hit rate
+# Cache hit/miss counts
 HITS=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_hit" || true)
 MISSES=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_cache_miss" || true)
 echo "Cache hits: $HITS  misses: $MISSES"
 
-# DB completeness misses (why a re-fetch was triggered)
+# DB completeness misses (data exists but was rejected as incomplete)
 babeltrace2 "$UST_DIR" 2>/dev/null \
     | grep "l2trader:db_completeness_miss" \
     | grep -oP 'symbol = "[^"]*".*expected = \d+, got = \d+'
 
-# Detect OOM regression: step_secs=0 in fillholes_run means infinite loop
+# Gap-filling pass summary (bars_in → bars_out after null-bar injection)
 babeltrace2 "$UST_DIR" 2>/dev/null \
-    | grep "l2trader:fillholes_run" \
-    | grep "step_secs = 0" \
-    | head -5
+    | grep "l2trader:fillholes_done" \
+    | grep -oP 'tf_seconds = \d+, bars_out = \d+, void_bars = \d+'
 
 # Full vs partial day stores
 FULL=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_store_full_day" || true)
 PARTIAL=$(babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:barcache_store_partial" || true)
 echo "Full day stores: $FULL  Partial: $PARTIAL"
 
-# How often does the chart trigger a backfill?
+# Chart-driven backfill requests (symbol + timeframe + time range)
 babeltrace2 "$UST_DIR" 2>/dev/null \
     | grep "l2trader:chart_missing_bars_request" \
     | grep -oP 'symbol = "[^"]*", tf_seconds = \d+, start = "[^"]*", end = "[^"]*"'
+
+# Live bar throughput per timeframe
+babeltrace2 "$UST_DIR" 2>/dev/null \
+    | grep "l2trader:livebar_closed" \
+    | grep -oP 'interval_seconds = \d+' \
+    | sort | uniq -c | sort -rn
 ```
 
 ---
 
 ## Skill: Correlate Kernel and UST Events on a Timeline
 
-Combine both streams (babeltrace2 merges by timestamp automatically):
+`babeltrace2` merges multiple trace directories by timestamp automatically:
 
 ```bash
 LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
 
-# Interleaved kernel + UST timeline (filter to a narrow time window)
+# Merged timeline — filter to a narrow time window (replace with timestamp of interest)
 babeltrace2 "${LATEST}kernel" "${LATEST}ust" 2>/dev/null \
-    | grep -E "21:57:14|21:57:15|21:57:16" | head -50
+    | grep "HH:MM:SS" | head -50
+
+# Find the timestamp of a specific UST event, then look at kernel events around it
+babeltrace2 "${LATEST}ust" 2>/dev/null \
+    | grep "l2trader:barcache_api_fetch_done" | head -3
+# Copy the timestamp, then:
+# babeltrace2 "${LATEST}kernel" 2>/dev/null | grep "HH:MM:SS" | head -30
 ```
 
-This is useful to see exactly which kernel allocations happen in the seconds following a `barcache_api_fetch_done` event.
+This is useful for correlating any application-level event (fetch complete, bar stored, chart request) with the kernel activity (syscalls, context switches, page allocs) that occurred at the same moment.
+
+---
+
+## Skill: Inspect a Specific Time Window
+
+```bash
+LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
+
+# Events in a specific second from both streams
+TIME="21:57:14"
+babeltrace2 "${LATEST}kernel" "${LATEST}ust" 2>/dev/null \
+    | grep "$TIME"
+
+# Events in a range (use begin/end options for precision)
+babeltrace2 "${LATEST}kernel" \
+    --begin "2026-03-11T21:57:14.000000000" \
+    --end   "2026-03-11T21:57:20.000000000" 2>/dev/null | head -50
+```
 
 ---
 
 ## Skill: Open in TraceCompass
 
-TraceCompass can open the trace directories directly for visual analysis:
+TraceCompass provides visual analysis with timeline, Memory Usage, and Control Flow views.
 
 1. **File → Open Trace…** → select `~/.local/share/L2Trader/lttng-traces/<session>/kernel/`
 2. **File → Open Trace…** → select `~/.local/share/L2Trader/lttng-traces/<session>/ust/`
-3. Useful views:
-   - **LTTng-UST CallStack** — shows C++ call stacks per thread over time
-   - **Memory Usage** — shows RSS growth (requires `kmem_mm_page_alloc/free` kernel events)
-   - **Control Flow** — visualizes thread scheduling / wakeup patterns
-   - **LTTng-UST** — raw event list, searchable and filterable
+3. Most useful views:
+   - **Memory Usage** — RSS growth over time per process (needs `kmem_mm_page_alloc/free`)
+   - **Control Flow** — thread scheduling as swimlanes; spot runaway threads visually
+   - **LTTng-UST** — filterable event list for all `l2trader:*` tracepoints
+   - **System Calls** — syscall density per thread
 
-> Kernel traces are written as root and then `chown`'d back to the user by the run script. If TraceCompass shows a permissions error, run: `sudo chown -R $USER:$USER ~/.local/share/L2Trader/lttng-traces/`
+> Kernel traces are written as root and then `chown`'d back to the user by the run script. If TraceCompass shows a permissions error: `sudo chown -R $USER:$USER ~/.local/share/L2Trader/lttng-traces/`
 
 ---
 
-## Skill: List All Trace Sessions and Their Sizes
+## Skill: List and Manage Trace Sessions
 
 ```bash
 # List all sessions, newest first, with sizes
-du -sh ~/.local/share/L2Trader/lttng-traces/*/ 2>/dev/null | sort -rh | head -10
+du -sh ~/.local/share/L2Trader/lttng-traces/*/ 2>/dev/null | sort -rh
+
+# Delete old sessions (keeps the 5 most recent)
+ls -td ~/.local/share/L2Trader/lttng-traces/*/ | tail -n +6 | xargs rm -rf
 ```
 
 ---
 
 ## Skill: Run a New Capture
 
-Use the VSCode tasks (Ctrl+Shift+P → "Tasks: Run Task"):
+Use VSCode tasks (Ctrl+Shift+P → "Tasks: Run Task"):
 
 | Task | What it does |
 |---|---|
 | `run-lttng` | Kernel-only tracing, normal binary |
 | `run-lttng-instrumented` | Kernel + UST tracing, LTTng-enabled binary |
-| `run-lttng-with-analysis` | Kernel-only + runs `analyze-lttng.sh` after exit |
-| `run-lttng-instrumented-with-analysis` | Full kernel+UST + analysis after exit |
 | `build-with-lttng` | Builds the instrumented binary (`build/LTTng/`) |
 
 Or run the script directly:

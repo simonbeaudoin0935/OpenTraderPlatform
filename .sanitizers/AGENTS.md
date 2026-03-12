@@ -20,8 +20,7 @@ This directory contains runtime sanitizers and memory analysis tools organized b
 │   ├── run-valgrind-test.sh
 │   └── valgrind-qt.supp
 └── lttng/              # LTTng kernel tracing (thread/memory diagnostics)
-    ├── run-with-lttng.sh
-    └── analyze-lttng.sh
+    └── run-with-lttng.sh
 ```
 
 ## Tool Capabilities
@@ -84,7 +83,7 @@ This directory contains runtime sanitizers and memory analysis tools organized b
 **Performance**: Negligible overhead (ring-buffer, asynchronous)
 **Trace output**: `~/.local/share/L2Trader/lttng-traces/<timestamp>/`
 
-**VSCode tasks**: `run-lttng`, `analyze-lttng`, `run-lttng-with-analysis`
+**VSCode tasks**: `run-lttng`, `run-lttng-instrumented`, `build-with-lttng`
 
 ## Quick Start for AI Agents
 
@@ -105,10 +104,12 @@ This directory contains runtime sanitizers and memory analysis tools organized b
 ./.sanitizers/valgrind/run-valgrind-test.sh
 ```
 
-**LTTng** (kernel tracing, sudo required):
+**LTTng** (kernel tracing):
 ```bash
 ./.sanitizers/lttng/run-with-lttng.sh
 ```
+
+For trace queries and event reference, see `.github/skills/lttng/SKILL.md`.
 
 ### Analyzing Reports
 
@@ -129,7 +130,10 @@ This directory contains runtime sanitizers and memory analysis tools organized b
 
 **LTTng**:
 ```bash
-./.sanitizers/lttng/analyze-lttng.sh [trace-dir]
+# View the latest trace
+LATEST=$(ls -td ~/.local/share/L2Trader/lttng-traces/*/ | head -1)
+babeltrace2 "${LATEST}ust" 2>/dev/null | head -50
+# See .github/skills/lttng/SKILL.md for full query reference
 ```
 
 ### CI Integration
@@ -178,9 +182,9 @@ Tasks are configured in `.vscode/tasks.json`:
 - `run-valgrind` - Run with full options
 
 **LTTng**:
-- `run-lttng-with-analysis` - Run under LTTng + analyze trace
-- `analyze-lttng` - Analyze most recent trace
-- `run-lttng` - Run under LTTng only
+- `run-lttng` - Launch app under kernel LTTng tracing
+- `run-lttng-instrumented` - Launch instrumented build (kernel + UST)
+- `build-with-lttng` - Build the LTTNG_ENABLED binary
 
 ## How It Works
 
