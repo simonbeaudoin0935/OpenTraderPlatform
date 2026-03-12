@@ -58,22 +58,6 @@ namespace DBRecordTranslator
     }
 
     /**
- * @brief Translate a Databento Mbp1Msg into a Level1 BBO snapshot.
- * @param p_symbol Resolved symbol string (from PitSymbolMap)
- * @param p_msg    The 1-level market-by-price message
- */
-    [[nodiscard]] inline Level1 toLevel1(const QString& p_symbol, const databento::Mbp1Msg& p_msg)
-    {
-        const auto& level = p_msg.levels[0];
-        Level1 l1;
-        l1.m_symbol = p_symbol;
-        l1.m_timeStamp = toDateTime(p_msg.hd.ts_event);
-        l1.m_bid = {toDouble(level.bid_px), static_cast<int>(level.bid_sz), static_cast<int>(level.bid_ct)};
-        l1.m_ask = {toDouble(level.ask_px), static_cast<int>(level.ask_sz), static_cast<int>(level.ask_ct)};
-        return l1;
-    }
-
-    /**
  * @brief Translate a Databento TradeMsg into a Trade.
  * @param p_symbol Resolved symbol string (from PitSymbolMap)
  * @param p_msg    The trade message

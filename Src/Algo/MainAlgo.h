@@ -12,7 +12,6 @@
 #include <optional>
 
 #include "Level2Receiver.h"
-#include "Level1Receiver.h"
 #include "BarReceiver.h"
 #include "PositionsReceiver.h"
 #include "OrdersReceiver.h"
@@ -45,7 +44,6 @@ class StockInstruments : public QObject
     BarCache barCache;
     BarReceiver barReceiver;
     Level2Receiver m_level2Receiver;
-    Level1Receiver m_level1Receiver;
     LiveBarAccumulator m_liveBarAccumulator;
     BarAggregator m_barAggregator;
 };

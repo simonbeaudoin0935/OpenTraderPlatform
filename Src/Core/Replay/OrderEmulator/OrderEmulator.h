@@ -81,17 +81,6 @@ class OrderEmulator : public QObject
     void updateMarketDepth(const QString& p_symbol, const Level2& p_depth);
 
     /**
-     * @brief Update Level 1 quote snapshot for a symbol
-     * @param p_symbol Stock ticker symbol
-     * @param p_quote Latest quote data
-     *
-     * Called by ReplayEngine on each quote tick. Used as fallback when Level 2
-     * market depth is not available for calculating fill prices.
-     * Level 2 data takes priority over Level 1 when both are available.
-     */
-    void updateLevel1(const QString& p_symbol, const Level1& p_level1);
-
-    /**
      * @brief Update bar close price for a symbol
      * @param p_symbol Stock ticker symbol
      * @param p_close Bar close price
@@ -235,22 +224,6 @@ class OrderEmulator : public QObject
     [[nodiscard]] double calculateMarketOrderFillPrice(const Order& p_order, const Level2& p_depth) const;
 
     /**
-     * @brief Check if a limit order can fill using Level 1 quote data
-     * @param p_order The order to check
-     * @param p_quote Current quote (Level 1)
-     * @return true if order can fill
-     */
-    [[nodiscard]] bool canFillLimitOrderFromLevel1(const Order& p_order, const Level1& p_level1) const;
-
-    /**
-     * @brief Calculate fill price for a market order using Level 1 quote
-     * @param p_order The order
-     * @param p_quote Current quote (Level 1)
-     * @return Fill price (best bid for sell, best ask for buy)
-     */
-    [[nodiscard]] double calculateMarketOrderFillPriceFromLevel1(const Order& p_order, const Level1& p_level1) const;
-
-    /**
      * @brief Fill an order and update position
      * @param p_orderJson The order JSON to fill
      * @param p_fillPrice Fill price
@@ -344,9 +317,6 @@ class OrderEmulator : public QObject
 
     // Market depth snapshots
     QMap<QString, Level2> m_depthSnapshots; // symbol → latest depth
-
-    // Level 1 quote snapshots (fallback when Level 2 unavailable)
-    QMap<QString, Level1> m_quoteSnapshots; // symbol → latest quote
 
     // Bar close prices (for mark-to-market calculation)
     QMap<QString, double> m_latestBarClose; // symbol → latest bar close price

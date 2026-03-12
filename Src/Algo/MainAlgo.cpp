@@ -640,7 +640,6 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
     , barCache(p_symbol, this)
     , barReceiver(p_symbol, this)
     , m_level2Receiver(p_symbol, this)
-    , m_level1Receiver(p_symbol, this)
     , m_liveBarAccumulator(this)
     , m_barAggregator(this)
 {
@@ -691,17 +690,6 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
                             {
                                 if (sym == symbol)
                                     m_level2Receiver.onReceivedNewLevel2(level2);
-                            });
-        OBJ_ASSUME_TRUE(connected);
-
-        // Wire DBClient::newLevel1 → Level1Receiver (filtered by symbol)
-        connected = connect(dbClient,
-                            &DBClient::newLevel1,
-                            this,
-                            [this](const QString& sym, const Level1& level1)
-                            {
-                                if (sym == symbol)
-                                    m_level1Receiver.onReceivedNewLevel1(level1);
                             });
         OBJ_ASSUME_TRUE(connected);
 

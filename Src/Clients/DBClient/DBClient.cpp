@@ -519,12 +519,6 @@ databento::KeepGoing DBClient::onRecordReceived(const databento::Record& p_recor
         Level2 level2 = DBRecordTranslator::toLevel2(symbol, msg);
         emit newLevel2(symbol, level2);
     }
-    else if (p_record.Holds<databento::Mbp1Msg>())
-    {
-        const auto& msg = p_record.Get<databento::Mbp1Msg>();
-        Level1 level1 = DBRecordTranslator::toLevel1(symbol, msg);
-        emit newLevel1(symbol, level1);
-    }
     else if (p_record.Holds<databento::TradeMsg>())
     {
         const auto& msg = p_record.Get<databento::TradeMsg>();

@@ -189,14 +189,6 @@ class DBClient : public QObject
     void newLevel2(const QString& p_symbol, const Level2& p_level2);
 
     /**
-     * @brief New Level 1 (BBO) snapshot from live stream
-     * Thread context: Emitted from Databento callback thread
-     * @param p_symbol Resolved ticker symbol
-     * @param p_level1 The bid/ask BBO
-     */
-    void newLevel1(const QString& p_symbol, const Level1& p_level1);
-
-    /**
      * @brief New trade print from live stream
      * Thread context: Emitted from Databento callback thread
      * @param p_symbol Resolved ticker symbol

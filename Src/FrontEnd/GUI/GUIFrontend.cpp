@@ -2005,7 +2005,7 @@ void GUIFrontend::onReplayModeEntered()
 
     // TODO Phase 6: probe DBClient .dbn replay file to detect available schemas (MBP-10, MBP-1, etc.)
     // For now, clear the mode indicator (no legacy TS recorded data)
-    ui->level2Widget->setExpectedDataMode(false, false);
+    ui->level2Widget->setExpectedDataMode(false);
 
     // Show replay controls bar and ensure play button is in stopped state
     m_replayControlsBar->setVisible(true);

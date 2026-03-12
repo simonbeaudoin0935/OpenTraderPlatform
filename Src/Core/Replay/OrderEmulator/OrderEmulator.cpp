@@ -209,65 +209,6 @@ void OrderEmulator::updateBarClose(const QString& p_symbol, double p_close)
     m_latestBarClose.insert(p_symbol, p_close);
 }
 
-void OrderEmulator::updateLevel1(const QString& p_symbol, const Level1& p_level1)
-{
-    m_quoteSnapshots.insert(p_symbol, p_level1);
-
-    // Only check limit orders if we don't have Level 2 data for this symbol
-    // (Level 2 data is preferred and handled by updateMarketDepth)
-    if (m_depthSnapshots.contains(p_symbol))
-    {
-        return;
-    }
-
-    // Check if any open limit orders can now fill using Level 1 data
-    for (auto it = m_openOrders.begin(); it != m_openOrders.end();)
-    {
-        Order& order = it.value();
-        if (order.getSymbol() != p_symbol)
-        {
-            ++it;
-            continue;
-        }
-
-        if (canFillLimitOrderFromLevel1(order, p_level1))
-        {
-            // Fill at market price: a buy limit crossing the ask fills at the ask,
-            // not the (higher) limit price. Same logic as a market order.
-            double fillPrice = calculateMarketOrderFillPriceFromLevel1(order, p_level1);
-
-            // Convert order to JSON for executing queue
-            QJsonObject orderJson = orderToJsonObject(order);
-
-            // Log BEFORE erase — order reference becomes dangling after erase
-            DEBUG << "Limit order can now fill (L1):" << order.getOrderID() << "at" << fillPrice;
-
-            // Add to executing orders with delay
-            ExecutingOrder executing;
-            executing.orderJson = orderJson;
-            executing.fillPrice = fillPrice;
-            m_executingOrders.append(executing);
-
-            it = m_openOrders.erase(it);
-
-            if (!m_executionTimer.isActive() && !m_executingOrders.isEmpty())
-            {
-                m_executionTimer.start(calculateExecutionDelay());
-            }
-        }
-        else
-        {
-            ++it;
-        }
-    }
-
-    // Update position P&L if we have an active position for this symbol
-    // (only when Level 2 data is not available, as it would handle P&L updates)
-    if (m_symbolToActivePosition.contains(p_symbol))
-    {
-        recalculatePositionPnL(p_symbol);
-    }
-}
 
 QVector<Order> OrderEmulator::getOrders() const
 {
@@ -319,7 +260,6 @@ void OrderEmulator::clear()
     m_closedPositionPnL.clear();
     m_totalClosedPnL = 0.0;
     m_depthSnapshots.clear();
-    m_quoteSnapshots.clear();
     m_latestBarClose.clear();
     m_nextOrderID = 1000;
     m_nextPositionID = 60000000;
@@ -460,45 +400,6 @@ double OrderEmulator::calculateMarketOrderFillPrice(const Order& p_order, const 
     return getBestBid(p_depth);
 }
 
-bool OrderEmulator::canFillLimitOrderFromLevel1(const Order& p_order, const Level1& p_level1) const
-{
-    if (!p_order.getLimitPrice().has_value())
-    {
-        return false;
-    }
-
-    double limitPrice = p_order.getLimitPrice().value();
-    QString tradeAction = p_order.getTradeAction();
-
-    // BUY limit: fills if ask <= limit price
-    if (tradeAction == "BUY" || tradeAction == "BUYTOCOVER" || tradeAction == "Buy" || tradeAction == "Buy to Cover")
-    {
-        double ask = p_level1.m_ask.m_price;
-        return ask > 0 && ask <= limitPrice;
-    }
-
-    // SELL limit: fills if bid >= limit price
-    if (tradeAction == "SELL" || tradeAction == "SELLSHORT" || tradeAction == "Sell" || tradeAction == "Sell Short")
-    {
-        double bid = p_level1.m_bid.m_price;
-        return bid > 0 && bid >= limitPrice;
-    }
-
-    return false;
-}
-
-double OrderEmulator::calculateMarketOrderFillPriceFromLevel1(const Order& p_order, const Level1& p_level1) const
-{
-    QString tradeAction = p_order.getTradeAction();
-
-    if (tradeAction == "BUY" || tradeAction == "BUYTOCOVER" || tradeAction == "Buy" || tradeAction == "Buy to Cover")
-    {
-        return p_level1.m_ask.m_price;
-    }
-
-    // SELL
-    return p_level1.m_bid.m_price;
-}
 
 QJsonObject OrderEmulator::createOrderJson(const QString& p_orderID,
                                            const PlaceOrderRequest& p_request,
@@ -797,10 +698,9 @@ void OrderEmulator::recalculatePositionPnL(const QString& p_symbol)
         return;
     }
 
-    // Need either Level 2 or Level 1 data for bid/ask
+    // Need Level 2 data for bid/ask
     const bool hasLevel2 = m_depthSnapshots.contains(p_symbol);
-    const bool hasLevel1 = m_quoteSnapshots.contains(p_symbol);
-    if (!hasLevel2 && !hasLevel1)
+    if (!hasLevel2)
     {
         return;
     }
@@ -813,21 +713,12 @@ void OrderEmulator::recalculatePositionPnL(const QString& p_symbol)
     const PositionData& data = m_positionData[positionID];
     double last = m_latestBarClose[p_symbol];
 
-    // Get bid/ask from Level 2 (preferred) or Level 1
+    // Get bid/ask from Level 2
     double bid;
     double ask;
-    if (hasLevel2)
-    {
-        const Level2& depth = m_depthSnapshots[p_symbol];
-        bid = getBestBid(depth);
-        ask = getBestAsk(depth);
-    }
-    else
-    {
-        const Level1& level1 = m_quoteSnapshots[p_symbol];
-        bid = level1.m_bid.m_price;
-        ask = level1.m_ask.m_price;
-    }
+    const Level2& depth = m_depthSnapshots[p_symbol];
+    bid = getBestBid(depth);
+    ask = getBestAsk(depth);
 
     // TradeStation mark-to-market price calculation
     double markToMarketPrice;
@@ -992,11 +883,10 @@ bool OrderEmulator::validateOrder(const PlaceOrderRequest& p_request, QString& p
         return false;
     }
 
-    // Check market data exists for symbol (Level 2 or Level 1)
+    // Check market data exists for symbol (Level 2)
     const QString& symbol = p_request.getSymbol();
     const bool hasLevel2 = m_depthSnapshots.contains(symbol);
-    const bool hasLevel1 = m_quoteSnapshots.contains(symbol);
-    if (!hasLevel2 && !hasLevel1)
+    if (!hasLevel2)
     {
         p_errorMessage = QString("No market data available for symbol: %1").arg(symbol);
         return false;
@@ -1006,16 +896,7 @@ bool OrderEmulator::validateOrder(const PlaceOrderRequest& p_request, QString& p
     TradeAction tradeAction = p_request.getTradeAction();
     if (tradeAction == TradeAction::Buy || tradeAction == TradeAction::BuyToCover)
     {
-        // Get best ask from Level 2 if available, otherwise Level 1
-        double bestAsk;
-        if (hasLevel2)
-        {
-            bestAsk = getBestAsk(m_depthSnapshots.value(symbol));
-        }
-        else
-        {
-            bestAsk = m_quoteSnapshots.value(symbol).m_ask.m_price;
-        }
+        double bestAsk = getBestAsk(m_depthSnapshots.value(symbol));
         double estimatedCost = p_request.getQuantity() * bestAsk;
         if (estimatedCost > m_balance)
         {
@@ -1116,43 +997,20 @@ void OrderEmulator::onReceptionDelayElapsed()
     // Emit OPN status first
     emit orderStatusUpdate(orderToJson(order));
 
-    // Determine data source: Level 2 preferred, Level 1 fallback
     const QString& symbol = order.getSymbol();
     const bool hasLevel2 = m_depthSnapshots.contains(symbol);
-    const bool hasLevel1 = m_quoteSnapshots.contains(symbol);
-    OBJ_ASSUME_TRUE(hasLevel2 || hasLevel1);
+    OBJ_ASSUME_TRUE(hasLevel2);
 
     bool isMarketOrder = (order.getOrderType().type == OrderType::Type::Market);
     bool canFill = false;
     double fillPrice = 0.0;
 
-    if (hasLevel2)
-    {
-        // Use Level 2 (book walking for more accurate fills)
-        const Level2& depth = m_depthSnapshots.value(symbol);
-        canFill = isMarketOrder || canFillLimitOrder(order, depth);
+    const Level2& depth = m_depthSnapshots.value(symbol);
+    canFill = isMarketOrder || canFillLimitOrder(order, depth);
 
-        if (canFill)
-        {
-            // Market and limit orders both fill at the current market price (ask for buy,
-            // bid for sell). The limit price is a ceiling/floor, not the execution price.
-            fillPrice = calculateMarketOrderFillPrice(order, depth);
-            DEBUG << "Order" << orderID << "using Level 2 data for" << symbol;
-        }
-    }
-    else
+    if (canFill)
     {
-        // Use Level 1 (best bid/ask only)
-        const Level1& level1 = m_quoteSnapshots.value(symbol);
-        canFill = isMarketOrder || canFillLimitOrderFromLevel1(order, level1);
-
-        if (canFill)
-        {
-            // Market and limit orders both fill at the current market price (ask for buy,
-            // bid for sell). The limit price is a ceiling/floor, not the execution price.
-            fillPrice = calculateMarketOrderFillPriceFromLevel1(order, level1);
-            DEBUG << "Order" << orderID << "using Level 1 data for" << symbol;
-        }
+        fillPrice = calculateMarketOrderFillPrice(order, depth);
     }
 
     if (canFill)
