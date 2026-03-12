@@ -34,7 +34,7 @@ Q_DECLARE_LOGGING_CATEGORY(ReplayEngineLog)
  * - Replay state (stopped, playing, paused)
  * - Playback speed control
  * - Timer-based record scheduling using wall-clock anchoring
- * - Emit Level2, Trade data via signals (consumed by StockInstruments receivers)
+ * - Emit Level2, Trade data via signals (consumed by SymbolContext receivers)
  *
  * Threading: Runs in MainAlgoThread (inherits parent's thread via Qt parenting)
  */
@@ -115,7 +115,7 @@ class ReplayEngine : public QObject
     void replayDataLoadFailed(const QString& p_errorMessage);
 
     /**
-     * @brief Replay data signals — connected to StockInstruments receivers by MainAlgo
+     * @brief Replay data signals — connected to SymbolContext receivers by MainAlgo
      * Thread context: Emitted from MainAlgo worker thread
      */
     void replayLevel2(const QString& p_symbol, const Level2& p_level2);

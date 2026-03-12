@@ -78,7 +78,7 @@ MainApp::enterReplayMode(date, startTime, speed)
     │
     ├── Set m_dataSourceMode = Replay
     ├── TSClient::setMode(Replay) [BlockingQueuedConnection]
-    ├── MainAlgo::deleteAllStockInstruments()
+    ├── MainAlgo::deleteAllSymbolContext()
     ├── MainAlgo::createAndSetDisplayedStockInstrument()
     └── MainAlgo::enterReplayModePaused()
             │
@@ -182,7 +182,7 @@ MainAlgoThread
             │       ├── m_mbp10Timer (schedules Level2 events)
             │       └── m_tradesTimer (schedules Trade events)
             │
-            ├── StockInstruments (Level2Receiver)
+            ├── SymbolContext (Level2Receiver)
             ├── LiveBarAccumulator
             └── PositionsReceiver, OrdersReceiver
 

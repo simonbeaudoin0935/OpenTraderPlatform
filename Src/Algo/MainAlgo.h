@@ -33,12 +33,12 @@ Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 class QSocketNotifier;
 
 
-class StockInstruments : public QObject
+class SymbolContext : public QObject
 {
 
   public:
-    explicit StockInstruments(const QString& p_symbol, QObject* p_parent = nullptr);
-    ~StockInstruments();
+    explicit SymbolContext(const QString& p_symbol, QObject* p_parent = nullptr);
+    ~SymbolContext();
 
     QString symbol;
     BarCache barCache;
@@ -161,14 +161,14 @@ class MainAlgo final : public QObject
     /// @brief Start replay mode order/position streams with simulated account
     void startReplayOrderStreams();
     void connectReplaySignals(const QString& p_symbol);
-    /// @brief Connect a secondary ReplayEngine to a StockInstruments (for strategy-subscribed symbols)
-    void connectSecondaryReplaySignals(const QString& p_symbol, ReplayEngine* p_engine, StockInstruments* p_instrument);
+    /// @brief Connect a secondary ReplayEngine to a SymbolContext (for strategy-subscribed symbols)
+    void connectSecondarySymbolContext(const QString& p_symbol, ReplayEngine* p_engine, SymbolContext* p_instrument);
 
     /// @brief Resume live streams after exiting replay mode
     void resumeLiveStreams();
 
     /// @brief Delete all stock instruments (for clean mode transitions)
-    void deleteAllStockInstruments();
+    void deleteAllSymbolContext();
 
     /// @brief Stop all running strategies (for clean mode transitions)
     void stopAllStrategies();
@@ -303,8 +303,8 @@ class MainAlgo final : public QObject
 
     QThread thread;
 
-    QMap<QString, QPointer<StockInstruments>> stockInstruments;
-    QPointer<StockInstruments> currentDisplayedStockInstrument;
+    QMap<QString, QPointer<SymbolContext>> m_symbolContexts;
+    QPointer<SymbolContext> m_currentDisplayedSymbolContext;
 
     PositionsReceiver* m_positionReceiver = nullptr; // Qt parent-child ownership (parent is 'this')
     OrdersReceiver* m_orderReceiver = nullptr;       // Qt parent-child ownership (parent is 'this')

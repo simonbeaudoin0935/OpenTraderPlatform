@@ -61,8 +61,8 @@ MainAlgo::MainAlgo() {
 ### Key Responsibilities
 
 1. **Stock Instrument Management**
-   - Create and manage StockInstruments instances (one per symbol)
-   - Track currently displayed stock via `currentDisplayedStockInstrument`
+   - Create and manage SymbolContext instances (one per symbol)
+   - Track currently displayed stock via `m_currentDisplayedSymbolContext`
    - Coordinate bar caching per symbol
 
 2. **Account and Balance Management**
@@ -101,8 +101,8 @@ class MainAlgo {
     QThread thread;
 
     // Per-symbol instruments
-    QMap<QString, QPointer<StockInstruments>> stockInstruments;
-    QPointer<StockInstruments> currentDisplayedStockInstrument;
+    QMap<QString, QPointer<SymbolContext>> m_symbolContexts;
+    QPointer<SymbolContext> m_currentDisplayedSymbolContext;
 
     // Receivers (Qt parent-child ownership, parent is 'this')
     PositionsReceiver* m_positionReceiver = nullptr;
@@ -179,16 +179,16 @@ private slots:
     void onReplayEndReached();
 ```
 
-## StockInstruments
+## SymbolContext
 
 **Role**: Per-symbol data container and processor
 
 **Composition Pattern** (preferred over pointers):
 ```cpp
-class StockInstruments : public QObject {
+class SymbolContext : public QObject {
 public:
-    explicit StockInstruments(const QString& p_symbol, QObject* p_parent = nullptr);
-    ~StockInstruments();
+    explicit SymbolContext(const QString& p_symbol, QObject* p_parent = nullptr);
+    ~SymbolContext();
 
     QString symbol;
     BarCache barCache;
@@ -201,7 +201,7 @@ public:
 **Lifecycle**:
 - Created when symbol first selected via `onSelectDisplayedStock()`
 - Previous instrument is cleaned up (`deleteLater()`) when a different symbol is selected
-- Only one StockInstruments exists at a time (the displayed stock)
+- Only one SymbolContext exists at a time (the displayed stock)
 - Manages its own bar cache, bar receiver, Level 2 receiver, and bar aggregator
 
 **Responsibilities**:
@@ -241,7 +241,7 @@ signals:
 - Weekly bar closes on Friday at `TIME_LAST_CANDLE_AFTER_MARKET_SESSION`
 - Monthly bar closes when the next trading day falls in a different calendar month
 
-**Wiring** (in `StockInstruments` constructor):
+**Wiring** (in `SymbolContext` constructor):
 ```cpp
 connect(&barReceiver.m_liveBarAccumulator, &LiveBarAccumulator::barClosed,
         &m_barAggregator, &BarAggregator::onNewBar);
@@ -456,13 +456,13 @@ sequenceDiagram
 sequenceDiagram
     participant Frontend as GUIFrontend
     participant MainAlgo
-    participant Old as Old StockInstruments
-    participant New as New StockInstruments
+    participant Old as Old SymbolContext
+    participant New as New SymbolContext
 
     Frontend->>MainAlgo: onSelectDisplayedStock(symbol)
     MainAlgo->>Old: disconnect bar/level2 signals
     MainAlgo->>Old: deleteLater()
-    MainAlgo->>New: create StockInstruments(symbol)
+    MainAlgo->>New: create SymbolContext(symbol)
     MainAlgo->>New: connect barReceiver.receivedNewBar → displayedStockReceivedNewBar
     MainAlgo->>New: connect level2Receiver.receivedNewLevel2 → displayedStockReceivedNewLevel2
 ```
@@ -473,7 +473,7 @@ sequenceDiagram
 
 All Algo components run on MainAlgo thread:
 - MainAlgo
-- StockInstruments instances
+- SymbolContext instances
 - All receivers (Level2Receiver, Level1Receiver, BarReceiver, PositionsReceiver, OrdersReceiver)
 - ReplayEngine
 - StrategyManager
@@ -499,17 +499,17 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol) {
 
 ### Composition Over Pointers
 
-StockInstruments uses composition for its receivers and cache:
+SymbolContext uses composition for its receivers and cache:
 ```cpp
 // ✓ CORRECT - Direct member objects
-class StockInstruments {
+class SymbolContext {
     BarCache barCache;
     BarReceiver barReceiver;
     Level2Receiver m_level2Receiver;
 };
 
 // ✗ WRONG - Unnecessary pointers
-class StockInstruments {
+class SymbolContext {
     BarCache* barCache;
     Level2Receiver* m_level2Receiver;
 };
@@ -523,15 +523,15 @@ PositionsReceiver* m_positionReceiver = nullptr;  // Qt parent-child (parent is 
 OrdersReceiver* m_orderReceiver = nullptr;        // Qt parent-child (parent is 'this')
 ```
 
-### StockInstruments Management
+### SymbolContext Management
 
 ```cpp
 // Stored by symbol in map with QPointer for safe access
-QMap<QString, QPointer<StockInstruments>> stockInstruments;
+QMap<QString, QPointer<SymbolContext>> m_symbolContexts;
 
 // Created on demand in onSelectDisplayedStock()
-currentDisplayedStockInstrument = new StockInstruments(symbol, this);
-stockInstruments.insert(symbol, currentDisplayedStockInstrument);
+m_currentDisplayedSymbolContext = new SymbolContext(symbol, this);
+m_symbolContexts.insert(symbol, m_currentDisplayedSymbolContext);
 
 // Old instrument cleaned up via deleteLater() when switching symbols
 oldInstrument->deleteLater();

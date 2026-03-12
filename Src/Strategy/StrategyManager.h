@@ -20,7 +20,7 @@
 #include "Assume.h"
 
 class MainAlgo;
-class StockInstruments;
+class SymbolContext;
 class ReplayEngine;
 
 /// @brief Adapter to call StrategyBase methods from Qt slots
@@ -290,12 +290,12 @@ class StrategyManager final : public QObject
      *
      * @param p_strategyID Strategy requesting the subscription
      * @param p_symbol Symbol to subscribe to
-     * @param p_instrument StockInstruments for the symbol (nullptr = use displayed-stock signals)
+     * @param p_instrument SymbolContext for the symbol (nullptr = use displayed-stock signals)
      * @param p_replayEngine Secondary ReplayEngine for the symbol (nullptr if not applicable)
      */
     void connectSymbolToStrategy(const QString& p_strategyID,
                                  const QString& p_symbol,
-                                 StockInstruments* p_instrument,
+                                 SymbolContext* p_instrument,
                                  ReplayEngine* p_replayEngine);
 
     /*

@@ -189,16 +189,16 @@ void MainAlgo::onThreadStarted()
  * @brief Handles the selection of a new stock for display.
  *
  * This function is called when the user selects a different stock to display in the UI.
- * It manages the lifecycle of StockInstruments, disconnecting signals from the previous stock,
+ * It manages the lifecycle of SymbolContext, disconnecting signals from the previous stock,
  * cleaning up resources (such as closing data streams), and setting up the new stock's
  * bar cache and market depth quote receivers with appropriate signal connections.
  *
  * If a stock was previously selected, it ensures proper cleanup by:
  * - Disconnecting signals from the old stock's BarCache and Level2Receiver
  * - Closing any active streams for the old stock
- * - Removing the old StockInstruments from the map and scheduling its deletion
+ * - Removing the old SymbolContext from the map and scheduling its deletion
  *
- * For the new stock, it either reuses an existing StockInstruments if the symbol is already
+ * For the new stock, it either reuses an existing SymbolContext if the symbol is already
  * in the map, or creates a new one. It then connects the new stock's signals to emit
  * MainAlgo's signals for bar and market depth updates.
  *
@@ -206,7 +206,7 @@ void MainAlgo::onThreadStarted()
  *
  * @note This method must be called from the MainAlgo thread (QThread::currentThread() == &thread).
  * @note Assumes that if a stock is currently displayed, the new symbol is different.
- * @note Uses Qt's parent-child ownership for memory management of StockInstruments.
+ * @note Uses Qt's parent-child ownership for memory management of SymbolContext.
  */
 void MainAlgo::onSelectDisplayedStock(const QString& symbol)
 {
@@ -215,36 +215,36 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
 
 
     // If there is a current selected stock for display, disconnect its receivedNew* signals from the main algo emition
-    if (currentDisplayedStockInstrument != nullptr)
+    if (m_currentDisplayedSymbolContext != nullptr)
     {
         // Selecting the same stock as currently selected. No action taken.
-        OBJ_ASSUME_DIFF(currentDisplayedStockInstrument->symbol, symbol);
+        OBJ_ASSUME_DIFF(m_currentDisplayedSymbolContext->symbol, symbol);
 
-        disconnect(&currentDisplayedStockInstrument->barReceiver,
+        disconnect(&m_currentDisplayedSymbolContext->barReceiver,
                    &BarReceiver::receivedNewBar,
                    this,
                    &MainAlgo::onDisplayedBarReceived);
 
-        disconnect(&currentDisplayedStockInstrument->m_barAggregator,
+        disconnect(&m_currentDisplayedSymbolContext->m_barAggregator,
                    &BarAggregator::barUpdated,
                    this,
                    &MainAlgo::onAggregatorBarUpdated);
 
-        disconnect(&currentDisplayedStockInstrument->m_barAggregator,
+        disconnect(&m_currentDisplayedSymbolContext->m_barAggregator,
                    &BarAggregator::barClosed,
                    this,
                    &MainAlgo::onAggregatorBarClosed);
 
-        disconnect(&currentDisplayedStockInstrument->m_live10sBarAccumulator,
+        disconnect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
                    &LiveBarAccumulator::barUpdated,
                    this,
                    nullptr);
-        disconnect(&currentDisplayedStockInstrument->m_live10sBarAccumulator,
+        disconnect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
                    &LiveBarAccumulator::barClosed,
                    this,
                    nullptr);
 
-        disconnect(&currentDisplayedStockInstrument->m_level2Receiver,
+        disconnect(&m_currentDisplayedSymbolContext->m_level2Receiver,
                    &Level2Receiver::receivedNewLevel2,
                    this,
                    &MainAlgo::onDisplayedLevel2Received);
@@ -253,12 +253,12 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         disconnect(DBClient::getInstance(), &DBClient::newTrade, this, nullptr);
 
         // Clean up the previous stock instrument to free resources (streams, database connections)
-        QString oldSymbol = currentDisplayedStockInstrument->symbol;
-        QPointer<StockInstruments> oldInstrument = currentDisplayedStockInstrument;
+        QString oldSymbol = m_currentDisplayedSymbolContext->symbol;
+        QPointer<SymbolContext> oldInstrument = m_currentDisplayedSymbolContext;
 
-        currentDisplayedStockInstrument = nullptr;
+        m_currentDisplayedSymbolContext = nullptr;
 
-        int removed = stockInstruments.remove(oldSymbol);
+        int removed = m_symbolContexts.remove(oldSymbol);
         OBJ_ASSUME_EQUAL(removed, 1); // Should always remove exactly one entry
 
         // Schedule deletion after streams are closed
@@ -267,38 +267,38 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
     }
 
     // Change the stock selected pointer to the new selected stock
-    if (stockInstruments.contains(symbol))
+    if (m_symbolContexts.contains(symbol))
     {
-        currentDisplayedStockInstrument = stockInstruments[symbol];
+        m_currentDisplayedSymbolContext = m_symbolContexts[symbol];
     }
     else
     {
-        currentDisplayedStockInstrument = new StockInstruments(symbol, this); // Pass 'this' as parent
-        Q_CHECK_PTR(currentDisplayedStockInstrument);
+        m_currentDisplayedSymbolContext = new SymbolContext(symbol, this); // Pass 'this' as parent
+        Q_CHECK_PTR(m_currentDisplayedSymbolContext);
 
-        stockInstruments.insert(symbol, currentDisplayedStockInstrument);
+        m_symbolContexts.insert(symbol, m_currentDisplayedSymbolContext);
     }
 
     // Redoo the plumbing we disconnected at the top of this function
-    connect(&currentDisplayedStockInstrument->barReceiver,
+    connect(&m_currentDisplayedSymbolContext->barReceiver,
             &BarReceiver::receivedNewBar,
             this,
             &MainAlgo::onDisplayedBarReceived);
 
     // Forward BarAggregator higher-TF updates so the chart can show live higher-TF candles
-    connect(&currentDisplayedStockInstrument->m_barAggregator,
+    connect(&m_currentDisplayedSymbolContext->m_barAggregator,
             &BarAggregator::barUpdated,
             this,
             &MainAlgo::onAggregatorBarUpdated);
 
-    connect(&currentDisplayedStockInstrument->m_barAggregator,
+    connect(&m_currentDisplayedSymbolContext->m_barAggregator,
             &BarAggregator::barClosed,
             this,
             &MainAlgo::onAggregatorBarClosed);
 
     // Forward 10s bar updates via the aggregator signal path (reuses GUIFrontend's existing TF filter)
     connect(
-        &currentDisplayedStockInstrument->m_live10sBarAccumulator,
+        &m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
         &LiveBarAccumulator::barUpdated,
         this,
         [this, symbol](const QString&, const Bar& bar)
@@ -306,14 +306,14 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         Qt::UniqueConnection);
 
     connect(
-        &currentDisplayedStockInstrument->m_live10sBarAccumulator,
+        &m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
         &LiveBarAccumulator::barClosed,
         this,
         [this, symbol](const QString&, const Bar& bar)
         { emit displayedStockAggregatorBarClosed(symbol, TimeFrame::TEN_SECONDS, bar); },
         Qt::UniqueConnection);
 
-    connect(&currentDisplayedStockInstrument->m_level2Receiver,
+    connect(&m_currentDisplayedSymbolContext->m_level2Receiver,
             &Level2Receiver::receivedNewLevel2,
             this,
             &MainAlgo::onDisplayedLevel2Received);
@@ -335,7 +335,7 @@ BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date,
 
     OBJ_ASSUME_LTE(first, last); // The Equal in less than equal is for when the program is launched at 4:02 AM
 
-    if (currentDisplayedStockInstrument == nullptr)
+    if (m_currentDisplayedSymbolContext == nullptr)
     {
         // Instrument not yet initialized (e.g., setSymbol fired before onSelectDisplayedStock arrived).
         // Return empty result — checkForMissingBars will retry on next scroll/zoom.
@@ -343,7 +343,7 @@ BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date,
         return std::make_shared<QVector<Bar>>();
     }
 
-    return currentDisplayedStockInstrument->barCache.getBars(tf, date, first, last);
+    return m_currentDisplayedSymbolContext->barCache.getBars(tf, date, first, last);
 }
 
 /*
@@ -610,9 +610,9 @@ void MainAlgo::stopBalancePolling()
 
 [[nodiscard]] QString MainAlgo::getDisplayedSymbol() const
 {
-    if (currentDisplayedStockInstrument)
+    if (m_currentDisplayedSymbolContext)
     {
-        return currentDisplayedStockInstrument->symbol;
+        return m_currentDisplayedSymbolContext->symbol;
     }
     return QString();
 }
@@ -660,7 +660,7 @@ void MainAlgo::onBalanceReceived(const QVector<Balance>& results)
     emit balanceUpdated(m_currentBalance);
 }
 
-StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
+SymbolContext::SymbolContext(const QString& p_symbol, QObject* p_parent)
     : QObject(p_parent)
     , symbol(p_symbol)
     , barCache(p_symbol, this)
@@ -758,7 +758,7 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
     DEBUG << "New instance";
 }
 
-StockInstruments::~StockInstruments()
+SymbolContext::~SymbolContext()
 {
     DEBUG << "Deleted instance";
 }
@@ -911,7 +911,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
         // connectStrategyToDataSources (displayedStockReceivedNewBar/Trade/Level2).
         // Only register the symbol in the monitored set — passing instrument/engine here
         // would create duplicate signal connections and fire every callback twice.
-        if (stockInstruments.contains(p_symbol) && !m_secondaryReplayEngines.contains(p_symbol))
+        if (m_symbolContexts.contains(p_symbol) && !m_secondaryReplayEngines.contains(p_symbol))
         {
             m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr, nullptr);
             p_promise->addResult(true);
@@ -919,26 +919,26 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
             return;
         }
 
-        // New secondary symbol: create StockInstruments + secondary ReplayEngine
-        StockInstruments* instrument = nullptr;
-        if (!stockInstruments.contains(p_symbol) || stockInstruments[p_symbol].isNull())
+        // New secondary symbol: create SymbolContext + secondary ReplayEngine
+        SymbolContext* instrument = nullptr;
+        if (!m_symbolContexts.contains(p_symbol) || m_symbolContexts[p_symbol].isNull())
         {
-            instrument = new StockInstruments(p_symbol, this);
+            instrument = new SymbolContext(p_symbol, this);
             Q_CHECK_PTR(instrument);
-            stockInstruments.insert(p_symbol, instrument);
+            m_symbolContexts.insert(p_symbol, instrument);
         }
         else
         {
-            instrument = stockInstruments[p_symbol];
+            instrument = m_symbolContexts[p_symbol];
         }
 
         auto* secondaryEngine = new ReplayEngine(this);
         m_secondaryReplayEngines.insert(p_symbol, secondaryEngine);
 
-        // Wire secondary engine → StockInstruments (Level2 + Trades → bars)
-        connectSecondaryReplaySignals(p_symbol, secondaryEngine, instrument);
+        // Wire secondary engine → SymbolContext (Level2 + Trades → bars)
+        connectSecondarySymbolContext(p_symbol, secondaryEngine, instrument);
 
-        // Wire StockInstruments + secondary engine trade events → strategy adapter
+        // Wire SymbolContext + secondary engine trade events → strategy adapter
         m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, instrument, secondaryEngine);
 
         // Start secondary replay from the same date/time/speed as the primary
@@ -966,9 +966,9 @@ void MainAlgo::processClaimSymbols(const QString& p_strategyID,
     m_strategyManager.processClaimSymbols(p_strategyID, p_symbols, p_promise);
 }
 
-void MainAlgo::connectSecondaryReplaySignals(const QString& p_symbol,
+void MainAlgo::connectSecondarySymbolContext(const QString& p_symbol,
                                              ReplayEngine* p_engine,
-                                             StockInstruments* p_instrument)
+                                             SymbolContext* p_instrument)
 {
     OBJ_ASSUME_DIFF(p_engine, nullptr);
     OBJ_ASSUME_DIFF(p_instrument, nullptr);
@@ -1037,23 +1037,23 @@ void MainAlgo::onStrategyCrashNotified()
 
 void MainAlgo::onAggregatorBarUpdated(TimeFrame tf, const Bar& bar)
 {
-    if (currentDisplayedStockInstrument == nullptr)
+    if (m_currentDisplayedSymbolContext == nullptr)
         return;
 
     if (m_guiThrottleActive)
     {
         m_pendingAggregatorBarUpdate = {tf, bar};
-        m_pendingAggregatorSymbol = currentDisplayedStockInstrument->symbol;
+        m_pendingAggregatorSymbol = m_currentDisplayedSymbolContext->symbol;
         return;
     }
-    emit displayedStockAggregatorBarUpdated(currentDisplayedStockInstrument->symbol, tf, bar);
+    emit displayedStockAggregatorBarUpdated(m_currentDisplayedSymbolContext->symbol, tf, bar);
 }
 
 void MainAlgo::onAggregatorBarClosed(TimeFrame tf, const Bar& bar)
 {
     // Bar closes are infrequent (once per minute boundary per TF) — never throttle
-    if (currentDisplayedStockInstrument != nullptr)
-        emit displayedStockAggregatorBarClosed(currentDisplayedStockInstrument->symbol, tf, bar);
+    if (m_currentDisplayedSymbolContext != nullptr)
+        emit displayedStockAggregatorBarClosed(m_currentDisplayedSymbolContext->symbol, tf, bar);
 }
 
 // ---------------------------------------------------------------------------
@@ -1168,7 +1168,7 @@ void MainAlgo::onReplayEndReached()
     deactivateGuiThrottle();
 
     // Pause heartbeat timers on ALL mock streams, not just the displayed one
-    for (auto& instrument: stockInstruments)
+    for (auto& instrument: m_symbolContexts)
     {
         if (instrument.isNull())
         {
@@ -1237,7 +1237,7 @@ void MainAlgo::enterReplayMode(const QString& p_symbol,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    // Connect replay data signals to StockInstruments receivers
+    // Connect replay data signals to SymbolContext receivers
     connectReplaySignals(p_symbol);
 
     DEBUG << "ReplayEngine created and connected";
@@ -1316,7 +1316,7 @@ void MainAlgo::enterReplayModePaused(const QString& p_symbol,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    // Connect replay data signals to StockInstruments receivers
+    // Connect replay data signals to SymbolContext receivers
     connectReplaySignals(p_symbol);
 
     DEBUG << "ReplayEngine created and connected";
@@ -1335,7 +1335,7 @@ void MainAlgo::enterReplayModePaused(const QString& p_symbol,
     m_replayEngine->startReplayPaused(p_symbol, p_date, p_startTime, p_speed);
 
     // Pause heartbeat timers since we're starting in paused state
-    for (auto& instrument: stockInstruments)
+    for (auto& instrument: m_symbolContexts)
     {
         OBJ_ASSUME_FALSE(instrument.isNull());
         instrument->barReceiver.pauseHeartbeat();
@@ -1347,14 +1347,14 @@ void MainAlgo::connectReplaySignals(const QString& p_symbol)
 {
     OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
 
-    auto it = stockInstruments.find(p_symbol);
-    if (it == stockInstruments.end() || it.value().isNull())
+    auto it = m_symbolContexts.find(p_symbol);
+    if (it == m_symbolContexts.end() || it.value().isNull())
     {
-        WARNING << "No StockInstruments found for" << p_symbol << "- replay signals not connected";
+        WARNING << "No SymbolContext found for" << p_symbol << "- replay signals not connected";
         return;
     }
 
-    StockInstruments* instrument = it.value();
+    SymbolContext* instrument = it.value();
 
     // Replay Level2 → Level2Receiver
     bool connected = connect(m_replayEngine,
@@ -1433,7 +1433,7 @@ void MainAlgo::pauseReplay()
     m_replayEngine->pauseReplay();
 
     // Pause heartbeat timers on ALL mock streams to prevent timeout while paused
-    for (auto& instrument: stockInstruments)
+    for (auto& instrument: m_symbolContexts)
     {
         OBJ_ASSUME_FALSE(instrument.isNull());
         instrument->barReceiver.pauseHeartbeat();
@@ -1447,7 +1447,7 @@ void MainAlgo::resumeReplay()
     OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
 
     // Resume heartbeat timers on ALL streams before resuming replay
-    for (auto& instrument: stockInstruments)
+    for (auto& instrument: m_symbolContexts)
     {
         OBJ_ASSUME_FALSE(instrument.isNull());
         instrument->barReceiver.resumeHeartbeat();
@@ -1675,26 +1675,26 @@ ReplayEngine* MainAlgo::getReplayEngine() const
     return m_replayEngine;
 }
 
-void MainAlgo::deleteAllStockInstruments()
+void MainAlgo::deleteAllSymbolContext()
 {
     INFO << "Deleting all stock instruments for clean mode transition";
 
     // Clear the displayed pointer first
-    currentDisplayedStockInstrument = nullptr;
+    m_currentDisplayedSymbolContext = nullptr;
 
     // Delete instruments directly (not deleteLater) so that each BarCache destructor
     // queues closeDatabase to DatabaseThread before the next createAndSetDisplayedStockInstrument
     // queues openDatabase. deleteLater would defer destruction past the next openDatabase call,
     // causing the DB close to arrive on DatabaseThread after the new open — breaking the connection.
-    for (auto it = stockInstruments.begin(); it != stockInstruments.end(); ++it)
+    for (auto it = m_symbolContexts.begin(); it != m_symbolContexts.end(); ++it)
     {
-        if (StockInstruments* instrument = it.value(); instrument)
+        if (SymbolContext* instrument = it.value(); instrument)
         {
             DEBUG << "Deleting stock instrument for" << instrument->symbol;
             delete instrument;
         }
     }
-    stockInstruments.clear();
+    m_symbolContexts.clear();
 
     INFO << "All stock instruments deleted";
 }
@@ -1716,14 +1716,14 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
     INFO << "Creating and setting displayed stock instrument for" << p_symbol;
 
     // Create new stock instrument (will subscribe via DBClient if connected)
-    auto* newInstrument = new StockInstruments(p_symbol, this);
+    auto* newInstrument = new SymbolContext(p_symbol, this);
     Q_CHECK_PTR(newInstrument);
 
-    stockInstruments[p_symbol] = newInstrument;
-    currentDisplayedStockInstrument = newInstrument;
+    m_symbolContexts[p_symbol] = newInstrument;
+    m_currentDisplayedSymbolContext = newInstrument;
 
     // Connect bar signals for the new displayed instrument
-    bool connected = connect(&currentDisplayedStockInstrument->barReceiver,
+    bool connected = connect(&m_currentDisplayedSymbolContext->barReceiver,
                              &BarReceiver::receivedNewBar,
                              this,
                              &MainAlgo::onDisplayedBarReceived,
@@ -1731,21 +1731,21 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
     ASSUME_TRUE(connected);
 
     // Forward higher-TF aggregator events so the chart can show live higher-TF candles
-    connected = connect(&currentDisplayedStockInstrument->m_barAggregator,
+    connected = connect(&m_currentDisplayedSymbolContext->m_barAggregator,
                         &BarAggregator::barUpdated,
                         this,
                         &MainAlgo::onAggregatorBarUpdated,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    connected = connect(&currentDisplayedStockInstrument->m_barAggregator,
+    connected = connect(&m_currentDisplayedSymbolContext->m_barAggregator,
                         &BarAggregator::barClosed,
                         this,
                         &MainAlgo::onAggregatorBarClosed,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    connected = connect(&currentDisplayedStockInstrument->m_level2Receiver,
+    connected = connect(&m_currentDisplayedSymbolContext->m_level2Receiver,
                         &Level2Receiver::receivedNewLevel2,
                         this,
                         &MainAlgo::onDisplayedLevel2Received,
@@ -1764,14 +1764,14 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
     ASSUME_TRUE(connected);
 
     // Connect to strategy manager for bar delivery
-    connected = connect(&currentDisplayedStockInstrument->barReceiver,
+    connected = connect(&m_currentDisplayedSymbolContext->barReceiver,
                         &BarReceiver::receivedNewBar,
                         &m_strategyManager,
                         &StrategyManager::onBarReceived,
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    connected = connect(&currentDisplayedStockInstrument->m_level2Receiver,
+    connected = connect(&m_currentDisplayedSymbolContext->m_level2Receiver,
                         &Level2Receiver::receivedNewLevel2,
                         &m_strategyManager,
                         &StrategyManager::onLevel2Received,

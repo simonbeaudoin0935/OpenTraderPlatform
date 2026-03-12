@@ -384,7 +384,7 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pla
             mainAlgo->pauseLiveStreams();
 
             // Delete all stock instruments (and their streams)
-            mainAlgo->deleteAllStockInstruments();
+            mainAlgo->deleteAllSymbolContext();
 
             // Create fresh stock instrument with mock-backed streams
             mainAlgo->createAndSetDisplayedStockInstrument(displayedSymbol);
@@ -426,7 +426,7 @@ void MainApp::exitReplayMode()
             mainAlgo->stopAllStrategies();
 
             // Delete all replay stock instruments
-            mainAlgo->deleteAllStockInstruments();
+            mainAlgo->deleteAllSymbolContext();
         },
         Qt::BlockingQueuedConnection);
 

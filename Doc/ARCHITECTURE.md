@@ -44,7 +44,7 @@ graph TD
     end
 
     subgraph "Algorithm Core"
-        MAL --> SI[StockInstruments]
+        MAL --> SI[SymbolContext]
         SI --> BC[BarCache]
         SI --> L2R[Level2Receiver]
         SI --> L1R[Level1Receiver]
@@ -264,8 +264,8 @@ void totalDataReceivedBytesIncreased(qsizetype bytesIncrease);
 **Role**: Trading algorithm coordinator singleton
 **Thread**: Dedicated worker thread (stack-allocated)
 **Responsibilities**:
-- Maintain one `StockInstruments` instance per tracked symbol
-- Route market data (Level 2, trades, bars) from DBClient to the correct `StockInstruments`
+- Maintain one `SymbolContext` instance per tracked symbol
+- Route market data (Level 2, trades, bars) from DBClient to the correct `SymbolContext`
 - Coordinate `LiveBarAccumulator` to build forming 1-minute bars from trade records
 - Track positions, orders, and account balances via `PositionsReceiver` / `OrdersReceiver`
 - Create and manage `ReplayEngine` for historical playback
@@ -273,7 +273,7 @@ void totalDataReceivedBytesIncreased(qsizetype bytesIncrease);
 
 **Key Members**:
 ```cpp
-QMap<QString, StockInstruments*> m_stockInstruments;   // Symbol → instrument
+QMap<QString, SymbolContext*> m_m_symbolContexts;   // Symbol → instrument
 std::unique_ptr<PositionsReceiver> m_positionReceiver;
 std::unique_ptr<OrdersReceiver> m_orderReceiver;
 std::unique_ptr<ReplayEngine> m_replayEngine;           // Present only during replay
@@ -281,7 +281,7 @@ LiveBarAccumulator* m_liveBarAccumulator;               // Builds bars from trad
 QTimer* m_balancePollingTimer;
 ```
 
-### 5. StockInstruments
+### 5. SymbolContext
 
 **Role**: Per-symbol data container
 **Thread**: MainAlgo thread
@@ -292,7 +292,7 @@ QTimer* m_balancePollingTimer;
 
 **Composition Pattern**:
 ```cpp
-class StockInstruments : public QObject {
+class SymbolContext : public QObject {
 private:
     QString m_symbol;
     BarCache m_barCache;              // Direct member
@@ -461,7 +461,7 @@ Shutdown sequence:
 Prefer direct member objects over pointers when the object has a clear owner, lifetime matches the container, and polymorphism is not needed:
 
 ```cpp
-class StockInstruments {
+class SymbolContext {
     BarCache m_barCache;              // Direct member (preferred)
     Level2Receiver m_level2Receiver;  // Direct member (preferred)
     // NOT: BarCache* m_barCache;     // Pointer (avoid unless necessary)
@@ -506,7 +506,7 @@ sequenceDiagram
     participant DBClient
     participant MainAlgo
     participant LiveBarAccumulator
-    participant StockInstruments
+    participant SymbolContext
     participant BarCache
     participant Database
     participant GUIFrontend
@@ -521,8 +521,8 @@ sequenceDiagram
 
     alt Minute boundary
         LiveBarAccumulator->>MainAlgo: barClosed(completedBar)
-        MainAlgo->>StockInstruments: Store completed bar
-        StockInstruments->>BarCache: Add to m_barCacheByDay[date]
+        MainAlgo->>SymbolContext: Store completed bar
+        SymbolContext->>BarCache: Add to m_barCacheByDay[date]
         BarCache->>Database: Async write to SQLite
         MainAlgo->>GUIFrontend: displayedStockReceivedNewBar
         GUIFrontend->>StockPriceChart: addLiveBar(symbol, bar)
@@ -530,7 +530,7 @@ sequenceDiagram
 
     Databento->>DBClient: Mbp10 record (Level 2 update)
     DBClient->>MainAlgo: newLevel2 signal
-    MainAlgo->>StockInstruments: Level2Receiver::onReceivedNewLevel2
+    MainAlgo->>SymbolContext: Level2Receiver::onReceivedNewLevel2
     MainAlgo->>GUIFrontend: displayedStockReceivedNewLevel2
     GUIFrontend->>GUIFrontend: Update Level2Widget
 ```

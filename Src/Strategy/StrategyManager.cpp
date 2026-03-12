@@ -235,7 +235,7 @@ std::shared_ptr<QVector<Bar>> StrategySDK::getHistoricalBars(const QString& /* s
 {
     ASSUME_DIFF(m_mainAlgo, nullptr);
 
-    // Request bars from MainAlgo (which has access to all StockInstruments and their BarCaches)
+    // Request bars from MainAlgo (which has access to all SymbolContext and their BarCaches)
     auto result = m_mainAlgo->requestMissingBarsDisplayedStock(day, first, last, tf);
 
     // Result is a variant of either std::shared_ptr<QVector<Bar>> or QFuture
@@ -869,7 +869,7 @@ void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_inst
 
 void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
                                               const QString& p_symbol,
-                                              StockInstruments* p_instrument,
+                                              SymbolContext* p_instrument,
                                               ReplayEngine* p_replayEngine)
 {
     auto* instance = findStrategy(p_strategyID);

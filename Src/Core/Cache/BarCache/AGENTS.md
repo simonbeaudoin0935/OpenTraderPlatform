@@ -408,7 +408,7 @@ QString dbPath = Settings::getValue(
 ### Creating BarCache
 
 ```cpp
-// In StockInstruments or similar
+// In SymbolContext or similar
 BarCache m_barCache;  // Composition (preferred)
 
 // Initialize

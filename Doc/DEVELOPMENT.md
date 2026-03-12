@@ -340,7 +340,7 @@ OBJ_ASSUME_TRUE(connected);  // Assert uniqueness
 
 ```cpp
 // Composition first — direct member (preferred)
-class StockInstruments {
+class SymbolContext {
     BarCache m_barCache;              // ✓ Direct member
     Level2Receiver m_level2Receiver;  // ✓ Direct member
 };
