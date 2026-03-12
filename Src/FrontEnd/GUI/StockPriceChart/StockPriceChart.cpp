@@ -329,7 +329,7 @@ void StockPriceChart::connectReplayControls(ReplayControlsBar* controls)
     connect(m_replayControls,
             &ReplayControlsBar::replaySpeedChanged,
             this,
-            [](ReplayEngine::PlaybackSpeed speed) { MainApp::getInstance()->setReplaySpeed(speed); });
+            [](Playback::Speed speed) { MainApp::getInstance()->setReplaySpeed(speed); });
 
     connect(m_replayControls,
             &ReplayControlsBar::replayPlayPauseToggled,
@@ -340,7 +340,7 @@ void StockPriceChart::connectReplayControls(ReplayControlsBar* controls)
                 {
                     QDate date = m_replayControls->getSelectedReplayDay();
                     QTime startTime = m_replayControls->getReplayStartTime();
-                    ReplayEngine::PlaybackSpeed speed = m_replayControls->getReplaySpeed();
+                    Playback::Speed speed = m_replayControls->getReplaySpeed();
 
                     // Use the controls' own ReplayState (GUI thread) to determine
                     // whether to resume or start fresh. Do NOT use isReplayPaused()

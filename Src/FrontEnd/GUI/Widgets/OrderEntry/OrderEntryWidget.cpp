@@ -14,7 +14,6 @@
 #include "Assume.h"
 #include "TSClient.h"
 #include "MainAlgo.h"
-#include "Core/Replay/ReplayEngine.h"
 
 OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     : QWidget(p_parent)
@@ -623,7 +622,7 @@ bool OrderEntryWidget::validateInputs()
     if (TSClient::getInstance()->getMode() == TSClient::Mode::Replay)
     {
         MainAlgo* mainAlgo = MainAlgo::getInstance();
-        if (mainAlgo->getReplayState() != ReplayEngine::PlaybackState::Playing)
+        if (mainAlgo->getReplayState() != Playback::State::Playing)
         {
             QMessageBox::warning(this,
                                  "Replay Not Running",

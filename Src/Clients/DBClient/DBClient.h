@@ -2,13 +2,16 @@
 
 #include <atomic>
 #include <memory>
+#include <variant>
 
+#include <QDateTime>
 #include <QLoggingCategory>
 #include <QMutex>
 #include <QObject>
 #include <QSet>
 #include <QString>
 #include <QThread>
+#include <QTimer>
 #include <QVector>
 
 #include <databento/live_threaded.hpp>
@@ -19,6 +22,7 @@
 #include "Core/Models/Level2.h"
 #include "Core/Models/Trade.h"
 #include "Misc/TimeFrame.h"
+#include "PlaybackTypes.h"
 
 Q_DECLARE_LOGGING_CATEGORY(DBClientLog)
 
@@ -162,6 +166,42 @@ class DBClient : public QObject
      */
     [[nodiscard]] static bool hasReplayData(const QDate& p_date, const QString& p_symbol);
 
+    // ── Replay playback ───────────────────────────────────────────────
+
+    using PlaybackState = Playback::State;
+    using PlaybackSpeed = Playback::Speed;
+
+    /**
+     * @brief Start replay from specified date and time.
+     * Opens .dbn.zst files for the symbol, merges Level2+Trade into a time-ordered
+     * stream, emits records via newLevel2/newTrade (same as live).
+     */
+    void startReplay(const QString& p_symbol, QDate p_date, QTime p_startTime, PlaybackSpeed p_speed);
+
+    /**
+     * @brief Start replay in paused state, emitting only the first data point(s).
+     * Used for chart pre-loading before user hits play.
+     */
+    void startReplayPaused(const QString& p_symbol, QDate p_date, QTime p_startTime, PlaybackSpeed p_speed);
+
+    void stopReplay();
+    void pauseReplay();
+    void resumeReplay();
+    void setReplaySpeed(PlaybackSpeed p_speed);
+
+    [[nodiscard]] PlaybackState getPlaybackState() const
+    {
+        return m_playbackState;
+    }
+    [[nodiscard]] PlaybackSpeed getPlaybackSpeed() const
+    {
+        return m_playbackSpeed;
+    }
+    [[nodiscard]] bool isReplayActive() const
+    {
+        return m_playbackState != PlaybackState::Stopped;
+    }
+
     // ── State queries ──────────────────────────────────────────────────
 
     [[nodiscard]] bool isConnected() const;
@@ -249,6 +289,17 @@ class DBClient : public QObject
      */
     void dataUsageUpdated(qsizetype p_totalBytes);
 
+    // ── Replay lifecycle signals ──────────────────────────────────────
+    /// Thread context: Emitted from DBClient thread
+
+    void replayStarted();
+    void replayStopped();
+    void replayPaused();
+    void replayResumed();
+    void replayTimeUpdated(QDateTime p_currentTime);
+    void replayEndReached();
+    void replayDataLoadFailed(const QString& p_errorMessage);
+
   private:
     explicit DBClient();
     ~DBClient() override;
@@ -262,6 +313,28 @@ class DBClient : public QObject
     void setConnectionState(ConnectionState p_state);
     [[nodiscard]] QString resolveSymbol(const databento::Record& p_record) const;
 
+    // ── Replay playback internals ─────────────────────────────────────
+
+    struct PeekedRecord
+    {
+        qint64 epochMs = 0;
+        std::variant<Level2, Trade> data;
+        bool valid = false;
+    };
+
+    bool openReplayStreams(const QString& p_symbol, QDate p_date, QTime p_startTime);
+    void advanceMbp10();
+    void advanceTrade();
+    void emitNextReplayRecord();
+    void scheduleNextReplayTick();
+    [[nodiscard]] qint64 calculateWallClockDelay(qint64 p_replayEpochMs) const;
+    void updateReplayTime(qint64 p_epochMs);
+    void closeReplayStreams();
+
+  private slots:
+    void onReplayTimerTick();
+
+  private:
     static DBClient* m_instance;
     static QString m_replayBaseDir; ///< Empty = use default cache location
 
@@ -288,6 +361,20 @@ class DBClient : public QObject
 
     static constexpr const char* k_defaultDataset = "XNAS.ITCH";
     static constexpr const char* k_settingsKeyDataset = "Databento/Dataset";
+
+    // Replay playback state
+    QTimer m_replayTimer;
+    std::unique_ptr<databento::DbnFileStore> m_mbp10Store;
+    std::unique_ptr<databento::DbnFileStore> m_tradesStore;
+    PeekedRecord m_nextMbp10;
+    PeekedRecord m_nextTrade;
+    qint64 m_startEpochMs = 0;
+    QString m_replaySymbol;
+    PlaybackState m_playbackState = PlaybackState::Stopped;
+    PlaybackSpeed m_playbackSpeed = PlaybackSpeed::Normal;
+    qint64 m_wallClockAnchorMs = 0;
+    qint64 m_replayEpochAnchorMs = 0;
+    qint64 m_pauseWallClockMs = 0;
 
     QThread m_thread;
 };

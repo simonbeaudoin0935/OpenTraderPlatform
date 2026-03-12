@@ -381,7 +381,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                 }
                 QDate replayDate = m_replayControlsBar->getSelectedReplayDay();
                 QTime replayTime = m_replayControlsBar->getReplayStartTime();
-                ReplayEngine::PlaybackSpeed speed = m_replayControlsBar->getReplaySpeed();
+                Playback::Speed speed = m_replayControlsBar->getReplaySpeed();
                 QString currentSymbol = ui->priceChart->getCurrentSymbol();
                 if (!currentSymbol.isEmpty() && !DBClient::getInstance()->hasReplayData(replayDate, currentSymbol))
                 {
@@ -1498,7 +1498,7 @@ void GUIFrontend::restoreReplayState()
     m_replayControlsBar->setSelectedReplayDay(savedDate);
 
     QTime startTime = savedTime.isValid() ? savedTime : m_replayControlsBar->getReplayStartTime();
-    ReplayEngine::PlaybackSpeed speed = m_replayControlsBar->getReplaySpeed();
+    Playback::Speed speed = m_replayControlsBar->getReplaySpeed();
 
     qInfo() << "Restoring replay state: date=" << savedDate << "time=" << startTime;
     MainApp::getInstance()->enterReplayMode(savedDate, startTime, speed);
@@ -2033,16 +2033,12 @@ void GUIFrontend::onReplayModeEntered()
     // Set controls to PreloadingPaused state (data loaded, waiting for user to press play)
     m_replayControlsBar->setReplayState(ReplayControlsBar::ReplayState::PreloadingPaused);
 
-    // Connect replay engine error signal to chart error handler
-    ReplayEngine* replayEngine = MainApp::getInstance()->getReplayEngine();
-    if (replayEngine != nullptr)
-    {
-        connect(replayEngine,
-                &ReplayEngine::replayDataLoadFailed,
-                ui->priceChart,
-                &StockPriceChart::onReplayDataLoadFailed,
-                Qt::UniqueConnection);
-    }
+    // Connect replay data load error signal to chart error handler
+    connect(DBClient::getInstance(),
+            &DBClient::replayDataLoadFailed,
+            ui->priceChart,
+            &StockPriceChart::onReplayDataLoadFailed,
+            Qt::UniqueConnection);
 
     // Update chart visual (background color and watermark)
     ui->priceChart->setReplayModeActive(true);

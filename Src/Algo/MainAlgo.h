@@ -29,7 +29,7 @@
 #include "Trade.h"
 #include "LiveBarAccumulator.h"
 #include "StrategyManager.h"
-#include "Core/Replay/ReplayEngine.h"
+#include "PlaybackTypes.h"
 #include "TSClient.h"       // For TSClient::AuthStateReason enum
 #include "OrdersDatabase.h" // For StrategyLogEntry
 
@@ -50,6 +50,7 @@ class QSocketNotifier;
  */
 class SymbolContext : public QObject
 {
+    Q_OBJECT
 
   public:
     explicit SymbolContext(const QString& p_symbol, QObject* p_parent = nullptr);
@@ -68,6 +69,15 @@ class SymbolContext : public QObject
     LiveBarAccumulator m_liveBarAccumulator;    ///< 1-minute bar accumulator (default 60s interval)
     LiveBarAccumulator m_live10sBarAccumulator; ///< 10-second bar accumulator
     BarAggregator m_barAggregator;
+
+  signals:
+    /**
+     * @brief Forwarded trade event (for strategy subscriptions)
+     * Thread context: Emitted from QThreadPool drain thread
+     * @param p_symbol Symbol for the trade
+     * @param p_trade The trade data
+     */
+    void receivedNewTrade(const QString& p_symbol, const Trade& p_trade);
 
   private:
     using WorkItem = std::variant<Level2, Trade>;
@@ -146,8 +156,7 @@ class MainAlgo final : public QObject
     void processStrategyLog(const StrategyLogEntry& p_entry);
 
     /// @brief Subscribe a strategy to data feed for a symbol (MainAlgo thread)
-    /// In replay mode: validates data exists; optionally creates secondary ReplayEngine.
-    /// In live/sim: adds symbol to strategy's monitored symbols (live DBClient streams TODO).
+    /// Creates a SymbolContext and registers routing. Data flows automatically via centralized routing.
     /// @param p_strategyID Strategy requesting the subscription
     /// @param p_symbol Symbol to subscribe to
     /// @param p_promise Resolved with true if accepted, false if rejected
@@ -168,14 +177,11 @@ class MainAlgo final : public QObject
     /// @param p_date Date to replay
     /// @param p_startTime Time to start replay
     /// @param p_speed Playback speed
-    void enterReplayMode(const QString& p_symbol, QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
+    void enterReplayMode(const QString& p_symbol, QDate p_date, QTime p_startTime, Playback::Speed p_speed);
 
     /// @brief Enter replay mode and immediately pause after first bar
     /// Used when entering replay mode to pre-populate chart
-    void enterReplayModePaused(const QString& p_symbol,
-                               QDate p_date,
-                               QTime p_startTime,
-                               ReplayEngine::PlaybackSpeed p_speed);
+    void enterReplayModePaused(const QString& p_symbol, QDate p_date, QTime p_startTime, Playback::Speed p_speed);
 
     /// @brief Exit replay mode and clean up
     void exitReplayMode();
@@ -187,7 +193,7 @@ class MainAlgo final : public QObject
     void resumeReplay();
 
     /// @brief Set replay speed on the fly
-    void setReplaySpeed(ReplayEngine::PlaybackSpeed p_speed);
+    void setReplaySpeed(Playback::Speed p_speed);
 
     /// @brief Pause live streams (positions/orders) for replay mode
     void pauseLiveStreams();
@@ -195,8 +201,6 @@ class MainAlgo final : public QObject
     /// @brief Start replay mode order/position streams with simulated account
     void startReplayOrderStreams();
     void connectReplaySignals(const QString& p_symbol);
-    /// @brief Connect a secondary ReplayEngine to a SymbolContext (for strategy-subscribed symbols)
-    void connectSecondarySymbolContext(const QString& p_symbol, ReplayEngine* p_engine, SymbolContext* p_instrument);
 
     /// @brief Resume live streams after exiting replay mode
     void resumeLiveStreams();
@@ -215,11 +219,8 @@ class MainAlgo final : public QObject
     /// @param p_symbol The stock symbol to create and display
     void createAndSetDisplayedStockInstrument(const QString& p_symbol);
 
-    /// @brief Get replay engine state
-    [[nodiscard]] ReplayEngine::PlaybackState getReplayState() const;
-
-    /// @brief Get pointer to replay engine for signal connections
-    [[nodiscard]] ReplayEngine* getReplayEngine() const;
+    /// @brief Get replay playback state
+    [[nodiscard]] Playback::State getReplayState() const;
 
   signals:
     /**
@@ -285,7 +286,7 @@ class MainAlgo final : public QObject
     void strategyLogEmitted(StrategyLogEntry entry);
 
     /**
-     * @brief Replay control signals (forwarded from ReplayEngine)
+     * @brief Replay control signals (forwarded from DBClient)
      * Thread context: Emitted from MainAlgo worker thread
      */
     void replayStarted();
@@ -361,9 +362,6 @@ class MainAlgo final : public QObject
     // Strategy order tracking - all accessed from MainAlgo thread
     StrategyManager m_strategyManager;
 
-    // Replay engine - owned, runs in MainAlgoThread
-    ReplayEngine* m_replayEngine = nullptr;
-
     std::unique_ptr<QSocketNotifier> m_crashNotifier; // Monitor crash pipe from signal handlers
     std::atomic<uint64_t> m_requestIdCounter{0};
     QMap<uint64_t, std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>> m_pendingOrderPromises;
@@ -375,11 +373,7 @@ class MainAlgo final : public QObject
     // Replay state (set in enterReplayMode/enterReplayModePaused, used by strategy subscriptions)
     QDate m_replayDate;
     QTime m_replayStartTime;
-    ReplayEngine::PlaybackSpeed m_replaySpeed = ReplayEngine::PlaybackSpeed::Normal;
-
-    // Secondary replay engines for strategy-requested symbols (symbol → engine)
-    // These run alongside the primary m_replayEngine for the displayed stock
-    QMap<QString, ReplayEngine*> m_secondaryReplayEngines;
+    Playback::Speed m_replaySpeed = Playback::Speed::Normal;
 
     // --- GUI throttle for AsFastAsPossible replay mode ---
     // When active, high-frequency GUI-bound signals are buffered and emitted

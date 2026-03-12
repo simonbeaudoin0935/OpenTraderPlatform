@@ -27,16 +27,16 @@ ReplayControlsBar::ReplayControlsBar(QWidget* parent) : QWidget(parent)
     m_speedCombo = new QComboBox(this);
     m_speedCombo->setMinimumWidth(70);
     m_speedCombo->setMaximumWidth(90);
-    m_speedCombo->addItem("0.01x", static_cast<int>(ReplayEngine::PlaybackSpeed::SuperSlow));
-    m_speedCombo->addItem("0.1x", static_cast<int>(ReplayEngine::PlaybackSpeed::VerySlow));
-    m_speedCombo->addItem("0.5x", static_cast<int>(ReplayEngine::PlaybackSpeed::Half));
-    m_speedCombo->addItem("1x", static_cast<int>(ReplayEngine::PlaybackSpeed::Normal));
-    m_speedCombo->addItem("2x", static_cast<int>(ReplayEngine::PlaybackSpeed::Double));
-    m_speedCombo->addItem("5x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast5x));
-    m_speedCombo->addItem("10x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast10x));
-    m_speedCombo->addItem("50x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast50x));
-    m_speedCombo->addItem("100x", static_cast<int>(ReplayEngine::PlaybackSpeed::Fast100x));
-    m_speedCombo->addItem("Max", static_cast<int>(ReplayEngine::PlaybackSpeed::AsFastAsPossible));
+    m_speedCombo->addItem("0.01x", static_cast<int>(Playback::Speed::SuperSlow));
+    m_speedCombo->addItem("0.1x", static_cast<int>(Playback::Speed::VerySlow));
+    m_speedCombo->addItem("0.5x", static_cast<int>(Playback::Speed::Half));
+    m_speedCombo->addItem("1x", static_cast<int>(Playback::Speed::Normal));
+    m_speedCombo->addItem("2x", static_cast<int>(Playback::Speed::Double));
+    m_speedCombo->addItem("5x", static_cast<int>(Playback::Speed::Fast5x));
+    m_speedCombo->addItem("10x", static_cast<int>(Playback::Speed::Fast10x));
+    m_speedCombo->addItem("50x", static_cast<int>(Playback::Speed::Fast50x));
+    m_speedCombo->addItem("100x", static_cast<int>(Playback::Speed::Fast100x));
+    m_speedCombo->addItem("Max", static_cast<int>(Playback::Speed::AsFastAsPossible));
     m_speedCombo->setCurrentIndex(3); // default 1x
     m_speedCombo->setToolTip("Replay playback speed");
 
@@ -122,7 +122,7 @@ ReplayControlsBar::ReplayControlsBar(QWidget* parent) : QWidget(parent)
             {
                 if (index >= 0)
                 {
-                    auto speed = static_cast<ReplayEngine::PlaybackSpeed>(m_speedCombo->itemData(index).toInt());
+                    auto speed = static_cast<Playback::Speed>(m_speedCombo->itemData(index).toInt());
                     emit replaySpeedChanged(speed);
                 }
             });
@@ -211,12 +211,12 @@ void ReplayControlsBar::setReplayStartTime(const QTime& time)
 // Speed
 // ---------------------------------------------------------------------------
 
-ReplayEngine::PlaybackSpeed ReplayControlsBar::getReplaySpeed() const
+Playback::Speed ReplayControlsBar::getReplaySpeed() const
 {
     int idx = m_speedCombo->currentIndex();
     if (idx >= 0 && idx < m_speedCombo->count())
-        return static_cast<ReplayEngine::PlaybackSpeed>(m_speedCombo->itemData(idx).toInt());
-    return ReplayEngine::PlaybackSpeed::Normal;
+        return static_cast<Playback::Speed>(m_speedCombo->itemData(idx).toInt());
+    return Playback::Speed::Normal;
 }
 
 // ---------------------------------------------------------------------------

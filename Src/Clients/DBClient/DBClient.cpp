@@ -11,12 +11,14 @@
 
 #include <databento/enums.hpp>
 #include <databento/live.hpp>
+#include <databento/dbn_file_store.hpp>
 
 #include "Assume.h"
 #include "BarUtils.h"
 #include "CONSTANTS.h"
 #include "DBRecordTranslator.h"
 #include "Logging.h"
+#include "MainApp.h"
 #include "SecureStorage.h"
 #include "Settings.h"
 
@@ -74,6 +76,11 @@ DBClient::DBClient() : QObject(nullptr)
 
     m_thread.setObjectName("DBClient");
     this->moveToThread(&m_thread);
+
+    // Replay timer (single-shot — we re-arm after each tick)
+    m_replayTimer.setSingleShot(true);
+    m_replayTimer.moveToThread(&m_thread);
+    connect(&m_replayTimer, &QTimer::timeout, this, &DBClient::onReplayTimerTick);
 }
 
 DBClient::~DBClient()
@@ -92,6 +99,8 @@ DBClient::~DBClient()
                 m_liveClient.reset();
             }
             m_historicalClient.reset();
+            closeReplayStreams();
+            m_replayTimer.stop();
         },
         Qt::BlockingQueuedConnection);
 
@@ -664,4 +673,447 @@ QString DBClient::resolveSymbol(const databento::Record& p_record) const
         return {};
 
     return QString::fromStdString(it->second);
+}
+
+// ── Replay playback ────────────────────────────────────────────────────────
+
+static qint64 toEpochMs(databento::UnixNanos ts)
+{
+    return static_cast<qint64>(std::chrono::duration_cast<std::chrono::milliseconds>(ts.time_since_epoch()).count());
+}
+
+void DBClient::advanceMbp10()
+{
+    m_nextMbp10.valid = false;
+    if (m_mbp10Store == nullptr)
+        return;
+
+    const databento::Record* record = nullptr;
+    while ((record = m_mbp10Store->NextRecord()) != nullptr)
+    {
+        if (record->Holds<databento::Mbp10Msg>())
+        {
+            const auto& msg = record->Get<databento::Mbp10Msg>();
+            const qint64 epochMs = toEpochMs(msg.hd.ts_event);
+            if (epochMs >= m_startEpochMs)
+            {
+                m_nextMbp10 = {epochMs, DBRecordTranslator::toLevel2(m_replaySymbol, msg), true};
+                return;
+            }
+        }
+    }
+    m_mbp10Store.reset();
+}
+
+void DBClient::advanceTrade()
+{
+    m_nextTrade.valid = false;
+    if (m_tradesStore == nullptr)
+        return;
+
+    const databento::Record* record = nullptr;
+    while ((record = m_tradesStore->NextRecord()) != nullptr)
+    {
+        if (record->Holds<databento::TradeMsg>())
+        {
+            const auto& msg = record->Get<databento::TradeMsg>();
+            const qint64 epochMs = toEpochMs(msg.hd.ts_event);
+            if (epochMs >= m_startEpochMs)
+            {
+                m_nextTrade = {epochMs, DBRecordTranslator::toTrade(m_replaySymbol, msg), true};
+                return;
+            }
+        }
+    }
+    m_tradesStore.reset();
+}
+
+bool DBClient::openReplayStreams(const QString& p_symbol, QDate p_date, QTime p_startTime)
+{
+    closeReplayStreams();
+
+    m_replaySymbol = p_symbol;
+    m_startEpochMs = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE).toMSecsSinceEpoch();
+
+    const QString mbp10Path = getReplayFilePath(p_date, p_symbol, "mbp10");
+    const QString tradesPath = getReplayFilePath(p_date, p_symbol, "trades");
+
+    if (QFile::exists(mbp10Path))
+    {
+        try
+        {
+            m_mbp10Store = std::make_unique<databento::DbnFileStore>(std::filesystem::path(mbp10Path.toStdString()));
+            advanceMbp10();
+            INFO << "Opened Mbp10 stream:" << mbp10Path;
+        }
+        catch (const std::exception& ex)
+        {
+            WARNING << "Failed to open Mbp10 file:" << ex.what();
+            m_mbp10Store.reset();
+        }
+    }
+    else
+    {
+        DEBUG << "No Mbp10 file found:" << mbp10Path;
+    }
+
+    if (QFile::exists(tradesPath))
+    {
+        try
+        {
+            m_tradesStore = std::make_unique<databento::DbnFileStore>(std::filesystem::path(tradesPath.toStdString()));
+            advanceTrade();
+            INFO << "Opened Trades stream:" << tradesPath;
+        }
+        catch (const std::exception& ex)
+        {
+            WARNING << "Failed to open Trades file:" << ex.what();
+            m_tradesStore.reset();
+        }
+    }
+    else
+    {
+        DEBUG << "No Trades file found:" << tradesPath;
+    }
+
+    return m_nextMbp10.valid || m_nextTrade.valid;
+}
+
+void DBClient::closeReplayStreams()
+{
+    m_mbp10Store.reset();
+    m_tradesStore.reset();
+    m_nextMbp10.valid = false;
+    m_nextTrade.valid = false;
+}
+
+void DBClient::startReplay(const QString& p_symbol, QDate p_date, QTime p_startTime, PlaybackSpeed p_speed)
+{
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(
+            this,
+            [this, p_symbol, p_date, p_startTime, p_speed]() { startReplay(p_symbol, p_date, p_startTime, p_speed); },
+            Qt::QueuedConnection);
+        return;
+    }
+
+    if (m_playbackState != PlaybackState::Stopped)
+    {
+        WARNING << "Cannot start replay — already active";
+        return;
+    }
+
+    m_replayTimer.stop();
+
+    INFO << "Starting replay for" << p_symbol << "on" << p_date.toString(Qt::ISODate) << "at"
+         << p_startTime.toString("hh:mm:ss") << "speed:" << static_cast<int>(p_speed);
+
+    m_playbackSpeed = p_speed;
+
+    if (!openReplayStreams(p_symbol, p_date, p_startTime))
+    {
+        CRITICAL << "Failed to load replay data";
+        emit replayDataLoadFailed(
+            QString("No replay data found for %1 on %2").arg(p_symbol, p_date.toString(Qt::ISODate)));
+        return;
+    }
+
+    // Use earliest available record timestamp as anchor
+    qint64 initialEpoch = m_startEpochMs;
+    if (m_nextMbp10.valid)
+        initialEpoch = m_nextMbp10.epochMs;
+    if (m_nextTrade.valid && m_nextTrade.epochMs < initialEpoch)
+        initialEpoch = m_nextTrade.epochMs;
+
+    QDateTime initialTime = QDateTime::fromMSecsSinceEpoch(initialEpoch, TradingHours::MARKET_TIMEZONE);
+    MainApp::currentAppReplayTime = initialTime;
+    INFO << "Initialized replay time to:" << initialTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+
+    m_replayEpochAnchorMs = initialEpoch;
+    m_wallClockAnchorMs = QDateTime::currentMSecsSinceEpoch();
+
+    m_playbackState = PlaybackState::Playing;
+    emit replayStarted();
+
+    emitNextReplayRecord();
+    scheduleNextReplayTick();
+}
+
+void DBClient::startReplayPaused(const QString& p_symbol, QDate p_date, QTime p_startTime, PlaybackSpeed p_speed)
+{
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(
+            this,
+            [this, p_symbol, p_date, p_startTime, p_speed]()
+            { startReplayPaused(p_symbol, p_date, p_startTime, p_speed); },
+            Qt::QueuedConnection);
+        return;
+    }
+
+    if (m_playbackState != PlaybackState::Stopped)
+    {
+        WARNING << "Cannot start replay — already active";
+        return;
+    }
+
+    INFO << "Starting replay (paused) for" << p_symbol << "on" << p_date.toString(Qt::ISODate) << "at"
+         << p_startTime.toString("hh:mm:ss");
+
+    m_playbackSpeed = p_speed;
+
+    if (!openReplayStreams(p_symbol, p_date, p_startTime))
+    {
+        CRITICAL << "Failed to load replay data";
+        emit replayDataLoadFailed(
+            QString("No replay data found for %1 on %2").arg(p_symbol, p_date.toString(Qt::ISODate)));
+        return;
+    }
+
+    qint64 initialEpoch = m_startEpochMs;
+    if (m_nextMbp10.valid)
+        initialEpoch = m_nextMbp10.epochMs;
+    if (m_nextTrade.valid && m_nextTrade.epochMs < initialEpoch)
+        initialEpoch = m_nextTrade.epochMs;
+
+    QDateTime initialTime = QDateTime::fromMSecsSinceEpoch(initialEpoch, TradingHours::MARKET_TIMEZONE);
+    MainApp::currentAppReplayTime = initialTime;
+
+    m_replayEpochAnchorMs = initialEpoch;
+    m_wallClockAnchorMs = 0; // Will be set on resume
+
+    // Emit first record then pause
+    m_playbackState = PlaybackState::Playing;
+    emit replayStarted();
+
+    emitNextReplayRecord();
+
+    m_playbackState = PlaybackState::Paused;
+    emit replayPaused();
+
+    INFO << "Replay started in paused state after first record";
+}
+
+void DBClient::stopReplay()
+{
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(this, &DBClient::stopReplay, Qt::QueuedConnection);
+        return;
+    }
+
+    if (m_playbackState == PlaybackState::Stopped)
+    {
+        DEBUG << "stopReplay called but already stopped";
+        return;
+    }
+
+    INFO << "Stopping replay";
+
+    m_replayTimer.stop();
+    m_playbackState = PlaybackState::Stopped;
+    m_wallClockAnchorMs = 0;
+    m_replayEpochAnchorMs = 0;
+    m_pauseWallClockMs = 0;
+    clearReplayTime();
+    closeReplayStreams();
+
+    emit replayStopped();
+}
+
+void DBClient::pauseReplay()
+{
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(this, &DBClient::pauseReplay, Qt::QueuedConnection);
+        return;
+    }
+
+    if (m_playbackState != PlaybackState::Playing)
+    {
+        WARNING << "Cannot pause — not currently playing";
+        return;
+    }
+
+    DEBUG << "Pausing replay";
+
+    m_replayTimer.stop();
+    m_pauseWallClockMs = QDateTime::currentMSecsSinceEpoch();
+    m_playbackState = PlaybackState::Paused;
+
+    emit replayPaused();
+}
+
+void DBClient::resumeReplay()
+{
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(this, &DBClient::resumeReplay, Qt::QueuedConnection);
+        return;
+    }
+
+    if (m_playbackState != PlaybackState::Paused)
+    {
+        WARNING << "Cannot resume — not currently paused";
+        return;
+    }
+
+    DEBUG << "Resuming replay";
+
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_wallClockAnchorMs == 0)
+    {
+        m_wallClockAnchorMs = now;
+    }
+    else if (m_pauseWallClockMs > 0)
+    {
+        m_wallClockAnchorMs += (now - m_pauseWallClockMs);
+    }
+    m_pauseWallClockMs = 0;
+
+    m_playbackState = PlaybackState::Playing;
+
+    scheduleNextReplayTick();
+
+    emit replayResumed();
+}
+
+void DBClient::setReplaySpeed(PlaybackSpeed p_speed)
+{
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(this, [this, p_speed]() { setReplaySpeed(p_speed); }, Qt::QueuedConnection);
+        return;
+    }
+
+    if (m_playbackSpeed == p_speed)
+        return;
+
+    INFO << "Speed changed from" << static_cast<int>(m_playbackSpeed) << "to" << static_cast<int>(p_speed);
+    m_playbackSpeed = p_speed;
+
+    if (m_playbackState == PlaybackState::Playing)
+    {
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        qint64 currentReplayMs = MainApp::currentAppReplayTime.isValid()
+                                     ? MainApp::currentAppReplayTime.toMSecsSinceEpoch()
+                                     : m_replayEpochAnchorMs;
+        m_wallClockAnchorMs = now;
+        m_replayEpochAnchorMs = currentReplayMs;
+
+        m_replayTimer.stop();
+        scheduleNextReplayTick();
+    }
+}
+
+void DBClient::onReplayTimerTick()
+{
+    if (m_playbackState != PlaybackState::Playing)
+        return;
+
+    const qint64 startWallMs = QDateTime::currentMSecsSinceEpoch();
+
+    while (m_playbackState == PlaybackState::Playing)
+    {
+        emitNextReplayRecord();
+
+        if (!m_nextMbp10.valid && !m_nextTrade.valid)
+        {
+            INFO << "Replay reached end of data (batch loop)";
+            m_playbackState = PlaybackState::Stopped;
+            emit replayEndReached();
+            emit replayStopped();
+            return;
+        }
+
+        if (QDateTime::currentMSecsSinceEpoch() - startWallMs >= ReplayConstants::MAX_SPEED_BATCH_BUDGET_MS)
+            break;
+
+        qint64 nextEpoch = m_nextMbp10.valid ? m_nextMbp10.epochMs : m_nextTrade.epochMs;
+        if (m_nextTrade.valid && m_nextTrade.epochMs < nextEpoch)
+            nextEpoch = m_nextTrade.epochMs;
+        if (calculateWallClockDelay(nextEpoch) > 0)
+            break;
+    }
+
+    if (m_playbackState == PlaybackState::Playing)
+        scheduleNextReplayTick();
+}
+
+void DBClient::emitNextReplayRecord()
+{
+    const bool hasMbp10 = m_nextMbp10.valid;
+    const bool hasTrade = m_nextTrade.valid;
+
+    if (!hasMbp10 && !hasTrade)
+        return;
+
+    bool useMbp10 = hasMbp10 && (!hasTrade || m_nextMbp10.epochMs <= m_nextTrade.epochMs);
+
+    if (useMbp10)
+    {
+        updateReplayTime(m_nextMbp10.epochMs);
+        emit newLevel2(m_replaySymbol, std::get<Level2>(m_nextMbp10.data));
+        advanceMbp10();
+    }
+    else
+    {
+        updateReplayTime(m_nextTrade.epochMs);
+        emit newTrade(m_replaySymbol, std::get<Trade>(m_nextTrade.data));
+        advanceTrade();
+    }
+}
+
+void DBClient::scheduleNextReplayTick()
+{
+    const bool hasMbp10 = m_nextMbp10.valid;
+    const bool hasTrade = m_nextTrade.valid;
+
+    if (!hasMbp10 && !hasTrade)
+    {
+        INFO << "Replay reached end of data";
+        m_playbackState = PlaybackState::Stopped;
+        emit replayEndReached();
+        emit replayStopped();
+        return;
+    }
+
+    qint64 nextEpoch = hasMbp10 ? m_nextMbp10.epochMs : m_nextTrade.epochMs;
+    if (hasTrade && m_nextTrade.epochMs < nextEpoch)
+        nextEpoch = m_nextTrade.epochMs;
+
+    const qint64 delay = calculateWallClockDelay(nextEpoch);
+    m_replayTimer.start(static_cast<int>(delay));
+}
+
+qint64 DBClient::calculateWallClockDelay(qint64 p_replayEpochMs) const
+{
+    if (m_playbackSpeed == PlaybackSpeed::AsFastAsPossible)
+        return 0;
+
+    int speedValue = static_cast<int>(m_playbackSpeed);
+    if (speedValue <= 0)
+        return 0;
+
+    qint64 replayOffsetMs = p_replayEpochMs - m_replayEpochAnchorMs;
+    qint64 wallClockOffsetMs = (replayOffsetMs * 100) / speedValue;
+    qint64 targetWallMs = m_wallClockAnchorMs + wallClockOffsetMs;
+    qint64 delay = targetWallMs - QDateTime::currentMSecsSinceEpoch();
+
+    return qBound(qint64(0), delay, qint64(60000));
+}
+
+void DBClient::updateReplayTime(qint64 p_epochMs)
+{
+    QDateTime currentTime = MainApp::currentAppReplayTime;
+    qint64 currentMs = currentTime.isValid() ? currentTime.toMSecsSinceEpoch() : 0;
+
+    if (p_epochMs > currentMs)
+    {
+        QDateTime newTime = QDateTime::fromMSecsSinceEpoch(p_epochMs, TradingHours::MARKET_TIMEZONE);
+        MainApp::currentAppReplayTime = newTime;
+        setCurrentReplayTime(newTime);
+        emit replayTimeUpdated(newTime);
+    }
 }

@@ -869,8 +869,7 @@ void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_inst
 
 void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
                                               const QString& p_symbol,
-                                              SymbolContext* p_instrument,
-                                              ReplayEngine* p_replayEngine)
+                                              SymbolContext* p_instrument)
 {
     auto* instance = findStrategy(p_strategyID);
     if (!instance || !instance->p_adapter)
@@ -902,16 +901,13 @@ void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
                             &StrategyCallbackAdapter::onLevel2,
                             Qt::QueuedConnection);
         ASSUME_TRUE(connected);
-    }
 
-    if (p_replayEngine)
-    {
-        // Connect replay trade events → adapter (for trade-by-trade price tracking)
-        bool connected = connect(p_replayEngine,
-                                 &ReplayEngine::replayTrade,
-                                 instance->p_adapter,
-                                 &StrategyCallbackAdapter::onTrade,
-                                 Qt::QueuedConnection);
+        // Connect instrument trade data → adapter
+        connected = connect(p_instrument,
+                            &SymbolContext::receivedNewTrade,
+                            instance->p_adapter,
+                            &StrategyCallbackAdapter::onTrade,
+                            Qt::QueuedConnection);
         ASSUME_TRUE(connected);
     }
 

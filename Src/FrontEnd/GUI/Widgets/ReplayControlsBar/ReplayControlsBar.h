@@ -9,7 +9,7 @@
 #include <QDir>
 #include <QRegularExpression>
 #include "Misc/TimeFrame.h"
-#include "Core/Replay/ReplayEngine.h"
+#include "PlaybackTypes.h"
 
 /**
  * @class ReplayControlsBar
@@ -68,7 +68,7 @@ class ReplayControlsBar : public QWidget
     // Speed
     // -----------------------------------------------------------------------
     /** @brief Returns the currently selected playback speed. */
-    [[nodiscard]] ReplayEngine::PlaybackSpeed getReplaySpeed() const;
+    [[nodiscard]] Playback::Speed getReplaySpeed() const;
 
     // -----------------------------------------------------------------------
     // Play / Pause
@@ -135,7 +135,7 @@ class ReplayControlsBar : public QWidget
      * @brief Emitted when the playback speed changes.
      * Thread context: Emitted from Main/GUI thread
      */
-    void replaySpeedChanged(ReplayEngine::PlaybackSpeed speed);
+    void replaySpeedChanged(Playback::Speed speed);
 
   private slots:
     void onReplayDayChanged(int index);

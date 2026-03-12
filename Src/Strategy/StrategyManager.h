@@ -21,7 +21,6 @@
 
 class MainAlgo;
 class SymbolContext;
-class ReplayEngine;
 
 /// @brief Adapter to call StrategyBase methods from Qt slots
 /// Lives on strategy's thread and provides thread-safe callback invocation
@@ -291,12 +290,8 @@ class StrategyManager final : public QObject
      * @param p_strategyID Strategy requesting the subscription
      * @param p_symbol Symbol to subscribe to
      * @param p_instrument SymbolContext for the symbol (nullptr = use displayed-stock signals)
-     * @param p_replayEngine Secondary ReplayEngine for the symbol (nullptr if not applicable)
      */
-    void connectSymbolToStrategy(const QString& p_strategyID,
-                                 const QString& p_symbol,
-                                 SymbolContext* p_instrument,
-                                 ReplayEngine* p_replayEngine);
+    void connectSymbolToStrategy(const QString& p_strategyID, const QString& p_symbol, SymbolContext* p_instrument);
 
     /*
      * Process a symbol claim request from a strategy.

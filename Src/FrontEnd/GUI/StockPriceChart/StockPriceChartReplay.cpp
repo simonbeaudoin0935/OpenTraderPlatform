@@ -46,7 +46,7 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
     {
         OBJ_ASSUME_DIFF(m_replayControls, nullptr);
         QTime currentTime = m_replayControls->getReplayStartTime();
-        ReplayEngine::PlaybackSpeed currentSpeed = m_replayControls->getReplaySpeed();
+        Playback::Speed currentSpeed = m_replayControls->getReplaySpeed();
 
         qCInfo(ChartLog) << "Preloading chart for new replay day:" << date.toString(Qt::ISODate) << "at"
                          << currentTime.toString("hh:mm");
@@ -77,7 +77,7 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
     {
         OBJ_ASSUME_DIFF(m_replayControls, nullptr);
         QDate currentDate = m_replayControls->getSelectedReplayDay();
-        ReplayEngine::PlaybackSpeed currentSpeed = m_replayControls->getReplaySpeed();
+        Playback::Speed currentSpeed = m_replayControls->getReplaySpeed();
 
         qCInfo(ChartLog) << "Preloading chart for new replay time:" << currentDate.toString(Qt::ISODate) << "at"
                          << time.toString("hh:mm");

@@ -75,20 +75,6 @@ MainAlgo::~MainAlgo()
 
             // Stop and destroy balance polling timer on its own thread
             m_balancePollingTimer.reset();
-
-            // Stop and delete replay engines on the correct thread (they own QTimer members)
-            if (m_replayEngine != nullptr)
-            {
-                m_replayEngine->stopReplay();
-                delete m_replayEngine;
-                m_replayEngine = nullptr;
-            }
-            for (auto* engine: std::as_const(m_secondaryReplayEngines))
-            {
-                engine->stopReplay();
-                delete engine;
-            }
-            m_secondaryReplayEngines.clear();
         },
         Qt::BlockingQueuedConnection);
 
@@ -845,6 +831,7 @@ void SymbolContext::processTrade(const Trade& p_trade)
 {
     m_liveBarAccumulator.onNewTrade(symbol, p_trade);
     m_live10sBarAccumulator.onNewTrade(symbol, p_trade);
+    emit receivedNewTrade(symbol, p_trade);
 }
 
 uint64_t MainAlgo::getNextRequestId()
@@ -992,50 +979,42 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
         }
 
         // If symbol is already loaded (displayed stock), data is already flowing via
-        // connectStrategyToDataSources (displayedStockReceivedNewBar/Trade/Level2).
-        // Only register the symbol in the monitored set — passing instrument/engine here
-        // would create duplicate signal connections and fire every callback twice.
-        if (m_symbolContexts.contains(p_symbol) && !m_secondaryReplayEngines.contains(p_symbol))
+        // the centralized routing (DBClient → MainAlgo → SymbolContext queue).
+        if (m_symbolContexts.contains(p_symbol))
         {
-            m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr, nullptr);
+            m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr);
             p_promise->addResult(true);
             p_promise->finish();
             return;
         }
 
-        // New secondary symbol: create SymbolContext + secondary ReplayEngine
-        SymbolContext* instrument = nullptr;
-        if (!m_symbolContexts.contains(p_symbol) || m_symbolContexts[p_symbol].isNull())
-        {
-            instrument = new SymbolContext(p_symbol, this);
-            Q_CHECK_PTR(instrument);
-            m_symbolContexts.insert(p_symbol, instrument);
-        }
-        else
-        {
-            instrument = m_symbolContexts[p_symbol];
-        }
+        // New secondary symbol: create SymbolContext — data flows automatically via
+        // DBClient::newLevel2/newTrade → MainAlgo routing → SymbolContext queue
+        auto* instrument = new SymbolContext(p_symbol, this);
+        Q_CHECK_PTR(instrument);
+        m_symbolContexts.insert(p_symbol, instrument);
 
-        auto* secondaryEngine = new ReplayEngine(this);
-        m_secondaryReplayEngines.insert(p_symbol, secondaryEngine);
+        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, instrument);
 
-        // Wire secondary engine → SymbolContext (Level2 + Trades → bars)
-        connectSecondarySymbolContext(p_symbol, secondaryEngine, instrument);
-
-        // Wire SymbolContext + secondary engine trade events → strategy adapter
-        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, instrument, secondaryEngine);
-
-        // Start secondary replay from the same date/time/speed as the primary
-        secondaryEngine->startReplay(p_symbol, m_replayDate, m_replayStartTime, m_replaySpeed);
-
-        INFO << "Secondary replay started for" << p_symbol << "at" << m_replayDate.toString(Qt::ISODate);
+        INFO << "Secondary symbol SymbolContext created for" << p_symbol << "(replay data routed via DBClient)";
     }
     else
     {
-        // Live/sim mode: add symbol to monitored set
-        // (data for arbitrary symbols via live DBClient streams is a future enhancement;
-        //  for now the strategy must use the symbol that's already streaming)
-        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr, nullptr);
+        // Live/sim mode: create SymbolContext if needed and subscribe
+        if (!m_symbolContexts.contains(p_symbol) || m_symbolContexts[p_symbol].isNull())
+        {
+            auto* instrument = new SymbolContext(p_symbol, this);
+            Q_CHECK_PTR(instrument);
+            m_symbolContexts.insert(p_symbol, instrument);
+
+            auto* dbClient = DBClient::getInstance();
+            if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
+            {
+                dbClient->subscribeLive(p_symbol);
+            }
+        }
+
+        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr);
     }
 
     p_promise->addResult(true);
@@ -1048,37 +1027,6 @@ void MainAlgo::processClaimSymbols(const QString& p_strategyID,
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
     m_strategyManager.processClaimSymbols(p_strategyID, p_symbols, p_promise);
-}
-
-void MainAlgo::connectSecondarySymbolContext(const QString& p_symbol,
-                                             ReplayEngine* p_engine,
-                                             SymbolContext* p_instrument)
-{
-    OBJ_ASSUME_DIFF(p_engine, nullptr);
-    OBJ_ASSUME_DIFF(p_instrument, nullptr);
-
-    // Replay Level2 → Level2Receiver
-    bool connected = connect(p_engine,
-                             &ReplayEngine::replayLevel2,
-                             &p_instrument->m_level2Receiver,
-                             [p_instrument](const QString& /*sym*/, const Level2& l2)
-                             { p_instrument->m_level2Receiver.onReceivedNewLevel2(l2); });
-    ASSUME_TRUE(connected);
-
-    // Replay Trade → LiveBarAccumulator (builds bars from trades)
-    connected = connect(p_engine,
-                        &ReplayEngine::replayTrade,
-                        &p_instrument->m_liveBarAccumulator,
-                        &LiveBarAccumulator::onNewTrade);
-    ASSUME_TRUE(connected);
-
-    connected = connect(p_engine,
-                        &ReplayEngine::replayTrade,
-                        &p_instrument->m_live10sBarAccumulator,
-                        &LiveBarAccumulator::onNewTrade);
-    ASSUME_TRUE(connected);
-
-    INFO << "Secondary replay signals connected for" << p_symbol;
 }
 
 void MainAlgo::onStrategyCrashNotified()
@@ -1263,160 +1211,112 @@ void MainAlgo::onReplayEndReached()
     }
 }
 
-void MainAlgo::enterReplayMode(const QString& p_symbol,
-                               QDate p_date,
-                               QTime p_startTime,
-                               ReplayEngine::PlaybackSpeed p_speed)
+void MainAlgo::enterReplayMode(const QString& p_symbol, QDate p_date, QTime p_startTime, Playback::Speed p_speed)
 {
     INFO << "MainAlgo entering replay mode for" << p_symbol << "on" << p_date.toString(Qt::ISODate) << "at"
          << p_startTime.toString("hh:mm:ss");
 
-    // We assume that if we were able to click "Enter Replay Mode", then we must not already be in replay mode, so m_replayEngine should be null
-    OBJ_ASSUME_TRUE(m_replayEngine == nullptr);
-
     // Store replay state for strategy subscription validation
     m_replayDate = p_date;
     m_replayStartTime = p_startTime;
     m_replaySpeed = p_speed;
 
-    // Create ReplayEngine on first use (lazy init, parent=this for thread affinity)
-    m_replayEngine = new ReplayEngine(this);
+    auto* dbClient = DBClient::getInstance();
 
-    // Forward signals to MainAlgo signals for UI consumption
-    bool connected =
-        connect(m_replayEngine, &ReplayEngine::replayStarted, this, &MainAlgo::replayStarted, Qt::UniqueConnection);
+    // Forward DBClient replay lifecycle signals to MainAlgo signals for UI
+    bool connected = connect(dbClient, &DBClient::replayStarted, this, &MainAlgo::replayStarted, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(dbClient, &DBClient::replayStopped, this, &MainAlgo::replayStopped, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(dbClient, &DBClient::replayPaused, this, &MainAlgo::replayPaused, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(dbClient, &DBClient::replayResumed, this, &MainAlgo::replayResumed, Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
     connected =
-        connect(m_replayEngine, &ReplayEngine::replayStopped, this, &MainAlgo::replayStopped, Qt::UniqueConnection);
+        connect(dbClient, &DBClient::replayTimeUpdated, this, &MainAlgo::onReplayTimeReceived, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(dbClient, &DBClient::replayEndReached, this, &MainAlgo::replayEndReached, Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
     connected =
-        connect(m_replayEngine, &ReplayEngine::replayPaused, this, &MainAlgo::replayPaused, Qt::UniqueConnection);
+        connect(dbClient, &DBClient::replayEndReached, this, &MainAlgo::onReplayEndReached, Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    connected =
-        connect(m_replayEngine, &ReplayEngine::replayResumed, this, &MainAlgo::replayResumed, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::replayTimeUpdated,
-                        this,
-                        &MainAlgo::onReplayTimeReceived,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::replayEndReached,
-                        this,
-                        &MainAlgo::replayEndReached,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    // Also handle end of replay to pause heartbeat timers
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::replayEndReached,
-                        this,
-                        &MainAlgo::onReplayEndReached,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    // Connect replay data signals to SymbolContext receivers
+    // Wire OrderEmulator to DBClient market data (same signals as live)
     connectReplaySignals(p_symbol);
 
-    DEBUG << "ReplayEngine created and connected";
+    DEBUG << "DBClient replay signals connected";
 
-    // Activate GUI throttle if starting at max speed
-    if (p_speed == ReplayEngine::PlaybackSpeed::AsFastAsPossible)
+    if (p_speed == Playback::Speed::AsFastAsPossible)
         activateGuiThrottle();
 
-    // Start replay order/position streams with simulated account
     startReplayOrderStreams();
 
-    m_replayEngine->startReplay(p_symbol, p_date, p_startTime, p_speed);
+    dbClient->startReplay(p_symbol, p_date, p_startTime, p_speed);
 }
 
-void MainAlgo::enterReplayModePaused(const QString& p_symbol,
-                                     QDate p_date,
-                                     QTime p_startTime,
-                                     ReplayEngine::PlaybackSpeed p_speed)
+void MainAlgo::enterReplayModePaused(const QString& p_symbol, QDate p_date, QTime p_startTime, Playback::Speed p_speed)
 {
     INFO << "MainAlgo entering replay mode (paused) for" << p_symbol << "on" << p_date.toString(Qt::ISODate) << "at"
          << p_startTime.toString("hh:mm:ss");
 
-    // Store replay state for strategy subscription validation
     m_replayDate = p_date;
     m_replayStartTime = p_startTime;
     m_replaySpeed = p_speed;
 
-    bool isRecreatingEngine = (m_replayEngine != nullptr);
+    auto* dbClient = DBClient::getInstance();
 
-    // If ReplayEngine already exists (e.g., changing replay day), delete it first
-    if (m_replayEngine != nullptr)
+    bool isReentry = dbClient->isReplayActive();
+
+    // If replay is already active (e.g., changing replay day), stop it first
+    if (isReentry)
     {
-        DEBUG << "Deleting existing ReplayEngine before creating new one";
-        delete m_replayEngine;
-        m_replayEngine = nullptr;
+        DEBUG << "Stopping existing replay before starting new one";
+        dbClient->stopReplay();
     }
 
-    // Create ReplayEngine (same setup as enterReplayMode)
-    m_replayEngine = new ReplayEngine(this);
+    // Forward DBClient replay lifecycle signals to MainAlgo signals for UI
+    bool connected = connect(dbClient, &DBClient::replayStarted, this, &MainAlgo::replayStarted, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
 
-    bool connected =
-        connect(m_replayEngine, &ReplayEngine::replayStarted, this, &MainAlgo::replayStarted, Qt::UniqueConnection);
+    connected = connect(dbClient, &DBClient::replayStopped, this, &MainAlgo::replayStopped, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(dbClient, &DBClient::replayPaused, this, &MainAlgo::replayPaused, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(dbClient, &DBClient::replayResumed, this, &MainAlgo::replayResumed, Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
     connected =
-        connect(m_replayEngine, &ReplayEngine::replayStopped, this, &MainAlgo::replayStopped, Qt::UniqueConnection);
+        connect(dbClient, &DBClient::replayTimeUpdated, this, &MainAlgo::onReplayTimeReceived, Qt::UniqueConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(dbClient, &DBClient::replayEndReached, this, &MainAlgo::replayEndReached, Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
     connected =
-        connect(m_replayEngine, &ReplayEngine::replayPaused, this, &MainAlgo::replayPaused, Qt::UniqueConnection);
+        connect(dbClient, &DBClient::replayEndReached, this, &MainAlgo::onReplayEndReached, Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    connected =
-        connect(m_replayEngine, &ReplayEngine::replayResumed, this, &MainAlgo::replayResumed, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::replayTimeUpdated,
-                        this,
-                        &MainAlgo::onReplayTimeReceived,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::replayEndReached,
-                        this,
-                        &MainAlgo::replayEndReached,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    // Also handle end of replay to pause heartbeat timers
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::replayEndReached,
-                        this,
-                        &MainAlgo::onReplayEndReached,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    // Connect replay data signals to SymbolContext receivers
     connectReplaySignals(p_symbol);
 
-    DEBUG << "ReplayEngine created and connected";
+    DEBUG << "DBClient replay signals connected";
 
-    // Activate GUI throttle if starting at max speed
-    if (p_speed == ReplayEngine::PlaybackSpeed::AsFastAsPossible)
+    if (p_speed == Playback::Speed::AsFastAsPossible)
         activateGuiThrottle();
 
-    // Only setup order/position streams on first entry to replay mode
-    if (!isRecreatingEngine)
+    if (!isReentry)
     {
         startReplayOrderStreams();
     }
 
-    // Start in paused state - emit first record then pause
-    m_replayEngine->startReplayPaused(p_symbol, p_date, p_startTime, p_speed);
+    dbClient->startReplayPaused(p_symbol, p_date, p_startTime, p_speed);
 
     // Pause heartbeat timers since we're starting in paused state
     for (auto& instrument: m_symbolContexts)
@@ -1429,8 +1329,6 @@ void MainAlgo::enterReplayModePaused(const QString& p_symbol,
 
 void MainAlgo::connectReplaySignals(const QString& p_symbol)
 {
-    OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
-
     auto it = m_symbolContexts.find(p_symbol);
     if (it == m_symbolContexts.end() || it.value().isNull())
     {
@@ -1439,23 +1337,15 @@ void MainAlgo::connectReplaySignals(const QString& p_symbol)
     }
 
     SymbolContext* instrument = it.value();
+    auto* dbClient = DBClient::getInstance();
 
-    // Replay Level2 → Level2Receiver
-    bool connected = connect(m_replayEngine,
-                             &ReplayEngine::replayLevel2,
-                             &instrument->m_level2Receiver,
-                             [instrument](const QString& /*sym*/, const Level2& l2)
-                             { instrument->m_level2Receiver.onReceivedNewLevel2(l2); });
-    ASSUME_TRUE(connected);
-
-    // Replay Level2 → OrderEmulator (so it has market data for order fills)
+    // Replay Level2 → OrderEmulator (market data for order fills)
     if (OrderEmulator* emulator = TSClient::getInstance()->getOrderEmulator())
     {
-        connected = connect(m_replayEngine, &ReplayEngine::replayLevel2, emulator, &OrderEmulator::updateMarketDepth);
+        bool connected = connect(dbClient, &DBClient::newLevel2, emulator, &OrderEmulator::updateMarketDepth);
         ASSUME_TRUE(connected);
 
-        // Bar close price → OrderEmulator (needed by recalculatePositionPnL for P&L updates)
-        // Both barUpdated (live candle) and barClosed (minute boundary) keep the price current.
+        // Bar close price → OrderEmulator (needed by recalculatePositionPnL)
         auto feedBarClose = [emulator](const QString& sym, const Bar& bar)
         { emulator->updateBarClose(sym, bar.getClose()); };
 
@@ -1465,24 +1355,11 @@ void MainAlgo::connectReplaySignals(const QString& p_symbol)
         ASSUME_TRUE(connected);
     }
 
-    // Replay Trade → LiveBarAccumulator (builds bars from trades)
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::replayTrade,
-                        &instrument->m_liveBarAccumulator,
-                        &LiveBarAccumulator::onNewTrade);
-    ASSUME_TRUE(connected);
-
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::replayTrade,
-                        &instrument->m_live10sBarAccumulator,
-                        &LiveBarAccumulator::onNewTrade);
-    ASSUME_TRUE(connected);
-
-    // Replay Trade → forward to FrontEnd as displayed stock trade
-    connected = connect(m_replayEngine,
-                        &ReplayEngine::replayTrade,
-                        this,
-                        [this](const QString& sym, const Trade& trade) { onDisplayedTradeReceived(sym, trade); });
+    // Forward trades for displayed symbol to FrontEnd
+    bool connected = connect(dbClient,
+                             &DBClient::newTrade,
+                             this,
+                             [this](const QString& sym, const Trade& trade) { onDisplayedTradeReceived(sym, trade); });
     ASSUME_TRUE(connected);
 
     INFO << "Replay signals connected for" << p_symbol;
@@ -1498,25 +1375,25 @@ void MainAlgo::exitReplayMode()
 {
     INFO << "MainAlgo exiting replay mode";
 
-    OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
-
     deactivateGuiThrottle();
 
-    m_replayEngine->stopReplay();
+    auto* dbClient = DBClient::getInstance();
+    dbClient->stopReplay();
 
-    // Clean up replay engine
-    delete m_replayEngine;
-    m_replayEngine = nullptr;
+    // Disconnect replay-specific signals from DBClient
+    disconnect(dbClient, &DBClient::replayStarted, this, nullptr);
+    disconnect(dbClient, &DBClient::replayStopped, this, nullptr);
+    disconnect(dbClient, &DBClient::replayPaused, this, nullptr);
+    disconnect(dbClient, &DBClient::replayResumed, this, nullptr);
+    disconnect(dbClient, &DBClient::replayTimeUpdated, this, nullptr);
+    disconnect(dbClient, &DBClient::replayEndReached, this, nullptr);
 }
 
 void MainAlgo::pauseReplay()
 {
-    // If we can click "Pause", replay engine must exist
-    OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
+    DBClient::getInstance()->pauseReplay();
 
-    m_replayEngine->pauseReplay();
-
-    // Pause heartbeat timers on ALL mock streams to prevent timeout while paused
+    // Pause heartbeat timers on ALL streams to prevent timeout while paused
     for (auto& instrument: m_symbolContexts)
     {
         OBJ_ASSUME_FALSE(instrument.isNull());
@@ -1527,9 +1404,6 @@ void MainAlgo::pauseReplay()
 
 void MainAlgo::resumeReplay()
 {
-    // If we can click "Resume", replay engine must exist
-    OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
-
     // Resume heartbeat timers on ALL streams before resuming replay
     for (auto& instrument: m_symbolContexts)
     {
@@ -1538,15 +1412,12 @@ void MainAlgo::resumeReplay()
         instrument->m_level2Receiver.resumeHeartbeat();
     }
 
-    m_replayEngine->resumeReplay();
+    DBClient::getInstance()->resumeReplay();
 }
 
-void MainAlgo::setReplaySpeed(ReplayEngine::PlaybackSpeed p_speed)
+void MainAlgo::setReplaySpeed(Playback::Speed p_speed)
 {
-    if (m_replayEngine != nullptr)
-    {
-        m_replayEngine->setSpeed(p_speed);
-    }
+    DBClient::getInstance()->setReplaySpeed(p_speed);
 
     // Sync speed to OrderEmulator so latency is scaled correctly
     if (OrderEmulator* emulator = TSClient::getInstance()->getOrderEmulator())
@@ -1555,7 +1426,7 @@ void MainAlgo::setReplaySpeed(ReplayEngine::PlaybackSpeed p_speed)
     }
 
     // Toggle GUI throttle based on speed
-    if (p_speed == ReplayEngine::PlaybackSpeed::AsFastAsPossible)
+    if (p_speed == Playback::Speed::AsFastAsPossible)
         activateGuiThrottle();
     else
         deactivateGuiThrottle();
@@ -1745,18 +1616,9 @@ void MainAlgo::resumeLiveStreams()
                 });
 }
 
-ReplayEngine::PlaybackState MainAlgo::getReplayState() const
+Playback::State MainAlgo::getReplayState() const
 {
-    if (m_replayEngine == nullptr)
-    {
-        return ReplayEngine::PlaybackState::Stopped;
-    }
-    return m_replayEngine->getState();
-}
-
-ReplayEngine* MainAlgo::getReplayEngine() const
-{
-    return m_replayEngine;
+    return DBClient::getInstance()->getPlaybackState();
 }
 
 void MainAlgo::deleteAllSymbolContext()
