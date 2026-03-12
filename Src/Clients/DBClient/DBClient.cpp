@@ -222,6 +222,8 @@ namespace
     {
         switch (BarUtils::aggregateSourceTimeFrame(tf))
         {
+        case TimeFrame::ONE_SECOND:
+            return databento::Schema::Ohlcv1S;
         case TimeFrame::ONE_HOUR:
             return databento::Schema::Ohlcv1H;
         case TimeFrame::ONE_DAY:

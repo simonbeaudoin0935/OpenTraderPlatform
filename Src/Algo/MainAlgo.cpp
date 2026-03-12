@@ -235,6 +235,15 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
                    this,
                    &MainAlgo::onAggregatorBarClosed);
 
+        disconnect(&currentDisplayedStockInstrument->m_live10sBarAccumulator,
+                   &LiveBarAccumulator::barUpdated,
+                   this,
+                   nullptr);
+        disconnect(&currentDisplayedStockInstrument->m_live10sBarAccumulator,
+                   &LiveBarAccumulator::barClosed,
+                   this,
+                   nullptr);
+
         disconnect(&currentDisplayedStockInstrument->m_level2Receiver,
                    &Level2Receiver::receivedNewLevel2,
                    this,
@@ -286,6 +295,23 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             &BarAggregator::barClosed,
             this,
             &MainAlgo::onAggregatorBarClosed);
+
+    // Forward 10s bar updates via the aggregator signal path (reuses GUIFrontend's existing TF filter)
+    connect(
+        &currentDisplayedStockInstrument->m_live10sBarAccumulator,
+        &LiveBarAccumulator::barUpdated,
+        this,
+        [this, symbol](const QString&, const Bar& bar)
+        { emit displayedStockAggregatorBarUpdated(symbol, TimeFrame::TEN_SECONDS, bar); },
+        Qt::UniqueConnection);
+
+    connect(
+        &currentDisplayedStockInstrument->m_live10sBarAccumulator,
+        &LiveBarAccumulator::barClosed,
+        this,
+        [this, symbol](const QString&, const Bar& bar)
+        { emit displayedStockAggregatorBarClosed(symbol, TimeFrame::TEN_SECONDS, bar); },
+        Qt::UniqueConnection);
 
     connect(&currentDisplayedStockInstrument->m_level2Receiver,
             &Level2Receiver::receivedNewLevel2,
@@ -640,7 +666,8 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
     , barCache(p_symbol, this)
     , barReceiver(p_symbol, this)
     , m_level2Receiver(p_symbol, this)
-    , m_liveBarAccumulator(this)
+    , m_liveBarAccumulator(this, 60)
+    , m_live10sBarAccumulator(this, 10)
     , m_barAggregator(this)
 {
     this->setObjectName("StockInstrument::" + p_symbol);
@@ -676,6 +703,13 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
     connected = connect(&m_barAggregator, &BarAggregator::barClosed, &barCache, &BarCache::storeBar);
     OBJ_ASSUME_TRUE(connected);
 
+    // Wire 10s accumulator barClosed → BarCache for 10s bar storage
+    connected = connect(&m_live10sBarAccumulator,
+                        &LiveBarAccumulator::barClosed,
+                        &barCache,
+                        [this](const QString&, const Bar& bar) { barCache.storeBar(TimeFrame::TEN_SECONDS, bar); });
+    OBJ_ASSUME_TRUE(connected);
+
     // In replay mode, data comes from ReplayEngine (connected by MainAlgo::connectReplaySignals)
     // In live mode, data comes from DBClient signals
     if (!MainApp::isInReplayMode())
@@ -693,7 +727,7 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
                             });
         OBJ_ASSUME_TRUE(connected);
 
-        // Wire DBClient::newTrade → LiveBarAccumulator (filtered by symbol)
+        // Wire DBClient::newTrade → 1m and 10s bar accumulators (filtered by symbol)
         connected = connect(dbClient,
                             &DBClient::newTrade,
                             &m_liveBarAccumulator,
@@ -701,6 +735,16 @@ StockInstruments::StockInstruments(const QString& p_symbol, QObject* p_parent)
                             {
                                 if (sym == symbol)
                                     m_liveBarAccumulator.onNewTrade(symbol, trade);
+                            });
+        OBJ_ASSUME_TRUE(connected);
+
+        connected = connect(dbClient,
+                            &DBClient::newTrade,
+                            &m_live10sBarAccumulator,
+                            [this](const QString& sym, const Trade& trade)
+                            {
+                                if (sym == symbol)
+                                    m_live10sBarAccumulator.onNewTrade(symbol, trade);
                             });
         OBJ_ASSUME_TRUE(connected);
 
@@ -941,6 +985,12 @@ void MainAlgo::connectSecondaryReplaySignals(const QString& p_symbol,
     connected = connect(p_engine,
                         &ReplayEngine::replayTrade,
                         &p_instrument->m_liveBarAccumulator,
+                        &LiveBarAccumulator::onNewTrade);
+    ASSUME_TRUE(connected);
+
+    connected = connect(p_engine,
+                        &ReplayEngine::replayTrade,
+                        &p_instrument->m_live10sBarAccumulator,
                         &LiveBarAccumulator::onNewTrade);
     ASSUME_TRUE(connected);
 
@@ -1335,6 +1385,12 @@ void MainAlgo::connectReplaySignals(const QString& p_symbol)
     connected = connect(m_replayEngine,
                         &ReplayEngine::replayTrade,
                         &instrument->m_liveBarAccumulator,
+                        &LiveBarAccumulator::onNewTrade);
+    ASSUME_TRUE(connected);
+
+    connected = connect(m_replayEngine,
+                        &ReplayEngine::replayTrade,
+                        &instrument->m_live10sBarAccumulator,
                         &LiveBarAccumulator::onNewTrade);
     ASSUME_TRUE(connected);
 

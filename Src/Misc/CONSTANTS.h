@@ -369,6 +369,21 @@ namespace MarketCalendar
 {
     inline const QTime EARLY_CLOSE_TIME = QTime(13, 0); // 1:00 PM ET
 
+    // Full-day NYSE closures in 2025 (Mon–Fri holidays)
+    inline const std::array<QDate, 10> HOLIDAYS_2025 = {
+        QDate(2025, 1, 1),   // New Year's Day
+        QDate(2025, 1, 20),  // Martin Luther King Jr. Day
+        QDate(2025, 2, 17),  // Presidents' Day
+        QDate(2025, 4, 18),  // Good Friday
+        QDate(2025, 5, 26),  // Memorial Day
+        QDate(2025, 6, 19),  // Juneteenth National Independence Day
+        QDate(2025, 7, 4),   // Independence Day
+        QDate(2025, 9, 1),   // Labor Day
+        QDate(2025, 11, 27), // Thanksgiving Day
+        // Christmas Dec 25 falls on Thursday in 2025
+        QDate(2025, 12, 25), // Christmas Day
+    };
+
     // Full-day NYSE closures in 2026 (Mon–Fri holidays)
     inline const std::array<QDate, 10> HOLIDAYS_2026 = {
         QDate(2026, 1, 1),   // New Year's Day
@@ -388,6 +403,43 @@ namespace MarketCalendar
         QDate(2026, 11, 25), // Day before Thanksgiving
         QDate(2026, 12, 24), // Christmas Eve
     };
+
+    /// Returns the holiday name for a given date, or an empty string if the date
+    /// is not a known NYSE holiday.
+    inline QString getHolidayName(const QDate& date)
+    {
+        // Map of all known holiday dates → display name
+        static const std::array<std::pair<QDate, QString>, 20> ALL_HOLIDAYS = {{
+            // 2025
+            {QDate(2025, 1, 1), "New Year's Day"},
+            {QDate(2025, 1, 20), "Martin Luther King Jr. Day"},
+            {QDate(2025, 2, 17), "Presidents' Day"},
+            {QDate(2025, 4, 18), "Good Friday"},
+            {QDate(2025, 5, 26), "Memorial Day"},
+            {QDate(2025, 6, 19), "Juneteenth"},
+            {QDate(2025, 7, 4), "Independence Day"},
+            {QDate(2025, 9, 1), "Labor Day"},
+            {QDate(2025, 11, 27), "Thanksgiving Day"},
+            {QDate(2025, 12, 25), "Christmas Day"},
+            // 2026
+            {QDate(2026, 1, 1), "New Year's Day"},
+            {QDate(2026, 1, 19), "Martin Luther King Jr. Day"},
+            {QDate(2026, 2, 16), "Presidents' Day"},
+            {QDate(2026, 4, 3), "Good Friday"},
+            {QDate(2026, 5, 25), "Memorial Day"},
+            {QDate(2026, 6, 19), "Juneteenth"},
+            {QDate(2026, 7, 3), "Independence Day (observed)"},
+            {QDate(2026, 9, 7), "Labor Day"},
+            {QDate(2026, 11, 26), "Thanksgiving Day"},
+            {QDate(2026, 12, 25), "Christmas Day"},
+        }};
+        for (const auto& [h, name]: ALL_HOLIDAYS)
+        {
+            if (h == date)
+                return name;
+        }
+        return {};
+    }
 
     inline bool isHoliday(const QDate& date)
     {

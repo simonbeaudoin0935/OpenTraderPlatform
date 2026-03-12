@@ -12,16 +12,17 @@
 Q_DECLARE_LOGGING_CATEGORY(LiveBarAccumulatorLog)
 
 /**
- * @brief Accumulates individual Trade records into forming 1-minute OHLCV bars.
+ * @brief Accumulates individual Trade records into forming OHLCV bars of configurable interval.
  *
  * Databento streams raw trade prints (TradeMsg → Trade), not pre-built bars.
  * This class maintains one forming bar per symbol and emits signals on bar
- * updates (every trade) and bar closures (minute boundary rollover).
+ * updates (every trade) and bar closures (interval boundary rollover).
  *
  * ## Bar timestamp convention
  * Bars are timestamped with the **open time** of the interval (Databento convention):
- *   - A trade at 09:31:04 contributes to the bar timestamped 09:31:00
- *   - The bar covering 09:31:00–09:31:59 is timestamped 09:31
+ *   - For 60s interval: a trade at 09:31:04 contributes to bar timestamped 09:31:00
+ *   - For 10s interval: a trade at 09:31:04 contributes to bar timestamped 09:31:00
+ *   - A trade at 09:31:10 contributes to bar timestamped 09:31:10
  *
  * ## Threading
  * This object should live on the MainAlgo thread. Connect DBClient::newTrade → onNewTrade.
@@ -34,7 +35,11 @@ class LiveBarAccumulator : public QObject
     Q_OBJECT
 
   public:
-    explicit LiveBarAccumulator(QObject* p_parent = nullptr);
+    /**
+     * @param p_parent         Qt parent
+     * @param p_intervalSeconds Bar interval in seconds (default 60 = 1 minute, 10 = 10 seconds)
+     */
+    explicit LiveBarAccumulator(QObject* p_parent = nullptr, int p_intervalSeconds = 60);
 
   public slots:
     /**
@@ -50,7 +55,7 @@ class LiveBarAccumulator : public QObject
 
   signals:
     /**
-     * @brief Emitted when a 1-minute bar is completed (minute boundary crossed).
+     * @brief Emitted when a bar is completed (interval boundary crossed).
      * Thread context: Emitted from MainAlgo thread (same thread as onNewTrade slot)
      * @param p_symbol Ticker symbol
      * @param p_bar    The completed bar (BarStatus::Closed)
@@ -71,7 +76,7 @@ class LiveBarAccumulator : public QObject
      */
     struct FormingBar
     {
-        QDateTime barOpenTime; ///< The open-time timestamp for this bar's minute
+        QDateTime barOpenTime; ///< The open-time timestamp for this bar's interval
         float open = 0.0f;
         float high = 0.0f;
         float low = 0.0f;
@@ -81,9 +86,9 @@ class LiveBarAccumulator : public QObject
 
     /**
      * @brief Compute the bar open-time for a given trade timestamp.
-     * A trade at 09:31:04 → bar open time 09:31:00 (floor to current minute).
+     * Floors to the current interval boundary (e.g. 10-second or 1-minute).
      */
-    [[nodiscard]] static QDateTime barOpenTimeForTrade(const QDateTime& p_tradeTime);
+    [[nodiscard]] QDateTime barOpenTimeForTrade(const QDateTime& p_tradeTime) const;
 
     /**
      * @brief Convert internal FormingBar to an immutable Bar object.
@@ -91,4 +96,5 @@ class LiveBarAccumulator : public QObject
     [[nodiscard]] static Bar toBar(const FormingBar& p_forming, Bar::BarStatus p_status);
 
     QMap<QString, FormingBar> m_formingBars;
+    int m_intervalSeconds; ///< Bar interval in seconds (e.g. 10 or 60)
 };

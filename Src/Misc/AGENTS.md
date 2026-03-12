@@ -93,13 +93,20 @@ namespace PollingConstants {
 }
 
 namespace MarketCalendar {
-    // 10 full-day NYSE closures in 2026
+    // Full-day NYSE closures (2025 + 2026 arrays, merged via ALL_HOLIDAYS static map)
+    const std::array<QDate, 9>  HOLIDAYS_2025 = { ... };
     const std::array<QDate, 10> HOLIDAYS_2026 = { ... };
     // 2 early-close days at 1:00 PM ET
     const std::array<QDate, 2> EARLY_CLOSE_DAYS_2026 = { ... };
     const QTime EARLY_CLOSE_TIME = QTime(13, 0);
+
     bool isHoliday(const QDate& date);
     bool isEarlyCloseDay(const QDate& date);
+
+    // Returns display name (e.g. "Presidents' Day") or "" for non-holidays.
+    // Used by StockPriceChart to draw grey watermark labels and to skip API
+    // calls for known non-trading days in checkForMissingBars().
+    QString getHolidayName(const QDate& date);
 }
 ```
 

@@ -379,6 +379,7 @@ void ChartToolbar::setHardToBorrow(bool active)
 void ChartToolbar::populateTimeFrames()
 {
     comboBox->clear();
+    comboBox->addItem("10s", static_cast<int>(TimeFrame::TEN_SECONDS));
     comboBox->addItem("1m", static_cast<int>(TimeFrame::ONE_MINUTE));
     comboBox->addItem("5m", static_cast<int>(TimeFrame::FIVE_MINUTES));
     comboBox->addItem("15m", static_cast<int>(TimeFrame::FIFTEEN_MINUTES));

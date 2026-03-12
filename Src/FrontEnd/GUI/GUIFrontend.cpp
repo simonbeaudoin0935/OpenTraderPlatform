@@ -141,6 +141,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
         return shortcut;
     };
 
+    m_timeFrame10sShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame10s, TimeFrame::TEN_SECONDS);
     m_timeFrame1mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame1m, TimeFrame::ONE_MINUTE);
     m_timeFrame5mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame5m, TimeFrame::FIVE_MINUTES);
     m_timeFrame15mShortcut = createTimeFrameShortcut(ShortcutSettings::TimeFrame15m, TimeFrame::FIFTEEN_MINUTES);
@@ -1310,7 +1311,6 @@ void GUIFrontend::displayStock(const QString& symbol)
 
     currentlyDisplayedSymbol = symbol;
 
-    ui->priceChart->clearSymbol();
     ui->priceChart->setSymbol(symbol);
 
     ui->timeAndSalesWidget->clearData();
@@ -1625,6 +1625,11 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
         qInfo() << "Updated toggle replay mode shortcut to:" << p_newSequence.toString();
         break;
 
+    case ShortcutSettings::TimeFrame10s:
+        Q_CHECK_PTR(m_timeFrame10sShortcut);
+        m_timeFrame10sShortcut->setKey(p_newSequence);
+        break;
+
     case ShortcutSettings::TimeFrame1m:
         Q_CHECK_PTR(m_timeFrame1mShortcut);
         m_timeFrame1mShortcut->setKey(p_newSequence);
@@ -1743,6 +1748,20 @@ void GUIFrontend::onCancelAllOrders()
 void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDateTime& to)
 {
     DEBUG << "Request missing bars from " << from << " to " << to;
+
+    // Guard against the race where setSymbol() fires on the GUI thread but the queued
+    // onSelectDisplayedStock() hasn't reached MainAlgo yet (cross-thread delivery).
+    // In that case MainAlgo's currentDisplayedStockInstrument still points to the OLD
+    // symbol, so we would paint bars from the wrong BarCache.  Retry in 50ms — by that
+    // time the queued event will have been processed.
+    const QString expectedSymbol = ui->priceChart->getCurrentSymbol();
+    if (MainAlgo::getInstance()->getDisplayedSymbol() != expectedSymbol)
+    {
+        DEBUG << "Symbol mismatch (MainAlgo:" << MainAlgo::getInstance()->getDisplayedSymbol()
+              << "vs chart:" << expectedSymbol << ") — retrying in 50ms";
+        QTimer::singleShot(50, this, [this, from, to]() { requestMissingBarsFromCache(from, to); });
+        return;
+    }
 
     BarCache::GetBarsResult_t result = MainAlgo::getInstance()->requestMissingBarsDisplayedStock(from.date(),
                                                                                                  from.time(),

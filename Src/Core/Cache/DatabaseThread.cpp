@@ -12,6 +12,7 @@
 #include "SQL/DatabaseThreadQueries.h"
 #include "CONSTANTS.h"
 #include "BarUtils.h"
+#include "LTTng/LTTngTracepoints.h"
 
 #define LOGGING_CATEGORY DatabaseThreadLog
 
@@ -350,14 +351,48 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, TimeFrame tf,
         {
             DEBUG << "Database has" << bars->size() << "of" << expectedCount
                   << "expected bars — accepting as sufficiently complete";
+            L2T_TP(l2trader,
+                   barcache_l2_hit,
+                   symbol.toUtf8().constData(),
+                   static_cast<int>(tf),
+                   date.toString("yyyy-MM-dd").toUtf8().constData(),
+                   static_cast<int>(bars->size()),
+                   expectedCount);
             return bars;
         }
 
         DEBUG << "Database does not have complete set of bars for" << symbol << "on date" << date << "- expected"
               << expectedCount << "bars but got" << bars->size();
 
+        if (bars->isEmpty())
+        {
+            L2T_TP(l2trader,
+                   barcache_l2_miss,
+                   symbol.toUtf8().constData(),
+                   static_cast<int>(tf),
+                   date.toString("yyyy-MM-dd").toUtf8().constData());
+        }
+        else
+        {
+            L2T_TP(l2trader,
+                   barcache_l2_partial,
+                   symbol.toUtf8().constData(),
+                   static_cast<int>(tf),
+                   date.toString("yyyy-MM-dd").toUtf8().constData(),
+                   expectedCount,
+                   static_cast<int>(bars->size()));
+        }
+
         return std::nullopt;
     }
+
+    L2T_TP(l2trader,
+           barcache_l2_hit,
+           symbol.toUtf8().constData(),
+           static_cast<int>(tf),
+           date.toString("yyyy-MM-dd").toUtf8().constData(),
+           static_cast<int>(bars->size()),
+           expectedCount);
 
     return bars;
 }

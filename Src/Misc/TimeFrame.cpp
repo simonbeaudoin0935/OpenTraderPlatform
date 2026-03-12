@@ -7,6 +7,8 @@ QString timeFrameToString(TimeFrame timeframe)
 {
     switch (timeframe)
     {
+    case TimeFrame::TEN_SECONDS:
+        return "10s";
     case TimeFrame::ONE_MINUTE:
         return "1m";
     case TimeFrame::FIVE_MINUTES:
@@ -35,6 +37,8 @@ QString timeFrameToString(TimeFrame timeframe)
  */
 TimeFrame stringToTimeFrame(const QString& timeframeStr)
 {
+    if (timeframeStr == "10s")
+        return TimeFrame::TEN_SECONDS;
     if (timeframeStr == "1m")
         return TimeFrame::ONE_MINUTE;
     if (timeframeStr == "5m")

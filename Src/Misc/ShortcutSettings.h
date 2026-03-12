@@ -30,6 +30,7 @@ class ShortcutSettings : public QObject
         ToggleReplayPlayPause,
         ToggleReplayMode,
         // Timescale shortcuts
+        TimeFrame10s,
         TimeFrame1m,
         TimeFrame5m,
         TimeFrame15m,

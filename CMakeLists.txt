@@ -15,6 +15,9 @@ option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
 # Option to enable AddressSanitizer
 option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
 
+# Option to enable LTTng UST userspace tracepoints
+option(LTTNG_ENABLED "Enable LTTng UST userspace tracepoints for profiling/debugging" OFF)
+
 # Option to build tests
 option(BUILD_TESTS "Build tests" ON)
 
@@ -104,6 +107,13 @@ if(ENABLE_ASAN)
     message(STATUS "AddressSanitizer enabled")
     add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
     add_link_options(-fsanitize=address)
+endif()
+
+if(LTTNG_ENABLED)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LTTNG_UST REQUIRED lttng-ust)
+    add_compile_definitions(LTTNG_ENABLED)
+    message(STATUS "LTTng UST enabled — userspace tracepoints active")
 endif()
 
 # Enable export of compile commands for IDE support
