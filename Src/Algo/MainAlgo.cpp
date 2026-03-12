@@ -174,6 +174,24 @@ void MainAlgo::onThreadStarted()
     // Centralized routing: all DBClient market data → MainAlgo → SymbolContext actor queues
     connect(DBClient::getInstance(), &DBClient::newLevel2, this, &MainAlgo::onNewLevel2Received);
     connect(DBClient::getInstance(), &DBClient::newTrade, this, &MainAlgo::onNewTradeReceived);
+
+    // Forward DBClient replay lifecycle signals to MainAlgo signals for UI.
+    // Wired once here (both singletons are stable); enterReplayMode/Paused no longer re-wires these.
+    auto* dbClient = DBClient::getInstance();
+    bool connected = connect(dbClient, &DBClient::replayStarted, this, &MainAlgo::replayStarted);
+    ASSUME_TRUE(connected);
+    connected = connect(dbClient, &DBClient::replayStopped, this, &MainAlgo::replayStopped);
+    ASSUME_TRUE(connected);
+    connected = connect(dbClient, &DBClient::replayPaused, this, &MainAlgo::replayPaused);
+    ASSUME_TRUE(connected);
+    connected = connect(dbClient, &DBClient::replayResumed, this, &MainAlgo::replayResumed);
+    ASSUME_TRUE(connected);
+    connected = connect(dbClient, &DBClient::replayTimeUpdated, this, &MainAlgo::onReplayTimeReceived);
+    ASSUME_TRUE(connected);
+    connected = connect(dbClient, &DBClient::replayEndReached, this, &MainAlgo::replayEndReached);
+    ASSUME_TRUE(connected);
+    connected = connect(dbClient, &DBClient::replayEndReached, this, &MainAlgo::onReplayEndReached);
+    ASSUME_TRUE(connected);
 }
 
 // ── Centralized routing slots ──────────────────────────────────────────────
@@ -1249,34 +1267,8 @@ void MainAlgo::enterReplayMode(const QString& p_symbol, QDate p_date, QTime p_st
 
     auto* dbClient = DBClient::getInstance();
 
-    // Forward DBClient replay lifecycle signals to MainAlgo signals for UI
-    bool connected = connect(dbClient, &DBClient::replayStarted, this, &MainAlgo::replayStarted, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(dbClient, &DBClient::replayStopped, this, &MainAlgo::replayStopped, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(dbClient, &DBClient::replayPaused, this, &MainAlgo::replayPaused, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(dbClient, &DBClient::replayResumed, this, &MainAlgo::replayResumed, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected =
-        connect(dbClient, &DBClient::replayTimeUpdated, this, &MainAlgo::onReplayTimeReceived, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(dbClient, &DBClient::replayEndReached, this, &MainAlgo::replayEndReached, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected =
-        connect(dbClient, &DBClient::replayEndReached, this, &MainAlgo::onReplayEndReached, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
     // Wire OrderEmulator to DBClient market data (same signals as live)
     connectReplaySignals(p_symbol);
-
-    DEBUG << "DBClient replay signals connected";
 
     if (p_speed == Playback::Speed::AsFastAsPossible)
         activateGuiThrottle();
@@ -1306,33 +1298,9 @@ void MainAlgo::enterReplayModePaused(const QString& p_symbol, QDate p_date, QTim
         dbClient->stopReplay();
     }
 
-    // Forward DBClient replay lifecycle signals to MainAlgo signals for UI
-    bool connected = connect(dbClient, &DBClient::replayStarted, this, &MainAlgo::replayStarted, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(dbClient, &DBClient::replayStopped, this, &MainAlgo::replayStopped, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(dbClient, &DBClient::replayPaused, this, &MainAlgo::replayPaused, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(dbClient, &DBClient::replayResumed, this, &MainAlgo::replayResumed, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected =
-        connect(dbClient, &DBClient::replayTimeUpdated, this, &MainAlgo::onReplayTimeReceived, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(dbClient, &DBClient::replayEndReached, this, &MainAlgo::replayEndReached, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected =
-        connect(dbClient, &DBClient::replayEndReached, this, &MainAlgo::onReplayEndReached, Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
+    // Forward DBClient replay lifecycle signals are wired once in onThreadStarted().
 
     connectReplaySignals(p_symbol);
-
-    DEBUG << "DBClient replay signals connected";
 
     if (p_speed == Playback::Speed::AsFastAsPossible)
         activateGuiThrottle();
