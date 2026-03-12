@@ -36,30 +36,44 @@ namespace BarUtils
  * Since the BarCache is a rebuildable cache (Databento is the source of truth),
  * no migration is required — the cache is simply regenerated.
  */
-    inline constexpr int BARCACHE_SCHEMA_VERSION = 2; // v1 = 1m-only, v2 = multi-timescale
+    inline constexpr int BARCACHE_SCHEMA_VERSION = 3; // v1=1m-only, v2=multi-TF, v3=seconds-based enum + 10s
 
     /**
- * @brief Returns the number of minutes per bar for a given timescale.
+ * @brief Returns the number of seconds per bar for a given timescale.
  *
- * The TimeFrame enum values are defined in minutes, so this is a direct cast.
+ * TimeFrame enum values are defined in seconds, so this is a direct cast.
  *
  * @param p_tf The timescale
- * @return Number of minutes per bar
+ * @return Number of seconds per bar
  */
-    [[nodiscard]] inline constexpr int minutesPerBar(TimeFrame p_tf)
+    [[nodiscard]] inline constexpr int secondsPerBar(TimeFrame p_tf)
     {
         return static_cast<int>(p_tf);
     }
 
     /**
+ * @brief Returns the number of whole minutes per bar for minute-granularity timescales.
+ *
+ * Returns secondsPerBar / 60. For sub-minute timescales (TEN_SECONDS, ONE_SECOND)
+ * this is 0 — use secondsPerBar() instead.
+ *
+ * @param p_tf The timescale
+ * @return Number of minutes per bar (0 for sub-minute timescales)
+ */
+    [[nodiscard]] inline constexpr int minutesPerBar(TimeFrame p_tf)
+    {
+        return secondsPerBar(p_tf) / 60;
+    }
+
+    /**
  * @brief Returns true if the timescale covers only part of a single trading day.
  *
- * Intraday timescales (1m, 5m, 15m, 30m, 1h, 4h) are stored day-by-day with
- * multiple bars per day. Daily+ timescales (1d, 1w, 1M) use a single-bar-per-day
- * keying scheme and may span multiple calendar days.
+ * Intraday timescales (10s, 1m, 5m, 15m, 30m, 1h, 4h) are stored day-by-day
+ * with multiple bars per day. Daily+ timescales (1d, 1w, 1M) use a
+ * single-bar-per-day keying scheme and may span multiple calendar days.
  *
  * @param p_tf The timescale to test
- * @return true for 1m, 5m, 15m, 30m, 1h, 4h; false for 1d, 1w, 1M
+ * @return true for 10s, 1m, 5m, 15m, 30m, 1h, 4h; false for 1d, 1w, 1M
  */
     [[nodiscard]] inline constexpr bool isIntradayTimeFrame(TimeFrame p_tf)
     {
@@ -69,7 +83,7 @@ namespace BarUtils
     /**
  * @brief Returns true if Databento has a native OHLCV schema for this timescale.
  *
- * Native schemas: 1m (Ohlcv1M), 1h (Ohlcv1H), 1d (Ohlcv1D).
+ * Native schemas: 1s (Ohlcv1S), 1m (Ohlcv1M), 1h (Ohlcv1H), 1d (Ohlcv1D).
  * All others must be derived by aggregating a finer native timescale.
  *
  * @param p_tf The timescale to test
@@ -77,7 +91,8 @@ namespace BarUtils
  */
     [[nodiscard]] inline constexpr bool isNativeTimeFrame(TimeFrame p_tf)
     {
-        return p_tf == TimeFrame::ONE_MINUTE || p_tf == TimeFrame::ONE_HOUR || p_tf == TimeFrame::ONE_DAY;
+        return p_tf == TimeFrame::ONE_SECOND || p_tf == TimeFrame::ONE_MINUTE || p_tf == TimeFrame::ONE_HOUR ||
+               p_tf == TimeFrame::ONE_DAY;
     }
 
     /**
@@ -86,6 +101,7 @@ namespace BarUtils
  * For native timescales, returns the timescale itself (no aggregation needed).
  * For derived timescales, returns the finest native timescale to fetch first:
  *
+ *   10s             →  ONE_SECOND   (fetch 1s bars from Ohlcv1S, then aggregate 10×)
  *   5m / 15m / 30m  →  ONE_MINUTE  (fetch 1m bars, then aggregate)
  *   4h              →  ONE_HOUR    (fetch 1h bars, then aggregate)
  *   1w / 1M         →  ONE_DAY     (fetch 1d bars, then aggregate)
@@ -97,6 +113,9 @@ namespace BarUtils
     {
         if (isNativeTimeFrame(p_tf))
             return p_tf;
+
+        if (p_tf == TimeFrame::TEN_SECONDS)
+            return TimeFrame::ONE_SECOND;
 
         if (p_tf == TimeFrame::FIVE_MINUTES || p_tf == TimeFrame::FIFTEEN_MINUTES || p_tf == TimeFrame::THIRTY_MINUTES)
             return TimeFrame::ONE_MINUTE;
@@ -111,7 +130,7 @@ namespace BarUtils
     /**
  * @brief Returns the number of bars per trading day for intraday timescales.
  *
- * The L2Trader trading day spans 4:00 AM – 6:59 PM ET (900 minutes).
+ * The L2Trader trading day spans 4:00 AM – 6:59 PM ET (900 minutes = 54 000 seconds).
  * For daily+ timescales (1d, 1w, 1M) there is exactly 1 bar per cache entry.
  *
  * @param p_tf The timescale
@@ -122,22 +141,22 @@ namespace BarUtils
         if (!isIntradayTimeFrame(p_tf))
             return 1;
 
-        const int totalMinutes = static_cast<int>(BarsConstants::MINUTE_BARS_PER_DAY);
-        const int interval = minutesPerBar(p_tf);
+        const int totalSeconds = static_cast<int>(BarsConstants::MINUTE_BARS_PER_DAY) * 60; // 54 000 s
+        const int interval = secondsPerBar(p_tf);
         ASSUME_GT(interval, 0);
         // Ceiling division: include the final partial bar when the session duration
-        // is not an exact multiple of the interval (e.g., 900 min / 240 min → 4, not 3).
-        return (totalMinutes + interval - 1) / interval;
+        // is not an exact multiple of the interval (e.g., 54000 s / 14400 s → 4, not 3).
+        return (totalSeconds + interval - 1) / interval;
     }
 
     /**
  * @brief Converts a bar open-time to its zero-based index within the trading day.
  *
  * Uses the open-time convention (Databento standard): the bar is identified by
- * the minute it opens. Index 0 = 4:00 AM bar.
+ * the second it opens. Index 0 = 4:00:00 AM bar.
  *
  * For intraday timescales the formula is:
- *   index = floor((hour - 4) * 60 + minute) / minutesPerBar(tf)
+ *   index = floor((hour - 4) * 3600 + minute * 60 + second) / secondsPerBar(tf)
  *
  * For daily+ timescales (1d, 1w, 1M) this always returns 0, since the entire
  * "day" is a single bar and the QDate key is the canonical identifier.
@@ -156,12 +175,13 @@ namespace BarUtils
         ASSUME_GTE(p_time, TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION);
         ASSUME_LTE(p_time, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
 
-        const int minutesFromOpen =
-            (p_time.hour() - TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION.hour()) * 60 + p_time.minute();
-        const int interval = minutesPerBar(p_tf);
+        const int secondsFromOpen =
+            (p_time.hour() - TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION.hour()) * 3600 +
+            p_time.minute() * 60 + p_time.second();
+        const int interval = secondsPerBar(p_tf);
         ASSUME_GT(interval, 0);
 
-        const int index = minutesFromOpen / interval;
+        const int index = secondsFromOpen / interval;
         ASSUME_GTE(index, 0);
         ASSUME_LT(index, barsPerDay(p_tf));
         return index;
@@ -170,7 +190,7 @@ namespace BarUtils
     /**
  * @brief Returns the bar open-time for a given index and intraday timescale.
  *
- * Inverse of barIndex(). Returns the QTime of the first minute covered by
+ * Inverse of barIndex(). Returns the QTime of the first second covered by
  * the bar at @p p_index.
  *
  * For daily+ timescales always returns TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION
@@ -187,12 +207,13 @@ namespace BarUtils
         ASSUME_GTE(p_index, 0);
         ASSUME_LT(p_index, barsPerDay(p_tf));
 
-        const int minuteOffset =
-            p_index * minutesPerBar(p_tf) + TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION.hour() * 60;
+        const int secondOffset =
+            p_index * secondsPerBar(p_tf) + TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION.hour() * 3600;
 
-        const int hour = minuteOffset / 60;
-        const int minute = minuteOffset % 60;
-        return QTime(hour, minute, 0);
+        const int hour = secondOffset / 3600;
+        const int minute = (secondOffset % 3600) / 60;
+        const int second = secondOffset % 60;
+        return QTime(hour, minute, second);
     }
 
     /**
@@ -212,10 +233,13 @@ namespace BarUtils
 
         if (isIntradayTimeFrame(p_targetTf))
         {
-            const int minFromOpen = (time.hour() - 4) * 60 + time.minute();
-            const int targetMinutes = minutesPerBar(p_targetTf);
-            const int groupStart = (minFromOpen / targetMinutes) * targetMinutes;
-            return QDateTime(date, QTime(4 + groupStart / 60, groupStart % 60, 0, 0), p_srcTs.timeZone());
+            const int secFromOpen = (time.hour() - 4) * 3600 + time.minute() * 60 + time.second();
+            const int targetSecs = secondsPerBar(p_targetTf);
+            const int groupStartSec = (secFromOpen / targetSecs) * targetSecs;
+            const int absSeconds = groupStartSec + 4 * 3600;
+            return QDateTime(date,
+                             QTime(absSeconds / 3600, (absSeconds % 3600) / 60, absSeconds % 60, 0),
+                             p_srcTs.timeZone());
         }
         if (p_targetTf == TimeFrame::ONE_WEEK)
         {

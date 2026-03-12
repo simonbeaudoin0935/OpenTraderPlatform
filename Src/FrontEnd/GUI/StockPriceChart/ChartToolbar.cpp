@@ -629,6 +629,7 @@ void ChartToolbar::populateTimeFrames()
     comboBox->clear();
 
     // Add timeframe options with their enum values as user data
+    comboBox->addItem("10s", static_cast<int>(TimeFrame::TEN_SECONDS));
     comboBox->addItem("1m", static_cast<int>(TimeFrame::ONE_MINUTE));
     comboBox->addItem("5m", static_cast<int>(TimeFrame::FIVE_MINUTES));
     comboBox->addItem("15m", static_cast<int>(TimeFrame::FIFTEEN_MINUTES));
@@ -905,6 +906,11 @@ void ChartToolbar::updateTimeEditStep()
     // Determine step based on timeframe
     switch (m_currentTimeFrame)
     {
+    case TimeFrame::TEN_SECONDS:
+        // Sub-minute: show full hh:mm:ss precision
+        replayTimeEdit->setDisplayFormat("hh:mm:ss");
+        break;
+
     case TimeFrame::ONE_MINUTE:
         // Default 1 minute stepping, show full precision
         replayTimeEdit->setDisplayFormat("hh:mm");
@@ -955,7 +961,25 @@ void ChartToolbar::updateTimeEditStep()
  */
 QTime ChartToolbar::calculateSteppedTime(const QTime& oldTime, const QTime& newTime) const
 {
-    int stepMinutes = static_cast<int>(m_currentTimeFrame);
+    // For 10s timeframe, step in 10-second increments
+    if (m_currentTimeFrame == TimeFrame::TEN_SECONDS)
+    {
+        if (!oldTime.isValid())
+            return snapTimeToStep(newTime);
+
+        const int oldTotalSecs = oldTime.hour() * 3600 + oldTime.minute() * 60 + oldTime.second();
+        const int newTotalSecs = newTime.hour() * 3600 + newTime.minute() * 60 + newTime.second();
+        if (newTotalSecs == oldTotalSecs)
+            return newTime;
+
+        const int direction = (newTotalSecs > oldTotalSecs) ? 1 : -1;
+        const int steppedSecs = qBound(0, oldTotalSecs + direction * 10, 23 * 3600 + 59 * 60 + 59);
+        const int snappedSecs = (steppedSecs / 10) * 10;
+
+        return QTime(snappedSecs / 3600, (snappedSecs % 3600) / 60, snappedSecs % 60);
+    }
+
+    const int stepMinutes = BarUtils::minutesPerBar(m_currentTimeFrame);
 
     // For 1m timeframe, no special handling needed
     if (stepMinutes <= 1)
@@ -1025,7 +1049,14 @@ QTime ChartToolbar::snapTimeToStep(const QTime& time) const
     int hour = time.hour();
     int minute = time.minute();
 
-    int stepMinutes = static_cast<int>(m_currentTimeFrame);
+    // For 10s timeframe, snap to 10-second boundaries
+    if (m_currentTimeFrame == TimeFrame::TEN_SECONDS)
+    {
+        const int second = (time.second() / 10) * 10;
+        return QTime(hour, minute, second);
+    }
+
+    const int stepMinutes = BarUtils::minutesPerBar(m_currentTimeFrame);
 
     if (stepMinutes >= 60)
     {

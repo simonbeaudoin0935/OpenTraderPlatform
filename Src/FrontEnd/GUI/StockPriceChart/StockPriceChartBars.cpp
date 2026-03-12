@@ -18,6 +18,7 @@
 #include "Assume.h"
 #include "BarUtils.h"
 #include "SQL/StockPriceChartQueries.h"
+#include "LTTng/LTTngTracepoints.h"
 #include "BarCache.h"
 #include "MainApp.h"
 #include "Order.h"
@@ -53,11 +54,14 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
     }
 
     // Compute chart index from bar timestamp
-    const int index = ChartTimeUtils::timestampToChartIndex(bar.getTimeStamp(), m_index0Timestamp);
+    const int index = ChartTimeUtils::timestampToChartIndex(bar.getTimeStamp(), m_index0Timestamp, m_displayTimeFrame);
 
     // QCustomPlot centers candlesticks on their key. To align the left edge of the candle
-    // with the bar's open time, we offset the key by half the candle width.
-    const double keyOffset = BarUtils::minutesPerBar(m_displayTimeFrame) / 2.0;
+    // with the bar's open time, we offset the key by half the candle width in index-space.
+    // For 10s TF, the x-axis is in 10-second slots (width = 1 slot per bar → offset = 0.5).
+    // For minute+ TFs, the x-axis is in minute slots (e.g. 5m bar spans 5 slots → offset = 2.5).
+    const double keyOffset =
+        (m_displayTimeFrame == TimeFrame::TEN_SECONDS) ? 0.5 : BarUtils::minutesPerBar(m_displayTimeFrame) / 2.0;
     const double displayKey = index + keyOffset;
 
     indexToBar[index] = bar;
@@ -375,6 +379,13 @@ void StockPriceChart::clearBackgroundRects()
     }
     m_afterHoursRects.clear();
 
+    // Delete and clear holiday watermark labels
+    for (auto label: m_holidayLabels)
+    {
+        m_customPlot->removeItem(label);
+    }
+    m_holidayLabels.clear();
+
     // Clear the tracking set so backgrounds can be redrawn
     m_datesWithBackgrounds.clear();
 }
@@ -446,8 +457,63 @@ void StockPriceChart::drawFixedBackgroundRect(const QDate& date,
 }
 
 /**
- * @brief Handles the response to a missing bars request.
+ * @brief Draws a grey full-day background and a centered holiday name watermark for a day with no trading.
+ *
+ * Called when a missing-bars request for a known NYSE holiday returns zero bars.
+ * The day still appears as a slot on the timeline so the surrounding days remain
+ * visually connected, but is clearly marked as a non-trading day.
  */
+void StockPriceChart::drawHolidayDayMarker(const QDate& date, const QString& holidayName)
+{
+    OBJ_ASSUME_TRUE(m_index0Timestamp.isValid());
+
+    if (m_datesWithBackgrounds.contains(date))
+        return; // Already drawn
+
+    // Compute index range for the entire trading-hours span of this day
+    QDateTime dayStart(date, TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION, TradingHours::MARKET_TIMEZONE);
+    QDateTime dayEnd(date, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION, TradingHours::MARKET_TIMEZONE);
+
+    const double startIndex = static_cast<double>(getIndexForTimestamp(dayStart));
+    const double endIndex = static_cast<double>(getIndexForTimestamp(dayEnd)) + 1.0;
+    const double midIndex = (startIndex + endIndex) / 2.0;
+
+    // Grey background spanning the full day
+    QCPItemRect* rect = new QCPItemRect(m_customPlot);
+    Q_CHECK_PTR(rect);
+    rect->topLeft->setType(QCPItemPosition::ptPlotCoords);
+    rect->bottomRight->setType(QCPItemPosition::ptPlotCoords);
+    rect->topLeft->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    rect->bottomRight->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    rect->topLeft->setTypeY(QCPItemPosition::ptAxisRectRatio);
+    rect->bottomRight->setTypeY(QCPItemPosition::ptAxisRectRatio);
+    rect->topLeft->setCoords(startIndex, 0);
+    rect->bottomRight->setCoords(endIndex, 1);
+    rect->setPen(Qt::NoPen);
+    rect->setBrush(QBrush(QColor(50, 50, 55))); // Dark grey — distinct from normal session colors
+    rect->setLayer("background");
+    m_earlyPreMarketRects.append(rect); // Reuse existing list for cleanup
+
+    // Holiday name watermark centered vertically and horizontally on the day
+    QCPItemText* label = new QCPItemText(m_customPlot);
+    Q_CHECK_PTR(label);
+    label->setPositionAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+    label->position->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+    label->position->setType(QCPItemPosition::ptPlotCoords);
+    label->position->setTypeY(QCPItemPosition::ptAxisRectRatio);
+    label->position->setCoords(midIndex, 0.5);
+    label->setText(holidayName);
+    label->setFont(QFont(font().family(), 11, QFont::Bold));
+    label->setColor(QColor(200, 200, 200, 160));
+    label->setRotation(90); // Vertical text fits narrow day columns
+    label->setLayer("background");
+    m_holidayLabels.append(label);
+
+    m_datesWithBackgrounds.insert(date);
+    DEBUG << "Drew holiday marker for" << date << ":" << holidayName;
+}
+
+
 void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVector<Bar>>& barsPtr)
 {
 
@@ -463,8 +529,7 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
     }
     // Mark request as completed
     m_currentMissingBarsRequestToken.store(0);
-
-    OBJ_ASSUME_FALSE(barsPtr->isEmpty());
+    stopLoadingSpinner();
 
     addHistoricalBarsToIndexMapping(barsPtr);
 
@@ -531,6 +596,13 @@ void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVect
     loadHistoricalOrders();
     loadHistoricalPositions();
     loadStrategyLogMarkers();
+
+    // Re-check whether the view still extends beyond the newly loaded bars.
+    // This drives the automatic day-by-day backfill when the user has zoomed
+    // out far enough to expose multiple missing days: each arriving day releases
+    // the token and immediately schedules the next request without requiring any
+    // further user interaction.
+    onAxisRangeChanged();
 }
 
 /**
@@ -549,6 +621,27 @@ void StockPriceChart::onRequestedMissingBarsFailed()
     }
     // Mark request as completed
     m_currentMissingBarsRequestToken.store(0);
+    stopLoadingSpinner();
+
+    // Record the failed date as a known-empty day (holiday or non-trading day)
+    if (m_lastRequestedDate.isValid())
+    {
+        DEBUG << "Recording" << m_lastRequestedDate << "as known-empty (no bars returned)";
+        m_knownEmptyDates.insert(m_lastRequestedDate);
+
+        // If this date is a known NYSE holiday, draw a grey background + name watermark
+        // so the user sees "Presidents' Day" etc. rather than a blank gap.
+        const QString name = MarketCalendar::getHolidayName(m_lastRequestedDate);
+        if (!name.isEmpty() && m_index0Timestamp.isValid())
+        {
+            drawHolidayDayMarker(m_lastRequestedDate, name);
+            m_customPlot->replot();
+        }
+    }
+
+    // Continue the automatic backfill chain: re-check whether the view still
+    // extends left — the next iteration will skip the just-failed date.
+    onAxisRangeChanged();
 }
 
 /**
@@ -591,6 +684,21 @@ void StockPriceChart::redrawLastPriceLine()
     m_priceLabel->setColor(lineColor);
     m_priceLabel->position->setCoords(m_customPlot->xAxis->range().upper, displayPrice);
     m_priceLabel->setVisible(true);
+}
+
+void StockPriceChart::startLoadingSpinner()
+{
+    m_loadingSpinnerFrame = 0;
+    m_loadingSpinner->setText("⠋ Loading…");
+    m_loadingSpinner->setVisible(true);
+    m_loadingSpinnerTimer->start();
+}
+
+void StockPriceChart::stopLoadingSpinner()
+{
+    m_loadingSpinnerTimer->stop();
+    m_loadingSpinner->setVisible(false);
+    m_customPlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 /**
@@ -655,13 +763,43 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 
     if (viewStartTimeRounded.date() < firstBarTime.date())
     {
-        requestStartTime = viewStartTimeRounded;
-        requestStartTime.setTime(TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION);
+        // Always request the trading day immediately before our earliest loaded day.
+        // Using viewStartTimeRounded directly would skip all intermediate days when
+        // the user pans left by more than one day in a single gesture: the far day
+        // would load, firstKey() would jump there, and the in-between days would
+        // never be requested (view appears within available bars). By anchoring on
+        // firstBarTime we fill the gap chain one trading day at a time.
+        //
+        // Also skip weekends AND m_knownEmptyDates (holidays / non-trading days
+        // that previously returned zero bars) AND statically-known NYSE holidays
+        // so we never send an API request for a day that can never have bars.
+        QDate requestDate = firstBarTime.date().addDays(-1);
+        while (requestDate.dayOfWeek() > 5 || m_knownEmptyDates.contains(requestDate) ||
+               !MarketCalendar::getHolidayName(requestDate).isEmpty())
+        {
+            // Draw a holiday marker inline as we skip past it, so the chart
+            // never shows a blank gap — even on the first visit.
+            if (requestDate.dayOfWeek() <= 5 && !m_knownEmptyDates.contains(requestDate))
+            {
+                const QString name = MarketCalendar::getHolidayName(requestDate);
+                if (!name.isEmpty())
+                {
+                    m_knownEmptyDates.insert(requestDate);
+                    if (m_index0Timestamp.isValid())
+                        drawHolidayDayMarker(requestDate, name);
+                }
+            }
+            requestDate = requestDate.addDays(-1);
+        }
 
-        requestEndTime = viewStartTimeRounded;
-        requestEndTime.setTime(TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION);
+        requestStartTime = QDateTime(requestDate,
+                                     TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
+                                     TradingHours::MARKET_TIMEZONE);
+        requestEndTime =
+            QDateTime(requestDate, TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION, TradingHours::MARKET_TIMEZONE);
 
-        DEBUG << "Requesting previous day from" << requestStartTime << "to" << requestEndTime;
+        m_lastRequestedDate = requestDate;
+        DEBUG << "Requesting day before first loaded bar:" << requestStartTime << "to" << requestEndTime;
     }
     else
     {
@@ -671,6 +809,7 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
         requestEndTime = firstBarTime;
         requestEndTime = requestEndTime.addSecs(-60);
 
+        m_lastRequestedDate = firstBarTime.date();
         DEBUG << "Requesting for same day from" << requestStartTime << "to" << requestEndTime;
     }
 
@@ -678,6 +817,14 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
 
     // Mark request as in-flight by setting a non-zero token
     m_currentMissingBarsRequestToken.fetch_add(1);
+    startLoadingSpinner();
+
+    L2T_TP(l2trader,
+           chart_missing_bars_request,
+           m_symbol.toUtf8().constData(),
+           static_cast<int>(m_displayTimeFrame),
+           requestStartTime.toString(Qt::ISODate).toUtf8().constData(),
+           requestEndTime.toString(Qt::ISODate).toUtf8().constData());
 
     emit requestMissingBars(requestStartTime, requestEndTime);
 }
@@ -710,6 +857,9 @@ void StockPriceChart::clearSymbol()
 
     // Cancel any in-flight missing bars request (stale responses will be ignored)
     m_currentMissingBarsRequestToken.store(0);
+    m_lastRequestedDate = QDate();
+    m_knownEmptyDates.clear();
+    stopLoadingSpinner();
 
     m_customPlot->xAxis->setRange(0, 30);
     m_customPlot->axisRect()->axis(QCPAxis::atRight)->setRange(0, 100);
@@ -754,6 +904,9 @@ void StockPriceChart::clearChart(bool p_replot)
 
     // Cancel any in-flight missing bars request (stale responses will be ignored)
     m_currentMissingBarsRequestToken.store(0);
+    m_lastRequestedDate = QDate();
+    m_knownEmptyDates.clear();
+    stopLoadingSpinner();
 
     // Reset view range (unless preserved for timescale switch)
     if (!m_preservedXRange.has_value())

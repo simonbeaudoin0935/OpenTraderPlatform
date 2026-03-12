@@ -5,7 +5,7 @@
             "name": "Debug L2Trader",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/Src/L2Trader",
+            "program": "${workspaceFolder}/build/GUI/Src/L2Trader",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

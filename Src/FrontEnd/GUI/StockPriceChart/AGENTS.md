@@ -462,8 +462,82 @@ QTimer m_updateThrottle;  // 100ms interval max 10 updates/sec
 
 Historical bars loaded on-demand:
 - User pans left → request earlier bars
-- RequestMissingBars emitted → MainApp fetches from cache
+- `RequestMissingBars` emitted → `GUIFrontend::requestMissingBarsFromCache` → `MainAlgo::requestMissingBarsDisplayedStock`
 - Received bars added to chart via `onRequestedMissingBarsReceived()`
+
+**Token-based in-flight guard**: `m_currentMissingBarsRequestToken` (atomic uint64) prevents duplicate requests.
+A non-zero token means a request is in flight; `checkForMissingBars` returns early if token ≠ 0.
+`clearSymbol()` / timescale switch reset the token to 0, causing any later response to be ignored as stale.
+
+**Automatic chain-fill**: When `onRequestedMissingBarsReceived` or `onRequestedMissingBarsFailed` completes,
+it clears the token and calls `onAxisRangeChanged()` to re-trigger `checkForMissingBars`. This drives
+day-by-day backfill automatically without user interaction.
+
+**One-day-at-a-time fill**: `checkForMissingBars` always requests the day immediately before `firstBarTime`,
+not the view start. This prevents skipping intermediate days when the user pans far left in one move.
+
+### Known-Empty Date Tracking
+
+`m_knownEmptyDates: QSet<QDate>` accumulates dates that produced zero bars (non-trading days, unknown
+market closures). `checkForMissingBars` skips these in the `while` loop so the same date is never
+retried after a failure.
+
+**Holiday pre-check**: The `while` loop also calls `MarketCalendar::getHolidayName(date)` for every
+candidate date. If the name is non-empty, the date is added to `m_knownEmptyDates` and
+`drawHolidayDayMarker()` is called immediately — **no BarCache or API call is made**. This means
+known NYSE holidays (Presidents' Day, MLK, etc.) render their grey watermark instantly when the
+user first pans into them.
+
+### Holiday Visual Markers
+
+`drawHolidayDayMarker(date, name)` draws:
+- A dark-grey `QCPItemRect` (`QColor(50,50,55)`) on the `"background"` layer spanning the full trading-hours day
+- A rotated 90° `QCPItemText` centered on the day with the holiday name
+
+Holiday names come from `MarketCalendar::getHolidayName()` in `Src/Misc/CONSTANTS.h`.
+Cleanup is handled by `clearBackgroundRects()` (rect in `m_earlyPreMarketRects`, label in `m_holidayLabels`).
+
+### Loading Spinner
+
+A `QCPItemText` on the `"overlay"` layer positioned at `(0.01, 0.5)` in axis-rect-ratio coordinates
+(always visible at the left edge, independent of pan position) provides an animated loading indicator.
+
+- **Frames**: 10 braille-dot characters `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` cycled at 80ms (~12fps)
+- **Start**: `startLoadingSpinner()` called in `checkForMissingBars` after token is set
+- **Stop**: `stopLoadingSpinner()` called in `onRequestedMissingBarsReceived`, `onRequestedMissingBarsFailed`, `clearSymbol`, `clearChart`
+- **Driver**: `m_loadingSpinnerTimer (QTimer, 80ms)` calls `rpQueuedReplot` on each tick
+
+### Symbol Switch: Range Preservation and Stale-Data Prevention
+
+`setSymbol(symbol)` is the single entry point for changing the displayed stock. It:
+1. Captures `m_preservedXRange = xAxis->range()` if `m_index0Timestamp.isValid()` (i.e., chart has content)
+2. Calls `clearSymbol()` — wipes all bar data, index maps, token, known-empty dates, holiday labels
+3. Calls `clearOrderVisualizations()`
+4. Sets `m_symbol`, updates watermark
+5. Calls `initializeTimeAnchor()` — sets new index-0, applies `m_preservedXRange`, defers initial bar request
+
+**Y range is NOT preserved** on symbol switch — the new symbol trades at a different price level.
+**X range IS preserved** — the user stays at the same calendar time window they were viewing.
+
+`GUIFrontend::displayStock()` is the caller; it must NOT call `clearSymbol()` separately (it's done inside `setSymbol()`).
+
+### Symbol Switch: Race Condition Guard
+
+`setSymbol()` fires synchronously on the GUI thread. The `onSelectDisplayedStock(symbol)` signal to
+`MainAlgo` is a **queued cross-thread connection** — `currentDisplayedStockInstrument` in MainAlgo
+may still point to the old symbol when the first bar request fires.
+
+**Guard in `requestMissingBarsFromCache`**:
+```cpp
+if (MainAlgo::getInstance()->getDisplayedSymbol() != ui->priceChart->getCurrentSymbol())
+{
+    QTimer::singleShot(50, this, [this, from, to]() { requestMissingBarsFromCache(from, to); });
+    return;  // Token stays set; no date recorded
+}
+```
+The 50ms retry keeps the in-flight token locked (preventing duplicate requests) and does not call
+`onRequestedMissingBarsFailed()` (avoiding spurious known-empty date recording). By 50ms MainAlgo
+has processed the queued event and routes subsequent requests to the correct BarCache.
 
 ### Bidirectional Index Efficiency
 
@@ -801,15 +875,20 @@ This ensures:
 
 ### Range Preservation
 
-When switching timeframes, both X and Y axis ranges are preserved:
+`m_preservedXRange: std::optional<QCPRange>` and `m_preservedYRange: std::optional<QCPRange>` hold
+ranges across clear/reinit operations.
 
-```cpp
-// Before clearChart():
-preserveCurrentRanges();  // Saves both X and Y to optionals
+| Trigger | X preserved | Y preserved | Notes |
+|---------|-------------|-------------|-------|
+| Timescale switch | ✅ | ✅ | `preserveCurrentRanges()` before `clearChart()` |
+| Symbol switch | ✅ | ❌ | Captured in `setSymbol()` when `m_index0Timestamp.isValid()` |
+| First load | ❌ | ❌ | Default `(-60, 30)` for X; auto-fit from first bar batch for Y |
 
-// In clearChart() and initializeTimeAnchor():
-// Check m_preservedXRange and m_preservedYRange before resetting
-```
+`initializeTimeAnchor()` consumes `m_preservedXRange` (resets it to `nullopt` after applying).
+`onRequestedMissingBarsReceived()` consumes `m_preservedYRange` on the first bar batch.
+
+**Important**: `setSymbol()` must capture the range BEFORE calling `clearSymbol()`, which resets
+xAxis to `(0,30)`. Capturing after clear always yields the wrong `(0,30)` default.
 
 ### Key Files for Dynamic Timescale
 

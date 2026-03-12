@@ -45,7 +45,8 @@ class StockInstruments : public QObject
     BarReceiver barReceiver;
     Level2Receiver m_level2Receiver;
     Level1Receiver m_level1Receiver;
-    LiveBarAccumulator m_liveBarAccumulator;
+    LiveBarAccumulator m_liveBarAccumulator;    ///< 1-minute bar accumulator (default 60s interval)
+    LiveBarAccumulator m_live10sBarAccumulator; ///< 10-second bar accumulator
     BarAggregator m_barAggregator;
 };
 

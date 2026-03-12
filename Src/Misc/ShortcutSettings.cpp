@@ -48,6 +48,9 @@ QString ShortcutSettings::getSettingsKey(ShortcutId p_id) const
     case ToggleReplayMode:
         key += "ToggleReplayMode";
         break;
+    case TimeFrame10s:
+        key += "TimeFrame10s";
+        break;
     case TimeFrame1m:
         key += "TimeFrame1m";
         break;
@@ -101,8 +104,9 @@ QString ShortcutSettings::getShortcutName(ShortcutId p_id) const
         return "Toggle Replay Play/Pause";
     case ToggleReplayMode:
         return "Toggle Replay Mode";
+    case TimeFrame10s:
+        return "Timescale 10 seconds";
     case TimeFrame1m:
-        return "Timescale 1 minute";
     case TimeFrame5m:
         return "Timescale 5 minutes";
     case TimeFrame15m:
@@ -146,24 +150,26 @@ QKeySequence ShortcutSettings::getDefaultShortcut(ShortcutId p_id) const
         return QKeySequence(Qt::Key_Space);
     case ToggleReplayMode:
         return QKeySequence("r");
-    case TimeFrame1m:
+    case TimeFrame10s:
         return QKeySequence("1");
-    case TimeFrame5m:
+    case TimeFrame1m:
         return QKeySequence("2");
-    case TimeFrame15m:
+    case TimeFrame5m:
         return QKeySequence("3");
-    case TimeFrame30m:
+    case TimeFrame15m:
         return QKeySequence("4");
-    case TimeFrame1h:
+    case TimeFrame30m:
         return QKeySequence("5");
-    case TimeFrame4h:
+    case TimeFrame1h:
         return QKeySequence("6");
-    case TimeFrame1d:
+    case TimeFrame4h:
         return QKeySequence("7");
-    case TimeFrame1w:
+    case TimeFrame1d:
         return QKeySequence("8");
-    case TimeFrame1M:
+    case TimeFrame1w:
         return QKeySequence("9");
+    case TimeFrame1M:
+        return QKeySequence("0");
     default:
         return QKeySequence();
     }
@@ -256,6 +262,7 @@ QList<ShortcutSettings::ShortcutId> ShortcutSettings::getAllShortcutIds() const
             CancelAllOrders,
             ToggleReplayPlayPause,
             ToggleReplayMode,
+            TimeFrame10s,
             TimeFrame1m,
             TimeFrame5m,
             TimeFrame15m,

@@ -184,6 +184,32 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
     m_timeLineTimer->setInterval(1000); // Update every second
     connect(m_timeLineTimer, &QTimer::timeout, this, &StockPriceChart::updateCurrentTimeLine);
 
+    // Create loading spinner (shown while a missing-bars API request is in flight)
+    m_loadingSpinner = new QCPItemText(m_customPlot);
+    Q_CHECK_PTR(m_loadingSpinner);
+    m_loadingSpinner->setPositionAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    m_loadingSpinner->position->setType(QCPItemPosition::ptAxisRectRatio);
+    m_loadingSpinner->position->setCoords(0.01, 0.5); // Left edge, vertically centred
+    m_loadingSpinner->setFont(QFont(font().family(), 13));
+    m_loadingSpinner->setColor(QColor(200, 200, 200, 220));
+    m_loadingSpinner->setLayer("overlay");
+    m_loadingSpinner->setVisible(false);
+
+    m_loadingSpinnerTimer = new QTimer(this);
+    Q_CHECK_PTR(m_loadingSpinnerTimer);
+    m_loadingSpinnerTimer->setInterval(80); // ~12 fps
+    connect(m_loadingSpinnerTimer,
+            &QTimer::timeout,
+            this,
+            [this]()
+            {
+                // Braille dot spinner — 10 frames, smooth circular motion
+                static const std::array<const char*, 10> FRAMES = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
+                m_loadingSpinnerFrame = (m_loadingSpinnerFrame + 1) % static_cast<int>(FRAMES.size());
+                m_loadingSpinner->setText(QString("%1 Loading…").arg(FRAMES[m_loadingSpinnerFrame]));
+                m_customPlot->replot(QCustomPlot::rpQueuedReplot);
+            });
+
     // Enable mouse interactions
     m_customPlot->setInteractions(QCP::iRangeDrag);
     m_customPlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
@@ -355,7 +381,17 @@ StockPriceChart::~StockPriceChart()
  */
 void StockPriceChart::setSymbol(const QString& symbol)
 {
-    // Clear order visualizations from previous symbol immediately
+    // Preserve the current X (time) range so the new symbol opens at the same view position,
+    // but only when the chart actually has content (valid time anchor).
+    // If there's no valid anchor (e.g., first load) we skip so the default (-60, 30) is used.
+    // Y range intentionally NOT preserved — the new symbol has different price levels.
+    if (m_index0Timestamp.isValid())
+    {
+        m_preservedXRange = m_customPlot->xAxis->range();
+    }
+
+    // Clear all bar data, index mappings and in-flight requests from the previous symbol.
+    clearSymbol();
     clearOrderVisualizations();
 
     m_symbol = symbol;

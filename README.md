@@ -125,6 +125,36 @@ cmake --build build/debug -j$(nproc)
 
 See [DEVELOPMENT.md](Doc/DEVELOPMENT.md#code-quality-tools) for more details on sanitizers.
 
+### LTTng Kernel Tracing (for thread/memory diagnostics)
+
+LTTng captures kernel-level events (heap growth, thread scheduling) and L2Trader userspace tracepoints with nanosecond precision. Use it to diagnose performance issues, memory growth, or unexpected thread behaviour.
+
+**Install once:**
+```bash
+sudo apt install lttng-tools lttng-modules-dkms babeltrace2
+```
+
+**Run the app under LTTng (via VSCode task `run-lttng`, or manually):**
+```bash
+# Kernel-only tracing (normal build)
+.sanitizers/lttng/run-with-lttng.sh
+
+# Kernel + UST userspace tracepoints (instrumented build)
+APP=./build/LTTng/Src/L2Trader .sanitizers/lttng/run-with-lttng.sh
+```
+
+Traces are saved to `~/.local/state/L2Trader/lttng-traces/<timestamp>/kernel/` and `.../ust/`. No sudo password is needed — see `/etc/sudoers.d/l2trader-lttng`.
+
+**Query a trace with babeltrace2 or open in TraceCompass.** For query recipes and event reference, see the [LTTng Copilot skill](.github/skills/lttng/SKILL.md).
+
+**VSCode tasks available:**
+
+| Task | Description |
+|------|-------------|
+| `run-lttng` | Launch app under kernel-only LTTng |
+| `run-lttng-instrumented` | Launch instrumented build (kernel + UST) |
+| `build-with-lttng` | Build the LTTNG_ENABLED binary |
+
 ### Building TUI Mode (headless)
 
 For terminal-only mode without Qt Widgets or GUI dependencies:

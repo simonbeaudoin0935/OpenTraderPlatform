@@ -13,6 +13,7 @@
 #include "TSClient.h"
 #include "Settings.h"
 #include "Logging.h"
+#include "LTTng/LTTngTracepoints.h"
 #include "Assume.h"
 #include "BarUtils.h"
 
@@ -82,6 +83,13 @@ QVector<Bar>& BarCache::getOrCreateDayVector(TimeFrame tf, const QDate& date)
 
         // Pre-allocate to full capacity with default-constructed (Uninitialized) bars
         dayMap[date] = QVector<Bar>(BarUtils::barsPerDay(tf));
+
+        L2T_TP(l2trader,
+               barcache_day_alloc,
+               m_symbol.toUtf8().constData(),
+               static_cast<int>(tf),
+               date.toString("yyyy-MM-dd").toUtf8().constData(),
+               BarUtils::barsPerDay(tf));
     }
 
     return dayMap[date];
@@ -104,7 +112,20 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(TimeFrame tf,
 
     qsizetype i = 0;
 
-    const qint64 stepSecs = static_cast<qint64>(BarUtils::minutesPerBar(tf)) * 60;
+    const qint64 stepSecs = static_cast<qint64>(BarUtils::secondsPerBar(tf));
+
+    // Compute expected slot count so we can reserve and trace it
+    const qint64 totalSecs = first.secsTo(last);
+    [[maybe_unused]] const int expectedSlots = stepSecs > 0 ? static_cast<int>(totalSecs / stepSecs) + 1 : 0;
+
+    L2T_TP(l2trader,
+           fillholes_run,
+           "unknown", // symbol not in scope here; use tf+step as signal
+           static_cast<int>(tf),
+           static_cast<int>(stepSecs),
+           static_cast<int>(barsFromAPI.size()),
+           expectedSlots);
+
     for (QDateTime expectedTime = first; expectedTime <= last; expectedTime = expectedTime.addSecs(stepSecs))
     {
         Bar bar;
@@ -135,6 +156,13 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(TimeFrame tf,
     {
         DEBUG << "Created" << voidBarsCreated << "void bars to account for periods with no trading activity";
     }
+
+    L2T_TP(l2trader,
+           fillholes_done,
+           "unknown",
+           static_cast<int>(tf),
+           static_cast<int>(resultBars.size()),
+           voidBarsCreated);
 
     return resultBars;
 }
@@ -317,6 +345,12 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
                   // No source-TF cache hit — fetch from Databento API
                   DEBUG << "No in-memory source cache for" << static_cast<int>(tf) << "m — fetching from API";
 
+                  L2T_TP(l2trader,
+                         barcache_api_fetch_start,
+                         m_symbol.toUtf8().constData(),
+                         static_cast<int>(tf),
+                         date.toString("yyyy-MM-dd").toUtf8().constData());
+
                   QDateTime startDateTime = QDateTime(date,
                                                       TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
                                                       TradingHours::MARKET_TIMEZONE);
@@ -386,6 +420,13 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
                                 << "— first:" << fullDayBars->first().getTimeStamp().toString(Qt::ISODate)
                                 << "last:" << fullDayBars->last().getTimeStamp().toString(Qt::ISODate);
 
+                          L2T_TP(l2trader,
+                                 barcache_api_fetch_done,
+                                 m_symbol.toUtf8().constData(),
+                                 static_cast<int>(tf),
+                                 date.toString("yyyy-MM-dd").toUtf8().constData(),
+                                 static_cast<int>(fullDayBars->size()));
+
                           // Fill holes with Null bars so the day vector is contiguous
                           QDateTime fullDayFirst(date,
                                                  TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
@@ -434,6 +475,11 @@ BarCache::getBarsFromCache(TimeFrame tf, const QDate& date, const QTime& start, 
     if (tfIt == m_barCacheByTimeFrame.end() || !tfIt->contains(date))
     {
         DEBUG << "Cache miss for timescale" << static_cast<int>(tf) << "day" << date;
+        L2T_TP(l2trader,
+               barcache_l1_miss,
+               m_symbol.toUtf8().constData(),
+               static_cast<int>(tf),
+               date.toString("yyyy-MM-dd").toUtf8().constData());
         return std::nullopt;
     }
 
@@ -460,6 +506,14 @@ BarCache::getBarsFromCache(TimeFrame tf, const QDate& date, const QTime& start, 
     }
 
     DEBUG << "Loaded complete day from memory cache:" << date << "with" << result->size() << "bars";
+
+    L2T_TP(l2trader,
+           barcache_l1_hit,
+           m_symbol.toUtf8().constData(),
+           static_cast<int>(tf),
+           date.toString("yyyy-MM-dd").toUtf8().constData(),
+           static_cast<int>(result->size()));
+
     return result;
 }
 
@@ -497,6 +551,8 @@ void BarCache::storeBarInCache(TimeFrame tf, const Bar& bar)
 
     // Store the bar at the appropriate index
     dayVector[index] = bar;
+
+    L2T_TP(l2trader, barcache_store_bar_live, m_symbol.toUtf8().constData(), static_cast<int>(tf), index);
 
     if (bar.getBarStatus() == Bar::BarStatus::Closed)
     {
@@ -541,6 +597,13 @@ void BarCache::storeBarsInCache(TimeFrame tf, const QDate& date, const std::shar
         m_barCacheByTimeFrame[tf].insert(date, *bars);
 
         DEBUG << "Inserted full day in cache for" << date;
+
+        L2T_TP(l2trader,
+               barcache_store_full_day,
+               m_symbol.toUtf8().constData(),
+               static_cast<int>(tf),
+               date.toString("yyyy-MM-dd").toUtf8().constData(),
+               static_cast<int>(bars->size()));
     }
     else
     {
@@ -561,6 +624,14 @@ void BarCache::storeBarsInCache(TimeFrame tf, const QDate& date, const std::shar
         }
 
         DEBUG << "Inserted partial day in cache for" << date << "with" << bars->size() << "bars";
+
+        L2T_TP(l2trader,
+               barcache_store_partial,
+               m_symbol.toUtf8().constData(),
+               static_cast<int>(tf),
+               date.toString("yyyy-MM-dd").toUtf8().constData(),
+               static_cast<int>(bars->size()),
+               BarUtils::barsPerDay(tf));
     }
 }
 
