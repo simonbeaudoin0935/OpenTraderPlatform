@@ -15,10 +15,13 @@ This directory contains runtime sanitizers and memory analysis tools organized b
 │   ├── analyze-asan.sh
 │   ├── run-asan-test.sh
 │   └── asan.supp
-└── valgrind/           # Valgrind memory leak detection
-    ├── analyze-leaks.sh
-    ├── run-valgrind-test.sh
-    └── valgrind-qt.supp
+├── valgrind/           # Valgrind memory leak detection
+│   ├── analyze-leaks.sh
+│   ├── run-valgrind-test.sh
+│   └── valgrind-qt.supp
+└── lttng/              # LTTng kernel tracing (thread/memory diagnostics)
+    ├── run-with-lttng.sh
+    └── analyze-lttng.sh
 ```
 
 ## Tool Capabilities
@@ -68,6 +71,21 @@ This directory contains runtime sanitizers and memory analysis tools organized b
 
 **Important**: UBSan and ASan cannot be used simultaneously (enforced by CMake). Valgrind can be used separately with any build.
 
+### LTTng - `lttng/`
+**Purpose**: Kernel-level event tracing with nanosecond timestamps — no code changes required
+**When to use**: Identifying runaway memory growth, pinpointing which thread is causing OOM, correlating heap allocation bursts to thread names
+**Traces**:
+- `mmap` / `brk` / `mremap` syscalls → heap growth events
+- `sched_switch` → active thread at every context switch (maps TID → Qt thread name)
+- `sched_process_fork` → new thread spawns
+
+**Prerequisites**: `sudo apt install lttng-tools lttng-modules-dkms babeltrace2`
+**Requires sudo**: Yes (kernel module needs elevated privileges)
+**Performance**: Negligible overhead (ring-buffer, asynchronous)
+**Trace output**: `~/.local/share/L2Trader/lttng-traces/<timestamp>/`
+
+**VSCode tasks**: `run-lttng`, `analyze-lttng`, `run-lttng-with-analysis`
+
 ## Quick Start for AI Agents
 
 ### Running Tests Locally
@@ -87,6 +105,11 @@ This directory contains runtime sanitizers and memory analysis tools organized b
 ./.sanitizers/valgrind/run-valgrind-test.sh
 ```
 
+**LTTng** (kernel tracing, sudo required):
+```bash
+./.sanitizers/lttng/run-with-lttng.sh
+```
+
 ### Analyzing Reports
 
 **UBSan**:
@@ -102,6 +125,11 @@ This directory contains runtime sanitizers and memory analysis tools organized b
 **Valgrind**:
 ```bash
 ./.sanitizers/valgrind/analyze-leaks.sh [report-file]
+```
+
+**LTTng**:
+```bash
+./.sanitizers/lttng/analyze-lttng.sh [trace-dir]
 ```
 
 ### CI Integration
@@ -148,6 +176,11 @@ Tasks are configured in `.vscode/tasks.json`:
 - `run-valgrind-with-analysis` - Run + analyze
 - `analyze-valgrind-report` - Analyze existing report
 - `run-valgrind` - Run with full options
+
+**LTTng**:
+- `run-lttng-with-analysis` - Run under LTTng + analyze trace
+- `analyze-lttng` - Analyze most recent trace
+- `run-lttng` - Run under LTTng only
 
 ## How It Works
 
