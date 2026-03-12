@@ -210,13 +210,15 @@ MemoryMonitor* m_memoryMonitor;      // System resource tracking
 ### 2. DBClient
 
 **Role**: Databento market data client singleton
-**Thread**: Databento's internal `LiveThreaded` thread (callbacks); `QThreadPool` workers (historical/download)
+**Thread**: Own dedicated `QThread` (like TSClient). Databento's internal `LiveThreaded` thread handles callbacks; `QThreadPool` workers handle historical/download.
 **Responsibilities**:
 - Live streaming via `databento::LiveThreaded` (Level 2, trades, trading status)
 - Historical bar fetching via `databento::Historical`
 - Replay data download (`.dbn.zst` archive files)
 - Symbol resolution via `PitSymbolMap` (instrument_id → ticker)
 - API key management and connection state tracking
+
+**Threading**: DBClient lives on its own QThread. State-modifying methods self-route to DBClient thread if called from elsewhere. In live mode, the thread mostly idles (Databento's LiveThreaded does the heavy lifting). The thread will host the replay QTimer tick loop when replay is folded in.
 
 **Connection State Machine**:
 ```
@@ -229,7 +231,6 @@ Connected → Disconnected (on user disconnect)
 ```cpp
 void liveConnectionStateChanged(ConnectionState state);
 void newLevel2(QString symbol, Level2 level2);
-void newLevel1(QString symbol, Level1 level1);
 void newTrade(QString symbol, Trade trade);
 void newStatus(QString symbol, bool isHalted, QString haltReason, bool isSsr);
 void liveGatewayError(QString errorText, bool isFatal);

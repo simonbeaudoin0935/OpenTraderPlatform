@@ -275,6 +275,7 @@ void MainApp::start()
 
     // Auto-connect to Databento if API key is present
     auto* dbClient = DBClient::getInstance();
+    dbClient->start();
 
     // Connect Databento data usage updates to frontend
     QObject::connect(dbClient, &DBClient::dataUsageUpdated, appFrontend, &FrontEnd::onDBClientDataUsageUpdate);

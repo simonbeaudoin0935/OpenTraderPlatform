@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`DBClient` is the singleton that wraps the **databento-cpp** library, providing live market data streaming and historical bar fetching. It translates raw Databento records into L2Trader domain types (`Level2`, `Level1`, `Trade`, `Bar`) and emits Qt signals for downstream consumers.
+`DBClient` is the singleton that wraps the **databento-cpp** library, providing live market data streaming and historical bar fetching. It translates raw Databento records into L2Trader domain types (`Level2`, `Trade`, `Bar`) and emits Qt signals for downstream consumers.
 
 **TradeStation** remains the brokerage client (orders, positions, accounts). **Databento** handles all market data.
 
@@ -21,17 +21,29 @@
 ### Threading Model
 
 ```
-Databento LiveThreaded (internal thread)
-  └─ RecordCallback (runs on Databento's thread)
-      ├─ Updates PitSymbolMap (mutex-protected)
-      ├─ Translates record via DBRecordTranslator
-      └─ Emits Qt signal (auto-queued to receiver thread)
-           └─ MainAlgo thread (Level2Receiver, Level1Receiver, etc.)
+DBClient singleton (lives on DBClient QThread)
+  │
+  ├─ Databento LiveThreaded (Databento's internal thread)
+  │   └─ RecordCallback (runs on Databento's thread)
+  │       ├─ Updates PitSymbolMap (mutex-protected)
+  │       ├─ Translates record via DBRecordTranslator
+  │       └─ Emits Qt signal (auto-queued to receiver thread)
+  │            └─ MainAlgo thread (Level2Receiver, etc.)
+  │
+  ├─ Historical fetch (QThreadPool via QtConcurrent::run)
+  │   └─ Emits historicalBarsReceived on completion
+  │
+  └─ DBClient thread event loop
+      └─ Hosts state-modifying methods (connectLive, subscribeLive, etc.)
+      └─ Will host replay QTimer tick loop (future Phase 5)
 ```
 
+- **DBClient lives on its own QThread** (like TSClient), created via `moveToThread(&m_thread)`.
+- **State-modifying methods** self-route to the DBClient thread if called from another thread (e.g., GUI). This pattern uses `QMetaObject::invokeMethod` with `Qt::QueuedConnection`.
 - **Live callbacks** run on Databento's internal thread. Qt `AutoConnection` queues signals to the receiver's event loop.
 - **Historical fetching** runs on `QThreadPool` via `QtConcurrent::run()`. Results arrive via `historicalBarsReceived` signal.
-- **API key management** runs on the main/GUI thread.
+- **In live mode**, the DBClient thread mostly idles (Databento's LiveThreaded does the heavy lifting).
+- **API key** is loaded eagerly in the constructor (before `moveToThread`) so `hasApiKey()` is valid immediately.
 
 ### Connection State Machine
 
@@ -61,10 +73,9 @@ Access to `m_symbolMap` is protected by `m_symbolMapMutex` since the callback th
 
 | Signal | Thread Context | Description |
 |--------|---------------|-------------|
-| `connectionStateChanged(bool)` | Main/GUI thread | API-key-based connection state (for GUI button) |
+| `connectionStateChanged(bool)` | DBClient thread | API-key-based connection state (for GUI button) |
 | `liveConnectionStateChanged(ConnectionState)` | Databento callback thread | Live session lifecycle transitions |
 | `newLevel2(QString, Level2)` | Databento callback thread | 10-level book snapshot |
-| `newLevel1(QString, Level1)` | Databento callback thread | BBO snapshot |
 | `newTrade(QString, Trade)` | Databento callback thread | Trade print |
 | `newStatus(QString, bool, QString, bool)` | Databento callback thread | Trading status update — args: symbol, isHalted, haltReason, isSsr |
 | `liveGatewayError(QString, bool)` | Databento callback thread | Gateway error — args: errorText, isFatal |

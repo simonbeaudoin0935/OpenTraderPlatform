@@ -8,6 +8,7 @@
 #include <QObject>
 #include <QSet>
 #include <QString>
+#include <QThread>
 #include <QVector>
 
 #include <databento/live_threaded.hpp>
@@ -22,7 +23,7 @@
 Q_DECLARE_LOGGING_CATEGORY(DBClientLog)
 
 /**
- * @brief Databento API client — singleton
+ * @brief Databento API client — singleton on dedicated thread
  *
  * Manages the Databento API key, live streaming via LiveThreaded, and
  * historical bar fetching via the Historical client. Translates raw Databento
@@ -30,10 +31,11 @@ Q_DECLARE_LOGGING_CATEGORY(DBClientLog)
  * consumers (MainAlgo receivers).
  *
  * ## Threading model
+ * - DBClient lives on its own QThread (like TSClient).
  * - LiveThreaded spawns an internal thread; our RecordCallback runs on that thread.
  *   Qt signals emitted from the callback are auto-queued to the receiver's thread.
- * - Historical fetching runs on QThreadPool to avoid blocking the main thread.
- * - API key management runs on the main/GUI thread.
+ * - Historical fetching runs on QThreadPool to avoid blocking the DBClient thread.
+ * - State-modifying methods self-route to the DBClient thread if called from elsewhere.
  *
  * ## Subscription model
  * - Each symbol subscribes to Schema::Mbp10 (Level 2 book) + Schema::Trades.
@@ -62,6 +64,13 @@ class DBClient : public QObject
     [[nodiscard]] static bool isInstantiated()
     {
         return m_instance != nullptr;
+    }
+
+    Q_DISABLE_COPY_MOVE(DBClient)
+
+    void start()
+    {
+        m_thread.start();
     }
 
     // ── API Key management ─────────────────────────────────────────────
@@ -279,4 +288,6 @@ class DBClient : public QObject
 
     static constexpr const char* k_defaultDataset = "XNAS.ITCH";
     static constexpr const char* k_settingsKeyDataset = "Databento/Dataset";
+
+    QThread m_thread;
 };

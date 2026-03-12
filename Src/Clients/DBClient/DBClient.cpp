@@ -1,5 +1,6 @@
 #include "DBClient.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QMap>
 #include <QSettings>
@@ -63,18 +64,44 @@ DBClient::DBClient() : QObject(nullptr)
     {
         m_dataset = k_defaultDataset;
     }
+
+    // Load API key eagerly so hasApiKey() is valid before thread starts.
+    // GUIFrontend::loadApiKey() will re-load on the DBClient thread later,
+    // emitting connectionStateChanged once the frontend is connected.
+    SecureStorage storage;
+    const QMap<QString, QString> values = storage.retrieveValuesSync(k_service, {k_keyName});
+    m_apiKey = values.value(k_keyName);
+
+    m_thread.setObjectName("DBClient");
+    this->moveToThread(&m_thread);
 }
 
 DBClient::~DBClient()
 {
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
     DEBUG << "DBClient destructor — cleaning up";
 
-    if (m_liveClient)
+    // Destroy Databento clients on DBClient thread (they may have active callbacks)
+    QMetaObject::invokeMethod(
+        this,
+        [this]()
+        {
+            if (m_liveClient)
+            {
+                INFO << "Stopping live client in destructor";
+                m_liveClient.reset();
+            }
+            m_historicalClient.reset();
+        },
+        Qt::BlockingQueuedConnection);
+
+    m_thread.quit();
+    if (!m_thread.wait(5000))
     {
-        INFO << "Stopping live client in destructor";
-        m_liveClient.reset();
+        WARNING << "DBClient thread did not finish within timeout, terminating";
+        m_thread.terminate();
+        m_thread.wait();
     }
-    m_historicalClient.reset();
 
     DEBUG << "DBClient destroyed";
 }
@@ -83,6 +110,12 @@ DBClient::~DBClient()
 
 void DBClient::loadApiKey()
 {
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(this, &DBClient::loadApiKey, Qt::QueuedConnection);
+        return;
+    }
+
     SecureStorage storage;
     const QMap<QString, QString> values = storage.retrieveValuesSync(k_service, {k_keyName});
     m_apiKey = values.value(k_keyName);
@@ -101,6 +134,12 @@ void DBClient::loadApiKey()
 
 void DBClient::storeApiKey(const QString& p_apiKey)
 {
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(this, [this, p_apiKey]() { storeApiKey(p_apiKey); }, Qt::QueuedConnection);
+        return;
+    }
+
     OBJ_ASSUME_FALSE(p_apiKey.isEmpty());
 
     SecureStorage storage;
@@ -132,6 +171,12 @@ QString DBClient::getApiKey() const
 
 void DBClient::connectLive()
 {
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(this, &DBClient::connectLive, Qt::QueuedConnection);
+        return;
+    }
+
     OBJ_ASSUME_TRUE(hasApiKey());
 
     if (m_connectionState != ConnectionState::Disconnected)
@@ -168,6 +213,12 @@ void DBClient::connectLive()
 
 void DBClient::disconnectLive()
 {
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(this, &DBClient::disconnectLive, Qt::QueuedConnection);
+        return;
+    }
+
     if (!m_liveClient)
     {
         DEBUG << "disconnectLive() called but no live client exists";
@@ -186,6 +237,12 @@ void DBClient::disconnectLive()
 
 void DBClient::subscribeLive(const QString& p_symbol)
 {
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(this, [this, p_symbol]() { subscribeLive(p_symbol); }, Qt::QueuedConnection);
+        return;
+    }
+
     if (m_connectionState != ConnectionState::Connected)
     {
         WARNING << "subscribeLive() called while not connected, state:" << static_cast<int>(m_connectionState);
@@ -239,6 +296,15 @@ void DBClient::fetchHistoricalBars(const QString& p_symbol,
                                    const QDateTime& p_end,
                                    TimeFrame p_tf)
 {
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(
+            this,
+            [this, p_symbol, p_start, p_end, p_tf]() { fetchHistoricalBars(p_symbol, p_start, p_end, p_tf); },
+            Qt::QueuedConnection);
+        return;
+    }
+
     OBJ_ASSUME_TRUE(hasApiKey());
 
     if (!m_historicalClient)
@@ -324,6 +390,15 @@ void DBClient::fetchHistoricalBars(const QString& p_symbol,
 
 void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date)
 {
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(
+            this,
+            [this, p_symbol, p_date]() { downloadReplayData(p_symbol, p_date); },
+            Qt::QueuedConnection);
+        return;
+    }
+
     OBJ_ASSUME_TRUE(hasApiKey());
     OBJ_ASSUME_TRUE(p_date.isValid());
     OBJ_ASSUME_FALSE(p_symbol.isEmpty());
@@ -445,6 +520,12 @@ QString DBClient::getDataset() const
 
 void DBClient::setDataset(const QString& p_dataset)
 {
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(this, [this, p_dataset]() { setDataset(p_dataset); }, Qt::QueuedConnection);
+        return;
+    }
+
     if (m_dataset == p_dataset)
         return;
 
