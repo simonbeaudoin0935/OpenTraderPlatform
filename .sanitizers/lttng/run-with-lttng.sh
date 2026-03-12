@@ -53,6 +53,8 @@ cleanup() {
     sudo lttng destroy "$KERNEL_SESSION" 2>/dev/null || true
     lttng stop  "$UST_SESSION" 2>/dev/null || true
     lttng destroy "$UST_SESSION" 2>/dev/null || true
+    # Kernel session writes as root — fix ownership so TraceCompass can open it
+    sudo chown -R "${USER}:${USER}" "$TRACE_DIR" 2>/dev/null || true
     echo ""
     echo "Trace saved to: $TRACE_DIR"
     echo "  kernel/ : kernel events (open in TraceCompass)"
