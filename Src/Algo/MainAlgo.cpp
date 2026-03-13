@@ -171,6 +171,13 @@ void MainAlgo::onThreadStarted()
             &StrategyManager::onMainAlgoBalanceUpdated,
             Qt::QueuedConnection);
 
+    // Strategy symbol release → decrement SymbolContext ref count
+    connect(&m_strategyManager,
+            &StrategyManager::symbolReleased,
+            this,
+            &MainAlgo::releaseSymbolContextRef,
+            Qt::DirectConnection);
+
     // Centralized routing: all DBClient market data → MainAlgo → SymbolContext actor queues
     connect(DBClient::getInstance(), &DBClient::newLevel2, this, &MainAlgo::onNewLevel2Received);
     connect(DBClient::getInstance(), &DBClient::newTrade, this, &MainAlgo::onNewTradeReceived);
@@ -282,23 +289,10 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
 
         // Clean up or detach the previous SymbolContext
         QString oldSymbol = m_currentDisplayedSymbolContext->symbol;
-        QPointer<SymbolContext> oldContext = m_currentDisplayedSymbolContext;
         m_currentDisplayedSymbolContext = nullptr;
 
-        if (m_strategyManager.isSymbolClaimed(oldSymbol))
-        {
-            // A strategy still owns this symbol — keep the SymbolContext alive
-            // in the map so switching back reuses it with live accumulator state.
-            DEBUG << "Keeping SymbolContext alive for strategy-claimed symbol:" << oldSymbol;
-        }
-        else
-        {
-            // No strategy needs this symbol — free its resources
-            int removed = m_symbolContexts.remove(oldSymbol);
-            OBJ_ASSUME_EQUAL(removed, 1);
-            oldContext->deleteLater();
-            DEBUG << "Scheduled cleanup for SymbolContext:" << oldSymbol;
-        }
+        // Release the display ref — context is destroyed only if refCount reaches 0
+        releaseSymbolContextRef(oldSymbol);
     }
 
     // Change the stock selected pointer to the new selected stock
@@ -315,7 +309,11 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         m_symbolContexts.insert(symbol, m_currentDisplayedSymbolContext);
         DEBUG << "onSelectDisplayedStock: created new SymbolContext for" << symbol;
     }
+
+    // Claim display reference
+    ++m_currentDisplayedSymbolContext->m_refCount;
     DEBUG << "onSelectDisplayedStock: wiring display signals for" << symbol
+          << "| refCount:" << m_currentDisplayedSymbolContext->m_refCount
           << "| active SymbolContexts:" << m_symbolContexts.keys();
 
     // Redoo the plumbing we disconnected at the top of this function
@@ -1040,6 +1038,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
         // the centralized routing (DBClient → MainAlgo → SymbolContext queue).
         if (m_symbolContexts.contains(p_symbol))
         {
+            ++m_symbolContexts[p_symbol]->m_refCount;
             m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr);
             p_promise->addResult(true);
             p_promise->finish();
@@ -1051,6 +1050,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
         // Also open its replay files in DBClient so records get emitted.
         auto* instrument = new SymbolContext(p_symbol, this);
         Q_CHECK_PTR(instrument);
+        instrument->m_refCount = 1; // Strategy claim
         m_symbolContexts.insert(p_symbol, instrument);
 
         // Open replay data files for this symbol (non-blocking, same-thread call)
@@ -1074,6 +1074,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
         {
             auto* instrument = new SymbolContext(p_symbol, this);
             Q_CHECK_PTR(instrument);
+            instrument->m_refCount = 1; // Strategy claim
             m_symbolContexts.insert(p_symbol, instrument);
 
             auto* dbClient = DBClient::getInstance();
@@ -1082,12 +1083,41 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
                 dbClient->subscribeLive(p_symbol);
             }
         }
+        else
+        {
+            ++m_symbolContexts[p_symbol]->m_refCount;
+        }
 
         m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr);
     }
 
     p_promise->addResult(true);
     p_promise->finish();
+}
+
+void MainAlgo::releaseSymbolContextRef(const QString& symbol)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+
+    if (!m_symbolContexts.contains(symbol))
+    {
+        WARNING << "releaseSymbolContextRef: no SymbolContext for" << symbol;
+        return;
+    }
+
+    QPointer<SymbolContext> sc = m_symbolContexts[symbol];
+    OBJ_ASSUME_DIFF(sc, nullptr);
+
+    --sc->m_refCount;
+    DEBUG << "releaseSymbolContextRef:" << symbol << "refCount now" << sc->m_refCount;
+
+    if (sc->m_refCount <= 0)
+    {
+        int removed = m_symbolContexts.remove(symbol);
+        OBJ_ASSUME_EQUAL(removed, 1);
+        sc->deleteLater();
+        DEBUG << "SymbolContext destroyed for" << symbol;
+    }
 }
 
 void MainAlgo::processClaimSymbols(const QString& p_strategyID,

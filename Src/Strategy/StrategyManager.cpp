@@ -984,6 +984,7 @@ void StrategyManager::releaseSymbols(const QString& p_strategyID)
     for (const QString& symbol: released)
     {
         m_symbolRegistry.remove(symbol);
+        emit symbolReleased(symbol);
     }
     if (!released.isEmpty())
     {
@@ -999,11 +1000,6 @@ void StrategyManager::releaseSymbols(const QString& p_strategyID)
             [sdk = instance->p_sdk]() { sdk->clearClaimedSymbols(); },
             Qt::QueuedConnection);
     }
-}
-
-bool StrategyManager::isSymbolClaimed(const QString& p_symbol) const
-{
-    return m_symbolRegistry.contains(p_symbol);
 }
 
 void StrategyManager::persistStrategiesState()

@@ -71,6 +71,10 @@ class SymbolContext : public QObject
     LiveBarAccumulator m_live10sBarAccumulator; ///< 10-second bar accumulator
     BarAggregator m_barAggregator;
 
+    /// Reference count: incremented by display claim (+1) and each strategy subscription (+1).
+    /// The SymbolContext is destroyed only when this reaches 0.
+    int m_refCount = 0;
+
   signals:
     /**
      * @brief Forwarded trade event (for strategy subscriptions)
@@ -392,6 +396,9 @@ class MainAlgo final : public QObject
     /// @brief Wire a SymbolContext's bar-close events to the OrderEmulator for PnL updates.
     /// Safe to call multiple times (uses UniqueConnection internally).
     void connectBarCloseToOrderEmulator(SymbolContext* p_sc, OrderEmulator* p_emulator);
+
+    /// @brief Release one reference on a SymbolContext. Destroys it when refCount reaches 0.
+    void releaseSymbolContextRef(const QString& symbol);
 
     // Buffered latest state for throttled GUI emission (only latest matters)
     std::optional<std::pair<QString, Bar>> m_pendingBar;
