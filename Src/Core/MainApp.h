@@ -4,7 +4,6 @@
 #include "FrontEnd.h"
 #include "MainAlgo.h"
 #include "MemoryMonitor.h"
-#include "Core/Replay/ReplayEngine.h"
 
 /**
  * @brief Trading mode for TradeStation API connection
@@ -39,7 +38,7 @@ enum class TradingSession : quint8
  * @brief Data source mode for the application
  *
  * Indicates whether data comes from live TradeStation streams or recorded replay data.
- * Replay mode has sub-states (stopped/playing/paused) managed by ReplayEngine.
+ * Replay mode has sub-states (stopped/playing/paused) managed by DBClient.
  */
 enum class DataSourceMode : quint8
 {
@@ -125,12 +124,12 @@ class MainApp
      * @param p_startTime Start time within the day
      * @param p_speed Playback speed for when user clicks play
      */
-    void enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
+    void enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p_speed);
 
     /**
      * @brief Exit replay mode and resume live operation
      *
-     * Coordinates: ReplayEngine stop, MainAlgo stream resume, TSClient mode switch.
+     * Coordinates: DBClient replay stop, MainAlgo stream resume, TSClient mode switch.
      * Called from GUI thread.
      */
     void exitReplayMode();
@@ -142,9 +141,9 @@ class MainApp
      * @param p_speed Playback speed
      *
      * Must be in replay mode first (call enterReplayMode()).
-     * Starts the ReplayEngine which loads data and begins emission.
+     * Starts replay via DBClient which loads data and begins emission.
      */
-    void startReplayPlayback(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
+    void startReplayPlayback(QDate p_date, QTime p_startTime, Playback::Speed p_speed);
 
     /**
      * @brief Pause replay playback
@@ -166,7 +165,7 @@ class MainApp
      *
      * Can be called while replay is playing or paused.
      */
-    void setReplaySpeed(ReplayEngine::PlaybackSpeed p_speed);
+    void setReplaySpeed(Playback::Speed p_speed);
 
     /**
      * @brief Check if replay is currently paused
@@ -184,15 +183,8 @@ class MainApp
      * @param p_startTime New start time within the day
      * @param p_speed Current playback speed setting
      */
-    void preloadChartForReplay(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
+    void preloadChartForReplay(QDate p_date, QTime p_startTime, Playback::Speed p_speed);
 
-    /**
-     * @brief Get pointer to ReplayEngine for connecting signals
-     *
-     * Used by frontend to connect to replay engine signals.
-     * Only valid when in replay mode.
-     */
-    [[nodiscard]] ReplayEngine* getReplayEngine() const;
 
   private:
     MainApp();

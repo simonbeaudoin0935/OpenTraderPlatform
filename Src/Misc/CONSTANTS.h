@@ -184,6 +184,23 @@ namespace StreamConstants
 } // namespace StreamConstants
 
 /**
+ * @namespace ReplayConstants
+ * @brief Constants for replay engine performance tuning
+ */
+namespace ReplayConstants
+{
+    // Wall-clock time budget (ms) for each batch of records in AsFastAsPossible mode.
+    // Records are processed in a tight loop per timer tick, yielding after this budget
+    // so the event loop can service GUI events and other timers.
+    inline constexpr qint64 MAX_SPEED_BATCH_BUDGET_MS = 16;
+
+    // GUI update interval (ms) when AsFastAsPossible mode is active.
+    // Cross-thread signals to the GUI are buffered and emitted at this rate
+    // to prevent the GUI event queue from flooding.
+    inline constexpr int GUI_THROTTLE_INTERVAL_MS = 33; // ~30 fps
+} // namespace ReplayConstants
+
+/**
  * @namespace AuthConstants
  * @brief Authentication and token-related constants
  */
@@ -449,10 +466,10 @@ namespace AsyncLogger
 {
     // Total capacity of each circular log buffer (one for file, one for stdout/stderr).
     // Large enough to absorb bursts without dropping messages.
-    inline constexpr size_t BUFFER_SIZE_BYTES = 10ULL * 1024 * 1024; // 10 MB
+    inline constexpr size_t BUFFER_SIZE_BYTES = 1024 * 1024; // 1 MB
 
     // Wake the consumer thread immediately once this many bytes are pending.
-    inline constexpr size_t FLUSH_THRESHOLD_BYTES = 1ULL * 1024 * 1024; // 1 MB
+    inline constexpr size_t FLUSH_THRESHOLD_BYTES = 512 * 1024; // 512 KB
 
     // Maximum time the consumer thread sleeps before flushing whatever is pending.
     inline constexpr int FLUSH_TIMEOUT_MS = 1000; // 1 s

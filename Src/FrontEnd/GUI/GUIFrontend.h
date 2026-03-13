@@ -14,6 +14,8 @@
 #include "MainAlgo.h"
 #include "Misc/ShortcutSettings.h"
 #include "Misc/TimeFrame.h"
+#include "Widgets/ReplayControlsBar/ReplayControlsBar.h"
+#include "Widgets/TradingModeBar/TradingModeBar.h"
 
 // Forward declarations
 class PlaceOrderRequest;
@@ -135,16 +137,12 @@ class GUIFrontend : public FrontEnd
 
     QVector<Account> m_accounts; // Store available accounts
 
-    QLabel* m_tradingModeLabel = nullptr; // Trading mode indicator (SIM/LIVE)
-    QLabel* m_dataSourceLabel = nullptr;  // Data source indicator (LIVE/REPLAY)
-    QLabel* m_sessionLabel = nullptr;     // Trading session indicator
-    QLabel* m_timeDisplayLabel = nullptr; // Application time display (live or replay)
-    QTimer* m_timeUpdateTimer = nullptr;  // Timer to update time display
+    QLabel* m_sessionLabel = nullptr;           // Trading session indicator
+    QLabel* m_timeDisplayLabel = nullptr;       // Application time display (live or replay)
+    QTimer* m_timeUpdateTimer = nullptr;        // Timer to update time display
+    TradingModeBar* m_tradingModeBar = nullptr; // LIVE / SIM / REPLAY tristate mode indicator
 
-    // MarketFlags status labels
-    QLabel* m_haltedLabel = nullptr;       // "HALTED" - red
-    QLabel* m_delayedLabel = nullptr;      // "DELAYED" - yellow
-    QLabel* m_hardToBorrowLabel = nullptr; // "HTB" - orange
+    ReplayControlsBar* m_replayControlsBar = nullptr; // Replay controls in top toolbar
 
     // Bottom logger split: platform log (left) + strategy log (right, shown on demand)
     QWidget* m_loggerContainer = nullptr;             ///< Outer container replacing liveLogDisplay in mainSplitter

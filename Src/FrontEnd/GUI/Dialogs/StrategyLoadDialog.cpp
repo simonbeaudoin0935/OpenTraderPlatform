@@ -1,26 +1,28 @@
 #include "StrategyLoadDialog.h"
-#include "StrategyConfig.h"
-#include "StrategyConfigLoader.h"
 
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QListWidget>
-#include <QLabel>
-#include <QPushButton>
+#include <QDir>
+#include <QDoubleSpinBox>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QFormLayout>
 #include <QGroupBox>
-#include <QJsonObject>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QSpinBox>
+#include <QStandardPaths>
+#include <QVBoxLayout>
 
 StrategyLoadDialog::StrategyLoadDialog(QWidget* parent) : QDialog(parent)
 {
     setWindowTitle("Load Strategy");
-    setMinimumSize(500, 400);
+    setMinimumSize(500, 300);
     setModal(true);
 
     setupUI();
-    loadAvailableConfigs();
-
-    // Disable load button initially (no selection)
-    m_loadButton->setEnabled(false);
+    validateForm();
 }
 
 std::optional<StrategyConfig> StrategyLoadDialog::getSelectedConfig() const
@@ -32,28 +34,48 @@ void StrategyLoadDialog::setupUI()
 {
     auto* mainLayout = new QVBoxLayout(this);
 
-    // Title
-    auto* titleLabel = new QLabel("Select a Strategy Configuration to Load");
-    mainLayout->addWidget(titleLabel);
+    // --- Plugin file selection ---
+    auto* pluginGroup = new QGroupBox("Strategy Plugin");
+    auto* pluginLayout = new QHBoxLayout();
+    m_soPathEdit = new QLineEdit();
+    m_soPathEdit->setPlaceholderText("Select a .so plugin file…");
+    m_soPathEdit->setReadOnly(true);
+    m_browseButton = new QPushButton("Browse…");
+    pluginLayout->addWidget(m_soPathEdit, 1);
+    pluginLayout->addWidget(m_browseButton);
+    pluginGroup->setLayout(pluginLayout);
+    mainLayout->addWidget(pluginGroup);
 
-    // Config list
-    auto* listGroupBox = new QGroupBox("Available Strategies");
-    auto* listLayout = new QVBoxLayout();
-    m_configList = new QListWidget();
-    listLayout->addWidget(m_configList);
-    listGroupBox->setLayout(listLayout);
-    mainLayout->addWidget(listGroupBox, 2);
+    // --- Parameters form ---
+    auto* paramsGroup = new QGroupBox("Parameters");
+    auto* formLayout = new QFormLayout();
 
-    // Preview panel
-    auto* previewGroupBox = new QGroupBox("Configuration Preview");
-    auto* previewLayout = new QVBoxLayout();
-    m_previewLabel = new QLabel("(Select a strategy to view details)");
-    m_previewLabel->setWordWrap(true);
-    previewLayout->addWidget(m_previewLabel);
-    previewGroupBox->setLayout(previewLayout);
-    mainLayout->addWidget(previewGroupBox, 1);
+    m_nameEdit = new QLineEdit();
+    m_nameEdit->setPlaceholderText("Auto-derived from plugin filename");
+    formLayout->addRow("Strategy Name:", m_nameEdit);
 
-    // Buttons
+    m_symbolsEdit = new QLineEdit();
+    m_symbolsEdit->setPlaceholderText("e.g. AAPL, TSLA, MSFT");
+    formLayout->addRow("Symbols:", m_symbolsEdit);
+
+    m_positionSizeSpin = new QSpinBox();
+    m_positionSizeSpin->setRange(1, 100000);
+    m_positionSizeSpin->setValue(100);
+    formLayout->addRow("Position Size:", m_positionSizeSpin);
+
+    m_riskLimitSpin = new QDoubleSpinBox();
+    m_riskLimitSpin->setRange(0.0, 1000000.0);
+    m_riskLimitSpin->setDecimals(2);
+    m_riskLimitSpin->setPrefix("$ ");
+    m_riskLimitSpin->setValue(500.0);
+    formLayout->addRow("Risk Limit:", m_riskLimitSpin);
+
+    paramsGroup->setLayout(formLayout);
+    mainLayout->addWidget(paramsGroup);
+
+    mainLayout->addStretch();
+
+    // --- Buttons ---
     auto* buttonLayout = new QHBoxLayout();
     m_loadButton = new QPushButton("Load Strategy");
     m_cancelButton = new QPushButton("Cancel");
@@ -62,107 +84,99 @@ void StrategyLoadDialog::setupUI()
     buttonLayout->addWidget(m_cancelButton);
     mainLayout->addLayout(buttonLayout);
 
-    // Connect signals
-    connect(m_configList,
-            &QListWidget::itemSelectionChanged,
-            this,
-            [this]()
-            {
-                auto items = m_configList->selectedItems();
-                if (!items.isEmpty())
-                {
-                    onConfigSelected(items[0]);
-                }
-            });
-
+    // --- Connections ---
+    connect(m_browseButton, &QPushButton::clicked, this, &StrategyLoadDialog::onBrowseClicked);
     connect(m_loadButton, &QPushButton::clicked, this, &StrategyLoadDialog::onLoadClicked);
     connect(m_cancelButton, &QPushButton::clicked, this, &StrategyLoadDialog::onCancelClicked);
+
+    connect(m_soPathEdit, &QLineEdit::textChanged, this, [this]() { validateForm(); });
+    connect(m_symbolsEdit, &QLineEdit::textChanged, this, [this]() { validateForm(); });
 }
 
-void StrategyLoadDialog::loadAvailableConfigs()
+void StrategyLoadDialog::onBrowseClicked()
 {
-    m_configList->clear();
-
-    QStringList configPaths = StrategyConfigLoader::discoverConfigs();
-
-    for (const auto& path: configPaths)
+    // Start in user's strategy directory if it exists, otherwise home
+    QString startDir = QDir::homePath() + "/.local/share/L2Trader/Strategies";
+    if (!QDir(startDir).exists())
     {
-        auto config = StrategyConfigLoader::loadConfig(path);
-        if (!config.name.isEmpty())
-        {
-            auto* item = new QListWidgetItem(config.name);
-            item->setData(Qt::UserRole, path); // Store full path as user data
-            m_configList->addItem(item);
-        }
+        startDir = QDir::homePath();
     }
 
-    if (m_configList->count() == 0)
+    QString soPath = QFileDialog::getOpenFileName(this,
+                                                  "Select Strategy Plugin",
+                                                  startDir,
+                                                  "Shared Libraries (*.so);;All Files (*)");
+
+    if (soPath.isEmpty())
     {
-        auto* item = new QListWidgetItem("(No strategies found)");
-        item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
-        m_configList->addItem(item);
-    }
-}
-
-void StrategyLoadDialog::onConfigSelected(QListWidgetItem* item)
-{
-    m_selectedConfigPath = item->data(Qt::UserRole).toString();
-    updatePreview(m_selectedConfigPath);
-    m_loadButton->setEnabled(true);
-}
-
-void StrategyLoadDialog::updatePreview(const QString& configPath)
-{
-    auto config = StrategyConfigLoader::loadConfig(configPath);
-
-    QString preview;
-    preview += QString("<b>Name:</b> %1<br>").arg(config.name);
-    preview += QString("<b>Plugin:</b> %1<br>").arg(config.soPath);
-    preview += QString("<b>Symbols:</b> %1<br>").arg(config.symbols.join(", "));
-    preview += QString("<b>Position Size:</b> %1<br>").arg(config.positionSize);
-    preview += QString("<b>Risk Limit:</b> $%1<br>").arg(config.riskLimit);
-
-    if (!config.customParams.empty())
-    {
-        preview += "<b>Custom Parameters:</b><ul>";
-        for (auto it = config.customParams.begin(); it != config.customParams.end(); ++it)
-        {
-            preview += QString("<li>%1: %2</li>").arg(it->first).arg(it->second.toString());
-        }
-        preview += "</ul>";
+        return;
     }
 
-    m_previewLabel->setText(preview);
+    m_soPathEdit->setText(soPath);
+
+    // Auto-derive name from filename if name field is empty or was auto-derived
+    QFileInfo fileInfo(soPath);
+    QString baseName = fileInfo.completeBaseName(); // "DumpPatternStrategy" from "DumpPatternStrategy.so"
+    if (m_nameEdit->text().isEmpty() || m_nameEdit->text() == QFileInfo(m_soPathEdit->text()).completeBaseName())
+    {
+        m_nameEdit->setText(baseName);
+    }
 }
 
 void StrategyLoadDialog::onLoadClicked()
 {
-    qDebug() << "[StrategyLoadDialog] Load button clicked";
-    qDebug() << "[StrategyLoadDialog] Selected config path:" << m_selectedConfigPath;
+    QString soPath = m_soPathEdit->text().trimmed();
+    QString name = m_nameEdit->text().trimmed();
+    QString symbolsText = m_symbolsEdit->text().trimmed();
 
-    if (!m_selectedConfigPath.isEmpty())
+    if (soPath.isEmpty() || !QFileInfo::exists(soPath))
     {
-        qDebug() << "[StrategyLoadDialog] Loading config from:" << m_selectedConfigPath;
-        m_selectedConfig = StrategyConfigLoader::loadConfig(m_selectedConfigPath);
+        QMessageBox::warning(this, "Load Strategy", "Please select a valid .so plugin file.");
+        return;
+    }
 
-        if (m_selectedConfig.has_value())
+    if (symbolsText.isEmpty())
+    {
+        QMessageBox::warning(this, "Load Strategy", "Please enter at least one symbol.");
+        return;
+    }
+
+    // Parse comma-separated symbols, trim whitespace, uppercase, remove empties
+    QStringList symbols;
+    for (const QString& s: symbolsText.split(","))
+    {
+        QString trimmed = s.trimmed().toUpper();
+        if (!trimmed.isEmpty())
         {
-            qDebug() << "[StrategyLoadDialog] Config loaded successfully:" << m_selectedConfig.value().name;
-            qDebug() << "[StrategyLoadDialog] Calling accept()";
-            accept();
-        }
-        else
-        {
-            qWarning() << "[StrategyLoadDialog] Failed to load config from file";
+            symbols.append(trimmed);
         }
     }
-    else
+
+    if (symbols.isEmpty())
     {
-        qWarning() << "[StrategyLoadDialog] No config path selected";
+        QMessageBox::warning(this, "Load Strategy", "Please enter at least one valid symbol.");
+        return;
     }
+
+    StrategyConfig config;
+    config.soPath = soPath;
+    config.name = name.isEmpty() ? QFileInfo(soPath).completeBaseName() : name;
+    config.symbols = symbols;
+    config.positionSize = m_positionSizeSpin->value();
+    config.riskLimit = m_riskLimitSpin->value();
+
+    m_selectedConfig = config;
+    accept();
 }
 
 void StrategyLoadDialog::onCancelClicked()
 {
     reject();
+}
+
+void StrategyLoadDialog::validateForm()
+{
+    bool soValid = !m_soPathEdit->text().trimmed().isEmpty();
+    bool symbolsValid = !m_symbolsEdit->text().trimmed().isEmpty();
+    m_loadButton->setEnabled(soValid && symbolsValid);
 }

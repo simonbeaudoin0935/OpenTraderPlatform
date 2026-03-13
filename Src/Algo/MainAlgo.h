@@ -1,17 +1,22 @@
 #pragma once
 #include <QLoggingCategory>
+#include <QMutex>
 #include <QObject>
 #include <QPointer>
+#include <QQueue>
 #include <QThread>
+#include <QThreadPool>
 #include <QMap>
 #include <QTimer>
 #include <QVector>
 #include <QStringList>
+#include <QWaitCondition>
 #include <memory>
 #include <atomic>
+#include <optional>
+#include <variant>
 
 #include "Level2Receiver.h"
-#include "Level1Receiver.h"
 #include "BarReceiver.h"
 #include "PositionsReceiver.h"
 #include "OrdersReceiver.h"
@@ -24,30 +29,69 @@
 #include "Trade.h"
 #include "LiveBarAccumulator.h"
 #include "StrategyManager.h"
-#include "Core/Replay/ReplayEngine.h"
+#include "PlaybackTypes.h"
 #include "TSClient.h"       // For TSClient::AuthStateReason enum
 #include "OrdersDatabase.h" // For StrategyLogEntry
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
 class QSocketNotifier;
+class OrderEmulator;
 
 
-class StockInstruments : public QObject
+/**
+ * @brief Per-symbol passive actor — holds all data and receivers for one symbol.
+ *
+ * Thread-pool actor model: events are enqueued thread-safely, then drained by
+ * exactly one QThreadPool thread at a time (sequential per symbol, parallel across symbols).
+ *
+ * Internal signal-slot connections use Qt::DirectConnection so they execute on the
+ * pool thread during drain(). External connections (to MainAlgo, GUI, StrategyManager)
+ * keep Qt::AutoConnection → become QueuedConnection from the pool thread.
+ */
+class SymbolContext : public QObject
 {
+    Q_OBJECT
 
   public:
-    explicit StockInstruments(const QString& p_symbol, QObject* p_parent = nullptr);
-    ~StockInstruments();
+    explicit SymbolContext(const QString& p_symbol, QObject* p_parent = nullptr);
+    ~SymbolContext();
+
+    /// @brief Enqueue a Level2 event for processing (thread-safe, called from any thread)
+    void enqueueLevel2(const Level2& p_level2);
+
+    /// @brief Enqueue a Trade event for processing (thread-safe, called from any thread)
+    void enqueueTrade(const Trade& p_trade);
 
     QString symbol;
     BarCache barCache;
     BarReceiver barReceiver;
     Level2Receiver m_level2Receiver;
-    Level1Receiver m_level1Receiver;
     LiveBarAccumulator m_liveBarAccumulator;    ///< 1-minute bar accumulator (default 60s interval)
     LiveBarAccumulator m_live10sBarAccumulator; ///< 10-second bar accumulator
     BarAggregator m_barAggregator;
+
+  signals:
+    /**
+     * @brief Forwarded trade event (for strategy subscriptions)
+     * Thread context: Emitted from QThreadPool drain thread
+     * @param p_symbol Symbol for the trade
+     * @param p_trade The trade data
+     */
+    void receivedNewTrade(const QString& p_symbol, const Trade& p_trade);
+
+  private:
+    using WorkItem = std::variant<Level2, Trade>;
+
+    void drain();
+    void processLevel2(const Level2& p_level2);
+    void processTrade(const Trade& p_trade);
+
+    QMutex m_queueMutex;
+    QQueue<WorkItem> m_queue;
+    std::atomic<bool> m_draining{false};
+    std::atomic<bool> m_destroying{false};
+    QWaitCondition m_drainDone;
 };
 
 class MainAlgo final : public QObject
@@ -113,8 +157,7 @@ class MainAlgo final : public QObject
     void processStrategyLog(const StrategyLogEntry& p_entry);
 
     /// @brief Subscribe a strategy to data feed for a symbol (MainAlgo thread)
-    /// In replay mode: validates data exists; optionally creates secondary ReplayEngine.
-    /// In live/sim: adds symbol to strategy's monitored symbols (live DBClient streams TODO).
+    /// Creates a SymbolContext and registers routing. Data flows automatically via centralized routing.
     /// @param p_strategyID Strategy requesting the subscription
     /// @param p_symbol Symbol to subscribe to
     /// @param p_promise Resolved with true if accepted, false if rejected
@@ -135,14 +178,11 @@ class MainAlgo final : public QObject
     /// @param p_date Date to replay
     /// @param p_startTime Time to start replay
     /// @param p_speed Playback speed
-    void enterReplayMode(const QString& p_symbol, QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed);
+    void enterReplayMode(const QString& p_symbol, QDate p_date, QTime p_startTime, Playback::Speed p_speed);
 
     /// @brief Enter replay mode and immediately pause after first bar
     /// Used when entering replay mode to pre-populate chart
-    void enterReplayModePaused(const QString& p_symbol,
-                               QDate p_date,
-                               QTime p_startTime,
-                               ReplayEngine::PlaybackSpeed p_speed);
+    void enterReplayModePaused(const QString& p_symbol, QDate p_date, QTime p_startTime, Playback::Speed p_speed);
 
     /// @brief Exit replay mode and clean up
     void exitReplayMode();
@@ -154,7 +194,7 @@ class MainAlgo final : public QObject
     void resumeReplay();
 
     /// @brief Set replay speed on the fly
-    void setReplaySpeed(ReplayEngine::PlaybackSpeed p_speed);
+    void setReplaySpeed(Playback::Speed p_speed);
 
     /// @brief Pause live streams (positions/orders) for replay mode
     void pauseLiveStreams();
@@ -162,14 +202,12 @@ class MainAlgo final : public QObject
     /// @brief Start replay mode order/position streams with simulated account
     void startReplayOrderStreams();
     void connectReplaySignals(const QString& p_symbol);
-    /// @brief Connect a secondary ReplayEngine to a StockInstruments (for strategy-subscribed symbols)
-    void connectSecondaryReplaySignals(const QString& p_symbol, ReplayEngine* p_engine, StockInstruments* p_instrument);
 
     /// @brief Resume live streams after exiting replay mode
     void resumeLiveStreams();
 
     /// @brief Delete all stock instruments (for clean mode transitions)
-    void deleteAllStockInstruments();
+    void deleteAllSymbolContext();
 
     /// @brief Stop all running strategies (for clean mode transitions)
     void stopAllStrategies();
@@ -180,13 +218,10 @@ class MainAlgo final : public QObject
 
     /// @brief Create a stock instrument and set it as displayed
     /// @param p_symbol The stock symbol to create and display
-    void createAndSetDisplayedStockInstrument(const QString& p_symbol);
+    void createAndSetDisplayedSymbolContext(const QString& p_symbol);
 
-    /// @brief Get replay engine state
-    [[nodiscard]] ReplayEngine::PlaybackState getReplayState() const;
-
-    /// @brief Get pointer to replay engine for signal connections
-    [[nodiscard]] ReplayEngine* getReplayEngine() const;
+    /// @brief Get replay playback state
+    [[nodiscard]] Playback::State getReplayState() const;
 
   signals:
     /**
@@ -252,7 +287,7 @@ class MainAlgo final : public QObject
     void strategyLogEmitted(StrategyLogEntry entry);
 
     /**
-     * @brief Replay control signals (forwarded from ReplayEngine)
+     * @brief Replay control signals (forwarded from DBClient)
      * Thread context: Emitted from MainAlgo worker thread
      */
     void replayStarted();
@@ -289,6 +324,17 @@ class MainAlgo final : public QObject
     void onAggregatorBarUpdated(TimeFrame tf, const Bar& bar);
     void onAggregatorBarClosed(TimeFrame tf, const Bar& bar);
 
+    // GUI throttle gate slots — buffer data when throttle is active, emit immediately otherwise
+    void onDisplayedBarReceived(const QString& symbol, const Bar& bar);
+    void onDisplayedLevel2Received(const QString& symbol, const Level2& level2);
+    void onDisplayedTradeReceived(const QString& symbol, const Trade& trade);
+    void onReplayTimeReceived(const QDateTime& time);
+    void onGuiThrottleTimerTick();
+
+    // Centralized routing: DBClient → SymbolContext actor queue
+    void onNewLevel2Received(const QString& p_symbol, const Level2& p_level2);
+    void onNewTradeReceived(const QString& p_symbol, const Trade& p_trade);
+
 
   private:
     static MainAlgo* m_instance;
@@ -297,8 +343,8 @@ class MainAlgo final : public QObject
 
     QThread thread;
 
-    QMap<QString, QPointer<StockInstruments>> stockInstruments;
-    QPointer<StockInstruments> currentDisplayedStockInstrument;
+    QMap<QString, QPointer<SymbolContext>> m_symbolContexts;
+    QPointer<SymbolContext> m_currentDisplayedSymbolContext;
 
     PositionsReceiver* m_positionReceiver = nullptr; // Qt parent-child ownership (parent is 'this')
     OrdersReceiver* m_orderReceiver = nullptr;       // Qt parent-child ownership (parent is 'this')
@@ -317,9 +363,6 @@ class MainAlgo final : public QObject
     // Strategy order tracking - all accessed from MainAlgo thread
     StrategyManager m_strategyManager;
 
-    // Replay engine - owned, runs in MainAlgoThread
-    ReplayEngine* m_replayEngine = nullptr;
-
     std::unique_ptr<QSocketNotifier> m_crashNotifier; // Monitor crash pipe from signal handlers
     std::atomic<uint64_t> m_requestIdCounter{0};
     QMap<uint64_t, std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>> m_pendingOrderPromises;
@@ -331,9 +374,30 @@ class MainAlgo final : public QObject
     // Replay state (set in enterReplayMode/enterReplayModePaused, used by strategy subscriptions)
     QDate m_replayDate;
     QTime m_replayStartTime;
-    ReplayEngine::PlaybackSpeed m_replaySpeed = ReplayEngine::PlaybackSpeed::Normal;
+    Playback::Speed m_replaySpeed = Playback::Speed::Normal;
 
-    // Secondary replay engines for strategy-requested symbols (symbol → engine)
-    // These run alongside the primary m_replayEngine for the displayed stock
-    QMap<QString, ReplayEngine*> m_secondaryReplayEngines;
+    // Handle for the display-symbol trade forwarding lambda so we can disconnect only it
+    // (not the permanent onNewTradeReceived routing connection) when switching symbols.
+    QMetaObject::Connection m_displayTradeConnection;
+
+    // --- GUI throttle for AsFastAsPossible replay mode ---
+    // When active, high-frequency GUI-bound signals are buffered and emitted
+    // at a capped rate to prevent flooding the GUI thread's event queue.
+    QTimer m_guiThrottleTimer;
+    bool m_guiThrottleActive = false;
+
+    void activateGuiThrottle();
+    void deactivateGuiThrottle();
+
+    /// @brief Wire a SymbolContext's bar-close events to the OrderEmulator for PnL updates.
+    /// Safe to call multiple times (uses UniqueConnection internally).
+    void connectBarCloseToOrderEmulator(SymbolContext* p_sc, OrderEmulator* p_emulator);
+
+    // Buffered latest state for throttled GUI emission (only latest matters)
+    std::optional<std::pair<QString, Bar>> m_pendingBar;
+    std::optional<std::pair<QString, Level2>> m_pendingLevel2;
+    std::optional<std::pair<QString, Trade>> m_pendingTrade;
+    std::optional<QDateTime> m_pendingReplayTime;
+    std::optional<std::pair<TimeFrame, Bar>> m_pendingAggregatorBarUpdate;
+    QString m_pendingAggregatorSymbol;
 };

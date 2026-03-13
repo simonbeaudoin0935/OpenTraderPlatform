@@ -96,7 +96,7 @@ GUIFrontend (main) ─[selectedDisplayedStock]→ MainAlgo (thread)
 ### Memory Management Rules
 
 1. **Composition first**: Use direct member objects when possible
-   - Example: `class StockInstruments { BarCache m_barCache; };`
+   - Example: `class SymbolContext { BarCache m_barCache; };`
 
 2. **Qt parent-child**: For Qt objects with parents, Qt manages memory
    - Example: `new QTimer(this)` - parent handles deletion

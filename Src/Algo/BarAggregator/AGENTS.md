@@ -5,7 +5,7 @@
 `BarAggregator` converts the stream of closed 1-minute bars (from `LiveBarAccumulator`) into
 higher-timescale OHLCV bars (5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M) in real-time.
 
-One `BarAggregator` instance lives inside each `StockInstruments` on the **MainAlgo thread**.
+One `BarAggregator` instance lives inside each `SymbolContext` on the **MainAlgo thread**.
 
 ## Files
 
@@ -54,10 +54,10 @@ signals:
 
 `minutesFromOpen` is `(hour - 4) * 60 + minute` where hour is the America/New_York hour of the 1m bar.
 
-## Wiring in StockInstruments
+## Wiring in SymbolContext
 
 ```cpp
-// In StockInstruments constructor:
+// In SymbolContext constructor:
 connect(&barReceiver.m_liveBarAccumulator,
         &LiveBarAccumulator::barClosed,
         &m_barAggregator,

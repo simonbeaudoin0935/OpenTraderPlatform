@@ -12,16 +12,14 @@
 #include "StrategySDK.h"
 #include "StrategyLoader.h"
 #include "StrategyConfig.h"
-#include "StrategyConfigLoader.h"
-#include "StrategyRegistry.h"
+
 #include "StrategyLogger.h"
 #include "StrategySignalHandler.h"
 #include "Balance.h"
 #include "Assume.h"
 
 class MainAlgo;
-class StockInstruments;
-class ReplayEngine;
+class SymbolContext;
 
 /// @brief Adapter to call StrategyBase methods from Qt slots
 /// Lives on strategy's thread and provides thread-safe callback invocation
@@ -229,22 +227,6 @@ class StrategyManager final : public QObject
     [[nodiscard]] StrategyBase* getStrategy(const QString& p_strategyID) const;
 
     /*
-     * Get the strategy registry (available strategies from configs)
-     */
-    [[nodiscard]] StrategyRegistry* getRegistry()
-    {
-        return m_registry.get();
-    }
-
-    /*
-     * Get the strategy registry (const version)
-     */
-    [[nodiscard]] const StrategyRegistry* getRegistry() const
-    {
-        return m_registry.get();
-    }
-
-    /*
      * Get strategy logger by strategy ID
      */
     [[nodiscard]] StrategyLogger* getStrategyLogger(const QString& p_strategyID);
@@ -290,13 +272,9 @@ class StrategyManager final : public QObject
      *
      * @param p_strategyID Strategy requesting the subscription
      * @param p_symbol Symbol to subscribe to
-     * @param p_instrument StockInstruments for the symbol (nullptr = use displayed-stock signals)
-     * @param p_replayEngine Secondary ReplayEngine for the symbol (nullptr if not applicable)
+     * @param p_instrument SymbolContext for the symbol (nullptr = use displayed-stock signals)
      */
-    void connectSymbolToStrategy(const QString& p_strategyID,
-                                 const QString& p_symbol,
-                                 StockInstruments* p_instrument,
-                                 ReplayEngine* p_replayEngine);
+    void connectSymbolToStrategy(const QString& p_strategyID, const QString& p_symbol, SymbolContext* p_instrument);
 
     /*
      * Process a symbol claim request from a strategy.
@@ -322,6 +300,16 @@ class StrategyManager final : public QObject
      * @param p_strategyID Strategy whose claims are being released
      */
     void releaseSymbols(const QString& p_strategyID);
+
+    /*
+     * Check if a symbol is claimed by any strategy.
+     * Used by MainAlgo to decide whether to keep a SymbolContext alive
+     * when the user switches the displayed stock away from it.
+     *
+     * @param p_symbol Symbol to check
+     * @return true if any strategy has claimed this symbol
+     */
+    [[nodiscard]] bool isSymbolClaimed(const QString& p_symbol) const;
 
     /*
      * Restore previously loaded strategies from StrategiesState.ini.
@@ -471,8 +459,7 @@ class StrategyManager final : public QObject
 
     MainAlgo* m_mainAlgo;
     QMap<QString, StrategyInstance*> m_strategies;
-    QMap<QString, QString> m_symbolRegistry;      ///< symbol → ownerStrategyID (exclusive claim registry)
-    std::unique_ptr<StrategyRegistry> m_registry; ///< Registry of available strategies
+    QMap<QString, QString> m_symbolRegistry; ///< symbol → ownerStrategyID (exclusive claim registry)
 
     /// Guards persistStrategiesState() from firing during destructor teardown
     /// or bulk stopAllStrategies() mode transitions.  Re-enabled at the start

@@ -235,7 +235,7 @@ std::shared_ptr<QVector<Bar>> StrategySDK::getHistoricalBars(const QString& /* s
 {
     ASSUME_DIFF(m_mainAlgo, nullptr);
 
-    // Request bars from MainAlgo (which has access to all StockInstruments and their BarCaches)
+    // Request bars from MainAlgo (which has access to all SymbolContext and their BarCaches)
     auto result = m_mainAlgo->requestMissingBarsDisplayedStock(day, first, last, tf);
 
     // Result is a variant of either std::shared_ptr<QVector<Bar>> or QFuture
@@ -271,8 +271,7 @@ QDateTime StrategySDK::getCurrentTime() const
 
 // StrategyManager implementation
 
-StrategyManager::StrategyManager(MainAlgo* p_mainAlgo)
-    : QObject(nullptr), m_mainAlgo(p_mainAlgo), m_registry(std::make_unique<StrategyRegistry>())
+StrategyManager::StrategyManager(MainAlgo* p_mainAlgo) : QObject(nullptr), m_mainAlgo(p_mainAlgo)
 {
     ASSUME_DIFF(m_mainAlgo, nullptr);
 }
@@ -869,8 +868,7 @@ void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_inst
 
 void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
                                               const QString& p_symbol,
-                                              StockInstruments* p_instrument,
-                                              ReplayEngine* p_replayEngine)
+                                              SymbolContext* p_instrument)
 {
     auto* instance = findStrategy(p_strategyID);
     if (!instance || !instance->p_adapter)
@@ -902,16 +900,13 @@ void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
                             &StrategyCallbackAdapter::onLevel2,
                             Qt::QueuedConnection);
         ASSUME_TRUE(connected);
-    }
 
-    if (p_replayEngine)
-    {
-        // Connect replay trade events → adapter (for trade-by-trade price tracking)
-        bool connected = connect(p_replayEngine,
-                                 &ReplayEngine::replayTrade,
-                                 instance->p_adapter,
-                                 &StrategyCallbackAdapter::onTrade,
-                                 Qt::QueuedConnection);
+        // Connect instrument trade data → adapter
+        connected = connect(p_instrument,
+                            &SymbolContext::receivedNewTrade,
+                            instance->p_adapter,
+                            &StrategyCallbackAdapter::onTrade,
+                            Qt::QueuedConnection);
         ASSUME_TRUE(connected);
     }
 
@@ -1004,6 +999,11 @@ void StrategyManager::releaseSymbols(const QString& p_strategyID)
             [sdk = instance->p_sdk]() { sdk->clearClaimedSymbols(); },
             Qt::QueuedConnection);
     }
+}
+
+bool StrategyManager::isSymbolClaimed(const QString& p_symbol) const
+{
+    return m_symbolRegistry.contains(p_symbol);
 }
 
 void StrategyManager::persistStrategiesState()

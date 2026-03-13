@@ -62,11 +62,6 @@ class StrategyBase
     /// @note Called on strategy's QThread
     virtual void onLevel2(const Level2& /*level2*/) {}
 
-    /// @brief Called when Level 1 (BBO) data is received
-    /// @param level1 The best bid/ask snapshot
-    /// @note Called on strategy's QThread
-    virtual void onLevel1(const Level1& /*level1*/) {}
-
     /// @brief Called when a trade print is received
     /// @param trade The individual trade execution
     /// @note Called on strategy's QThread

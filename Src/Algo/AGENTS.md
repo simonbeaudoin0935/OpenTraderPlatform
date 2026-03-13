@@ -1,11 +1,11 @@
 # Algo/ Directory - Trading Algorithm Components - Agent Instructions
 
-The Algo directory contains the trading algorithm coordination logic and various receivers for processing market data and trading events. TSClient is brokerage-only (orders, positions, accounts). Market data (Level 2, trades, bars) flows from DBClient in live mode and from ReplayEngine in replay mode.
+The Algo directory contains the trading algorithm coordination logic and various receivers for processing market data and trading events. TSClient is brokerage-only (orders, positions, accounts). Market data (Level 2, trades, bars) flows from DBClient in both live and replay modes through a unified pipeline.
 
 ## Overview
 
 **Location**: `Src/Algo/`
-**Purpose**: Trading algorithm coordination, data reception, and processing
+**Purpose**: Trading algorithm coordination, data routing, and SymbolContext actor model
 **Key Component**: MainAlgo singleton running in dedicated thread
 
 **Directory Contents**:
@@ -61,8 +61,8 @@ MainAlgo::MainAlgo() {
 ### Key Responsibilities
 
 1. **Stock Instrument Management**
-   - Create and manage StockInstruments instances (one per symbol)
-   - Track currently displayed stock via `currentDisplayedStockInstrument`
+   - Create and manage SymbolContext instances (one per symbol)
+   - Track currently displayed stock via `m_currentDisplayedSymbolContext`
    - Coordinate bar caching per symbol
 
 2. **Account and Balance Management**
@@ -87,8 +87,7 @@ MainAlgo::MainAlgo() {
    - Forward raw Level2 data (DWP/BAI computation removed — belongs in individual strategies)
 
 6. **Replay Coordination**
-   - Create and manage ReplayEngine
-   - Forward replay control signals (start, stop, pause, resume) to UI
+   - Forward replay control signals (start, stop, pause, resume) from DBClient to UI
    - Manage replay order/position streams with simulated account
 
 7. **Strategy Management**
@@ -100,9 +99,9 @@ MainAlgo::MainAlgo() {
 class MainAlgo {
     QThread thread;
 
-    // Per-symbol instruments
-    QMap<QString, QPointer<StockInstruments>> stockInstruments;
-    QPointer<StockInstruments> currentDisplayedStockInstrument;
+    // Per-symbol actors (each with FIFO queue + drain loop)
+    QMap<QString, QPointer<SymbolContext>> m_symbolContexts;
+    QPointer<SymbolContext> m_currentDisplayedSymbolContext;
 
     // Receivers (Qt parent-child ownership, parent is 'this')
     PositionsReceiver* m_positionReceiver = nullptr;
@@ -118,9 +117,6 @@ class MainAlgo {
     // Strategy management
     StrategyManager m_strategyManager;
 
-    // Replay engine (owned, runs in MainAlgo thread)
-    ReplayEngine* m_replayEngine = nullptr;
-
     // Crash monitoring
     std::unique_ptr<QSocketNotifier> m_crashNotifier;
 };
@@ -133,9 +129,8 @@ class MainAlgo {
 signals:
     // Market data for displayed stock
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
-    void displayedStockReceivedNewLevel2(QString symbol,
-                                         Level2 level2,
-);  // Simplified: raw Level2 only; strategies compute their own metrics
+    void displayedStockReceivedNewLevel2(QString symbol, Level2 level2);
+    void displayedStockReceivedNewTrade(QString symbol, Trade trade);
 
     // Trading events
     void receivedNewPosition(QString account, Position position);
@@ -146,7 +141,7 @@ signals:
     void tradeStationAccountsReceived(QVector<Account> accounts);
     void balanceUpdated(Balance balance);
 
-    // Replay control (forwarded from ReplayEngine)
+    // Replay control (forwarded from DBClient)
     void replayStarted();
     void replayStopped();
     void replayPaused();
@@ -179,36 +174,64 @@ private slots:
     void onReplayEndReached();
 ```
 
-## StockInstruments
+## SymbolContext
 
-**Role**: Per-symbol data container and processor
+**Role**: Per-symbol passive actor — holds all data/receivers for one symbol and processes events via a thread-pool-backed work queue.
 
-**Composition Pattern** (preferred over pointers):
+**Actor Model Pattern**:
 ```cpp
-class StockInstruments : public QObject {
+class SymbolContext : public QObject {
 public:
-    explicit StockInstruments(const QString& p_symbol, QObject* p_parent = nullptr);
-    ~StockInstruments();
+    explicit SymbolContext(const QString& p_symbol, QObject* p_parent = nullptr);
+    ~SymbolContext();
+
+    void enqueueLevel2(const Level2& p_level2);  // Thread-safe enqueue
+    void enqueueTrade(const Trade& p_trade);      // Thread-safe enqueue
 
     QString symbol;
     BarCache barCache;
     BarReceiver barReceiver;
     Level2Receiver m_level2Receiver;
-    BarAggregator m_barAggregator;  // Accumulates 1m bars into higher-TF bars
+    LiveBarAccumulator m_liveBarAccumulator;     // 1-minute bar accumulator
+    LiveBarAccumulator m_live10sBarAccumulator;  // 10-second bar accumulator
+    BarAggregator m_barAggregator;
+
+private:
+    using WorkItem = std::variant<Level2, Trade>;
+    void drain();
+    void processLevel2(const Level2& l2);
+    void processTrade(const Trade& trade);
+
+    QMutex m_queueMutex;
+    QQueue<WorkItem> m_queue;
+    std::atomic<bool> m_draining{false};
+    std::atomic<bool> m_destroying{false};
+    QWaitCondition m_drainDone;
 };
 ```
+
+**Threading Guarantees**:
+- `enqueueLevel2()` / `enqueueTrade()` are thread-safe (mutex-protected push)
+- Only ONE pool thread drains a symbol at a time → sequential per symbol, parallel across symbols
+- ABA-safe drain loop: re-checks queue after clearing `m_draining` flag
+- Destructor sets `m_destroying` and waits for running drain to finish
+
+**DirectConnection Rule**:
+All internal signal-slot connections within SymbolContext use `Qt::DirectConnection` so they execute on the pool thread during `drain()`. External connections (to MainAlgo, GUI, StrategyManager) keep `Qt::AutoConnection` → become `QueuedConnection` when emitted from the pool thread.
+
+**Centralized Routing**:
+SymbolContext does NOT connect to DBClient directly. MainAlgo wires:
+```
+DBClient::newLevel2 → MainAlgo::onNewLevel2Received → symbolContext->enqueueLevel2()
+DBClient::newTrade  → MainAlgo::onNewTradeReceived  → symbolContext->enqueueTrade()
+```
+This is the same handler for both live and replay modes — no mode-checking required.
 
 **Lifecycle**:
 - Created when symbol first selected via `onSelectDisplayedStock()`
 - Previous instrument is cleaned up (`deleteLater()`) when a different symbol is selected
-- Only one StockInstruments exists at a time (the displayed stock)
-- Manages its own bar cache, bar receiver, Level 2 receiver, and bar aggregator
-
-**Responsibilities**:
-- Manage BarCache for symbol (all timescales)
-- Own Level2Receiver that computes bid-ask imbalance and depth-weighted prices
-- Own BarReceiver that processes bars built by `LiveBarAccumulator`
-- Own BarAggregator wired as: `LiveBarAccumulator::barClosed → BarAggregator::onNewBar → BarCache::storeBar(tf, bar)`
+- Only one SymbolContext exists at a time (the displayed stock)
+- MainAlgo subscribes to DBClient live data on creation (if not in replay mode)
 
 ## BarAggregator
 
@@ -241,7 +264,7 @@ signals:
 - Weekly bar closes on Friday at `TIME_LAST_CANDLE_AFTER_MARKET_SESSION`
 - Monthly bar closes when the next trading day falls in a different calendar month
 
-**Wiring** (in `StockInstruments` constructor):
+**Wiring** (in `SymbolContext` constructor):
 ```cpp
 connect(&barReceiver.m_liveBarAccumulator, &LiveBarAccumulator::barClosed,
         &m_barAggregator, &BarAggregator::onNewBar);
@@ -257,7 +280,7 @@ connect(&m_barAggregator, &BarAggregator::barClosed,
 
 **Role**: Receive and process bar data
 
-`BarReceiver` processes bars produced by `LiveBarAccumulator`. In live mode, bars come from `DBClient::newTrade` → `LiveBarAccumulator`. In replay mode, bars come from `ReplayEngine::replayTrade` → `LiveBarAccumulator`.
+`BarReceiver` processes bars produced by `LiveBarAccumulator`. Bars come from `DBClient::newTrade` → MainAlgo routing → `SymbolContext::enqueueTrade()` → `LiveBarAccumulator::onNewTrade()` (via DirectConnection in drain loop). This path is identical for both live and replay modes.
 
 ```cpp
 class BarReceiver : public StreamReceiver {
@@ -274,13 +297,13 @@ private:
 };
 ```
 
-Historical bars are loaded into BarCache via REST API requests (TSClient historical endpoint).
+Historical bars are loaded into BarCache via Databento historical API requests.
 
 ### Level2Receiver/
 
 **Role**: Process Level 2 market depth data (10-level book snapshots)
 
-Replaces the former `MarketDepthQuoteReceiver/`. Uses the `Level2` model (from `Src/Core/Models/Level2.h`) which contains `std::array<Level2Row, 10>` for bids and asks. Connected to `DBClient::newLevel2` in live mode and `ReplayEngine::replayLevel2` in replay mode.
+Replaces the former `MarketDepthQuoteReceiver/`. Uses the `Level2` model (from `Src/Core/Models/Level2.h`) which contains `std::array<Level2Row, 10>` for bids and asks. Connected via `SymbolContext::enqueueLevel2()` → `Level2Receiver::onReceivedNewLevel2()` (DirectConnection in drain loop). Same path for live and replay.
 
 **Key Features**:
 - Computes metrics from 10-level book snapshots:
@@ -298,23 +321,20 @@ void receivedNewLevel2(QString symbol, Level2 level2);  // 2 params only
 void onReceivedNewLevel2(Level2 level2);
 ```
 
-**Data Flow**:
+**Data Flow** (identical for live and replay):
 ```
-Live mode:
-DBClient::newLevel2 (Databento Schema::Mbp10)
-    ↓
-Level2Receiver::onReceivedNewLevel2()
-    ↓ (raw forward, no computation)
+DBClient::newLevel2 (Databento Schema::Mbp10 or replay .dbn.zst)
+    ↓ [signal → MainAlgo thread]
+MainAlgo::onNewLevel2Received()
+    ↓ m_symbolContexts[sym]->enqueueLevel2()
+SymbolContext FIFO queue
+    ↓ [QThreadPool drain()]
+Level2Receiver::onReceivedNewLevel2() [DirectConnection]
     ↓ emit receivedNewLevel2(...)
-MainAlgo (forwarded to displayedStockReceivedNewLevel2)
+    ↓ [QueuedConnection → MainAlgo thread]
+MainAlgo → displayedStockReceivedNewLevel2
     ↓
 GUIFrontend → Level2Table display
-
-Replay mode:
-ReplayEngine::replayLevel2
-    ↓ (same slot and processing)
-Level2Receiver::onReceivedNewLevel2()
-    ...
 ```
 
 **BBO Access**: Best bid/ask is `Level2.m_bids[0]` and `Level2.m_asks[0]`. There is no separate Quote type.
@@ -420,18 +440,20 @@ protected:
 
 ### Level 2 Data Flow
 
-```mermaid
-sequenceDiagram
-    participant DBClient as DBClient (live) / ReplayEngine (replay)
-    participant L2R as Level2Receiver
-    participant MainAlgo
-    participant Frontend as GUIFrontend
-
-    DBClient->>L2R: onReceivedNewLevel2(Level2)
-    L2R->>L2R: Calculate bidAskImbalance, bidDWP, askDWP
-    L2R-->>MainAlgo: receivedNewLevel2(symbol, level2, imbalance, bidDWP, askDWP)
-    MainAlgo-->>Frontend: displayedStockReceivedNewLevel2(...)
-    Frontend->>Frontend: Update Level2Table
+```
+DBClient thread → emit newLevel2(symbol, level2)
+                    ↓ QueuedConnection
+MainAlgo thread → onNewLevel2Received(symbol, level2)
+                    → m_symbolContexts[symbol]->enqueueLevel2(level2)
+                    ↓ QThreadPool::globalInstance()
+Pool thread     → drain() → processLevel2()
+                    → m_level2Receiver.onReceivedNewLevel2() [DirectConnection]
+                    → emit receivedNewLevel2(...)
+                    ↓ QueuedConnection (pool → MainAlgo thread)
+MainAlgo thread → onDisplayedLevel2Received()
+                    → emit displayedStockReceivedNewLevel2()
+                    ↓ QueuedConnection (MainAlgo → GUI thread)
+GUI thread      → update Level2Table
 ```
 
 ### Position Update Flow
@@ -456,13 +478,13 @@ sequenceDiagram
 sequenceDiagram
     participant Frontend as GUIFrontend
     participant MainAlgo
-    participant Old as Old StockInstruments
-    participant New as New StockInstruments
+    participant Old as Old SymbolContext
+    participant New as New SymbolContext
 
     Frontend->>MainAlgo: onSelectDisplayedStock(symbol)
     MainAlgo->>Old: disconnect bar/level2 signals
     MainAlgo->>Old: deleteLater()
-    MainAlgo->>New: create StockInstruments(symbol)
+    MainAlgo->>New: create SymbolContext(symbol)
     MainAlgo->>New: connect barReceiver.receivedNewBar → displayedStockReceivedNewBar
     MainAlgo->>New: connect level2Receiver.receivedNewLevel2 → displayedStockReceivedNewLevel2
 ```
@@ -471,18 +493,24 @@ sequenceDiagram
 
 ### Thread Boundaries
 
-All Algo components run on MainAlgo thread:
-- MainAlgo
-- StockInstruments instances
-- All receivers (Level2Receiver, Level1Receiver, BarReceiver, PositionsReceiver, OrdersReceiver)
-- ReplayEngine
+**MainAlgo thread** (routing + lightweight coordination):
+- MainAlgo singleton
 - StrategyManager
+- PositionsReceiver, OrdersReceiver
+- GUI throttle timer
+
+**QThreadPool** (heavy per-symbol processing):
+- SymbolContext::drain() runs on pool threads
+- Level2Receiver, BarReceiver, LiveBarAccumulator, BarAggregator execute on pool thread via DirectConnection
+- One pool thread per symbol at a time (sequential per symbol, parallel across symbols)
 
 **Cross-thread communication** via signals:
 ```
-TSClient thread ─[signal]→ MainAlgo thread   (orders, positions, accounts)
-DBClient thread ─[signal]→ MainAlgo thread   (market data: Level2, Level1, Trade)
-MainAlgo thread ─[signal]→ Main/GUI thread   (UI updates)
+TSClient thread  ─[QueuedConnection]→  MainAlgo thread  (orders, positions, accounts)
+DBClient thread  ─[QueuedConnection]→  MainAlgo thread  (market data routing)
+MainAlgo thread  ─[enqueue+pool]→      QThreadPool      (per-symbol processing)
+Pool thread      ─[QueuedConnection]→  MainAlgo thread   (processed results)
+MainAlgo thread  ─[QueuedConnection]→  Main/GUI thread   (UI updates)
 ```
 
 ### Thread Safety Assertions
@@ -499,17 +527,17 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol) {
 
 ### Composition Over Pointers
 
-StockInstruments uses composition for its receivers and cache:
+SymbolContext uses composition for its receivers and cache:
 ```cpp
 // ✓ CORRECT - Direct member objects
-class StockInstruments {
+class SymbolContext {
     BarCache barCache;
     BarReceiver barReceiver;
     Level2Receiver m_level2Receiver;
 };
 
 // ✗ WRONG - Unnecessary pointers
-class StockInstruments {
+class SymbolContext {
     BarCache* barCache;
     Level2Receiver* m_level2Receiver;
 };
@@ -523,15 +551,15 @@ PositionsReceiver* m_positionReceiver = nullptr;  // Qt parent-child (parent is 
 OrdersReceiver* m_orderReceiver = nullptr;        // Qt parent-child (parent is 'this')
 ```
 
-### StockInstruments Management
+### SymbolContext Management
 
 ```cpp
 // Stored by symbol in map with QPointer for safe access
-QMap<QString, QPointer<StockInstruments>> stockInstruments;
+QMap<QString, QPointer<SymbolContext>> m_symbolContexts;
 
 // Created on demand in onSelectDisplayedStock()
-currentDisplayedStockInstrument = new StockInstruments(symbol, this);
-stockInstruments.insert(symbol, currentDisplayedStockInstrument);
+m_currentDisplayedSymbolContext = new SymbolContext(symbol, this);
+m_symbolContexts.insert(symbol, m_currentDisplayedSymbolContext);
 
 // Old instrument cleaned up via deleteLater() when switching symbols
 oldInstrument->deleteLater();
@@ -600,31 +628,30 @@ if (!m_positionReceiver->hasActiveStream()) {
 
 ## Replay Mode
 
-MainAlgo coordinates replay mode for strategy testing using Databento `.dbn.zst` files via `ReplayEngine`.
+MainAlgo coordinates replay mode for strategy testing using Databento `.dbn.zst` files. Replay playback logic lives in DBClient (not a separate ReplayEngine class). DBClient emits `newLevel2`/`newTrade` in replay mode — the same signals as live mode — enabling a unified routing pipeline.
 
 ### Entering Replay Mode
 
 ```cpp
-void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed) {
-    // 1. Create ReplayEngine (lazy init, parent=this for thread affinity)
-    m_replayEngine = new ReplayEngine(this, TSClient::getInstance());
-
-    // 2. Forward replay control signals to MainAlgo signals for UI
-    connect(m_replayEngine, &ReplayEngine::replayStarted, this, &MainAlgo::replayStarted);
-    connect(m_replayEngine, &ReplayEngine::replayStopped, this, &MainAlgo::replayStopped);
+void MainAlgo::enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p_speed) {
+    // 1. Forward DBClient replay control signals to MainAlgo signals for UI
+    connect(DBClient::getInstance(), &DBClient::replayStarted, this, &MainAlgo::replayStarted);
+    connect(DBClient::getInstance(), &DBClient::replayStopped, this, &MainAlgo::replayStopped);
     // ... (paused, resumed, timeUpdated, endReached)
 
-    // 3. Wire market data signals to receivers (connectReplaySignals)
-    connect(m_replayEngine, &ReplayEngine::replayLevel2, level2Receiver, &Level2Receiver::onReceivedNewLevel2);
-    connect(m_replayEngine, &ReplayEngine::replayTrade, m_liveBarAccumulator, &LiveBarAccumulator::onNewTrade);
+    // 2. Wire OrderEmulator market depth feed
+    connect(DBClient::getInstance(), &DBClient::newLevel2,
+            orderEmulator, &OrderEmulator::updateMarketDepth);
 
-    // 4. Start replay order/position streams with simulated account
+    // 3. Start replay order/position streams with simulated account
     startReplayOrderStreams();
 
-    // 5. Start replay
-    m_replayEngine->startReplay(p_date, p_startTime, p_speed);
+    // 4. Start replay (DBClient opens .dbn.zst files and begins timer-based emission)
+    DBClient::getInstance()->startReplayPaused(symbol, p_date, p_startTime, p_speed);
 }
 ```
+
+Note: Level2/Trade routing to SymbolContext is handled automatically by the centralized routing established in `start()`. No separate replay wiring needed for data flow.
 
 ### Exiting Replay Mode
 
@@ -708,7 +735,8 @@ GUI (OrderWidget, PositionWidget)
 | Account | Real TradeStation account | `SIM123456` simulated |
 | Orders | Real API (TSClient) | OrderEmulator |
 | Positions | Real API (TSClient) | OrderEmulator |
-| Market data | `DBClient::newLevel2` / `newTrade` (live) | Recorded `.dbn.zst` files (ReplayEngine) |
+| Market data | `DBClient::newLevel2` / `newTrade` (Databento live) | `DBClient::newLevel2` / `newTrade` (from `.dbn.zst` files) |
+| Data pipeline | DBClient → MainAlgo → SymbolContext | Same — unified pipeline |
 | Fills | Real market | Based on recorded depth |
 | Latency | Real network | Simulated (100-500ms) |
 | Balance | Real | $100,000 simulated |

@@ -12,8 +12,8 @@ Level2Receiver::Level2Receiver(const QString& symbol, QObject* parent) : StreamR
 
 void Level2Receiver::openStream()
 {
-    // Subscriptions are managed by StockInstruments via DBClient::subscribeLive()
-    DEBUG << "Level2Receiver ready for" << m_symbol << "(subscription via StockInstruments)";
+    // Subscriptions are managed by SymbolContext via DBClient::subscribeLive()
+    DEBUG << "Level2Receiver ready for" << m_symbol << "(subscription via SymbolContext)";
 }
 
 void Level2Receiver::onReceivedNewLevel2(Level2 level2)

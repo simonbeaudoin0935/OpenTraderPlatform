@@ -16,7 +16,6 @@ class Level2Widget : public QWidget
     enum class DisplayMode
     {
         Level2, ///< Full order book depth (10 levels)
-        Level1, ///< Best bid/ask only from Quote stream
         NoData  ///< No data available
     };
 
@@ -27,10 +26,6 @@ class Level2Widget : public QWidget
     /// @param bids Vector of bid levels (price, size, MPID)
     /// @param asks Vector of ask levels (price, size, MPID)
     void updateData(const std::array<Level2Row, 10>& bids, const std::array<Level2Row, 10>& asks);
-
-    /// Update market depth display with Level 1 data (best bid/ask only)
-    /// @param level1 Level1 BBO data
-    void updateLevel1Data(const Level1& level1);
 
     /// Get the current display mode
     [[nodiscard]] DisplayMode getDisplayMode() const
@@ -45,8 +40,7 @@ class Level2Widget : public QWidget
     /// Called when entering replay mode to show what data will be available
     /// before any replay data has been emitted.
     /// @param p_hasLevel2 True if Level 2 depth data exists in the replay DB for this symbol
-    /// @param p_hasLevel1 True if Level 1 quote data exists in the replay DB for this symbol
-    void setExpectedDataMode(bool p_hasLevel2, bool p_hasLevel1);
+    void setExpectedDataMode(bool p_hasLevel2);
 
   private:
     void setupUI();

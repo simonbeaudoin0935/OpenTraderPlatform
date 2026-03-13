@@ -275,6 +275,7 @@ void MainApp::start()
 
     // Auto-connect to Databento if API key is present
     auto* dbClient = DBClient::getInstance();
+    dbClient->start();
 
     // Connect Databento data usage updates to frontend
     QObject::connect(dbClient, &DBClient::dataUsageUpdated, appFrontend, &FrontEnd::onDBClientDataUsageUpdate);
@@ -342,7 +343,7 @@ void MainApp::cleanupSingletons()
     qInfo() << "All singletons cleaned up";
 }
 
-void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
+void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p_speed)
 {
     ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Live && "enterReplayMode called when already in replay mode");
 
@@ -384,10 +385,10 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, ReplayEngine::Pla
             mainAlgo->pauseLiveStreams();
 
             // Delete all stock instruments (and their streams)
-            mainAlgo->deleteAllStockInstruments();
+            mainAlgo->deleteAllSymbolContext();
 
             // Create fresh stock instrument with mock-backed streams
-            mainAlgo->createAndSetDisplayedStockInstrument(displayedSymbol);
+            mainAlgo->createAndSetDisplayedSymbolContext(displayedSymbol);
 
             // Start replay in paused state - emits first bar to populate chart
             mainAlgo->enterReplayModePaused(displayedSymbol, p_date, p_startTime, p_speed);
@@ -426,7 +427,7 @@ void MainApp::exitReplayMode()
             mainAlgo->stopAllStrategies();
 
             // Delete all replay stock instruments
-            mainAlgo->deleteAllStockInstruments();
+            mainAlgo->deleteAllSymbolContext();
         },
         Qt::BlockingQueuedConnection);
 
@@ -452,7 +453,7 @@ void MainApp::exitReplayMode()
             mainAlgo->resumeLiveStreams();
 
             // Create fresh stock instrument with live streams
-            mainAlgo->createAndSetDisplayedStockInstrument(displayedSymbol);
+            mainAlgo->createAndSetDisplayedSymbolContext(displayedSymbol);
         },
         Qt::QueuedConnection);
 
@@ -462,7 +463,7 @@ void MainApp::exitReplayMode()
     qInfo() << "Replay mode exited, live mode resumed";
 }
 
-void MainApp::startReplayPlayback(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
+void MainApp::startReplayPlayback(QDate p_date, QTime p_startTime, Playback::Speed p_speed)
 {
     ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "startReplayPlayback called when not in replay mode");
 
@@ -500,17 +501,17 @@ void MainApp::resumeReplayPlayback()
     QMetaObject::invokeMethod(mainAlgo, [this]() { mainAlgo->resumeReplay(); }, Qt::QueuedConnection);
 }
 
-void MainApp::setReplaySpeed(ReplayEngine::PlaybackSpeed p_speed)
+void MainApp::setReplaySpeed(Playback::Speed p_speed)
 {
     QMetaObject::invokeMethod(mainAlgo, [this, p_speed]() { mainAlgo->setReplaySpeed(p_speed); }, Qt::QueuedConnection);
 }
 
 bool MainApp::isReplayPaused() const
 {
-    return mainAlgo->getReplayState() == ReplayEngine::PlaybackState::Paused;
+    return mainAlgo->getReplayState() == Playback::State::Paused;
 }
 
-void MainApp::preloadChartForReplay(QDate p_date, QTime p_startTime, ReplayEngine::PlaybackSpeed p_speed)
+void MainApp::preloadChartForReplay(QDate p_date, QTime p_startTime, Playback::Speed p_speed)
 {
     ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "preloadChartForReplay called when not in replay mode");
 
@@ -532,9 +533,4 @@ void MainApp::preloadChartForReplay(QDate p_date, QTime p_startTime, ReplayEngin
         Qt::QueuedConnection);
 
     qInfo() << "Chart preload initiated for" << displayedSymbol;
-}
-
-ReplayEngine* MainApp::getReplayEngine() const
-{
-    return mainAlgo->getReplayEngine();
 }

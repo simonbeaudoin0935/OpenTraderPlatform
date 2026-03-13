@@ -44,14 +44,12 @@ graph TD
     end
 
     subgraph "Algorithm Core"
-        MAL --> SI[StockInstruments]
+        MAL --> SI[SymbolContext]
         SI --> BC[BarCache]
         SI --> L2R[Level2Receiver]
-        SI --> L1R[Level1Receiver]
         MAL --> LBA[LiveBarAccumulator]
         MAL --> PR[PositionsReceiver]
         MAL --> OR[OrdersReceiver]
-        MAL --> RE[ReplayEngine]
     end
 
     subgraph "GUI Frontend"
@@ -210,13 +208,15 @@ MemoryMonitor* m_memoryMonitor;      // System resource tracking
 ### 2. DBClient
 
 **Role**: Databento market data client singleton
-**Thread**: Databento's internal `LiveThreaded` thread (callbacks); `QThreadPool` workers (historical/download)
+**Thread**: Own dedicated `QThread` (like TSClient). Databento's internal `LiveThreaded` thread handles callbacks; `QThreadPool` workers handle historical/download.
 **Responsibilities**:
 - Live streaming via `databento::LiveThreaded` (Level 2, trades, trading status)
 - Historical bar fetching via `databento::Historical`
 - Replay data download (`.dbn.zst` archive files)
 - Symbol resolution via `PitSymbolMap` (instrument_id → ticker)
 - API key management and connection state tracking
+
+**Threading**: DBClient lives on its own QThread. State-modifying methods self-route to DBClient thread if called from elsewhere. In live mode, the thread mostly idles (Databento's LiveThreaded does the heavy lifting). The thread will host the replay QTimer tick loop when replay is folded in.
 
 **Connection State Machine**:
 ```
@@ -229,7 +229,6 @@ Connected → Disconnected (on user disconnect)
 ```cpp
 void liveConnectionStateChanged(ConnectionState state);
 void newLevel2(QString symbol, Level2 level2);
-void newLevel1(QString symbol, Level1 level1);
 void newTrade(QString symbol, Trade trade);
 void newStatus(QString symbol, bool isHalted, QString haltReason, bool isSsr);
 void liveGatewayError(QString errorText, bool isFatal);
@@ -264,36 +263,41 @@ void totalDataReceivedBytesIncreased(qsizetype bytesIncrease);
 **Role**: Trading algorithm coordinator singleton
 **Thread**: Dedicated worker thread (stack-allocated)
 **Responsibilities**:
-- Maintain one `StockInstruments` instance per tracked symbol
-- Route market data (Level 2, trades, bars) from DBClient to the correct `StockInstruments`
-- Coordinate `LiveBarAccumulator` to build forming 1-minute bars from trade records
+- Maintain one `SymbolContext` instance per tracked symbol
+- Route market data (Level 2, trades) from DBClient to the correct `SymbolContext` queue
 - Track positions, orders, and account balances via `PositionsReceiver` / `OrdersReceiver`
-- Create and manage `ReplayEngine` for historical playback
+- Forward replay control signals from DBClient to the frontend
 - Pause/resume heartbeat timers on stream receivers during replay
 
 **Key Members**:
 ```cpp
-QMap<QString, StockInstruments*> m_stockInstruments;   // Symbol → instrument
+QMap<QString, SymbolContext*> m_symbolContexts;            // Symbol → context (actor)
 std::unique_ptr<PositionsReceiver> m_positionReceiver;
 std::unique_ptr<OrdersReceiver> m_orderReceiver;
-std::unique_ptr<ReplayEngine> m_replayEngine;           // Present only during replay
-LiveBarAccumulator* m_liveBarAccumulator;               // Builds bars from trades
 QTimer* m_balancePollingTimer;
 ```
 
-### 5. StockInstruments
+### 5. SymbolContext
 
-**Role**: Per-symbol data container
-**Thread**: MainAlgo thread
+**Role**: Per-symbol actor with thread-pool drain loop
+**Thread**: Enqueued from any thread; drain runs on QThreadPool worker threads
 **Responsibilities**:
+- FIFO work queue for Level2 and Trade events (thread-safe enqueue)
+- Sequential processing per symbol, parallel across symbols
 - Bar cache with SQLite persistence
 - Level 2 reception via `Level2Receiver`
-- Level 1 (BBO) reception via `Level1Receiver`
+- Live bar accumulation (1-minute and 10-second intervals)
 
-**Composition Pattern**:
+**Actor Pattern**:
 ```cpp
-class StockInstruments : public QObject {
-private:
+class SymbolContext : public QObject {
+    using WorkItem = std::variant<Level2, Trade>;
+
+    QMutex m_queueMutex;
+    QQueue<WorkItem> m_queue;
+    std::atomic<bool> m_draining{false};
+    std::atomic<bool> m_destroying{false};
+    QWaitCondition m_drainDone;
     QString m_symbol;
     BarCache m_barCache;              // Direct member
     Level2Receiver m_level2Receiver;  // Direct member
@@ -323,37 +327,27 @@ private:
 
 ### 7. LiveBarAccumulator
 
-**Role**: Builds in-progress 1-minute OHLCV bars from individual `Trade` records
-**Thread**: MainAlgo thread
-**Usage**: Used in both live mode (connected to `DBClient::newTrade`) and replay mode (connected to `ReplayEngine::replayTrade`)
+**Role**: Builds in-progress OHLCV bars from individual `Trade` records
+**Thread**: QThreadPool worker thread (called from SymbolContext drain loop via DirectConnection)
+**Usage**: Used identically in both live and replay modes — DBClient emits `newTrade` in both cases, routed through MainAlgo → SymbolContext → LiveBarAccumulator.
 
 **Convention**: A trade at 09:31:04 contributes to the bar timestamped **09:31:00** (floor to current minute).
 - `barUpdated(Bar)` — emitted on every trade, carries the in-progress bar
 - `barClosed(Bar)` — emitted at minute-boundary rollover with the completed bar
 
-### 8. ReplayEngine
+### 8. Replay Playback (DBClient)
 
 **Role**: Replays historical market data from Databento `.dbn.zst` archive files
-**Thread**: MainAlgo thread
+**Thread**: DBClient thread (replay logic lives inside DBClient, not a separate class)
 **Data Sources**:
 ```
 ~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_mbp10.dbn.zst   (Level 2)
 ~/.local/share/L2Trader/ReplayData/{YYYY-MM-DD}/{SYMBOL}_trades.dbn.zst  (Trades)
 ```
 
-**Playback Speed**: Configurable via `PlaybackSpeed` enum — from `SuperSlow` (0.01×) to `AsFastAsPossible` (0ms timer delay). Speed can be changed during playback.
+**Playback Speed**: Configurable via `Playback::Speed` enum (in `PlaybackTypes.h`) — from `SuperSlow` (0.01×) to `AsFastAsPossible` (0ms timer delay). Speed can be changed during playback.
 
-**Signals**:
-```cpp
-void replayLevel2(QString symbol, Level2 level2);
-void replayTrade(QString symbol, Trade trade);
-void replayStarted();
-void replayStopped();
-void replayPaused();
-void replayResumed();
-void replayTimeUpdated(QDateTime currentTime);
-void replayEndReached();
-```
+**Unified Pipeline**: In replay mode, DBClient emits `newLevel2` and `newTrade` — the same signals as live mode. MainAlgo routes them identically to SymbolContext queues. No separate replay signals or wiring needed.
 
 ### 9. OrderEmulator
 
@@ -402,10 +396,11 @@ public slots:
 | Thread | Owner | Purpose | Lifetime |
 |--------|-------|---------|----------|
 | Main | QApplication | GUI event loop, UI updates | Application lifetime |
+| DBClient | DBClient singleton | Databento API, live callbacks, replay playback | Application lifetime |
 | Databento internal | DBClient | Live callbacks (Level2, Trade, Status records) | DBClient::connectLive lifetime |
-| QThreadPool worker(s) | DBClient | Historical bar fetches, replay data downloads | Per-request |
+| QThreadPool worker(s) | Qt global pool | SymbolContext drain loops, historical bar fetches | Per-task |
 | TSClient | TSClient singleton | REST requests, OAuth, brokerage streams | Application lifetime |
-| MainAlgo | MainAlgo singleton | Trading logic, bar/trade/L2 processing | Application lifetime |
+| MainAlgo | MainAlgo singleton | Signal routing, replay control coordination | Application lifetime |
 | Database | DatabaseThread (per BarCache) | SQLite operations | BarCache lifetime |
 
 ### Cross-Thread Communication
@@ -413,16 +408,25 @@ public slots:
 All cross-thread data flow uses Qt's signal/slot mechanism with automatic queuing:
 
 ```cpp
-// DBClient Databento callback thread → MainAlgo thread
-connect(&DBClient::getInstance(), &DBClient::newLevel2,
-        &MainAlgo::getInstance(), &MainAlgo::onReceivedNewLevel2,
-        Qt::AutoConnection);  // Auto-queued across threads
+// DBClient thread → MainAlgo thread (routing)
+connect(DBClient::getInstance(), &DBClient::newLevel2,
+        MainAlgo::getInstance(), &MainAlgo::onNewLevel2Received);
 
-// MainAlgo thread → Main/GUI thread
-connect(&MainAlgo::getInstance(), &MainAlgo::displayedStockReceivedNewLevel2,
-        frontend, &FrontEnd::onCurrentHighlightedReceivedNewLevel2,
-        Qt::QueuedConnection);
+// MainAlgo thread → SymbolContext queue (lock-free enqueue)
+m_symbolContexts[symbol]->enqueueLevel2(level2);  // Thread-safe FIFO
+
+// QThreadPool worker → MainAlgo thread (auto-queued back)
+connect(&symbolCtx->barReceiver, &BarReceiver::receivedNewBar,
+        mainAlgo, &MainAlgo::onBarReceived, Qt::QueuedConnection);
 ```
+
+### SymbolContext Actor Model
+
+Each `SymbolContext` is a passive actor with a FIFO work queue:
+- **Enqueue**: Thread-safe (mutex-protected), called from MainAlgo thread
+- **Drain**: Runs on QThreadPool worker — only one pool thread per symbol at a time
+- **Internal connections**: Use `Qt::DirectConnection` (safe: single-drainer guarantee)
+- **External connections**: Use `Qt::QueuedConnection` (cross-thread to MainAlgo/GUI)
 
 ### Thread Safety Mechanisms
 
@@ -461,7 +465,7 @@ Shutdown sequence:
 Prefer direct member objects over pointers when the object has a clear owner, lifetime matches the container, and polymorphism is not needed:
 
 ```cpp
-class StockInstruments {
+class SymbolContext {
     BarCache m_barCache;              // Direct member (preferred)
     Level2Receiver m_level2Receiver;  // Direct member (preferred)
     // NOT: BarCache* m_barCache;     // Pointer (avoid unless necessary)
@@ -486,8 +490,8 @@ if (m_streamOrders) { /* stream still alive */ }
 #### std::unique_ptr for Exclusive Ownership
 
 ```cpp
-std::unique_ptr<ReplayEngine> m_replayEngine;
 std::unique_ptr<PositionsReceiver> m_positionReceiver;
+std::unique_ptr<OrdersReceiver> m_orderReceiver;
 ```
 
 #### std::shared_ptr for Shared Ownership
@@ -505,34 +509,36 @@ sequenceDiagram
     participant Databento
     participant DBClient
     participant MainAlgo
-    participant LiveBarAccumulator
-    participant StockInstruments
+    participant SymbolContext
+    participant QThreadPool
     participant BarCache
     participant Database
     participant GUIFrontend
     participant StockPriceChart
 
     Databento->>DBClient: Trade record (callback thread)
-    DBClient->>MainAlgo: newTrade signal (auto-queued)
-    MainAlgo->>LiveBarAccumulator: onNewTrade()
-    LiveBarAccumulator->>LiveBarAccumulator: Accumulate into forming bar
-    LiveBarAccumulator->>GUIFrontend: barUpdated(formingBar)
-    StockPriceChart->>StockPriceChart: Update live candle
+    DBClient->>MainAlgo: newTrade signal (auto-queued to MainAlgo thread)
+    MainAlgo->>SymbolContext: enqueueTrade() (adds to FIFO queue)
+    SymbolContext->>QThreadPool: Submit drain() QRunnable
+    QThreadPool->>SymbolContext: drain() executes on pool thread
+    SymbolContext->>SymbolContext: LiveBarAccumulator::onNewTrade() [DirectConnection]
 
     alt Minute boundary
-        LiveBarAccumulator->>MainAlgo: barClosed(completedBar)
-        MainAlgo->>StockInstruments: Store completed bar
-        StockInstruments->>BarCache: Add to m_barCacheByDay[date]
+        SymbolContext->>SymbolContext: barClosed → BarReceiver [DirectConnection]
+        SymbolContext->>BarCache: storeBar() [DirectConnection]
         BarCache->>Database: Async write to SQLite
+        SymbolContext->>MainAlgo: receivedNewBar [QueuedConnection → MainAlgo thread]
         MainAlgo->>GUIFrontend: displayedStockReceivedNewBar
         GUIFrontend->>StockPriceChart: addLiveBar(symbol, bar)
     end
 
     Databento->>DBClient: Mbp10 record (Level 2 update)
     DBClient->>MainAlgo: newLevel2 signal
-    MainAlgo->>StockInstruments: Level2Receiver::onReceivedNewLevel2
+    MainAlgo->>SymbolContext: enqueueLevel2() (adds to FIFO queue)
+    SymbolContext->>QThreadPool: Submit drain() QRunnable
+    QThreadPool->>SymbolContext: Level2Receiver::onReceivedNewLevel2 [DirectConnection]
+    SymbolContext->>MainAlgo: receivedNewLevel2 [QueuedConnection]
     MainAlgo->>GUIFrontend: displayedStockReceivedNewLevel2
-    GUIFrontend->>GUIFrontend: Update Level2Widget
 ```
 
 ### Historical Bar Request Flow
@@ -587,7 +593,9 @@ sequenceDiagram
     participant GUIFrontend
     participant MainApp
     participant MainAlgo
-    participant ReplayEngine
+    participant DBClient
+    participant SymbolContext
+    participant QThreadPool
     participant OrderEmulator
     participant TSClient
 
@@ -596,23 +604,25 @@ sequenceDiagram
     MainApp->>TSClient: setMode(Replay) [BlockingQueuedConnection]
     TSClient->>TSClient: Create MockNetworkAccessManager + OrderEmulator
     MainApp->>MainAlgo: enterReplayModePaused()
-    MainAlgo->>MainAlgo: Create ReplayEngine, connectReplaySignals()
-    MainAlgo->>ReplayEngine: startReplayPaused()
+    MainAlgo->>DBClient: startReplayPaused(symbol, date, startTime)
 
     User->>GUIFrontend: Click Play
     GUIFrontend->>MainApp: resumeReplayPlayback()
     MainApp->>MainAlgo: resumeReplay()
-    MainAlgo->>ReplayEngine: resumeReplay()
-    ReplayEngine->>ReplayEngine: scheduleNextMbp10(), scheduleNextTrade()
+    MainAlgo->>DBClient: resumeReplay()
 
-    loop Playback
-        ReplayEngine->>MainAlgo: replayLevel2(symbol, level2)
+    loop Playback (QTimer ticks on DBClient thread)
+        DBClient->>MainAlgo: newLevel2(symbol, level2) [same signal as live]
+        MainAlgo->>SymbolContext: enqueueLevel2()
+        SymbolContext->>QThreadPool: drain()
+        DBClient->>MainAlgo: newTrade(symbol, trade) [same signal as live]
+        MainAlgo->>SymbolContext: enqueueTrade()
+        SymbolContext->>QThreadPool: drain() → LiveBarAccumulator
         MainAlgo->>OrderEmulator: updateMarketDepth(level2)
-        ReplayEngine->>MainAlgo: replayTrade(symbol, trade)
-        MainAlgo->>LiveBarAccumulator: onNewTrade(trade)
-        LiveBarAccumulator->>GUIFrontend: barUpdated / barClosed
     end
 ```
+
+> **Key insight**: The replay pipeline uses the exact same signals and routing as live mode. DBClient emits `newLevel2`/`newTrade` in both cases. No separate replay wiring is needed.
 
 ## Design Patterns
 
