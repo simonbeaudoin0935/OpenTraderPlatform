@@ -1047,10 +1047,21 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
         }
 
         // New secondary symbol: create SymbolContext — data flows automatically via
-        // DBClient::newLevel2/newTrade → MainAlgo routing → SymbolContext queue
+        // DBClient::newLevel2/newTrade → MainAlgo routing → SymbolContext queue.
+        // Also open its replay files in DBClient so records get emitted.
         auto* instrument = new SymbolContext(p_symbol, this);
         Q_CHECK_PTR(instrument);
         m_symbolContexts.insert(p_symbol, instrument);
+
+        // Open replay data files for this symbol (non-blocking, same-thread call)
+        if (!DBClient::getInstance()->addReplaySymbol(p_symbol))
+        {
+            WARNING << "addReplaySymbol failed for" << p_symbol << "- no data files found";
+        }
+
+        // Wire bar-close to OrderEmulator if replay is active
+        if (OrderEmulator* emulator = TSClient::getInstance()->getOrderEmulator())
+            connectBarCloseToOrderEmulator(instrument, emulator);
 
         m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, instrument);
 
@@ -1335,48 +1346,53 @@ void MainAlgo::enterReplayModePaused(const QString& p_symbol, QDate p_date, QTim
     }
 }
 
+void MainAlgo::connectBarCloseToOrderEmulator(SymbolContext* p_sc, OrderEmulator* p_emulator)
+{
+    OBJ_ASSUME_DIFF(p_sc, nullptr);
+    OBJ_ASSUME_DIFF(p_emulator, nullptr);
+
+    auto feedBarClose = [p_emulator](const QString& sym, const Bar& bar)
+    { p_emulator->updateBarClose(sym, bar.getClose()); };
+
+    connect(&p_sc->m_liveBarAccumulator,
+            &LiveBarAccumulator::barUpdated,
+            p_emulator,
+            feedBarClose,
+            Qt::UniqueConnection);
+    connect(&p_sc->m_liveBarAccumulator,
+            &LiveBarAccumulator::barClosed,
+            p_emulator,
+            feedBarClose,
+            Qt::UniqueConnection);
+}
+
 void MainAlgo::connectReplaySignals(const QString& p_symbol)
 {
-    auto it = m_symbolContexts.find(p_symbol);
-    if (it == m_symbolContexts.end() || it.value().isNull())
-    {
-        WARNING << "No SymbolContext found for" << p_symbol << "- replay signals not connected";
-        return;
-    }
-
-    SymbolContext* instrument = it.value();
     auto* dbClient = DBClient::getInstance();
+    OrderEmulator* emulator = TSClient::getInstance()->getOrderEmulator();
 
-    // Replay Level2 → OrderEmulator (market data for order fills)
-    if (OrderEmulator* emulator = TSClient::getInstance()->getOrderEmulator())
+    if (emulator)
     {
-        bool connected = connect(dbClient, &DBClient::newLevel2, emulator, &OrderEmulator::updateMarketDepth);
-        ASSUME_TRUE(connected);
+        // Replay Level2 → OrderEmulator (market data for order fills). UniqueConnection
+        // guards against duplicate wiring on re-entry (e.g. preloadChartForReplay).
+        connect(dbClient, &DBClient::newLevel2, emulator, &OrderEmulator::updateMarketDepth, Qt::UniqueConnection);
 
-        // Bar close price → OrderEmulator (needed by recalculatePositionPnL)
-        auto feedBarClose = [emulator](const QString& sym, const Bar& bar)
-        { emulator->updateBarClose(sym, bar.getClose()); };
+        // Bar close price → OrderEmulator for all active symbols (needed by recalculatePositionPnL).
+        // Connect each SymbolContext that exists at call time; new ones connect in processSubscribeToSymbol.
+        for (auto& sc: m_symbolContexts)
+        {
+            if (sc.isNull())
+                continue;
+            connectBarCloseToOrderEmulator(sc, emulator);
+        }
 
-        connected = connect(&instrument->m_liveBarAccumulator, &LiveBarAccumulator::barUpdated, emulator, feedBarClose);
-        ASSUME_TRUE(connected);
-        connected = connect(&instrument->m_liveBarAccumulator, &LiveBarAccumulator::barClosed, emulator, feedBarClose);
-        ASSUME_TRUE(connected);
-    }
-
-    // Forward trades for displayed symbol to FrontEnd
-    bool connected = connect(dbClient,
-                             &DBClient::newTrade,
-                             this,
-                             [this](const QString& sym, const Trade& trade) { onDisplayedTradeReceived(sym, trade); });
-    ASSUME_TRUE(connected);
-
-    INFO << "Replay signals connected for" << p_symbol;
-
-    // Set initial speed on emulator so latency is scaled from the start
-    if (OrderEmulator* emulator = TSClient::getInstance()->getOrderEmulator())
-    {
         emulator->setReplaySpeed(static_cast<int>(m_replaySpeed));
     }
+
+    // The display-symbol trade forwarding is handled by m_displayTradeConnection (set in
+    // createAndSetDisplayedStockInstrument / onSelectDisplayedStock). No extra lambda here.
+
+    INFO << "Replay signals connected for" << p_symbol;
 }
 
 void MainAlgo::exitReplayMode()
@@ -1716,16 +1732,16 @@ void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
-    // Forward trades for displayed symbol to FrontEnd
-    connected = connect(DBClient::getInstance(),
-                        &DBClient::newTrade,
-                        this,
-                        [this, p_symbol](const QString& sym, const Trade& trade)
-                        {
-                            if (sym == p_symbol)
-                                onDisplayedTradeReceived(sym, trade);
-                        });
-    ASSUME_TRUE(connected);
+    // Forward trades for displayed symbol to FrontEnd (store handle for clean targeted disconnect)
+    m_displayTradeConnection = connect(DBClient::getInstance(),
+                                       &DBClient::newTrade,
+                                       this,
+                                       [this, p_symbol](const QString& sym, const Trade& trade)
+                                       {
+                                           if (sym == p_symbol)
+                                               onDisplayedTradeReceived(sym, trade);
+                                       });
+    ASSUME_TRUE(m_displayTradeConnection);
 
     // Connect to strategy manager for bar delivery
     connected = connect(&m_currentDisplayedSymbolContext->barReceiver,

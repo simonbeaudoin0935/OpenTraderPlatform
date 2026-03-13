@@ -36,6 +36,7 @@
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
 class QSocketNotifier;
+class OrderEmulator;
 
 
 /**
@@ -387,6 +388,10 @@ class MainAlgo final : public QObject
 
     void activateGuiThrottle();
     void deactivateGuiThrottle();
+
+    /// @brief Wire a SymbolContext's bar-close events to the OrderEmulator for PnL updates.
+    /// Safe to call multiple times (uses UniqueConnection internally).
+    void connectBarCloseToOrderEmulator(SymbolContext* p_sc, OrderEmulator* p_emulator);
 
     // Buffered latest state for throttled GUI emission (only latest matters)
     std::optional<std::pair<QString, Bar>> m_pendingBar;

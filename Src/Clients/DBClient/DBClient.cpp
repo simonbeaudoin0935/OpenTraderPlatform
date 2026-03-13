@@ -8,6 +8,7 @@
 #include <QtConcurrent>
 #include <filesystem>
 #include <algorithm>
+#include <limits>
 
 #include <databento/enums.hpp>
 #include <databento/live.hpp>
@@ -683,14 +684,14 @@ static qint64 toEpochMs(databento::UnixNanos ts)
     return static_cast<qint64>(std::chrono::duration_cast<std::chrono::milliseconds>(ts.time_since_epoch()).count());
 }
 
-void DBClient::advanceMbp10()
+void DBClient::advanceMbp10(SymbolStream& p_stream)
 {
-    m_nextMbp10.valid = false;
-    if (m_mbp10Store == nullptr)
+    p_stream.nextMbp10.valid = false;
+    if (p_stream.mbp10Store == nullptr)
         return;
 
     const databento::Record* record = nullptr;
-    while ((record = m_mbp10Store->NextRecord()) != nullptr)
+    while ((record = p_stream.mbp10Store->NextRecord()) != nullptr)
     {
         if (record->Holds<databento::Mbp10Msg>())
         {
@@ -698,22 +699,22 @@ void DBClient::advanceMbp10()
             const qint64 epochMs = toEpochMs(msg.hd.ts_event);
             if (epochMs >= m_startEpochMs)
             {
-                m_nextMbp10 = {epochMs, DBRecordTranslator::toLevel2(m_replaySymbol, msg), true};
+                p_stream.nextMbp10 = {epochMs, DBRecordTranslator::toLevel2(p_stream.symbol, msg), true};
                 return;
             }
         }
     }
-    m_mbp10Store.reset();
+    p_stream.mbp10Store.reset();
 }
 
-void DBClient::advanceTrade()
+void DBClient::advanceTrade(SymbolStream& p_stream)
 {
-    m_nextTrade.valid = false;
-    if (m_tradesStore == nullptr)
+    p_stream.nextTrade.valid = false;
+    if (p_stream.tradesStore == nullptr)
         return;
 
     const databento::Record* record = nullptr;
-    while ((record = m_tradesStore->NextRecord()) != nullptr)
+    while ((record = p_stream.tradesStore->NextRecord()) != nullptr)
     {
         if (record->Holds<databento::TradeMsg>())
         {
@@ -721,36 +722,45 @@ void DBClient::advanceTrade()
             const qint64 epochMs = toEpochMs(msg.hd.ts_event);
             if (epochMs >= m_startEpochMs)
             {
-                m_nextTrade = {epochMs, DBRecordTranslator::toTrade(m_replaySymbol, msg), true};
+                p_stream.nextTrade = {epochMs, DBRecordTranslator::toTrade(p_stream.symbol, msg), true};
                 return;
             }
         }
     }
-    m_tradesStore.reset();
+    p_stream.tradesStore.reset();
 }
 
-bool DBClient::openReplayStreams(const QString& p_symbol, QDate p_date, QTime p_startTime)
+bool DBClient::openReplayStreamsForSymbol(const QString& p_symbol, QDate p_date)
 {
-    closeReplayStreams();
+    // Don't add a symbol twice
+    for (const auto& s: m_replayStreams)
+    {
+        if (s.symbol == p_symbol)
+        {
+            DEBUG << "Replay stream for" << p_symbol << "already open";
+            return true;
+        }
+    }
 
-    m_replaySymbol = p_symbol;
-    m_startEpochMs = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE).toMSecsSinceEpoch();
+    SymbolStream stream;
+    stream.symbol = p_symbol;
+    bool opened = false;
 
     const QString mbp10Path = getReplayFilePath(p_date, p_symbol, "mbp10");
-    const QString tradesPath = getReplayFilePath(p_date, p_symbol, "trades");
-
     if (QFile::exists(mbp10Path))
     {
         try
         {
-            m_mbp10Store = std::make_unique<databento::DbnFileStore>(std::filesystem::path(mbp10Path.toStdString()));
-            advanceMbp10();
+            stream.mbp10Store =
+                std::make_unique<databento::DbnFileStore>(std::filesystem::path(mbp10Path.toStdString()));
+            advanceMbp10(stream);
             INFO << "Opened Mbp10 stream:" << mbp10Path;
+            opened = true;
         }
         catch (const std::exception& ex)
         {
             WARNING << "Failed to open Mbp10 file:" << ex.what();
-            m_mbp10Store.reset();
+            stream.mbp10Store.reset();
         }
     }
     else
@@ -758,18 +768,21 @@ bool DBClient::openReplayStreams(const QString& p_symbol, QDate p_date, QTime p_
         DEBUG << "No Mbp10 file found:" << mbp10Path;
     }
 
+    const QString tradesPath = getReplayFilePath(p_date, p_symbol, "trades");
     if (QFile::exists(tradesPath))
     {
         try
         {
-            m_tradesStore = std::make_unique<databento::DbnFileStore>(std::filesystem::path(tradesPath.toStdString()));
-            advanceTrade();
+            stream.tradesStore =
+                std::make_unique<databento::DbnFileStore>(std::filesystem::path(tradesPath.toStdString()));
+            advanceTrade(stream);
             INFO << "Opened Trades stream:" << tradesPath;
+            opened = true;
         }
         catch (const std::exception& ex)
         {
             WARNING << "Failed to open Trades file:" << ex.what();
-            m_tradesStore.reset();
+            stream.tradesStore.reset();
         }
     }
     else
@@ -777,15 +790,60 @@ bool DBClient::openReplayStreams(const QString& p_symbol, QDate p_date, QTime p_
         DEBUG << "No Trades file found:" << tradesPath;
     }
 
-    return m_nextMbp10.valid || m_nextTrade.valid;
+    if (opened)
+        m_replayStreams.push_back(std::move(stream));
+
+    return opened;
 }
 
 void DBClient::closeReplayStreams()
 {
-    m_mbp10Store.reset();
-    m_tradesStore.reset();
-    m_nextMbp10.valid = false;
-    m_nextTrade.valid = false;
+    m_replayStreams.clear();
+}
+
+bool DBClient::hasAnyReplayRecord() const
+{
+    for (const auto& s: m_replayStreams)
+    {
+        if (s.nextMbp10.valid || s.nextTrade.valid)
+            return true;
+    }
+    return false;
+}
+
+qint64 DBClient::earliestReplayEpoch() const
+{
+    qint64 earliest = std::numeric_limits<qint64>::max();
+    for (const auto& s: m_replayStreams)
+    {
+        if (s.nextMbp10.valid)
+            earliest = qMin(earliest, s.nextMbp10.epochMs);
+        if (s.nextTrade.valid)
+            earliest = qMin(earliest, s.nextTrade.epochMs);
+    }
+    return earliest;
+}
+
+bool DBClient::addReplaySymbol(const QString& p_symbol)
+{
+    if (QThread::currentThread() != thread())
+    {
+        bool result = false;
+        QMetaObject::invokeMethod(
+            this,
+            [this, p_symbol, &result]() { result = addReplaySymbol(p_symbol); },
+            Qt::BlockingQueuedConnection);
+        return result;
+    }
+
+    if (!isReplayActive())
+    {
+        WARNING << "addReplaySymbol called but replay is not active";
+        return false;
+    }
+
+    INFO << "Adding symbol to active replay:" << p_symbol;
+    return openReplayStreamsForSymbol(p_symbol, m_replayDate);
 }
 
 void DBClient::startReplay(const QString& p_symbol, QDate p_date, QTime p_startTime, PlaybackSpeed p_speed)
@@ -811,8 +869,11 @@ void DBClient::startReplay(const QString& p_symbol, QDate p_date, QTime p_startT
          << p_startTime.toString("hh:mm:ss") << "speed:" << static_cast<int>(p_speed);
 
     m_playbackSpeed = p_speed;
+    m_replayDate = p_date;
+    m_startEpochMs = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE).toMSecsSinceEpoch();
+    closeReplayStreams();
 
-    if (!openReplayStreams(p_symbol, p_date, p_startTime))
+    if (!openReplayStreamsForSymbol(p_symbol, p_date))
     {
         CRITICAL << "Failed to load replay data";
         emit replayDataLoadFailed(
@@ -821,11 +882,9 @@ void DBClient::startReplay(const QString& p_symbol, QDate p_date, QTime p_startT
     }
 
     // Use earliest available record timestamp as anchor
-    qint64 initialEpoch = m_startEpochMs;
-    if (m_nextMbp10.valid)
-        initialEpoch = m_nextMbp10.epochMs;
-    if (m_nextTrade.valid && m_nextTrade.epochMs < initialEpoch)
-        initialEpoch = m_nextTrade.epochMs;
+    qint64 initialEpoch = earliestReplayEpoch();
+    if (initialEpoch == std::numeric_limits<qint64>::max())
+        initialEpoch = m_startEpochMs;
 
     QDateTime initialTime = QDateTime::fromMSecsSinceEpoch(initialEpoch, TradingHours::MARKET_TIMEZONE);
     MainApp::currentAppReplayTime = initialTime;
@@ -863,8 +922,11 @@ void DBClient::startReplayPaused(const QString& p_symbol, QDate p_date, QTime p_
          << p_startTime.toString("hh:mm:ss");
 
     m_playbackSpeed = p_speed;
+    m_replayDate = p_date;
+    m_startEpochMs = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE).toMSecsSinceEpoch();
+    closeReplayStreams();
 
-    if (!openReplayStreams(p_symbol, p_date, p_startTime))
+    if (!openReplayStreamsForSymbol(p_symbol, p_date))
     {
         CRITICAL << "Failed to load replay data";
         emit replayDataLoadFailed(
@@ -872,11 +934,9 @@ void DBClient::startReplayPaused(const QString& p_symbol, QDate p_date, QTime p_
         return;
     }
 
-    qint64 initialEpoch = m_startEpochMs;
-    if (m_nextMbp10.valid)
-        initialEpoch = m_nextMbp10.epochMs;
-    if (m_nextTrade.valid && m_nextTrade.epochMs < initialEpoch)
-        initialEpoch = m_nextTrade.epochMs;
+    qint64 initialEpoch = earliestReplayEpoch();
+    if (initialEpoch == std::numeric_limits<qint64>::max())
+        initialEpoch = m_startEpochMs;
 
     QDateTime initialTime = QDateTime::fromMSecsSinceEpoch(initialEpoch, TradingHours::MARKET_TIMEZONE);
     MainApp::currentAppReplayTime = initialTime;
@@ -1021,7 +1081,7 @@ void DBClient::onReplayTimerTick()
         emitNextReplayRecord();
         ++eventsEmitted;
 
-        if (!m_nextMbp10.valid && !m_nextTrade.valid)
+        if (!hasAnyReplayRecord())
         {
             INFO << "Replay reached end of data (batch loop)";
             m_playbackState = PlaybackState::Stopped;
@@ -1034,9 +1094,7 @@ void DBClient::onReplayTimerTick()
         if (QDateTime::currentMSecsSinceEpoch() - startWallMs >= ReplayConstants::MAX_SPEED_BATCH_BUDGET_MS)
             break;
 
-        qint64 nextEpoch = m_nextMbp10.valid ? m_nextMbp10.epochMs : m_nextTrade.epochMs;
-        if (m_nextTrade.valid && m_nextTrade.epochMs < nextEpoch)
-            nextEpoch = m_nextTrade.epochMs;
+        qint64 nextEpoch = earliestReplayEpoch();
         if (calculateWallClockDelay(nextEpoch) > 0)
             break;
     }
@@ -1049,34 +1107,47 @@ void DBClient::onReplayTimerTick()
 
 void DBClient::emitNextReplayRecord()
 {
-    const bool hasMbp10 = m_nextMbp10.valid;
-    const bool hasTrade = m_nextTrade.valid;
+    // Find the stream with the globally earliest next record
+    SymbolStream* bestStream = nullptr;
+    bool useMbp10 = false;
+    qint64 bestEpoch = std::numeric_limits<qint64>::max();
 
-    if (!hasMbp10 && !hasTrade)
+    for (auto& stream: m_replayStreams)
+    {
+        if (stream.nextMbp10.valid && stream.nextMbp10.epochMs < bestEpoch)
+        {
+            bestEpoch = stream.nextMbp10.epochMs;
+            bestStream = &stream;
+            useMbp10 = true;
+        }
+        if (stream.nextTrade.valid && stream.nextTrade.epochMs < bestEpoch)
+        {
+            bestEpoch = stream.nextTrade.epochMs;
+            bestStream = &stream;
+            useMbp10 = false;
+        }
+    }
+
+    if (!bestStream)
         return;
-
-    bool useMbp10 = hasMbp10 && (!hasTrade || m_nextMbp10.epochMs <= m_nextTrade.epochMs);
 
     if (useMbp10)
     {
-        updateReplayTime(m_nextMbp10.epochMs);
-        emit newLevel2(m_replaySymbol, std::get<Level2>(m_nextMbp10.data));
-        advanceMbp10();
+        updateReplayTime(bestStream->nextMbp10.epochMs);
+        emit newLevel2(bestStream->symbol, std::get<Level2>(bestStream->nextMbp10.data));
+        advanceMbp10(*bestStream);
     }
     else
     {
-        updateReplayTime(m_nextTrade.epochMs);
-        emit newTrade(m_replaySymbol, std::get<Trade>(m_nextTrade.data));
-        advanceTrade();
+        updateReplayTime(bestStream->nextTrade.epochMs);
+        emit newTrade(bestStream->symbol, std::get<Trade>(bestStream->nextTrade.data));
+        advanceTrade(*bestStream);
     }
 }
 
 void DBClient::scheduleNextReplayTick()
 {
-    const bool hasMbp10 = m_nextMbp10.valid;
-    const bool hasTrade = m_nextTrade.valid;
-
-    if (!hasMbp10 && !hasTrade)
+    if (!hasAnyReplayRecord())
     {
         INFO << "Replay reached end of data";
         m_playbackState = PlaybackState::Stopped;
@@ -1085,10 +1156,7 @@ void DBClient::scheduleNextReplayTick()
         return;
     }
 
-    qint64 nextEpoch = hasMbp10 ? m_nextMbp10.epochMs : m_nextTrade.epochMs;
-    if (hasTrade && m_nextTrade.epochMs < nextEpoch)
-        nextEpoch = m_nextTrade.epochMs;
-
+    const qint64 nextEpoch = earliestReplayEpoch();
     const qint64 delay = calculateWallClockDelay(nextEpoch);
     m_replayTimer.start(static_cast<int>(delay));
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <limits>
 #include <memory>
 #include <variant>
 
@@ -189,6 +190,14 @@ class DBClient : public QObject
     void resumeReplay();
     void setReplaySpeed(PlaybackSpeed p_speed);
 
+    /**
+     * @brief Add a new symbol to the active replay, opening its data files.
+     * Call this after startReplay/startReplayPaused when a strategy subscribes
+     * to a secondary symbol mid-replay. Safe to call on any thread.
+     * @return true if data files were found and opened successfully
+     */
+    bool addReplaySymbol(const QString& p_symbol);
+
     [[nodiscard]] PlaybackState getPlaybackState() const
     {
         return m_playbackState;
@@ -322,14 +331,36 @@ class DBClient : public QObject
         bool valid = false;
     };
 
-    bool openReplayStreams(const QString& p_symbol, QDate p_date, QTime p_startTime);
-    void advanceMbp10();
-    void advanceTrade();
+    /// Per-symbol replay stream: two file stores (mbp10 + trades) with peeked heads.
+    struct SymbolStream
+    {
+        QString symbol;
+        std::unique_ptr<databento::DbnFileStore> mbp10Store;
+        std::unique_ptr<databento::DbnFileStore> tradesStore;
+        PeekedRecord nextMbp10;
+        PeekedRecord nextTrade;
+    };
+
+    /// Open replay streams for one symbol and append to m_replayStreams.
+    /// Returns true if at least one file was opened successfully.
+    bool openReplayStreamsForSymbol(const QString& p_symbol, QDate p_date);
+
+    void advanceMbp10(SymbolStream& p_stream);
+    void advanceTrade(SymbolStream& p_stream);
+
+    /// Pick the globally earliest record across all m_replayStreams and emit it.
     void emitNextReplayRecord();
+
     void scheduleNextReplayTick();
     [[nodiscard]] qint64 calculateWallClockDelay(qint64 p_replayEpochMs) const;
     void updateReplayTime(qint64 p_epochMs);
     void closeReplayStreams();
+
+    /// @brief Returns true if any stream still has valid records.
+    [[nodiscard]] bool hasAnyReplayRecord() const;
+
+    /// @brief Returns the earliest epochMs across all streams (or INT64_MAX if none).
+    [[nodiscard]] qint64 earliestReplayEpoch() const;
 
   private slots:
     void onReplayTimerTick();
@@ -364,12 +395,9 @@ class DBClient : public QObject
 
     // Replay playback state
     QTimer m_replayTimer;
-    std::unique_ptr<databento::DbnFileStore> m_mbp10Store;
-    std::unique_ptr<databento::DbnFileStore> m_tradesStore;
-    PeekedRecord m_nextMbp10;
-    PeekedRecord m_nextTrade;
+    std::vector<SymbolStream> m_replayStreams; ///< One entry per replayed symbol
     qint64 m_startEpochMs = 0;
-    QString m_replaySymbol;
+    QDate m_replayDate;
     PlaybackState m_playbackState = PlaybackState::Stopped;
     PlaybackSpeed m_playbackSpeed = PlaybackSpeed::Normal;
     qint64 m_wallClockAnchorMs = 0;
