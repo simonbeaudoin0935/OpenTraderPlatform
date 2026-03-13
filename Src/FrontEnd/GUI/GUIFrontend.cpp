@@ -1027,12 +1027,16 @@ void GUIFrontend::onDisplayedStockAggregatorBarClosed(QString symbol, TimeFrame 
 
 void GUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2)
 {
+    if (symbol != currentlyDisplayedSymbol)
+        return;
     ui->level2Widget->updateData(level2.m_bids, level2.m_asks);
     ui->orderEntryWidget->onMarketDepthUpdate(symbol, level2);
 }
 
 void GUIFrontend::onCurrentHighlightedReceivedNewTrade(QString symbol, Trade trade)
 {
+    if (symbol != currentlyDisplayedSymbol)
+        return;
     ui->timeAndSalesWidget->onNewTrade(symbol, trade);
 }
 
