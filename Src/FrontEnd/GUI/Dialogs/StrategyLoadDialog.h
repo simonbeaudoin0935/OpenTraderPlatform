@@ -1,11 +1,16 @@
 #pragma once
 
+#include <QCheckBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
+#include <QFormLayout>
+#include <QGroupBox>
+#include <QJsonArray>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QString>
+#include <QVector>
 #include <optional>
 
 #include "StrategyConfig.h"
@@ -15,6 +20,10 @@
  *
  * Lets the user browse for a .so file, edit standard parameters
  * (name, symbols, position size, risk limit), and build a StrategyConfig.
+ *
+ * If the plugin exports `getParameterSchema()`, additional rows are
+ * dynamically generated below the standard fields for each declared
+ * custom parameter.
  */
 class StrategyLoadDialog : public QDialog
 {
@@ -36,7 +45,13 @@ class StrategyLoadDialog : public QDialog
     void setupUI();
     void validateForm();
 
-    // UI components
+    /// @brief Rebuild the custom params section from a parameter schema.
+    void populateCustomParams(const QJsonArray& p_schema);
+
+    /// @brief Remove all dynamically-added custom param rows.
+    void clearCustomParams();
+
+    // UI components — standard fields
     QLineEdit* m_soPathEdit;
     QPushButton* m_browseButton;
     QLineEdit* m_nameEdit;
@@ -45,6 +60,14 @@ class StrategyLoadDialog : public QDialog
     QDoubleSpinBox* m_riskLimitSpin;
     QPushButton* m_loadButton;
     QPushButton* m_cancelButton;
+
+    // Custom params section (shown only when plugin exports a schema)
+    QGroupBox* m_customParamsGroup = nullptr;
+    QFormLayout* m_customParamsFormLayout = nullptr;
+
+    // Each entry: (json-key, input-widget)
+    // Widget is one of: QLineEdit, QSpinBox, QDoubleSpinBox, QCheckBox
+    QVector<QPair<QString, QWidget*>> m_customParamWidgets;
 
     // Result
     std::optional<StrategyConfig> m_selectedConfig;
