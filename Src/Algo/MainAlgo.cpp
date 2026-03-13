@@ -178,9 +178,10 @@ void MainAlgo::onThreadStarted()
             &MainAlgo::releaseSymbolContextRef,
             Qt::DirectConnection);
 
-    // Centralized routing: all DBClient market data → MainAlgo → SymbolContext actor queues
-    connect(DBClient::getInstance(), &DBClient::newLevel2, this, &MainAlgo::onNewLevel2Received);
-    connect(DBClient::getInstance(), &DBClient::newTrade, this, &MainAlgo::onNewTradeReceived);
+    // Direct cross-thread routing: DBClient emits on its own thread, we handle directly
+    // via routeLevel2/routeTrade which use a read lock — no event-loop bounce.
+    connect(DBClient::getInstance(), &DBClient::newLevel2, this, &MainAlgo::routeLevel2, Qt::DirectConnection);
+    connect(DBClient::getInstance(), &DBClient::newTrade, this, &MainAlgo::routeTrade, Qt::DirectConnection);
 
     // Forward DBClient replay lifecycle signals to MainAlgo signals for UI.
     // Wired once here (both singletons are stable); enterReplayMode/Paused no longer re-wires these.
@@ -201,17 +202,19 @@ void MainAlgo::onThreadStarted()
     ASSUME_TRUE(connected);
 }
 
-// ── Centralized routing slots ──────────────────────────────────────────────
+// ── Centralized routing (called directly from DBClient thread) ─────────────
 
-void MainAlgo::onNewLevel2Received(const QString& p_symbol, const Level2& p_level2)
+void MainAlgo::routeLevel2(const QString& p_symbol, const Level2& p_level2)
 {
+    QReadLocker lock(&m_symbolContextsLock);
     auto sc = m_symbolContexts.value(p_symbol);
     if (!sc.isNull())
         sc->enqueueLevel2(p_level2);
 }
 
-void MainAlgo::onNewTradeReceived(const QString& p_symbol, const Trade& p_trade)
+void MainAlgo::routeTrade(const QString& p_symbol, const Trade& p_trade)
 {
+    QReadLocker lock(&m_symbolContextsLock);
     auto sc = m_symbolContexts.value(p_symbol);
     if (!sc.isNull())
         sc->enqueueTrade(p_trade);
@@ -306,7 +309,10 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         m_currentDisplayedSymbolContext = new SymbolContext(symbol, this); // Pass 'this' as parent
         Q_CHECK_PTR(m_currentDisplayedSymbolContext);
 
-        m_symbolContexts.insert(symbol, m_currentDisplayedSymbolContext);
+        {
+            QWriteLocker lock(&m_symbolContextsLock);
+            m_symbolContexts.insert(symbol, m_currentDisplayedSymbolContext);
+        }
         DEBUG << "onSelectDisplayedStock: created new SymbolContext for" << symbol;
     }
 
@@ -1051,7 +1057,10 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
         auto* instrument = new SymbolContext(p_symbol, this);
         Q_CHECK_PTR(instrument);
         instrument->m_refCount = 1; // Strategy claim
-        m_symbolContexts.insert(p_symbol, instrument);
+        {
+            QWriteLocker lock(&m_symbolContextsLock);
+            m_symbolContexts.insert(p_symbol, instrument);
+        }
 
         // Open replay data files for this symbol (non-blocking, same-thread call)
         if (!DBClient::getInstance()->addReplaySymbol(p_symbol))
@@ -1075,7 +1084,10 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
             auto* instrument = new SymbolContext(p_symbol, this);
             Q_CHECK_PTR(instrument);
             instrument->m_refCount = 1; // Strategy claim
-            m_symbolContexts.insert(p_symbol, instrument);
+            {
+                QWriteLocker lock(&m_symbolContextsLock);
+                m_symbolContexts.insert(p_symbol, instrument);
+            }
 
             auto* dbClient = DBClient::getInstance();
             if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
@@ -1113,8 +1125,11 @@ void MainAlgo::releaseSymbolContextRef(const QString& symbol)
 
     if (sc->m_refCount <= 0)
     {
-        int removed = m_symbolContexts.remove(symbol);
-        OBJ_ASSUME_EQUAL(removed, 1);
+        {
+            QWriteLocker lock(&m_symbolContextsLock);
+            int removed = m_symbolContexts.remove(symbol);
+            OBJ_ASSUME_EQUAL(removed, 1);
+        }
         sc->deleteLater();
         DEBUG << "SymbolContext destroyed for" << symbol;
     }
@@ -1683,15 +1698,18 @@ void MainAlgo::deleteAllSymbolContext()
     // queues closeDatabase to DatabaseThread before the next createAndSetDisplayedSymbolContext
     // queues openDatabase. deleteLater would defer destruction past the next openDatabase call,
     // causing the DB close to arrive on DatabaseThread after the new open — breaking the connection.
-    for (auto it = m_symbolContexts.begin(); it != m_symbolContexts.end(); ++it)
     {
-        if (SymbolContext* instrument = it.value(); instrument)
+        QWriteLocker lock(&m_symbolContextsLock);
+        for (auto it = m_symbolContexts.begin(); it != m_symbolContexts.end(); ++it)
         {
-            DEBUG << "Deleting stock instrument for" << instrument->symbol;
-            delete instrument;
+            if (SymbolContext* instrument = it.value(); instrument)
+            {
+                DEBUG << "Deleting stock instrument for" << instrument->symbol;
+                delete instrument;
+            }
         }
+        m_symbolContexts.clear();
     }
-    m_symbolContexts.clear();
 
     INFO << "All stock instruments deleted";
 }

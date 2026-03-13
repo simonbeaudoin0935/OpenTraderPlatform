@@ -335,10 +335,12 @@ class MainAlgo final : public QObject
     void onReplayTimeReceived(const QDateTime& time);
     void onGuiThrottleTimerTick();
 
-    // Centralized routing: DBClient → SymbolContext actor queue
-    void onNewLevel2Received(const QString& p_symbol, const Level2& p_level2);
-    void onNewTradeReceived(const QString& p_symbol, const Trade& p_trade);
-
+  public:
+    // Direct cross-thread routing: called from DBClient thread via DirectConnection.
+    // Uses a read lock on m_symbolContextsLock; SymbolContext::enqueue* are independently
+    // thread-safe, so no further locking is needed inside them.
+    void routeLevel2(const QString& p_symbol, const Level2& p_level2);
+    void routeTrade(const QString& p_symbol, const Trade& p_trade);
 
   private:
     static MainAlgo* m_instance;
@@ -348,6 +350,7 @@ class MainAlgo final : public QObject
     QThread thread;
 
     QMap<QString, QPointer<SymbolContext>> m_symbolContexts;
+    QReadWriteLock m_symbolContextsLock; ///< Guards m_symbolContexts for cross-thread reads
     QPointer<SymbolContext> m_currentDisplayedSymbolContext;
 
     PositionsReceiver* m_positionReceiver = nullptr; // Qt parent-child ownership (parent is 'this')
