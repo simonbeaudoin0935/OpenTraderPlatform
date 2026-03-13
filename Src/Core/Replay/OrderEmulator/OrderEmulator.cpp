@@ -154,6 +154,9 @@ void OrderEmulator::cancelOrder(const QString& p_orderID, const QString& p_reque
 
 void OrderEmulator::updateMarketDepth(const QString& p_symbol, const Level2& p_depth)
 {
+    DEBUG << "updateMarketDepth called for" << p_symbol
+          << "hasPosition:" << m_symbolToActivePosition.contains(p_symbol)
+          << "hasBarClose:" << m_latestBarClose.contains(p_symbol);
     m_depthSnapshots.insert(p_symbol, p_depth);
 
     // Check if any open limit orders can now fill
@@ -684,19 +687,31 @@ void OrderEmulator::recalculatePositionPnL(const QString& p_symbol)
 {
     // Ensure we have an active position for this symbol
     if (!m_symbolToActivePosition.contains(p_symbol))
+    {
+        DEBUG << "recalculatePnL: no active position for" << p_symbol;
         return;
+    }
 
     QString positionID = m_symbolToActivePosition[p_symbol];
 
     if (!m_positionData.contains(positionID))
+    {
+        DEBUG << "recalculatePnL: no positionData for" << positionID;
         return;
+    }
 
     // Need Level 2 data for bid/ask
     if (!m_depthSnapshots.contains(p_symbol))
+    {
+        DEBUG << "recalculatePnL: no depth snapshot for" << p_symbol;
         return;
+    }
 
     if (!m_latestBarClose.contains(p_symbol))
+    {
+        DEBUG << "recalculatePnL: no barClose for" << p_symbol;
         return;
+    }
 
     // Throttle: emit at most once per PNL_THROTTLE_MS to avoid flooding the
     // position pipeline with thousands of updates per second during fast replay.
