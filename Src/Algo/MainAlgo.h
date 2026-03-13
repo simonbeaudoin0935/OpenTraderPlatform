@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QQueue>
+#include <QReadWriteLock>
 #include <QThread>
 #include <QThreadPool>
 #include <QMap>
@@ -49,6 +50,80 @@ class OrderEmulator;
  * pool thread during drain(). External connections (to MainAlgo, GUI, StrategyManager)
  * keep Qt::AutoConnection → become QueuedConnection from the pool thread.
  */
+/**
+ * @brief Tracks per-symbol market data activity using exponential moving averages.
+ *
+ * Updated from the SymbolContext drain loop (pool thread) — `m_lastTradeMs` /
+ * `m_lastL2Ms` are only ever written from that thread so they need no atomics.
+ * The EMA and active flag are atomics so they can be read from any thread
+ * (e.g., strategy threads via StrategySDK::getTradeRate).
+ */
+struct ActivityTracker
+{
+    /// EMA smoothing factor (≈ weight of the most recent sample)
+    static constexpr double kAlpha = 0.1;
+    /// Combined rate (trade Hz + L2 Hz) threshold to become active
+    static constexpr double kActiveThresholdHz = 0.5;
+    /// Combined rate threshold to become inactive (hysteresis)
+    static constexpr double kInactiveThresholdHz = 0.1;
+
+    std::atomic<double> m_tradeRateHz{0.0};
+    std::atomic<double> m_l2RateHz{0.0};
+    std::atomic<bool> m_isActive{false};
+
+    void recordTrade(qint64 p_nowMs)
+    {
+        updateRate(m_tradeRateHz, m_lastTradeMs, p_nowMs);
+        updateActive();
+    }
+
+    void recordL2(qint64 p_nowMs)
+    {
+        updateRate(m_l2RateHz, m_lastL2Ms, p_nowMs);
+        updateActive();
+    }
+
+    [[nodiscard]] double tradeRateHz() const
+    {
+        return m_tradeRateHz.load(std::memory_order_relaxed);
+    }
+    [[nodiscard]] double l2RateHz() const
+    {
+        return m_l2RateHz.load(std::memory_order_relaxed);
+    }
+    [[nodiscard]] bool isActive() const
+    {
+        return m_isActive.load(std::memory_order_relaxed);
+    }
+
+  private:
+    qint64 m_lastTradeMs = 0; ///< Only written from drain thread — no atomic needed
+    qint64 m_lastL2Ms = 0;
+
+    static void updateRate(std::atomic<double>& p_ema, qint64& p_lastMs, qint64 p_nowMs)
+    {
+        if (p_lastMs > 0 && p_nowMs > p_lastMs)
+        {
+            const double deltaS = static_cast<double>(p_nowMs - p_lastMs) / 1000.0;
+            const double instantHz = 1.0 / deltaS;
+            const double newEma = kAlpha * instantHz + (1.0 - kAlpha) * p_ema.load(std::memory_order_relaxed);
+            p_ema.store(newEma, std::memory_order_relaxed);
+        }
+        p_lastMs = p_nowMs;
+    }
+
+    void updateActive()
+    {
+        const double combinedHz =
+            m_tradeRateHz.load(std::memory_order_relaxed) + m_l2RateHz.load(std::memory_order_relaxed);
+        const bool currently = m_isActive.load(std::memory_order_relaxed);
+        if (!currently && combinedHz >= kActiveThresholdHz)
+            m_isActive.store(true, std::memory_order_relaxed);
+        else if (currently && combinedHz < kInactiveThresholdHz)
+            m_isActive.store(false, std::memory_order_relaxed);
+    }
+};
+
 class SymbolContext : public QObject
 {
     Q_OBJECT
@@ -74,6 +149,9 @@ class SymbolContext : public QObject
     /// Reference count: incremented by display claim (+1) and each strategy subscription (+1).
     /// The SymbolContext is destroyed only when this reaches 0.
     int m_refCount = 0;
+
+    /// Per-symbol EMA-based activity metrics, updated in the drain loop.
+    ActivityTracker m_activity;
 
   signals:
     /**
@@ -227,6 +305,18 @@ class MainAlgo final : public QObject
     /// @brief Get replay playback state
     [[nodiscard]] Playback::State getReplayState() const;
 
+    /// @brief Snapshot of per-symbol activity metrics (thread-safe read).
+    struct ActivityMetrics
+    {
+        double tradeRateHz = 0.0; ///< EMA-smoothed trades per second
+        double l2RateHz = 0.0;    ///< EMA-smoothed L2 updates per second
+        bool isActive = false;    ///< Combined rate above activity threshold
+    };
+
+    /// @brief Return current activity metrics for a symbol (thread-safe).
+    /// Returns a zeroed ActivityMetrics if the symbol has no SymbolContext.
+    [[nodiscard]] ActivityMetrics getActivityMetrics(const QString& p_symbol) const;
+
   signals:
     /**
      * @brief Signal emitted when the displayed stock receives a new bar
@@ -350,7 +440,7 @@ class MainAlgo final : public QObject
     QThread thread;
 
     QMap<QString, QPointer<SymbolContext>> m_symbolContexts;
-    QReadWriteLock m_symbolContextsLock; ///< Guards m_symbolContexts for cross-thread reads
+    mutable QReadWriteLock m_symbolContextsLock; ///< Guards m_symbolContexts for cross-thread reads
     QPointer<SymbolContext> m_currentDisplayedSymbolContext;
 
     PositionsReceiver* m_positionReceiver = nullptr; // Qt parent-child ownership (parent is 'this')

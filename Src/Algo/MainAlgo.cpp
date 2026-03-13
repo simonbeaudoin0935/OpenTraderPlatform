@@ -886,11 +886,13 @@ void SymbolContext::drain()
 
 void SymbolContext::processLevel2(const Level2& p_level2)
 {
+    m_activity.recordL2(QDateTime::currentMSecsSinceEpoch());
     m_level2Receiver.onReceivedNewLevel2(p_level2);
 }
 
 void SymbolContext::processTrade(const Trade& p_trade)
 {
+    m_activity.recordTrade(QDateTime::currentMSecsSinceEpoch());
     m_liveBarAccumulator.onNewTrade(symbol, p_trade);
     m_live10sBarAccumulator.onNewTrade(symbol, p_trade);
     emit receivedNewTrade(symbol, p_trade);
@@ -1685,6 +1687,15 @@ void MainAlgo::resumeLiveStreams()
 Playback::State MainAlgo::getReplayState() const
 {
     return DBClient::getInstance()->getPlaybackState();
+}
+
+MainAlgo::ActivityMetrics MainAlgo::getActivityMetrics(const QString& p_symbol) const
+{
+    QReadLocker lock(&m_symbolContextsLock);
+    const auto sc = m_symbolContexts.value(p_symbol);
+    if (sc.isNull())
+        return {};
+    return {sc->m_activity.tradeRateHz(), sc->m_activity.l2RateHz(), sc->m_activity.isActive()};
 }
 
 void MainAlgo::deleteAllSymbolContext()

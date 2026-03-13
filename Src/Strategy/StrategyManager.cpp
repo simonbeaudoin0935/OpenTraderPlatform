@@ -269,6 +269,21 @@ QDateTime StrategySDK::getCurrentTime() const
     return MainApp::getCurrentAppTime();
 }
 
+double StrategySDK::getTradeRate(const QString& p_symbol) const
+{
+    return m_mainAlgo->getActivityMetrics(p_symbol).tradeRateHz;
+}
+
+double StrategySDK::getL2UpdateRate(const QString& p_symbol) const
+{
+    return m_mainAlgo->getActivityMetrics(p_symbol).l2RateHz;
+}
+
+bool StrategySDK::isSymbolActive(const QString& p_symbol) const
+{
+    return m_mainAlgo->getActivityMetrics(p_symbol).isActive;
+}
+
 // StrategyManager implementation
 
 StrategyManager::StrategyManager(MainAlgo* p_mainAlgo) : QObject(nullptr), m_mainAlgo(p_mainAlgo)
