@@ -1040,12 +1040,12 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
             return;
         }
 
-        // If symbol is already loaded (displayed stock), data is already flowing via
-        // the centralized routing (DBClient → MainAlgo → SymbolContext queue).
+        // If symbol is already loaded (displayed stock), reuse the existing SymbolContext.
         if (m_symbolContexts.contains(p_symbol))
         {
             ++m_symbolContexts[p_symbol]->m_refCount;
-            m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr);
+            // Pass the actual SymbolContext so the strategy gets a direct connection (no MainAlgo hop)
+            m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, m_symbolContexts[p_symbol]);
             p_promise->addResult(true);
             p_promise->finish();
             return;
@@ -1100,7 +1100,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
             ++m_symbolContexts[p_symbol]->m_refCount;
         }
 
-        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr);
+        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, m_symbolContexts[p_symbol]);
     }
 
     p_promise->addResult(true);

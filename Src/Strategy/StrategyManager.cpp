@@ -820,37 +820,11 @@ void StrategyManager::onMainAlgoOrderUpdated(const QString& p_account, const Ord
 
 void StrategyManager::connectStrategyToDataSources(StrategyInstance* p_instance)
 {
-    if (!p_instance || !m_mainAlgo || !p_instance->p_adapter)
-    {
-        return;
-    }
-
-    // Connect bar data from MainAlgo to strategy adapter
-    // MainAlgo emits displayedStockReceivedNewBar on MainAlgo thread
-    // -> Connected to adapter->onBar with Qt::QueuedConnection
-    // -> Adapter slot executes on strategy thread
-    // -> Calls strategy->onBar() on strategy thread (thread-safe)
-    connect(m_mainAlgo,
-            &MainAlgo::displayedStockReceivedNewBar,
-            p_instance->p_adapter,
-            &StrategyCallbackAdapter::onBar,
-            Qt::QueuedConnection);
-
-    // Connect Level 2 market depth data
-    connect(m_mainAlgo,
-            &MainAlgo::displayedStockReceivedNewLevel2,
-            p_instance->p_adapter,
-            &StrategyCallbackAdapter::onLevel2,
-            Qt::QueuedConnection);
-
-    // Connect individual trade prints
-    connect(m_mainAlgo,
-            &MainAlgo::displayedStockReceivedNewTrade,
-            p_instance->p_adapter,
-            &StrategyCallbackAdapter::onTrade,
-            Qt::QueuedConnection);
-
-    qInfo(StrategyManagerLog) << "Connected strategy to data sources:" << p_instance->strategyID;
+    // Data connections (bar/level2/trade) are now wired per-symbol in connectSymbolToStrategy,
+    // directly from each SymbolContext to the adapter without bouncing through MainAlgo.
+    // This function is intentionally empty; retained for symmetry with
+    // disconnectStrategyFromDataSources which handles global cleanup on unload.
+    (void)p_instance;
 }
 
 void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_instance)
@@ -860,8 +834,9 @@ void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_inst
         return;
     }
 
-    // Disconnect all signals connected to this strategy's adapter
-    QObject::disconnect(m_mainAlgo, nullptr, p_instance->p_adapter, nullptr);
+    // Disconnect ALL senders from this adapter (covers direct SymbolContext connections
+    // made in connectSymbolToStrategy as well as any legacy MainAlgo connections).
+    QObject::disconnect(nullptr, nullptr, p_instance->p_adapter, nullptr);
 
     qInfo(StrategyManagerLog) << "Disconnected strategy from data sources:" << p_instance->strategyID;
 }
@@ -883,32 +858,29 @@ void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
         [adapter = instance->p_adapter, p_symbol]() { adapter->addMonitoredSymbol(p_symbol); },
         Qt::BlockingQueuedConnection);
 
-    if (p_instrument)
-    {
-        // Connect instrument bar data → adapter
-        bool connected = connect(&p_instrument->barReceiver,
-                                 &BarReceiver::receivedNewBar,
-                                 instance->p_adapter,
-                                 &StrategyCallbackAdapter::onBar,
-                                 Qt::QueuedConnection);
-        ASSUME_TRUE(connected);
+    // Connect SymbolContext signals directly to the adapter (no MainAlgo hop)
+    OBJ_ASSUME_DIFF(p_instrument, nullptr);
 
-        // Connect instrument level2 data → adapter
-        connected = connect(&p_instrument->m_level2Receiver,
-                            &Level2Receiver::receivedNewLevel2,
-                            instance->p_adapter,
-                            &StrategyCallbackAdapter::onLevel2,
-                            Qt::QueuedConnection);
-        ASSUME_TRUE(connected);
+    bool connected = connect(&p_instrument->barReceiver,
+                             &BarReceiver::receivedNewBar,
+                             instance->p_adapter,
+                             &StrategyCallbackAdapter::onBar,
+                             Qt::QueuedConnection);
+    ASSUME_TRUE(connected);
 
-        // Connect instrument trade data → adapter
-        connected = connect(p_instrument,
-                            &SymbolContext::receivedNewTrade,
-                            instance->p_adapter,
-                            &StrategyCallbackAdapter::onTrade,
-                            Qt::QueuedConnection);
-        ASSUME_TRUE(connected);
-    }
+    connected = connect(&p_instrument->m_level2Receiver,
+                        &Level2Receiver::receivedNewLevel2,
+                        instance->p_adapter,
+                        &StrategyCallbackAdapter::onLevel2,
+                        Qt::QueuedConnection);
+    ASSUME_TRUE(connected);
+
+    connected = connect(p_instrument,
+                        &SymbolContext::receivedNewTrade,
+                        instance->p_adapter,
+                        &StrategyCallbackAdapter::onTrade,
+                        Qt::QueuedConnection);
+    ASSUME_TRUE(connected);
 
     qInfo(StrategyManagerLog) << "Connected symbol" << p_symbol << "to strategy" << p_strategyID;
 }
