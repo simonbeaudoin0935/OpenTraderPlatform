@@ -1351,19 +1351,13 @@ void MainAlgo::connectBarCloseToOrderEmulator(SymbolContext* p_sc, OrderEmulator
     OBJ_ASSUME_DIFF(p_sc, nullptr);
     OBJ_ASSUME_DIFF(p_emulator, nullptr);
 
+    // Qt::UniqueConnection silently rejects lambda connections — use plain connection.
+    // connectReplaySignals guards against re-entry at the call site.
     auto feedBarClose = [p_emulator](const QString& sym, const Bar& bar)
     { p_emulator->updateBarClose(sym, bar.getClose()); };
 
-    connect(&p_sc->m_liveBarAccumulator,
-            &LiveBarAccumulator::barUpdated,
-            p_emulator,
-            feedBarClose,
-            Qt::UniqueConnection);
-    connect(&p_sc->m_liveBarAccumulator,
-            &LiveBarAccumulator::barClosed,
-            p_emulator,
-            feedBarClose,
-            Qt::UniqueConnection);
+    connect(&p_sc->m_liveBarAccumulator, &LiveBarAccumulator::barUpdated, p_emulator, feedBarClose);
+    connect(&p_sc->m_liveBarAccumulator, &LiveBarAccumulator::barClosed, p_emulator, feedBarClose);
 }
 
 void MainAlgo::connectReplaySignals(const QString& p_symbol)
@@ -1378,11 +1372,14 @@ void MainAlgo::connectReplaySignals(const QString& p_symbol)
         connect(dbClient, &DBClient::newLevel2, emulator, &OrderEmulator::updateMarketDepth, Qt::UniqueConnection);
 
         // Bar close price → OrderEmulator for all active symbols (needed by recalculatePositionPnL).
-        // Connect each SymbolContext that exists at call time; new ones connect in processSubscribeToSymbol.
+        // Disconnect first per-SymbolContext to prevent duplicates on re-entry (preloadChart then
+        // startReplay both call connectReplaySignals). UniqueConnection can't be used with lambdas.
         for (auto& sc: m_symbolContexts)
         {
             if (sc.isNull())
                 continue;
+            disconnect(&sc->m_liveBarAccumulator, &LiveBarAccumulator::barUpdated, emulator, nullptr);
+            disconnect(&sc->m_liveBarAccumulator, &LiveBarAccumulator::barClosed, emulator, nullptr);
             connectBarCloseToOrderEmulator(sc, emulator);
         }
 
