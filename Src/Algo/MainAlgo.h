@@ -218,7 +218,7 @@ class MainAlgo final : public QObject
 
     /// @brief Create a stock instrument and set it as displayed
     /// @param p_symbol The stock symbol to create and display
-    void createAndSetDisplayedStockInstrument(const QString& p_symbol);
+    void createAndSetDisplayedSymbolContext(const QString& p_symbol);
 
     /// @brief Get replay playback state
     [[nodiscard]] Playback::State getReplayState() const;

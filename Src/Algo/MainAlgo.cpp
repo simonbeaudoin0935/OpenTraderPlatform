@@ -1390,7 +1390,7 @@ void MainAlgo::connectReplaySignals(const QString& p_symbol)
     }
 
     // The display-symbol trade forwarding is handled by m_displayTradeConnection (set in
-    // createAndSetDisplayedStockInstrument / onSelectDisplayedStock). No extra lambda here.
+    // createAndSetDisplayedSymbolContext / onSelectDisplayedStock). No extra lambda here.
 
     INFO << "Replay signals connected for" << p_symbol;
 }
@@ -1653,7 +1653,7 @@ void MainAlgo::deleteAllSymbolContext()
     m_currentDisplayedSymbolContext = nullptr;
 
     // Delete instruments directly (not deleteLater) so that each BarCache destructor
-    // queues closeDatabase to DatabaseThread before the next createAndSetDisplayedStockInstrument
+    // queues closeDatabase to DatabaseThread before the next createAndSetDisplayedSymbolContext
     // queues openDatabase. deleteLater would defer destruction past the next openDatabase call,
     // causing the DB close to arrive on DatabaseThread after the new open — breaking the connection.
     for (auto it = m_symbolContexts.begin(); it != m_symbolContexts.end(); ++it)
@@ -1681,7 +1681,7 @@ void MainAlgo::restoreStrategiesState()
     m_strategyManager.restoreStrategiesState();
 }
 
-void MainAlgo::createAndSetDisplayedStockInstrument(const QString& p_symbol)
+void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)
 {
     INFO << "Creating and setting displayed stock instrument for" << p_symbol;
 

@@ -388,7 +388,7 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p
             mainAlgo->deleteAllSymbolContext();
 
             // Create fresh stock instrument with mock-backed streams
-            mainAlgo->createAndSetDisplayedStockInstrument(displayedSymbol);
+            mainAlgo->createAndSetDisplayedSymbolContext(displayedSymbol);
 
             // Start replay in paused state - emits first bar to populate chart
             mainAlgo->enterReplayModePaused(displayedSymbol, p_date, p_startTime, p_speed);
@@ -453,7 +453,7 @@ void MainApp::exitReplayMode()
             mainAlgo->resumeLiveStreams();
 
             // Create fresh stock instrument with live streams
-            mainAlgo->createAndSetDisplayedStockInstrument(displayedSymbol);
+            mainAlgo->createAndSetDisplayedSymbolContext(displayedSymbol);
         },
         Qt::QueuedConnection);
 
