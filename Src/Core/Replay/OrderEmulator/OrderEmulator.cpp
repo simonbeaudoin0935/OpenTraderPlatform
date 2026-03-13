@@ -207,6 +207,12 @@ void OrderEmulator::updateMarketDepth(const QString& p_symbol, const Level2& p_d
 void OrderEmulator::updateBarClose(const QString& p_symbol, double p_close)
 {
     m_latestBarClose.insert(p_symbol, p_close);
+
+    // Recalculate unrealized P&L whenever we have a fresh bar close price.
+    // Level2 updates also trigger this, but bar-close events are more frequent
+    // and guarantee m_latestBarClose is populated before the P&L check runs.
+    if (m_symbolToActivePosition.contains(p_symbol))
+        recalculatePositionPnL(p_symbol);
 }
 
 
@@ -676,39 +682,30 @@ void OrderEmulator::updatePosition(const Order& p_filledOrder, double p_fillPric
 
 void OrderEmulator::recalculatePositionPnL(const QString& p_symbol)
 {
-    // Throttle: emit at most once per PNL_THROTTLE_MS to avoid flooding the
-    // position pipeline with thousands of updates per second during fast replay.
-    const qint64 now = QDateTime::currentMSecsSinceEpoch();
-    if (m_lastPnLEmit.contains(p_symbol) && now - m_lastPnLEmit[p_symbol] < PNL_THROTTLE_MS)
-    {
-        return;
-    }
-    m_lastPnLEmit.insert(p_symbol, now);
-
     // Ensure we have an active position for this symbol
     if (!m_symbolToActivePosition.contains(p_symbol))
-    {
         return;
-    }
 
     QString positionID = m_symbolToActivePosition[p_symbol];
 
     if (!m_positionData.contains(positionID))
-    {
         return;
-    }
 
     // Need Level 2 data for bid/ask
-    const bool hasLevel2 = m_depthSnapshots.contains(p_symbol);
-    if (!hasLevel2)
-    {
+    if (!m_depthSnapshots.contains(p_symbol))
         return;
-    }
 
     if (!m_latestBarClose.contains(p_symbol))
-    {
         return;
-    }
+
+    // Throttle: emit at most once per PNL_THROTTLE_MS to avoid flooding the
+    // position pipeline with thousands of updates per second during fast replay.
+    // NOTE: throttle is checked AFTER data guards so a failed-data attempt doesn't
+    // block the next real attempt for 100 ms.
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_lastPnLEmit.contains(p_symbol) && now - m_lastPnLEmit[p_symbol] < PNL_THROTTLE_MS)
+        return;
+    m_lastPnLEmit.insert(p_symbol, now);
 
     const PositionData& data = m_positionData[positionID];
     double last = m_latestBarClose[p_symbol];
