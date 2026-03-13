@@ -106,7 +106,22 @@ Use ASSUME macros from `Src/Misc/Assume.h` for both pre-conditions and post-cond
 ### Code Style
 - Early exit: Handle errors first, minimize indentation
 - [[nodiscard]]: Mark functions where return values must be checked
-- Qt::UniqueConnection: Only use for **named-slot** connections (not lambdas — Qt::UniqueConnection silently fails with lambda functors)
+- Qt::UniqueConnection:
+  - **NEVER use with lambdas** — Qt::UniqueConnection silently **rejects the entire `connect()` call** when the slot is a lambda (not a QObject member function pointer). It returns an invalid handle and emits a runtime warning. The connection is NOT made at all.
+  - Only use with **named-slot** (pointer-to-member-function) connections.
+  - **Always assert the return value** — if you use UniqueConnection to catch double-wiring bugs, you must verify it worked:
+    ```cpp
+    // ✓ CORRECT — assert catches both "failed" and "duplicate already existed"
+    auto c = connect(sender, &Sender::signal, receiver, &Receiver::slot, Qt::UniqueConnection);
+    ASSUME_TRUE(c);  // fails if connection was rejected (duplicate or invalid)
+
+    // ✗ WRONG — lambda silently fails, connection is never made
+    connect(sender, &Sender::signal, receiver, [receiver](){ receiver->doWork(); }, Qt::UniqueConnection);
+
+    // ✓ CORRECT for lambdas — disconnect-then-reconnect pattern instead
+    disconnect(sender, &Sender::signal, receiver, nullptr);
+    connect(sender, &Sender::signal, receiver, [receiver](){ receiver->doWork(); });
+    ```
 - Q_CHECK_PTR(): Always validate dynamically allocated objects
 
 ### Signal Documentation (REQUIRED)
