@@ -17,6 +17,7 @@
 #include "OrderEmulator.h"
 #include "CONSTANTS.h"
 #include "OrdersDatabase.h"
+#include "ThreadNames.h"
 
 #define LOGGING_CATEGORY MainAlgoLog
 
@@ -106,6 +107,9 @@ void MainAlgo::start()
 
 void MainAlgo::onThreadStarted()
 {
+    // Set kernel thread name for visibility in trace tools (ps, top, LTTng, TraceCompass)
+    ThreadNames::setCurrentThreadName("MainAlgo");
+
     m_balancePollingTimer = std::make_unique<QTimer>(this);
 
     connect(m_balancePollingTimer.get(), &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);

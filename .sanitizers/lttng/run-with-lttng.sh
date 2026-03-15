@@ -73,22 +73,63 @@ echo "UST events   : $(${IS_INSTRUMENTED} && echo 'ACTIVE (instrumented build)' 
 echo ""
 
 # ------------------------------------------------------------------
-# Kernel session (root) — syscalls + scheduler + memory page allocs
+# Kernel session (root) — comprehensive tracing for thread & system analysis
 # ------------------------------------------------------------------
 sudo lttng destroy "$KERNEL_SESSION" 2>/dev/null || true
 sudo lttng create "$KERNEL_SESSION" --output="${TRACE_DIR}/kernel"
 
-# Heap growth syscalls
-sudo lttng enable-event --kernel --syscall mmap,brk,mremap
+# ────────────────────────────────────────────────────────────────────────────
+# THREAD & PROCESS LIFECYCLE
+# ────────────────────────────────────────────────────────────────────────────
+# sched_switch:   Context switch (CPU scheduling) — shows thread activity & blocking
+# sched_process_fork: Process/thread creation — maps parent→child TIDs
+# sched_process_exec: Process exec — identifies thread startup points
+# sched_process_exit: Process/thread termination — shows lifecycle end
+# sched_wakeup:    Thread wake events — shows inter-thread dependencies
+sudo lttng enable-event --kernel 'sched_switch,sched_process_fork,sched_process_exec,sched_process_exit,sched_wakeup'
 
-# Thread scheduling — maps TID→name, shows hot threads in Control Flow view
-sudo lttng enable-event --kernel 'sched_switch,sched_process_fork,sched_process_exec'
-
-# Memory page allocs — populates TraceCompass "Memory Usage" view
+# ────────────────────────────────────────────────────────────────────────────
+# MEMORY ALLOCATION & PAGE MANAGEMENT
+# ────────────────────────────────────────────────────────────────────────────
+# kmem_mm_page_alloc: Physical page allocations — populates TraceCompass "Memory Usage" view
+# kmem_mm_page_free:  Page deallocations
+# brk,mmap,mremap:   Heap & virtual memory syscalls — shows heap growth patterns
+sudo lttng enable-event --kernel --syscall 'brk,mmap,mmap2,mremap,munmap,sbrk'
 sudo lttng enable-event --kernel 'kmem_mm_page_alloc,kmem_mm_page_free'
 
+# ────────────────────────────────────────────────────────────────────────────
+# SYNCHRONIZATION & BLOCKING (mutex, futex, condvar)
+# ────────────────────────────────────────────────────────────────────────────
+# futex_wait/futex_wake: Qt's QMutex uses futex internally — shows lock contention
+# pthread_mutex_*:       Explicit mutex events (if enabled)
+sudo lttng enable-event --kernel 'syscalls:sys_enter_futex,syscalls:sys_exit_futex'
+
+# ────────────────────────────────────────────────────────────────────────────
+# TIMER & SIGNAL HANDLING
+# ────────────────────────────────────────────────────────────────────────────
+# timer_init/timer_start/timer_expire:  Kernel timer events
+# signal_deliver:       Signal delivery (SIGSEGV, SIGABRT for crash handler)
+sudo lttng enable-event --kernel 'timer_init,timer_start,timer_cancel,timer_expire' 2>/dev/null || true
+sudo lttng enable-event --kernel 'signal_deliver' 2>/dev/null || true
+
+# ────────────────────────────────────────────────────────────────────────────
+# I/O OPERATIONS (file descriptors, network)
+# ────────────────────────────────────────────────────────────────────────────
+# syscalls:sys_enter/exit for read/write/poll — identifies I/O bottlenecks
+sudo lttng enable-event --kernel --syscall 'read,write,pread64,pwrite64,readv,writev,poll,select,epoll_wait' 2>/dev/null || true
+sudo lttng enable-event --kernel --syscall 'open,close,openat,socket,accept,connect' 2>/dev/null || true
+
+# ────────────────────────────────────────────────────────────────────────────
+# CPU TRACING (IRQ, softIRQ)
+# ────────────────────────────────────────────────────────────────────────────
+# irq_handler_entry/exit:  Hardware interrupt context switches
+# softirq_entry/exit:      Software interrupt (networking, timers)
+sudo lttng enable-event --kernel 'irq_handler_entry,irq_handler_exit' 2>/dev/null || true
+sudo lttng enable-event --kernel 'softirq_entry,softirq_exit' 2>/dev/null || true
+
+# Start the kernel session
 sudo lttng start "$KERNEL_SESSION"
-echo "[kernel session] started"
+echo "[kernel session] started with comprehensive thread/memory/I/O tracing"
 
 # ------------------------------------------------------------------
 # UST session (user) — l2trader:* tracepoints

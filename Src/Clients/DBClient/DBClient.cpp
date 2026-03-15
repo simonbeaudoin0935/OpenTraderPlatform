@@ -23,6 +23,7 @@
 #include "SecureStorage.h"
 #include "Settings.h"
 #include "LTTng/LTTngTracepoints.h"
+#include "ThreadNames.h"
 
 #define LOGGING_CATEGORY DBClientLog
 
@@ -83,6 +84,9 @@ DBClient::DBClient() : QObject(nullptr)
     m_replayTimer.setSingleShot(true);
     m_replayTimer.moveToThread(&m_thread);
     connect(&m_replayTimer, &QTimer::timeout, this, &DBClient::onReplayTimerTick);
+    
+    // Set kernel thread name when thread starts
+    connect(&m_thread, &QThread::started, this, &DBClient::onThreadStarted, Qt::DirectConnection);
 }
 
 DBClient::~DBClient()
@@ -1190,4 +1194,10 @@ void DBClient::updateReplayTime(qint64 p_epochMs)
         setCurrentReplayTime(newTime);
         emit replayTimeUpdated(newTime);
     }
+}
+
+void DBClient::onThreadStarted()
+{
+    // Set kernel thread name for visibility in trace tools (ps, top, LTTng, TraceCompass)
+    ThreadNames::setCurrentThreadName("DBClient");
 }

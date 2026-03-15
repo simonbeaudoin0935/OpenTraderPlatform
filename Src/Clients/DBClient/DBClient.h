@@ -364,6 +364,7 @@ class DBClient : public QObject
 
   private slots:
     void onReplayTimerTick();
+    void onThreadStarted();
 
   private:
     static DBClient* m_instance;

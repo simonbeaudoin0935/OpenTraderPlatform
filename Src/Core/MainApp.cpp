@@ -181,6 +181,8 @@ TradingSession MainApp::getCurrentSession()
 
 MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainAlgo::getInstance())
 {
+    QThread::currentThread()->setObjectName("GUI/Main Thread");
+
 #ifdef GUI_ENABLED
     appFrontend = new GUIFrontend(mainAlgo);
 #else

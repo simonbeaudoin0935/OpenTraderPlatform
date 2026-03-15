@@ -68,7 +68,8 @@ int main(int argc, char* argv[])
 
     // Cleanup all singletons for proper resource deallocation
     // This is important for valgrind memory leak detection
-    qInfo() << "Application event loop exited, cleaning up singletons";
+    qDebug() << "Application event loop exited, cleaning up singletons";
+
     MainApp::cleanupSingletons();
 
     // Drain and shut down the async log buffers after all singletons are gone
