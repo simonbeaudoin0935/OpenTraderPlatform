@@ -9,6 +9,7 @@
 #include <QSet>
 #include <QList>
 #include <algorithm>
+#include "LTTng/LTTngTracepoints.h"
 
 Level2Widget::Level2Widget(QWidget* parent)
     : QWidget(parent)
@@ -276,6 +277,8 @@ void Level2Widget::setMarketDepthItem(QStandardItem* item, const Level2Row& leve
 
 void Level2Widget::updateData(const std::array<Level2Row, 10>& bids, const std::array<Level2Row, 10>& asks)
 {
+    L2T_TP(l2trader, gui_level2_widget_update);
+
     // Update display mode to Level 2
     m_displayMode = DisplayMode::Level2;
     updateDataSourceIndicator();

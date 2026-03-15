@@ -35,7 +35,7 @@ class ThreadNames
      * @param name The name to set (max 15 bytes, will be truncated)
      * @return true if successful, false if thread not running or pthread_setname_np failed
      */
-    static bool setKernelThreadName(QThread* thread, const QString& name)
+    static bool setKernelThreadName(QThread* thread, [[maybe_unused]] const QString& name)
     {
         if (!thread || !thread->isRunning())
             return false;

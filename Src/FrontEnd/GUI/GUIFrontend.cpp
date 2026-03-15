@@ -16,6 +16,7 @@
 #include <csignal>
 #include <QFile>
 #include "Assume.h"
+#include "LTTng/LTTngTracepoints.h"
 
 #include "TSClient.h"
 #include "GUIFrontend.h"
@@ -37,6 +38,7 @@
 #include "Core/MainApp.h"
 #include "Assume.h"
 #include "DBClient.h"
+#include "BarUtils.h"
 #include <QInputDialog>
 
 #define LOGGING_CATEGORY GUIFrontendLog
@@ -1010,6 +1012,8 @@ void GUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
 
 void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 {
+    L2T_TP(l2trader, gui_bar_received, symbol.toUtf8().constData(), 60);
+
     // When showing a higher TF, 1m bars are not rendered directly — the aggregator
     // path (onDisplayedStockAggregatorBar*) handles live candle updates instead.
     if (m_currentTimeFrame != TimeFrame::ONE_MINUTE)
@@ -1020,6 +1024,8 @@ void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
 
 void GUIFrontend::onDisplayedStockAggregatorBarUpdated(QString symbol, TimeFrame tf, Bar bar)
 {
+    L2T_TP(l2trader, gui_bar_received, symbol.toUtf8().constData(), BarUtils::secondsPerBar(tf));
+
     if (tf != m_currentTimeFrame)
         return;
     ui->priceChart->addLiveBar(symbol, bar);
@@ -1027,6 +1033,8 @@ void GUIFrontend::onDisplayedStockAggregatorBarUpdated(QString symbol, TimeFrame
 
 void GUIFrontend::onDisplayedStockAggregatorBarClosed(QString symbol, TimeFrame tf, Bar bar)
 {
+    L2T_TP(l2trader, gui_bar_received, symbol.toUtf8().constData(), BarUtils::secondsPerBar(tf));
+
     if (tf != m_currentTimeFrame)
         return;
     ui->priceChart->addLiveBar(symbol, bar);
@@ -1034,6 +1042,8 @@ void GUIFrontend::onDisplayedStockAggregatorBarClosed(QString symbol, TimeFrame 
 
 void GUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2)
 {
+    L2T_TP(l2trader, gui_level2_received, symbol.toUtf8().constData());
+
     if (symbol != currentlyDisplayedSymbol)
         return;
     ui->level2Widget->updateData(level2.m_bids, level2.m_asks);
@@ -1042,6 +1052,8 @@ void GUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 l
 
 void GUIFrontend::onCurrentHighlightedReceivedNewTrade(QString symbol, Trade trade)
 {
+    L2T_TP(l2trader, gui_trade_received, symbol.toUtf8().constData());
+
     if (symbol != currentlyDisplayedSymbol)
         return;
     ui->timeAndSalesWidget->onNewTrade(symbol, trade);
@@ -1049,6 +1061,8 @@ void GUIFrontend::onCurrentHighlightedReceivedNewTrade(QString symbol, Trade tra
 
 void GUIFrontend::onNewPositionReceived(QString account, Position position)
 {
+    L2T_TP(l2trader, gui_position_received, position.getSymbol().toUtf8().constData());
+
     ui->positionWidget->updatePosition(account, position);
 
     // Forward position to chart for visualization
@@ -1077,6 +1091,11 @@ void GUIFrontend::onPositionDeleted(QString account, QString positionID)
 
 void GUIFrontend::onNewOrderReceived(QString account, Order order)
 {
+    L2T_TP(l2trader,
+           gui_order_received,
+           order.getSymbol().toUtf8().constData(),
+           static_cast<int>(order.getOrderStatus()));
+
     ui->orderWidget->updateOrder(account, order);
 
     // Forward order to chart for visualization
@@ -2014,6 +2033,8 @@ void GUIFrontend::updateTimeDisplay()
 
 void GUIFrontend::onReplayModeEntered()
 {
+    L2T_TP(l2trader, gui_replay_entered);
+
     qCInfo(GUIFrontendLog) << "Replay mode entered";
 
     // Persist replay state so we can restore it on next launch
@@ -2061,6 +2082,8 @@ void GUIFrontend::onReplayModeEntered()
 
 void GUIFrontend::onReplayModeExited()
 {
+    L2T_TP(l2trader, gui_replay_exited);
+
     qCInfo(GUIFrontendLog) << "Replay mode exited";
 
     // Clear persisted replay state
@@ -2092,9 +2115,10 @@ void GUIFrontend::onReplayModeExited()
     updateTimeDisplay();
 }
 
-void GUIFrontend::onReplayTimeUpdated(QDateTime currentTime)
+void GUIFrontend::onReplayTimeUpdated([[maybe_unused]] QDateTime currentTime)
 {
-    Q_UNUSED(currentTime)
+    L2T_TP(l2trader, gui_replay_time_updated, currentTime.toMSecsSinceEpoch());
+
     // Update session label and time display as replay time advances
     updateSessionLabel();
     updateTimeDisplay();

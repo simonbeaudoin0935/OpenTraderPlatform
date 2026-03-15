@@ -11,6 +11,7 @@
 #include "Logging.h"
 #include "Settings.h"
 #include "Core/MainApp.h"
+#include "Misc/ThreadNames.h"
 
 #include <QtGlobal>
 #include <QDateTime>
@@ -21,6 +22,9 @@
 int main(int argc, char* argv[])
 {
     APPLICATION app(argc, argv);
+
+    // Set kernel-level thread name for main thread (visible in TraceCompass, ps, top, gdb)
+    ThreadNames::setCurrentThreadName("GUI");
 
     QCoreApplication::setApplicationName("L2Trader");
     QString version = QString("%1 ~ %2@%3").arg(GIT_TAG, GIT_BRANCH, GIT_HASH);

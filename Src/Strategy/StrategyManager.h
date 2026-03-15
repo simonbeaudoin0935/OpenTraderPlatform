@@ -452,7 +452,7 @@ class StrategyManager final : public QObject
         std::unique_ptr<StrategyLogger> p_logger;    // Strategy logger (owned)
         Qt::HANDLE threadHandle;                     // Native thread handle for stats reading
         StrategyState state = StrategyState::LOADED; // Tracks: LOADED → RUNNING → STOPPED
-        
+
         // Track signal connections to adapter for explicit disconnection on unload
         QVector<QMetaObject::Connection> m_connections; // All connections to p_adapter
     };

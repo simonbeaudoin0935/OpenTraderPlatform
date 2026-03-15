@@ -55,6 +55,7 @@ void StockPriceChart::addLiveBar(const QString& symbol, const Bar& bar)
 
     // Compute chart index from bar timestamp
     const int index = ChartTimeUtils::timestampToChartIndex(bar.getTimeStamp(), m_index0Timestamp, m_displayTimeFrame);
+    L2T_TP(l2trader, gui_chart_add_bar, symbol.toUtf8().constData(), index);
 
     // QCustomPlot centers candlesticks on their key. To align the left edge of the candle
     // with the bar's open time, we offset the key by half the candle width in index-space.
@@ -516,6 +517,7 @@ void StockPriceChart::drawHolidayDayMarker(const QDate& date, const QString& hol
 
 void StockPriceChart::onRequestedMissingBarsReceived(const std::shared_ptr<QVector<Bar>>& barsPtr)
 {
+    L2T_TP(l2trader, gui_chart_backfill_received, static_cast<int>(barsPtr->size()));
 
     DEBUG << "Received missing bars response with" << barsPtr->size() << "bars";
 

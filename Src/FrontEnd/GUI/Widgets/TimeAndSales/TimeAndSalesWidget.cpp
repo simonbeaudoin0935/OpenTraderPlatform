@@ -1,6 +1,7 @@
 #include "TimeAndSalesWidget.h"
 
 #include "Assume.h"
+#include "LTTng/LTTngTracepoints.h"
 
 TimeAndSalesWidget::TimeAndSalesWidget(QWidget* p_parent) : QWidget(p_parent), m_headerLabel(nullptr), m_table(nullptr)
 {
@@ -68,6 +69,8 @@ void TimeAndSalesWidget::setupStyles()
 
 void TimeAndSalesWidget::onNewTrade(const QString& p_symbol, const Trade& p_trade)
 {
+    L2T_TP(l2trader, gui_timesales_widget_update);
+
     OBJ_ASSUME_EQUAL(p_symbol, p_trade.m_symbol);
 
     // Insert at top (newest first)

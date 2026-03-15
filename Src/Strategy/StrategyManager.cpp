@@ -850,7 +850,7 @@ void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_inst
     }
 
     // Disconnect all tracked connections to this adapter
-    for (const auto& connection : p_instance->m_connections)
+    for (const auto& connection: p_instance->m_connections)
     {
         QObject::disconnect(connection);
     }

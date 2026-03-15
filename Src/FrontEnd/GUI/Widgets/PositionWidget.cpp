@@ -3,6 +3,7 @@
 #include <QHeaderView>
 #include <QVBoxLayout>
 #include <QLabel>
+#include "LTTng/LTTngTracepoints.h"
 
 PositionWidget::PositionWidget(QWidget* parent)
     : QWidget(parent)
@@ -101,6 +102,8 @@ void PositionWidget::setupStyles()
 
 void PositionWidget::updatePosition(const QString& account, const Position& position)
 {
+    L2T_TP(l2trader, gui_position_widget_update);
+
     QString positionId = position.getPositionID();
 
     if (positionRowMap.contains(positionId))

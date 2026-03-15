@@ -804,7 +804,7 @@ SymbolContext::~SymbolContext()
 
 void SymbolContext::enqueueLevel2(const Level2& p_level2)
 {
-    int depth = 0;
+    [[maybe_unused]] int depth = 0;
     {
         QMutexLocker lock(&m_queueMutex);
         m_queue.enqueue(WorkItem{p_level2});
@@ -820,7 +820,7 @@ void SymbolContext::enqueueLevel2(const Level2& p_level2)
 
 void SymbolContext::enqueueTrade(const Trade& p_trade)
 {
-    int depth = 0;
+    [[maybe_unused]] int depth = 0;
     {
         QMutexLocker lock(&m_queueMutex);
         m_queue.enqueue(WorkItem{p_trade});

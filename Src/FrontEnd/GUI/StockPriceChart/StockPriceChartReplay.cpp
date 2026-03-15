@@ -18,6 +18,7 @@
 #include "Order.h"
 #include "Position.h"
 #include "OrdersDatabase.h"
+#include "LTTng/LTTngTracepoints.h"
 #include "PositionsDatabase.h"
 #define LOGGING_CATEGORY ChartLog
 
@@ -163,6 +164,8 @@ void StockPriceChart::setReplayModeActive(bool active)
  */
 void StockPriceChart::updateCurrentTimeLine()
 {
+    L2T_TP(l2trader, gui_chart_timeline_update);
+
     if (!m_index0Timestamp.isValid())
     {
         return;

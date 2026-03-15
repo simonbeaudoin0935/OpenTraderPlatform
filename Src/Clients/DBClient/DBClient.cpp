@@ -84,7 +84,7 @@ DBClient::DBClient() : QObject(nullptr)
     m_replayTimer.setSingleShot(true);
     m_replayTimer.moveToThread(&m_thread);
     connect(&m_replayTimer, &QTimer::timeout, this, &DBClient::onReplayTimerTick);
-    
+
     // Set kernel thread name when thread starts
     connect(&m_thread, &QThread::started, this, &DBClient::onThreadStarted, Qt::DirectConnection);
 }

@@ -236,6 +236,83 @@ TRACEPOINT_EVENT(l2trader,
                  TP_FIELDS(ctf_integer(int, events_emitted, events_emitted)
                                ctf_integer(long, current_epoch_ms, current_epoch_ms)))
 
+/* ------------------------------------------------------------------
+ * GUI — main thread data-path entry points
+ *
+ * These tracepoints fire in the GUIFrontend slots that receive data
+ * from MainAlgo/TSClient via queued connections. They mark the moment
+ * the GUI event loop picks up each event, enabling TraceCompass
+ * correlation with the emitter-side tracepoints above.
+ * ------------------------------------------------------------------ */
+
+/** Fired when GUIFrontend::onReplayModeEntered() begins. */
+TRACEPOINT_EVENT(l2trader, gui_replay_entered, TP_ARGS(), TP_FIELDS())
+
+/** Fired when GUIFrontend::onReplayModeExited() begins. */
+TRACEPOINT_EVENT(l2trader, gui_replay_exited, TP_ARGS(), TP_FIELDS())
+
+/** Fired when GUIFrontend::onReplayTimeUpdated() receives a new replay timestamp. */
+TRACEPOINT_EVENT(l2trader,
+                 gui_replay_time_updated,
+                 TP_ARGS(long, epoch_ms),
+                 TP_FIELDS(ctf_integer(long, epoch_ms, epoch_ms)))
+
+/** Fired when GUIFrontend dispatches a 1-minute bar to the chart (onCurrentHighlightedStockBarReceived). */
+TRACEPOINT_EVENT(l2trader,
+                 gui_bar_received,
+                 TP_ARGS(const char*, symbol, int, tf_seconds),
+                 TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, tf_seconds, tf_seconds)))
+
+/** Fired when GUIFrontend dispatches a Level2 update to widgets (onCurrentHighlightedReceivedNewLevel2). */
+TRACEPOINT_EVENT(l2trader, gui_level2_received, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+
+/** Fired when GUIFrontend dispatches a trade to TimeAndSales (onCurrentHighlightedReceivedNewTrade). */
+TRACEPOINT_EVENT(l2trader, gui_trade_received, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+
+/** Fired when GUIFrontend receives an order update (onNewOrderReceived). */
+TRACEPOINT_EVENT(l2trader,
+                 gui_order_received,
+                 TP_ARGS(const char*, symbol, int, status),
+                 TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, status, status)))
+
+/** Fired when GUIFrontend receives a position update (onNewPositionReceived). */
+TRACEPOINT_EVENT(l2trader, gui_position_received, TP_ARGS(const char*, symbol), TP_FIELDS(ctf_string(symbol, symbol)))
+
+/* ------------------------------------------------------------------
+ * GUI — chart rendering
+ * ------------------------------------------------------------------ */
+
+/** Fired when StockPriceChart::addLiveBar() starts processing a bar into the chart. */
+TRACEPOINT_EVENT(l2trader,
+                 gui_chart_add_bar,
+                 TP_ARGS(const char*, symbol, int, chart_index),
+                 TP_FIELDS(ctf_string(symbol, symbol) ctf_integer(int, chart_index, chart_index)))
+
+/** Fired when historical backfill bars arrive (onRequestedMissingBarsReceived). */
+TRACEPOINT_EVENT(l2trader,
+                 gui_chart_backfill_received,
+                 TP_ARGS(int, bars_count),
+                 TP_FIELDS(ctf_integer(int, bars_count, bars_count)))
+
+/** Fired when the replay time line is repositioned (updateReplayTimeLine / updateCurrentTimeLine). */
+TRACEPOINT_EVENT(l2trader, gui_chart_timeline_update, TP_ARGS(), TP_FIELDS())
+
+/* ------------------------------------------------------------------
+ * GUI — widget updates
+ * ------------------------------------------------------------------ */
+
+/** Fired when Level2Widget::updateData() rebuilds the order book display. */
+TRACEPOINT_EVENT(l2trader, gui_level2_widget_update, TP_ARGS(), TP_FIELDS())
+
+/** Fired when TimeAndSalesWidget::onNewTrade() inserts a trade row. */
+TRACEPOINT_EVENT(l2trader, gui_timesales_widget_update, TP_ARGS(), TP_FIELDS())
+
+/** Fired when OrderWidget::updateOrder() processes an order. */
+TRACEPOINT_EVENT(l2trader, gui_order_widget_update, TP_ARGS(), TP_FIELDS())
+
+/** Fired when PositionWidget::updatePosition() processes a position. */
+TRACEPOINT_EVENT(l2trader, gui_position_widget_update, TP_ARGS(), TP_FIELDS())
+
 #endif /* _L2TRADER_TP_H */
 
 #include <lttng/tracepoint-event.h>

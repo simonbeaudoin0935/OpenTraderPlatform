@@ -6,6 +6,7 @@
 #include "OrderWidget.h"
 #include "Assume.h"
 #include "CONSTANTS.h"
+#include "LTTng/LTTngTracepoints.h"
 
 OrderWidget::OrderWidget(QWidget* p_parent)
     : QWidget(p_parent)
@@ -112,6 +113,8 @@ void OrderWidget::setupStyles()
 
 void OrderWidget::updateOrder(const QString& account, const Order& order)
 {
+    L2T_TP(l2trader, gui_order_widget_update);
+
     Q_UNUSED(account);
     QString orderId = order.getOrderID();
 
