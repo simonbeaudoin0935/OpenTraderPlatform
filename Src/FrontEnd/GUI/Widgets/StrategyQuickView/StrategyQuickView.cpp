@@ -329,27 +329,13 @@ void StrategyQuickView::onContextMenuRequested(const QPoint& pos)
 
     if (chosen == startAction)
     {
-        // Dispatch to the MainAlgo thread — StrategyManager lives there and
-        // startStrategy() must run on that thread.
-        QString error;
-        QMetaObject::invokeMethod(
-            mgr,
-            [mgr, strategyID, &error]() { error = mgr->startStrategy(strategyID); },
-            Qt::BlockingQueuedConnection);
+        QString error = mgr->startStrategy(strategyID);
         if (!error.isEmpty())
             QMessageBox::warning(this, "Start Strategy", error);
     }
     else if (chosen == stopAction)
     {
-        // Dispatch to the MainAlgo thread — unloadStrategy() calls
-        // releaseSymbols() which emits symbolReleased, connected via
-        // DirectConnection to MainAlgo::releaseSymbolContextRef which asserts
-        // it is running on the MainAlgo thread.
-        QString error;
-        QMetaObject::invokeMethod(
-            mgr,
-            [mgr, strategyID, &error]() { error = mgr->unloadStrategy(strategyID); },
-            Qt::BlockingQueuedConnection);
+        QString error = mgr->unloadStrategy(strategyID);
         if (!error.isEmpty())
             QMessageBox::warning(this, "Stop Strategy", error);
     }

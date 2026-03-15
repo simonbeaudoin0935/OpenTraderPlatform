@@ -171,12 +171,17 @@ void MainAlgo::onThreadStarted()
             &StrategyManager::onMainAlgoBalanceUpdated,
             Qt::QueuedConnection);
 
-    // Strategy symbol release → decrement SymbolContext ref count
+    // Strategy symbol release → decrement SymbolContext ref count.
+    // StrategyManager lives on the main thread; releaseSymbolContextRef must
+    // run on the MainAlgo worker thread. Use QueuedConnection so the call is
+    // posted to the MainAlgo event loop rather than executed on the emitter's
+    // (main) thread — which would trip the thread-affinity assert inside
+    // releaseSymbolContextRef.
     connect(&m_strategyManager,
             &StrategyManager::symbolReleased,
             this,
             &MainAlgo::releaseSymbolContextRef,
-            Qt::DirectConnection);
+            Qt::QueuedConnection);
 
     // Direct cross-thread routing: DBClient emits on its own thread, we handle directly
     // via routeLevel2/routeTrade which use a read lock — no event-loop bounce.
