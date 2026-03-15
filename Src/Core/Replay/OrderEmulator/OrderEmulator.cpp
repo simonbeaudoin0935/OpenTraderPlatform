@@ -154,8 +154,7 @@ void OrderEmulator::cancelOrder(const QString& p_orderID, const QString& p_reque
 
 void OrderEmulator::updateMarketDepth(const QString& p_symbol, const Level2& p_depth)
 {
-    DEBUG << "updateMarketDepth called for" << p_symbol
-          << "hasPosition:" << m_symbolToActivePosition.contains(p_symbol)
+    DEBUG << "updateMarketDepth called for" << p_symbol << "hasPosition:" << m_symbolToActivePosition.contains(p_symbol)
           << "hasBarClose:" << m_latestBarClose.contains(p_symbol);
     m_depthSnapshots.insert(p_symbol, p_depth);
 
