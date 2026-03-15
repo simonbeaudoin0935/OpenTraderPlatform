@@ -13,6 +13,7 @@
 #include <QTimer>
 #include <QSqlDatabase>
 #include <QSqlQuery>
+#include <csignal>
 #include <QFile>
 #include "Assume.h"
 
@@ -159,6 +160,12 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                             &GUIFrontend::onShortcutChanged,
                                             Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(shortcutChangeConnection);
+
+    // Hidden debug shortcut: Shift+Q raises SIGSEGV to test the crash handler.
+    // Not configurable, not documented — for developer use only.
+    auto* debugCrashShortcut = new QShortcut(QKeySequence("Shift+Q"), m_mainWindow);
+    auto debugCrashConnection = connect(debugCrashShortcut, &QShortcut::activated, []() { raise(SIGSEGV); });
+    OBJ_ASSUME_TRUE(debugCrashConnection);
 
 
     // Create and setup TradeStation login button
