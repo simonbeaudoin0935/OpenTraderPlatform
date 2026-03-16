@@ -56,7 +56,6 @@ mkdir -p "$TRACE_DIR"
 cleanup() {
     echo ""
     echo "=== Stopping LTTng sessions... ==="
-    # Kill the app if it's still running (background mode with flamegraph)
     if [ -n "${APP_PID:-}" ] && kill -0 "$APP_PID" 2>/dev/null; then
         kill "$APP_PID" 2>/dev/null || true
         wait "$APP_PID" 2>/dev/null || true
@@ -160,18 +159,13 @@ if $IS_INSTRUMENTED; then
     lttng enable-event --userspace 'l2trader:*'
 
     if $FLAMEGRAPH_ENABLED; then
-        # Create a dedicated channel with large buffers for cyg-profile events.
-        # The default channel0 (16KB) overflows instantly with the millions of
-        # func_entry/func_exit events per second.  8×16MB = 128MB ring buffer.
-        FLAMEGRAPH_CHANNEL="flamegraph"
-        lttng enable-channel --userspace --subbuf-size=16M --num-subbuf=8 "$FLAMEGRAPH_CHANNEL"
-
-        # Register cyg-profile events in the dedicated channel, then disable.
-        # Tracepoint matching is established at session start; ENTER re-enables.
-        lttng enable-event --userspace --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_entry'
-        lttng enable-event --userspace --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_exit'
-        lttng disable-event --userspace --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_entry'
-        lttng disable-event --userspace --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_exit'
+        # The -fast variant uses provider lttng_ust_cyg_profile_fast.
+        # Register + immediately disable so tracepoint matching is established
+        # at session start. ENTER toggle re-enables the pre-matched events.
+        lttng enable-event --userspace 'lttng_ust_cyg_profile_fast:func_entry'
+        lttng enable-event --userspace 'lttng_ust_cyg_profile_fast:func_exit'
+        lttng disable-event --userspace 'lttng_ust_cyg_profile_fast:func_entry'
+        lttng disable-event --userspace 'lttng_ust_cyg_profile_fast:func_exit'
         echo "[ust session] started with l2trader:* events (flamegraph DEFERRED — press ENTER to activate)"
     else
         echo "[ust session] started with l2trader:* events"
@@ -198,14 +192,13 @@ if $FLAMEGRAPH_ENABLED; then
     echo ""
     echo "  Flamegraph: DEFERRED — press ENTER in this terminal to start recording"
     echo "              (wait until the app is loaded and replay is ready)"
+    echo "              Press ENTER again to pause, and again to resume."
 fi
 echo ""
 
 if $FLAMEGRAPH_ENABLED; then
-    # Launch app in background with cyg-profile library preloaded.
-    # Events are disabled in LTTng so the hooks return immediately (~0 overhead).
-    # Redirect stdout/stderr so app logs don't flood the terminal — logs already
-    # go to ~/.local/state/L2Trader/AppLogs/ so nothing is lost.
+    # Launch in background — redirect output so app logs don't block stdin.
+    # Logs already go to ~/.local/state/L2Trader/AppLogs/ so nothing is lost.
     APP_LOG="${TRACE_DIR}/app_console.log"
     LD_PRELOAD=liblttng-ust-cyg-profile-fast.so "$APP" >"$APP_LOG" 2>&1 &
     APP_PID=$!
@@ -216,22 +209,20 @@ if $FLAMEGRAPH_ENABLED; then
     while kill -0 "$APP_PID" 2>/dev/null; do
         if read -r -t 1; then
             if $FLAMEGRAPH_ACTIVE; then
-                lttng disable-event --session "$UST_SESSION" --userspace --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_entry'
-                lttng disable-event --session "$UST_SESSION" --userspace --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_exit'
+                lttng disable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile_fast:func_entry'
+                lttng disable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile_fast:func_exit'
                 FLAMEGRAPH_ACTIVE=false
                 echo "[flamegraph] Recording PAUSED — press ENTER to resume"
             else
-                lttng enable-event --session "$UST_SESSION" --userspace --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_entry'
-                lttng enable-event --session "$UST_SESSION" --userspace --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_exit'
+                lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile_fast:func_entry'
+                lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile_fast:func_exit'
                 FLAMEGRAPH_ACTIVE=true
                 echo "[flamegraph] Recording ENABLED — press ENTER to pause"
             fi
         fi
     done
 
-    # Wait for app to exit
     wait "$APP_PID" 2>/dev/null || true
-    APP_PID=""
 else
     "$APP"
 fi

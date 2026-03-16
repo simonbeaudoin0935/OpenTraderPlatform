@@ -431,7 +431,9 @@ No sudo password required — `/usr/bin/lttng` and `/usr/bin/chown` are configur
 
 ## Skill: Flamegraph Profiling (Function Call-Stack)
 
-The flamegraph build adds `-finstrument-functions` to the compiler flags and uses `LD_PRELOAD=liblttng-ust-cyg-profile-fast.so` at runtime. This emits `lttng_ust_cyg_profile:func_entry` and `lttng_ust_cyg_profile:func_exit` UST events for every function call.
+The flamegraph build adds `-finstrument-functions` to the compiler flags and uses `LD_PRELOAD=liblttng-ust-cyg-profile-fast.so` at runtime. This emits `lttng_ust_cyg_profile_fast:func_entry` and `lttng_ust_cyg_profile_fast:func_exit` UST events for every function call.
+
+> **Note**: The `-fast` variant uses provider `lttng_ust_cyg_profile_fast` (not `lttng_ust_cyg_profile`). Using the wrong name results in 0 captured events.
 
 ### Deferred Recording
 
@@ -478,5 +480,5 @@ echo -n "func_entry: " && babeltrace2 "${LATEST}ust" 2>/dev/null | grep -c "func
 echo -n "func_exit:  " && babeltrace2 "${LATEST}ust" 2>/dev/null | grep -c "func_exit" || true
 
 # Sample of function calls (shows instruction pointer addresses — use addr2line to resolve)
-babeltrace2 "${LATEST}ust" 2>/dev/null | grep "func_entry" | head -10
+babeltrace2 "${LATEST}ust" 2>/dev/null | grep "lttng_ust_cyg_profile_fast:func_entry" | head -10
 ```
