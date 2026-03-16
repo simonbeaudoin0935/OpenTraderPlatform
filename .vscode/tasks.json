@@ -535,5 +535,69 @@
             ],
             "problemMatcher": []
         },
+        {
+            "label": "configure-lttng-flamegraph",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-G",
+                "Ninja",
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build/LTTng-Flamegraph",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DENABLE_GUI=ON",
+                "-DBUILD_TESTS=OFF",
+                "-DLTTNG_ENABLED=ON",
+                "-DLTTNG_FLAMEGRAPH=ON"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "build-with-lttng-flamegraph",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/LTTng-Flamegraph",
+                "--parallel"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "configure-lttng-flamegraph"
+            ]
+        },
+        {
+            "label": "run-lttng-flamegraph",
+            "type": "shell",
+            "command": "FLAMEGRAPH=true APP=${workspaceFolder}/build/LTTng-Flamegraph/Src/L2Trader ${workspaceFolder}/.sanitizers/lttng/run-with-lttng.sh",
+            "args": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": [
+                "build-with-lttng-flamegraph"
+            ],
+            "problemMatcher": []
+        },
     ]
 }

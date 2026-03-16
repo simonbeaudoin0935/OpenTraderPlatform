@@ -44,6 +44,13 @@ if [[ "$APP" == *"/LTTng/"* ]]; then
     IS_INSTRUMENTED=true
 fi
 
+# Detect flamegraph build: check if binary was compiled with -finstrument-functions
+# by looking for the LTTNG_FLAMEGRAPH symbol in the binary
+FLAMEGRAPH_ENABLED="${FLAMEGRAPH:-false}"
+if $IS_INSTRUMENTED && nm "$APP" 2>/dev/null | grep -q "__cyg_profile_func_enter" ; then
+    FLAMEGRAPH_ENABLED=true
+fi
+
 mkdir -p "$TRACE_DIR"
 
 cleanup() {
@@ -60,16 +67,20 @@ cleanup() {
     echo "  kernel/ : kernel events (open in TraceCompass)"
     if $IS_INSTRUMENTED; then
         echo "  ust/    : l2trader UST tracepoints"
+        if $FLAMEGRAPH_ENABLED; then
+            echo "            + function call-stack (flamegraph) data"
+        fi
     fi
     echo ""
     echo "Analyze with: ${SCRIPT_DIR}/analyze-lttng.sh $TRACE_DIR"
 }
 trap cleanup EXIT INT TERM
 
-echo "=== LTTng OOM Hunt: L2Trader ==="
+echo "=== LTTng Trace: L2Trader ==="
 echo "Trace output : $TRACE_DIR"
 echo "App binary   : $APP"
 echo "UST events   : $(${IS_INSTRUMENTED} && echo 'ACTIVE (instrumented build)' || echo 'inactive — use build-with-lttng task')"
+echo "Flamegraph   : $(${FLAMEGRAPH_ENABLED} && echo 'ACTIVE (cyg-profile + -finstrument-functions)' || echo 'inactive — build with -DLTTNG_FLAMEGRAPH=ON')"
 echo ""
 
 # ------------------------------------------------------------------
@@ -132,7 +143,7 @@ sudo lttng start "$KERNEL_SESSION"
 echo "[kernel session] started with comprehensive thread/memory/I/O tracing"
 
 # ------------------------------------------------------------------
-# UST session (user) — l2trader:* tracepoints
+# UST session (user) — l2trader:* tracepoints + optional flamegraph
 # Must be created and started BEFORE the app launches so the app can
 # register its probe with the user-level sessiond on startup.
 # ------------------------------------------------------------------
@@ -141,21 +152,42 @@ lttng create "$UST_SESSION" --output="${TRACE_DIR}/ust"
 
 if $IS_INSTRUMENTED; then
     lttng enable-event --userspace 'l2trader:*'
-    echo "[ust session] started with l2trader:* events"
+
+    if $FLAMEGRAPH_ENABLED; then
+        # Enable cyg-profile function entry/exit events for flamegraph
+        lttng enable-event --userspace 'lttng_ust_cyg_profile:func_entry'
+        lttng enable-event --userspace 'lttng_ust_cyg_profile:func_exit'
+        echo "[ust session] started with l2trader:* + flamegraph (cyg-profile) events"
+    else
+        echo "[ust session] started with l2trader:* events"
+    fi
 else
     # Enable a benign no-op event so the session starts cleanly
     lttng enable-event --userspace --all 2>/dev/null || true
     echo "[ust session] started (no UST events — non-instrumented build)"
 fi
 
+# Add UST contexts needed for call-stack analysis and thread identification
+lttng add-context --userspace --type vpid    2>/dev/null || true
+lttng add-context --userspace --type vtid    2>/dev/null || true
+lttng add-context --userspace --type procname 2>/dev/null || true
+
 lttng start "$UST_SESSION"
 
 echo ""
-echo "Recording. Reproduce the OOM:"
-echo "  1. Switch chart to 10s timescale"
-echo "  2. Enter replay mode"
-echo "  3. Hit Play — watch memory climb"
-echo "  4. Close the app (or Ctrl-C here) when done"
+echo "Recording. Reproduce the issue:"
+echo "  1. Enter replay mode"
+echo "  2. Hit Play"
+echo "  3. Close the app (or Ctrl-C here) when done"
+if $FLAMEGRAPH_ENABLED; then
+    echo ""
+    echo "  Flamegraph: ACTIVE — open in TraceCompass → Flame Chart / Flame Graph views"
+fi
 echo ""
 
-"$APP"
+if $FLAMEGRAPH_ENABLED; then
+    # Preload the cyg-profile library to emit function entry/exit UST events
+    LD_PRELOAD=liblttng-ust-cyg-profile-fast.so "$APP"
+else
+    "$APP"
+fi

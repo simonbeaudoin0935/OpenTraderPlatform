@@ -215,7 +215,7 @@ Q_CHECK_PTR(reply); // Validates allocation succeeded
 When making changes in specific subdirectories, build from root:
 ```bash
 # From repository root
-cmake --build build/GUI -j$(nproc)
+cmake --build build/GUI -j4
 ```
 
 ### Formatting

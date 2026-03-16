@@ -18,6 +18,10 @@ option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
 # Option to enable LTTng UST userspace tracepoints
 option(LTTNG_ENABLED "Enable LTTng UST userspace tracepoints for profiling/debugging" OFF)
 
+# Option to enable function-level call-stack profiling (flamegraph in TraceCompass)
+# Requires LTTNG_ENABLED=ON. Adds -finstrument-functions — significant overhead.
+option(LTTNG_FLAMEGRAPH "Enable -finstrument-functions for LTTng call-stack / flamegraph profiling" OFF)
+
 # Option to build tests
 option(BUILD_TESTS "Build tests" ON)
 
@@ -114,6 +118,12 @@ if(LTTNG_ENABLED)
     pkg_check_modules(LTTNG_UST REQUIRED lttng-ust)
     add_compile_definitions(LTTNG_ENABLED)
     message(STATUS "LTTng UST enabled — userspace tracepoints active")
+
+    if(LTTNG_FLAMEGRAPH)
+        add_compile_options(-finstrument-functions)
+        add_compile_definitions(LTTNG_FLAMEGRAPH)
+        message(STATUS "LTTng flamegraph enabled — -finstrument-functions active (high overhead)")
+    endif()
 endif()
 
 # Enable export of compile commands for IDE support

@@ -203,6 +203,23 @@ The cache is **3-level**. Event names reflect which level fired:
 | **Actor model** | `symbolctx_process_trade` | About to process a Trade event in drain loop | `symbol` |
 | **Actor model** | `symbolctx_shutdown_wait` | SymbolContext destructor waiting for drain to finish | `symbol` |
 | **Replay** | `replay_tick` | DBClient replay timer tick completed | `events_emitted`, `current_epoch_ms` |
+| **GUI lifecycle** | `gui_replay_entered` | GUIFrontend entered replay mode | (none) |
+| **GUI lifecycle** | `gui_replay_exited` | GUIFrontend exited replay mode | (none) |
+| **GUI data** | `gui_bar_received` | GUIFrontend dispatches a bar to chart | `symbol`, `tf_seconds` |
+| **GUI data** | `gui_level2_received` | GUIFrontend dispatches L2 to widgets | `symbol` |
+| **GUI data** | `gui_trade_received` | GUIFrontend dispatches a trade to TimeAndSales | `symbol` |
+| **GUI data** | `gui_replay_time_updated` | Replay time label updated | `epoch_ms` |
+| **GUI data** | `gui_order_received` | Order update received | `symbol`, `status` |
+| **GUI data** | `gui_position_received` | Position update received | `symbol` |
+| **GUI chart** | `gui_chart_add_bar` | StockPriceChart::addLiveBar() processes a bar | `symbol`, `chart_index` |
+| **GUI chart** | `gui_chart_backfill_received` | Historical backfill bars arrived | `bars_count` |
+| **GUI chart** | `gui_chart_timeline_update` | Replay/current time line repositioned | (none) |
+| **GUI widget** | `gui_level2_widget_update` | Level2Widget rebuilds order book display | (none) |
+| **GUI widget** | `gui_timesales_widget_update` | TimeAndSalesWidget inserts a trade row | (none) |
+| **GUI widget** | `gui_order_widget_update` | OrderWidget processes an order update | (none) |
+| **GUI widget** | `gui_position_widget_update` | PositionWidget processes a position update | (none) |
+| **Pull model** | `gui_pull_tick` | 30 Hz display refresh timer fired (dirty data present) | `dirty_flags` (bitmask: L2=1, trade=2, bar=4, aggregator=8, replayTime=16) |
+| **Pull model** | `snapshot_write` | MainAlgo wrote to DisplaySnapshot under write lock | `symbol`, `field` (bar/l2/trade/aggregator/aggregator10s/replayTime) |
 
 ### Querying individual events
 
@@ -247,7 +264,48 @@ babeltrace2 "$UST_DIR" 2>/dev/null \
     | sort | uniq -c | sort -rn
 ```
 
-### Querying thread pool / actor model events
+### Querying GUI events
+
+```bash
+# All GUI event types and counts
+babeltrace2 "$UST_DIR" 2>/dev/null \
+    | grep -oP 'l2trader:gui_\w+' | sort | uniq -c | sort -rn
+
+# GUI pull-tick effective refresh rate
+babeltrace2 "$UST_DIR" 2>/dev/null \
+    | grep "l2trader:gui_pull_tick" \
+    | grep -oP '\d{2}:\d{2}:\d{2}\.\d{9}' \
+    | head -3
+# Then use python or manual subtraction to compute inter-tick delta (target: ~33ms)
+
+# Dirty flags distribution (what data types are being refreshed)
+# Bitmask: L2=1, trade=2, bar=4, aggregator=8, replayTime=16
+babeltrace2 "$UST_DIR" 2>/dev/null \
+    | grep "l2trader:gui_pull_tick" \
+    | grep -oP 'dirty_flags = \d+' | sort | uniq -c | sort -rn
+
+# Snapshot write counts by field (writer-side frequency)
+babeltrace2 "$UST_DIR" 2>/dev/null \
+    | grep "l2trader:snapshot_write" \
+    | grep -oP 'field = "[^"]*"' | sort | uniq -c | sort -rn
+
+# Chart add-bar events (each triggers a queued replot)
+babeltrace2 "$UST_DIR" 2>/dev/null \
+    | grep "l2trader:gui_chart_add_bar" \
+    | grep -oP 'symbol = "[^"]*", chart_index = \d+'
+
+# Trade widget insert rate (each call inserts one row — high counts indicate batching issue)
+echo -n "Trade widget inserts: " && babeltrace2 "$UST_DIR" 2>/dev/null | grep -c "l2trader:gui_timesales_widget_update" || true
+
+# GUI events in a specific time window (replace HH:MM:SS)
+babeltrace2 "$UST_DIR" 2>/dev/null \
+    | grep "l2trader:gui_" | grep "HH:MM:SS"
+
+# Full tick breakdown — see all GUI events within one tick cycle
+# (tick fires, then L2/trade/bar/aggregator/replayTime sub-events follow)
+babeltrace2 "$UST_DIR" 2>/dev/null \
+    | grep "l2trader:gui_" | grep "19:05:29.09" | head -30
+```
 
 ```bash
 # Per-symbol drain throughput (how many items processed per drain call)
@@ -352,6 +410,8 @@ Use VSCode tasks (Ctrl+Shift+P → "Tasks: Run Task"):
 | `run-lttng` | Kernel-only tracing, normal binary |
 | `run-lttng-instrumented` | Kernel + UST tracing, LTTng-enabled binary |
 | `build-with-lttng` | Builds the instrumented binary (`build/LTTng/`) |
+| `build-with-lttng-flamegraph` | Builds with `-finstrument-functions` (`build/LTTng-Flamegraph/`) |
+| `run-lttng-flamegraph` | Kernel + UST + function call-stack (flamegraph) tracing |
 
 Or run the script directly:
 ```bash
@@ -360,6 +420,57 @@ Or run the script directly:
 
 # Kernel + UST (instrumented build)
 APP=./build/LTTng/Src/L2Trader .sanitizers/lttng/run-with-lttng.sh
+
+# Kernel + UST + flamegraph (function entry/exit via cyg-profile)
+FLAMEGRAPH=true APP=./build/LTTng-Flamegraph/Src/L2Trader .sanitizers/lttng/run-with-lttng.sh
 ```
 
 No sudo password required — `/usr/bin/lttng` and `/usr/bin/chown` are configured with `NOPASSWD` in `/etc/sudoers.d/l2trader-lttng`.
+
+---
+
+## Skill: Flamegraph Profiling (Function Call-Stack)
+
+The flamegraph build adds `-finstrument-functions` to the compiler flags and uses `LD_PRELOAD=liblttng-ust-cyg-profile-fast.so` at runtime. This emits `lttng_ust_cyg_profile:func_entry` and `lttng_ust_cyg_profile:func_exit` UST events for every function call.
+
+### Build and Run
+
+```bash
+# Build (one-time)
+mkdir -p build/LTTng-Flamegraph
+cmake -S . -B build/LTTng-Flamegraph -G Ninja \
+    -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF \
+    -DLTTNG_ENABLED=ON -DLTTNG_FLAMEGRAPH=ON
+cmake --build build/LTTng-Flamegraph -j4
+
+# Run with flamegraph capture
+FLAMEGRAPH=true APP=./build/LTTng-Flamegraph/Src/L2Trader .sanitizers/lttng/run-with-lttng.sh
+```
+
+### Viewing in TraceCompass
+
+1. Open the `ust/` trace directory in TraceCompass
+2. TraceCompass auto-detects the `lttng_ust_cyg_profile` events and activates the **LTTng-UST CallStack Analysis**
+3. Open these views:
+   - **Flame Chart** — call stack over time per thread (shows what each thread was doing at every moment)
+   - **Flame Graph** — aggregated icicle chart (width = total time in each function path)
+4. Filter to the GUI thread to see exactly what functions consume time during chart updates
+
+### Performance Impact
+
+> ⚠️ Flamegraph mode has **significant overhead** (~5-20× slower). Every function call emits two UST events. Use it only for targeted profiling sessions, not regular development.
+
+The `liblttng-ust-cyg-profile-fast.so` variant is used (instead of the regular one) to minimize overhead — it skips `dladdr()` symbol resolution at trace time.
+
+### Querying Call-Stack Events
+
+```bash
+LATEST=$(ls -td ~/.local/state/L2Trader/lttng-traces/*/ | head -1)
+
+# Count function entry/exit events
+echo -n "func_entry: " && babeltrace2 "${LATEST}ust" 2>/dev/null | grep -c "func_entry" || true
+echo -n "func_exit:  " && babeltrace2 "${LATEST}ust" 2>/dev/null | grep -c "func_exit" || true
+
+# Sample of function calls (shows instruction pointer addresses — use addr2line to resolve)
+babeltrace2 "${LATEST}ust" 2>/dev/null | grep "func_entry" | head -10
+```

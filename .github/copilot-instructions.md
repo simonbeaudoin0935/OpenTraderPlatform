@@ -17,16 +17,20 @@ For detailed information about specific components, see the AGENTS.md files:
 
 ### Quick Build Commands
 
+> **Important**: Do NOT use `-j$(nproc)` in build commands — the `$(...)` expansion
+> is blocked by the shell security policy. Instead, query the core count first and
+> use a literal value: `CORES=$(nproc)` then `-j $CORES`, or just use `-j4`.
+
 ```bash
 # GUI version (default)
 mkdir -p build/GUI
 cmake -S . -B build/GUI -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF
-cmake --build build/GUI -j$(nproc)
+cmake --build build/GUI -j4
 
 # TUI version (headless)
 mkdir -p build/TUI
 cmake -S . -B build/TUI -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=OFF -DBUILD_TESTS=OFF
-cmake --build build/TUI -j$(nproc)
+cmake --build build/TUI -j4
 
 # Format code before committing (REQUIRED)
 find Src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
