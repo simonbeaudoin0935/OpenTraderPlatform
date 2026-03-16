@@ -435,22 +435,36 @@ void setupDarkTheme(QMainWindow* window) {
 
 ## Signal/Slot Connections
 
-### From Backend to GUI
+### Display Refresh (Pull-Based, 30 Hz)
+
+Market data is NOT pushed via signals. GUIFrontend runs a 33 ms timer that
+reads `DisplaySnapshot` from the current `SymbolContext`:
 
 ```cpp
-// MainAlgo → GUIFrontend
-connect(&MainAlgo::getInstance(), &MainAlgo::displayedStockReceivedNewBar,
-        this, &GUIFrontend::onCurrentHighlightedStockBarReceived);
+// Timer setup (in constructor)
+m_displayRefreshTimer.start(33);  // ~30 Hz
+connect(&m_displayRefreshTimer, &QTimer::timeout, this, &GUIFrontend::onDisplayRefreshTick);
 
+// Each tick: read dirty flags, copy data, clear flags, update widgets
+void GUIFrontend::onDisplayRefreshTick() {
+    auto* sc = MainAlgo::getInstance()->getDisplayedSymbolContext();
+    if (!sc) return;
+
+    QWriteLocker lock(&sc->m_displaySnapshot.lock);
+    // Check dirty flags, copy data, clear flags
+    // Then update chart / Level2 / trades widgets outside lock
+}
+```
+
+### From Backend to GUI (Push — Non-Display Events)
+
+```cpp
+// MainAlgo → GUIFrontend (positions, orders, accounts — still pushed)
 connect(&MainAlgo::getInstance(), &MainAlgo::receivedNewPosition,
         this, &GUIFrontend::onNewPositionReceived);
 
 connect(&MainAlgo::getInstance(), &MainAlgo::receivedNewOrder,
         this, &GUIFrontend::onNewOrderReceived);
-
-// Level 2 data → Level2Widget
-connect(&MainAlgo::getInstance(), &MainAlgo::displayedStockReceivedNewLevel2,
-        this, &GUIFrontend::onCurrentHighlightedReceivedNewLevel2);
 ```
 
 **GUIFrontend order/position forwarding to chart**:

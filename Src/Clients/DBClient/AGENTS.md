@@ -33,13 +33,17 @@ DBClient singleton (lives on DBClient QThread)
   ├─ Historical fetch (QThreadPool via QtConcurrent::run)
   │   └─ Emits historicalBarsReceived on completion
   │
+  ├─ Live connection (QThreadPool via QtConcurrent::run)
+  │   └─ BuildThreaded() runs async — hands client back to DBClient thread on success
+  │
   └─ DBClient thread event loop
-      └─ Hosts state-modifying methods (connectLive, subscribeLive, etc.)
-      └─ Will host replay QTimer tick loop (future Phase 5)
+      └─ Hosts state-modifying methods (subscribeLive, startReplay, etc.)
+      └─ Replay QTimer tick loop
 ```
 
 - **DBClient lives on its own QThread** (like TSClient), created via `moveToThread(&m_thread)`.
 - **State-modifying methods** self-route to the DBClient thread if called from another thread (e.g., GUI). This pattern uses `QMetaObject::invokeMethod` with `Qt::QueuedConnection`.
+- **`connectLive()`** offloads the blocking `BuildThreaded()` authentication to `QThreadPool` so the DBClient event loop stays responsive for replay startup and other queued work. On success, the built client is handed back to the DBClient thread for `Start()`.
 - **Live callbacks** run on Databento's internal thread. Qt `AutoConnection` queues signals to the receiver's event loop.
 - **Historical fetching** runs on `QThreadPool` via `QtConcurrent::run()`. Results arrive via `historicalBarsReceived` signal.
 - **In live mode**, the DBClient thread mostly idles (Databento's LiveThreaded does the heavy lifting).

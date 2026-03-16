@@ -84,6 +84,7 @@ MainAlgo::MainAlgo() {
 5. **Market Data Forwarding**
    - Connect Level2Receiver signals to `displayedStockReceivedNewLevel2` for the displayed stock
    - Connect BarReceiver signals to `displayedStockReceivedNewBar` for the displayed stock
+   - Write display data into `DisplaySnapshot` (inside SymbolContext) for 30 Hz GUI pull
    - Forward raw Level2 data (DWP/BAI computation removed — belongs in individual strategies)
 
 6. **Replay Coordination**
@@ -127,7 +128,9 @@ class MainAlgo {
 **Signals emitted by MainAlgo**:
 ```cpp
 signals:
-    // Market data for displayed stock
+    // Market data for displayed stock (internal use — NOT wired to GUI directly)
+    // These drive BarAggregator and StrategyManager.  The GUI pulls display data
+    // from DisplaySnapshot at 30 Hz instead of receiving these signals.
     void displayedStockReceivedNewBar(QString symbol, Bar bar);
     void displayedStockReceivedNewLevel2(QString symbol, Level2 level2);
     void displayedStockReceivedNewTrade(QString symbol, Trade trade);
@@ -209,6 +212,38 @@ private:
     QWaitCondition m_drainDone;
 };
 ```
+
+#### DisplaySnapshot (Pull-Based GUI Data)
+
+Each SymbolContext holds a `DisplaySnapshot` struct that is the bridge between
+the MainAlgo thread (writer) and the GUI thread (reader at 30 Hz):
+
+```cpp
+struct DisplaySnapshot {
+    QReadWriteLock lock;
+
+    // Data fields (written by MainAlgo, read by GUI)
+    Bar       latestBar;
+    Level2    latestLevel2;
+    QVector<Trade> pendingTrades;  // Accumulated since last GUI read
+    Bar       aggregatorBar;       // Current higher-TF bar
+    QDateTime replayTime;
+
+    // Dirty-flag bitmask (cleared by GUI after read)
+    enum DirtyFlag : uint8_t {
+        L2        = 1,
+        Trade     = 2,
+        BarFlag   = 4,
+        Aggregator= 8,
+        ReplayTime=16,
+    };
+    std::atomic<uint8_t> dirtyFlags{0};
+};
+```
+
+MainAlgo writes under `QWriteLocker`; GUIFrontend reads and clears dirty flags
+under `QWriteLocker` (needs write access to clear flags). The dirty-flag bitmask
+allows the GUI to skip unchanged widgets each tick.
 
 **Threading Guarantees**:
 - `enqueueLevel2()` / `enqueueTrade()` are thread-safe (mutex-protected push)
