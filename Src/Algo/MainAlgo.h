@@ -124,6 +124,38 @@ struct ActivityTracker
     }
 };
 
+/**
+ * @brief Snapshot of latest market data for GUI pull-based rendering.
+ *
+ * Written by the drain thread (or bar/aggregator signal handlers) under write lock.
+ * Read by the GUI thread at 30 Hz under read lock. Dirty flags allow the GUI
+ * to skip unchanged data. Trades are accumulated (not overwritten) so none are lost.
+ */
+struct DisplaySnapshot
+{
+    mutable QReadWriteLock lock;
+
+    // Latest 1-minute bar (overwritten each update, GUI sees the most recent)
+    std::optional<Bar> latestBar;
+    bool barDirty = false;
+
+    // Latest Level 2 depth (overwritten — GUI only needs the current snapshot)
+    std::optional<Level2> latestLevel2;
+    bool l2Dirty = false;
+
+    // Accumulated trades since last GUI read (GUI drains the vector)
+    QVector<Trade> pendingTrades;
+    bool tradeDirty = false;
+
+    // Latest bar per higher timeframe (overwritten per TF)
+    QMap<TimeFrame, Bar> aggregatorBars;
+    bool aggregatorDirty = false;
+
+    // Current replay time
+    std::optional<QDateTime> replayTime;
+    bool replayTimeDirty = false;
+};
+
 class SymbolContext : public QObject
 {
     Q_OBJECT
@@ -152,6 +184,10 @@ class SymbolContext : public QObject
 
     /// Per-symbol EMA-based activity metrics, updated in the drain loop.
     ActivityTracker m_activity;
+
+    /// Snapshot of latest data for GUI pull-based rendering (30 Hz).
+    /// Written by drain thread under write lock, read by GUI under read lock.
+    DisplaySnapshot m_displaySnapshot;
 
   signals:
     /**
@@ -196,6 +232,10 @@ class MainAlgo final : public QObject
 
     /// @brief Get the currently displayed stock symbol
     [[nodiscard]] QString getDisplayedSymbol() const;
+
+    /// @brief Get the currently displayed SymbolContext (for GUI pull-based snapshot reading).
+    /// Returns nullptr if no symbol is displayed. The QPointer may auto-null if the context is destroyed.
+    [[nodiscard]] QPointer<SymbolContext> getDisplayedSymbolContext() const;
 
     BarCache::GetBarsResult_t
     requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last, TimeFrame tf = TimeFrame::ONE_MINUTE);
@@ -319,32 +359,6 @@ class MainAlgo final : public QObject
 
   signals:
     /**
-     * @brief Signal emitted when the displayed stock receives a new bar
-     * Thread context: Emitted from MainAlgo worker thread
-     */
-    void displayedStockReceivedNewBar(QString symbol, Bar bar);
-
-    /**
-     * @brief Signals emitted when the BarAggregator produces a higher-TF bar for the displayed stock.
-     * barUpdated: in-progress (open) bar tick; barClosed: completed bar.
-     * Thread context: Emitted from MainAlgo worker thread
-     */
-    void displayedStockAggregatorBarUpdated(QString symbol, TimeFrame tf, Bar bar);
-    void displayedStockAggregatorBarClosed(QString symbol, TimeFrame tf, Bar bar);
-
-    /**
-     * @brief Signal emitted when the displayed stock receives a new Level 2 book snapshot
-     * Thread context: Emitted from MainAlgo worker thread
-     */
-    void displayedStockReceivedNewLevel2(QString symbol, Level2 level2);
-
-    /**
-     * @brief Signal emitted when the displayed stock receives a new trade
-     * Thread context: Emitted from MainAlgo worker thread
-     */
-    void displayedStockReceivedNewTrade(QString symbol, Trade trade);
-
-    /**
      * @brief Signal emitted when a new position is received
      * Thread context: Emitted from MainAlgo worker thread
      */
@@ -388,7 +402,6 @@ class MainAlgo final : public QObject
     void replayStopped();
     void replayPaused();
     void replayResumed();
-    void replayTimeUpdated(QDateTime currentTime);
     void replayEndReached();
 
   public slots:
@@ -414,16 +427,15 @@ class MainAlgo final : public QObject
     // Handle replay end - pause heartbeat timers
     void onReplayEndReached();
 
-    // Forward higher-TF bar aggregator events to displayed-stock signals
+    // Forward higher-TF bar aggregator events to DisplaySnapshot
     void onAggregatorBarUpdated(TimeFrame tf, const Bar& bar);
     void onAggregatorBarClosed(TimeFrame tf, const Bar& bar);
 
-    // GUI throttle gate slots — buffer data when throttle is active, emit immediately otherwise
+    // Snapshot writers — populate DisplaySnapshot from incoming data
     void onDisplayedBarReceived(const QString& symbol, const Bar& bar);
     void onDisplayedLevel2Received(const QString& symbol, const Level2& level2);
     void onDisplayedTradeReceived(const QString& symbol, const Trade& trade);
     void onReplayTimeReceived(const QDateTime& time);
-    void onGuiThrottleTimerTick();
 
   public:
     // Direct cross-thread routing: called from DBClient thread via DirectConnection.
@@ -477,27 +489,10 @@ class MainAlgo final : public QObject
     // (not the permanent onNewTradeReceived routing connection) when switching symbols.
     QMetaObject::Connection m_displayTradeConnection;
 
-    // --- GUI throttle for AsFastAsPossible replay mode ---
-    // When active, high-frequency GUI-bound signals are buffered and emitted
-    // at a capped rate to prevent flooding the GUI thread's event queue.
-    QTimer m_guiThrottleTimer;
-    bool m_guiThrottleActive = false;
-
-    void activateGuiThrottle();
-    void deactivateGuiThrottle();
-
     /// @brief Wire a SymbolContext's bar-close events to the OrderEmulator for PnL updates.
     /// Safe to call multiple times (uses UniqueConnection internally).
     void connectBarCloseToOrderEmulator(SymbolContext* p_sc, OrderEmulator* p_emulator);
 
     /// @brief Release one reference on a SymbolContext. Destroys it when refCount reaches 0.
     void releaseSymbolContextRef(const QString& symbol);
-
-    // Buffered latest state for throttled GUI emission (only latest matters)
-    std::optional<std::pair<QString, Bar>> m_pendingBar;
-    std::optional<std::pair<QString, Level2>> m_pendingLevel2;
-    std::optional<std::pair<QString, Trade>> m_pendingTrade;
-    std::optional<QDateTime> m_pendingReplayTime;
-    std::optional<std::pair<TimeFrame, Bar>> m_pendingAggregatorBarUpdate;
-    QString m_pendingAggregatorSymbol;
 };

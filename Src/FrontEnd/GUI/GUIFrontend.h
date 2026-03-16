@@ -41,11 +41,6 @@ class GUIFrontend : public FrontEnd
     void onDBClientDataUsageUpdate(qsizetype newDataUsage) override;
     void onTradeStationAccountsReceived(QVector<Account> results) override;
     void onMemoryUsageUpdate(qsizetype newDataUsage) override;
-    void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
-    void onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2) override;
-    void onCurrentHighlightedReceivedNewTrade(QString symbol, Trade trade) override;
-    void onDisplayedStockAggregatorBarUpdated(QString symbol, TimeFrame tf, Bar bar) override;
-    void onDisplayedStockAggregatorBarClosed(QString symbol, TimeFrame tf, Bar bar) override;
     void onNewPositionReceived(QString account, Position position) override;
     void onPositionDeleted(QString account, QString positionID) override;
     void onNewOrderReceived(QString account, Order order) override;
@@ -54,7 +49,6 @@ class GUIFrontend : public FrontEnd
     // Replay mode notifications
     void onReplayModeEntered() override;
     void onReplayModeExited() override;
-    void onReplayTimeUpdated(QDateTime currentTime) override;
 
   public:
     QString getSelectedAccountId() const;
@@ -79,6 +73,7 @@ class GUIFrontend : public FrontEnd
     void onAccountInfoButtonClicked();
     void updateSessionLabel();
     void updateTimeDisplay();
+    void onDisplayRefreshTick();
 
   private:
     void setupDarkTheme(QMainWindow* mainWindow);
@@ -140,6 +135,7 @@ class GUIFrontend : public FrontEnd
     QLabel* m_sessionLabel = nullptr;           // Trading session indicator
     QLabel* m_timeDisplayLabel = nullptr;       // Application time display (live or replay)
     QTimer* m_timeUpdateTimer = nullptr;        // Timer to update time display
+    QTimer m_displayRefreshTimer;               // 30 Hz pull-based display refresh timer
     TradingModeBar* m_tradingModeBar = nullptr; // LIVE / SIM / REPLAY tristate mode indicator
 
     ReplayControlsBar* m_replayControlsBar = nullptr; // Replay controls in top toolbar

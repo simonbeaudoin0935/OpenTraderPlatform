@@ -72,9 +72,6 @@ MainAlgo::~MainAlgo()
         this,
         [this]()
         {
-            // Stop GUI throttle timer on its own thread
-            m_guiThrottleTimer.stop();
-
             // Stop and destroy balance polling timer on its own thread
             m_balancePollingTimer.reset();
         },
@@ -114,11 +111,6 @@ void MainAlgo::onThreadStarted()
 
     connect(m_balancePollingTimer.get(), &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
 
-    // GUI throttle timer — fires periodically when AsFastAsPossible mode is active
-    // to flush buffered GUI updates at a capped rate
-    m_guiThrottleTimer.setInterval(ReplayConstants::GUI_THROTTLE_INTERVAL_MS);
-    connect(&m_guiThrottleTimer, &QTimer::timeout, this, &MainAlgo::onGuiThrottleTimerTick, Qt::UniqueConnection);
-
     // Initialize signal handler system (set up crash notification pipe)
     StrategySignalHandler::initialize();
 
@@ -139,22 +131,9 @@ void MainAlgo::onThreadStarted()
     DEBUG << "Installed crash notification handler";
 
 
-    // Connect MainAlgo signals to StrategyManager for data broadcasting
-    // Bars: route to strategies monitoring the symbol
-    connect(this,
-            &MainAlgo::displayedStockReceivedNewBar,
-            &m_strategyManager,
-            &StrategyManager::onBarReceived,
-            Qt::QueuedConnection);
-
-    // Market depth quotes: route to strategies monitoring the symbol
-    connect(this,
-            &MainAlgo::displayedStockReceivedNewLevel2,
-            &m_strategyManager,
-            &StrategyManager::onLevel2Received,
-            Qt::QueuedConnection);
-
-    // Orders: route only to strategy that placed the order
+    // Connect data signals to StrategyManager for strategy data broadcasting.
+    // Bar and L2 data for the displayed stock is forwarded to strategies.
+    // TODO: Replace with per-symbol SymbolContext connections when strategies subscribe.
     connect(this,
             &MainAlgo::receivedNewOrder,
             &m_strategyManager,
@@ -348,18 +327,38 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             this,
             &MainAlgo::onAggregatorBarClosed);
 
-    // Forward 10s bar updates via the aggregator signal path (reuses GUIFrontend's existing TF filter)
+    // Forward 10s bar updates to DisplaySnapshot
     connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
             &LiveBarAccumulator::barUpdated,
             this,
-            [this, symbol](const QString&, const Bar& bar)
-            { emit displayedStockAggregatorBarUpdated(symbol, TimeFrame::TEN_SECONDS, bar); });
+            [this](const QString&, const Bar& bar)
+            {
+                if (!m_currentDisplayedSymbolContext)
+                    return;
+                L2T_TP(l2trader,
+                       snapshot_write,
+                       m_currentDisplayedSymbolContext->symbol.toUtf8().constData(),
+                       "aggregator10s");
+                QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
+            });
 
     connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
             &LiveBarAccumulator::barClosed,
             this,
-            [this, symbol](const QString&, const Bar& bar)
-            { emit displayedStockAggregatorBarClosed(symbol, TimeFrame::TEN_SECONDS, bar); });
+            [this](const QString&, const Bar& bar)
+            {
+                if (!m_currentDisplayedSymbolContext)
+                    return;
+                L2T_TP(l2trader,
+                       snapshot_write,
+                       m_currentDisplayedSymbolContext->symbol.toUtf8().constData(),
+                       "aggregator10s");
+                QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
+            });
 
     connect(&m_currentDisplayedSymbolContext->m_level2Receiver,
             &Level2Receiver::receivedNewLevel2,
@@ -662,6 +661,11 @@ void MainAlgo::stopBalancePolling()
         return m_currentDisplayedSymbolContext->symbol;
     }
     return QString();
+}
+
+[[nodiscard]] QPointer<SymbolContext> MainAlgo::getDisplayedSymbolContext() const
+{
+    return m_currentDisplayedSymbolContext;
 }
 
 void MainAlgo::requestBalance()
@@ -1197,132 +1201,84 @@ void MainAlgo::onAggregatorBarUpdated(TimeFrame tf, const Bar& bar)
     if (m_currentDisplayedSymbolContext == nullptr)
         return;
 
-    if (m_guiThrottleActive)
-    {
-        m_pendingAggregatorBarUpdate = {tf, bar};
-        m_pendingAggregatorSymbol = m_currentDisplayedSymbolContext->symbol;
-        return;
-    }
-    emit displayedStockAggregatorBarUpdated(m_currentDisplayedSymbolContext->symbol, tf, bar);
+    L2T_TP(l2trader, snapshot_write, m_currentDisplayedSymbolContext->symbol.toUtf8().constData(), "aggregator");
+    QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+    m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[tf] = bar;
+    m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
 }
 
 void MainAlgo::onAggregatorBarClosed(TimeFrame tf, const Bar& bar)
 {
-    // Bar closes are infrequent (once per minute boundary per TF) — never throttle
-    if (m_currentDisplayedSymbolContext != nullptr)
-        emit displayedStockAggregatorBarClosed(m_currentDisplayedSymbolContext->symbol, tf, bar);
+    if (m_currentDisplayedSymbolContext == nullptr)
+        return;
+
+    L2T_TP(l2trader, snapshot_write, m_currentDisplayedSymbolContext->symbol.toUtf8().constData(), "aggregator");
+    QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+    m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[tf] = bar;
+    m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
 }
 
 // ---------------------------------------------------------------------------
-// GUI throttle gate slots
+// DisplaySnapshot writers — populate snapshot for GUI pull-based rendering
 // ---------------------------------------------------------------------------
 
 void MainAlgo::onDisplayedBarReceived(const QString& symbol, const Bar& bar)
 {
-    if (m_guiThrottleActive)
-    {
-        m_pendingBar = {symbol, bar};
+    if (!m_currentDisplayedSymbolContext)
         return;
+
+    L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "bar");
+    {
+        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+        m_currentDisplayedSymbolContext->m_displaySnapshot.latestBar = bar;
+        m_currentDisplayedSymbolContext->m_displaySnapshot.barDirty = true;
     }
-    emit displayedStockReceivedNewBar(symbol, bar);
+
+    // Forward to strategies monitoring this symbol
+    m_strategyManager.onBarReceived(symbol, bar);
 }
 
 void MainAlgo::onDisplayedLevel2Received(const QString& symbol, const Level2& level2)
 {
-    if (m_guiThrottleActive)
-    {
-        m_pendingLevel2 = {symbol, level2};
+    if (!m_currentDisplayedSymbolContext)
         return;
+
+    L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "l2");
+    {
+        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+        m_currentDisplayedSymbolContext->m_displaySnapshot.latestLevel2 = level2;
+        m_currentDisplayedSymbolContext->m_displaySnapshot.l2Dirty = true;
     }
-    emit displayedStockReceivedNewLevel2(symbol, level2);
+
+    // Forward to strategies monitoring this symbol
+    m_strategyManager.onLevel2Received(symbol, level2);
 }
 
-void MainAlgo::onDisplayedTradeReceived(const QString& symbol, const Trade& trade)
+void MainAlgo::onDisplayedTradeReceived([[maybe_unused]] const QString& symbol, const Trade& trade)
 {
-    if (m_guiThrottleActive)
-    {
-        m_pendingTrade = {symbol, trade};
+    if (!m_currentDisplayedSymbolContext)
         return;
-    }
-    emit displayedStockReceivedNewTrade(symbol, trade);
+
+    L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "trade");
+    QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+    m_currentDisplayedSymbolContext->m_displaySnapshot.pendingTrades.append(trade);
+    m_currentDisplayedSymbolContext->m_displaySnapshot.tradeDirty = true;
 }
 
 void MainAlgo::onReplayTimeReceived(const QDateTime& time)
 {
-    if (m_guiThrottleActive)
-    {
-        m_pendingReplayTime = time;
-        return;
-    }
-    emit replayTimeUpdated(time);
-}
-
-void MainAlgo::onGuiThrottleTimerTick()
-{
-    if (m_pendingBar.has_value())
-    {
-        emit displayedStockReceivedNewBar(m_pendingBar->first, m_pendingBar->second);
-        m_pendingBar.reset();
-    }
-
-    if (m_pendingLevel2.has_value())
-    {
-        emit displayedStockReceivedNewLevel2(m_pendingLevel2->first, m_pendingLevel2->second);
-        m_pendingLevel2.reset();
-    }
-
-    if (m_pendingTrade.has_value())
-    {
-        emit displayedStockReceivedNewTrade(m_pendingTrade->first, m_pendingTrade->second);
-        m_pendingTrade.reset();
-    }
-
-    if (m_pendingAggregatorBarUpdate.has_value())
-    {
-        emit displayedStockAggregatorBarUpdated(m_pendingAggregatorSymbol,
-                                                m_pendingAggregatorBarUpdate->first,
-                                                m_pendingAggregatorBarUpdate->second);
-        m_pendingAggregatorBarUpdate.reset();
-    }
-
-    if (m_pendingReplayTime.has_value())
-    {
-        emit replayTimeUpdated(*m_pendingReplayTime);
-        m_pendingReplayTime.reset();
-    }
-}
-
-void MainAlgo::activateGuiThrottle()
-{
-    if (m_guiThrottleActive)
+    if (!m_currentDisplayedSymbolContext)
         return;
 
-    INFO << "Activating GUI throttle for AsFastAsPossible replay mode (" << ReplayConstants::GUI_THROTTLE_INTERVAL_MS
-         << "ms interval)";
-
-    m_guiThrottleActive = true;
-    m_guiThrottleTimer.start();
-}
-
-void MainAlgo::deactivateGuiThrottle()
-{
-    if (!m_guiThrottleActive)
-        return;
-
-    INFO << "Deactivating GUI throttle";
-
-    m_guiThrottleTimer.stop();
-    m_guiThrottleActive = false;
-
-    // Flush any remaining buffered data so nothing is lost
-    onGuiThrottleTimerTick();
+    L2T_TP(l2trader, snapshot_write, m_currentDisplayedSymbolContext->symbol.toUtf8().constData(), "replayTime");
+    QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+    m_currentDisplayedSymbolContext->m_displaySnapshot.replayTime = time;
+    m_currentDisplayedSymbolContext->m_displaySnapshot.replayTimeDirty = true;
 }
 
 void MainAlgo::onReplayEndReached()
 {
     INFO << "Replay ended, pausing heartbeat timers to prevent stream timeout";
-
-    deactivateGuiThrottle();
 
     // Pause heartbeat timers on ALL mock streams, not just the displayed one
     for (auto& instrument: m_symbolContexts)
@@ -1350,9 +1306,6 @@ void MainAlgo::enterReplayMode(const QString& p_symbol, QDate p_date, QTime p_st
 
     // Wire OrderEmulator to DBClient market data (same signals as live)
     connectReplaySignals(p_symbol);
-
-    if (p_speed == Playback::Speed::AsFastAsPossible)
-        activateGuiThrottle();
 
     startReplayOrderStreams();
 
@@ -1382,9 +1335,6 @@ void MainAlgo::enterReplayModePaused(const QString& p_symbol, QDate p_date, QTim
     // Forward DBClient replay lifecycle signals are wired once in onThreadStarted().
 
     connectReplaySignals(p_symbol);
-
-    if (p_speed == Playback::Speed::AsFastAsPossible)
-        activateGuiThrottle();
 
     if (!isReentry)
     {
@@ -1452,8 +1402,6 @@ void MainAlgo::exitReplayMode()
 {
     INFO << "MainAlgo exiting replay mode";
 
-    deactivateGuiThrottle();
-
     auto* dbClient = DBClient::getInstance();
     dbClient->stopReplay();
 
@@ -1501,12 +1449,6 @@ void MainAlgo::setReplaySpeed(Playback::Speed p_speed)
     {
         emulator->setReplaySpeed(static_cast<int>(p_speed));
     }
-
-    // Toggle GUI throttle based on speed
-    if (p_speed == Playback::Speed::AsFastAsPossible)
-        activateGuiThrottle();
-    else
-        deactivateGuiThrottle();
 }
 
 void MainAlgo::pauseLiveStreams()

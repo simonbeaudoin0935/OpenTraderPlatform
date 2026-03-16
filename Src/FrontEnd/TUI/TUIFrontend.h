@@ -37,13 +37,10 @@ class TUIFrontend : public FrontEnd
     void onPositionDeleted(QString account, QString positionID) override;
     void onNewOrderReceived(QString account, Order order) override;
     void onBalanceUpdated(Balance balance) override;
-    void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) override;
-    void onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2) override;
 
     // Replay mode notifications
     void onReplayModeEntered() override;
     void onReplayModeExited() override;
-    void onReplayTimeUpdated(QDateTime currentTime) override;
 
   private slots:
     void handleInput();

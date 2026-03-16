@@ -313,6 +313,22 @@ TRACEPOINT_EVENT(l2trader, gui_order_widget_update, TP_ARGS(), TP_FIELDS())
 /** Fired when PositionWidget::updatePosition() processes a position. */
 TRACEPOINT_EVENT(l2trader, gui_position_widget_update, TP_ARGS(), TP_FIELDS())
 
+// ---------------------------------------------------------------------------
+// Pull-based GUI refresh (30 Hz snapshot polling)
+// ---------------------------------------------------------------------------
+
+/** Fired on each 30 Hz tick of the display refresh timer in GUIFrontend. */
+TRACEPOINT_EVENT(l2trader,
+                 gui_pull_tick,
+                 TP_ARGS(int, dirty_flags),
+                 TP_FIELDS(ctf_integer(int, dirty_flags, dirty_flags)))
+
+/** Fired when a DisplaySnapshot write-lock is acquired by a data handler. */
+TRACEPOINT_EVENT(l2trader,
+                 snapshot_write,
+                 TP_ARGS(const char*, symbol, const char*, field),
+                 TP_FIELDS(ctf_string(symbol, symbol) ctf_string(field, field)))
+
 #endif /* _L2TRADER_TP_H */
 
 #include <lttng/tracepoint-event.h>

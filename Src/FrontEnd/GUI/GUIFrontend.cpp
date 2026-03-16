@@ -39,6 +39,7 @@
 #include "Assume.h"
 #include "DBClient.h"
 #include "BarUtils.h"
+#include "CONSTANTS.h"
 #include <QInputDialog>
 
 #define LOGGING_CATEGORY GUIFrontendLog
@@ -417,6 +418,11 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_timeUpdateTimer->start(1000); // Update every second
     updateTimeDisplay();            // Initial update
 
+    // 30 Hz pull-based display refresh timer — GUI reads latest snapshot from SymbolContext
+    connected = connect(&m_displayRefreshTimer, &QTimer::timeout, this, &GUIFrontend::onDisplayRefreshTick);
+    ASSUME_TRUE(connected);
+    m_displayRefreshTimer.start(ReplayConstants::GUI_THROTTLE_INTERVAL_MS);
+
     // In LIVE trading mode, the REPLAY pill is still shown (greyed out) — no hiding needed.
     // Connect app frontend signals and slots
     connect(this,
@@ -441,24 +447,6 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             &FrontEnd::databentoDataUsageUpdated,
             this,
             &GUIFrontend::onDBClientDataUsageUpdate,
-            Qt::DirectConnection);
-
-    connect(this,
-            &FrontEnd::currentHighlightedStockBarReceived,
-            this,
-            &GUIFrontend::onCurrentHighlightedStockBarReceived,
-            Qt::DirectConnection);
-
-    connect(this,
-            &FrontEnd::currentHighlightedReceivedNewLevel2,
-            this,
-            &GUIFrontend::onCurrentHighlightedReceivedNewLevel2,
-            Qt::DirectConnection);
-
-    connect(this,
-            &FrontEnd::currentHighlightedReceivedNewTrade,
-            this,
-            &GUIFrontend::onCurrentHighlightedReceivedNewTrade,
             Qt::DirectConnection);
 
     connect(this, &FrontEnd::newPositionReceived, this, &GUIFrontend::onNewPositionReceived, Qt::DirectConnection);
@@ -1010,53 +998,97 @@ void GUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
     updateStatusBar();
 }
 
-void GUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
+// ---------------------------------------------------------------------------
+// Pull-based 30 Hz display refresh (reads DisplaySnapshot from SymbolContext)
+// ---------------------------------------------------------------------------
+void GUIFrontend::onDisplayRefreshTick()
 {
-    L2T_TP(l2trader, gui_bar_received, symbol.toUtf8().constData(), 60);
-
-    // When showing a higher TF, 1m bars are not rendered directly — the aggregator
-    // path (onDisplayedStockAggregatorBar*) handles live candle updates instead.
-    if (m_currentTimeFrame != TimeFrame::ONE_MINUTE)
+    QPointer<SymbolContext> sc = mainAlgo->getDisplayedSymbolContext();
+    if (!sc)
         return;
 
-    ui->priceChart->addLiveBar(symbol, bar);
-}
+    DisplaySnapshot& snap = sc->m_displaySnapshot;
+    QWriteLocker lock(&snap.lock);
 
-void GUIFrontend::onDisplayedStockAggregatorBarUpdated(QString symbol, TimeFrame tf, Bar bar)
-{
-    L2T_TP(l2trader, gui_bar_received, symbol.toUtf8().constData(), BarUtils::secondsPerBar(tf));
-
-    if (tf != m_currentTimeFrame)
+    int dirtyFlags = (snap.l2Dirty ? 1 : 0) | (snap.tradeDirty ? 2 : 0) | (snap.barDirty ? 4 : 0) |
+                     (snap.aggregatorDirty ? 8 : 0) | (snap.replayTimeDirty ? 16 : 0);
+    if (dirtyFlags == 0)
         return;
-    ui->priceChart->addLiveBar(symbol, bar);
-}
 
-void GUIFrontend::onDisplayedStockAggregatorBarClosed(QString symbol, TimeFrame tf, Bar bar)
-{
-    L2T_TP(l2trader, gui_bar_received, symbol.toUtf8().constData(), BarUtils::secondsPerBar(tf));
+    L2T_TP(l2trader, gui_pull_tick, dirtyFlags);
 
-    if (tf != m_currentTimeFrame)
-        return;
-    ui->priceChart->addLiveBar(symbol, bar);
-}
+    if (snap.l2Dirty)
+    {
+        Level2 l2 = *snap.latestLevel2;
+        snap.l2Dirty = false;
+        lock.unlock();
 
-void GUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2)
-{
-    L2T_TP(l2trader, gui_level2_received, symbol.toUtf8().constData());
+        L2T_TP(l2trader, gui_level2_received, sc->symbol.toUtf8().constData());
+        ui->level2Widget->updateData(l2.m_bids, l2.m_asks);
+        ui->orderEntryWidget->onMarketDepthUpdate(sc->symbol, l2);
 
-    if (symbol != currentlyDisplayedSymbol)
-        return;
-    ui->level2Widget->updateData(level2.m_bids, level2.m_asks);
-    ui->orderEntryWidget->onMarketDepthUpdate(symbol, level2);
-}
+        lock.relock();
+    }
 
-void GUIFrontend::onCurrentHighlightedReceivedNewTrade(QString symbol, Trade trade)
-{
-    L2T_TP(l2trader, gui_trade_received, symbol.toUtf8().constData());
+    if (snap.tradeDirty)
+    {
+        QVector<Trade> trades;
+        trades.swap(snap.pendingTrades);
+        snap.tradeDirty = false;
+        lock.unlock();
 
-    if (symbol != currentlyDisplayedSymbol)
-        return;
-    ui->timeAndSalesWidget->onNewTrade(symbol, trade);
+        for (const auto& t: trades)
+        {
+            L2T_TP(l2trader, gui_trade_received, sc->symbol.toUtf8().constData());
+            ui->timeAndSalesWidget->onNewTrade(sc->symbol, t);
+        }
+
+        lock.relock();
+    }
+
+    if (snap.barDirty && m_currentTimeFrame == TimeFrame::ONE_MINUTE)
+    {
+        Bar bar = *snap.latestBar;
+        snap.barDirty = false;
+        lock.unlock();
+
+        L2T_TP(l2trader, gui_bar_received, sc->symbol.toUtf8().constData(), 60);
+        ui->priceChart->addLiveBar(sc->symbol, bar);
+
+        lock.relock();
+    }
+
+    if (snap.aggregatorDirty)
+    {
+        auto it = snap.aggregatorBars.find(m_currentTimeFrame);
+        if (it != snap.aggregatorBars.end())
+        {
+            Bar bar = it.value();
+            lock.unlock();
+
+            L2T_TP(l2trader,
+                   gui_bar_received,
+                   sc->symbol.toUtf8().constData(),
+                   BarUtils::secondsPerBar(m_currentTimeFrame));
+            ui->priceChart->addLiveBar(sc->symbol, bar);
+
+            lock.relock();
+        }
+        snap.aggregatorDirty = false;
+    }
+
+    if (snap.replayTimeDirty)
+    {
+        QDateTime replayTime = *snap.replayTime;
+        snap.replayTimeDirty = false;
+        lock.unlock();
+
+        L2T_TP(l2trader, gui_replay_time_updated, replayTime.toMSecsSinceEpoch());
+        updateSessionLabel();
+        updateTimeDisplay();
+
+        return; // lock already released
+    }
 }
 
 void GUIFrontend::onNewPositionReceived(QString account, Position position)
@@ -2111,15 +2143,6 @@ void GUIFrontend::onReplayModeExited()
     ui->priceChart->setReplayModeActive(false);
 
     // Update session label and time display (back to live time)
-    updateSessionLabel();
-    updateTimeDisplay();
-}
-
-void GUIFrontend::onReplayTimeUpdated([[maybe_unused]] QDateTime currentTime)
-{
-    L2T_TP(l2trader, gui_replay_time_updated, currentTime.toMSecsSinceEpoch());
-
-    // Update session label and time display as replay time advances
     updateSessionLabel();
     updateTimeDisplay();
 }
