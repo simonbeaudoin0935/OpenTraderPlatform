@@ -16,6 +16,7 @@ class OrdersReceiver : public StreamReceiver
     Q_OBJECT
   public:
     explicit OrdersReceiver(const QString& p_account, QObject* p_parent = nullptr);
+    ~OrdersReceiver() override;
 
     void stopStream(const QString& p_account);
     void stopStream(const char* p_account);

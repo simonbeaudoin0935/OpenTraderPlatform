@@ -44,6 +44,14 @@ OrdersReceiver::OrdersReceiver(const QString& p_account, QObject* p_parent)
     createOrdersStream();
 }
 
+OrdersReceiver::~OrdersReceiver()
+{
+    if (m_stream != nullptr)
+    {
+        TSClient::getInstance()->closeStream(m_stream);
+    }
+}
+
 void OrdersReceiver::createOrdersStream()
 {
     m_stream = TSClient::getInstance()->openStreamOrders(m_account);
