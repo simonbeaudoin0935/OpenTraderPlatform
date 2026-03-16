@@ -199,15 +199,21 @@ if $FLAMEGRAPH_ENABLED; then
     LD_PRELOAD=liblttng-ust-cyg-profile-fast.so "$APP" &
     APP_PID=$!
 
-    # Wait for user keypress or app exit to enable flamegraph recording
-    FLAMEGRAPH_ACTIVATED=false
+    # Toggle flamegraph on/off with ENTER keypresses until the app exits
+    FLAMEGRAPH_ACTIVE=false
     while kill -0 "$APP_PID" 2>/dev/null; do
         if read -r -t 1 2>/dev/null; then
-            lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_entry'
-            lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_exit'
-            FLAMEGRAPH_ACTIVATED=true
-            echo "[flamegraph] Function call recording ENABLED — trace is now capturing call stacks"
-            break
+            if $FLAMEGRAPH_ACTIVE; then
+                lttng disable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_entry'
+                lttng disable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_exit'
+                FLAMEGRAPH_ACTIVE=false
+                echo "[flamegraph] Recording PAUSED — press ENTER to resume"
+            else
+                lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_entry'
+                lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_exit'
+                FLAMEGRAPH_ACTIVE=true
+                echo "[flamegraph] Recording ENABLED — press ENTER to pause"
+            fi
         fi
     done
 

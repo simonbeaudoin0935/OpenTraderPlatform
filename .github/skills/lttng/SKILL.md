@@ -435,7 +435,7 @@ The flamegraph build adds `-finstrument-functions` to the compiler flags and use
 
 ### Deferred Recording
 
-Flamegraph recording is **deferred by default**. The cyg-profile library is preloaded at launch but its LTTng events are disabled. This keeps the startup fast (no SSD bandwidth competition with BarCache SQLite reads). When you're ready (e.g., replay is loaded), **press ENTER** in the trace terminal to activate function call recording.
+Flamegraph recording is **deferred by default**. The cyg-profile library is preloaded at launch but its LTTng events are disabled. This keeps the startup fast (no SSD bandwidth competition with BarCache SQLite reads). When you're ready (e.g., replay is loaded), **press ENTER** in the trace terminal to activate function call recording. **Press ENTER again** to pause it. You can toggle on/off as many times as needed during the session.
 
 While events are disabled, the instrumentation hooks still fire but LTTng's fast-path check returns immediately (~0 overhead — just a cache-line read).
 
