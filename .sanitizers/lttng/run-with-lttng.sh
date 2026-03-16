@@ -56,6 +56,11 @@ mkdir -p "$TRACE_DIR"
 cleanup() {
     echo ""
     echo "=== Stopping LTTng sessions... ==="
+    # Kill the app if it's still running (background mode with flamegraph)
+    if [ -n "${APP_PID:-}" ] && kill -0 "$APP_PID" 2>/dev/null; then
+        kill "$APP_PID" 2>/dev/null || true
+        wait "$APP_PID" 2>/dev/null || true
+    fi
     sudo lttng stop  "$KERNEL_SESSION" 2>/dev/null || true
     sudo lttng destroy "$KERNEL_SESSION" 2>/dev/null || true
     lttng stop  "$UST_SESSION" 2>/dev/null || true
@@ -74,6 +79,7 @@ cleanup() {
     echo ""
     echo "Analyze with: ${SCRIPT_DIR}/analyze-lttng.sh $TRACE_DIR"
 }
+APP_PID=""
 trap cleanup EXIT INT TERM
 
 echo "=== LTTng Trace: L2Trader ==="
@@ -154,10 +160,11 @@ if $IS_INSTRUMENTED; then
     lttng enable-event --userspace 'l2trader:*'
 
     if $FLAMEGRAPH_ENABLED; then
-        # Enable cyg-profile function entry/exit events for flamegraph
-        lttng enable-event --userspace 'lttng_ust_cyg_profile:func_entry'
-        lttng enable-event --userspace 'lttng_ust_cyg_profile:func_exit'
-        echo "[ust session] started with l2trader:* + flamegraph (cyg-profile) events"
+        # cyg-profile events are NOT enabled yet — they will be activated on user
+        # keypress after the app has started (deferred flamegraph).  The LD_PRELOAD
+        # library is still loaded so the hooks exist, but LTTng's fast-path sees
+        # the events disabled and returns immediately (~0 overhead).
+        echo "[ust session] started with l2trader:* events (flamegraph DEFERRED — press ENTER to activate)"
     else
         echo "[ust session] started with l2trader:* events"
     fi
@@ -181,13 +188,32 @@ echo "  2. Hit Play"
 echo "  3. Close the app (or Ctrl-C here) when done"
 if $FLAMEGRAPH_ENABLED; then
     echo ""
-    echo "  Flamegraph: ACTIVE — open in TraceCompass → Flame Chart / Flame Graph views"
+    echo "  Flamegraph: DEFERRED — press ENTER in this terminal to start recording"
+    echo "              (wait until the app is loaded and replay is ready)"
 fi
 echo ""
 
 if $FLAMEGRAPH_ENABLED; then
-    # Preload the cyg-profile library to emit function entry/exit UST events
-    LD_PRELOAD=liblttng-ust-cyg-profile-fast.so "$APP"
+    # Launch app in background with cyg-profile library preloaded.
+    # Events are disabled in LTTng so the hooks return immediately (~0 overhead).
+    LD_PRELOAD=liblttng-ust-cyg-profile-fast.so "$APP" &
+    APP_PID=$!
+
+    # Wait for user keypress or app exit to enable flamegraph recording
+    FLAMEGRAPH_ACTIVATED=false
+    while kill -0 "$APP_PID" 2>/dev/null; do
+        if read -r -t 1 2>/dev/null; then
+            lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_entry'
+            lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_exit'
+            FLAMEGRAPH_ACTIVATED=true
+            echo "[flamegraph] Function call recording ENABLED — trace is now capturing call stacks"
+            break
+        fi
+    done
+
+    # Wait for app to exit
+    wait "$APP_PID" 2>/dev/null || true
+    APP_PID=""
 else
     "$APP"
 fi

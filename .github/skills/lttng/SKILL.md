@@ -433,6 +433,12 @@ No sudo password required — `/usr/bin/lttng` and `/usr/bin/chown` are configur
 
 The flamegraph build adds `-finstrument-functions` to the compiler flags and uses `LD_PRELOAD=liblttng-ust-cyg-profile-fast.so` at runtime. This emits `lttng_ust_cyg_profile:func_entry` and `lttng_ust_cyg_profile:func_exit` UST events for every function call.
 
+### Deferred Recording
+
+Flamegraph recording is **deferred by default**. The cyg-profile library is preloaded at launch but its LTTng events are disabled. This keeps the startup fast (no SSD bandwidth competition with BarCache SQLite reads). When you're ready (e.g., replay is loaded), **press ENTER** in the trace terminal to activate function call recording.
+
+While events are disabled, the instrumentation hooks still fire but LTTng's fast-path check returns immediately (~0 overhead — just a cache-line read).
+
 ### Build and Run
 
 ```bash
@@ -443,7 +449,7 @@ cmake -S . -B build/LTTng-Flamegraph -G Ninja \
     -DLTTNG_ENABLED=ON -DLTTNG_FLAMEGRAPH=ON
 cmake --build build/LTTng-Flamegraph -j4
 
-# Run with flamegraph capture
+# Run with flamegraph capture (deferred — press ENTER when ready)
 FLAMEGRAPH=true APP=./build/LTTng-Flamegraph/Src/L2Trader .sanitizers/lttng/run-with-lttng.sh
 ```
 
@@ -458,7 +464,7 @@ FLAMEGRAPH=true APP=./build/LTTng-Flamegraph/Src/L2Trader .sanitizers/lttng/run-
 
 ### Performance Impact
 
-> ⚠️ Flamegraph mode has **significant overhead** (~5-20× slower). Every function call emits two UST events. Use it only for targeted profiling sessions, not regular development.
+> ⚠️ Flamegraph mode has **significant overhead** (~5-20× slower) when active. Every function call emits two UST events. The deferred start avoids this during app startup. Use it only for targeted profiling windows, not the entire session.
 
 The `liblttng-ust-cyg-profile-fast.so` variant is used (instead of the regular one) to minimize overhead — it skips `dladdr()` symbol resolution at trace time.
 
