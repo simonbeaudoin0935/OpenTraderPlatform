@@ -717,7 +717,7 @@ void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const 
         return;
     }
 
-    if (!m_index0Timestamp.isValid())
+    if (!m_index0Timestamp.isValid() || m_symbol.isEmpty())
     {
         return;
     }
