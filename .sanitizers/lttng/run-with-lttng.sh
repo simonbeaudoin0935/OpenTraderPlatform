@@ -160,10 +160,14 @@ if $IS_INSTRUMENTED; then
     lttng enable-event --userspace 'l2trader:*'
 
     if $FLAMEGRAPH_ENABLED; then
-        # cyg-profile events are NOT enabled yet — they will be activated on user
-        # keypress after the app has started (deferred flamegraph).  The LD_PRELOAD
-        # library is still loaded so the hooks exist, but LTTng's fast-path sees
-        # the events disabled and returns immediately (~0 overhead).
+        # Register cyg-profile events NOW so lttng-ust establishes the tracepoint
+        # matching at session start.  Then immediately disable them — the LD_PRELOAD
+        # hooks see the events disabled and return via fast-path (~0 overhead).
+        # On user keypress we re-enable, which works because matching is already set up.
+        lttng enable-event --userspace 'lttng_ust_cyg_profile:func_entry'
+        lttng enable-event --userspace 'lttng_ust_cyg_profile:func_exit'
+        lttng disable-event --userspace 'lttng_ust_cyg_profile:func_entry'
+        lttng disable-event --userspace 'lttng_ust_cyg_profile:func_exit'
         echo "[ust session] started with l2trader:* events (flamegraph DEFERRED — press ENTER to activate)"
     else
         echo "[ust session] started with l2trader:* events"
