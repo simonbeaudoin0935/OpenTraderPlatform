@@ -40,7 +40,7 @@ if [ ! -x "$APP" ]; then
 fi
 
 IS_INSTRUMENTED=false
-if [[ "$APP" == *"/LTTng/"* ]]; then
+if [[ "$APP" == *"/LTTng"* ]]; then
     IS_INSTRUMENTED=true
 fi
 
