@@ -196,13 +196,17 @@ echo ""
 if $FLAMEGRAPH_ENABLED; then
     # Launch app in background with cyg-profile library preloaded.
     # Events are disabled in LTTng so the hooks return immediately (~0 overhead).
-    LD_PRELOAD=liblttng-ust-cyg-profile-fast.so "$APP" &
+    # Redirect stdout/stderr so app logs don't flood the terminal — logs already
+    # go to ~/.local/state/L2Trader/AppLogs/ so nothing is lost.
+    APP_LOG="${TRACE_DIR}/app_console.log"
+    LD_PRELOAD=liblttng-ust-cyg-profile-fast.so "$APP" >"$APP_LOG" 2>&1 &
     APP_PID=$!
+    echo "[app] PID $APP_PID — console output redirected to $APP_LOG"
 
     # Toggle flamegraph on/off with ENTER keypresses until the app exits
     FLAMEGRAPH_ACTIVE=false
     while kill -0 "$APP_PID" 2>/dev/null; do
-        if read -r -t 1 2>/dev/null; then
+        if read -r -t 1; then
             if $FLAMEGRAPH_ACTIVE; then
                 lttng disable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_entry'
                 lttng disable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_exit'
