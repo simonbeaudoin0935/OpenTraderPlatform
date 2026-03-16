@@ -157,6 +157,8 @@ lttng create "$UST_SESSION" --output="${TRACE_DIR}/ust"
 
 if $IS_INSTRUMENTED; then
     lttng enable-event --userspace 'l2trader:*'
+    # Always enable statedump so TraceCompass can auto-resolve addresses to symbols
+    lttng enable-event --userspace 'lttng_ust_statedump:*'
 
     if $FLAMEGRAPH_ENABLED; then
         # Use the standard (non-fast) library — provider lttng_ust_cyg_profile.
