@@ -85,7 +85,7 @@ echo "=== LTTng Trace: L2Trader ==="
 echo "Trace output : $TRACE_DIR"
 echo "App binary   : $APP"
 echo "UST events   : $(${IS_INSTRUMENTED} && echo 'ACTIVE (instrumented build)' || echo 'inactive — use build-with-lttng task')"
-echo "Flamegraph   : $(${FLAMEGRAPH_ENABLED} && echo 'ACTIVE (cyg-profile + -finstrument-functions)' || echo 'inactive — build with -DLTTNG_FLAMEGRAPH=ON')"
+echo "Flamegraph   : $(${FLAMEGRAPH_ENABLED} && echo 'ACTIVE (cyg-profile (standard) + -finstrument-functions)' || echo 'inactive — build with -DLTTNG_FLAMEGRAPH=ON')"
 echo ""
 
 # ------------------------------------------------------------------
@@ -159,13 +159,13 @@ if $IS_INSTRUMENTED; then
     lttng enable-event --userspace 'l2trader:*'
 
     if $FLAMEGRAPH_ENABLED; then
-        # The -fast variant uses provider lttng_ust_cyg_profile_fast.
-        # Register + immediately disable so tracepoint matching is established
-        # at session start. ENTER toggle re-enables the pre-matched events.
-        lttng enable-event --userspace 'lttng_ust_cyg_profile_fast:func_entry'
-        lttng enable-event --userspace 'lttng_ust_cyg_profile_fast:func_exit'
-        lttng disable-event --userspace 'lttng_ust_cyg_profile_fast:func_entry'
-        lttng disable-event --userspace 'lttng_ust_cyg_profile_fast:func_exit'
+        # Use the standard (non-fast) library — provider lttng_ust_cyg_profile.
+        # TraceCompass's built-in CallStack analysis only recognises this provider.
+        # The -fast variant (lttng_ust_cyg_profile_fast) produces 0 stack frames in TraceCompass.
+        lttng enable-event --userspace 'lttng_ust_cyg_profile:func_entry'
+        lttng enable-event --userspace 'lttng_ust_cyg_profile:func_exit'
+        lttng disable-event --userspace 'lttng_ust_cyg_profile:func_entry'
+        lttng disable-event --userspace 'lttng_ust_cyg_profile:func_exit'
         echo "[ust session] started with l2trader:* events (flamegraph DEFERRED — press ENTER to activate)"
     else
         echo "[ust session] started with l2trader:* events"
@@ -200,7 +200,7 @@ if $FLAMEGRAPH_ENABLED; then
     # Launch in background — redirect output so app logs don't block stdin.
     # Logs already go to ~/.local/state/L2Trader/AppLogs/ so nothing is lost.
     APP_LOG="${TRACE_DIR}/app_console.log"
-    LD_PRELOAD=liblttng-ust-cyg-profile-fast.so "$APP" >"$APP_LOG" 2>&1 &
+    LD_PRELOAD=liblttng-ust-cyg-profile.so "$APP" >"$APP_LOG" 2>&1 &
     APP_PID=$!
     echo "[app] PID $APP_PID — console output redirected to $APP_LOG"
 
@@ -209,13 +209,13 @@ if $FLAMEGRAPH_ENABLED; then
     while kill -0 "$APP_PID" 2>/dev/null; do
         if read -r -t 1; then
             if $FLAMEGRAPH_ACTIVE; then
-                lttng disable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile_fast:func_entry'
-                lttng disable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile_fast:func_exit'
+                lttng disable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_entry'
+                lttng disable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_exit'
                 FLAMEGRAPH_ACTIVE=false
                 echo "[flamegraph] Recording PAUSED — press ENTER to resume"
             else
-                lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile_fast:func_entry'
-                lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile_fast:func_exit'
+                lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_entry'
+                lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_exit'
                 FLAMEGRAPH_ACTIVE=true
                 echo "[flamegraph] Recording ENABLED — press ENTER to pause"
             fi

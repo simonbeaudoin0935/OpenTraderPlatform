@@ -431,9 +431,9 @@ No sudo password required — `/usr/bin/lttng` and `/usr/bin/chown` are configur
 
 ## Skill: Flamegraph Profiling (Function Call-Stack)
 
-The flamegraph build adds `-finstrument-functions` to the compiler flags and uses `LD_PRELOAD=liblttng-ust-cyg-profile-fast.so` at runtime. This emits `lttng_ust_cyg_profile_fast:func_entry` and `lttng_ust_cyg_profile_fast:func_exit` UST events for every function call.
+The flamegraph build adds `-finstrument-functions` to the compiler flags and uses `LD_PRELOAD=liblttng-ust-cyg-profile.so` at runtime. This emits `lttng_ust_cyg_profile:func_entry` and `lttng_ust_cyg_profile:func_exit` UST events for every function call.
 
-> **Note**: The `-fast` variant uses provider `lttng_ust_cyg_profile_fast` (not `lttng_ust_cyg_profile`). Using the wrong name results in 0 captured events.
+> **Note**: Use the **standard** library (`liblttng-ust-cyg-profile.so`), NOT the `-fast` variant. The `-fast` variant uses provider `lttng_ust_cyg_profile_fast` which TraceCompass's built-in CallStack analysis does not recognise — you'll see threads but no call stack frames.
 
 ### Deferred Recording
 
@@ -468,7 +468,7 @@ FLAMEGRAPH=true APP=./build/LTTng-Flamegraph/Src/L2Trader .sanitizers/lttng/run-
 
 > ⚠️ Flamegraph mode has **significant overhead** (~5-20× slower) when active. Every function call emits two UST events. The deferred start avoids this during app startup. Use it only for targeted profiling windows, not the entire session.
 
-The `liblttng-ust-cyg-profile-fast.so` variant is used (instead of the regular one) to minimize overhead — it skips `dladdr()` symbol resolution at trace time.
+The `liblttng-ust-cyg-profile.so` variant is used (instead of the regular one) to minimize overhead — it skips `dladdr()` symbol resolution at trace time.
 
 ### Querying Call-Stack Events
 
@@ -480,5 +480,5 @@ echo -n "func_entry: " && babeltrace2 "${LATEST}ust" 2>/dev/null | grep -c "func
 echo -n "func_exit:  " && babeltrace2 "${LATEST}ust" 2>/dev/null | grep -c "func_exit" || true
 
 # Sample of function calls (shows instruction pointer addresses — use addr2line to resolve)
-babeltrace2 "${LATEST}ust" 2>/dev/null | grep "lttng_ust_cyg_profile_fast:func_entry" | head -10
+babeltrace2 "${LATEST}ust" 2>/dev/null | grep "lttng_ust_cyg_profile:func_entry" | head -10
 ```
