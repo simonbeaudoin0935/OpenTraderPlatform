@@ -1318,14 +1318,8 @@ void GUIFrontend::onNewDisplayedStockSelection()
         return;
     }
 
-    // Update the input field to show the uppercase symbol
-    ui->stockSymbolInput->setText(symbol);
-
-    // Display the stock
+    // Display the stock (also updates input widget and persists)
     displayStock(symbol);
-
-    // Save the selected stock to settings for restoration on next startup
-    saveLastDisplayedStock(symbol);
 
     // Clear focus from the input box after processing
     ui->stockSymbolInput->clearFocus();
@@ -1340,6 +1334,12 @@ void GUIFrontend::displayStock(const QString& symbol)
     }
 
     currentlyDisplayedSymbol = symbol;
+
+    // Update the stock symbol input widget to reflect the new symbol
+    ui->stockSymbolInput->setText(symbol);
+
+    // Persist so the app restores this symbol on next startup
+    saveLastDisplayedStock(symbol);
 
     ui->priceChart->setSymbol(symbol);
 
