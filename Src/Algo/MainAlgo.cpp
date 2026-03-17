@@ -1254,9 +1254,16 @@ void MainAlgo::onDisplayedLevel2Received(const QString& symbol, const Level2& le
     m_strategyManager.onLevel2Received(symbol, level2);
 }
 
-void MainAlgo::onDisplayedTradeReceived([[maybe_unused]] const QString& symbol, const Trade& trade)
+void MainAlgo::onDisplayedTradeReceived(const QString& symbol, const Trade& trade)
 {
     if (!m_currentDisplayedSymbolContext)
+        return;
+
+    // Guard against stale queued events: the trade symbol must match the currently
+    // displayed context. Cross-thread QueuedConnections can deliver events that were
+    // already in-flight when the display switched away from this symbol — disconnect()
+    // prevents new enqueues but cannot recall already-posted events.
+    if (symbol != m_currentDisplayedSymbolContext->symbol)
         return;
 
     L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "trade");
