@@ -541,6 +541,11 @@ bool DBClient::hasReplayData(const QDate& p_date, const QString& p_symbol)
            QFile::exists(getReplayFilePath(p_date, p_symbol, "trades"));
 }
 
+QDate DBClient::getReplayDate()
+{
+    return getInstance()->m_replayDate;
+}
+
 // ── State queries ──────────────────────────────────────────────────────────
 
 bool DBClient::isConnected() const

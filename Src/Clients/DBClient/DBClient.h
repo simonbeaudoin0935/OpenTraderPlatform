@@ -167,6 +167,12 @@ class DBClient : public QObject
      */
     [[nodiscard]] static bool hasReplayData(const QDate& p_date, const QString& p_symbol);
 
+    /**
+     * @brief Returns the date for which the current replay session was opened.
+     *        Invalid QDate if not in replay mode.
+     */
+    [[nodiscard]] static QDate getReplayDate();
+
     // ── Replay playback ───────────────────────────────────────────────
 
     using PlaybackState = Playback::State;
