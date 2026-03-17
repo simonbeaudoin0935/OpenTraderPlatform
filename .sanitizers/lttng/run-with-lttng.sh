@@ -161,14 +161,35 @@ if $IS_INSTRUMENTED; then
     lttng enable-event --userspace 'lttng_ust_statedump:*'
 
     if $FLAMEGRAPH_ENABLED; then
+        # Dedicated large-buffer channel for cyg-profile events.
+        # The default channel (~512KB) overflows in milliseconds with the millions of
+        # func_entry/func_exit events per second.  8×32MB = 256MB ring buffer.
+        # Override at runtime: FLAMEGRAPH_SUBBUF_SIZE=64M FLAMEGRAPH_NUM_SUBBUF=8 ./run-with-lttng.sh
+        FLAMEGRAPH_CHANNEL="flamegraph"
+        _fg_subbuf="${FLAMEGRAPH_SUBBUF_SIZE:-32M}"
+        _fg_nsubbuf="${FLAMEGRAPH_NUM_SUBBUF:-8}"
+        lttng enable-channel --userspace --session "$UST_SESSION" \
+            --subbuf-size="$_fg_subbuf" --num-subbuf="$_fg_nsubbuf" \
+            "$FLAMEGRAPH_CHANNEL"
+
+        # Add thread identity context — TraceCompass needs vtid to map function
+        # frames to individual threads in the Flame Chart view.
+        lttng add-context --userspace --session "$UST_SESSION" \
+            --channel "$FLAMEGRAPH_CHANNEL" --type vtid  2>/dev/null || true
+        lttng add-context --userspace --session "$UST_SESSION" \
+            --channel "$FLAMEGRAPH_CHANNEL" --type vpid  2>/dev/null || true
+
         # Use the standard (non-fast) library — provider lttng_ust_cyg_profile.
         # TraceCompass's built-in CallStack analysis only recognises this provider.
         # The -fast variant (lttng_ust_cyg_profile_fast) produces 0 stack frames in TraceCompass.
-        lttng enable-event --userspace 'lttng_ust_cyg_profile:func_entry'
-        lttng enable-event --userspace 'lttng_ust_cyg_profile:func_exit'
-        lttng disable-event --userspace 'lttng_ust_cyg_profile:func_entry'
-        lttng disable-event --userspace 'lttng_ust_cyg_profile:func_exit'
+        # Register + immediately disable so tracepoint matching is established at
+        # session start; ENTER toggle re-enables without restarting the session.
+        lttng enable-event  --userspace --session "$UST_SESSION" --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_entry'
+        lttng enable-event  --userspace --session "$UST_SESSION" --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_exit'
+        lttng disable-event --userspace --session "$UST_SESSION" --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_entry'
+        lttng disable-event --userspace --session "$UST_SESSION" --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_exit'
         echo "[ust session] started with l2trader:* events (flamegraph DEFERRED — press ENTER to activate)"
+        echo "              flamegraph channel: ${_fg_nsubbuf}×${_fg_subbuf} = 256MB ring buffer"
     else
         echo "[ust session] started with l2trader:* events"
     fi
@@ -225,13 +246,13 @@ if $FLAMEGRAPH_ENABLED; then
     while kill -0 "$APP_PID" 2>/dev/null; do
         if read -r -t 1; then
             if $FLAMEGRAPH_ACTIVE; then
-                lttng disable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_entry'
-                lttng disable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_exit'
+                lttng disable-event --session "$UST_SESSION" --userspace --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_entry'
+                lttng disable-event --session "$UST_SESSION" --userspace --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_exit'
                 FLAMEGRAPH_ACTIVE=false
                 echo "[flamegraph] Recording PAUSED — press ENTER to resume"
             else
-                lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_entry'
-                lttng enable-event --session "$UST_SESSION" --userspace 'lttng_ust_cyg_profile:func_exit'
+                lttng enable-event --session "$UST_SESSION" --userspace --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_entry'
+                lttng enable-event --session "$UST_SESSION" --userspace --channel "$FLAMEGRAPH_CHANNEL" 'lttng_ust_cyg_profile:func_exit'
                 FLAMEGRAPH_ACTIVE=true
                 echo "[flamegraph] Recording ENABLED — press ENTER to pause"
             fi
