@@ -149,13 +149,8 @@ class ReplayControlsBar : public QWidget
     QPushButton* m_playPauseBtn; ///< Play / Pause toggle
 
     ReplayState m_replayState = ReplayState::Inactive;
-    TimeFrame m_currentTimeFrame = TimeFrame::ONE_MINUTE;
-    QTime m_lastReplayTime; ///< Previous time value for step-direction detection
 
     void updatePlayPauseButton();
     void updateUIControlStates();
     void updateTimeEditStep();
-
-    QTime calculateSteppedTime(const QTime& oldTime, const QTime& newTime) const;
-    QTime snapTimeToStep(const QTime& time) const;
 };
