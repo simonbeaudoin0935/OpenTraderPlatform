@@ -660,77 +660,38 @@ QVector<Position> StrategyManager::getStrategyOpenPositions(const QString& p_str
     return QVector<Position>();
 }
 
-void StrategyManager::onOrderFilled(const Order& p_order)
-{
-    for (auto* instance: m_strategies)
-    {
-        if (instance && instance->p_strategy)
-        {
-            instance->p_strategy->onOrderFilled(p_order);
-        }
-    }
-}
-
-void StrategyManager::onOrderCancelled(const Order& p_order)
-{
-    for (auto* instance: m_strategies)
-    {
-        if (instance && instance->p_strategy)
-        {
-            instance->p_strategy->onOrderCancelled(p_order, "");
-        }
-    }
-}
-
-void StrategyManager::onOrderRejected(const Order& p_order, const QString& p_reason)
-{
-    for (auto* instance: m_strategies)
-    {
-        if (instance && instance->p_strategy)
-        {
-            instance->p_strategy->onOrderRejected(p_order, p_reason.toStdString());
-        }
-    }
-}
-
-void StrategyManager::onPositionUpdated(const Position& p_position)
-{
-    for (auto* instance: m_strategies)
-    {
-        if (instance && instance->p_strategy)
-        {
-            // Update SDK state so getStrategyOpenPositions() returns current data
-            if (instance->p_sdk)
-                instance->p_sdk->updatePosition(p_position);
-            instance->p_strategy->onPositionUpdated(p_position);
-        }
-    }
-}
-
 void StrategyManager::onMainAlgoPositionUpdated(const QString& p_account, const Position& p_position)
 {
     Q_UNUSED(p_account);
-    onPositionUpdated(p_position);
-}
 
-void StrategyManager::onBalanceUpdated(double p_newBalance)
-{
+    // Dispatch to each strategy via adapter on the strategy thread
     for (auto* instance: m_strategies)
     {
-        if (instance && instance->p_strategy)
+        if (instance && instance->p_adapter)
         {
-            instance->p_strategy->onBalanceUpdated(p_newBalance);
-            // Emit signal for UI updates
-            emit strategyBalanceUpdated(instance->strategyID, p_newBalance);
+            QMetaObject::invokeMethod(
+                instance->p_adapter,
+                [instance, p_position]() { instance->p_adapter->onPositionUpdated(p_position); },
+                Qt::QueuedConnection);
         }
     }
 }
 
 void StrategyManager::onMainAlgoBalanceUpdated(const Balance& p_balance)
 {
-    // Extract balance value and route to all strategies
     double balance = p_balance.getEquity();
-    onBalanceUpdated(balance);
+
+    // Dispatch to each strategy via adapter on the strategy thread
+    for (auto* instance: m_strategies)
+    {
+        if (instance && instance->p_adapter)
+        {
+            QMetaObject::invokeMethod(
+                instance->p_adapter,
+                [instance, balance]() { instance->p_adapter->onBalanceUpdated(balance); },
+                Qt::QueuedConnection);
+        }
+    }
 }
 
 QString StrategyManager::generateStrategyID()
@@ -764,18 +725,6 @@ StrategyBase* StrategyManager::getStrategy(const QString& p_strategyID) const
     return instance ? instance->p_strategy : nullptr;
 }
 
-void StrategyManager::onOrderUpdated(const Order& p_order)
-{
-    // Broadcast to all strategies (used as fallback when owning strategy is unknown)
-    for (auto* instance: m_strategies)
-    {
-        if (instance && instance->p_strategy)
-        {
-            instance->p_strategy->onOrderUpdated(p_order);
-        }
-    }
-}
-
 void StrategyManager::onOrderUpdatedForStrategy(const QString& p_strategyID, const Order& p_order)
 {
     qDebug(StrategyManagerLog) << "onOrderUpdatedForStrategy: strategyID=" << p_strategyID
@@ -797,12 +746,6 @@ void StrategyManager::onOrderUpdatedForStrategy(const QString& p_strategyID, con
             instance->p_adapter->onOrderUpdated(p_order);
         },
         Qt::QueuedConnection);
-}
-
-void StrategyManager::onMainAlgoOrderUpdated(const QString& p_account, const Order& p_order)
-{
-    Q_UNUSED(p_account);
-    onOrderUpdated(p_order);
 }
 
 void StrategyManager::connectStrategyToDataSources(StrategyInstance* p_instance)

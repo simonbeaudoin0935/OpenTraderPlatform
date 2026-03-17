@@ -131,23 +131,14 @@ void MainAlgo::onThreadStarted()
     DEBUG << "Installed crash notification handler";
 
 
-    // Connect data signals to StrategyManager for strategy data broadcasting.
-    // Bar and L2 data for the displayed stock is forwarded to strategies.
-    // TODO: Replace with per-symbol SymbolContext connections when strategies subscribe.
-    connect(this,
-            &MainAlgo::receivedNewOrder,
-            &m_strategyManager,
-            &StrategyManager::onMainAlgoOrderUpdated,
-            Qt::QueuedConnection);
-
-    // Positions: route only to strategy that placed the order
+    // Positions: broadcast to all strategies via adapter (strategy thread)
     connect(this,
             &MainAlgo::receivedNewPosition,
             &m_strategyManager,
             &StrategyManager::onMainAlgoPositionUpdated,
             Qt::QueuedConnection);
 
-    // Balance: broadcast to all strategies
+    // Balance: broadcast to all strategies via adapter (strategy thread)
     connect(this,
             &MainAlgo::balanceUpdated,
             &m_strategyManager,
@@ -507,30 +498,23 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
         auto c1 = connect(m_positionReceiver,
                           &PositionsReceiver::receivedNewPosition,
                           this,
-                          &MainAlgo::receivedNewPosition,
+                          &MainAlgo::onReceivedNewPosition,
                           Qt::UniqueConnection);
         OBJ_ASSUME_TRUE(c1);
 
         auto c2 = connect(m_positionReceiver,
-                          &PositionsReceiver::receivedNewPosition,
-                          this,
-                          &MainAlgo::onReceivedNewPosition,
-                          Qt::UniqueConnection);
-        OBJ_ASSUME_TRUE(c2);
-
-        auto c3 = connect(m_positionReceiver,
                           &PositionsReceiver::positionDeleted,
                           this,
                           &MainAlgo::onPositionDeleted,
                           Qt::UniqueConnection);
-        OBJ_ASSUME_TRUE(c3);
+        OBJ_ASSUME_TRUE(c2);
 
-        auto c4 = connect(m_positionReceiver,
+        auto c3 = connect(m_positionReceiver,
                           &PositionsReceiver::loadedPositionsFromDatabase,
                           this,
                           &MainAlgo::onLoadedPositionsFromDatabase,
                           Qt::UniqueConnection);
-        OBJ_ASSUME_TRUE(c4);
+        OBJ_ASSUME_TRUE(c3);
     }
 
     // Only initialize order stream once
