@@ -365,6 +365,26 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
                                            if (sym == symbol)
                                                onDisplayedTradeReceived(sym, trade);
                                        });
+
+    // Seed the DisplaySnapshot with the current forming bar so the chart shows it
+    // immediately on the next 30 Hz tick, without waiting for the next trade.
+    // Critical for low-volume symbols where inter-trade gaps can be several seconds.
+    auto formingBar = m_currentDisplayedSymbolContext->m_liveBarAccumulator.getFormingBar(symbol);
+    if (formingBar.has_value())
+    {
+        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+        m_currentDisplayedSymbolContext->m_displaySnapshot.latestBar = formingBar.value();
+        m_currentDisplayedSymbolContext->m_displaySnapshot.barDirty = true;
+    }
+
+    // Same for the 10s accumulator
+    auto forming10s = m_currentDisplayedSymbolContext->m_live10sBarAccumulator.getFormingBar(symbol);
+    if (forming10s.has_value())
+    {
+        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+        m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = forming10s.value();
+        m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
+    }
 }
 
 BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last, TimeFrame tf)
@@ -1735,6 +1755,39 @@ void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
+    // Forward 10s bar updates to DisplaySnapshot
+    connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
+            &LiveBarAccumulator::barUpdated,
+            this,
+            [this](const QString&, const Bar& bar)
+            {
+                if (!m_currentDisplayedSymbolContext)
+                    return;
+                L2T_TP(l2trader,
+                       snapshot_write,
+                       m_currentDisplayedSymbolContext->symbol.toUtf8().constData(),
+                       "aggregator10s");
+                QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
+            });
+
+    connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
+            &LiveBarAccumulator::barClosed,
+            this,
+            [this](const QString&, const Bar& bar)
+            {
+                if (!m_currentDisplayedSymbolContext)
+                    return;
+                L2T_TP(l2trader,
+                       snapshot_write,
+                       m_currentDisplayedSymbolContext->symbol.toUtf8().constData(),
+                       "aggregator10s");
+                QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
+            });
+
     // Forward trades for displayed symbol to FrontEnd (store handle for clean targeted disconnect)
     m_displayTradeConnection = connect(DBClient::getInstance(),
                                        &DBClient::newTrade,
@@ -1745,6 +1798,23 @@ void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)
                                                onDisplayedTradeReceived(sym, trade);
                                        });
     ASSUME_TRUE(m_displayTradeConnection);
+
+    // Seed the DisplaySnapshot with the current forming bar (same as onSelectDisplayedStock)
+    auto formingBar = m_currentDisplayedSymbolContext->m_liveBarAccumulator.getFormingBar(p_symbol);
+    if (formingBar.has_value())
+    {
+        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+        m_currentDisplayedSymbolContext->m_displaySnapshot.latestBar = formingBar.value();
+        m_currentDisplayedSymbolContext->m_displaySnapshot.barDirty = true;
+    }
+
+    auto forming10s = m_currentDisplayedSymbolContext->m_live10sBarAccumulator.getFormingBar(p_symbol);
+    if (forming10s.has_value())
+    {
+        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+        m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = forming10s.value();
+        m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
+    }
 
     INFO << "Stock instrument created and set as displayed for" << p_symbol;
 }
