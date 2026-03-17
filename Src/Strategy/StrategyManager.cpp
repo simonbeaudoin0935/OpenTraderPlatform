@@ -892,6 +892,7 @@ void StrategyManager::releaseSymbols(const QString& p_strategyID)
     for (const QString& symbol: released)
     {
         m_symbolRegistry.remove(symbol);
+        m_mainAlgo->releaseSymbolContextRef(symbol);
         emit symbolReleased(symbol);
     }
     if (!released.isEmpty())

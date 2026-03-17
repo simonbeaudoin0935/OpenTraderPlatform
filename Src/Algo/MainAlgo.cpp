@@ -1692,6 +1692,9 @@ void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)
     m_symbolContexts[p_symbol] = newInstrument;
     m_currentDisplayedSymbolContext = newInstrument;
 
+    // Claim display reference (matches the release in onSelectDisplayedStock)
+    ++newInstrument->m_refCount;
+
     // Subscribe to live data if DBClient is connected (not in replay mode)
     if (!MainApp::isInReplayMode())
     {
