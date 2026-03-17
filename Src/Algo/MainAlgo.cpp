@@ -1227,6 +1227,10 @@ void MainAlgo::onDisplayedBarReceived(const QString& symbol, const Bar& bar)
     if (!m_currentDisplayedSymbolContext)
         return;
 
+    // Guard against stale queued events (same race as onDisplayedTradeReceived).
+    if (symbol != m_currentDisplayedSymbolContext->symbol)
+        return;
+
     L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "bar");
     {
         QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
@@ -1241,6 +1245,10 @@ void MainAlgo::onDisplayedBarReceived(const QString& symbol, const Bar& bar)
 void MainAlgo::onDisplayedLevel2Received(const QString& symbol, const Level2& level2)
 {
     if (!m_currentDisplayedSymbolContext)
+        return;
+
+    // Guard against stale queued events (same race as onDisplayedTradeReceived).
+    if (symbol != m_currentDisplayedSymbolContext->symbol)
         return;
 
     L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "l2");
