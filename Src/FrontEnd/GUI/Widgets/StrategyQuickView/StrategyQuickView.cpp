@@ -243,21 +243,20 @@ void StrategyQuickView::onLoadButtonClicked()
             {
                 const QDate replayDate = DBClient::getReplayDate();
                 QStringList missing;
-                for (const QString& sym : config->symbols)
+                for (const QString& sym: config->symbols)
                 {
                     if (!DBClient::hasReplayData(replayDate, sym))
                         missing << sym;
                 }
                 if (!missing.isEmpty())
                 {
-                    QMessageBox::warning(
-                        this,
-                        "No Replay Data for Strategy",
-                        QString("The following symbol(s) have no recorded replay data for %1:\n\n"
-                                "  %2\n\n"
-                                "Loading this strategy would result in no events being received.\n"
-                                "Select a different replay date or download the data first.")
-                            .arg(replayDate.toString("yyyy-MM-dd"), missing.join(", ")));
+                    QMessageBox::warning(this,
+                                         "No Replay Data for Strategy",
+                                         QString("The following symbol(s) have no recorded replay data for %1:\n\n"
+                                                 "  %2\n\n"
+                                                 "Loading this strategy would result in no events being received.\n"
+                                                 "Select a different replay date or download the data first.")
+                                             .arg(replayDate.toString("yyyy-MM-dd"), missing.join(", ")));
                     return;
                 }
             }
