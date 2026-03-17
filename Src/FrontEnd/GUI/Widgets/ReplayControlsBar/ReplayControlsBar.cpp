@@ -386,27 +386,11 @@ void ReplayControlsBar::updateTimeEditStep()
 {
     QTime currentTime = m_timeEdit->time();
 
-    switch (m_currentTimeFrame)
-    {
-    case TimeFrame::ONE_MINUTE:
-        m_timeEdit->setDisplayFormat("hh:mm");
-        break;
-
-    case TimeFrame::FIVE_MINUTES:
-    case TimeFrame::FIFTEEN_MINUTES:
-    case TimeFrame::THIRTY_MINUTES:
-        m_timeEdit->setDisplayFormat("hh:mm");
-        break;
-
-    case TimeFrame::ONE_HOUR:
-    case TimeFrame::FOUR_HOURS:
-        m_timeEdit->setDisplayFormat("hh:00");
-        break;
-
-    default:
-        m_timeEdit->setDisplayFormat("hh:00");
-        break;
-    }
+    // Always keep the editable "hh:mm" format so the user can click on and
+    // adjust the minutes section regardless of chart timeframe.
+    // For hourly+ timeframes the snap logic in calculateSteppedTime already
+    // rounds to the nearest valid step — no need to hide the minutes field.
+    m_timeEdit->setDisplayFormat("hh:mm");
 
     QTime snappedTime = snapTimeToStep(currentTime);
     if (snappedTime != currentTime)
