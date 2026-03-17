@@ -49,6 +49,10 @@ static int g_stdioFd = -1;
 // the crash handler is already running (e.g. SIGSEGV during stack unwinding).
 static std::atomic_flag g_crashHandlerActive = ATOMIC_FLAG_INIT;
 
+// Guards GUI log emission. When false, HTML formatting and the cross-thread
+// signal are skipped entirely. Toggled by the "Show Logger Widget" checkbox.
+static std::atomic<bool> g_guiLoggingEnabled{true};
+
 // Lightweight mutex — only guards LoggingConfig reads and LogBroadcaster emit.
 // I/O itself is handled inside ALogger's own mutex.
 static std::mutex g_filterMutex;
@@ -156,6 +160,16 @@ LogBroadcaster& LogBroadcaster::instance()
 void LogBroadcaster::broadcastLogMessage(const QString& message)
 {
     emit logMessageReceived(message);
+}
+
+void LogBroadcaster::setGuiLoggingEnabled(bool enabled)
+{
+    g_guiLoggingEnabled.store(enabled, std::memory_order_relaxed);
+}
+
+bool LogBroadcaster::isGuiLoggingEnabled()
+{
+    return g_guiLoggingEnabled.load(std::memory_order_relaxed);
 }
 
 // LoggingConfig implementation
@@ -303,12 +317,19 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext& context, con
                              .arg(RESET_COLOR);
 
     // HTML — broadcast to the GUI log widget.
-    QString htmlMsg = QString("<span style='color:%1'>[%2] %3 %4:</span> %5")
-                          .arg(htmlColorCode)
-                          .arg(timestamp)
-                          .arg(typeText)
-                          .arg(category)
-                          .arg(msg);
+    // Read the flag once here; skip both the QString allocation and the
+    // cross-thread signal when the logger widget is hidden.
+    const bool guiEnabled = LogBroadcaster::isGuiLoggingEnabled();
+    QString htmlMsg;
+    if (guiEnabled)
+    {
+        htmlMsg = QString("<span style='color:%1'>[%2] %3 %4:</span> %5")
+                      .arg(htmlColorCode)
+                      .arg(timestamp)
+                      .arg(typeText)
+                      .arg(category)
+                      .arg(msg);
+    }
 
     // Always write plain text to file (unfiltered).
     if (g_fileALogger)
@@ -351,7 +372,8 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext& context, con
             g_stdoutALogger->write(bytes.constData(), static_cast<size_t>(bytes.size()));
         }
 
-        LogBroadcaster::instance().broadcastLogMessage(htmlMsg);
+        if (guiEnabled)
+            LogBroadcaster::instance().broadcastLogMessage(htmlMsg);
     }
 }
 

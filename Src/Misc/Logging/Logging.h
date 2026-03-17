@@ -77,6 +77,13 @@ class LogBroadcaster : public QObject
 
     void broadcastLogMessage(const QString& message);
 
+    // Controls whether log messages are forwarded to the GUI widget.
+    // When false, both the HTML formatting and the cross-thread signal are
+    // skipped entirely — file/stdout logging is unaffected.
+    // Thread-safe (backed by std::atomic<bool>).
+    static void setGuiLoggingEnabled(bool enabled);
+    static bool isGuiLoggingEnabled();
+
   signals:
     void logMessageReceived(const QString& message);
 
