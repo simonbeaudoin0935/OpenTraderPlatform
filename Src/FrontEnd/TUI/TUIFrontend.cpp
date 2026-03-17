@@ -572,39 +572,6 @@ void TUIFrontend::onBalanceUpdated(Balance balance)
     // Could display balance info in status bar
 }
 
-void TUIFrontend::onCurrentHighlightedStockBarReceived(QString symbol, Bar bar)
-{
-    if (symbol != m_currentSymbol)
-    {
-        return; // Ignore bars for symbols we're not tracking
-    }
-
-    m_lastBar = bar;
-    m_hasLastBar = true;
-
-    // On receiving the first bar, request all bars from the beginning of the day
-    // This mimics the GUI behavior to trigger the same code path for testing
-    if (!m_hasReceivedFirstBar)
-    {
-        m_hasReceivedFirstBar = true;
-        qInfo() << "TUI received first bar for" << symbol << "- requesting day's historical bars";
-        requestMissingBarsForDay(bar);
-    }
-
-    if (m_initialized)
-    {
-        displayLastPrice();
-        doupdate();
-    }
-}
-
-void TUIFrontend::onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2)
-{
-    Q_UNUSED(symbol);
-    Q_UNUSED(level2);
-    // Not applicable for minimal TUI
-}
-
 void TUIFrontend::saveLastDisplayedStock(const QString& symbol)
 {
     Q_CHECK_PTR(appStateSettings);
@@ -786,10 +753,4 @@ void TUIFrontend::onReplayModeExited()
 {
     qInfo() << "TUI: Replay mode exited";
     // TODO: Update TUI display to show live mode
-}
-
-void TUIFrontend::onReplayTimeUpdated(QDateTime currentTime)
-{
-    Q_UNUSED(currentTime)
-    // TODO: Update TUI time display
 }

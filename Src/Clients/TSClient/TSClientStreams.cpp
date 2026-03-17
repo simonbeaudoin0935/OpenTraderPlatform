@@ -192,7 +192,9 @@ void TSClient::closeStream(Stream* const stream)
 {
     OBJ_ASSUME_DIFF(stream, nullptr);
 
-    QMetaObject::invokeMethod(this, [stream]() { stream->deleteLater(); }, Qt::QueuedConnection);
+    // Delete on TSClient thread synchronously so callers can immediately
+    // create a replacement stream without hitting the singleton assert.
+    QMetaObject::invokeMethod(this, [stream]() { delete stream; }, Qt::BlockingQueuedConnection);
 }
 
 // ============================================================================

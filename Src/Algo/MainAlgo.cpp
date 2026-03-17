@@ -17,6 +17,7 @@
 #include "OrderEmulator.h"
 #include "CONSTANTS.h"
 #include "OrdersDatabase.h"
+#include "ThreadNames.h"
 
 #define LOGGING_CATEGORY MainAlgoLog
 
@@ -71,9 +72,6 @@ MainAlgo::~MainAlgo()
         this,
         [this]()
         {
-            // Stop GUI throttle timer on its own thread
-            m_guiThrottleTimer.stop();
-
             // Stop and destroy balance polling timer on its own thread
             m_balancePollingTimer.reset();
         },
@@ -106,14 +104,12 @@ void MainAlgo::start()
 
 void MainAlgo::onThreadStarted()
 {
+    // Set kernel thread name for visibility in trace tools (ps, top, LTTng, TraceCompass)
+    ThreadNames::setCurrentThreadName("MainAlgo");
+
     m_balancePollingTimer = std::make_unique<QTimer>(this);
 
     connect(m_balancePollingTimer.get(), &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
-
-    // GUI throttle timer — fires periodically when AsFastAsPossible mode is active
-    // to flush buffered GUI updates at a capped rate
-    m_guiThrottleTimer.setInterval(ReplayConstants::GUI_THROTTLE_INTERVAL_MS);
-    connect(&m_guiThrottleTimer, &QTimer::timeout, this, &MainAlgo::onGuiThrottleTimerTick, Qt::UniqueConnection);
 
     // Initialize signal handler system (set up crash notification pipe)
     StrategySignalHandler::initialize();
@@ -135,22 +131,9 @@ void MainAlgo::onThreadStarted()
     DEBUG << "Installed crash notification handler";
 
 
-    // Connect MainAlgo signals to StrategyManager for data broadcasting
-    // Bars: route to strategies monitoring the symbol
-    connect(this,
-            &MainAlgo::displayedStockReceivedNewBar,
-            &m_strategyManager,
-            &StrategyManager::onBarReceived,
-            Qt::QueuedConnection);
-
-    // Market depth quotes: route to strategies monitoring the symbol
-    connect(this,
-            &MainAlgo::displayedStockReceivedNewLevel2,
-            &m_strategyManager,
-            &StrategyManager::onLevel2Received,
-            Qt::QueuedConnection);
-
-    // Orders: route only to strategy that placed the order
+    // Connect data signals to StrategyManager for strategy data broadcasting.
+    // Bar and L2 data for the displayed stock is forwarded to strategies.
+    // TODO: Replace with per-symbol SymbolContext connections when strategies subscribe.
     connect(this,
             &MainAlgo::receivedNewOrder,
             &m_strategyManager,
@@ -171,9 +154,22 @@ void MainAlgo::onThreadStarted()
             &StrategyManager::onMainAlgoBalanceUpdated,
             Qt::QueuedConnection);
 
-    // Centralized routing: all DBClient market data → MainAlgo → SymbolContext actor queues
-    connect(DBClient::getInstance(), &DBClient::newLevel2, this, &MainAlgo::onNewLevel2Received);
-    connect(DBClient::getInstance(), &DBClient::newTrade, this, &MainAlgo::onNewTradeReceived);
+    // Strategy symbol release → decrement SymbolContext ref count.
+    // StrategyManager lives on the main thread; releaseSymbolContextRef must
+    // run on the MainAlgo worker thread. Use QueuedConnection so the call is
+    // posted to the MainAlgo event loop rather than executed on the emitter's
+    // (main) thread — which would trip the thread-affinity assert inside
+    // releaseSymbolContextRef.
+    connect(&m_strategyManager,
+            &StrategyManager::symbolReleased,
+            this,
+            &MainAlgo::releaseSymbolContextRef,
+            Qt::QueuedConnection);
+
+    // Direct cross-thread routing: DBClient emits on its own thread, we handle directly
+    // via routeLevel2/routeTrade which use a read lock — no event-loop bounce.
+    connect(DBClient::getInstance(), &DBClient::newLevel2, this, &MainAlgo::routeLevel2, Qt::DirectConnection);
+    connect(DBClient::getInstance(), &DBClient::newTrade, this, &MainAlgo::routeTrade, Qt::DirectConnection);
 
     // Forward DBClient replay lifecycle signals to MainAlgo signals for UI.
     // Wired once here (both singletons are stable); enterReplayMode/Paused no longer re-wires these.
@@ -194,17 +190,19 @@ void MainAlgo::onThreadStarted()
     ASSUME_TRUE(connected);
 }
 
-// ── Centralized routing slots ──────────────────────────────────────────────
+// ── Centralized routing (called directly from DBClient thread) ─────────────
 
-void MainAlgo::onNewLevel2Received(const QString& p_symbol, const Level2& p_level2)
+void MainAlgo::routeLevel2(const QString& p_symbol, const Level2& p_level2)
 {
+    QReadLocker lock(&m_symbolContextsLock);
     auto sc = m_symbolContexts.value(p_symbol);
     if (!sc.isNull())
         sc->enqueueLevel2(p_level2);
 }
 
-void MainAlgo::onNewTradeReceived(const QString& p_symbol, const Trade& p_trade)
+void MainAlgo::routeTrade(const QString& p_symbol, const Trade& p_trade)
 {
+    QReadLocker lock(&m_symbolContextsLock);
     auto sc = m_symbolContexts.value(p_symbol);
     if (!sc.isNull())
         sc->enqueueTrade(p_trade);
@@ -282,23 +280,10 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
 
         // Clean up or detach the previous SymbolContext
         QString oldSymbol = m_currentDisplayedSymbolContext->symbol;
-        QPointer<SymbolContext> oldContext = m_currentDisplayedSymbolContext;
         m_currentDisplayedSymbolContext = nullptr;
 
-        if (m_strategyManager.isSymbolClaimed(oldSymbol))
-        {
-            // A strategy still owns this symbol — keep the SymbolContext alive
-            // in the map so switching back reuses it with live accumulator state.
-            DEBUG << "Keeping SymbolContext alive for strategy-claimed symbol:" << oldSymbol;
-        }
-        else
-        {
-            // No strategy needs this symbol — free its resources
-            int removed = m_symbolContexts.remove(oldSymbol);
-            OBJ_ASSUME_EQUAL(removed, 1);
-            oldContext->deleteLater();
-            DEBUG << "Scheduled cleanup for SymbolContext:" << oldSymbol;
-        }
+        // Release the display ref — context is destroyed only if refCount reaches 0
+        releaseSymbolContextRef(oldSymbol);
     }
 
     // Change the stock selected pointer to the new selected stock
@@ -312,10 +297,17 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
         m_currentDisplayedSymbolContext = new SymbolContext(symbol, this); // Pass 'this' as parent
         Q_CHECK_PTR(m_currentDisplayedSymbolContext);
 
-        m_symbolContexts.insert(symbol, m_currentDisplayedSymbolContext);
+        {
+            QWriteLocker lock(&m_symbolContextsLock);
+            m_symbolContexts.insert(symbol, m_currentDisplayedSymbolContext);
+        }
         DEBUG << "onSelectDisplayedStock: created new SymbolContext for" << symbol;
     }
+
+    // Claim display reference
+    ++m_currentDisplayedSymbolContext->m_refCount;
     DEBUG << "onSelectDisplayedStock: wiring display signals for" << symbol
+          << "| refCount:" << m_currentDisplayedSymbolContext->m_refCount
           << "| active SymbolContexts:" << m_symbolContexts.keys();
 
     // Redoo the plumbing we disconnected at the top of this function
@@ -335,18 +327,38 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             this,
             &MainAlgo::onAggregatorBarClosed);
 
-    // Forward 10s bar updates via the aggregator signal path (reuses GUIFrontend's existing TF filter)
+    // Forward 10s bar updates to DisplaySnapshot
     connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
             &LiveBarAccumulator::barUpdated,
             this,
-            [this, symbol](const QString&, const Bar& bar)
-            { emit displayedStockAggregatorBarUpdated(symbol, TimeFrame::TEN_SECONDS, bar); });
+            [this](const QString&, const Bar& bar)
+            {
+                if (!m_currentDisplayedSymbolContext)
+                    return;
+                L2T_TP(l2trader,
+                       snapshot_write,
+                       m_currentDisplayedSymbolContext->symbol.toUtf8().constData(),
+                       "aggregator10s");
+                QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
+            });
 
     connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
             &LiveBarAccumulator::barClosed,
             this,
-            [this, symbol](const QString&, const Bar& bar)
-            { emit displayedStockAggregatorBarClosed(symbol, TimeFrame::TEN_SECONDS, bar); });
+            [this](const QString&, const Bar& bar)
+            {
+                if (!m_currentDisplayedSymbolContext)
+                    return;
+                L2T_TP(l2trader,
+                       snapshot_write,
+                       m_currentDisplayedSymbolContext->symbol.toUtf8().constData(),
+                       "aggregator10s");
+                QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
+            });
 
     connect(&m_currentDisplayedSymbolContext->m_level2Receiver,
             &Level2Receiver::receivedNewLevel2,
@@ -651,6 +663,11 @@ void MainAlgo::stopBalancePolling()
     return QString();
 }
 
+[[nodiscard]] QPointer<SymbolContext> MainAlgo::getDisplayedSymbolContext() const
+{
+    return m_currentDisplayedSymbolContext;
+}
+
 void MainAlgo::requestBalance()
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
@@ -791,7 +808,7 @@ SymbolContext::~SymbolContext()
 
 void SymbolContext::enqueueLevel2(const Level2& p_level2)
 {
-    int depth = 0;
+    [[maybe_unused]] int depth = 0;
     {
         QMutexLocker lock(&m_queueMutex);
         m_queue.enqueue(WorkItem{p_level2});
@@ -807,7 +824,7 @@ void SymbolContext::enqueueLevel2(const Level2& p_level2)
 
 void SymbolContext::enqueueTrade(const Trade& p_trade)
 {
-    int depth = 0;
+    [[maybe_unused]] int depth = 0;
     {
         QMutexLocker lock(&m_queueMutex);
         m_queue.enqueue(WorkItem{p_trade});
@@ -882,11 +899,13 @@ void SymbolContext::drain()
 
 void SymbolContext::processLevel2(const Level2& p_level2)
 {
+    m_activity.recordL2(QDateTime::currentMSecsSinceEpoch());
     m_level2Receiver.onReceivedNewLevel2(p_level2);
 }
 
 void SymbolContext::processTrade(const Trade& p_trade)
 {
+    m_activity.recordTrade(QDateTime::currentMSecsSinceEpoch());
     m_liveBarAccumulator.onNewTrade(symbol, p_trade);
     m_live10sBarAccumulator.onNewTrade(symbol, p_trade);
     emit receivedNewTrade(symbol, p_trade);
@@ -1036,11 +1055,12 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
             return;
         }
 
-        // If symbol is already loaded (displayed stock), data is already flowing via
-        // the centralized routing (DBClient → MainAlgo → SymbolContext queue).
+        // If symbol is already loaded (displayed stock), reuse the existing SymbolContext.
         if (m_symbolContexts.contains(p_symbol))
         {
-            m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr);
+            ++m_symbolContexts[p_symbol]->m_refCount;
+            // Pass the actual SymbolContext so the strategy gets a direct connection (no MainAlgo hop)
+            m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, m_symbolContexts[p_symbol]);
             p_promise->addResult(true);
             p_promise->finish();
             return;
@@ -1051,7 +1071,11 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
         // Also open its replay files in DBClient so records get emitted.
         auto* instrument = new SymbolContext(p_symbol, this);
         Q_CHECK_PTR(instrument);
-        m_symbolContexts.insert(p_symbol, instrument);
+        instrument->m_refCount = 1; // Strategy claim
+        {
+            QWriteLocker lock(&m_symbolContextsLock);
+            m_symbolContexts.insert(p_symbol, instrument);
+        }
 
         // Open replay data files for this symbol (non-blocking, same-thread call)
         if (!DBClient::getInstance()->addReplaySymbol(p_symbol))
@@ -1074,7 +1098,11 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
         {
             auto* instrument = new SymbolContext(p_symbol, this);
             Q_CHECK_PTR(instrument);
-            m_symbolContexts.insert(p_symbol, instrument);
+            instrument->m_refCount = 1; // Strategy claim
+            {
+                QWriteLocker lock(&m_symbolContextsLock);
+                m_symbolContexts.insert(p_symbol, instrument);
+            }
 
             auto* dbClient = DBClient::getInstance();
             if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
@@ -1082,12 +1110,44 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
                 dbClient->subscribeLive(p_symbol);
             }
         }
+        else
+        {
+            ++m_symbolContexts[p_symbol]->m_refCount;
+        }
 
-        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, nullptr);
+        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, m_symbolContexts[p_symbol]);
     }
 
     p_promise->addResult(true);
     p_promise->finish();
+}
+
+void MainAlgo::releaseSymbolContextRef(const QString& symbol)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+
+    if (!m_symbolContexts.contains(symbol))
+    {
+        WARNING << "releaseSymbolContextRef: no SymbolContext for" << symbol;
+        return;
+    }
+
+    QPointer<SymbolContext> sc = m_symbolContexts[symbol];
+    OBJ_ASSUME_DIFF(sc, nullptr);
+
+    --sc->m_refCount;
+    DEBUG << "releaseSymbolContextRef:" << symbol << "refCount now" << sc->m_refCount;
+
+    if (sc->m_refCount <= 0)
+    {
+        {
+            QWriteLocker lock(&m_symbolContextsLock);
+            int removed = m_symbolContexts.remove(symbol);
+            OBJ_ASSUME_EQUAL(removed, 1);
+        }
+        sc->deleteLater();
+        DEBUG << "SymbolContext destroyed for" << symbol;
+    }
 }
 
 void MainAlgo::processClaimSymbols(const QString& p_strategyID,
@@ -1141,132 +1201,99 @@ void MainAlgo::onAggregatorBarUpdated(TimeFrame tf, const Bar& bar)
     if (m_currentDisplayedSymbolContext == nullptr)
         return;
 
-    if (m_guiThrottleActive)
-    {
-        m_pendingAggregatorBarUpdate = {tf, bar};
-        m_pendingAggregatorSymbol = m_currentDisplayedSymbolContext->symbol;
-        return;
-    }
-    emit displayedStockAggregatorBarUpdated(m_currentDisplayedSymbolContext->symbol, tf, bar);
+    L2T_TP(l2trader, snapshot_write, m_currentDisplayedSymbolContext->symbol.toUtf8().constData(), "aggregator");
+    QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+    m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[tf] = bar;
+    m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
 }
 
 void MainAlgo::onAggregatorBarClosed(TimeFrame tf, const Bar& bar)
 {
-    // Bar closes are infrequent (once per minute boundary per TF) — never throttle
-    if (m_currentDisplayedSymbolContext != nullptr)
-        emit displayedStockAggregatorBarClosed(m_currentDisplayedSymbolContext->symbol, tf, bar);
+    if (m_currentDisplayedSymbolContext == nullptr)
+        return;
+
+    L2T_TP(l2trader, snapshot_write, m_currentDisplayedSymbolContext->symbol.toUtf8().constData(), "aggregator");
+    QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+    m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[tf] = bar;
+    m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
 }
 
 // ---------------------------------------------------------------------------
-// GUI throttle gate slots
+// DisplaySnapshot writers — populate snapshot for GUI pull-based rendering
 // ---------------------------------------------------------------------------
 
 void MainAlgo::onDisplayedBarReceived(const QString& symbol, const Bar& bar)
 {
-    if (m_guiThrottleActive)
-    {
-        m_pendingBar = {symbol, bar};
+    if (!m_currentDisplayedSymbolContext)
         return;
+
+    // Guard against stale queued events (same race as onDisplayedTradeReceived).
+    if (symbol != m_currentDisplayedSymbolContext->symbol)
+        return;
+
+    L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "bar");
+    {
+        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+        m_currentDisplayedSymbolContext->m_displaySnapshot.latestBar = bar;
+        m_currentDisplayedSymbolContext->m_displaySnapshot.barDirty = true;
     }
-    emit displayedStockReceivedNewBar(symbol, bar);
+
+    // Forward to strategies monitoring this symbol
+    m_strategyManager.onBarReceived(symbol, bar);
 }
 
 void MainAlgo::onDisplayedLevel2Received(const QString& symbol, const Level2& level2)
 {
-    if (m_guiThrottleActive)
-    {
-        m_pendingLevel2 = {symbol, level2};
+    if (!m_currentDisplayedSymbolContext)
         return;
+
+    // Guard against stale queued events (same race as onDisplayedTradeReceived).
+    if (symbol != m_currentDisplayedSymbolContext->symbol)
+        return;
+
+    L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "l2");
+    {
+        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+        m_currentDisplayedSymbolContext->m_displaySnapshot.latestLevel2 = level2;
+        m_currentDisplayedSymbolContext->m_displaySnapshot.l2Dirty = true;
     }
-    emit displayedStockReceivedNewLevel2(symbol, level2);
+
+    // Forward to strategies monitoring this symbol
+    m_strategyManager.onLevel2Received(symbol, level2);
 }
 
 void MainAlgo::onDisplayedTradeReceived(const QString& symbol, const Trade& trade)
 {
-    if (m_guiThrottleActive)
-    {
-        m_pendingTrade = {symbol, trade};
+    if (!m_currentDisplayedSymbolContext)
         return;
-    }
-    emit displayedStockReceivedNewTrade(symbol, trade);
+
+    // Guard against stale queued events: the trade symbol must match the currently
+    // displayed context. Cross-thread QueuedConnections can deliver events that were
+    // already in-flight when the display switched away from this symbol — disconnect()
+    // prevents new enqueues but cannot recall already-posted events.
+    if (symbol != m_currentDisplayedSymbolContext->symbol)
+        return;
+
+    L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "trade");
+    QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+    m_currentDisplayedSymbolContext->m_displaySnapshot.pendingTrades.append(trade);
+    m_currentDisplayedSymbolContext->m_displaySnapshot.tradeDirty = true;
 }
 
 void MainAlgo::onReplayTimeReceived(const QDateTime& time)
 {
-    if (m_guiThrottleActive)
-    {
-        m_pendingReplayTime = time;
-        return;
-    }
-    emit replayTimeUpdated(time);
-}
-
-void MainAlgo::onGuiThrottleTimerTick()
-{
-    if (m_pendingBar.has_value())
-    {
-        emit displayedStockReceivedNewBar(m_pendingBar->first, m_pendingBar->second);
-        m_pendingBar.reset();
-    }
-
-    if (m_pendingLevel2.has_value())
-    {
-        emit displayedStockReceivedNewLevel2(m_pendingLevel2->first, m_pendingLevel2->second);
-        m_pendingLevel2.reset();
-    }
-
-    if (m_pendingTrade.has_value())
-    {
-        emit displayedStockReceivedNewTrade(m_pendingTrade->first, m_pendingTrade->second);
-        m_pendingTrade.reset();
-    }
-
-    if (m_pendingAggregatorBarUpdate.has_value())
-    {
-        emit displayedStockAggregatorBarUpdated(m_pendingAggregatorSymbol,
-                                                m_pendingAggregatorBarUpdate->first,
-                                                m_pendingAggregatorBarUpdate->second);
-        m_pendingAggregatorBarUpdate.reset();
-    }
-
-    if (m_pendingReplayTime.has_value())
-    {
-        emit replayTimeUpdated(*m_pendingReplayTime);
-        m_pendingReplayTime.reset();
-    }
-}
-
-void MainAlgo::activateGuiThrottle()
-{
-    if (m_guiThrottleActive)
+    if (!m_currentDisplayedSymbolContext)
         return;
 
-    INFO << "Activating GUI throttle for AsFastAsPossible replay mode (" << ReplayConstants::GUI_THROTTLE_INTERVAL_MS
-         << "ms interval)";
-
-    m_guiThrottleActive = true;
-    m_guiThrottleTimer.start();
-}
-
-void MainAlgo::deactivateGuiThrottle()
-{
-    if (!m_guiThrottleActive)
-        return;
-
-    INFO << "Deactivating GUI throttle";
-
-    m_guiThrottleTimer.stop();
-    m_guiThrottleActive = false;
-
-    // Flush any remaining buffered data so nothing is lost
-    onGuiThrottleTimerTick();
+    L2T_TP(l2trader, snapshot_write, m_currentDisplayedSymbolContext->symbol.toUtf8().constData(), "replayTime");
+    QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+    m_currentDisplayedSymbolContext->m_displaySnapshot.replayTime = time;
+    m_currentDisplayedSymbolContext->m_displaySnapshot.replayTimeDirty = true;
 }
 
 void MainAlgo::onReplayEndReached()
 {
     INFO << "Replay ended, pausing heartbeat timers to prevent stream timeout";
-
-    deactivateGuiThrottle();
 
     // Pause heartbeat timers on ALL mock streams, not just the displayed one
     for (auto& instrument: m_symbolContexts)
@@ -1294,9 +1321,6 @@ void MainAlgo::enterReplayMode(const QString& p_symbol, QDate p_date, QTime p_st
 
     // Wire OrderEmulator to DBClient market data (same signals as live)
     connectReplaySignals(p_symbol);
-
-    if (p_speed == Playback::Speed::AsFastAsPossible)
-        activateGuiThrottle();
 
     startReplayOrderStreams();
 
@@ -1326,9 +1350,6 @@ void MainAlgo::enterReplayModePaused(const QString& p_symbol, QDate p_date, QTim
     // Forward DBClient replay lifecycle signals are wired once in onThreadStarted().
 
     connectReplaySignals(p_symbol);
-
-    if (p_speed == Playback::Speed::AsFastAsPossible)
-        activateGuiThrottle();
 
     if (!isReentry)
     {
@@ -1396,8 +1417,6 @@ void MainAlgo::exitReplayMode()
 {
     INFO << "MainAlgo exiting replay mode";
 
-    deactivateGuiThrottle();
-
     auto* dbClient = DBClient::getInstance();
     dbClient->stopReplay();
 
@@ -1445,12 +1464,6 @@ void MainAlgo::setReplaySpeed(Playback::Speed p_speed)
     {
         emulator->setReplaySpeed(static_cast<int>(p_speed));
     }
-
-    // Toggle GUI throttle based on speed
-    if (p_speed == Playback::Speed::AsFastAsPossible)
-        activateGuiThrottle();
-    else
-        deactivateGuiThrottle();
 }
 
 void MainAlgo::pauseLiveStreams()
@@ -1642,6 +1655,15 @@ Playback::State MainAlgo::getReplayState() const
     return DBClient::getInstance()->getPlaybackState();
 }
 
+MainAlgo::ActivityMetrics MainAlgo::getActivityMetrics(const QString& p_symbol) const
+{
+    QReadLocker lock(&m_symbolContextsLock);
+    const auto sc = m_symbolContexts.value(p_symbol);
+    if (sc.isNull())
+        return {};
+    return {sc->m_activity.tradeRateHz(), sc->m_activity.l2RateHz(), sc->m_activity.isActive()};
+}
+
 void MainAlgo::deleteAllSymbolContext()
 {
     INFO << "Deleting all stock instruments for clean mode transition";
@@ -1653,15 +1675,18 @@ void MainAlgo::deleteAllSymbolContext()
     // queues closeDatabase to DatabaseThread before the next createAndSetDisplayedSymbolContext
     // queues openDatabase. deleteLater would defer destruction past the next openDatabase call,
     // causing the DB close to arrive on DatabaseThread after the new open — breaking the connection.
-    for (auto it = m_symbolContexts.begin(); it != m_symbolContexts.end(); ++it)
     {
-        if (SymbolContext* instrument = it.value(); instrument)
+        QWriteLocker lock(&m_symbolContextsLock);
+        for (auto it = m_symbolContexts.begin(); it != m_symbolContexts.end(); ++it)
         {
-            DEBUG << "Deleting stock instrument for" << instrument->symbol;
-            delete instrument;
+            if (SymbolContext* instrument = it.value(); instrument)
+            {
+                DEBUG << "Deleting stock instrument for" << instrument->symbol;
+                delete instrument;
+            }
         }
+        m_symbolContexts.clear();
     }
-    m_symbolContexts.clear();
 
     INFO << "All stock instruments deleted";
 }

@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QQueue>
+#include <QReadWriteLock>
 #include <QThread>
 #include <QThreadPool>
 #include <QMap>
@@ -49,6 +50,112 @@ class OrderEmulator;
  * pool thread during drain(). External connections (to MainAlgo, GUI, StrategyManager)
  * keep Qt::AutoConnection → become QueuedConnection from the pool thread.
  */
+/**
+ * @brief Tracks per-symbol market data activity using exponential moving averages.
+ *
+ * Updated from the SymbolContext drain loop (pool thread) — `m_lastTradeMs` /
+ * `m_lastL2Ms` are only ever written from that thread so they need no atomics.
+ * The EMA and active flag are atomics so they can be read from any thread
+ * (e.g., strategy threads via StrategySDK::getTradeRate).
+ */
+struct ActivityTracker
+{
+    /// EMA smoothing factor (≈ weight of the most recent sample)
+    static constexpr double kAlpha = 0.1;
+    /// Combined rate (trade Hz + L2 Hz) threshold to become active
+    static constexpr double kActiveThresholdHz = 0.5;
+    /// Combined rate threshold to become inactive (hysteresis)
+    static constexpr double kInactiveThresholdHz = 0.1;
+
+    std::atomic<double> m_tradeRateHz{0.0};
+    std::atomic<double> m_l2RateHz{0.0};
+    std::atomic<bool> m_isActive{false};
+
+    void recordTrade(qint64 p_nowMs)
+    {
+        updateRate(m_tradeRateHz, m_lastTradeMs, p_nowMs);
+        updateActive();
+    }
+
+    void recordL2(qint64 p_nowMs)
+    {
+        updateRate(m_l2RateHz, m_lastL2Ms, p_nowMs);
+        updateActive();
+    }
+
+    [[nodiscard]] double tradeRateHz() const
+    {
+        return m_tradeRateHz.load(std::memory_order_relaxed);
+    }
+    [[nodiscard]] double l2RateHz() const
+    {
+        return m_l2RateHz.load(std::memory_order_relaxed);
+    }
+    [[nodiscard]] bool isActive() const
+    {
+        return m_isActive.load(std::memory_order_relaxed);
+    }
+
+  private:
+    qint64 m_lastTradeMs = 0; ///< Only written from drain thread — no atomic needed
+    qint64 m_lastL2Ms = 0;
+
+    static void updateRate(std::atomic<double>& p_ema, qint64& p_lastMs, qint64 p_nowMs)
+    {
+        if (p_lastMs > 0 && p_nowMs > p_lastMs)
+        {
+            const double deltaS = static_cast<double>(p_nowMs - p_lastMs) / 1000.0;
+            const double instantHz = 1.0 / deltaS;
+            const double newEma = kAlpha * instantHz + (1.0 - kAlpha) * p_ema.load(std::memory_order_relaxed);
+            p_ema.store(newEma, std::memory_order_relaxed);
+        }
+        p_lastMs = p_nowMs;
+    }
+
+    void updateActive()
+    {
+        const double combinedHz =
+            m_tradeRateHz.load(std::memory_order_relaxed) + m_l2RateHz.load(std::memory_order_relaxed);
+        const bool currently = m_isActive.load(std::memory_order_relaxed);
+        if (!currently && combinedHz >= kActiveThresholdHz)
+            m_isActive.store(true, std::memory_order_relaxed);
+        else if (currently && combinedHz < kInactiveThresholdHz)
+            m_isActive.store(false, std::memory_order_relaxed);
+    }
+};
+
+/**
+ * @brief Snapshot of latest market data for GUI pull-based rendering.
+ *
+ * Written by the drain thread (or bar/aggregator signal handlers) under write lock.
+ * Read by the GUI thread at 30 Hz under read lock. Dirty flags allow the GUI
+ * to skip unchanged data. Trades are accumulated (not overwritten) so none are lost.
+ */
+struct DisplaySnapshot
+{
+    mutable QReadWriteLock lock;
+
+    // Latest 1-minute bar (overwritten each update, GUI sees the most recent)
+    std::optional<Bar> latestBar;
+    bool barDirty = false;
+
+    // Latest Level 2 depth (overwritten — GUI only needs the current snapshot)
+    std::optional<Level2> latestLevel2;
+    bool l2Dirty = false;
+
+    // Accumulated trades since last GUI read (GUI drains the vector)
+    QVector<Trade> pendingTrades;
+    bool tradeDirty = false;
+
+    // Latest bar per higher timeframe (overwritten per TF)
+    QMap<TimeFrame, Bar> aggregatorBars;
+    bool aggregatorDirty = false;
+
+    // Current replay time
+    std::optional<QDateTime> replayTime;
+    bool replayTimeDirty = false;
+};
+
 class SymbolContext : public QObject
 {
     Q_OBJECT
@@ -70,6 +177,17 @@ class SymbolContext : public QObject
     LiveBarAccumulator m_liveBarAccumulator;    ///< 1-minute bar accumulator (default 60s interval)
     LiveBarAccumulator m_live10sBarAccumulator; ///< 10-second bar accumulator
     BarAggregator m_barAggregator;
+
+    /// Reference count: incremented by display claim (+1) and each strategy subscription (+1).
+    /// The SymbolContext is destroyed only when this reaches 0.
+    int m_refCount = 0;
+
+    /// Per-symbol EMA-based activity metrics, updated in the drain loop.
+    ActivityTracker m_activity;
+
+    /// Snapshot of latest data for GUI pull-based rendering (30 Hz).
+    /// Written by drain thread under write lock, read by GUI under read lock.
+    DisplaySnapshot m_displaySnapshot;
 
   signals:
     /**
@@ -114,6 +232,10 @@ class MainAlgo final : public QObject
 
     /// @brief Get the currently displayed stock symbol
     [[nodiscard]] QString getDisplayedSymbol() const;
+
+    /// @brief Get the currently displayed SymbolContext (for GUI pull-based snapshot reading).
+    /// Returns nullptr if no symbol is displayed. The QPointer may auto-null if the context is destroyed.
+    [[nodiscard]] QPointer<SymbolContext> getDisplayedSymbolContext() const;
 
     BarCache::GetBarsResult_t
     requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last, TimeFrame tf = TimeFrame::ONE_MINUTE);
@@ -223,33 +345,19 @@ class MainAlgo final : public QObject
     /// @brief Get replay playback state
     [[nodiscard]] Playback::State getReplayState() const;
 
+    /// @brief Snapshot of per-symbol activity metrics (thread-safe read).
+    struct ActivityMetrics
+    {
+        double tradeRateHz = 0.0; ///< EMA-smoothed trades per second
+        double l2RateHz = 0.0;    ///< EMA-smoothed L2 updates per second
+        bool isActive = false;    ///< Combined rate above activity threshold
+    };
+
+    /// @brief Return current activity metrics for a symbol (thread-safe).
+    /// Returns a zeroed ActivityMetrics if the symbol has no SymbolContext.
+    [[nodiscard]] ActivityMetrics getActivityMetrics(const QString& p_symbol) const;
+
   signals:
-    /**
-     * @brief Signal emitted when the displayed stock receives a new bar
-     * Thread context: Emitted from MainAlgo worker thread
-     */
-    void displayedStockReceivedNewBar(QString symbol, Bar bar);
-
-    /**
-     * @brief Signals emitted when the BarAggregator produces a higher-TF bar for the displayed stock.
-     * barUpdated: in-progress (open) bar tick; barClosed: completed bar.
-     * Thread context: Emitted from MainAlgo worker thread
-     */
-    void displayedStockAggregatorBarUpdated(QString symbol, TimeFrame tf, Bar bar);
-    void displayedStockAggregatorBarClosed(QString symbol, TimeFrame tf, Bar bar);
-
-    /**
-     * @brief Signal emitted when the displayed stock receives a new Level 2 book snapshot
-     * Thread context: Emitted from MainAlgo worker thread
-     */
-    void displayedStockReceivedNewLevel2(QString symbol, Level2 level2);
-
-    /**
-     * @brief Signal emitted when the displayed stock receives a new trade
-     * Thread context: Emitted from MainAlgo worker thread
-     */
-    void displayedStockReceivedNewTrade(QString symbol, Trade trade);
-
     /**
      * @brief Signal emitted when a new position is received
      * Thread context: Emitted from MainAlgo worker thread
@@ -294,7 +402,6 @@ class MainAlgo final : public QObject
     void replayStopped();
     void replayPaused();
     void replayResumed();
-    void replayTimeUpdated(QDateTime currentTime);
     void replayEndReached();
 
   public slots:
@@ -320,21 +427,22 @@ class MainAlgo final : public QObject
     // Handle replay end - pause heartbeat timers
     void onReplayEndReached();
 
-    // Forward higher-TF bar aggregator events to displayed-stock signals
+    // Forward higher-TF bar aggregator events to DisplaySnapshot
     void onAggregatorBarUpdated(TimeFrame tf, const Bar& bar);
     void onAggregatorBarClosed(TimeFrame tf, const Bar& bar);
 
-    // GUI throttle gate slots — buffer data when throttle is active, emit immediately otherwise
+    // Snapshot writers — populate DisplaySnapshot from incoming data
     void onDisplayedBarReceived(const QString& symbol, const Bar& bar);
     void onDisplayedLevel2Received(const QString& symbol, const Level2& level2);
     void onDisplayedTradeReceived(const QString& symbol, const Trade& trade);
     void onReplayTimeReceived(const QDateTime& time);
-    void onGuiThrottleTimerTick();
 
-    // Centralized routing: DBClient → SymbolContext actor queue
-    void onNewLevel2Received(const QString& p_symbol, const Level2& p_level2);
-    void onNewTradeReceived(const QString& p_symbol, const Trade& p_trade);
-
+  public:
+    // Direct cross-thread routing: called from DBClient thread via DirectConnection.
+    // Uses a read lock on m_symbolContextsLock; SymbolContext::enqueue* are independently
+    // thread-safe, so no further locking is needed inside them.
+    void routeLevel2(const QString& p_symbol, const Level2& p_level2);
+    void routeTrade(const QString& p_symbol, const Trade& p_trade);
 
   private:
     static MainAlgo* m_instance;
@@ -344,6 +452,7 @@ class MainAlgo final : public QObject
     QThread thread;
 
     QMap<QString, QPointer<SymbolContext>> m_symbolContexts;
+    mutable QReadWriteLock m_symbolContextsLock; ///< Guards m_symbolContexts for cross-thread reads
     QPointer<SymbolContext> m_currentDisplayedSymbolContext;
 
     PositionsReceiver* m_positionReceiver = nullptr; // Qt parent-child ownership (parent is 'this')
@@ -380,24 +489,10 @@ class MainAlgo final : public QObject
     // (not the permanent onNewTradeReceived routing connection) when switching symbols.
     QMetaObject::Connection m_displayTradeConnection;
 
-    // --- GUI throttle for AsFastAsPossible replay mode ---
-    // When active, high-frequency GUI-bound signals are buffered and emitted
-    // at a capped rate to prevent flooding the GUI thread's event queue.
-    QTimer m_guiThrottleTimer;
-    bool m_guiThrottleActive = false;
-
-    void activateGuiThrottle();
-    void deactivateGuiThrottle();
-
     /// @brief Wire a SymbolContext's bar-close events to the OrderEmulator for PnL updates.
     /// Safe to call multiple times (uses UniqueConnection internally).
     void connectBarCloseToOrderEmulator(SymbolContext* p_sc, OrderEmulator* p_emulator);
 
-    // Buffered latest state for throttled GUI emission (only latest matters)
-    std::optional<std::pair<QString, Bar>> m_pendingBar;
-    std::optional<std::pair<QString, Level2>> m_pendingLevel2;
-    std::optional<std::pair<QString, Trade>> m_pendingTrade;
-    std::optional<QDateTime> m_pendingReplayTime;
-    std::optional<std::pair<TimeFrame, Bar>> m_pendingAggregatorBarUpdate;
-    QString m_pendingAggregatorSymbol;
+    /// @brief Release one reference on a SymbolContext. Destroys it when refCount reaches 0.
+    void releaseSymbolContextRef(const QString& symbol);
 };

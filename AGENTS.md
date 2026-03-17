@@ -71,12 +71,12 @@ For detailed information about specific subsystems, navigate to:
 # GUI version (default)
 mkdir -p build/GUI
 cmake -S . -B build/GUI -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF
-cmake --build build/GUI -j$(nproc)
+cmake --build build/GUI -j4
 
 # TUI version (headless)
 mkdir -p build/TUI
 cmake -S . -B build/TUI -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=OFF -DBUILD_TESTS=OFF
-cmake --build build/TUI -j$(nproc)
+cmake --build build/TUI -j4
 
 # Format code before committing
 find Src -name "*.cpp" -o -name "*.h" | xargs clang-format -i

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QJsonArray>
 #include <QString>
 #include <QVector>
 #include <memory>
@@ -38,12 +39,16 @@ class StrategyLoader final
     using DestroyStrategyFn = void (*)(StrategyBase* strategy);
     using GetVersionFn = const char* (*)();
 
+    // Optional schema export — plugins may export this to declare custom parameters
+    using GetParameterSchemaFn = QJsonArray (*)();
+
     struct LoadedPlugin
     {
-        void* p_handle;              // dlopen handle
-        CreateStrategyFn createFn;   // createStrategy factory
-        DestroyStrategyFn destroyFn; // destroyStrategy factory
-        QString apiVersion;          // API version string
+        void* p_handle;                             // dlopen handle
+        CreateStrategyFn createFn;                  // createStrategy factory
+        DestroyStrategyFn destroyFn;                // destroyStrategy factory
+        QString apiVersion;                         // API version string
+        GetParameterSchemaFn getSchemaFn = nullptr; // optional parameter schema export
     };
 
     /*
@@ -57,6 +62,9 @@ class StrategyLoader final
      *   extern "C" StrategyBase* createStrategy(const StrategyConfig& config,
      * StrategySDK* sdk);
      *   extern "C" void destroyStrategy(StrategyBase* strategy);
+     *
+     * Optional .so export:
+     *   extern "C" QJsonArray getParameterSchema();
      */
     [[nodiscard]] static std::expected<LoadedPlugin, QString> loadPlugin(const QString& p_soPath);
 
@@ -66,6 +74,18 @@ class StrategyLoader final
      * @param p_plugin - LoadedPlugin to unload (calls dlclose)
      */
     static void unloadPlugin(LoadedPlugin& p_plugin);
+
+    /**
+     * @brief Peek at a plugin's declared parameter schema without creating a strategy instance.
+     *
+     * Opens the .so, looks for `getParameterSchema`, calls it if present, then closes the .so.
+     * Returns an empty array if the plugin does not export the symbol or the file cannot be opened.
+     * Fully backward compatible — plugins without the export are unaffected.
+     *
+     * @param p_soPath Path to the .so file
+     * @return QJsonArray of parameter descriptor objects, or empty array
+     */
+    [[nodiscard]] static QJsonArray peekParameterSchema(const QString& p_soPath);
 
   private:
     // Expected API version (strategies must match this)

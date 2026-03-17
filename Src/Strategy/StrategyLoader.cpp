@@ -66,8 +66,14 @@ std::expected<StrategyLoader::LoadedPlugin, QString> StrategyLoader::loadPlugin(
         return std::unexpected("Missing destroyStrategy: " + detail);
     }
 
-    qInfo() << "Successfully loaded strategy plugin:" << p_soPath << "API version:" << apiVersion;
-    return LoadedPlugin{handle, createFn, destroyFn, apiVersion};
+    // Resolve optional getParameterSchema (backward compatible — absence is fine)
+    dlerror();
+    auto schemaFn = reinterpret_cast<GetParameterSchemaFn>(dlsym(handle, "getParameterSchema"));
+    dlerror(); // clear possible "symbol not found" error — this export is optional
+
+    qInfo() << "Successfully loaded strategy plugin:" << p_soPath << "API version:" << apiVersion
+            << (schemaFn ? "| schema: yes" : "| schema: no");
+    return LoadedPlugin{handle, createFn, destroyFn, apiVersion, schemaFn};
 }
 
 void StrategyLoader::unloadPlugin(LoadedPlugin& p_plugin)
@@ -107,4 +113,20 @@ QString StrategyLoader::errorMessage(Error p_error, const QString& p_details)
         return "Unknown error loading strategy plugin";
     }
     return "Unknown error";
+}
+
+QJsonArray StrategyLoader::peekParameterSchema(const QString& p_soPath)
+{
+    void* handle = dlopen(p_soPath.toStdString().c_str(), RTLD_LAZY);
+    if (!handle)
+        return {};
+
+    dlerror();
+    auto schemaFn = reinterpret_cast<GetParameterSchemaFn>(dlsym(handle, "getParameterSchema"));
+    QJsonArray schema;
+    if (!dlerror() && schemaFn)
+        schema = schemaFn();
+
+    dlclose(handle);
+    return schema;
 }

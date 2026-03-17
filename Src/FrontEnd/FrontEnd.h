@@ -39,10 +39,6 @@ class FrontEnd : public QObject
     void newOrderReceived(QString account, Order order);
     void balanceUpdated(Balance balance);
 
-    void currentHighlightedStockBarReceived(QString symbol, Bar bar);
-    void currentHighlightedReceivedNewLevel2(QString symbol, Level2 level2);
-    void currentHighlightedReceivedNewTrade(QString symbol, Trade trade);
-
   public slots:
 
     // Usage update
@@ -56,16 +52,7 @@ class FrontEnd : public QObject
     virtual void onNewOrderReceived(QString account, Order order) = 0;
     virtual void onBalanceUpdated(Balance balance) = 0;
 
-    virtual void onCurrentHighlightedStockBarReceived(QString symbol, Bar bar) = 0;
-    virtual void onCurrentHighlightedReceivedNewLevel2(QString symbol, Level2 level2) = 0;
-    virtual void onCurrentHighlightedReceivedNewTrade(QString /*symbol*/, Trade /*trade*/) {}
-
-    // Higher-TF live bar updates from BarAggregator (GUI only; TUI ignores by default)
-    virtual void onDisplayedStockAggregatorBarUpdated(QString /*symbol*/, TimeFrame /*tf*/, Bar /*bar*/) {}
-    virtual void onDisplayedStockAggregatorBarClosed(QString /*symbol*/, TimeFrame /*tf*/, Bar /*bar*/) {}
-
     // Replay mode notifications
     virtual void onReplayModeEntered() = 0;
     virtual void onReplayModeExited() = 0;
-    virtual void onReplayTimeUpdated(QDateTime currentTime) = 0;
 };

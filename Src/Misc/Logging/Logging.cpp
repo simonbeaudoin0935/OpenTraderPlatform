@@ -14,12 +14,13 @@
 
 #include <iostream>
 #include <csignal>
-#include <stacktrace>
+#include <execinfo.h>
 #include <sstream>
 #include <mutex>
 #include <optional>
 #include <atomic>
 #include <unistd.h>
+#include <time.h>
 
 // ANSI color codes
 #define RESET_COLOR "\033[0m"
@@ -39,6 +40,19 @@ static std::optional<ALogger> g_stdoutALogger;
 // Underlying file handle kept open for the lifetime of the process.
 static QFile g_logFile;
 
+// Raw file descriptors cached at initLogging() time — safe to read from a
+// signal handler without going through Qt.
+static int g_logFileFd = -1;
+static int g_stdioFd = -1;
+
+// Re-entry guard: prevents infinite recursion if a second signal fires while
+// the crash handler is already running (e.g. SIGSEGV during stack unwinding).
+static std::atomic_flag g_crashHandlerActive = ATOMIC_FLAG_INIT;
+
+// Guards GUI log emission. When false, HTML formatting and the cross-thread
+// signal are skipped entirely. Toggled by the "Show Logger Widget" checkbox.
+static std::atomic<bool> g_guiLoggingEnabled{true};
+
 // Lightweight mutex — only guards LoggingConfig reads and LogBroadcaster emit.
 // I/O itself is handled inside ALogger's own mutex.
 static std::mutex g_filterMutex;
@@ -50,44 +64,48 @@ static std::atomic<qint64> g_replayTimeMs{-1};
 // Forward declaration
 void printStackTrace();
 
-// Signal handler for crashes
+// Signal handler for crashes.
+//
+// Async-signal-safety notes:
+//   - crashFlush() uses try_lock() + nanosleep() — no malloc, bounded wait.
+//   - All output uses raw ::write() on cached fds — no Qt, no malloc.
+//   - printStackTrace() uses backtrace() + backtrace_symbols_fd() — no malloc.
+//   - g_crashHandlerActive prevents re-entry if a second signal fires.
 void crashHandler(int sig)
 {
-    // Drain pending async buffers first so no log lines are lost before the crash message.
+    // Re-entry guard: if a second signal fires while we are already in here
+    // (e.g. SIGSEGV during backtrace unwinding), reset to the default handler
+    // and re-raise immediately so the OS can produce a core dump.
+    if (g_crashHandlerActive.test_and_set())
+    {
+        signal(sig, SIG_DFL);
+        raise(sig);
+        return;
+    }
+
+    // Best-effort drain of any pending buffered log messages (e.g. recent
+    // context leading up to a SIGSEGV). Uses bounded try_lock — never deadlocks.
     if (g_fileALogger)
-        g_fileALogger->syncFlush();
+        g_fileALogger->crashFlush();
     if (g_stdoutALogger)
-        g_stdoutALogger->syncFlush();
+        g_stdoutALogger->crashFlush();
 
-    std::string signalMsg = "\nReceived signal " + std::to_string(sig) + " - ";
-    switch (sig)
+    // Write crash banner directly to both destinations using cached fds.
+    // No Qt calls, no heap allocation — safe in a signal handler.
+    const char* sigName = (sig == SIGSEGV)   ? "Segmentation fault"
+                          : (sig == SIGABRT) ? "Abort signal"
+                          : (sig == SIGFPE)  ? "Floating point exception"
+                          : (sig == SIGILL)  ? "Illegal instruction"
+                                             : "Unknown signal";
+    char msg[80];
+    int n = snprintf(msg, sizeof(msg), "\nReceived signal %d - %s\n", sig, sigName);
+    if (n > 0)
     {
-    case SIGSEGV:
-        signalMsg += "Segmentation fault";
-        break;
-    case SIGABRT:
-        signalMsg += "Abort signal";
-        break;
-    case SIGFPE:
-        signalMsg += "Floating point exception";
-        break;
-    case SIGILL:
-        signalMsg += "Illegal instruction";
-        break;
-    default:
-        signalMsg += "Unknown signal";
-        break;
+        if (g_logFileFd >= 0)
+            ::write(g_logFileFd, msg, static_cast<size_t>(n));
+        if (g_stdioFd >= 0)
+            ::write(g_stdioFd, msg, static_cast<size_t>(n));
     }
-    signalMsg += "\n";
-
-    // Write crash message directly to both destinations (bypass async — we are crashing).
-    if (g_logFile.isOpen())
-    {
-        int fd = g_logFile.handle();
-        if (fd >= 0)
-            ::write(fd, signalMsg.data(), signalMsg.size());
-    }
-    ::write(STDERR_FILENO, signalMsg.data(), signalMsg.size());
 
     printStackTrace();
 
@@ -95,33 +113,41 @@ void crashHandler(int sig)
     raise(sig);
 }
 
-// Function to print stack trace using C++23 stacktrace API
+// Print a stack trace to both the log file and stdio fd.
+//
+// Uses backtrace() + backtrace_symbols_fd() from <execinfo.h>:
+//   - backtrace()            : fills a stack-allocated frame array, no malloc.
+//   - backtrace_symbols_fd() : writes symbol strings directly to an fd, no malloc,
+//                              async-signal-safe on Linux/glibc.
+// The header is written with a stack-allocated buffer + ::write() — no
+// std::string / std::ostringstream, no heap allocation.
 void printStackTrace()
 {
-    std::stacktrace trace = std::stacktrace::current();
+    static const int MAX_FRAMES = 64;
+    void* frames[MAX_FRAMES];
+    int nframes = backtrace(frames, MAX_FRAMES);
 
-    std::ostringstream stackTraceMsg;
-    stackTraceMsg << "\nStack trace (" << trace.size() << " frames):\n";
-
-    for (size_t i = 0; i < trace.size(); ++i)
+    char header[64];
+    int n = snprintf(header, sizeof(header), "\nStack trace (%d frames):\n", nframes);
+    if (n > 0)
     {
-        const auto& entry = trace[i];
-        stackTraceMsg << "  #" << i << " ";
-        stackTraceMsg << std::to_string(entry) << "\n";
+        if (g_logFileFd >= 0)
+            ::write(g_logFileFd, header, static_cast<size_t>(n));
+        if (g_stdioFd >= 0)
+            ::write(g_stdioFd, header, static_cast<size_t>(n));
     }
 
-    stackTraceMsg << "\nNote: Stack trace quality depends on debug symbols being present in the binary.\n";
-    stackTraceMsg << "Build with CMAKE_BUILD_TYPE=Debug or RelWithDebInfo for best results.\n";
+    if (g_logFileFd >= 0)
+        backtrace_symbols_fd(frames, nframes, g_logFileFd);
+    if (g_stdioFd >= 0)
+        backtrace_symbols_fd(frames, nframes, g_stdioFd);
 
-    std::string msg = stackTraceMsg.str();
-
-    if (g_logFile.isOpen())
-    {
-        int fd = g_logFile.handle();
-        if (fd >= 0)
-            ::write(fd, msg.data(), msg.size());
-    }
-    ::write(STDERR_FILENO, msg.data(), msg.size());
+    static const char footer[] = "\nNote: Stack trace quality depends on debug symbols. "
+                                 "Build with CMAKE_BUILD_TYPE=Debug or RelWithDebInfo for best results.\n";
+    if (g_logFileFd >= 0)
+        ::write(g_logFileFd, footer, sizeof(footer) - 1);
+    if (g_stdioFd >= 0)
+        ::write(g_stdioFd, footer, sizeof(footer) - 1);
 }
 
 // LogBroadcaster implementation
@@ -134,6 +160,16 @@ LogBroadcaster& LogBroadcaster::instance()
 void LogBroadcaster::broadcastLogMessage(const QString& message)
 {
     emit logMessageReceived(message);
+}
+
+void LogBroadcaster::setGuiLoggingEnabled(bool enabled)
+{
+    g_guiLoggingEnabled.store(enabled, std::memory_order_relaxed);
+}
+
+bool LogBroadcaster::isGuiLoggingEnabled()
+{
+    return g_guiLoggingEnabled.load(std::memory_order_relaxed);
 }
 
 // LoggingConfig implementation
@@ -281,18 +317,40 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext& context, con
                              .arg(RESET_COLOR);
 
     // HTML — broadcast to the GUI log widget.
-    QString htmlMsg = QString("<span style='color:%1'>[%2] %3 %4:</span> %5")
-                          .arg(htmlColorCode)
-                          .arg(timestamp)
-                          .arg(typeText)
-                          .arg(category)
-                          .arg(msg);
+    // Read the flag once here; skip both the QString allocation and the
+    // cross-thread signal when the logger widget is hidden.
+    const bool guiEnabled = LogBroadcaster::isGuiLoggingEnabled();
+    QString htmlMsg;
+    if (guiEnabled)
+    {
+        htmlMsg = QString("<span style='color:%1'>[%2] %3 %4:</span> %5")
+                      .arg(htmlColorCode)
+                      .arg(timestamp)
+                      .arg(typeText)
+                      .arg(category)
+                      .arg(msg);
+    }
 
     // Always write plain text to file (unfiltered).
     if (g_fileALogger)
     {
         QByteArray bytes = plainMsg.toUtf8();
         g_fileALogger->write(bytes.constData(), static_cast<size_t>(bytes.size()));
+    }
+
+    // For fatal messages, also write directly and synchronously to both fds
+    // using raw ::write() BEFORE the async enqueue above takes effect.
+    // This guarantees the assertion failure reason is on disk and visible in
+    // the terminal even if the crash handler subsequently deadlocks or the
+    // process is killed before the async buffer is drained.
+    if (type == QtFatalMsg)
+    {
+        QByteArray plainBytes = plainMsg.toUtf8();
+        QByteArray coloredBytes = coloredMsg.toUtf8();
+        if (g_logFileFd >= 0)
+            ::write(g_logFileFd, plainBytes.constData(), static_cast<size_t>(plainBytes.size()));
+        if (g_stdioFd >= 0)
+            ::write(g_stdioFd, coloredBytes.constData(), static_cast<size_t>(coloredBytes.size()));
     }
 
     // Filtered paths: check category/level before writing to stdout and GUI.
@@ -314,7 +372,8 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext& context, con
             g_stdoutALogger->write(bytes.constData(), static_cast<size_t>(bytes.size()));
         }
 
-        LogBroadcaster::instance().broadcastLogMessage(htmlMsg);
+        if (guiEnabled)
+            LogBroadcaster::instance().broadcastLogMessage(htmlMsg);
     }
 }
 
@@ -361,6 +420,11 @@ void initLogging()
     g_fileALogger.emplace(logFileFd, "file");
     g_stdoutALogger.emplace(stdioFd, "stdout");
 
+    // Cache raw fds for use in the crash handler and printStackTrace() where
+    // calling Qt methods is not async-signal-safe.
+    g_logFileFd = logFileFd;
+    g_stdioFd = stdioFd;
+
     qInstallMessageHandler(coloredMessageOutput);
 
     qInfo() << "Logging initialized. Log file:" << logFileName;
@@ -376,6 +440,11 @@ void initLogging()
 
 void shutdownLogging()
 {
+    // Invalidate cached fds before closing so the crash handler cannot use a
+    // stale fd if a signal fires during or after shutdown.
+    g_logFileFd = -1;
+    g_stdioFd = -1;
+
     // Drain and join both logger threads before closing the file.
     g_fileALogger.reset();
     g_stdoutALogger.reset();

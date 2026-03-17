@@ -36,6 +36,14 @@ class ALogger
     // cannot be trusted. Flushes all pending bytes directly to the fd.
     void syncFlush();
 
+    // Best-effort drain for use from signal/crash handlers.
+    // Spins on try_lock() up to CRASH_FLUSH_RETRIES times, sleeping
+    // CRASH_FLUSH_RETRY_DELAY_NS between each attempt via nanosleep() (which is
+    // async-signal-safe). If the lock is acquired the buffer is fully drained
+    // and fsync'd, then released. If all retries are exhausted the drain is
+    // skipped — this method never blocks indefinitely.
+    void crashFlush();
+
     // Signal the consumer thread to drain remaining data and exit, then join it.
     // Safe to call multiple times; subsequent calls are no-ops.
     void shutdown();

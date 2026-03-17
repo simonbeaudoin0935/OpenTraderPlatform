@@ -75,7 +75,7 @@ Three main threads:
 3. **MainAlgo Thread**: Trading logic, bar processing, position tracking
 
 Additional per-component threads:
-- **DBClient Thread**: Databento market data (future)
+- **DBClient Thread**: Databento market data (live streaming, replay playback)
 - **Database Threads**: One per BarCache instance for SQLite operations
 - **Strategy Threads**: One per loaded strategy plugin
 
@@ -86,12 +86,18 @@ Cross-thread communication uses Qt signals/slots with automatic queuing:
 ```
 TSClient (thread) ─[authStateChanged]→ MainAlgo (thread)
 
-MainAlgo (thread) ─[displayedStockReceivedNewBar]→ GUIFrontend (main)
-                  ─[displayedStockReceivedNewLevel2]→ GUIFrontend (main)
-                  ─[receivedNewPosition]→ GUIFrontend (main)
+MainAlgo (thread) ─[receivedNewPosition]→ GUIFrontend (main)
+                  ─[receivedNewOrder]→ GUIFrontend (main)
+                  ─[tradeStationAccountsReceived]→ GUIFrontend (main)
 
 GUIFrontend (main) ─[selectedDisplayedStock]→ MainAlgo (thread)
 ```
+
+> **Pull-based display refresh**: Market data (bars, Level 2, trades) is NOT pushed
+> to the GUI via signals. Instead, MainAlgo writes snapshots into `DisplaySnapshot`
+> (in SymbolContext) under a write lock, and GUIFrontend's 30 Hz timer
+> (`m_displayRefreshTimer`) polls dirty flags and copies data out. This coalesces
+> high-frequency updates into a single GUI repaint per tick.
 
 ### Memory Management Rules
 
@@ -215,7 +221,7 @@ Q_CHECK_PTR(reply); // Validates allocation succeeded
 When making changes in specific subdirectories, build from root:
 ```bash
 # From repository root
-cmake --build build/GUI -j$(nproc)
+cmake --build build/GUI -j4
 ```
 
 ### Formatting

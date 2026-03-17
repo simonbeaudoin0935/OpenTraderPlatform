@@ -13,6 +13,7 @@
 #include "Assume.h"
 #include "CONSTANTS.h"
 #include "MainApp.h"
+#include "ThreadNames.h"
 
 #define LOGGING_CATEGORY TSClientLog
 

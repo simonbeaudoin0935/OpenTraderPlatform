@@ -4,6 +4,8 @@
 #include "StrategyManager.h"
 #include "StrategyLoadDialog.h"
 #include "Position.h"
+#include "Core/MainApp.h"
+#include "Clients/DBClient/DBClient.h"
 
 #include <QTreeWidgetItem>
 #include <QHeaderView>
@@ -235,6 +237,31 @@ void StrategyQuickView::onLoadButtonClicked()
         auto config = dialog.getSelectedConfig();
         if (config)
         {
+            // In replay mode, reject strategies that reference symbols without recorded data
+            // for the current replay date — they would silently receive no events otherwise.
+            if (MainApp::isInReplayMode())
+            {
+                const QDate replayDate = DBClient::getReplayDate();
+                QStringList missing;
+                for (const QString& sym : config->symbols)
+                {
+                    if (!DBClient::hasReplayData(replayDate, sym))
+                        missing << sym;
+                }
+                if (!missing.isEmpty())
+                {
+                    QMessageBox::warning(
+                        this,
+                        "No Replay Data for Strategy",
+                        QString("The following symbol(s) have no recorded replay data for %1:\n\n"
+                                "  %2\n\n"
+                                "Loading this strategy would result in no events being received.\n"
+                                "Select a different replay date or download the data first.")
+                            .arg(replayDate.toString("yyyy-MM-dd"), missing.join(", ")));
+                    return;
+                }
+            }
+
             auto result = m_mainAlgo->getStrategyManager()->loadStrategy(*config);
             if (!result)
                 QMessageBox::warning(this, "Load Strategy", result.error());

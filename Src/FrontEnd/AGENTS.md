@@ -102,7 +102,27 @@ See `TUI/AGENTS.md` for detailed implementation:
 
 ### Backend → Frontend
 
-Data flows from backend to UI via signals:
+**Pull-based display refresh (30 Hz)**:
+Market data (bars, Level 2, trades) is NOT pushed to the GUI via signals.
+MainAlgo writes snapshots into `DisplaySnapshot` (inside `SymbolContext`) under
+a write lock.  GUIFrontend's 30 Hz timer (`m_displayRefreshTimer`) polls dirty
+flags, copies data out, clears the flags, and updates widgets in a single
+repaint.  This coalesces thousands of events per second into ≤30 GUI updates.
+
+```mermaid
+sequenceDiagram
+    participant MainAlgo
+    participant DisplaySnapshot
+    participant GUIFrontend
+    participant UI Components
+
+    MainAlgo->>DisplaySnapshot: Write bar/L2/trade (QWriteLocker)
+    Note over GUIFrontend: 33 ms timer fires
+    GUIFrontend->>DisplaySnapshot: Read & clear dirty flags (QWriteLocker)
+    GUIFrontend->>UI Components: Update chart / Level2 / trades
+```
+
+**Push signals (still used for non-display events)**:
 
 ```mermaid
 sequenceDiagram
@@ -114,10 +134,6 @@ sequenceDiagram
     TSClient->>MainAlgo: authStateChanged
     MainAlgo->>FrontEnd: tradeStationAccountsReceived
     FrontEnd->>UI Components: Update account dropdown
-
-    TSClient->>MainAlgo: New bar received
-    MainAlgo->>FrontEnd: displayedStockReceivedNewBar
-    FrontEnd->>UI Components: Update chart
 
     MainAlgo->>FrontEnd: receivedNewPosition
     FrontEnd->>UI Components: Update position window
@@ -157,12 +173,12 @@ Both GUI and TUI frontends run on the **main thread**:
 
 ### Cross-Thread Communication
 
-Signal/slot connections automatically handle threading:
+Signal/slot connections automatically handle threading for non-display events:
 
 ```cpp
 // Connection from worker thread (MainAlgo) to main thread (Frontend)
-connect(&MainAlgo::getInstance(), &MainAlgo::displayedStockReceivedNewBar,
-        frontend, &FrontEnd::onCurrentHighlightedStockBarReceived,
+connect(&MainAlgo::getInstance(), &MainAlgo::receivedNewPosition,
+        frontend, &FrontEnd::onNewPositionReceived,
         Qt::QueuedConnection);  // Explicit queued (thread-safe)
 
 // Connection from main thread (Frontend) to worker thread (MainAlgo)
@@ -170,6 +186,9 @@ connect(frontend, &FrontEnd::selectedDisplayedStock,
         &MainAlgo::getInstance(), &MainAlgo::onSelectDisplayedStock,
         Qt::QueuedConnection);  // Explicit queued (thread-safe)
 ```
+
+> **Display data** (bars, Level 2, trades) uses the pull-based `DisplaySnapshot`
+> model instead of cross-thread signals. See "Data Flow" above.
 
 ## Common Interface Methods
 

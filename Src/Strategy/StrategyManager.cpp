@@ -269,6 +269,21 @@ QDateTime StrategySDK::getCurrentTime() const
     return MainApp::getCurrentAppTime();
 }
 
+double StrategySDK::getTradeRate(const QString& p_symbol) const
+{
+    return m_mainAlgo->getActivityMetrics(p_symbol).tradeRateHz;
+}
+
+double StrategySDK::getL2UpdateRate(const QString& p_symbol) const
+{
+    return m_mainAlgo->getActivityMetrics(p_symbol).l2RateHz;
+}
+
+bool StrategySDK::isSymbolActive(const QString& p_symbol) const
+{
+    return m_mainAlgo->getActivityMetrics(p_symbol).isActive;
+}
+
 // StrategyManager implementation
 
 StrategyManager::StrategyManager(MainAlgo* p_mainAlgo) : QObject(nullptr), m_mainAlgo(p_mainAlgo)
@@ -820,37 +835,11 @@ void StrategyManager::onMainAlgoOrderUpdated(const QString& p_account, const Ord
 
 void StrategyManager::connectStrategyToDataSources(StrategyInstance* p_instance)
 {
-    if (!p_instance || !m_mainAlgo || !p_instance->p_adapter)
-    {
-        return;
-    }
-
-    // Connect bar data from MainAlgo to strategy adapter
-    // MainAlgo emits displayedStockReceivedNewBar on MainAlgo thread
-    // -> Connected to adapter->onBar with Qt::QueuedConnection
-    // -> Adapter slot executes on strategy thread
-    // -> Calls strategy->onBar() on strategy thread (thread-safe)
-    connect(m_mainAlgo,
-            &MainAlgo::displayedStockReceivedNewBar,
-            p_instance->p_adapter,
-            &StrategyCallbackAdapter::onBar,
-            Qt::QueuedConnection);
-
-    // Connect Level 2 market depth data
-    connect(m_mainAlgo,
-            &MainAlgo::displayedStockReceivedNewLevel2,
-            p_instance->p_adapter,
-            &StrategyCallbackAdapter::onLevel2,
-            Qt::QueuedConnection);
-
-    // Connect individual trade prints
-    connect(m_mainAlgo,
-            &MainAlgo::displayedStockReceivedNewTrade,
-            p_instance->p_adapter,
-            &StrategyCallbackAdapter::onTrade,
-            Qt::QueuedConnection);
-
-    qInfo(StrategyManagerLog) << "Connected strategy to data sources:" << p_instance->strategyID;
+    // Data connections (bar/level2/trade) are now wired per-symbol in connectSymbolToStrategy,
+    // directly from each SymbolContext to the adapter without bouncing through MainAlgo.
+    // This function is intentionally empty; retained for symmetry with
+    // disconnectStrategyFromDataSources which handles global cleanup on unload.
+    (void)p_instance;
 }
 
 void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_instance)
@@ -860,8 +849,12 @@ void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_inst
         return;
     }
 
-    // Disconnect all signals connected to this strategy's adapter
-    QObject::disconnect(m_mainAlgo, nullptr, p_instance->p_adapter, nullptr);
+    // Disconnect all tracked connections to this adapter
+    for (const auto& connection: p_instance->m_connections)
+    {
+        QObject::disconnect(connection);
+    }
+    p_instance->m_connections.clear();
 
     qInfo(StrategyManagerLog) << "Disconnected strategy from data sources:" << p_instance->strategyID;
 }
@@ -883,32 +876,32 @@ void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
         [adapter = instance->p_adapter, p_symbol]() { adapter->addMonitoredSymbol(p_symbol); },
         Qt::BlockingQueuedConnection);
 
-    if (p_instrument)
-    {
-        // Connect instrument bar data → adapter
-        bool connected = connect(&p_instrument->barReceiver,
-                                 &BarReceiver::receivedNewBar,
-                                 instance->p_adapter,
-                                 &StrategyCallbackAdapter::onBar,
-                                 Qt::QueuedConnection);
-        ASSUME_TRUE(connected);
+    // Connect SymbolContext signals directly to the adapter (no MainAlgo hop)
+    OBJ_ASSUME_DIFF(p_instrument, nullptr);
 
-        // Connect instrument level2 data → adapter
-        connected = connect(&p_instrument->m_level2Receiver,
-                            &Level2Receiver::receivedNewLevel2,
-                            instance->p_adapter,
-                            &StrategyCallbackAdapter::onLevel2,
-                            Qt::QueuedConnection);
-        ASSUME_TRUE(connected);
+    auto c1 = connect(&p_instrument->barReceiver,
+                      &BarReceiver::receivedNewBar,
+                      instance->p_adapter,
+                      &StrategyCallbackAdapter::onBar,
+                      Qt::QueuedConnection);
+    ASSUME_TRUE(c1);
+    instance->m_connections.push_back(c1);
 
-        // Connect instrument trade data → adapter
-        connected = connect(p_instrument,
-                            &SymbolContext::receivedNewTrade,
-                            instance->p_adapter,
-                            &StrategyCallbackAdapter::onTrade,
-                            Qt::QueuedConnection);
-        ASSUME_TRUE(connected);
-    }
+    auto c2 = connect(&p_instrument->m_level2Receiver,
+                      &Level2Receiver::receivedNewLevel2,
+                      instance->p_adapter,
+                      &StrategyCallbackAdapter::onLevel2,
+                      Qt::QueuedConnection);
+    ASSUME_TRUE(c2);
+    instance->m_connections.push_back(c2);
+
+    auto c3 = connect(p_instrument,
+                      &SymbolContext::receivedNewTrade,
+                      instance->p_adapter,
+                      &StrategyCallbackAdapter::onTrade,
+                      Qt::QueuedConnection);
+    ASSUME_TRUE(c3);
+    instance->m_connections.push_back(c3);
 
     qInfo(StrategyManagerLog) << "Connected symbol" << p_symbol << "to strategy" << p_strategyID;
 }
@@ -984,6 +977,7 @@ void StrategyManager::releaseSymbols(const QString& p_strategyID)
     for (const QString& symbol: released)
     {
         m_symbolRegistry.remove(symbol);
+        emit symbolReleased(symbol);
     }
     if (!released.isEmpty())
     {
@@ -999,11 +993,6 @@ void StrategyManager::releaseSymbols(const QString& p_strategyID)
             [sdk = instance->p_sdk]() { sdk->clearClaimedSymbols(); },
             Qt::QueuedConnection);
     }
-}
-
-bool StrategyManager::isSymbolClaimed(const QString& p_symbol) const
-{
-    return m_symbolRegistry.contains(p_symbol);
 }
 
 void StrategyManager::persistStrategiesState()

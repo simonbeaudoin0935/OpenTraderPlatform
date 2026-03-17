@@ -473,4 +473,12 @@ namespace AsyncLogger
 
     // Maximum time the consumer thread sleeps before flushing whatever is pending.
     inline constexpr int FLUSH_TIMEOUT_MS = 1000; // 1 s
+
+    // crashFlush() parameters: how many times to retry try_lock() and how long
+    // to sleep between attempts (via nanosleep, which is async-signal-safe).
+    // The consumer holds m_mutex for only a few microseconds at a time, so
+    // 10 × 1 ms is more than sufficient in practice while capping worst-case
+    // wait at ~10 ms.
+    inline constexpr int CRASH_FLUSH_RETRIES = 10;
+    inline constexpr long CRASH_FLUSH_RETRY_DELAY_NS = 1'000'000; // 1 ms
 } // namespace AsyncLogger

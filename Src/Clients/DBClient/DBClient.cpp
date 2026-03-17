@@ -23,6 +23,7 @@
 #include "SecureStorage.h"
 #include "Settings.h"
 #include "LTTng/LTTngTracepoints.h"
+#include "ThreadNames.h"
 
 #define LOGGING_CATEGORY DBClientLog
 
@@ -83,6 +84,9 @@ DBClient::DBClient() : QObject(nullptr)
     m_replayTimer.setSingleShot(true);
     m_replayTimer.moveToThread(&m_thread);
     connect(&m_replayTimer, &QTimer::timeout, this, &DBClient::onReplayTimerTick);
+
+    // Set kernel thread name when thread starts
+    connect(&m_thread, &QThread::started, this, &DBClient::onThreadStarted, Qt::DirectConnection);
 }
 
 DBClient::~DBClient()
@@ -203,23 +207,48 @@ void DBClient::connectLive()
 
     INFO << "Building LiveThreaded client for dataset:" << m_dataset;
 
-    try
-    {
-        m_liveClient = std::make_unique<databento::LiveThreaded>(
-            databento::LiveThreaded::Builder().SetKey(key).SetDataset(dataset).BuildThreaded());
+    // BuildThreaded() performs synchronous network authentication which can block
+    // for seconds when credentials are invalid or the subscription doesn't cover
+    // the dataset.  Run it on the thread pool so the DBClient event loop stays
+    // responsive for replay startup and other queued work.
+    [[maybe_unused]] auto future = QtConcurrent::run(
+        [this, key, dataset]()
+        {
+            try
+            {
+                auto* client = new databento::LiveThreaded(
+                    databento::LiveThreaded::Builder().SetKey(key).SetDataset(dataset).BuildThreaded());
 
-        m_liveClient->Start([this](databento::Metadata&& metadata) { onMetadataReceived(std::move(metadata)); },
+                // Hand the built client back to the DBClient thread for Start()
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, client]()
+                    {
+                        m_liveClient.reset(client);
+
+                        m_liveClient->Start(
+                            [this](databento::Metadata&& metadata) { onMetadataReceived(std::move(metadata)); },
                             [this](const databento::Record& record) { return onRecordReceived(record); },
                             [this](const std::exception& ex) { return onException(ex); });
 
-        INFO << "Live session starting...";
-    }
-    catch (const std::exception& ex)
-    {
-        CRITICAL << "Failed to connect live:" << ex.what();
-        m_liveClient.reset();
-        setConnectionState(ConnectionState::Disconnected);
-    }
+                        INFO << "Live session starting...";
+                    },
+                    Qt::QueuedConnection);
+            }
+            catch (const std::exception& ex)
+            {
+                QString error = QString::fromStdString(ex.what());
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, error]()
+                    {
+                        CRITICAL << "Failed to connect live:" << error;
+                        m_liveClient.reset();
+                        setConnectionState(ConnectionState::Disconnected);
+                    },
+                    Qt::QueuedConnection);
+            }
+        });
 }
 
 void DBClient::disconnectLive()
@@ -510,6 +539,11 @@ bool DBClient::hasReplayData(const QDate& p_date, const QString& p_symbol)
 {
     return QFile::exists(getReplayFilePath(p_date, p_symbol, "mbp10")) &&
            QFile::exists(getReplayFilePath(p_date, p_symbol, "trades"));
+}
+
+QDate DBClient::getReplayDate()
+{
+    return getInstance()->m_replayDate;
 }
 
 // ── State queries ──────────────────────────────────────────────────────────
@@ -1190,4 +1224,10 @@ void DBClient::updateReplayTime(qint64 p_epochMs)
         setCurrentReplayTime(newTime);
         emit replayTimeUpdated(newTime);
     }
+}
+
+void DBClient::onThreadStarted()
+{
+    // Set kernel thread name for visibility in trace tools (ps, top, LTTng, TraceCompass)
+    ThreadNames::setCurrentThreadName("DBClient");
 }

@@ -302,16 +302,6 @@ class StrategyManager final : public QObject
     void releaseSymbols(const QString& p_strategyID);
 
     /*
-     * Check if a symbol is claimed by any strategy.
-     * Used by MainAlgo to decide whether to keep a SymbolContext alive
-     * when the user switches the displayed stock away from it.
-     *
-     * @param p_symbol Symbol to check
-     * @return true if any strategy has claimed this symbol
-     */
-    [[nodiscard]] bool isSymbolClaimed(const QString& p_symbol) const;
-
-    /*
      * Restore previously loaded strategies from StrategiesState.ini.
      * Called once during startup (MainAlgo::onThreadStarted) after all data
      * source connections are established.
@@ -433,6 +423,13 @@ class StrategyManager final : public QObject
      */
     void symbolsClaimed(const QString& strategyID, const QStringList& claimedSymbols);
 
+    /**
+     * @brief Emitted when a strategy releases its claim on a symbol.
+     * Thread context: Emitted from MainAlgo thread (releaseSymbols)
+     * @param symbol The symbol being released
+     */
+    void symbolReleased(const QString& symbol);
+
   private:
     enum class StrategyState
     {
@@ -455,6 +452,9 @@ class StrategyManager final : public QObject
         std::unique_ptr<StrategyLogger> p_logger;    // Strategy logger (owned)
         Qt::HANDLE threadHandle;                     // Native thread handle for stats reading
         StrategyState state = StrategyState::LOADED; // Tracks: LOADED → RUNNING → STOPPED
+
+        // Track signal connections to adapter for explicit disconnection on unload
+        QVector<QMetaObject::Connection> m_connections; // All connections to p_adapter
     };
 
     MainAlgo* m_mainAlgo;

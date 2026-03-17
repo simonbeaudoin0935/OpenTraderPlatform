@@ -1,5 +1,6 @@
 #include "StrategyLoadDialog.h"
 
+#include <QCheckBox>
 #include <QDir>
 #include <QDoubleSpinBox>
 #include <QFileDialog>
@@ -7,6 +8,7 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -14,6 +16,8 @@
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QVBoxLayout>
+
+#include "StrategyLoader.h"
 
 StrategyLoadDialog::StrategyLoadDialog(QWidget* parent) : QDialog(parent)
 {
@@ -46,7 +50,7 @@ void StrategyLoadDialog::setupUI()
     pluginGroup->setLayout(pluginLayout);
     mainLayout->addWidget(pluginGroup);
 
-    // --- Parameters form ---
+    // --- Standard parameters form ---
     auto* paramsGroup = new QGroupBox("Parameters");
     auto* formLayout = new QFormLayout();
 
@@ -72,6 +76,13 @@ void StrategyLoadDialog::setupUI()
 
     paramsGroup->setLayout(formLayout);
     mainLayout->addWidget(paramsGroup);
+
+    // --- Custom parameters section (shown only when plugin exports a schema) ---
+    m_customParamsGroup = new QGroupBox("Custom Parameters");
+    m_customParamsFormLayout = new QFormLayout();
+    m_customParamsGroup->setLayout(m_customParamsFormLayout);
+    m_customParamsGroup->setVisible(false);
+    mainLayout->addWidget(m_customParamsGroup);
 
     mainLayout->addStretch();
 
@@ -121,6 +132,10 @@ void StrategyLoadDialog::onBrowseClicked()
     {
         m_nameEdit->setText(baseName);
     }
+
+    // Peek at the plugin's parameter schema and rebuild custom params section
+    QJsonArray schema = StrategyLoader::peekParameterSchema(soPath);
+    populateCustomParams(schema);
 }
 
 void StrategyLoadDialog::onLoadClicked()
@@ -165,6 +180,19 @@ void StrategyLoadDialog::onLoadClicked()
     config.positionSize = m_positionSizeSpin->value();
     config.riskLimit = m_riskLimitSpin->value();
 
+    // Collect custom parameter values from dynamically-generated widgets
+    for (const auto& [key, widget]: m_customParamWidgets)
+    {
+        if (auto* spin = qobject_cast<QSpinBox*>(widget))
+            config.customParams[key] = QJsonValue(spin->value());
+        else if (auto* dblSpin = qobject_cast<QDoubleSpinBox*>(widget))
+            config.customParams[key] = QJsonValue(dblSpin->value());
+        else if (auto* check = qobject_cast<QCheckBox*>(widget))
+            config.customParams[key] = QJsonValue(check->isChecked());
+        else if (auto* lineEdit = qobject_cast<QLineEdit*>(widget))
+            config.customParams[key] = QJsonValue(lineEdit->text());
+    }
+
     m_selectedConfig = config;
     accept();
 }
@@ -179,4 +207,77 @@ void StrategyLoadDialog::validateForm()
     bool soValid = !m_soPathEdit->text().trimmed().isEmpty();
     bool symbolsValid = !m_symbolsEdit->text().trimmed().isEmpty();
     m_loadButton->setEnabled(soValid && symbolsValid);
+}
+
+void StrategyLoadDialog::clearCustomParams()
+{
+    // Remove all rows from the form layout
+    while (m_customParamsFormLayout->rowCount() > 0)
+        m_customParamsFormLayout->removeRow(0);
+
+    m_customParamWidgets.clear();
+    m_customParamsGroup->setVisible(false);
+    adjustSize();
+}
+
+void StrategyLoadDialog::populateCustomParams(const QJsonArray& p_schema)
+{
+    clearCustomParams();
+
+    if (p_schema.isEmpty())
+        return;
+
+    for (const QJsonValue& entry: p_schema)
+    {
+        const QJsonObject param = entry.toObject();
+        const QString key = param["key"].toString();
+        const QString type = param["type"].toString();
+        const QString label = param.value("label").toString(key);
+        const QString description = param.value("description").toString();
+        const QJsonValue defaultVal = param.value("default");
+
+        if (key.isEmpty() || type.isEmpty())
+            continue;
+
+        QWidget* inputWidget = nullptr;
+
+        if (type == "int")
+        {
+            auto* spin = new QSpinBox();
+            spin->setRange(-1000000, 1000000);
+            spin->setValue(defaultVal.toInt(0));
+            inputWidget = spin;
+        }
+        else if (type == "double")
+        {
+            auto* dblSpin = new QDoubleSpinBox();
+            dblSpin->setRange(-1000000.0, 1000000.0);
+            dblSpin->setDecimals(4);
+            dblSpin->setValue(defaultVal.toDouble(0.0));
+            inputWidget = dblSpin;
+        }
+        else if (type == "bool")
+        {
+            auto* check = new QCheckBox();
+            check->setChecked(defaultVal.toBool(false));
+            inputWidget = check;
+        }
+        else // "string" or unknown
+        {
+            auto* lineEdit = new QLineEdit();
+            lineEdit->setText(defaultVal.toString());
+            inputWidget = lineEdit;
+        }
+
+        // Build label text; append description as tooltip if present
+        QString labelText = label + ":";
+        if (!description.isEmpty())
+            inputWidget->setToolTip(description);
+
+        m_customParamsFormLayout->addRow(labelText, inputWidget);
+        m_customParamWidgets.append({key, inputWidget});
+    }
+
+    m_customParamsGroup->setVisible(true);
+    adjustSize();
 }

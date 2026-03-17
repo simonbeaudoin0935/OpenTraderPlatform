@@ -20,4 +20,5 @@ debian/debhelper-build-stamp
 # Sanitizer and Valgrind reports
 .sanitizers/*/*.txt
 
+#TODO files
 TODO/

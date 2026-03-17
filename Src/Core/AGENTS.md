@@ -195,14 +195,18 @@ MainApp creates signal chains to propagate data:
 TSClient ─[authStateChanged]→ MainAlgo
         ─[authStateChanged]→ FrontEnd
 
-MainAlgo ─[displayedStockReceivedNewBar]→ FrontEnd
-         ─[receivedNewPosition]→ FrontEnd
+MainAlgo ─[receivedNewPosition]→ FrontEnd
+         ─[receivedNewOrder]→ FrontEnd
          ─[tradeStationAccountsReceived]→ FrontEnd
 
 MemoryMonitor ─[memoryUsageUpdated]→ FrontEnd
 
 FrontEnd ─[selectedDisplayedStock]→ MainAlgo
 ```
+
+> **Note**: Market data (bars, Level 2, trades) is NOT wired through MainApp.
+> MainAlgo writes snapshots into `DisplaySnapshot` (inside SymbolContext) and
+> GUIFrontend reads them at 30 Hz via a pull timer. See `Src/FrontEnd/AGENTS.md`.
 
 ### Lifetime Management
 

@@ -13,6 +13,7 @@
 #include "CONSTANTS.h"
 #include "BarUtils.h"
 #include "LTTng/LTTngTracepoints.h"
+#include "ThreadNames.h"
 
 #define LOGGING_CATEGORY DatabaseThreadLog
 
@@ -70,6 +71,8 @@ void DatabaseThread::start()
 
 void DatabaseThread::onThreadStarted()
 {
+    // Set kernel thread name for visibility in trace tools (ps, top, LTTng, TraceCompass)
+    ThreadNames::setCurrentThreadName("DatabaseThread");
     INFO << "Database thread started";
 }
 

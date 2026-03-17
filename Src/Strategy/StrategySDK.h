@@ -169,6 +169,29 @@ class StrategySDK : public QObject
     [[nodiscard]]
     QDateTime getCurrentTime() const;
 
+    // -------------------------------------------------------------------------
+    // Activity metrics — read-only, thread-safe, updated in real time
+    // -------------------------------------------------------------------------
+
+    /// @brief EMA-smoothed trade print rate for a symbol (events per second).
+    /// @param symbol Symbol to query (must be a monitored symbol)
+    /// @return Trades per second, or 0 if no data yet / symbol unknown
+    [[nodiscard]]
+    double getTradeRate(const QString& symbol) const;
+
+    /// @brief EMA-smoothed Level2 update rate for a symbol (events per second).
+    /// @param symbol Symbol to query (must be a monitored symbol)
+    /// @return L2 updates per second, or 0 if no data yet / symbol unknown
+    [[nodiscard]]
+    double getL2UpdateRate(const QString& symbol) const;
+
+    /// @brief Whether a symbol is currently considered active (combined rate above threshold).
+    /// Uses hysteresis: becomes active above 0.5 events/sec, inactive below 0.1 events/sec.
+    /// @param symbol Symbol to query
+    /// @return true if the symbol is producing data at a meaningful rate
+    [[nodiscard]]
+    bool isSymbolActive(const QString& symbol) const;
+
   private:
     MainAlgo* m_mainAlgo;
     QString m_strategyID;

@@ -159,6 +159,7 @@ void LoggingTab::onCategoryCheckBoxToggled(bool checked)
 void LoggingTab::onLoggerVisibilityToggled(bool checked)
 {
     saveSetting("Logging/LoggerVisible", checked);
+    LogBroadcaster::setGuiLoggingEnabled(checked);
     emit loggerVisibilityChanged(checked);
 }
 

@@ -181,6 +181,8 @@ TradingSession MainApp::getCurrentSession()
 
 MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainAlgo::getInstance())
 {
+    QThread::currentThread()->setObjectName("GUI/Main Thread");
+
 #ifdef GUI_ENABLED
     appFrontend = new GUIFrontend(mainAlgo);
 #else
@@ -213,30 +215,8 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
                      appFrontend,
                      &FrontEnd::onTSClientDataUsageUpdate);
 
-    QObject::connect(mainAlgo,
-                     &MainAlgo::displayedStockReceivedNewBar,
-                     appFrontend,
-                     &FrontEnd::onCurrentHighlightedStockBarReceived);
-
-    QObject::connect(mainAlgo,
-                     &MainAlgo::displayedStockAggregatorBarUpdated,
-                     appFrontend,
-                     &FrontEnd::onDisplayedStockAggregatorBarUpdated);
-
-    QObject::connect(mainAlgo,
-                     &MainAlgo::displayedStockAggregatorBarClosed,
-                     appFrontend,
-                     &FrontEnd::onDisplayedStockAggregatorBarClosed);
-
-    QObject::connect(mainAlgo,
-                     &MainAlgo::displayedStockReceivedNewLevel2,
-                     appFrontend,
-                     &FrontEnd::onCurrentHighlightedReceivedNewLevel2);
-
-    QObject::connect(mainAlgo,
-                     &MainAlgo::displayedStockReceivedNewTrade,
-                     appFrontend,
-                     &FrontEnd::onCurrentHighlightedReceivedNewTrade);
+    // High-frequency market data (bars, L2, trades, aggregator bars, replay time)
+    // is now pulled by GUIFrontend at 30 Hz from DisplaySnapshot — no cross-thread signals needed.
 
     QObject::connect(mainAlgo, &MainAlgo::receivedNewPosition, appFrontend, &FrontEnd::onNewPositionReceived);
 
@@ -245,9 +225,6 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
     QObject::connect(mainAlgo, &MainAlgo::receivedNewOrder, appFrontend, &FrontEnd::onNewOrderReceived);
 
     QObject::connect(mainAlgo, &MainAlgo::balanceUpdated, appFrontend, &FrontEnd::onBalanceUpdated);
-
-    // Replay mode signals
-    QObject::connect(mainAlgo, &MainAlgo::replayTimeUpdated, appFrontend, &FrontEnd::onReplayTimeUpdated);
 }
 
 MainApp::~MainApp()

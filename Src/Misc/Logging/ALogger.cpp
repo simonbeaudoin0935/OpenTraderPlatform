@@ -108,6 +108,48 @@ void ALogger::syncFlush()
     fsync(m_fd);
 }
 
+void ALogger::crashFlush()
+{
+    struct timespec ts
+    {
+        0, AsyncLogger::CRASH_FLUSH_RETRY_DELAY_NS
+    };
+
+    for (int i = 0; i < AsyncLogger::CRASH_FLUSH_RETRIES; ++i)
+    {
+        if (m_mutex.try_lock())
+        {
+            if (m_count > 0)
+            {
+                const size_t remaining = m_bufferSize - m_tail;
+
+                if (remaining >= m_count)
+                {
+                    writeToFd(&m_buffer[m_tail], m_count);
+                    m_tail += m_count;
+                    if (m_tail == m_bufferSize)
+                        m_tail = 0;
+                }
+                else
+                {
+                    writeToFd(&m_buffer[m_tail], remaining);
+                    writeToFd(&m_buffer[0], m_count - remaining);
+                    m_tail = m_count - remaining;
+                }
+
+                m_count = 0;
+                fsync(m_fd);
+            }
+
+            m_mutex.unlock();
+            return;
+        }
+
+        nanosleep(&ts, nullptr);
+    }
+    // Lock not acquired after all retries — skip drain to avoid deadlock.
+}
+
 void ALogger::shutdown()
 {
     if (m_shutdown.exchange(true))

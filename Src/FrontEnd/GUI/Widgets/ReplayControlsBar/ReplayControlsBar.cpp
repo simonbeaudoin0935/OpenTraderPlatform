@@ -204,7 +204,6 @@ QTime ReplayControlsBar::getReplayStartTime() const
 void ReplayControlsBar::setReplayStartTime(const QTime& time)
 {
     m_timeEdit->setTime(time);
-    m_lastReplayTime = time;
 }
 
 // ---------------------------------------------------------------------------
@@ -261,7 +260,7 @@ void ReplayControlsBar::setReplayState(ReplayState state)
 
 void ReplayControlsBar::setCurrentTimeFrame(TimeFrame tf)
 {
-    m_currentTimeFrame = tf;
+    Q_UNUSED(tf)
     updateTimeEditStep();
 }
 
@@ -292,17 +291,7 @@ void ReplayControlsBar::onReplayTimeChanged(const QTime& time)
     if (m_replayState == ReplayState::Playing)
         return;
 
-    QTime steppedTime = calculateSteppedTime(m_lastReplayTime, time);
-
-    if (steppedTime != time)
-    {
-        m_timeEdit->blockSignals(true);
-        m_timeEdit->setTime(steppedTime);
-        m_timeEdit->blockSignals(false);
-    }
-
-    m_lastReplayTime = steppedTime;
-    emit replayStartTimeChanged(steppedTime);
+    emit replayStartTimeChanged(time);
 }
 
 void ReplayControlsBar::onPlayPauseClicked()
@@ -384,88 +373,5 @@ void ReplayControlsBar::updateUIControlStates()
 
 void ReplayControlsBar::updateTimeEditStep()
 {
-    QTime currentTime = m_timeEdit->time();
-
-    switch (m_currentTimeFrame)
-    {
-    case TimeFrame::ONE_MINUTE:
-        m_timeEdit->setDisplayFormat("hh:mm");
-        break;
-
-    case TimeFrame::FIVE_MINUTES:
-    case TimeFrame::FIFTEEN_MINUTES:
-    case TimeFrame::THIRTY_MINUTES:
-        m_timeEdit->setDisplayFormat("hh:mm");
-        break;
-
-    case TimeFrame::ONE_HOUR:
-    case TimeFrame::FOUR_HOURS:
-        m_timeEdit->setDisplayFormat("hh:00");
-        break;
-
-    default:
-        m_timeEdit->setDisplayFormat("hh:00");
-        break;
-    }
-
-    QTime snappedTime = snapTimeToStep(currentTime);
-    if (snappedTime != currentTime)
-    {
-        m_timeEdit->blockSignals(true);
-        m_timeEdit->setTime(snappedTime);
-        m_timeEdit->blockSignals(false);
-    }
-
-    m_lastReplayTime = snappedTime;
-}
-
-QTime ReplayControlsBar::calculateSteppedTime(const QTime& oldTime, const QTime& newTime) const
-{
-    int stepMinutes = static_cast<int>(m_currentTimeFrame);
-
-    if (stepMinutes <= 1)
-        return newTime;
-
-    if (!oldTime.isValid())
-        return snapTimeToStep(newTime);
-
-    int oldTotalMins = oldTime.hour() * 60 + oldTime.minute();
-    int newTotalMins = newTime.hour() * 60 + newTime.minute();
-
-    if (newTotalMins == oldTotalMins)
-        return newTime;
-
-    int direction = (newTotalMins > oldTotalMins) ? 1 : -1;
-    int steppedMins = qBound(0, oldTotalMins + (direction * stepMinutes), 23 * 60 + 59);
-
-    if (stepMinutes >= 60)
-    {
-        int stepHours = stepMinutes / 60;
-        int hour = (steppedMins / 60 / stepHours) * stepHours;
-        return QTime(hour, 0, 0);
-    }
-
-    int hour = steppedMins / 60;
-    int minute = (steppedMins % 60 / stepMinutes) * stepMinutes;
-    return QTime(hour, minute, 0);
-}
-
-QTime ReplayControlsBar::snapTimeToStep(const QTime& time) const
-{
-    int hour = time.hour();
-    int minute = time.minute();
-    int stepMinutes = static_cast<int>(m_currentTimeFrame);
-
-    if (stepMinutes >= 60)
-    {
-        int stepHours = stepMinutes / 60;
-        hour = (hour / stepHours) * stepHours;
-        minute = 0;
-    }
-    else if (stepMinutes > 1)
-    {
-        minute = (minute / stepMinutes) * stepMinutes;
-    }
-
-    return QTime(hour, minute, 0);
+    m_timeEdit->setDisplayFormat("hh:mm");
 }
