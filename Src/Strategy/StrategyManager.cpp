@@ -660,34 +660,6 @@ QVector<Position> StrategyManager::getStrategyOpenPositions(const QString& p_str
     return QVector<Position>();
 }
 
-void StrategyManager::onBarReceived(const QString& p_symbol, const Bar& p_bar)
-{
-    for (auto* instance: m_strategies)
-    {
-        if (instance && instance->monitoredSymbols.contains(p_symbol))
-        {
-            if (instance->p_strategy)
-            {
-                instance->p_strategy->onBar(p_bar);
-            }
-        }
-    }
-}
-
-void StrategyManager::onLevel2Received(const QString& p_symbol, const Level2& p_level2)
-{
-    for (auto* instance: m_strategies)
-    {
-        if (instance && instance->monitoredSymbols.contains(p_symbol))
-        {
-            if (instance->p_strategy)
-            {
-                instance->p_strategy->onLevel2(p_level2);
-            }
-        }
-    }
-}
-
 void StrategyManager::onOrderFilled(const Order& p_order)
 {
     for (auto* instance: m_strategies)

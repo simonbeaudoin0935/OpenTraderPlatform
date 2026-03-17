@@ -311,18 +311,6 @@ class StrategyManager final : public QObject
 
   public slots:
     /*
-     * Called when MainAlgo receives a new bar
-     * Broadcasts bar to all strategies monitoring that symbol
-     */
-    void onBarReceived(const QString& p_symbol, const Bar& p_bar);
-
-    /*
-     * Called when MainAlgo receives market depth update
-     * Broadcasts to all strategies monitoring that symbol
-     */
-    void onLevel2Received(const QString& p_symbol, const Level2& p_level2);
-
-    /*
      * Called when an order is updated (any status change)
      * Routes to strategy that placed the order
      */

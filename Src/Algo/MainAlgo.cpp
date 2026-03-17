@@ -1237,9 +1237,6 @@ void MainAlgo::onDisplayedBarReceived(const QString& symbol, const Bar& bar)
         m_currentDisplayedSymbolContext->m_displaySnapshot.latestBar = bar;
         m_currentDisplayedSymbolContext->m_displaySnapshot.barDirty = true;
     }
-
-    // Forward to strategies monitoring this symbol
-    m_strategyManager.onBarReceived(symbol, bar);
 }
 
 void MainAlgo::onDisplayedLevel2Received(const QString& symbol, const Level2& level2)
@@ -1257,9 +1254,6 @@ void MainAlgo::onDisplayedLevel2Received(const QString& symbol, const Level2& le
         m_currentDisplayedSymbolContext->m_displaySnapshot.latestLevel2 = level2;
         m_currentDisplayedSymbolContext->m_displaySnapshot.l2Dirty = true;
     }
-
-    // Forward to strategies monitoring this symbol
-    m_strategyManager.onLevel2Received(symbol, level2);
 }
 
 void MainAlgo::onDisplayedTradeReceived(const QString& symbol, const Trade& trade)
@@ -1764,21 +1758,6 @@ void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)
                                                onDisplayedTradeReceived(sym, trade);
                                        });
     ASSUME_TRUE(m_displayTradeConnection);
-
-    // Connect to strategy manager for bar delivery
-    connected = connect(&m_currentDisplayedSymbolContext->barReceiver,
-                        &BarReceiver::receivedNewBar,
-                        &m_strategyManager,
-                        &StrategyManager::onBarReceived,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(&m_currentDisplayedSymbolContext->m_level2Receiver,
-                        &Level2Receiver::receivedNewLevel2,
-                        &m_strategyManager,
-                        &StrategyManager::onLevel2Received,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
 
     INFO << "Stock instrument created and set as displayed for" << p_symbol;
 }
