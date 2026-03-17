@@ -198,13 +198,27 @@ if $FLAMEGRAPH_ENABLED; then
 fi
 echo ""
 
-if $FLAMEGRAPH_ENABLED; then
-    # Launch in background — redirect output so app logs don't block stdin.
-    # Logs already go to ~/.local/state/L2Trader/AppLogs/ so nothing is lost.
-    APP_LOG="${TRACE_DIR}/app_console.log"
-    LD_PRELOAD=liblttng-ust-cyg-profile.so "$APP" >"$APP_LOG" 2>&1 &
+_launch_app() {
+    if $FLAMEGRAPH_ENABLED; then
+        LD_PRELOAD=liblttng-ust-cyg-profile.so "$APP" >"${TRACE_DIR}/app_console.log" 2>&1 &
+    else
+        "$APP" &
+    fi
     APP_PID=$!
-    echo "[app] PID $APP_PID — console output redirected to $APP_LOG"
+}
+
+_track_pid() {
+    # Restrict UST session to only the app's PID — must be done AFTER launch
+    # so the process exists and has registered its UST probes.
+    lttng untrack --session "$UST_SESSION" --userspace --vpid --all
+    lttng track  --session "$UST_SESSION" --userspace --vpid "$APP_PID"
+    echo "[ust] tracking PID $APP_PID only"
+}
+
+if $FLAMEGRAPH_ENABLED; then
+    _launch_app
+    echo "[app] PID $APP_PID — console output redirected to ${TRACE_DIR}/app_console.log"
+    _track_pid
 
     # Toggle flamegraph on/off with ENTER keypresses until the app exits
     FLAMEGRAPH_ACTIVE=false
@@ -226,5 +240,7 @@ if $FLAMEGRAPH_ENABLED; then
 
     wait "$APP_PID" 2>/dev/null || true
 else
-    "$APP"
+    _launch_app
+    _track_pid
+    wait "$APP_PID" 2>/dev/null || true
 fi
