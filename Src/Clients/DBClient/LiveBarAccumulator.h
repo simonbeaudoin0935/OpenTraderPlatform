@@ -6,6 +6,8 @@
 #include <QObject>
 #include <QString>
 
+#include <optional>
+
 #include "Core/Models/Bar.h"
 #include "Core/Models/Trade.h"
 
@@ -40,6 +42,17 @@ class LiveBarAccumulator : public QObject
      * @param p_intervalSeconds Bar interval in seconds (default 60 = 1 minute, 10 = 10 seconds)
      */
     explicit LiveBarAccumulator(QObject* p_parent = nullptr, int p_intervalSeconds = 60);
+
+    /**
+     * @brief Return the current forming bar for a symbol, if one exists.
+     *
+     * Useful for seeding the DisplaySnapshot immediately after a symbol switch
+     * so the chart does not have to wait for the next trade to show the live bar.
+     *
+     * @param p_symbol Ticker symbol
+     * @return The forming bar as an immutable Bar (BarStatus::Open), or std::nullopt if none.
+     */
+    [[nodiscard]] std::optional<Bar> getFormingBar(const QString& p_symbol) const;
 
   public slots:
     /**

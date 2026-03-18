@@ -73,6 +73,14 @@ void LiveBarAccumulator::onNewTrade(const QString& p_symbol, const Trade& p_trad
     emit barUpdated(p_symbol, toBar(forming, Bar::BarStatus::Open));
 }
 
+std::optional<Bar> LiveBarAccumulator::getFormingBar(const QString& p_symbol) const
+{
+    auto it = m_formingBars.constFind(p_symbol);
+    if (it == m_formingBars.constEnd())
+        return std::nullopt;
+    return toBar(it.value(), Bar::BarStatus::Open);
+}
+
 QDateTime LiveBarAccumulator::barOpenTimeForTrade(const QDateTime& p_tradeTime) const
 {
     // Floor to current interval boundary (open-time convention):

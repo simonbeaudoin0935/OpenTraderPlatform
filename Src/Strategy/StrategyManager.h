@@ -311,71 +311,20 @@ class StrategyManager final : public QObject
 
   public slots:
     /*
-     * Called when MainAlgo receives a new bar
-     * Broadcasts bar to all strategies monitoring that symbol
-     */
-    void onBarReceived(const QString& p_symbol, const Bar& p_bar);
-
-    /*
-     * Called when MainAlgo receives market depth update
-     * Broadcasts to all strategies monitoring that symbol
-     */
-    void onLevel2Received(const QString& p_symbol, const Level2& p_level2);
-
-    /*
-     * Called when an order is updated (any status change)
-     * Routes to strategy that placed the order
-     */
-    void onOrderUpdated(const Order& p_order);
-
-    /*
      * Called when an order update should be routed to a specific strategy only
      * Used by MainAlgo when the owning strategy is known from m_orderMappings
      */
     void onOrderUpdatedForStrategy(const QString& p_strategyID, const Order& p_order);
 
     /*
-     * Called when MainAlgo receives a new order (ignores account parameter)
-     */
-    void onMainAlgoOrderUpdated(const QString& p_account, const Order& p_order);
-
-    /*
-      * Called when an order is filled
-      * Routes to strategy that placed the order
-      */
-    void onOrderFilled(const Order& p_order);
-
-    /*
-      * Called when an order is cancelled
-      * Routes to strategy that placed the order
-      */
-    void onOrderCancelled(const Order& p_order);
-
-    /*
-      * Called when an order is rejected
-      * Routes to strategy that placed the order
-      */
-    void onOrderRejected(const Order& p_order, const QString& p_reason);
-
-    /*
-     * Called when a position is updated
-     * Routes to all strategies or specific strategy if isolated
-     */
-    void onPositionUpdated(const Position& p_position);
-
-    /*
-     * Called when MainAlgo receives a new position (ignores account parameter)
+     * Called when MainAlgo receives a new position
+     * Dispatches to all strategies via adapter (strategy thread)
      */
     void onMainAlgoPositionUpdated(const QString& p_account, const Position& p_position);
 
     /*
-     * Called when balance is updated (double version for strategies)
-     */
-    void onBalanceUpdated(double p_newBalance);
-
-    /*
      * Called when MainAlgo receives balance update (from TSClient)
-     * Converts Balance object to double and broadcasts to strategies
+     * Dispatches to all strategies via adapter (strategy thread)
      */
     void onMainAlgoBalanceUpdated(const Balance& p_balance);
 

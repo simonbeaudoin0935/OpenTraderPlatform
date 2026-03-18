@@ -131,23 +131,14 @@ void MainAlgo::onThreadStarted()
     DEBUG << "Installed crash notification handler";
 
 
-    // Connect data signals to StrategyManager for strategy data broadcasting.
-    // Bar and L2 data for the displayed stock is forwarded to strategies.
-    // TODO: Replace with per-symbol SymbolContext connections when strategies subscribe.
-    connect(this,
-            &MainAlgo::receivedNewOrder,
-            &m_strategyManager,
-            &StrategyManager::onMainAlgoOrderUpdated,
-            Qt::QueuedConnection);
-
-    // Positions: route only to strategy that placed the order
+    // Positions: broadcast to all strategies via adapter (strategy thread)
     connect(this,
             &MainAlgo::receivedNewPosition,
             &m_strategyManager,
             &StrategyManager::onMainAlgoPositionUpdated,
             Qt::QueuedConnection);
 
-    // Balance: broadcast to all strategies
+    // Balance: broadcast to all strategies via adapter (strategy thread)
     connect(this,
             &MainAlgo::balanceUpdated,
             &m_strategyManager,
@@ -301,6 +292,20 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             QWriteLocker lock(&m_symbolContextsLock);
             m_symbolContexts.insert(symbol, m_currentDisplayedSymbolContext);
         }
+
+        // Subscribe to data for the new symbol
+        if (MainApp::isInReplayMode())
+        {
+            if (!DBClient::getInstance()->addReplaySymbol(symbol))
+                WARNING << "No replay data for" << symbol << "- live bars will not flow";
+        }
+        else
+        {
+            auto* dbClient = DBClient::getInstance();
+            if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
+                dbClient->subscribeLive(symbol);
+        }
+
         DEBUG << "onSelectDisplayedStock: created new SymbolContext for" << symbol;
     }
 
@@ -374,6 +379,26 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
                                            if (sym == symbol)
                                                onDisplayedTradeReceived(sym, trade);
                                        });
+
+    // Seed the DisplaySnapshot with the current forming bar so the chart shows it
+    // immediately on the next 30 Hz tick, without waiting for the next trade.
+    // Critical for low-volume symbols where inter-trade gaps can be several seconds.
+    auto formingBar = m_currentDisplayedSymbolContext->m_liveBarAccumulator.getFormingBar(symbol);
+    if (formingBar.has_value())
+    {
+        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+        m_currentDisplayedSymbolContext->m_displaySnapshot.latestBar = formingBar.value();
+        m_currentDisplayedSymbolContext->m_displaySnapshot.barDirty = true;
+    }
+
+    // Same for the 10s accumulator
+    auto forming10s = m_currentDisplayedSymbolContext->m_live10sBarAccumulator.getFormingBar(symbol);
+    if (forming10s.has_value())
+    {
+        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+        m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = forming10s.value();
+        m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
+    }
 }
 
 BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last, TimeFrame tf)
@@ -507,30 +532,23 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
         auto c1 = connect(m_positionReceiver,
                           &PositionsReceiver::receivedNewPosition,
                           this,
-                          &MainAlgo::receivedNewPosition,
+                          &MainAlgo::onReceivedNewPosition,
                           Qt::UniqueConnection);
         OBJ_ASSUME_TRUE(c1);
 
         auto c2 = connect(m_positionReceiver,
-                          &PositionsReceiver::receivedNewPosition,
-                          this,
-                          &MainAlgo::onReceivedNewPosition,
-                          Qt::UniqueConnection);
-        OBJ_ASSUME_TRUE(c2);
-
-        auto c3 = connect(m_positionReceiver,
                           &PositionsReceiver::positionDeleted,
                           this,
                           &MainAlgo::onPositionDeleted,
                           Qt::UniqueConnection);
-        OBJ_ASSUME_TRUE(c3);
+        OBJ_ASSUME_TRUE(c2);
 
-        auto c4 = connect(m_positionReceiver,
+        auto c3 = connect(m_positionReceiver,
                           &PositionsReceiver::loadedPositionsFromDatabase,
                           this,
                           &MainAlgo::onLoadedPositionsFromDatabase,
                           Qt::UniqueConnection);
-        OBJ_ASSUME_TRUE(c4);
+        OBJ_ASSUME_TRUE(c3);
     }
 
     // Only initialize order stream once
@@ -1237,9 +1255,6 @@ void MainAlgo::onDisplayedBarReceived(const QString& symbol, const Bar& bar)
         m_currentDisplayedSymbolContext->m_displaySnapshot.latestBar = bar;
         m_currentDisplayedSymbolContext->m_displaySnapshot.barDirty = true;
     }
-
-    // Forward to strategies monitoring this symbol
-    m_strategyManager.onBarReceived(symbol, bar);
 }
 
 void MainAlgo::onDisplayedLevel2Received(const QString& symbol, const Level2& level2)
@@ -1257,9 +1272,6 @@ void MainAlgo::onDisplayedLevel2Received(const QString& symbol, const Level2& le
         m_currentDisplayedSymbolContext->m_displaySnapshot.latestLevel2 = level2;
         m_currentDisplayedSymbolContext->m_displaySnapshot.l2Dirty = true;
     }
-
-    // Forward to strategies monitoring this symbol
-    m_strategyManager.onLevel2Received(symbol, level2);
 }
 
 void MainAlgo::onDisplayedTradeReceived(const QString& symbol, const Trade& trade)
@@ -1714,14 +1726,20 @@ void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)
     m_symbolContexts[p_symbol] = newInstrument;
     m_currentDisplayedSymbolContext = newInstrument;
 
-    // Subscribe to live data if DBClient is connected (not in replay mode)
-    if (!MainApp::isInReplayMode())
+    // Claim display reference (matches the release in onSelectDisplayedStock)
+    ++newInstrument->m_refCount;
+
+    // Subscribe to data for the new symbol
+    if (MainApp::isInReplayMode())
+    {
+        if (!DBClient::getInstance()->addReplaySymbol(p_symbol))
+            WARNING << "No replay data for" << p_symbol << "- live bars will not flow";
+    }
+    else
     {
         auto* dbClient = DBClient::getInstance();
         if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
-        {
             dbClient->subscribeLive(p_symbol);
-        }
     }
 
     // Connect bar signals for the new displayed instrument
@@ -1754,6 +1772,39 @@ void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)
                         Qt::UniqueConnection);
     ASSUME_TRUE(connected);
 
+    // Forward 10s bar updates to DisplaySnapshot
+    connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
+            &LiveBarAccumulator::barUpdated,
+            this,
+            [this](const QString&, const Bar& bar)
+            {
+                if (!m_currentDisplayedSymbolContext)
+                    return;
+                L2T_TP(l2trader,
+                       snapshot_write,
+                       m_currentDisplayedSymbolContext->symbol.toUtf8().constData(),
+                       "aggregator10s");
+                QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
+            });
+
+    connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
+            &LiveBarAccumulator::barClosed,
+            this,
+            [this](const QString&, const Bar& bar)
+            {
+                if (!m_currentDisplayedSymbolContext)
+                    return;
+                L2T_TP(l2trader,
+                       snapshot_write,
+                       m_currentDisplayedSymbolContext->symbol.toUtf8().constData(),
+                       "aggregator10s");
+                QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
+                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
+            });
+
     // Forward trades for displayed symbol to FrontEnd (store handle for clean targeted disconnect)
     m_displayTradeConnection = connect(DBClient::getInstance(),
                                        &DBClient::newTrade,
@@ -1765,20 +1816,22 @@ void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)
                                        });
     ASSUME_TRUE(m_displayTradeConnection);
 
-    // Connect to strategy manager for bar delivery
-    connected = connect(&m_currentDisplayedSymbolContext->barReceiver,
-                        &BarReceiver::receivedNewBar,
-                        &m_strategyManager,
-                        &StrategyManager::onBarReceived,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
+    // Seed the DisplaySnapshot with the current forming bar (same as onSelectDisplayedStock)
+    auto formingBar = m_currentDisplayedSymbolContext->m_liveBarAccumulator.getFormingBar(p_symbol);
+    if (formingBar.has_value())
+    {
+        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+        m_currentDisplayedSymbolContext->m_displaySnapshot.latestBar = formingBar.value();
+        m_currentDisplayedSymbolContext->m_displaySnapshot.barDirty = true;
+    }
 
-    connected = connect(&m_currentDisplayedSymbolContext->m_level2Receiver,
-                        &Level2Receiver::receivedNewLevel2,
-                        &m_strategyManager,
-                        &StrategyManager::onLevel2Received,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
+    auto forming10s = m_currentDisplayedSymbolContext->m_live10sBarAccumulator.getFormingBar(p_symbol);
+    if (forming10s.has_value())
+    {
+        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
+        m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = forming10s.value();
+        m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
+    }
 
     INFO << "Stock instrument created and set as displayed for" << p_symbol;
 }

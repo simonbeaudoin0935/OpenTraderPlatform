@@ -293,6 +293,9 @@ class MainAlgo final : public QObject
                              const QStringList& p_symbols,
                              std::shared_ptr<QPromise<QStringList>> p_promise);
 
+    /// @brief Release one reference on a SymbolContext. Destroys it when refCount reaches 0.
+    void releaseSymbolContextRef(const QString& symbol);
+
     /*
      * Replay mode control - called from MainApp via QMetaObject::invokeMethod
      */
@@ -492,7 +495,4 @@ class MainAlgo final : public QObject
     /// @brief Wire a SymbolContext's bar-close events to the OrderEmulator for PnL updates.
     /// Safe to call multiple times (uses UniqueConnection internally).
     void connectBarCloseToOrderEmulator(SymbolContext* p_sc, OrderEmulator* p_emulator);
-
-    /// @brief Release one reference on a SymbolContext. Destroys it when refCount reaches 0.
-    void releaseSymbolContextRef(const QString& symbol);
 };
