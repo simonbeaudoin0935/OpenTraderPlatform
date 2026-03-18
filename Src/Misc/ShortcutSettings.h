@@ -29,6 +29,8 @@ class ShortcutSettings : public QObject
         CancelAllOrders,
         ToggleReplayPlayPause,
         ToggleReplayMode,
+        OpenNewChart,
+        CloseChartWindow,
         // Timescale shortcuts
         TimeFrame10s,
         TimeFrame1m,
