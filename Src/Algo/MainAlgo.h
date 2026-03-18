@@ -293,6 +293,12 @@ class MainAlgo final : public QObject
                              const QStringList& p_symbols,
                              std::shared_ptr<QPromise<QStringList>> p_promise);
 
+    /// @brief Acquire a SymbolContext for a chart window (creates if needed, increments refCount).
+    /// Must be called on the MainAlgo thread (via QMetaObject::invokeMethod).
+    /// @param p_symbol Symbol to acquire
+    /// @return QPointer to the SymbolContext (may auto-null if destroyed)
+    [[nodiscard]] QPointer<SymbolContext> acquireSymbolContext(const QString& p_symbol);
+
     /// @brief Release one reference on a SymbolContext. Destroys it when refCount reaches 0.
     void releaseSymbolContextRef(const QString& symbol);
 
@@ -431,13 +437,10 @@ class MainAlgo final : public QObject
     void onReplayEndReached();
 
     // Forward higher-TF bar aggregator events to DisplaySnapshot
-    void onAggregatorBarUpdated(TimeFrame tf, const Bar& bar);
-    void onAggregatorBarClosed(TimeFrame tf, const Bar& bar);
+    // (Removed — snapshot writes are now handled inside SymbolContext)
 
     // Snapshot writers — populate DisplaySnapshot from incoming data
-    void onDisplayedBarReceived(const QString& symbol, const Bar& bar);
-    void onDisplayedLevel2Received(const QString& symbol, const Level2& level2);
-    void onDisplayedTradeReceived(const QString& symbol, const Trade& trade);
+    // (Removed — snapshot writes are now handled inside SymbolContext)
     void onReplayTimeReceived(const QDateTime& time);
 
   public:
@@ -487,10 +490,6 @@ class MainAlgo final : public QObject
     QDate m_replayDate;
     QTime m_replayStartTime;
     Playback::Speed m_replaySpeed = Playback::Speed::Normal;
-
-    // Handle for the display-symbol trade forwarding lambda so we can disconnect only it
-    // (not the permanent onNewTradeReceived routing connection) when switching symbols.
-    QMetaObject::Connection m_displayTradeConnection;
 
     /// @brief Wire a SymbolContext's bar-close events to the OrderEmulator for PnL updates.
     /// Safe to call multiple times (uses UniqueConnection internally).

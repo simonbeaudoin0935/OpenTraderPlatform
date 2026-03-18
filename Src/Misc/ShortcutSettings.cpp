@@ -48,6 +48,12 @@ QString ShortcutSettings::getSettingsKey(ShortcutId p_id) const
     case ToggleReplayMode:
         key += "ToggleReplayMode";
         break;
+    case OpenNewChart:
+        key += "OpenNewChart";
+        break;
+    case CloseChartWindow:
+        key += "CloseChartWindow";
+        break;
     case TimeFrame10s:
         key += "TimeFrame10s";
         break;
@@ -104,9 +110,14 @@ QString ShortcutSettings::getShortcutName(ShortcutId p_id) const
         return "Toggle Replay Play/Pause";
     case ToggleReplayMode:
         return "Toggle Replay Mode";
+    case OpenNewChart:
+        return "Open New Chart";
+    case CloseChartWindow:
+        return "Close Chart Window";
     case TimeFrame10s:
         return "Timescale 10 seconds";
     case TimeFrame1m:
+        return "Timescale 1 minute";
     case TimeFrame5m:
         return "Timescale 5 minutes";
     case TimeFrame15m:
@@ -150,6 +161,10 @@ QKeySequence ShortcutSettings::getDefaultShortcut(ShortcutId p_id) const
         return QKeySequence(Qt::Key_Space);
     case ToggleReplayMode:
         return QKeySequence("r");
+    case OpenNewChart:
+        return QKeySequence("Ctrl+T");
+    case CloseChartWindow:
+        return QKeySequence("Ctrl+W");
     case TimeFrame10s:
         return QKeySequence("1");
     case TimeFrame1m:
@@ -262,6 +277,8 @@ QList<ShortcutSettings::ShortcutId> ShortcutSettings::getAllShortcutIds() const
             CancelAllOrders,
             ToggleReplayPlayPause,
             ToggleReplayMode,
+            OpenNewChart,
+            CloseChartWindow,
             TimeFrame10s,
             TimeFrame1m,
             TimeFrame5m,

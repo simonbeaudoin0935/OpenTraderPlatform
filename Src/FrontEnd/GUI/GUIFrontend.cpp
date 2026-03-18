@@ -5,6 +5,8 @@
 #include <QMessageBox>
 #include <QPalette>
 #include <QApplication>
+#include <QScreen>
+#include <QWindow>
 #include <QShortcut>
 #include <QFont>
 #include <QTextCursor>
@@ -32,6 +34,8 @@
 #include "StrategyManager.h"
 #include "StockPriceChart/ChartToolbar.h"
 #include "StockPriceChart/StockPriceChart.h"
+#include "WindowManager/WindowManager.h"
+#include "ChartWindow/ChartWindow.h"
 #include "Misc/Logging/Logging.h"
 #include "Misc/Settings.h"
 #include "Misc/ShortcutSettings.h"
@@ -62,15 +66,28 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     // Install event filter on main window to handle close events
     m_mainWindow->installEventFilter(this);
 
-    m_mainWindow->showMaximized();
+    // Restore main window geometry from last session, or show maximized on primary screen
+    restoreMainWindowGeometry();
 
     // Initialize shortcuts from settings
     ShortcutSettings& shortcutSettings = ShortcutSettings::getInstance();
 
     // Add Ctrl+Q shortcut to quit the application gracefully
     m_quitShortcut = new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::QuitApplication), m_mainWindow);
-    // Connect to MainApp::shutdown() for graceful shutdown instead of abrupt quit
-    auto quitConnection = connect(m_quitShortcut, &QShortcut::activated, []() { MainApp::getInstance()->shutdown(); });
+    // Save state then shutdown gracefully
+    auto quitConnection = connect(m_quitShortcut,
+                                  &QShortcut::activated,
+                                  this,
+                                  [this]()
+                                  {
+                                      saveMainWindowGeometry();
+                                      if (m_windowManager)
+                                      {
+                                          m_windowManager->saveWindowState();
+                                          m_windowManager->setShuttingDown();
+                                      }
+                                      MainApp::getInstance()->shutdown();
+                                  });
     OBJ_ASSUME_TRUE(quitConnection);
 
     // Add "i" shortcut to focus the stock symbol input box
@@ -778,13 +795,44 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                 QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
             }
         });
+
+    // --- WindowManager: secondary chart windows ---
+    m_windowManager = new WindowManager(mainAlgo, this);
+
+    // Ctrl+T — open a new chart (panel in existing window, or new window if none)
+    // ApplicationShortcut so it works even when a secondary ChartWindow has focus
+    m_newChartWindowShortcut =
+        new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::OpenNewChart), m_mainWindow);
+    m_newChartWindowShortcut->setContext(Qt::ApplicationShortcut);
+    connected = connect(m_newChartWindowShortcut,
+                        &QShortcut::activated,
+                        this,
+                        [this]() { m_windowManager->openNewChart(currentlyDisplayedSymbol); });
+    ASSUME_TRUE(connected);
+
+    // Forward strategy log to all chart windows
+    connect(MainAlgo::getInstance(),
+            &MainAlgo::strategyLogEmitted,
+            this,
+            [this](const StrategyLogEntry& entry)
+            {
+                for (ChartWindow* cw: m_windowManager->chartWindows())
+                    cw->onStrategyLogReceived(entry);
+            });
+
+    // Restore chart windows from previous session (after a short delay so main window is settled)
+    QTimer::singleShot(600, this, [this]() { m_windowManager->restoreWindowState(); });
 }
 
 GUIFrontend::~GUIFrontend()
 {
+    // Note: window state is saved before shutdown begins (in eventFilter / Ctrl+Q handler).
+    // Do NOT save here — chart windows may already be destroyed by this point.
+
     // Delete main window explicitly (owns all child widgets via Qt parent-child)
     delete m_mainWindow;
     // ui is automatically deleted by std::unique_ptr
+    // m_windowManager is deleted by Qt parent-child (parent = this)
 }
 
 void GUIFrontend::setupDarkTheme(QMainWindow* p_mainWindow)
@@ -1003,92 +1051,96 @@ void GUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)
 // ---------------------------------------------------------------------------
 void GUIFrontend::onDisplayRefreshTick()
 {
+    // --- Main window snapshot refresh ---
     QPointer<SymbolContext> sc = mainAlgo->getDisplayedSymbolContext();
-    if (!sc)
-        return;
-
-    DisplaySnapshot& snap = sc->m_displaySnapshot;
-    QWriteLocker lock(&snap.lock);
-
-    int dirtyFlags = (snap.l2Dirty ? 1 : 0) | (snap.tradeDirty ? 2 : 0) | (snap.barDirty ? 4 : 0) |
-                     (snap.aggregatorDirty ? 8 : 0) | (snap.replayTimeDirty ? 16 : 0);
-    if (dirtyFlags == 0)
-        return;
-
-    L2T_TP(l2trader, gui_pull_tick, dirtyFlags);
-
-    if (snap.l2Dirty)
+    if (sc)
     {
-        Level2 l2 = *snap.latestLevel2;
-        snap.l2Dirty = false;
-        lock.unlock();
+        DisplaySnapshot& snap = sc->m_displaySnapshot;
+        QWriteLocker lock(&snap.lock);
 
-        L2T_TP(l2trader, gui_level2_received, sc->symbol.toUtf8().constData());
-        ui->level2Widget->updateData(l2.m_bids, l2.m_asks);
-        ui->orderEntryWidget->onMarketDepthUpdate(sc->symbol, l2);
+        int dirtyFlags = (snap.l2Dirty ? 1 : 0) | (snap.tradeDirty ? 2 : 0) | (snap.barDirty ? 4 : 0) |
+                         (snap.aggregatorDirty ? 8 : 0) | (snap.replayTimeDirty ? 16 : 0);
 
-        lock.relock();
-    }
-
-    if (snap.tradeDirty)
-    {
-        QVector<Trade> trades;
-        trades.swap(snap.pendingTrades);
-        snap.tradeDirty = false;
-        lock.unlock();
-
-        for (const auto& t: trades)
+        if (dirtyFlags != 0)
         {
-            L2T_TP(l2trader, gui_trade_received, sc->symbol.toUtf8().constData());
-            ui->timeAndSalesWidget->onNewTrade(sc->symbol, t);
+            L2T_TP(l2trader, gui_pull_tick, dirtyFlags);
+
+            if (snap.l2Dirty)
+            {
+                Level2 l2 = *snap.latestLevel2;
+                snap.l2Dirty = false;
+                lock.unlock();
+
+                L2T_TP(l2trader, gui_level2_received, sc->symbol.toUtf8().constData());
+                ui->level2Widget->updateData(l2.m_bids, l2.m_asks);
+                ui->orderEntryWidget->onMarketDepthUpdate(sc->symbol, l2);
+
+                lock.relock();
+            }
+
+            if (snap.tradeDirty)
+            {
+                QVector<Trade> trades;
+                trades.swap(snap.pendingTrades);
+                snap.tradeDirty = false;
+                lock.unlock();
+
+                for (const auto& t: trades)
+                {
+                    L2T_TP(l2trader, gui_trade_received, sc->symbol.toUtf8().constData());
+                    ui->timeAndSalesWidget->onNewTrade(sc->symbol, t);
+                }
+
+                lock.relock();
+            }
+
+            if (snap.barDirty && m_currentTimeFrame == TimeFrame::ONE_MINUTE)
+            {
+                Bar bar = *snap.latestBar;
+                snap.barDirty = false;
+                lock.unlock();
+
+                L2T_TP(l2trader, gui_bar_received, sc->symbol.toUtf8().constData(), 60);
+                ui->priceChart->addLiveBar(sc->symbol, bar);
+
+                lock.relock();
+            }
+
+            if (snap.aggregatorDirty)
+            {
+                auto it = snap.aggregatorBars.find(m_currentTimeFrame);
+                if (it != snap.aggregatorBars.end())
+                {
+                    Bar bar = it.value();
+                    lock.unlock();
+
+                    L2T_TP(l2trader,
+                           gui_bar_received,
+                           sc->symbol.toUtf8().constData(),
+                           BarUtils::secondsPerBar(m_currentTimeFrame));
+                    ui->priceChart->addLiveBar(sc->symbol, bar);
+
+                    lock.relock();
+                }
+                snap.aggregatorDirty = false;
+            }
+
+            if (snap.replayTimeDirty)
+            {
+                QDateTime replayTime = *snap.replayTime;
+                snap.replayTimeDirty = false;
+                lock.unlock();
+
+                L2T_TP(l2trader, gui_replay_time_updated, replayTime.toMSecsSinceEpoch());
+                updateSessionLabel();
+                updateTimeDisplay();
+            }
         }
+    } // end main window snapshot
 
-        lock.relock();
-    }
-
-    if (snap.barDirty && m_currentTimeFrame == TimeFrame::ONE_MINUTE)
-    {
-        Bar bar = *snap.latestBar;
-        snap.barDirty = false;
-        lock.unlock();
-
-        L2T_TP(l2trader, gui_bar_received, sc->symbol.toUtf8().constData(), 60);
-        ui->priceChart->addLiveBar(sc->symbol, bar);
-
-        lock.relock();
-    }
-
-    if (snap.aggregatorDirty)
-    {
-        auto it = snap.aggregatorBars.find(m_currentTimeFrame);
-        if (it != snap.aggregatorBars.end())
-        {
-            Bar bar = it.value();
-            lock.unlock();
-
-            L2T_TP(l2trader,
-                   gui_bar_received,
-                   sc->symbol.toUtf8().constData(),
-                   BarUtils::secondsPerBar(m_currentTimeFrame));
-            ui->priceChart->addLiveBar(sc->symbol, bar);
-
-            lock.relock();
-        }
-        snap.aggregatorDirty = false;
-    }
-
-    if (snap.replayTimeDirty)
-    {
-        QDateTime replayTime = *snap.replayTime;
-        snap.replayTimeDirty = false;
-        lock.unlock();
-
-        L2T_TP(l2trader, gui_replay_time_updated, replayTime.toMSecsSinceEpoch());
-        updateSessionLabel();
-        updateTimeDisplay();
-
-        return; // lock already released
-    }
+    // --- Secondary chart windows (each reads from its own SymbolContext snapshot) ---
+    for (ChartWindow* cw: m_windowManager->chartWindows())
+        cw->refreshAllPanels();
 }
 
 void GUIFrontend::onNewPositionReceived(QString account, Position position)
@@ -1114,6 +1166,10 @@ void GUIFrontend::onNewPositionReceived(QString account, Position position)
             ui->priceChart->onPositionUpdated(position);
         }
     }
+
+    // Forward to secondary chart windows (each filters by symbol internally)
+    for (ChartWindow* cw: m_windowManager->chartWindows())
+        cw->onPositionReceived(position);
 }
 
 void GUIFrontend::onPositionDeleted(QString account, QString positionID)
@@ -1157,6 +1213,10 @@ void GUIFrontend::onNewOrderReceived(QString account, Order order)
             ui->priceChart->onOrderAmended(order);
         }
     }
+
+    // Forward to secondary chart windows (each filters by symbol internally)
+    for (ChartWindow* cw: m_windowManager->chartWindows())
+        cw->onOrderReceived(order);
 }
 
 void GUIFrontend::onBalanceUpdated(Balance balance)
@@ -1566,6 +1626,56 @@ void GUIFrontend::restoreReplayState()
     MainApp::getInstance()->enterReplayMode(savedDate, startTime, speed);
 }
 
+void GUIFrontend::saveMainWindowGeometry()
+{
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->beginGroup("MainWindow");
+    appStateSettings->setValue("geometry", m_mainWindow->saveGeometry());
+    appStateSettings->setValue("wasMaximized", m_mainWindow->isMaximized());
+    if (m_mainWindow->windowHandle() && m_mainWindow->windowHandle()->screen())
+        appStateSettings->setValue("screenName", m_mainWindow->windowHandle()->screen()->name());
+    appStateSettings->endGroup();
+    appStateSettings->sync();
+}
+
+void GUIFrontend::restoreMainWindowGeometry()
+{
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->beginGroup("MainWindow");
+    QByteArray geometry = appStateSettings->value("geometry").toByteArray();
+    bool wasMaximized = appStateSettings->value("wasMaximized", true).toBool();
+    QString screenName = appStateSettings->value("screenName").toString();
+    appStateSettings->endGroup();
+
+    if (geometry.isEmpty())
+    {
+        m_mainWindow->showMaximized();
+        return;
+    }
+
+    // restoreGeometry handles window show, but we need to ensure native handle
+    // exists first for screen targeting
+    m_mainWindow->restoreGeometry(geometry);
+    m_mainWindow->show(); // creates native window handle
+
+    // Move to saved screen if still connected
+    if (!screenName.isEmpty() && m_mainWindow->windowHandle())
+    {
+        for (QScreen* screen: QApplication::screens())
+        {
+            if (screen->name() == screenName)
+            {
+                m_mainWindow->windowHandle()->setScreen(screen);
+                m_mainWindow->restoreGeometry(geometry); // re-apply after screen change
+                break;
+            }
+        }
+    }
+
+    if (wasMaximized)
+        m_mainWindow->showMaximized();
+}
+
 void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order)
 {
     qInfo() << "Placing order:" << order.toJsonString();
@@ -1727,6 +1837,17 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
     case ShortcutSettings::TimeFrame1M:
         Q_CHECK_PTR(m_timeFrame1MShortcut);
         m_timeFrame1MShortcut->setKey(p_newSequence);
+        break;
+
+    case ShortcutSettings::OpenNewChart:
+        Q_CHECK_PTR(m_newChartWindowShortcut);
+        m_newChartWindowShortcut->setKey(p_newSequence);
+        qInfo() << "Updated open new chart shortcut to:" << p_newSequence.toString();
+        break;
+
+    case ShortcutSettings::CloseChartWindow:
+        // CloseChartWindow shortcut lives on each ChartWindow, not on main window.
+        // ChartWindows read the shortcut at creation time; live update not supported.
         break;
     }
 }
@@ -2107,6 +2228,11 @@ void GUIFrontend::onReplayModeEntered()
     // Update chart visual (background color and watermark)
     ui->priceChart->setReplayModeActive(true);
 
+    // Switch all secondary chart windows to the replay symbol
+    QString replaySymbol = currentlyDisplayedSymbol;
+    for (ChartWindow* cw: m_windowManager->chartWindows())
+        cw->enterReplayMode(replaySymbol);
+
     // Update session label and time display (replay time may have changed)
     updateSessionLabel();
     updateTimeDisplay();
@@ -2142,6 +2268,10 @@ void GUIFrontend::onReplayModeExited()
     // Restore chart visual
     ui->priceChart->setReplayModeActive(false);
 
+    // Restore all secondary chart windows to their pre-replay symbols
+    for (ChartWindow* cw: m_windowManager->chartWindows())
+        cw->exitReplayMode();
+
     // Update session label and time display (back to live time)
     updateSessionLabel();
     updateTimeDisplay();
@@ -2152,6 +2282,14 @@ bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
     // Handle main window close event
     if (p_watched == m_mainWindow && p_event->type() == QEvent::Close)
     {
+        // Save chart window state NOW, before shutdown closes them
+        saveMainWindowGeometry();
+        if (m_windowManager)
+        {
+            m_windowManager->saveWindowState();
+            m_windowManager->setShuttingDown();
+        }
+
         // Call shutdown for graceful cleanup (same as Ctrl+Q)
         MainApp::getInstance()->shutdown();
         p_event->accept();

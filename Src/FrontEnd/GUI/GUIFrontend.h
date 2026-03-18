@@ -20,6 +20,7 @@
 // Forward declarations
 class PlaceOrderRequest;
 class StrategyLogWidget;
+class WindowManager;
 
 // Forward declare the generated UI class
 namespace Ui
@@ -85,6 +86,8 @@ class GUIFrontend : public FrontEnd
     void restoreLastDisplayedStock();
     void saveReplayState(bool active, const QDate& date = QDate(), const QTime& startTime = QTime());
     void restoreReplayState();
+    void saveMainWindowGeometry();
+    void restoreMainWindowGeometry();
     QString formatAccountInfo(const Account& account) const;
     MainAlgo* mainAlgo;
     QString currentlyDisplayedSymbol;
@@ -107,6 +110,7 @@ class GUIFrontend : public FrontEnd
     QShortcut* m_cancelAllOrdersShortcut;       // Cancel all orders shortcut
     QShortcut* m_toggleReplayPlayPauseShortcut; // Toggle replay play/pause shortcut
     QShortcut* m_toggleReplayModeShortcut;      // Toggle replay mode on/off shortcut
+    QShortcut* m_newChartWindowShortcut;        // Open new chart window shortcut
 
     // Timescale shortcuts
     QShortcut* m_timeFrame10sShortcut;
@@ -139,6 +143,7 @@ class GUIFrontend : public FrontEnd
     TradingModeBar* m_tradingModeBar = nullptr; // LIVE / SIM / REPLAY tristate mode indicator
 
     ReplayControlsBar* m_replayControlsBar = nullptr; // Replay controls in top toolbar
+    WindowManager* m_windowManager = nullptr;         // Manages secondary chart windows
 
     // Bottom logger split: platform log (left) + strategy log (right, shown on demand)
     QWidget* m_loggerContainer = nullptr;             ///< Outer container replacing liveLogDisplay in mainSplitter

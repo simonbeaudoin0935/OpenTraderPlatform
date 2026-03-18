@@ -228,46 +228,11 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
 
 
-    // If there is a current selected stock for display, disconnect its receivedNew* signals from the main algo emition
+    // If there is a current selected stock for display, release it
     if (m_currentDisplayedSymbolContext != nullptr)
     {
         // Selecting the same stock as currently selected. No action taken.
         OBJ_ASSUME_DIFF(m_currentDisplayedSymbolContext->symbol, symbol);
-
-        disconnect(&m_currentDisplayedSymbolContext->barReceiver,
-                   &BarReceiver::receivedNewBar,
-                   this,
-                   &MainAlgo::onDisplayedBarReceived);
-
-        disconnect(&m_currentDisplayedSymbolContext->m_barAggregator,
-                   &BarAggregator::barUpdated,
-                   this,
-                   &MainAlgo::onAggregatorBarUpdated);
-
-        disconnect(&m_currentDisplayedSymbolContext->m_barAggregator,
-                   &BarAggregator::barClosed,
-                   this,
-                   &MainAlgo::onAggregatorBarClosed);
-
-        disconnect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
-                   &LiveBarAccumulator::barUpdated,
-                   this,
-                   nullptr);
-        disconnect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
-                   &LiveBarAccumulator::barClosed,
-                   this,
-                   nullptr);
-
-        disconnect(&m_currentDisplayedSymbolContext->m_level2Receiver,
-                   &Level2Receiver::receivedNewLevel2,
-                   this,
-                   &MainAlgo::onDisplayedLevel2Received);
-
-        // Disconnect only the display-symbol trade forwarding lambda.
-        // Do NOT use disconnect(DBClient, signal, this, nullptr) — that would also remove
-        // the permanent onNewTradeReceived routing connection set up in onThreadStarted.
-        QObject::disconnect(m_displayTradeConnection);
-        m_displayTradeConnection = {};
 
         // Clean up or detach the previous SymbolContext
         QString oldSymbol = m_currentDisplayedSymbolContext->symbol;
@@ -311,94 +276,12 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
 
     // Claim display reference
     ++m_currentDisplayedSymbolContext->m_refCount;
-    DEBUG << "onSelectDisplayedStock: wiring display signals for" << symbol
+    DEBUG << "onSelectDisplayedStock: set displayed symbol to" << symbol
           << "| refCount:" << m_currentDisplayedSymbolContext->m_refCount
           << "| active SymbolContexts:" << m_symbolContexts.keys();
 
-    // Redoo the plumbing we disconnected at the top of this function
-    connect(&m_currentDisplayedSymbolContext->barReceiver,
-            &BarReceiver::receivedNewBar,
-            this,
-            &MainAlgo::onDisplayedBarReceived);
-
-    // Forward BarAggregator higher-TF updates so the chart can show live higher-TF candles
-    connect(&m_currentDisplayedSymbolContext->m_barAggregator,
-            &BarAggregator::barUpdated,
-            this,
-            &MainAlgo::onAggregatorBarUpdated);
-
-    connect(&m_currentDisplayedSymbolContext->m_barAggregator,
-            &BarAggregator::barClosed,
-            this,
-            &MainAlgo::onAggregatorBarClosed);
-
-    // Forward 10s bar updates to DisplaySnapshot
-    connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
-            &LiveBarAccumulator::barUpdated,
-            this,
-            [this](const QString&, const Bar& bar)
-            {
-                if (!m_currentDisplayedSymbolContext)
-                    return;
-                L2T_TP(l2trader,
-                       snapshot_write,
-                       m_currentDisplayedSymbolContext->symbol.toUtf8().constData(),
-                       "aggregator10s");
-                QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
-                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
-                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
-            });
-
-    connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
-            &LiveBarAccumulator::barClosed,
-            this,
-            [this](const QString&, const Bar& bar)
-            {
-                if (!m_currentDisplayedSymbolContext)
-                    return;
-                L2T_TP(l2trader,
-                       snapshot_write,
-                       m_currentDisplayedSymbolContext->symbol.toUtf8().constData(),
-                       "aggregator10s");
-                QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
-                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
-                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
-            });
-
-    connect(&m_currentDisplayedSymbolContext->m_level2Receiver,
-            &Level2Receiver::receivedNewLevel2,
-            this,
-            &MainAlgo::onDisplayedLevel2Received);
-
-    // Forward trades for displayed symbol to FrontEnd (store handle for clean targeted disconnect)
-    m_displayTradeConnection = connect(DBClient::getInstance(),
-                                       &DBClient::newTrade,
-                                       this,
-                                       [this, symbol](const QString& sym, const Trade& trade)
-                                       {
-                                           if (sym == symbol)
-                                               onDisplayedTradeReceived(sym, trade);
-                                       });
-
-    // Seed the DisplaySnapshot with the current forming bar so the chart shows it
-    // immediately on the next 30 Hz tick, without waiting for the next trade.
-    // Critical for low-volume symbols where inter-trade gaps can be several seconds.
-    auto formingBar = m_currentDisplayedSymbolContext->m_liveBarAccumulator.getFormingBar(symbol);
-    if (formingBar.has_value())
-    {
-        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
-        m_currentDisplayedSymbolContext->m_displaySnapshot.latestBar = formingBar.value();
-        m_currentDisplayedSymbolContext->m_displaySnapshot.barDirty = true;
-    }
-
-    // Same for the 10s accumulator
-    auto forming10s = m_currentDisplayedSymbolContext->m_live10sBarAccumulator.getFormingBar(symbol);
-    if (forming10s.has_value())
-    {
-        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
-        m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = forming10s.value();
-        m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
-    }
+    // No snapshot-writing connections needed here — SymbolContext always populates
+    // its own DisplaySnapshot. The GUI reads from it at 30 Hz.
 }
 
 BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last, TimeFrame tf)
@@ -800,6 +683,99 @@ SymbolContext::SymbolContext(const QString& p_symbol, QObject* p_parent)
         Qt::DirectConnection);
     OBJ_ASSUME_TRUE(connected);
 
+    // ── Always-populate DisplaySnapshot ──────────────────────────────────
+    // Every SymbolContext writes to its own DisplaySnapshot regardless of whether
+    // it is the "currently displayed" symbol. This allows any chart window to read
+    // from any SymbolContext's snapshot at 30 Hz with zero extra wiring.
+
+    // 1m bar → snapshot
+    connected = connect(
+        &barReceiver,
+        &BarReceiver::receivedNewBar,
+        this,
+        [this](const QString&, const Bar& bar)
+        {
+            L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "bar");
+            QWriteLocker lock(&m_displaySnapshot.lock);
+            m_displaySnapshot.latestBar = bar;
+            m_displaySnapshot.barDirty = true;
+        },
+        Qt::DirectConnection);
+    OBJ_ASSUME_TRUE(connected);
+
+    // L2 → snapshot
+    connected = connect(
+        &m_level2Receiver,
+        &Level2Receiver::receivedNewLevel2,
+        this,
+        [this](const QString&, const Level2& level2)
+        {
+            L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "l2");
+            QWriteLocker lock(&m_displaySnapshot.lock);
+            m_displaySnapshot.latestLevel2 = level2;
+            m_displaySnapshot.l2Dirty = true;
+        },
+        Qt::DirectConnection);
+    OBJ_ASSUME_TRUE(connected);
+
+    // Higher-TF aggregator → snapshot
+    connected = connect(
+        &m_barAggregator,
+        &BarAggregator::barUpdated,
+        this,
+        [this](TimeFrame tf, const Bar& bar)
+        {
+            L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "aggregator");
+            QWriteLocker lock(&m_displaySnapshot.lock);
+            m_displaySnapshot.aggregatorBars[tf] = bar;
+            m_displaySnapshot.aggregatorDirty = true;
+        },
+        Qt::DirectConnection);
+    OBJ_ASSUME_TRUE(connected);
+
+    connected = connect(
+        &m_barAggregator,
+        &BarAggregator::barClosed,
+        this,
+        [this](TimeFrame tf, const Bar& bar)
+        {
+            L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "aggregator");
+            QWriteLocker lock(&m_displaySnapshot.lock);
+            m_displaySnapshot.aggregatorBars[tf] = bar;
+            m_displaySnapshot.aggregatorDirty = true;
+        },
+        Qt::DirectConnection);
+    OBJ_ASSUME_TRUE(connected);
+
+    // 10s accumulator → snapshot
+    connected = connect(
+        &m_live10sBarAccumulator,
+        &LiveBarAccumulator::barUpdated,
+        this,
+        [this](const QString&, const Bar& bar)
+        {
+            L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "aggregator10s");
+            QWriteLocker lock(&m_displaySnapshot.lock);
+            m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
+            m_displaySnapshot.aggregatorDirty = true;
+        },
+        Qt::DirectConnection);
+    OBJ_ASSUME_TRUE(connected);
+
+    connected = connect(
+        &m_live10sBarAccumulator,
+        &LiveBarAccumulator::barClosed,
+        this,
+        [this](const QString&, const Bar& bar)
+        {
+            L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "aggregator10s");
+            QWriteLocker lock(&m_displaySnapshot.lock);
+            m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
+            m_displaySnapshot.aggregatorDirty = true;
+        },
+        Qt::DirectConnection);
+    OBJ_ASSUME_TRUE(connected);
+
     // DBClient wiring is handled centrally by MainAlgo routing (onNewLevel2Received / onNewTradeReceived).
     // Live subscription is also managed by MainAlgo when creating the SymbolContext.
 
@@ -927,6 +903,12 @@ void SymbolContext::processTrade(const Trade& p_trade)
     m_liveBarAccumulator.onNewTrade(symbol, p_trade);
     m_live10sBarAccumulator.onNewTrade(symbol, p_trade);
     emit receivedNewTrade(symbol, p_trade);
+
+    // Write trade to DisplaySnapshot so any chart showing this symbol gets it
+    L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "trade");
+    QWriteLocker lock(&m_displaySnapshot.lock);
+    m_displaySnapshot.pendingTrades.append(p_trade);
+    m_displaySnapshot.tradeDirty = true;
 }
 
 uint64_t MainAlgo::getNextRequestId()
@@ -1140,6 +1122,48 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
     p_promise->finish();
 }
 
+QPointer<SymbolContext> MainAlgo::acquireSymbolContext(const QString& p_symbol)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+
+    QPointer<SymbolContext> sc;
+
+    if (m_symbolContexts.contains(p_symbol))
+    {
+        sc = m_symbolContexts[p_symbol];
+        DEBUG << "acquireSymbolContext: reusing existing SymbolContext for" << p_symbol;
+    }
+    else
+    {
+        sc = new SymbolContext(p_symbol, this);
+        Q_CHECK_PTR(sc);
+
+        {
+            QWriteLocker lock(&m_symbolContextsLock);
+            m_symbolContexts.insert(p_symbol, sc);
+        }
+
+        // Subscribe to data for the new symbol
+        if (MainApp::isInReplayMode())
+        {
+            if (!DBClient::getInstance()->addReplaySymbol(p_symbol))
+                WARNING << "No replay data for" << p_symbol << "- live bars will not flow";
+        }
+        else
+        {
+            auto* dbClient = DBClient::getInstance();
+            if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
+                dbClient->subscribeLive(p_symbol);
+        }
+
+        DEBUG << "acquireSymbolContext: created new SymbolContext for" << p_symbol;
+    }
+
+    ++sc->m_refCount;
+    DEBUG << "acquireSymbolContext:" << p_symbol << "refCount now" << sc->m_refCount;
+    return sc;
+}
+
 void MainAlgo::releaseSymbolContextRef(const QString& symbol)
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
@@ -1214,83 +1238,12 @@ void MainAlgo::onStrategyCrashNotified()
     m_strategyManager.markStrategyFailed(strategyID, errorMsg);
 }
 
-void MainAlgo::onAggregatorBarUpdated(TimeFrame tf, const Bar& bar)
-{
-    if (m_currentDisplayedSymbolContext == nullptr)
-        return;
-
-    L2T_TP(l2trader, snapshot_write, m_currentDisplayedSymbolContext->symbol.toUtf8().constData(), "aggregator");
-    QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
-    m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[tf] = bar;
-    m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
-}
-
-void MainAlgo::onAggregatorBarClosed(TimeFrame tf, const Bar& bar)
-{
-    if (m_currentDisplayedSymbolContext == nullptr)
-        return;
-
-    L2T_TP(l2trader, snapshot_write, m_currentDisplayedSymbolContext->symbol.toUtf8().constData(), "aggregator");
-    QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
-    m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[tf] = bar;
-    m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
-}
+// onAggregatorBarUpdated/onAggregatorBarClosed removed — snapshot writes are now
+// handled directly inside SymbolContext via DirectConnection to m_barAggregator.
 
 // ---------------------------------------------------------------------------
-// DisplaySnapshot writers — populate snapshot for GUI pull-based rendering
+// Replay time snapshot writer — replay time is a global concept, not per-SymbolContext
 // ---------------------------------------------------------------------------
-
-void MainAlgo::onDisplayedBarReceived(const QString& symbol, const Bar& bar)
-{
-    if (!m_currentDisplayedSymbolContext)
-        return;
-
-    // Guard against stale queued events (same race as onDisplayedTradeReceived).
-    if (symbol != m_currentDisplayedSymbolContext->symbol)
-        return;
-
-    L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "bar");
-    {
-        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
-        m_currentDisplayedSymbolContext->m_displaySnapshot.latestBar = bar;
-        m_currentDisplayedSymbolContext->m_displaySnapshot.barDirty = true;
-    }
-}
-
-void MainAlgo::onDisplayedLevel2Received(const QString& symbol, const Level2& level2)
-{
-    if (!m_currentDisplayedSymbolContext)
-        return;
-
-    // Guard against stale queued events (same race as onDisplayedTradeReceived).
-    if (symbol != m_currentDisplayedSymbolContext->symbol)
-        return;
-
-    L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "l2");
-    {
-        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
-        m_currentDisplayedSymbolContext->m_displaySnapshot.latestLevel2 = level2;
-        m_currentDisplayedSymbolContext->m_displaySnapshot.l2Dirty = true;
-    }
-}
-
-void MainAlgo::onDisplayedTradeReceived(const QString& symbol, const Trade& trade)
-{
-    if (!m_currentDisplayedSymbolContext)
-        return;
-
-    // Guard against stale queued events: the trade symbol must match the currently
-    // displayed context. Cross-thread QueuedConnections can deliver events that were
-    // already in-flight when the display switched away from this symbol — disconnect()
-    // prevents new enqueues but cannot recall already-posted events.
-    if (symbol != m_currentDisplayedSymbolContext->symbol)
-        return;
-
-    L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "trade");
-    QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
-    m_currentDisplayedSymbolContext->m_displaySnapshot.pendingTrades.append(trade);
-    m_currentDisplayedSymbolContext->m_displaySnapshot.tradeDirty = true;
-}
 
 void MainAlgo::onReplayTimeReceived(const QDateTime& time)
 {
@@ -1419,8 +1372,7 @@ void MainAlgo::connectReplaySignals(const QString& p_symbol)
         emulator->setReplaySpeed(static_cast<int>(m_replaySpeed));
     }
 
-    // The display-symbol trade forwarding is handled by m_displayTradeConnection (set in
-    // createAndSetDisplayedSymbolContext / onSelectDisplayedStock). No extra lambda here.
+    // Trade forwarding to DisplaySnapshot is now handled internally by SymbolContext::processTrade.
 
     INFO << "Replay signals connected for" << p_symbol;
 }
@@ -1742,96 +1694,8 @@ void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)
             dbClient->subscribeLive(p_symbol);
     }
 
-    // Connect bar signals for the new displayed instrument
-    bool connected = connect(&m_currentDisplayedSymbolContext->barReceiver,
-                             &BarReceiver::receivedNewBar,
-                             this,
-                             &MainAlgo::onDisplayedBarReceived,
-                             Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    // Forward higher-TF aggregator events so the chart can show live higher-TF candles
-    connected = connect(&m_currentDisplayedSymbolContext->m_barAggregator,
-                        &BarAggregator::barUpdated,
-                        this,
-                        &MainAlgo::onAggregatorBarUpdated,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(&m_currentDisplayedSymbolContext->m_barAggregator,
-                        &BarAggregator::barClosed,
-                        this,
-                        &MainAlgo::onAggregatorBarClosed,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    connected = connect(&m_currentDisplayedSymbolContext->m_level2Receiver,
-                        &Level2Receiver::receivedNewLevel2,
-                        this,
-                        &MainAlgo::onDisplayedLevel2Received,
-                        Qt::UniqueConnection);
-    ASSUME_TRUE(connected);
-
-    // Forward 10s bar updates to DisplaySnapshot
-    connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
-            &LiveBarAccumulator::barUpdated,
-            this,
-            [this](const QString&, const Bar& bar)
-            {
-                if (!m_currentDisplayedSymbolContext)
-                    return;
-                L2T_TP(l2trader,
-                       snapshot_write,
-                       m_currentDisplayedSymbolContext->symbol.toUtf8().constData(),
-                       "aggregator10s");
-                QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
-                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
-                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
-            });
-
-    connect(&m_currentDisplayedSymbolContext->m_live10sBarAccumulator,
-            &LiveBarAccumulator::barClosed,
-            this,
-            [this](const QString&, const Bar& bar)
-            {
-                if (!m_currentDisplayedSymbolContext)
-                    return;
-                L2T_TP(l2trader,
-                       snapshot_write,
-                       m_currentDisplayedSymbolContext->symbol.toUtf8().constData(),
-                       "aggregator10s");
-                QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
-                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = bar;
-                m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
-            });
-
-    // Forward trades for displayed symbol to FrontEnd (store handle for clean targeted disconnect)
-    m_displayTradeConnection = connect(DBClient::getInstance(),
-                                       &DBClient::newTrade,
-                                       this,
-                                       [this, p_symbol](const QString& sym, const Trade& trade)
-                                       {
-                                           if (sym == p_symbol)
-                                               onDisplayedTradeReceived(sym, trade);
-                                       });
-    ASSUME_TRUE(m_displayTradeConnection);
-
-    // Seed the DisplaySnapshot with the current forming bar (same as onSelectDisplayedStock)
-    auto formingBar = m_currentDisplayedSymbolContext->m_liveBarAccumulator.getFormingBar(p_symbol);
-    if (formingBar.has_value())
-    {
-        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
-        m_currentDisplayedSymbolContext->m_displaySnapshot.latestBar = formingBar.value();
-        m_currentDisplayedSymbolContext->m_displaySnapshot.barDirty = true;
-    }
-
-    auto forming10s = m_currentDisplayedSymbolContext->m_live10sBarAccumulator.getFormingBar(p_symbol);
-    if (forming10s.has_value())
-    {
-        QWriteLocker lock(&m_currentDisplayedSymbolContext->m_displaySnapshot.lock);
-        m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorBars[TimeFrame::TEN_SECONDS] = forming10s.value();
-        m_currentDisplayedSymbolContext->m_displaySnapshot.aggregatorDirty = true;
-    }
+    // No snapshot-writing connections needed here — SymbolContext always populates
+    // its own DisplaySnapshot. The GUI reads from it at 30 Hz.
 
     INFO << "Stock instrument created and set as displayed for" << p_symbol;
 }

@@ -77,7 +77,7 @@ For detailed documentation, see:
 2. **Install dependencies**:
    ```bash
    # Ubuntu/Debian — essential packages
-   sudo apt-get install qt6-base-dev libqt6sql6-sqlite cmake libssl-dev libzstd-dev ninja-build
+   sudo apt-get install cmake build-essential qt6-base-dev libqt6sql6-sqlite cmake libssl-dev libzstd-dev ninja-build
 
    # Ubuntu/Debian — optional (recommended for development)
    sudo apt-get install clang-format ccache libqtkeychain-qt6-dev libncurses-dev

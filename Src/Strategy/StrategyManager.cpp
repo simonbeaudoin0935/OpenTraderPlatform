@@ -892,7 +892,11 @@ void StrategyManager::releaseSymbols(const QString& p_strategyID)
     for (const QString& symbol: released)
     {
         m_symbolRegistry.remove(symbol);
-        m_mainAlgo->releaseSymbolContextRef(symbol);
+        // Must release on MainAlgo's thread — releaseSymbolContextRef asserts thread affinity
+        QMetaObject::invokeMethod(
+            m_mainAlgo,
+            [this, symbol]() { m_mainAlgo->releaseSymbolContextRef(symbol); },
+            Qt::QueuedConnection);
         emit symbolReleased(symbol);
     }
     if (!released.isEmpty())
