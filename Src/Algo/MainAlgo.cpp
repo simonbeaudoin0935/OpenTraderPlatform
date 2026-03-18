@@ -292,6 +292,20 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             QWriteLocker lock(&m_symbolContextsLock);
             m_symbolContexts.insert(symbol, m_currentDisplayedSymbolContext);
         }
+
+        // Subscribe to data for the new symbol
+        if (MainApp::isInReplayMode())
+        {
+            if (!DBClient::getInstance()->addReplaySymbol(symbol))
+                WARNING << "No replay data for" << symbol << "- live bars will not flow";
+        }
+        else
+        {
+            auto* dbClient = DBClient::getInstance();
+            if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
+                dbClient->subscribeLive(symbol);
+        }
+
         DEBUG << "onSelectDisplayedStock: created new SymbolContext for" << symbol;
     }
 
@@ -1715,14 +1729,17 @@ void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)
     // Claim display reference (matches the release in onSelectDisplayedStock)
     ++newInstrument->m_refCount;
 
-    // Subscribe to live data if DBClient is connected (not in replay mode)
-    if (!MainApp::isInReplayMode())
+    // Subscribe to data for the new symbol
+    if (MainApp::isInReplayMode())
+    {
+        if (!DBClient::getInstance()->addReplaySymbol(p_symbol))
+            WARNING << "No replay data for" << p_symbol << "- live bars will not flow";
+    }
+    else
     {
         auto* dbClient = DBClient::getInstance();
         if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
-        {
             dbClient->subscribeLive(p_symbol);
-        }
     }
 
     // Connect bar signals for the new displayed instrument
