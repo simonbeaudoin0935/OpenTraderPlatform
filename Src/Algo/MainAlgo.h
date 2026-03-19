@@ -237,6 +237,12 @@ class MainAlgo final : public QObject
     /// Returns nullptr if no symbol is displayed. The QPointer may auto-null if the context is destroyed.
     [[nodiscard]] QPointer<SymbolContext> getDisplayedSymbolContext() const;
 
+    [[nodiscard]] BarCache::GetBarsResult_t requestHistoricalBarsForSymbol(const QString& p_symbol,
+                                                                           QDate p_date,
+                                                                           QTime p_first,
+                                                                           QTime p_last,
+                                                                           TimeFrame p_tf = TimeFrame::ONE_MINUTE);
+
     BarCache::GetBarsResult_t
     requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last, TimeFrame tf = TimeFrame::ONE_MINUTE);
 

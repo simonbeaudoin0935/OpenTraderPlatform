@@ -51,6 +51,8 @@
 #include "../Core/Models/Bar.h"
 #include "../Core/Models/Level2.h"
 #include "../Core/Models/Trade.h"
+#include "../Misc/CONSTANTS.h"
+#include "../Misc/TimeFrame.h"
 #include "StrategyConfig.h"
 #include "StrategyLogger.h"
 #include "StrategyManager.h"
@@ -272,6 +274,13 @@ namespace
         return p_timestamp.isValid() ? p_timestamp.toMSecsSinceEpoch() * 1000000LL : 0LL;
     }
 
+    [[nodiscard]] QDateTime fromUnixNanos(const std::int64_t p_unixNanos)
+    {
+        return p_unixNanos == 0
+                   ? QDateTime()
+                   : QDateTime::fromMSecsSinceEpoch(p_unixNanos / 1000000LL, TradingHours::MARKET_TIMEZONE);
+    }
+
     [[nodiscard]] Protocol::OrderStatus toProtocolOrderStatus(const Order::Status p_status)
     {
         switch (p_status)
@@ -454,6 +463,38 @@ namespace
         p_message->set_quantity(p_position.getQuantity().toLongLong());
         p_message->set_average_price(p_position.getAveragePrice().toDouble());
         p_message->set_unrealized_pnl(p_position.getUnrealizedProfitLoss().toDouble());
+    }
+
+    void
+    populateHistoricalBarsResponseMessage(const QString& p_symbol,
+                                          const std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>& p_result,
+                                          Protocol::HistoricalBarsResponse* const p_response)
+    {
+        if (p_response == nullptr)
+        {
+            return;
+        }
+
+        if (!p_result.has_value())
+        {
+            auto* const error = p_response->mutable_error();
+            error->set_code(tsClientErrorToString(p_result.error()).toStdString());
+            error->set_message(QString("Historical bar request failed with %1")
+                                   .arg(tsClientErrorToString(p_result.error()))
+                                   .toStdString());
+            return;
+        }
+
+        const std::shared_ptr<QVector<Bar>>& bars = p_result.value();
+        if (!bars)
+        {
+            return;
+        }
+
+        for (const Bar& bar: *bars)
+        {
+            populateBarMessage(p_symbol, bar, p_response->add_bars());
+        }
     }
 } // namespace
 
@@ -952,9 +993,88 @@ void ProcessStrategyRuntimeBackend::handleInboundPayload(const std::span<const s
         break;
 
     case Protocol::StrategyToHostEnvelope::kHistoricalBarsRequest:
-        sendErrorMessage("historical_bars_not_implemented",
-                         "HistoricalBarsRequest over process transport is not implemented yet",
-                         QString::fromStdString(envelope.correlation_id()));
+        if (m_mainAlgo == nullptr)
+        {
+            Protocol::HostToStrategyEnvelope response;
+            response.set_sequence(m_outboundSequence++);
+            response.set_correlation_id(envelope.correlation_id());
+            auto* const historicalResponse = response.mutable_historical_bars_response();
+            historicalResponse->mutable_error()->set_code("historical_bars_unavailable");
+            historicalResponse->mutable_error()->set_message("MainAlgo unavailable for historical bars request");
+            [[maybe_unused]] const bool sent = sendHostEnvelope(response, "send historical bars failure");
+            break;
+        }
+        else
+        {
+            const auto& request = envelope.historical_bars_request();
+            const QString symbol = QString::fromStdString(request.symbol());
+            const QDateTime sessionDay = fromUnixNanos(request.session_day_unix_nanos());
+            const QDateTime firstBar = fromUnixNanos(request.first_bar_unix_nanos());
+            const QDateTime lastBar = fromUnixNanos(request.last_bar_unix_nanos());
+            const QString correlationID = QString::fromStdString(envelope.correlation_id());
+
+            auto sendInvalidRequest = [this, &symbol, &correlationID](const QString& p_message)
+            {
+                Protocol::HostToStrategyEnvelope response;
+                response.set_sequence(m_outboundSequence++);
+                response.set_correlation_id(correlationID.toStdString());
+                auto* const historicalResponse = response.mutable_historical_bars_response();
+                historicalResponse->mutable_error()->set_code("invalid_historical_bars_request");
+                historicalResponse->mutable_error()->set_message(p_message.toStdString());
+                [[maybe_unused]] const bool sent =
+                    sendHostEnvelope(response,
+                                     QString("send invalid historical bars request response for %1").arg(symbol));
+            };
+
+            if (symbol.isEmpty())
+            {
+                sendInvalidRequest("Historical bars request symbol is empty");
+                break;
+            }
+
+            if (!firstBar.isValid() || !lastBar.isValid())
+            {
+                sendInvalidRequest("Historical bars request timestamps are invalid");
+                break;
+            }
+
+            if (firstBar > lastBar)
+            {
+                sendInvalidRequest("Historical bars request start is after end");
+                break;
+            }
+
+            const QDate day = sessionDay.isValid() ? sessionDay.date() : firstBar.date();
+            const TimeFrame timeFrame = stringToTimeFrame(QString::fromStdString(request.timeframe()));
+
+            auto sendHistoricalResponse =
+                [this, correlationID, symbol](
+                    const std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>& p_result)
+            {
+                Protocol::HostToStrategyEnvelope response;
+                response.set_sequence(m_outboundSequence++);
+                response.set_correlation_id(correlationID.toStdString());
+                populateHistoricalBarsResponseMessage(symbol, p_result, response.mutable_historical_bars_response());
+                [[maybe_unused]] const bool sent =
+                    sendHostEnvelope(response, QString("send historical bars response for %1").arg(symbol));
+            };
+
+            auto result =
+                m_mainAlgo->requestHistoricalBarsForSymbol(symbol, day, firstBar.time(), lastBar.time(), timeFrame);
+            if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
+            {
+                sendHistoricalResponse(std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>(
+                    std::get<std::shared_ptr<QVector<Bar>>>(result)));
+            }
+            else
+            {
+                std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result).then(
+                    &m_process,
+                    [sendHistoricalResponse = std::move(sendHistoricalResponse)](
+                        std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error> p_result)
+                    { sendHistoricalResponse(p_result); });
+            }
+        }
         break;
 
     case Protocol::StrategyToHostEnvelope::kPlaceOrderIntent:
@@ -979,7 +1099,17 @@ void ProcessStrategyRuntimeBackend::handleInboundPayload(const std::span<const s
                 break;
             }
 
+            if (intent.account_id().empty())
+            {
+                sendErrorMessage("invalid_order_intent",
+                                 QString("place_order_intent %1 missing account_id")
+                                     .arg(QString::fromStdString(intent.request_id())),
+                                 QString::fromStdString(envelope.correlation_id()));
+                break;
+            }
+
             PlaceOrderRequest request;
+            request.setAccountID(QString::fromStdString(intent.account_id()));
             request.setSymbol(QString::fromStdString(intent.symbol()));
             request.setQuantity(static_cast<int>(intent.quantity()));
             request.setTradeAction(*hostSide);

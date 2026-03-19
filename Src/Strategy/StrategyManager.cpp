@@ -228,7 +228,7 @@ const QString& StrategySDK::getStrategyName() const
     return m_config.name;
 }
 
-std::shared_ptr<QVector<Bar>> StrategySDK::getHistoricalBars(const QString& /* symbol */,
+std::shared_ptr<QVector<Bar>> StrategySDK::getHistoricalBars(const QString& p_symbol,
                                                              const QDate& day,
                                                              const QTime& first,
                                                              const QTime& last,
@@ -236,8 +236,15 @@ std::shared_ptr<QVector<Bar>> StrategySDK::getHistoricalBars(const QString& /* s
 {
     ASSUME_DIFF(m_mainAlgo, nullptr);
 
+    QString symbol = p_symbol;
+    if (symbol.isEmpty() && !m_config.symbols.isEmpty())
+    {
+        symbol = m_config.symbols[0];
+    }
+    ASSUME_FALSE(symbol.isEmpty());
+
     // Request bars from MainAlgo (which has access to all SymbolContext and their BarCaches)
-    auto result = m_mainAlgo->requestMissingBarsDisplayedStock(day, first, last, tf);
+    auto result = m_mainAlgo->requestHistoricalBarsForSymbol(symbol, day, first, last, tf);
 
     // Result is a variant of either std::shared_ptr<QVector<Bar>> or QFuture
     if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))

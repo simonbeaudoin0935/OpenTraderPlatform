@@ -300,6 +300,44 @@ BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date,
     return m_currentDisplayedSymbolContext->barCache.getBars(tf, date, first, last);
 }
 
+BarCache::GetBarsResult_t MainAlgo::requestHistoricalBarsForSymbol(const QString& p_symbol,
+                                                                   QDate p_date,
+                                                                   QTime p_first,
+                                                                   QTime p_last,
+                                                                   TimeFrame p_tf)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+    OBJ_ASSUME_FALSE(p_symbol.isEmpty());
+
+    QPointer<SymbolContext> symbolContext = acquireSymbolContext(p_symbol);
+    OBJ_ASSUME_DIFF(symbolContext, nullptr);
+
+    BarCache::GetBarsResult_t result = symbolContext->barCache.getBars(p_tf, p_date, p_first, p_last);
+    if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
+    {
+        releaseSymbolContextRef(p_symbol);
+        return std::get<std::shared_ptr<QVector<Bar>>>(result);
+    }
+
+    QPromise<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> promise;
+    QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> forwardedFuture = promise.future();
+    promise.start();
+
+    auto sharedPromise =
+        std::make_shared<QPromise<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(std::move(promise));
+
+    std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result).then(
+        this,
+        [this, p_symbol, sharedPromise](std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& p_bars) mutable
+        {
+            releaseSymbolContextRef(p_symbol);
+            sharedPromise->addResult(std::move(p_bars));
+            sharedPromise->finish();
+        });
+
+    return forwardedFuture;
+}
+
 /*
  * This is the entry point that activates the chain of events after authentication state changes
  */

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -15,6 +16,13 @@ namespace L2Trader::StrategySDK
     class UnixSocketConnection
     {
       public:
+        enum class WaitStatus
+        {
+            Ready,
+            Timeout,
+            Error,
+        };
+
         UnixSocketConnection() = default;
         ~UnixSocketConnection();
 
@@ -31,6 +39,7 @@ namespace L2Trader::StrategySDK
             return m_fd >= 0;
         }
 
+        [[nodiscard]] WaitStatus waitForReadable(int p_timeoutMs) const;
         [[nodiscard]] bool writeMessage(const google::protobuf::MessageLite& p_message) const;
         [[nodiscard]] bool readFrame(std::vector<std::uint8_t>* p_payload) const;
 

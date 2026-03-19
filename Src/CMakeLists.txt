@@ -124,6 +124,7 @@ add_library(L2TraderStrategy SHARED
 add_dependencies(L2TraderStrategy generate_logging)
 
 add_library(L2TraderStrategySDK SHARED
+    "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/ExternalStrategyRuntime.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/MessageFraming.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/ProtocolVersion.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/RuntimeEnvironment.cpp"

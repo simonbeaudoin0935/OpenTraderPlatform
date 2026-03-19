@@ -6,6 +6,7 @@
 #include <limits>
 #include <utility>
 
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -76,6 +77,39 @@ namespace L2Trader::StrategySDK
 
         ::close(m_fd);
         m_fd = -1;
+    }
+
+    UnixSocketConnection::WaitStatus UnixSocketConnection::waitForReadable(const int p_timeoutMs) const
+    {
+        if (!isOpen())
+        {
+            return WaitStatus::Error;
+        }
+
+        pollfd descriptor{};
+        descriptor.fd = m_fd;
+        descriptor.events = POLLIN;
+
+        while (true)
+        {
+            const int result = ::poll(&descriptor, 1, p_timeoutMs);
+            if (result > 0)
+            {
+                return WaitStatus::Ready;
+            }
+
+            if (result == 0)
+            {
+                return WaitStatus::Timeout;
+            }
+
+            if (errno == EINTR)
+            {
+                continue;
+            }
+
+            return WaitStatus::Error;
+        }
     }
 
     bool UnixSocketConnection::writeMessage(const google::protobuf::MessageLite& p_message) const

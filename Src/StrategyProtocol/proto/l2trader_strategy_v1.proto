@@ -193,6 +193,7 @@ message PlaceOrderIntent
     uint32 quantity = 5;
     optional double limit_price = 6;
     optional double stop_price = 7;
+    string account_id = 8;
 }
 
 message CancelOrderIntent
