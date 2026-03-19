@@ -10,7 +10,7 @@
 
 #include "StrategyBase.h"
 #include "StrategySDK.h"
-#include "StrategyLoader.h"
+#include "StrategyRuntimeBackend.h"
 #include "StrategyConfig.h"
 
 #include "StrategyLogger.h"
@@ -390,17 +390,11 @@ class StrategyManager final : public QObject
   private:
     struct StrategyInstance
     {
-        QString strategyID;                          // Unique ID for this instance
-        StrategyConfig config;                       // Configuration
-        StrategyLoader::LoadedPlugin plugin;         // Loaded .so plugin
-        StrategyBase* p_strategy;                    // Strategy instance
-        StrategySDK* p_sdk;                          // SDK instance
-        StrategyCallbackAdapter* p_adapter;          // Callback adapter (lives on strategy thread)
-        QThread m_thread;                            // Dedicated thread
-        QVector<QString> monitoredSymbols;           // Symbols being watched
-        std::unique_ptr<StrategyLogger> p_logger;    // Strategy logger (owned)
-        Qt::HANDLE threadHandle;                     // Native thread handle for stats reading
-        StrategyState state = StrategyState::LOADED; // Tracks: LOADED → RUNNING → STOPPED
+        QString strategyID;                                 // Unique ID for this instance
+        StrategyConfig config;                              // Configuration
+        std::unique_ptr<IStrategyRuntimeBackend> p_backend; // Current runtime backend
+        QVector<QString> monitoredSymbols;                  // Symbols being watched
+        StrategyState state = StrategyState::LOADED;        // Tracks: LOADED → RUNNING → STOPPED
 
         // Track signal connections to adapter for explicit disconnection on unload
         QVector<QMetaObject::Connection> m_connections; // All connections to p_adapter

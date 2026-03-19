@@ -12,6 +12,7 @@
 
 // Forward declarations
 class StrategySDK;
+class PluginStrategyRuntimeBackend;
 
 /// @brief Abstract base class for trading strategies
 ///
@@ -127,6 +128,7 @@ class StrategyBase
 
   private:
     friend class StrategyManager;
+    friend class PluginStrategyRuntimeBackend;
 
     /// @brief Set SDK pointer (called by StrategyManager during initialization)
     void setSdk(StrategySDK* p_sdk)

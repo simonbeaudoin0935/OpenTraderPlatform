@@ -79,6 +79,11 @@ file(GLOB_RECURSE STRATEGY_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/*.h"
 )
+list(APPEND STRATEGY_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/StrategyRuntimeBackend.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/StrategyRuntimeBackend.h"
+)
+list(REMOVE_DUPLICATES STRATEGY_SOURCES)
 
 file(GLOB FRONTEND_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/*.h"
