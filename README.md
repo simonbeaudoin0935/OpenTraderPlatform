@@ -116,11 +116,15 @@ For detailed documentation, see:
    cmake --build build/GUI --target stage-strategy-sdk
    ```
 
-   This creates an install-style SDK layout under `build/GUI/strategy-sdk/` with:
-   - `include/L2Trader/...` public headers
-   - `lib*/libL2TraderStrategySDK.so*` shared library artifacts
-   - `share/l2trader/proto/` canonical `.proto` files
-   - `lib*/cmake/L2TraderStrategySDK/` `find_package()` metadata
+    This creates an install-style SDK layout under `build/GUI/strategy-sdk/` with:
+    - `include/L2Trader/...` public headers
+    - `lib*/libL2TraderStrategySDK.so*` shared library artifacts
+    - `share/l2trader/proto/` canonical `.proto` files
+    - `lib*/cmake/L2TraderStrategySDK/` `find_package()` metadata
+
+    The GUI strategy load dialog can now load either legacy `.so` plugins or
+    external strategy executables. External strategies are launched as
+    host-supervised child processes over the Unix-socket + Protobuf runtime.
 
 ### Building with Sanitizers (for development)
 
@@ -248,10 +252,10 @@ L2Trader/
 │   │   └── TUI/           # ncurses terminal interface
 │   ├── Misc/              # Constants, logging, settings, secure storage
 │   ├── SQL/               # Centralized SQL query headers
-│   ├── Strategy/          # Current in-process strategy plugin loader/runtime
+│   ├── Strategy/          # Strategy host orchestration, plugin runtime, and process backends
 │   ├── StrategyProtocol/  # Protobuf schemas for out-of-process strategy IPC
 │   └── StrategySDK/       # Installable public SDK for external strategy executables
-├── Strategies/            # Legacy plugin samples plus new external strategy executables
+├── Strategies/            # Legacy plugin samples plus new out-of-process strategy executables
 ├── Tests/                 # Unit tests
 ├── Lib/                   # Third-party libraries (databento-cpp, QCustomPlot)
 ├── Resources/             # Icons and resources

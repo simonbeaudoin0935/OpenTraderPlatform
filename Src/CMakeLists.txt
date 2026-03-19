@@ -80,6 +80,8 @@ file(GLOB_RECURSE STRATEGY_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/*.h"
 )
 list(APPEND STRATEGY_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/ProcessStrategyRuntimeBackend.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/ProcessStrategyRuntimeBackend.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/StrategyRuntimeBackend.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/StrategyRuntimeBackend.h"
 )
@@ -273,6 +275,7 @@ target_link_libraries(L2TraderStrategy PUBLIC
     Qt6::Gui
     Qt6::Widgets
     Qt6::Concurrent
+    L2TraderStrategySDK
     dl
 )
 

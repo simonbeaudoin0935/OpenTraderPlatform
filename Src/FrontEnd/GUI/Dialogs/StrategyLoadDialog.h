@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QComboBox>
 #include <QCheckBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
@@ -16,12 +17,12 @@
 #include "StrategyConfig.h"
 
 /**
- * @brief Dialog for loading a strategy plugin
+ * @brief Dialog for loading a strategy runtime
  *
- * Lets the user browse for a .so file, edit standard parameters
+ * Lets the user browse for a strategy artifact, edit standard parameters
  * (name, symbols, position size, risk limit), and build a StrategyConfig.
  *
- * If the plugin exports `getParameterSchema()`, additional rows are
+ * If a plugin exports `getParameterSchema()`, additional rows are
  * dynamically generated below the standard fields for each declared
  * custom parameter.
  */
@@ -37,6 +38,7 @@ class StrategyLoadDialog : public QDialog
     [[nodiscard]] std::optional<StrategyConfig> getSelectedConfig() const;
 
   private slots:
+    void onRuntimeTypeChanged();
     void onBrowseClicked();
     void onLoadClicked();
     void onCancelClicked();
@@ -51,8 +53,12 @@ class StrategyLoadDialog : public QDialog
     /// @brief Remove all dynamically-added custom param rows.
     void clearCustomParams();
 
+    [[nodiscard]] StrategyRuntimeType selectedRuntimeType() const;
+    void updateRuntimeTypeUi();
+
     // UI components — standard fields
-    QLineEdit* m_soPathEdit;
+    QComboBox* m_runtimeTypeCombo;
+    QLineEdit* m_runtimePathEdit;
     QPushButton* m_browseButton;
     QLineEdit* m_nameEdit;
     QLineEdit* m_symbolsEdit;

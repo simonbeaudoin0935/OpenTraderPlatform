@@ -1,4 +1,5 @@
 #include "StrategyManager.h"
+#include "ProcessStrategyRuntimeBackend.h"
 #include "StrategySDK.h"
 #include "../Algo/MainAlgo.h"
 #include "../Core/MainApp.h"
@@ -314,14 +315,38 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
 {
     ASSUME_DIFF(m_mainAlgo, nullptr);
 
-    if (p_config.soPath.isEmpty())
+    if (p_config.runtimePath().isEmpty())
     {
-        return std::unexpected("Strategy .so path is empty");
+        return std::unexpected("Strategy runtime path is empty");
     }
 
     QString strategyID = generateStrategyID();
 
-    auto runtimeResult = PluginStrategyRuntimeBackend::create(m_mainAlgo, strategyID, p_config);
+    std::expected<std::unique_ptr<IStrategyRuntimeBackend>, QString> runtimeResult = std::unexpected(QString{});
+    if (p_config.usesExternalProcess())
+    {
+        auto processRuntimeResult = ProcessStrategyRuntimeBackend::create(m_mainAlgo, strategyID, p_config);
+        if (processRuntimeResult)
+        {
+            runtimeResult = std::unique_ptr<IStrategyRuntimeBackend>(std::move(processRuntimeResult.value()));
+        }
+        else
+        {
+            runtimeResult = std::unexpected(processRuntimeResult.error());
+        }
+    }
+    else
+    {
+        auto pluginRuntimeResult = PluginStrategyRuntimeBackend::create(m_mainAlgo, strategyID, p_config);
+        if (pluginRuntimeResult)
+        {
+            runtimeResult = std::unique_ptr<IStrategyRuntimeBackend>(std::move(pluginRuntimeResult.value()));
+        }
+        else
+        {
+            runtimeResult = std::unexpected(pluginRuntimeResult.error());
+        }
+    }
     if (!runtimeResult)
     {
         return std::unexpected(runtimeResult.error());
@@ -366,7 +391,7 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
 
     // Call onStop on the strategy thread before quitting
     // Only if thread is still running (not crashed)
-    if (instance->p_backend && instance->p_backend->adapter())
+    if (instance->p_backend)
     {
         instance->p_backend->invokeOnStop();
         qInfo(StrategyManagerLog) << "Called onStop for strategy:" << instance->config.name;
