@@ -251,7 +251,7 @@ L2Trader/
 │   ├── Strategy/          # Current in-process strategy plugin loader/runtime
 │   ├── StrategyProtocol/  # Protobuf schemas for out-of-process strategy IPC
 │   └── StrategySDK/       # Installable public SDK for external strategy executables
-├── Strategies/            # Example and test strategy plugins
+├── Strategies/            # Legacy plugin samples plus new external strategy executables
 ├── Tests/                 # Unit tests
 ├── Lib/                   # Third-party libraries (databento-cpp, QCustomPlot)
 ├── Resources/             # Icons and resources
