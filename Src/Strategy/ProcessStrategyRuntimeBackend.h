@@ -14,6 +14,10 @@
 
 class MainAlgo;
 struct StrategyConfig;
+namespace l2trader::strategy::v1
+{
+    class HostToStrategyEnvelope;
+}
 
 class ProcessStrategyRuntimeBackend final : public IStrategyRuntimeBackend
 {
@@ -32,6 +36,13 @@ class ProcessStrategyRuntimeBackend final : public IStrategyRuntimeBackend
     void setThreadHandle(Qt::HANDLE p_handle) override;
     [[nodiscard]] bool isThreadRunning() const override;
     [[nodiscard]] QString start(const std::function<void()>& p_onStarted) override;
+    void trackMonitoredSymbol(const QString& p_symbol) override;
+    void publishBar(const QString& p_symbol, const Bar& p_bar) override;
+    void publishLevel2(const QString& p_symbol, const Level2& p_level2) override;
+    void publishTrade(const QString& p_symbol, const Trade& p_trade) override;
+    void publishOrder(const Order& p_order) override;
+    void publishPosition(const Position& p_position) override;
+    void publishBalance(double p_balance) override;
     void invokeOnStop() override;
     void shutdownExecutionThread() override;
     void destroyRuntime() override;
@@ -58,6 +69,9 @@ class ProcessStrategyRuntimeBackend final : public IStrategyRuntimeBackend
     sendHandshakeAck(bool p_accepted, const QString& p_rejectionReason, const QString& p_correlationID);
     [[nodiscard]] QString sendStartCommand();
     [[nodiscard]] QString sendStopLikeCommand(bool p_shutdown, const QString& p_reason);
+    [[nodiscard]] bool sendHostEnvelope(const l2trader::strategy::v1::HostToStrategyEnvelope& p_envelope,
+                                        const QString& p_context);
+    void sendErrorMessage(const QString& p_code, const QString& p_message, const QString& p_correlationID);
     void cleanupSocketResources();
     void resetStartAttemptState();
     void markShutdownRequested();

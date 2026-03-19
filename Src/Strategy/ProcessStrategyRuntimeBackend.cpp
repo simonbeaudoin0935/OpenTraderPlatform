@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QMetaObject>
 #include <QProcessEnvironment>
+#include <QPromise>
 #include <QTimer>
 #include <QUuid>
 
@@ -20,6 +21,18 @@
 #ifdef FATAL
 #undef FATAL
 #endif
+#ifdef DEBUG
+#undef DEBUG
+#endif
+#ifdef INFO
+#undef INFO
+#endif
+#ifdef WARNING
+#undef WARNING
+#endif
+#ifdef CRITICAL
+#undef CRITICAL
+#endif
 
 #include <google/protobuf/message_lite.h>
 #include <google/protobuf/struct.pb.h>
@@ -32,6 +45,12 @@
 #include "L2Trader/StrategyProtocol/ProtocolVersion.h"
 #include "L2Trader/StrategySDK/MessageFraming.h"
 #include "../Algo/MainAlgo.h"
+#include "../Clients/TSClient/Brokerage/GetOrders/Order.h"
+#include "../Clients/TSClient/Brokerage/StreamPositions/Position.h"
+#include "../Clients/TSClient/OrderExecution/PlaceOrder/PlaceOrder.h"
+#include "../Core/Models/Bar.h"
+#include "../Core/Models/Level2.h"
+#include "../Core/Models/Trade.h"
 #include "StrategyConfig.h"
 #include "StrategyLogger.h"
 #include "StrategyManager.h"
@@ -247,6 +266,195 @@ namespace
             populateProtobufValue(value, &(*p_struct->mutable_fields())[key.toStdString()]);
         }
     }
+
+    [[nodiscard]] qint64 toUnixNanos(const QDateTime& p_timestamp)
+    {
+        return p_timestamp.isValid() ? p_timestamp.toMSecsSinceEpoch() * 1000000LL : 0LL;
+    }
+
+    [[nodiscard]] Protocol::OrderStatus toProtocolOrderStatus(const Order::Status p_status)
+    {
+        switch (p_status)
+        {
+        case Order::Status::ACK:
+            return Protocol::ORDER_STATUS_ACKNOWLEDGED;
+        case Order::Status::OPN:
+        case Order::Status::DON:
+        case Order::Status::FLP:
+        case Order::Status::FPR:
+        case Order::Status::UCH:
+        case Order::Status::RSN:
+        case Order::Status::CND:
+        case Order::Status::OSO:
+        case Order::Status::SUS:
+            return Protocol::ORDER_STATUS_OPEN;
+        case Order::Status::FLL:
+            return Protocol::ORDER_STATUS_FILLED;
+        case Order::Status::CAN:
+        case Order::Status::EXP:
+        case Order::Status::LAT:
+        case Order::Status::OUT:
+        case Order::Status::UCN:
+        case Order::Status::TSC:
+        case Order::Status::RJC:
+            return Protocol::ORDER_STATUS_CANCELLED;
+        case Order::Status::REJ:
+        case Order::Status::BRO:
+            return Protocol::ORDER_STATUS_REJECTED;
+        default:
+            return Protocol::ORDER_STATUS_PENDING;
+        }
+    }
+
+    [[nodiscard]] QString tsClientErrorToString(const TSClient::Error p_error)
+    {
+        switch (p_error)
+        {
+        case TSClient::Error::Timeout:
+            return "timeout";
+        case TSClient::Error::JSONError:
+            return "json_error";
+        case TSClient::Error::RejectedByValidator:
+            return "rejected_by_validator";
+        case TSClient::Error::Other:
+        default:
+            return "other";
+        }
+    }
+
+    [[nodiscard]] std::optional<TradeAction> toTradeAction(const Protocol::OrderSide p_side)
+    {
+        switch (p_side)
+        {
+        case Protocol::ORDER_SIDE_BUY:
+            return TradeAction::Buy;
+        case Protocol::ORDER_SIDE_SELL:
+            return TradeAction::Sell;
+        case Protocol::ORDER_SIDE_SELL_SHORT:
+            return TradeAction::SellShort;
+        case Protocol::ORDER_SIDE_BUY_TO_COVER:
+            return TradeAction::BuyToCover;
+        case Protocol::ORDER_SIDE_UNSPECIFIED:
+        default:
+            return std::nullopt;
+        }
+    }
+
+    [[nodiscard]] std::optional<OrderType::Type> toHostOrderType(const Protocol::OrderType p_type)
+    {
+        switch (p_type)
+        {
+        case Protocol::ORDER_TYPE_MARKET:
+            return OrderType::Type::Market;
+        case Protocol::ORDER_TYPE_LIMIT:
+            return OrderType::Type::Limit;
+        case Protocol::ORDER_TYPE_STOP_MARKET:
+            return OrderType::Type::StopMarket;
+        case Protocol::ORDER_TYPE_STOP_LIMIT:
+            return OrderType::Type::StopLimit;
+        case Protocol::ORDER_TYPE_UNSPECIFIED:
+        default:
+            return std::nullopt;
+        }
+    }
+
+    void populateBarMessage(const QString& p_symbol, const Bar& p_bar, Protocol::Bar* const p_message)
+    {
+        if (p_message == nullptr)
+        {
+            return;
+        }
+
+        p_message->set_symbol(p_symbol.toStdString());
+        p_message->set_open_unix_nanos(toUnixNanos(p_bar.getTimestamp()));
+        p_message->set_open(p_bar.getOpen());
+        p_message->set_high(p_bar.getHigh());
+        p_message->set_low(p_bar.getLow());
+        p_message->set_close(p_bar.getClose());
+        p_message->set_volume(p_bar.getTotalVolume());
+    }
+
+    void populateLevel2Rows(const std::array<Level2Row, 10>& p_levels,
+                            google::protobuf::RepeatedPtrField<Protocol::PriceLevel>* const p_out)
+    {
+        if (p_out == nullptr)
+        {
+            return;
+        }
+
+        for (const Level2Row& row: p_levels)
+        {
+            auto* const level = p_out->Add();
+            level->set_price(row.m_price);
+            level->set_size(std::max(row.m_size, 0));
+            level->set_order_count(std::max(row.m_orderCount, 0));
+        }
+    }
+
+    void
+    populateLevel2Message(const QString& p_symbol, const Level2& p_level2, Protocol::Level2Snapshot* const p_message)
+    {
+        if (p_message == nullptr)
+        {
+            return;
+        }
+
+        p_message->set_symbol(p_symbol.toStdString());
+        p_message->set_snapshot_unix_nanos(toUnixNanos(p_level2.m_timeStamp));
+        populateLevel2Rows(p_level2.m_bids, p_message->mutable_bids());
+        populateLevel2Rows(p_level2.m_asks, p_message->mutable_asks());
+    }
+
+    void populateTradeMessage(const QString& p_symbol, const Trade& p_trade, Protocol::Trade* const p_message)
+    {
+        if (p_message == nullptr)
+        {
+            return;
+        }
+
+        p_message->set_symbol(p_symbol.toStdString());
+        p_message->set_trade_unix_nanos(toUnixNanos(p_trade.m_timestamp));
+        p_message->set_price(p_trade.m_price);
+        p_message->set_size(std::max(p_trade.m_size, 0));
+    }
+
+    void populateOrderUpdateMessage(const Order& p_order, Protocol::OrderUpdate* const p_message)
+    {
+        if (p_message == nullptr)
+        {
+            return;
+        }
+
+        p_message->set_order_id(p_order.getOrderID().toStdString());
+        p_message->set_symbol(p_order.getSymbol().toStdString());
+        p_message->set_status(toProtocolOrderStatus(p_order.getOrderStatus()));
+        p_message->set_quantity(p_order.getQuantity().toUInt());
+
+        if (p_order.getFilledPrice() > 0.0)
+        {
+            p_message->set_average_fill_price(p_order.getFilledPrice());
+        }
+
+        if (const auto rejectReason = p_order.getRejectReason(); rejectReason.has_value())
+        {
+            auto* const error = p_message->mutable_error();
+            error->set_code("order_rejected");
+            error->set_message(rejectReason->toStdString());
+        }
+    }
+
+    void populatePositionUpdateMessage(const Position& p_position, Protocol::PositionUpdate* const p_message)
+    {
+        if (p_message == nullptr)
+        {
+            return;
+        }
+
+        p_message->set_symbol(p_position.getSymbol().toStdString());
+        p_message->set_quantity(p_position.getQuantity().toLongLong());
+        p_message->set_average_price(p_position.getAveragePrice().toDouble());
+        p_message->set_unrealized_pnl(p_position.getUnrealizedProfitLoss().toDouble());
+    }
 } // namespace
 
 std::expected<std::unique_ptr<ProcessStrategyRuntimeBackend>, QString>
@@ -396,6 +604,76 @@ QString ProcessStrategyRuntimeBackend::start(const std::function<void()>& p_onSt
     qInfo(StrategyManagerLog) << "Started external strategy process:" << m_config.name << "ID:" << m_strategyID
                               << "PID:" << m_process.processId();
     return "";
+}
+
+void ProcessStrategyRuntimeBackend::trackMonitoredSymbol(const QString& p_symbol)
+{
+    Q_UNUSED(p_symbol);
+}
+
+void ProcessStrategyRuntimeBackend::publishBar(const QString& p_symbol, const Bar& p_bar)
+{
+    Protocol::HostToStrategyEnvelope envelope;
+    envelope.set_sequence(m_outboundSequence++);
+    populateBarMessage(p_symbol, p_bar, envelope.mutable_bar());
+    [[maybe_unused]] const bool sent = sendHostEnvelope(envelope, QString("send bar update for %1").arg(p_symbol));
+}
+
+void ProcessStrategyRuntimeBackend::publishLevel2(const QString& p_symbol, const Level2& p_level2)
+{
+    Protocol::HostToStrategyEnvelope envelope;
+    envelope.set_sequence(m_outboundSequence++);
+    populateLevel2Message(p_symbol, p_level2, envelope.mutable_level2_snapshot());
+    [[maybe_unused]] const bool sent = sendHostEnvelope(envelope, QString("send level2 update for %1").arg(p_symbol));
+}
+
+void ProcessStrategyRuntimeBackend::publishTrade(const QString& p_symbol, const Trade& p_trade)
+{
+    Protocol::HostToStrategyEnvelope envelope;
+    envelope.set_sequence(m_outboundSequence++);
+    populateTradeMessage(p_symbol, p_trade, envelope.mutable_trade());
+    [[maybe_unused]] const bool sent = sendHostEnvelope(envelope, QString("send trade update for %1").arg(p_symbol));
+}
+
+void ProcessStrategyRuntimeBackend::publishOrder(const Order& p_order)
+{
+    if (m_sdk != nullptr)
+    {
+        m_sdk->updateOrder(p_order);
+    }
+
+    Protocol::HostToStrategyEnvelope envelope;
+    envelope.set_sequence(m_outboundSequence++);
+    populateOrderUpdateMessage(p_order, envelope.mutable_order_update());
+    [[maybe_unused]] const bool sent =
+        sendHostEnvelope(envelope, QString("send order update %1").arg(p_order.getOrderID()));
+}
+
+void ProcessStrategyRuntimeBackend::publishPosition(const Position& p_position)
+{
+    if (m_sdk != nullptr)
+    {
+        m_sdk->updatePosition(p_position);
+    }
+
+    Protocol::HostToStrategyEnvelope envelope;
+    envelope.set_sequence(m_outboundSequence++);
+    populatePositionUpdateMessage(p_position, envelope.mutable_position_update());
+    [[maybe_unused]] const bool sent =
+        sendHostEnvelope(envelope, QString("send position update for %1").arg(p_position.getSymbol()));
+}
+
+void ProcessStrategyRuntimeBackend::publishBalance(const double p_balance)
+{
+    if (m_sdk != nullptr)
+    {
+        m_sdk->updateBalance(p_balance);
+    }
+
+    Protocol::HostToStrategyEnvelope envelope;
+    envelope.set_sequence(m_outboundSequence++);
+    envelope.mutable_balance_update()->set_cash(p_balance);
+    [[maybe_unused]] const bool sent = sendHostEnvelope(envelope, "send balance update");
 }
 
 void ProcessStrategyRuntimeBackend::invokeOnStop()
@@ -627,6 +905,139 @@ void ProcessStrategyRuntimeBackend::handleInboundPayload(const std::span<const s
                           QString("[protocol-error] %1: %2")
                               .arg(QString::fromStdString(envelope.error().code()),
                                    QString::fromStdString(envelope.error().message())));
+        }
+        break;
+
+    case Protocol::StrategyToHostEnvelope::kClaimSymbolsRequest:
+        if (m_mainAlgo == nullptr || m_mainAlgo->getStrategyManager() == nullptr)
+        {
+            sendErrorMessage("claim_symbols_unavailable",
+                             "Strategy manager unavailable for claim_symbols_request",
+                             QString::fromStdString(envelope.correlation_id()));
+            break;
+        }
+        else
+        {
+            QStringList requestedSymbols;
+            requestedSymbols.reserve(envelope.claim_symbols_request().symbols_size());
+            for (const std::string& symbol: envelope.claim_symbols_request().symbols())
+            {
+                requestedSymbols.append(QString::fromStdString(symbol));
+            }
+
+            auto promise = std::make_shared<QPromise<QStringList>>();
+            promise->start();
+            auto future = promise->future();
+            m_mainAlgo->getStrategyManager()->processClaimSymbols(m_strategyID, requestedSymbols, promise);
+            future.waitForFinished();
+
+            const QStringList approved = future.result();
+            Protocol::HostToStrategyEnvelope response;
+            response.set_sequence(m_outboundSequence++);
+            response.set_correlation_id(envelope.correlation_id());
+            auto* const claimResponse = response.mutable_claim_symbols_response();
+            for (const QString& approvedSymbol: approved)
+            {
+                claimResponse->add_granted_symbols(approvedSymbol.toStdString());
+            }
+            for (const QString& requestedSymbol: requestedSymbols)
+            {
+                if (!approved.contains(requestedSymbol))
+                {
+                    claimResponse->add_rejected_symbols(requestedSymbol.toStdString());
+                }
+            }
+            [[maybe_unused]] const bool sent = sendHostEnvelope(response, "send claim symbols response");
+        }
+        break;
+
+    case Protocol::StrategyToHostEnvelope::kHistoricalBarsRequest:
+        sendErrorMessage("historical_bars_not_implemented",
+                         "HistoricalBarsRequest over process transport is not implemented yet",
+                         QString::fromStdString(envelope.correlation_id()));
+        break;
+
+    case Protocol::StrategyToHostEnvelope::kPlaceOrderIntent:
+        if (m_sdk == nullptr)
+        {
+            sendErrorMessage("place_order_unavailable",
+                             "Strategy SDK unavailable for place_order_intent",
+                             QString::fromStdString(envelope.correlation_id()));
+            break;
+        }
+        else
+        {
+            const auto& intent = envelope.place_order_intent();
+            const auto hostSide = toTradeAction(intent.side());
+            const auto hostType = toHostOrderType(intent.type());
+            if (!hostSide.has_value() || !hostType.has_value())
+            {
+                sendErrorMessage("invalid_order_intent",
+                                 QString("Unsupported order side/type in place_order_intent request_id=%1")
+                                     .arg(QString::fromStdString(intent.request_id())),
+                                 QString::fromStdString(envelope.correlation_id()));
+                break;
+            }
+
+            PlaceOrderRequest request;
+            request.setSymbol(QString::fromStdString(intent.symbol()));
+            request.setQuantity(static_cast<int>(intent.quantity()));
+            request.setTradeAction(*hostSide);
+            request.setOrderType(*hostType);
+            request.setStrategyLog(QString::fromStdString(intent.request_id()));
+            if (intent.has_limit_price())
+            {
+                request.setLimitPrice(intent.limit_price());
+            }
+            if (intent.has_stop_price())
+            {
+                request.setStopPrice(intent.stop_price());
+            }
+
+            m_sdk->placeOrder(request).then(&m_process,
+                                            [this,
+                                             correlationID = QString::fromStdString(envelope.correlation_id()),
+                                             requestID = QString::fromStdString(intent.request_id())](
+                                                std::expected<PlaceOrderResult, TSClient::Error> p_result)
+                                            {
+                                                if (!p_result.has_value())
+                                                {
+                                                    sendErrorMessage(
+                                                        "place_order_failed",
+                                                        QString("place_order_intent %1 failed: %2")
+                                                            .arg(requestID, tsClientErrorToString(p_result.error())),
+                                                        correlationID);
+                                                }
+                                            });
+        }
+        break;
+
+    case Protocol::StrategyToHostEnvelope::kCancelOrderIntent:
+        if (m_sdk == nullptr)
+        {
+            sendErrorMessage("cancel_order_unavailable",
+                             "Strategy SDK unavailable for cancel_order_intent",
+                             QString::fromStdString(envelope.correlation_id()));
+            break;
+        }
+        else
+        {
+            const auto& intent = envelope.cancel_order_intent();
+            m_sdk->cancelOrder(QString::fromStdString(intent.order_id()))
+                .then(&m_process,
+                      [this,
+                       correlationID = QString::fromStdString(envelope.correlation_id()),
+                       requestID = QString::fromStdString(intent.request_id())](
+                          std::expected<CancelOrderResult, TSClient::Error> p_result)
+                      {
+                          if (!p_result.has_value())
+                          {
+                              sendErrorMessage("cancel_order_failed",
+                                               QString("cancel_order_intent %1 failed: %2")
+                                                   .arg(requestID, tsClientErrorToString(p_result.error())),
+                                               correlationID);
+                          }
+                      });
         }
         break;
 
@@ -931,6 +1342,36 @@ QString ProcessStrategyRuntimeBackend::sendStopLikeCommand(const bool p_shutdown
     }
 
     return "";
+}
+
+bool ProcessStrategyRuntimeBackend::sendHostEnvelope(const Protocol::HostToStrategyEnvelope& p_envelope,
+                                                     const QString& p_context)
+{
+    if (m_shutdownRequested || m_runtimeDestroyed || m_clientFd < 0)
+    {
+        return false;
+    }
+
+    if (writeMessage(m_clientFd, p_envelope))
+    {
+        return true;
+    }
+
+    scheduleSocketCleanup(QString("Failed to %1").arg(p_context));
+    return false;
+}
+
+void ProcessStrategyRuntimeBackend::sendErrorMessage(const QString& p_code,
+                                                     const QString& p_message,
+                                                     const QString& p_correlationID)
+{
+    Protocol::HostToStrategyEnvelope envelope;
+    envelope.set_sequence(m_outboundSequence++);
+    envelope.set_correlation_id(p_correlationID.toStdString());
+    auto* const error = envelope.mutable_error();
+    error->set_code(p_code.toStdString());
+    error->set_message(p_message.toStdString());
+    [[maybe_unused]] const bool sent = sendHostEnvelope(envelope, "send error message");
 }
 
 void ProcessStrategyRuntimeBackend::cleanupSocketResources()

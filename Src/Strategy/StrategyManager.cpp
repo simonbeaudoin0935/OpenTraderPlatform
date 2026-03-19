@@ -599,16 +599,11 @@ void StrategyManager::onMainAlgoPositionUpdated(const QString& p_account, const 
 {
     Q_UNUSED(p_account);
 
-    // Dispatch to each strategy via adapter on the strategy thread
     for (auto* instance: m_strategies)
     {
-        auto* adapter = instance && instance->p_backend ? instance->p_backend->adapter() : nullptr;
-        if (adapter)
+        if (instance && instance->p_backend)
         {
-            QMetaObject::invokeMethod(
-                adapter,
-                [adapter, p_position]() { adapter->onPositionUpdated(p_position); },
-                Qt::QueuedConnection);
+            instance->p_backend->publishPosition(p_position);
         }
     }
 }
@@ -617,16 +612,11 @@ void StrategyManager::onMainAlgoBalanceUpdated(const Balance& p_balance)
 {
     double balance = p_balance.getEquity();
 
-    // Dispatch to each strategy via adapter on the strategy thread
     for (auto* instance: m_strategies)
     {
-        auto* adapter = instance && instance->p_backend ? instance->p_backend->adapter() : nullptr;
-        if (adapter)
+        if (instance && instance->p_backend)
         {
-            QMetaObject::invokeMethod(
-                adapter,
-                [adapter, balance]() { adapter->onBalanceUpdated(balance); },
-                Qt::QueuedConnection);
+            instance->p_backend->publishBalance(balance);
         }
     }
 }
@@ -668,22 +658,13 @@ void StrategyManager::onOrderUpdatedForStrategy(const QString& p_strategyID, con
                                << "orderID=" << p_order.getOrderID()
                                << "status=" << static_cast<int>(p_order.getOrderStatus());
     auto* instance = findStrategy(p_strategyID);
-    auto* adapter = instance && instance->p_backend ? instance->p_backend->adapter() : nullptr;
-    if (!instance || !adapter)
+    if (!instance || !instance->p_backend)
     {
         qWarning(StrategyManagerLog) << "onOrderUpdatedForStrategy: strategy not found:" << p_strategyID;
         return;
     }
 
-    // Route via adapter (runs on strategy thread)
-    QMetaObject::invokeMethod(
-        adapter,
-        [adapter, p_order]()
-        {
-            qDebug() << "[StrategyCallbackAdapter] dispatching onOrderUpdated orderID=" << p_order.getOrderID();
-            adapter->onOrderUpdated(p_order);
-        },
-        Qt::QueuedConnection);
+    instance->p_backend->publishOrder(p_order);
 }
 
 void StrategyManager::connectStrategyToDataSources(StrategyInstance* p_instance)
@@ -697,7 +678,7 @@ void StrategyManager::connectStrategyToDataSources(StrategyInstance* p_instance)
 
 void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_instance)
 {
-    if (!p_instance || !p_instance->p_backend || !p_instance->p_backend->adapter())
+    if (!p_instance || !p_instance->p_backend)
     {
         return;
     }
@@ -717,43 +698,57 @@ void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
                                               SymbolContext* p_instrument)
 {
     auto* instance = findStrategy(p_strategyID);
-    auto* adapter = instance && instance->p_backend ? instance->p_backend->adapter() : nullptr;
-    if (!instance || !adapter)
+    if (!instance || !instance->p_backend)
     {
         qWarning(StrategyManagerLog) << "connectSymbolToStrategy: strategy not found:" << p_strategyID;
         return;
     }
 
-    // Add symbol to adapter's monitored set (must happen on strategy thread)
-    QMetaObject::invokeMethod(
-        adapter,
-        [adapter, p_symbol]() { adapter->addMonitoredSymbol(p_symbol); },
-        Qt::BlockingQueuedConnection);
+    instance->p_backend->trackMonitoredSymbol(p_symbol);
 
-    // Connect SymbolContext signals directly to the adapter (no MainAlgo hop)
     OBJ_ASSUME_DIFF(p_instrument, nullptr);
-
-    auto c1 = connect(&p_instrument->barReceiver,
-                      &BarReceiver::receivedNewBar,
-                      adapter,
-                      &StrategyCallbackAdapter::onBar,
-                      Qt::QueuedConnection);
+    auto c1 = connect(
+        &p_instrument->barReceiver,
+        &BarReceiver::receivedNewBar,
+        this,
+        [this, p_strategyID](const QString& symbol, const Bar& bar)
+        {
+            if (auto* strategy = findStrategy(p_strategyID); strategy && strategy->p_backend)
+            {
+                strategy->p_backend->publishBar(symbol, bar);
+            }
+        },
+        Qt::QueuedConnection);
     ASSUME_TRUE(c1);
     instance->m_connections.push_back(c1);
 
-    auto c2 = connect(&p_instrument->m_level2Receiver,
-                      &Level2Receiver::receivedNewLevel2,
-                      adapter,
-                      &StrategyCallbackAdapter::onLevel2,
-                      Qt::QueuedConnection);
+    auto c2 = connect(
+        &p_instrument->m_level2Receiver,
+        &Level2Receiver::receivedNewLevel2,
+        this,
+        [this, p_strategyID](const QString& symbol, const Level2& level2)
+        {
+            if (auto* strategy = findStrategy(p_strategyID); strategy && strategy->p_backend)
+            {
+                strategy->p_backend->publishLevel2(symbol, level2);
+            }
+        },
+        Qt::QueuedConnection);
     ASSUME_TRUE(c2);
     instance->m_connections.push_back(c2);
 
-    auto c3 = connect(p_instrument,
-                      &SymbolContext::receivedNewTrade,
-                      adapter,
-                      &StrategyCallbackAdapter::onTrade,
-                      Qt::QueuedConnection);
+    auto c3 = connect(
+        p_instrument,
+        &SymbolContext::receivedNewTrade,
+        this,
+        [this, p_strategyID](const QString& symbol, const Trade& trade)
+        {
+            if (auto* strategy = findStrategy(p_strategyID); strategy && strategy->p_backend)
+            {
+                strategy->p_backend->publishTrade(symbol, trade);
+            }
+        },
+        Qt::QueuedConnection);
     ASSUME_TRUE(c3);
     instance->m_connections.push_back(c3);
 

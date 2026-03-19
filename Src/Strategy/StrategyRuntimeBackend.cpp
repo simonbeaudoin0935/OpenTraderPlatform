@@ -149,6 +149,139 @@ QString PluginStrategyRuntimeBackend::start(const std::function<void()>& p_onSta
     return "";
 }
 
+void PluginStrategyRuntimeBackend::trackMonitoredSymbol(const QString& p_symbol)
+{
+    if (m_adapter == nullptr)
+    {
+        return;
+    }
+
+    if (m_thread.isRunning())
+    {
+        QMetaObject::invokeMethod(
+            m_adapter,
+            [adapter = m_adapter, symbol = p_symbol]() { adapter->addMonitoredSymbol(symbol); },
+            Qt::BlockingQueuedConnection);
+        return;
+    }
+
+    m_adapter->addMonitoredSymbol(p_symbol);
+}
+
+void PluginStrategyRuntimeBackend::publishBar(const QString& p_symbol, const Bar& p_bar)
+{
+    if (m_adapter == nullptr)
+    {
+        return;
+    }
+
+    if (m_thread.isRunning())
+    {
+        QMetaObject::invokeMethod(
+            m_adapter,
+            [adapter = m_adapter, symbol = p_symbol, bar = p_bar]() { adapter->onBar(symbol, bar); },
+            Qt::QueuedConnection);
+        return;
+    }
+
+    m_adapter->onBar(p_symbol, p_bar);
+}
+
+void PluginStrategyRuntimeBackend::publishLevel2(const QString& p_symbol, const Level2& p_level2)
+{
+    if (m_adapter == nullptr)
+    {
+        return;
+    }
+
+    if (m_thread.isRunning())
+    {
+        QMetaObject::invokeMethod(
+            m_adapter,
+            [adapter = m_adapter, symbol = p_symbol, level2 = p_level2]() { adapter->onLevel2(symbol, level2); },
+            Qt::QueuedConnection);
+        return;
+    }
+
+    m_adapter->onLevel2(p_symbol, p_level2);
+}
+
+void PluginStrategyRuntimeBackend::publishTrade(const QString& p_symbol, const Trade& p_trade)
+{
+    if (m_adapter == nullptr)
+    {
+        return;
+    }
+
+    if (m_thread.isRunning())
+    {
+        QMetaObject::invokeMethod(
+            m_adapter,
+            [adapter = m_adapter, symbol = p_symbol, trade = p_trade]() { adapter->onTrade(symbol, trade); },
+            Qt::QueuedConnection);
+        return;
+    }
+
+    m_adapter->onTrade(p_symbol, p_trade);
+}
+
+void PluginStrategyRuntimeBackend::publishOrder(const Order& p_order)
+{
+    if (m_adapter == nullptr)
+    {
+        return;
+    }
+
+    if (m_thread.isRunning())
+    {
+        QMetaObject::invokeMethod(
+            m_adapter,
+            [adapter = m_adapter, order = p_order]() { adapter->onOrderUpdated(order); },
+            Qt::QueuedConnection);
+        return;
+    }
+
+    m_adapter->onOrderUpdated(p_order);
+}
+
+void PluginStrategyRuntimeBackend::publishPosition(const Position& p_position)
+{
+    if (m_adapter == nullptr)
+    {
+        return;
+    }
+
+    if (m_thread.isRunning())
+    {
+        QMetaObject::invokeMethod(
+            m_adapter,
+            [adapter = m_adapter, position = p_position]() { adapter->onPositionUpdated(position); },
+            Qt::QueuedConnection);
+        return;
+    }
+
+    m_adapter->onPositionUpdated(p_position);
+}
+
+void PluginStrategyRuntimeBackend::publishBalance(double p_balance)
+{
+    if (m_adapter == nullptr)
+    {
+        return;
+    }
+
+    if (m_thread.isRunning())
+    {
+        QMetaObject::invokeMethod(
+            m_adapter,
+            [adapter = m_adapter, balance = p_balance]() { adapter->onBalanceUpdated(balance); },
+            Qt::QueuedConnection);
+        return;
+    }
+
+    m_adapter->onBalanceUpdated(p_balance);
+}
+
 void PluginStrategyRuntimeBackend::invokeOnStop()
 {
     if (m_adapter == nullptr)
