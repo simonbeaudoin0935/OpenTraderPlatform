@@ -51,6 +51,8 @@
 #include "../Core/Models/Bar.h"
 #include "../Core/Models/Level2.h"
 #include "../Core/Models/Trade.h"
+#include "../Core/MainApp.h"
+#include "../Misc/Assume.h"
 #include "../Misc/CONSTANTS.h"
 #include "../Misc/TimeFrame.h"
 #include "StrategyConfig.h"
@@ -1074,6 +1076,54 @@ void ProcessStrategyRuntimeBackend::handleInboundPayload(const std::span<const s
                         std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error> p_result)
                     { sendHistoricalResponse(p_result); });
             }
+        }
+        break;
+
+    case Protocol::StrategyToHostEnvelope::kCurrentTimeRequest:
+    {
+        Protocol::HostToStrategyEnvelope response;
+        response.set_sequence(m_outboundSequence++);
+        response.set_correlation_id(envelope.correlation_id());
+        response.mutable_current_time_response()->set_current_unix_nanos(toUnixNanos(MainApp::getCurrentAppTime()));
+        [[maybe_unused]] const bool sent = sendHostEnvelope(response, "send current time response");
+        break;
+    }
+
+    case Protocol::StrategyToHostEnvelope::kChartLogIntent:
+        if (m_mainAlgo == nullptr)
+        {
+            sendErrorMessage("chart_log_unavailable",
+                             "MainAlgo unavailable for chart_log_intent",
+                             QString::fromStdString(envelope.correlation_id()));
+            break;
+        }
+        else
+        {
+            const auto& intent = envelope.chart_log_intent();
+            const QString symbol = QString::fromStdString(intent.symbol());
+            const QString message = QString::fromStdString(intent.message());
+            if (symbol.isEmpty() || message.isEmpty())
+            {
+                sendErrorMessage("invalid_chart_log_intent",
+                                 "chart_log_intent requires non-empty symbol and message",
+                                 QString::fromStdString(envelope.correlation_id()));
+                break;
+            }
+
+            const StrategyLogEntry entry{
+                .strategyID = m_strategyID,
+                .symbol = symbol,
+                .timestamp = MainApp::getCurrentAppTime(),
+                .message = message,
+            };
+            QMetaObject::invokeMethod(
+                m_mainAlgo,
+                [mainAlgo = m_mainAlgo, entry]()
+                {
+                    ASSUME_DIFF(mainAlgo, nullptr);
+                    mainAlgo->processStrategyLog(entry);
+                },
+                Qt::QueuedConnection);
         }
         break;
 

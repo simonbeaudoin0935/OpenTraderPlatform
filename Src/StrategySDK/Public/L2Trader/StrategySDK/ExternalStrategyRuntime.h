@@ -140,6 +140,8 @@ namespace L2Trader::StrategySDK
         [[nodiscard]] bool log(const std::string& p_message, Protocol::LogLevel p_level = Protocol::LOG_LEVEL_INFO);
 
         [[nodiscard]] ClaimSymbolsResult claimSymbols(const std::vector<std::string>& p_symbols);
+        [[nodiscard]] std::optional<std::int64_t> requestCurrentTimeUnixNanos();
+        [[nodiscard]] bool logToChart(std::string_view p_symbol, std::string_view p_message);
 
         [[nodiscard]] HistoricalBarsResult requestHistoricalBars(std::string_view p_symbol,
                                                                  std::int64_t p_sessionDayUnixNanos,

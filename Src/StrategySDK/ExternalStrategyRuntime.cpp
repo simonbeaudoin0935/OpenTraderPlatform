@@ -111,6 +111,45 @@ namespace L2Trader::StrategySDK
         return result;
     }
 
+    std::optional<std::int64_t> ExternalStrategyRuntime::requestCurrentTimeUnixNanos()
+    {
+        Protocol::StrategyToHostEnvelope envelope;
+        envelope.set_sequence(m_outboundSequence++);
+        const std::string correlationId = nextCorrelationId("current-time");
+        envelope.set_correlation_id(correlationId);
+        envelope.mutable_current_time_request();
+
+        if (!sendEnvelope(std::move(envelope)))
+        {
+            return std::nullopt;
+        }
+
+        Protocol::HostToStrategyEnvelope response;
+        if (!pumpUntilResponse(correlationId, Protocol::HostToStrategyEnvelope::kCurrentTimeResponse, &response))
+        {
+            return std::nullopt;
+        }
+
+        return response.current_time_response().current_unix_nanos();
+    }
+
+    bool ExternalStrategyRuntime::logToChart(std::string_view p_symbol, std::string_view p_message)
+    {
+        if (p_symbol.empty() || p_message.empty())
+        {
+            return false;
+        }
+
+        Protocol::StrategyToHostEnvelope envelope;
+        envelope.set_sequence(m_outboundSequence++);
+        envelope.set_correlation_id(nextCorrelationId("chart-log"));
+
+        auto* const intent = envelope.mutable_chart_log_intent();
+        intent->set_symbol(std::string(p_symbol));
+        intent->set_message(std::string(p_message));
+        return sendEnvelope(std::move(envelope));
+    }
+
     HistoricalBarsResult ExternalStrategyRuntime::requestHistoricalBars(std::string_view p_symbol,
                                                                         const std::int64_t p_sessionDayUnixNanos,
                                                                         const std::int64_t p_firstBarUnixNanos,
@@ -450,6 +489,7 @@ namespace L2Trader::StrategySDK
 
         case Protocol::HostToStrategyEnvelope::kClaimSymbolsResponse:
         case Protocol::HostToStrategyEnvelope::kHistoricalBarsResponse:
+        case Protocol::HostToStrategyEnvelope::kCurrentTimeResponse:
         case Protocol::HostToStrategyEnvelope::kHostLog:
         case Protocol::HostToStrategyEnvelope::PAYLOAD_NOT_SET:
         default:
