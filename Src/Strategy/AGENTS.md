@@ -1,12 +1,12 @@
-# Strategy/ Directory - Plugin-Based Strategy System - Agent Instructions
+# Strategy/ Directory - External Strategy Runtime - Agent Instructions
 
-The Strategy directory contains the plugin-based strategy system that allows users to develop and deploy custom trading algorithms as dynamically loaded libraries.
+The Strategy directory contains the host-side runtime for external strategy processes. Strategies are launched as child processes and communicate with the host over Unix domain sockets using framed Protobuf messages.
 
 ## Overview
 
 **Location**: `Src/Strategy/`
-**Purpose**: Extensible strategy framework with crash isolation and thread safety
-**Architecture**: Plugin system with dedicated threads per strategy
+**Purpose**: Extensible strategy framework with process isolation and host-side supervision
+**Architecture**: External-process runtime with one supervised child process per strategy
 
 For complete documentation, see `Doc/STRATEGY.md`.
 
@@ -17,8 +17,8 @@ For complete documentation, see `Doc/STRATEGY.md`.
 **Role**: Orchestrates strategy lifecycle and manages multiple strategies
 
 **Responsibilities**:
-- Load strategy plugins (.so files)
-- Create dedicated threads for each strategy
+- Load strategy manifests / executables
+- Create and supervise one process per strategy
 - Start/stop strategies
 - Handle crashes and errors
 - Provide SDK access to strategies
@@ -26,9 +26,9 @@ For complete documentation, see `Doc/STRATEGY.md`.
 
 **Key Features**:
 - Multiple strategies can run simultaneously
-- Each strategy in isolated thread
-- Crash in one strategy doesn't affect others
-- Signal-based communication
+- Each strategy in an isolated process
+- Crash in one strategy doesn't affect host memory
+- Socket + Protobuf communication
 
 **API**:
 ```cpp

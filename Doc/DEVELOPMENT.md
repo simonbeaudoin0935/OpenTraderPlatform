@@ -527,4 +527,4 @@ QVector<Bar> getBars(const QDate& start, const QDate& end) const;
 - [AUTHENTICATION.md](AUTHENTICATION.md) — OAuth 2.0 and Databento API key management
 - [FRONTEND.md](FRONTEND.md) — GUI and TUI implementation
 - [CONTRIBUTING.md](CONTRIBUTING.md) — Contribution process
-- [STRATEGY.md](STRATEGY.md) — Strategy plugin development
+- [STRATEGY.md](STRATEGY.md) — Strategy process development

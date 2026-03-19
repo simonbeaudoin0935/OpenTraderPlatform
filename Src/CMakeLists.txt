@@ -74,18 +74,15 @@ file(GLOB_RECURSE CORE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Core/*.h"
 )
 
-# Strategy plugin system sources
+# Strategy runtime system sources
 file(GLOB_RECURSE STRATEGY_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/*.h"
 )
 list(APPEND STRATEGY_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/ProcessStrategyRuntimeBackend.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/ProcessStrategyRuntimeBackend.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/StrategyRuntimeBackend.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Strategy/StrategyRuntimeBackend.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Misc/TimeFrame.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Misc/TimeFrame.h"
 )
-list(REMOVE_DUPLICATES STRATEGY_SOURCES)
 
 file(GLOB FRONTEND_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/FrontEnd/*.h"
@@ -115,7 +112,7 @@ else()
     )
 endif()
 
-# Create a shared library for strategy system (for plugins to link against)
+# Create a shared library for the host strategy runtime
 add_library(L2TraderStrategy SHARED
     ${STRATEGY_SOURCES}
 )
@@ -273,12 +270,17 @@ target_link_libraries(L2TraderStrategy PUBLIC
     Qt6::Core
     Qt6::Network
     Qt6::Sql
-    Qt6::Gui
-    Qt6::Widgets
     Qt6::Concurrent
     L2TraderStrategySDK
     dl
 )
+
+if(ENABLE_GUI)
+    target_link_libraries(L2TraderStrategy PUBLIC
+        Qt6::Gui
+        Qt6::Widgets
+    )
+endif()
 
 # Set include directories for the common library
 target_include_directories(L2TraderCommon PUBLIC

@@ -346,18 +346,18 @@ signals:
 
 ### StrategiesTab/ (Subdirectory)
 
-**Purpose**: Strategy plugin management interface
+**Purpose**: External strategy process management interface
 
 See `StrategiesTab/AGENTS.md` for detailed documentation.
 
 **Quick Overview**:
-- Load strategy plugins (.so files)
+- Load external strategy executables or manifests
 - Start/stop strategies
 - View strategy status and logs
 - Crash isolation per strategy
 - Strategy cards with metrics
 - Strategy grid layout
-- Load dialog for selecting plugins
+- Load dialog for selecting manifests or executables
 
 **Main Components**:
 - StrategiesTab.h/cpp - Main tab widget

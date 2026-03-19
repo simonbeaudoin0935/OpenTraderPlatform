@@ -329,30 +329,21 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
 
     QString strategyID = generateStrategyID();
 
-    std::expected<std::unique_ptr<IStrategyRuntimeBackend>, QString> runtimeResult = std::unexpected(QString{});
-    if (p_config.usesExternalProcess())
+    if (!p_config.usesExternalProcess())
     {
-        auto processRuntimeResult = ProcessStrategyRuntimeBackend::create(m_mainAlgo, strategyID, p_config);
-        if (processRuntimeResult)
-        {
-            runtimeResult = std::unique_ptr<IStrategyRuntimeBackend>(std::move(processRuntimeResult.value()));
-        }
-        else
-        {
-            runtimeResult = std::unexpected(processRuntimeResult.error());
-        }
+        return std::unexpected(
+            "Legacy in-process strategy plugins are no longer supported. Rebuild this strategy as an external process.");
+    }
+
+    std::expected<std::unique_ptr<IStrategyRuntimeBackend>, QString> runtimeResult = std::unexpected(QString{});
+    auto processRuntimeResult = ProcessStrategyRuntimeBackend::create(m_mainAlgo, strategyID, p_config);
+    if (processRuntimeResult)
+    {
+        runtimeResult = std::unique_ptr<IStrategyRuntimeBackend>(std::move(processRuntimeResult.value()));
     }
     else
     {
-        auto pluginRuntimeResult = PluginStrategyRuntimeBackend::create(m_mainAlgo, strategyID, p_config);
-        if (pluginRuntimeResult)
-        {
-            runtimeResult = std::unique_ptr<IStrategyRuntimeBackend>(std::move(pluginRuntimeResult.value()));
-        }
-        else
-        {
-            runtimeResult = std::unexpected(pluginRuntimeResult.error());
-        }
+        runtimeResult = std::unexpected(processRuntimeResult.error());
     }
     if (!runtimeResult)
     {
@@ -367,7 +358,7 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
 
     connectStrategyToDataSources(instance);
 
-    // Note: Thread is NOT started here - wait for startStrategy() to be called
+    // Note: Process is NOT started here - wait for startStrategy() to be called
     // This allows the UI to show the strategy in LOADED state and wait for user to click Start
 
     qInfo(StrategyManagerLog) << "Loaded strategy:" << p_config.name << "ID:" << strategyID;
@@ -442,7 +433,7 @@ QString StrategyManager::startStrategy(const QString& p_strategyID)
                ")";
     }
 
-    // Connect thread started signal to install signal handler and call onStart
+    // Start the supervised process runtime and transition state once it reports ready.
     ASSUME_DIFF(instance->p_backend.get(), nullptr);
 
     const QString error = instance->p_backend->start(
@@ -480,10 +471,12 @@ void StrategyManager::markStrategyFailed(const QString& p_strategyID, const QStr
     qCritical(StrategyManagerLog) << "Strategy marked as FAILED:" << instance->config.name
                                   << "Error:" << p_errorMessage;
 
+    instance->state = StrategyState::STOPPED;
+
     // Emit status changed signal with error state
     emit strategyStatusChanged(p_strategyID, false, p_errorMessage);
 
-    // Stop the thread if it's still running (it may have already crashed)
+    // Stop the process if it's still running (it may have already crashed)
     if (instance->p_backend && instance->p_backend->isThreadRunning())
     {
         instance->p_backend->shutdownExecutionThread();
@@ -511,13 +504,6 @@ void StrategyManager::stopAllStrategies()
     }
 
     INFO << "All strategies stopped";
-}
-
-void StrategyManager::markStrategyFailedFromSignal(const QString& p_strategyID, const QString& p_errorMessage)
-{
-    // Logging here since we moved qCritical out of signal handler
-    qCritical(StrategyManagerLog) << "Strategy thread crashed with signal:" << p_strategyID << "-" << p_errorMessage;
-    markStrategyFailed(p_strategyID, p_errorMessage);
 }
 
 QVector<QString> StrategyManager::getActiveStrategies() const
@@ -651,12 +637,6 @@ const StrategyManager::StrategyInstance* StrategyManager::findStrategy(const QSt
         return it.value();
     }
     return nullptr;
-}
-
-StrategyBase* StrategyManager::getStrategy(const QString& p_strategyID) const
-{
-    auto instance = findStrategy(p_strategyID);
-    return instance && instance->p_backend ? instance->p_backend->strategy() : nullptr;
 }
 
 void StrategyManager::onOrderUpdatedForStrategy(const QString& p_strategyID, const Order& p_order)

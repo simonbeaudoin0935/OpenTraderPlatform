@@ -92,7 +92,7 @@ MainAlgo::MainAlgo() {
    - Manage replay order/position streams with simulated account
 
 7. **Strategy Management**
-   - Own and run StrategyManager for loaded strategy plugins
+   - Own and run StrategyManager for loaded external strategy processes
 
 ### Key Members
 

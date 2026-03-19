@@ -4,6 +4,9 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QMetaObject>
 #include <QProcessEnvironment>
 #include <QPromise>
@@ -547,29 +550,14 @@ ProcessStrategyRuntimeBackend::~ProcessStrategyRuntimeBackend()
     destroyRuntime();
 }
 
-StrategyBase* ProcessStrategyRuntimeBackend::strategy() const
-{
-    return nullptr;
-}
-
 StrategySDK* ProcessStrategyRuntimeBackend::sdk() const
 {
     return m_sdk;
 }
 
-StrategyCallbackAdapter* ProcessStrategyRuntimeBackend::adapter() const
-{
-    return nullptr;
-}
-
 StrategyLogger* ProcessStrategyRuntimeBackend::logger() const
 {
     return m_logger.get();
-}
-
-QThread* ProcessStrategyRuntimeBackend::executionThread()
-{
-    return nullptr;
 }
 
 Qt::HANDLE ProcessStrategyRuntimeBackend::threadHandle() const
@@ -829,8 +817,17 @@ void ProcessStrategyRuntimeBackend::setupProcessObservers()
 
                          if (m_shutdownRequested || m_runtimeDestroyed)
                          {
-                             qInfo(StrategyManagerLog)
-                                 << "Strategy process exited cleanly:" << m_strategyID << "code:" << p_exitCode;
+                             if (p_exitStatus == QProcess::CrashExit || p_exitCode != 0)
+                             {
+                                 qWarning(StrategyManagerLog)
+                                     << "Strategy process exited during shutdown with status:" << m_strategyID
+                                     << "code:" << p_exitCode << "exitStatus:" << p_exitStatus;
+                             }
+                             else
+                             {
+                                 qInfo(StrategyManagerLog)
+                                     << "Strategy process exited cleanly:" << m_strategyID << "code:" << p_exitCode;
+                             }
                              return;
                          }
 

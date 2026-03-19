@@ -8,7 +8,6 @@
 #include "MainAlgo.h"
 #include "MainApp.h"
 #include "StrategyManager.h"
-#include "StrategySignalHandler.h"
 #include "TSClient.h"
 #include "DBClient.h"
 #include "Logging.h"
@@ -88,10 +87,6 @@ MainAlgo::~MainAlgo()
         thread.wait();
     }
 
-    // Now safe to cleanup QSocketNotifier and signal handler (thread is stopped)
-    m_crashNotifier.reset();
-    StrategySignalHandler::cleanup();
-
     // StrategyManager will be destroyed automatically via composition
 
     DEBUG << "Destroyed singleton instance";
@@ -110,26 +105,6 @@ void MainAlgo::onThreadStarted()
     m_balancePollingTimer = std::make_unique<QTimer>(this);
 
     connect(m_balancePollingTimer.get(), &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
-
-    // Initialize signal handler system (set up crash notification pipe)
-    StrategySignalHandler::initialize();
-
-    // Set up socket notifier to monitor crash pipe
-    int crashFd = StrategySignalHandler::getCrashNotificationFd();
-
-    OBJ_ASSUME_DIFF(crashFd, -1);
-
-    m_crashNotifier = std::make_unique<QSocketNotifier>(crashFd, QSocketNotifier::Read, this);
-    auto c = connect(m_crashNotifier.get(),
-                     &QSocketNotifier::activated,
-                     this,
-                     &MainAlgo::onStrategyCrashNotified,
-                     Qt::UniqueConnection);
-
-    OBJ_ASSUME_TRUE(c);
-
-    DEBUG << "Installed crash notification handler";
-
 
     // Positions: broadcast to all strategies via adapter (strategy thread)
     connect(this,
@@ -1236,44 +1211,6 @@ void MainAlgo::processClaimSymbols(const QString& p_strategyID,
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
     m_strategyManager.processClaimSymbols(p_strategyID, p_symbols, p_promise);
-}
-
-void MainAlgo::onStrategyCrashNotified()
-{
-    // Read crash notification from pipe
-    // The pipe was set up by StrategySignalHandler::initialize()
-    // and monitored by QSocketNotifier on this MainAlgo thread
-
-    OBJ_ASSUME_TRUE(m_crashNotifier != nullptr);
-
-    // Read from the pipe - keep reading until it's empty
-    const int fd = m_crashNotifier->socket();
-
-    OBJ_ASSUME_DIFF(fd, -1);
-
-    struct CrashNotification
-    {
-        char strategyID[256];
-        char errorMsg[256];
-        int signal;
-    };
-
-    CrashNotification notif;
-    ssize_t result = read(fd, &notif, sizeof(notif));
-
-    if (result != static_cast<ssize_t>(sizeof(notif)))
-    {
-        CRITICAL << "Failed to read crash notification from pipe:" << strerror(errno);
-        return;
-    }
-
-    QString strategyID = QString::fromStdString(std::string(notif.strategyID));
-    QString errorMsg = QString::fromStdString(std::string(notif.errorMsg));
-
-    CRITICAL << "Strategy thread crashed with signal:" << strategyID << "-" << errorMsg;
-
-    // Now safely call StrategyManager::markStrategyFailed on the same thread
-    m_strategyManager.markStrategyFailed(strategyID, errorMsg);
 }
 
 // onAggregatorBarUpdated/onAggregatorBarClosed removed — snapshot writes are now

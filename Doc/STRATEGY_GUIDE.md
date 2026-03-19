@@ -2,6 +2,10 @@
 
 **Who this document is for**: Anyone who wants to write a trading strategy for L2Trader and doesn't need (or want) deep knowledge of C++ internals or system architecture. If you can follow code examples and understand trading concepts, this guide is for you.
 
+> **Migration note**
+>
+> L2Trader strategies now run as external executables, not in-process `.so` plugins. Parts of this guide still use the older plugin wording while it is being rewritten; for current examples, start with `Strategies/ExampleStrategyProcess/`, `Strategies/README.md`, and the installed `L2TraderStrategySDK`.
+
 ---
 
 ## Table of Contents
@@ -30,7 +34,7 @@ At its core the app does three things:
 
 1. **Receives live market data** — every time the price of a stock changes, every time a buy or sell order is placed on the exchange, L2Trader gets that information in milliseconds.
 2. **Displays that data** — in charts, order-book tables, and status panels.
-3. **Executes trades** — it can send real buy/sell orders to a TradeStation brokerage account, either by hand through the interface or automatically through a **strategy plugin** that you write.
+3. **Executes trades** — it can send real buy/sell orders to a TradeStation brokerage account, either by hand through the interface or automatically through a **strategy process** that you write.
 
 ---
 
@@ -57,7 +61,7 @@ When you launch the application you see:
 - **A Level 2 panel** — shows the 10 best buy (bid) prices and 10 best sell (ask) prices on the exchange right now, with quantities.
 - **Order entry panel** — where you can manually enter orders.
 - **Orders and positions dock** (bottom) — tables showing your open orders and current positions.
-- **Strategies tab** — where you manage your strategy plugins.
+- **Strategies tab** — where you manage your strategy processes.
 
 ### What "One Minute Bar" Means
 
@@ -140,7 +144,7 @@ This is the "very fast path" — useful for tracking momentum, aggressor-side an
 
 ## What a Strategy Is
 
-A strategy is a **plugin file** — a compiled piece of code (a `.so` file on Linux) that L2Trader loads at runtime. The application does not know in advance what your strategy does; it just calls your code at the right moments (on each bar, on each trade, etc.) and your code decides what to do.
+A strategy is an **external executable** that L2Trader launches and supervises. The application does not know in advance what your strategy does; it streams market/state updates to your process, and your process sends explicit intents such as symbol claims, logs, historical-data requests, and order placement/cancel requests back to the host.
 
 This approach gives you total control over your trading logic while the application handles all the hard parts: connecting to exchanges, managing network streams, drawing charts, etc.
 

@@ -709,4 +709,4 @@ QNetworkReply* reply = m_networkManager->post(request, body);
 - [FRONTEND.md](FRONTEND.md) — GUI and TUI implementation details
 - [DEVELOPMENT.md](DEVELOPMENT.md) — Development setup and guidelines
 - [CONTRIBUTING.md](CONTRIBUTING.md) — Contribution guidelines
-- [STRATEGY.md](STRATEGY.md) — Strategy plugin system
+- [STRATEGY.md](STRATEGY.md) — Strategy process system

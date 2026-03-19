@@ -16,10 +16,10 @@ enum class StrategyRuntimeType
 /// This is used for loading/saving configurations to JSON files
 struct StrategyConfig
 {
-    StrategyRuntimeType runtimeType = StrategyRuntimeType::PluginSharedLibrary; ///< How the strategy is executed
-    QString name;                                                               ///< Strategy display name
-    QString soPath;                             ///< Path to .so file (relative or absolute)
-    QString executablePath;                     ///< Path to external strategy executable
+    StrategyRuntimeType runtimeType = StrategyRuntimeType::ExternalProcess; ///< How the strategy is executed
+    QString name;                                                           ///< Strategy display name
+    QString soPath;                                                         ///< Path to .so file (relative or absolute)
+    QString executablePath;                                                 ///< Path to external strategy executable
     QStringList symbols;                        ///< Symbols to monitor (e.g., ["AAPL", "TSLA"])
     int positionSize = 100;                     ///< Position size per trade
     double riskLimit = 500.0;                   ///< Max loss per strategy

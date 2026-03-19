@@ -10,10 +10,10 @@
 #include <memory>
 #include <span>
 
+#include "StrategyConfig.h"
 #include "StrategyRuntimeBackend.h"
 
 class MainAlgo;
-struct StrategyConfig;
 namespace l2trader::strategy::v1
 {
     class HostToStrategyEnvelope;
@@ -27,11 +27,8 @@ class ProcessStrategyRuntimeBackend final : public IStrategyRuntimeBackend
 
     ~ProcessStrategyRuntimeBackend() override;
 
-    [[nodiscard]] StrategyBase* strategy() const override;
     [[nodiscard]] StrategySDK* sdk() const override;
-    [[nodiscard]] StrategyCallbackAdapter* adapter() const override;
     [[nodiscard]] StrategyLogger* logger() const override;
-    [[nodiscard]] QThread* executionThread() override;
     [[nodiscard]] Qt::HANDLE threadHandle() const override;
     void setThreadHandle(Qt::HANDLE p_handle) override;
     [[nodiscard]] bool isThreadRunning() const override;

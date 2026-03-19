@@ -2,7 +2,11 @@
 
 ## Overview
 
-L2Trader includes an extensible strategy system that allows users to develop and deploy custom trading algorithms as dynamically loaded shared-library plugins (`.so` files on Linux). Each strategy runs in its own dedicated thread with crash isolation — a crash in one strategy does not affect the main application or other strategies.
+L2Trader now runs strategies as host-supervised external processes. The host creates a per-strategy Unix domain socket, exchanges framed Protobuf messages with the child process, and keeps `stdout`/`stderr` free for human-readable diagnostics.
+
+> **Migration note**
+>
+> This document is still being updated from the old plugin model. If a section below mentions `.so` plugins, in-process threads, or `StrategyBase`, treat that content as historical background rather than current implementation. The current reference samples live under `Strategies/*Process/`, and the live runtime contract is the external process SDK plus manifests.
 
 ## Table of Contents
 
@@ -22,10 +26,10 @@ L2Trader includes an extensible strategy system that allows users to develop and
 ### Core Components
 
 **Strategy Management**:
-- **StrategyManager**: Orchestrates strategy lifecycle (load, start, stop, unload)
-- **StrategyBase**: Abstract base class; all strategies inherit from this
-- **StrategySDK**: Public API giving strategies access to platform data and services
-- **StrategySignalHandler**: Crash detection and isolation (catches SIGSEGV, SIGABRT, SIGTERM)
+- **StrategyManager**: Orchestrates external strategy lifecycle (load, start, stop, unload)
+- **ProcessStrategyRuntimeBackend**: Launches and supervises one child process per strategy
+- **StrategySDK**: Host-side API surface used by the runtime backend to route state and broker access
+- **External manifests + SDK**: Define executable discovery, parameter defaults, and custom-parameter schema
 
 **GUI Components**:
 - **StrategiesTab**: Main strategy management tab
@@ -33,19 +37,19 @@ L2Trader includes an extensible strategy system that allows users to develop and
 - **StrategyLoadDialog**: Plugin selection and configuration dialog
 - **StrategyQuickView**: Compact tree widget in the Trade tab showing all strategies and their claimed symbols
 
-### Threading Model
+### Runtime Model
 
 ```
-Main Thread (UI + StrategyManager)
+Main/Algo Threads (host)
     │
-    ├─► Strategy Thread 1 (Strategy A)
-    ├─► Strategy Thread 2 (Strategy B)
-    └─► Strategy Thread N (Strategy N)
+    ├─► Strategy Process 1 (Strategy A)
+    ├─► Strategy Process 2 (Strategy B)
+    └─► Strategy Process N (Strategy N)
 ```
 
-- Strategies communicate with `StrategyManager` via Qt signals using `Qt::QueuedConnection`
-- `StrategyManager` dispatches callbacks to strategies on their respective threads
-- UI updates always happen on the main thread
+- Strategies communicate with the host over Unix domain sockets using framed Protobuf messages
+- `stdout`/`stderr` stay available for operator-visible logs and crash diagnostics
+- UI updates always happen on the host side; strategy failures are reported through process exit status and runtime errors
 
 ### Data Sources for Strategies
 

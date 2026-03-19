@@ -56,12 +56,17 @@ namespace
 
     [[nodiscard]] StrategyRuntimeType runtimeTypeFromString(const QString& p_runtimeType)
     {
+        if (p_runtimeType == "plugin-shared-library")
+        {
+            return StrategyRuntimeType::PluginSharedLibrary;
+        }
+
         if (p_runtimeType == "external-process")
         {
             return StrategyRuntimeType::ExternalProcess;
         }
 
-        return StrategyRuntimeType::PluginSharedLibrary;
+        return StrategyRuntimeType::ExternalProcess;
     }
 } // namespace
 
@@ -114,10 +119,14 @@ StrategyConfig StrategyConfig::fromJson(const QJsonObject& obj)
     {
         config.runtimeType = StrategyRuntimeType::ExternalProcess;
     }
+    else if (!rawSoPath.isEmpty())
+    {
+        config.runtimeType = StrategyRuntimeType::PluginSharedLibrary;
+    }
 
     if (config.usesExternalProcess())
     {
-        config.executablePath = resolveExecutablePath(!rawExecutablePath.isEmpty() ? rawExecutablePath : rawSoPath);
+        config.executablePath = resolveExecutablePath(rawExecutablePath);
     }
     else
     {

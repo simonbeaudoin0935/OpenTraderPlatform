@@ -204,7 +204,7 @@ Tree widget showing all loaded strategies and the symbol each has claimed. Provi
 | **Config** | `ConfigTab` | Databento API key entry, dataset selection, connection management |
 | **Cache** | `CacheTab` | Bar cache inspection, clear, preload controls |
 | **Logging** | `LoggingTab` | Live log display with per-category filter controls |
-| **Strategies** | `StrategiesTab` | Load/start/stop strategy plugins; `StrategyCard` per plugin |
+| **Strategies** | `StrategiesTab` | Load/start/stop external strategy processes; `StrategyCard` per strategy |
 
 #### Dock Widgets
 

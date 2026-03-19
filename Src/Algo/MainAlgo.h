@@ -36,7 +36,6 @@
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
-class QSocketNotifier;
 class OrderEmulator;
 
 
@@ -436,9 +435,6 @@ class MainAlgo final : public QObject
     void onBalanceReceived(const QVector<Balance>& results);
     void requestBalance();
 
-    // Handle strategy crash notifications from signal handler pipe
-    void onStrategyCrashNotified();
-
     // Handle replay end - pause heartbeat timers
     void onReplayEndReached();
 
@@ -484,7 +480,6 @@ class MainAlgo final : public QObject
     // Strategy order tracking - all accessed from MainAlgo thread
     StrategyManager m_strategyManager;
 
-    std::unique_ptr<QSocketNotifier> m_crashNotifier; // Monitor crash pipe from signal handlers
     std::atomic<uint64_t> m_requestIdCounter{0};
     QMap<uint64_t, std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>> m_pendingOrderPromises;
     QMap<uint64_t, QString> m_requestIdToStrategyId; // Temporary mapping until OrderID known
