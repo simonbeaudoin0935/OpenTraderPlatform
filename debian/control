@@ -4,7 +4,9 @@ Priority: optional
 Maintainer: Simon Beaudoin <29244395+simonbeaudoin0935@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13),
                qt6-base-dev,
-               libqt6sql6-sqlite
+               libqt6sql6-sqlite,
+               libprotobuf-dev,
+               protobuf-compiler
 Standards-Version: 4.6.0
 Homepage: https://github.com/simonbeaudoin0935/L2Trader
 
@@ -23,3 +25,21 @@ Description: Real-time algorithmic trading application
   * Position Tracking
   * Algorithmic Trading capabilities
   * Market data replay from recorded sessions
+
+Package: l2trader-strategy-sdk
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Runtime library for external L2Trader strategy executables
+ Provides the shared client runtime used by external L2Trader strategies.
+ It includes the length-prefixed Protobuf transport helpers and public
+ protocol/runtime support needed by out-of-process strategy processes.
+
+Package: l2trader-strategy-sdk-dev
+Section: libdevel
+Architecture: any
+Depends: l2trader-strategy-sdk (= ${binary:Version}), ${misc:Depends}, libprotobuf-dev
+Description: Development files for building external L2Trader strategies
+ Provides the installable C++ SDK headers, generated Protobuf headers,
+ raw .proto schema files, and CMake package metadata for building external
+ strategy executables against the L2Trader strategy SDK.

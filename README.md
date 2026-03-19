@@ -56,6 +56,7 @@ For detailed documentation, see:
 - **C++23 compliant compiler**: GCC 11+ or Clang 12+
 - **CMake 3.16+**: Build system
 - **SQLite**: Database support (included with Qt SQL)
+- **Protocol Buffers (protobuf)**: `protoc` + `libprotobuf` for the new out-of-process strategy protocol / SDK targets
 - **databento-cpp**: Bundled in `Lib/` — requires `libssl-dev` and `libzstd-dev`
 - **QCustomPlot**: Charting library (included in `Lib/QCustomPlot/`)
 
@@ -77,7 +78,8 @@ For detailed documentation, see:
 2. **Install dependencies**:
    ```bash
    # Ubuntu/Debian — essential packages
-   sudo apt-get install cmake build-essential qt6-base-dev libqt6sql6-sqlite cmake libssl-dev libzstd-dev ninja-build
+    sudo apt-get install cmake build-essential qt6-base-dev libqt6sql6-sqlite \
+                         libprotobuf-dev protobuf-compiler libssl-dev libzstd-dev ninja-build
 
    # Ubuntu/Debian — optional (recommended for development)
    sudo apt-get install clang-format ccache libqtkeychain-qt6-dev libncurses-dev
@@ -105,9 +107,20 @@ For detailed documentation, see:
    ```
 
 5. **Run the application**:
+    ```bash
+    ./build/GUI/Src/L2Trader
+    ```
+
+6. **Stage the external strategy SDK from a build tree** (optional):
    ```bash
-   ./build/GUI/Src/L2Trader
+   cmake --build build/GUI --target stage-strategy-sdk
    ```
+
+   This creates an install-style SDK layout under `build/GUI/strategy-sdk/` with:
+   - `include/L2Trader/...` public headers
+   - `lib*/libL2TraderStrategySDK.so*` shared library artifacts
+   - `share/l2trader/proto/` canonical `.proto` files
+   - `lib*/cmake/L2TraderStrategySDK/` `find_package()` metadata
 
 ### Building with Sanitizers (for development)
 
@@ -235,7 +248,9 @@ L2Trader/
 │   │   └── TUI/           # ncurses terminal interface
 │   ├── Misc/              # Constants, logging, settings, secure storage
 │   ├── SQL/               # Centralized SQL query headers
-│   └── Strategy/          # Strategy plugin loader and SDK
+│   ├── Strategy/          # Current in-process strategy plugin loader/runtime
+│   ├── StrategyProtocol/  # Protobuf schemas for out-of-process strategy IPC
+│   └── StrategySDK/       # Installable public SDK for external strategy executables
 ├── Strategies/            # Example and test strategy plugins
 ├── Tests/                 # Unit tests
 ├── Lib/                   # Third-party libraries (databento-cpp, QCustomPlot)

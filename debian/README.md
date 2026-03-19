@@ -14,7 +14,7 @@ Install the required build dependencies:
 
 ```bash
 sudo apt-get install debhelper-compat qt6-base-dev qt6-charts-dev \
-                     libqt6sql6-sqlite \
+                     libqt6sql6-sqlite libprotobuf-dev protobuf-compiler \
                      qtkeychain-qt6-dev libsecret-1-dev
 ```
 
@@ -26,9 +26,10 @@ From the root directory of the repository:
 dpkg-buildpackage -us -uc -b
 ```
 
-This will create two `.deb` packages in the parent directory:
+This will create Debian packages in the parent directory, including:
 - `l2trader_<version>_<arch>.deb` - Main application package
-- `l2trader-tests_<version>_<arch>.deb` - Unit tests package
+- `l2trader-strategy-sdk_<version>_<arch>.deb` - Runtime library for external strategy executables
+- `l2trader-strategy-sdk-dev_<version>_<arch>.deb` - Headers, Protobuf schema, and CMake package files for strategy development
 
 ## Packages
 
@@ -48,6 +49,19 @@ The main application package that includes:
   - `/lib/systemd/system/l2trader-recorder-start.timer` - Timer to start at 7 AM ET
   - `/lib/systemd/system/l2trader-recorder-stop.timer` - Timer to stop at 8 PM ET
   - `/usr/lib/l2trader/recorder-post-stop.sh` - Post-stop script
+
+### l2trader-strategy-sdk
+
+Runtime package for out-of-process strategy executables:
+- `/usr/lib/<multiarch>/libL2TraderStrategySDK.so.*` - Shared strategy SDK runtime
+
+### l2trader-strategy-sdk-dev
+
+Development package for building external strategies:
+- `/usr/include/L2Trader/StrategySDK/` - Public C++ SDK headers
+- `/usr/include/L2Trader/StrategyProtocol/` - Generated Protobuf headers
+- `/usr/share/l2trader/proto/` - Canonical `.proto` files
+- `/usr/lib/<multiarch>/cmake/L2TraderStrategySDK/` - `find_package()` metadata
 
 ### l2trader-tests
 
@@ -255,4 +269,3 @@ The service is hardened with systemd security features:
 - No new privileges
 - Protected kernel tunables and modules
 - Restricted namespaces and realtime capabilities
-

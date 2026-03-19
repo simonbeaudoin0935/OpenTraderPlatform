@@ -18,7 +18,7 @@ override_dh_auto_configure:
 	# FETCHCONTENT_FULLY_DISCONNECTED=OFF overrides the Debian default (ON) so that
 	# Databento can download its bundled dependencies (nlohmann_json, httplib, date)
 	# which do not have suitable system packages on Ubuntu Noble.
-	dh_auto_configure -- -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_GUI=ON -DBUILD_TESTS=OFF -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DFETCHCONTENT_FULLY_DISCONNECTED=OFF
+	dh_auto_configure -- -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH) -DENABLE_GUI=ON -DBUILD_TESTS=OFF -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DFETCHCONTENT_FULLY_DISCONNECTED=OFF
 
 override_dh_auto_build:
 	# Build with Ninja using all available cores
@@ -32,6 +32,10 @@ override_dh_auto_test:
 override_dh_auto_install:
 	# Install main application binary
 	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Src/L2Trader debian/l2trader/usr/bin/l2trader
+
+	# Install out-of-process strategy SDK runtime and development files
+	DESTDIR=$(CURDIR)/debian/l2trader-strategy-sdk cmake --install obj-$(DEB_HOST_GNU_TYPE) --component strategy-sdk-runtime
+	DESTDIR=$(CURDIR)/debian/l2trader-strategy-sdk-dev cmake --install obj-$(DEB_HOST_GNU_TYPE) --component strategy-sdk-dev
 	
 	# Install strategy SDK library
 	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Src/libL2TraderStrategy.so debian/l2trader/usr/lib/libL2TraderStrategy.so

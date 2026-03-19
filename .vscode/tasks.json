@@ -139,6 +139,28 @@
             ]
         },
         {
+            "label": "stage-strategy-sdk",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/GUI",
+                "--target",
+                "stage-strategy-sdk"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "build"
+            ]
+        },
+        {
             "label": "build-all",
             "type": "shell",
             "command": "cmake",
@@ -158,6 +180,28 @@
             "problemMatcher": "$gcc",
             "dependsOn": [
                 "configure-all"
+            ]
+        },
+        {
+            "label": "stage-strategy-sdk-all",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/All",
+                "--target",
+                "stage-strategy-sdk"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "build-all"
             ]
         },
         {
@@ -183,6 +227,28 @@
             ]
         },
         {
+            "label": "stage-strategy-sdk-ubsan",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/UBSan",
+                "--target",
+                "stage-strategy-sdk"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "build-ubsan"
+            ]
+        },
+        {
             "label": "build-asan",
             "type": "shell",
             "command": "cmake",
@@ -202,6 +268,28 @@
             "problemMatcher": "$gcc",
             "dependsOn": [
                 "configure-asan"
+            ]
+        },
+        {
+            "label": "stage-strategy-sdk-asan",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/ASan",
+                "--target",
+                "stage-strategy-sdk"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "build-asan"
             ]
         },
         {
@@ -248,6 +336,28 @@
             "problemMatcher": "$gcc",
             "dependsOn": [
                 "configure-tui"
+            ]
+        },
+        {
+            "label": "stage-strategy-sdk-tui",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/TUI",
+                "--target",
+                "stage-strategy-sdk"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "build-tui"
             ]
         },
         {
@@ -598,6 +708,6 @@
                 "build-with-lttng-flamegraph"
             ],
             "problemMatcher": []
-        },
+        }
     ]
 }

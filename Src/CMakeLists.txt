@@ -9,6 +9,38 @@ add_custom_command(
 )
 add_custom_target(generate_logging DEPENDS ${LOGGING_GENERATED_H})
 
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+find_package(Protobuf REQUIRED)
+
+set(L2TRADER_STRATEGY_SDK_PUBLIC_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/Public")
+set(L2TRADER_STRATEGY_SDK_CMAKE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/cmake")
+set(L2TRADER_STRATEGY_PROTOCOL_PROTO_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/StrategyProtocol/proto/l2trader_strategy_v1.proto"
+)
+set(PROTOBUF_GENERATE_CPP_APPEND_PATH OFF)
+protobuf_generate_cpp(
+    L2TRADER_STRATEGY_PROTOCOL_GENERATED_SOURCES
+    L2TRADER_STRATEGY_PROTOCOL_GENERATED_HEADERS
+    ${L2TRADER_STRATEGY_PROTOCOL_PROTO_FILES}
+)
+set(L2TRADER_STRATEGY_SDK_INSTALL_CMAKE_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/L2TraderStrategySDK")
+set(L2TRADER_STRATEGY_SDK_STAGE_PREFIX "${CMAKE_BINARY_DIR}/strategy-sdk" CACHE PATH
+    "Build-tree prefix used by the stage-strategy-sdk target"
+)
+
+configure_package_config_file(
+    "${L2TRADER_STRATEGY_SDK_CMAKE_DIR}/L2TraderStrategySDKConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/L2TraderStrategySDKConfig.cmake"
+    INSTALL_DESTINATION "${L2TRADER_STRATEGY_SDK_INSTALL_CMAKE_DIR}"
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/L2TraderStrategySDKConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMinorVersion
+)
+
 # Collect all source files from subdirectories
 file(GLOB_RECURSE MISC_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Misc/*.cpp"
@@ -83,6 +115,78 @@ add_library(L2TraderStrategy SHARED
 
 # Add dependency on logging generation
 add_dependencies(L2TraderStrategy generate_logging)
+
+add_library(L2TraderStrategySDK SHARED
+    "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/MessageFraming.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/ProtocolVersion.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/RuntimeEnvironment.cpp"
+    ${L2TRADER_STRATEGY_PROTOCOL_GENERATED_SOURCES}
+)
+
+add_library(L2Trader::StrategySDK ALIAS L2TraderStrategySDK)
+
+set_target_properties(L2TraderStrategySDK PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION 1
+    EXPORT_NAME StrategySDK
+)
+
+target_compile_features(L2TraderStrategySDK PUBLIC cxx_std_23)
+
+target_include_directories(L2TraderStrategySDK PUBLIC
+    $<BUILD_INTERFACE:${L2TRADER_STRATEGY_SDK_PUBLIC_INCLUDE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/StrategyProtocol/proto>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+target_link_libraries(L2TraderStrategySDK PUBLIC
+    protobuf::libprotobuf
+)
+
+install(TARGETS L2TraderStrategySDK
+    EXPORT L2TraderStrategySDKTargets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            COMPONENT strategy-sdk-runtime
+            NAMELINK_COMPONENT strategy-sdk-dev
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            COMPONENT strategy-sdk-dev
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            COMPONENT strategy-sdk-runtime
+)
+
+install(DIRECTORY "${L2TRADER_STRATEGY_SDK_PUBLIC_INCLUDE_DIR}/"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        COMPONENT strategy-sdk-dev)
+
+install(FILES ${L2TRADER_STRATEGY_PROTOCOL_GENERATED_HEADERS}
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/L2Trader/StrategyProtocol
+        COMPONENT strategy-sdk-dev)
+
+install(FILES ${L2TRADER_STRATEGY_PROTOCOL_PROTO_FILES}
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/l2trader/proto
+        COMPONENT strategy-sdk-dev)
+
+install(FILES
+            "${CMAKE_CURRENT_BINARY_DIR}/L2TraderStrategySDKConfig.cmake"
+            "${CMAKE_CURRENT_BINARY_DIR}/L2TraderStrategySDKConfigVersion.cmake"
+        DESTINATION "${L2TRADER_STRATEGY_SDK_INSTALL_CMAKE_DIR}"
+        COMPONENT strategy-sdk-dev)
+
+install(EXPORT L2TraderStrategySDKTargets
+        NAMESPACE L2Trader::
+        DESTINATION "${L2TRADER_STRATEGY_SDK_INSTALL_CMAKE_DIR}"
+        COMPONENT strategy-sdk-dev)
+
+add_custom_target(stage-strategy-sdk
+    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${L2TRADER_STRATEGY_SDK_STAGE_PREFIX}"
+    COMMAND "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --prefix "${L2TRADER_STRATEGY_SDK_STAGE_PREFIX}"
+            --component strategy-sdk-runtime
+    COMMAND "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --prefix "${L2TRADER_STRATEGY_SDK_STAGE_PREFIX}"
+            --component strategy-sdk-dev
+    DEPENDS L2TraderStrategySDK
+    COMMENT "Staging the out-of-process strategy SDK under ${L2TRADER_STRATEGY_SDK_STAGE_PREFIX}"
+)
 
 # Create a library with common sources (excluding strategy which is now separate)
 add_library(L2TraderCommon STATIC
