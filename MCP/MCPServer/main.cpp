@@ -130,6 +130,14 @@ namespace
         };
     }
 
+    [[nodiscard]] QJsonObject optionalAccountIdSchema()
+    {
+        return QJsonObject{
+            {"type", "string"},
+            {"description", "Optional account ID. If omitted, L2Trader uses the currently active account."},
+        };
+    }
+
     [[nodiscard]] QJsonObject symbolPollingSchema()
     {
         return QJsonObject{
@@ -176,6 +184,14 @@ namespace
                   }},
              }},
             {"required", QJsonArray{"date", "startTime", "endTime"}},
+        };
+    }
+
+    [[nodiscard]] QJsonObject getBalanceSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties", QJsonObject{{"accountId", optionalAccountIdSchema()}}},
         };
     }
 
@@ -274,6 +290,18 @@ namespace
             {"title", "Get displayed symbol"},
             {"description", "Read the symbol currently displayed in the L2Trader frontend."},
             {"inputSchema", emptyObjectSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetAccounts},
+            {"title", "Get accounts"},
+            {"description", "List the brokerage accounts currently available to the platform."},
+            {"inputSchema", emptyObjectSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetBalance},
+            {"title", "Get balance"},
+            {"description", "Read the current account balance for the active or requested account."},
+            {"inputSchema", getBalanceSchema()},
         });
         tools.append(QJsonObject{
             {"name", PlatformControlProtocol::kCommandGetLevel2},
@@ -400,6 +428,8 @@ int main(int argc, char* argv[])
     const QSet<QString> supportedTools = {
         PlatformControlProtocol::kCommandStatus,
         PlatformControlProtocol::kCommandGetDisplayedSymbol,
+        PlatformControlProtocol::kCommandGetAccounts,
+        PlatformControlProtocol::kCommandGetBalance,
         PlatformControlProtocol::kCommandGetLevel2,
         PlatformControlProtocol::kCommandGetTradesSnapshot,
         PlatformControlProtocol::kCommandGetBars,
@@ -461,8 +491,8 @@ int main(int argc, char* argv[])
                      {"version", app.applicationVersion()},
                  }},
                 {"instructions",
-                 "This MCP server exposes L2Trader platform-control tools, poll-style market-data tools, and basic "
-                 "order placement/cancellation over the platform control socket."},
+                 "This MCP server exposes L2Trader platform-control tools, account/balance queries, poll-style "
+                 "market-data tools, and basic order placement/cancellation over the platform control socket."},
             };
             std::cout << compactJsonLine(makeJsonRpcResponse(id, result)).constData() << std::flush;
             continue;

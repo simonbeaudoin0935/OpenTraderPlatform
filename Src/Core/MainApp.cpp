@@ -244,6 +244,58 @@ namespace
         };
     }
 
+    [[nodiscard]] QJsonObject serializeAccountDetail(const AccountDetail& p_detail)
+    {
+        return QJsonObject{
+            {"isStockLocateEligible", p_detail.isStockLocateEligible},
+            {"enrolledInRegTProgram", p_detail.enrolledInRegTProgram},
+            {"requiresBuyingPowerWarning", p_detail.requiresBuyingPowerWarning},
+            {"dayTradingQualified", p_detail.dayTradingQualified},
+            {"optionApprovalLevel", p_detail.optionApprovalLevel},
+            {"patternDayTrader", p_detail.patternDayTrader},
+        };
+    }
+
+    [[nodiscard]] QJsonObject serializeAccount(const Account& p_account, const QString& p_activeAccountId)
+    {
+        QJsonObject item{
+            {"accountId", p_account.getAccountId()},
+            {"accountType", AccountType::accountTypeToString(p_account.getAccountType().type)},
+            {"status", p_account.getStatus()},
+            {"currency", p_account.getCurrency()},
+            {"isActive", !p_activeAccountId.isEmpty() && p_account.getAccountId() == p_activeAccountId},
+        };
+        item["accountDetail"] = p_account.getAccountDetail().has_value()
+                                    ? QJsonValue(serializeAccountDetail(p_account.getAccountDetail().value()))
+                                    : QJsonValue(QJsonValue::Null);
+        return item;
+    }
+
+    [[nodiscard]] QJsonArray serializeAccounts(const QVector<Account>& p_accounts, const QString& p_activeAccountId)
+    {
+        QJsonArray items;
+        for (const Account& account: p_accounts)
+        {
+            items.append(serializeAccount(account, p_activeAccountId));
+        }
+        return items;
+    }
+
+    [[nodiscard]] QJsonObject serializeBalance(const Balance& p_balance)
+    {
+        return QJsonObject{
+            {"accountId", p_balance.getAccountID()},
+            {"accountType", AccountType::accountTypeToString(p_balance.getAccountType().type)},
+            {"buyingPower", p_balance.getBuyingPower()},
+            {"cashBalance", p_balance.getCashBalance()},
+            {"commission", p_balance.getComission()},
+            {"equity", p_balance.getEquity()},
+            {"marketValue", p_balance.getMarketValue()},
+            {"todaysProfitLoss", p_balance.getTodaysProfitLoss()},
+            {"unclearedDeposit", p_balance.getUnclearedDeposit()},
+        };
+    }
+
     [[nodiscard]] QJsonObject serializeOrderResultItem(const OrderResultItem& p_item)
     {
         QJsonObject item{
@@ -1331,11 +1383,26 @@ QJsonObject MainApp::getControlStatus() const
     QJsonObject status;
     const QDate replayDate = configuredReplayDate();
     const QTime replayStartTime = configuredReplayStartTime();
+    QString displayedSymbol;
+    QString activeAccountId;
+    Playback::State replayState = Playback::State::Stopped;
+    const bool invoked = QMetaObject::invokeMethod(
+        mainAlgo,
+        [&]()
+        {
+            displayedSymbol = this->mainAlgo->getDisplayedSymbol();
+            activeAccountId = this->mainAlgo->getActiveAccountId();
+            replayState = this->mainAlgo->getReplayState();
+        },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+
     status["dataSourceMode"] = dataSourceModeToString(m_dataSourceMode);
     status["tradingMode"] = tradingModeToString(m_tradingMode);
     status["tradingModeChangeRequiresRestart"] = true;
-    status["displayedSymbol"] = mainAlgo->getDisplayedSymbol();
-    status["replayState"] = replayStateToString(mainAlgo->getReplayState());
+    status["displayedSymbol"] = displayedSymbol;
+    status["activeAccountId"] = activeAccountId.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(activeAccountId);
+    status["replayState"] = replayStateToString(replayState);
     status["replayPaused"] = isReplayPaused();
     status["currentAppTime"] = getCurrentAppTime().toString(Qt::ISODateWithMs);
     status["currentReplayTime"] =
@@ -1392,6 +1459,110 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
                                    displayedSymbol.isEmpty() ? "No symbol is currently displayed."
                                                              : "Displayed symbol retrieved.",
                                    result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandGetAccounts)
+    {
+        QString activeAccountId;
+        const bool invoked = QMetaObject::invokeMethod(
+            mainAlgo,
+            [&activeAccountId, this]() { activeAccountId = this->mainAlgo->getActiveAccountId(); },
+            Qt::BlockingQueuedConnection);
+        ASSUME_TRUE(invoked);
+
+        const auto accountsResult = waitForFutureResult(TSClient::getInstance()->getAccounts());
+        if (!accountsResult.has_value())
+        {
+            return makeControlResponse(
+                false,
+                "Accounts request failed.",
+                {},
+                QString("Account lookup failed: %1").arg(tsClientErrorToString(accountsResult.error())));
+        }
+
+        QJsonObject result;
+        result["activeAccountId"] =
+            activeAccountId.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(activeAccountId);
+        result["accountCount"] = accountsResult->size();
+        result["accounts"] = serializeAccounts(accountsResult.value(), activeAccountId);
+        return makeControlResponse(true,
+                                   accountsResult->isEmpty() ? "No accounts are currently available."
+                                                             : "Accounts retrieved.",
+                                   result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandGetBalance)
+    {
+        const auto parsedAccountId = parseOptionalStringForKey(arguments, "accountId");
+        if (!parsedAccountId.has_value())
+        {
+            return makeControlResponse(false, "Balance request rejected.", {}, parsedAccountId.error());
+        }
+
+        QString activeAccountId;
+        Balance currentBalance;
+        const bool invoked = QMetaObject::invokeMethod(
+            mainAlgo,
+            [&]()
+            {
+                activeAccountId = this->mainAlgo->getActiveAccountId();
+                currentBalance = this->mainAlgo->getCurrentBalance();
+            },
+            Qt::BlockingQueuedConnection);
+        ASSUME_TRUE(invoked);
+
+        QString resolvedAccountId = parsedAccountId.value();
+        if (resolvedAccountId.isEmpty())
+        {
+            resolvedAccountId = activeAccountId;
+        }
+        if (resolvedAccountId.isEmpty())
+        {
+            return makeControlResponse(false,
+                                       "Balance request rejected.",
+                                       {},
+                                       "No accountId was provided and the platform has no active account selected");
+        }
+
+        bool usedCachedActiveBalance = false;
+        Balance resolvedBalance;
+        if (!currentBalance.getAccountID().isEmpty() && currentBalance.getAccountID() == resolvedAccountId)
+        {
+            resolvedBalance = currentBalance;
+            usedCachedActiveBalance = true;
+        }
+        else
+        {
+            const auto balancesResult =
+                waitForFutureResult(TSClient::getInstance()->getBalances(QStringList{resolvedAccountId}));
+            if (!balancesResult.has_value())
+            {
+                return makeControlResponse(
+                    false,
+                    "Balance request failed.",
+                    {},
+                    QString("Balance lookup failed: %1").arg(tsClientErrorToString(balancesResult.error())));
+            }
+            if (balancesResult->isEmpty())
+            {
+                return makeControlResponse(
+                    false,
+                    "Balance request failed.",
+                    {},
+                    QString("No balance was returned for accountId '%1'").arg(resolvedAccountId));
+            }
+
+            resolvedBalance = balancesResult->first();
+        }
+
+        QJsonObject result;
+        result["requestedAccountId"] =
+            parsedAccountId->isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(parsedAccountId.value());
+        result["activeAccountId"] =
+            activeAccountId.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(activeAccountId);
+        result["usedCachedActiveBalance"] = usedCachedActiveBalance;
+        result["balance"] = serializeBalance(resolvedBalance);
+        return makeControlResponse(true, "Balance retrieved.", result);
     }
 
     if (command == PlatformControlProtocol::kCommandGetLevel2)
