@@ -10,12 +10,15 @@ The Tabs folder contains all tab components that appear in the main QTabWidget o
 
 **Tab Order** (as displayed in GUI):
 1. **Trade** - Main trading interface (not in this directory, embedded in GUIFrontend)
-2. **Strategies** - Strategy plugin management
-3. **Records Info** - Explore recorded market data
-4. **Logging** - Live log display and filtering
-5. **Cache** - Bar cache management
-6. **Shortcuts** - Keyboard shortcut configuration
-7. **Config** - Application configuration
+2. **Records Info** - Explore recorded market data
+3. **Logging** - Live log display and filtering
+4. **Cache** - Bar cache management
+5. **Shortcuts** - Keyboard shortcut configuration
+6. **Config** - Application configuration
+
+Strategy management no longer lives in a dedicated tab. The relevant GUI pieces
+are `../Widgets/StrategyQuickView/`, `../Dialogs/StrategyLoadDialog.*`, and
+`../Widgets/StrategyLogWidget/`.
 
 ## Tab Components
 
@@ -344,30 +347,17 @@ signals:
 
 ---
 
-### StrategiesTab/ (Subdirectory)
+### Strategy Management Moved Out of Tabs/
 
-**Purpose**: External strategy process management interface
+`Tabs/StrategiesTab/` no longer exists.
 
-See `StrategiesTab/AGENTS.md` for detailed documentation.
+Current strategy-management surfaces are:
 
-**Quick Overview**:
-- Load external strategy executables or manifests
-- Start/stop strategies
-- View strategy status and logs
-- Crash isolation per strategy
-- Strategy cards with metrics
-- Strategy grid layout
-- Load dialog for selecting manifests or executables
+- `../Widgets/StrategyQuickView/` — compact tree view embedded in the Trade tab
+- `../Dialogs/StrategyLoadDialog.*` — manifest/executable loader and parameter editor
+- `../Widgets/StrategyLogWidget/` — per-strategy log panel
 
-**Main Components**:
-- StrategiesTab.h/cpp - Main tab widget
-- StrategyCard.h/cpp - Individual strategy display card
-- StrategyGridWidget.h/cpp - Grid layout for strategy cards
-- StrategyLoadDialog.h/cpp - Dialog for loading new strategies
-- StrategyDetailsPanel.h/cpp - Detailed strategy information panel
-- StrategyTile.h/cpp - Compact strategy tile view
-
-**Reference**: See `Doc/STRATEGY.md` for complete strategy system documentation
+Reference: see `Doc/STRATEGY.md` for the current runtime and GUI integration model.
 
 ---
 
@@ -534,6 +524,5 @@ connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
 ## Related Documentation
 
 - `../AGENTS.md`: Main GUI documentation
-- `StrategiesTab/AGENTS.md`: Strategy tab details
 - `Doc/FRONTEND.md`: Complete frontend architecture
-- `Doc/STRATEGY.md`: Strategy plugin system
+- `Doc/STRATEGY.md`: Strategy runtime and strategy-management UI

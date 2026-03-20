@@ -11,7 +11,7 @@ For detailed information about specific components, see the AGENTS.md files:
 - **Src/FrontEnd/AGENTS.md**: Frontend architecture (GUI/TUI)
 - **Src/Misc/AGENTS.md**: Utilities, constants, logging
 - **Src/SQL/AGENTS.md**: SQL query management
-- **Src/Strategy/AGENTS.md**: Strategy plugin system
+- **Src/Strategy/AGENTS.md**: External strategy runtime
 
 ## Building the Project
 

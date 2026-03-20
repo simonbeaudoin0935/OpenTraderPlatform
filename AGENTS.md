@@ -19,6 +19,7 @@ This file provides AI agents with key information about the L2Trader project str
 - **Target**: Linux (Ubuntu 24.04), cross-platform (X86_64, ARM64)
 - **Lines of Code**: ~10,000+
 - **Main Executable**: L2Trader (GUI or TUI mode)
+- **Automation Binary**: `l2trader-mcp-server` under `build/GUI/bin/` or `build/TUI/bin/`
 
 ## Navigation to Detailed Documentation
 
@@ -38,6 +39,7 @@ For detailed information about specific subsystems, navigate to:
 **API Communication**:
 - **Src/Clients/TSClient/AGENTS.md** - TradeStation API client (brokerage only: OAuth, orders, positions)
 - **Src/Clients/DBClient/** - Databento client (market data: Level 2, trades, bars, replay)
+- **MCP/** - Local control-socket bridge and MCP stdio server for automation/OpenClaw
 
 **Trading Logic**:
 - **Src/Algo/AGENTS.md** - MainAlgo coordinator, receivers (bars, positions, orders), data processing
@@ -53,13 +55,13 @@ For detailed information about specific subsystems, navigate to:
 
 **Extensions**:
 - **Src/Strategy/AGENTS.md** - Strategy management infrastructure (loading, threading, SDK)
-- **Strategies/** - Template and test strategy implementations (shared objects loaded by Src/Strategy)
+- **Strategies/** - Template and test external strategy executables plus manifests
 
 ### Comprehensive Documentation (Doc/)
 - **Doc/ARCHITECTURE.md** - Complete architecture, threading model, design patterns
 - **Doc/AUTHENTICATION.md** - OAuth 2.0 flow, token management, security
 - **Doc/FRONTEND.md** - GUI/TUI implementation details
-- **Doc/STRATEGY.md** - Strategy plugin system documentation
+- **Doc/STRATEGY.md** - Strategy process runtime documentation
 - **Doc/DEVELOPMENT.md** - Development setup and guidelines
 - **Doc/CONTRIBUTING.md** - Contribution guidelines
 

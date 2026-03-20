@@ -201,7 +201,7 @@ Doc/
 ├── ARCHITECTURE.md            # System architecture
 ├── AUTHENTICATION.md          # TradeStation OAuth + Databento API key
 ├── FRONTEND.md                # GUI and TUI implementation
-├── STRATEGY.md                # Strategy plugin system (technical)
+├── STRATEGY.md                # Strategy process runtime (technical)
 ├── STRATEGY_GUIDE.md          # Strategy development (non-technical)
 ├── DEVELOPMENT.md             # Development guide
 ├── CONTRIBUTING.md            # Contribution guidelines

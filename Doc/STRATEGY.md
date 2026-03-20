@@ -1,12 +1,13 @@
 # Strategy System
 
-## Overview
+L2Trader strategies now run as **host-supervised external executables**. The old shared-library plugin runtime has been removed from the live load path: the host starts a child process, opens a per-strategy Unix domain socket, exchanges framed Protobuf envelopes, and keeps the rest of the platform isolated from strategy crashes and memory corruption.
 
-L2Trader now runs strategies as host-supervised external processes. The host creates a per-strategy Unix domain socket, exchanges framed Protobuf messages with the child process, and keeps `stdout`/`stderr` free for human-readable diagnostics.
+For concrete examples, start with:
 
-> **Migration note**
->
-> This document is still being updated from the old plugin model. If a section below mentions `.so` plugins, in-process threads, or `StrategyBase`, treat that content as historical background rather than current implementation. The current reference samples live under `Strategies/*Process/`, and the live runtime contract is the external process SDK plus manifests.
+- `Strategies/README.md`
+- `Strategies/ExampleStrategyProcess/`
+- `Strategies/DumpPatternStrategy/`
+- `Src/StrategySDK/Public/L2Trader/StrategySDK/ExternalStrategyRuntime.h`
 
 ## Table of Contents
 
@@ -23,41 +24,72 @@ L2Trader now runs strategies as host-supervised external processes. The host cre
 
 ## Architecture
 
-### Core Components
+### Host-side Components
 
-**Strategy Management**:
-- **StrategyManager**: Orchestrates external strategy lifecycle (load, start, stop, unload)
-- **ProcessStrategyRuntimeBackend**: Launches and supervises one child process per strategy
-- **StrategySDK**: Host-side API surface used by the runtime backend to route state and broker access
-- **External manifests + SDK**: Define executable discovery, parameter defaults, and custom-parameter schema
+| Component | Role |
+|-----------|------|
+| `StrategyManager` | Owns loaded strategy instances, starts/stops them, tracks state, routes symbols/orders/positions/balance updates |
+| `ProcessStrategyRuntimeBackend` | Spawns the child process, accepts the Unix socket connection, performs the handshake, and translates between Qt host objects and protocol messages |
+| `StrategySDK` | Host-side per-strategy facade used by the runtime backend to place/cancel orders, query historical bars, log messages, and track strategy-local positions/orders/balance |
+| `StrategyConfig` | Serialized strategy configuration: runtime path, symbols, position size, risk limit, custom params |
+| `ExternalStrategyManifest` | Loads JSON manifests and optional `parameterSchema` metadata for GUI prefill/custom fields |
+| `StrategyLogger` | Per-strategy log file plus in-memory circular buffer for the GUI log panel |
 
-**GUI Components**:
-- **StrategiesTab**: Main strategy management tab
-- **StrategyCard**: Visual representation of a loaded strategy (logs, status, controls)
-- **StrategyLoadDialog**: Plugin selection and configuration dialog
-- **StrategyQuickView**: Compact tree widget in the Trade tab showing all strategies and their claimed symbols
+### Strategy-side Components
+
+| Component | Role |
+|-----------|------|
+| `L2Trader::StrategySDK::ExternalStrategyHandler` | Interface implemented by the external process: lifecycle hooks plus market/brokerage callbacks |
+| `L2Trader::StrategySDK::ExternalStrategyRuntime` | Connects to the host, runs the message loop, and exposes helpers such as `claimSymbols()`, `requestHistoricalBars()`, `placeOrder()`, and `log()` |
+| `add_l2trader_process_strategy(...)` | CMake helper used by the bundled samples to build strategy executables into `build/<Config>/bin/` |
 
 ### Runtime Model
 
+```text
+Trade tab / StrategyLoadDialog
+        |
+        v
+StrategyManager (MainAlgo thread)
+        |
+        v
+ProcessStrategyRuntimeBackend
+        |
+        |  framed Protobuf envelopes over Unix domain socket
+        v
+External strategy child process
+        |
+        v
+ExternalStrategyRuntime + ExternalStrategyHandler
 ```
-Main/Algo Threads (host)
-    │
-    ├─► Strategy Process 1 (Strategy A)
-    ├─► Strategy Process 2 (Strategy B)
-    └─► Strategy Process N (Strategy N)
-```
 
-- Strategies communicate with the host over Unix domain sockets using framed Protobuf messages
-- `stdout`/`stderr` stay available for operator-visible logs and crash diagnostics
-- UI updates always happen on the host side; strategy failures are reported through process exit status and runtime errors
+### Protocol and Process I/O
 
-### Data Sources for Strategies
+- **Machine protocol**: framed Protobuf envelopes over a per-strategy Unix domain socket.
+- **Human-readable output**: child `stdout` and `stderr` are captured by the host and appended to the per-strategy log with `[stdout]` / `[stderr]` prefixes.
+- **Isolation boundary**: one child process per loaded strategy. If a strategy crashes, only that strategy instance transitions to `ERROR`.
+- **Process supervision**: the host is responsible for launching, stopping, and force-cleaning the child when needed.
 
-Strategies access market data and brokerage services through `StrategySDK`. Under the hood:
+### Data Routed to Strategies
 
-- **Market data** (bars, Level 2, trades) — provided by `DBClient` (Databento)
-- **Order execution** — routed to `TSClient` (TradeStation) in live/sim mode, or to `OrderEmulator` in replay mode
-- **Bar cache** — in-memory + SQLite via `BarCache`
+Once a strategy is running and has claimed symbols, the host can deliver:
+
+- bars
+- Level 2 snapshots
+- trades
+- order updates
+- position updates
+- balance updates
+- heartbeat messages
+- explicit host error messages
+
+The strategy can send back:
+
+- log messages
+- chart log markers
+- symbol-claim requests
+- historical-bar requests
+- order placement intents
+- order cancellation intents
 
 ---
 
@@ -67,372 +99,304 @@ Strategies access market data and brokerage services through `StrategySDK`. Unde
 
 | State | Description |
 |-------|-------------|
-| **LOADED** | Plugin loaded, not started |
-| **RUNNING** | Strategy actively executing |
-| **STOPPED** | Finished or stopped by user |
-| **ERROR** | Crashed or encountered fatal error |
+| `LOADED` | Configuration accepted; host-side runtime objects exist; process not yet started |
+| `RUNNING` | Child process connected and actively receiving data |
+| `STOPPED` | Strategy was stopped cleanly or never started after load |
+| `ERROR` | Process failed, handshake/protocol failed, or startup/runtime error occurred |
 
 ### Lifecycle Flow
 
-```
-1. Load Plugin
-   ├─► Dynamic library loading (.so file)
-   ├─► Symbol resolution (create/destroy factory functions)
-   └─► State: LOADED
+```text
+1. User loads a manifest or executable
+   -> StrategyLoadDialog builds a StrategyConfig
+   -> StrategyManager creates host-side SDK/logger/backend
+   -> state = LOADED
 
-2. Start Strategy
-   ├─► Create dedicated QThread
-   ├─► Move strategy object to thread
-   ├─► Call onStart() on strategy thread
-   └─► State: RUNNING
+2. User starts the strategy
+   -> ProcessStrategyRuntimeBackend launches QProcess
+   -> host opens/accepts Unix socket
+   -> handshake completes
+   -> host sends StrategyConfiguration
+   -> state = RUNNING
 
-3. Execute Strategy
-   ├─► onNewBar() / onNewLevel2() / onNewTrade() called on market events
-   ├─► Strategy emits logMessage, statusChanged signals
-   └─► State: RUNNING (or ERROR on crash)
+3. Strategy requests capabilities
+   -> claimSymbols()
+   -> requestHistoricalBars()
+   -> placeOrder()/cancelOrder()
+   -> log()/logToChart()
 
-4. Stop Strategy
-   ├─► Call onStop() on strategy thread (BlockingQueuedConnection)
-   ├─► Thread quit() and wait()
-   └─► State: STOPPED
+4. Host streams updates back
+   -> bars / Level2 / trades
+   -> orders / positions / balance
+   -> heartbeat / errors
 
-5. Unload Plugin
-   ├─► Delete strategy object via destroy function
-   ├─► Unload dynamic library
-   └─► State: (removed from StrategyManager)
+5. User stops or unloads the strategy
+   -> host sends stop/shutdown command
+   -> symbols are released
+   -> process exits (or is cleaned up)
+   -> state = STOPPED or removed
 ```
 
 ### Crash Handling
 
-```cpp
-// If strategy thread receives SIGSEGV / SIGABRT / SIGTERM:
-StrategySignalHandler::handleSignal(signal)
-    → Mark strategy state as ERROR
-    → Log crash details
-    → Isolate crash to strategy thread only
-    → Main app and other strategies unaffected
-```
+Crash isolation is now process-based, not thread-based:
+
+- a segmentation fault in the child does **not** corrupt host memory
+- the host marks that strategy as failed and keeps the rest of the platform running
+- the strategy log still captures protocol/runtime errors plus any final `stdout`/`stderr` output that was flushed before exit
 
 ---
 
 ## GUI Integration
 
-### StrategyCard Layout
+There is **no dedicated Strategies tab anymore**.
 
-Each loaded strategy gets a card widget in the Strategies tab:
+Current strategy-management surfaces are:
 
-**Header**:
-- Strategy name
-- Status indicator (RUNNING / STOPPED / ERROR)
-- **Start** button (green `#51cf66`, enabled when STOPPED or ERROR)
-- **Stop** button (red `#ff6b6b`, enabled when RUNNING)
-
-**Content Panels** (horizontal scrolling):
-- **Logs Panel**: Real-time strategy logs with smart auto-scroll (pauses when user scrolls up; resumes when scrolled to bottom)
-- **Info Panel**: Strategy metadata and configuration
-- **Orders Panel**: Orders placed by this strategy *(future)*
-- **Positions Panel**: Positions held by this strategy *(future)*
-
-### StrategyQuickView
-
-A compact tree widget in the Trade tab. Each row shows a loaded strategy and the symbol it has claimed (if any). Provides at-a-glance status without switching to the Strategies tab.
+- **`StrategyQuickView`** (`Src/FrontEnd/GUI/Widgets/StrategyQuickView/`)
+  - embedded in the Trade tab
+  - shows strategy rows and claimed symbols
+  - provides Load / Start / Stop / Display Logs actions
+- **`StrategyLoadDialog`** (`Src/FrontEnd/GUI/Dialogs/StrategyLoadDialog.*`)
+  - loads either a manifest or an executable
+  - prefills standard fields from the manifest
+  - renders manifest `parameterSchema` entries as dynamic custom-parameter widgets
+- **`StrategyLogWidget`**
+  - displays the per-strategy log stream at the bottom of the main window
 
 ---
 
 ## Development Guide
 
-### Creating a Strategy Plugin
+### Creating a Process Strategy
 
 #### 1. Project Structure
 
-```
+```text
 Strategies/
-└── MyStrategy/
+└── MyStrategyProcess/
     ├── CMakeLists.txt
-    ├── MyStrategy.h
-    └── MyStrategy.cpp
+    ├── main.cpp
+    └── my_strategy.json
 ```
 
 #### 2. CMakeLists.txt
 
+Inside this repository, the bundled samples use the helper from `Strategies/CMakeLists.txt`:
+
 ```cmake
 cmake_minimum_required(VERSION 3.16)
-project(MyStrategy)
+project(MyStrategyProcess VERSION 1.0.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-find_package(Qt6 REQUIRED COMPONENTS Core)
-
-add_library(MyStrategy SHARED
-    MyStrategy.h
-    MyStrategy.cpp
-)
-
-target_link_libraries(MyStrategy PRIVATE Qt6::Core)
-
-install(TARGETS MyStrategy
-    LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/L2Trader/strategies
+add_l2trader_process_strategy(MyStrategyProcess
+    main.cpp
 )
 ```
 
-#### 3. Strategy Header
+That helper builds the executable into `build/<config>/bin/`.
+
+#### 3. Minimal Strategy Process
 
 ```cpp
-#pragma once
-#include "Src/Strategy/StrategyBase.h"
-#include "Src/Strategy/StrategySDK.h"
+#include <iostream>
+#include <string>
 
-class MyStrategy : public StrategyBase {
-    Q_OBJECT
-public:
-    explicit MyStrategy(QObject* parent = nullptr);
-    ~MyStrategy() override;
+#include "L2Trader/StrategySDK/ExternalStrategyRuntime.h"
 
-    void onStart() override;
-    void onStop() override;
-    void onNewBar(const QString& symbol, const Bar& bar) override;
-    void onNewLevel2(const QString& symbol, const Level2& level2) override;
-    void onNewTrade(const QString& symbol, const Trade& trade) override;
+namespace Protocol = l2trader::strategy::v1;
 
-private:
-    StrategySDK m_sdk;
+class MyStrategyProcess final : public L2Trader::StrategySDK::ExternalStrategyHandler
+{
+  public:
+    std::string strategyName() const override { return "MyStrategyProcess"; }
+    std::string strategyVersion() const override { return "1.0.0"; }
+
+    void setRuntime(L2Trader::StrategySDK::ExternalStrategyRuntime* runtime)
+    {
+        m_runtime = runtime;
+    }
+
+    void onStart(const Protocol::StrategyConfiguration&) override
+    {
+        m_runtime->log("strategy started");
+        const auto claims = m_runtime->claimSymbols({"AAPL"});
+        if (claims.grantedSymbols.empty())
+        {
+            m_runtime->log("failed to claim AAPL", Protocol::LOG_LEVEL_ERROR);
+        }
+    }
+
+    void onBar(const Protocol::Bar& bar) override
+    {
+        m_runtime->log("close=" + std::to_string(bar.close()), Protocol::LOG_LEVEL_DEBUG);
+    }
+
+    void onStop(std::string_view reason) override
+    {
+        m_runtime->log("stop requested: " + std::string(reason));
+    }
+
+  private:
+    L2Trader::StrategySDK::ExternalStrategyRuntime* m_runtime = nullptr;
 };
 
-extern "C" {
-    StrategyBase* createStrategy();
-    void destroyStrategy(StrategyBase* strategy);
+int main()
+{
+    MyStrategyProcess strategy;
+    L2Trader::StrategySDK::ExternalStrategyRuntime runtime(strategy);
+    strategy.setRuntime(&runtime);
+    return runtime.run();
 }
 ```
 
-#### 4. Strategy Implementation
+The authoritative sample is `Strategies/ExampleStrategyProcess/main.cpp`.
 
-```cpp
-#include "MyStrategy.h"
-
-MyStrategy::MyStrategy(QObject* parent)
-    : StrategyBase(parent)
-{}
-
-MyStrategy::~MyStrategy() = default;
-
-void MyStrategy::onStart()
-{
-    emit logMessage("Strategy started");
-
-    // Request historical bars for analysis
-    m_sdk.requestHistoricalBars("AAPL", QDate::currentDate().addDays(-5),
-                                QDate::currentDate(),
-                                [this](std::shared_ptr<QVector<Bar>> bars) {
-        if (!bars || bars->isEmpty()) {
-            emit logMessage("No bars received");
-            return;
-        }
-        emit logMessage(QString("Received %1 bars").arg(bars->size()));
-    });
-}
-
-void MyStrategy::onStop()
-{
-    emit logMessage("Strategy stopping");
-}
-
-void MyStrategy::onNewBar(const QString& symbol, const Bar& bar)
-{
-    Q_UNUSED(symbol)
-    // React to each completed 1-minute bar
-    if (bar.close > bar.open)
-        emit logMessage("Bullish bar: " + QString::number(bar.close));
-}
-
-void MyStrategy::onNewLevel2(const QString& symbol, const Level2& level2)
-{
-    Q_UNUSED(symbol)
-    Q_UNUSED(level2)
-    // React to order book changes
-}
-
-void MyStrategy::onNewTrade(const QString& symbol, const Trade& trade)
-{
-    Q_UNUSED(symbol)
-    Q_UNUSED(trade)
-    // React to individual trade prints
-}
-
-extern "C" {
-    StrategyBase* createStrategy() { return new MyStrategy(); }
-    void destroyStrategy(StrategyBase* s) { delete s; }
-}
-```
-
-#### 5. Build and Install
+#### 4. Build and Stage the SDK
 
 ```bash
-mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
-cmake --build .
-cmake --install .
+cmake --build build/GUI --target MyStrategyProcess
+cmake --build build/GUI --target stage-strategy-sdk
 ```
+
+Useful outputs:
+
+- `build/GUI/bin/MyStrategyProcess`
+- `build/GUI/bin/l2trader-mcp-server`
+- `build/GUI/strategy-sdk/` — install-style SDK prefix for out-of-tree strategy builds
+
+There is **no shared top-level `build/bin/`**. Binaries live under the active build tree such as `build/GUI/bin/` or `build/TUI/bin/`.
+
+Bundled sample strategies also copy themselves and their manifests into:
+
+- `~/.local/share/L2Trader/Strategies/`
+- `~/.config/L2Trader/Strategies/`
 
 ---
 
 ## API Reference
 
-### StrategyBase (Abstract Base Class)
+### Strategy-side API (public SDK)
 
-**Lifecycle methods** (run on strategy thread):
-```cpp
-virtual void onStart() = 0;    // Called when strategy starts
-virtual void onStop() = 0;     // Called when strategy stops
+The external process implements `ExternalStrategyHandler` and is typically driven by `ExternalStrategyRuntime`.
 
-// Market data callbacks (optional — default implementations do nothing)
-virtual void onNewBar(const QString& symbol, const Bar& bar);
-virtual void onNewLevel2(const QString& symbol, const Level2& level2);
-virtual void onNewTrade(const QString& symbol, const Trade& trade);
-```
+#### Lifecycle callbacks
 
-**Signals** (emit from strategy thread):
-```cpp
-void logMessage(const QString& message);         // Log to StrategyCard
-void statusChanged(StrategyStatus status);       // Update status indicator
-void errorOccurred(const QString& error);        // Report fatal error
-```
+- `onStart(const Protocol::StrategyConfiguration&)`
+- `onPause(std::string_view reason)`
+- `onResume(std::string_view reason)`
+- `onStop(std::string_view reason)`
+- `onShutdown(std::string_view reason)`
+- `onHeartbeat(const Protocol::Heartbeat&)`
 
-### StrategySDK
+#### Market and brokerage callbacks
 
-**Data Access**:
-```cpp
-// Request historical bars (async, result via callback on strategy thread)
-void requestHistoricalBars(const QString& symbol,
-                           const QDate& startDate,
-                           const QDate& endDate,
-                           std::function<void(std::shared_ptr<QVector<Bar>>)> callback);
+- `onBar(const Protocol::Bar&)`
+- `onLevel2Snapshot(const Protocol::Level2Snapshot&)`
+- `onTrade(const Protocol::Trade&)`
+- `onOrderUpdate(const Protocol::OrderUpdate&)`
+- `onPositionUpdate(const Protocol::PositionUpdate&)`
+- `onBalanceUpdate(const Protocol::BalanceUpdate&)`
+- `onHostError(const Protocol::ErrorMessage&)`
 
-// Claim a symbol — strategy receives onNewBar/onNewLevel2/onNewTrade for this symbol
-void claimSymbol(const QString& symbol);
+#### `ExternalStrategyRuntime` helpers
 
-// Release claimed symbol
-void releaseSymbol(const QString& symbol);
-```
+- `log(...)`
+- `claimSymbols(...)`
+- `requestCurrentTimeUnixNanos()`
+- `logToChart(...)`
+- `requestHistoricalBars(...)`
+- `placeOrder(...)`
+- `cancelOrder(...)`
+- `startTimer(...)` / `cancelTimer(...)`
+- accessors for current configuration, cash balance, orders, and positions
 
-**Order Management** *(in progress)*:
-```cpp
-void placeMarketOrder(const QString& symbol, int quantity, OrderSide side);
-void placeLimitOrder(const QString& symbol, int quantity, OrderSide side, double limitPrice);
-void cancelOrder(const QString& orderId);
-```
+### Host-side Runtime (internal)
+
+These classes are useful when editing the platform, not when authoring external strategies:
+
+- `StrategyManager`
+- `ProcessStrategyRuntimeBackend`
+- `StrategySDK` (host-side Qt object)
+- `StrategyLogger`
+- `ExternalStrategyManifest`
 
 ---
 
 ## Configuration
 
-### Strategy Configuration File
+### Strategy Manifest File
 
-Strategies are configured via JSON files in `~/.config/L2Trader/Strategies/`:
+Strategies are commonly loaded from JSON manifests in `~/.config/L2Trader/Strategies/`.
 
 ```json
 {
-    "name": "My AAPL Strategy",
-    "pluginPath": "/usr/local/lib/L2Trader/strategies/libMyStrategy.so",
-    "autoStart": false,
-    "parameters": {
-        "symbol": "AAPL",
-        "lookbackDays": 5
-    }
+  "name": "Example Strategy Process",
+  "runtimeType": "external-process",
+  "executablePath": "~/.local/share/L2Trader/Strategies/ExampleStrategyProcess",
+  "symbols": ["AAPL"],
+  "positionSize": 1,
+  "riskLimit": 100.0,
+  "customParams": {}
 }
 ```
 
-### Loading Strategies
+Optional `parameterSchema` metadata can be added so the GUI can render extra fields in `StrategyLoadDialog`.
 
-**Via GUI**:
-1. Open the **Strategies** tab
-2. Click **Load Strategy**
-3. Select the `.so` plugin file in the dialog
-4. Click **Start** on the strategy card
+### Loading Strategies in the GUI
 
-**Via Configuration**:
-1. Create a JSON config file in `~/.config/L2Trader/Strategies/`
-2. Set `"autoStart": true`
-3. Restart L2Trader
+1. Open the **Trade** tab.
+2. Use the **Load** button in `StrategyQuickView`.
+3. Select either:
+   - a manifest (`*.json`), or
+   - a strategy executable directly.
+4. Review/edit standard fields and any manifest-defined custom parameters.
+5. Start the strategy from the context menu.
+
+If you load the executable directly and a matching manifest exists, the dialog attempts to find that manifest and apply its defaults.
 
 ---
 
 ## Best Practices
 
-### Threading
+1. **Claim symbols before trading or chart logging**.
+   The host expects strategies to establish symbol ownership first.
 
-1. **Never block the strategy thread** — use async callbacks for all long operations
-2. **Use signals for all outward communication** — `emit logMessage()`, `emit statusChanged()`
-3. **Clean up in `onStop()`** — cancel timers, release resources, save state
+2. **Read configuration from `onStart(...)` rather than hardcoding everything**.
+   The protobuf `StrategyConfiguration` contains symbols plus custom params.
 
-### Resource Management
+3. **Keep the machine protocol on the Unix socket**.
+   `stdout`/`stderr` are captured as human-readable log lines, not as a transport.
 
-```cpp
-// Qt parent-child for QObjects
-QTimer* timer = new QTimer(this);  // Auto-cleaned up
+4. **Use replay mode and the sample strategies for validation**.
+   `HistoricalBarsStrategy`, `OrderTestStrategy`, and `DumpPatternStrategy` cover different slices of the runtime.
 
-// Smart pointers for non-Qt objects
-std::unique_ptr<MyProcessor> m_processor;
-```
+5. **Treat order/position updates as the source of truth**.
+   A request ID confirms that an intent was sent; the actual state arrives later through update callbacks.
 
-### Error Handling
-
-```cpp
-void MyStrategy::onStart()
-{
-    if (m_symbol.isEmpty()) {
-        emit errorOccurred("Symbol not configured");
-        return;
-    }
-    // ... continue
-}
-
-m_sdk.requestHistoricalBars(symbol, start, end, [this](auto bars) {
-    if (!bars || bars->isEmpty()) {
-        emit logMessage("Warning: no bars received");
-        return;
-    }
-    // process bars
-});
-```
-
-### Performance
-
-- Minimize logging frequency in hot paths (e.g., do not log on every Level 2 update)
-- Cache frequently accessed data in member variables
-- Use `onNewBar` for slow decision-making; `onNewLevel2` and `onNewTrade` for fast-path logic
+6. **Log deliberately**.
+   Strategy logs are persisted and surfaced in the GUI, so concise structured messages are easier to debug than noisy per-tick spam.
 
 ---
 
 ## Known Limitations
 
-1. **One symbol per live session** — Databento subscriptions accumulate; switching the displayed symbol adds a new subscription but old data still flows. Strategies should call `claimSymbol()` rather than rely on the displayed symbol.
-
-2. **Order execution UI incomplete** — `StrategySDK` order placement and position tracking are in progress. Currently strategies can log orders but full P&L tracking per strategy is not yet available.
-
-3. **No configuration GUI** — Strategy parameters are only editable via JSON files; no in-app parameter editor exists yet.
-
-4. **Bar count assumption** — The system targets 900 bars/day (4:00 AM – 6:59 PM XNAS.ITCH hours). Partial days (holidays, early closes) will have fewer bars; the `MarketCalendar` class provides holiday/early-close data for 2026.
+- The **official SDK is C++ today**. The wire protocol is process-based and language-neutral, but non-C++ strategies currently need to implement the protocol themselves.
+- Strategies must currently run as **local executables** supervised by the host.
+- The removed shared-library runtime is still represented in some compatibility structures (`StrategyRuntimeType::PluginSharedLibrary`), but live manifest loading rejects it.
+- Strategy lifecycle control already exists in the GUI/runtime, but not every lifecycle surface is exported over MCP yet.
 
 ---
 
-## Appendix: Key Files
+## Reference Map
 
-| File | Purpose |
-|------|---------|
-| `Src/Strategy/StrategyManager.h/cpp` | Lifecycle orchestration |
-| `Src/Strategy/StrategyBase.h` | Abstract base class |
-| `Src/Strategy/StrategySDK.h/cpp` | Public API for strategies |
-| `Src/Strategy/StrategySignalHandler.h/cpp` | Crash detection |
-| `Src/FrontEnd/GUI/Tabs/StrategiesTab/` | GUI tab (StrategyCard, StrategyLoadDialog) |
-| `Src/FrontEnd/GUI/Widgets/StrategyQuickView/` | Quick-view tree widget |
-| `Strategies/HistoricalBarsStrategy/` | Reference example strategy |
-
----
-
-## See Also
-
-- [STRATEGY_GUIDE.md](STRATEGY_GUIDE.md) — Non-technical overview for strategy developers
-- [ARCHITECTURE.md](ARCHITECTURE.md) — Overall system architecture
-- [DEVELOPMENT.md](DEVELOPMENT.md) — Build and coding guidelines
-- [CONTRIBUTING.md](CONTRIBUTING.md) — Contribution guidelines
+| Path | Why it matters |
+|------|----------------|
+| `Src/Strategy/StrategyManager.*` | Host-side lifecycle orchestration |
+| `Src/Strategy/ProcessStrategyRuntimeBackend.*` | Process launch, socket handshake, protocol bridge |
+| `Src/Strategy/StrategyConfig.*` | Stored runtime configuration |
+| `Src/Strategy/ExternalStrategyManifest.*` | Manifest parsing and manifest/executable matching |
+| `Src/Strategy/StrategyLogger.*` | Per-strategy log persistence |
+| `Src/StrategySDK/Public/L2Trader/StrategySDK/ExternalStrategyRuntime.h` | Strategy-author-facing runtime API |
+| `Strategies/README.md` | Sample build/install workflow |
+| `Strategies/ExampleStrategyProcess/` | Minimal working sample |
+| `Strategies/DumpPatternStrategy/` | Rich sample with timers, current-time queries, chart logs, and orders |

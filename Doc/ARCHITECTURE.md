@@ -58,7 +58,7 @@ graph TD
         GFW --> L2W[Level2Widget]
         GFW --> CT[CacheTab]
         GFW --> LT[LoggingTab]
-        GFW --> ST[StrategiesTab]
+        GFW --> SQV[StrategyQuickView]
         GFW --> PW[PositionWidget]
         GFW --> OW[OrderWidget]
         GFW --> BW[BalanceWidget]

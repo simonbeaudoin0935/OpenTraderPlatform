@@ -97,19 +97,38 @@ The hook runs `clang-format` on staged files before each commit. If formatting i
 
 Always run from the repository root:
 
+> **Important**: Do not use `-j$(nproc)` in this repository's documented commands.
+> The shell security policy blocks nested command substitution. Use a literal
+> value such as `-j4`, or compute the core count first and pass the expanded
+> value separately.
+
 ```bash
 # GUI version (default) — recommended for development
 mkdir -p build/GUI
 cmake -S . -B build/GUI -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=OFF
-cmake --build build/GUI -j$(nproc)
+cmake --build build/GUI -j4
 
 # TUI version (headless)
 mkdir -p build/TUI
 cmake -S . -B build/TUI -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=OFF -DBUILD_TESTS=OFF
-cmake --build build/TUI -j$(nproc)
+cmake --build build/TUI -j4
 
 # Clean build
 rm -rf build/
+```
+
+Useful build outputs:
+
+- `build/GUI/bin/l2trader-mcp-server`
+- `build/TUI/bin/l2trader-mcp-server`
+- bundled sample strategy executables under the matching `build/<config>/bin/`
+
+There is **no shared top-level `build/bin/`**.
+
+To stage the install-style external strategy SDK from a GUI build tree:
+
+```bash
+cmake --build build/GUI --target stage-strategy-sdk
 ```
 
 ### Build Configurations
@@ -149,7 +168,7 @@ Features: optimized (`-O3`), assertions disabled, minimal logging, smaller binar
 ```bash
 # Build with tests enabled
 cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON -DENABLE_GUI=ON
-cmake --build build/test -j$(nproc)
+cmake --build build/test -j4
 
 # Run all tests
 ctest --test-dir build/test --output-on-failure
@@ -200,7 +219,7 @@ QTEST_MAIN(TestBarCache)
 
 ```bash
 cmake -S . -B build/ubsan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_UBSAN=ON -DENABLE_GUI=ON
-cmake --build build/ubsan -j$(nproc)
+cmake --build build/ubsan -j4
 ./build/ubsan/Src/L2Trader
 ```
 
@@ -211,7 +230,7 @@ Overhead: ~20–30% runtime slowdown.
 
 ```bash
 cmake -S . -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON -DENABLE_GUI=ON
-cmake --build build/asan -j$(nproc)
+cmake --build build/asan -j4
 ./build/asan/Src/L2Trader
 ```
 
