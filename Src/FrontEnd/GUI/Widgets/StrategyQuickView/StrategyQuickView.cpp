@@ -175,9 +175,7 @@ void StrategyQuickView::onStrategyUnloaded(const QString& strategyID)
     m_strategyNames.remove(strategyID);
 }
 
-void StrategyQuickView::onStrategyStatusChanged(const QString& strategyID,
-                                                bool isRunning,
-                                                const QString& /*errorMessage*/)
+void StrategyQuickView::onStrategyStatusChanged(const QString& strategyID, bool isRunning, const QString& errorMessage)
 {
     auto it = m_strategyItems.find(strategyID);
     if (it == m_strategyItems.end())
@@ -185,6 +183,16 @@ void StrategyQuickView::onStrategyStatusChanged(const QString& strategyID,
 
     QTreeWidgetItem* item = it.value();
     item->setForeground(COL_NAME, QColor(isRunning ? "#00C800" : "#888888")); // green when running
+
+    if (!isRunning && !errorMessage.isEmpty())
+    {
+        const QString strategyName = m_strategyNames.value(strategyID, strategyID);
+        QMessageBox::critical(this,
+                              "Strategy Failed",
+                              QString("Strategy \"%1\" stopped unexpectedly.\n\nReason:\n%2\n\n"
+                                      "Check the strategy log for more details.")
+                                  .arg(strategyName, errorMessage));
+    }
 }
 
 void StrategyQuickView::onSymbolsClaimed(const QString& strategyID, const QStringList& claimedSymbols)
