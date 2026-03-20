@@ -33,7 +33,6 @@ override_dh_auto_install:
 	# Install main application binary
 	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Src/L2Trader debian/l2trader/usr/bin/l2trader
 	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/bin/l2trader-mcp-server debian/l2trader/usr/bin/l2trader-mcp-server
-	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/bin/l2trader-ctl debian/l2trader/usr/bin/l2trader-ctl
 
 	# Install out-of-process strategy SDK runtime and development files
 	DESTDIR=$(CURDIR)/debian/l2trader-strategy-sdk cmake --install obj-$(DEB_HOST_GNU_TYPE) --component strategy-sdk-runtime

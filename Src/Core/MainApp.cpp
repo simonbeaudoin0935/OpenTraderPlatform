@@ -532,7 +532,7 @@ void MainApp::start()
         if (!m_platformControlServer->startListening())
         {
             qCritical() << "Platform control socket failed to start;"
-                           " l2trader-ctl and l2trader-mcp-server will be unavailable";
+                           " l2trader-mcp-server will be unavailable";
         }
     }
 

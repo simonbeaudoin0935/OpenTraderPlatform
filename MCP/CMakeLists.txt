@@ -32,8 +32,3 @@ add_l2trader_mcp_tool(L2TraderMCPServer
     MCPServer/main.cpp
 )
 set_target_properties(L2TraderMCPServer PROPERTIES OUTPUT_NAME "l2trader-mcp-server")
-
-add_l2trader_mcp_tool(L2TraderControlCLI
-    ControlCLI/main.cpp
-)
-set_target_properties(L2TraderControlCLI PROPERTIES OUTPUT_NAME "l2trader-ctl")

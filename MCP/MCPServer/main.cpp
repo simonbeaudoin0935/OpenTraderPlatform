@@ -87,6 +87,24 @@ namespace
         };
     }
 
+    [[nodiscard]] QJsonObject replayStartArgsSchema()
+    {
+        QJsonObject properties;
+        properties["date"] = QJsonObject{{"type", "string"}, {"description", "Replay date in YYYY-MM-DD format."}};
+        properties["startTime"] =
+            QJsonObject{{"type", "string"}, {"description", "Replay start time in HH:MM[:SS] format."}};
+        properties["speed"] = QJsonObject{
+            {"type", "string"},
+            {"enum", PlatformControlProtocol::supportedReplaySpeedsJson()},
+            {"description", "Replay speed. Omit to reuse the platform's configured replay speed."},
+        };
+
+        return QJsonObject{
+            {"type", "object"},
+            {"properties", properties},
+        };
+    }
+
     [[nodiscard]] QJsonObject replaySpeedSchema()
     {
         QJsonObject properties;
@@ -121,8 +139,9 @@ namespace
         tools.append(QJsonObject{
             {"name", PlatformControlProtocol::kCommandStartReplay},
             {"title", "Start replay playback"},
-            {"description", "Start replay playback from a date, time, and speed after replay mode is entered."},
-            {"inputSchema", replayArgsSchema()},
+            {"description",
+             "Start replay playback after replay mode is entered. Omitted date/time/speed fields reuse the platform's current replay configuration."},
+            {"inputSchema", replayStartArgsSchema()},
         });
         tools.append(QJsonObject{
             {"name", PlatformControlProtocol::kCommandPauseReplay},
