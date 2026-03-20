@@ -249,11 +249,29 @@ class MainAlgo final : public QObject
      * Strategy order management - called by StrategySDK
      * All methods should be called via QMetaObject::invokeMethod with Qt::QueuedConnection
      */
-    /// @brief Get the StrategyManager instance
+    /// @brief Get the StrategyManager instance for signal/slot wiring or MainAlgo-thread use.
     [[nodiscard]] StrategyManager* getStrategyManager()
     {
-        return &m_strategyManager;
+        return m_strategyManager.get();
     }
+
+    /// @brief Thread-safe GUI/API entry point for loading a strategy on the MainAlgo thread.
+    [[nodiscard]] std::expected<QString, QString> loadStrategy(const StrategyConfig& p_config);
+
+    /// @brief Thread-safe GUI/API entry point for starting a strategy on the MainAlgo thread.
+    [[nodiscard]] QString startStrategy(const QString& p_strategyID);
+
+    /// @brief Thread-safe GUI/API entry point for unloading a strategy on the MainAlgo thread.
+    [[nodiscard]] QString unloadStrategy(const QString& p_strategyID);
+
+    /// @brief Thread-safe GUI/API query for whether a strategy is currently running.
+    [[nodiscard]] bool isStrategyRunning(const QString& p_strategyID) const;
+
+    /// @brief Thread-safe GUI/API query for a strategy's open positions.
+    [[nodiscard]] QVector<Position> getStrategyOpenPositions(const QString& p_strategyID) const;
+
+    /// @brief Thread-safe GUI/API query for a strategy's current log buffer.
+    [[nodiscard]] std::optional<QVector<StrategyLogMessage>> getStrategyLogMessages(const QString& p_strategyID) const;
 
     /// @brief Get next unique requestId for strategy order tracking
     /// @return Next requestId (thread-safe atomic increment)
@@ -478,7 +496,7 @@ class MainAlgo final : public QObject
     bool m_balancePollingStarted = false;
 
     // Strategy order tracking - all accessed from MainAlgo thread
-    StrategyManager m_strategyManager;
+    std::unique_ptr<StrategyManager> m_strategyManager;
 
     std::atomic<uint64_t> m_requestIdCounter{0};
     QMap<uint64_t, std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>> m_pendingOrderPromises;

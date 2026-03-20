@@ -43,13 +43,16 @@ void MainAlgo::destroyInstance()
 }
 
 
-MainAlgo::MainAlgo() : m_strategyManager(this)
+MainAlgo::MainAlgo()
 {
     thread.setObjectName("MainAlgoThread");
 
     this->moveToThread(&thread);
 
     this->setObjectName("MainAlgo");
+
+    m_strategyManager = std::make_unique<StrategyManager>(this);
+    m_strategyManager->moveToThread(&thread);
 
     connect(&thread, &QThread::started, this, &MainAlgo::onThreadStarted);
 
@@ -63,16 +66,21 @@ MainAlgo::~MainAlgo()
     // Thread affinity assertion - destructor must be called from main thread
     OBJ_ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
 
-    // CRITICAL: Destroy all thread-owned objects that have QTimer members on the MainAlgo
-    // thread BEFORE calling thread.quit(). If we destroy them from the main thread after
-    // the thread has stopped, Qt warns "Timers cannot be stopped from another thread".
-    // The MainAlgo event loop is still running at this point, so BlockingQueuedConnection is safe.
+    // CRITICAL: Destroy all thread-owned objects that may own timers/notifiers/processes on the
+    // MainAlgo thread BEFORE calling thread.quit(). If we destroy them from the main thread after
+    // the thread has stopped, Qt warns about cross-thread teardown and can leave strategy runtime
+    // cleanup happening on the wrong thread. The MainAlgo event loop is still running here, so
+    // BlockingQueuedConnection is safe.
     QMetaObject::invokeMethod(
         this,
         [this]()
         {
             // Stop and destroy balance polling timer on its own thread
             m_balancePollingTimer.reset();
+
+            // Destroy StrategyManager on its own thread so process supervision, socket
+            // notifiers, and unload teardown all stay on MainAlgo.
+            m_strategyManager.reset();
         },
         Qt::BlockingQueuedConnection);
 
@@ -86,8 +94,6 @@ MainAlgo::~MainAlgo()
         thread.terminate();
         thread.wait();
     }
-
-    // StrategyManager will be destroyed automatically via composition
 
     DEBUG << "Destroyed singleton instance";
 }
@@ -109,28 +115,24 @@ void MainAlgo::onThreadStarted()
     // Positions: broadcast to all strategies via adapter (strategy thread)
     connect(this,
             &MainAlgo::receivedNewPosition,
-            &m_strategyManager,
+            m_strategyManager.get(),
             &StrategyManager::onMainAlgoPositionUpdated,
             Qt::QueuedConnection);
 
     // Balance: broadcast to all strategies via adapter (strategy thread)
     connect(this,
             &MainAlgo::balanceUpdated,
-            &m_strategyManager,
+            m_strategyManager.get(),
             &StrategyManager::onMainAlgoBalanceUpdated,
             Qt::QueuedConnection);
 
-    // Strategy symbol release → decrement SymbolContext ref count.
-    // StrategyManager lives on the main thread; releaseSymbolContextRef must
-    // run on the MainAlgo worker thread. Use QueuedConnection so the call is
-    // posted to the MainAlgo event loop rather than executed on the emitter's
-    // (main) thread — which would trip the thread-affinity assert inside
-    // releaseSymbolContextRef.
-    connect(&m_strategyManager,
+    // StrategyManager now shares the MainAlgo thread, so symbol releases can
+    // decrement SymbolContext ref counts synchronously during unload/shutdown.
+    connect(m_strategyManager.get(),
             &StrategyManager::symbolReleased,
             this,
             &MainAlgo::releaseSymbolContextRef,
-            Qt::QueuedConnection);
+            Qt::DirectConnection);
 
     // Direct cross-thread routing: DBClient emits on its own thread, we handle directly
     // via routeLevel2/routeTrade which use a read lock — no event-loop bounce.
@@ -541,8 +543,8 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
     QString strategyID = *strategyIt;
     DEBUG << "Routing order update for orderID=" << order.getOrderID() << "to strategyID=" << strategyID;
     QMetaObject::invokeMethod(
-        &m_strategyManager,
-        [this, strategyID, order]() { m_strategyManager.onOrderUpdatedForStrategy(strategyID, order); },
+        m_strategyManager.get(),
+        [this, strategyID, order]() { m_strategyManager->onOrderUpdatedForStrategy(strategyID, order); },
         Qt::QueuedConnection);
 }
 
@@ -931,6 +933,176 @@ uint64_t MainAlgo::getNextRequestId()
     return ++m_requestIdCounter;
 }
 
+std::expected<QString, QString> MainAlgo::loadStrategy(const StrategyConfig& p_config)
+{
+    if (!m_strategyManager)
+    {
+        return std::unexpected("Strategy manager unavailable");
+    }
+
+    if (QThread::currentThread() == &thread)
+    {
+        return m_strategyManager->loadStrategy(p_config);
+    }
+
+    if (!thread.isRunning())
+    {
+        return std::unexpected("MainAlgo thread is not running");
+    }
+
+    std::expected<QString, QString> result = std::unexpected(QString{});
+    const bool invoked = QMetaObject::invokeMethod(
+        this,
+        [this, &result, p_config]() { result = m_strategyManager->loadStrategy(p_config); },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+    return result;
+}
+
+QString MainAlgo::startStrategy(const QString& p_strategyID)
+{
+    if (!m_strategyManager)
+    {
+        return "Strategy manager unavailable";
+    }
+
+    if (QThread::currentThread() == &thread)
+    {
+        return m_strategyManager->startStrategy(p_strategyID);
+    }
+
+    if (!thread.isRunning())
+    {
+        return "MainAlgo thread is not running";
+    }
+
+    QString result;
+    const bool invoked = QMetaObject::invokeMethod(
+        this,
+        [this, &result, p_strategyID]() { result = m_strategyManager->startStrategy(p_strategyID); },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+    return result;
+}
+
+QString MainAlgo::unloadStrategy(const QString& p_strategyID)
+{
+    if (!m_strategyManager)
+    {
+        return "Strategy manager unavailable";
+    }
+
+    if (QThread::currentThread() == &thread)
+    {
+        return m_strategyManager->unloadStrategy(p_strategyID);
+    }
+
+    if (!thread.isRunning())
+    {
+        return "MainAlgo thread is not running";
+    }
+
+    QString result;
+    const bool invoked = QMetaObject::invokeMethod(
+        this,
+        [this, &result, p_strategyID]() { result = m_strategyManager->unloadStrategy(p_strategyID); },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+    return result;
+}
+
+bool MainAlgo::isStrategyRunning(const QString& p_strategyID) const
+{
+    if (!m_strategyManager)
+    {
+        return false;
+    }
+
+    if (QThread::currentThread() == &thread)
+    {
+        return m_strategyManager->isStrategyRunning(p_strategyID);
+    }
+
+    if (!thread.isRunning())
+    {
+        return false;
+    }
+
+    bool result = false;
+    MainAlgo* const self = const_cast<MainAlgo*>(this);
+    const bool invoked = QMetaObject::invokeMethod(
+        self,
+        [this, &result, p_strategyID]() { result = m_strategyManager->isStrategyRunning(p_strategyID); },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+    return result;
+}
+
+QVector<Position> MainAlgo::getStrategyOpenPositions(const QString& p_strategyID) const
+{
+    if (!m_strategyManager)
+    {
+        return {};
+    }
+
+    if (QThread::currentThread() == &thread)
+    {
+        return m_strategyManager->getStrategyOpenPositions(p_strategyID);
+    }
+
+    if (!thread.isRunning())
+    {
+        return {};
+    }
+
+    QVector<Position> result;
+    MainAlgo* const self = const_cast<MainAlgo*>(this);
+    const bool invoked = QMetaObject::invokeMethod(
+        self,
+        [this, &result, p_strategyID]() { result = m_strategyManager->getStrategyOpenPositions(p_strategyID); },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+    return result;
+}
+
+std::optional<QVector<StrategyLogMessage>> MainAlgo::getStrategyLogMessages(const QString& p_strategyID) const
+{
+    if (!m_strategyManager)
+    {
+        return std::nullopt;
+    }
+
+    auto readMessages = [this, &p_strategyID]() -> std::optional<QVector<StrategyLogMessage>>
+    {
+        const StrategyLogger* logger = m_strategyManager->getStrategyLogger(p_strategyID);
+        if (logger == nullptr)
+        {
+            return std::nullopt;
+        }
+
+        return logger->getMessages();
+    };
+
+    if (QThread::currentThread() == &thread)
+    {
+        return readMessages();
+    }
+
+    if (!thread.isRunning())
+    {
+        return std::nullopt;
+    }
+
+    std::optional<QVector<StrategyLogMessage>> result;
+    MainAlgo* const self = const_cast<MainAlgo*>(this);
+    const bool invoked = QMetaObject::invokeMethod(
+        self,
+        [&result, readMessages]() { result = readMessages(); },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+    return result;
+}
+
 void MainAlgo::processPlaceOrder(uint64_t p_requestId,
                                  const QString& p_strategyID,
                                  const PlaceOrderRequest& p_orderRequest,
@@ -1073,7 +1245,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
         {
             ++m_symbolContexts[p_symbol]->m_refCount;
             // Pass the actual SymbolContext so the strategy gets a direct connection (no MainAlgo hop)
-            m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, m_symbolContexts[p_symbol]);
+            m_strategyManager->connectSymbolToStrategy(p_strategyID, p_symbol, m_symbolContexts[p_symbol]);
             p_promise->addResult(true);
             p_promise->finish();
             return;
@@ -1100,7 +1272,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
         if (OrderEmulator* emulator = TSClient::getInstance()->getOrderEmulator())
             connectBarCloseToOrderEmulator(instrument, emulator);
 
-        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, instrument);
+        m_strategyManager->connectSymbolToStrategy(p_strategyID, p_symbol, instrument);
 
         INFO << "Secondary symbol SymbolContext created for" << p_symbol << "(replay data routed via DBClient)";
     }
@@ -1128,7 +1300,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
             ++m_symbolContexts[p_symbol]->m_refCount;
         }
 
-        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, m_symbolContexts[p_symbol]);
+        m_strategyManager->connectSymbolToStrategy(p_strategyID, p_symbol, m_symbolContexts[p_symbol]);
     }
 
     p_promise->addResult(true);
@@ -1210,7 +1382,7 @@ void MainAlgo::processClaimSymbols(const QString& p_strategyID,
                                    std::shared_ptr<QPromise<QStringList>> p_promise)
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
-    m_strategyManager.processClaimSymbols(p_strategyID, p_symbols, p_promise);
+    m_strategyManager->processClaimSymbols(p_strategyID, p_symbols, p_promise);
 }
 
 // onAggregatorBarUpdated/onAggregatorBarClosed removed — snapshot writes are now
@@ -1632,14 +1804,16 @@ void MainAlgo::deleteAllSymbolContext()
 
 void MainAlgo::stopAllStrategies()
 {
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
     INFO << "Stopping all strategies for mode transition";
-    m_strategyManager.stopAllStrategies();
+    m_strategyManager->stopAllStrategies();
     INFO << "All strategies stopped";
 }
 
 void MainAlgo::restoreStrategiesState()
 {
-    m_strategyManager.restoreStrategiesState();
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+    m_strategyManager->restoreStrategiesState();
 }
 
 void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)

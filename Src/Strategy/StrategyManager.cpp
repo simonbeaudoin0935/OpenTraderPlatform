@@ -17,6 +17,15 @@
 
 Q_LOGGING_CATEGORY(StrategyManagerLog, "StrategyManager")
 
+namespace
+{
+void assumeMainAlgoThread(const MainAlgo* p_mainAlgo)
+{
+    ASSUME_DIFF(p_mainAlgo, nullptr);
+    ASSUME_EQUAL(QThread::currentThread(), p_mainAlgo->QObject::thread());
+}
+} // namespace
+
 // StrategySDK implementation
 StrategySDK::StrategySDK(MainAlgo* p_mainAlgo,
                          const QString& p_strategyID,
@@ -301,6 +310,7 @@ StrategyManager::StrategyManager(MainAlgo* p_mainAlgo) : QObject(nullptr), m_mai
 
 StrategyManager::~StrategyManager()
 {
+    assumeMainAlgoThread(m_mainAlgo);
     qInfo(StrategyManagerLog) << "StrategyManager shutdown: unloading" << m_strategies.size() << "active strategies";
 
     m_persistEnabled = false; // Don't overwrite persisted state during shutdown teardown
@@ -320,7 +330,7 @@ StrategyManager::~StrategyManager()
 
 std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConfig& p_config)
 {
-    ASSUME_DIFF(m_mainAlgo, nullptr);
+    assumeMainAlgoThread(m_mainAlgo);
 
     if (p_config.runtimePath().isEmpty())
     {
@@ -374,6 +384,7 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
 
 QString StrategyManager::unloadStrategy(const QString& p_strategyID)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     auto* instance = findStrategy(p_strategyID);
     if (!instance)
     {
@@ -421,6 +432,7 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
 
 QString StrategyManager::startStrategy(const QString& p_strategyID)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     auto* instance = findStrategy(p_strategyID);
     if (!instance)
     {
@@ -461,6 +473,7 @@ QString StrategyManager::startStrategy(const QString& p_strategyID)
 
 void StrategyManager::markStrategyFailed(const QString& p_strategyID, const QString& p_errorMessage)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     auto* instance = findStrategy(p_strategyID);
     if (!instance)
     {
@@ -485,6 +498,7 @@ void StrategyManager::markStrategyFailed(const QString& p_strategyID, const QStr
 
 void StrategyManager::stopAllStrategies()
 {
+    assumeMainAlgoThread(m_mainAlgo);
     QVector<QString> activeStrategies = getActiveStrategies();
     INFO << "Stopping all strategies, count:" << activeStrategies.size();
 
@@ -508,11 +522,13 @@ void StrategyManager::stopAllStrategies()
 
 QVector<QString> StrategyManager::getActiveStrategies() const
 {
+    assumeMainAlgoThread(m_mainAlgo);
     return m_strategies.keys().toVector();
 }
 
 StrategyConfig StrategyManager::getStrategyConfig(const QString& p_strategyID) const
 {
+    assumeMainAlgoThread(m_mainAlgo);
     const auto* instance = findStrategy(p_strategyID);
     if (instance)
     {
@@ -523,6 +539,7 @@ StrategyConfig StrategyManager::getStrategyConfig(const QString& p_strategyID) c
 
 bool StrategyManager::isStrategyRunning(const QString& p_strategyID) const
 {
+    assumeMainAlgoThread(m_mainAlgo);
     const auto* instance = findStrategy(p_strategyID);
     if (instance)
     {
@@ -580,6 +597,7 @@ QVector<Order> StrategyManager::getStrategyRecentOrders(const QString& p_strateg
 
 QVector<Position> StrategyManager::getStrategyOpenPositions(const QString& p_strategyID) const
 {
+    assumeMainAlgoThread(m_mainAlgo);
     const auto* instance = findStrategy(p_strategyID);
     if (instance && instance->p_backend && instance->p_backend->sdk())
     {
@@ -590,6 +608,7 @@ QVector<Position> StrategyManager::getStrategyOpenPositions(const QString& p_str
 
 void StrategyManager::onMainAlgoPositionUpdated(const QString& p_account, const Position& p_position)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     Q_UNUSED(p_account);
 
     for (auto* instance: m_strategies)
@@ -603,6 +622,7 @@ void StrategyManager::onMainAlgoPositionUpdated(const QString& p_account, const 
 
 void StrategyManager::onMainAlgoBalanceUpdated(const Balance& p_balance)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     double balance = p_balance.getEquity();
 
     for (auto* instance: m_strategies)
@@ -641,6 +661,7 @@ const StrategyManager::StrategyInstance* StrategyManager::findStrategy(const QSt
 
 void StrategyManager::onOrderUpdatedForStrategy(const QString& p_strategyID, const Order& p_order)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     qDebug(StrategyManagerLog) << "onOrderUpdatedForStrategy: strategyID=" << p_strategyID
                                << "orderID=" << p_order.getOrderID()
                                << "status=" << static_cast<int>(p_order.getOrderStatus());
@@ -684,6 +705,7 @@ void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
                                               const QString& p_symbol,
                                               SymbolContext* p_instrument)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     auto* instance = findStrategy(p_strategyID);
     if (!instance || !instance->p_backend)
     {
@@ -744,12 +766,14 @@ void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
 
 StrategyLogger* StrategyManager::getStrategyLogger(const QString& p_strategyID)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     auto instance = findStrategy(p_strategyID);
     return instance && instance->p_backend ? instance->p_backend->logger() : nullptr;
 }
 
 const StrategyLogger* StrategyManager::getStrategyLogger(const QString& p_strategyID) const
 {
+    assumeMainAlgoThread(m_mainAlgo);
     auto instance = findStrategy(p_strategyID);
     return instance && instance->p_backend ? instance->p_backend->logger() : nullptr;
 }
@@ -758,6 +782,7 @@ void StrategyManager::processClaimSymbols(const QString& p_strategyID,
                                           const QStringList& p_symbols,
                                           std::shared_ptr<QPromise<QStringList>> p_promise)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     QStringList approved;
 
     for (const QString& symbol: p_symbols)
@@ -809,15 +834,11 @@ void StrategyManager::processClaimSymbols(const QString& p_strategyID,
 
 void StrategyManager::releaseSymbols(const QString& p_strategyID)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     const QStringList released = m_symbolRegistry.keys(p_strategyID);
     for (const QString& symbol: released)
     {
         m_symbolRegistry.remove(symbol);
-        // Must release on MainAlgo's thread — releaseSymbolContextRef asserts thread affinity
-        QMetaObject::invokeMethod(
-            m_mainAlgo,
-            [this, symbol]() { m_mainAlgo->releaseSymbolContextRef(symbol); },
-            Qt::QueuedConnection);
         emit symbolReleased(symbol);
     }
     if (!released.isEmpty())
@@ -861,6 +882,7 @@ void StrategyManager::persistStrategiesState()
 
 void StrategyManager::restoreStrategiesState()
 {
+    assumeMainAlgoThread(m_mainAlgo);
     if (!strategiesStateSettings)
         return;
 

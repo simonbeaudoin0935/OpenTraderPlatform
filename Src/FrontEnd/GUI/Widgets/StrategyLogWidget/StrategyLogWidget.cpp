@@ -130,15 +130,15 @@ void StrategyLogWidget::onRefreshTimer()
     if (m_strategyID.isEmpty())
         return;
 
-    const StrategyLogger* logger = m_mainAlgo->getStrategyManager()->getStrategyLogger(m_strategyID);
-    if (!logger)
+    const std::optional<QVector<StrategyLogMessage>> logsResult = m_mainAlgo->getStrategyLogMessages(m_strategyID);
+    if (!logsResult)
     {
         m_logDisplay->setPlainText("(Strategy no longer available)");
         m_timer->stop();
         return;
     }
 
-    QVector<StrategyLogMessage> allLogs = logger->getMessages();
+    QVector<StrategyLogMessage> allLogs = *logsResult;
 
     // Filter by level if needed
     QVector<StrategyLogMessage> logs;

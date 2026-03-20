@@ -261,7 +261,7 @@ void StrategyQuickView::onLoadButtonClicked()
                 }
             }
 
-            auto result = m_mainAlgo->getStrategyManager()->loadStrategy(*config);
+            auto result = m_mainAlgo->loadStrategy(*config);
             if (!result)
                 QMessageBox::warning(this, "Load Strategy", result.error());
         }
@@ -273,14 +273,12 @@ void StrategyQuickView::onRefreshPositions()
     if (!m_mainAlgo)
         return;
 
-    StrategyManager* mgr = m_mainAlgo->getStrategyManager();
-
     for (auto it = m_strategyItems.constBegin(); it != m_strategyItems.constEnd(); ++it)
     {
         const QString& strategyID = it.key();
         QTreeWidgetItem* stratItem = it.value();
 
-        QVector<Position> positions = mgr->getStrategyOpenPositions(strategyID);
+        QVector<Position> positions = m_mainAlgo->getStrategyOpenPositions(strategyID);
 
         // Build a symbol → Position map for fast lookup
         QMap<QString, const Position*> posMap;
@@ -336,8 +334,7 @@ void StrategyQuickView::onContextMenuRequested(const QPoint& pos)
     if (strategyID.isEmpty())
         return;
 
-    StrategyManager* mgr = m_mainAlgo->getStrategyManager();
-    bool isRunning = mgr->isStrategyRunning(strategyID);
+    const bool isRunning = m_mainAlgo->isStrategyRunning(strategyID);
     QString strategyName = m_strategyNames.value(strategyID, strategyID);
 
     QMenu menu(this);
@@ -355,13 +352,13 @@ void StrategyQuickView::onContextMenuRequested(const QPoint& pos)
 
     if (chosen == startAction)
     {
-        QString error = mgr->startStrategy(strategyID);
+        QString error = m_mainAlgo->startStrategy(strategyID);
         if (!error.isEmpty())
             QMessageBox::warning(this, "Start Strategy", error);
     }
     else if (chosen == stopAction)
     {
-        QString error = mgr->unloadStrategy(strategyID);
+        QString error = m_mainAlgo->unloadStrategy(strategyID);
         if (!error.isEmpty())
             QMessageBox::warning(this, "Stop Strategy", error);
     }
