@@ -106,16 +106,32 @@ For detailed documentation, see:
     cmake --build build/GUI -j4
     ```
 
-    This also builds the first `MCP/` scaffolding binaries under `build/GUI/bin/`:
+    This also builds the first `MCP/` integration binaries under `build/GUI/bin/`:
     - `l2trader-mcp-server`
     - `l2trader-ctl`
 
-    These are the future agent/control integration entry points. For now they are
-    scaffolds while the platform-side control socket and MCP bridge are being wired in.
+    `l2trader-ctl` now talks to the platform's local control socket, and
+    `l2trader-mcp-server` exposes the same control operations over MCP stdio.
+    This first MCP slice is control-oriented; market-data and order-flow MCP
+    tools are still planned work.
 
 5. **Run the application**:
     ```bash
     ./build/GUI/Src/L2Trader
+    ```
+
+    Once the app is running, the local control socket listens at:
+    `~/.local/state/L2Trader/platform-control.sock`
+
+    Example control commands:
+    ```bash
+    ./build/GUI/bin/l2trader-ctl status
+    ./build/GUI/bin/l2trader-ctl enter-replay --date 2026-03-19 --start-time 09:30:00 --speed 1x
+    ./build/GUI/bin/l2trader-ctl start-replay --date 2026-03-19 --start-time 09:30:00 --speed 10x
+    ./build/GUI/bin/l2trader-ctl pause-replay
+    ./build/GUI/bin/l2trader-ctl resume-replay
+    ./build/GUI/bin/l2trader-ctl set-replay-speed --speed 50x
+    ./build/GUI/bin/l2trader-ctl exit-replay
     ```
 
 6. **Stage the external strategy SDK from a build tree** (optional):

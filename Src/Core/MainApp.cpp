@@ -2,6 +2,8 @@
 #include "Assume.h"
 #include "DatabaseThread.h"
 #include "Logging.h"
+#include "PlatformControlProtocol.h"
+#include "PlatformControlServer.h"
 #include "Settings.h"
 #include "Stream.h"
 #include "CONSTANTS.h"
@@ -9,6 +11,7 @@
 #include "PositionsDatabase.h"
 #include "DBClient.h"
 #include <QCoreApplication>
+#include <QJsonValue>
 #include <unistd.h>
 #include <cerrno>
 #include <cstring>
@@ -59,6 +62,139 @@ DataSourceMode MainApp::getDataSourceMode()
 {
     return m_dataSourceMode;
 }
+
+namespace
+{
+    [[nodiscard]] QString tradingModeToString(const TradingMode p_mode)
+    {
+        switch (p_mode)
+        {
+        case TradingMode::Live:
+            return "live";
+        case TradingMode::Sim:
+        default:
+            return "sim";
+        }
+    }
+
+    [[nodiscard]] QString dataSourceModeToString(const DataSourceMode p_mode)
+    {
+        switch (p_mode)
+        {
+        case DataSourceMode::Replay:
+            return "replay";
+        case DataSourceMode::Live:
+        default:
+            return "live";
+        }
+    }
+
+    [[nodiscard]] QString replayStateToString(const Playback::State p_state)
+    {
+        switch (p_state)
+        {
+        case Playback::State::Playing:
+            return "playing";
+        case Playback::State::Paused:
+            return "paused";
+        case Playback::State::Stopped:
+        default:
+            return "stopped";
+        }
+    }
+
+    [[nodiscard]] QJsonObject makeControlResponse(bool p_ok,
+                                                  const QString& p_message,
+                                                  const QJsonObject& p_result = {},
+                                                  const QString& p_error = {})
+    {
+        QJsonObject response;
+        response["protocolVersion"] = PlatformControlProtocol::kProtocolVersion;
+        response["ok"] = p_ok;
+        response["message"] = p_message;
+        if (!p_error.isEmpty())
+        {
+            response["error"] = p_error;
+        }
+        if (!p_result.isEmpty())
+        {
+            response["result"] = p_result;
+        }
+        return response;
+    }
+
+    [[nodiscard]] std::expected<QDate, QString> parseRequiredDate(const QJsonObject& p_arguments)
+    {
+        const QString rawValue = p_arguments.value("date").toString().trimmed();
+        if (rawValue.isEmpty())
+        {
+            return std::unexpected("Missing required 'date' argument (expected YYYY-MM-DD)");
+        }
+
+        const QDate date = QDate::fromString(rawValue, Qt::ISODate);
+        if (!date.isValid())
+        {
+            return std::unexpected(QString("Invalid date '%1' (expected YYYY-MM-DD)").arg(rawValue));
+        }
+
+        return date;
+    }
+
+    [[nodiscard]] std::expected<QTime, QString> parseRequiredTime(const QJsonObject& p_arguments)
+    {
+        const QString rawValue = p_arguments.value("startTime").toString().trimmed();
+        if (rawValue.isEmpty())
+        {
+            return std::unexpected("Missing required 'startTime' argument (expected HH:MM[:SS])");
+        }
+
+        const QTime time = QTime::fromString(rawValue, Qt::ISODate);
+        if (!time.isValid())
+        {
+            return std::unexpected(QString("Invalid startTime '%1' (expected HH:MM[:SS])").arg(rawValue));
+        }
+
+        return time;
+    }
+
+    [[nodiscard]] std::expected<Playback::Speed, QString> parseRequiredReplaySpeed(const QJsonObject& p_arguments)
+    {
+        const QJsonValue speedValue = p_arguments.value("speed");
+        if (speedValue.isUndefined())
+        {
+            return std::unexpected(QString("Missing required 'speed' argument (supported values: %1)")
+                                       .arg(PlatformControlProtocol::supportedReplaySpeeds().join(", ")));
+        }
+
+        if (speedValue.isDouble())
+        {
+            return PlatformControlProtocol::replaySpeedFromString(QString::number(speedValue.toInt()));
+        }
+
+        return PlatformControlProtocol::replaySpeedFromString(speedValue.toString());
+    }
+
+    [[nodiscard]] std::expected<TradingMode, QString> parseRequiredTradingMode(const QJsonObject& p_arguments)
+    {
+        const QString rawValue = p_arguments.value("mode").toString().trimmed().toLower();
+        if (rawValue.isEmpty())
+        {
+            return std::unexpected("Missing required 'mode' argument (supported values: sim, live)");
+        }
+
+        if (rawValue == "sim")
+        {
+            return TradingMode::Sim;
+        }
+
+        if (rawValue == "live")
+        {
+            return TradingMode::Live;
+        }
+
+        return std::unexpected(QString("Unsupported trading mode '%1' (supported values: sim, live)").arg(rawValue));
+    }
+} // namespace
 
 // Get the current application time (real or replay)
 QDateTime MainApp::getCurrentAppTime()
@@ -234,6 +370,11 @@ MainApp::~MainApp()
     // Stop memory monitoring first to avoid cross-thread timer warnings
     memoryMonitor.stopMonitoring();
 
+    if (m_platformControlServer)
+    {
+        m_platformControlServer.reset();
+    }
+
     // Delete the frontend first
     delete appFrontend;
     appFrontend = nullptr;
@@ -260,6 +401,16 @@ void MainApp::start()
     if (dbClient->hasApiKey())
     {
         dbClient->connectLive();
+    }
+
+    if (m_platformControlServer == nullptr)
+    {
+        m_platformControlServer = std::make_unique<PlatformControlServer>(this);
+        if (!m_platformControlServer->startListening())
+        {
+            qCritical() << "Platform control socket failed to start;"
+                           " l2trader-ctl and l2trader-mcp-server will be unavailable";
+        }
     }
 
     memoryMonitor.startMonitoring(500);
@@ -486,6 +637,253 @@ void MainApp::setReplaySpeed(Playback::Speed p_speed)
 bool MainApp::isReplayPaused() const
 {
     return mainAlgo->getReplayState() == Playback::State::Paused;
+}
+
+QJsonObject MainApp::getControlStatus() const
+{
+    QJsonObject status;
+    status["dataSourceMode"] = dataSourceModeToString(m_dataSourceMode);
+    status["tradingMode"] = tradingModeToString(m_tradingMode);
+    status["tradingModeChangeRequiresRestart"] = true;
+    status["displayedSymbol"] = mainAlgo->getDisplayedSymbol();
+    status["replayState"] = replayStateToString(mainAlgo->getReplayState());
+    status["replayPaused"] = isReplayPaused();
+    status["currentAppTime"] = getCurrentAppTime().toString(Qt::ISODateWithMs);
+    status["currentReplayTime"] =
+        isInReplayMode() ? QJsonValue(currentAppReplayTime.toString(Qt::ISODateWithMs)) : QJsonValue(QJsonValue::Null);
+    status["controlSocketPath"] = PlatformControlProtocol::socketPath();
+    status["supportedReplaySpeeds"] = PlatformControlProtocol::supportedReplaySpeedsJson();
+    return status;
+}
+
+QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
+{
+    const int protocolVersion = p_request.value("protocolVersion").toInt(-1);
+    if (protocolVersion != PlatformControlProtocol::kProtocolVersion)
+    {
+        return makeControlResponse(false,
+                                   "Platform control request rejected.",
+                                   {},
+                                   QString("Unsupported control protocol version %1 (expected %2)")
+                                       .arg(protocolVersion)
+                                       .arg(PlatformControlProtocol::kProtocolVersion));
+    }
+
+    const QString command = p_request.value("command").toString().trimmed();
+    if (command.isEmpty())
+    {
+        return makeControlResponse(false, "Platform control request rejected.", {}, "Missing required 'command' field");
+    }
+
+    const QJsonObject arguments = p_request.value("arguments").toObject();
+
+    if (command == PlatformControlProtocol::kCommandStatus)
+    {
+        return makeControlResponse(true, "Platform status retrieved.", getControlStatus());
+    }
+
+    if (command == PlatformControlProtocol::kCommandEnterReplay)
+    {
+        if (isInReplayMode())
+        {
+            return makeControlResponse(false,
+                                       "Replay mode change rejected.",
+                                       {},
+                                       "Application is already in replay mode");
+        }
+
+        const auto date = parseRequiredDate(arguments);
+        if (!date.has_value())
+        {
+            return makeControlResponse(false, "Replay mode change rejected.", {}, date.error());
+        }
+
+        const auto startTime = parseRequiredTime(arguments);
+        if (!startTime.has_value())
+        {
+            return makeControlResponse(false, "Replay mode change rejected.", {}, startTime.error());
+        }
+
+        const auto speed = parseRequiredReplaySpeed(arguments);
+        if (!speed.has_value())
+        {
+            return makeControlResponse(false, "Replay mode change rejected.", {}, speed.error());
+        }
+
+        enterReplayMode(date.value(), startTime.value(), speed.value());
+        QJsonObject status = getControlStatus();
+        status["requestedReplaySpeed"] = PlatformControlProtocol::replaySpeedToString(speed.value());
+        return makeControlResponse(true, "Replay mode entry requested.", status);
+    }
+
+    if (command == PlatformControlProtocol::kCommandStartReplay)
+    {
+        if (!isInReplayMode())
+        {
+            return makeControlResponse(false,
+                                       "Replay playback request rejected.",
+                                       {},
+                                       "Application must be in replay mode first");
+        }
+
+        const auto date = parseRequiredDate(arguments);
+        if (!date.has_value())
+        {
+            return makeControlResponse(false, "Replay playback request rejected.", {}, date.error());
+        }
+
+        const auto startTime = parseRequiredTime(arguments);
+        if (!startTime.has_value())
+        {
+            return makeControlResponse(false, "Replay playback request rejected.", {}, startTime.error());
+        }
+
+        const auto speed = parseRequiredReplaySpeed(arguments);
+        if (!speed.has_value())
+        {
+            return makeControlResponse(false, "Replay playback request rejected.", {}, speed.error());
+        }
+
+        startReplayPlayback(date.value(), startTime.value(), speed.value());
+        QJsonObject status = getControlStatus();
+        status["requestedReplaySpeed"] = PlatformControlProtocol::replaySpeedToString(speed.value());
+        return makeControlResponse(true, "Replay playback start requested.", status);
+    }
+
+    if (command == PlatformControlProtocol::kCommandPauseReplay)
+    {
+        if (!isInReplayMode())
+        {
+            return makeControlResponse(false,
+                                       "Replay pause request rejected.",
+                                       {},
+                                       "Application must be in replay mode first");
+        }
+
+        if (isReplayPaused())
+        {
+            return makeControlResponse(true, "Replay is already paused.", getControlStatus());
+        }
+
+        pauseReplayPlayback();
+        return makeControlResponse(true, "Replay pause requested.", getControlStatus());
+    }
+
+    if (command == PlatformControlProtocol::kCommandResumeReplay)
+    {
+        if (!isInReplayMode())
+        {
+            return makeControlResponse(false,
+                                       "Replay resume request rejected.",
+                                       {},
+                                       "Application must be in replay mode first");
+        }
+
+        if (!isReplayPaused())
+        {
+            return makeControlResponse(true, "Replay is already running.", getControlStatus());
+        }
+
+        resumeReplayPlayback();
+        return makeControlResponse(true, "Replay resume requested.", getControlStatus());
+    }
+
+    if (command == PlatformControlProtocol::kCommandSetReplaySpeed)
+    {
+        if (!isInReplayMode())
+        {
+            return makeControlResponse(false,
+                                       "Replay speed update rejected.",
+                                       {},
+                                       "Application must be in replay mode first");
+        }
+
+        const auto speed = parseRequiredReplaySpeed(arguments);
+        if (!speed.has_value())
+        {
+            return makeControlResponse(false, "Replay speed update rejected.", {}, speed.error());
+        }
+
+        setReplaySpeed(speed.value());
+        QJsonObject status = getControlStatus();
+        status["requestedReplaySpeed"] = PlatformControlProtocol::replaySpeedToString(speed.value());
+        return makeControlResponse(true, "Replay speed update requested.", status);
+    }
+
+    if (command == PlatformControlProtocol::kCommandPreloadReplay)
+    {
+        if (!isInReplayMode())
+        {
+            return makeControlResponse(false,
+                                       "Replay preload request rejected.",
+                                       {},
+                                       "Application must be in replay mode first");
+        }
+
+        const auto date = parseRequiredDate(arguments);
+        if (!date.has_value())
+        {
+            return makeControlResponse(false, "Replay preload request rejected.", {}, date.error());
+        }
+
+        const auto startTime = parseRequiredTime(arguments);
+        if (!startTime.has_value())
+        {
+            return makeControlResponse(false, "Replay preload request rejected.", {}, startTime.error());
+        }
+
+        const auto speed = parseRequiredReplaySpeed(arguments);
+        if (!speed.has_value())
+        {
+            return makeControlResponse(false, "Replay preload request rejected.", {}, speed.error());
+        }
+
+        preloadChartForReplay(date.value(), startTime.value(), speed.value());
+        QJsonObject status = getControlStatus();
+        status["requestedReplaySpeed"] = PlatformControlProtocol::replaySpeedToString(speed.value());
+        return makeControlResponse(true, "Replay chart preload requested.", status);
+    }
+
+    if (command == PlatformControlProtocol::kCommandExitReplay)
+    {
+        if (!isInReplayMode())
+        {
+            return makeControlResponse(false,
+                                       "Replay exit request rejected.",
+                                       {},
+                                       "Application is not currently in replay mode");
+        }
+
+        exitReplayMode();
+        return makeControlResponse(true, "Replay mode exit requested.", getControlStatus());
+    }
+
+    if (command == PlatformControlProtocol::kCommandSetTradingMode)
+    {
+        const auto mode = parseRequiredTradingMode(arguments);
+        if (!mode.has_value())
+        {
+            return makeControlResponse(false, "Trading mode update rejected.", {}, mode.error());
+        }
+
+        if (m_tradingMode == mode.value())
+        {
+            QJsonObject status = getControlStatus();
+            status["restartRequired"] = false;
+            return makeControlResponse(true, "Trading mode already set.", status);
+        }
+
+        setTradingMode(mode.value());
+        QJsonObject status = getControlStatus();
+        status["restartRequired"] = true;
+        status["requestedTradingMode"] = tradingModeToString(mode.value());
+        return makeControlResponse(true, "Trading mode updated. Restart required to apply it.", status);
+    }
+
+    return makeControlResponse(false,
+                               "Platform control request rejected.",
+                               {},
+                               QString("Unknown control command '%1'").arg(command));
 }
 
 void MainApp::preloadChartForReplay(QDate p_date, QTime p_startTime, Playback::Speed p_speed)
