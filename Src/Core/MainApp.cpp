@@ -65,6 +65,10 @@ DataSourceMode MainApp::getDataSourceMode()
 
 namespace
 {
+    inline constexpr auto kReplayDateSettingsKey = "Replay/Date";
+    inline constexpr auto kReplayStartTimeSettingsKey = "Replay/StartTime";
+    inline constexpr auto kReplaySpeedSettingsKey = "Replay/Speed";
+
     [[nodiscard]] QString tradingModeToString(const TradingMode p_mode)
     {
         switch (p_mode)
@@ -164,6 +168,108 @@ namespace
         {
             return std::unexpected(QString("Missing required 'speed' argument (supported values: %1)")
                                        .arg(PlatformControlProtocol::supportedReplaySpeeds().join(", ")));
+        }
+
+        if (speedValue.isDouble())
+        {
+            return PlatformControlProtocol::replaySpeedFromString(QString::number(speedValue.toInt()));
+        }
+
+        return PlatformControlProtocol::replaySpeedFromString(speedValue.toString());
+    }
+
+    [[nodiscard]] QDate configuredReplayDate()
+    {
+        Q_CHECK_PTR(appStateSettings);
+        return QDate::fromString(appStateSettings->value(kReplayDateSettingsKey).toString(), Qt::ISODate);
+    }
+
+    [[nodiscard]] QTime configuredReplayStartTime()
+    {
+        Q_CHECK_PTR(appStateSettings);
+        return QTime::fromString(appStateSettings->value(kReplayStartTimeSettingsKey).toString(), Qt::ISODate);
+    }
+
+    [[nodiscard]] Playback::Speed configuredReplaySpeed()
+    {
+        Q_CHECK_PTR(appStateSettings);
+        const int savedSpeed = appStateSettings->value(kReplaySpeedSettingsKey, static_cast<int>(Playback::Speed::Normal)).toInt();
+        const auto parsed = PlatformControlProtocol::replaySpeedFromString(QString::number(savedSpeed));
+        if (parsed.has_value())
+        {
+            return parsed.value();
+        }
+
+        return Playback::Speed::Normal;
+    }
+
+    void persistReplayConfiguration(const QDate& p_date, const QTime& p_startTime, const Playback::Speed p_speed)
+    {
+        Q_CHECK_PTR(appStateSettings);
+        if (p_date.isValid())
+        {
+            appStateSettings->setValue(kReplayDateSettingsKey, p_date.toString(Qt::ISODate));
+        }
+        if (p_startTime.isValid())
+        {
+            appStateSettings->setValue(kReplayStartTimeSettingsKey, p_startTime.toString(Qt::ISODate));
+        }
+        appStateSettings->setValue(kReplaySpeedSettingsKey, static_cast<int>(p_speed));
+        appStateSettings->sync();
+    }
+
+    [[nodiscard]] std::expected<QDate, QString> parseReplayDateOrConfigured(const QJsonObject& p_arguments)
+    {
+        const QString rawValue = p_arguments.value("date").toString().trimmed();
+        if (!rawValue.isEmpty())
+        {
+            const QDate date = QDate::fromString(rawValue, Qt::ISODate);
+            if (!date.isValid())
+            {
+                return std::unexpected(QString("Invalid date '%1' (expected YYYY-MM-DD)").arg(rawValue));
+            }
+
+            return date;
+        }
+
+        const QDate date = configuredReplayDate();
+        if (!date.isValid())
+        {
+            return std::unexpected("Missing required 'date' argument and no replay date is currently configured");
+        }
+
+        return date;
+    }
+
+    [[nodiscard]] std::expected<QTime, QString> parseReplayStartTimeOrConfigured(const QJsonObject& p_arguments)
+    {
+        const QString rawValue = p_arguments.value("startTime").toString().trimmed();
+        if (!rawValue.isEmpty())
+        {
+            const QTime time = QTime::fromString(rawValue, Qt::ISODate);
+            if (!time.isValid())
+            {
+                return std::unexpected(QString("Invalid startTime '%1' (expected HH:MM[:SS])").arg(rawValue));
+            }
+
+            return time;
+        }
+
+        const QTime time = configuredReplayStartTime();
+        if (!time.isValid())
+        {
+            return std::unexpected("Missing required 'startTime' argument and no replay start time is currently configured");
+        }
+
+        return time;
+    }
+
+    [[nodiscard]] std::expected<Playback::Speed, QString> parseReplaySpeedOrConfigured(const QJsonObject& p_arguments)
+    {
+        const QJsonValue speedValue = p_arguments.value("speed");
+        if (speedValue.isUndefined())
+        {
+            return configuredReplaySpeed();
         }
 
         if (speedValue.isDouble())
@@ -351,6 +457,23 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
                      appFrontend,
                      &FrontEnd::onTSClientDataUsageUpdate);
 
+    QObject::connect(mainAlgo,
+                     &MainAlgo::replayStarted,
+                     appFrontend,
+                     [this]() { appFrontend->onReplayPlaybackStateChanged(Playback::State::Playing); });
+    QObject::connect(mainAlgo,
+                     &MainAlgo::replayResumed,
+                     appFrontend,
+                     [this]() { appFrontend->onReplayPlaybackStateChanged(Playback::State::Playing); });
+    QObject::connect(mainAlgo,
+                     &MainAlgo::replayPaused,
+                     appFrontend,
+                     [this]() { appFrontend->onReplayPlaybackStateChanged(Playback::State::Paused); });
+    QObject::connect(mainAlgo,
+                     &MainAlgo::replayStopped,
+                     appFrontend,
+                     [this]() { appFrontend->onReplayPlaybackStateChanged(Playback::State::Stopped); });
+
     // High-frequency market data (bars, L2, trades, aggregator bars, replay time)
     // is now pulled by GUIFrontend at 30 Hz from DisplaySnapshot — no cross-thread signals needed.
 
@@ -475,6 +598,9 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p
 {
     ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Live && "enterReplayMode called when already in replay mode");
 
+    persistReplayConfiguration(p_date, p_startTime, p_speed);
+    appFrontend->onReplayConfigurationChanged(p_date, p_startTime, p_speed);
+
     qInfo() << "Entering replay mode for" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString("hh:mm:ss");
 
     // 1. Capture currently displayed symbol before we delete everything
@@ -595,6 +721,9 @@ void MainApp::startReplayPlayback(QDate p_date, QTime p_startTime, Playback::Spe
 {
     ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "startReplayPlayback called when not in replay mode");
 
+    persistReplayConfiguration(p_date, p_startTime, p_speed);
+    appFrontend->onReplayConfigurationChanged(p_date, p_startTime, p_speed);
+
     qInfo() << "Starting replay playback for" << p_date.toString(Qt::ISODate) << "at"
             << p_startTime.toString("hh:mm:ss");
 
@@ -631,6 +760,8 @@ void MainApp::resumeReplayPlayback()
 
 void MainApp::setReplaySpeed(Playback::Speed p_speed)
 {
+    persistReplayConfiguration(configuredReplayDate(), configuredReplayStartTime(), p_speed);
+    appFrontend->onReplayConfigurationChanged(configuredReplayDate(), configuredReplayStartTime(), p_speed);
     QMetaObject::invokeMethod(mainAlgo, [this, p_speed]() { mainAlgo->setReplaySpeed(p_speed); }, Qt::QueuedConnection);
 }
 
@@ -642,6 +773,8 @@ bool MainApp::isReplayPaused() const
 QJsonObject MainApp::getControlStatus() const
 {
     QJsonObject status;
+    const QDate replayDate = configuredReplayDate();
+    const QTime replayStartTime = configuredReplayStartTime();
     status["dataSourceMode"] = dataSourceModeToString(m_dataSourceMode);
     status["tradingMode"] = tradingModeToString(m_tradingMode);
     status["tradingModeChangeRequiresRestart"] = true;
@@ -653,6 +786,11 @@ QJsonObject MainApp::getControlStatus() const
         isInReplayMode() ? QJsonValue(currentAppReplayTime.toString(Qt::ISODateWithMs)) : QJsonValue(QJsonValue::Null);
     status["controlSocketPath"] = PlatformControlProtocol::socketPath();
     status["supportedReplaySpeeds"] = PlatformControlProtocol::supportedReplaySpeedsJson();
+    status["configuredReplayDate"] =
+        replayDate.isValid() ? QJsonValue(replayDate.toString(Qt::ISODate)) : QJsonValue(QJsonValue::Null);
+    status["configuredReplayStartTime"] =
+        replayStartTime.isValid() ? QJsonValue(replayStartTime.toString(Qt::ISODate)) : QJsonValue(QJsonValue::Null);
+    status["configuredReplaySpeed"] = PlatformControlProtocol::replaySpeedToString(configuredReplaySpeed());
     return status;
 }
 
@@ -726,19 +864,19 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
                                        "Application must be in replay mode first");
         }
 
-        const auto date = parseRequiredDate(arguments);
+        const auto date = parseReplayDateOrConfigured(arguments);
         if (!date.has_value())
         {
             return makeControlResponse(false, "Replay playback request rejected.", {}, date.error());
         }
 
-        const auto startTime = parseRequiredTime(arguments);
+        const auto startTime = parseReplayStartTimeOrConfigured(arguments);
         if (!startTime.has_value())
         {
             return makeControlResponse(false, "Replay playback request rejected.", {}, startTime.error());
         }
 
-        const auto speed = parseRequiredReplaySpeed(arguments);
+        const auto speed = parseReplaySpeedOrConfigured(arguments);
         if (!speed.has_value())
         {
             return makeControlResponse(false, "Replay playback request rejected.", {}, speed.error());
@@ -874,6 +1012,12 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
         }
 
         setTradingMode(mode.value());
+#ifdef GUI_ENABLED
+        if (auto* const guiFrontend = qobject_cast<GUIFrontend*>(appFrontend))
+        {
+            guiFrontend->onTradingModeConfigured(mode.value());
+        }
+#endif
         QJsonObject status = getControlStatus();
         status["restartRequired"] = true;
         status["requestedTradingMode"] = tradingModeToString(mode.value());
@@ -889,6 +1033,9 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
 void MainApp::preloadChartForReplay(QDate p_date, QTime p_startTime, Playback::Speed p_speed)
 {
     ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "preloadChartForReplay called when not in replay mode");
+
+    persistReplayConfiguration(p_date, p_startTime, p_speed);
+    appFrontend->onReplayConfigurationChanged(p_date, p_startTime, p_speed);
 
     qInfo() << "Preloading chart for replay:" << p_date.toString(Qt::ISODate) << "at"
             << p_startTime.toString("hh:mm:ss");

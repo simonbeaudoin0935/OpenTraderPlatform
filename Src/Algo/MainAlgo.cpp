@@ -1568,6 +1568,7 @@ void MainAlgo::resumeReplay()
 
 void MainAlgo::setReplaySpeed(Playback::Speed p_speed)
 {
+    m_replaySpeed = p_speed;
     DBClient::getInstance()->setReplaySpeed(p_speed);
 
     // Sync speed to OrderEmulator so latency is scaled correctly

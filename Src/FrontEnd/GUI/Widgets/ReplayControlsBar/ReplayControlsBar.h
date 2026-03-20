@@ -70,6 +70,9 @@ class ReplayControlsBar : public QWidget
     /** @brief Returns the currently selected playback speed. */
     [[nodiscard]] Playback::Speed getReplaySpeed() const;
 
+    /** @brief Sets the playback speed shown in the combo box without emitting a signal. */
+    void setReplaySpeed(Playback::Speed speed);
+
     // -----------------------------------------------------------------------
     // Play / Pause
     // -----------------------------------------------------------------------

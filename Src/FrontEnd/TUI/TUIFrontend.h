@@ -41,6 +41,8 @@ class TUIFrontend : public FrontEnd
     // Replay mode notifications
     void onReplayModeEntered() override;
     void onReplayModeExited() override;
+    void onReplayConfigurationChanged(const QDate& date, const QTime& startTime, Playback::Speed speed) override;
+    void onReplayPlaybackStateChanged(Playback::State state) override;
 
   private slots:
     void handleInput();

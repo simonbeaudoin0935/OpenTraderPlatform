@@ -127,7 +127,8 @@ For detailed documentation, see:
     ```bash
     ./build/GUI/bin/l2trader-ctl status
     ./build/GUI/bin/l2trader-ctl enter-replay --date 2026-03-19 --start-time 09:30:00 --speed 1x
-    ./build/GUI/bin/l2trader-ctl start-replay --date 2026-03-19 --start-time 09:30:00 --speed 10x
+    ./build/GUI/bin/l2trader-ctl start-replay
+    ./build/GUI/bin/l2trader-ctl start-replay --speed 10x
     ./build/GUI/bin/l2trader-ctl pause-replay
     ./build/GUI/bin/l2trader-ctl resume-replay
     ./build/GUI/bin/l2trader-ctl set-replay-speed --speed 50x
