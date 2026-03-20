@@ -5,6 +5,8 @@
 #include <QCoreApplication>
 #include <unistd.h>
 
+#include <algorithm>
+
 #include "MainAlgo.h"
 #include "MainApp.h"
 #include "StrategyManager.h"
@@ -77,6 +79,8 @@ MainAlgo::~MainAlgo()
         {
             // Stop and destroy balance polling timer on its own thread
             m_balancePollingTimer.reset();
+            m_controlSymbolLeaseCleanupTimer.reset();
+            m_controlSymbolLeaseExpirations.clear();
 
             // Destroy StrategyManager on its own thread so process supervision, socket
             // notifiers, and unload teardown all stay on MainAlgo.
@@ -109,8 +113,15 @@ void MainAlgo::onThreadStarted()
     ThreadNames::setCurrentThreadName("MainAlgo");
 
     m_balancePollingTimer = std::make_unique<QTimer>(this);
+    m_controlSymbolLeaseCleanupTimer = std::make_unique<QTimer>(this);
 
     connect(m_balancePollingTimer.get(), &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
+    connect(m_controlSymbolLeaseCleanupTimer.get(),
+            &QTimer::timeout,
+            this,
+            &MainAlgo::pruneExpiredControlSymbolLeases,
+            Qt::UniqueConnection);
+    m_controlSymbolLeaseCleanupTimer->start(PlatformControlConstants::SYMBOL_CONTEXT_LEASE_CLEANUP_INTERVAL_MS);
 
     // Positions: broadcast to all strategies via adapter (strategy thread)
     connect(this,
@@ -923,6 +934,13 @@ void SymbolContext::processTrade(const Trade& p_trade)
     L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "trade");
     QWriteLocker lock(&m_displaySnapshot.lock);
     m_displaySnapshot.pendingTrades.append(p_trade);
+    m_displaySnapshot.recentTrades.append(p_trade);
+    const int excessTrades =
+        m_displaySnapshot.recentTrades.size() - PlatformControlConstants::RECENT_TRADES_BUFFER_LIMIT;
+    if (excessTrades > 0)
+    {
+        m_displaySnapshot.recentTrades.remove(0, excessTrades);
+    }
     m_displaySnapshot.tradeDirty = true;
 }
 
@@ -1776,12 +1794,106 @@ MainAlgo::ActivityMetrics MainAlgo::getActivityMetrics(const QString& p_symbol) 
     return {sc->m_activity.tradeRateHz(), sc->m_activity.l2RateHz(), sc->m_activity.isActive()};
 }
 
+std::expected<QPointer<SymbolContext>, QString> MainAlgo::leaseControlSymbolContext(const QString& p_symbol)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+
+    const QString symbol = p_symbol.trimmed().toUpper();
+    if (symbol.isEmpty())
+    {
+        return std::unexpected("Symbol must not be empty");
+    }
+
+    QPointer<SymbolContext> sc = m_symbolContexts.value(symbol);
+    if (!m_controlSymbolLeaseExpirations.contains(symbol) || sc.isNull())
+    {
+        sc = acquireSymbolContext(symbol);
+        if (sc.isNull())
+        {
+            return std::unexpected(QString("Failed to acquire SymbolContext for %1").arg(symbol));
+        }
+    }
+
+    m_controlSymbolLeaseExpirations[symbol] =
+        QDateTime::currentDateTimeUtc().addMSecs(PlatformControlConstants::SYMBOL_CONTEXT_LEASE_TIMEOUT_MS);
+    return sc;
+}
+
+void MainAlgo::pruneExpiredControlSymbolLeases()
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    for (auto it = m_controlSymbolLeaseExpirations.begin(); it != m_controlSymbolLeaseExpirations.end();)
+    {
+        if (it.value() > now)
+        {
+            ++it;
+            continue;
+        }
+
+        const QString symbol = it.key();
+        it = m_controlSymbolLeaseExpirations.erase(it);
+        releaseSymbolContextRef(symbol);
+    }
+}
+
+std::expected<MainAlgo::MarketDataSnapshot, QString> MainAlgo::getMarketDataSnapshot(const QString& p_symbol,
+                                                                                     const int p_maxTrades)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+
+    if (p_maxTrades <= 0)
+    {
+        return std::unexpected("maxCount must be greater than 0");
+    }
+
+    QString symbol = p_symbol.trimmed().toUpper();
+    if (symbol.isEmpty())
+    {
+        symbol = getDisplayedSymbol();
+    }
+    if (symbol.isEmpty())
+    {
+        return std::unexpected("No symbol was provided and no symbol is currently displayed");
+    }
+
+    const auto leased = leaseControlSymbolContext(symbol);
+    if (!leased.has_value())
+    {
+        return std::unexpected(leased.error());
+    }
+
+    QPointer<SymbolContext> sc = leased.value();
+    OBJ_ASSUME_DIFF(sc, nullptr);
+
+    MarketDataSnapshot snapshot;
+    snapshot.symbol = symbol;
+    snapshot.activity = {sc->m_activity.tradeRateHz(), sc->m_activity.l2RateHz(), sc->m_activity.isActive()};
+
+    QReadLocker lock(&sc->m_displaySnapshot.lock);
+    snapshot.latestLevel2 = sc->m_displaySnapshot.latestLevel2;
+    snapshot.replayTime = sc->m_displaySnapshot.replayTime;
+
+    const QVector<Trade>& recentTrades = sc->m_displaySnapshot.recentTrades;
+    const int availableTrades = recentTrades.size();
+    const int copyCount = std::min(p_maxTrades, availableTrades);
+    snapshot.recentTrades.reserve(copyCount);
+    for (int index = availableTrades - copyCount; index < availableTrades; ++index)
+    {
+        snapshot.recentTrades.append(recentTrades.at(index));
+    }
+
+    return snapshot;
+}
+
 void MainAlgo::deleteAllSymbolContext()
 {
     INFO << "Deleting all stock instruments for clean mode transition";
 
     // Clear the displayed pointer first
     m_currentDisplayedSymbolContext = nullptr;
+    m_controlSymbolLeaseExpirations.clear();
 
     // Delete instruments directly (not deleteLater) so that each BarCache destructor
     // queues closeDatabase to DatabaseThread before the next createAndSetDisplayedSymbolContext

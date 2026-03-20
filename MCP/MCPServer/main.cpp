@@ -121,6 +121,64 @@ namespace
         };
     }
 
+    [[nodiscard]] QJsonObject optionalSymbolSchema()
+    {
+        return QJsonObject{
+            {"type", "string"},
+            {"description",
+             "Optional ticker symbol. If omitted, L2Trader uses the currently displayed symbol. Arbitrary symbols are auto-activated for polling."},
+        };
+    }
+
+    [[nodiscard]] QJsonObject symbolPollingSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties", QJsonObject{{"symbol", optionalSymbolSchema()}}},
+        };
+    }
+
+    [[nodiscard]] QJsonObject tradesSnapshotSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"symbol", optionalSymbolSchema()},
+                 {"maxCount",
+                  QJsonObject{
+                      {"type", "integer"},
+                      {"minimum", 1},
+                      {"maximum", PlatformControlConstants::MAX_TRADES_SNAPSHOT_MAX_COUNT},
+                      {"description",
+                       QString("Maximum number of recent trades to return. Defaults to %1.")
+                           .arg(PlatformControlConstants::DEFAULT_TRADES_SNAPSHOT_MAX_COUNT)},
+                  }},
+             }},
+        };
+    }
+
+    [[nodiscard]] QJsonObject barsSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"symbol", optionalSymbolSchema()},
+                 {"date", QJsonObject{{"type", "string"}, {"description", "Trading day in YYYY-MM-DD format."}}},
+                 {"startTime", QJsonObject{{"type", "string"}, {"description", "Range start in HH:MM[:SS] format."}}},
+                 {"endTime", QJsonObject{{"type", "string"}, {"description", "Range end in HH:MM[:SS] format."}}},
+                 {"timeFrame",
+                  QJsonObject{
+                      {"type", "string"},
+                      {"enum", PlatformControlProtocol::supportedBarTimeFramesJson()},
+                      {"description", "Bar timeframe. Defaults to 1m."},
+                  }},
+             }},
+            {"required", QJsonArray{"date", "startTime", "endTime"}},
+        };
+    }
+
     [[nodiscard]] QJsonArray buildToolList()
     {
         QJsonArray tools;
@@ -129,6 +187,37 @@ namespace
             {"title", "Get platform status"},
             {"description", "Read current L2Trader platform status, replay state, and control socket details."},
             {"inputSchema", emptyObjectSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetDisplayedSymbol},
+            {"title", "Get displayed symbol"},
+            {"description", "Read the symbol currently displayed in the L2Trader frontend."},
+            {"inputSchema", emptyObjectSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetLevel2},
+            {"title", "Get level 2 snapshot"},
+            {"description", "Poll the latest 10-level order-book snapshot for the displayed or requested symbol."},
+            {"inputSchema", symbolPollingSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetTradesSnapshot},
+            {"title", "Get recent trades"},
+            {"description", "Poll the recent trade snapshot for the displayed or requested symbol."},
+            {"inputSchema", tradesSnapshotSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetBars},
+            {"title", "Get historical bars"},
+            {"description",
+             "Fetch historical bars for the displayed or requested symbol over a single trading-day range."},
+            {"inputSchema", barsSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetActivityMetrics},
+            {"title", "Get activity metrics"},
+            {"description", "Read current trade/L2 activity metrics for the displayed or requested symbol."},
+            {"inputSchema", symbolPollingSchema()},
         });
         tools.append(QJsonObject{
             {"name", PlatformControlProtocol::kCommandEnterReplay},
@@ -217,6 +306,11 @@ int main(int argc, char* argv[])
 
     const QSet<QString> supportedTools = {
         PlatformControlProtocol::kCommandStatus,
+        PlatformControlProtocol::kCommandGetDisplayedSymbol,
+        PlatformControlProtocol::kCommandGetLevel2,
+        PlatformControlProtocol::kCommandGetTradesSnapshot,
+        PlatformControlProtocol::kCommandGetBars,
+        PlatformControlProtocol::kCommandGetActivityMetrics,
         PlatformControlProtocol::kCommandEnterReplay,
         PlatformControlProtocol::kCommandStartReplay,
         PlatformControlProtocol::kCommandPauseReplay,
@@ -272,8 +366,8 @@ int main(int argc, char* argv[])
                      {"version", app.applicationVersion()},
                  }},
                 {"instructions",
-                 "This MCP server currently exposes L2Trader platform-control tools over the platform control socket. "
-                 "Market data and order-flow tools will be added in later phases."},
+                 "This MCP server exposes L2Trader platform-control tools plus poll-style market-data tools over the "
+                 "platform control socket. Order-flow tools will be added in later phases."},
             };
             std::cout << compactJsonLine(makeJsonRpcResponse(id, result)).constData() << std::flush;
             continue;

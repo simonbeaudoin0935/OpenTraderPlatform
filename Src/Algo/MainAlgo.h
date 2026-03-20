@@ -12,6 +12,7 @@
 #include <QVector>
 #include <QStringList>
 #include <QWaitCondition>
+#include <expected>
 #include <memory>
 #include <atomic>
 #include <optional>
@@ -145,6 +146,9 @@ struct DisplaySnapshot
     // Accumulated trades since last GUI read (GUI drains the vector)
     QVector<Trade> pendingTrades;
     bool tradeDirty = false;
+
+    // Stable recent trade history for control/MCP polling (not drained by the GUI)
+    QVector<Trade> recentTrades;
 
     // Latest bar per higher timeframe (overwritten per TF)
     QMap<TimeFrame, Bar> aggregatorBars;
@@ -389,6 +393,20 @@ class MainAlgo final : public QObject
     /// Returns a zeroed ActivityMetrics if the symbol has no SymbolContext.
     [[nodiscard]] ActivityMetrics getActivityMetrics(const QString& p_symbol) const;
 
+    struct MarketDataSnapshot
+    {
+        QString symbol;
+        std::optional<Level2> latestLevel2;
+        QVector<Trade> recentTrades;
+        std::optional<QDateTime> replayTime;
+        ActivityMetrics activity;
+    };
+
+    /// @brief Return a market-data snapshot for a symbol, leasing a SymbolContext if needed.
+    /// If p_symbol is empty, the currently displayed symbol is used.
+    [[nodiscard]] std::expected<MarketDataSnapshot, QString> getMarketDataSnapshot(const QString& p_symbol,
+                                                                                   int p_maxTrades);
+
   signals:
     /**
      * @brief Signal emitted when a new position is received
@@ -510,7 +528,13 @@ class MainAlgo final : public QObject
     QTime m_replayStartTime;
     Playback::Speed m_replaySpeed = Playback::Speed::Normal;
 
+    std::unique_ptr<QTimer> m_controlSymbolLeaseCleanupTimer;
+    QMap<QString, QDateTime> m_controlSymbolLeaseExpirations;
+
     /// @brief Wire a SymbolContext's bar-close events to the OrderEmulator for PnL updates.
     /// Safe to call multiple times (uses UniqueConnection internally).
     void connectBarCloseToOrderEmulator(SymbolContext* p_sc, OrderEmulator* p_emulator);
+
+    [[nodiscard]] std::expected<QPointer<SymbolContext>, QString> leaseControlSymbolContext(const QString& p_symbol);
+    void pruneExpiredControlSymbolLeases();
 };

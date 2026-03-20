@@ -109,10 +109,10 @@ For detailed documentation, see:
     This also builds the first `MCP/` integration binary under `build/GUI/bin/`:
     - `l2trader-mcp-server`
 
-    `l2trader-mcp-server` exposes the platform control operations over MCP stdio
-    and talks to the platform's local control socket internally. This first MCP
-    slice is control-oriented; market-data and order-flow MCP tools are still
-    planned work.
+    `l2trader-mcp-server` exposes the platform control operations and the first
+    poll-style market-data tools over MCP stdio, then talks to the platform's
+    local control socket internally. Order-flow MCP tools are still planned
+    work.
 
 5. **Run the application**:
     ```bash

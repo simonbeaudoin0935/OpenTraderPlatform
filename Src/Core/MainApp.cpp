@@ -6,11 +6,16 @@
 #include "PlatformControlServer.h"
 #include "Settings.h"
 #include "Stream.h"
+#include "TimeFrame.h"
 #include "CONSTANTS.h"
 #include "OrdersDatabase.h"
 #include "PositionsDatabase.h"
 #include "DBClient.h"
 #include <QCoreApplication>
+#include <QEventLoop>
+#include <QFutureWatcher>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonValue>
 #include <unistd.h>
 #include <cerrno>
@@ -107,6 +112,147 @@ namespace
         }
     }
 
+    [[nodiscard]] QString tradeSideToString(const TradeSide p_side)
+    {
+        switch (p_side)
+        {
+        case TradeSide::Ask:
+            return "ask";
+        case TradeSide::Bid:
+            return "bid";
+        case TradeSide::None:
+        default:
+            return "none";
+        }
+    }
+
+    [[nodiscard]] QString tsClientErrorToString(const TSClient::Error p_error)
+    {
+        switch (p_error)
+        {
+        case TSClient::Error::Timeout:
+            return "timeout";
+        case TSClient::Error::JSONError:
+            return "json_error";
+        case TSClient::Error::RejectedByValidator:
+            return "rejected_by_validator";
+        case TSClient::Error::Other:
+        default:
+            return "other";
+        }
+    }
+
+    [[nodiscard]] QJsonValue optionalDateTimeToJsonValue(const std::optional<QDateTime>& p_value)
+    {
+        if (!p_value.has_value() || !p_value->isValid())
+        {
+            return QJsonValue(QJsonValue::Null);
+        }
+        return p_value->toString(Qt::ISODateWithMs);
+    }
+
+    [[nodiscard]] QJsonObject serializeBar(const Bar& p_bar)
+    {
+        return QJsonObject{
+            {"timestamp", p_bar.getTimestamp().toString(Qt::ISODateWithMs)},
+            {"open", p_bar.getOpen()},
+            {"high", p_bar.getHigh()},
+            {"low", p_bar.getLow()},
+            {"close", p_bar.getClose()},
+            {"totalVolume", static_cast<qint64>(p_bar.getTotalVolume())},
+            {"status", Bar::barStatusToString(p_bar.getBarStatus())},
+        };
+    }
+
+    [[nodiscard]] QJsonArray serializeBars(const QVector<Bar>& p_bars)
+    {
+        QJsonArray items;
+        for (const Bar& bar: p_bars)
+        {
+            items.append(serializeBar(bar));
+        }
+        return items;
+    }
+
+    [[nodiscard]] QJsonObject serializeTrade(const Trade& p_trade)
+    {
+        return QJsonObject{
+            {"symbol", p_trade.m_symbol},
+            {"timestamp", p_trade.m_timestamp.toString(Qt::ISODateWithMs)},
+            {"price", p_trade.m_price},
+            {"size", p_trade.m_size},
+            {"side", tradeSideToString(p_trade.m_side)},
+        };
+    }
+
+    [[nodiscard]] QJsonArray serializeTrades(const QVector<Trade>& p_trades)
+    {
+        QJsonArray items;
+        for (const Trade& trade: p_trades)
+        {
+            items.append(serializeTrade(trade));
+        }
+        return items;
+    }
+
+    [[nodiscard]] QJsonObject serializeLevel2Row(const Level2Row& p_row)
+    {
+        return QJsonObject{
+            {"price", p_row.m_price},
+            {"size", p_row.m_size},
+            {"orderCount", p_row.m_orderCount},
+        };
+    }
+
+    [[nodiscard]] QJsonObject serializeLevel2(const Level2& p_level2)
+    {
+        QJsonArray bids;
+        for (const Level2Row& row: p_level2.m_bids)
+        {
+            bids.append(serializeLevel2Row(row));
+        }
+
+        QJsonArray asks;
+        for (const Level2Row& row: p_level2.m_asks)
+        {
+            asks.append(serializeLevel2Row(row));
+        }
+
+        return QJsonObject{
+            {"symbol", p_level2.m_symbol},
+            {"timestamp", p_level2.m_timeStamp.toString(Qt::ISODateWithMs)},
+            {"bids", bids},
+            {"asks", asks},
+        };
+    }
+
+    [[nodiscard]] QJsonObject serializeActivityMetrics(const MainAlgo::ActivityMetrics& p_metrics)
+    {
+        return QJsonObject{
+            {"tradeRateHz", p_metrics.tradeRateHz},
+            {"l2RateHz", p_metrics.l2RateHz},
+            {"isActive", p_metrics.isActive},
+        };
+    }
+
+    template<typename T> [[nodiscard]] T waitForFutureResult(QFuture<T> p_future)
+    {
+        ASSUME_TRUE(p_future.isValid());
+        if (!p_future.isFinished())
+        {
+            QEventLoop loop;
+            QFutureWatcher<T> watcher;
+            QObject::connect(&watcher, &QFutureWatcherBase::finished, &loop, &QEventLoop::quit);
+            watcher.setFuture(p_future);
+            if (!watcher.isFinished())
+            {
+                loop.exec();
+            }
+        }
+
+        return p_future.result();
+    }
+
     [[nodiscard]] QJsonObject makeControlResponse(bool p_ok,
                                                   const QString& p_message,
                                                   const QJsonObject& p_result = {},
@@ -144,21 +290,28 @@ namespace
         return date;
     }
 
-    [[nodiscard]] std::expected<QTime, QString> parseRequiredTime(const QJsonObject& p_arguments)
+    [[nodiscard]] std::expected<QTime, QString>
+    parseRequiredTimeForKey(const QJsonObject& p_arguments, const QString& p_key, const QString& p_expectedFormat)
     {
-        const QString rawValue = p_arguments.value("startTime").toString().trimmed();
+        const QString rawValue = p_arguments.value(p_key).toString().trimmed();
         if (rawValue.isEmpty())
         {
-            return std::unexpected("Missing required 'startTime' argument (expected HH:MM[:SS])");
+            return std::unexpected(
+                QString("Missing required '%1' argument (expected %2)").arg(p_key, p_expectedFormat));
         }
 
         const QTime time = QTime::fromString(rawValue, Qt::ISODate);
         if (!time.isValid())
         {
-            return std::unexpected(QString("Invalid startTime '%1' (expected HH:MM[:SS])").arg(rawValue));
+            return std::unexpected(QString("Invalid %1 '%2' (expected %3)").arg(p_key, rawValue, p_expectedFormat));
         }
 
         return time;
+    }
+
+    [[nodiscard]] std::expected<QTime, QString> parseRequiredTime(const QJsonObject& p_arguments)
+    {
+        return parseRequiredTimeForKey(p_arguments, "startTime", "HH:MM[:SS]");
     }
 
     [[nodiscard]] std::expected<Playback::Speed, QString> parseRequiredReplaySpeed(const QJsonObject& p_arguments)
@@ -178,6 +331,80 @@ namespace
         return PlatformControlProtocol::replaySpeedFromString(speedValue.toString());
     }
 
+    [[nodiscard]] std::expected<QString, QString> parseOptionalSymbol(const QJsonObject& p_arguments)
+    {
+        const QJsonValue symbolValue = p_arguments.value("symbol");
+        if (symbolValue.isUndefined() || symbolValue.isNull())
+        {
+            return QString();
+        }
+        if (!symbolValue.isString())
+        {
+            return std::unexpected("Argument 'symbol' must be a string");
+        }
+        return symbolValue.toString().trimmed().toUpper();
+    }
+
+    [[nodiscard]] std::expected<int, QString> parseOptionalMaxCount(const QJsonObject& p_arguments)
+    {
+        const QJsonValue maxCountValue = p_arguments.value("maxCount");
+        if (maxCountValue.isUndefined())
+        {
+            return PlatformControlConstants::DEFAULT_TRADES_SNAPSHOT_MAX_COUNT;
+        }
+
+        int maxCount = 0;
+        if (maxCountValue.isDouble())
+        {
+            maxCount = maxCountValue.toInt();
+        }
+        else if (maxCountValue.isString())
+        {
+            bool ok = false;
+            maxCount = maxCountValue.toString().trimmed().toInt(&ok);
+            if (!ok)
+            {
+                return std::unexpected("Argument 'maxCount' must be an integer");
+            }
+        }
+        else
+        {
+            return std::unexpected("Argument 'maxCount' must be an integer");
+        }
+
+        if (maxCount <= 0)
+        {
+            return std::unexpected("Argument 'maxCount' must be greater than 0");
+        }
+        if (maxCount > PlatformControlConstants::MAX_TRADES_SNAPSHOT_MAX_COUNT)
+        {
+            return std::unexpected(QString("Argument 'maxCount' exceeds the maximum allowed value of %1")
+                                       .arg(PlatformControlConstants::MAX_TRADES_SNAPSHOT_MAX_COUNT));
+        }
+        return maxCount;
+    }
+
+    [[nodiscard]] std::expected<TimeFrame, QString> parseOptionalTimeFrame(const QJsonObject& p_arguments)
+    {
+        const QJsonValue timeFrameValue = p_arguments.value("timeFrame");
+        if (timeFrameValue.isUndefined() || timeFrameValue.isNull())
+        {
+            return TimeFrame::ONE_MINUTE;
+        }
+        if (!timeFrameValue.isString())
+        {
+            return std::unexpected("Argument 'timeFrame' must be a string");
+        }
+
+        const QString timeFrame = timeFrameValue.toString().trimmed();
+        if (!PlatformControlProtocol::supportedBarTimeFrames().contains(timeFrame))
+        {
+            return std::unexpected(QString("Unsupported timeFrame '%1'. Supported values: %2")
+                                       .arg(timeFrame, PlatformControlProtocol::supportedBarTimeFrames().join(", ")));
+        }
+        return stringToTimeFrame(timeFrame);
+    }
+
     [[nodiscard]] QDate configuredReplayDate()
     {
         Q_CHECK_PTR(appStateSettings);
@@ -193,7 +420,8 @@ namespace
     [[nodiscard]] Playback::Speed configuredReplaySpeed()
     {
         Q_CHECK_PTR(appStateSettings);
-        const int savedSpeed = appStateSettings->value(kReplaySpeedSettingsKey, static_cast<int>(Playback::Speed::Normal)).toInt();
+        const int savedSpeed =
+            appStateSettings->value(kReplaySpeedSettingsKey, static_cast<int>(Playback::Speed::Normal)).toInt();
         const auto parsed = PlatformControlProtocol::replaySpeedFromString(QString::number(savedSpeed));
         if (parsed.has_value())
         {
@@ -258,7 +486,8 @@ namespace
         const QTime time = configuredReplayStartTime();
         if (!time.isValid())
         {
-            return std::unexpected("Missing required 'startTime' argument and no replay start time is currently configured");
+            return std::unexpected(
+                "Missing required 'startTime' argument and no replay start time is currently configured");
         }
 
         return time;
@@ -818,6 +1047,222 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
     if (command == PlatformControlProtocol::kCommandStatus)
     {
         return makeControlResponse(true, "Platform status retrieved.", getControlStatus());
+    }
+
+    if (command == PlatformControlProtocol::kCommandGetDisplayedSymbol)
+    {
+        QString displayedSymbol;
+        const bool invoked = QMetaObject::invokeMethod(
+            mainAlgo,
+            [&displayedSymbol, this]() { displayedSymbol = this->mainAlgo->getDisplayedSymbol(); },
+            Qt::BlockingQueuedConnection);
+        ASSUME_TRUE(invoked);
+
+        QJsonObject result;
+        result["displayedSymbol"] =
+            displayedSymbol.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(displayedSymbol);
+        return makeControlResponse(true,
+                                   displayedSymbol.isEmpty() ? "No symbol is currently displayed."
+                                                             : "Displayed symbol retrieved.",
+                                   result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandGetLevel2)
+    {
+        const auto parsedSymbol = parseOptionalSymbol(arguments);
+        if (!parsedSymbol.has_value())
+        {
+            return makeControlResponse(false, "Level 2 snapshot request rejected.", {}, parsedSymbol.error());
+        }
+
+        std::expected<MainAlgo::MarketDataSnapshot, QString> snapshot =
+            std::unexpected(QStringLiteral("Level 2 snapshot request did not run"));
+        const bool invoked = QMetaObject::invokeMethod(
+            mainAlgo,
+            [&snapshot, this, symbol = parsedSymbol.value()]()
+            { snapshot = this->mainAlgo->getMarketDataSnapshot(symbol, 1); },
+            Qt::BlockingQueuedConnection);
+        ASSUME_TRUE(invoked);
+        if (!snapshot.has_value())
+        {
+            return makeControlResponse(false, "Level 2 snapshot request rejected.", {}, snapshot.error());
+        }
+
+        QJsonObject result;
+        result["symbol"] = snapshot->symbol;
+        result["replayTime"] = optionalDateTimeToJsonValue(snapshot->replayTime);
+        result["level2"] = snapshot->latestLevel2.has_value()
+                               ? QJsonValue(serializeLevel2(snapshot->latestLevel2.value()))
+                               : QJsonValue(QJsonValue::Null);
+        return makeControlResponse(true, "Level 2 snapshot retrieved.", result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandGetTradesSnapshot)
+    {
+        const auto parsedSymbol = parseOptionalSymbol(arguments);
+        if (!parsedSymbol.has_value())
+        {
+            return makeControlResponse(false, "Trade snapshot request rejected.", {}, parsedSymbol.error());
+        }
+
+        const auto parsedMaxCount = parseOptionalMaxCount(arguments);
+        if (!parsedMaxCount.has_value())
+        {
+            return makeControlResponse(false, "Trade snapshot request rejected.", {}, parsedMaxCount.error());
+        }
+
+        std::expected<MainAlgo::MarketDataSnapshot, QString> snapshot =
+            std::unexpected(QStringLiteral("Trade snapshot request did not run"));
+        const bool invoked = QMetaObject::invokeMethod(
+            mainAlgo,
+            [&snapshot, this, symbol = parsedSymbol.value(), maxCount = parsedMaxCount.value()]()
+            { snapshot = this->mainAlgo->getMarketDataSnapshot(symbol, maxCount); },
+            Qt::BlockingQueuedConnection);
+        ASSUME_TRUE(invoked);
+        if (!snapshot.has_value())
+        {
+            return makeControlResponse(false, "Trade snapshot request rejected.", {}, snapshot.error());
+        }
+
+        QJsonObject result;
+        result["symbol"] = snapshot->symbol;
+        result["maxCount"] = parsedMaxCount.value();
+        result["tradeCount"] = snapshot->recentTrades.size();
+        result["replayTime"] = optionalDateTimeToJsonValue(snapshot->replayTime);
+        result["trades"] = serializeTrades(snapshot->recentTrades);
+        return makeControlResponse(true, "Trade snapshot retrieved.", result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandGetActivityMetrics)
+    {
+        const auto parsedSymbol = parseOptionalSymbol(arguments);
+        if (!parsedSymbol.has_value())
+        {
+            return makeControlResponse(false, "Activity metrics request rejected.", {}, parsedSymbol.error());
+        }
+
+        std::expected<MainAlgo::MarketDataSnapshot, QString> snapshot =
+            std::unexpected(QStringLiteral("Activity metrics request did not run"));
+        const bool invoked = QMetaObject::invokeMethod(
+            mainAlgo,
+            [&snapshot, this, symbol = parsedSymbol.value()]()
+            { snapshot = this->mainAlgo->getMarketDataSnapshot(symbol, 1); },
+            Qt::BlockingQueuedConnection);
+        ASSUME_TRUE(invoked);
+        if (!snapshot.has_value())
+        {
+            return makeControlResponse(false, "Activity metrics request rejected.", {}, snapshot.error());
+        }
+
+        QJsonObject result;
+        result["symbol"] = snapshot->symbol;
+        result["activity"] = serializeActivityMetrics(snapshot->activity);
+        return makeControlResponse(true, "Activity metrics retrieved.", result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandGetBars)
+    {
+        const auto parsedSymbol = parseOptionalSymbol(arguments);
+        if (!parsedSymbol.has_value())
+        {
+            return makeControlResponse(false, "Historical bar request rejected.", {}, parsedSymbol.error());
+        }
+
+        const auto date = parseRequiredDate(arguments);
+        if (!date.has_value())
+        {
+            return makeControlResponse(false, "Historical bar request rejected.", {}, date.error());
+        }
+
+        const auto startTime = parseRequiredTime(arguments);
+        if (!startTime.has_value())
+        {
+            return makeControlResponse(false, "Historical bar request rejected.", {}, startTime.error());
+        }
+
+        const auto endTime = parseRequiredTimeForKey(arguments, "endTime", "HH:MM[:SS]");
+        if (!endTime.has_value())
+        {
+            return makeControlResponse(false, "Historical bar request rejected.", {}, endTime.error());
+        }
+
+        if (startTime.value() > endTime.value())
+        {
+            return makeControlResponse(false,
+                                       "Historical bar request rejected.",
+                                       {},
+                                       "Historical bar request startTime must be before or equal to endTime");
+        }
+
+        const auto timeFrame = parseOptionalTimeFrame(arguments);
+        if (!timeFrame.has_value())
+        {
+            return makeControlResponse(false, "Historical bar request rejected.", {}, timeFrame.error());
+        }
+
+        QString resolvedSymbol;
+        QString requestError;
+        BarCache::GetBarsResult_t barsResult;
+        const bool invoked = QMetaObject::invokeMethod(
+            mainAlgo,
+            [&]()
+            {
+                resolvedSymbol = parsedSymbol.value();
+                if (resolvedSymbol.isEmpty())
+                {
+                    resolvedSymbol = this->mainAlgo->getDisplayedSymbol();
+                }
+                if (resolvedSymbol.isEmpty())
+                {
+                    requestError = "No symbol was provided and no symbol is currently displayed";
+                    return;
+                }
+
+                barsResult = this->mainAlgo->requestHistoricalBarsForSymbol(resolvedSymbol,
+                                                                            date.value(),
+                                                                            startTime.value(),
+                                                                            endTime.value(),
+                                                                            timeFrame.value());
+            },
+            Qt::BlockingQueuedConnection);
+        ASSUME_TRUE(invoked);
+
+        if (!requestError.isEmpty())
+        {
+            return makeControlResponse(false, "Historical bar request rejected.", {}, requestError);
+        }
+
+        std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error> resolvedBars =
+            std::unexpected(TSClient::Error::Other);
+        if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(barsResult))
+        {
+            resolvedBars = std::get<std::shared_ptr<QVector<Bar>>>(barsResult);
+        }
+        else
+        {
+            resolvedBars = waitForFutureResult(
+                std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(barsResult));
+        }
+
+        if (!resolvedBars.has_value())
+        {
+            return makeControlResponse(
+                false,
+                "Historical bar request rejected.",
+                {},
+                QString("Historical bar lookup failed: %1").arg(tsClientErrorToString(resolvedBars.error())));
+        }
+
+        ASSUME_DIFF(resolvedBars.value().get(), nullptr);
+        QJsonObject result;
+        result["symbol"] = resolvedSymbol;
+        result["date"] = date->toString(Qt::ISODate);
+        result["startTime"] = startTime->toString(Qt::ISODate);
+        result["endTime"] = endTime->toString(Qt::ISODate);
+        result["timeFrame"] = timeFrameToString(timeFrame.value());
+        result["barCount"] = resolvedBars.value()->size();
+        result["bars"] = serializeBars(*resolvedBars.value());
+        return makeControlResponse(true, "Historical bars retrieved.", result);
     }
 
     if (command == PlatformControlProtocol::kCommandEnterReplay)

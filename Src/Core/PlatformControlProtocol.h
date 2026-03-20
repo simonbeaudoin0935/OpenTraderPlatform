@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Clients/DBClient/PlaybackTypes.h"
+#include "Misc/CONSTANTS.h"
 
 #include <QDir>
 #include <QJsonArray>
@@ -15,8 +16,8 @@
 namespace PlatformControlProtocol
 {
     inline constexpr int kProtocolVersion = 1;
-    inline constexpr qint64 kDefaultTimeoutMs = 5000;
-    inline constexpr qsizetype kMaxMessageBytes = 64 * 1024;
+    inline constexpr qint64 kDefaultTimeoutMs = 30000;
+    inline constexpr qsizetype kMaxMessageBytes = 1024 * 1024;
 
     inline constexpr auto kSocketFileName = "platform-control.sock";
 
@@ -29,6 +30,11 @@ namespace PlatformControlProtocol
     inline constexpr auto kCommandPreloadReplay = "preload-replay";
     inline constexpr auto kCommandExitReplay = "exit-replay";
     inline constexpr auto kCommandSetTradingMode = "set-trading-mode";
+    inline constexpr auto kCommandGetDisplayedSymbol = "get-displayed-symbol";
+    inline constexpr auto kCommandGetLevel2 = "get-level2";
+    inline constexpr auto kCommandGetTradesSnapshot = "get-trades-snapshot";
+    inline constexpr auto kCommandGetBars = "get-bars";
+    inline constexpr auto kCommandGetActivityMetrics = "get-activity-metrics";
 
     inline QString stateRootPath()
     {
@@ -92,6 +98,32 @@ namespace PlatformControlProtocol
         for (const QString& speed: supportedReplaySpeeds())
         {
             values.append(speed);
+        }
+        return values;
+    }
+
+    inline QStringList supportedBarTimeFrames()
+    {
+        return {
+            "10s",
+            "1m",
+            "5m",
+            "15m",
+            "30m",
+            "1h",
+            "4h",
+            "1d",
+            "1w",
+            "1M",
+        };
+    }
+
+    inline QJsonArray supportedBarTimeFramesJson()
+    {
+        QJsonArray values;
+        for (const QString& timeFrame: supportedBarTimeFrames())
+        {
+            values.append(timeFrame);
         }
         return values;
     }
