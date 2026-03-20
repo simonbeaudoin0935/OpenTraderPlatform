@@ -36,6 +36,7 @@
 #include "StockPriceChart/StockPriceChart.h"
 #include "WindowManager/WindowManager.h"
 #include "ChartWindow/ChartWindow.h"
+#include "Core/PlatformControlProtocol.h"
 #include "Misc/Logging/Logging.h"
 #include "Misc/Settings.h"
 #include "Misc/ShortcutSettings.h"
@@ -1595,6 +1596,15 @@ void GUIFrontend::restoreReplayState()
     if (savedTime.isValid())
         m_replayControlsBar->setReplayStartTime(savedTime);
 
+    const int savedReplaySpeedValue =
+        appStateSettings->value("Replay/Speed", static_cast<int>(Playback::Speed::Normal)).toInt();
+    const auto savedReplaySpeed =
+        PlatformControlProtocol::replaySpeedFromString(QString::number(savedReplaySpeedValue));
+    if (savedReplaySpeed.has_value())
+    {
+        m_replayControlsBar->setReplaySpeed(savedReplaySpeed.value());
+    }
+
     if (!appStateSettings->value("Replay/Active", false).toBool())
     {
         return;
@@ -2238,6 +2248,64 @@ void GUIFrontend::onReplayModeEntered()
     updateTimeDisplay();
 }
 
+void GUIFrontend::onReplayConfigurationChanged(const QDate& p_date,
+                                               const QTime& p_startTime,
+                                               const Playback::Speed p_speed)
+{
+    if (p_date.isValid() && m_replayControlsBar->getSelectedReplayDay() != p_date)
+    {
+        m_replayControlsBar->scanAndPopulateReplayDays();
+        m_replayControlsBar->setSelectedReplayDay(p_date);
+    }
+
+    if (p_startTime.isValid() && m_replayControlsBar->getReplayStartTime() != p_startTime)
+    {
+        m_replayControlsBar->setReplayStartTime(p_startTime);
+    }
+
+    if (m_replayControlsBar->getReplaySpeed() != p_speed)
+    {
+        m_replayControlsBar->setReplaySpeed(p_speed);
+    }
+}
+
+void GUIFrontend::onReplayPlaybackStateChanged(const Playback::State p_state)
+{
+    switch (p_state)
+    {
+    case Playback::State::Playing:
+        m_replayControlsBar->setReplayPlaying(true);
+        if (MainApp::isInReplayMode())
+        {
+            m_replayControlsBar->setReplayState(ReplayControlsBar::ReplayState::Playing);
+            m_tradingModeBar->setActiveMode(TradingModeBar::Mode::Replay);
+        }
+        break;
+
+    case Playback::State::Paused:
+        m_replayControlsBar->setReplayPlaying(false);
+        if (MainApp::isInReplayMode())
+        {
+            m_replayControlsBar->setReplayState(ReplayControlsBar::ReplayState::Paused);
+            m_tradingModeBar->setActiveMode(TradingModeBar::Mode::Replay);
+        }
+        break;
+
+    case Playback::State::Stopped:
+        m_replayControlsBar->setReplayPlaying(false);
+        if (MainApp::isInReplayMode())
+        {
+            m_replayControlsBar->setReplayState(ReplayControlsBar::ReplayState::PreloadingPaused);
+            m_tradingModeBar->setActiveMode(TradingModeBar::Mode::Replay);
+        }
+        else
+        {
+            m_replayControlsBar->setReplayState(ReplayControlsBar::ReplayState::Inactive);
+        }
+        break;
+    }
+}
+
 void GUIFrontend::onReplayModeExited()
 {
     L2T_TP(l2trader, gui_replay_exited);
@@ -2275,6 +2343,17 @@ void GUIFrontend::onReplayModeExited()
     // Update session label and time display (back to live time)
     updateSessionLabel();
     updateTimeDisplay();
+}
+
+void GUIFrontend::onTradingModeConfigured(const TradingMode p_mode)
+{
+    if (MainApp::isInReplayMode())
+    {
+        return;
+    }
+
+    m_tradingModeBar->setActiveMode(p_mode == TradingMode::Sim ? TradingModeBar::Mode::Sim
+                                                               : TradingModeBar::Mode::Live);
 }
 
 bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)

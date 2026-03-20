@@ -754,3 +754,16 @@ void TUIFrontend::onReplayModeExited()
     qInfo() << "TUI: Replay mode exited";
     // TODO: Update TUI display to show live mode
 }
+
+void TUIFrontend::onReplayConfigurationChanged(const QDate& p_date,
+                                               const QTime& p_startTime,
+                                               const Playback::Speed p_speed)
+{
+    qInfo() << "TUI: Replay configuration updated to" << p_date.toString(Qt::ISODate) << p_startTime.toString(Qt::ISODate)
+            << "speed" << static_cast<int>(p_speed);
+}
+
+void TUIFrontend::onReplayPlaybackStateChanged(const Playback::State p_state)
+{
+    qInfo() << "TUI: Replay playback state changed to" << static_cast<int>(p_state);
+}

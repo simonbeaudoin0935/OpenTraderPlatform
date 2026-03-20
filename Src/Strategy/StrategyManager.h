@@ -8,132 +8,30 @@
 #include <memory>
 #include <expected>
 
-#include "StrategyBase.h"
 #include "StrategySDK.h"
-#include "StrategyLoader.h"
+#include "StrategyRuntimeBackend.h"
 #include "StrategyConfig.h"
 
 #include "StrategyLogger.h"
-#include "StrategySignalHandler.h"
 #include "Balance.h"
 #include "Assume.h"
 
 class MainAlgo;
 class SymbolContext;
 
-/// @brief Adapter to call StrategyBase methods from Qt slots
-/// Lives on strategy's thread and provides thread-safe callback invocation
-class StrategyCallbackAdapter : public QObject
-{
-    Q_OBJECT
-
-  public:
-    explicit StrategyCallbackAdapter(StrategyBase* p_strategy, StrategySDK* p_sdk, const QVector<QString>& p_symbols)
-        : m_strategy(p_strategy), m_sdk(p_sdk), m_monitoredSymbols(p_symbols)
-    {
-    }
-
-  public slots:
-    void onBar(const QString& symbol, const Bar& bar) const
-    {
-        // Only call if strategy monitors this symbol
-        if (m_monitoredSymbols.contains(symbol))
-        {
-            ASSUME_DIFF(m_strategy, nullptr);
-            m_strategy->onBar(bar);
-        }
-    }
-
-    void onLevel2(const QString& symbol, const Level2& level2) const
-    {
-        if (m_monitoredSymbols.contains(symbol))
-        {
-            ASSUME_DIFF(m_strategy, nullptr);
-            m_strategy->onLevel2(level2);
-        }
-    }
-
-    void onTrade(const QString& symbol, const Trade& trade) const
-    {
-        if (m_monitoredSymbols.contains(symbol))
-        {
-            ASSUME_DIFF(m_strategy, nullptr);
-            m_strategy->onTrade(trade);
-        }
-    }
-
-    void onOrderUpdated(const Order& order) const
-    {
-        ASSUME_DIFF(m_strategy, nullptr);
-        qDebug() << "[StrategyCallbackAdapter::onOrderUpdated] orderID=" << order.getOrderID()
-                 << "status=" << static_cast<int>(order.getOrderStatus());
-        // Update SDK state before notifying strategy
-        if (m_sdk)
-        {
-            m_sdk->updateOrder(order);
-        }
-        m_strategy->onOrderUpdated(order);
-    }
-
-    void onPositionUpdated(const Position& position) const
-    {
-        ASSUME_DIFF(m_strategy, nullptr);
-        // Update SDK state before notifying strategy
-        if (m_sdk)
-        {
-            m_sdk->updatePosition(position);
-        }
-        m_strategy->onPositionUpdated(position);
-    }
-
-    void onBalanceUpdated(double balance) const
-    {
-        ASSUME_DIFF(m_strategy, nullptr);
-        // Update SDK state before notifying strategy
-        if (m_sdk)
-        {
-            m_sdk->updateBalance(balance);
-        }
-        m_strategy->onBalanceUpdated(balance);
-    }
-
-    void callOnStop() const
-    {
-        ASSUME_DIFF(m_strategy, nullptr);
-        m_strategy->onStop();
-    }
-
-    /// @brief Add a symbol to the monitored set so its data callbacks are forwarded
-    /// @note Called from MainAlgo thread via Qt::BlockingQueuedConnection
-    void addMonitoredSymbol(const QString& symbol)
-    {
-        if (!m_monitoredSymbols.contains(symbol))
-        {
-            m_monitoredSymbols.append(symbol);
-        }
-    }
-
-  private:
-    StrategyBase* m_strategy;
-    StrategySDK* m_sdk;
-    QVector<QString> m_monitoredSymbols;
-};
-
 /*
- * StrategyManager - Orchestrates strategy plugin lifecycle and execution
+ * StrategyManager - Orchestrates external strategy lifecycle and execution
  *
  * Owned by MainAlgo via std::unique_ptr. Manages:
- * - Loading/unloading strategy .so plugins
+ * - Loading/unloading external strategy processes
  * - Creating StrategySDK instances per strategy
- * - Spawning dedicated QThread per strategy
- * - Signal connections for data delivery (bars, market depth, orders, fills)
+ * - Routing bars, market depth, orders, fills, and balances into process backends
  * - Tracking active strategies and their resources
  * - Order/position isolation between strategies
  *
  * Threading Model:
  * - StrategyManager itself lives in MainAlgo thread
- * - Each strategy instance lives on its own dedicated QThread
- * - Strategy callbacks (onBar, onOrderFilled, etc.) executed on strategy thread
+ * - Each strategy instance is supervised as its own child process
  * - All cross-thread communication via Qt::QueuedConnection signals
  */
 class StrategyManager final : public QObject
@@ -149,26 +47,23 @@ class StrategyManager final : public QObject
     Q_DISABLE_COPY(StrategyManager)
 
     /*
-     * Load and initialize a strategy plugin
+     * Load and initialize an external strategy runtime
      *
      * Creates:
      * - StrategySDK instance
-     * - Strategy instance (via factory function)
-     * - Dedicated QThread
+     * - Process runtime backend
      * - Signal connections for data delivery
      *
-     * @param p_config - StrategyConfig with plugin path, symbols, etc.
+     * @param p_config - StrategyConfig with executable path, symbols, etc.
      * @return Strategy instance ID on success, error on failure
      */
     [[nodiscard]] std::expected<QString, QString> loadStrategy(const StrategyConfig& p_config);
 
     /*
-     * Unload a strategy plugin by ID
+     * Unload an external strategy by ID
      *
-     * - Stops strategy thread with quit/wait/terminate
-     * - Calls destroyStrategy factory function
+     * - Stops the supervised process
      * - Cleans up StrategySDK instance
-     * - Unloads .so file
      *
      * @param p_strategyID - Strategy instance ID (from loadStrategy)
      * @return Error message on failure, empty string on success
@@ -222,11 +117,6 @@ class StrategyManager final : public QObject
     [[nodiscard]] bool isStrategyRunning(const QString& p_strategyID) const;
 
     /*
-     * Get strategy instance by ID (for direct callback routing)
-     */
-    [[nodiscard]] StrategyBase* getStrategy(const QString& p_strategyID) const;
-
-    /*
      * Get strategy logger by strategy ID
      */
     [[nodiscard]] StrategyLogger* getStrategyLogger(const QString& p_strategyID);
@@ -267,7 +157,7 @@ class StrategyManager final : public QObject
     [[nodiscard]] QVector<Position> getStrategyOpenPositions(const QString& p_strategyID) const;
 
     /*
-     * Connect a specific symbol's data sources to a strategy's adapter.
+     * Connect a specific symbol's data sources to a strategy backend.
      * Called by MainAlgo when a strategy calls subscribeToSymbol().
      *
      * @param p_strategyID Strategy requesting the subscription
@@ -305,7 +195,7 @@ class StrategyManager final : public QObject
      * Restore previously loaded strategies from StrategiesState.ini.
      * Called once during startup (MainAlgo::onThreadStarted) after all data
      * source connections are established.
-     * Failures (missing .so, corrupt config) are logged as warnings and skipped.
+     * Failures (missing executable, corrupt config) are logged as warnings and skipped.
      */
     void restoreStrategiesState();
 
@@ -318,23 +208,17 @@ class StrategyManager final : public QObject
 
     /*
      * Called when MainAlgo receives a new position
-     * Dispatches to all strategies via adapter (strategy thread)
+     * Dispatches to all strategies via backend publishing
      */
     void onMainAlgoPositionUpdated(const QString& p_account, const Position& p_position);
 
     /*
      * Called when MainAlgo receives balance update (from TSClient)
-     * Dispatches to all strategies via adapter (strategy thread)
+     * Dispatches to all strategies via backend publishing
      */
     void onMainAlgoBalanceUpdated(const Balance& p_balance);
 
   private slots:
-    /*
-     * Private slot called from signal handler to mark strategy as failed
-     * Used with QMetaObject::invokeMethod from signal handler context
-     */
-    void markStrategyFailedFromSignal(const QString& p_strategyID, const QString& p_errorMessage);
-
   signals:
     /*
      * Emitted when a strategy is successfully loaded
@@ -383,27 +267,21 @@ class StrategyManager final : public QObject
     enum class StrategyState
     {
         LOADED,  // Strategy loaded but not yet started
-        RUNNING, // Strategy thread is running
+        RUNNING, // Strategy process is running
         STOPPED  // Strategy has been stopped/unloaded
     };
 
   private:
     struct StrategyInstance
     {
-        QString strategyID;                          // Unique ID for this instance
-        StrategyConfig config;                       // Configuration
-        StrategyLoader::LoadedPlugin plugin;         // Loaded .so plugin
-        StrategyBase* p_strategy;                    // Strategy instance
-        StrategySDK* p_sdk;                          // SDK instance
-        StrategyCallbackAdapter* p_adapter;          // Callback adapter (lives on strategy thread)
-        QThread m_thread;                            // Dedicated thread
-        QVector<QString> monitoredSymbols;           // Symbols being watched
-        std::unique_ptr<StrategyLogger> p_logger;    // Strategy logger (owned)
-        Qt::HANDLE threadHandle;                     // Native thread handle for stats reading
-        StrategyState state = StrategyState::LOADED; // Tracks: LOADED → RUNNING → STOPPED
+        QString strategyID;                                 // Unique ID for this instance
+        StrategyConfig config;                              // Configuration
+        std::unique_ptr<IStrategyRuntimeBackend> p_backend; // Current runtime backend
+        QVector<QString> monitoredSymbols;                  // Symbols being watched
+        StrategyState state = StrategyState::LOADED;        // Tracks: LOADED → RUNNING → STOPPED
 
-        // Track signal connections to adapter for explicit disconnection on unload
-        QVector<QMetaObject::Connection> m_connections; // All connections to p_adapter
+        // Track per-symbol signal connections for explicit disconnection on unload
+        QVector<QMetaObject::Connection> m_connections;
     };
 
     MainAlgo* m_mainAlgo;

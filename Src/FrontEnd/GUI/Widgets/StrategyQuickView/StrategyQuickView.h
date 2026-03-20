@@ -50,7 +50,7 @@ class StrategyQuickView : public QWidget
     /// @brief Remove a strategy and its symbol children from the tree.
     void onStrategyUnloaded(const QString& strategyID);
 
-    /// @brief Update the status indicator dot for a strategy.
+    /// @brief Update the status indicator dot for a strategy and surface runtime failures.
     /// @param isRunning true = green dot (running), false = grey dot (stopped/error)
     void onStrategyStatusChanged(const QString& strategyID, bool isRunning, const QString& errorMessage);
 

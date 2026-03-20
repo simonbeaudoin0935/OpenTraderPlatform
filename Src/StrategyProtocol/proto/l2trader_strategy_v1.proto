@@ -1,0 +1,289 @@
+syntax = "proto3";
+
+package l2trader.strategy.v1;
+
+import "google/protobuf/struct.proto";
+
+message ProtocolVersion
+{
+    uint32 major = 1;
+    uint32 minor = 2;
+    uint32 patch = 3;
+    string prerelease = 4;
+}
+
+message StrategyConfiguration
+{
+    string name = 1;
+    repeated string symbols = 2;
+    uint32 position_size = 3;
+    double risk_limit = 4;
+    google.protobuf.Struct custom_params = 5;
+    string executable_path = 6;
+}
+
+message StrategyEndpoint
+{
+    string strategy_id = 1;
+    string socket_path = 2;
+}
+
+enum LogLevel
+{
+    LOG_LEVEL_UNSPECIFIED = 0;
+    LOG_LEVEL_DEBUG = 1;
+    LOG_LEVEL_INFO = 2;
+    LOG_LEVEL_WARNING = 3;
+    LOG_LEVEL_ERROR = 4;
+}
+
+message StrategyLog
+{
+    LogLevel level = 1;
+    string message = 2;
+}
+
+message HandshakeHello
+{
+    ProtocolVersion protocol_version = 1;
+    string sdk_name = 2;
+    string sdk_version = 3;
+    string strategy_name = 4;
+    string strategy_version = 5;
+}
+
+message HandshakeAck
+{
+    ProtocolVersion protocol_version = 1;
+    StrategyEndpoint endpoint = 2;
+    bool accepted = 3;
+    string rejection_reason = 4;
+}
+
+message Heartbeat
+{
+    uint64 monotonic_sequence = 1;
+}
+
+message StartCommand
+{
+    StrategyConfiguration configuration = 1;
+}
+
+message PauseCommand
+{
+    string reason = 1;
+}
+
+message ResumeCommand
+{
+}
+
+message StopCommand
+{
+    string reason = 1;
+}
+
+message ShutdownCommand
+{
+    string reason = 1;
+}
+
+message ErrorMessage
+{
+    string code = 1;
+    string message = 2;
+}
+
+message Bar
+{
+    string symbol = 1;
+    int64 open_unix_nanos = 2;
+    double open = 3;
+    double high = 4;
+    double low = 5;
+    double close = 6;
+    uint64 volume = 7;
+}
+
+message PriceLevel
+{
+    double price = 1;
+    uint64 size = 2;
+    uint32 order_count = 3;
+}
+
+message Level2Snapshot
+{
+    string symbol = 1;
+    int64 snapshot_unix_nanos = 2;
+    repeated PriceLevel bids = 3;
+    repeated PriceLevel asks = 4;
+}
+
+message Trade
+{
+    string symbol = 1;
+    int64 trade_unix_nanos = 2;
+    double price = 3;
+    uint64 size = 4;
+}
+
+message ClaimSymbolsRequest
+{
+    repeated string symbols = 1;
+}
+
+message ClaimSymbolsResponse
+{
+    repeated string granted_symbols = 1;
+    repeated string rejected_symbols = 2;
+}
+
+message HistoricalBarsRequest
+{
+    string symbol = 1;
+    int64 session_day_unix_nanos = 2;
+    int64 first_bar_unix_nanos = 3;
+    int64 last_bar_unix_nanos = 4;
+    string timeframe = 5;
+}
+
+message HistoricalBarsResponse
+{
+    repeated Bar bars = 1;
+    ErrorMessage error = 2;
+}
+
+message CurrentTimeRequest
+{
+}
+
+message CurrentTimeResponse
+{
+    int64 current_unix_nanos = 1;
+}
+
+message ChartLogIntent
+{
+    string symbol = 1;
+    string message = 2;
+}
+
+enum OrderSide
+{
+    ORDER_SIDE_UNSPECIFIED = 0;
+    ORDER_SIDE_BUY = 1;
+    ORDER_SIDE_SELL = 2;
+    ORDER_SIDE_SELL_SHORT = 3;
+    ORDER_SIDE_BUY_TO_COVER = 4;
+}
+
+enum OrderType
+{
+    ORDER_TYPE_UNSPECIFIED = 0;
+    ORDER_TYPE_MARKET = 1;
+    ORDER_TYPE_LIMIT = 2;
+    ORDER_TYPE_STOP_MARKET = 3;
+    ORDER_TYPE_STOP_LIMIT = 4;
+}
+
+enum OrderStatus
+{
+    ORDER_STATUS_UNSPECIFIED = 0;
+    ORDER_STATUS_PENDING = 1;
+    ORDER_STATUS_ACKNOWLEDGED = 2;
+    ORDER_STATUS_OPEN = 3;
+    ORDER_STATUS_FILLED = 4;
+    ORDER_STATUS_CANCELLED = 5;
+    ORDER_STATUS_REJECTED = 6;
+}
+
+message PlaceOrderIntent
+{
+    string request_id = 1;
+    string symbol = 2;
+    OrderSide side = 3;
+    OrderType type = 4;
+    uint32 quantity = 5;
+    optional double limit_price = 6;
+    optional double stop_price = 7;
+    string account_id = 8;
+}
+
+message CancelOrderIntent
+{
+    string request_id = 1;
+    string order_id = 2;
+}
+
+message OrderUpdate
+{
+    string order_id = 1;
+    string symbol = 2;
+    OrderStatus status = 3;
+    uint32 quantity = 4;
+    optional double average_fill_price = 5;
+    ErrorMessage error = 6;
+}
+
+message PositionUpdate
+{
+    string symbol = 1;
+    int64 quantity = 2;
+    double average_price = 3;
+    double unrealized_pnl = 4;
+}
+
+message BalanceUpdate
+{
+    double cash = 1;
+}
+
+message HostToStrategyEnvelope
+{
+    uint64 sequence = 1;
+    string correlation_id = 2;
+
+    oneof payload
+    {
+        HandshakeAck handshake_ack = 3;
+        Heartbeat heartbeat = 4;
+        StartCommand start = 5;
+        PauseCommand pause = 6;
+        ResumeCommand resume = 7;
+        StopCommand stop = 8;
+        ShutdownCommand shutdown = 9;
+        StrategyLog host_log = 10;
+        ErrorMessage error = 11;
+        Bar bar = 12;
+        Level2Snapshot level2_snapshot = 13;
+        Trade trade = 14;
+        ClaimSymbolsResponse claim_symbols_response = 15;
+        HistoricalBarsResponse historical_bars_response = 16;
+        OrderUpdate order_update = 17;
+        PositionUpdate position_update = 18;
+        BalanceUpdate balance_update = 19;
+        CurrentTimeResponse current_time_response = 20;
+    }
+}
+
+message StrategyToHostEnvelope
+{
+    uint64 sequence = 1;
+    string correlation_id = 2;
+
+    oneof payload
+    {
+        HandshakeHello handshake_hello = 3;
+        Heartbeat heartbeat = 4;
+        StrategyLog strategy_log = 5;
+        ErrorMessage error = 6;
+        ClaimSymbolsRequest claim_symbols_request = 7;
+        HistoricalBarsRequest historical_bars_request = 8;
+        PlaceOrderIntent place_order_intent = 9;
+        CancelOrderIntent cancel_order_intent = 10;
+        CurrentTimeRequest current_time_request = 11;
+        ChartLogIntent chart_log_intent = 12;
+    }
+}

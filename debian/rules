@@ -18,7 +18,7 @@ override_dh_auto_configure:
 	# FETCHCONTENT_FULLY_DISCONNECTED=OFF overrides the Debian default (ON) so that
 	# Databento can download its bundled dependencies (nlohmann_json, httplib, date)
 	# which do not have suitable system packages on Ubuntu Noble.
-	dh_auto_configure -- -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_GUI=ON -DBUILD_TESTS=OFF -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DFETCHCONTENT_FULLY_DISCONNECTED=OFF
+	dh_auto_configure -- -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH) -DENABLE_GUI=ON -DBUILD_TESTS=OFF -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DFETCHCONTENT_FULLY_DISCONNECTED=OFF
 
 override_dh_auto_build:
 	# Build with Ninja using all available cores
@@ -32,19 +32,31 @@ override_dh_auto_test:
 override_dh_auto_install:
 	# Install main application binary
 	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Src/L2Trader debian/l2trader/usr/bin/l2trader
+	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/bin/l2trader-mcp-server debian/l2trader/usr/bin/l2trader-mcp-server
+
+	# Install out-of-process strategy SDK runtime and development files
+	DESTDIR=$(CURDIR)/debian/l2trader-strategy-sdk cmake --install obj-$(DEB_HOST_GNU_TYPE) --component strategy-sdk-runtime
+	DESTDIR=$(CURDIR)/debian/l2trader-strategy-sdk-dev cmake --install obj-$(DEB_HOST_GNU_TYPE) --component strategy-sdk-dev
 	
-	# Install strategy SDK library
-	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Src/libL2TraderStrategy.so debian/l2trader/usr/lib/libL2TraderStrategy.so
-	
-	# Install strategy plugins
+	# Install bundled external strategy executables
 	install -d debian/l2trader/usr/share/l2trader/strategies
-	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/lib/ExampleStrategy.so debian/l2trader/usr/share/l2trader/strategies/
-	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/lib/CrashTestStrategy.so debian/l2trader/usr/share/l2trader/strategies/
-	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/lib/HistoricalBarsStrategy.so debian/l2trader/usr/share/l2trader/strategies/
-	
-	# Install strategy configuration files
-	install -m 0644 Strategies/ExampleStrategy/example_strategy.json debian/l2trader/usr/share/l2trader/strategies/
-	install -m 0644 Strategies/CrashTestStrategy/crash_test_strategy.json debian/l2trader/usr/share/l2trader/strategies/
+	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/bin/ExampleStrategyProcess debian/l2trader/usr/share/l2trader/strategies/
+	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/bin/CrashTestStrategyProcess debian/l2trader/usr/share/l2trader/strategies/
+	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/bin/HistoricalBarsStrategyProcess debian/l2trader/usr/share/l2trader/strategies/
+	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/bin/OrderTestStrategyProcess debian/l2trader/usr/share/l2trader/strategies/
+	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/bin/DumpPatternStrategyProcess debian/l2trader/usr/share/l2trader/strategies/
+
+	# Install strategy manifests with packaged executable paths
+	sed 's#"executablePath": "~/.local/share/L2Trader/Strategies/ExampleStrategyProcess"#"executablePath": "/usr/share/l2trader/strategies/ExampleStrategyProcess"#' \
+		Strategies/ExampleStrategyProcess/example_strategy.json > debian/l2trader/usr/share/l2trader/strategies/example_strategy.json
+	sed 's#"executablePath": "~/.local/share/L2Trader/Strategies/CrashTestStrategyProcess"#"executablePath": "/usr/share/l2trader/strategies/CrashTestStrategyProcess"#' \
+		Strategies/CrashTestStrategy/crash_test_strategy.json > debian/l2trader/usr/share/l2trader/strategies/crash_test_strategy.json
+	sed 's#"executablePath": "~/.local/share/L2Trader/Strategies/HistoricalBarsStrategyProcess"#"executablePath": "/usr/share/l2trader/strategies/HistoricalBarsStrategyProcess"#' \
+		Strategies/HistoricalBarsStrategy/historical_bars_strategy.json > debian/l2trader/usr/share/l2trader/strategies/historical_bars_strategy.json
+	sed 's#"executablePath": "~/.local/share/L2Trader/Strategies/OrderTestStrategyProcess"#"executablePath": "/usr/share/l2trader/strategies/OrderTestStrategyProcess"#' \
+		Strategies/OrderTestStrategy/order_test_strategy.json > debian/l2trader/usr/share/l2trader/strategies/order_test_strategy.json
+	sed 's#"executablePath": "~/.local/share/L2Trader/Strategies/DumpPatternStrategyProcess"#"executablePath": "/usr/share/l2trader/strategies/DumpPatternStrategyProcess"#' \
+		Strategies/DumpPatternStrategy/dump_pattern_strategy.json > debian/l2trader/usr/share/l2trader/strategies/dump_pattern_strategy.json
 	
 	# Install application icon
 	install -D -m 0644 Resources/Icons/L2T.png debian/l2trader/usr/share/pixmaps/l2trader.png

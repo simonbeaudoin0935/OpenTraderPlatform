@@ -5,6 +5,12 @@
 #include "MainAlgo.h"
 #include "MemoryMonitor.h"
 
+#include <QJsonObject>
+
+#include <memory>
+
+class PlatformControlServer;
+
 /**
  * @brief Trading mode for TradeStation API connection
  *
@@ -173,6 +179,21 @@ class MainApp
     [[nodiscard]] bool isReplayPaused() const;
 
     /**
+     * @brief Return a snapshot of externally visible platform control state.
+     */
+    [[nodiscard]] QJsonObject getControlStatus() const;
+
+    /**
+     * @brief Execute a platform control command received over the control socket.
+     *
+     * Expected request shape:
+     * - protocolVersion: integer control protocol version
+     * - command: string command name
+     * - arguments: JSON object of command arguments
+     */
+    [[nodiscard]] QJsonObject handleControlRequest(const QJsonObject& p_request);
+
+    /**
      * @brief Preload chart with data from a different day/time while in paused state
      *
      * Used when user changes day or start time selection before pressing play.
@@ -198,4 +219,5 @@ class MainApp
     MainAlgo* mainAlgo;
     FrontEnd* appFrontend;
     MemoryMonitor memoryMonitor;
+    std::unique_ptr<PlatformControlServer> m_platformControlServer;
 };

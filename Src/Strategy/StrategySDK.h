@@ -30,6 +30,7 @@ enum class LogLevel
 // Forward declaration
 class MainAlgo;
 class StrategyLogger;
+class Bar;
 
 /// @brief High-level SDK provided to strategies
 /// Strategies use this to place orders, query positions, and log messages.
@@ -101,21 +102,21 @@ class StrategySDK : public QObject
     double getAccountBalance() const;
 
     // -------------------------------------------------------------------------
-    // Internal state update methods — called by StrategyCallbackAdapter on the
-    // strategy thread to keep SDK state in sync with order/position/balance events.
+    // Internal state update methods — called by the active strategy runtime backend
+    // to keep SDK state in sync with order/position/balance events.
     // Not part of the strategy-facing public API.
     // -------------------------------------------------------------------------
 
     /// @brief Update internal order state (insert or replace)
-    /// @note Called from StrategyCallbackAdapter on strategy thread
+    /// @note Called from the strategy runtime backend
     void updateOrder(const Order& order);
 
     /// @brief Update internal position state (insert or replace)
-    /// @note Called from StrategyCallbackAdapter on strategy thread
+    /// @note Called from the strategy runtime backend
     void updatePosition(const Position& position);
 
     /// @brief Update internal balance state
-    /// @note Called from StrategyCallbackAdapter on strategy thread
+    /// @note Called from the strategy runtime backend
     void updateBalance(double balance);
 
     /// @brief Set the list of symbols this SDK instance has been granted exclusive authority over.

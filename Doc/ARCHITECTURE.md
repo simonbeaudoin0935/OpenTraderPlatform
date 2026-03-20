@@ -58,7 +58,7 @@ graph TD
         GFW --> L2W[Level2Widget]
         GFW --> CT[CacheTab]
         GFW --> LT[LoggingTab]
-        GFW --> ST[StrategiesTab]
+        GFW --> SQV[StrategyQuickView]
         GFW --> PW[PositionWidget]
         GFW --> OW[OrderWidget]
         GFW --> BW[BalanceWidget]
@@ -709,4 +709,4 @@ QNetworkReply* reply = m_networkManager->post(request, body);
 - [FRONTEND.md](FRONTEND.md) — GUI and TUI implementation details
 - [DEVELOPMENT.md](DEVELOPMENT.md) — Development setup and guidelines
 - [CONTRIBUTING.md](CONTRIBUTING.md) — Contribution guidelines
-- [STRATEGY.md](STRATEGY.md) — Strategy plugin system
+- [STRATEGY.md](STRATEGY.md) — Strategy process system

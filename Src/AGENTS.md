@@ -77,7 +77,7 @@ Three main threads:
 Additional per-component threads:
 - **DBClient Thread**: Databento market data (live streaming, replay playback)
 - **Database Threads**: One per BarCache instance for SQLite operations
-- **Strategy Threads**: One per loaded strategy plugin
+- **External Strategy Processes**: One supervised child process per loaded strategy
 
 ### Signal/Slot Communication
 
@@ -248,6 +248,6 @@ Navigate to subdirectory AGENTS.md files for detailed component information:
 - `Core/AGENTS.md`: Core application components
 - `Algo/AGENTS.md`: Trading algorithm logic
 - `FrontEnd/AGENTS.md`: UI implementations
-- `Strategy/AGENTS.md`: Strategy plugin system
+- `Strategy/AGENTS.md`: External strategy runtime
 - `Misc/AGENTS.md`: Utilities and helpers
 - `SQL/AGENTS.md`: SQL query management

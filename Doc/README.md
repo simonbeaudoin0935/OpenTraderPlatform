@@ -57,15 +57,14 @@ Key topics:
 
 #### Strategy System
 
-**[STRATEGY.md](STRATEGY.md)** — Trading strategy plugin system (technical)
+**[STRATEGY.md](STRATEGY.md)** — Trading strategy process system (technical)
 
 Key topics:
-- Strategy architecture and threading (one thread per strategy, crash isolation)
-- Plugin lifecycle (LOADED → RUNNING → STOPPED / ERROR)
-- StrategyBase API (onStart, onStop, onNewBar, onNewLevel2, onNewTrade)
-- StrategySDK (historical bars, symbol claiming, order placement)
+- Strategy process architecture and supervision
+- External strategy lifecycle (LOADED → RUNNING → STOPPED / ERROR)
+- Strategy SDK/runtime capabilities (historical bars, symbol claiming, order placement)
 - StrategyCard GUI and StrategyQuickView
-- Development guide (CMakeLists.txt template, header, implementation)
+- Development guide (SDK usage, manifests, samples)
 - Known limitations
 
 **[STRATEGY_GUIDE.md](STRATEGY_GUIDE.md)** — Non-technical guide for strategy developers
@@ -202,7 +201,7 @@ Doc/
 ├── ARCHITECTURE.md            # System architecture
 ├── AUTHENTICATION.md          # TradeStation OAuth + Databento API key
 ├── FRONTEND.md                # GUI and TUI implementation
-├── STRATEGY.md                # Strategy plugin system (technical)
+├── STRATEGY.md                # Strategy process runtime (technical)
 ├── STRATEGY_GUIDE.md          # Strategy development (non-technical)
 ├── DEVELOPMENT.md             # Development guide
 ├── CONTRIBUTING.md            # Contribution guidelines

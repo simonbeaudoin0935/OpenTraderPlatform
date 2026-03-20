@@ -265,7 +265,7 @@ void coloredMessageOutput(QtMsgType type, const QMessageLogContext& context, con
     qint64 replayMs = g_replayTimeMs.load(std::memory_order_relaxed);
     QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
     if (replayMs >= 0)
-        timestamp += "-[" + QDateTime::fromMSecsSinceEpoch(replayMs).toString("hh:mm:ss.zzz") + "]";
+        timestamp += "]-[" + QDateTime::fromMSecsSinceEpoch(replayMs).toString("hh:mm:ss.zzz");
 
     QString category =
         (strcmp(context.category, "default") == 0) ? "" : QString(context.category ? context.category : "");

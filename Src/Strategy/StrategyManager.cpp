@@ -1,4 +1,5 @@
 #include "StrategyManager.h"
+#include "ProcessStrategyRuntimeBackend.h"
 #include "StrategySDK.h"
 #include "../Algo/MainAlgo.h"
 #include "../Core/MainApp.h"
@@ -15,6 +16,15 @@
 #include "Logging.h"
 
 Q_LOGGING_CATEGORY(StrategyManagerLog, "StrategyManager")
+
+namespace
+{
+void assumeMainAlgoThread(const MainAlgo* p_mainAlgo)
+{
+    ASSUME_DIFF(p_mainAlgo, nullptr);
+    ASSUME_EQUAL(QThread::currentThread(), p_mainAlgo->QObject::thread());
+}
+} // namespace
 
 // StrategySDK implementation
 StrategySDK::StrategySDK(MainAlgo* p_mainAlgo,
@@ -227,7 +237,7 @@ const QString& StrategySDK::getStrategyName() const
     return m_config.name;
 }
 
-std::shared_ptr<QVector<Bar>> StrategySDK::getHistoricalBars(const QString& /* symbol */,
+std::shared_ptr<QVector<Bar>> StrategySDK::getHistoricalBars(const QString& p_symbol,
                                                              const QDate& day,
                                                              const QTime& first,
                                                              const QTime& last,
@@ -235,8 +245,15 @@ std::shared_ptr<QVector<Bar>> StrategySDK::getHistoricalBars(const QString& /* s
 {
     ASSUME_DIFF(m_mainAlgo, nullptr);
 
+    QString symbol = p_symbol;
+    if (symbol.isEmpty() && !m_config.symbols.isEmpty())
+    {
+        symbol = m_config.symbols[0];
+    }
+    ASSUME_FALSE(symbol.isEmpty());
+
     // Request bars from MainAlgo (which has access to all SymbolContext and their BarCaches)
-    auto result = m_mainAlgo->requestMissingBarsDisplayedStock(day, first, last, tf);
+    auto result = m_mainAlgo->requestHistoricalBarsForSymbol(symbol, day, first, last, tf);
 
     // Result is a variant of either std::shared_ptr<QVector<Bar>> or QFuture
     if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
@@ -293,6 +310,7 @@ StrategyManager::StrategyManager(MainAlgo* p_mainAlgo) : QObject(nullptr), m_mai
 
 StrategyManager::~StrategyManager()
 {
+    assumeMainAlgoThread(m_mainAlgo);
     qInfo(StrategyManagerLog) << "StrategyManager shutdown: unloading" << m_strategies.size() << "active strategies";
 
     m_persistEnabled = false; // Don't overwrite persisted state during shutdown teardown
@@ -312,66 +330,45 @@ StrategyManager::~StrategyManager()
 
 std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConfig& p_config)
 {
-    ASSUME_DIFF(m_mainAlgo, nullptr);
+    assumeMainAlgoThread(m_mainAlgo);
 
-    if (p_config.soPath.isEmpty())
+    if (p_config.runtimePath().isEmpty())
     {
-        return std::unexpected("Strategy .so path is empty");
+        return std::unexpected("Strategy runtime path is empty");
     }
 
-    auto pluginResult = StrategyLoader::loadPlugin(p_config.soPath);
-    if (!pluginResult)
-    {
-        return std::unexpected(pluginResult.error());
-    }
-
-    auto plugin = pluginResult.value();
     QString strategyID = generateStrategyID();
 
-    // Create strategy logger FIRST (before SDK so it can be passed)
-    auto p_logger = std::make_unique<StrategyLogger>(p_config.name);
-
-    auto p_sdk = new StrategySDK(m_mainAlgo, strategyID, p_config, p_logger.get());
-
-    StrategyBase* p_strategy = plugin.createFn(p_config, p_sdk);
-    if (!p_strategy)
+    if (!p_config.usesExternalProcess())
     {
-        delete p_sdk;
-        StrategyLoader::unloadPlugin(plugin);
-        return std::unexpected("Failed to create strategy instance for: " + p_config.name);
+        return std::unexpected(
+            "Legacy in-process strategy plugins are no longer supported. Rebuild this strategy as an external process.");
     }
 
-    // Set SDK reference in strategy
-    p_strategy->setSdk(p_sdk);
-
-    // Create callback adapter that will live on strategy's thread
-    auto p_adapter = new StrategyCallbackAdapter(p_strategy, p_sdk, p_config.symbols);
+    std::expected<std::unique_ptr<IStrategyRuntimeBackend>, QString> runtimeResult = std::unexpected(QString{});
+    auto processRuntimeResult = ProcessStrategyRuntimeBackend::create(m_mainAlgo, strategyID, p_config);
+    if (processRuntimeResult)
+    {
+        runtimeResult = std::unique_ptr<IStrategyRuntimeBackend>(std::move(processRuntimeResult.value()));
+    }
+    else
+    {
+        runtimeResult = std::unexpected(processRuntimeResult.error());
+    }
+    if (!runtimeResult)
+    {
+        return std::unexpected(runtimeResult.error());
+    }
 
     auto instance = new StrategyInstance();
     instance->strategyID = strategyID;
     instance->config = p_config;
-    instance->plugin = plugin;
-    instance->p_strategy = p_strategy;
-    instance->p_sdk = p_sdk;
-    instance->p_adapter = p_adapter;
-    instance->p_logger = std::move(p_logger);
+    instance->p_backend = std::move(runtimeResult.value());
     instance->monitoredSymbols = p_config.symbols;
-
-    // Set thread name for debugging (before starting thread)
-    instance->m_thread.setObjectName(QString("Strategy_%1_%2").arg(p_config.name).arg(strategyID.left(8)));
-
-    p_sdk->moveToThread(&instance->m_thread);
-    p_adapter->moveToThread(&instance->m_thread);
-
-    // Move strategy to thread if it's a QObject (strategies that use Qt signals/slots)
-    if (auto* qobj = dynamic_cast<QObject*>(p_strategy))
-    {
-        qobj->moveToThread(&instance->m_thread);
-    }
 
     connectStrategyToDataSources(instance);
 
-    // Note: Thread is NOT started here - wait for startStrategy() to be called
+    // Note: Process is NOT started here - wait for startStrategy() to be called
     // This allows the UI to show the strategy in LOADED state and wait for user to click Start
 
     qInfo(StrategyManagerLog) << "Loaded strategy:" << p_config.name << "ID:" << strategyID;
@@ -387,6 +384,7 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
 
 QString StrategyManager::unloadStrategy(const QString& p_strategyID)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     auto* instance = findStrategy(p_strategyID);
     if (!instance)
     {
@@ -402,60 +400,23 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
 
     // Call onStop on the strategy thread before quitting
     // Only if thread is still running (not crashed)
-    if (instance->m_thread.isRunning() && instance->p_adapter)
+    if (instance->p_backend)
     {
-        QMetaObject::invokeMethod(instance->p_adapter, "callOnStop", Qt::BlockingQueuedConnection);
+        instance->p_backend->invokeOnStop();
         qInfo(StrategyManagerLog) << "Called onStop for strategy:" << instance->config.name;
-    }
-    else if (!instance->m_thread.isRunning() && instance->p_adapter)
-    {
-        // Thread already dead (likely crashed) - call onStop directly in current thread
-        // This may not be ideal but prevents deadlock
-        qWarning(StrategyManagerLog) << "Strategy thread already dead, calling onStop in current thread:"
-                                     << instance->config.name;
-        instance->p_adapter->callOnStop();
     }
 
     // Log the file path (logs are written incrementally, nothing to flush)
-    if (instance->p_logger)
+    if (instance->p_backend && instance->p_backend->logger())
     {
-        qInfo(StrategyManagerLog) << "Strategy log file:" << instance->p_logger->getLogFilePath();
+        qInfo(StrategyManagerLog) << "Strategy log file:" << instance->p_backend->logger()->getLogFilePath();
     }
 
-    // Signal thread to quit gracefully
-    instance->m_thread.quit();
-
-    // Wait for thread to finish gracefully (5 second timeout)
-    if (!instance->m_thread.wait(5000))
+    if (instance->p_backend)
     {
-        qWarning(StrategyManagerLog) << "Strategy thread did not finish within timeout, terminating:"
-                                     << instance->config.name;
-        instance->m_thread.terminate();
-        instance->m_thread.wait();
+        instance->p_backend->destroyRuntime();
+        qInfo(StrategyManagerLog) << "Destroyed strategy runtime backend:" << instance->config.name;
     }
-
-    // Clean up adapter
-    if (instance->p_adapter)
-    {
-        delete instance->p_adapter;
-    }
-
-    // Destroy strategy instance via factory function
-    if (instance->plugin.destroyFn && instance->p_strategy)
-    {
-        instance->plugin.destroyFn(instance->p_strategy);
-        qInfo(StrategyManagerLog) << "Destroyed strategy instance:" << instance->config.name;
-    }
-
-    // Clean up SDK
-    if (instance->p_sdk)
-    {
-        delete instance->p_sdk;
-    }
-
-    // Unload plugin .so file
-    StrategyLoader::unloadPlugin(instance->plugin);
-    qInfo(StrategyManagerLog) << "Unloaded plugin for strategy:" << instance->config.name;
 
     // Remove from registry and delete instance
     delete m_strategies.take(p_strategyID);
@@ -471,6 +432,7 @@ QString StrategyManager::unloadStrategy(const QString& p_strategyID)
 
 QString StrategyManager::startStrategy(const QString& p_strategyID)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     auto* instance = findStrategy(p_strategyID);
     if (!instance)
     {
@@ -483,37 +445,26 @@ QString StrategyManager::startStrategy(const QString& p_strategyID)
                ")";
     }
 
-    // Connect thread started signal to install signal handler and call onStart
-    QObject::connect(&instance->m_thread,
-                     &QThread::started,
-                     [this, instance]()
-                     {
-                         // Capture thread handle for stats reading
-                         instance->threadHandle = QThread::currentThreadId();
+    // Start the supervised process runtime and transition state once it reports ready.
+    ASSUME_DIFF(instance->p_backend.get(), nullptr);
 
-                         // Install signal handlers for this strategy thread
-                         if (!StrategySignalHandler::installSignalHandler(instance->strategyID))
-                         {
-                             qWarning(StrategyManagerLog)
-                                 << "Failed to install signal handler for strategy:" << instance->strategyID;
-                         }
-
-                         // Call strategy's onStart hook
-                         if (instance->p_strategy)
-                         {
-                             instance->p_strategy->onStart(instance->p_sdk);
-                         }
-
-                         // Update state to RUNNING
-                         instance->state = StrategyState::RUNNING;
-                         emit strategyStatusChanged(instance->strategyID, true, "");
-
-                         // Persist updated running state (back on MainAlgo thread)
-                         QMetaObject::invokeMethod(this, [this]() { persistStrategiesState(); }, Qt::QueuedConnection);
-                     });
-
-    // Start the thread
-    instance->m_thread.start();
+    const QString error = instance->p_backend->start(
+        [this, instance]()
+        {
+            QMetaObject::invokeMethod(
+                this,
+                [this, instance]()
+                {
+                    instance->state = StrategyState::RUNNING;
+                    emit strategyStatusChanged(instance->strategyID, true, "");
+                    persistStrategiesState();
+                },
+                Qt::QueuedConnection);
+        });
+    if (!error.isEmpty())
+    {
+        return error;
+    }
 
     qInfo(StrategyManagerLog) << "Started strategy:" << instance->config.name << "ID:" << p_strategyID;
 
@@ -522,6 +473,7 @@ QString StrategyManager::startStrategy(const QString& p_strategyID)
 
 void StrategyManager::markStrategyFailed(const QString& p_strategyID, const QString& p_errorMessage)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     auto* instance = findStrategy(p_strategyID);
     if (!instance)
     {
@@ -532,24 +484,21 @@ void StrategyManager::markStrategyFailed(const QString& p_strategyID, const QStr
     qCritical(StrategyManagerLog) << "Strategy marked as FAILED:" << instance->config.name
                                   << "Error:" << p_errorMessage;
 
+    instance->state = StrategyState::STOPPED;
+
     // Emit status changed signal with error state
     emit strategyStatusChanged(p_strategyID, false, p_errorMessage);
 
-    // Stop the thread if it's still running (it may have already crashed)
-    if (instance->m_thread.isRunning())
+    // Stop the process if it's still running (it may have already crashed)
+    if (instance->p_backend && instance->p_backend->isThreadRunning())
     {
-        instance->m_thread.quit();
-        if (!instance->m_thread.wait(2000))
-        {
-            qWarning(StrategyManagerLog) << "Strategy thread did not quit, terminating:" << instance->config.name;
-            instance->m_thread.terminate();
-            instance->m_thread.wait();
-        }
+        instance->p_backend->shutdownExecutionThread();
     }
 }
 
 void StrategyManager::stopAllStrategies()
 {
+    assumeMainAlgoThread(m_mainAlgo);
     QVector<QString> activeStrategies = getActiveStrategies();
     INFO << "Stopping all strategies, count:" << activeStrategies.size();
 
@@ -571,20 +520,15 @@ void StrategyManager::stopAllStrategies()
     INFO << "All strategies stopped";
 }
 
-void StrategyManager::markStrategyFailedFromSignal(const QString& p_strategyID, const QString& p_errorMessage)
-{
-    // Logging here since we moved qCritical out of signal handler
-    qCritical(StrategyManagerLog) << "Strategy thread crashed with signal:" << p_strategyID << "-" << p_errorMessage;
-    markStrategyFailed(p_strategyID, p_errorMessage);
-}
-
 QVector<QString> StrategyManager::getActiveStrategies() const
 {
+    assumeMainAlgoThread(m_mainAlgo);
     return m_strategies.keys().toVector();
 }
 
 StrategyConfig StrategyManager::getStrategyConfig(const QString& p_strategyID) const
 {
+    assumeMainAlgoThread(m_mainAlgo);
     const auto* instance = findStrategy(p_strategyID);
     if (instance)
     {
@@ -595,6 +539,7 @@ StrategyConfig StrategyManager::getStrategyConfig(const QString& p_strategyID) c
 
 bool StrategyManager::isStrategyRunning(const QString& p_strategyID) const
 {
+    assumeMainAlgoThread(m_mainAlgo);
     const auto* instance = findStrategy(p_strategyID);
     if (instance)
     {
@@ -614,10 +559,10 @@ int StrategyManager::getStrategyPositionCount(const QString& p_strategyID) const
 qint64 StrategyManager::getStrategyThreadId(const QString& p_strategyID) const
 {
     const auto* instance = findStrategy(p_strategyID);
-    if (instance)
+    if (instance && instance->p_backend)
     {
         // Return as qint64 (cast from Qt::HANDLE)
-        return static_cast<qint64>(reinterpret_cast<uintptr_t>(instance->threadHandle));
+        return static_cast<qint64>(reinterpret_cast<uintptr_t>(instance->p_backend->threadHandle()));
     }
     return 0;
 }
@@ -625,7 +570,7 @@ qint64 StrategyManager::getStrategyThreadId(const QString& p_strategyID) const
 double StrategyManager::getStrategyBalance(const QString& p_strategyID) const
 {
     const auto* instance = findStrategy(p_strategyID);
-    if (instance && instance->p_sdk)
+    if (instance && instance->p_backend && instance->p_backend->sdk())
     {
         // StrategySDK tracks balance via onBalanceUpdated callbacks
         // For now, return 0 as a placeholder (would need to store in SDK or Strategy)
@@ -637,9 +582,9 @@ double StrategyManager::getStrategyBalance(const QString& p_strategyID) const
 QVector<Order> StrategyManager::getStrategyRecentOrders(const QString& p_strategyID, int limit) const
 {
     const auto* instance = findStrategy(p_strategyID);
-    if (instance && instance->p_sdk)
+    if (instance && instance->p_backend && instance->p_backend->sdk())
     {
-        QVector<Order> allOrders = instance->p_sdk->getOrders();
+        QVector<Order> allOrders = instance->p_backend->sdk()->getOrders();
         if (allOrders.size() > limit)
         {
             // Return most recent 'limit' orders
@@ -652,44 +597,39 @@ QVector<Order> StrategyManager::getStrategyRecentOrders(const QString& p_strateg
 
 QVector<Position> StrategyManager::getStrategyOpenPositions(const QString& p_strategyID) const
 {
+    assumeMainAlgoThread(m_mainAlgo);
     const auto* instance = findStrategy(p_strategyID);
-    if (instance && instance->p_sdk)
+    if (instance && instance->p_backend && instance->p_backend->sdk())
     {
-        return instance->p_sdk->getPositions();
+        return instance->p_backend->sdk()->getPositions();
     }
     return QVector<Position>();
 }
 
 void StrategyManager::onMainAlgoPositionUpdated(const QString& p_account, const Position& p_position)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     Q_UNUSED(p_account);
 
-    // Dispatch to each strategy via adapter on the strategy thread
     for (auto* instance: m_strategies)
     {
-        if (instance && instance->p_adapter)
+        if (instance && instance->p_backend)
         {
-            QMetaObject::invokeMethod(
-                instance->p_adapter,
-                [instance, p_position]() { instance->p_adapter->onPositionUpdated(p_position); },
-                Qt::QueuedConnection);
+            instance->p_backend->publishPosition(p_position);
         }
     }
 }
 
 void StrategyManager::onMainAlgoBalanceUpdated(const Balance& p_balance)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     double balance = p_balance.getEquity();
 
-    // Dispatch to each strategy via adapter on the strategy thread
     for (auto* instance: m_strategies)
     {
-        if (instance && instance->p_adapter)
+        if (instance && instance->p_backend)
         {
-            QMetaObject::invokeMethod(
-                instance->p_adapter,
-                [instance, balance]() { instance->p_adapter->onBalanceUpdated(balance); },
-                Qt::QueuedConnection);
+            instance->p_backend->publishBalance(balance);
         }
     }
 }
@@ -719,33 +659,20 @@ const StrategyManager::StrategyInstance* StrategyManager::findStrategy(const QSt
     return nullptr;
 }
 
-StrategyBase* StrategyManager::getStrategy(const QString& p_strategyID) const
-{
-    auto instance = findStrategy(p_strategyID);
-    return instance ? instance->p_strategy : nullptr;
-}
-
 void StrategyManager::onOrderUpdatedForStrategy(const QString& p_strategyID, const Order& p_order)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     qDebug(StrategyManagerLog) << "onOrderUpdatedForStrategy: strategyID=" << p_strategyID
                                << "orderID=" << p_order.getOrderID()
                                << "status=" << static_cast<int>(p_order.getOrderStatus());
     auto* instance = findStrategy(p_strategyID);
-    if (!instance || !instance->p_adapter)
+    if (!instance || !instance->p_backend)
     {
         qWarning(StrategyManagerLog) << "onOrderUpdatedForStrategy: strategy not found:" << p_strategyID;
         return;
     }
 
-    // Route via adapter (runs on strategy thread)
-    QMetaObject::invokeMethod(
-        instance->p_adapter,
-        [instance, p_order]()
-        {
-            qDebug() << "[StrategyCallbackAdapter] dispatching onOrderUpdated orderID=" << p_order.getOrderID();
-            instance->p_adapter->onOrderUpdated(p_order);
-        },
-        Qt::QueuedConnection);
+    instance->p_backend->publishOrder(p_order);
 }
 
 void StrategyManager::connectStrategyToDataSources(StrategyInstance* p_instance)
@@ -759,7 +686,7 @@ void StrategyManager::connectStrategyToDataSources(StrategyInstance* p_instance)
 
 void StrategyManager::disconnectStrategyFromDataSources(StrategyInstance* p_instance)
 {
-    if (!p_instance || !p_instance->p_adapter)
+    if (!p_instance || !p_instance->p_backend)
     {
         return;
     }
@@ -778,43 +705,59 @@ void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
                                               const QString& p_symbol,
                                               SymbolContext* p_instrument)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     auto* instance = findStrategy(p_strategyID);
-    if (!instance || !instance->p_adapter)
+    if (!instance || !instance->p_backend)
     {
         qWarning(StrategyManagerLog) << "connectSymbolToStrategy: strategy not found:" << p_strategyID;
         return;
     }
 
-    // Add symbol to adapter's monitored set (must happen on strategy thread)
-    QMetaObject::invokeMethod(
-        instance->p_adapter,
-        [adapter = instance->p_adapter, p_symbol]() { adapter->addMonitoredSymbol(p_symbol); },
-        Qt::BlockingQueuedConnection);
+    instance->p_backend->trackMonitoredSymbol(p_symbol);
 
-    // Connect SymbolContext signals directly to the adapter (no MainAlgo hop)
     OBJ_ASSUME_DIFF(p_instrument, nullptr);
-
-    auto c1 = connect(&p_instrument->barReceiver,
-                      &BarReceiver::receivedNewBar,
-                      instance->p_adapter,
-                      &StrategyCallbackAdapter::onBar,
-                      Qt::QueuedConnection);
+    auto c1 = connect(
+        &p_instrument->barReceiver,
+        &BarReceiver::receivedNewBar,
+        this,
+        [this, p_strategyID](const QString& symbol, const Bar& bar)
+        {
+            if (auto* strategy = findStrategy(p_strategyID); strategy && strategy->p_backend)
+            {
+                strategy->p_backend->publishBar(symbol, bar);
+            }
+        },
+        Qt::QueuedConnection);
     ASSUME_TRUE(c1);
     instance->m_connections.push_back(c1);
 
-    auto c2 = connect(&p_instrument->m_level2Receiver,
-                      &Level2Receiver::receivedNewLevel2,
-                      instance->p_adapter,
-                      &StrategyCallbackAdapter::onLevel2,
-                      Qt::QueuedConnection);
+    auto c2 = connect(
+        &p_instrument->m_level2Receiver,
+        &Level2Receiver::receivedNewLevel2,
+        this,
+        [this, p_strategyID](const QString& symbol, const Level2& level2)
+        {
+            if (auto* strategy = findStrategy(p_strategyID); strategy && strategy->p_backend)
+            {
+                strategy->p_backend->publishLevel2(symbol, level2);
+            }
+        },
+        Qt::QueuedConnection);
     ASSUME_TRUE(c2);
     instance->m_connections.push_back(c2);
 
-    auto c3 = connect(p_instrument,
-                      &SymbolContext::receivedNewTrade,
-                      instance->p_adapter,
-                      &StrategyCallbackAdapter::onTrade,
-                      Qt::QueuedConnection);
+    auto c3 = connect(
+        p_instrument,
+        &SymbolContext::receivedNewTrade,
+        this,
+        [this, p_strategyID](const QString& symbol, const Trade& trade)
+        {
+            if (auto* strategy = findStrategy(p_strategyID); strategy && strategy->p_backend)
+            {
+                strategy->p_backend->publishTrade(symbol, trade);
+            }
+        },
+        Qt::QueuedConnection);
     ASSUME_TRUE(c3);
     instance->m_connections.push_back(c3);
 
@@ -823,20 +766,23 @@ void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
 
 StrategyLogger* StrategyManager::getStrategyLogger(const QString& p_strategyID)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     auto instance = findStrategy(p_strategyID);
-    return instance && instance->p_logger ? instance->p_logger.get() : nullptr;
+    return instance && instance->p_backend ? instance->p_backend->logger() : nullptr;
 }
 
 const StrategyLogger* StrategyManager::getStrategyLogger(const QString& p_strategyID) const
 {
+    assumeMainAlgoThread(m_mainAlgo);
     auto instance = findStrategy(p_strategyID);
-    return instance && instance->p_logger ? instance->p_logger.get() : nullptr;
+    return instance && instance->p_backend ? instance->p_backend->logger() : nullptr;
 }
 
 void StrategyManager::processClaimSymbols(const QString& p_strategyID,
                                           const QStringList& p_symbols,
                                           std::shared_ptr<QPromise<QStringList>> p_promise)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     QStringList approved;
 
     for (const QString& symbol: p_symbols)
@@ -864,11 +810,11 @@ void StrategyManager::processClaimSymbols(const QString& p_strategyID,
 
     // Update SDK's claimed symbols on the strategy thread
     auto* instance = findStrategy(p_strategyID);
-    if (instance && instance->p_sdk)
+    if (instance && instance->p_backend && instance->p_backend->sdk())
     {
         QMetaObject::invokeMethod(
-            instance->p_sdk,
-            [sdk = instance->p_sdk, approved]() { sdk->setClaimedSymbols(approved); },
+            instance->p_backend->sdk(),
+            [sdk = instance->p_backend->sdk(), approved]() { sdk->setClaimedSymbols(approved); },
             Qt::QueuedConnection);
     }
 
@@ -888,15 +834,11 @@ void StrategyManager::processClaimSymbols(const QString& p_strategyID,
 
 void StrategyManager::releaseSymbols(const QString& p_strategyID)
 {
+    assumeMainAlgoThread(m_mainAlgo);
     const QStringList released = m_symbolRegistry.keys(p_strategyID);
     for (const QString& symbol: released)
     {
         m_symbolRegistry.remove(symbol);
-        // Must release on MainAlgo's thread — releaseSymbolContextRef asserts thread affinity
-        QMetaObject::invokeMethod(
-            m_mainAlgo,
-            [this, symbol]() { m_mainAlgo->releaseSymbolContextRef(symbol); },
-            Qt::QueuedConnection);
         emit symbolReleased(symbol);
     }
     if (!released.isEmpty())
@@ -906,11 +848,11 @@ void StrategyManager::releaseSymbols(const QString& p_strategyID)
 
     // Clear the SDK's claimed symbols
     auto* instance = findStrategy(p_strategyID);
-    if (instance && instance->p_sdk)
+    if (instance && instance->p_backend && instance->p_backend->sdk())
     {
         QMetaObject::invokeMethod(
-            instance->p_sdk,
-            [sdk = instance->p_sdk]() { sdk->clearClaimedSymbols(); },
+            instance->p_backend->sdk(),
+            [sdk = instance->p_backend->sdk()]() { sdk->clearClaimedSymbols(); },
             Qt::QueuedConnection);
     }
 }
@@ -940,6 +882,7 @@ void StrategyManager::persistStrategiesState()
 
 void StrategyManager::restoreStrategiesState()
 {
+    assumeMainAlgoThread(m_mainAlgo);
     if (!strategiesStateSettings)
         return;
 

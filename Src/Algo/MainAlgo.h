@@ -12,6 +12,7 @@
 #include <QVector>
 #include <QStringList>
 #include <QWaitCondition>
+#include <expected>
 #include <memory>
 #include <atomic>
 #include <optional>
@@ -36,7 +37,6 @@
 
 Q_DECLARE_LOGGING_CATEGORY(MainAlgoLog)
 
-class QSocketNotifier;
 class OrderEmulator;
 
 
@@ -147,6 +147,9 @@ struct DisplaySnapshot
     QVector<Trade> pendingTrades;
     bool tradeDirty = false;
 
+    // Stable recent trade history for control/MCP polling (not drained by the GUI)
+    QVector<Trade> recentTrades;
+
     // Latest bar per higher timeframe (overwritten per TF)
     QMap<TimeFrame, Bar> aggregatorBars;
     bool aggregatorDirty = false;
@@ -229,6 +232,8 @@ class MainAlgo final : public QObject
     void startBalancePolling();
     void stopBalancePolling();
     [[nodiscard]] Balance getCurrentBalance() const;
+    [[nodiscard]] QString getActiveAccountId() const;
+    [[nodiscard]] QVector<Position> getCurrentPositionsSnapshot() const;
 
     /// @brief Get the currently displayed stock symbol
     [[nodiscard]] QString getDisplayedSymbol() const;
@@ -237,6 +242,12 @@ class MainAlgo final : public QObject
     /// Returns nullptr if no symbol is displayed. The QPointer may auto-null if the context is destroyed.
     [[nodiscard]] QPointer<SymbolContext> getDisplayedSymbolContext() const;
 
+    [[nodiscard]] BarCache::GetBarsResult_t requestHistoricalBarsForSymbol(const QString& p_symbol,
+                                                                           QDate p_date,
+                                                                           QTime p_first,
+                                                                           QTime p_last,
+                                                                           TimeFrame p_tf = TimeFrame::ONE_MINUTE);
+
     BarCache::GetBarsResult_t
     requestMissingBarsDisplayedStock(QDate date, QTime first, QTime last, TimeFrame tf = TimeFrame::ONE_MINUTE);
 
@@ -244,11 +255,29 @@ class MainAlgo final : public QObject
      * Strategy order management - called by StrategySDK
      * All methods should be called via QMetaObject::invokeMethod with Qt::QueuedConnection
      */
-    /// @brief Get the StrategyManager instance
+    /// @brief Get the StrategyManager instance for signal/slot wiring or MainAlgo-thread use.
     [[nodiscard]] StrategyManager* getStrategyManager()
     {
-        return &m_strategyManager;
+        return m_strategyManager.get();
     }
+
+    /// @brief Thread-safe GUI/API entry point for loading a strategy on the MainAlgo thread.
+    [[nodiscard]] std::expected<QString, QString> loadStrategy(const StrategyConfig& p_config);
+
+    /// @brief Thread-safe GUI/API entry point for starting a strategy on the MainAlgo thread.
+    [[nodiscard]] QString startStrategy(const QString& p_strategyID);
+
+    /// @brief Thread-safe GUI/API entry point for unloading a strategy on the MainAlgo thread.
+    [[nodiscard]] QString unloadStrategy(const QString& p_strategyID);
+
+    /// @brief Thread-safe GUI/API query for whether a strategy is currently running.
+    [[nodiscard]] bool isStrategyRunning(const QString& p_strategyID) const;
+
+    /// @brief Thread-safe GUI/API query for a strategy's open positions.
+    [[nodiscard]] QVector<Position> getStrategyOpenPositions(const QString& p_strategyID) const;
+
+    /// @brief Thread-safe GUI/API query for a strategy's current log buffer.
+    [[nodiscard]] std::optional<QVector<StrategyLogMessage>> getStrategyLogMessages(const QString& p_strategyID) const;
 
     /// @brief Get next unique requestId for strategy order tracking
     /// @return Next requestId (thread-safe atomic increment)
@@ -366,6 +395,20 @@ class MainAlgo final : public QObject
     /// Returns a zeroed ActivityMetrics if the symbol has no SymbolContext.
     [[nodiscard]] ActivityMetrics getActivityMetrics(const QString& p_symbol) const;
 
+    struct MarketDataSnapshot
+    {
+        QString symbol;
+        std::optional<Level2> latestLevel2;
+        QVector<Trade> recentTrades;
+        std::optional<QDateTime> replayTime;
+        ActivityMetrics activity;
+    };
+
+    /// @brief Return a market-data snapshot for a symbol, leasing a SymbolContext if needed.
+    /// If p_symbol is empty, the currently displayed symbol is used.
+    [[nodiscard]] std::expected<MarketDataSnapshot, QString> getMarketDataSnapshot(const QString& p_symbol,
+                                                                                   int p_maxTrades);
+
   signals:
     /**
      * @brief Signal emitted when a new position is received
@@ -430,9 +473,6 @@ class MainAlgo final : public QObject
     void onBalanceReceived(const QVector<Balance>& results);
     void requestBalance();
 
-    // Handle strategy crash notifications from signal handler pipe
-    void onStrategyCrashNotified();
-
     // Handle replay end - pause heartbeat timers
     void onReplayEndReached();
 
@@ -470,15 +510,15 @@ class MainAlgo final : public QObject
 
     Account m_activeAccount;
     Balance m_currentBalance;
+    QMap<QString, Position> m_currentPositions; // positionID -> latest non-historical position snapshot
 
     std::unique_ptr<QTimer> m_balancePollingTimer;
 
     bool m_balancePollingStarted = false;
 
     // Strategy order tracking - all accessed from MainAlgo thread
-    StrategyManager m_strategyManager;
+    std::unique_ptr<StrategyManager> m_strategyManager;
 
-    std::unique_ptr<QSocketNotifier> m_crashNotifier; // Monitor crash pipe from signal handlers
     std::atomic<uint64_t> m_requestIdCounter{0};
     QMap<uint64_t, std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>> m_pendingOrderPromises;
     QMap<uint64_t, QString> m_requestIdToStrategyId; // Temporary mapping until OrderID known
@@ -491,7 +531,13 @@ class MainAlgo final : public QObject
     QTime m_replayStartTime;
     Playback::Speed m_replaySpeed = Playback::Speed::Normal;
 
+    std::unique_ptr<QTimer> m_controlSymbolLeaseCleanupTimer;
+    QMap<QString, QDateTime> m_controlSymbolLeaseExpirations;
+
     /// @brief Wire a SymbolContext's bar-close events to the OrderEmulator for PnL updates.
     /// Safe to call multiple times (uses UniqueConnection internally).
     void connectBarCloseToOrderEmulator(SymbolContext* p_sc, OrderEmulator* p_emulator);
+
+    [[nodiscard]] std::expected<QPointer<SymbolContext>, QString> leaseControlSymbolContext(const QString& p_symbol);
+    void pruneExpiredControlSymbolLeases();
 };

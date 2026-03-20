@@ -295,6 +295,28 @@ namespace TimeAndSalesConstants
 } // namespace TimeAndSalesConstants
 
 /**
+ * @namespace PlatformControlConstants
+ * @brief Constants related to the local platform control socket and MCP polling helpers
+ */
+namespace PlatformControlConstants
+{
+    /// Default number of trades returned by a market-data snapshot request when no explicit maxCount is provided.
+    inline constexpr int DEFAULT_TRADES_SNAPSHOT_MAX_COUNT = 200;
+
+    /// Hard cap on trade count returned in a single control/MCP market-data snapshot response.
+    inline constexpr int MAX_TRADES_SNAPSHOT_MAX_COUNT = 1000;
+
+    /// Number of recent trades retained per symbol for control/MCP polling.
+    inline constexpr int RECENT_TRADES_BUFFER_LIMIT = 1000;
+
+    /// Keep MCP/control-requested SymbolContexts alive briefly so arbitrary-symbol polling can accumulate data.
+    inline constexpr int SYMBOL_CONTEXT_LEASE_TIMEOUT_MS = 60 * 1000;
+
+    /// Periodic cleanup interval for expired MCP/control symbol leases.
+    inline constexpr int SYMBOL_CONTEXT_LEASE_CLEANUP_INTERVAL_MS = 5000;
+} // namespace PlatformControlConstants
+
+/**
  * @namespace QuoteConstants
  * @brief Constants related to level 1 quote stream data
  */

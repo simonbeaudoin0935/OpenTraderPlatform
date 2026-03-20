@@ -195,16 +195,16 @@ Order placement panel.
 
 #### StrategyQuickView (`Widgets/StrategyQuickView/`)
 
-Tree widget showing all loaded strategies and the symbol each has claimed. Provides quick visibility into strategy activity without opening the Strategies tab.
+Tree widget showing all loaded strategies and the symbol each has claimed. Provides quick visibility and control directly from the Trade tab.
 
-#### Tabs
+#### Tabs and Embedded Strategy Tools
 
 | Tab | Class | Purpose |
 |-----|-------|---------|
+| **Trade (strategy tools)** | `StrategyQuickView` + `StrategyLoadDialog` | Load/start/stop external strategy processes and open per-strategy logs |
 | **Config** | `ConfigTab` | Databento API key entry, dataset selection, connection management |
 | **Cache** | `CacheTab` | Bar cache inspection, clear, preload controls |
 | **Logging** | `LoggingTab` | Live log display with per-category filter controls |
-| **Strategies** | `StrategiesTab` | Load/start/stop strategy plugins; `StrategyCard` per plugin |
 
 #### Dock Widgets
 
@@ -304,4 +304,4 @@ User clicks Play in replay
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — System architecture, threading, component roles
 - [DEVELOPMENT.md](DEVELOPMENT.md) — Build setup and coding guidelines
-- [STRATEGY.md](STRATEGY.md) — Strategy plugin UI (StrategiesTab, StrategyCard)
+- [STRATEGY.md](STRATEGY.md) — Strategy runtime UI (`StrategyQuickView`, `StrategyLoadDialog`, `StrategyLogWidget`)

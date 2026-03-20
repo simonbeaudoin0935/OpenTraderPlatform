@@ -2,6 +2,8 @@
 
 #include <QObject>
 #include <QJsonObject>
+#include <QDate>
+#include <QTime>
 
 #include "Account.h"
 #include "Position.h"
@@ -10,6 +12,7 @@
 #include "Level2.h"
 #include "Trade.h"
 #include "Balance.h"
+#include "PlaybackTypes.h"
 #include "TSClient.h" // For TSClient::AuthStateReason enum
 #include "TimeFrame.h"
 
@@ -55,4 +58,6 @@ class FrontEnd : public QObject
     // Replay mode notifications
     virtual void onReplayModeEntered() = 0;
     virtual void onReplayModeExited() = 0;
+    virtual void onReplayConfigurationChanged(const QDate& date, const QTime& startTime, Playback::Speed speed) = 0;
+    virtual void onReplayPlaybackStateChanged(Playback::State state) = 0;
 };

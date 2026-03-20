@@ -1,6 +1,7 @@
 #include "StrategyLoadDialog.h"
 
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDir>
 #include <QDoubleSpinBox>
 #include <QFileDialog>
@@ -17,12 +18,21 @@
 #include <QStandardPaths>
 #include <QVBoxLayout>
 
-#include "StrategyLoader.h"
+#include "ExternalStrategyManifest.h"
+
+namespace
+{
+    [[nodiscard]] QString autoDerivedStrategyName(const QString& p_runtimePath)
+    {
+        const QFileInfo fileInfo(p_runtimePath);
+        return fileInfo.completeSuffix().isEmpty() ? fileInfo.fileName() : fileInfo.completeBaseName();
+    }
+} // namespace
 
 StrategyLoadDialog::StrategyLoadDialog(QWidget* parent) : QDialog(parent)
 {
     setWindowTitle("Load Strategy");
-    setMinimumSize(500, 300);
+    setMinimumSize(520, 320);
     setModal(true);
 
     setupUI();
@@ -38,24 +48,29 @@ void StrategyLoadDialog::setupUI()
 {
     auto* mainLayout = new QVBoxLayout(this);
 
-    // --- Plugin file selection ---
-    auto* pluginGroup = new QGroupBox("Strategy Plugin");
-    auto* pluginLayout = new QHBoxLayout();
-    m_soPathEdit = new QLineEdit();
-    m_soPathEdit->setPlaceholderText("Select a .so plugin file…");
-    m_soPathEdit->setReadOnly(true);
+    // --- Runtime file selection ---
+    auto* runtimeGroup = new QGroupBox("Strategy Runtime");
+    auto* runtimeLayout = new QFormLayout();
+
+    auto* pathRowLayout = new QHBoxLayout();
+    m_runtimePathEdit = new QLineEdit();
+    m_runtimePathEdit->setReadOnly(true);
+    m_runtimePathEdit->setPlaceholderText("Select a strategy executable or manifest...");
     m_browseButton = new QPushButton("Browse…");
-    pluginLayout->addWidget(m_soPathEdit, 1);
-    pluginLayout->addWidget(m_browseButton);
-    pluginGroup->setLayout(pluginLayout);
-    mainLayout->addWidget(pluginGroup);
+    pathRowLayout->addWidget(m_runtimePathEdit, 1);
+    pathRowLayout->addWidget(m_browseButton);
+    auto* pathRowWidget = new QWidget();
+    pathRowWidget->setLayout(pathRowLayout);
+    runtimeLayout->addRow("Path:", pathRowWidget);
+    runtimeGroup->setLayout(runtimeLayout);
+    mainLayout->addWidget(runtimeGroup);
 
     // --- Standard parameters form ---
     auto* paramsGroup = new QGroupBox("Parameters");
     auto* formLayout = new QFormLayout();
 
     m_nameEdit = new QLineEdit();
-    m_nameEdit->setPlaceholderText("Auto-derived from plugin filename");
+    m_nameEdit->setPlaceholderText("Auto-derived from executable filename");
     formLayout->addRow("Strategy Name:", m_nameEdit);
 
     m_symbolsEdit = new QLineEdit();
@@ -77,7 +92,7 @@ void StrategyLoadDialog::setupUI()
     paramsGroup->setLayout(formLayout);
     mainLayout->addWidget(paramsGroup);
 
-    // --- Custom parameters section (shown only when plugin exports a schema) ---
+    // --- Custom parameters section (shown only when the manifest declares a schema) ---
     m_customParamsGroup = new QGroupBox("Custom Parameters");
     m_customParamsFormLayout = new QFormLayout();
     m_customParamsGroup->setLayout(m_customParamsFormLayout);
@@ -100,53 +115,105 @@ void StrategyLoadDialog::setupUI()
     connect(m_loadButton, &QPushButton::clicked, this, &StrategyLoadDialog::onLoadClicked);
     connect(m_cancelButton, &QPushButton::clicked, this, &StrategyLoadDialog::onCancelClicked);
 
-    connect(m_soPathEdit, &QLineEdit::textChanged, this, [this]() { validateForm(); });
+    connect(m_runtimePathEdit, &QLineEdit::textChanged, this, [this]() { validateForm(); });
     connect(m_symbolsEdit, &QLineEdit::textChanged, this, [this]() { validateForm(); });
 }
 
 void StrategyLoadDialog::onBrowseClicked()
 {
-    // Start in user's strategy directory if it exists, otherwise home
-    QString startDir = QDir::homePath() + "/.local/share/L2Trader/Strategies";
-    if (!QDir(startDir).exists())
+    QString startDir;
+    if (!m_runtimePathEdit->text().trimmed().isEmpty())
     {
-        startDir = QDir::homePath();
+        startDir = QFileInfo(m_runtimePathEdit->text().trimmed()).absolutePath();
+    }
+    else
+    {
+        startDir = QDir::homePath() + "/.config/L2Trader/Strategies";
+        if (!QDir(startDir).exists())
+        {
+            startDir = QDir::homePath() + "/.local/share/L2Trader/Strategies";
+        }
+        if (!QDir(startDir).exists())
+        {
+            startDir = QDir::homePath();
+        }
     }
 
-    QString soPath = QFileDialog::getOpenFileName(this,
-                                                  "Select Strategy Plugin",
-                                                  startDir,
-                                                  "Shared Libraries (*.so);;All Files (*)");
+    const QString runtimePath = QFileDialog::getOpenFileName(this,
+                                                             "Select Strategy Executable or Manifest",
+                                                             startDir,
+                                                             "Strategy files (*.json);;All Files (*)");
 
-    if (soPath.isEmpty())
+    if (runtimePath.isEmpty())
     {
         return;
     }
 
-    m_soPathEdit->setText(soPath);
+    loadSelection(runtimePath);
+}
 
-    // Auto-derive name from filename if name field is empty or was auto-derived
-    QFileInfo fileInfo(soPath);
-    QString baseName = fileInfo.completeBaseName(); // "DumpPatternStrategy" from "DumpPatternStrategy.so"
-    if (m_nameEdit->text().isEmpty() || m_nameEdit->text() == QFileInfo(m_soPathEdit->text()).completeBaseName())
+void StrategyLoadDialog::loadSelection(const QString& p_selectedPath)
+{
+    const QString previousPath = m_runtimePathEdit->text().trimmed();
+    const QString previousDerivedName = autoDerivedStrategyName(previousPath);
+
+    m_manifestCustomParamDefaults.clear();
+    clearCustomParams();
+
+    if (p_selectedPath.endsWith(".json", Qt::CaseInsensitive))
     {
-        m_nameEdit->setText(baseName);
+        const auto manifestResult = ExternalStrategyManifest::loadFromFile(p_selectedPath);
+        if (!manifestResult.has_value())
+        {
+            QMessageBox::warning(this, "Load Strategy", manifestResult.error());
+            return;
+        }
+
+        applyManifestDefaults(manifestResult.value());
+        return;
     }
 
-    // Peek at the plugin's parameter schema and rebuild custom params section
-    QJsonArray schema = StrategyLoader::peekParameterSchema(soPath);
-    populateCustomParams(schema);
+    m_runtimePathEdit->setText(p_selectedPath);
+
+    if (auto manifest = ExternalStrategyManifest::findForRuntime(p_selectedPath); manifest.has_value())
+    {
+        applyManifestDefaults(*manifest);
+        return;
+    }
+
+    if (m_nameEdit->text().isEmpty() || m_nameEdit->text() == previousDerivedName)
+    {
+        m_nameEdit->setText(autoDerivedStrategyName(p_selectedPath));
+    }
+}
+
+void StrategyLoadDialog::applyManifestDefaults(const ExternalStrategyManifestData& p_manifest)
+{
+    m_runtimePathEdit->setText(p_manifest.config.executablePath);
+    m_nameEdit->setText(!p_manifest.config.name.isEmpty() ? p_manifest.config.name
+                                                          : autoDerivedStrategyName(p_manifest.config.executablePath));
+    m_symbolsEdit->setText(p_manifest.config.symbols.join(", "));
+    m_positionSizeSpin->setValue(p_manifest.config.positionSize);
+    m_riskLimitSpin->setValue(p_manifest.config.riskLimit);
+    m_manifestCustomParamDefaults = p_manifest.config.customParams;
+    populateCustomParams(p_manifest.parameterSchema, m_manifestCustomParamDefaults);
 }
 
 void StrategyLoadDialog::onLoadClicked()
 {
-    QString soPath = m_soPathEdit->text().trimmed();
-    QString name = m_nameEdit->text().trimmed();
-    QString symbolsText = m_symbolsEdit->text().trimmed();
+    const QString runtimePath = m_runtimePathEdit->text().trimmed();
+    const QString name = m_nameEdit->text().trimmed();
+    const QString symbolsText = m_symbolsEdit->text().trimmed();
 
-    if (soPath.isEmpty() || !QFileInfo::exists(soPath))
+    if (runtimePath.isEmpty() || !QFileInfo::exists(runtimePath))
     {
-        QMessageBox::warning(this, "Load Strategy", "Please select a valid .so plugin file.");
+        QMessageBox::warning(this, "Load Strategy", "Please select a valid strategy executable.");
+        return;
+    }
+
+    if (!QFileInfo(runtimePath).isExecutable())
+    {
+        QMessageBox::warning(this, "Load Strategy", "The selected strategy process is not executable.");
         return;
     }
 
@@ -174,11 +241,13 @@ void StrategyLoadDialog::onLoadClicked()
     }
 
     StrategyConfig config;
-    config.soPath = soPath;
-    config.name = name.isEmpty() ? QFileInfo(soPath).completeBaseName() : name;
+    config.runtimeType = StrategyRuntimeType::ExternalProcess;
+    config.executablePath = runtimePath;
+    config.name = name.isEmpty() ? autoDerivedStrategyName(runtimePath) : name;
     config.symbols = symbols;
     config.positionSize = m_positionSizeSpin->value();
     config.riskLimit = m_riskLimitSpin->value();
+    config.customParams = m_manifestCustomParamDefaults;
 
     // Collect custom parameter values from dynamically-generated widgets
     for (const auto& [key, widget]: m_customParamWidgets)
@@ -204,9 +273,9 @@ void StrategyLoadDialog::onCancelClicked()
 
 void StrategyLoadDialog::validateForm()
 {
-    bool soValid = !m_soPathEdit->text().trimmed().isEmpty();
-    bool symbolsValid = !m_symbolsEdit->text().trimmed().isEmpty();
-    m_loadButton->setEnabled(soValid && symbolsValid);
+    const bool runtimeValid = !m_runtimePathEdit->text().trimmed().isEmpty();
+    const bool symbolsValid = !m_symbolsEdit->text().trimmed().isEmpty();
+    m_loadButton->setEnabled(runtimeValid && symbolsValid);
 }
 
 void StrategyLoadDialog::clearCustomParams()
@@ -220,7 +289,8 @@ void StrategyLoadDialog::clearCustomParams()
     adjustSize();
 }
 
-void StrategyLoadDialog::populateCustomParams(const QJsonArray& p_schema)
+void StrategyLoadDialog::populateCustomParams(const QJsonArray& p_schema,
+                                              const std::map<QString, QJsonValue>& p_initialValues)
 {
     clearCustomParams();
 
@@ -234,7 +304,9 @@ void StrategyLoadDialog::populateCustomParams(const QJsonArray& p_schema)
         const QString type = param["type"].toString();
         const QString label = param.value("label").toString(key);
         const QString description = param.value("description").toString();
-        const QJsonValue defaultVal = param.value("default");
+        const auto initialValueIt = p_initialValues.find(key);
+        const QJsonValue defaultVal =
+            initialValueIt != p_initialValues.end() ? initialValueIt->second : param.value("default");
 
         if (key.isEmpty() || type.isEmpty())
             continue;

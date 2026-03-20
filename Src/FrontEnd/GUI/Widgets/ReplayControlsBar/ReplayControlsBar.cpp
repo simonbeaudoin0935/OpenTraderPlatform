@@ -1,5 +1,6 @@
 #include "ReplayControlsBar.h"
 #include "DBClient.h"
+#include <QSignalBlocker>
 #include <QHBoxLayout>
 #include <QLabel>
 
@@ -173,6 +174,7 @@ QDate ReplayControlsBar::getSelectedReplayDay() const
 
 void ReplayControlsBar::setSelectedReplayDay(const QDate& date)
 {
+    const QSignalBlocker blocker(m_dayCombo);
     for (int i = 0; i < m_dayCombo->count(); ++i)
     {
         if (m_dayCombo->itemData(i).toDate() == date)
@@ -203,6 +205,7 @@ QTime ReplayControlsBar::getReplayStartTime() const
 
 void ReplayControlsBar::setReplayStartTime(const QTime& time)
 {
+    const QSignalBlocker blocker(m_timeEdit);
     m_timeEdit->setTime(time);
 }
 
@@ -216,6 +219,19 @@ Playback::Speed ReplayControlsBar::getReplaySpeed() const
     if (idx >= 0 && idx < m_speedCombo->count())
         return static_cast<Playback::Speed>(m_speedCombo->itemData(idx).toInt());
     return Playback::Speed::Normal;
+}
+
+void ReplayControlsBar::setReplaySpeed(Playback::Speed speed)
+{
+    const QSignalBlocker blocker(m_speedCombo);
+    for (int i = 0; i < m_speedCombo->count(); ++i)
+    {
+        if (m_speedCombo->itemData(i).toInt() == static_cast<int>(speed))
+        {
+            m_speedCombo->setCurrentIndex(i);
+            return;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

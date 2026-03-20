@@ -92,7 +92,7 @@ MainAlgo::MainAlgo() {
    - Manage replay order/position streams with simulated account
 
 7. **Strategy Management**
-   - Own and run StrategyManager for loaded strategy plugins
+   - Own and run StrategyManager for loaded external strategy processes
 
 ### Key Members
 
@@ -784,7 +784,7 @@ See `Src/Core/Replay/OrderEmulator/AGENTS.md` for order emulation details.
 - `../Core/Cache/BarCache/AGENTS.md`: Bar caching details
 - `../Clients/TSClient/AGENTS.md`: TSClient (brokerage-only: orders, positions, accounts)
 - `../FrontEnd/AGENTS.md`: UI integration
-- `../Strategy/AGENTS.md`: Strategy plugin system
+- `../Strategy/AGENTS.md`: External strategy runtime
 
 ## Related Documentation
 

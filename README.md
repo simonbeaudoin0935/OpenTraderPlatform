@@ -22,7 +22,7 @@ The application features a rich GUI with interactive candlestick charts, a 10-le
 - **Position & Order Tracking**: Real-time positions with unrealized P&L overlay on chart, order history with fill markers
 - **Historical Replay**: Download and replay Databento `.dbn.zst` archive files at configurable speeds (0.01× to as-fast-as-possible) with emulated order execution
 - **Order Emulation in Replay**: Realistic order lifecycle simulation (reception delay, execution delay, limit-order fill logic against live depth) via `OrderEmulator`
-- **Strategy Plugin System**: Load custom trading strategies as `.so` shared libraries, each running in its own thread with crash isolation
+- **External Strategy Processes**: Load custom trading strategies as host-supervised executables communicating over Unix sockets + Protobuf, so strategy crashes stay isolated from the platform
 - **Trading Status Indicators**: Live HALTED and Hard-to-Borrow (HTB/SSR) flag display, driven by Databento `StatusMsg` records
 - **Market Calendar Awareness**: Holiday and early-close calendar for 2026; distinguishes `PreMarket`, `Regular`, `AfterHours`, `Weekend`, and `Holiday` sessions
 - **Memory-Efficient Bar Cache**: Two-tier in-memory + SQLite bar storage with thread-safe access; bars are ~104 bytes each
@@ -46,7 +46,7 @@ For detailed documentation, see:
 - **[Doc/FRONTEND.md](Doc/FRONTEND.md)** — GUI and TUI frontend architecture and components
 - **[Doc/DEVELOPMENT.md](Doc/DEVELOPMENT.md)** — Development setup, building, testing, and coding guidelines
 - **[Doc/CONTRIBUTING.md](Doc/CONTRIBUTING.md)** — Contribution process and standards
-- **[Doc/STRATEGY.md](Doc/STRATEGY.md)** — Strategy plugin system and development guide
+- **[Doc/STRATEGY.md](Doc/STRATEGY.md)** — Strategy process system and SDK guide
 
 ## Prerequisites
 
@@ -56,6 +56,7 @@ For detailed documentation, see:
 - **C++23 compliant compiler**: GCC 11+ or Clang 12+
 - **CMake 3.16+**: Build system
 - **SQLite**: Database support (included with Qt SQL)
+- **Protocol Buffers (protobuf)**: `protoc` + `libprotobuf` for the new out-of-process strategy protocol / SDK targets
 - **databento-cpp**: Bundled in `Lib/` — requires `libssl-dev` and `libzstd-dev`
 - **QCustomPlot**: Charting library (included in `Lib/QCustomPlot/`)
 
@@ -77,7 +78,8 @@ For detailed documentation, see:
 2. **Install dependencies**:
    ```bash
    # Ubuntu/Debian — essential packages
-   sudo apt-get install cmake build-essential qt6-base-dev libqt6sql6-sqlite cmake libssl-dev libzstd-dev ninja-build
+    sudo apt-get install cmake build-essential qt6-base-dev libqt6sql6-sqlite \
+                         libprotobuf-dev protobuf-compiler libssl-dev libzstd-dev ninja-build
 
    # Ubuntu/Debian — optional (recommended for development)
    sudo apt-get install clang-format ccache libqtkeychain-qt6-dev libncurses-dev
@@ -98,29 +100,58 @@ For detailed documentation, see:
    This installs a pre-commit hook that enforces `clang-format` on staged files.
 
 4. **Build the application**:
-   ```bash
-   mkdir -p build/GUI
-   cmake -S . -B build/GUI -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_GUI=ON -DBUILD_TESTS=OFF
-   cmake --build build/GUI -j$(nproc)
-   ```
+    ```bash
+    mkdir -p build/GUI
+    cmake -S . -B build/GUI -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_GUI=ON -DBUILD_TESTS=OFF
+    cmake --build build/GUI -j4
+    ```
+
+    This also builds the first `MCP/` integration binary under `build/GUI/bin/`:
+    - `l2trader-mcp-server`
+
+    `l2trader-mcp-server` exposes the platform control operations, account and
+    balance queries, position/order queries, poll-style market-data tools, and
+    basic order placement/cancellation over MCP stdio, then talks to the
+    platform's local control socket internally.
 
 5. **Run the application**:
+    ```bash
+    ./build/GUI/Src/L2Trader
+    ```
+
+    Once the app is running, the local control socket listens at:
+    `~/.local/state/L2Trader/platform-control.sock`
+
+    The control socket is intended to be consumed through `l2trader-mcp-server`
+    rather than a separate standalone CLI.
+
+6. **Stage the external strategy SDK from a build tree** (optional):
    ```bash
-   ./build/GUI/Src/L2Trader
+   cmake --build build/GUI --target stage-strategy-sdk
    ```
+
+    This creates an install-style SDK layout under `build/GUI/strategy-sdk/` with:
+    - `include/L2Trader/...` public headers
+    - `lib*/libL2TraderStrategySDK.so*` shared library artifacts
+    - `share/l2trader/proto/` canonical `.proto` files
+    - `lib*/cmake/L2TraderStrategySDK/` `find_package()` metadata
+
+    The GUI strategy load dialog loads external strategy executables directly or
+    via JSON manifests. External strategies are launched as host-supervised
+    child processes over the Unix-socket + Protobuf runtime.
 
 ### Building with Sanitizers (for development)
 
 **UndefinedBehaviorSanitizer (UBSan)**:
 ```bash
 cmake -S . -B build/debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DENABLE_UBSAN=ON
-cmake --build build/debug -j$(nproc)
+cmake --build build/debug -j4
 ```
 
 **AddressSanitizer (ASan)**:
 ```bash
 cmake -S . -B build/debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DENABLE_ASAN=ON
-cmake --build build/debug -j$(nproc)
+cmake --build build/debug -j4
 ```
 
 See [DEVELOPMENT.md](Doc/DEVELOPMENT.md#code-quality-tools) for more details on sanitizers.
@@ -161,7 +192,7 @@ For terminal-only mode without Qt Widgets or GUI dependencies:
 ```bash
 mkdir -p build/TUI
 cmake -S . -B build/TUI -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_GUI=OFF -DBUILD_TESTS=OFF
-cmake --build build/TUI -j$(nproc)
+cmake --build build/TUI -j4
 ./build/TUI/Src/L2Trader 2>logs.txt   # logs to stderr; stdout is ncurses UI
 ```
 
@@ -196,7 +227,7 @@ The main window provides:
 - **Config Tab**: Databento connection management (API key, dataset selection), Databento status display
 - **Cache Tab**: Bar cache management (view, clear, preload)
 - **Logging Tab**: Live log display with category filter controls
-- **Strategies Tab**: Load, start, stop, and monitor strategy plugins
+- **Strategies Tab**: Load, start, stop, and monitor external strategy processes
 - **Dock widgets** (bottom): Orders table, Positions table, Balance display
 - **Status bar**: Network data usage, memory usage
 - **Toolbar**: Symbol input, account selector, data source selector (Live / Replay), replay playback controls
@@ -235,8 +266,10 @@ L2Trader/
 │   │   └── TUI/           # ncurses terminal interface
 │   ├── Misc/              # Constants, logging, settings, secure storage
 │   ├── SQL/               # Centralized SQL query headers
-│   └── Strategy/          # Strategy plugin loader and SDK
-├── Strategies/            # Example and test strategy plugins
+│   ├── Strategy/          # Strategy host orchestration and process supervision backends
+│   ├── StrategyProtocol/  # Protobuf schemas for out-of-process strategy IPC
+│   └── StrategySDK/       # Installable public SDK for external strategy executables
+├── Strategies/            # Out-of-process strategy executable samples and manifests
 ├── Tests/                 # Unit tests
 ├── Lib/                   # Third-party libraries (databento-cpp, QCustomPlot)
 ├── Resources/             # Icons and resources
@@ -248,7 +281,7 @@ L2Trader/
 
 ```bash
 cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_GUI=ON -DBUILD_TESTS=ON
-cmake --build build/test -j$(nproc)
+cmake --build build/test -j4
 ctest --test-dir build/test --output-on-failure
 ```
 

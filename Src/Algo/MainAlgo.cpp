@@ -5,10 +5,11 @@
 #include <QCoreApplication>
 #include <unistd.h>
 
+#include <algorithm>
+
 #include "MainAlgo.h"
 #include "MainApp.h"
 #include "StrategyManager.h"
-#include "StrategySignalHandler.h"
 #include "TSClient.h"
 #include "DBClient.h"
 #include "Logging.h"
@@ -44,13 +45,16 @@ void MainAlgo::destroyInstance()
 }
 
 
-MainAlgo::MainAlgo() : m_strategyManager(this)
+MainAlgo::MainAlgo()
 {
     thread.setObjectName("MainAlgoThread");
 
     this->moveToThread(&thread);
 
     this->setObjectName("MainAlgo");
+
+    m_strategyManager = std::make_unique<StrategyManager>(this);
+    m_strategyManager->moveToThread(&thread);
 
     connect(&thread, &QThread::started, this, &MainAlgo::onThreadStarted);
 
@@ -64,16 +68,23 @@ MainAlgo::~MainAlgo()
     // Thread affinity assertion - destructor must be called from main thread
     OBJ_ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
 
-    // CRITICAL: Destroy all thread-owned objects that have QTimer members on the MainAlgo
-    // thread BEFORE calling thread.quit(). If we destroy them from the main thread after
-    // the thread has stopped, Qt warns "Timers cannot be stopped from another thread".
-    // The MainAlgo event loop is still running at this point, so BlockingQueuedConnection is safe.
+    // CRITICAL: Destroy all thread-owned objects that may own timers/notifiers/processes on the
+    // MainAlgo thread BEFORE calling thread.quit(). If we destroy them from the main thread after
+    // the thread has stopped, Qt warns about cross-thread teardown and can leave strategy runtime
+    // cleanup happening on the wrong thread. The MainAlgo event loop is still running here, so
+    // BlockingQueuedConnection is safe.
     QMetaObject::invokeMethod(
         this,
         [this]()
         {
             // Stop and destroy balance polling timer on its own thread
             m_balancePollingTimer.reset();
+            m_controlSymbolLeaseCleanupTimer.reset();
+            m_controlSymbolLeaseExpirations.clear();
+
+            // Destroy StrategyManager on its own thread so process supervision, socket
+            // notifiers, and unload teardown all stay on MainAlgo.
+            m_strategyManager.reset();
         },
         Qt::BlockingQueuedConnection);
 
@@ -87,12 +98,6 @@ MainAlgo::~MainAlgo()
         thread.terminate();
         thread.wait();
     }
-
-    // Now safe to cleanup QSocketNotifier and signal handler (thread is stopped)
-    m_crashNotifier.reset();
-    StrategySignalHandler::cleanup();
-
-    // StrategyManager will be destroyed automatically via composition
 
     DEBUG << "Destroyed singleton instance";
 }
@@ -108,54 +113,37 @@ void MainAlgo::onThreadStarted()
     ThreadNames::setCurrentThreadName("MainAlgo");
 
     m_balancePollingTimer = std::make_unique<QTimer>(this);
+    m_controlSymbolLeaseCleanupTimer = std::make_unique<QTimer>(this);
 
     connect(m_balancePollingTimer.get(), &QTimer::timeout, this, &MainAlgo::requestBalance, Qt::UniqueConnection);
-
-    // Initialize signal handler system (set up crash notification pipe)
-    StrategySignalHandler::initialize();
-
-    // Set up socket notifier to monitor crash pipe
-    int crashFd = StrategySignalHandler::getCrashNotificationFd();
-
-    OBJ_ASSUME_DIFF(crashFd, -1);
-
-    m_crashNotifier = std::make_unique<QSocketNotifier>(crashFd, QSocketNotifier::Read, this);
-    auto c = connect(m_crashNotifier.get(),
-                     &QSocketNotifier::activated,
-                     this,
-                     &MainAlgo::onStrategyCrashNotified,
-                     Qt::UniqueConnection);
-
-    OBJ_ASSUME_TRUE(c);
-
-    DEBUG << "Installed crash notification handler";
-
+    connect(m_controlSymbolLeaseCleanupTimer.get(),
+            &QTimer::timeout,
+            this,
+            &MainAlgo::pruneExpiredControlSymbolLeases,
+            Qt::UniqueConnection);
+    m_controlSymbolLeaseCleanupTimer->start(PlatformControlConstants::SYMBOL_CONTEXT_LEASE_CLEANUP_INTERVAL_MS);
 
     // Positions: broadcast to all strategies via adapter (strategy thread)
     connect(this,
             &MainAlgo::receivedNewPosition,
-            &m_strategyManager,
+            m_strategyManager.get(),
             &StrategyManager::onMainAlgoPositionUpdated,
             Qt::QueuedConnection);
 
     // Balance: broadcast to all strategies via adapter (strategy thread)
     connect(this,
             &MainAlgo::balanceUpdated,
-            &m_strategyManager,
+            m_strategyManager.get(),
             &StrategyManager::onMainAlgoBalanceUpdated,
             Qt::QueuedConnection);
 
-    // Strategy symbol release → decrement SymbolContext ref count.
-    // StrategyManager lives on the main thread; releaseSymbolContextRef must
-    // run on the MainAlgo worker thread. Use QueuedConnection so the call is
-    // posted to the MainAlgo event loop rather than executed on the emitter's
-    // (main) thread — which would trip the thread-affinity assert inside
-    // releaseSymbolContextRef.
-    connect(&m_strategyManager,
+    // StrategyManager now shares the MainAlgo thread, so symbol releases can
+    // decrement SymbolContext ref counts synchronously during unload/shutdown.
+    connect(m_strategyManager.get(),
             &StrategyManager::symbolReleased,
             this,
             &MainAlgo::releaseSymbolContextRef,
-            Qt::QueuedConnection);
+            Qt::DirectConnection);
 
     // Direct cross-thread routing: DBClient emits on its own thread, we handle directly
     // via routeLevel2/routeTrade which use a read lock — no event-loop bounce.
@@ -298,6 +286,44 @@ BarCache::GetBarsResult_t MainAlgo::requestMissingBarsDisplayedStock(QDate date,
     OBJ_ASSUME_LTE(first, last); // The Equal in less than equal is for when the program is launched at 4:02 AM
 
     return m_currentDisplayedSymbolContext->barCache.getBars(tf, date, first, last);
+}
+
+BarCache::GetBarsResult_t MainAlgo::requestHistoricalBarsForSymbol(const QString& p_symbol,
+                                                                   QDate p_date,
+                                                                   QTime p_first,
+                                                                   QTime p_last,
+                                                                   TimeFrame p_tf)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+    OBJ_ASSUME_FALSE(p_symbol.isEmpty());
+
+    QPointer<SymbolContext> symbolContext = acquireSymbolContext(p_symbol);
+    OBJ_ASSUME_DIFF(symbolContext, nullptr);
+
+    BarCache::GetBarsResult_t result = symbolContext->barCache.getBars(p_tf, p_date, p_first, p_last);
+    if (std::holds_alternative<std::shared_ptr<QVector<Bar>>>(result))
+    {
+        releaseSymbolContextRef(p_symbol);
+        return std::get<std::shared_ptr<QVector<Bar>>>(result);
+    }
+
+    QPromise<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> promise;
+    QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>> forwardedFuture = promise.future();
+    promise.start();
+
+    auto sharedPromise =
+        std::make_shared<QPromise<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(std::move(promise));
+
+    std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result).then(
+        this,
+        [this, p_symbol, sharedPromise](std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& p_bars) mutable
+        {
+            releaseSymbolContextRef(p_symbol);
+            sharedPromise->addResult(std::move(p_bars));
+            sharedPromise->finish();
+        });
+
+    return forwardedFuture;
 }
 
 /*
@@ -459,6 +485,8 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
 void MainAlgo::onReceivedNewPosition(const QString& account, Position position)
 {
     //DEBUG << "Received new position:" << position.toJsonString();
+    Q_UNUSED(account);
+    m_currentPositions[position.getPositionID()] = position;
     emit receivedNewPosition(account, position);
 }
 
@@ -466,6 +494,7 @@ void MainAlgo::onPositionDeleted(const QString& account, const QString& position
 {
     Q_UNUSED(account);
     DEBUG << "Position deleted:" << positionID;
+    m_currentPositions.remove(positionID);
     emit positionDeleted(account, positionID);
 }
 
@@ -477,6 +506,7 @@ void MainAlgo::onLoadedPositionsFromDatabase(const QString& account, QMap<QStrin
     for (auto it = positions.constBegin(); it != positions.constEnd(); ++it)
     {
         const Position& position = it.value();
+        m_currentPositions[position.getPositionID()] = position;
         DEBUG << "Emitting loaded position:" << position.getPositionID();
         emit receivedNewPosition(account, position);
     }
@@ -528,8 +558,8 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
     QString strategyID = *strategyIt;
     DEBUG << "Routing order update for orderID=" << order.getOrderID() << "to strategyID=" << strategyID;
     QMetaObject::invokeMethod(
-        &m_strategyManager,
-        [this, strategyID, order]() { m_strategyManager.onOrderUpdatedForStrategy(strategyID, order); },
+        m_strategyManager.get(),
+        [this, strategyID, order]() { m_strategyManager->onOrderUpdatedForStrategy(strategyID, order); },
         Qt::QueuedConnection);
 }
 
@@ -553,6 +583,16 @@ void MainAlgo::stopBalancePolling()
 [[nodiscard]] Balance MainAlgo::getCurrentBalance() const
 {
     return m_currentBalance;
+}
+
+[[nodiscard]] QString MainAlgo::getActiveAccountId() const
+{
+    return m_activeAccount.getAccountId();
+}
+
+[[nodiscard]] QVector<Position> MainAlgo::getCurrentPositionsSnapshot() const
+{
+    return m_currentPositions.values().toVector();
 }
 
 [[nodiscard]] QString MainAlgo::getDisplayedSymbol() const
@@ -908,6 +948,13 @@ void SymbolContext::processTrade(const Trade& p_trade)
     L2T_TP(l2trader, snapshot_write, symbol.toUtf8().constData(), "trade");
     QWriteLocker lock(&m_displaySnapshot.lock);
     m_displaySnapshot.pendingTrades.append(p_trade);
+    m_displaySnapshot.recentTrades.append(p_trade);
+    const int excessTrades =
+        m_displaySnapshot.recentTrades.size() - PlatformControlConstants::RECENT_TRADES_BUFFER_LIMIT;
+    if (excessTrades > 0)
+    {
+        m_displaySnapshot.recentTrades.remove(0, excessTrades);
+    }
     m_displaySnapshot.tradeDirty = true;
 }
 
@@ -916,6 +963,176 @@ uint64_t MainAlgo::getNextRequestId()
     // Thread-safe atomic increment returns the old value, so we need pre-increment semantics
     // Actually ++operator does pre-increment by default for atomic
     return ++m_requestIdCounter;
+}
+
+std::expected<QString, QString> MainAlgo::loadStrategy(const StrategyConfig& p_config)
+{
+    if (!m_strategyManager)
+    {
+        return std::unexpected("Strategy manager unavailable");
+    }
+
+    if (QThread::currentThread() == &thread)
+    {
+        return m_strategyManager->loadStrategy(p_config);
+    }
+
+    if (!thread.isRunning())
+    {
+        return std::unexpected("MainAlgo thread is not running");
+    }
+
+    std::expected<QString, QString> result = std::unexpected(QString{});
+    const bool invoked = QMetaObject::invokeMethod(
+        this,
+        [this, &result, p_config]() { result = m_strategyManager->loadStrategy(p_config); },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+    return result;
+}
+
+QString MainAlgo::startStrategy(const QString& p_strategyID)
+{
+    if (!m_strategyManager)
+    {
+        return "Strategy manager unavailable";
+    }
+
+    if (QThread::currentThread() == &thread)
+    {
+        return m_strategyManager->startStrategy(p_strategyID);
+    }
+
+    if (!thread.isRunning())
+    {
+        return "MainAlgo thread is not running";
+    }
+
+    QString result;
+    const bool invoked = QMetaObject::invokeMethod(
+        this,
+        [this, &result, p_strategyID]() { result = m_strategyManager->startStrategy(p_strategyID); },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+    return result;
+}
+
+QString MainAlgo::unloadStrategy(const QString& p_strategyID)
+{
+    if (!m_strategyManager)
+    {
+        return "Strategy manager unavailable";
+    }
+
+    if (QThread::currentThread() == &thread)
+    {
+        return m_strategyManager->unloadStrategy(p_strategyID);
+    }
+
+    if (!thread.isRunning())
+    {
+        return "MainAlgo thread is not running";
+    }
+
+    QString result;
+    const bool invoked = QMetaObject::invokeMethod(
+        this,
+        [this, &result, p_strategyID]() { result = m_strategyManager->unloadStrategy(p_strategyID); },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+    return result;
+}
+
+bool MainAlgo::isStrategyRunning(const QString& p_strategyID) const
+{
+    if (!m_strategyManager)
+    {
+        return false;
+    }
+
+    if (QThread::currentThread() == &thread)
+    {
+        return m_strategyManager->isStrategyRunning(p_strategyID);
+    }
+
+    if (!thread.isRunning())
+    {
+        return false;
+    }
+
+    bool result = false;
+    MainAlgo* const self = const_cast<MainAlgo*>(this);
+    const bool invoked = QMetaObject::invokeMethod(
+        self,
+        [this, &result, p_strategyID]() { result = m_strategyManager->isStrategyRunning(p_strategyID); },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+    return result;
+}
+
+QVector<Position> MainAlgo::getStrategyOpenPositions(const QString& p_strategyID) const
+{
+    if (!m_strategyManager)
+    {
+        return {};
+    }
+
+    if (QThread::currentThread() == &thread)
+    {
+        return m_strategyManager->getStrategyOpenPositions(p_strategyID);
+    }
+
+    if (!thread.isRunning())
+    {
+        return {};
+    }
+
+    QVector<Position> result;
+    MainAlgo* const self = const_cast<MainAlgo*>(this);
+    const bool invoked = QMetaObject::invokeMethod(
+        self,
+        [this, &result, p_strategyID]() { result = m_strategyManager->getStrategyOpenPositions(p_strategyID); },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+    return result;
+}
+
+std::optional<QVector<StrategyLogMessage>> MainAlgo::getStrategyLogMessages(const QString& p_strategyID) const
+{
+    if (!m_strategyManager)
+    {
+        return std::nullopt;
+    }
+
+    auto readMessages = [this, &p_strategyID]() -> std::optional<QVector<StrategyLogMessage>>
+    {
+        const StrategyLogger* logger = m_strategyManager->getStrategyLogger(p_strategyID);
+        if (logger == nullptr)
+        {
+            return std::nullopt;
+        }
+
+        return logger->getMessages();
+    };
+
+    if (QThread::currentThread() == &thread)
+    {
+        return readMessages();
+    }
+
+    if (!thread.isRunning())
+    {
+        return std::nullopt;
+    }
+
+    std::optional<QVector<StrategyLogMessage>> result;
+    MainAlgo* const self = const_cast<MainAlgo*>(this);
+    const bool invoked = QMetaObject::invokeMethod(
+        self,
+        [&result, readMessages]() { result = readMessages(); },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+    return result;
 }
 
 void MainAlgo::processPlaceOrder(uint64_t p_requestId,
@@ -1060,7 +1277,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
         {
             ++m_symbolContexts[p_symbol]->m_refCount;
             // Pass the actual SymbolContext so the strategy gets a direct connection (no MainAlgo hop)
-            m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, m_symbolContexts[p_symbol]);
+            m_strategyManager->connectSymbolToStrategy(p_strategyID, p_symbol, m_symbolContexts[p_symbol]);
             p_promise->addResult(true);
             p_promise->finish();
             return;
@@ -1087,7 +1304,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
         if (OrderEmulator* emulator = TSClient::getInstance()->getOrderEmulator())
             connectBarCloseToOrderEmulator(instrument, emulator);
 
-        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, instrument);
+        m_strategyManager->connectSymbolToStrategy(p_strategyID, p_symbol, instrument);
 
         INFO << "Secondary symbol SymbolContext created for" << p_symbol << "(replay data routed via DBClient)";
     }
@@ -1115,7 +1332,7 @@ void MainAlgo::processSubscribeToSymbol(const QString& p_strategyID,
             ++m_symbolContexts[p_symbol]->m_refCount;
         }
 
-        m_strategyManager.connectSymbolToStrategy(p_strategyID, p_symbol, m_symbolContexts[p_symbol]);
+        m_strategyManager->connectSymbolToStrategy(p_strategyID, p_symbol, m_symbolContexts[p_symbol]);
     }
 
     p_promise->addResult(true);
@@ -1197,45 +1414,7 @@ void MainAlgo::processClaimSymbols(const QString& p_strategyID,
                                    std::shared_ptr<QPromise<QStringList>> p_promise)
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
-    m_strategyManager.processClaimSymbols(p_strategyID, p_symbols, p_promise);
-}
-
-void MainAlgo::onStrategyCrashNotified()
-{
-    // Read crash notification from pipe
-    // The pipe was set up by StrategySignalHandler::initialize()
-    // and monitored by QSocketNotifier on this MainAlgo thread
-
-    OBJ_ASSUME_TRUE(m_crashNotifier != nullptr);
-
-    // Read from the pipe - keep reading until it's empty
-    const int fd = m_crashNotifier->socket();
-
-    OBJ_ASSUME_DIFF(fd, -1);
-
-    struct CrashNotification
-    {
-        char strategyID[256];
-        char errorMsg[256];
-        int signal;
-    };
-
-    CrashNotification notif;
-    ssize_t result = read(fd, &notif, sizeof(notif));
-
-    if (result != static_cast<ssize_t>(sizeof(notif)))
-    {
-        CRITICAL << "Failed to read crash notification from pipe:" << strerror(errno);
-        return;
-    }
-
-    QString strategyID = QString::fromStdString(std::string(notif.strategyID));
-    QString errorMsg = QString::fromStdString(std::string(notif.errorMsg));
-
-    CRITICAL << "Strategy thread crashed with signal:" << strategyID << "-" << errorMsg;
-
-    // Now safely call StrategyManager::markStrategyFailed on the same thread
-    m_strategyManager.markStrategyFailed(strategyID, errorMsg);
+    m_strategyManager->processClaimSymbols(p_strategyID, p_symbols, p_promise);
 }
 
 // onAggregatorBarUpdated/onAggregatorBarClosed removed — snapshot writes are now
@@ -1421,6 +1600,7 @@ void MainAlgo::resumeReplay()
 
 void MainAlgo::setReplaySpeed(Playback::Speed p_speed)
 {
+    m_replaySpeed = p_speed;
     DBClient::getInstance()->setReplaySpeed(p_speed);
 
     // Sync speed to OrderEmulator so latency is scaled correctly
@@ -1628,12 +1808,106 @@ MainAlgo::ActivityMetrics MainAlgo::getActivityMetrics(const QString& p_symbol) 
     return {sc->m_activity.tradeRateHz(), sc->m_activity.l2RateHz(), sc->m_activity.isActive()};
 }
 
+std::expected<QPointer<SymbolContext>, QString> MainAlgo::leaseControlSymbolContext(const QString& p_symbol)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+
+    const QString symbol = p_symbol.trimmed().toUpper();
+    if (symbol.isEmpty())
+    {
+        return std::unexpected("Symbol must not be empty");
+    }
+
+    QPointer<SymbolContext> sc = m_symbolContexts.value(symbol);
+    if (!m_controlSymbolLeaseExpirations.contains(symbol) || sc.isNull())
+    {
+        sc = acquireSymbolContext(symbol);
+        if (sc.isNull())
+        {
+            return std::unexpected(QString("Failed to acquire SymbolContext for %1").arg(symbol));
+        }
+    }
+
+    m_controlSymbolLeaseExpirations[symbol] =
+        QDateTime::currentDateTimeUtc().addMSecs(PlatformControlConstants::SYMBOL_CONTEXT_LEASE_TIMEOUT_MS);
+    return sc;
+}
+
+void MainAlgo::pruneExpiredControlSymbolLeases()
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    for (auto it = m_controlSymbolLeaseExpirations.begin(); it != m_controlSymbolLeaseExpirations.end();)
+    {
+        if (it.value() > now)
+        {
+            ++it;
+            continue;
+        }
+
+        const QString symbol = it.key();
+        it = m_controlSymbolLeaseExpirations.erase(it);
+        releaseSymbolContextRef(symbol);
+    }
+}
+
+std::expected<MainAlgo::MarketDataSnapshot, QString> MainAlgo::getMarketDataSnapshot(const QString& p_symbol,
+                                                                                     const int p_maxTrades)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+
+    if (p_maxTrades <= 0)
+    {
+        return std::unexpected("maxCount must be greater than 0");
+    }
+
+    QString symbol = p_symbol.trimmed().toUpper();
+    if (symbol.isEmpty())
+    {
+        symbol = getDisplayedSymbol();
+    }
+    if (symbol.isEmpty())
+    {
+        return std::unexpected("No symbol was provided and no symbol is currently displayed");
+    }
+
+    const auto leased = leaseControlSymbolContext(symbol);
+    if (!leased.has_value())
+    {
+        return std::unexpected(leased.error());
+    }
+
+    QPointer<SymbolContext> sc = leased.value();
+    OBJ_ASSUME_DIFF(sc, nullptr);
+
+    MarketDataSnapshot snapshot;
+    snapshot.symbol = symbol;
+    snapshot.activity = {sc->m_activity.tradeRateHz(), sc->m_activity.l2RateHz(), sc->m_activity.isActive()};
+
+    QReadLocker lock(&sc->m_displaySnapshot.lock);
+    snapshot.latestLevel2 = sc->m_displaySnapshot.latestLevel2;
+    snapshot.replayTime = sc->m_displaySnapshot.replayTime;
+
+    const QVector<Trade>& recentTrades = sc->m_displaySnapshot.recentTrades;
+    const int availableTrades = recentTrades.size();
+    const int copyCount = std::min(p_maxTrades, availableTrades);
+    snapshot.recentTrades.reserve(copyCount);
+    for (int index = availableTrades - copyCount; index < availableTrades; ++index)
+    {
+        snapshot.recentTrades.append(recentTrades.at(index));
+    }
+
+    return snapshot;
+}
+
 void MainAlgo::deleteAllSymbolContext()
 {
     INFO << "Deleting all stock instruments for clean mode transition";
 
     // Clear the displayed pointer first
     m_currentDisplayedSymbolContext = nullptr;
+    m_controlSymbolLeaseExpirations.clear();
 
     // Delete instruments directly (not deleteLater) so that each BarCache destructor
     // queues closeDatabase to DatabaseThread before the next createAndSetDisplayedSymbolContext
@@ -1657,14 +1931,16 @@ void MainAlgo::deleteAllSymbolContext()
 
 void MainAlgo::stopAllStrategies()
 {
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
     INFO << "Stopping all strategies for mode transition";
-    m_strategyManager.stopAllStrategies();
+    m_strategyManager->stopAllStrategies();
     INFO << "All strategies stopped";
 }
 
 void MainAlgo::restoreStrategiesState()
 {
-    m_strategyManager.restoreStrategiesState();
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+    m_strategyManager->restoreStrategiesState();
 }
 
 void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)
