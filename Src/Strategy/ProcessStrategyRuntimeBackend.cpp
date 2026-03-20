@@ -784,11 +784,6 @@ void ProcessStrategyRuntimeBackend::destroyRuntime()
 void ProcessStrategyRuntimeBackend::setupProcessObservers()
 {
     QObject::connect(&m_process,
-                     &QProcess::readyReadStandardOutput,
-                     &m_process,
-                     [this]() { captureProcessStream(QProcess::StandardOutput); });
-
-    QObject::connect(&m_process,
                      &QProcess::readyReadStandardError,
                      &m_process,
                      [this]() { captureProcessStream(QProcess::StandardError); });
@@ -811,7 +806,6 @@ void ProcessStrategyRuntimeBackend::setupProcessObservers()
                      &m_process,
                      [this](const int p_exitCode, const QProcess::ExitStatus p_exitStatus)
                      {
-                         captureProcessStream(QProcess::StandardOutput);
                          captureProcessStream(QProcess::StandardError);
                          cleanupSocketResources();
 

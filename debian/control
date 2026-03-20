@@ -17,7 +17,9 @@ Depends: ${shlibs:Depends}, ${misc:Depends},
 Description: Real-time algorithmic trading application
  L2Trader is a sophisticated trading platform built with Qt6 that connects
  to TradeStation APIs to provide real-time market data analysis, Level 2
- market depth visualization, and position tracking.
+ market depth visualization, and position tracking. The package also ships
+ bundled out-of-process strategy executables plus the initial MCP/control
+ command-line scaffolding.
  .
  Key Features:
   * Real-Time Market Data with Level 2 quotes

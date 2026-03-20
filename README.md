@@ -100,11 +100,18 @@ For detailed documentation, see:
    This installs a pre-commit hook that enforces `clang-format` on staged files.
 
 4. **Build the application**:
-   ```bash
-   mkdir -p build/GUI
-   cmake -S . -B build/GUI -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_GUI=ON -DBUILD_TESTS=OFF
+    ```bash
+    mkdir -p build/GUI
+    cmake -S . -B build/GUI -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_GUI=ON -DBUILD_TESTS=OFF
     cmake --build build/GUI -j4
-   ```
+    ```
+
+    This also builds the first `MCP/` scaffolding binaries under `build/GUI/bin/`:
+    - `l2trader-mcp-server`
+    - `l2trader-ctl`
+
+    These are the future agent/control integration entry points. For now they are
+    scaffolds while the platform-side control socket and MCP bridge are being wired in.
 
 5. **Run the application**:
     ```bash

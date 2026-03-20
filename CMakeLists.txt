@@ -228,6 +228,9 @@ add_subdirectory(Src)
 # Build strategies
 add_subdirectory(Strategies)
 
+# Build MCP tools
+add_subdirectory(MCP)
+
 if(BUILD_TESTS)
     find_package(Qt6 REQUIRED COMPONENTS Test)
     enable_testing()
