@@ -63,6 +63,11 @@ namespace
         return PlatformControlProtocol::serializeMessage(p_payload);
     }
 
+    void writeJsonRpcLine(const QJsonObject& p_payload)
+    {
+        std::cout << compactJsonLine(p_payload).constData();
+    }
+
     [[nodiscard]] QJsonObject emptyObjectSchema()
     {
         return QJsonObject{{"type", "object"}, {"properties", QJsonObject{}}};
@@ -478,6 +483,8 @@ int main(int argc, char* argv[])
     parser.addVersionOption();
     parser.process(app);
 
+    std::cout << std::unitbuf;
+
     QTextStream err(stderr);
     err << "l2trader-mcp-server ready - exposing L2Trader control tools over MCP stdio\n";
     err.flush();
@@ -509,8 +516,7 @@ int main(int argc, char* argv[])
         const auto parsedMessage = PlatformControlProtocol::parseMessage(QByteArray::fromStdString(line));
         if (!parsedMessage.has_value())
         {
-            std::cout << compactJsonLine(makeJsonRpcError(QJsonValue(), -32700, parsedMessage.error())).constData()
-                      << std::flush;
+            writeJsonRpcLine(makeJsonRpcError(QJsonValue(), -32700, parsedMessage.error()));
             continue;
         }
 
@@ -519,8 +525,7 @@ int main(int argc, char* argv[])
         const QJsonValue id = message.value("id");
         if (message.value("jsonrpc").toString() != "2.0" || method.isEmpty())
         {
-            std::cout << compactJsonLine(makeJsonRpcError(id, -32600, "Invalid JSON-RPC request")).constData()
-                      << std::flush;
+            writeJsonRpcLine(makeJsonRpcError(id, -32600, "Invalid JSON-RPC request"));
             continue;
         }
 
@@ -547,27 +552,25 @@ int main(int argc, char* argv[])
                  "queries, poll-style market-data tools, and basic order placement/cancellation over the platform "
                  "control socket."},
             };
-            std::cout << compactJsonLine(makeJsonRpcResponse(id, result)).constData() << std::flush;
+            writeJsonRpcLine(makeJsonRpcResponse(id, result));
             continue;
         }
 
         if (method == "ping")
         {
-            std::cout << compactJsonLine(makeJsonRpcResponse(id, QJsonObject{})).constData() << std::flush;
+            writeJsonRpcLine(makeJsonRpcResponse(id, QJsonObject{}));
             continue;
         }
 
         if (!initializeSeen)
         {
-            std::cout << compactJsonLine(makeJsonRpcError(id, -32000, "Server not initialized")).constData()
-                      << std::flush;
+            writeJsonRpcLine(makeJsonRpcError(id, -32000, "Server not initialized"));
             continue;
         }
 
         if (method == "tools/list")
         {
-            std::cout << compactJsonLine(makeJsonRpcResponse(id, QJsonObject{{"tools", buildToolList()}})).constData()
-                      << std::flush;
+            writeJsonRpcLine(makeJsonRpcResponse(id, QJsonObject{{"tools", buildToolList()}}));
             continue;
         }
 
@@ -579,9 +582,7 @@ int main(int argc, char* argv[])
 
             if (!supportedTools.contains(toolName))
             {
-                std::cout << compactJsonLine(makeJsonRpcError(id, -32602, QString("Unknown tool: %1").arg(toolName)))
-                                 .constData()
-                          << std::flush;
+                writeJsonRpcLine(makeJsonRpcError(id, -32602, QString("Unknown tool: %1").arg(toolName)));
                 continue;
             }
 
@@ -590,7 +591,7 @@ int main(int argc, char* argv[])
             if (!controlResponse.has_value())
             {
                 const QJsonObject result = makeTextContentResult(controlResponse.error(), true);
-                std::cout << compactJsonLine(makeJsonRpcResponse(id, result)).constData() << std::flush;
+                writeJsonRpcLine(makeJsonRpcResponse(id, result));
                 continue;
             }
 
@@ -598,13 +599,11 @@ int main(int argc, char* argv[])
             const bool isError = !controlResponse->value("ok").toBool(false);
             const QJsonObject result =
                 makeTextContentResult(QString::fromUtf8(controlJson), isError, controlResponse.value());
-            std::cout << compactJsonLine(makeJsonRpcResponse(id, result)).constData() << std::flush;
+            writeJsonRpcLine(makeJsonRpcResponse(id, result));
             continue;
         }
 
-        std::cout
-            << compactJsonLine(makeJsonRpcError(id, -32601, QString("Unknown method: %1").arg(method))).constData()
-            << std::flush;
+        writeJsonRpcLine(makeJsonRpcError(id, -32601, QString("Unknown method: %1").arg(method)));
     }
 
     return 0;
