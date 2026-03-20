@@ -233,6 +233,7 @@ class MainAlgo final : public QObject
     void stopBalancePolling();
     [[nodiscard]] Balance getCurrentBalance() const;
     [[nodiscard]] QString getActiveAccountId() const;
+    [[nodiscard]] QVector<Position> getCurrentPositionsSnapshot() const;
 
     /// @brief Get the currently displayed stock symbol
     [[nodiscard]] QString getDisplayedSymbol() const;
@@ -509,6 +510,7 @@ class MainAlgo final : public QObject
 
     Account m_activeAccount;
     Balance m_currentBalance;
+    QMap<QString, Position> m_currentPositions; // positionID -> latest non-historical position snapshot
 
     std::unique_ptr<QTimer> m_balancePollingTimer;
 

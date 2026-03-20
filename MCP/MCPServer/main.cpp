@@ -195,6 +195,53 @@ namespace
         };
     }
 
+    [[nodiscard]] QJsonArray orderStatusValues()
+    {
+        return QJsonArray{
+            "ACK", "BRO", "CAN", "EXP", "FLL", "FLP", "FPR", "LAT", "OPN", "OUT",
+            "REJ", "UCH", "UCN", "TSC", "RJC", "DON", "RSN", "CND", "OSO", "SUS",
+        };
+    }
+
+    [[nodiscard]] QJsonObject getPositionsSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"accountId", optionalAccountIdSchema()},
+                 {"symbol", optionalSymbolSchema()},
+             }},
+        };
+    }
+
+    [[nodiscard]] QJsonObject getOrdersSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"accountId", optionalAccountIdSchema()},
+                 {"symbol", optionalSymbolSchema()},
+                 {"status",
+                  QJsonObject{
+                      {"type", "string"},
+                      {"enum", orderStatusValues()},
+                      {"description", "Optional TradeStation order status filter."},
+                  }},
+                 {"maxCount",
+                  QJsonObject{
+                      {"type", "integer"},
+                      {"minimum", 1},
+                      {"maximum", PlatformControlConstants::MAX_TRADES_SNAPSHOT_MAX_COUNT},
+                      {"description",
+                       QString("Maximum number of matching orders to return. Defaults to %1.")
+                           .arg(PlatformControlConstants::DEFAULT_TRADES_SNAPSHOT_MAX_COUNT)},
+                  }},
+             }},
+        };
+    }
+
     [[nodiscard]] QJsonArray tradeActionValues()
     {
         return QJsonArray{
@@ -302,6 +349,19 @@ namespace
             {"title", "Get balance"},
             {"description", "Read the current account balance for the active or requested account."},
             {"inputSchema", getBalanceSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetPositions},
+            {"title", "Get positions"},
+            {"description", "Read the current open positions for the active or requested account."},
+            {"inputSchema", getPositionsSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetOrders},
+            {"title", "Get orders"},
+            {"description",
+             "Read recent orders for the active or requested account, with optional symbol/status filters."},
+            {"inputSchema", getOrdersSchema()},
         });
         tools.append(QJsonObject{
             {"name", PlatformControlProtocol::kCommandGetLevel2},
@@ -426,24 +486,16 @@ int main(int argc, char* argv[])
     bool initializeSeen = false;
 
     const QSet<QString> supportedTools = {
-        PlatformControlProtocol::kCommandStatus,
-        PlatformControlProtocol::kCommandGetDisplayedSymbol,
-        PlatformControlProtocol::kCommandGetAccounts,
-        PlatformControlProtocol::kCommandGetBalance,
-        PlatformControlProtocol::kCommandGetLevel2,
-        PlatformControlProtocol::kCommandGetTradesSnapshot,
-        PlatformControlProtocol::kCommandGetBars,
-        PlatformControlProtocol::kCommandGetActivityMetrics,
-        PlatformControlProtocol::kCommandPlaceOrder,
-        PlatformControlProtocol::kCommandCancelOrder,
-        PlatformControlProtocol::kCommandEnterReplay,
-        PlatformControlProtocol::kCommandStartReplay,
-        PlatformControlProtocol::kCommandPauseReplay,
-        PlatformControlProtocol::kCommandResumeReplay,
-        PlatformControlProtocol::kCommandSetReplaySpeed,
-        PlatformControlProtocol::kCommandPreloadReplay,
-        PlatformControlProtocol::kCommandExitReplay,
-        PlatformControlProtocol::kCommandSetTradingMode,
+        PlatformControlProtocol::kCommandStatus,         PlatformControlProtocol::kCommandGetDisplayedSymbol,
+        PlatformControlProtocol::kCommandGetAccounts,    PlatformControlProtocol::kCommandGetBalance,
+        PlatformControlProtocol::kCommandGetPositions,   PlatformControlProtocol::kCommandGetOrders,
+        PlatformControlProtocol::kCommandGetLevel2,      PlatformControlProtocol::kCommandGetTradesSnapshot,
+        PlatformControlProtocol::kCommandGetBars,        PlatformControlProtocol::kCommandGetActivityMetrics,
+        PlatformControlProtocol::kCommandPlaceOrder,     PlatformControlProtocol::kCommandCancelOrder,
+        PlatformControlProtocol::kCommandEnterReplay,    PlatformControlProtocol::kCommandStartReplay,
+        PlatformControlProtocol::kCommandPauseReplay,    PlatformControlProtocol::kCommandResumeReplay,
+        PlatformControlProtocol::kCommandSetReplaySpeed, PlatformControlProtocol::kCommandPreloadReplay,
+        PlatformControlProtocol::kCommandExitReplay,     PlatformControlProtocol::kCommandSetTradingMode,
     };
 
     std::string line;
@@ -491,8 +543,9 @@ int main(int argc, char* argv[])
                      {"version", app.applicationVersion()},
                  }},
                 {"instructions",
-                 "This MCP server exposes L2Trader platform-control tools, account/balance queries, poll-style "
-                 "market-data tools, and basic order placement/cancellation over the platform control socket."},
+                 "This MCP server exposes L2Trader platform-control tools, account/balance queries, position/order "
+                 "queries, poll-style market-data tools, and basic order placement/cancellation over the platform "
+                 "control socket."},
             };
             std::cout << compactJsonLine(makeJsonRpcResponse(id, result)).constData() << std::flush;
             continue;

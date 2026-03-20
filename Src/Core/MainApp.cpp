@@ -18,6 +18,7 @@
 #include <QJsonDocument>
 #include <QJsonValue>
 #include <unistd.h>
+#include <algorithm>
 #include <cerrno>
 #include <cstring>
 #ifdef GUI_ENABLED
@@ -149,6 +150,15 @@ namespace
             return QJsonValue(QJsonValue::Null);
         }
         return p_value->toString(Qt::ISODateWithMs);
+    }
+
+    [[nodiscard]] QJsonValue dateTimeToJsonValue(const QDateTime& p_value)
+    {
+        if (!p_value.isValid())
+        {
+            return QJsonValue(QJsonValue::Null);
+        }
+        return p_value.toString(Qt::ISODateWithMs);
     }
 
     [[nodiscard]] QJsonValue optionalDoubleToJsonValue(const std::optional<double>& p_value)
@@ -293,6 +303,77 @@ namespace
             {"marketValue", p_balance.getMarketValue()},
             {"todaysProfitLoss", p_balance.getTodaysProfitLoss()},
             {"unclearedDeposit", p_balance.getUnclearedDeposit()},
+        };
+    }
+
+    [[nodiscard]] QJsonObject serializePosition(const Position& p_position)
+    {
+        return QJsonObject{
+            {"positionId", p_position.getPositionID()},
+            {"accountId", p_position.getAccountID()},
+            {"symbol", p_position.getSymbol()},
+            {"quantity", p_position.getQuantity()},
+            {"averagePrice", p_position.getAveragePrice()},
+            {"last", p_position.getLast()},
+            {"bid", p_position.getBid()},
+            {"ask", p_position.getAsk()},
+            {"markToMarketPrice", p_position.getMarkToMarketPrice()},
+            {"marketValue", p_position.getMarketValue()},
+            {"totalCost", p_position.getTotalCost()},
+            {"unrealizedProfitLoss", p_position.getUnrealizedProfitLoss()},
+            {"unrealizedProfitLossPercent", p_position.getUnrealizedProfitLossPercent()},
+            {"unrealizedProfitLossQty", p_position.getUnrealizedProfitLossQty()},
+            {"todaysProfitLoss", p_position.getTodaysProfitLoss()},
+            {"longShort", p_position.getLongShort()},
+            {"assetType", p_position.getAssetType()},
+            {"conversionRate", p_position.getConversionRate()},
+            {"dayTradeRequirement", p_position.getDayTradeRequirement()},
+            {"initialRequirement", p_position.getInitialRequirement()},
+            {"maintenanceMargin", p_position.getMaintenanceMargin()},
+            {"expirationDate", dateTimeToJsonValue(p_position.getExpirationDate())},
+            {"timestamp", dateTimeToJsonValue(p_position.getTimestamp())},
+            {"deleted", p_position.isDeleted()},
+        };
+    }
+
+    [[nodiscard]] QJsonArray serializePositions(const QVector<Position>& p_positions)
+    {
+        QJsonArray items;
+        for (const Position& position: p_positions)
+        {
+            items.append(serializePosition(position));
+        }
+        return items;
+    }
+
+    [[nodiscard]] QJsonObject serializeOrder(const Order& p_order, std::optional<qint64> p_latencyMs = std::nullopt)
+    {
+        return QJsonObject{
+            {"orderId", p_order.getOrderID()},
+            {"accountId", p_order.getAccountID()},
+            {"symbol", p_order.getSymbol()},
+            {"quantity", p_order.getQuantity()},
+            {"tradeAction", p_order.getTradeAction()},
+            {"duration", p_order.getDuration()},
+            {"orderType", OrderType::toString(p_order.getOrderType().type)},
+            {"status", QtEnum::toString(p_order.getOrderStatus())},
+            {"statusDescription", p_order.getStatusDescription()},
+            {"limitPrice", optionalDoubleToJsonValue(p_order.getLimitPrice())},
+            {"stopPrice", optionalDoubleToJsonValue(p_order.getStopPrice())},
+            {"filledPrice", p_order.getFilledPrice()},
+            {"openedDateTime", dateTimeToJsonValue(p_order.getOpenedDateTime())},
+            {"closedDateTime", dateTimeToJsonValue(p_order.getClosedDateTime())},
+            {"rejectReason",
+             p_order.getRejectReason().has_value() ? QJsonValue(p_order.getRejectReason().value())
+                                                   : QJsonValue(QJsonValue::Null)},
+            {"latencyMs",
+             p_latencyMs.has_value()
+                 ? QJsonValue(static_cast<qint64>(p_latencyMs.value()))
+                 : (p_order.getLatencyMs().has_value() ? QJsonValue(static_cast<qint64>(p_order.getLatencyMs().value()))
+                                                       : QJsonValue(QJsonValue::Null))},
+            {"strategyLog",
+             p_order.getStrategyLog().has_value() ? QJsonValue(p_order.getStrategyLog().value())
+                                                  : QJsonValue(QJsonValue::Null)},
         };
     }
 
@@ -782,6 +863,39 @@ namespace
         return std::unexpected(
             QString("Unsupported duration '%1'. Supported values: day, day-plus, gtc, gtc-plus, ioc, fok")
                 .arg(duration.value()));
+    }
+
+    [[nodiscard]] std::expected<std::optional<Order::Status>, QString>
+    parseOptionalOrderStatus(const QJsonObject& p_arguments)
+    {
+        const auto status = parseOptionalStringForKey(p_arguments, "status");
+        if (!status.has_value())
+        {
+            return std::unexpected(status.error());
+        }
+        if (status->isEmpty())
+        {
+            return std::nullopt;
+        }
+
+        const QString normalized = status->trimmed().toUpper();
+        const QMetaEnum meta = QMetaEnum::fromType<Order::Status>();
+        bool ok = false;
+        const int value = meta.keyToValue(normalized.toLatin1().constData(), &ok);
+        if (ok)
+        {
+            return static_cast<Order::Status>(value);
+        }
+
+        QStringList supported;
+        supported.reserve(meta.keyCount());
+        for (int index = 0; index < meta.keyCount(); ++index)
+        {
+            supported.append(QString::fromLatin1(meta.key(index)));
+        }
+
+        return std::unexpected(
+            QString("Unsupported status '%1'. Supported values: %2").arg(status.value(), supported.join(", ")));
     }
 
     [[nodiscard]] QDate configuredReplayDate()
@@ -1563,6 +1677,181 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
         result["usedCachedActiveBalance"] = usedCachedActiveBalance;
         result["balance"] = serializeBalance(resolvedBalance);
         return makeControlResponse(true, "Balance retrieved.", result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandGetPositions)
+    {
+        const auto parsedAccountId = parseOptionalStringForKey(arguments, "accountId");
+        if (!parsedAccountId.has_value())
+        {
+            return makeControlResponse(false, "Positions request rejected.", {}, parsedAccountId.error());
+        }
+
+        const auto parsedSymbol = parseOptionalSymbol(arguments);
+        if (!parsedSymbol.has_value())
+        {
+            return makeControlResponse(false, "Positions request rejected.", {}, parsedSymbol.error());
+        }
+
+        QString activeAccountId;
+        QVector<Position> positions;
+        const bool invoked = QMetaObject::invokeMethod(
+            mainAlgo,
+            [&]()
+            {
+                activeAccountId = this->mainAlgo->getActiveAccountId();
+                positions = this->mainAlgo->getCurrentPositionsSnapshot();
+            },
+            Qt::BlockingQueuedConnection);
+        ASSUME_TRUE(invoked);
+
+        const QString resolvedAccountId = parsedAccountId->isEmpty() ? activeAccountId : parsedAccountId.value();
+        QVector<Position> filteredPositions;
+        filteredPositions.reserve(positions.size());
+        for (const Position& position: positions)
+        {
+            const QString quantity = position.getQuantity().trimmed();
+            if (position.isDeleted() || quantity == "0" || quantity == "0.0" || quantity == "0.00")
+            {
+                continue;
+            }
+            if (!resolvedAccountId.isEmpty() && position.getAccountID() != resolvedAccountId)
+            {
+                continue;
+            }
+            if (!parsedSymbol->isEmpty() && position.getSymbol() != parsedSymbol.value())
+            {
+                continue;
+            }
+            filteredPositions.append(position);
+        }
+
+        std::sort(filteredPositions.begin(),
+                  filteredPositions.end(),
+                  [](const Position& lhs, const Position& rhs)
+                  {
+                      if (lhs.getSymbol() == rhs.getSymbol())
+                      {
+                          return lhs.getPositionID() < rhs.getPositionID();
+                      }
+                      return lhs.getSymbol() < rhs.getSymbol();
+                  });
+
+        QJsonObject result;
+        result["requestedAccountId"] =
+            parsedAccountId->isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(parsedAccountId.value());
+        result["accountId"] =
+            resolvedAccountId.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(resolvedAccountId);
+        result["activeAccountId"] =
+            activeAccountId.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(activeAccountId);
+        result["symbol"] = parsedSymbol->isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(parsedSymbol.value());
+        result["positionCount"] = filteredPositions.size();
+        result["positions"] = serializePositions(filteredPositions);
+        return makeControlResponse(true,
+                                   filteredPositions.isEmpty() ? "No matching positions found."
+                                                               : "Positions retrieved.",
+                                   result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandGetOrders)
+    {
+        const auto parsedAccountId = parseOptionalStringForKey(arguments, "accountId");
+        if (!parsedAccountId.has_value())
+        {
+            return makeControlResponse(false, "Orders request rejected.", {}, parsedAccountId.error());
+        }
+
+        const auto parsedSymbol = parseOptionalSymbol(arguments);
+        if (!parsedSymbol.has_value())
+        {
+            return makeControlResponse(false, "Orders request rejected.", {}, parsedSymbol.error());
+        }
+
+        const auto parsedStatus = parseOptionalOrderStatus(arguments);
+        if (!parsedStatus.has_value())
+        {
+            return makeControlResponse(false, "Orders request rejected.", {}, parsedStatus.error());
+        }
+
+        const auto parsedMaxCount = parseOptionalMaxCount(arguments);
+        if (!parsedMaxCount.has_value())
+        {
+            return makeControlResponse(false, "Orders request rejected.", {}, parsedMaxCount.error());
+        }
+
+        QString activeAccountId;
+        const bool invoked = QMetaObject::invokeMethod(
+            mainAlgo,
+            [&activeAccountId, this]() { activeAccountId = this->mainAlgo->getActiveAccountId(); },
+            Qt::BlockingQueuedConnection);
+        ASSUME_TRUE(invoked);
+
+        OrdersDatabase* ordersDb = OrdersDatabase::getInstance();
+        ASSUME_DIFF(ordersDb, nullptr);
+        const auto ordersById = ordersDb->loadAllOrders();
+
+        const QString resolvedAccountId = parsedAccountId->isEmpty() ? activeAccountId : parsedAccountId.value();
+        QVector<std::tuple<Order, std::optional<qint64>>> filteredOrders;
+        filteredOrders.reserve(ordersById.size());
+        for (auto it = ordersById.constBegin(); it != ordersById.constEnd(); ++it)
+        {
+            const Order& order = std::get<Order>(it.value());
+            const std::optional<qint64>& latencyMs = std::get<std::optional<qint64>>(it.value());
+
+            if (!resolvedAccountId.isEmpty() && order.getAccountID() != resolvedAccountId)
+            {
+                continue;
+            }
+            if (!parsedSymbol->isEmpty() && order.getSymbol() != parsedSymbol.value())
+            {
+                continue;
+            }
+            if (parsedStatus.value().has_value() && order.getOrderStatus() != parsedStatus.value().value())
+            {
+                continue;
+            }
+
+            filteredOrders.append(std::make_tuple(order, latencyMs));
+        }
+
+        std::sort(filteredOrders.begin(),
+                  filteredOrders.end(),
+                  [](const auto& lhs, const auto& rhs)
+                  {
+                      const Order& leftOrder = std::get<Order>(lhs);
+                      const Order& rightOrder = std::get<Order>(rhs);
+                      if (leftOrder.getOpenedDateTime() == rightOrder.getOpenedDateTime())
+                      {
+                          return leftOrder.getOrderID() > rightOrder.getOrderID();
+                      }
+                      return leftOrder.getOpenedDateTime() > rightOrder.getOpenedDateTime();
+                  });
+
+        const qsizetype limitedCount = std::min(filteredOrders.size(), static_cast<qsizetype>(parsedMaxCount.value()));
+        QJsonArray serializedOrders;
+        for (qsizetype index = 0; index < limitedCount; ++index)
+        {
+            const auto& [order, latencyMs] = filteredOrders.at(index);
+            serializedOrders.append(serializeOrder(order, latencyMs));
+        }
+
+        QJsonObject result;
+        result["requestedAccountId"] =
+            parsedAccountId->isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(parsedAccountId.value());
+        result["accountId"] =
+            resolvedAccountId.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(resolvedAccountId);
+        result["activeAccountId"] =
+            activeAccountId.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(activeAccountId);
+        result["symbol"] = parsedSymbol->isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(parsedSymbol.value());
+        result["status"] = parsedStatus.value().has_value() ? QJsonValue(QtEnum::toString(parsedStatus.value().value()))
+                                                            : QJsonValue(QJsonValue::Null);
+        result["maxCount"] = parsedMaxCount.value();
+        result["orderCount"] = limitedCount;
+        result["totalMatches"] = filteredOrders.size();
+        result["orders"] = serializedOrders;
+        return makeControlResponse(true,
+                                   filteredOrders.isEmpty() ? "No matching orders found." : "Orders retrieved.",
+                                   result);
     }
 
     if (command == PlatformControlProtocol::kCommandGetLevel2)

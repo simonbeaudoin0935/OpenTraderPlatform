@@ -485,6 +485,8 @@ void MainAlgo::onReceivedAsyncGetAccounts(const QVector<Account>& results)
 void MainAlgo::onReceivedNewPosition(const QString& account, Position position)
 {
     //DEBUG << "Received new position:" << position.toJsonString();
+    Q_UNUSED(account);
+    m_currentPositions[position.getPositionID()] = position;
     emit receivedNewPosition(account, position);
 }
 
@@ -492,6 +494,7 @@ void MainAlgo::onPositionDeleted(const QString& account, const QString& position
 {
     Q_UNUSED(account);
     DEBUG << "Position deleted:" << positionID;
+    m_currentPositions.remove(positionID);
     emit positionDeleted(account, positionID);
 }
 
@@ -503,6 +506,7 @@ void MainAlgo::onLoadedPositionsFromDatabase(const QString& account, QMap<QStrin
     for (auto it = positions.constBegin(); it != positions.constEnd(); ++it)
     {
         const Position& position = it.value();
+        m_currentPositions[position.getPositionID()] = position;
         DEBUG << "Emitting loaded position:" << position.getPositionID();
         emit receivedNewPosition(account, position);
     }
@@ -584,6 +588,11 @@ void MainAlgo::stopBalancePolling()
 [[nodiscard]] QString MainAlgo::getActiveAccountId() const
 {
     return m_activeAccount.getAccountId();
+}
+
+[[nodiscard]] QVector<Position> MainAlgo::getCurrentPositionsSnapshot() const
+{
+    return m_currentPositions.values().toVector();
 }
 
 [[nodiscard]] QString MainAlgo::getDisplayedSymbol() const
