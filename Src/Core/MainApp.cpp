@@ -151,6 +151,15 @@ namespace
         return p_value->toString(Qt::ISODateWithMs);
     }
 
+    [[nodiscard]] QJsonValue optionalDoubleToJsonValue(const std::optional<double>& p_value)
+    {
+        if (!p_value.has_value())
+        {
+            return QJsonValue(QJsonValue::Null);
+        }
+        return p_value.value();
+    }
+
     [[nodiscard]] QJsonObject serializeBar(const Bar& p_bar)
     {
         return QJsonObject{
@@ -233,6 +242,115 @@ namespace
             {"l2RateHz", p_metrics.l2RateHz},
             {"isActive", p_metrics.isActive},
         };
+    }
+
+    [[nodiscard]] QJsonObject serializeOrderResultItem(const OrderResultItem& p_item)
+    {
+        QJsonObject item{
+            {"orderId", p_item.getOrderID()},
+            {"message", p_item.getMessage()},
+        };
+        if (p_item.getError().has_value())
+        {
+            item["error"] = p_item.getError().value();
+        }
+        return item;
+    }
+
+    [[nodiscard]] QJsonObject serializePlaceOrderResult(const PlaceOrderResult& p_result)
+    {
+        QJsonArray orders;
+        for (const OrderResultItem& item: p_result.getOrders())
+        {
+            orders.append(serializeOrderResultItem(item));
+        }
+
+        QJsonArray errors;
+        for (const OrderResultItem& item: p_result.getErrors())
+        {
+            errors.append(serializeOrderResultItem(item));
+        }
+
+        return QJsonObject{
+            {"orders", orders},
+            {"errors", errors},
+            {"hasErrors", p_result.hasErrors()},
+            {"allSuccessful", p_result.isAllSuccessful()},
+        };
+    }
+
+    [[nodiscard]] QJsonObject serializeCancelOrderResult(const CancelOrderResult& p_result)
+    {
+        QJsonObject item{
+            {"orderId", p_result.getOrderID()},
+            {"message", p_result.getMessage()},
+            {"isError", p_result.isError()},
+        };
+        if (p_result.getError().has_value())
+        {
+            item["error"] = p_result.getError().value();
+        }
+        return item;
+    }
+
+    [[nodiscard]] QString tradeActionToJsonString(TradeAction p_action)
+    {
+        switch (p_action)
+        {
+        case TradeAction::Buy:
+            return "buy";
+        case TradeAction::Sell:
+            return "sell";
+        case TradeAction::BuyToCover:
+            return "buy-to-cover";
+        case TradeAction::SellShort:
+            return "sell-short";
+        case TradeAction::BuyToOpen:
+            return "buy-to-open";
+        case TradeAction::BuyToClose:
+            return "buy-to-close";
+        case TradeAction::SellToOpen:
+            return "sell-to-open";
+        case TradeAction::SellToClose:
+            return "sell-to-close";
+        }
+
+        return "unknown";
+    }
+
+    [[nodiscard]] QString orderDurationToJsonString(OrderDuration p_duration)
+    {
+        switch (p_duration)
+        {
+        case OrderDuration::Day:
+            return "day";
+        case OrderDuration::DayPlus:
+            return "day-plus";
+        case OrderDuration::GTC:
+            return "gtc";
+        case OrderDuration::GTCPlus:
+            return "gtc-plus";
+        case OrderDuration::IOC:
+            return "ioc";
+        case OrderDuration::FOK:
+            return "fok";
+        case OrderDuration::GTD:
+            return "gtd";
+        case OrderDuration::GTDPlus:
+            return "gtd-plus";
+        case OrderDuration::Opening:
+            return "opening";
+        case OrderDuration::OnClose:
+            return "on-close";
+        case OrderDuration::OneMinute:
+            return "one-minute";
+        case OrderDuration::ThreeMinutes:
+            return "three-minutes";
+        case OrderDuration::FiveMinutes:
+            return "five-minutes";
+        }
+
+        return "unknown";
     }
 
     template<typename T> [[nodiscard]] T waitForFutureResult(QFuture<T> p_future)
@@ -345,6 +463,129 @@ namespace
         return symbolValue.toString().trimmed().toUpper();
     }
 
+    [[nodiscard]] std::expected<QString, QString> parseRequiredStringForKey(const QJsonObject& p_arguments,
+                                                                            const QString& p_key)
+    {
+        const QJsonValue value = p_arguments.value(p_key);
+        if (!value.isString())
+        {
+            return std::unexpected(QString("Missing required '%1' argument").arg(p_key));
+        }
+
+        const QString stringValue = value.toString().trimmed();
+        if (stringValue.isEmpty())
+        {
+            return std::unexpected(QString("Missing required '%1' argument").arg(p_key));
+        }
+
+        return stringValue;
+    }
+
+    [[nodiscard]] std::expected<QString, QString> parseOptionalStringForKey(const QJsonObject& p_arguments,
+                                                                            const QString& p_key)
+    {
+        const QJsonValue value = p_arguments.value(p_key);
+        if (value.isUndefined() || value.isNull())
+        {
+            return QString();
+        }
+        if (!value.isString())
+        {
+            return std::unexpected(QString("Argument '%1' must be a string").arg(p_key));
+        }
+        return value.toString().trimmed();
+    }
+
+    [[nodiscard]] QString normalizeToken(QString p_value)
+    {
+        QString normalized;
+        normalized.reserve(p_value.size());
+        for (const QChar ch: p_value.trimmed())
+        {
+            if (ch.isSpace() || ch == '-' || ch == '_')
+            {
+                continue;
+            }
+            normalized.append(ch.toLower());
+        }
+        return normalized;
+    }
+
+    [[nodiscard]] std::expected<int, QString> parseRequiredPositiveIntForKey(const QJsonObject& p_arguments,
+                                                                             const QString& p_key)
+    {
+        const QJsonValue value = p_arguments.value(p_key);
+        if (value.isUndefined())
+        {
+            return std::unexpected(QString("Missing required '%1' argument").arg(p_key));
+        }
+
+        int parsedValue = 0;
+        if (value.isDouble())
+        {
+            const double doubleValue = value.toDouble();
+            parsedValue = static_cast<int>(doubleValue);
+            if (doubleValue != static_cast<double>(parsedValue))
+            {
+                return std::unexpected(QString("Argument '%1' must be an integer").arg(p_key));
+            }
+        }
+        else if (value.isString())
+        {
+            bool ok = false;
+            parsedValue = value.toString().trimmed().toInt(&ok);
+            if (!ok)
+            {
+                return std::unexpected(QString("Argument '%1' must be an integer").arg(p_key));
+            }
+        }
+        else
+        {
+            return std::unexpected(QString("Argument '%1' must be an integer").arg(p_key));
+        }
+
+        if (parsedValue <= 0)
+        {
+            return std::unexpected(QString("Argument '%1' must be greater than 0").arg(p_key));
+        }
+        return parsedValue;
+    }
+
+    [[nodiscard]] std::expected<std::optional<double>, QString>
+    parseOptionalPositiveDoubleForKey(const QJsonObject& p_arguments, const QString& p_key)
+    {
+        const QJsonValue value = p_arguments.value(p_key);
+        if (value.isUndefined() || value.isNull())
+        {
+            return std::nullopt;
+        }
+
+        double parsedValue = 0.0;
+        if (value.isDouble())
+        {
+            parsedValue = value.toDouble();
+        }
+        else if (value.isString())
+        {
+            bool ok = false;
+            parsedValue = value.toString().trimmed().toDouble(&ok);
+            if (!ok)
+            {
+                return std::unexpected(QString("Argument '%1' must be a number").arg(p_key));
+            }
+        }
+        else
+        {
+            return std::unexpected(QString("Argument '%1' must be a number").arg(p_key));
+        }
+
+        if (parsedValue <= 0.0)
+        {
+            return std::unexpected(QString("Argument '%1' must be greater than 0").arg(p_key));
+        }
+        return parsedValue;
+    }
+
     [[nodiscard]] std::expected<int, QString> parseOptionalMaxCount(const QJsonObject& p_arguments)
     {
         const QJsonValue maxCountValue = p_arguments.value("maxCount");
@@ -403,6 +644,92 @@ namespace
                                        .arg(timeFrame, PlatformControlProtocol::supportedBarTimeFrames().join(", ")));
         }
         return stringToTimeFrame(timeFrame);
+    }
+
+    [[nodiscard]] std::expected<TradeAction, QString> parseRequiredTradeAction(const QJsonObject& p_arguments)
+    {
+        const auto tradeAction = parseRequiredStringForKey(p_arguments, "tradeAction");
+        if (!tradeAction.has_value())
+        {
+            return std::unexpected(tradeAction.error());
+        }
+
+        const QString normalized = normalizeToken(tradeAction.value());
+        if (normalized == "buy")
+            return TradeAction::Buy;
+        if (normalized == "sell")
+            return TradeAction::Sell;
+        if (normalized == "buytocover")
+            return TradeAction::BuyToCover;
+        if (normalized == "sellshort")
+            return TradeAction::SellShort;
+        if (normalized == "buytoopen")
+            return TradeAction::BuyToOpen;
+        if (normalized == "buytoclose")
+            return TradeAction::BuyToClose;
+        if (normalized == "selltoopen")
+            return TradeAction::SellToOpen;
+        if (normalized == "selltoclose")
+            return TradeAction::SellToClose;
+
+        return std::unexpected(
+            QString("Unsupported tradeAction '%1'. Supported values: buy, sell, buy-to-cover, sell-short, "
+                    "buy-to-open, buy-to-close, sell-to-open, sell-to-close")
+                .arg(tradeAction.value()));
+    }
+
+    [[nodiscard]] std::expected<OrderType::Type, QString> parseRequiredOrderType(const QJsonObject& p_arguments)
+    {
+        const auto orderType = parseRequiredStringForKey(p_arguments, "orderType");
+        if (!orderType.has_value())
+        {
+            return std::unexpected(orderType.error());
+        }
+
+        const QString normalized = normalizeToken(orderType.value());
+        if (normalized == "market")
+            return OrderType::Type::Market;
+        if (normalized == "limit")
+            return OrderType::Type::Limit;
+        if (normalized == "stopmarket")
+            return OrderType::Type::StopMarket;
+        if (normalized == "stoplimit")
+            return OrderType::Type::StopLimit;
+
+        return std::unexpected(
+            QString("Unsupported orderType '%1'. Supported values: market, limit, stop-market, stop-limit")
+                .arg(orderType.value()));
+    }
+
+    [[nodiscard]] std::expected<OrderDuration, QString> parseOptionalOrderDuration(const QJsonObject& p_arguments)
+    {
+        const auto duration = parseOptionalStringForKey(p_arguments, "duration");
+        if (!duration.has_value())
+        {
+            return std::unexpected(duration.error());
+        }
+        if (duration->isEmpty())
+        {
+            return OrderDuration::Day;
+        }
+
+        const QString normalized = normalizeToken(duration.value());
+        if (normalized == "day")
+            return OrderDuration::Day;
+        if (normalized == "dayplus")
+            return OrderDuration::DayPlus;
+        if (normalized == "gtc")
+            return OrderDuration::GTC;
+        if (normalized == "gtcplus")
+            return OrderDuration::GTCPlus;
+        if (normalized == "ioc")
+            return OrderDuration::IOC;
+        if (normalized == "fok")
+            return OrderDuration::FOK;
+
+        return std::unexpected(
+            QString("Unsupported duration '%1'. Supported values: day, day-plus, gtc, gtc-plus, ioc, fok")
+                .arg(duration.value()));
     }
 
     [[nodiscard]] QDate configuredReplayDate()
@@ -1263,6 +1590,177 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
         result["barCount"] = resolvedBars.value()->size();
         result["bars"] = serializeBars(*resolvedBars.value());
         return makeControlResponse(true, "Historical bars retrieved.", result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandPlaceOrder)
+    {
+        const auto parsedAccountId = parseOptionalStringForKey(arguments, "accountId");
+        if (!parsedAccountId.has_value())
+        {
+            return makeControlResponse(false, "Order placement request rejected.", {}, parsedAccountId.error());
+        }
+
+        const auto parsedSymbol = parseRequiredStringForKey(arguments, "symbol");
+        if (!parsedSymbol.has_value())
+        {
+            return makeControlResponse(false, "Order placement request rejected.", {}, parsedSymbol.error());
+        }
+
+        const auto parsedTradeAction = parseRequiredTradeAction(arguments);
+        if (!parsedTradeAction.has_value())
+        {
+            return makeControlResponse(false, "Order placement request rejected.", {}, parsedTradeAction.error());
+        }
+
+        const auto parsedOrderType = parseRequiredOrderType(arguments);
+        if (!parsedOrderType.has_value())
+        {
+            return makeControlResponse(false, "Order placement request rejected.", {}, parsedOrderType.error());
+        }
+
+        const auto parsedQuantity = parseRequiredPositiveIntForKey(arguments, "quantity");
+        if (!parsedQuantity.has_value())
+        {
+            return makeControlResponse(false, "Order placement request rejected.", {}, parsedQuantity.error());
+        }
+
+        const auto parsedDuration = parseOptionalOrderDuration(arguments);
+        if (!parsedDuration.has_value())
+        {
+            return makeControlResponse(false, "Order placement request rejected.", {}, parsedDuration.error());
+        }
+
+        const auto parsedLimitPrice = parseOptionalPositiveDoubleForKey(arguments, "limitPrice");
+        if (!parsedLimitPrice.has_value())
+        {
+            return makeControlResponse(false, "Order placement request rejected.", {}, parsedLimitPrice.error());
+        }
+
+        const auto parsedStopPrice = parseOptionalPositiveDoubleForKey(arguments, "stopPrice");
+        if (!parsedStopPrice.has_value())
+        {
+            return makeControlResponse(false, "Order placement request rejected.", {}, parsedStopPrice.error());
+        }
+
+        QString resolvedAccountId = parsedAccountId.value();
+        if (resolvedAccountId.isEmpty())
+        {
+            const bool invoked = QMetaObject::invokeMethod(
+                mainAlgo,
+                [&resolvedAccountId, this]() { resolvedAccountId = this->mainAlgo->getActiveAccountId(); },
+                Qt::BlockingQueuedConnection);
+            ASSUME_TRUE(invoked);
+        }
+
+        if (resolvedAccountId.isEmpty())
+        {
+            return makeControlResponse(false,
+                                       "Order placement request rejected.",
+                                       {},
+                                       "No accountId was provided and the platform has no active account selected");
+        }
+
+        PlaceOrderRequest orderRequest;
+        orderRequest.setAccountID(resolvedAccountId);
+        orderRequest.setSymbol(parsedSymbol->trimmed().toUpper());
+        orderRequest.setTradeAction(parsedTradeAction.value());
+        orderRequest.setOrderType(parsedOrderType.value());
+        orderRequest.setQuantity(parsedQuantity.value());
+        orderRequest.setTimeInForce(TimeInForce(parsedDuration.value()));
+        if (parsedLimitPrice.value().has_value())
+        {
+            orderRequest.setLimitPrice(parsedLimitPrice.value().value());
+        }
+        if (parsedStopPrice.value().has_value())
+        {
+            orderRequest.setStopPrice(parsedStopPrice.value().value());
+        }
+
+        if (!orderRequest.isValid())
+        {
+            return makeControlResponse(false,
+                                       "Order placement request rejected.",
+                                       {},
+                                       "The order request is invalid for the selected orderType/duration combination");
+        }
+
+        const auto orderResultFuture = TSClient::getInstance()->placeOrder(orderRequest);
+        const auto orderResult = waitForFutureResult(orderResultFuture);
+        if (!orderResult.has_value())
+        {
+            return makeControlResponse(
+                false,
+                "Order placement request failed.",
+                {},
+                QString("Order placement failed: %1").arg(tsClientErrorToString(orderResult.error())));
+        }
+
+        const QJsonObject result = QJsonObject{
+            {"accountId", resolvedAccountId},
+            {"symbol", orderRequest.getSymbol()},
+            {"tradeAction", tradeActionToJsonString(orderRequest.getTradeAction())},
+            {"orderType", OrderType::toString(orderRequest.getOrderType().type)},
+            {"quantity", orderRequest.getQuantity()},
+            {"duration", orderDurationToJsonString(orderRequest.getTimeInForce().getDuration())},
+            {"limitPrice", optionalDoubleToJsonValue(orderRequest.getLimitPrice())},
+            {"stopPrice", optionalDoubleToJsonValue(orderRequest.getStopPrice())},
+            {"result", serializePlaceOrderResult(orderResult.value())},
+        };
+
+        if (orderResult->hasErrors())
+        {
+            QStringList errors;
+            for (const OrderResultItem& item: orderResult->getErrors())
+            {
+                if (item.getError().has_value())
+                {
+                    errors.append(item.getError().value());
+                }
+                else if (!item.getMessage().isEmpty())
+                {
+                    errors.append(item.getMessage());
+                }
+            }
+
+            return makeControlResponse(false, "Order placement completed with errors.", result, errors.join(" | "));
+        }
+
+        return makeControlResponse(true, "Order placed successfully.", result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandCancelOrder)
+    {
+        const auto parsedOrderId = parseRequiredStringForKey(arguments, "orderId");
+        if (!parsedOrderId.has_value())
+        {
+            return makeControlResponse(false, "Cancel order request rejected.", {}, parsedOrderId.error());
+        }
+
+        const auto cancelResultFuture = TSClient::getInstance()->cancelOrder(parsedOrderId.value());
+        const auto cancelResult = waitForFutureResult(cancelResultFuture);
+        if (!cancelResult.has_value())
+        {
+            return makeControlResponse(
+                false,
+                "Cancel order request failed.",
+                {},
+                QString("Cancel order failed: %1").arg(tsClientErrorToString(cancelResult.error())));
+        }
+
+        const QJsonObject result = QJsonObject{
+            {"orderId", parsedOrderId.value()},
+            {"result", serializeCancelOrderResult(cancelResult.value())},
+        };
+
+        if (cancelResult->isError())
+        {
+            return makeControlResponse(false,
+                                       "Cancel order completed with errors.",
+                                       result,
+                                       cancelResult->getError().value_or(cancelResult->getMessage()));
+        }
+
+        return makeControlResponse(true, "Order canceled successfully.", result);
     }
 
     if (command == PlatformControlProtocol::kCommandEnterReplay)

@@ -581,6 +581,11 @@ void MainAlgo::stopBalancePolling()
     return m_currentBalance;
 }
 
+[[nodiscard]] QString MainAlgo::getActiveAccountId() const
+{
+    return m_activeAccount.getAccountId();
+}
+
 [[nodiscard]] QString MainAlgo::getDisplayedSymbol() const
 {
     if (m_currentDisplayedSymbolContext)

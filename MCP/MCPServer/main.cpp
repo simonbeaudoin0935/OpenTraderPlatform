@@ -179,6 +179,87 @@ namespace
         };
     }
 
+    [[nodiscard]] QJsonArray tradeActionValues()
+    {
+        return QJsonArray{
+            "buy",
+            "sell",
+            "buy-to-cover",
+            "sell-short",
+            "buy-to-open",
+            "buy-to-close",
+            "sell-to-open",
+            "sell-to-close",
+        };
+    }
+
+    [[nodiscard]] QJsonArray orderTypeValues()
+    {
+        return QJsonArray{
+            "market",
+            "limit",
+            "stop-market",
+            "stop-limit",
+        };
+    }
+
+    [[nodiscard]] QJsonArray orderDurationValues()
+    {
+        return QJsonArray{
+            "day",
+            "day-plus",
+            "gtc",
+            "gtc-plus",
+            "ioc",
+            "fok",
+        };
+    }
+
+    [[nodiscard]] QJsonObject placeOrderSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"accountId",
+                  QJsonObject{
+                      {"type", "string"},
+                      {"description", "Optional account ID. Defaults to the platform's currently active account."}}},
+                 {"symbol", QJsonObject{{"type", "string"}, {"description", "Ticker symbol to trade."}}},
+                 {"tradeAction",
+                  QJsonObject{{"type", "string"},
+                              {"enum", tradeActionValues()},
+                              {"description", "Trade action such as buy, sell, or sell-short."}}},
+                 {"orderType",
+                  QJsonObject{
+                      {"type", "string"},
+                      {"enum", orderTypeValues()},
+                      {"description",
+                       "Order type. limitPrice is required for limit/stop-limit; stopPrice is required for stop-market/stop-limit."}}},
+                 {"quantity", QJsonObject{{"type", "integer"}, {"minimum", 1}, {"description", "Share quantity."}}},
+                 {"duration",
+                  QJsonObject{{"type", "string"},
+                              {"enum", orderDurationValues()},
+                              {"description", "Optional time-in-force. Defaults to day."}}},
+                 {"limitPrice", QJsonObject{{"type", "number"}, {"description", "Optional limit price."}}},
+                 {"stopPrice", QJsonObject{{"type", "number"}, {"description", "Optional stop price."}}},
+             }},
+            {"required", QJsonArray{"symbol", "tradeAction", "orderType", "quantity"}},
+        };
+    }
+
+    [[nodiscard]] QJsonObject cancelOrderSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"orderId", QJsonObject{{"type", "string"}, {"description", "Order ID to cancel."}}},
+             }},
+            {"required", QJsonArray{"orderId"}},
+        };
+    }
+
     [[nodiscard]] QJsonArray buildToolList()
     {
         QJsonArray tools;
@@ -218,6 +299,18 @@ namespace
             {"title", "Get activity metrics"},
             {"description", "Read current trade/L2 activity metrics for the displayed or requested symbol."},
             {"inputSchema", symbolPollingSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandPlaceOrder},
+            {"title", "Place order"},
+            {"description", "Submit a platform order through the current live/sim/replay trading mode."},
+            {"inputSchema", placeOrderSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandCancelOrder},
+            {"title", "Cancel order"},
+            {"description", "Cancel an existing platform order by order ID."},
+            {"inputSchema", cancelOrderSchema()},
         });
         tools.append(QJsonObject{
             {"name", PlatformControlProtocol::kCommandEnterReplay},
@@ -311,6 +404,8 @@ int main(int argc, char* argv[])
         PlatformControlProtocol::kCommandGetTradesSnapshot,
         PlatformControlProtocol::kCommandGetBars,
         PlatformControlProtocol::kCommandGetActivityMetrics,
+        PlatformControlProtocol::kCommandPlaceOrder,
+        PlatformControlProtocol::kCommandCancelOrder,
         PlatformControlProtocol::kCommandEnterReplay,
         PlatformControlProtocol::kCommandStartReplay,
         PlatformControlProtocol::kCommandPauseReplay,
@@ -366,8 +461,8 @@ int main(int argc, char* argv[])
                      {"version", app.applicationVersion()},
                  }},
                 {"instructions",
-                 "This MCP server exposes L2Trader platform-control tools plus poll-style market-data tools over the "
-                 "platform control socket. Order-flow tools will be added in later phases."},
+                 "This MCP server exposes L2Trader platform-control tools, poll-style market-data tools, and basic "
+                 "order placement/cancellation over the platform control socket."},
             };
             std::cout << compactJsonLine(makeJsonRpcResponse(id, result)).constData() << std::flush;
             continue;

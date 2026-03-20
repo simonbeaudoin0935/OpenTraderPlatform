@@ -232,6 +232,7 @@ class MainAlgo final : public QObject
     void startBalancePolling();
     void stopBalancePolling();
     [[nodiscard]] Balance getCurrentBalance() const;
+    [[nodiscard]] QString getActiveAccountId() const;
 
     /// @brief Get the currently displayed stock symbol
     [[nodiscard]] QString getDisplayedSymbol() const;
