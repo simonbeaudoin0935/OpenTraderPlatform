@@ -346,6 +346,19 @@ namespace
         return items;
     }
 
+    [[nodiscard]] QJsonArray serializeStringList(const QStringList& p_values)
+    {
+        QJsonArray items;
+        for (const QString& value: p_values)
+        {
+            items.append(value);
+        }
+        return items;
+    }
+
+    [[nodiscard]] QString tradeActionToJsonString(TradeAction p_action);
+    [[nodiscard]] QString orderDurationToJsonString(OrderDuration p_duration);
+
     [[nodiscard]] QJsonObject serializeOrder(const Order& p_order, std::optional<qint64> p_latencyMs = std::nullopt)
     {
         return QJsonObject{
@@ -424,6 +437,55 @@ namespace
             item["error"] = p_result.getError().value();
         }
         return item;
+    }
+
+    [[nodiscard]] QJsonObject serializeClosePositionItemResult(const ClosePositionItemResult& p_item)
+    {
+        return QJsonObject{
+            {"positionId", p_item.positionId},
+            {"accountId", p_item.accountId},
+            {"symbol", p_item.symbol},
+            {"longShort", p_item.longShort},
+            {"quantity", p_item.quantity},
+            {"tradeAction", tradeActionToJsonString(p_item.tradeAction)},
+            {"orderType", OrderType::toString(p_item.orderType)},
+            {"duration", orderDurationToJsonString(p_item.duration)},
+            {"limitPrice", optionalDoubleToJsonValue(p_item.limitPrice)},
+            {"submitted", p_item.submitted},
+            {"placementSucceeded", p_item.placementSucceeded},
+            {"orderIds", serializeStringList(p_item.orderIds)},
+            {"brokerMessages", serializeStringList(p_item.brokerMessages)},
+            {"brokerErrors", serializeStringList(p_item.brokerErrors)},
+            {"failureCode",
+             p_item.failureCode.has_value() ? QJsonValue(p_item.failureCode.value()) : QJsonValue(QJsonValue::Null)},
+            {"failureMessage",
+             p_item.failureMessage.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(p_item.failureMessage)},
+        };
+    }
+
+    [[nodiscard]] QJsonObject serializeClosePositionsResult(const ClosePositionsResult& p_result)
+    {
+        QJsonArray items;
+        for (const ClosePositionItemResult& item: p_result.items)
+        {
+            items.append(serializeClosePositionItemResult(item));
+        }
+
+        return QJsonObject{
+            {"accountId", p_result.accountId},
+            {"requestedSymbols",
+             p_result.requestedSymbols.isEmpty() ? QJsonValue(QJsonValue::Null)
+                                                 : QJsonValue(serializeStringList(p_result.requestedSymbols))},
+            {"session", p_result.session},
+            {"usesAggressiveLimitOrders", p_result.usesAggressiveLimitOrders},
+            {"forcedDayPlus", p_result.forcedDayPlus},
+            {"aggressivityOffsetCents", p_result.aggressivityOffsetCents},
+            {"matchedPositionCount", p_result.matchedPositionCount},
+            {"submittedOrderCount", p_result.submittedOrderCount},
+            {"successCount", p_result.successCount()},
+            {"failureCount", p_result.failureCount()},
+            {"items", items},
+        };
     }
 
     [[nodiscard]] QString tradeActionToJsonString(TradeAction p_action)
@@ -637,6 +699,40 @@ namespace
             return std::unexpected(QString("Argument '%1' must be a string").arg(p_key));
         }
         return value.toString().trimmed();
+    }
+
+    [[nodiscard]] std::expected<QStringList, QString> parseOptionalSymbolList(const QJsonObject& p_arguments)
+    {
+        const QJsonValue value = p_arguments.value("symbols");
+        if (value.isUndefined() || value.isNull())
+        {
+            return QStringList{};
+        }
+        if (!value.isArray())
+        {
+            return std::unexpected("Argument 'symbols' must be an array of strings");
+        }
+
+        QStringList symbols;
+        for (const QJsonValue& item: value.toArray())
+        {
+            if (!item.isString())
+            {
+                return std::unexpected("Argument 'symbols' must be an array of strings");
+            }
+
+            const QString symbol = item.toString().trimmed().toUpper();
+            if (symbol.isEmpty())
+            {
+                return std::unexpected("Argument 'symbols' must not contain empty strings");
+            }
+            if (!symbols.contains(symbol))
+            {
+                symbols.append(symbol);
+            }
+        }
+
+        return symbols;
     }
 
     [[nodiscard]] QString normalizeToken(QString p_value)
@@ -1760,6 +1856,79 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
         return makeControlResponse(true,
                                    filteredPositions.isEmpty() ? "No matching positions found."
                                                                : "Positions retrieved.",
+                                   result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandClosePositions)
+    {
+        const auto parsedAccountId = parseOptionalStringForKey(arguments, "accountId");
+        if (!parsedAccountId.has_value())
+        {
+            return makeControlResponse(false, "Close positions request rejected.", {}, parsedAccountId.error());
+        }
+
+        const auto parsedSymbols = parseOptionalSymbolList(arguments);
+        if (!parsedSymbols.has_value())
+        {
+            return makeControlResponse(false, "Close positions request rejected.", {}, parsedSymbols.error());
+        }
+
+        QString activeAccountId;
+        const bool invoked = QMetaObject::invokeMethod(
+            mainAlgo,
+            [&activeAccountId, this]() { activeAccountId = this->mainAlgo->getActiveAccountId(); },
+            Qt::BlockingQueuedConnection);
+        ASSUME_TRUE(invoked);
+
+        const QString resolvedAccountId = parsedAccountId->isEmpty() ? activeAccountId : parsedAccountId.value();
+        if (resolvedAccountId.isEmpty())
+        {
+            return makeControlResponse(false,
+                                       "Close positions request rejected.",
+                                       {},
+                                       "No accountId was provided and the platform has no active account selected");
+        }
+
+        Q_CHECK_PTR(appStateSettings);
+        ClosePositionsRequest closeRequest;
+        closeRequest.accountId = resolvedAccountId;
+        closeRequest.symbols = parsedSymbols.value();
+        closeRequest.aggressivityOffsetCents =
+            appStateSettings
+                ->value(ClosePositionsConstants::SETTINGS_KEY_AGGRESSIVE_LIMIT_OFFSET_CENTS,
+                        ClosePositionsConstants::DEFAULT_AGGRESSIVE_LIMIT_OFFSET_CENTS)
+                .toDouble();
+
+        const auto closeResult = waitForFutureResult(mainAlgo->closePositions(closeRequest));
+        if (!closeResult.has_value())
+        {
+            return makeControlResponse(false, "Close positions request failed.", {}, closeResult.error());
+        }
+
+        QJsonObject result = serializeClosePositionsResult(closeResult.value());
+        result["requestedAccountId"] =
+            parsedAccountId->isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(parsedAccountId.value());
+        result["activeAccountId"] =
+            activeAccountId.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(activeAccountId);
+
+        if (closeResult->hasFailures())
+        {
+            QStringList errors;
+            for (const ClosePositionItemResult& item: closeResult->items)
+            {
+                if (!item.hasFailure())
+                {
+                    continue;
+                }
+                errors.append(QString("%1: %2").arg(item.symbol, item.failureMessage));
+            }
+
+            return makeControlResponse(false, "Close positions completed with errors.", result, errors.join(" | "));
+        }
+
+        return makeControlResponse(true,
+                                   closeResult->matchedPositionCount == 0 ? "No matching positions found."
+                                                                          : "Close positions orders submitted.",
                                    result);
     }
 

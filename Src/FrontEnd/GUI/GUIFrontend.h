@@ -72,6 +72,7 @@ class GUIFrontend : public FrontEnd
     void onOrderPlaced(const PlaceOrderRequest& order);
     void onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKeySequence& p_newSequence);
     void onCancelAllOrders();
+    void onCloseAllPositions();
     void onToggleReplayPlayPause();
     void onToggleReplayMode();
     void onAccountInfoButtonClicked();
@@ -111,6 +112,7 @@ class GUIFrontend : public FrontEnd
     QShortcut* m_buyToCoverShortcut;            // Execute buy to cover order shortcut
     QShortcut* m_sellToCoverShortcut;           // Execute sell to cover order shortcut
     QShortcut* m_cancelAllOrdersShortcut;       // Cancel all orders shortcut
+    QShortcut* m_closeAllPositionsShortcut;     // Close all open positions shortcut
     QShortcut* m_toggleReplayPlayPauseShortcut; // Toggle replay play/pause shortcut
     QShortcut* m_toggleReplayModeShortcut;      // Toggle replay mode on/off shortcut
     QShortcut* m_newChartWindowShortcut;        // Open new chart window shortcut

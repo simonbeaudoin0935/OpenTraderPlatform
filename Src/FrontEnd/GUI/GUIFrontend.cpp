@@ -51,6 +51,100 @@
 
 Q_LOGGING_CATEGORY(GUIFrontendLog, "GUIFrontend")
 
+namespace
+{
+    QString summarizeClosePositionsSuccess(const ClosePositionsResult& p_result)
+    {
+        QStringList lines;
+        lines << QString("Submitted close-position orders for %1 position(s).").arg(p_result.successCount());
+        if (p_result.usesAggressiveLimitOrders)
+        {
+            lines << QString("Session: %1 (Day+ limit orders, offset %2 c)")
+                         .arg(p_result.session)
+                         .arg(p_result.aggressivityOffsetCents, 0, 'f', 2);
+        }
+        else
+        {
+            lines << QString("Session: %1 (market orders)").arg(p_result.session);
+        }
+
+        for (const ClosePositionItemResult& item: p_result.items)
+        {
+            if (!item.isSuccessful())
+            {
+                continue;
+            }
+
+            QString line = QString("- %1 x %2").arg(item.symbol).arg(item.quantity);
+            if (item.limitPrice.has_value())
+            {
+                line += QString(" @ %1").arg(item.limitPrice.value(), 0, 'f', 2);
+            }
+            if (!item.orderIds.isEmpty())
+            {
+                line += QString(" [%1]").arg(item.orderIds.join(", "));
+            }
+            lines << line;
+        }
+
+        return lines.join("\n");
+    }
+
+    QString summarizeClosePositionsFailures(const ClosePositionsResult& p_result)
+    {
+        QStringList lines;
+        lines << QString("Submitted %1 of %2 close-position order(s).")
+                     .arg(p_result.successCount())
+                     .arg(p_result.matchedPositionCount);
+
+        if (p_result.usesAggressiveLimitOrders)
+        {
+            lines << QString("Session: %1 (Day+ limit orders, offset %2 c)")
+                         .arg(p_result.session)
+                         .arg(p_result.aggressivityOffsetCents, 0, 'f', 2);
+        }
+        else
+        {
+            lines << QString("Session: %1 (market orders)").arg(p_result.session);
+        }
+
+        lines << "";
+        lines << "Failures:";
+        for (const ClosePositionItemResult& item: p_result.items)
+        {
+            if (!item.hasFailure())
+            {
+                continue;
+            }
+
+            lines << QString("- %1: %2").arg(item.symbol, item.failureMessage);
+        }
+
+        if (p_result.successCount() > 0)
+        {
+            lines << "";
+            lines << "Submitted:";
+            for (const ClosePositionItemResult& item: p_result.items)
+            {
+                if (!item.isSuccessful())
+                {
+                    continue;
+                }
+
+                QString line = QString("- %1 x %2").arg(item.symbol).arg(item.quantity);
+                if (!item.orderIds.isEmpty())
+                {
+                    line += QString(" [%1]").arg(item.orderIds.join(", "));
+                }
+                lines << line;
+            }
+        }
+
+        return lines.join("\n");
+    }
+
+} // namespace
+
 GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(parent), mainAlgo(p_mainAlgo)
 {
     ui = std::make_unique<Ui::GUIFrontend>();
@@ -137,6 +231,12 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     auto cancelAllConnection =
         connect(m_cancelAllOrdersShortcut, &QShortcut::activated, [this]() { onCancelAllOrders(); });
     OBJ_ASSUME_TRUE(cancelAllConnection);
+
+    m_closeAllPositionsShortcut =
+        new QShortcut(shortcutSettings.getShortcut(ShortcutSettings::CloseAllPositions), m_mainWindow);
+    auto closeAllPositionsConnection =
+        connect(m_closeAllPositionsShortcut, &QShortcut::activated, [this]() { onCloseAllPositions(); });
+    OBJ_ASSUME_TRUE(closeAllPositionsConnection);
 
     // Add Space shortcut to toggle replay play/pause
     m_toggleReplayPlayPauseShortcut =
@@ -555,6 +655,12 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                 ui->stockSymbolInput->setText(symbol);
                 ui->stockSymbolInput->returnPressed(); // Simulate Enter key press
             });
+
+    connect(ui->positionWidget,
+            &PositionWidget::closeAllPositionsRequested,
+            this,
+            &GUIFrontend::onCloseAllPositions,
+            Qt::UniqueConnection);
 
     // Connect order window symbol click
     connect(ui->orderWidget,
@@ -1795,6 +1901,12 @@ void GUIFrontend::onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKe
         qInfo() << "Updated cancel all orders shortcut to:" << p_newSequence.toString();
         break;
 
+    case ShortcutSettings::CloseAllPositions:
+        Q_CHECK_PTR(m_closeAllPositionsShortcut);
+        m_closeAllPositionsShortcut->setKey(p_newSequence);
+        qInfo() << "Updated close all positions shortcut to:" << p_newSequence.toString();
+        break;
+
     case ShortcutSettings::ToggleReplayPlayPause:
         Q_CHECK_PTR(m_toggleReplayPlayPauseShortcut);
         m_toggleReplayPlayPauseShortcut->setKey(p_newSequence);
@@ -1936,6 +2048,70 @@ void GUIFrontend::onCancelAllOrders()
                 }
             });
     }
+}
+
+void GUIFrontend::onCloseAllPositions()
+{
+    const QString selectedAccountId = getSelectedAccountId();
+    if (selectedAccountId.isEmpty())
+    {
+        QMessageBox::critical(nullptr,
+                              "Close All Positions",
+                              "No account is currently selected, so positions cannot be closed.");
+        qCritical() << "Close all positions rejected: no selected account";
+        return;
+    }
+
+    Q_CHECK_PTR(appStateSettings);
+    ClosePositionsRequest request;
+    request.accountId = selectedAccountId;
+    request.aggressivityOffsetCents = appStateSettings
+                                          ->value(ClosePositionsConstants::SETTINGS_KEY_AGGRESSIVE_LIMIT_OFFSET_CENTS,
+                                                  ClosePositionsConstants::DEFAULT_AGGRESSIVE_LIMIT_OFFSET_CENTS)
+                                          .toDouble();
+
+    mainAlgo->closePositions(request).then(
+        this,
+        [this, selectedAccountId](std::expected<ClosePositionsResult, QString> result)
+        {
+            if (!result.has_value())
+            {
+                QMessageBox::critical(nullptr, "Close All Positions", result.error());
+                qCritical() << "Close all positions failed:" << result.error();
+                return;
+            }
+
+            const ClosePositionsResult& closeResult = result.value();
+            if (closeResult.matchedPositionCount == 0)
+            {
+                const QString message = QString("No open positions were found for account %1.").arg(selectedAccountId);
+                QMessageBox::information(nullptr, "Close All Positions", message);
+                qInfo() << message;
+                return;
+            }
+
+            if (closeResult.hasFailures())
+            {
+                const QString message = summarizeClosePositionsFailures(closeResult);
+                if (closeResult.successCount() == 0)
+                {
+                    QMessageBox::critical(nullptr, "Close All Positions", message);
+                }
+                else
+                {
+                    QMessageBox::warning(nullptr, "Close All Positions", message);
+                }
+                qWarning() << "Close all positions completed with errors:" << message;
+                return;
+            }
+
+            const QString message = summarizeClosePositionsSuccess(closeResult);
+            if (ui->orderEntryWidget->isResultPopupEnabled())
+            {
+                QMessageBox::information(nullptr, "Close All Positions", message);
+            }
+            qInfo() << "Close all positions succeeded:" << message;
+        });
 }
 
 void GUIFrontend::requestMissingBarsFromCache(const QDateTime& from, const QDateTime& to)

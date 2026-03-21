@@ -8,6 +8,8 @@
 
 class QTableView;
 class QLabel;
+class QPushButton;
+class QWidget;
 
 class PositionWidget : public QWidget
 {
@@ -36,6 +38,9 @@ class PositionWidget : public QWidget
     /// @param symbol Stock symbol that was clicked
     void symbolClicked(const QString& symbol);
 
+    /// Emitted when user requests to close all open positions visible in the widget's account scope.
+    void closeAllPositionsRequested();
+
   private:
     void setupUI();
     void setupStyles();
@@ -45,7 +50,9 @@ class PositionWidget : public QWidget
 
     QTableView* tableView;
     QStandardItemModel* model;
+    QWidget* m_headerWidget;
     QLabel* headerLabel;
+    QPushButton* m_closeAllPositionsButton;
 
     // Map to keep track of positions by their ID for updates
     QMap<QString, int> positionRowMap; // Maps positionID to row index

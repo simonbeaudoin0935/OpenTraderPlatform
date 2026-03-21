@@ -27,6 +27,7 @@ class ShortcutSettings : public QObject
         ExecuteBuyToCoverOrder,
         ExecuteSellToCoverOrder,
         CancelAllOrders,
+        CloseAllPositions,
         ToggleReplayPlayPause,
         ToggleReplayMode,
         OpenNewChart,

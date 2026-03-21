@@ -34,6 +34,7 @@ namespace PlatformControlProtocol
     inline constexpr auto kCommandGetAccounts = "get-accounts";
     inline constexpr auto kCommandGetBalance = "get-balance";
     inline constexpr auto kCommandGetPositions = "get-positions";
+    inline constexpr auto kCommandClosePositions = "close-positions";
     inline constexpr auto kCommandGetOrders = "get-orders";
     inline constexpr auto kCommandGetLevel2 = "get-level2";
     inline constexpr auto kCommandGetTradesSnapshot = "get-trades-snapshot";

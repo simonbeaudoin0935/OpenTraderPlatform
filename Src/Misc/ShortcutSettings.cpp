@@ -42,6 +42,9 @@ QString ShortcutSettings::getSettingsKey(ShortcutId p_id) const
     case CancelAllOrders:
         key += "CancelAllOrders";
         break;
+    case CloseAllPositions:
+        key += "CloseAllPositions";
+        break;
     case ToggleReplayPlayPause:
         key += "ToggleReplayPlayPause";
         break;
@@ -106,6 +109,8 @@ QString ShortcutSettings::getShortcutName(ShortcutId p_id) const
         return "Execute Sell to Cover Order";
     case CancelAllOrders:
         return "Cancel All Orders";
+    case CloseAllPositions:
+        return "Close All Positions";
     case ToggleReplayPlayPause:
         return "Toggle Replay Play/Pause";
     case ToggleReplayMode:
@@ -157,6 +162,8 @@ QKeySequence ShortcutSettings::getDefaultShortcut(ShortcutId p_id) const
         return QKeySequence("Ctrl+Shift+S");
     case CancelAllOrders:
         return QKeySequence("Ctrl+X");
+    case CloseAllPositions:
+        return QKeySequence("Ctrl+Z");
     case ToggleReplayPlayPause:
         return QKeySequence(Qt::Key_Space);
     case ToggleReplayMode:
@@ -275,6 +282,7 @@ QList<ShortcutSettings::ShortcutId> ShortcutSettings::getAllShortcutIds() const
             ExecuteBuyToCoverOrder,
             ExecuteSellToCoverOrder,
             CancelAllOrders,
+            CloseAllPositions,
             ToggleReplayPlayPause,
             ToggleReplayMode,
             OpenNewChart,

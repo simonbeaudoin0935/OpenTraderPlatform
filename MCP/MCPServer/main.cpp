@@ -91,8 +91,8 @@ namespace
         };
     }
 
-    [[nodiscard]] std::expected<QJsonObject, QString>
-    normalizeToolArguments(const QString& p_toolName, const QJsonObject& p_arguments)
+    [[nodiscard]] std::expected<QJsonObject, QString> normalizeToolArguments(const QString& p_toolName,
+                                                                             const QJsonObject& p_arguments)
     {
         if (p_toolName != PlatformControlProtocol::kCommandSetTradingMode)
         {
@@ -263,6 +263,24 @@ namespace
         };
     }
 
+    [[nodiscard]] QJsonObject closePositionsSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"accountId", optionalAccountIdSchema()},
+                 {"symbols",
+                  QJsonObject{
+                      {"type", "array"},
+                      {"items", QJsonObject{{"type", "string"}}},
+                      {"description",
+                       "Optional list of symbols to flatten. Omit to close all open positions for the resolved account."},
+                  }},
+             }},
+        };
+    }
+
     [[nodiscard]] QJsonObject getOrdersSchema()
     {
         return QJsonObject{
@@ -296,7 +314,8 @@ namespace
             {"type", "object"},
             {"properties",
              QJsonObject{
-                 {"symbol", QJsonObject{{"type", "string"}, {"description", "Ticker symbol to annotate on the chart."}}},
+                 {"symbol",
+                  QJsonObject{{"type", "string"}, {"description", "Ticker symbol to annotate on the chart."}}},
                  {"message",
                   QJsonObject{{"type", "string"},
                               {"description", "Log message to persist and show in the chart tooltip."}}},
@@ -365,18 +384,18 @@ namespace
                       {"enum", orderTypeValues()},
                       {"description",
                        "Order type. limitPrice is required for limit/stop-limit; stopPrice is required for stop-market/stop-limit."}}},
-                  {"quantity", QJsonObject{{"type", "integer"}, {"minimum", 1}, {"description", "Share quantity."}}},
-                  {"duration",
-                   QJsonObject{{"type", "string"},
-                               {"enum", orderDurationValues()},
-                               {"description", "Optional time-in-force. Defaults to day."}}},
-                  {"strategyLog",
-                   QJsonObject{{"type", "string"},
-                               {"description",
-                                "Optional log text to bind to the order and display in order/chart tooltips."}}},
-                  {"limitPrice", QJsonObject{{"type", "number"}, {"description", "Optional limit price."}}},
-                  {"stopPrice", QJsonObject{{"type", "number"}, {"description", "Optional stop price."}}},
-              }},
+                 {"quantity", QJsonObject{{"type", "integer"}, {"minimum", 1}, {"description", "Share quantity."}}},
+                 {"duration",
+                  QJsonObject{{"type", "string"},
+                              {"enum", orderDurationValues()},
+                              {"description", "Optional time-in-force. Defaults to day."}}},
+                 {"strategyLog",
+                  QJsonObject{
+                      {"type", "string"},
+                      {"description", "Optional log text to bind to the order and display in order/chart tooltips."}}},
+                 {"limitPrice", QJsonObject{{"type", "number"}, {"description", "Optional limit price."}}},
+                 {"stopPrice", QJsonObject{{"type", "number"}, {"description", "Optional stop price."}}},
+             }},
             {"required", QJsonArray{"symbol", "tradeAction", "orderType", "quantity"}},
         };
     }
@@ -425,6 +444,14 @@ namespace
             {"title", "Get positions"},
             {"description", "Read the current open positions for the active or requested account."},
             {"inputSchema", getPositionsSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandClosePositions},
+            {"title", "Close positions"},
+            {"description",
+             "Flatten open positions for the active or requested account, with optional symbol filtering. Regular hours "
+             "use market orders; extended hours use aggressive Day+ limit orders."},
+            {"inputSchema", closePositionsSchema()},
         });
         tools.append(QJsonObject{
             {"name", PlatformControlProtocol::kCommandGetOrders},
@@ -554,16 +581,27 @@ int main(int argc, char* argv[])
     bool initializeSeen = false;
 
     const QSet<QString> supportedTools = {
-        PlatformControlProtocol::kCommandStatus,         PlatformControlProtocol::kCommandGetDisplayedSymbol,
-        PlatformControlProtocol::kCommandGetAccounts,    PlatformControlProtocol::kCommandGetBalance,
-        PlatformControlProtocol::kCommandGetPositions,   PlatformControlProtocol::kCommandGetOrders,
-        PlatformControlProtocol::kCommandGetLevel2,      PlatformControlProtocol::kCommandGetTradesSnapshot,
-        PlatformControlProtocol::kCommandGetBars,        PlatformControlProtocol::kCommandGetActivityMetrics,
-        PlatformControlProtocol::kCommandCreateChartLog, PlatformControlProtocol::kCommandPlaceOrder,
-        PlatformControlProtocol::kCommandCancelOrder,    PlatformControlProtocol::kCommandEnterReplay,
-        PlatformControlProtocol::kCommandStartReplay,    PlatformControlProtocol::kCommandPauseReplay,
-        PlatformControlProtocol::kCommandResumeReplay,   PlatformControlProtocol::kCommandSetReplaySpeed,
-        PlatformControlProtocol::kCommandPreloadReplay,  PlatformControlProtocol::kCommandExitReplay,
+        PlatformControlProtocol::kCommandStatus,
+        PlatformControlProtocol::kCommandGetDisplayedSymbol,
+        PlatformControlProtocol::kCommandGetAccounts,
+        PlatformControlProtocol::kCommandGetBalance,
+        PlatformControlProtocol::kCommandGetPositions,
+        PlatformControlProtocol::kCommandClosePositions,
+        PlatformControlProtocol::kCommandGetOrders,
+        PlatformControlProtocol::kCommandGetLevel2,
+        PlatformControlProtocol::kCommandGetTradesSnapshot,
+        PlatformControlProtocol::kCommandGetBars,
+        PlatformControlProtocol::kCommandGetActivityMetrics,
+        PlatformControlProtocol::kCommandCreateChartLog,
+        PlatformControlProtocol::kCommandPlaceOrder,
+        PlatformControlProtocol::kCommandCancelOrder,
+        PlatformControlProtocol::kCommandEnterReplay,
+        PlatformControlProtocol::kCommandStartReplay,
+        PlatformControlProtocol::kCommandPauseReplay,
+        PlatformControlProtocol::kCommandResumeReplay,
+        PlatformControlProtocol::kCommandSetReplaySpeed,
+        PlatformControlProtocol::kCommandPreloadReplay,
+        PlatformControlProtocol::kCommandExitReplay,
         PlatformControlProtocol::kCommandSetTradingMode,
     };
 

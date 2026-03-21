@@ -1,15 +1,20 @@
 #include "PositionWidget.h"
+#include <QHBoxLayout>
 #include <QTableView>
 #include <QHeaderView>
 #include <QVBoxLayout>
 #include <QLabel>
+#include <QPushButton>
+#include "Assume.h"
 #include "LTTng/LTTngTracepoints.h"
 
 PositionWidget::PositionWidget(QWidget* parent)
     : QWidget(parent)
     , tableView(new QTableView(this))
     , model(new QStandardItemModel(this))
+    , m_headerWidget(new QWidget(this))
     , headerLabel(new QLabel("POSITIONS", this))
+    , m_closeAllPositionsButton(new QPushButton("Close All", this))
 {
     setupUI();
     setupStyles();
@@ -27,8 +32,26 @@ void PositionWidget::setupUI()
     mainLayout->setContentsMargins(0, 0, 0, 0);
 
     // Setup header
-    headerLabel->setFixedHeight(24);
+    m_headerWidget->setFixedHeight(24);
     headerLabel->setAlignment(Qt::AlignCenter);
+    m_closeAllPositionsButton->setFixedHeight(20);
+    m_closeAllPositionsButton->setCursor(Qt::PointingHandCursor);
+    m_closeAllPositionsButton->setToolTip("Close all open positions for the selected account");
+
+    QHBoxLayout* headerLayout = new QHBoxLayout(m_headerWidget);
+    headerLayout->setContentsMargins(6, 0, 6, 0);
+    headerLayout->setSpacing(6);
+    headerLayout->addStretch();
+    headerLayout->addWidget(headerLabel);
+    headerLayout->addStretch();
+    headerLayout->addWidget(m_closeAllPositionsButton);
+
+    auto closeAllConnection = connect(m_closeAllPositionsButton,
+                                      &QPushButton::clicked,
+                                      this,
+                                      &PositionWidget::closeAllPositionsRequested,
+                                      Qt::UniqueConnection);
+    OBJ_ASSUME_TRUE(closeAllConnection);
 
     // Setup model columns (Position ID at END like OrderWidget)
     QStringList headers;
@@ -46,7 +69,9 @@ void PositionWidget::setupUI()
     tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     // Connect click signal
-    connect(tableView, &QTableView::clicked, this, &PositionWidget::onSymbolClicked);
+    auto symbolClickConnection =
+        connect(tableView, &QTableView::clicked, this, &PositionWidget::onSymbolClicked, Qt::UniqueConnection);
+    OBJ_ASSUME_TRUE(symbolClickConnection);
 
     // Set column widths
     tableView->setColumnWidth(0, 70); // Symbol
@@ -59,7 +84,7 @@ void PositionWidget::setupUI()
     tableView->setColumnWidth(7, 90); // Position ID
 
     // Add widgets to layout
-    mainLayout->addWidget(headerLabel);
+    mainLayout->addWidget(m_headerWidget);
     mainLayout->addWidget(tableView);
 
     // Set fixed width based on total column widths
@@ -73,13 +98,24 @@ void PositionWidget::setupUI()
 
 void PositionWidget::setupStyles()
 {
-    // Style the header label
-    headerLabel->setStyleSheet("QLabel {"
-                               "   background-color: #2D2D2D;"
-                               "   color: #FFFFFF;"
-                               "   padding: 4px;"
-                               "   border-bottom: 1px solid #3D3D3D;"
-                               "}");
+    m_headerWidget->setStyleSheet("QWidget {"
+                                  "   background-color: #2D2D2D;"
+                                  "   border-bottom: 1px solid #3D3D3D;"
+                                  "}");
+    headerLabel->setStyleSheet("QLabel { color: #FFFFFF; background: transparent; }");
+    m_closeAllPositionsButton->setStyleSheet("QPushButton {"
+                                             "   background-color: #7A1F1F;"
+                                             "   color: #FFFFFF;"
+                                             "   border: 1px solid #A63A3A;"
+                                             "   border-radius: 3px;"
+                                             "   padding: 0 8px;"
+                                             "}"
+                                             "QPushButton:hover {"
+                                             "   background-color: #9B2C2C;"
+                                             "}"
+                                             "QPushButton:pressed {"
+                                             "   background-color: #5F1919;"
+                                             "}");
 
     // Style the table
     tableView->setStyleSheet("QTableView {"
