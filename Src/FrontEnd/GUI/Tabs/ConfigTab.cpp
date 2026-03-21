@@ -59,6 +59,34 @@ void ConfigTab::setupUI()
 
     mainLayout->addWidget(displayGroupBox);
 
+    QGroupBox* closePositionsGroupBox = new QGroupBox("Close Positions Kill Switch");
+    QVBoxLayout* closePositionsLayout = new QVBoxLayout(closePositionsGroupBox);
+
+    QHBoxLayout* closePositionsOffsetLayout = new QHBoxLayout();
+    QLabel* closePositionsOffsetLabel = new QLabel("Aggressive Limit Offset:");
+    m_closePositionsAggressivitySpinBox = new QDoubleSpinBox();
+    m_closePositionsAggressivitySpinBox->setMinimum(ClosePositionsConstants::MIN_AGGRESSIVE_LIMIT_OFFSET_CENTS);
+    m_closePositionsAggressivitySpinBox->setMaximum(ClosePositionsConstants::MAX_AGGRESSIVE_LIMIT_OFFSET_CENTS);
+    m_closePositionsAggressivitySpinBox->setDecimals(2);
+    m_closePositionsAggressivitySpinBox->setSingleStep(ClosePositionsConstants::AGGRESSIVE_LIMIT_OFFSET_STEP_CENTS);
+    m_closePositionsAggressivitySpinBox->setValue(ClosePositionsConstants::DEFAULT_AGGRESSIVE_LIMIT_OFFSET_CENTS);
+    m_closePositionsAggressivitySpinBox->setSuffix(" c");
+    m_closePositionsAggressivitySpinBox->setToolTip(
+        "Extended-hours close-position orders use aggressive limit pricing.\n"
+        "Buy-to-cover orders are priced at Ask + offset.\n"
+        "Sell orders are priced at Bid - offset.\n"
+        "Outside regular hours the kill switch forces Day+ time-in-force.");
+    connect(m_closePositionsAggressivitySpinBox,
+            QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this,
+            &ConfigTab::onClosePositionsAggressivityChanged);
+    closePositionsOffsetLayout->addWidget(closePositionsOffsetLabel);
+    closePositionsOffsetLayout->addWidget(m_closePositionsAggressivitySpinBox);
+    closePositionsOffsetLayout->addStretch();
+    closePositionsLayout->addLayout(closePositionsOffsetLayout);
+
+    mainLayout->addWidget(closePositionsGroupBox);
+
     // Auto-Timeframe Configuration section
     QGroupBox* autoTfGroupBox = new QGroupBox("Auto-Timeframe Thresholds (minutes)");
     autoTfGroupBox->setToolTip("Configure the visible range (in minutes) at which the chart automatically\n"
@@ -129,6 +157,12 @@ void ConfigTab::loadSettings()
         appStateSettings->value("Config/TimeAndSalesMaxEntries", TimeAndSalesConstants::DEFAULT_MAX_ENTRIES).toInt();
     m_timeAndSalesMaxEntriesSpinBox->setValue(maxEntries);
 
+    const double closePositionsOffset = appStateSettings
+                                            ->value(ClosePositionsConstants::SETTINGS_KEY_AGGRESSIVE_LIMIT_OFFSET_CENTS,
+                                                    ClosePositionsConstants::DEFAULT_AGGRESSIVE_LIMIT_OFFSET_CENTS)
+                                            .toDouble();
+    m_closePositionsAggressivitySpinBox->setValue(closePositionsOffset);
+
     // Load auto-TF thresholds
     for (auto it = m_autoTfThresholds.begin(); it != m_autoTfThresholds.end(); ++it)
     {
@@ -176,6 +210,11 @@ void ConfigTab::onAutoTfThresholdChanged()
     }
 
     emit autoTimeFrameThresholdsChanged();
+}
+
+void ConfigTab::onClosePositionsAggressivityChanged(const double value)
+{
+    saveSetting(ClosePositionsConstants::SETTINGS_KEY_AGGRESSIVE_LIMIT_OFFSET_CENTS, value);
 }
 
 void ConfigTab::setTimeAndSalesWidget(TimeAndSalesWidget* p_widget)

@@ -32,6 +32,7 @@
 #include "LiveBarAccumulator.h"
 #include "StrategyManager.h"
 #include "PlaybackTypes.h"
+#include "ClosePositions.h"
 #include "TSClient.h"       // For TSClient::AuthStateReason enum
 #include "OrdersDatabase.h" // For StrategyLogEntry
 
@@ -283,6 +284,18 @@ class MainAlgo final : public QObject
     /// @return Next requestId (thread-safe atomic increment)
     [[nodiscard]] uint64_t getNextRequestId();
 
+    /// @brief Close currently open positions for an account using session-aware market/limit orders.
+    /// @param p_request Account/symbol scope and aggressive extended-hours offset (in cents)
+    /// @param p_strategyID Strategy owner for resulting orders, or empty for GUI/MCP callers
+    /// @return Future resolving to batch close results, or an error if the request could not be dispatched
+    [[nodiscard]] QFuture<std::expected<ClosePositionsResult, QString>>
+    closePositions(const ClosePositionsRequest& p_request, const QString& p_strategyID = {});
+
+    /// @brief Process a closePositions request on the MainAlgo thread.
+    void processClosePositions(const QString& p_strategyID,
+                               const ClosePositionsRequest& p_request,
+                               std::shared_ptr<QPromise<std::expected<ClosePositionsResult, QString>>> p_promise);
+
     /// @brief Process a placeOrder request (MainAlgo thread)
     /// @param p_requestId Unique request ID from StrategySDK
     /// @param p_strategyID ID of strategy placing the order, or empty for non-strategy callers such as MCP
@@ -527,10 +540,12 @@ class MainAlgo final : public QObject
 
     std::atomic<uint64_t> m_requestIdCounter{0};
     QMap<uint64_t, std::shared_ptr<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>> m_pendingOrderPromises;
-    QMap<uint64_t, QString> m_requestIdToStrategyId; // Temporary mapping until OrderID known; empty = non-strategy caller
-    QMap<uint64_t, QString> m_pendingOrderLogs;      // Temporary: requestId → strategyLog until OrderID known
-    QMap<QString, QString> m_orderIdToLog;  // Permanent: OrderID → strategyLog (until order received via stream)
-    QMap<QString, DeferredOrderUpdate> m_deferredOrderUpdates; // First stream update replayed once a log binding wins the ACK race
+    QMap<uint64_t, QString>
+        m_requestIdToStrategyId;                // Temporary mapping until OrderID known; empty = non-strategy caller
+    QMap<uint64_t, QString> m_pendingOrderLogs; // Temporary: requestId → strategyLog until OrderID known
+    QMap<QString, QString> m_orderIdToLog;      // Permanent: OrderID → strategyLog (until order received via stream)
+    QMap<QString, DeferredOrderUpdate>
+        m_deferredOrderUpdates;             // First stream update replayed once a log binding wins the ACK race
     QMap<QString, QString> m_orderMappings; // OrderID → StrategyID (strategy-owned orders only)
 
     // Replay state (set in enterReplayMode/enterReplayModePaused, used by strategy subscriptions)

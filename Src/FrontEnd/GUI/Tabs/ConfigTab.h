@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QDoubleSpinBox>
 #include <QSpinBox>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -33,6 +34,7 @@ class ConfigTab : public QWidget
   private slots:
     void onTimeAndSalesMaxEntriesChanged(int value);
     void onAutoTfThresholdChanged();
+    void onClosePositionsAggressivityChanged(double value);
 
   private:
     void setupUI();
@@ -40,6 +42,7 @@ class ConfigTab : public QWidget
     void saveSetting(const QString& key, const QVariant& value);
 
     QSpinBox* m_timeAndSalesMaxEntriesSpinBox;
+    QDoubleSpinBox* m_closePositionsAggressivitySpinBox = nullptr;
     TimeAndSalesWidget* m_timeAndSalesWidget = nullptr;
     StockPriceChart* m_stockPriceChart = nullptr;
 

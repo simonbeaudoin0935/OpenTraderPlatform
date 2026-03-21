@@ -295,6 +295,29 @@ namespace TimeAndSalesConstants
 } // namespace TimeAndSalesConstants
 
 /**
+ * @namespace ClosePositionsConstants
+ * @brief Constants for the close-positions kill switch configuration
+ */
+namespace ClosePositionsConstants
+{
+    /// Persistent settings key for the aggressive extended-hours limit offset, expressed in cents.
+    inline constexpr const char* SETTINGS_KEY_AGGRESSIVE_LIMIT_OFFSET_CENTS =
+        "Config/ClosePositionsAggressiveLimitOffsetCents";
+
+    /// Default amount of aggressivity for close-position limit orders outside regular hours.
+    inline constexpr double DEFAULT_AGGRESSIVE_LIMIT_OFFSET_CENTS = 5.0;
+
+    /// Minimum allowed offset in cents.
+    inline constexpr double MIN_AGGRESSIVE_LIMIT_OFFSET_CENTS = 0.0;
+
+    /// Maximum allowed offset in cents.
+    inline constexpr double MAX_AGGRESSIVE_LIMIT_OFFSET_CENTS = 100.0;
+
+    /// Default step size for the Config tab spin box.
+    inline constexpr double AGGRESSIVE_LIMIT_OFFSET_STEP_CENTS = 1.0;
+} // namespace ClosePositionsConstants
+
+/**
  * @namespace PlatformControlConstants
  * @brief Constants related to the local platform control socket and MCP polling helpers
  */

@@ -6,6 +6,8 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 #include "MainAlgo.h"
 #include "MainApp.h"
@@ -26,6 +28,194 @@ Q_LOGGING_CATEGORY(MainAlgoLog, "MainAlgo")
 
 // Initialize static member outside class
 MainAlgo* MainAlgo::m_instance = nullptr;
+
+namespace
+{
+    [[nodiscard]] QString tsClientErrorToString(const TSClient::Error p_error)
+    {
+        switch (p_error)
+        {
+        case TSClient::Error::Timeout:
+            return "timeout";
+        case TSClient::Error::JSONError:
+            return "json_error";
+        case TSClient::Error::RejectedByValidator:
+            return "rejected_by_validator";
+        case TSClient::Error::Other:
+        default:
+            return "other";
+        }
+    }
+
+    [[nodiscard]] bool isExtendedHoursSession(const TradingSession p_session)
+    {
+        return p_session == TradingSession::EarlyPreMarket || p_session == TradingSession::PreMarket ||
+               p_session == TradingSession::AfterHours;
+    }
+
+    [[nodiscard]] bool isTradableCloseSession(const TradingSession p_session)
+    {
+        return p_session == TradingSession::Regular || isExtendedHoursSession(p_session);
+    }
+
+    [[nodiscard]] QString tradingSessionToString(const TradingSession p_session)
+    {
+        switch (p_session)
+        {
+        case TradingSession::EarlyPreMarket:
+            return "early-pre-market";
+        case TradingSession::PreMarket:
+            return "pre-market";
+        case TradingSession::Regular:
+            return "regular";
+        case TradingSession::AfterHours:
+            return "after-hours";
+        case TradingSession::Closed:
+            return "closed";
+        case TradingSession::Weekend:
+            return "weekend";
+        case TradingSession::Holiday:
+            return "holiday";
+        }
+
+        return "unknown";
+    }
+
+    [[nodiscard]] QStringList normalizeClosePositionSymbols(const QStringList& p_symbols)
+    {
+        QStringList normalizedSymbols;
+        for (const QString& rawSymbol: p_symbols)
+        {
+            const QString symbol = rawSymbol.trimmed().toUpper();
+            if (!symbol.isEmpty() && !normalizedSymbols.contains(symbol))
+            {
+                normalizedSymbols.append(symbol);
+            }
+        }
+        return normalizedSymbols;
+    }
+
+    [[nodiscard]] std::expected<int, QString> parsePositionQuantityShares(const Position& p_position)
+    {
+        bool ok = false;
+        const double rawQuantity = p_position.getQuantity().trimmed().toDouble(&ok);
+        if (!ok)
+        {
+            return std::unexpected(QString("Position %1 has an invalid quantity '%2'")
+                                       .arg(p_position.getPositionID(), p_position.getQuantity()));
+        }
+
+        const double absoluteQuantity = std::abs(rawQuantity);
+        const qint64 roundedQuantity = std::llround(absoluteQuantity);
+        if (std::abs(absoluteQuantity - static_cast<double>(roundedQuantity)) > 0.0001)
+        {
+            return std::unexpected(QString("Position %1 has a non-integer quantity '%2'")
+                                       .arg(p_position.getPositionID(), p_position.getQuantity()));
+        }
+        if (roundedQuantity <= 0)
+        {
+            return std::unexpected(QString("Position %1 has no shares to close").arg(p_position.getPositionID()));
+        }
+        if (roundedQuantity > std::numeric_limits<int>::max())
+        {
+            return std::unexpected(QString("Position %1 quantity '%2' exceeds the supported order size range")
+                                       .arg(p_position.getPositionID(), p_position.getQuantity()));
+        }
+
+        return static_cast<int>(roundedQuantity);
+    }
+
+    [[nodiscard]] TradeAction closeTradeActionForPosition(const Position& p_position)
+    {
+        if (p_position.getLongShort() == "Long")
+        {
+            return TradeAction::Sell;
+        }
+        if (p_position.getLongShort() == "Short")
+        {
+            return TradeAction::BuyToCover;
+        }
+
+        ASSUME_TRUE(false);
+        return TradeAction::Sell;
+    }
+
+    [[nodiscard]] std::expected<double, QString> calculateAggressiveCloseLimitPrice(const Level2& p_level2,
+                                                                                    const TradeAction p_tradeAction,
+                                                                                    const double p_offsetCents)
+    {
+        const double offsetDollars = p_offsetCents / 100.0;
+        double price = 0.0;
+
+        switch (p_tradeAction)
+        {
+        case TradeAction::Buy:
+        case TradeAction::BuyToCover:
+            if (p_level2.m_asks[0].m_price <= 0.0)
+            {
+                return std::unexpected("Best ask is unavailable");
+            }
+            price = p_level2.m_asks[0].m_price + offsetDollars;
+            break;
+
+        case TradeAction::Sell:
+            if (p_level2.m_bids[0].m_price <= 0.0)
+            {
+                return std::unexpected("Best bid is unavailable");
+            }
+            price = p_level2.m_bids[0].m_price - offsetDollars;
+            if (price < 0.01)
+            {
+                price = 0.01;
+            }
+            break;
+
+        default:
+            return std::unexpected("Unsupported trade action for close-position pricing");
+        }
+
+        return price;
+    }
+
+    void appendPlaceOrderItems(const QVector<OrderResultItem>& p_items,
+                               QStringList* const p_orderIds,
+                               QStringList* const p_messages,
+                               QStringList* const p_errors)
+    {
+        ASSUME_DIFF(p_orderIds, nullptr);
+        ASSUME_DIFF(p_messages, nullptr);
+        ASSUME_DIFF(p_errors, nullptr);
+
+        for (const OrderResultItem& item: p_items)
+        {
+            if (!item.getOrderID().isEmpty())
+            {
+                p_orderIds->append(item.getOrderID());
+            }
+            if (!item.getMessage().isEmpty())
+            {
+                p_messages->append(item.getMessage());
+            }
+            if (item.getError().has_value())
+            {
+                p_errors->append(item.getError().value());
+            }
+        }
+    }
+
+    [[nodiscard]] QString summarizeClosePositionFailure(const ClosePositionItemResult& p_item)
+    {
+        if (!p_item.brokerErrors.isEmpty())
+        {
+            return p_item.brokerErrors.join(" | ");
+        }
+        if (!p_item.brokerMessages.isEmpty())
+        {
+            return p_item.brokerMessages.join(" | ");
+        }
+        return "Order placement returned errors";
+    }
+} // namespace
 
 MainAlgo* MainAlgo::getInstance()
 {
@@ -516,8 +706,8 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
 {
     const QString orderID = order.getOrderID();
 
-    DEBUG << "onReceivedNewOrder: orderID=" << orderID
-          << "status=" << static_cast<int>(order.getOrderStatus()) << "mappings_size=" << m_orderMappings.size();
+    DEBUG << "onReceivedNewOrder: orderID=" << orderID << "status=" << static_cast<int>(order.getOrderStatus())
+          << "mappings_size=" << m_orderMappings.size();
 
     // Attach strategy log for the full lifetime of the order.
     // Persist to DB on first arrival; keep in memory until the order is terminal
@@ -975,6 +1165,26 @@ uint64_t MainAlgo::getNextRequestId()
     return ++m_requestIdCounter;
 }
 
+QFuture<std::expected<ClosePositionsResult, QString>> MainAlgo::closePositions(const ClosePositionsRequest& p_request,
+                                                                               const QString& p_strategyID)
+{
+    auto promise = std::make_shared<QPromise<std::expected<ClosePositionsResult, QString>>>();
+    promise->start();
+    QFuture<std::expected<ClosePositionsResult, QString>> future = promise->future();
+
+    const bool invoked = QMetaObject::invokeMethod(
+        this,
+        [this, p_request, p_strategyID, promise]() { processClosePositions(p_strategyID, p_request, promise); },
+        Qt::QueuedConnection);
+    if (!invoked)
+    {
+        promise->addResult(std::unexpected(QStringLiteral("Failed to dispatch close positions request to MainAlgo")));
+        promise->finish();
+    }
+
+    return future;
+}
+
 std::expected<QString, QString> MainAlgo::loadStrategy(const StrategyConfig& p_config)
 {
     if (!m_strategyManager)
@@ -1143,6 +1353,240 @@ std::optional<QVector<StrategyLogMessage>> MainAlgo::getStrategyLogMessages(cons
         Qt::BlockingQueuedConnection);
     ASSUME_TRUE(invoked);
     return result;
+}
+
+void MainAlgo::processClosePositions(const QString& p_strategyID,
+                                     const ClosePositionsRequest& p_request,
+                                     std::shared_ptr<QPromise<std::expected<ClosePositionsResult, QString>>> p_promise)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+    ASSUME_DIFF(p_promise.get(), nullptr);
+
+    const QString resolvedAccountId = p_request.accountId.trimmed();
+    if (resolvedAccountId.isEmpty())
+    {
+        p_promise->addResult(std::unexpected(QStringLiteral("Close positions request requires a non-empty accountId")));
+        p_promise->finish();
+        return;
+    }
+
+    if (p_request.aggressivityOffsetCents < 0.0)
+    {
+        p_promise->addResult(
+            std::unexpected(QStringLiteral("Close positions aggressivity offset must be non-negative")));
+        p_promise->finish();
+        return;
+    }
+
+    ClosePositionsResult initialResult;
+    initialResult.accountId = resolvedAccountId;
+    initialResult.requestedSymbols = normalizeClosePositionSymbols(p_request.symbols);
+    initialResult.aggressivityOffsetCents = p_request.aggressivityOffsetCents;
+
+    const TradingSession session = MainApp::getCurrentSession();
+    initialResult.session = tradingSessionToString(session);
+    initialResult.usesAggressiveLimitOrders = isExtendedHoursSession(session);
+    initialResult.forcedDayPlus = initialResult.usesAggressiveLimitOrders;
+
+    if (!isTradableCloseSession(session))
+    {
+        p_promise->addResult(std::unexpected(
+            QString("Close positions kill switch is unavailable during the %1 session").arg(initialResult.session)));
+        p_promise->finish();
+        return;
+    }
+
+    QVector<Position> matchingPositions;
+    matchingPositions.reserve(m_currentPositions.size());
+    for (const Position& position: m_currentPositions.values())
+    {
+        const QString trimmedQuantity = position.getQuantity().trimmed();
+        if (position.isDeleted() || trimmedQuantity == "0" || trimmedQuantity == "0.0" || trimmedQuantity == "0.00")
+        {
+            continue;
+        }
+        if (position.getAccountID() != resolvedAccountId)
+        {
+            continue;
+        }
+        if (!initialResult.requestedSymbols.isEmpty() && !initialResult.requestedSymbols.contains(position.getSymbol()))
+        {
+            continue;
+        }
+        matchingPositions.append(position);
+    }
+
+    std::sort(matchingPositions.begin(),
+              matchingPositions.end(),
+              [](const Position& p_left, const Position& p_right)
+              {
+                  if (p_left.getSymbol() == p_right.getSymbol())
+                  {
+                      return p_left.getPositionID() < p_right.getPositionID();
+                  }
+                  return p_left.getSymbol() < p_right.getSymbol();
+              });
+
+    struct ClosePositionsAggregationState
+    {
+        ClosePositionsResult result;
+        int pendingOrders = 0;
+        bool finished = false;
+    };
+
+    auto state = std::make_shared<ClosePositionsAggregationState>();
+    state->result = initialResult;
+    state->result.matchedPositionCount = matchingPositions.size();
+    state->result.items.reserve(matchingPositions.size());
+
+    auto finishIfComplete = [state, p_promise]()
+    {
+        if (!state->finished && state->pendingOrders == 0)
+        {
+            state->finished = true;
+            p_promise->addResult(std::expected<ClosePositionsResult, QString>(state->result));
+            p_promise->finish();
+        }
+    };
+
+    if (matchingPositions.isEmpty())
+    {
+        INFO << "Close positions request found no open positions for account" << resolvedAccountId << "symbols"
+             << initialResult.requestedSymbols;
+        finishIfComplete();
+        return;
+    }
+
+    INFO << "Close positions request:" << "account=" << resolvedAccountId << "positions=" << matchingPositions.size()
+         << "session=" << initialResult.session << "symbols=" << initialResult.requestedSymbols;
+
+    for (const Position& position: matchingPositions)
+    {
+        ClosePositionItemResult item;
+        item.positionId = position.getPositionID();
+        item.accountId = position.getAccountID();
+        item.symbol = position.getSymbol();
+        item.longShort = position.getLongShort();
+        item.tradeAction = closeTradeActionForPosition(position);
+        item.orderType = initialResult.usesAggressiveLimitOrders ? OrderType::Type::Limit : OrderType::Type::Market;
+        item.duration = initialResult.usesAggressiveLimitOrders ? OrderDuration::DayPlus : OrderDuration::Day;
+
+        if (position.getAssetType() != "STOCK")
+        {
+            item.failureCode = "unsupported_asset_type";
+            item.failureMessage =
+                QString("Close positions kill switch currently supports only STOCK positions (got %1)")
+                    .arg(position.getAssetType());
+            state->result.items.append(item);
+            continue;
+        }
+
+        const auto quantityResult = parsePositionQuantityShares(position);
+        if (!quantityResult.has_value())
+        {
+            item.failureCode = "invalid_quantity";
+            item.failureMessage = quantityResult.error();
+            state->result.items.append(item);
+            continue;
+        }
+        item.quantity = quantityResult.value();
+
+        if (initialResult.usesAggressiveLimitOrders)
+        {
+            const std::expected<MarketDataSnapshot, QString> snapshot = getMarketDataSnapshot(position.getSymbol(), 1);
+            if (!snapshot.has_value())
+            {
+                item.failureCode = "market_data_unavailable";
+                item.failureMessage =
+                    QString("Missing level 2 data for %1: %2").arg(position.getSymbol(), snapshot.error());
+                state->result.items.append(item);
+                continue;
+            }
+            if (!snapshot->latestLevel2.has_value())
+            {
+                item.failureCode = "market_data_unavailable";
+                item.failureMessage = QString("Missing level 2 data for %1").arg(position.getSymbol());
+                state->result.items.append(item);
+                continue;
+            }
+
+            const auto limitPriceResult = calculateAggressiveCloseLimitPrice(snapshot->latestLevel2.value(),
+                                                                             item.tradeAction,
+                                                                             initialResult.aggressivityOffsetCents);
+            if (!limitPriceResult.has_value())
+            {
+                item.failureCode = "price_unavailable";
+                item.failureMessage =
+                    QString("Unable to price %1 close order: %2").arg(position.getSymbol(), limitPriceResult.error());
+                state->result.items.append(item);
+                continue;
+            }
+            item.limitPrice = limitPriceResult.value();
+        }
+
+        PlaceOrderRequest orderRequest;
+        orderRequest.setAccountID(resolvedAccountId);
+        orderRequest.setSymbol(position.getSymbol());
+        orderRequest.setTradeAction(item.tradeAction);
+        orderRequest.setOrderType(item.orderType);
+        orderRequest.setQuantity(item.quantity);
+        orderRequest.setTimeInForce(TimeInForce(item.duration));
+        if (item.limitPrice.has_value())
+        {
+            orderRequest.setLimitPrice(item.limitPrice.value());
+        }
+
+        item.submitted = true;
+        const int itemIndex = state->result.items.size();
+        state->result.items.append(item);
+        state->result.submittedOrderCount++;
+        state->pendingOrders++;
+
+        auto orderPromise = std::make_shared<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>();
+        orderPromise->start();
+        QFuture<std::expected<PlaceOrderResult, TSClient::Error>> orderFuture = orderPromise->future();
+
+        processPlaceOrder(getNextRequestId(), p_strategyID, orderRequest, orderPromise);
+
+        orderFuture.then(this,
+                         [state, itemIndex, finishIfComplete](std::expected<PlaceOrderResult, TSClient::Error> p_result)
+                         {
+                             ASSUME_TRUE(itemIndex >= 0);
+                             ASSUME_TRUE(itemIndex < state->result.items.size());
+                             ClosePositionItemResult& itemResult = state->result.items[itemIndex];
+
+                             if (!p_result.has_value())
+                             {
+                                 itemResult.failureCode = tsClientErrorToString(p_result.error());
+                                 itemResult.failureMessage =
+                                     QString("Order placement failed: %1").arg(itemResult.failureCode.value());
+                             }
+                             else
+                             {
+                                 const PlaceOrderResult& placeOrderResult = p_result.value();
+                                 appendPlaceOrderItems(placeOrderResult.getOrders(),
+                                                       &itemResult.orderIds,
+                                                       &itemResult.brokerMessages,
+                                                       &itemResult.brokerErrors);
+                                 appendPlaceOrderItems(placeOrderResult.getErrors(),
+                                                       &itemResult.orderIds,
+                                                       &itemResult.brokerMessages,
+                                                       &itemResult.brokerErrors);
+
+                                 itemResult.placementSucceeded = !placeOrderResult.hasErrors();
+                                 if (!itemResult.placementSucceeded)
+                                 {
+                                     itemResult.failureCode = "place_order_rejected";
+                                     itemResult.failureMessage = summarizeClosePositionFailure(itemResult);
+                                 }
+                             }
+
+                             state->pendingOrders--;
+                             finishIfComplete();
+                         });
+    }
+
+    finishIfComplete();
 }
 
 void MainAlgo::processPlaceOrder(uint64_t p_requestId,
