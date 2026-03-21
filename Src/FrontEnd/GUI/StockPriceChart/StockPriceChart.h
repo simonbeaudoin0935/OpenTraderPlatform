@@ -56,7 +56,7 @@ struct OrderMarker
     State state = State::Pending;
 
     // Visual element (owned by QCustomPlot)
-    // QCPItemTriangle for buy/sell markers, QCPItemText for cancelled/rejected
+    // QCPItemTriangle for filled markers, QCPItemText for pending/cancelled/rejected
     QCPAbstractItem* markerItem = nullptr;
     bool isTriangleMarker = false; ///< true when markerItem is QCPItemTriangle
 };
@@ -196,13 +196,13 @@ class StockPriceChart : public QWidget
 
     /**
      * @brief Called when a new order is placed (pending state).
-     * Creates a hollow triangle marker at the order price.
+     * Creates a hollow yellow rectangle marker at the order price.
      */
     void onOrderPlaced(const Order& order);
 
     /**
      * @brief Called when an order is filled.
-     * Converts pending marker to solid, updates position visualization.
+     * Converts the pending marker to a filled triangle, updates position visualization.
      */
     void onOrderFilled(const Order& order);
 
@@ -477,6 +477,7 @@ class StockPriceChart : public QWidget
     static constexpr QColor ORDER_VIZ_GREEN{0, 255, 100};  // #00FF64 - Bright lime green
     static constexpr QColor ORDER_VIZ_RED{255, 80, 0};     // #FF5000 - Bright orange-red
     static constexpr QColor ORDER_VIZ_GRAY{128, 128, 128}; // Gray for cancelled
+    static constexpr QColor ORDER_VIZ_YELLOW{255, 255, 0}; // #FFFF00 - Pending order outline
     static constexpr int ORDER_VIZ_LINE_WIDTH = 2;         // Line thickness
     static constexpr int ORDER_VIZ_MARKER_SIZE = 8;        // Marker size in pixels
     static constexpr int ORDER_VIZ_PL_FONT_SIZE = 9;       // P&L label font size
@@ -548,6 +549,8 @@ class StockPriceChart : public QWidget
      * @param newPrice The new price position
      */
     void moveMarkerToPrice(OrderMarker* marker, double newPrice);
+    [[nodiscard]] QPointF getOrderMarkerCoords(const OrderMarker* marker) const;
+    void registerOrderMarkerTooltip(OrderMarker* marker, const QString& tooltip);
 
     /**
      * @brief Removes and deletes an order marker.

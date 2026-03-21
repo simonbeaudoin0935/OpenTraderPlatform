@@ -97,28 +97,37 @@ OrderMarker* StockPriceChart::createOrderMarker(const QString& orderID,
     marker->isEntry = isEntry;
     marker->state = filled ? OrderMarker::State::Filled : OrderMarker::State::Pending;
 
-    // Buys point down (▼), sells point up (▲) — regardless of entry/exit.
-    // BUY ▼, SELL ▲, SELLSHORT ▲, BUYTOCOVER ▼.
-    auto* triangle = new QCPItemTriangle(m_customPlot, !isBuy);
-    triangle->tip->setCoords(index, price);
-    triangle->setPixelSize(12, 10);
+    if (filled)
+    {
+        // Buys point down (▼), sells point up (▲) — regardless of entry/exit.
+        // BUY ▼, SELL ▲, SELLSHORT ▲, BUYTOCOVER ▼.
+        auto* triangle = new QCPItemTriangle(m_customPlot, !isBuy);
+        triangle->tip->setCoords(index, price);
+        triangle->setPixelSize(12, 10);
+        triangle->setColor(isEntry ? ORDER_VIZ_GREEN : ORDER_VIZ_RED);
+        marker->markerItem = triangle;
+        marker->isTriangleMarker = true;
+    }
+    else
+    {
+        auto* pendingRect = new QCPItemText(m_customPlot);
+        pendingRect->position->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
+        pendingRect->position->setCoords(index, price);
+        pendingRect->setText(QStringLiteral("▭"));
+        pendingRect->setFont(QFont("Arial", 12, QFont::Bold));
+        pendingRect->setColor(ORDER_VIZ_YELLOW);
+        pendingRect->setPadding(QMargins(2, 2, 2, 2));
+        pendingRect->setPositionAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
+        marker->markerItem = pendingRect;
+        marker->isTriangleMarker = false;
+    }
 
-    // Entries are green (opening a position), exits are red (closing a position).
-    const QColor color = isEntry ? (filled ? ORDER_VIZ_GREEN : ORDER_VIZ_GREEN.lighter(130))
-                                 : (filled ? ORDER_VIZ_RED : ORDER_VIZ_RED.lighter(130));
-    triangle->setColor(color);
-
-    marker->markerItem = triangle;
-    marker->isTriangleMarker = true;
     m_orderMarkers.insert(orderID, marker);
 
-    // Register for hover tooltip (anchor: tip of triangle)
-    {
-        QString directionStr = isBuy ? "BUY" : "SELL";
-        QString stateStr = filled ? "Filled" : "Pending";
-        QString tooltipText = QString("%1 %2  |  price: %3").arg(stateStr, directionStr).arg(price, 0, 'f', 2);
-        registerTooltip(triangle, [triangle]() { return triangle->tip->pixelPosition(); }, tooltipText);
-    }
+    const QString directionStr = isBuy ? "BUY" : "SELL";
+    const QString stateStr = filled ? "Filled" : "Pending";
+    const QString tooltipText = QString("%1 %2  |  price: %3").arg(stateStr, directionStr).arg(price, 0, 'f', 2);
+    registerOrderMarkerTooltip(marker, tooltipText);
 
     return marker;
 }
@@ -175,12 +184,7 @@ void StockPriceChart::updateMarkerState(OrderMarker* marker, OrderMarker::State 
     if (newState == OrderMarker::State::Cancelled || newState == OrderMarker::State::Rejected)
     {
         // Replace triangle with a grey ✖ text label
-        const QPointF coords = [&]() -> QPointF
-        {
-            if (marker->isTriangleMarker)
-                return static_cast<QCPItemTriangle*>(marker->markerItem)->tip->coords();
-            return static_cast<QCPItemText*>(marker->markerItem)->position->coords();
-        }();
+        const QPointF coords = getOrderMarkerCoords(marker);
 
         unregisterTooltip(marker->markerItem);
         m_customPlot->removeItem(marker->markerItem);
@@ -198,7 +202,22 @@ void StockPriceChart::updateMarkerState(OrderMarker* marker, OrderMarker::State 
         marker->markerItem = textLabel;
 
         QString tooltipText = QString("Cancelled  |  price: %1").arg(coords.y(), 0, 'f', 2);
-        registerTooltip(textLabel, [textLabel]() { return textLabel->position->pixelPosition(); }, tooltipText);
+        registerOrderMarkerTooltip(marker, tooltipText);
+        return;
+    }
+
+    if (newState == OrderMarker::State::Filled && !marker->isTriangleMarker)
+    {
+        const QPointF coords = getOrderMarkerCoords(marker);
+        unregisterTooltip(marker->markerItem);
+        m_customPlot->removeItem(marker->markerItem);
+
+        auto* triangle = new QCPItemTriangle(m_customPlot, !marker->isBuy);
+        triangle->tip->setCoords(coords);
+        triangle->setPixelSize(12, 10);
+        triangle->setColor(marker->isEntry ? ORDER_VIZ_GREEN : ORDER_VIZ_RED);
+        marker->markerItem = triangle;
+        marker->isTriangleMarker = true;
         return;
     }
 
@@ -207,8 +226,7 @@ void StockPriceChart::updateMarkerState(OrderMarker* marker, OrderMarker::State 
     {
         auto* tri = static_cast<QCPItemTriangle*>(marker->markerItem);
         const bool isPending = (newState == OrderMarker::State::Pending);
-        const QColor color = marker->isEntry ? (isPending ? ORDER_VIZ_GREEN.lighter(130) : ORDER_VIZ_GREEN)
-                                             : (isPending ? ORDER_VIZ_RED.lighter(130) : ORDER_VIZ_RED);
+        const QColor color = isPending ? ORDER_VIZ_YELLOW : (marker->isEntry ? ORDER_VIZ_GREEN : ORDER_VIZ_RED);
         tri->setColor(color);
     }
 }
@@ -234,6 +252,37 @@ void StockPriceChart::moveMarkerToPrice(OrderMarker* marker, double newPrice)
         const QPointF coords = txt->position->coords();
         txt->position->setCoords(coords.x(), newPrice);
     }
+}
+
+QPointF StockPriceChart::getOrderMarkerCoords(const OrderMarker* marker) const
+{
+    ASSUME_DIFF(marker, nullptr);
+    ASSUME_DIFF(marker->markerItem, nullptr);
+
+    if (marker->isTriangleMarker)
+    {
+        return static_cast<QCPItemTriangle*>(marker->markerItem)->tip->coords();
+    }
+
+    return static_cast<QCPItemText*>(marker->markerItem)->position->coords();
+}
+
+void StockPriceChart::registerOrderMarkerTooltip(OrderMarker* marker, const QString& tooltip)
+{
+    if (marker == nullptr || marker->markerItem == nullptr)
+    {
+        return;
+    }
+
+    if (marker->isTriangleMarker)
+    {
+        auto* triangle = static_cast<QCPItemTriangle*>(marker->markerItem);
+        registerTooltip(marker->markerItem, [triangle]() { return triangle->tip->pixelPosition(); }, tooltip);
+        return;
+    }
+
+    auto* label = static_cast<QCPItemText*>(marker->markerItem);
+    registerTooltip(marker->markerItem, [label]() { return label->position->pixelPosition(); }, tooltip);
 }
 
 void StockPriceChart::removeOrderMarker(const QString& orderID)
@@ -727,7 +776,7 @@ void StockPriceChart::onOrderPlaced(const Order& order)
         if (order.getStrategyLog().has_value())
         {
             OrderMarker* marker = m_orderMarkers.value(orderID);
-            if (marker != nullptr && marker->markerItem != nullptr && marker->isTriangleMarker)
+            if (marker != nullptr && marker->markerItem != nullptr)
             {
                 const bool isBuy = order.getTradeAction().toUpper().contains("BUY");
                 const QString dirStr = isBuy ? "BUY" : "SELL";
@@ -736,10 +785,7 @@ void StockPriceChart::onOrderPlaced(const Order& order)
                                         .arg(order.getQuantity().toInt())
                                         .arg(marker->price, 0, 'f', 2) +
                                     QString("\n\"%1\"").arg(order.getStrategyLog().value());
-                registerTooltip(
-                    marker->markerItem,
-                    [tri = static_cast<QCPItemTriangle*>(marker->markerItem)]() { return tri->tip->pixelPosition(); },
-                    tip);
+                registerOrderMarkerTooltip(marker, tip);
             }
         }
         return;
@@ -797,10 +843,7 @@ void StockPriceChart::onOrderPlaced(const Order& order)
         {
             tip += QString("\n\"%1\"").arg(order.getStrategyLog().value());
         }
-        registerTooltip(
-            marker->markerItem,
-            [tri = static_cast<QCPItemTriangle*>(marker->markerItem)]() { return tri->tip->pixelPosition(); },
-            tip);
+        registerOrderMarkerTooltip(marker, tip);
     }
 
     m_customPlot->replot(QCustomPlot::rpQueuedReplot);
@@ -839,10 +882,7 @@ void StockPriceChart::onOrderFilled(const Order& order)
             {
                 tip += QString("\n\"%1\"").arg(order.getStrategyLog().value());
             }
-            registerTooltip(
-                marker->markerItem,
-                [tri = static_cast<QCPItemTriangle*>(marker->markerItem)]() { return tri->tip->pixelPosition(); },
-                tip);
+            registerOrderMarkerTooltip(marker, tip);
         }
     }
     else
@@ -891,10 +931,7 @@ void StockPriceChart::onOrderFilled(const Order& order)
             {
                 tip += QString("\n\"%1\"").arg(order.getStrategyLog().value());
             }
-            registerTooltip(
-                marker->markerItem,
-                [tri = static_cast<QCPItemTriangle*>(marker->markerItem)]() { return tri->tip->pixelPosition(); },
-                tip);
+            registerOrderMarkerTooltip(marker, tip);
         }
     }
 
