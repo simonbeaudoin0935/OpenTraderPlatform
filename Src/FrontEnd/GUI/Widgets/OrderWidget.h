@@ -57,6 +57,7 @@ class OrderWidget : public QWidget
     void updateOrderRow(const QString& account, const Order& order);
     QList<QStandardItem*> createRowItems(const Order& order);
     void onSymbolClicked(const QModelIndex& index);
+    void onCustomContextMenuRequested(const QPoint& p_pos);
 
     QTableView* m_tableView;
     QStandardItemModel* m_model;

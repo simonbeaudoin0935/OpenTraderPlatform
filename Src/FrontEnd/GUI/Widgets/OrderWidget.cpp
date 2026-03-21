@@ -3,12 +3,28 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMenu>
 #include <QPushButton>
 
 #include "OrderWidget.h"
 #include "Assume.h"
 #include "CONSTANTS.h"
 #include "LTTng/LTTngTracepoints.h"
+
+namespace
+{
+    [[nodiscard]] bool isOrderCancellable(const Order& p_order)
+    {
+        const Order::Status status = p_order.getOrderStatus();
+        return status == Order::Status::DON || // Queued
+               status == Order::Status::ACK || // Received
+               status == Order::Status::OPN || // Sent
+               status == Order::Status::FPR || // Partial Fill (Alive)
+               status == Order::Status::CND || // Condition Met
+               status == Order::Status::OSO || // OSO Order
+               status == Order::Status::SUS;   // Suspended
+    }
+} // namespace
 
 OrderWidget::OrderWidget(QWidget* p_parent)
     : QWidget(p_parent)
@@ -69,10 +85,17 @@ void OrderWidget::setupUI()
     m_tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_tableView->setAlternatingRowColors(true);
     m_tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_tableView->setContextMenuPolicy(Qt::CustomContextMenu);
 
     // Connect click signal
     auto c = connect(m_tableView, &QTableView::clicked, this, &OrderWidget::onSymbolClicked, Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(c);
+    auto contextMenuConnection = connect(m_tableView,
+                                         &QTableView::customContextMenuRequested,
+                                         this,
+                                         &OrderWidget::onCustomContextMenuRequested,
+                                         Qt::UniqueConnection);
+    OBJ_ASSUME_TRUE(contextMenuConnection);
 
     // Set column widths
     m_tableView->setColumnWidth(0, 100);  // Status
@@ -472,10 +495,8 @@ void OrderWidget::onSymbolClicked(const QModelIndex& index)
 
     QString orderId = orderIdItem->text();
 
-    // Check if this row has "Received" or "Queued" status (first column)
-    QStandardItem* statusItem = m_model->item(index.row(), 0); // Status column
-    bool isCancelableOrder = (statusItem != nullptr && (statusItem->text().contains("Received", Qt::CaseInsensitive) ||
-                                                        statusItem->text().contains("Queued", Qt::CaseInsensitive)));
+    const auto orderIt = m_orders.constFind(orderId);
+    const bool isCancelableOrder = orderIt != m_orders.constEnd() && isOrderCancellable(orderIt.value());
 
     if (isCancelableOrder)
     {
@@ -496,6 +517,37 @@ void OrderWidget::onSymbolClicked(const QModelIndex& index)
     }
 }
 
+void OrderWidget::onCustomContextMenuRequested(const QPoint& p_pos)
+{
+    const QModelIndex index = m_tableView->indexAt(p_pos);
+    if (!index.isValid())
+    {
+        return;
+    }
+
+    QStandardItem* const orderIdItem = m_model->item(index.row(), 10);
+    if (orderIdItem == nullptr)
+    {
+        return;
+    }
+
+    const QString orderId = orderIdItem->text().trimmed();
+    const auto orderIt = m_orders.constFind(orderId);
+    if (orderIt == m_orders.constEnd() || !isOrderCancellable(orderIt.value()))
+    {
+        return;
+    }
+
+    QMenu menu(this);
+    QAction* const cancelAction = menu.addAction("Cancel Order");
+    Q_CHECK_PTR(cancelAction);
+
+    if (menu.exec(m_tableView->viewport()->mapToGlobal(p_pos)) == cancelAction)
+    {
+        emit cancelOrderRequested(orderId);
+    }
+}
+
 QStringList OrderWidget::getAllOrderIds() const
 {
     return m_orderRowMap.keys();
@@ -509,18 +561,8 @@ QStringList OrderWidget::getCancellableOrderIds() const
     for (auto it = m_orders.constBegin(); it != m_orders.constEnd(); ++it)
     {
         const Order& order = it.value();
-        Order::Status status = order.getOrderStatus();
-
-        // Only cancel orders that are queued, received, or sent
-        // Don't cancel filled, cancelled, rejected, expired, etc.
-        if (status == Order::Status::DON || // Queued
-            status == Order::Status::ACK || // Received
-            status == Order::Status::OPN || // Sent
-            status == Order::Status::FPR || // Partial Fill (Alive)
-            status == Order::Status::CND || // Condition Met
-            status == Order::Status::OSO || // OSO Order
-            status == Order::Status::SUS)
-        { // Suspended
+        if (isOrderCancellable(order))
+        {
             cancellableIds.append(it.key());
         }
     }

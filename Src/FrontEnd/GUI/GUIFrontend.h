@@ -73,6 +73,7 @@ class GUIFrontend : public FrontEnd
     void onShortcutChanged(ShortcutSettings::ShortcutId p_id, const QKeySequence& p_newSequence);
     void onCancelAllOrders();
     void onCloseAllPositions();
+    void onClosePosition(const QString& p_positionID);
     void onToggleReplayPlayPause();
     void onToggleReplayMode();
     void onAccountInfoButtonClicked();
@@ -93,6 +94,9 @@ class GUIFrontend : public FrontEnd
     void saveMainWindowGeometry();
     void restoreMainWindowGeometry();
     QString formatAccountInfo(const Account& account) const;
+    void submitClosePositionsRequest(const ClosePositionsRequest& p_request,
+                                     const QString& p_dialogTitle,
+                                     const QString& p_noMatchesMessage);
     MainAlgo* mainAlgo;
     QString currentlyDisplayedSymbol;
     TimeFrame m_currentTimeFrame = TimeFrame::ONE_MINUTE;

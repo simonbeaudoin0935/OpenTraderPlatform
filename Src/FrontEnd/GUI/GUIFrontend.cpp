@@ -661,6 +661,11 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             this,
             &GUIFrontend::onCloseAllPositions,
             Qt::UniqueConnection);
+    connect(ui->positionWidget,
+            &PositionWidget::closePositionRequested,
+            this,
+            &GUIFrontend::onClosePosition,
+            Qt::UniqueConnection);
 
     // Connect order window symbol click
     connect(ui->orderWidget,
@@ -2075,24 +2080,69 @@ void GUIFrontend::onCloseAllPositions()
                                           ->value(ClosePositionsConstants::SETTINGS_KEY_AGGRESSIVE_LIMIT_OFFSET_CENTS,
                                                   ClosePositionsConstants::DEFAULT_AGGRESSIVE_LIMIT_OFFSET_CENTS)
                                           .toDouble();
+    submitClosePositionsRequest(request,
+                                "Close All Positions",
+                                QString("No open positions were found for account %1.").arg(selectedAccountId));
+}
 
-    mainAlgo->closePositions(request).then(
+void GUIFrontend::onClosePosition(const QString& p_positionID)
+{
+    QVector<Position> positions;
+    const bool invoked = QMetaObject::invokeMethod(
+        mainAlgo,
+        [this, &positions]() { positions = this->mainAlgo->getCurrentPositionsSnapshot(); },
+        Qt::BlockingQueuedConnection);
+    ASSUME_TRUE(invoked);
+
+    for (const Position& position: positions)
+    {
+        if (position.getPositionID() != p_positionID)
+        {
+            continue;
+        }
+
+        ClosePositionsRequest request;
+        request.accountId = position.getAccountID();
+        request.symbols = {position.getSymbol()};
+        Q_CHECK_PTR(appStateSettings);
+        request.aggressivityOffsetCents =
+            appStateSettings
+                ->value(ClosePositionsConstants::SETTINGS_KEY_AGGRESSIVE_LIMIT_OFFSET_CENTS,
+                        ClosePositionsConstants::DEFAULT_AGGRESSIVE_LIMIT_OFFSET_CENTS)
+                .toDouble();
+
+        submitClosePositionsRequest(request,
+                                    "Close Position",
+                                    QString("No open position was found for %1 in account %2.")
+                                        .arg(position.getSymbol(), position.getAccountID()));
+        return;
+    }
+
+    const QString message = QString("Position %1 is no longer available to close.").arg(p_positionID);
+    QMessageBox::information(nullptr, "Close Position", message);
+    qInfo() << message;
+}
+
+void GUIFrontend::submitClosePositionsRequest(const ClosePositionsRequest& p_request,
+                                              const QString& p_dialogTitle,
+                                              const QString& p_noMatchesMessage)
+{
+    mainAlgo->closePositions(p_request).then(
         this,
-        [this, selectedAccountId](std::expected<ClosePositionsResult, QString> result)
+        [this, p_dialogTitle, p_noMatchesMessage](std::expected<ClosePositionsResult, QString> result)
         {
             if (!result.has_value())
             {
-                QMessageBox::critical(nullptr, "Close All Positions", result.error());
-                qCritical() << "Close all positions failed:" << result.error();
+                QMessageBox::critical(nullptr, p_dialogTitle, result.error());
+                qCritical() << p_dialogTitle << "failed:" << result.error();
                 return;
             }
 
             const ClosePositionsResult& closeResult = result.value();
             if (closeResult.matchedPositionCount == 0)
             {
-                const QString message = QString("No open positions were found for account %1.").arg(selectedAccountId);
-                QMessageBox::information(nullptr, "Close All Positions", message);
-                qInfo() << message;
+                QMessageBox::information(nullptr, p_dialogTitle, p_noMatchesMessage);
+                qInfo() << p_noMatchesMessage;
                 return;
             }
 
@@ -2101,22 +2151,22 @@ void GUIFrontend::onCloseAllPositions()
                 const QString message = summarizeClosePositionsFailures(closeResult);
                 if (closeResult.successCount() == 0)
                 {
-                    QMessageBox::critical(nullptr, "Close All Positions", message);
+                    QMessageBox::critical(nullptr, p_dialogTitle, message);
                 }
                 else
                 {
-                    QMessageBox::warning(nullptr, "Close All Positions", message);
+                    QMessageBox::warning(nullptr, p_dialogTitle, message);
                 }
-                qWarning() << "Close all positions completed with errors:" << message;
+                qWarning() << p_dialogTitle << "completed with errors:" << message;
                 return;
             }
 
             const QString message = summarizeClosePositionsSuccess(closeResult);
             if (ui->orderEntryWidget->isResultPopupEnabled())
             {
-                QMessageBox::information(nullptr, "Close All Positions", message);
+                QMessageBox::information(nullptr, p_dialogTitle, message);
             }
-            qInfo() << "Close all positions succeeded:" << message;
+            qInfo() << p_dialogTitle << "succeeded:" << message;
         });
 }
 

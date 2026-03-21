@@ -4,6 +4,7 @@
 #include <QHeaderView>
 #include <QVBoxLayout>
 #include <QLabel>
+#include <QMenu>
 #include <QPushButton>
 #include "Assume.h"
 #include "LTTng/LTTngTracepoints.h"
@@ -67,11 +68,18 @@ void PositionWidget::setupUI()
     tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     tableView->setAlternatingRowColors(true);
     tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    tableView->setContextMenuPolicy(Qt::CustomContextMenu);
 
     // Connect click signal
     auto symbolClickConnection =
         connect(tableView, &QTableView::clicked, this, &PositionWidget::onSymbolClicked, Qt::UniqueConnection);
     OBJ_ASSUME_TRUE(symbolClickConnection);
+    auto contextMenuConnection = connect(tableView,
+                                         &QTableView::customContextMenuRequested,
+                                         this,
+                                         &PositionWidget::onCustomContextMenuRequested,
+                                         Qt::UniqueConnection);
+    OBJ_ASSUME_TRUE(contextMenuConnection);
 
     // Set column widths
     tableView->setColumnWidth(0, 70); // Symbol
@@ -256,6 +264,44 @@ void PositionWidget::onSymbolClicked(const QModelIndex& index)
     { // Only handle clicks on the Symbol column
         QString symbol = model->item(index.row(), 0)->text();
         emit symbolClicked(symbol);
+    }
+}
+
+void PositionWidget::onCustomContextMenuRequested(const QPoint& p_pos)
+{
+    const QModelIndex index = tableView->indexAt(p_pos);
+    if (!index.isValid())
+    {
+        return;
+    }
+
+    QStandardItem* const quantityItem = model->item(index.row(), 1);
+    QStandardItem* const positionIDItem = model->item(index.row(), 7);
+    if (quantityItem == nullptr || positionIDItem == nullptr)
+    {
+        return;
+    }
+
+    bool quantityOk = false;
+    const double quantity = quantityItem->text().toDouble(&quantityOk);
+    if (!quantityOk || qFuzzyCompare(1.0 + qAbs(quantity), 1.0))
+    {
+        return;
+    }
+
+    const QString positionID = positionIDItem->text().trimmed();
+    if (positionID.isEmpty())
+    {
+        return;
+    }
+
+    QMenu menu(this);
+    QAction* const closeAction = menu.addAction("Close Position");
+    Q_CHECK_PTR(closeAction);
+
+    if (menu.exec(tableView->viewport()->mapToGlobal(p_pos)) == closeAction)
+    {
+        emit closePositionRequested(positionID);
     }
 }
 

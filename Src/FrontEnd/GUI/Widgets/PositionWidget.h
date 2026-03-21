@@ -41,12 +41,17 @@ class PositionWidget : public QWidget
     /// Emitted when user requests to close all open positions visible in the widget's account scope.
     void closeAllPositionsRequested();
 
+    /// Emitted when user requests to close a specific position row.
+    /// @param positionId Unique position identifier for the selected row
+    void closePositionRequested(const QString& positionId);
+
   private:
     void setupUI();
     void setupStyles();
     void updatePositionRow(const QString& account, const Position& position);
     QList<QStandardItem*> createRowItems(const Position& position);
     void onSymbolClicked(const QModelIndex& index);
+    void onCustomContextMenuRequested(const QPoint& p_pos);
 
     QTableView* tableView;
     QStandardItemModel* model;
