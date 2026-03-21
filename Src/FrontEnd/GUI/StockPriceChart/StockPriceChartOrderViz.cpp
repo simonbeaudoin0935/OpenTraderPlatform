@@ -394,6 +394,9 @@ void StockPriceChart::updateOpenPositionDynamicLine(double currentPrice, double 
 
     OrderMarker* lastFill = m_currentOpenPosition->fillMarkers.last();
     const QPointF fillCoords = getOrderMarkerCoords(lastFill);
+    const double effectiveCurrentIndex = (m_currentTimeLine != nullptr && m_currentTimeLine->visible())
+                                             ? m_currentTimeLine->start->coords().x()
+                                             : currentIndex;
 
     const bool profitable = isPositionProfitable(m_currentOpenPosition, currentPrice);
     const QColor color = profitable ? ORDER_VIZ_GREEN : ORDER_VIZ_RED;
@@ -407,13 +410,13 @@ void StockPriceChart::updateOpenPositionDynamicLine(double currentPrice, double 
     if (!m_currentOpenPosition->dynamicLine)
     {
         m_currentOpenPosition->dynamicLine =
-            createPositionLine(fillCoords.x(), fillCoords.y(), currentIndex, currentPrice, profitable);
+            createPositionLine(fillCoords.x(), fillCoords.y(), effectiveCurrentIndex, currentPrice, profitable);
     }
     else
     {
         m_currentOpenPosition->dynamicLine->setPen(QPen(color, ORDER_VIZ_LINE_WIDTH - 1, Qt::DotLine));
         m_currentOpenPosition->dynamicLine->start->setCoords(fillCoords);
-        m_currentOpenPosition->dynamicLine->end->setCoords(currentIndex, currentPrice);
+        m_currentOpenPosition->dynamicLine->end->setCoords(effectiveCurrentIndex, currentPrice);
     }
 }
 

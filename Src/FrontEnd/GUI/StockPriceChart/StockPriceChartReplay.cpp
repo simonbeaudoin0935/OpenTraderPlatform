@@ -208,6 +208,11 @@ void StockPriceChart::updateCurrentTimeLine()
     m_currentTimeLine->start->setCoords(currentIndex, yRange.lower);
     m_currentTimeLine->end->setCoords(currentIndex, yRange.upper);
 
+    if (m_currentOpenPosition && !m_currentOpenPosition->isClosed && m_latestBarIndex >= 0)
+    {
+        updateOpenPositionDynamicLine(static_cast<double>(m_latestBar.getClose()), currentIndex);
+    }
+
     // Use queued replot for better performance - allows batching multiple updates
     m_customPlot->replot(QCustomPlot::rpQueuedReplot);
 }
