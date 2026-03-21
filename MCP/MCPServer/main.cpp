@@ -73,6 +73,49 @@ namespace
         return QJsonObject{{"type", "object"}, {"properties", QJsonObject{}}};
     }
 
+    [[nodiscard]] QJsonObject tradingModeSchema()
+    {
+        QJsonObject properties;
+        properties["mode"] = QJsonObject{
+            {"type", "string"},
+            {"enum", QJsonArray{"sim", "paper"}},
+            {"description",
+             "Trading mode to persist. 'paper' is accepted as an alias for 'sim'. Live mode switching is "
+             "intentionally blocked by the MCP server."},
+        };
+
+        return QJsonObject{
+            {"type", "object"},
+            {"properties", properties},
+            {"required", QJsonArray{"mode"}},
+        };
+    }
+
+    [[nodiscard]] std::expected<QJsonObject, QString>
+    normalizeToolArguments(const QString& p_toolName, const QJsonObject& p_arguments)
+    {
+        if (p_toolName != PlatformControlProtocol::kCommandSetTradingMode)
+        {
+            return p_arguments;
+        }
+
+        QJsonObject normalizedArguments = p_arguments;
+        const QString mode = normalizedArguments.value("mode").toString().trimmed().toLower();
+        if (mode == "live")
+        {
+            return std::unexpected(
+                "The MCP server refuses to switch L2Trader into live mode. Use 'sim'/'paper' or the replay tools "
+                "instead.");
+        }
+
+        if (mode == "paper")
+        {
+            normalizedArguments["mode"] = "sim";
+        }
+
+        return normalizedArguments;
+    }
+
     [[nodiscard]] QJsonObject replayArgsSchema()
     {
         QJsonObject properties;
@@ -480,21 +523,10 @@ namespace
         tools.append(QJsonObject{
             {"name", PlatformControlProtocol::kCommandSetTradingMode},
             {"title", "Set trading mode"},
-            {"description", "Persist the requested TradeStation mode (sim or live). A platform restart is required."},
-            {"inputSchema",
-             QJsonObject{
-                 {"type", "object"},
-                 {"properties",
-                  QJsonObject{
-                      {"mode",
-                       QJsonObject{
-                           {"type", "string"},
-                           {"enum", QJsonArray{"sim", "live"}},
-                           {"description", "Trading mode to persist."},
-                       }},
-                  }},
-                 {"required", QJsonArray{"mode"}},
-             }},
+            {"description",
+             "Persist the requested TradeStation mode for sim/paper trading. Live mode switching is intentionally "
+             "blocked by the MCP server. A platform restart is required."},
+            {"inputSchema", tradingModeSchema()},
         });
         return tools;
     }
@@ -616,8 +648,21 @@ int main(int argc, char* argv[])
                 continue;
             }
 
+            const auto normalizedArguments = normalizeToolArguments(toolName, arguments);
+            if (!normalizedArguments.has_value())
+            {
+                const QJsonObject blockedResponse{
+                    {"ok", false},
+                    {"error", normalizedArguments.error()},
+                    {"protocolVersion", PlatformControlProtocol::kProtocolVersion},
+                };
+                writeJsonRpcLine(
+                    makeJsonRpcResponse(id, makeTextContentResult(normalizedArguments.error(), true, blockedResponse)));
+                continue;
+            }
+
             const auto controlResponse =
-                controlClient.sendCommand(PlatformControlProtocol::makeRequest(toolName, arguments));
+                controlClient.sendCommand(PlatformControlProtocol::makeRequest(toolName, normalizedArguments.value()));
             if (!controlResponse.has_value())
             {
                 const QJsonObject result = makeTextContentResult(controlResponse.error(), true);
