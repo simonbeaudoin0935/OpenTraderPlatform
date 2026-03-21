@@ -65,9 +65,21 @@ namespace
 
 double StockPriceChart::getExactIndexForTimestamp(const QDateTime& timestamp) const
 {
+    const double slotMs = (m_displayTimeFrame == TimeFrame::TEN_SECONDS) ? 10000.0 : 60000.0;
+
     if (timestampToIndex.isEmpty())
     {
-        return 0.0;
+        if (!m_index0Timestamp.isValid())
+        {
+            return 0.0;
+        }
+
+        const int baseIndex = getIndexForTimestamp(timestamp);
+        const QDateTime baseTimestamp = getTimestampForIndex(baseIndex);
+        ASSUME_TRUE(baseTimestamp.isValid());
+
+        const qint64 elapsedMs = baseTimestamp.msecsTo(timestamp);
+        return baseIndex + (static_cast<double>(elapsedMs) / slotMs);
     }
 
     // Find the closest bar timestamp
@@ -84,8 +96,7 @@ double StockPriceChart::getExactIndexForTimestamp(const QDateTime& timestamp) co
         int lastIndex = it.value();
         QDateTime lastBarTime = it.key();
         qint64 msDiff = lastBarTime.msecsTo(timestamp);
-        // Assume 1-minute bars: 60000ms per index
-        return lastIndex + (msDiff / 60000.0);
+        return lastIndex + (msDiff / slotMs);
     }
 
     if (it == timestampToIndex.begin())
@@ -94,7 +105,7 @@ double StockPriceChart::getExactIndexForTimestamp(const QDateTime& timestamp) co
         int firstIndex = it.value();
         QDateTime firstBarTime = it.key();
         qint64 msDiff = timestamp.msecsTo(firstBarTime);
-        return firstIndex - (msDiff / 60000.0);
+        return firstIndex - (msDiff / slotMs);
     }
 
     // Interpolate between two bars
