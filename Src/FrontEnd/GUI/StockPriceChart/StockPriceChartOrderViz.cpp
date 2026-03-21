@@ -15,6 +15,7 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QtMath>
+#include <algorithm>
 
 #include "StockPriceChart.h"
 #include "IndexToTimeTicker.h"
@@ -29,6 +30,38 @@
 #include "OrdersDatabase.h"
 #include "PositionsDatabase.h"
 #define LOGGING_CATEGORY ChartLog
+
+namespace
+{
+    bool isPositionProfitable(const PositionVisualization* p_position, double p_price)
+    {
+        ASSUME_DIFF(p_position, nullptr);
+        return p_position->isShort ? p_price < p_position->avgEntryPrice : p_price > p_position->avgEntryPrice;
+    }
+
+    void appendFilledMarkerToPosition(PositionVisualization* p_position, OrderMarker* p_marker)
+    {
+        ASSUME_DIFF(p_position, nullptr);
+        ASSUME_DIFF(p_marker, nullptr);
+
+        p_position->fillMarkers.append(p_marker);
+        if (p_marker->isEntry)
+        {
+            p_position->entryMarkers.append(p_marker);
+        }
+        else
+        {
+            p_position->exitMarkers.append(p_marker);
+        }
+    }
+
+    int markerNetDelta(const OrderMarker* p_marker)
+    {
+        ASSUME_DIFF(p_marker, nullptr);
+        const int quantity = qAbs(p_marker->quantity);
+        return p_marker->isEntry ? quantity : -quantity;
+    }
+} // namespace
 
 double StockPriceChart::getExactIndexForTimestamp(const QDateTime& timestamp) const
 {
@@ -231,7 +264,7 @@ void StockPriceChart::updateMarkerState(OrderMarker* marker, OrderMarker::State 
     }
 }
 
-void StockPriceChart::moveMarkerToPrice(OrderMarker* marker, double newPrice)
+void StockPriceChart::moveMarkerToCoords(OrderMarker* marker, double newIndex, double newPrice)
 {
     if (!marker || !marker->markerItem)
     {
@@ -243,15 +276,24 @@ void StockPriceChart::moveMarkerToPrice(OrderMarker* marker, double newPrice)
     if (marker->isTriangleMarker)
     {
         auto* tri = static_cast<QCPItemTriangle*>(marker->markerItem);
-        const QPointF coords = tri->tip->coords();
-        tri->tip->setCoords(coords.x(), newPrice);
+        tri->tip->setCoords(newIndex, newPrice);
     }
     else
     {
         auto* txt = static_cast<QCPItemText*>(marker->markerItem);
-        const QPointF coords = txt->position->coords();
-        txt->position->setCoords(coords.x(), newPrice);
+        txt->position->setCoords(newIndex, newPrice);
     }
+}
+
+void StockPriceChart::moveMarkerToPrice(OrderMarker* marker, double newPrice)
+{
+    if (!marker || !marker->markerItem)
+    {
+        return;
+    }
+
+    const QPointF coords = getOrderMarkerCoords(marker);
+    moveMarkerToCoords(marker, coords.x(), newPrice);
 }
 
 QPointF StockPriceChart::getOrderMarkerCoords(const OrderMarker* marker) const
@@ -334,6 +376,7 @@ QCPItemLine* StockPriceChart::createPositionLine(double x1, double y1, double x2
     line->setPen(pen);
     line->start->setCoords(x1, y1);
     line->end->setCoords(x2, y2);
+    line->setVisible(m_orderVisualizationsVisible);
     return line;
 }
 
@@ -344,38 +387,32 @@ void StockPriceChart::updateOpenPositionDynamicLine(double currentPrice, double 
         return;
     }
 
-    // Get the last entry marker position
-    if (m_currentOpenPosition->entryMarkers.isEmpty())
+    if (m_currentOpenPosition->fillMarkers.isEmpty())
     {
         return;
     }
 
-    OrderMarker* lastEntry = m_currentOpenPosition->entryMarkers.last();
-    double entryIndex = getExactIndexForTimestamp(lastEntry->timestamp);
-    double entryPrice = lastEntry->price;
+    OrderMarker* lastFill = m_currentOpenPosition->fillMarkers.last();
+    const QPointF fillCoords = getOrderMarkerCoords(lastFill);
 
-    // Calculate if position is currently profitable
-    bool profitable;
-    if (m_currentOpenPosition->isShort)
+    const bool profitable = isPositionProfitable(m_currentOpenPosition, currentPrice);
+    const QColor color = profitable ? ORDER_VIZ_GREEN : ORDER_VIZ_RED;
+
+    for (QCPItemLine* segment: m_currentOpenPosition->traceSegments)
     {
-        profitable = currentPrice < m_currentOpenPosition->avgEntryPrice;
-    }
-    else
-    {
-        profitable = currentPrice > m_currentOpenPosition->avgEntryPrice;
+        segment->setPen(QPen(color, ORDER_VIZ_LINE_WIDTH - 1, Qt::DotLine));
     }
 
     // Create or update dynamic line
     if (!m_currentOpenPosition->dynamicLine)
     {
         m_currentOpenPosition->dynamicLine =
-            createPositionLine(entryIndex, entryPrice, currentIndex, currentPrice, profitable);
+            createPositionLine(fillCoords.x(), fillCoords.y(), currentIndex, currentPrice, profitable);
     }
     else
     {
-        QColor color = profitable ? ORDER_VIZ_GREEN : ORDER_VIZ_RED;
         m_currentOpenPosition->dynamicLine->setPen(QPen(color, ORDER_VIZ_LINE_WIDTH - 1, Qt::DotLine));
-        m_currentOpenPosition->dynamicLine->start->setCoords(entryIndex, entryPrice);
+        m_currentOpenPosition->dynamicLine->start->setCoords(fillCoords);
         m_currentOpenPosition->dynamicLine->end->setCoords(currentIndex, currentPrice);
     }
 }
@@ -441,15 +478,14 @@ void StockPriceChart::createClosedPositionPLLabel(PositionVisualization* posViz)
 
     // Position the label near the last exit marker
     OrderMarker* lastExit = posViz->exitMarkers.last();
-    double exitIndex = getExactIndexForTimestamp(lastExit->timestamp);
-    double exitPrice = lastExit->price;
+    const QPointF exitCoords = getOrderMarkerCoords(lastExit);
 
     // Create label
     posViz->plLabel = new QCPItemText(m_customPlot);
     posViz->plLabel->setPositionAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     posViz->plLabel->position->setType(QCPItemPosition::ptPlotCoords);
     posViz->plLabel->position->setAxes(m_customPlot->xAxis, m_customPlot->axisRect()->axis(QCPAxis::atRight));
-    posViz->plLabel->position->setCoords(exitIndex, exitPrice);
+    posViz->plLabel->position->setCoords(exitCoords);
     posViz->plLabel->setFont(QFont(font().family(), ORDER_VIZ_PL_FONT_SIZE));
 
     // Format P&L text
@@ -459,6 +495,7 @@ void StockPriceChart::createClosedPositionPLLabel(PositionVisualization* posViz)
     QColor textColor = posViz->realizedPL >= 0 ? ORDER_VIZ_GREEN : ORDER_VIZ_RED;
     posViz->plLabel->setColor(textColor);
     posViz->plLabel->setText(plText);
+    posViz->plLabel->setVisible(m_orderVisualizationsVisible);
 }
 
 double StockPriceChart::calculateDCAPrice(const PositionVisualization* posViz) const
@@ -480,6 +517,36 @@ double StockPriceChart::calculateDCAPrice(const PositionVisualization* posViz) c
     return totalQuantity > 0 ? totalCost / totalQuantity : 0.0;
 }
 
+void StockPriceChart::clearPositionTraceVisuals(PositionVisualization* posViz)
+{
+    if (!posViz)
+    {
+        return;
+    }
+
+    posViz->entryMarkers.clear();
+    posViz->exitMarkers.clear();
+    posViz->fillMarkers.clear();
+
+    for (QCPItemLine* line: posViz->traceSegments)
+    {
+        m_customPlot->removeItem(line);
+    }
+    posViz->traceSegments.clear();
+
+    if (posViz->dynamicLine)
+    {
+        m_customPlot->removeItem(posViz->dynamicLine);
+        posViz->dynamicLine = nullptr;
+    }
+
+    if (posViz->plLabel)
+    {
+        m_customPlot->removeItem(posViz->plLabel);
+        posViz->plLabel = nullptr;
+    }
+}
+
 void StockPriceChart::finalizeClosedPosition(PositionVisualization* posViz)
 {
     if (!posViz)
@@ -496,19 +563,10 @@ void StockPriceChart::finalizeClosedPosition(PositionVisualization* posViz)
         posViz->dynamicLine = nullptr;
     }
 
-    // Create connection lines from last entry to each exit
-    if (!posViz->entryMarkers.isEmpty() && !posViz->exitMarkers.isEmpty())
+    const QColor color = posViz->realizedPL >= 0 ? ORDER_VIZ_GREEN : ORDER_VIZ_RED;
+    for (QCPItemLine* line: posViz->traceSegments)
     {
-        OrderMarker* lastEntry = posViz->entryMarkers.last();
-        double entryIndex = getExactIndexForTimestamp(lastEntry->timestamp);
-
-        for (OrderMarker* exitMarker: posViz->exitMarkers)
-        {
-            double exitIndex = getExactIndexForTimestamp(exitMarker->timestamp);
-            bool profitable = posViz->realizedPL >= 0;
-            auto* line = createPositionLine(entryIndex, lastEntry->price, exitIndex, exitMarker->price, profitable);
-            posViz->exitLines.append(line);
-        }
+        line->setPen(QPen(color, ORDER_VIZ_LINE_WIDTH - 1, Qt::DotLine));
     }
 
     // Create P&L label
@@ -518,6 +576,157 @@ void StockPriceChart::finalizeClosedPosition(PositionVisualization* posViz)
     if (m_currentOpenPosition == posViz)
     {
         m_currentOpenPosition = nullptr;
+        hideOpenPositionPLBox();
+    }
+}
+
+void StockPriceChart::rebuildPositionTraces()
+{
+    m_currentOpenPosition = nullptr;
+
+    QMap<QString, QVector<OrderMarker*>> filledMarkersByAccount;
+    for (OrderMarker* marker: m_orderMarkers)
+    {
+        if (!marker || marker->state != OrderMarker::State::Filled || marker->symbol != m_symbol ||
+            marker->accountID.isEmpty())
+        {
+            continue;
+        }
+        filledMarkersByAccount[marker->accountID].append(marker);
+    }
+
+    for (auto it = filledMarkersByAccount.begin(); it != filledMarkersByAccount.end(); ++it)
+    {
+        auto& markers = it.value();
+        std::sort(markers.begin(),
+                  markers.end(),
+                  [](const OrderMarker* lhs, const OrderMarker* rhs)
+                  {
+                      if (lhs->timestamp != rhs->timestamp)
+                      {
+                          return lhs->timestamp < rhs->timestamp;
+                      }
+                      return lhs->orderID < rhs->orderID;
+                  });
+    }
+
+    QMap<QString, QVector<PositionVisualization*>> positionsByAccount;
+    for (PositionVisualization* posViz: m_positionVisualizations)
+    {
+        clearPositionTraceVisuals(posViz);
+
+        if (posViz->symbol != m_symbol || posViz->accountID.isEmpty())
+        {
+            continue;
+        }
+
+        positionsByAccount[posViz->accountID].append(posViz);
+
+        if (!posViz->isClosed && (m_currentOpenPosition == nullptr ||
+                                  posViz->lastUpdateTimestamp > m_currentOpenPosition->lastUpdateTimestamp))
+        {
+            m_currentOpenPosition = posViz;
+        }
+    }
+
+    for (auto it = positionsByAccount.begin(); it != positionsByAccount.end(); ++it)
+    {
+        auto& positions = it.value();
+        std::sort(positions.begin(),
+                  positions.end(),
+                  [](const PositionVisualization* lhs, const PositionVisualization* rhs)
+                  {
+                      if (lhs->lastUpdateTimestamp != rhs->lastUpdateTimestamp)
+                      {
+                          return lhs->lastUpdateTimestamp < rhs->lastUpdateTimestamp;
+                      }
+                      return lhs->positionID < rhs->positionID;
+                  });
+
+        auto markers = filledMarkersByAccount.value(it.key());
+        int markerIndex = 0;
+
+        for (PositionVisualization* posViz: positions)
+        {
+            if (markerIndex >= markers.size())
+            {
+                break;
+            }
+
+            bool started = false;
+            bool sawExit = false;
+            int openShares = 0;
+
+            while (markerIndex < markers.size())
+            {
+                OrderMarker* marker = markers[markerIndex];
+
+                if (!started && posViz->isClosed && marker->timestamp > posViz->lastUpdateTimestamp)
+                {
+                    break;
+                }
+
+                const int delta = markerNetDelta(marker);
+                if (!started && delta <= 0)
+                {
+                    ++markerIndex;
+                    continue;
+                }
+
+                started = true;
+                sawExit = sawExit || !marker->isEntry;
+                openShares += delta;
+                appendFilledMarkerToPosition(posViz, marker);
+                ++markerIndex;
+
+                if (!posViz->isClosed)
+                {
+                    continue;
+                }
+
+                const bool reachedFlat = sawExit && openShares <= 0;
+                const bool passedCloseTimestamp = sawExit && markerIndex < markers.size() &&
+                                                  markers[markerIndex]->timestamp > posViz->lastUpdateTimestamp;
+                if (reachedFlat || passedCloseTimestamp)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    const bool haveCurrentPrice = m_latestBarIndex >= 0;
+    const double currentPrice = haveCurrentPrice ? static_cast<double>(m_latestBar.getClose()) : 0.0;
+
+    for (PositionVisualization* posViz: m_positionVisualizations)
+    {
+        const bool profitable = posViz->isClosed ? posViz->realizedPL >= 0
+                                                 : (haveCurrentPrice ? isPositionProfitable(posViz, currentPrice)
+                                                                     : posViz->realizedPL >= 0);
+
+        for (int i = 1; i < posViz->fillMarkers.size(); ++i)
+        {
+            const QPointF startCoords = getOrderMarkerCoords(posViz->fillMarkers[i - 1]);
+            const QPointF endCoords = getOrderMarkerCoords(posViz->fillMarkers[i]);
+            auto* line = createPositionLine(startCoords.x(), startCoords.y(), endCoords.x(), endCoords.y(), profitable);
+            posViz->traceSegments.append(line);
+        }
+
+        if (posViz->isClosed)
+        {
+            finalizeClosedPosition(posViz);
+            continue;
+        }
+
+        if (posViz == m_currentOpenPosition && haveCurrentPrice)
+        {
+            updateOpenPositionDynamicLine(currentPrice, m_latestBarIndex);
+            updateOpenPositionPLBox(currentPrice);
+        }
+    }
+
+    if (m_currentOpenPosition == nullptr || !haveCurrentPrice)
+    {
         hideOpenPositionPLBox();
     }
 }
@@ -543,25 +752,7 @@ void StockPriceChart::clearOrderVisualizations()
     for (auto it = m_positionVisualizations.begin(); it != m_positionVisualizations.end(); ++it)
     {
         PositionVisualization* posViz = it.value();
-
-        // Remove connection lines
-        for (QCPItemLine* line: posViz->entryConnectionLines)
-        {
-            m_customPlot->removeItem(line);
-        }
-        for (QCPItemLine* line: posViz->exitLines)
-        {
-            m_customPlot->removeItem(line);
-        }
-        if (posViz->dynamicLine)
-        {
-            m_customPlot->removeItem(posViz->dynamicLine);
-        }
-        if (posViz->plLabel)
-        {
-            m_customPlot->removeItem(posViz->plLabel);
-        }
-
+        clearPositionTraceVisuals(posViz);
         delete posViz;
     }
     m_positionVisualizations.clear();
@@ -705,11 +896,7 @@ void StockPriceChart::updateOrderVisualizationsVisibility()
     // Update visibility of all position lines
     for (PositionVisualization* posViz: m_positionVisualizations)
     {
-        for (QCPItemLine* line: posViz->entryConnectionLines)
-        {
-            line->setVisible(m_orderVisualizationsVisible);
-        }
-        for (QCPItemLine* line: posViz->exitLines)
+        for (QCPItemLine* line: posViz->traceSegments)
         {
             line->setVisible(m_orderVisualizationsVisible);
         }
@@ -865,12 +1052,24 @@ void StockPriceChart::onOrderFilled(const Order& order)
         updateMarkerState(marker, OrderMarker::State::Filled);
 
         double fillPrice = order.getFilledPrice();
-        if (qAbs(marker->price - fillPrice) > 0.001)
+        marker->accountID = order.getAccountID();
+        marker->timestamp = order.getClosedDateTime();
+
+        const int barCount = m_candlesticks ? m_candlesticks->data()->size() : 0;
+        if (barCount > 0)
+        {
+            const double fillIndex =
+                clampIndexToValidRange(getExactIndexForTimestamp(order.getClosedDateTime()), barCount);
+            const QPointF currentCoords = getOrderMarkerCoords(marker);
+            if (qAbs(currentCoords.x() - fillIndex) > 0.001 || qAbs(marker->price - fillPrice) > 0.001)
+            {
+                moveMarkerToCoords(marker, fillIndex, fillPrice);
+            }
+        }
+        else if (qAbs(marker->price - fillPrice) > 0.001)
         {
             moveMarkerToPrice(marker, fillPrice);
         }
-
-        marker->timestamp = order.getClosedDateTime();
 
         // Update tooltip with final fill price and strategy log
         if (marker->markerItem)
@@ -935,6 +1134,7 @@ void StockPriceChart::onOrderFilled(const Order& order)
         }
     }
 
+    rebuildPositionTraces();
     m_customPlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
@@ -992,17 +1192,26 @@ void StockPriceChart::onPositionOpened(const Position& position)
     }
 
     QString positionID = position.getPositionID();
+    auto it = m_positionVisualizations.find(positionID);
+    PositionVisualization* posViz = nullptr;
+    if (it == m_positionVisualizations.end())
+    {
+        posViz = new PositionVisualization();
+        posViz->positionID = positionID;
+        posViz->symbol = position.getSymbol();
+        m_positionVisualizations.insert(positionID, posViz);
+    }
+    else
+    {
+        posViz = it.value();
+    }
 
-    // Create new position visualization
-    auto* posViz = new PositionVisualization();
-    posViz->positionID = positionID;
-    posViz->symbol = position.getSymbol();
+    posViz->accountID = position.getAccountID();
+    posViz->lastUpdateTimestamp = position.getTimestamp();
     posViz->isShort = position.getLongShort().toUpper() == "SHORT";
     posViz->currentQuantity = position.getQuantity().toInt();
     posViz->avgEntryPrice = position.getAveragePrice().toDouble();
-
-    m_positionVisualizations.insert(positionID, posViz);
-    m_currentOpenPosition = posViz;
+    posViz->isClosed = false;
 
     qCDebug(ChartLog) << "Position opened:" << positionID << "qty:" << posViz->currentQuantity;
 }
@@ -1028,16 +1237,15 @@ void StockPriceChart::onPositionUpdated(const Position& position)
 
     // Update position data
     int newQuantity = position.getQuantity().toInt();
+    posViz->accountID = position.getAccountID();
+    posViz->lastUpdateTimestamp = position.getTimestamp();
+    posViz->isShort = position.getLongShort().toUpper() == "SHORT";
     posViz->avgEntryPrice = position.getAveragePrice().toDouble();
     posViz->currentQuantity = newQuantity;
+    posViz->isClosed = false;
 
-    // Update dynamic line with latest bar price
-    if (m_latestBarIndex >= 0)
-    {
-        double currentPrice = m_latestBar.getClose();
-        updateOpenPositionDynamicLine(currentPrice, m_latestBarIndex);
-        updateOpenPositionPLBox(currentPrice);
-    }
+    rebuildPositionTraces();
+    m_customPlot->replot(QCustomPlot::rpQueuedReplot);
 
     qCDebug(ChartLog) << "Position updated:" << positionID << "qty:" << newQuantity;
 }
@@ -1054,18 +1262,22 @@ void StockPriceChart::onPositionClosed(const Position& position)
 
     if (it == m_positionVisualizations.end())
     {
-        return;
+        onPositionOpened(position);
+        it = m_positionVisualizations.find(positionID);
     }
 
     PositionVisualization* posViz = it.value();
 
     // Calculate realized P&L from position data
+    posViz->accountID = position.getAccountID();
+    posViz->lastUpdateTimestamp = position.getTimestamp();
+    posViz->isShort = position.getLongShort().toUpper() == "SHORT";
+    posViz->avgEntryPrice = position.getAveragePrice().toDouble();
     posViz->realizedPL = position.getTodaysProfitLoss().toDouble();
     posViz->currentQuantity = 0;
+    posViz->isClosed = true;
 
-    // Finalize the position visualization
-    finalizeClosedPosition(posViz);
-
+    rebuildPositionTraces();
     m_customPlot->replot(QCustomPlot::rpQueuedReplot);
     qCDebug(ChartLog) << "Position closed:" << positionID << "P&L:" << posViz->realizedPL;
 }

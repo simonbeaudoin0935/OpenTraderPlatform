@@ -72,19 +72,19 @@ struct PositionVisualization
 {
     QString positionID;
     QString symbol;
+    QString accountID;
+    QDateTime lastUpdateTimestamp;
 
-    // Order markers that form this position
-    QVector<OrderMarker*> entryMarkers; // Buy orders for long, sell orders for short
-    QVector<OrderMarker*> exitMarkers;  // Sell orders for long, buy orders for short
+    // Filled order markers that form this position
+    QVector<OrderMarker*> entryMarkers; // Opening fills
+    QVector<OrderMarker*> exitMarkers;  // Closing fills
+    QVector<OrderMarker*> fillMarkers;  // All fills in chronological order
 
-    // Lines connecting entries sequentially
-    QVector<QCPItemLine*> entryConnectionLines;
+    // Dotted line segments connecting consecutive fills
+    QVector<QCPItemLine*> traceSegments;
 
-    // Dynamic line from last entry to current price (open positions only)
+    // Dynamic line from the latest fill to current price (open positions only)
     QCPItemLine* dynamicLine = nullptr;
-
-    // Lines from entries to exits (closed positions)
-    QVector<QCPItemLine*> exitLines;
 
     // P&L label near last exit (closed positions only)
     QCPItemText* plLabel = nullptr;
@@ -544,10 +544,18 @@ class StockPriceChart : public QWidget
     void updateMarkerState(OrderMarker* marker, OrderMarker::State newState);
 
     /**
-     * @brief Moves an existing marker to a new price (for order amendments).
-     * @param marker The marker to move
-     * @param newPrice The new price position
-     */
+      * @brief Moves an existing marker to new chart coordinates.
+      * @param marker The marker to move
+      * @param newIndex The new X-axis position
+      * @param newPrice The new Y-axis position
+      */
+    void moveMarkerToCoords(OrderMarker* marker, double newIndex, double newPrice);
+
+    /**
+      * @brief Moves an existing marker to a new price (for order amendments).
+      * @param marker The marker to move
+      * @param newPrice The new price position
+      */
     void moveMarkerToPrice(OrderMarker* marker, double newPrice);
     [[nodiscard]] QPointF getOrderMarkerCoords(const OrderMarker* marker) const;
     void registerOrderMarkerTooltip(OrderMarker* marker, const QString& tooltip);
@@ -614,14 +622,16 @@ class StockPriceChart : public QWidget
     double calculateDCAPrice(const PositionVisualization* posViz) const;
 
     /**
-     * @brief Finalizes a position when it closes (shares reach 0).
-     * @param posViz The position visualization to finalize
+      * @brief Finalizes a position when it closes (shares reach 0).
+      * @param posViz The position visualization to finalize
      */
     void finalizeClosedPosition(PositionVisualization* posViz);
+    void clearPositionTraceVisuals(PositionVisualization* posViz);
+    void rebuildPositionTraces();
 
     /**
-     * @brief Clears all order visualizations (markers, lines, labels).
-     * Called when symbol changes or chart is cleared.
+      * @brief Clears all order visualizations (markers, lines, labels).
+      * Called when symbol changes or chart is cleared.
      */
     void clearOrderVisualizations();
 
