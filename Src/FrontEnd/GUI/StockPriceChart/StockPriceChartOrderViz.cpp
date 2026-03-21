@@ -724,6 +724,24 @@ void StockPriceChart::onOrderPlaced(const Order& order)
     QString orderID = order.getOrderID();
     if (m_orderMarkers.contains(orderID))
     {
+        if (order.getStrategyLog().has_value())
+        {
+            OrderMarker* marker = m_orderMarkers.value(orderID);
+            if (marker != nullptr && marker->markerItem != nullptr && marker->isTriangleMarker)
+            {
+                const bool isBuy = order.getTradeAction().toUpper().contains("BUY");
+                const QString dirStr = isBuy ? "BUY" : "SELL";
+                const QString tip = QString("Pending %1  |  %2 shares @ %3")
+                                        .arg(dirStr)
+                                        .arg(order.getQuantity().toInt())
+                                        .arg(marker->price, 0, 'f', 2) +
+                                    QString("\n\"%1\"").arg(order.getStrategyLog().value());
+                registerTooltip(
+                    marker->markerItem,
+                    [tri = static_cast<QCPItemTriangle*>(marker->markerItem)]() { return tri->tip->pixelPosition(); },
+                    tip);
+            }
+        }
         return;
     }
 

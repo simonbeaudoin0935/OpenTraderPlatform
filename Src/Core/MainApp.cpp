@@ -614,6 +614,16 @@ namespace
         return stringValue;
     }
 
+    [[nodiscard]] std::expected<QString, QString> parseRequiredSymbol(const QJsonObject& p_arguments)
+    {
+        const auto symbol = parseRequiredStringForKey(p_arguments, "symbol");
+        if (!symbol.has_value())
+        {
+            return std::unexpected(symbol.error());
+        }
+        return symbol->trimmed().toUpper();
+    }
+
     [[nodiscard]] std::expected<QString, QString> parseOptionalStringForKey(const QJsonObject& p_arguments,
                                                                             const QString& p_key)
     {
@@ -2052,6 +2062,52 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
         return makeControlResponse(true, "Historical bars retrieved.", result);
     }
 
+    if (command == PlatformControlProtocol::kCommandCreateChartLog)
+    {
+        const auto parsedSymbol = parseRequiredSymbol(arguments);
+        if (!parsedSymbol.has_value())
+        {
+            return makeControlResponse(false, "Chart log request rejected.", {}, parsedSymbol.error());
+        }
+
+        const auto parsedMessage = parseRequiredStringForKey(arguments, "message");
+        if (!parsedMessage.has_value())
+        {
+            return makeControlResponse(false, "Chart log request rejected.", {}, parsedMessage.error());
+        }
+
+        const auto parsedSource = parseOptionalStringForKey(arguments, "source");
+        if (!parsedSource.has_value())
+        {
+            return makeControlResponse(false, "Chart log request rejected.", {}, parsedSource.error());
+        }
+
+        StrategyLogEntry entry;
+        entry.strategyID = parsedSource->isEmpty() ? QStringLiteral("openclaw") : parsedSource.value();
+        entry.symbol = parsedSymbol.value();
+        entry.timestamp = getCurrentAppTime();
+        entry.message = parsedMessage.value();
+
+        const bool invoked = QMetaObject::invokeMethod(
+            mainAlgo,
+            [this, entry]() { this->mainAlgo->processStrategyLog(entry); },
+            Qt::BlockingQueuedConnection);
+        if (!invoked)
+        {
+            return makeControlResponse(false,
+                                       "Chart log request failed.",
+                                       {},
+                                       "Failed to dispatch chart log creation to MainAlgo");
+        }
+
+        QJsonObject result;
+        result["symbol"] = entry.symbol;
+        result["source"] = entry.strategyID;
+        result["timestamp"] = dateTimeToJsonValue(entry.timestamp);
+        result["message"] = entry.message;
+        return makeControlResponse(true, "Chart log created.", result);
+    }
+
     if (command == PlatformControlProtocol::kCommandPlaceOrder)
     {
         const auto parsedAccountId = parseOptionalStringForKey(arguments, "accountId");
@@ -2060,7 +2116,7 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
             return makeControlResponse(false, "Order placement request rejected.", {}, parsedAccountId.error());
         }
 
-        const auto parsedSymbol = parseRequiredStringForKey(arguments, "symbol");
+        const auto parsedSymbol = parseRequiredSymbol(arguments);
         if (!parsedSymbol.has_value())
         {
             return makeControlResponse(false, "Order placement request rejected.", {}, parsedSymbol.error());
@@ -2102,6 +2158,12 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
             return makeControlResponse(false, "Order placement request rejected.", {}, parsedStopPrice.error());
         }
 
+        const auto parsedStrategyLog = parseOptionalStringForKey(arguments, "strategyLog");
+        if (!parsedStrategyLog.has_value())
+        {
+            return makeControlResponse(false, "Order placement request rejected.", {}, parsedStrategyLog.error());
+        }
+
         QString resolvedAccountId = parsedAccountId.value();
         if (resolvedAccountId.isEmpty())
         {
@@ -2122,7 +2184,7 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
 
         PlaceOrderRequest orderRequest;
         orderRequest.setAccountID(resolvedAccountId);
-        orderRequest.setSymbol(parsedSymbol->trimmed().toUpper());
+        orderRequest.setSymbol(parsedSymbol.value());
         orderRequest.setTradeAction(parsedTradeAction.value());
         orderRequest.setOrderType(parsedOrderType.value());
         orderRequest.setQuantity(parsedQuantity.value());
@@ -2135,6 +2197,10 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
         {
             orderRequest.setStopPrice(parsedStopPrice.value().value());
         }
+        if (!parsedStrategyLog->isEmpty())
+        {
+            orderRequest.setStrategyLog(parsedStrategyLog.value());
+        }
 
         if (!orderRequest.isValid())
         {
@@ -2144,7 +2210,24 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
                                        "The order request is invalid for the selected orderType/duration combination");
         }
 
-        const auto orderResultFuture = TSClient::getInstance()->placeOrder(orderRequest);
+        const uint64_t requestId = mainAlgo->getNextRequestId();
+        auto promise = std::make_shared<QPromise<std::expected<PlaceOrderResult, TSClient::Error>>>();
+        promise->start();
+        QFuture<std::expected<PlaceOrderResult, TSClient::Error>> orderResultFuture = promise->future();
+
+        const bool invoked = QMetaObject::invokeMethod(
+            mainAlgo,
+            [this, requestId, orderRequest, promise]()
+            { this->mainAlgo->processPlaceOrder(requestId, QString(), orderRequest, promise); },
+            Qt::QueuedConnection);
+        if (!invoked)
+        {
+            return makeControlResponse(false,
+                                       "Order placement request failed.",
+                                       {},
+                                       "Failed to dispatch order placement to MainAlgo");
+        }
+
         const auto orderResult = waitForFutureResult(orderResultFuture);
         if (!orderResult.has_value())
         {
@@ -2164,6 +2247,9 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
             {"duration", orderDurationToJsonString(orderRequest.getTimeInForce().getDuration())},
             {"limitPrice", optionalDoubleToJsonValue(orderRequest.getLimitPrice())},
             {"stopPrice", optionalDoubleToJsonValue(orderRequest.getStopPrice())},
+            {"strategyLog",
+             orderRequest.getStrategyLog().has_value() ? QJsonValue(orderRequest.getStrategyLog().value())
+                                                       : QJsonValue(QJsonValue::Null)},
             {"result", serializePlaceOrderResult(orderResult.value())},
         };
 

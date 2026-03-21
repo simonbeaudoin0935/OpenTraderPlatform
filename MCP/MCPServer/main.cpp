@@ -247,6 +247,24 @@ namespace
         };
     }
 
+    [[nodiscard]] QJsonObject createChartLogSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"symbol", QJsonObject{{"type", "string"}, {"description", "Ticker symbol to annotate on the chart."}}},
+                 {"message",
+                  QJsonObject{{"type", "string"},
+                              {"description", "Log message to persist and show in the chart tooltip."}}},
+                 {"source",
+                  QJsonObject{{"type", "string"},
+                              {"description", "Optional source label shown as the log owner. Defaults to openclaw."}}},
+             }},
+            {"required", QJsonArray{"symbol", "message"}},
+        };
+    }
+
     [[nodiscard]] QJsonArray tradeActionValues()
     {
         return QJsonArray{
@@ -304,14 +322,18 @@ namespace
                       {"enum", orderTypeValues()},
                       {"description",
                        "Order type. limitPrice is required for limit/stop-limit; stopPrice is required for stop-market/stop-limit."}}},
-                 {"quantity", QJsonObject{{"type", "integer"}, {"minimum", 1}, {"description", "Share quantity."}}},
-                 {"duration",
-                  QJsonObject{{"type", "string"},
-                              {"enum", orderDurationValues()},
-                              {"description", "Optional time-in-force. Defaults to day."}}},
-                 {"limitPrice", QJsonObject{{"type", "number"}, {"description", "Optional limit price."}}},
-                 {"stopPrice", QJsonObject{{"type", "number"}, {"description", "Optional stop price."}}},
-             }},
+                  {"quantity", QJsonObject{{"type", "integer"}, {"minimum", 1}, {"description", "Share quantity."}}},
+                  {"duration",
+                   QJsonObject{{"type", "string"},
+                               {"enum", orderDurationValues()},
+                               {"description", "Optional time-in-force. Defaults to day."}}},
+                  {"strategyLog",
+                   QJsonObject{{"type", "string"},
+                               {"description",
+                                "Optional log text to bind to the order and display in order/chart tooltips."}}},
+                  {"limitPrice", QJsonObject{{"type", "number"}, {"description", "Optional limit price."}}},
+                  {"stopPrice", QJsonObject{{"type", "number"}, {"description", "Optional stop price."}}},
+              }},
             {"required", QJsonArray{"symbol", "tradeAction", "orderType", "quantity"}},
         };
     }
@@ -394,9 +416,16 @@ namespace
             {"inputSchema", symbolPollingSchema()},
         });
         tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandCreateChartLog},
+            {"title", "Create chart log"},
+            {"description", "Persist a chart log marker at the current app time for a symbol."},
+            {"inputSchema", createChartLogSchema()},
+        });
+        tools.append(QJsonObject{
             {"name", PlatformControlProtocol::kCommandPlaceOrder},
             {"title", "Place order"},
-            {"description", "Submit a platform order through the current live/sim/replay trading mode."},
+            {"description",
+             "Submit a platform order through the current live/sim/replay trading mode, with optional order-bound log text."},
             {"inputSchema", placeOrderSchema()},
         });
         tools.append(QJsonObject{
@@ -498,11 +527,12 @@ int main(int argc, char* argv[])
         PlatformControlProtocol::kCommandGetPositions,   PlatformControlProtocol::kCommandGetOrders,
         PlatformControlProtocol::kCommandGetLevel2,      PlatformControlProtocol::kCommandGetTradesSnapshot,
         PlatformControlProtocol::kCommandGetBars,        PlatformControlProtocol::kCommandGetActivityMetrics,
-        PlatformControlProtocol::kCommandPlaceOrder,     PlatformControlProtocol::kCommandCancelOrder,
-        PlatformControlProtocol::kCommandEnterReplay,    PlatformControlProtocol::kCommandStartReplay,
-        PlatformControlProtocol::kCommandPauseReplay,    PlatformControlProtocol::kCommandResumeReplay,
-        PlatformControlProtocol::kCommandSetReplaySpeed, PlatformControlProtocol::kCommandPreloadReplay,
-        PlatformControlProtocol::kCommandExitReplay,     PlatformControlProtocol::kCommandSetTradingMode,
+        PlatformControlProtocol::kCommandCreateChartLog, PlatformControlProtocol::kCommandPlaceOrder,
+        PlatformControlProtocol::kCommandCancelOrder,    PlatformControlProtocol::kCommandEnterReplay,
+        PlatformControlProtocol::kCommandStartReplay,    PlatformControlProtocol::kCommandPauseReplay,
+        PlatformControlProtocol::kCommandResumeReplay,   PlatformControlProtocol::kCommandSetReplaySpeed,
+        PlatformControlProtocol::kCommandPreloadReplay,  PlatformControlProtocol::kCommandExitReplay,
+        PlatformControlProtocol::kCommandSetTradingMode,
     };
 
     std::string line;
@@ -549,8 +579,8 @@ int main(int argc, char* argv[])
                  }},
                 {"instructions",
                  "This MCP server exposes L2Trader platform-control tools, account/balance queries, position/order "
-                 "queries, poll-style market-data tools, and basic order placement/cancellation over the platform "
-                 "control socket."},
+                 "queries, poll-style market-data tools, chart-log creation, and order placement/cancellation "
+                 "(including optional order-bound logs) over the platform control socket."},
             };
             writeJsonRpcLine(makeJsonRpcResponse(id, result));
             continue;

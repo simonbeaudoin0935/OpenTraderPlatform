@@ -39,6 +39,7 @@ namespace PlatformControlProtocol
     inline constexpr auto kCommandGetTradesSnapshot = "get-trades-snapshot";
     inline constexpr auto kCommandGetBars = "get-bars";
     inline constexpr auto kCommandGetActivityMetrics = "get-activity-metrics";
+    inline constexpr auto kCommandCreateChartLog = "create-chart-log";
     inline constexpr auto kCommandPlaceOrder = "place-order";
     inline constexpr auto kCommandCancelOrder = "cancel-order";
 

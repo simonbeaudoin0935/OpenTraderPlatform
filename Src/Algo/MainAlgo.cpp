@@ -514,22 +514,25 @@ void MainAlgo::onLoadedPositionsFromDatabase(const QString& account, QMap<QStrin
 
 void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
 {
-    DEBUG << "onReceivedNewOrder: orderID=" << order.getOrderID()
+    const QString orderID = order.getOrderID();
+
+    DEBUG << "onReceivedNewOrder: orderID=" << orderID
           << "status=" << static_cast<int>(order.getOrderStatus()) << "mappings_size=" << m_orderMappings.size();
 
     // Attach strategy log for the full lifetime of the order.
     // Persist to DB on first arrival; keep in memory until the order is terminal
     // so that every subsequent update (e.g. Filled) also carries the log.
-    auto logIt = m_orderIdToLog.find(order.getOrderID());
+    auto logIt = m_orderIdToLog.find(orderID);
     if (logIt != m_orderIdToLog.end())
     {
         order.setStrategyLog(*logIt);
+        m_deferredOrderUpdates.remove(orderID);
 
         // Persist only on the first update (ACK/OPN) — idempotent but saves extra queries
         const Order::Status status = order.getOrderStatus();
         if (status == Order::Status::ACK || status == Order::Status::OPN)
         {
-            OrdersDatabase::getInstance()->updateOrderStrategyLog(order.getOrderID(), *logIt);
+            OrdersDatabase::getInstance()->updateOrderStrategyLog(orderID, *logIt);
         }
 
         // Remove from map only when the order is in a terminal state
@@ -543,20 +546,27 @@ void MainAlgo::onReceivedNewOrder(const QString& account, Order order)
             m_orderIdToLog.erase(logIt);
         }
     }
+    else if (!m_pendingOrderLogs.isEmpty())
+    {
+        // The stream can beat the async place-order ACK callback to the MainAlgo thread.
+        // Keep the first unannotated update so we can replay it once the requestId→orderId
+        // log binding is known.
+        m_deferredOrderUpdates.insert(orderID, DeferredOrderUpdate{account, order});
+    }
 
     // Emit enriched order to FrontEnd (with strategy log attached if available)
     emit receivedNewOrder(account, order);
 
     // Route to the strategy that placed this order
-    auto strategyIt = m_orderMappings.find(order.getOrderID());
+    auto strategyIt = m_orderMappings.find(orderID);
     if (strategyIt == m_orderMappings.end())
     {
-        WARNING << "Received order update for order ID:" << order.getOrderID() << "which has no associated strategy";
+        DEBUG << "Received non-strategy order update for order ID:" << orderID;
         return;
     }
 
     QString strategyID = *strategyIt;
-    DEBUG << "Routing order update for orderID=" << order.getOrderID() << "to strategyID=" << strategyID;
+    DEBUG << "Routing order update for orderID=" << orderID << "to strategyID=" << strategyID;
     QMetaObject::invokeMethod(
         m_strategyManager.get(),
         [this, strategyID, order]() { m_strategyManager->onOrderUpdatedForStrategy(strategyID, order); },
@@ -1142,7 +1152,8 @@ void MainAlgo::processPlaceOrder(uint64_t p_requestId,
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
 
-    // Store temporary mapping: requestId -> strategyID (will be replaced with OrderID -> strategyID when ACK received)
+    // Store temporary mapping: requestId -> strategyID (empty string for non-strategy callers;
+    // replaced with OrderID -> strategyID when ACK received for strategy-owned orders)
     m_requestIdToStrategyId[p_requestId] = p_strategyID;
 
     // If the request carries a strategy log, hold it until we have the OrderID from ACK
@@ -1196,7 +1207,9 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
         // Order was successfully placed
         PlaceOrderResult result = p_result.value();
 
-        DEBUG << "Order placed successfully: strategyID=" << strategyID << "successful=" << result.isAllSuccessful();
+        DEBUG << "Order placed successfully: strategyID="
+              << (strategyID.isEmpty() ? QStringLiteral("<external>") : strategyID)
+              << "successful=" << result.isAllSuccessful();
 
         // Extract OrderIDs from result and create permanent mappings
         const auto& orders = result.getOrders();
@@ -1204,18 +1217,41 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
         {
             if (!orderResultItem.isError())
             {
-                // Successful order - create permanent mapping for future updates
+                // Successful strategy order - create permanent mapping for future updates
                 QString orderID = orderResultItem.getOrderID();
-                m_orderMappings[orderID] = strategyID;
-                DEBUG << "Created order mapping: OrderID=" << orderID << "→ strategyID=" << strategyID
-                      << "(total mappings=" << m_orderMappings.size() << ")";
+                if (!strategyID.isEmpty())
+                {
+                    m_orderMappings[orderID] = strategyID;
+                    DEBUG << "Created order mapping: OrderID=" << orderID << "→ strategyID=" << strategyID
+                          << "(total mappings=" << m_orderMappings.size() << ")";
+                }
 
                 // Promote any pending strategy log from requestId → orderID scope
                 if (m_pendingOrderLogs.contains(p_requestId))
                 {
-                    m_orderIdToLog[orderID] = m_pendingOrderLogs.take(p_requestId);
+                    const QString strategyLog = m_pendingOrderLogs.take(p_requestId);
+                    m_orderIdToLog[orderID] = strategyLog;
+
+                    // Persist immediately when the DB row already exists. If the stream insert has not
+                    // happened yet, the first annotated stream update will write the same value later.
+                    OrdersDatabase::getInstance()->updateOrderStrategyLog(orderID, strategyLog);
+
+                    auto deferredIt = m_deferredOrderUpdates.find(orderID);
+                    if (deferredIt != m_deferredOrderUpdates.end())
+                    {
+                        Order deferredOrder = deferredIt->order;
+                        const QString deferredAccount = deferredIt->account;
+                        m_deferredOrderUpdates.erase(deferredIt);
+                        deferredOrder.setStrategyLog(strategyLog);
+                        onReceivedNewOrder(deferredAccount, deferredOrder);
+                    }
                 }
             }
+        }
+
+        if (m_pendingOrderLogs.isEmpty())
+        {
+            m_deferredOrderUpdates.clear();
         }
 
         // TODO: Emit GUI signal if this order is for the displayed stock
@@ -1231,6 +1267,11 @@ void MainAlgo::onOrderResolved(uint64_t p_requestId, const std::expected<PlaceOr
                 << "error=" << QtEnum::toString(error);
 
         // TODO: Route error to strategy via SDK
+    }
+
+    if (m_pendingOrderLogs.isEmpty())
+    {
+        m_deferredOrderUpdates.clear();
     }
 }
 
