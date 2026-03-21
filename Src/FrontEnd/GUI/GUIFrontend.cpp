@@ -672,6 +672,12 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                 ui->stockSymbolInput->returnPressed(); // Simulate Enter key press
             });
 
+    connect(ui->orderWidget,
+            &OrderWidget::cancelAllOrdersRequested,
+            this,
+            &GUIFrontend::onCancelAllOrders,
+            Qt::UniqueConnection);
+
     // Connect order window cancel order request
     connect(ui->orderWidget,
             &OrderWidget::cancelOrderRequested,

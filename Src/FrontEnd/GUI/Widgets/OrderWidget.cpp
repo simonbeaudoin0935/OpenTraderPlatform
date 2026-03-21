@@ -1,7 +1,9 @@
 #include <QTableView>
 #include <QHeaderView>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QLabel>
+#include <QPushButton>
 
 #include "OrderWidget.h"
 #include "Assume.h"
@@ -12,7 +14,9 @@ OrderWidget::OrderWidget(QWidget* p_parent)
     : QWidget(p_parent)
     , m_tableView(new QTableView(this))
     , m_model(new QStandardItemModel(this))
+    , m_headerWidget(new QWidget(this))
     , m_headerLabel(new QLabel("ORDERS", this))
+    , m_cancelAllOrdersButton(new QPushButton("Cancel All", this))
 {
     setupUI();
     setupStyles();
@@ -30,8 +34,26 @@ void OrderWidget::setupUI()
     mainLayout->setContentsMargins(0, 0, 0, 0);
 
     // Setup header
-    m_headerLabel->setFixedHeight(24);
+    m_headerWidget->setFixedHeight(24);
     m_headerLabel->setAlignment(Qt::AlignCenter);
+    m_cancelAllOrdersButton->setFixedHeight(20);
+    m_cancelAllOrdersButton->setCursor(Qt::PointingHandCursor);
+    m_cancelAllOrdersButton->setToolTip("Cancel all cancellable orders for the selected account");
+
+    QHBoxLayout* headerLayout = new QHBoxLayout(m_headerWidget);
+    headerLayout->setContentsMargins(6, 0, 6, 0);
+    headerLayout->setSpacing(6);
+    headerLayout->addStretch();
+    headerLayout->addWidget(m_headerLabel);
+    headerLayout->addStretch();
+    headerLayout->addWidget(m_cancelAllOrdersButton);
+
+    auto cancelAllConnection = connect(m_cancelAllOrdersButton,
+                                       &QPushButton::clicked,
+                                       this,
+                                       &OrderWidget::cancelAllOrdersRequested,
+                                       Qt::UniqueConnection);
+    OBJ_ASSUME_TRUE(cancelAllConnection);
 
     // Setup model columns
     QStringList headers;
@@ -66,7 +88,7 @@ void OrderWidget::setupUI()
     m_tableView->setColumnWidth(10, 100); // Order ID
 
     // Add widgets to layout
-    mainLayout->addWidget(m_headerLabel);
+    mainLayout->addWidget(m_headerWidget);
     mainLayout->addWidget(m_tableView);
 
     // Set a reasonable maximum width to fit on screen, but allow the table to scroll horizontally
@@ -84,13 +106,24 @@ void OrderWidget::setupUI()
 
 void OrderWidget::setupStyles()
 {
-    // Style the header label
-    m_headerLabel->setStyleSheet("QLabel {"
-                                 "   background-color: #2D2D2D;"
-                                 "   color: #FFFFFF;"
-                                 "   padding: 4px;"
-                                 "   border-bottom: 1px solid #3D3D3D;"
-                                 "}");
+    m_headerWidget->setStyleSheet("QWidget {"
+                                  "   background-color: #2D2D2D;"
+                                  "   border-bottom: 1px solid #3D3D3D;"
+                                  "}");
+    m_headerLabel->setStyleSheet("QLabel { color: #FFFFFF; background: transparent; }");
+    m_cancelAllOrdersButton->setStyleSheet("QPushButton {"
+                                           "   background-color: #7A1F1F;"
+                                           "   color: #FFFFFF;"
+                                           "   border: 1px solid #A63A3A;"
+                                           "   border-radius: 3px;"
+                                           "   padding: 0 8px;"
+                                           "}"
+                                           "QPushButton:hover {"
+                                           "   background-color: #9B2C2C;"
+                                           "}"
+                                           "QPushButton:pressed {"
+                                           "   background-color: #5F1919;"
+                                           "}");
 
     // Style the table
     m_tableView->setStyleSheet("QTableView {"

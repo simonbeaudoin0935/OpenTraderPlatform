@@ -9,6 +9,8 @@
 
 class QTableView;
 class QLabel;
+class QPushButton;
+class QWidget;
 
 class OrderWidget : public QWidget
 {
@@ -58,7 +60,9 @@ class OrderWidget : public QWidget
 
     QTableView* m_tableView;
     QStandardItemModel* m_model;
+    QWidget* m_headerWidget;
     QLabel* m_headerLabel;
+    QPushButton* m_cancelAllOrdersButton;
 
     // Map to keep track of orders by their ID for updates
     QMap<QString, int> m_orderRowMap; // Maps orderID to row index
