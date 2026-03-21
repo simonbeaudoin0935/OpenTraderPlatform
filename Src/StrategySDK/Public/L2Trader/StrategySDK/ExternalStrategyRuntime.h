@@ -37,6 +37,46 @@ namespace L2Trader::StrategySDK
         }
     };
 
+    struct ClosePositionItemResult
+    {
+        std::string positionId;
+        std::string accountId;
+        std::string symbol;
+        std::string longShort;
+        std::uint32_t quantity = 0;
+        Protocol::OrderSide side = Protocol::ORDER_SIDE_UNSPECIFIED;
+        Protocol::OrderType type = Protocol::ORDER_TYPE_UNSPECIFIED;
+        std::optional<double> limitPrice;
+        bool submitted = false;
+        bool placementSucceeded = false;
+        std::vector<std::string> orderIds;
+        std::vector<std::string> brokerMessages;
+        std::vector<std::string> brokerErrors;
+        std::optional<std::string> errorCode;
+        std::optional<std::string> errorMessage;
+    };
+
+    struct ClosePositionsResult
+    {
+        std::string requestId;
+        std::string accountId;
+        std::vector<std::string> requestedSymbols;
+        std::string session;
+        bool usesAggressiveLimitOrders = false;
+        bool forcedDayPlus = false;
+        double aggressivityOffsetCents = 0.0;
+        std::uint32_t matchedPositionCount = 0;
+        std::uint32_t submittedOrderCount = 0;
+        std::vector<ClosePositionItemResult> items;
+        std::optional<std::string> errorCode;
+        std::optional<std::string> errorMessage;
+
+        [[nodiscard]] bool hasError() const
+        {
+            return errorCode.has_value();
+        }
+    };
+
     class ExternalStrategyHandler
     {
       public:
@@ -159,6 +199,10 @@ namespace L2Trader::StrategySDK
                                              std::string_view p_requestId = {});
 
         [[nodiscard]] std::string cancelOrder(std::string_view p_orderId, std::string_view p_requestId = {});
+
+        [[nodiscard]] ClosePositionsResult closePositions(std::string_view p_accountId,
+                                                          const std::vector<std::string>& p_symbols = {},
+                                                          std::string_view p_requestId = {});
 
         [[nodiscard]] TimerId
         startTimer(std::chrono::milliseconds p_delay, std::function<void()> p_callback, bool p_repeat = false);

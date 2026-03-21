@@ -372,6 +372,40 @@ namespace
         }
     }
 
+    [[nodiscard]] Protocol::OrderSide toProtocolOrderSide(const TradeAction p_action)
+    {
+        switch (p_action)
+        {
+        case TradeAction::Buy:
+            return Protocol::ORDER_SIDE_BUY;
+        case TradeAction::Sell:
+            return Protocol::ORDER_SIDE_SELL;
+        case TradeAction::SellShort:
+            return Protocol::ORDER_SIDE_SELL_SHORT;
+        case TradeAction::BuyToCover:
+            return Protocol::ORDER_SIDE_BUY_TO_COVER;
+        default:
+            return Protocol::ORDER_SIDE_UNSPECIFIED;
+        }
+    }
+
+    [[nodiscard]] Protocol::OrderType toProtocolOrderType(const OrderType::Type p_type)
+    {
+        switch (p_type)
+        {
+        case OrderType::Type::Market:
+            return Protocol::ORDER_TYPE_MARKET;
+        case OrderType::Type::Limit:
+            return Protocol::ORDER_TYPE_LIMIT;
+        case OrderType::Type::StopMarket:
+            return Protocol::ORDER_TYPE_STOP_MARKET;
+        case OrderType::Type::StopLimit:
+            return Protocol::ORDER_TYPE_STOP_LIMIT;
+        default:
+            return Protocol::ORDER_TYPE_UNSPECIFIED;
+        }
+    }
+
     void populateBarMessage(const QString& p_symbol, const Bar& p_bar, Protocol::Bar* const p_message)
     {
         if (p_message == nullptr)
@@ -417,6 +451,76 @@ namespace
         p_message->set_snapshot_unix_nanos(toUnixNanos(p_level2.m_timeStamp));
         populateLevel2Rows(p_level2.m_bids, p_message->mutable_bids());
         populateLevel2Rows(p_level2.m_asks, p_message->mutable_asks());
+    }
+
+    void populateClosePositionItemMessage(const ClosePositionItemResult& p_item,
+                                          Protocol::ClosePositionItemResult* const p_message)
+    {
+        if (p_message == nullptr)
+        {
+            return;
+        }
+
+        p_message->set_position_id(p_item.positionId.toStdString());
+        p_message->set_account_id(p_item.accountId.toStdString());
+        p_message->set_symbol(p_item.symbol.toStdString());
+        p_message->set_long_short(p_item.longShort.toStdString());
+        p_message->set_quantity(static_cast<std::uint32_t>(std::max(p_item.quantity, 0)));
+        p_message->set_side(toProtocolOrderSide(p_item.tradeAction));
+        p_message->set_type(toProtocolOrderType(p_item.orderType));
+        if (p_item.limitPrice.has_value())
+        {
+            p_message->set_limit_price(p_item.limitPrice.value());
+        }
+        p_message->set_submitted(p_item.submitted);
+        p_message->set_placement_succeeded(p_item.placementSucceeded);
+
+        for (const QString& orderId: p_item.orderIds)
+        {
+            p_message->add_order_ids(orderId.toStdString());
+        }
+        for (const QString& brokerMessage: p_item.brokerMessages)
+        {
+            p_message->add_broker_messages(brokerMessage.toStdString());
+        }
+        for (const QString& brokerError: p_item.brokerErrors)
+        {
+            p_message->add_broker_errors(brokerError.toStdString());
+        }
+
+        if (!p_item.failureMessage.isEmpty())
+        {
+            auto* const error = p_message->mutable_error();
+            error->set_code(
+                (p_item.failureCode.has_value() ? p_item.failureCode.value() : QString("close_position_failed"))
+                    .toStdString());
+            error->set_message(p_item.failureMessage.toStdString());
+        }
+    }
+
+    void populateClosePositionsResponseMessage(const ::ClosePositionsResult& p_result,
+                                               Protocol::ClosePositionsResponse* const p_message)
+    {
+        if (p_message == nullptr)
+        {
+            return;
+        }
+
+        p_message->set_account_id(p_result.accountId.toStdString());
+        for (const QString& symbol: p_result.requestedSymbols)
+        {
+            p_message->add_requested_symbols(symbol.toStdString());
+        }
+        p_message->set_session(p_result.session.toStdString());
+        p_message->set_uses_aggressive_limit_orders(p_result.usesAggressiveLimitOrders);
+        p_message->set_forced_day_plus(p_result.forcedDayPlus);
+        p_message->set_aggressivity_offset_cents(p_result.aggressivityOffsetCents);
+        p_message->set_matched_position_count(static_cast<std::uint32_t>(std::max(p_result.matchedPositionCount, 0)));
+        p_message->set_submitted_order_count(static_cast<std::uint32_t>(std::max(p_result.submittedOrderCount, 0)));
+        for (const ::ClosePositionItemResult& item: p_result.items)
+        {
+            populateClosePositionItemMessage(item, p_message->add_items());
+        }
     }
 
     void populateTradeMessage(const QString& p_symbol, const Trade& p_trade, Protocol::Trade* const p_message)
@@ -1208,6 +1312,88 @@ void ProcessStrategyRuntimeBackend::handleInboundPayload(const std::span<const s
                                                    .arg(requestID, tsClientErrorToString(p_result.error())),
                                                correlationID);
                           }
+                      });
+        }
+        break;
+
+    case Protocol::StrategyToHostEnvelope::kClosePositionsRequest:
+        if (m_sdk == nullptr)
+        {
+            Protocol::HostToStrategyEnvelope response;
+            response.set_sequence(m_outboundSequence++);
+            response.set_correlation_id(envelope.correlation_id());
+            auto* const closeResponse = response.mutable_close_positions_response();
+            closeResponse->set_request_id(envelope.close_positions_request().request_id());
+            closeResponse->mutable_error()->set_code("close_positions_unavailable");
+            closeResponse->mutable_error()->set_message("Strategy SDK unavailable for close_positions_request");
+            [[maybe_unused]] const bool sent = sendHostEnvelope(response, "send close positions failure");
+            break;
+        }
+        else
+        {
+            const auto& request = envelope.close_positions_request();
+            const QString requestID = QString::fromStdString(request.request_id());
+            const QString correlationID = QString::fromStdString(envelope.correlation_id());
+            const QString accountID = QString::fromStdString(request.account_id()).trimmed();
+
+            auto sendClosePositionsError =
+                [this, correlationID, requestID](const QString& p_code, const QString& p_message)
+            {
+                Protocol::HostToStrategyEnvelope response;
+                response.set_sequence(m_outboundSequence++);
+                response.set_correlation_id(correlationID.toStdString());
+                auto* const closeResponse = response.mutable_close_positions_response();
+                closeResponse->set_request_id(requestID.toStdString());
+                closeResponse->mutable_error()->set_code(p_code.toStdString());
+                closeResponse->mutable_error()->set_message(p_message.toStdString());
+                [[maybe_unused]] const bool sent = sendHostEnvelope(response, "send close positions error response");
+            };
+
+            if (requestID.isEmpty())
+            {
+                sendClosePositionsError("invalid_close_positions_request",
+                                        "close_positions_request requires a non-empty request_id");
+                break;
+            }
+
+            if (accountID.isEmpty())
+            {
+                sendClosePositionsError("invalid_close_positions_request",
+                                        "close_positions_request requires a non-empty account_id");
+                break;
+            }
+
+            QStringList symbols;
+            symbols.reserve(request.symbols_size());
+            for (const std::string& symbol: request.symbols())
+            {
+                symbols.append(QString::fromStdString(symbol));
+            }
+
+            m_sdk->closePositions(accountID, symbols)
+                .then(&m_process,
+                      [this, correlationID, requestID](std::expected<::ClosePositionsResult, QString> p_result)
+                      {
+                          Protocol::HostToStrategyEnvelope response;
+                          response.set_sequence(m_outboundSequence++);
+                          response.set_correlation_id(correlationID.toStdString());
+                          auto* const closeResponse = response.mutable_close_positions_response();
+                          closeResponse->set_request_id(requestID.toStdString());
+
+                          if (!p_result.has_value())
+                          {
+                              closeResponse->mutable_error()->set_code("close_positions_failed");
+                              closeResponse->mutable_error()->set_message(p_result.error().toStdString());
+                          }
+                          else
+                          {
+                              populateClosePositionsResponseMessage(p_result.value(), closeResponse);
+                              closeResponse->set_request_id(requestID.toStdString());
+                          }
+
+                          [[maybe_unused]] const bool sent =
+                              sendHostEnvelope(response,
+                                               QString("send close positions response for %1").arg(requestID));
                       });
         }
         break;

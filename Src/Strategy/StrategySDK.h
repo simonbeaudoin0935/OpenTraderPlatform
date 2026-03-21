@@ -11,6 +11,7 @@
 #include "Order.h"
 #include "Position.h"
 #include "PlaceOrder.h"
+#include "ClosePositions.h"
 #include "CancelOrder.h"
 #include "TSClient.h"
 #include "StrategyOrderValidator.h"
@@ -67,6 +68,15 @@ class StrategySDK : public QObject
     /// @return QFuture that resolves to CancelOrderResult on success, or TSClient::Error on failure
     [[nodiscard]]
     QFuture<std::expected<CancelOrderResult, TSClient::Error>> cancelOrder(const QString& orderID);
+
+    /// @brief Close claimed-symbol positions for one account (async)
+    /// Empty p_symbols means "all claimed symbols" for the provided account.
+    /// @param p_accountID Account to flatten positions in
+    /// @param p_symbols Optional narrower claimed-symbol subset
+    /// @return QFuture resolving to a structured batch result, or a QString error on request rejection
+    [[nodiscard]]
+    QFuture<std::expected<ClosePositionsResult, QString>> closePositions(const QString& p_accountID,
+                                                                         const QStringList& p_symbols = {});
 
     /// @brief Claim exclusive trading authority over a list of symbols.
     /// Strategies must claim symbols before subscribing to data feeds or placing orders.

@@ -261,6 +261,116 @@ namespace L2Trader::StrategySDK
         return requestId;
     }
 
+    ClosePositionsResult ExternalStrategyRuntime::closePositions(std::string_view p_accountId,
+                                                                 const std::vector<std::string>& p_symbols,
+                                                                 std::string_view p_requestId)
+    {
+        ClosePositionsResult result;
+        result.requestId = p_requestId.empty() ? nextCorrelationId("close-positions") : std::string(p_requestId);
+        result.accountId = std::string(p_accountId);
+
+        if (p_accountId.empty())
+        {
+            result.errorCode = "invalid_close_positions_request";
+            result.errorMessage = "closePositions requires a non-empty accountId";
+            return result;
+        }
+
+        Protocol::StrategyToHostEnvelope envelope;
+        envelope.set_sequence(m_outboundSequence++);
+        envelope.set_correlation_id(result.requestId);
+
+        auto* const request = envelope.mutable_close_positions_request();
+        request->set_request_id(result.requestId);
+        request->set_account_id(result.accountId);
+        for (const std::string& symbol: p_symbols)
+        {
+            request->add_symbols(symbol);
+        }
+
+        if (!sendEnvelope(std::move(envelope)))
+        {
+            result.errorCode = "socket_write_failed";
+            result.errorMessage = "Failed to send close positions request";
+            return result;
+        }
+
+        Protocol::HostToStrategyEnvelope response;
+        if (!pumpUntilResponse(result.requestId, Protocol::HostToStrategyEnvelope::kClosePositionsResponse, &response))
+        {
+            result.errorCode = "socket_read_failed";
+            result.errorMessage = "Failed while waiting for close positions response";
+            return result;
+        }
+
+        const Protocol::ClosePositionsResponse& closeResponse = response.close_positions_response();
+        result.requestId = closeResponse.request_id();
+        result.accountId = closeResponse.account_id();
+        result.session = closeResponse.session();
+        result.usesAggressiveLimitOrders = closeResponse.uses_aggressive_limit_orders();
+        result.forcedDayPlus = closeResponse.forced_day_plus();
+        result.aggressivityOffsetCents = closeResponse.aggressivity_offset_cents();
+        result.matchedPositionCount = closeResponse.matched_position_count();
+        result.submittedOrderCount = closeResponse.submitted_order_count();
+
+        result.requestedSymbols.reserve(static_cast<std::size_t>(closeResponse.requested_symbols_size()));
+        for (const std::string& symbol: closeResponse.requested_symbols())
+        {
+            result.requestedSymbols.push_back(symbol);
+        }
+
+        result.items.reserve(static_cast<std::size_t>(closeResponse.items_size()));
+        for (const Protocol::ClosePositionItemResult& item: closeResponse.items())
+        {
+            ClosePositionItemResult parsedItem;
+            parsedItem.positionId = item.position_id();
+            parsedItem.accountId = item.account_id();
+            parsedItem.symbol = item.symbol();
+            parsedItem.longShort = item.long_short();
+            parsedItem.quantity = item.quantity();
+            parsedItem.side = item.side();
+            parsedItem.type = item.type();
+            if (item.has_limit_price())
+            {
+                parsedItem.limitPrice = item.limit_price();
+            }
+            parsedItem.submitted = item.submitted();
+            parsedItem.placementSucceeded = item.placement_succeeded();
+
+            parsedItem.orderIds.reserve(static_cast<std::size_t>(item.order_ids_size()));
+            for (const std::string& orderId: item.order_ids())
+            {
+                parsedItem.orderIds.push_back(orderId);
+            }
+            parsedItem.brokerMessages.reserve(static_cast<std::size_t>(item.broker_messages_size()));
+            for (const std::string& brokerMessage: item.broker_messages())
+            {
+                parsedItem.brokerMessages.push_back(brokerMessage);
+            }
+            parsedItem.brokerErrors.reserve(static_cast<std::size_t>(item.broker_errors_size()));
+            for (const std::string& brokerError: item.broker_errors())
+            {
+                parsedItem.brokerErrors.push_back(brokerError);
+            }
+
+            if (item.has_error())
+            {
+                parsedItem.errorCode = item.error().code();
+                parsedItem.errorMessage = item.error().message();
+            }
+
+            result.items.push_back(std::move(parsedItem));
+        }
+
+        if (closeResponse.has_error())
+        {
+            result.errorCode = closeResponse.error().code();
+            result.errorMessage = closeResponse.error().message();
+        }
+
+        return result;
+    }
+
     ExternalStrategyRuntime::TimerId ExternalStrategyRuntime::startTimer(const std::chrono::milliseconds p_delay,
                                                                          std::function<void()> p_callback,
                                                                          const bool p_repeat)
@@ -490,6 +600,7 @@ namespace L2Trader::StrategySDK
         case Protocol::HostToStrategyEnvelope::kClaimSymbolsResponse:
         case Protocol::HostToStrategyEnvelope::kHistoricalBarsResponse:
         case Protocol::HostToStrategyEnvelope::kCurrentTimeResponse:
+        case Protocol::HostToStrategyEnvelope::kClosePositionsResponse:
         case Protocol::HostToStrategyEnvelope::kHostLog:
         case Protocol::HostToStrategyEnvelope::PAYLOAD_NOT_SET:
         default:

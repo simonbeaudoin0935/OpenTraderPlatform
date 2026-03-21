@@ -6,6 +6,7 @@
 #include "Assume.h"
 #include "OrdersDatabase.h"
 #include "Settings.h"
+#include "CONSTANTS.h"
 #include <QUuid>
 #include <QDebug>
 #include <QPromise>
@@ -19,11 +20,25 @@ Q_LOGGING_CATEGORY(StrategyManagerLog, "StrategyManager")
 
 namespace
 {
-void assumeMainAlgoThread(const MainAlgo* p_mainAlgo)
-{
-    ASSUME_DIFF(p_mainAlgo, nullptr);
-    ASSUME_EQUAL(QThread::currentThread(), p_mainAlgo->QObject::thread());
-}
+    void assumeMainAlgoThread(const MainAlgo* p_mainAlgo)
+    {
+        ASSUME_DIFF(p_mainAlgo, nullptr);
+        ASSUME_EQUAL(QThread::currentThread(), p_mainAlgo->QObject::thread());
+    }
+
+    [[nodiscard]] QStringList normalizeRequestedSymbols(const QStringList& p_symbols)
+    {
+        QStringList normalized;
+        for (const QString& symbol: p_symbols)
+        {
+            const QString trimmed = symbol.trimmed().toUpper();
+            if (!trimmed.isEmpty() && !normalized.contains(trimmed))
+            {
+                normalized.append(trimmed);
+            }
+        }
+        return normalized;
+    }
 } // namespace
 
 // StrategySDK implementation
@@ -86,6 +101,58 @@ QFuture<std::expected<CancelOrderResult, TSClient::Error>> StrategySDK::cancelOr
         Qt::QueuedConnection);
 
     return future;
+}
+
+QFuture<std::expected<ClosePositionsResult, QString>> StrategySDK::closePositions(const QString& p_accountID,
+                                                                                  const QStringList& p_symbols)
+{
+    ASSUME_DIFF(m_mainAlgo, nullptr);
+
+    const QString accountID = p_accountID.trimmed();
+    if (accountID.isEmpty())
+    {
+        return QtFuture::makeReadyFuture(std::expected<ClosePositionsResult, QString>(
+            std::unexpected(QStringLiteral("Strategy closePositions requires accountId"))));
+    }
+
+    const QStringList claimedSymbols = normalizeRequestedSymbols(m_claimedSymbols);
+    if (claimedSymbols.isEmpty())
+    {
+        qWarning(StrategyManagerLog) << "Strategy" << m_strategyID
+                                     << "requested closePositions without any claimed symbols";
+        return QtFuture::makeReadyFuture(std::expected<ClosePositionsResult, QString>(
+            std::unexpected(QStringLiteral("Strategy must claim symbols before calling closePositions"))));
+    }
+
+    const QStringList requestedSymbols = normalizeRequestedSymbols(p_symbols);
+    QStringList effectiveSymbols = requestedSymbols.isEmpty() ? claimedSymbols : requestedSymbols;
+    QStringList unclaimedSymbols;
+    for (const QString& symbol: effectiveSymbols)
+    {
+        if (!claimedSymbols.contains(symbol))
+        {
+            unclaimedSymbols.append(symbol);
+        }
+    }
+
+    if (!unclaimedSymbols.isEmpty())
+    {
+        qWarning(StrategyManagerLog) << "Strategy" << m_strategyID
+                                     << "rejected closePositions for unclaimed symbols:" << unclaimedSymbols;
+        return QtFuture::makeReadyFuture(std::expected<ClosePositionsResult, QString>(
+            std::unexpected(QString("Strategy cannot close unclaimed symbols: %1").arg(unclaimedSymbols.join(", ")))));
+    }
+
+    ClosePositionsRequest request;
+    request.accountId = accountID;
+    request.symbols = effectiveSymbols;
+    request.aggressivityOffsetCents =
+        appStateSettings == nullptr ? ClosePositionsConstants::DEFAULT_AGGRESSIVE_LIMIT_OFFSET_CENTS
+                                    : appStateSettings
+                                          ->value(ClosePositionsConstants::SETTINGS_KEY_AGGRESSIVE_LIMIT_OFFSET_CENTS,
+                                                  ClosePositionsConstants::DEFAULT_AGGRESSIVE_LIMIT_OFFSET_CENTS)
+                                          .toDouble();
+    return m_mainAlgo->closePositions(request, m_strategyID);
 }
 
 QFuture<bool> StrategySDK::subscribeToSymbol(const QString& p_symbol)
