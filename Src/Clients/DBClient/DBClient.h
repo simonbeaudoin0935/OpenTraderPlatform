@@ -3,6 +3,7 @@
 #include <atomic>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <variant>
 
 #include <QDateTime>
@@ -63,6 +64,47 @@ class DBClient : public QObject
         Reconnecting, ///< Exception occurred, auto-reconnect in progress
     };
     Q_ENUM(ConnectionState)
+
+    struct ReplayDayInfo
+    {
+        QDate date;
+        int fileCount = 0;
+        qint64 totalSizeBytes = 0;
+    };
+
+    struct ReplaySymbolInfo
+    {
+        QString symbol;
+        bool hasMbp10 = false;
+        bool hasTrades = false;
+        qint64 mbp10SizeBytes = 0;
+        qint64 tradesSizeBytes = 0;
+
+        [[nodiscard]] qint64 totalSizeBytes() const
+        {
+            return mbp10SizeBytes + tradesSizeBytes;
+        }
+
+        [[nodiscard]] bool isComplete() const
+        {
+            return hasMbp10 && hasTrades;
+        }
+    };
+
+    struct ReplayDownloadItemResult
+    {
+        QString symbol;
+        bool success = false;
+        QString errorMessage;
+    };
+
+    struct ReplayDownloadBatchResult
+    {
+        QStringList requestedSymbols;
+        QStringList queuedSymbols;
+        QStringList skippedSymbols;
+        QVector<ReplayDownloadItemResult> completedDownloads;
+    };
 
     [[nodiscard]] static DBClient* getInstance();
     static void destroyInstance();
@@ -138,6 +180,7 @@ class DBClient : public QObject
      * @param p_date   Trading date to download
      */
     void downloadReplayData(const QString& p_symbol, const QDate& p_date);
+    void downloadReplayData(const QString& p_symbol, const QDate& p_date, const QString& p_requestId);
 
     /**
      * @brief Get or set the base directory where replay data is stored.
@@ -166,6 +209,21 @@ class DBClient : public QObject
      * @return true if both Mbp10 and Trades .dbn.zst files exist
      */
     [[nodiscard]] static bool hasReplayData(const QDate& p_date, const QString& p_symbol);
+
+    /**
+     * @brief Enumerate recorded replay days currently present on disk.
+     */
+    [[nodiscard]] static QVector<ReplayDayInfo> listAvailableReplayDates();
+
+    /**
+     * @brief Get aggregate file information for one replay day.
+     */
+    [[nodiscard]] static std::optional<ReplayDayInfo> getReplayDateInfo(const QDate& p_date);
+
+    /**
+     * @brief Enumerate recorded replay symbols/files for one replay day.
+     */
+    [[nodiscard]] static QVector<ReplaySymbolInfo> listAvailableReplaySymbols(const QDate& p_date);
 
     /**
      * @brief Returns the date for which the current replay session was opened.
@@ -278,6 +336,21 @@ class DBClient : public QObject
      */
     void
     replayDownloadFinished(const QString& p_symbol, const QDate& p_date, bool p_success, const QString& p_errorMessage);
+
+    /**
+     * @brief Replay data download completed for a caller-specific request token
+     * Thread context: Emitted from QThreadPool worker thread (auto-queued)
+     * @param p_requestId Caller-supplied request token used to correlate a download batch
+     * @param p_symbol Ticker symbol
+     * @param p_date Date downloaded
+     * @param p_success true if download succeeded
+     * @param p_errorMessage Error description (empty on success)
+     */
+    void replayDownloadFinishedForRequest(const QString& p_requestId,
+                                          const QString& p_symbol,
+                                          const QDate& p_date,
+                                          bool p_success,
+                                          const QString& p_errorMessage);
 
     /**
      * @brief Trading status update for a symbol from the live status stream.

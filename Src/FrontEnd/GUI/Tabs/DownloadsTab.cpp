@@ -1,16 +1,19 @@
 #include "DownloadsTab.h"
+#include "Assume.h"
+#include "CONSTANTS.h"
 #include "DBClient.h"
 #include "Logging.h"
 #include "Settings.h"
 
 #include <QDir>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QHash>
 #include <QHeaderView>
 #include <QMenu>
 #include <QMessageBox>
-#include <QRegularExpression>
 #include <QSet>
 #include <QStandardPaths>
 #include <QTextStream>
@@ -98,6 +101,38 @@ QStringList DownloadsTab::parseManualSymbols() const
     return symbols;
 }
 
+QStringList DownloadsTab::normalizeSymbolList(const QStringList& p_symbols)
+{
+    QStringList normalizedSymbols;
+    QSet<QString> seen;
+    for (const QString& rawSymbol: p_symbols)
+    {
+        const QString symbol = rawSymbol.trimmed().toUpper();
+        if (symbol.isEmpty() || seen.contains(symbol))
+        {
+            continue;
+        }
+
+        seen.insert(symbol);
+        normalizedSymbols.append(symbol);
+    }
+
+    return normalizedSymbols;
+}
+
+QStringList DownloadsTab::collectRequestedSymbols() const
+{
+    QStringList requestedSymbols;
+    const QString csvPath = m_csvPathEdit->text().trimmed();
+    if (!csvPath.isEmpty())
+    {
+        requestedSymbols.append(parseSymbolCsv(csvPath));
+    }
+
+    requestedSymbols.append(parseManualSymbols());
+    return normalizeSymbolList(requestedSymbols);
+}
+
 QStringList DownloadsTab::buildDownloadQueue(const QDate& p_date, QStringList* p_outSkipped) const
 {
     QSet<QString> seen;
@@ -136,6 +171,75 @@ QStringList DownloadsTab::buildDownloadQueue(const QDate& p_date, QStringList* p
     }
 
     return queue;
+}
+
+std::expected<DBClient::ReplayDownloadBatchResult, QString>
+DownloadsTab::startExternalDownloadBatch(const QDate& p_date, const QStringList& p_symbols)
+{
+    if (!DBClient::getInstance()->hasApiKey())
+    {
+        return std::unexpected("Databento API key is not configured");
+    }
+    if (!p_date.isValid() || p_date > QDate::currentDate())
+    {
+        return std::unexpected("Replay download date must be today or earlier");
+    }
+    if (!m_downloadButton->isEnabled())
+    {
+        return std::unexpected("A replay download is already in progress");
+    }
+
+    const QStringList requestedSymbols = normalizeSymbolList(p_symbols);
+    if (requestedSymbols.isEmpty())
+    {
+        return std::unexpected("At least one symbol is required");
+    }
+
+    QStringList queuedSymbols;
+    QStringList skippedSymbols;
+    for (const QString& symbol: requestedSymbols)
+    {
+        if (DBClient::hasReplayData(p_date, symbol))
+        {
+            skippedSymbols.append(symbol);
+        }
+        else
+        {
+            queuedSymbols.append(symbol);
+        }
+    }
+
+    m_dateEdit->setDate(p_date);
+    m_manualSymbolsEdit->setText(requestedSymbols.join(", "));
+
+    QEventLoop loop;
+    QObject::connect(this, &DownloadsTab::downloadBatchFinished, &loop, &QEventLoop::quit);
+    beginDownloadBatch(p_date, requestedSymbols, queuedSymbols, skippedSymbols);
+    if (!queuedSymbols.isEmpty() && !m_downloadButton->isEnabled())
+    {
+        loop.exec();
+    }
+
+    if (!m_activeDownloadBatch.completedDownloads.isEmpty())
+    {
+        QHash<QString, DBClient::ReplayDownloadItemResult> resultsBySymbol;
+        for (const DBClient::ReplayDownloadItemResult& item: m_activeDownloadBatch.completedDownloads)
+        {
+            resultsBySymbol.insert(item.symbol, item);
+        }
+
+        QVector<DBClient::ReplayDownloadItemResult> orderedResults;
+        orderedResults.reserve(m_activeDownloadBatch.queuedSymbols.size());
+        for (const QString& symbol: m_activeDownloadBatch.queuedSymbols)
+        {
+            ASSUME_TRUE(resultsBySymbol.contains(symbol));
+            orderedResults.append(resultsBySymbol.value(symbol));
+        }
+
+        m_activeDownloadBatch.completedDownloads = std::move(orderedResults);
+    }
+
+    return m_activeDownloadBatch;
 }
 
 void DownloadsTab::setupUI()
@@ -414,6 +518,22 @@ void DownloadsTab::onBrowseCsvClicked()
     }
 }
 
+void DownloadsTab::updateSkipLog(const QStringList& p_skippedSymbols)
+{
+    m_skipLogEdit->clear();
+    if (!p_skippedSymbols.isEmpty())
+    {
+        const QString header = QString("⏭ Skipping %1 already-downloaded symbol%2:")
+                                   .arg(p_skippedSymbols.size())
+                                   .arg(p_skippedSymbols.size() == 1 ? "" : "s");
+        m_skipLogEdit->setPlainText(header + "\n" + p_skippedSymbols.join(", "));
+        m_skipLogEdit->setVisible(true);
+        return;
+    }
+
+    m_skipLogEdit->setVisible(false);
+}
+
 void DownloadsTab::onDownloadClicked()
 {
     // Validate Databento connection
@@ -433,45 +553,45 @@ void DownloadsTab::onDownloadClicked()
         return;
     }
 
-    // Build the download queue (CSV + manual, deduplicated, skip already downloaded)
-    QStringList skippedSymbols;
-    m_downloadQueue = buildDownloadQueue(date, &skippedSymbols);
-
-    // Show skip summary
-    m_skipLogEdit->clear();
-    if (!skippedSymbols.isEmpty())
+    const QStringList requestedSymbols = collectRequestedSymbols();
+    if (requestedSymbols.isEmpty())
     {
-        const QString header = QString("⏭ Skipping %1 already-downloaded symbol%2:")
-                                   .arg(skippedSymbols.size())
-                                   .arg(skippedSymbols.size() == 1 ? "" : "s");
-        m_skipLogEdit->setPlainText(header + "\n" + skippedSymbols.join(", "));
-        m_skipLogEdit->setVisible(true);
-    }
-    else
-    {
-        m_skipLogEdit->setVisible(false);
-    }
-
-    if (m_downloadQueue.isEmpty())
-    {
-        const QString csvPath = m_csvPathEdit->text().trimmed();
-        const QStringList manual = parseManualSymbols();
-        if (csvPath.isEmpty() && manual.isEmpty())
-        {
-            QMessageBox::warning(this, "No Symbols", "Please specify a CSV file or enter symbols manually.");
-            return;
-        }
-        m_downloadStatusLabel->setText("All symbols already downloaded for " + date.toString(Qt::ISODate));
+        QMessageBox::warning(this, "No Symbols", "Please specify a CSV file or enter symbols manually.");
         return;
     }
 
-    // Start sequential download
-    m_downloadDate = date;
+    // Build the download queue (CSV + manual, deduplicated, skip already downloaded)
+    QStringList skippedSymbols;
+    const QStringList queue = buildDownloadQueue(date, &skippedSymbols);
+    beginDownloadBatch(date, requestedSymbols, queue, skippedSymbols);
+}
+
+void DownloadsTab::beginDownloadBatch(const QDate& p_date,
+                                      const QStringList& p_requestedSymbols,
+                                      const QStringList& p_queue,
+                                      const QStringList& p_skippedSymbols)
+{
+    m_activeDownloadBatch = DBClient::ReplayDownloadBatchResult{};
+    m_activeDownloadBatch.requestedSymbols = p_requestedSymbols;
+    m_activeDownloadBatch.queuedSymbols = p_queue;
+    m_activeDownloadBatch.skippedSymbols = p_skippedSymbols;
+
+    m_downloadQueue = p_queue;
+    m_downloadDate = p_date;
     m_nextDownloadIndex = 0;
     m_completedCount = 0;
     m_downloadSuccessCount = 0;
     m_downloadFailCount = 0;
     m_inFlightSymbols.clear();
+    updateSkipLog(p_skippedSymbols);
+
+    if (m_downloadQueue.isEmpty())
+    {
+        m_downloadProgressBar->setVisible(false);
+        m_downloadStatusLabel->setText("All symbols already downloaded for " + p_date.toString(Qt::ISODate));
+        emit downloadBatchFinished();
+        return;
+    }
 
     m_downloadButton->setEnabled(false);
     m_downloadProgressBar->setMaximum(m_downloadQueue.size());
@@ -491,7 +611,8 @@ void DownloadsTab::onDownloadClicked()
 void DownloadsTab::dispatchDownloads()
 {
     // Launch up to MAX_CONCURRENT_DOWNLOADS in parallel
-    while (m_inFlightSymbols.size() < MAX_CONCURRENT_DOWNLOADS && m_nextDownloadIndex < m_downloadQueue.size())
+    while (m_inFlightSymbols.size() < PlatformControlConstants::REPLAY_DOWNLOAD_MAX_CONCURRENCY &&
+           m_nextDownloadIndex < m_downloadQueue.size())
     {
         const QString& symbol = m_downloadQueue.at(m_nextDownloadIndex);
         m_inFlightSymbols.insert(symbol);
@@ -523,6 +644,7 @@ void DownloadsTab::finishDownload()
 
     // Full refresh of the browser
     scanRecordedDays();
+    emit downloadBatchFinished();
 }
 
 void DownloadsTab::onDownloadFinished(const QString& p_symbol,
@@ -530,11 +652,13 @@ void DownloadsTab::onDownloadFinished(const QString& p_symbol,
                                       bool p_success,
                                       const QString& p_errorMessage)
 {
-    Q_UNUSED(p_errorMessage);
     if (p_date != m_downloadDate)
         return;
     if (!m_inFlightSymbols.remove(p_symbol))
         return;
+
+    m_activeDownloadBatch.completedDownloads.append(
+        DBClient::ReplayDownloadItemResult{p_symbol, p_success, p_errorMessage});
 
     if (p_success)
         m_downloadSuccessCount++;
@@ -595,15 +719,9 @@ void DownloadsTab::onDaysTableContextMenu(const QPoint& p_pos)
 
 void DownloadsTab::updateDaysTableRow(const QDate& p_date)
 {
-    QString dirPath = DBClient::getReplayDataDir(p_date);
-    QDir dir(dirPath);
-    if (!dir.exists())
+    const auto dayInfo = DBClient::getReplayDateInfo(p_date);
+    if (!dayInfo.has_value())
         return;
-
-    QStringList dbnFiles = dir.entryList({"*.dbn.zst"}, QDir::Files);
-    qint64 totalSize = 0;
-    for (const QString& f: dbnFiles)
-        totalSize += QFileInfo(dir.absoluteFilePath(f)).size();
 
     // Find existing row or insert new one
     int targetRow = -1;
@@ -626,8 +744,8 @@ void DownloadsTab::updateDaysTableRow(const QDate& p_date)
         m_daysTable->setItem(targetRow, 0, dateItem);
     }
 
-    m_daysTable->setItem(targetRow, 1, new QTableWidgetItem(QString::number(dbnFiles.size())));
-    m_daysTable->setItem(targetRow, 2, new QTableWidgetItem(formatFileSize(totalSize)));
+    m_daysTable->setItem(targetRow, 1, new QTableWidgetItem(QString::number(dayInfo->fileCount)));
+    m_daysTable->setItem(targetRow, 2, new QTableWidgetItem(formatFileSize(dayInfo->totalSizeBytes)));
     m_daysTable->resizeColumnsToContents();
 
     // Auto-select the download date and refresh symbols
@@ -643,45 +761,17 @@ void DownloadsTab::scanRecordedDays()
     m_daysTable->setRowCount(0);
     clearSymbolsList();
 
-    // Scan ReplayData directory for date folders
-    // Use a known date to derive the base directory, then go up one level
-    QString baseDir = DBClient::getReplayDataDir(QDate::currentDate());
-    QDir base(baseDir);
-    base.cdUp(); // Go from ReplayData/YYYY-MM-DD to ReplayData/
-
-    if (!base.exists())
+    const QVector<DBClient::ReplayDayInfo> days = DBClient::listAvailableReplayDates();
+    for (const DBClient::ReplayDayInfo& day: days)
     {
-        return;
-    }
-
-    QStringList dateDirs = base.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::Reversed);
-
-    for (const QString& dirName: dateDirs)
-    {
-        QDate date = QDate::fromString(dirName, Qt::ISODate);
-        if (!date.isValid())
-            continue;
-
-        QDir dateDir(base.absoluteFilePath(dirName));
-        QStringList dbnFiles = dateDir.entryList({"*.dbn.zst"}, QDir::Files);
-
-        if (dbnFiles.isEmpty())
-            continue;
-
-        qint64 totalSize = 0;
-        for (const QString& f: dbnFiles)
-        {
-            totalSize += QFileInfo(dateDir.absoluteFilePath(f)).size();
-        }
-
         int row = m_daysTable->rowCount();
         m_daysTable->insertRow(row);
 
-        auto* dateItem = new QTableWidgetItem(date.toString(Qt::ISODate));
-        dateItem->setData(Qt::UserRole, date);
+        auto* dateItem = new QTableWidgetItem(day.date.toString(Qt::ISODate));
+        dateItem->setData(Qt::UserRole, day.date);
         m_daysTable->setItem(row, 0, dateItem);
-        m_daysTable->setItem(row, 1, new QTableWidgetItem(QString::number(dbnFiles.size())));
-        m_daysTable->setItem(row, 2, new QTableWidgetItem(formatFileSize(totalSize)));
+        m_daysTable->setItem(row, 1, new QTableWidgetItem(QString::number(day.fileCount)));
+        m_daysTable->setItem(row, 2, new QTableWidgetItem(formatFileSize(day.totalSizeBytes)));
     }
 
     m_daysTable->resizeColumnsToContents();
@@ -710,64 +800,28 @@ void DownloadsTab::loadSymbolsForDay(const QDate& p_date)
 {
     clearSymbolsList();
 
-    QString dirPath = DBClient::getReplayDataDir(p_date);
-    QDir dir(dirPath);
-    if (!dir.exists())
-        return;
-
-    QStringList files = dir.entryList({"*.dbn.zst"}, QDir::Files);
-
-    // Extract unique symbols from filenames: {symbol}_mbp10.dbn.zst, {symbol}_trades.dbn.zst
-    static const QRegularExpression mbp10Re("^(.+)_mbp10\\.dbn\\.zst$");
-    static const QRegularExpression tradesRe("^(.+)_trades\\.dbn\\.zst$");
-
-    QMap<QString, SymbolFiles> symbolMap;
-
-    for (const QString& f: files)
+    const QVector<DBClient::ReplaySymbolInfo> symbolInfos = DBClient::listAvailableReplaySymbols(p_date);
+    for (const DBClient::ReplaySymbolInfo& sf: symbolInfos)
     {
-        QRegularExpressionMatch m = mbp10Re.match(f);
-        if (m.hasMatch())
-        {
-            QString sym = m.captured(1);
-            symbolMap[sym].symbol = sym;
-            symbolMap[sym].hasMbp10 = true;
-            symbolMap[sym].mbp10Size = QFileInfo(dir.absoluteFilePath(f)).size();
-            continue;
-        }
-
-        m = tradesRe.match(f);
-        if (m.hasMatch())
-        {
-            QString sym = m.captured(1);
-            symbolMap[sym].symbol = sym;
-            symbolMap[sym].hasTrades = true;
-            symbolMap[sym].tradesSize = QFileInfo(dir.absoluteFilePath(f)).size();
-        }
-    }
-
-    for (auto it = symbolMap.constBegin(); it != symbolMap.constEnd(); ++it)
-    {
-        const SymbolFiles& sf = it.value();
         int row = m_symbolsTable->rowCount();
         m_symbolsTable->insertRow(row);
 
         m_symbolsTable->setItem(row, 0, new QTableWidgetItem(sf.symbol));
 
         // Mbp10 size (or "—" if missing)
-        auto* mbp10Item = new QTableWidgetItem(sf.hasMbp10 ? formatFileSize(sf.mbp10Size) : "—");
+        auto* mbp10Item = new QTableWidgetItem(sf.hasMbp10 ? formatFileSize(sf.mbp10SizeBytes) : "—");
         if (!sf.hasMbp10)
             mbp10Item->setForeground(Qt::darkGray);
         m_symbolsTable->setItem(row, 1, mbp10Item);
 
         // Trades size (or "—" if missing)
-        auto* tradesItem = new QTableWidgetItem(sf.hasTrades ? formatFileSize(sf.tradesSize) : "—");
+        auto* tradesItem = new QTableWidgetItem(sf.hasTrades ? formatFileSize(sf.tradesSizeBytes) : "—");
         if (!sf.hasTrades)
             tradesItem->setForeground(Qt::darkGray);
         m_symbolsTable->setItem(row, 2, tradesItem);
 
         // Total size
-        qint64 total = sf.mbp10Size + sf.tradesSize;
-        m_symbolsTable->setItem(row, 3, new QTableWidgetItem(formatFileSize(total)));
+        m_symbolsTable->setItem(row, 3, new QTableWidgetItem(formatFileSize(sf.totalSizeBytes())));
     }
 
     m_symbolsTable->resizeColumnsToContents();

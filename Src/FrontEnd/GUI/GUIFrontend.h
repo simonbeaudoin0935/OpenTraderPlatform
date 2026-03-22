@@ -8,10 +8,12 @@
 #include <QLabel>
 #include <QSplitter>
 #include <QEvent>
+#include <expected>
 #include <memory>
 
 #include "FrontEnd.h"
 #include "MainAlgo.h"
+#include "DBClient.h"
 #include "Misc/ShortcutSettings.h"
 #include "Misc/TimeFrame.h"
 #include "Widgets/ReplayControlsBar/ReplayControlsBar.h"
@@ -19,6 +21,7 @@
 
 // Forward declarations
 class PlaceOrderRequest;
+class DownloadsTab;
 class StrategyLogWidget;
 class WindowManager;
 
@@ -56,6 +59,8 @@ class GUIFrontend : public FrontEnd
 
   public:
     QString getSelectedAccountId() const;
+    [[nodiscard]] std::expected<DBClient::ReplayDownloadBatchResult, QString>
+    startReplayDownloadBatch(const QDate& p_date, const QStringList& p_symbols);
 
   protected:
     bool eventFilter(QObject* p_watched, QEvent* p_event) override;
@@ -152,6 +157,7 @@ class GUIFrontend : public FrontEnd
     TradingModeBar* m_tradingModeBar = nullptr; // LIVE / SIM / REPLAY tristate mode indicator
 
     ReplayControlsBar* m_replayControlsBar = nullptr; // Replay controls in top toolbar
+    DownloadsTab* m_downloadsTab = nullptr;           // Replay downloads tab
     WindowManager* m_windowManager = nullptr;         // Manages secondary chart windows
 
     // Bottom logger split: platform log (left) + strategy log (right, shown on demand)

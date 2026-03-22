@@ -2,7 +2,10 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QMap>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QtConcurrent>
@@ -33,6 +36,74 @@ namespace
 {
     constexpr auto k_service = "Databento";
     constexpr auto k_keyName = "api_key";
+    constexpr auto kReplayDataDirSettingsKey = "RecordsInfo/ReplayDataDir";
+
+    [[nodiscard]] QString defaultReplayBaseDir()
+    {
+        return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/ReplayData";
+    }
+
+    [[nodiscard]] QString configuredReplayBaseDir()
+    {
+        if (appStateSettings == nullptr)
+        {
+            return QString();
+        }
+
+        QString savedDir = appStateSettings->value(kReplayDataDirSettingsKey).toString().trimmed();
+        if (savedDir.isEmpty())
+        {
+            return QString();
+        }
+
+        const QString oldBase = getCacheLocation() + "/ReplayData";
+        const QString newBase = getDataLocation() + "/ReplayData";
+        if (savedDir == oldBase && QDir(newBase).exists())
+        {
+            qInfo() << "DBClient: migrating ReplayDataDir from" << savedDir << "to" << newBase;
+            savedDir = newBase;
+            appStateSettings->setValue(kReplayDataDirSettingsKey, savedDir);
+        }
+
+        if (!QDir(savedDir).exists())
+        {
+            qWarning() << "DBClient: saved ReplayDataDir" << savedDir << "does not exist, reverting to default";
+            appStateSettings->remove(kReplayDataDirSettingsKey);
+            return QString();
+        }
+
+        return savedDir;
+    }
+
+    [[nodiscard]] std::optional<DBClient::ReplayDayInfo> makeReplayDayInfo(const QDate& p_date)
+    {
+        if (!p_date.isValid())
+        {
+            return std::nullopt;
+        }
+
+        const QDir dir(DBClient::getReplayDataDir(p_date));
+        if (!dir.exists())
+        {
+            return std::nullopt;
+        }
+
+        const QStringList dbnFiles = dir.entryList({"*.dbn.zst"}, QDir::Files, QDir::Name);
+        if (dbnFiles.isEmpty())
+        {
+            return std::nullopt;
+        }
+
+        DBClient::ReplayDayInfo info;
+        info.date = p_date;
+        info.fileCount = dbnFiles.size();
+        for (const QString& fileName: dbnFiles)
+        {
+            info.totalSizeBytes += QFileInfo(dir.absoluteFilePath(fileName)).size();
+        }
+
+        return info;
+    }
 } // namespace
 
 DBClient* DBClient::m_instance = nullptr;
@@ -430,11 +501,16 @@ void DBClient::fetchHistoricalBars(const QString& p_symbol,
 
 void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date)
 {
+    downloadReplayData(p_symbol, p_date, {});
+}
+
+void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date, const QString& p_requestId)
+{
     if (QThread::currentThread() != thread())
     {
         QMetaObject::invokeMethod(
             this,
-            [this, p_symbol, p_date]() { downloadReplayData(p_symbol, p_date); },
+            [this, p_symbol, p_date, p_requestId]() { downloadReplayData(p_symbol, p_date, p_requestId); },
             Qt::QueuedConnection);
         return;
     }
@@ -446,6 +522,7 @@ void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date)
     const std::string key = m_apiKey.toStdString();
     const QString symbol = p_symbol;
     const QDate date = p_date;
+    const QString requestId = p_requestId.trimmed();
     const QString dataset = m_dataset;
     const std::string stdDataset = dataset.toStdString();
     const std::string stdSymbol = symbol.toStdString();
@@ -467,7 +544,7 @@ void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date)
 
     // Each concurrent download gets its own Historical client for thread safety
     Q_UNUSED(QtConcurrent::run(
-        [this, key, stdDataset, stdSymbol, startStr, endStr, mbp10Path, tradesPath, symbol, date]()
+        [this, key, stdDataset, stdSymbol, startStr, endStr, mbp10Path, tradesPath, symbol, date, requestId]()
         {
             try
             {
@@ -504,11 +581,20 @@ void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date)
 
                 sINFO << "Replay download complete for" << symbol << "on" << date.toString(Qt::ISODate);
                 emit replayDownloadFinished(symbol, date, true, {});
+                if (!requestId.isEmpty())
+                {
+                    emit replayDownloadFinishedForRequest(requestId, symbol, date, true, {});
+                }
             }
             catch (const std::exception& ex)
             {
-                sWARNING << "Replay download failed for" << symbol << ":" << ex.what();
-                emit replayDownloadFinished(symbol, date, false, QString::fromStdString(ex.what()));
+                const QString errorMessage = QString::fromStdString(ex.what());
+                sWARNING << "Replay download failed for" << symbol << ":" << errorMessage;
+                emit replayDownloadFinished(symbol, date, false, errorMessage);
+                if (!requestId.isEmpty())
+                {
+                    emit replayDownloadFinishedForRequest(requestId, symbol, date, false, errorMessage);
+                }
             }
         }));
 }
@@ -516,8 +602,17 @@ void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date)
 QString DBClient::getReplayBaseDir()
 {
     if (!m_replayBaseDir.isEmpty())
+    {
         return m_replayBaseDir;
-    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/ReplayData";
+    }
+
+    const QString configuredDir = configuredReplayBaseDir();
+    if (!configuredDir.isEmpty())
+    {
+        return configuredDir;
+    }
+
+    return defaultReplayBaseDir();
 }
 
 void DBClient::setReplayBaseDir(const QString& p_dir)
@@ -539,6 +634,85 @@ bool DBClient::hasReplayData(const QDate& p_date, const QString& p_symbol)
 {
     return QFile::exists(getReplayFilePath(p_date, p_symbol, "mbp10")) &&
            QFile::exists(getReplayFilePath(p_date, p_symbol, "trades"));
+}
+
+QVector<DBClient::ReplayDayInfo> DBClient::listAvailableReplayDates()
+{
+    const QDir base(getReplayBaseDir());
+    if (!base.exists())
+    {
+        return {};
+    }
+
+    const QStringList dateDirs = base.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::Reversed);
+    QVector<ReplayDayInfo> days;
+    for (const QString& dirName: dateDirs)
+    {
+        const auto info = makeReplayDayInfo(QDate::fromString(dirName, Qt::ISODate));
+        if (info.has_value())
+        {
+            days.append(info.value());
+        }
+    }
+
+    return days;
+}
+
+std::optional<DBClient::ReplayDayInfo> DBClient::getReplayDateInfo(const QDate& p_date)
+{
+    return makeReplayDayInfo(p_date);
+}
+
+QVector<DBClient::ReplaySymbolInfo> DBClient::listAvailableReplaySymbols(const QDate& p_date)
+{
+    if (!p_date.isValid())
+    {
+        return {};
+    }
+
+    const QDir dir(getReplayDataDir(p_date));
+    if (!dir.exists())
+    {
+        return {};
+    }
+
+    const QStringList files = dir.entryList({"*.dbn.zst"}, QDir::Files, QDir::Name);
+    static const QRegularExpression mbp10Re("^(.+)_mbp10\\.dbn\\.zst$");
+    static const QRegularExpression tradesRe("^(.+)_trades\\.dbn\\.zst$");
+
+    QMap<QString, ReplaySymbolInfo> symbolMap;
+    for (const QString& fileName: files)
+    {
+        const QRegularExpressionMatch mbp10Match = mbp10Re.match(fileName);
+        if (mbp10Match.hasMatch())
+        {
+            const QString symbol = mbp10Match.captured(1);
+            ReplaySymbolInfo& info = symbolMap[symbol];
+            info.symbol = symbol;
+            info.hasMbp10 = true;
+            info.mbp10SizeBytes = QFileInfo(dir.absoluteFilePath(fileName)).size();
+            continue;
+        }
+
+        const QRegularExpressionMatch tradesMatch = tradesRe.match(fileName);
+        if (tradesMatch.hasMatch())
+        {
+            const QString symbol = tradesMatch.captured(1);
+            ReplaySymbolInfo& info = symbolMap[symbol];
+            info.symbol = symbol;
+            info.hasTrades = true;
+            info.tradesSizeBytes = QFileInfo(dir.absoluteFilePath(fileName)).size();
+        }
+    }
+
+    QVector<ReplaySymbolInfo> symbols;
+    symbols.reserve(symbolMap.size());
+    for (auto it = symbolMap.cbegin(); it != symbolMap.cend(); ++it)
+    {
+        symbols.append(it.value());
+    }
+
+    return symbols;
 }
 
 QDate DBClient::getReplayDate()

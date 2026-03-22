@@ -766,8 +766,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             Qt::UniqueConnection);
 
     // Set up the downloads tab
-    DownloadsTab* downloadsTab = new DownloadsTab();
-    ui->tabWidget->addTab(downloadsTab, "Downloads");
+    m_downloadsTab = new DownloadsTab();
+    ui->tabWidget->addTab(m_downloadsTab, "Downloads");
 
     // Set up the logging tab
     LoggingTab* loggingTab = new LoggingTab();
@@ -1156,6 +1156,17 @@ QString GUIFrontend::getSelectedAccountId() const
         return m_accounts[ui->accountSelector->currentIndex()].getAccountId();
     }
     return QString(); // Return empty string if no valid selection
+}
+
+std::expected<DBClient::ReplayDownloadBatchResult, QString>
+GUIFrontend::startReplayDownloadBatch(const QDate& p_date, const QStringList& p_symbols)
+{
+    if (m_downloadsTab == nullptr)
+    {
+        return std::unexpected("Downloads tab is not available");
+    }
+
+    return m_downloadsTab->startExternalDownloadBatch(p_date, p_symbols);
 }
 
 void GUIFrontend::onMemoryUsageUpdate(qsizetype newDataUsage)

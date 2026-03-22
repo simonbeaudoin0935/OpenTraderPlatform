@@ -1,11 +1,12 @@
 #pragma once
 
+#include "DBClient.h"
+
 #include <QDate>
 #include <QDateEdit>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QMap>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QSet>
@@ -14,6 +15,8 @@
 #include <QTextEdit>
 #include <QVBoxLayout>
 #include <QWidget>
+
+#include <expected>
 
 /**
  * @class DownloadsTab
@@ -35,15 +38,6 @@ class DownloadsTab : public QWidget
     explicit DownloadsTab(QWidget* p_parent = nullptr);
     ~DownloadsTab() override = default;
 
-    struct SymbolFiles
-    {
-        QString symbol;
-        bool hasMbp10 = false;
-        bool hasTrades = false;
-        qint64 mbp10Size = 0;
-        qint64 tradesSize = 0;
-    };
-
     /**
      * @brief Parse a CSV file to extract ticker symbols from the first column.
      * Skips the header row. Handles quoted fields like "AARD".
@@ -51,6 +45,16 @@ class DownloadsTab : public QWidget
      * @return List of ticker symbols (uppercased, trimmed)
      */
     [[nodiscard]] static QStringList parseSymbolCsv(const QString& p_filePath);
+
+    [[nodiscard]] std::expected<DBClient::ReplayDownloadBatchResult, QString>
+    startExternalDownloadBatch(const QDate& p_date, const QStringList& p_symbols);
+
+  signals:
+    /**
+     * @brief Emitted after the current replay-download batch finishes updating tab state
+     * Thread context: Emitted from Main/GUI thread
+     */
+    void downloadBatchFinished();
 
   private slots:
     void onRefreshClicked();
@@ -67,6 +71,10 @@ class DownloadsTab : public QWidget
     void scanRecordedDays();
     void loadSymbolsForDay(const QDate& p_date);
     void clearSymbolsList();
+    void beginDownloadBatch(const QDate& p_date,
+                            const QStringList& p_requestedSymbols,
+                            const QStringList& p_queue,
+                            const QStringList& p_skippedSymbols);
     void dispatchDownloads();
     void finishDownload();
     void updateDaysTableRow(const QDate& p_date);
@@ -75,8 +83,11 @@ class DownloadsTab : public QWidget
     void saveReplayDir();
 
     [[nodiscard]] QString formatFileSize(qint64 p_bytes) const;
+    [[nodiscard]] QStringList collectRequestedSymbols() const;
     [[nodiscard]] QStringList parseManualSymbols() const;
     [[nodiscard]] QStringList buildDownloadQueue(const QDate& p_date, QStringList* p_outSkipped = nullptr) const;
+    [[nodiscard]] static QStringList normalizeSymbolList(const QStringList& p_symbols);
+    void updateSkipLog(const QStringList& p_skippedSymbols);
 
     // UI - Download section
     QDateEdit* m_dateEdit;
@@ -98,8 +109,6 @@ class DownloadsTab : public QWidget
     // UI - Middle (Symbols)
     QTableWidget* m_symbolsTable;
 
-    static constexpr int MAX_CONCURRENT_DOWNLOADS = 5;
-
     // Download state
     QDate m_downloadDate;
     QStringList m_downloadQueue;
@@ -108,6 +117,7 @@ class DownloadsTab : public QWidget
     int m_downloadSuccessCount = 0;
     int m_downloadFailCount = 0;
     QSet<QString> m_inFlightSymbols;
+    DBClient::ReplayDownloadBatchResult m_activeDownloadBatch;
 
     // Browser state
     QDate m_selectedDate;

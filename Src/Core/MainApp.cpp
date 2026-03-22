@@ -14,9 +14,12 @@
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QFutureWatcher>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonValue>
+#include <QThread>
+#include <QUuid>
 #include <unistd.h>
 #include <algorithm>
 #include <cerrno>
@@ -488,6 +491,67 @@ namespace
         };
     }
 
+    [[nodiscard]] QJsonObject serializeReplayDayInfo(const DBClient::ReplayDayInfo& p_info)
+    {
+        return QJsonObject{
+            {"date", p_info.date.toString(Qt::ISODate)},
+            {"fileCount", p_info.fileCount},
+            {"totalSizeBytes", static_cast<qint64>(p_info.totalSizeBytes)},
+        };
+    }
+
+    [[nodiscard]] QJsonArray serializeReplayDayInfos(const QVector<DBClient::ReplayDayInfo>& p_infos)
+    {
+        QJsonArray items;
+        for (const DBClient::ReplayDayInfo& info: p_infos)
+        {
+            items.append(serializeReplayDayInfo(info));
+        }
+        return items;
+    }
+
+    [[nodiscard]] QJsonObject serializeReplaySymbolInfo(const DBClient::ReplaySymbolInfo& p_info)
+    {
+        return QJsonObject{
+            {"symbol", p_info.symbol},
+            {"hasMbp10", p_info.hasMbp10},
+            {"hasTrades", p_info.hasTrades},
+            {"isComplete", p_info.isComplete()},
+            {"mbp10SizeBytes", static_cast<qint64>(p_info.mbp10SizeBytes)},
+            {"tradesSizeBytes", static_cast<qint64>(p_info.tradesSizeBytes)},
+            {"totalSizeBytes", static_cast<qint64>(p_info.totalSizeBytes())},
+        };
+    }
+
+    [[nodiscard]] QJsonArray serializeReplaySymbolInfos(const QVector<DBClient::ReplaySymbolInfo>& p_infos)
+    {
+        QJsonArray items;
+        for (const DBClient::ReplaySymbolInfo& info: p_infos)
+        {
+            items.append(serializeReplaySymbolInfo(info));
+        }
+        return items;
+    }
+
+    [[nodiscard]] QJsonObject serializeReplayDownloadItem(const DBClient::ReplayDownloadItemResult& p_item)
+    {
+        return QJsonObject{
+            {"symbol", p_item.symbol},
+            {"success", p_item.success},
+            {"error", p_item.errorMessage.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(p_item.errorMessage)},
+        };
+    }
+
+    [[nodiscard]] QJsonArray serializeReplayDownloadItems(const QVector<DBClient::ReplayDownloadItemResult>& p_items)
+    {
+        QJsonArray items;
+        for (const DBClient::ReplayDownloadItemResult& item: p_items)
+        {
+            items.append(serializeReplayDownloadItem(item));
+        }
+        return items;
+    }
+
     [[nodiscard]] QString tradeActionToJsonString(TradeAction p_action)
     {
         switch (p_action)
@@ -564,6 +628,93 @@ namespace
         }
 
         return p_future.result();
+    }
+
+    [[nodiscard]] DBClient::ReplayDownloadBatchResult
+    performReplayDownloadBatch(DBClient* p_dbClient, const QStringList& p_symbols, const QDate& p_date)
+    {
+        ASSUME_DIFF(p_dbClient, nullptr);
+
+        DBClient::ReplayDownloadBatchResult batch;
+        batch.requestedSymbols = p_symbols;
+        for (const QString& symbol: p_symbols)
+        {
+            if (DBClient::hasReplayData(p_date, symbol))
+            {
+                batch.skippedSymbols.append(symbol);
+            }
+            else
+            {
+                batch.queuedSymbols.append(symbol);
+            }
+        }
+
+        if (batch.queuedSymbols.isEmpty())
+        {
+            return batch;
+        }
+
+        const QString requestId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        QSet<QString> inFlightSymbols;
+        QHash<QString, DBClient::ReplayDownloadItemResult> resultsBySymbol;
+        int nextIndex = 0;
+        QEventLoop loop;
+
+        auto dispatchDownloads = [&]()
+        {
+            while (inFlightSymbols.size() < PlatformControlConstants::REPLAY_DOWNLOAD_MAX_CONCURRENCY &&
+                   nextIndex < batch.queuedSymbols.size())
+            {
+                const QString& symbol = batch.queuedSymbols.at(nextIndex);
+                inFlightSymbols.insert(symbol);
+                ++nextIndex;
+                p_dbClient->downloadReplayData(symbol, p_date, requestId);
+            }
+
+            if (inFlightSymbols.isEmpty() && nextIndex >= batch.queuedSymbols.size())
+            {
+                loop.quit();
+            }
+        };
+
+        QObject::connect(p_dbClient,
+                         &DBClient::replayDownloadFinishedForRequest,
+                         &loop,
+                         [&](const QString& p_completedRequestId,
+                             const QString& p_symbol,
+                             const QDate& p_completedDate,
+                             bool p_success,
+                             const QString& p_errorMessage)
+                         {
+                             if (p_completedRequestId != requestId || p_completedDate != p_date)
+                             {
+                                 return;
+                             }
+                             if (!inFlightSymbols.remove(p_symbol))
+                             {
+                                 return;
+                             }
+
+                             resultsBySymbol.insert(
+                                 p_symbol,
+                                 DBClient::ReplayDownloadItemResult{p_symbol, p_success, p_errorMessage});
+                             dispatchDownloads();
+                         });
+
+        dispatchDownloads();
+        if (!inFlightSymbols.isEmpty())
+        {
+            loop.exec();
+        }
+
+        batch.completedDownloads.reserve(batch.queuedSymbols.size());
+        for (const QString& symbol: batch.queuedSymbols)
+        {
+            ASSUME_TRUE(resultsBySymbol.contains(symbol));
+            batch.completedDownloads.append(resultsBySymbol.value(symbol));
+        }
+
+        return batch;
     }
 
     [[nodiscard]] QJsonObject makeControlResponse(bool p_ok,
@@ -733,6 +884,21 @@ namespace
         }
 
         return symbols;
+    }
+
+    [[nodiscard]] std::expected<QStringList, QString> parseRequiredSymbolList(const QJsonObject& p_arguments)
+    {
+        const auto symbols = parseOptionalSymbolList(p_arguments);
+        if (!symbols.has_value())
+        {
+            return std::unexpected(symbols.error());
+        }
+        if (symbols->isEmpty())
+        {
+            return std::unexpected("Missing required 'symbols' argument");
+        }
+
+        return symbols.value();
     }
 
     [[nodiscard]] QString normalizeToken(QString p_value)
@@ -1628,6 +1794,7 @@ QJsonObject MainApp::getControlStatus() const
     status["currentReplayTime"] =
         isInReplayMode() ? QJsonValue(currentAppReplayTime.toString(Qt::ISODateWithMs)) : QJsonValue(QJsonValue::Null);
     status["controlSocketPath"] = PlatformControlProtocol::socketPath();
+    status["replayBaseDir"] = DBClient::getReplayBaseDir();
     status["supportedReplaySpeeds"] = PlatformControlProtocol::supportedReplaySpeedsJson();
     status["configuredReplayDate"] =
         replayDate.isValid() ? QJsonValue(replayDate.toString(Qt::ISODate)) : QJsonValue(QJsonValue::Null);
@@ -2229,6 +2396,150 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
         result["barCount"] = resolvedBars.value()->size();
         result["bars"] = serializeBars(*resolvedBars.value());
         return makeControlResponse(true, "Historical bars retrieved.", result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandGetReplayDates)
+    {
+        const QVector<DBClient::ReplayDayInfo> replayDates = DBClient::listAvailableReplayDates();
+
+        QJsonObject result;
+        result["replayBaseDir"] = DBClient::getReplayBaseDir();
+        result["dateCount"] = replayDates.size();
+        result["dates"] = serializeReplayDayInfos(replayDates);
+        return makeControlResponse(true,
+                                   replayDates.isEmpty() ? "No replay dates found." : "Replay dates retrieved.",
+                                   result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandGetReplaySymbols)
+    {
+        const auto date = parseRequiredDate(arguments);
+        if (!date.has_value())
+        {
+            return makeControlResponse(false, "Replay symbol lookup rejected.", {}, date.error());
+        }
+
+        const auto dayInfo = DBClient::getReplayDateInfo(date.value());
+        const QVector<DBClient::ReplaySymbolInfo> replaySymbols = DBClient::listAvailableReplaySymbols(date.value());
+
+        QJsonObject result;
+        result["replayBaseDir"] = DBClient::getReplayBaseDir();
+        result["date"] = date->toString(Qt::ISODate);
+        result["dateAvailable"] = dayInfo.has_value();
+        result["symbolCount"] = replaySymbols.size();
+        result["symbols"] = serializeReplaySymbolInfos(replaySymbols);
+        return makeControlResponse(true,
+                                   replaySymbols.isEmpty() ? "No replay symbols found for the requested date."
+                                                           : "Replay symbols retrieved.",
+                                   result);
+    }
+
+    if (command == PlatformControlProtocol::kCommandDownloadReplayData)
+    {
+        const auto date = parseRequiredDate(arguments);
+        if (!date.has_value())
+        {
+            return makeControlResponse(false, "Replay download request rejected.", {}, date.error());
+        }
+
+        if (date.value() > QDate::currentDate())
+        {
+            return makeControlResponse(false,
+                                       "Replay download request rejected.",
+                                       {},
+                                       "Replay download date must be today or earlier");
+        }
+
+        const auto symbols = parseRequiredSymbolList(arguments);
+        if (!symbols.has_value())
+        {
+            return makeControlResponse(false, "Replay download request rejected.", {}, symbols.error());
+        }
+
+        DBClient* const dbClient = DBClient::getInstance();
+        ASSUME_DIFF(dbClient, nullptr);
+        if (!dbClient->hasApiKey())
+        {
+            return makeControlResponse(false,
+                                       "Replay download request rejected.",
+                                       {},
+                                       "Databento API key is not configured");
+        }
+
+        DBClient::ReplayDownloadBatchResult downloadBatch;
+#ifdef GUI_ENABLED
+        if (auto* const guiFrontend = qobject_cast<GUIFrontend*>(appFrontend))
+        {
+            std::expected<DBClient::ReplayDownloadBatchResult, QString> guiBatch =
+                std::unexpected("Downloads tab is not available");
+
+            if (QThread::currentThread() == guiFrontend->thread())
+            {
+                guiBatch = guiFrontend->startReplayDownloadBatch(date.value(), symbols.value());
+            }
+            else
+            {
+                QMetaObject::invokeMethod(
+                    guiFrontend,
+                    [&guiBatch, guiFrontend, &date, &symbols]()
+                    { guiBatch = guiFrontend->startReplayDownloadBatch(date.value(), symbols.value()); },
+                    Qt::BlockingQueuedConnection);
+            }
+
+            if (!guiBatch.has_value())
+            {
+                return makeControlResponse(false, "Replay download request rejected.", {}, guiBatch.error());
+            }
+
+            downloadBatch = std::move(guiBatch.value());
+        }
+        else
+#endif
+        {
+            downloadBatch = performReplayDownloadBatch(dbClient, symbols.value(), date.value());
+        }
+
+        int successCount = 0;
+        QStringList errors;
+        for (const DBClient::ReplayDownloadItemResult& item: downloadBatch.completedDownloads)
+        {
+            if (item.success)
+            {
+                ++successCount;
+            }
+            else
+            {
+                errors.append(item.errorMessage.isEmpty() ? item.symbol
+                                                          : QString("%1: %2").arg(item.symbol, item.errorMessage));
+            }
+        }
+
+        const int failureCount = downloadBatch.completedDownloads.size() - successCount;
+
+        QJsonObject result;
+        result["replayBaseDir"] = DBClient::getReplayBaseDir();
+        result["date"] = date->toString(Qt::ISODate);
+        result["requestedCount"] = downloadBatch.requestedSymbols.size();
+        result["requestedSymbols"] = serializeStringList(downloadBatch.requestedSymbols);
+        result["queuedCount"] = downloadBatch.queuedSymbols.size();
+        result["queuedSymbols"] = serializeStringList(downloadBatch.queuedSymbols);
+        result["skippedCount"] = downloadBatch.skippedSymbols.size();
+        result["skippedSymbols"] = serializeStringList(downloadBatch.skippedSymbols);
+        result["completedCount"] = downloadBatch.completedDownloads.size();
+        result["successCount"] = successCount;
+        result["failureCount"] = failureCount;
+        result["downloads"] = serializeReplayDownloadItems(downloadBatch.completedDownloads);
+
+        if (failureCount > 0)
+        {
+            return makeControlResponse(false, "Replay downloads completed with errors.", result, errors.join(" | "));
+        }
+
+        return makeControlResponse(true,
+                                   downloadBatch.queuedSymbols.isEmpty()
+                                       ? "Replay data already available for all requested symbols."
+                                       : "Replay downloads completed.",
+                                   result);
     }
 
     if (command == PlatformControlProtocol::kCommandCreateChartLog)

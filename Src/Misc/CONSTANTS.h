@@ -337,6 +337,9 @@ namespace PlatformControlConstants
 
     /// Periodic cleanup interval for expired MCP/control symbol leases.
     inline constexpr int SYMBOL_CONTEXT_LEASE_CLEANUP_INTERVAL_MS = 5000;
+
+    /// Maximum number of replay-data downloads launched concurrently by GUI/control batch requests.
+    inline constexpr int REPLAY_DOWNLOAD_MAX_CONCURRENCY = 5;
 } // namespace PlatformControlConstants
 
 /**
