@@ -15,6 +15,7 @@
 namespace
 {
     inline constexpr auto kMCPProtocolVersion = "2025-06-18";
+    inline constexpr int kLongRunningDownloadTimeoutMs = 10 * 60 * 1000;
 
     [[nodiscard]] QJsonObject makeJsonRpcResponse(const QJsonValue& p_id, const QJsonObject& p_result)
     {
@@ -232,6 +233,38 @@ namespace
                   }},
              }},
             {"required", QJsonArray{"date", "startTime", "endTime"}},
+        };
+    }
+
+    [[nodiscard]] QJsonObject replayDateSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"date", QJsonObject{{"type", "string"}, {"description", "Trading day in YYYY-MM-DD format."}}},
+             }},
+            {"required", QJsonArray{"date"}},
+        };
+    }
+
+    [[nodiscard]] QJsonObject downloadReplayDataSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"date", QJsonObject{{"type", "string"}, {"description", "Trading day in YYYY-MM-DD format."}}},
+                 {"symbols",
+                  QJsonObject{
+                      {"type", "array"},
+                      {"items", QJsonObject{{"type", "string"}}},
+                      {"minItems", 1},
+                      {"description",
+                       "Ticker symbols to download. Already-complete symbol/day datasets are skipped automatically."},
+                  }},
+             }},
+            {"required", QJsonArray{"date", "symbols"}},
         };
     }
 
@@ -480,6 +513,25 @@ namespace
             {"inputSchema", barsSchema()},
         });
         tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetReplayDates},
+            {"title", "Get replay dates"},
+            {"description", "List replay dates currently available in the configured replay-data directory."},
+            {"inputSchema", emptyObjectSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetReplaySymbols},
+            {"title", "Get replay symbols"},
+            {"description", "List replay symbols/files available for a requested replay date."},
+            {"inputSchema", replayDateSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandDownloadReplayData},
+            {"title", "Download replay data"},
+            {"description",
+             "Download Databento replay data for a requested date and symbol list. Existing complete downloads are skipped automatically."},
+            {"inputSchema", downloadReplayDataSchema()},
+        });
+        tools.append(QJsonObject{
             {"name", PlatformControlProtocol::kCommandGetActivityMetrics},
             {"title", "Get activity metrics"},
             {"description", "Read current trade/L2 activity metrics for the displayed or requested symbol."},
@@ -578,6 +630,9 @@ int main(int argc, char* argv[])
     err.flush();
 
     PlatformControlClient controlClient;
+    PlatformControlClient::Options longRunningControlOptions;
+    longRunningControlOptions.responseTimeoutMs = kLongRunningDownloadTimeoutMs;
+    PlatformControlClient longRunningControlClient(longRunningControlOptions);
     bool initializeSeen = false;
 
     const QSet<QString> supportedTools = {
@@ -591,6 +646,9 @@ int main(int argc, char* argv[])
         PlatformControlProtocol::kCommandGetLevel2,
         PlatformControlProtocol::kCommandGetTradesSnapshot,
         PlatformControlProtocol::kCommandGetBars,
+        PlatformControlProtocol::kCommandGetReplayDates,
+        PlatformControlProtocol::kCommandGetReplaySymbols,
+        PlatformControlProtocol::kCommandDownloadReplayData,
         PlatformControlProtocol::kCommandGetActivityMetrics,
         PlatformControlProtocol::kCommandCreateChartLog,
         PlatformControlProtocol::kCommandPlaceOrder,
@@ -648,9 +706,10 @@ int main(int argc, char* argv[])
                      {"version", app.applicationVersion()},
                  }},
                 {"instructions",
-                 "This MCP server exposes L2Trader platform-control tools, account/balance queries, position/order "
-                 "queries, poll-style market-data tools, chart-log creation, and order placement/cancellation "
-                 "(including optional order-bound logs) over the platform control socket."},
+                 "This MCP server exposes L2Trader platform-control tools, including replay-data discovery/download, "
+                 "account/balance queries, position/order queries, poll-style market-data tools, chart-log creation, "
+                 "and order placement/cancellation (including optional order-bound logs) over the platform control "
+                 "socket."},
             };
             writeJsonRpcLine(makeJsonRpcResponse(id, result));
             continue;
@@ -699,8 +758,11 @@ int main(int argc, char* argv[])
                 continue;
             }
 
-            const auto controlResponse =
-                controlClient.sendCommand(PlatformControlProtocol::makeRequest(toolName, normalizedArguments.value()));
+            const PlatformControlClient& selectedControlClient =
+                toolName == PlatformControlProtocol::kCommandDownloadReplayData ? longRunningControlClient
+                                                                                : controlClient;
+            const auto controlResponse = selectedControlClient.sendCommand(
+                PlatformControlProtocol::makeRequest(toolName, normalizedArguments.value()));
             if (!controlResponse.has_value())
             {
                 const QJsonObject result = makeTextContentResult(controlResponse.error(), true);
