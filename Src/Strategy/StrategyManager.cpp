@@ -1,4 +1,5 @@
 #include "StrategyManager.h"
+#include "ExternalStrategyDescription.h"
 #include "ProcessStrategyRuntimeBackend.h"
 #include "StrategySDK.h"
 #include "../Algo/MainAlgo.h"
@@ -38,6 +39,41 @@ namespace
             }
         }
         return normalized;
+    }
+
+    [[nodiscard]] std::expected<StrategyConfig, QString> hydrateExternalProcessConfig(const StrategyConfig& p_config)
+    {
+        if (!p_config.usesExternalProcess())
+        {
+            return std::unexpected(QStringLiteral(
+                "Legacy in-process strategy plugins are no longer supported. Rebuild this strategy as an external process."));
+        }
+
+        if (p_config.fieldValues.contains("_legacySymbols"))
+        {
+            return std::unexpected(QStringLiteral(
+                "This saved strategy configuration used multiple legacy symbols and must be reconfigured with the new executable-defined fields."));
+        }
+
+        auto descriptionResult = ExternalStrategyDescription::describeExecutable(p_config.executablePath);
+        if (!descriptionResult.has_value())
+        {
+            return std::unexpected(descriptionResult.error());
+        }
+
+        const QStringList validationErrors =
+            ExternalStrategyDescription::validateFieldValues(descriptionResult.value(), p_config.fieldValues);
+        if (!validationErrors.isEmpty())
+        {
+            return std::unexpected(QStringLiteral("Strategy configuration requires review before loading:\n- %1")
+                                       .arg(validationErrors.join(QStringLiteral("\n- "))));
+        }
+
+        StrategyConfig hydrated = p_config;
+        hydrated.name = descriptionResult->name;
+        hydrated.version = descriptionResult->version;
+        hydrated.executablePath = descriptionResult->executablePath;
+        return hydrated;
     }
 } // namespace
 
@@ -313,11 +349,16 @@ std::shared_ptr<QVector<Bar>> StrategySDK::getHistoricalBars(const QString& p_sy
     ASSUME_DIFF(m_mainAlgo, nullptr);
 
     QString symbol = p_symbol;
-    if (symbol.isEmpty() && !m_config.symbols.isEmpty())
+    if (symbol.isEmpty() && !m_claimedSymbols.isEmpty())
     {
-        symbol = m_config.symbols[0];
+        symbol = m_claimedSymbols[0];
     }
-    ASSUME_FALSE(symbol.isEmpty());
+    if (symbol.isEmpty())
+    {
+        qWarning(StrategyManagerLog) << "Strategy" << m_strategyID
+                                     << "requested historical bars without a symbol or claimed-symbol fallback";
+        return std::make_shared<QVector<Bar>>();
+    }
 
     // Request bars from MainAlgo (which has access to all SymbolContext and their BarCaches)
     auto result = m_mainAlgo->requestHistoricalBarsForSymbol(symbol, day, first, last, tf);
@@ -404,16 +445,17 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
         return std::unexpected("Strategy runtime path is empty");
     }
 
-    QString strategyID = generateStrategyID();
-
-    if (!p_config.usesExternalProcess())
+    const auto hydratedConfigResult = hydrateExternalProcessConfig(p_config);
+    if (!hydratedConfigResult.has_value())
     {
-        return std::unexpected(
-            "Legacy in-process strategy plugins are no longer supported. Rebuild this strategy as an external process.");
+        return std::unexpected(hydratedConfigResult.error());
     }
 
+    const StrategyConfig hydratedConfig = hydratedConfigResult.value();
+    QString strategyID = generateStrategyID();
+
     std::expected<std::unique_ptr<IStrategyRuntimeBackend>, QString> runtimeResult = std::unexpected(QString{});
-    auto processRuntimeResult = ProcessStrategyRuntimeBackend::create(m_mainAlgo, strategyID, p_config);
+    auto processRuntimeResult = ProcessStrategyRuntimeBackend::create(m_mainAlgo, strategyID, hydratedConfig);
     if (processRuntimeResult)
     {
         runtimeResult = std::unique_ptr<IStrategyRuntimeBackend>(std::move(processRuntimeResult.value()));
@@ -429,20 +471,20 @@ std::expected<QString, QString> StrategyManager::loadStrategy(const StrategyConf
 
     auto instance = new StrategyInstance();
     instance->strategyID = strategyID;
-    instance->config = p_config;
+    instance->config = hydratedConfig;
     instance->p_backend = std::move(runtimeResult.value());
-    instance->monitoredSymbols = p_config.symbols;
+    instance->monitoredSymbols.clear();
 
     connectStrategyToDataSources(instance);
 
     // Note: Process is NOT started here - wait for startStrategy() to be called
     // This allows the UI to show the strategy in LOADED state and wait for user to click Start
 
-    qInfo(StrategyManagerLog) << "Loaded strategy:" << p_config.name << "ID:" << strategyID;
+    qInfo(StrategyManagerLog) << "Loaded strategy:" << hydratedConfig.name << "ID:" << strategyID;
 
     m_strategies[strategyID] = instance;
 
-    emit strategyLoaded(strategyID, p_config.name);
+    emit strategyLoaded(strategyID, hydratedConfig.name);
 
     persistStrategiesState();
 
@@ -863,16 +905,27 @@ void StrategyManager::processClaimSymbols(const QString& p_strategyID,
                                              << "(requested by" << p_strategyID << ")";
                 continue; // excluded from approved list
             }
-            // Same strategy re-claiming — allow
+            approved.append(symbol);
+            continue;
         }
-        m_symbolRegistry[symbol] = p_strategyID;
-        approved.append(symbol);
 
-        // Subscribe data feeds for this symbol
-        // Reuse existing processSubscribeToSymbol machinery (with a discarded bool promise)
+        // Subscribe data feeds for this symbol before granting the claim so replay/live
+        // unavailability turns into a clean symbol-level rejection instead of a silent claim.
         auto boolPromise = std::make_shared<QPromise<bool>>();
         boolPromise->start();
+        QFuture<bool> subscribeFuture = boolPromise->future();
         m_mainAlgo->processSubscribeToSymbol(p_strategyID, symbol, boolPromise);
+        subscribeFuture.waitForFinished();
+
+        if (!subscribeFuture.isValid() || subscribeFuture.resultCount() == 0 || !subscribeFuture.result())
+        {
+            qWarning(StrategyManagerLog) << "Symbol claim rejected after subscription failure:" << symbol
+                                         << "(requested by" << p_strategyID << ")";
+            continue;
+        }
+
+        m_symbolRegistry[symbol] = p_strategyID;
+        approved.append(symbol);
     }
 
     // Update SDK's claimed symbols on the strategy thread

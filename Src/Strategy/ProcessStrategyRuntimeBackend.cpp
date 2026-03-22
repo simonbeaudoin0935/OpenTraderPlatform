@@ -260,15 +260,15 @@ namespace
         }
     }
 
-    void populateCustomParams(const std::map<QString, QJsonValue>& p_customParams,
-                              google::protobuf::Struct* const p_struct)
+    void populateFieldValues(const std::map<QString, QJsonValue>& p_fieldValues,
+                             google::protobuf::Struct* const p_struct)
     {
         if (p_struct == nullptr)
         {
             return;
         }
 
-        for (const auto& [key, value]: p_customParams)
+        for (const auto& [key, value]: p_fieldValues)
         {
             populateProtobufValue(value, &(*p_struct->mutable_fields())[key.toStdString()]);
         }
@@ -1577,6 +1577,22 @@ QString ProcessStrategyRuntimeBackend::completeHandshake()
         return rejectionReason;
     }
 
+    const QString handshakeName = QString::fromStdString(handshake.strategy_name());
+    const QString handshakeVersion = QString::fromStdString(handshake.strategy_version());
+    if (handshakeName != m_config.name || handshakeVersion != m_config.version)
+    {
+        const QString rejectionReason =
+            QString("Strategy metadata mismatch for %1 (expected %2 %3, got %4 %5)")
+                .arg(m_strategyID, m_config.name, m_config.version, handshakeName, handshakeVersion);
+        const QString ackError =
+            sendHandshakeAck(false, rejectionReason, QString::fromStdString(envelope.correlation_id()));
+        if (!ackError.isEmpty())
+        {
+            qWarning(StrategyManagerLog) << "Failed to send handshake rejection:" << ackError;
+        }
+        return rejectionReason;
+    }
+
     QString error = sendHandshakeAck(true, "", QString::fromStdString(envelope.correlation_id()));
     if (!error.isEmpty())
     {
@@ -1657,14 +1673,8 @@ QString ProcessStrategyRuntimeBackend::sendStartCommand()
     auto* const startCommand = envelope.mutable_start();
     auto* const configuration = startCommand->mutable_configuration();
     configuration->set_name(m_config.name.toStdString());
-    for (const QString& symbol: m_config.symbols)
-    {
-        configuration->add_symbols(symbol.toStdString());
-    }
-    configuration->set_position_size(static_cast<std::uint32_t>(m_config.positionSize));
-    configuration->set_risk_limit(m_config.riskLimit);
     configuration->set_executable_path(m_config.executablePath.toStdString());
-    populateCustomParams(m_config.customParams, configuration->mutable_custom_params());
+    populateFieldValues(m_config.fieldValues, configuration->mutable_custom_params());
 
     if (!writeMessage(m_clientFd, envelope))
     {

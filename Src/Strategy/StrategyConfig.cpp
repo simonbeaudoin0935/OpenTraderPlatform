@@ -75,25 +75,16 @@ QJsonObject StrategyConfig::toJson() const
     QJsonObject obj;
     obj["runtimeType"] = runtimeTypeToString(runtimeType);
     obj["name"] = name;
+    obj["version"] = version;
     obj["soPath"] = soPath;
     obj["executablePath"] = executablePath;
 
-    QJsonArray symbolsArray;
-    for (const auto& symbol: symbols)
+    QJsonObject fieldValuesObject;
+    for (const auto& [key, value]: fieldValues)
     {
-        symbolsArray.append(symbol);
+        fieldValuesObject[key] = value;
     }
-    obj["symbols"] = symbolsArray;
-
-    obj["positionSize"] = positionSize;
-    obj["riskLimit"] = riskLimit;
-
-    QJsonObject customParamsObj;
-    for (const auto& [key, value]: customParams)
-    {
-        customParamsObj[key] = value;
-    }
-    obj["customParams"] = customParamsObj;
+    obj["fieldValues"] = fieldValuesObject;
 
     return obj;
 }
@@ -102,6 +93,7 @@ StrategyConfig StrategyConfig::fromJson(const QJsonObject& obj)
 {
     StrategyConfig config;
     config.name = obj["name"].toString();
+    config.version = obj["version"].toString();
 
     const QString runtimeTypeString = obj["runtimeType"].toString();
     const QString rawExecutablePath = obj["executablePath"].toString();
@@ -133,19 +125,34 @@ StrategyConfig StrategyConfig::fromJson(const QJsonObject& obj)
         config.soPath = resolvePluginPath(rawSoPath);
     }
 
-    QJsonArray symbolsArray = obj["symbols"].toArray();
-    for (const auto& symbol: symbolsArray)
+    const QJsonObject fieldValuesObject =
+        obj.contains("fieldValues") ? obj["fieldValues"].toObject() : obj["customParams"].toObject();
+    for (auto it = fieldValuesObject.begin(); it != fieldValuesObject.end(); ++it)
     {
-        config.symbols.append(symbol.toString());
+        config.fieldValues[it.key()] = it.value();
     }
 
-    config.positionSize = obj["positionSize"].toInt(100);
-    config.riskLimit = obj["riskLimit"].toDouble(500.0);
-
-    QJsonObject customParamsObj = obj["customParams"].toObject();
-    for (auto it = customParamsObj.begin(); it != customParamsObj.end(); ++it)
+    if (!obj.contains("fieldValues"))
     {
-        config.customParams[it.key()] = it.value();
+        const QJsonArray symbolsArray = obj["symbols"].toArray();
+        if (symbolsArray.size() == 1 && !config.fieldValues.contains("symbol"))
+        {
+            config.fieldValues["symbol"] = symbolsArray.first();
+        }
+        else if (symbolsArray.size() > 1 && !config.fieldValues.contains("symbol"))
+        {
+            config.fieldValues["_legacySymbols"] = symbolsArray;
+        }
+
+        if (obj.contains("positionSize") && !config.fieldValues.contains("positionSize"))
+        {
+            config.fieldValues["positionSize"] = obj["positionSize"];
+        }
+
+        if (obj.contains("riskLimit") && !config.fieldValues.contains("riskLimit"))
+        {
+            config.fieldValues["riskLimit"] = obj["riskLimit"];
+        }
     }
 
     return config;

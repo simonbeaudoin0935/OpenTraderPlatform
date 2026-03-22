@@ -5,6 +5,8 @@
 #include <string_view>
 
 #include "L2Trader/StrategySDK/ExternalStrategyRuntime.h"
+#include "L2Trader/StrategySDK/StrategyDescription.h"
+#include "L2Trader/StrategySDK/StrategyProcessMain.h"
 
 namespace
 {
@@ -14,20 +16,19 @@ namespace
     constexpr std::string_view kStrategyName = "CrashTestStrategyProcess";
     constexpr std::string_view kStrategyVersion = "1.0.0";
 
+    [[nodiscard]] L2Trader::StrategySDK::StrategyDescription describeStrategy()
+    {
+        return {
+            .name = std::string(kStrategyName),
+            .version = std::string(kStrategyVersion),
+            .parameterSchema = {},
+        };
+    }
+
     class CrashTestStrategyProcess final : public L2Trader::StrategySDK::ExternalStrategyHandler
     {
       public:
-        [[nodiscard]] std::string strategyName() const override
-        {
-            return std::string(kStrategyName);
-        }
-
-        [[nodiscard]] std::string strategyVersion() const override
-        {
-            return std::string(kStrategyVersion);
-        }
-
-        void setRuntime(L2Trader::StrategySDK::ExternalStrategyRuntime* const p_runtime)
+        void bindRuntime(L2Trader::StrategySDK::ExternalStrategyRuntime* const p_runtime) override
         {
             m_runtime = p_runtime;
         }
@@ -112,10 +113,8 @@ namespace
     };
 } // namespace
 
-int main()
+int main(int argc, char** argv)
 {
     CrashTestStrategyProcess strategy;
-    L2Trader::StrategySDK::ExternalStrategyRuntime runtime(strategy);
-    strategy.setRuntime(&runtime);
-    return runtime.run();
+    return L2Trader::StrategySDK::runStrategyProcessMain(argc, argv, describeStrategy(), strategy);
 }

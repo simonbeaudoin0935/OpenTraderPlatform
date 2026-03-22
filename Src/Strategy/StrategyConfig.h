@@ -17,13 +17,11 @@ enum class StrategyRuntimeType
 struct StrategyConfig
 {
     StrategyRuntimeType runtimeType = StrategyRuntimeType::ExternalProcess; ///< How the strategy is executed
-    QString name;                                                           ///< Strategy display name
-    QString soPath;                                                         ///< Path to .so file (relative or absolute)
-    QString executablePath;                                                 ///< Path to external strategy executable
-    QStringList symbols;                        ///< Symbols to monitor (e.g., ["AAPL", "TSLA"])
-    int positionSize = 100;                     ///< Position size per trade
-    double riskLimit = 500.0;                   ///< Max loss per strategy
-    std::map<QString, QJsonValue> customParams; ///< Strategy-specific parameters
+    QString name;                              ///< Strategy display name snapshot from executable metadata
+    QString version;                           ///< Strategy version snapshot from executable metadata
+    QString soPath;                            ///< Path to .so file (relative or absolute)
+    QString executablePath;                    ///< Path to external strategy executable
+    std::map<QString, QJsonValue> fieldValues; ///< Strategy-defined field values keyed by stable field ID
 
     [[nodiscard]] bool usesExternalProcess() const
     {

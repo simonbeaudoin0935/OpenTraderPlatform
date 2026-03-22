@@ -125,6 +125,8 @@ add_library(L2TraderStrategySDK SHARED
     "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/MessageFraming.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/ProtocolVersion.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/RuntimeEnvironment.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/StrategyDescription.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/StrategyProcessMain.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/StrategySDK/UnixSocketConnection.cpp"
     ${L2TRADER_STRATEGY_PROTOCOL_GENERATED_SOURCES}
 )

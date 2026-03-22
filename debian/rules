@@ -46,18 +46,6 @@ override_dh_auto_install:
 	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/bin/OrderTestStrategyProcess debian/l2trader/usr/share/l2trader/strategies/
 	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/bin/DumpPatternStrategyProcess debian/l2trader/usr/share/l2trader/strategies/
 
-	# Install strategy manifests with packaged executable paths
-	sed 's#"executablePath": "~/.local/share/L2Trader/Strategies/ExampleStrategyProcess"#"executablePath": "/usr/share/l2trader/strategies/ExampleStrategyProcess"#' \
-		Strategies/ExampleStrategyProcess/example_strategy.json > debian/l2trader/usr/share/l2trader/strategies/example_strategy.json
-	sed 's#"executablePath": "~/.local/share/L2Trader/Strategies/CrashTestStrategyProcess"#"executablePath": "/usr/share/l2trader/strategies/CrashTestStrategyProcess"#' \
-		Strategies/CrashTestStrategy/crash_test_strategy.json > debian/l2trader/usr/share/l2trader/strategies/crash_test_strategy.json
-	sed 's#"executablePath": "~/.local/share/L2Trader/Strategies/HistoricalBarsStrategyProcess"#"executablePath": "/usr/share/l2trader/strategies/HistoricalBarsStrategyProcess"#' \
-		Strategies/HistoricalBarsStrategy/historical_bars_strategy.json > debian/l2trader/usr/share/l2trader/strategies/historical_bars_strategy.json
-	sed 's#"executablePath": "~/.local/share/L2Trader/Strategies/OrderTestStrategyProcess"#"executablePath": "/usr/share/l2trader/strategies/OrderTestStrategyProcess"#' \
-		Strategies/OrderTestStrategy/order_test_strategy.json > debian/l2trader/usr/share/l2trader/strategies/order_test_strategy.json
-	sed 's#"executablePath": "~/.local/share/L2Trader/Strategies/DumpPatternStrategyProcess"#"executablePath": "/usr/share/l2trader/strategies/DumpPatternStrategyProcess"#' \
-		Strategies/DumpPatternStrategy/dump_pattern_strategy.json > debian/l2trader/usr/share/l2trader/strategies/dump_pattern_strategy.json
-	
 	# Install application icon
 	install -D -m 0644 Resources/Icons/L2T.png debian/l2trader/usr/share/pixmaps/l2trader.png
 	

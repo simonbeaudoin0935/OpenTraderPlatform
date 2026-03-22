@@ -5,9 +5,10 @@
 #include <string>
 #include <string_view>
 
-#include <google/protobuf/struct.pb.h>
-
+#include "L2Trader/StrategySDK/ConfigurationHelpers.h"
 #include "L2Trader/StrategySDK/ExternalStrategyRuntime.h"
+#include "L2Trader/StrategySDK/StrategyDescription.h"
+#include "L2Trader/StrategySDK/StrategyProcessMain.h"
 
 namespace
 {
@@ -17,39 +18,31 @@ namespace
     constexpr std::string_view kStrategyName = "OrderTestStrategyProcess";
     constexpr std::string_view kStrategyVersion = "1.0.0";
 
-    [[nodiscard]] std::string getStringParam(const Protocol::StrategyConfiguration& p_configuration,
-                                             std::string_view p_key,
-                                             std::string_view p_fallback)
+    [[nodiscard]] L2Trader::StrategySDK::StrategyDescription describeStrategy()
     {
-        const auto fieldsIt = p_configuration.custom_params().fields().find(std::string(p_key));
-        if (fieldsIt == p_configuration.custom_params().fields().end())
-        {
-            return std::string(p_fallback);
-        }
-
-        const google::protobuf::Value& value = fieldsIt->second;
-        return value.kind_case() == google::protobuf::Value::kStringValue ? value.string_value()
-                                                                          : std::string(p_fallback);
-    }
-
-    [[nodiscard]] double getNumberParam(const Protocol::StrategyConfiguration& p_configuration,
-                                        std::string_view p_key,
-                                        const double p_fallback)
-    {
-        const auto fieldsIt = p_configuration.custom_params().fields().find(std::string(p_key));
-        if (fieldsIt == p_configuration.custom_params().fields().end())
-        {
-            return p_fallback;
-        }
-
-        const google::protobuf::Value& value = fieldsIt->second;
-        return value.kind_case() == google::protobuf::Value::kNumberValue ? value.number_value() : p_fallback;
-    }
-
-    [[nodiscard]] int
-    getIntParam(const Protocol::StrategyConfiguration& p_configuration, std::string_view p_key, const int p_fallback)
-    {
-        return static_cast<int>(getNumberParam(p_configuration, p_key, p_fallback));
+        return {
+            .name = std::string(kStrategyName),
+            .version = std::string(kStrategyVersion),
+            .parameterSchema =
+                {
+                    L2Trader::StrategySDK::stringField("symbol",
+                                                       "Symbol",
+                                                       "SPY",
+                                                       "Ticker symbol used for the order test"),
+                    L2Trader::StrategySDK::stringField("accountID",
+                                                       "Account ID",
+                                                       "SIM123456",
+                                                       "Broker account used for order placement"),
+                    L2Trader::StrategySDK::doubleField("limitPrice",
+                                                       "Limit Price",
+                                                       1.0,
+                                                       "Limit price used for the staged limit order"),
+                    L2Trader::StrategySDK::intField("timeoutSecs",
+                                                    "Timeout (seconds)",
+                                                    60,
+                                                    "Fails the test if it does not complete in time"),
+                },
+        };
     }
 
     [[nodiscard]] std::string orderStatusToString(const Protocol::OrderStatus p_status)
@@ -77,27 +70,18 @@ namespace
     class OrderTestStrategyProcess final : public L2Trader::StrategySDK::ExternalStrategyHandler
     {
       public:
-        [[nodiscard]] std::string strategyName() const override
-        {
-            return std::string(kStrategyName);
-        }
-
-        [[nodiscard]] std::string strategyVersion() const override
-        {
-            return std::string(kStrategyVersion);
-        }
-
-        void setRuntime(L2Trader::StrategySDK::ExternalStrategyRuntime* const p_runtime)
+        void bindRuntime(L2Trader::StrategySDK::ExternalStrategyRuntime* const p_runtime) override
         {
             m_runtime = p_runtime;
         }
 
         void onStart(const Protocol::StrategyConfiguration& p_configuration) override
         {
-            m_symbol = p_configuration.symbols_size() > 0 ? p_configuration.symbols(0) : "SPY";
-            m_accountId = getStringParam(p_configuration, "accountID", "SIM123456");
-            m_limitPrice = getNumberParam(p_configuration, "limitPrice", 1.0);
-            const int timeoutSecs = getIntParam(p_configuration, "timeoutSecs", 60);
+            m_symbol = L2Trader::StrategySDK::stringFieldOr(p_configuration, "symbol", "SPY");
+            m_accountId = L2Trader::StrategySDK::stringFieldOr(p_configuration, "accountID", "SIM123456");
+            m_limitPrice = L2Trader::StrategySDK::doubleFieldOr(p_configuration, "limitPrice", 1.0);
+            const int timeoutSecs =
+                static_cast<int>(L2Trader::StrategySDK::intFieldOr(p_configuration, "timeoutSecs", 60));
 
             sendLog("=== OrderTestStrategyProcess starting ===");
             sendLog("  account : " + m_accountId);
@@ -408,10 +392,8 @@ namespace
     };
 } // namespace
 
-int main()
+int main(int argc, char** argv)
 {
     OrderTestStrategyProcess strategy;
-    L2Trader::StrategySDK::ExternalStrategyRuntime runtime(strategy);
-    strategy.setRuntime(&runtime);
-    return runtime.run();
+    return L2Trader::StrategySDK::runStrategyProcessMain(argc, argv, describeStrategy(), strategy);
 }

@@ -9,7 +9,10 @@
 #include <QTime>
 #include <QTimeZone>
 
+#include "L2Trader/StrategySDK/ConfigurationHelpers.h"
 #include "L2Trader/StrategySDK/ExternalStrategyRuntime.h"
+#include "L2Trader/StrategySDK/StrategyDescription.h"
+#include "L2Trader/StrategySDK/StrategyProcessMain.h"
 
 namespace
 {
@@ -18,6 +21,21 @@ namespace
 
     constexpr std::string_view kStrategyName = "HistoricalBarsStrategyProcess";
     constexpr std::string_view kStrategyVersion = "1.0.0";
+
+    [[nodiscard]] L2Trader::StrategySDK::StrategyDescription describeStrategy()
+    {
+        return {
+            .name = std::string(kStrategyName),
+            .version = std::string(kStrategyVersion),
+            .parameterSchema =
+                {
+                    L2Trader::StrategySDK::stringField("symbol",
+                                                       "Symbol",
+                                                       "AAPL",
+                                                       "Ticker symbol used for historical bar requests"),
+                },
+        };
+    }
 
     [[nodiscard]] const QTimeZone& getNewYorkTimeZone()
     {
@@ -43,24 +61,14 @@ namespace
     class HistoricalBarsStrategyProcess final : public L2Trader::StrategySDK::ExternalStrategyHandler
     {
       public:
-        [[nodiscard]] std::string strategyName() const override
-        {
-            return std::string(kStrategyName);
-        }
-
-        [[nodiscard]] std::string strategyVersion() const override
-        {
-            return std::string(kStrategyVersion);
-        }
-
-        void setRuntime(L2Trader::StrategySDK::ExternalStrategyRuntime* const p_runtime)
+        void bindRuntime(L2Trader::StrategySDK::ExternalStrategyRuntime* const p_runtime) override
         {
             m_runtime = p_runtime;
         }
 
         void onStart(const Protocol::StrategyConfiguration& p_configuration) override
         {
-            m_symbol = p_configuration.symbols_size() > 0 ? p_configuration.symbols(0) : "AAPL";
+            m_symbol = L2Trader::StrategySDK::stringFieldOr(p_configuration, "symbol", "AAPL");
             m_daysBack = 0;
             m_totalBarsFetched = 0;
 
@@ -172,10 +180,8 @@ namespace
     };
 } // namespace
 
-int main()
+int main(int argc, char** argv)
 {
     HistoricalBarsStrategyProcess strategy;
-    L2Trader::StrategySDK::ExternalStrategyRuntime runtime(strategy);
-    strategy.setRuntime(&runtime);
-    return runtime.run();
+    return L2Trader::StrategySDK::runStrategyProcessMain(argc, argv, describeStrategy(), strategy);
 }

@@ -5,7 +5,6 @@
 #include "StrategyLoadDialog.h"
 #include "Position.h"
 #include "Core/MainApp.h"
-#include "Clients/DBClient/DBClient.h"
 
 #include <QTreeWidgetItem>
 #include <QHeaderView>
@@ -62,7 +61,7 @@ void StrategyQuickView::setupUI()
     loadButton->setStyleSheet("QPushButton { background-color: #3A5A3A; color: #88DD88; border: 1px solid #4A7A4A;"
                               "              font-size: 10px; padding: 0 6px; border-radius: 2px; }"
                               "QPushButton:hover { background-color: #4A7A4A; }");
-    loadButton->setToolTip("Load a strategy plugin");
+    loadButton->setToolTip("Load a strategy executable");
     headerLayout->addWidget(loadButton);
     connect(loadButton, &QPushButton::clicked, this, &StrategyQuickView::onLoadButtonClicked);
 
@@ -245,30 +244,6 @@ void StrategyQuickView::onLoadButtonClicked()
         auto config = dialog.getSelectedConfig();
         if (config)
         {
-            // In replay mode, reject strategies that reference symbols without recorded data
-            // for the current replay date — they would silently receive no events otherwise.
-            if (MainApp::isInReplayMode())
-            {
-                const QDate replayDate = DBClient::getReplayDate();
-                QStringList missing;
-                for (const QString& sym: config->symbols)
-                {
-                    if (!DBClient::hasReplayData(replayDate, sym))
-                        missing << sym;
-                }
-                if (!missing.isEmpty())
-                {
-                    QMessageBox::warning(this,
-                                         "No Replay Data for Strategy",
-                                         QString("The following symbol(s) have no recorded replay data for %1:\n\n"
-                                                 "  %2\n\n"
-                                                 "Loading this strategy would result in no events being received.\n"
-                                                 "Select a different replay date or download the data first.")
-                                             .arg(replayDate.toString("yyyy-MM-dd"), missing.join(", ")));
-                    return;
-                }
-            }
-
             auto result = m_mainAlgo->loadStrategy(*config);
             if (!result)
                 QMessageBox::warning(this, "Load Strategy", result.error());

@@ -13,11 +13,13 @@
 
 #include "L2Trader/StrategyProtocol/GeneratedProtocol.h"
 #include "L2Trader/StrategySDK/RuntimeEnvironment.h"
+#include "L2Trader/StrategySDK/StrategyDescription.h"
 #include "L2Trader/StrategySDK/UnixSocketConnection.h"
 
 namespace L2Trader::StrategySDK
 {
     namespace Protocol = l2trader::strategy::v1;
+    class ExternalStrategyRuntime;
 
     struct ClaimSymbolsResult
     {
@@ -82,8 +84,10 @@ namespace L2Trader::StrategySDK
       public:
         virtual ~ExternalStrategyHandler() = default;
 
-        [[nodiscard]] virtual std::string strategyName() const = 0;
-        [[nodiscard]] virtual std::string strategyVersion() const = 0;
+        virtual void bindRuntime(ExternalStrategyRuntime* p_runtime)
+        {
+            (void)p_runtime;
+        }
 
         virtual void onStart(const Protocol::StrategyConfiguration& p_configuration) = 0;
         virtual void onPause(std::string_view p_reason)
@@ -142,7 +146,7 @@ namespace L2Trader::StrategySDK
       public:
         using TimerId = std::uint64_t;
 
-        explicit ExternalStrategyRuntime(ExternalStrategyHandler& p_handler);
+        explicit ExternalStrategyRuntime(const StrategyDescription& p_description, ExternalStrategyHandler& p_handler);
 
         [[nodiscard]] int run();
         void close();
@@ -160,6 +164,11 @@ namespace L2Trader::StrategySDK
         [[nodiscard]] const Protocol::StrategyConfiguration* configuration() const
         {
             return m_configuration ? &m_configuration.value() : nullptr;
+        }
+
+        [[nodiscard]] const StrategyDescription& description() const
+        {
+            return m_description;
         }
 
         [[nodiscard]] double cashBalance() const
@@ -239,6 +248,7 @@ namespace L2Trader::StrategySDK
         [[nodiscard]] int nextTimerTimeoutMs() const;
         [[nodiscard]] std::string nextCorrelationId(std::string_view p_prefix);
 
+        StrategyDescription m_description;
         ExternalStrategyHandler& m_handler;
         std::optional<RuntimeEnvironment> m_environment;
         UnixSocketConnection m_connection;

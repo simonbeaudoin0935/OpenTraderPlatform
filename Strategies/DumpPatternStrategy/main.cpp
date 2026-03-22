@@ -6,9 +6,10 @@
 #include <string>
 #include <string_view>
 
-#include <google/protobuf/struct.pb.h>
-
+#include "L2Trader/StrategySDK/ConfigurationHelpers.h"
 #include "L2Trader/StrategySDK/ExternalStrategyRuntime.h"
+#include "L2Trader/StrategySDK/StrategyDescription.h"
+#include "L2Trader/StrategySDK/StrategyProcessMain.h"
 
 namespace
 {
@@ -18,39 +19,35 @@ namespace
     constexpr std::string_view kStrategyVersion = "1.0.0";
     constexpr std::int64_t kNanosPerSecond = 1000000000LL;
 
-    [[nodiscard]] std::string getStringParam(const Protocol::StrategyConfiguration& p_configuration,
-                                             std::string_view p_key,
-                                             std::string_view p_fallback)
+    [[nodiscard]] L2Trader::StrategySDK::StrategyDescription describeStrategy()
     {
-        const auto fieldsIt = p_configuration.custom_params().fields().find(std::string(p_key));
-        if (fieldsIt == p_configuration.custom_params().fields().end())
-        {
-            return std::string(p_fallback);
-        }
-
-        const google::protobuf::Value& value = fieldsIt->second;
-        return value.kind_case() == google::protobuf::Value::kStringValue ? value.string_value()
-                                                                          : std::string(p_fallback);
-    }
-
-    [[nodiscard]] double getNumberParam(const Protocol::StrategyConfiguration& p_configuration,
-                                        std::string_view p_key,
-                                        const double p_fallback)
-    {
-        const auto fieldsIt = p_configuration.custom_params().fields().find(std::string(p_key));
-        if (fieldsIt == p_configuration.custom_params().fields().end())
-        {
-            return p_fallback;
-        }
-
-        const google::protobuf::Value& value = fieldsIt->second;
-        return value.kind_case() == google::protobuf::Value::kNumberValue ? value.number_value() : p_fallback;
-    }
-
-    [[nodiscard]] int
-    getIntParam(const Protocol::StrategyConfiguration& p_configuration, std::string_view p_key, const int p_fallback)
-    {
-        return static_cast<int>(getNumberParam(p_configuration, p_key, p_fallback));
+        return {
+            .name = std::string(kStrategyName),
+            .version = std::string(kStrategyVersion),
+            .parameterSchema =
+                {
+                    L2Trader::StrategySDK::stringField("symbol",
+                                                       "Symbol",
+                                                       "NVDA",
+                                                       "Ticker symbol used for the dump-pattern cycle"),
+                    L2Trader::StrategySDK::stringField("accountID",
+                                                       "Account ID",
+                                                       "SIM123456",
+                                                       "Broker account used for entry and exit orders"),
+                    L2Trader::StrategySDK::doubleField("entryOffsetCents",
+                                                       "Entry Offset (cents)",
+                                                       10.0,
+                                                       "Distance from the latest price for the entry order"),
+                    L2Trader::StrategySDK::intField("cycleDurationSeconds",
+                                                    "Cycle Duration (seconds)",
+                                                    10,
+                                                    "How long to wait before cancelling or closing a cycle"),
+                    L2Trader::StrategySDK::intField("quantity",
+                                                    "Quantity",
+                                                    1,
+                                                    "Number of shares used for each dump-pattern cycle"),
+                },
+        };
     }
 
     [[nodiscard]] std::string formatPrice(const double p_value)
@@ -87,28 +84,22 @@ namespace
     class DumpPatternStrategyProcess final : public L2Trader::StrategySDK::ExternalStrategyHandler
     {
       public:
-        [[nodiscard]] std::string strategyName() const override
-        {
-            return std::string(kStrategyName);
-        }
-
-        [[nodiscard]] std::string strategyVersion() const override
-        {
-            return std::string(kStrategyVersion);
-        }
-
-        void setRuntime(L2Trader::StrategySDK::ExternalStrategyRuntime* const p_runtime)
+        void bindRuntime(L2Trader::StrategySDK::ExternalStrategyRuntime* const p_runtime) override
         {
             m_runtime = p_runtime;
         }
 
         void onStart(const Protocol::StrategyConfiguration& p_configuration) override
         {
-            m_symbol = p_configuration.symbols_size() > 0 ? p_configuration.symbols(0) : "NVDA";
-            m_accountId = getStringParam(p_configuration, "accountID", "SIM123456");
-            m_entryOffsetDollars = getNumberParam(p_configuration, "entryOffsetCents", 10.0) / 100.0;
-            m_cycleDurationSec = std::max(1, getIntParam(p_configuration, "cycleDurationSeconds", 10));
-            m_quantity = static_cast<std::uint32_t>(std::max(1, getIntParam(p_configuration, "quantity", 1)));
+            m_symbol = L2Trader::StrategySDK::stringFieldOr(p_configuration, "symbol", "NVDA");
+            m_accountId = L2Trader::StrategySDK::stringFieldOr(p_configuration, "accountID", "SIM123456");
+            m_entryOffsetDollars =
+                L2Trader::StrategySDK::doubleFieldOr(p_configuration, "entryOffsetCents", 10.0) / 100.0;
+            m_cycleDurationSec = std::max(
+                1,
+                static_cast<int>(L2Trader::StrategySDK::intFieldOr(p_configuration, "cycleDurationSeconds", 10)));
+            m_quantity = static_cast<std::uint32_t>(
+                std::max<std::int64_t>(1, L2Trader::StrategySDK::intFieldOr(p_configuration, "quantity", 1)));
 
             sendLog("DumpPatternStrategyProcess started - offset=$" + formatPrice(m_entryOffsetDollars) +
                     ", phase=" + std::to_string(m_cycleDurationSec) + "s, qty=" + std::to_string(m_quantity));
@@ -521,10 +512,8 @@ namespace
     };
 } // namespace
 
-int main()
+int main(int argc, char** argv)
 {
     DumpPatternStrategyProcess handler;
-    L2Trader::StrategySDK::ExternalStrategyRuntime runtime(handler);
-    handler.setRuntime(&runtime);
-    return runtime.run();
+    return L2Trader::StrategySDK::runStrategyProcessMain(argc, argv, describeStrategy(), handler);
 }

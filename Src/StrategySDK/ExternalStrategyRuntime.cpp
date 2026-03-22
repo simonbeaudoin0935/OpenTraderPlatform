@@ -10,7 +10,11 @@
 
 namespace L2Trader::StrategySDK
 {
-    ExternalStrategyRuntime::ExternalStrategyRuntime(ExternalStrategyHandler& p_handler) : m_handler(p_handler) {}
+    ExternalStrategyRuntime::ExternalStrategyRuntime(const StrategyDescription& p_description,
+                                                     ExternalStrategyHandler& p_handler)
+        : m_description(p_description), m_handler(p_handler)
+    {
+    }
 
     int ExternalStrategyRuntime::run()
     {
@@ -437,8 +441,8 @@ namespace L2Trader::StrategySDK
         L2Trader::StrategyProtocol::populateProtocolVersion(handshake->mutable_protocol_version());
         handshake->set_sdk_name(std::string(kStrategySdkName));
         handshake->set_sdk_version(std::string(kStrategySdkVersion));
-        handshake->set_strategy_name(m_handler.strategyName());
-        handshake->set_strategy_version(m_handler.strategyVersion());
+        handshake->set_strategy_name(m_description.name);
+        handshake->set_strategy_version(m_description.version);
 
         return sendEnvelope(std::move(envelope));
     }

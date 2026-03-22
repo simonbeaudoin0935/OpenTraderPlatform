@@ -14,6 +14,16 @@ function(add_l2trader_process_strategy p_target)
     )
 endfunction()
 
+function(stage_l2trader_process_strategy p_target)
+    add_custom_command(TARGET ${p_target} POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "$ENV{HOME}/.local/share/L2Trader/Strategies"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "$<TARGET_FILE:${p_target}>"
+                "$ENV{HOME}/.local/share/L2Trader/Strategies/${p_target}"
+        COMMENT "Installing ${p_target}"
+    )
+endfunction()
+
 add_subdirectory(ExampleStrategyProcess)
 add_subdirectory(CrashTestStrategy)
 add_subdirectory(HistoricalBarsStrategy)
