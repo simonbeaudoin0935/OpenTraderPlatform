@@ -2,6 +2,3 @@
 	path = Lib/Databento
 	url = https://github.com/databento/databento-cpp
 	branch = v0.49.0
-[submodule "Strategies"]
-	path = Strategies
-	url = git@github.com:simonbeaudoin0935/L2Trader-Strategies.git

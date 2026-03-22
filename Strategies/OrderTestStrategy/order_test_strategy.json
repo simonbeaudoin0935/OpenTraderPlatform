@@ -1,0 +1,36 @@
+{
+  "name": "OrderTestStrategy",
+  "runtimeType": "external-process",
+  "executablePath": "~/.local/share/L2Trader/Strategies/OrderTestStrategyProcess",
+  "symbols": ["NVDA"],
+  "positionSize": 1,
+  "riskLimit": 100.0,
+  "customParams": {
+    "accountID": "SIM123456",
+    "limitPrice": 1.0,
+    "timeoutSecs": 60
+  },
+  "parameterSchema": [
+    {
+      "key": "accountID",
+      "type": "string",
+      "label": "Account ID",
+      "description": "TradeStation account identifier used for the test order",
+      "default": "SIM123456"
+    },
+    {
+      "key": "limitPrice",
+      "type": "double",
+      "label": "Limit Price",
+      "description": "Limit price used for the initial BUY order",
+      "default": 1.0
+    },
+    {
+      "key": "timeoutSecs",
+      "type": "int",
+      "label": "Timeout (seconds)",
+      "description": "Maximum time to wait before the strategy aborts the order test",
+      "default": 60
+    }
+  ]
+}

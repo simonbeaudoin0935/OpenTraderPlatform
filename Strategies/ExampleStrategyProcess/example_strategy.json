@@ -1,0 +1,9 @@
+{
+  "name": "Example Strategy Process",
+  "runtimeType": "external-process",
+  "executablePath": "~/.local/share/L2Trader/Strategies/ExampleStrategyProcess",
+  "symbols": ["AAPL"],
+  "positionSize": 1,
+  "riskLimit": 100.0,
+  "customParams": {}
+}

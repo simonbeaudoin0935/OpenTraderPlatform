@@ -1,0 +1,35 @@
+{
+  "name": "DumpPatternStrategy",
+  "runtimeType": "external-process",
+  "executablePath": "~/.local/share/L2Trader/Strategies/DumpPatternStrategyProcess",
+  "symbols": ["NVDA"],
+  "positionSize": 1,
+  "customParams": {
+    "accountID": "SIM123456",
+    "entryOffsetCents": 10,
+    "cycleDurationSeconds": 10
+  },
+  "parameterSchema": [
+    {
+      "key": "accountID",
+      "type": "string",
+      "label": "Account ID",
+      "description": "TradeStation account identifier used for entry and exit orders",
+      "default": "SIM123456"
+    },
+    {
+      "key": "entryOffsetCents",
+      "type": "int",
+      "label": "Entry Offset (cents)",
+      "description": "Distance below the current best bid for the opening limit order",
+      "default": 10
+    },
+    {
+      "key": "cycleDurationSeconds",
+      "type": "int",
+      "label": "Cycle Duration (seconds)",
+      "description": "Time budget for each claim-log-enter-close cycle",
+      "default": 10
+    }
+  ]
+}
