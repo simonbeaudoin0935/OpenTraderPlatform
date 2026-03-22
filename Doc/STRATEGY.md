@@ -31,8 +31,8 @@ For concrete examples, start with:
 | `StrategyManager` | Owns loaded strategy instances, starts/stops them, tracks state, routes symbols/orders/positions/balance updates |
 | `ProcessStrategyRuntimeBackend` | Spawns the child process, accepts the Unix socket connection, performs the handshake, and translates between Qt host objects and protocol messages |
 | `StrategySDK` | Host-side per-strategy facade used by the runtime backend to place/cancel orders, query historical bars, log messages, and track strategy-local positions/orders/balance |
-| `StrategyConfig` | Serialized strategy configuration: runtime path, symbols, position size, risk limit, custom params |
-| `ExternalStrategyManifest` | Loads JSON manifests and optional `parameterSchema` metadata for GUI prefill/custom fields |
+| `StrategyConfig` | Serialized strategy configuration: runtime path, introspected strategy name/version, and opaque `fieldValues` |
+| `ExternalStrategyDescription` | Runs `<executable> --describe-strategy`, parses the returned schema, and validates stored field values |
 | `StrategyLogger` | Per-strategy log file plus in-memory circular buffer for the GUI log panel |
 
 ### Strategy-side Components
@@ -107,8 +107,9 @@ The strategy can send back:
 ### Lifecycle Flow
 
 ```text
-1. User loads a manifest or executable
-   -> StrategyLoadDialog builds a StrategyConfig
+1. User loads an executable
+   -> StrategyLoadDialog runs `--describe-strategy`
+   -> StrategyLoadDialog builds a StrategyConfig from the returned metadata + field values
    -> StrategyManager creates host-side SDK/logger/backend
    -> state = LOADED
 
@@ -158,9 +159,9 @@ Current strategy-management surfaces are:
   - shows strategy rows and claimed symbols
   - provides Load / Start / Stop / Display Logs actions
 - **`StrategyLoadDialog`** (`Src/FrontEnd/GUI/Dialogs/StrategyLoadDialog.*`)
-  - loads either a manifest or an executable
-  - prefills standard fields from the manifest
-  - renders manifest `parameterSchema` entries as dynamic custom-parameter widgets
+  - loads an executable path
+  - introspects it via `--describe-strategy`
+  - renders returned `parameterSchema` entries as dynamic configuration widgets
 - **`StrategyLogWidget`**
   - displays the per-strategy log stream at the bottom of the main window
 
@@ -176,8 +177,7 @@ Current strategy-management surfaces are:
 Strategies/
 └── MyStrategyProcess/
     ├── CMakeLists.txt
-    ├── main.cpp
-    └── my_strategy.json
+    └── main.cpp
 ```
 
 #### 2. CMakeLists.txt
@@ -201,17 +201,16 @@ That helper builds the executable into `build/<config>/bin/`.
 #include <iostream>
 #include <string>
 
+#include "L2Trader/StrategySDK/StrategyDescription.h"
 #include "L2Trader/StrategySDK/ExternalStrategyRuntime.h"
+#include "L2Trader/StrategySDK/StrategyProcessMain.h"
 
 namespace Protocol = l2trader::strategy::v1;
 
 class MyStrategyProcess final : public L2Trader::StrategySDK::ExternalStrategyHandler
 {
   public:
-    std::string strategyName() const override { return "MyStrategyProcess"; }
-    std::string strategyVersion() const override { return "1.0.0"; }
-
-    void setRuntime(L2Trader::StrategySDK::ExternalStrategyRuntime* runtime)
+    void bindRuntime(L2Trader::StrategySDK::ExternalStrategyRuntime* runtime) override
     {
         m_runtime = runtime;
     }
@@ -240,12 +239,21 @@ class MyStrategyProcess final : public L2Trader::StrategySDK::ExternalStrategyHa
     L2Trader::StrategySDK::ExternalStrategyRuntime* m_runtime = nullptr;
 };
 
-int main()
+static L2Trader::StrategySDK::StrategyDescription describeStrategy()
+{
+    return {
+        .name = "MyStrategyProcess",
+        .version = "1.0.0",
+        .parameterSchema = {
+            L2Trader::StrategySDK::stringField("symbol", "Symbol", "AAPL"),
+        },
+    };
+}
+
+int main(int argc, char** argv)
 {
     MyStrategyProcess strategy;
-    L2Trader::StrategySDK::ExternalStrategyRuntime runtime(strategy);
-    strategy.setRuntime(&runtime);
-    return runtime.run();
+    return L2Trader::StrategySDK::runStrategyProcessMain(argc, argv, describeStrategy(), strategy);
 }
 ```
 
@@ -266,10 +274,9 @@ Useful outputs:
 
 There is **no shared top-level `build/bin/`**. Binaries live under the active build tree such as `build/GUI/bin/` or `build/TUI/bin/`.
 
-Bundled sample strategies also copy themselves and their manifests into:
+Bundled sample strategies also copy themselves into:
 
 - `~/.local/share/L2Trader/Strategies/`
-- `~/.config/L2Trader/Strategies/`
 
 ---
 
@@ -318,41 +325,46 @@ These classes are useful when editing the platform, not when authoring external 
 - `ProcessStrategyRuntimeBackend`
 - `StrategySDK` (host-side Qt object)
 - `StrategyLogger`
-- `ExternalStrategyManifest`
+- `ExternalStrategyDescription`
 
 ---
 
 ## Configuration
 
-### Strategy Manifest File
+### Strategy Self-Description
 
-Strategies are commonly loaded from JSON manifests in `~/.config/L2Trader/Strategies/`.
+Strategies are loaded by executable path. Before launch, the GUI runs:
+
+```bash
+<strategy-executable> --describe-strategy
+```
+
+The executable must print JSON like:
 
 ```json
 {
-  "name": "Example Strategy Process",
-  "runtimeType": "external-process",
-  "executablePath": "~/.local/share/L2Trader/Strategies/ExampleStrategyProcess",
-  "symbols": ["AAPL"],
-  "positionSize": 1,
-  "riskLimit": 100.0,
-  "customParams": {}
+  "name": "ExampleStrategyProcess",
+  "version": "1.0.0",
+  "parameterSchema": [
+    {
+      "key": "symbol",
+      "type": "string",
+      "label": "Symbol",
+      "default": "AAPL"
+    }
+  ]
 }
 ```
 
-Optional `parameterSchema` metadata can be added so the GUI can render extra fields in `StrategyLoadDialog`.
+The host stores the chosen executable path plus user-provided field values keyed by schema field ID.
 
 ### Loading Strategies in the GUI
 
 1. Open the **Trade** tab.
 2. Use the **Load** button in `StrategyQuickView`.
-3. Select either:
-   - a manifest (`*.json`), or
-   - a strategy executable directly.
-4. Review/edit standard fields and any manifest-defined custom parameters.
+3. Select a strategy executable.
+4. Review/edit the schema-driven fields returned by `--describe-strategy`.
 5. Start the strategy from the context menu.
-
-If you load the executable directly and a matching manifest exists, the dialog attempts to find that manifest and apply its defaults.
 
 ---
 
@@ -362,7 +374,7 @@ If you load the executable directly and a matching manifest exists, the dialog a
    The host expects strategies to establish symbol ownership first.
 
 2. **Read configuration from `onStart(...)` rather than hardcoding everything**.
-   The protobuf `StrategyConfiguration` contains symbols plus custom params.
+   The protobuf `StrategyConfiguration` carries the configured field values in `custom_params`; market symbols should be claimed explicitly via `claimSymbols(...)`.
 
 3. **Keep the machine protocol on the Unix socket**.
    `stdout`/`stderr` are captured as human-readable log lines, not as a transport.
@@ -382,7 +394,7 @@ If you load the executable directly and a matching manifest exists, the dialog a
 
 - The **official SDK is C++ today**. The wire protocol is process-based and language-neutral, but non-C++ strategies currently need to implement the protocol themselves.
 - Strategies must currently run as **local executables** supervised by the host.
-- The removed shared-library runtime is still represented in some compatibility structures (`StrategyRuntimeType::PluginSharedLibrary`), but live manifest loading rejects it.
+- The removed shared-library runtime is still represented in some compatibility structures (`StrategyRuntimeType::PluginSharedLibrary`) only so old saved configs can fail clearly.
 - Strategy lifecycle control already exists in the GUI/runtime, but not every lifecycle surface is exported over MCP yet.
 
 ---
@@ -394,7 +406,7 @@ If you load the executable directly and a matching manifest exists, the dialog a
 | `Src/Strategy/StrategyManager.*` | Host-side lifecycle orchestration |
 | `Src/Strategy/ProcessStrategyRuntimeBackend.*` | Process launch, socket handshake, protocol bridge |
 | `Src/Strategy/StrategyConfig.*` | Stored runtime configuration |
-| `Src/Strategy/ExternalStrategyManifest.*` | Manifest parsing and manifest/executable matching |
+| `Src/Strategy/ExternalStrategyDescription.*` | Executable introspection and schema validation |
 | `Src/Strategy/StrategyLogger.*` | Per-strategy log persistence |
 | `Src/StrategySDK/Public/L2Trader/StrategySDK/ExternalStrategyRuntime.h` | Strategy-author-facing runtime API |
 | `Strategies/README.md` | Sample build/install workflow |

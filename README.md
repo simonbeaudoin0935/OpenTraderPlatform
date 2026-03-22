@@ -137,9 +137,10 @@ For detailed documentation, see:
     - `share/l2trader/proto/` canonical `.proto` files
     - `lib*/cmake/L2TraderStrategySDK/` `find_package()` metadata
 
-    The GUI strategy load dialog loads external strategy executables directly or
-    via JSON manifests. External strategies are launched as host-supervised
-    child processes over the Unix-socket + Protobuf runtime.
+    The GUI strategy load dialog loads external strategy executables directly.
+    Each executable is introspected via `--describe-strategy` before launch, and
+    external strategies run as host-supervised child processes over the
+    Unix-socket + Protobuf runtime.
 
 ### Building with Sanitizers (for development)
 
@@ -270,7 +271,7 @@ L2Trader/
 │   ├── Strategy/          # Strategy host orchestration and process supervision backends
 │   ├── StrategyProtocol/  # Protobuf schemas for out-of-process strategy IPC
 │   └── StrategySDK/       # Installable public SDK for external strategy executables
-├── Strategies/            # Out-of-process strategy executable samples and manifests
+├── Strategies/            # Self-describing out-of-process strategy executable samples
 ├── Tests/                 # Unit tests
 ├── Lib/                   # Third-party libraries (databento-cpp, QCustomPlot)
 ├── Resources/             # Icons and resources

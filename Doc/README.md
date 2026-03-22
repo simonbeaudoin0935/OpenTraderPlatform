@@ -64,7 +64,7 @@ Key topics:
 - External strategy lifecycle (LOADED → RUNNING → STOPPED / ERROR)
 - Strategy SDK/runtime capabilities (historical bars, symbol claiming, order placement)
 - StrategyCard GUI and StrategyQuickView
-- Development guide (SDK usage, manifests, samples)
+- Development guide (SDK usage, self-description, samples)
 - Known limitations
 
 **[STRATEGY_GUIDE.md](STRATEGY_GUIDE.md)** — Non-technical guide for strategy developers

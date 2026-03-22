@@ -7,7 +7,7 @@ The `Src/Strategy/` directory contains the **host-side external strategy runtime
 **Location**: `Src/Strategy/`
 
 **Purpose**:
-- load strategy manifests/executables
+- load strategy executables
 - supervise one child process per strategy
 - bridge host market/brokerage state into the child process
 - route strategy intents (logs, symbol claims, historical requests, orders) back into `MainAlgo`
@@ -24,8 +24,8 @@ The `Src/Strategy/` directory contains the **host-side external strategy runtime
 | `StrategyManager.h/.cpp` | Main orchestration class for load/start/stop/unload, symbol claim routing, per-strategy state, and UI-facing signals |
 | `ProcessStrategyRuntimeBackend.h/.cpp` | Launches the child process, owns the Unix socket handshake, translates between protobuf envelopes and Qt host objects |
 | `StrategySDK.h` | Host-side per-strategy SDK used internally by the runtime backend and `MainAlgo` integration |
-| `StrategyConfig.h/.cpp` | Serializable runtime configuration (`runtimeType`, executable path, symbols, limits, custom params) |
-| `ExternalStrategyManifest.h/.cpp` | Loads JSON manifests and optional GUI `parameterSchema`, and matches manifests to executables |
+| `StrategyConfig.h/.cpp` | Serializable runtime configuration (`runtimeType`, executable path, introspected name/version, opaque `fieldValues`) |
+| `ExternalStrategyDescription.h/.cpp` | Runs `<executable> --describe-strategy`, validates returned schema, and validates stored field values |
 | `StrategyLogger.h/.cpp` | Per-strategy disk + in-memory logging |
 | `StrategyOrderValidator.h/.cpp` | Order-side validation shared by strategy order entry paths |
 | `StrategyRuntimeBackend.h` | Runtime backend interface used by `StrategyManager` |
@@ -51,7 +51,7 @@ Important details:
 - **One process per strategy**. A strategy failure should not corrupt host memory.
 - **Machine protocol is socket-based**. Do not reintroduce `stdin`/`stdout` as the primary transport.
 - **Child `stdout`/`stderr` are still useful**. The backend captures both streams and appends them into `StrategyLogger` with `[stdout]` / `[stderr]` prefixes.
-- **The old plugin runtime is removed from live use**. `StrategyRuntimeType::PluginSharedLibrary` still exists only as a compatibility enum value; manifest loading rejects it.
+- **The old plugin runtime is removed from live use**. `StrategyRuntimeType::PluginSharedLibrary` still exists only as a compatibility enum value for old saved configs.
 
 ## StrategyManager Responsibilities
 
@@ -120,21 +120,22 @@ The host-side `StrategySDK` is responsible for:
 
 When documenting or editing strategy author workflows, prefer the public SDK in `Src/StrategySDK/Public/...`.
 
-## Manifest and Configuration Rules
+## Executable Description and Configuration Rules
 
-Strategy manifests are JSON files, usually under `~/.config/L2Trader/Strategies/`.
+Strategies are now loaded by executable path only.
 
 Current expectations:
 
 - `runtimeType` should be `external-process`
 - `executablePath` points at the child executable
-- `symbols`, `positionSize`, `riskLimit`, and `customParams` are carried into `StrategyConfig`
-- optional `parameterSchema` drives dynamic custom-parameter widgets in `StrategyLoadDialog`
+- the executable must implement a fast, side-effect-free `--describe-strategy` mode
+- `StrategyLoadDialog` runs `--describe-strategy` and renders the returned `parameterSchema`
+- `StrategyConfig` stores opaque `fieldValues` keyed by schema field ID, plus the last introspected `name` / `version`
 
 Compatibility note:
 
-- `StrategyConfig` can still deserialize the removed shared-library runtime enum value
-- `ExternalStrategyManifest::loadFromFile(...)` rejects it explicitly so that the live runtime stays process-only
+- `StrategyConfig` can still deserialize old manifest-era fields into `fieldValues`
+- `StrategyConfig` can still deserialize the removed shared-library runtime enum value so old saved configs fail clearly instead of crashing
 
 ## GUI Surfaces Connected to This Directory
 
@@ -143,7 +144,7 @@ There is no `StrategiesTab/` anymore.
 The current GUI surfaces are:
 
 - `Src/FrontEnd/GUI/Widgets/StrategyQuickView/` — load/start/stop/display-logs actions and claimed-symbol view
-- `Src/FrontEnd/GUI/Dialogs/StrategyLoadDialog.*` — executable/manifest selection and parameter editing
+- `Src/FrontEnd/GUI/Dialogs/StrategyLoadDialog.*` — executable selection and schema-driven parameter editing
 - `StrategyLogWidget` — per-strategy log viewer in the bottom splitter area
 
 ## Common Editing Workflows
@@ -158,12 +159,12 @@ Touch all relevant layers together:
 4. `StrategyManager` / `MainAlgo` integration
 5. docs (`Doc/STRATEGY.md`, `Doc/STRATEGY_GUIDE.md`, `Strategies/README.md` if user-visible)
 
-### Adding a new manifest field
+### Adding a new strategy configuration field
 
 Update:
 
 1. `StrategyConfig`
-2. `ExternalStrategyManifest`
+2. the strategy's `StrategyDescription`
 3. `StrategyLoadDialog`
 4. any persistence/restore path in `StrategyManager`
 5. docs

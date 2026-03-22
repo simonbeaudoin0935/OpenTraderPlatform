@@ -247,30 +247,26 @@ add_l2trader_process_strategy(MyStrategyProcess
 )
 ```
 
-### Manifest
+### Self-description
 
-A strategy is usually loaded through a JSON manifest:
+A strategy executable now describes itself with `--describe-strategy`:
 
 ```json
 {
-  "name": "My Strategy Process",
-  "runtimeType": "external-process",
-  "executablePath": "~/.local/share/L2Trader/Strategies/MyStrategyProcess",
-  "symbols": ["AAPL"],
-  "positionSize": 1,
-  "riskLimit": 100.0,
-  "customParams": {
-    "accountID": "SIM123456"
-  }
+  "name": "MyStrategyProcess",
+  "version": "1.0.0",
+  "parameterSchema": [
+    {
+      "key": "symbol",
+      "type": "string",
+      "label": "Symbol",
+      "default": "AAPL"
+    }
+  ]
 }
 ```
 
-The GUI can load either:
-
-- the manifest, or
-- the executable directly
-
-If a matching manifest exists, the load dialog uses it to prefill values and any declared custom parameter schema.
+The GUI loads the executable directly, runs `--describe-strategy`, and builds the configuration form from the returned schema.
 
 ### Build commands
 
@@ -294,7 +290,7 @@ There is **no top-level `build/bin/`**.
 1. Start `./build/GUI/Src/L2Trader`
 2. Stay on the **Trade** tab
 3. Use the **Load** button in `StrategyQuickView`
-4. Select your manifest or executable
+4. Select your strategy executable
 5. Start the strategy from the context menu
 6. Use **Display Logs** to open the per-strategy log panel
 
@@ -389,7 +385,7 @@ What to use:
 
 - `ExternalStrategyHandler`
 - `ExternalStrategyRuntime`
-- a JSON manifest
+- `StrategyDescription` + `runStrategyProcessMain(...)`
 - replay mode for testing
 
 Where to learn more:

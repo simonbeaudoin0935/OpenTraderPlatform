@@ -38,11 +38,10 @@ The host is expected to:
 3. stream market/lifecycle envelopes
 4. eventually send `stop` or `shutdown`
 
-## Local manifest install
+## Local install
 
 The normal monorepo build also copies:
 
 - `ExampleStrategyProcess` to `~/.local/share/L2Trader/Strategies/`
-- `example_strategy.json` to `~/.config/L2Trader/Strategies/`
 
-That manifest lets the GUI prefill the strategy configuration when you load the sample.
+The GUI loads the executable directly and queries `--describe-strategy` to render the configuration form.

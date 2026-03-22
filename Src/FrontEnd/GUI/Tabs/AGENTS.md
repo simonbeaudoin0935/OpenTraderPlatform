@@ -354,7 +354,7 @@ signals:
 Current strategy-management surfaces are:
 
 - `../Widgets/StrategyQuickView/` — compact tree view embedded in the Trade tab
-- `../Dialogs/StrategyLoadDialog.*` — manifest/executable loader and parameter editor
+- `../Dialogs/StrategyLoadDialog.*` — executable loader and schema-driven parameter editor
 - `../Widgets/StrategyLogWidget/` — per-strategy log panel
 
 Reference: see `Doc/STRATEGY.md` for the current runtime and GUI integration model.

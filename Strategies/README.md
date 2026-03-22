@@ -1,6 +1,6 @@
-# L2Trader-Strategies
+# Bundled Strategies
 
-Strategies repository for the L2Trader platform.
+Bundled strategy executables and reference implementations for the L2Trader platform.
 
 ## Included samples
 
@@ -33,14 +33,8 @@ This produces:
 - `build/GUI/bin/DumpPatternStrategyProcess`
 - `build/GUI/strategy-sdk/` — an install-style SDK prefix with headers, `.proto` files, shared library artifacts, and CMake package metadata
 
-The executable strategies also copy themselves into the local runtime directories used by the app:
+The executable strategies also copy themselves into the local runtime directory used by the app:
 
 - `~/.local/share/L2Trader/Strategies/`
-- `~/.config/L2Trader/Strategies/`
 
-Each sample installs:
-
-- the executable into `~/.local/share/L2Trader/Strategies/`
-- its JSON manifest into `~/.config/L2Trader/Strategies/`
-
-The GUI can load a strategy by selecting either the manifest or the executable directly. When a matching manifest is present, the dialog uses it to prefill standard parameters and render any declared `parameterSchema` custom fields.
+Load a strategy by selecting its executable in the GUI. The platform runs `<executable> --describe-strategy` to discover the strategy name, version, and dynamic configuration schema before launch.
