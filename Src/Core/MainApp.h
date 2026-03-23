@@ -129,8 +129,11 @@ class MainApp
      * @param p_date Date to replay
      * @param p_startTime Start time within the day
      * @param p_speed Playback speed for when user clicks play
+     * @param p_replaySymbol Optional replay seed symbol override. Pass a null QString
+     *        to reuse the currently displayed symbol, or an explicit empty QString to
+     *        enter replay without a displayed symbol.
      */
-    void enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p_speed);
+    void enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p_speed, QString p_replaySymbol = QString());
 
     /**
      * @brief Exit replay mode and resume live operation
@@ -220,4 +223,5 @@ class MainApp
     FrontEnd* appFrontend;
     MemoryMonitor memoryMonitor;
     std::unique_ptr<PlatformControlServer> m_platformControlServer;
+    QString m_symbolBeforeReplay;
 };

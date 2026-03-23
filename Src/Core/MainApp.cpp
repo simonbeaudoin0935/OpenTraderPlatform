@@ -1588,7 +1588,7 @@ void MainApp::cleanupSingletons()
     qInfo() << "All singletons cleaned up";
 }
 
-void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p_speed)
+void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p_speed, QString p_replaySymbol)
 {
     ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Live && "enterReplayMode called when already in replay mode");
 
@@ -1598,11 +1598,11 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p
     qInfo() << "Entering replay mode for" << p_date.toString(Qt::ISODate) << "at" << p_startTime.toString("hh:mm:ss");
 
     // 1. Capture currently displayed symbol before we delete everything
-    QString displayedSymbol = mainAlgo->getDisplayedSymbol();
+    m_symbolBeforeReplay = mainAlgo->getDisplayedSymbol();
+    QString displayedSymbol = p_replaySymbol.isNull() ? m_symbolBeforeReplay : p_replaySymbol;
     if (displayedSymbol.isEmpty())
     {
-        qWarning() << "No displayed symbol, using default AAPL";
-        displayedSymbol = "AAPL";
+        qInfo() << "Entering replay without an initial displayed symbol";
     }
 
     // 2. Set data source mode
@@ -1635,8 +1635,11 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p
             // Delete all stock instruments (and their streams)
             mainAlgo->deleteAllSymbolContext();
 
-            // Create fresh stock instrument with mock-backed streams
-            mainAlgo->createAndSetDisplayedSymbolContext(displayedSymbol);
+            if (!displayedSymbol.isEmpty())
+            {
+                // Create fresh stock instrument with mock-backed streams
+                mainAlgo->createAndSetDisplayedSymbolContext(displayedSymbol);
+            }
 
             // Start replay in paused state - emits first bar to populate chart
             mainAlgo->enterReplayModePaused(displayedSymbol, p_date, p_startTime, p_speed);
@@ -1646,7 +1649,8 @@ void MainApp::enterReplayMode(QDate p_date, QTime p_startTime, Playback::Speed p
     // 7. Update UI
     appFrontend->onReplayModeEntered();
 
-    qInfo() << "Replay mode entered with chart pre-populated";
+    qInfo() << (displayedSymbol.isEmpty() ? "Replay mode entered without an initial symbol"
+                                          : "Replay mode entered with chart pre-populated");
 }
 
 void MainApp::exitReplayMode()
@@ -1659,8 +1663,15 @@ void MainApp::exitReplayMode()
     QString displayedSymbol = mainAlgo->getDisplayedSymbol();
     if (displayedSymbol.isEmpty())
     {
-        qWarning() << "No displayed symbol, using default AAPL";
-        displayedSymbol = "AAPL";
+        displayedSymbol = m_symbolBeforeReplay;
+        if (!displayedSymbol.isEmpty())
+        {
+            qInfo() << "No replay symbol selected; restoring pre-replay symbol" << displayedSymbol;
+        }
+        else
+        {
+            qInfo() << "No symbol available to restore after replay exit";
+        }
     }
 
     // 2. Tell MainAlgo to stop replay and clean up (blocking to ensure clean stop)
@@ -1700,13 +1711,17 @@ void MainApp::exitReplayMode()
             // Reopen positions/orders streams
             mainAlgo->resumeLiveStreams();
 
-            // Create fresh stock instrument with live streams
-            mainAlgo->createAndSetDisplayedSymbolContext(displayedSymbol);
+            if (!displayedSymbol.isEmpty())
+            {
+                // Create fresh stock instrument with live streams
+                mainAlgo->createAndSetDisplayedSymbolContext(displayedSymbol);
+            }
         },
         Qt::QueuedConnection);
 
     // 6. Update UI
     appFrontend->onReplayModeExited();
+    m_symbolBeforeReplay.clear();
 
     qInfo() << "Replay mode exited, live mode resumed";
 }

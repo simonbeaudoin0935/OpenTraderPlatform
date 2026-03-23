@@ -216,6 +216,11 @@ class DBClient : public QObject
     [[nodiscard]] static QVector<ReplayDayInfo> listAvailableReplayDates();
 
     /**
+     * @brief Enumerate recorded replay days that contain complete data for one symbol.
+     */
+    [[nodiscard]] static QVector<QDate> listAvailableReplayDatesForSymbol(const QString& p_symbol);
+
+    /**
      * @brief Get aggregate file information for one replay day.
      */
     [[nodiscard]] static std::optional<ReplayDayInfo> getReplayDateInfo(const QDate& p_date);
@@ -430,6 +435,11 @@ class DBClient : public QObject
     /// Pick the globally earliest record across all m_replayStreams and emit it.
     void emitNextReplayRecord();
 
+    void startReplaySession(const QString& p_symbol,
+                            QDate p_date,
+                            QTime p_startTime,
+                            PlaybackSpeed p_speed,
+                            bool p_startPaused);
     void scheduleNextReplayTick();
     [[nodiscard]] qint64 calculateWallClockDelay(qint64 p_replayEpochMs) const;
     void updateReplayTime(qint64 p_epochMs);
