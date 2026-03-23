@@ -104,6 +104,8 @@ class GUIFrontend : public FrontEnd
                                      const QString& p_noMatchesMessage);
     MainAlgo* mainAlgo;
     QString currentlyDisplayedSymbol;
+    QString m_pendingReplayEntrySymbol; // Null = use current symbol, explicit empty = enter replay without a symbol
+    QString m_preReplayDisplayedSymbol; // Null outside replay, otherwise preserves the live symbol for UI restore
     TimeFrame m_currentTimeFrame = TimeFrame::ONE_MINUTE;
 
     static QString bytesToString(qint64 bytes);

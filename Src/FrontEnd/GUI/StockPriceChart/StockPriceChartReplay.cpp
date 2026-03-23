@@ -26,7 +26,14 @@ void StockPriceChart::onReplayDayChanged(const QDate& date)
 {
     if (m_symbol.isEmpty())
     {
-        WARNING << "No symbol selected for replay day query";
+        if (MainApp::isInReplayMode())
+        {
+            OBJ_ASSUME_DIFF(m_replayControls, nullptr);
+            const QTime currentTime = m_replayControls->getReplayStartTime();
+            const Playback::Speed currentSpeed = m_replayControls->getReplaySpeed();
+            qCInfo(ChartLog) << "No symbol selected; updating replay day anchor to" << date.toString(Qt::ISODate);
+            MainApp::getInstance()->preloadChartForReplay(date, currentTime, currentSpeed);
+        }
         return;
     }
 
@@ -69,7 +76,15 @@ void StockPriceChart::onReplayTimeChanged(const QTime& time)
 {
     if (m_symbol.isEmpty())
     {
-        WARNING << "No symbol selected for replay time change";
+        if (MainApp::isInReplayMode())
+        {
+            OBJ_ASSUME_DIFF(m_replayControls, nullptr);
+            const QDate currentDate = m_replayControls->getSelectedReplayDay();
+            const Playback::Speed currentSpeed = m_replayControls->getReplaySpeed();
+            qCInfo(ChartLog) << "No symbol selected; updating replay time anchor to"
+                             << currentDate.toString(Qt::ISODate) << time.toString("hh:mm");
+            MainApp::getInstance()->preloadChartForReplay(currentDate, time, currentSpeed);
+        }
         return;
     }
 
