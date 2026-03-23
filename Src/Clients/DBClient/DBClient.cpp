@@ -658,6 +658,27 @@ QVector<DBClient::ReplayDayInfo> DBClient::listAvailableReplayDates()
     return days;
 }
 
+QVector<QDate> DBClient::listAvailableReplayDatesForSymbol(const QString& p_symbol)
+{
+    if (p_symbol.isEmpty())
+    {
+        return {};
+    }
+
+    const QVector<ReplayDayInfo> days = listAvailableReplayDates();
+    QVector<QDate> matchingDates;
+    matchingDates.reserve(days.size());
+    for (const ReplayDayInfo& day: days)
+    {
+        if (hasReplayData(day.date, p_symbol))
+        {
+            matchingDates.append(day.date);
+        }
+    }
+
+    return matchingDates;
+}
+
 std::optional<DBClient::ReplayDayInfo> DBClient::getReplayDateInfo(const QDate& p_date)
 {
     return makeReplayDayInfo(p_date);
@@ -1044,6 +1065,12 @@ bool DBClient::addReplaySymbol(const QString& p_symbol)
         return result;
     }
 
+    if (p_symbol.isEmpty())
+    {
+        WARNING << "addReplaySymbol called with an empty symbol";
+        return false;
+    }
+
     if (!isReplayActive())
     {
         WARNING << "addReplaySymbol called but replay is not active";
@@ -1051,7 +1078,28 @@ bool DBClient::addReplaySymbol(const QString& p_symbol)
     }
 
     INFO << "Adding symbol to active replay:" << p_symbol;
-    return openReplayStreamsForSymbol(p_symbol, m_replayDate);
+    const bool hadNoStreams = m_replayStreams.empty();
+    const bool opened = openReplayStreamsForSymbol(p_symbol, m_replayDate);
+    if (!opened)
+    {
+        return false;
+    }
+
+    if (hadNoStreams && m_playbackState == PlaybackState::Paused)
+    {
+        const qint64 initialEpoch = earliestReplayEpoch();
+        if (initialEpoch != std::numeric_limits<qint64>::max())
+        {
+            m_replayEpochAnchorMs = initialEpoch;
+            MainApp::currentAppReplayTime = QDateTime::fromMSecsSinceEpoch(initialEpoch, TradingHours::MARKET_TIMEZONE);
+            INFO << "Initialized replay anchor after loading first symbol:" << p_symbol << "at"
+                 << MainApp::currentAppReplayTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+            emitNextReplayRecord();
+            emit replayPaused();
+        }
+    }
+
+    return true;
 }
 
 void DBClient::startReplay(const QString& p_symbol, QDate p_date, QTime p_startTime, PlaybackSpeed p_speed)
@@ -1065,47 +1113,7 @@ void DBClient::startReplay(const QString& p_symbol, QDate p_date, QTime p_startT
         return;
     }
 
-    if (m_playbackState != PlaybackState::Stopped)
-    {
-        WARNING << "Cannot start replay — already active";
-        return;
-    }
-
-    m_replayTimer.stop();
-
-    INFO << "Starting replay for" << p_symbol << "on" << p_date.toString(Qt::ISODate) << "at"
-         << p_startTime.toString("hh:mm:ss") << "speed:" << static_cast<int>(p_speed);
-
-    m_playbackSpeed = p_speed;
-    m_replayDate = p_date;
-    m_startEpochMs = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE).toMSecsSinceEpoch();
-    closeReplayStreams();
-
-    if (!openReplayStreamsForSymbol(p_symbol, p_date))
-    {
-        CRITICAL << "Failed to load replay data";
-        emit replayDataLoadFailed(
-            QString("No replay data found for %1 on %2").arg(p_symbol, p_date.toString(Qt::ISODate)));
-        return;
-    }
-
-    // Use earliest available record timestamp as anchor
-    qint64 initialEpoch = earliestReplayEpoch();
-    if (initialEpoch == std::numeric_limits<qint64>::max())
-        initialEpoch = m_startEpochMs;
-
-    QDateTime initialTime = QDateTime::fromMSecsSinceEpoch(initialEpoch, TradingHours::MARKET_TIMEZONE);
-    MainApp::currentAppReplayTime = initialTime;
-    INFO << "Initialized replay time to:" << initialTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
-
-    m_replayEpochAnchorMs = initialEpoch;
-    m_wallClockAnchorMs = QDateTime::currentMSecsSinceEpoch();
-
-    m_playbackState = PlaybackState::Playing;
-    emit replayStarted();
-
-    emitNextReplayRecord();
-    scheduleNextReplayTick();
+    startReplaySession(p_symbol, p_date, p_startTime, p_speed, false);
 }
 
 void DBClient::startReplayPaused(const QString& p_symbol, QDate p_date, QTime p_startTime, PlaybackSpeed p_speed)
@@ -1120,19 +1128,43 @@ void DBClient::startReplayPaused(const QString& p_symbol, QDate p_date, QTime p_
         return;
     }
 
+    startReplaySession(p_symbol, p_date, p_startTime, p_speed, true);
+}
+
+void DBClient::startReplaySession(const QString& p_symbol,
+                                  QDate p_date,
+                                  QTime p_startTime,
+                                  PlaybackSpeed p_speed,
+                                  const bool p_startPaused)
+{
     if (m_playbackState != PlaybackState::Stopped)
     {
         WARNING << "Cannot start replay — already active";
         return;
     }
 
-    INFO << "Starting replay (paused) for" << p_symbol << "on" << p_date.toString(Qt::ISODate) << "at"
-         << p_startTime.toString("hh:mm:ss");
+    INFO << "Starting replay" << (p_startPaused ? "(paused)" : "(playing)") << "for"
+         << (p_symbol.isEmpty() ? QString("<no symbol>") : p_symbol) << "on" << p_date.toString(Qt::ISODate) << "at"
+         << p_startTime.toString("hh:mm:ss") << "speed:" << static_cast<int>(p_speed);
 
+    m_replayTimer.stop();
     m_playbackSpeed = p_speed;
     m_replayDate = p_date;
     m_startEpochMs = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE).toMSecsSinceEpoch();
+    m_wallClockAnchorMs = 0;
+    m_replayEpochAnchorMs = m_startEpochMs;
+    m_pauseWallClockMs = 0;
     closeReplayStreams();
+    MainApp::currentAppReplayTime = QDateTime(p_date, p_startTime, TradingHours::MARKET_TIMEZONE);
+
+    if (p_symbol.isEmpty())
+    {
+        WARNING << "Starting replay without an initial symbol; session will remain paused until a symbol is selected";
+        m_playbackState = PlaybackState::Paused;
+        emit replayStarted();
+        emit replayPaused();
+        return;
+    }
 
     if (!openReplayStreamsForSymbol(p_symbol, p_date))
     {
@@ -1148,20 +1180,25 @@ void DBClient::startReplayPaused(const QString& p_symbol, QDate p_date, QTime p_
 
     QDateTime initialTime = QDateTime::fromMSecsSinceEpoch(initialEpoch, TradingHours::MARKET_TIMEZONE);
     MainApp::currentAppReplayTime = initialTime;
+    INFO << "Initialized replay time to:" << initialTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
 
     m_replayEpochAnchorMs = initialEpoch;
-    m_wallClockAnchorMs = 0; // Will be set on resume
+    m_wallClockAnchorMs = p_startPaused ? 0 : QDateTime::currentMSecsSinceEpoch();
 
-    // Emit first record then pause
     m_playbackState = PlaybackState::Playing;
     emit replayStarted();
 
     emitNextReplayRecord();
 
-    m_playbackState = PlaybackState::Paused;
-    emit replayPaused();
+    if (p_startPaused)
+    {
+        m_playbackState = PlaybackState::Paused;
+        emit replayPaused();
+        INFO << "Replay started in paused state after first record";
+        return;
+    }
 
-    INFO << "Replay started in paused state after first record";
+    scheduleNextReplayTick();
 }
 
 void DBClient::stopReplay()
@@ -1225,6 +1262,13 @@ void DBClient::resumeReplay()
     if (m_playbackState != PlaybackState::Paused)
     {
         WARNING << "Cannot resume — not currently paused";
+        return;
+    }
+
+    if (m_replayStreams.empty())
+    {
+        WARNING << "Cannot resume replay without a loaded symbol";
+        emit replayPaused();
         return;
     }
 

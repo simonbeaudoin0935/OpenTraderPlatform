@@ -53,6 +53,39 @@ Q_LOGGING_CATEGORY(GUIFrontendLog, "GUIFrontend")
 
 namespace
 {
+    struct ReplayEntryResolution
+    {
+        QDate effectiveDate;
+        bool enterWithoutSymbol = false;
+        bool usedFallbackDate = false;
+    };
+
+    [[nodiscard]] ReplayEntryResolution resolveReplayEntryResolution(const QString& p_currentSymbol,
+                                                                     const QDate& p_requestedDate)
+    {
+        ReplayEntryResolution resolution{p_requestedDate, p_currentSymbol.isEmpty(), false};
+        if (p_currentSymbol.isEmpty())
+        {
+            return resolution;
+        }
+
+        if (DBClient::hasReplayData(p_requestedDate, p_currentSymbol))
+        {
+            return resolution;
+        }
+
+        const QVector<QDate> availableDates = DBClient::listAvailableReplayDatesForSymbol(p_currentSymbol);
+        if (!availableDates.isEmpty())
+        {
+            resolution.effectiveDate = availableDates.first();
+            resolution.usedFallbackDate = resolution.effectiveDate != p_requestedDate;
+            return resolution;
+        }
+
+        resolution.enterWithoutSymbol = true;
+        return resolution;
+    }
+
     QString summarizeClosePositionsSuccess(const ClosePositionsResult& p_result)
     {
         QStringList lines;
@@ -510,17 +543,30 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                 QDate replayDate = m_replayControlsBar->getSelectedReplayDay();
                 QTime replayTime = m_replayControlsBar->getReplayStartTime();
                 Playback::Speed speed = m_replayControlsBar->getReplaySpeed();
-                QString currentSymbol = ui->priceChart->getCurrentSymbol();
-                if (!currentSymbol.isEmpty() && !DBClient::getInstance()->hasReplayData(replayDate, currentSymbol))
+                const QString currentSymbol = ui->priceChart->getCurrentSymbol();
+                const ReplayEntryResolution resolution = resolveReplayEntryResolution(currentSymbol, replayDate);
+                if (resolution.usedFallbackDate)
                 {
-                    QMessageBox::warning(nullptr,
-                                         "No Replay Data for Symbol",
-                                         QString("No replay data found for %1 on %2.\n\n"
-                                                 "Select a different date or download data first.")
-                                             .arg(currentSymbol, replayDate.toString("yyyy-MM-dd")));
-                    return;
+                    qInfo() << "No replay data found for" << currentSymbol << "on" << replayDate.toString(Qt::ISODate)
+                            << "- using latest locally available replay date"
+                            << resolution.effectiveDate.toString(Qt::ISODate);
+                    replayDate = resolution.effectiveDate;
+                    m_replayControlsBar->setSelectedReplayDay(replayDate);
                 }
-                MainApp::getInstance()->enterReplayMode(replayDate, replayTime, speed);
+                if (resolution.enterWithoutSymbol)
+                {
+                    if (currentSymbol.isEmpty())
+                    {
+                        qInfo() << "Entering replay without a displayed symbol";
+                    }
+                    else
+                    {
+                        qInfo() << "No local replay data found for" << currentSymbol
+                                << "on any date; entering replay without a displayed symbol";
+                    }
+                }
+                m_pendingReplayEntrySymbol = resolution.enterWithoutSymbol ? QString("") : currentSymbol;
+                MainApp::getInstance()->enterReplayMode(replayDate, replayTime, speed, m_pendingReplayEntrySymbol);
             });
 
     connect(m_tradingModeBar,
@@ -1748,11 +1794,20 @@ void GUIFrontend::restoreReplayState()
 
     // Populate the replay day list so setSelectedReplayDay works
     m_replayControlsBar->scanAndPopulateReplayDays();
-
-    if (!DBClient::getInstance()->hasReplayData(savedDate, ui->priceChart->getCurrentSymbol()))
+    if (!m_replayControlsBar->getSelectedReplayDay().isValid())
     {
-        qWarning() << "Saved replay date" << savedDate << "has no data, skipping replay restore";
+        qWarning() << "No replay data is available on disk, skipping replay restore";
         return;
+    }
+
+    const QString currentSymbol = ui->priceChart->getCurrentSymbol();
+    const ReplayEntryResolution resolution = resolveReplayEntryResolution(currentSymbol, savedDate);
+    if (resolution.usedFallbackDate)
+    {
+        qInfo() << "Saved replay date" << savedDate.toString(Qt::ISODate) << "has no replay data for" << currentSymbol
+                << "- restoring replay with latest locally available date"
+                << resolution.effectiveDate.toString(Qt::ISODate);
+        savedDate = resolution.effectiveDate;
     }
 
     m_replayControlsBar->setSelectedReplayDay(savedDate);
@@ -1761,7 +1816,20 @@ void GUIFrontend::restoreReplayState()
     Playback::Speed speed = m_replayControlsBar->getReplaySpeed();
 
     qInfo() << "Restoring replay state: date=" << savedDate << "time=" << startTime;
-    MainApp::getInstance()->enterReplayMode(savedDate, startTime, speed);
+    if (resolution.enterWithoutSymbol)
+    {
+        if (currentSymbol.isEmpty())
+        {
+            qInfo() << "Restoring replay without a displayed symbol";
+        }
+        else
+        {
+            qInfo() << "Saved symbol" << currentSymbol
+                    << "has no local replay data on any date; restoring replay without a displayed symbol";
+        }
+    }
+    m_pendingReplayEntrySymbol = resolution.enterWithoutSymbol ? QString("") : currentSymbol;
+    MainApp::getInstance()->enterReplayMode(savedDate, startTime, speed, m_pendingReplayEntrySymbol);
 }
 
 void GUIFrontend::saveMainWindowGeometry()
@@ -2442,6 +2510,10 @@ void GUIFrontend::onReplayModeEntered()
     L2T_TP(l2trader, gui_replay_entered);
 
     qCInfo(GUIFrontendLog) << "Replay mode entered";
+    if (m_preReplayDisplayedSymbol.isNull())
+    {
+        m_preReplayDisplayedSymbol = currentlyDisplayedSymbol;
+    }
 
     // Persist replay state so we can restore it on next launch
     saveReplayState(true, m_replayControlsBar->getSelectedReplayDay(), m_replayControlsBar->getReplayStartTime());
@@ -2481,10 +2553,21 @@ void GUIFrontend::onReplayModeEntered()
     // Update chart visual (background color and watermark)
     ui->priceChart->setReplayModeActive(true);
 
+    const bool explicitEmptyReplaySymbol = !m_pendingReplayEntrySymbol.isNull() && m_pendingReplayEntrySymbol.isEmpty();
+    if (explicitEmptyReplaySymbol)
+    {
+        currentlyDisplayedSymbol.clear();
+        ui->stockSymbolInput->clear();
+        ui->priceChart->setSymbol(QString());
+        ui->orderEntryWidget->setSymbol(QString());
+    }
+
     // Switch all secondary chart windows to the replay symbol
-    QString replaySymbol = currentlyDisplayedSymbol;
+    const QString replaySymbol =
+        m_pendingReplayEntrySymbol.isNull() ? currentlyDisplayedSymbol : m_pendingReplayEntrySymbol;
     for (ChartWindow* cw: m_windowManager->chartWindows())
         cw->enterReplayMode(replaySymbol);
+    m_pendingReplayEntrySymbol = QString();
 
     // Update session label and time display (replay time may have changed)
     updateSessionLabel();
@@ -2579,9 +2662,25 @@ void GUIFrontend::onReplayModeExited()
     // Restore chart visual
     ui->priceChart->setReplayModeActive(false);
 
+    if (ui->priceChart->getCurrentSymbol().isEmpty() && !m_preReplayDisplayedSymbol.isEmpty())
+    {
+        currentlyDisplayedSymbol = m_preReplayDisplayedSymbol;
+        ui->stockSymbolInput->setText(currentlyDisplayedSymbol);
+        ui->priceChart->setSymbol(currentlyDisplayedSymbol);
+        ui->orderEntryWidget->setSymbol(currentlyDisplayedSymbol);
+    }
+    else if (ui->priceChart->getCurrentSymbol().isEmpty())
+    {
+        currentlyDisplayedSymbol.clear();
+        ui->stockSymbolInput->clear();
+        ui->orderEntryWidget->setSymbol(QString());
+    }
+
     // Restore all secondary chart windows to their pre-replay symbols
     for (ChartWindow* cw: m_windowManager->chartWindows())
         cw->exitReplayMode();
+    m_preReplayDisplayedSymbol = QString();
+    m_pendingReplayEntrySymbol = QString();
 
     // Update session label and time display (back to live time)
     updateSessionLabel();
