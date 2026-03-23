@@ -22,10 +22,14 @@ TradingModeBar::TradingModeBar(QWidget* parent) : QWidget(parent)
     m_liveBtn = new QPushButton("LIVE", this);
     m_simBtn = new QPushButton("SIM", this);
     m_replayBtn = new QPushButton("REPLAY", this);
+    m_reviewBtn = new QPushButton("REVIEW", this);
 
     setupButton(m_liveBtn, "LIVE", "Real money trading via TradeStation live API.\nClick to switch to LIVE mode.");
     setupButton(m_simBtn, "SIM", "Paper trading via TradeStation simulation API.\nClick to switch to SIM mode.");
     setupButton(m_replayBtn, "REPLAY", "Historical data replay (no network).\nClick to enter/exit REPLAY mode.");
+    setupButton(m_reviewBtn,
+                "REVIEW",
+                "Read-only inspection of a persisted replay ledger.\nClick to enter REVIEW mode.");
 
     connect(m_liveBtn,
             &QPushButton::clicked,
@@ -56,12 +60,22 @@ TradingModeBar::TradingModeBar(QWidget* parent) : QWidget(parent)
                     emit replayRequested();
             });
 
+    connect(m_reviewBtn,
+            &QPushButton::clicked,
+            this,
+            [this]()
+            {
+                if (m_activeMode != Mode::Review)
+                    emit reviewRequested();
+            });
+
     QHBoxLayout* layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(3);
     layout->addWidget(m_liveBtn);
     layout->addWidget(m_simBtn);
     layout->addWidget(m_replayBtn);
+    layout->addWidget(m_reviewBtn);
     setLayout(layout);
 
     applyStyles();
@@ -99,4 +113,5 @@ void TradingModeBar::applyStyles()
     m_liveBtn->setStyleSheet(m_activeMode == Mode::Live ? ACTIVE_STYLE : INACTIVE_STYLE);
     m_simBtn->setStyleSheet(m_activeMode == Mode::Sim ? ACTIVE_STYLE : INACTIVE_STYLE);
     m_replayBtn->setStyleSheet(m_activeMode == Mode::Replay ? ACTIVE_STYLE : INACTIVE_STYLE);
+    m_reviewBtn->setStyleSheet(m_activeMode == Mode::Review ? ACTIVE_STYLE : INACTIVE_STYLE);
 }

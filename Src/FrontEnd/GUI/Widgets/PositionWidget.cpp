@@ -144,6 +144,13 @@ void PositionWidget::setupStyles()
                              "}");
 }
 
+void PositionWidget::setReviewModeEnabled(const bool p_enabled)
+{
+    m_reviewModeEnabled = p_enabled;
+    m_closeAllPositionsButton->setEnabled(!p_enabled);
+    m_closeAllPositionsButton->setText(p_enabled ? "Read-Only" : "Close All");
+}
+
 void PositionWidget::updatePosition(const QString& account, const Position& position)
 {
     L2T_TP(l2trader, gui_position_widget_update);
@@ -269,6 +276,11 @@ void PositionWidget::onSymbolClicked(const QModelIndex& index)
 
 void PositionWidget::onCustomContextMenuRequested(const QPoint& p_pos)
 {
+    if (m_reviewModeEnabled)
+    {
+        return;
+    }
+
     const QModelIndex index = tableView->indexAt(p_pos);
     if (!index.isValid())
     {

@@ -16,6 +16,7 @@
 #include <QMenu>
 #include <QAction>
 #include <QMessageBox>
+#include <algorithm>
 
 // Column indices
 static constexpr int COL_NAME = 0;
@@ -35,8 +36,58 @@ StrategyQuickView::StrategyQuickView(QWidget* parent)
 void StrategyQuickView::setMainAlgo(MainAlgo* p_mainAlgo)
 {
     m_mainAlgo = p_mainAlgo;
-    if (m_mainAlgo)
+    if (m_mainAlgo && m_displayMode == DisplayMode::Strategies)
         m_positionTimer->start(2000);
+}
+
+void StrategyQuickView::setReviewModeEnabled(const bool p_enabled)
+{
+    m_displayMode = p_enabled ? DisplayMode::ReviewSymbols : DisplayMode::Strategies;
+    m_tree->clear();
+    m_strategyItems.clear();
+    m_strategyNames.clear();
+
+    if (m_titleLabel)
+    {
+        m_titleLabel->setText(p_enabled ? "Review Symbols" : "Strategies");
+    }
+    if (m_loadButton)
+    {
+        m_loadButton->setVisible(!p_enabled);
+        m_loadButton->setEnabled(!p_enabled);
+    }
+
+    if (p_enabled)
+    {
+        m_positionTimer->stop();
+    }
+    else if (m_mainAlgo)
+    {
+        m_positionTimer->start(2000);
+    }
+}
+
+void StrategyQuickView::setReviewSymbols(const QStringList& p_symbols)
+{
+    if (m_displayMode != DisplayMode::ReviewSymbols)
+    {
+        return;
+    }
+
+    m_tree->clear();
+    auto* root = new QTreeWidgetItem(m_tree);
+    root->setText(COL_NAME, "Loaded Review Session");
+    root->setExpanded(true);
+
+    QFont font = root->font(COL_NAME);
+    font.setBold(true);
+    root->setFont(COL_NAME, font);
+
+    QStringList symbols = p_symbols;
+    symbols.removeDuplicates();
+    std::sort(symbols.begin(), symbols.end());
+
+    updateSymbolChildren(root, symbols);
 }
 
 void StrategyQuickView::setupUI()
@@ -52,18 +103,18 @@ void StrategyQuickView::setupUI()
     headerLayout->setContentsMargins(6, 3, 4, 3);
     headerLayout->setSpacing(4);
 
-    auto* titleLabel = new QLabel("Strategies", header);
-    titleLabel->setStyleSheet("color: #AAAAAA; font-size: 11px; font-weight: bold;");
-    headerLayout->addWidget(titleLabel, 1);
+    m_titleLabel = new QLabel("Strategies", header);
+    m_titleLabel->setStyleSheet("color: #AAAAAA; font-size: 11px; font-weight: bold;");
+    headerLayout->addWidget(m_titleLabel, 1);
 
-    auto* loadButton = new QPushButton("⊕ Load", header);
-    loadButton->setFixedHeight(20);
-    loadButton->setStyleSheet("QPushButton { background-color: #3A5A3A; color: #88DD88; border: 1px solid #4A7A4A;"
-                              "              font-size: 10px; padding: 0 6px; border-radius: 2px; }"
-                              "QPushButton:hover { background-color: #4A7A4A; }");
-    loadButton->setToolTip("Load a strategy executable");
-    headerLayout->addWidget(loadButton);
-    connect(loadButton, &QPushButton::clicked, this, &StrategyQuickView::onLoadButtonClicked);
+    m_loadButton = new QPushButton("⊕ Load", header);
+    m_loadButton->setFixedHeight(20);
+    m_loadButton->setStyleSheet("QPushButton { background-color: #3A5A3A; color: #88DD88; border: 1px solid #4A7A4A;"
+                                "              font-size: 10px; padding: 0 6px; border-radius: 2px; }"
+                                "QPushButton:hover { background-color: #4A7A4A; }");
+    m_loadButton->setToolTip("Load a strategy executable");
+    headerLayout->addWidget(m_loadButton);
+    connect(m_loadButton, &QPushButton::clicked, this, &StrategyQuickView::onLoadButtonClicked);
 
     layout->addWidget(header);
 
@@ -147,6 +198,9 @@ void StrategyQuickView::setupStyles()
 
 void StrategyQuickView::onStrategyLoaded(const QString& strategyID, const QString& name)
 {
+    if (m_displayMode == DisplayMode::ReviewSymbols)
+        return;
+
     if (m_strategyItems.contains(strategyID))
         return;
 
@@ -165,6 +219,9 @@ void StrategyQuickView::onStrategyLoaded(const QString& strategyID, const QStrin
 
 void StrategyQuickView::onStrategyUnloaded(const QString& strategyID)
 {
+    if (m_displayMode == DisplayMode::ReviewSymbols)
+        return;
+
     auto it = m_strategyItems.find(strategyID);
     if (it == m_strategyItems.end())
         return;
@@ -176,6 +233,9 @@ void StrategyQuickView::onStrategyUnloaded(const QString& strategyID)
 
 void StrategyQuickView::onStrategyStatusChanged(const QString& strategyID, bool isRunning, const QString& errorMessage)
 {
+    if (m_displayMode == DisplayMode::ReviewSymbols)
+        return;
+
     auto it = m_strategyItems.find(strategyID);
     if (it == m_strategyItems.end())
         return;
@@ -196,6 +256,9 @@ void StrategyQuickView::onStrategyStatusChanged(const QString& strategyID, bool 
 
 void StrategyQuickView::onSymbolsClaimed(const QString& strategyID, const QStringList& claimedSymbols)
 {
+    if (m_displayMode == DisplayMode::ReviewSymbols)
+        return;
+
     auto it = m_strategyItems.find(strategyID);
     if (it == m_strategyItems.end())
         return;
@@ -235,6 +298,9 @@ void StrategyQuickView::updateSymbolChildren(QTreeWidgetItem* strategyItem, cons
 
 void StrategyQuickView::onLoadButtonClicked()
 {
+    if (m_displayMode == DisplayMode::ReviewSymbols)
+        return;
+
     if (!m_mainAlgo)
         return;
 
@@ -253,6 +319,9 @@ void StrategyQuickView::onLoadButtonClicked()
 
 void StrategyQuickView::onRefreshPositions()
 {
+    if (m_displayMode == DisplayMode::ReviewSymbols)
+        return;
+
     if (!m_mainAlgo)
         return;
 
@@ -305,6 +374,9 @@ void StrategyQuickView::onRefreshPositions()
 
 void StrategyQuickView::onContextMenuRequested(const QPoint& pos)
 {
+    if (m_displayMode == DisplayMode::ReviewSymbols)
+        return;
+
     if (!m_mainAlgo)
         return;
 

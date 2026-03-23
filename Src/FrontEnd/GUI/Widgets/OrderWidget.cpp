@@ -167,6 +167,13 @@ void OrderWidget::setupStyles()
                                "}");
 }
 
+void OrderWidget::setReviewModeEnabled(const bool p_enabled)
+{
+    m_reviewModeEnabled = p_enabled;
+    m_cancelAllOrdersButton->setEnabled(!p_enabled);
+    m_cancelAllOrdersButton->setText(p_enabled ? "Read-Only" : "Cancel All");
+}
+
 void OrderWidget::updateOrder(const QString& account, const Order& order)
 {
     L2T_TP(l2trader, gui_order_widget_update);
@@ -519,6 +526,11 @@ void OrderWidget::onSymbolClicked(const QModelIndex& index)
 
 void OrderWidget::onCustomContextMenuRequested(const QPoint& p_pos)
 {
+    if (m_reviewModeEnabled)
+    {
+        return;
+    }
+
     const QModelIndex index = m_tableView->indexAt(p_pos);
     if (!index.isValid())
     {

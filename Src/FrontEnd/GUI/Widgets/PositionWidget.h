@@ -33,6 +33,8 @@ class PositionWidget : public QWidget
     /// Clear all positions from the table
     void clearAllPositions();
 
+    void setReviewModeEnabled(bool p_enabled);
+
   signals:
     /// Emitted when user clicks on a symbol in the table
     /// @param symbol Stock symbol that was clicked
@@ -58,6 +60,7 @@ class PositionWidget : public QWidget
     QWidget* m_headerWidget;
     QLabel* headerLabel;
     QPushButton* m_closeAllPositionsButton;
+    bool m_reviewModeEnabled = false;
 
     // Map to keep track of positions by their ID for updates
     QMap<QString, int> positionRowMap; // Maps positionID to row index

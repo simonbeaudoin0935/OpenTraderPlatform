@@ -29,6 +29,8 @@ class OrderWidget : public QWidget
     /// Clear all orders from the table
     void clearAllOrders();
 
+    void setReviewModeEnabled(bool p_enabled);
+
   public:
     /// Get list of all order IDs currently displayed
     /// @return List of order ID strings
@@ -64,6 +66,7 @@ class OrderWidget : public QWidget
     QWidget* m_headerWidget;
     QLabel* m_headerLabel;
     QPushButton* m_cancelAllOrdersButton;
+    bool m_reviewModeEnabled = false;
 
     // Map to keep track of orders by their ID for updates
     QMap<QString, int> m_orderRowMap; // Maps orderID to row index

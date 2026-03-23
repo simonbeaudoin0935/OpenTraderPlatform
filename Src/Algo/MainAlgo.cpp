@@ -442,7 +442,7 @@ void MainAlgo::onSelectDisplayedStock(const QString& symbol)
             if (!DBClient::getInstance()->addReplaySymbol(symbol))
                 WARNING << "No replay data for" << symbol << "- live bars will not flow";
         }
-        else
+        else if (!MainApp::isInReviewMode())
         {
             auto* dbClient = DBClient::getInstance();
             if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)
@@ -2199,6 +2199,12 @@ void MainAlgo::startReplayOrderStreams()
 
 void MainAlgo::resumeLiveStreams()
 {
+    if (MainApp::isInReviewMode())
+    {
+        INFO << "Skipping live-stream resume while review mode is active";
+        return;
+    }
+
     INFO << "Resuming live streams after replay mode";
 
     // Receivers exist but their streams were stopped in pauseLiveStreams
@@ -2222,6 +2228,12 @@ void MainAlgo::resumeLiveStreams()
     future.then(this,
                 [this](std::expected<QVector<Account>, TSClient::Error> results)
                 {
+                    if (MainApp::isInReviewMode())
+                    {
+                        INFO << "Discarding live account refresh because review mode became active";
+                        return;
+                    }
+
                     if (!results.has_value())
                     {
                         CRITICAL << "Failed to fetch accounts after replay mode";
@@ -2448,7 +2460,7 @@ void MainAlgo::createAndSetDisplayedSymbolContext(const QString& p_symbol)
         if (!DBClient::getInstance()->addReplaySymbol(p_symbol))
             WARNING << "No replay data for" << p_symbol << "- live bars will not flow";
     }
-    else
+    else if (!MainApp::isInReviewMode())
     {
         auto* dbClient = DBClient::getInstance();
         if (dbClient->getConnectionState() == DBClient::ConnectionState::Connected)

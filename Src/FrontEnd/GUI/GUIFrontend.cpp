@@ -5,6 +5,7 @@
 #include <QMessageBox>
 #include <QPalette>
 #include <QApplication>
+#include <QComboBox>
 #include <QScreen>
 #include <QWindow>
 #include <QShortcut>
@@ -37,6 +38,8 @@
 #include "WindowManager/WindowManager.h"
 #include "ChartWindow/ChartWindow.h"
 #include "Core/PlatformControlProtocol.h"
+#include "Core/OrdersDatabase.h"
+#include "Core/PositionsDatabase.h"
 #include "Misc/Logging/Logging.h"
 #include "Misc/Settings.h"
 #include "Misc/ShortcutSettings.h"
@@ -46,6 +49,7 @@
 #include "BarUtils.h"
 #include "CONSTANTS.h"
 #include <QInputDialog>
+#include <QSet>
 
 #define LOGGING_CATEGORY GUIFrontendLog
 
@@ -448,12 +452,17 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
     m_replayControlsBar->setVisible(false); // hidden until replay mode is entered
     ui->topControlsLayout->insertWidget(6, m_replayControlsBar);
 
+    m_reviewSessionBar = new ReviewSessionBar(m_mainWindow);
+    Q_CHECK_PTR(m_reviewSessionBar);
+    m_reviewSessionBar->setVisible(false);
+    ui->topControlsLayout->insertWidget(7, m_reviewSessionBar);
+
     // Connect chart to replay controls bar so chart slots respond to user input
     ui->priceChart->connectReplayControls(m_replayControlsBar);
 
     // Add spacer to push mode labels to the right
     auto* rightSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
-    ui->topControlsLayout->insertSpacerItem(7, rightSpacer);
+    ui->topControlsLayout->insertSpacerItem(8, rightSpacer);
 
     // Create tristate trading-mode indicator (right side: LIVE / SIM / REPLAY pills)
     bool isSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
@@ -475,6 +484,11 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                     MainApp::getInstance()->exitReplayMode();
                     return;
                 }
+                if (MainApp::isInReviewMode() && MainApp::getTradingMode() == TradingMode::Live)
+                {
+                    MainApp::getInstance()->exitReviewMode();
+                    return;
+                }
 
                 QString warning =
                     MainApp::isInReplayMode()
@@ -491,6 +505,10 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                           QMessageBox::No);
                 if (reply == QMessageBox::Yes)
                 {
+                    if (MainApp::isInReviewMode())
+                    {
+                        MainApp::getInstance()->exitReviewMode();
+                    }
                     MainApp::setTradingMode(TradingMode::Live);
                     MainApp::restartApplication();
                 }
@@ -507,6 +525,11 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                     MainApp::getInstance()->exitReplayMode();
                     return;
                 }
+                if (MainApp::isInReviewMode() && MainApp::getTradingMode() == TradingMode::Sim)
+                {
+                    MainApp::getInstance()->exitReviewMode();
+                    return;
+                }
 
                 QString detail =
                     MainApp::isInReplayMode()
@@ -521,6 +544,10 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                                           QMessageBox::No);
                 if (reply == QMessageBox::Yes)
                 {
+                    if (MainApp::isInReviewMode())
+                    {
+                        MainApp::getInstance()->exitReviewMode();
+                    }
                     MainApp::setTradingMode(TradingMode::Sim);
                     MainApp::restartApplication();
                 }
@@ -531,6 +558,10 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             this,
             [this]()
             {
+                if (MainApp::isInReviewMode())
+                {
+                    MainApp::getInstance()->exitReviewMode();
+                }
                 m_replayControlsBar->scanAndPopulateReplayDays();
                 if (!m_replayControlsBar->getSelectedReplayDay().isValid())
                 {
@@ -573,6 +604,55 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             &TradingModeBar::replayExitRequested,
             this,
             []() { MainApp::getInstance()->exitReplayMode(); });
+
+    connect(m_tradingModeBar,
+            &TradingModeBar::reviewRequested,
+            this,
+            [this]()
+            {
+                if (MainApp::isInReplayMode())
+                {
+                    MainApp::getInstance()->exitReplayMode();
+                }
+
+                m_reviewSessionBar->scanAndPopulateSessions();
+                const QString sessionId = m_reviewSessionBar->getSelectedSessionId();
+                if (sessionId.isEmpty())
+                {
+                    QMessageBox::warning(nullptr,
+                                         "No Review Sessions",
+                                         "No migrated replay ledgers were found for Review mode.");
+                    return;
+                }
+
+                MainApp::getInstance()->enterReviewMode(sessionId);
+            });
+
+    connect(m_reviewSessionBar->sessionComboBox(),
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            [this](const int index)
+            {
+                if (index < 0)
+                {
+                    return;
+                }
+
+                const QString sessionId = m_reviewSessionBar->getSelectedSessionId();
+                if (sessionId.isEmpty())
+                {
+                    return;
+                }
+
+                saveReviewState(MainApp::isInReviewMode(), sessionId);
+                if (!MainApp::isInReviewMode() || MainApp::getReviewSessionId() == sessionId)
+                {
+                    return;
+                }
+
+                MainApp::getInstance()->exitReviewMode();
+                MainApp::getInstance()->enterReviewMode(sessionId);
+            });
 
     // Set up timer to update clock every second in LIVE mode
     m_timeUpdateTimer = new QTimer(this);
@@ -952,10 +1032,17 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                 qInfo(GUIFrontendLog) << "TS auth never fired — restoring state via fallback timer";
                 m_hasRestoredLastStock = true;
                 restoreLastDisplayedStock();
-                restoreReplayState();
+                restoreReviewState();
+                if (!MainApp::isInReviewMode())
+                {
+                    restoreReplayState();
+                }
                 // Restore strategies AFTER replay mode is set up (enterReplayMode posts
                 // stopAllStrategies via QueuedConnection; this queues behind it).
-                QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
+                if (!MainApp::isInReviewMode())
+                {
+                    QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
+                }
                 QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
             }
         });
@@ -1418,10 +1505,17 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated,
         {
             m_hasRestoredLastStock = true;
             restoreLastDisplayedStock();
-            restoreReplayState();
+            restoreReviewState();
+            if (!MainApp::isInReviewMode())
+            {
+                restoreReplayState();
+            }
             // Restore strategies AFTER replay mode is set up (enterReplayMode posts
             // stopAllStrategies via QueuedConnection; this queues behind it).
-            QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
+            if (!MainApp::isInReviewMode())
+            {
+                QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
+            }
             // Clear focus from the stock input after restore — it should not
             // have keyboard focus at startup (press 'i' to focus it explicitly)
             QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
@@ -1832,6 +1926,105 @@ void GUIFrontend::restoreReplayState()
     MainApp::getInstance()->enterReplayMode(savedDate, startTime, speed, m_pendingReplayEntrySymbol);
 }
 
+void GUIFrontend::saveReviewState(const bool active, const QString& sessionId)
+{
+    Q_CHECK_PTR(appStateSettings);
+    appStateSettings->setValue("Review/Active", active);
+    if (!sessionId.isEmpty())
+    {
+        appStateSettings->setValue("Review/SessionId", sessionId);
+    }
+    appStateSettings->sync();
+}
+
+void GUIFrontend::restoreReviewState()
+{
+    Q_CHECK_PTR(appStateSettings);
+
+    m_reviewSessionBar->scanAndPopulateSessions();
+    const QString savedSessionId = appStateSettings->value("Review/SessionId").toString();
+    if (!savedSessionId.isEmpty())
+    {
+        m_reviewSessionBar->setSelectedSessionId(savedSessionId);
+    }
+
+    if (!appStateSettings->value("Review/Active", false).toBool())
+    {
+        return;
+    }
+
+    const QString sessionId = m_reviewSessionBar->getSelectedSessionId();
+    if (sessionId.isEmpty())
+    {
+        qWarning() << "Saved review session is unavailable, skipping review restore";
+        return;
+    }
+
+    MainApp::getInstance()->enterReviewMode(sessionId);
+}
+
+void GUIFrontend::loadReviewSessionIntoWidgets()
+{
+    ui->orderWidget->clearAllOrders();
+    ui->positionWidget->clearAllPositions();
+    ui->level2Widget->clearData();
+    ui->timeAndSalesWidget->clearData();
+
+    QSet<QString> reviewSymbols;
+
+    OrdersDatabase* ordersDb = OrdersDatabase::getInstance();
+    if (ordersDb->isOpen())
+    {
+        const auto orders = ordersDb->loadAllOrders();
+        for (auto it = orders.constBegin(); it != orders.constEnd(); ++it)
+        {
+            const Order& order = std::get<0>(it.value());
+            ui->orderWidget->updateOrder(order.getAccountID(), order);
+            if (!order.getSymbol().isEmpty())
+            {
+                reviewSymbols.insert(order.getSymbol());
+            }
+        }
+    }
+
+    PositionsDatabase* positionsDb = PositionsDatabase::getInstance();
+    if (positionsDb->isOpen())
+    {
+        const QMap<QString, Position> positions = positionsDb->loadAllPositions();
+        for (auto it = positions.constBegin(); it != positions.constEnd(); ++it)
+        {
+            const Position& position = it.value();
+            ui->positionWidget->updatePosition(position.getAccountID(), position);
+            if (!position.getSymbol().isEmpty())
+            {
+                reviewSymbols.insert(position.getSymbol());
+            }
+        }
+    }
+
+    QStringList symbolList = reviewSymbols.values();
+    std::sort(symbolList.begin(), symbolList.end());
+    ui->strategyQuickView->setReviewSymbols(symbolList);
+
+    if (symbolList.isEmpty())
+    {
+        currentlyDisplayedSymbol.clear();
+        ui->stockSymbolInput->clear();
+        ui->priceChart->clearSymbol();
+        ui->orderEntryWidget->setSymbol(QString());
+        return;
+    }
+
+    QString symbolToDisplay = currentlyDisplayedSymbol;
+    if (!reviewSymbols.contains(symbolToDisplay))
+    {
+        symbolToDisplay = symbolList.first();
+    }
+
+    currentlyDisplayedSymbol.clear();
+    displayStock(symbolToDisplay);
+}
+
 void GUIFrontend::saveMainWindowGeometry()
 {
     Q_CHECK_PTR(appStateSettings);
@@ -1884,6 +2077,12 @@ void GUIFrontend::restoreMainWindowGeometry()
 
 void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order)
 {
+    if (MainApp::isInReviewMode())
+    {
+        QMessageBox::information(nullptr, "Review Mode", "Order placement is disabled while Review mode is active.");
+        return;
+    }
+
     qInfo() << "Placing order:" << order.toJsonString();
 
     // Submit order to TSClient
@@ -2086,6 +2285,12 @@ void GUIFrontend::onToggleReplayMode()
 
 void GUIFrontend::onCancelAllOrders()
 {
+    if (MainApp::isInReviewMode())
+    {
+        QMessageBox::information(nullptr, "Review Mode", "Order cancellation is disabled while Review mode is active.");
+        return;
+    }
+
     // Get only cancellable order IDs from the order window (filters by status)
     QStringList orderIds = ui->orderWidget->getCancellableOrderIds();
 
@@ -2142,6 +2347,12 @@ void GUIFrontend::onCancelAllOrders()
 
 void GUIFrontend::onCloseAllPositions()
 {
+    if (MainApp::isInReviewMode())
+    {
+        QMessageBox::information(nullptr, "Review Mode", "Position closing is disabled while Review mode is active.");
+        return;
+    }
+
     const QString selectedAccountId = getSelectedAccountId();
     if (selectedAccountId.isEmpty())
     {
@@ -2166,6 +2377,12 @@ void GUIFrontend::onCloseAllPositions()
 
 void GUIFrontend::onClosePosition(const QString& p_positionID)
 {
+    if (MainApp::isInReviewMode())
+    {
+        QMessageBox::information(nullptr, "Review Mode", "Position closing is disabled while Review mode is active.");
+        return;
+    }
+
     QVector<Position> positions;
     const bool invoked = QMetaObject::invokeMethod(
         mainAlgo,
@@ -2687,9 +2904,54 @@ void GUIFrontend::onReplayModeExited()
     updateTimeDisplay();
 }
 
+void GUIFrontend::onReviewModeEntered()
+{
+    qCInfo(GUIFrontendLog) << "Review mode entered";
+
+    saveReviewState(true, MainApp::getReviewSessionId());
+
+    m_tradingModeBar->setActiveMode(TradingModeBar::Mode::Review);
+    m_replayControlsBar->setVisible(false);
+    m_reviewSessionBar->scanAndPopulateSessions();
+    m_reviewSessionBar->setSelectedSessionId(MainApp::getReviewSessionId());
+    m_reviewSessionBar->setVisible(true);
+
+    ui->orderEntryWidget->setReviewModeEnabled(true);
+    ui->orderWidget->setReviewModeEnabled(true);
+    ui->positionWidget->setReviewModeEnabled(true);
+    ui->strategyQuickView->setReviewModeEnabled(true);
+
+    loadReviewSessionIntoWidgets();
+    updateSessionLabel();
+    updateTimeDisplay();
+}
+
+void GUIFrontend::onReviewModeExited()
+{
+    qCInfo(GUIFrontendLog) << "Review mode exited";
+
+    saveReviewState(false);
+
+    const bool inSimMode = (MainApp::getTradingMode() == TradingMode::Sim);
+    m_tradingModeBar->setActiveMode(inSimMode ? TradingModeBar::Mode::Sim : TradingModeBar::Mode::Live);
+    m_reviewSessionBar->setVisible(false);
+
+    ui->orderEntryWidget->setReviewModeEnabled(false);
+    ui->orderWidget->setReviewModeEnabled(false);
+    ui->positionWidget->setReviewModeEnabled(false);
+    ui->strategyQuickView->setReviewModeEnabled(false);
+    ui->strategyQuickView->setReviewSymbols({});
+
+    ui->level2Widget->clearData();
+    ui->timeAndSalesWidget->clearData();
+
+    updateSessionLabel();
+    updateTimeDisplay();
+}
+
 void GUIFrontend::onTradingModeConfigured(const TradingMode p_mode)
 {
-    if (MainApp::isInReplayMode())
+    if (MainApp::isInReplayMode() || MainApp::isInReviewMode())
     {
         return;
     }

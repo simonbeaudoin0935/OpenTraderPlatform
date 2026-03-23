@@ -164,11 +164,12 @@ Bars use **open-time** (Databento native):
 
 #### Trading Modes
 
-| Mode | Market Data | Order Execution | Database |
-|------|-------------|----------------|----------|
-| **Live** | Databento live stream | TradeStation real API | `Orders/Live/Orders.db` |
-| **Simulation** | Databento live stream | TradeStation sim API (`sim-api`) | `Orders/Simulation/Orders.db` |
-| **Replay** | Local `.dbn.zst` files | OrderEmulator (local) | `Orders/Replay/Orders_YYYY-MM-DD_HHMMSS.db` |
+| Mode | Market Data | Order Execution | Ledger |
+|------|-------------|----------------|--------|
+| **Live** | Databento live stream | TradeStation real API | `Ledgers/Live/Ledger.db` |
+| **Simulation** | Databento live stream | TradeStation sim API (`sim-api`) | `Ledgers/Simulation/Ledger.db` |
+| **Replay** | Local `.dbn.zst` files | OrderEmulator (local) | `Ledgers/Replay/Ledger_YYYY-MM-DD_HHMMSS.db` |
+| **Review** | None (ledger-only inspection) | Disabled / read-only | `Ledgers/Replay/Ledger_YYYY-MM-DD_HHMMSS.db` |
 
 #### Threading Summary
 

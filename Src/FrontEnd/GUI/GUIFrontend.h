@@ -17,6 +17,7 @@
 #include "Misc/ShortcutSettings.h"
 #include "Misc/TimeFrame.h"
 #include "Widgets/ReplayControlsBar/ReplayControlsBar.h"
+#include "Widgets/ReviewSessionBar/ReviewSessionBar.h"
 #include "Widgets/TradingModeBar/TradingModeBar.h"
 
 // Forward declarations
@@ -55,6 +56,8 @@ class GUIFrontend : public FrontEnd
     void onReplayModeExited() override;
     void onReplayConfigurationChanged(const QDate& date, const QTime& startTime, Playback::Speed speed) override;
     void onReplayPlaybackStateChanged(Playback::State state) override;
+    void onReviewModeEntered() override;
+    void onReviewModeExited() override;
     void onTradingModeConfigured(TradingMode mode);
 
   public:
@@ -96,6 +99,9 @@ class GUIFrontend : public FrontEnd
     void restoreLastDisplayedStock();
     void saveReplayState(bool active, const QDate& date = QDate(), const QTime& startTime = QTime());
     void restoreReplayState();
+    void saveReviewState(bool active, const QString& sessionId = QString());
+    void restoreReviewState();
+    void loadReviewSessionIntoWidgets();
     void saveMainWindowGeometry();
     void restoreMainWindowGeometry();
     QString formatAccountInfo(const Account& account) const;
@@ -159,6 +165,7 @@ class GUIFrontend : public FrontEnd
     TradingModeBar* m_tradingModeBar = nullptr; // LIVE / SIM / REPLAY tristate mode indicator
 
     ReplayControlsBar* m_replayControlsBar = nullptr; // Replay controls in top toolbar
+    ReviewSessionBar* m_reviewSessionBar = nullptr;   // Review session selector in top toolbar
     DownloadsTab* m_downloadsTab = nullptr;           // Replay downloads tab
     WindowManager* m_windowManager = nullptr;         // Manages secondary chart windows
 

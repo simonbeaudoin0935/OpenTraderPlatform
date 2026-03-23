@@ -60,4 +60,8 @@ class FrontEnd : public QObject
     virtual void onReplayModeExited() = 0;
     virtual void onReplayConfigurationChanged(const QDate& date, const QTime& startTime, Playback::Speed speed) = 0;
     virtual void onReplayPlaybackStateChanged(Playback::State state) = 0;
+
+    // Review mode notifications
+    virtual void onReviewModeEntered() = 0;
+    virtual void onReviewModeExited() = 0;
 };

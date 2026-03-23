@@ -45,11 +45,13 @@ enum class TradingSession : quint8
  *
  * Indicates whether data comes from live TradeStation streams or recorded replay data.
  * Replay mode has sub-states (stopped/playing/paused) managed by DBClient.
+ * Review mode is read-only and inspects persisted replay ledgers without playback.
  */
 enum class DataSourceMode : quint8
 {
-    Live,  ///< Connected to live TradeStation streams
-    Replay ///< Using recorded replay data
+    Live,   ///< Connected to live TradeStation streams
+    Replay, ///< Using recorded replay data
+    Review  ///< Using a persisted replay ledger in strict read-only mode
 };
 
 class MainApp
@@ -81,12 +83,14 @@ class MainApp
      * @return true if data source is Replay (regardless of playback state)
      */
     [[nodiscard]] static bool isInReplayMode();
+    [[nodiscard]] static bool isInReviewMode();
 
     /**
      * @brief Get the current data source mode
-     * @return Current DataSourceMode (Live or Replay)
+     * @return Current DataSourceMode (Live, Replay, or Review)
      */
     [[nodiscard]] static DataSourceMode getDataSourceMode();
+    [[nodiscard]] static QString getReviewSessionId();
 
     static QDateTime getCurrentAppTime();
 
@@ -209,6 +213,17 @@ class MainApp
      */
     void preloadChartForReplay(QDate p_date, QTime p_startTime, Playback::Speed p_speed);
 
+    /**
+     * @brief Enter review mode for a persisted replay ledger session.
+     * @param p_sessionId Replay session timestamp identifying Ledger_<session>.db
+     */
+    void enterReviewMode(const QString& p_sessionId);
+
+    /**
+     * @brief Exit review mode and resume live operation.
+     */
+    void exitReviewMode();
+
 
   private:
     MainApp();
@@ -224,4 +239,5 @@ class MainApp
     MemoryMonitor memoryMonitor;
     std::unique_ptr<PlatformControlServer> m_platformControlServer;
     QString m_symbolBeforeReplay;
+    QString m_activeReviewSessionId;
 };

@@ -7,6 +7,8 @@
 #include <QTimer>
 
 class MainAlgo;
+class QLabel;
+class QPushButton;
 
 /// @brief Compact live view of active strategies and their claimed symbols.
 /// Displays a collapsible tree: strategy nodes (root) → symbol nodes (children).
@@ -30,6 +32,8 @@ class StrategyQuickView : public QWidget
 
     /// @brief Provide access to MainAlgo for position data and context-menu actions.
     void setMainAlgo(MainAlgo* p_mainAlgo);
+    void setReviewModeEnabled(bool p_enabled);
+    void setReviewSymbols(const QStringList& p_symbols);
 
   signals:
     /// @brief Emitted when user clicks a symbol node in the tree.
@@ -63,9 +67,18 @@ class StrategyQuickView : public QWidget
     void onContextMenuRequested(const QPoint& pos);
 
   private:
+    enum class DisplayMode
+    {
+        Strategies,
+        ReviewSymbols
+    };
+
     QTreeWidget* m_tree;
     MainAlgo* m_mainAlgo{nullptr};
     QTimer* m_positionTimer;
+    QLabel* m_titleLabel = nullptr;
+    QPushButton* m_loadButton = nullptr;
+    DisplayMode m_displayMode = DisplayMode::Strategies;
 
     /// strategyID → top-level QTreeWidgetItem (strategy node)
     QMap<QString, QTreeWidgetItem*> m_strategyItems;

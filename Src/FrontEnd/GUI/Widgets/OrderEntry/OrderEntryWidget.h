@@ -45,6 +45,8 @@ class OrderEntryWidget : public QWidget
         return m_cancelAllConfirmationEnabled;
     }
 
+    void setReviewModeEnabled(bool p_enabled);
+
   public slots:
     /// Update available accounts list
     /// @param accounts List of trading accounts to populate dropdown

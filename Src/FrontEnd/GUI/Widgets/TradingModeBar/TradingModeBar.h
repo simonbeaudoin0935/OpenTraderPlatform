@@ -6,16 +6,17 @@
 
 /**
  * @class TradingModeBar
- * @brief A tristate mode indicator showing LIVE, SIM, and REPLAY as clickable pills.
+ * @brief A mode indicator showing LIVE, SIM, REPLAY, and REVIEW as clickable pills.
  *
  * The active mode is highlighted green; the other two are rendered in a muted grey.
  * Clicking a grey pill triggers the corresponding mode switch (SIM↔LIVE requires
  * restart; REPLAY enters/exits replay mode).
  *
- * Three modes are represented:
+ * Four modes are represented:
  *  - LIVE   → TradingMode::Live + not in replay
  *  - SIM    → TradingMode::Sim  + not in replay
  *  - REPLAY → any TradingMode   + in replay
+ *  - REVIEW → read-only inspection of a persisted replay ledger
  */
 class TradingModeBar : public QWidget
 {
@@ -26,7 +27,8 @@ class TradingModeBar : public QWidget
     {
         Live,
         Sim,
-        Replay
+        Replay,
+        Review
     };
 
     explicit TradingModeBar(QWidget* parent = nullptr);
@@ -62,10 +64,17 @@ class TradingModeBar : public QWidget
      */
     void replayExitRequested();
 
+    /**
+     * @brief Emitted when the user clicks the REVIEW pill while not in REVIEW mode.
+     * Thread context: Emitted from Main/GUI thread
+     */
+    void reviewRequested();
+
   private:
     QPushButton* m_liveBtn;
     QPushButton* m_simBtn;
     QPushButton* m_replayBtn;
+    QPushButton* m_reviewBtn;
 
     Mode m_activeMode = Mode::Live;
 

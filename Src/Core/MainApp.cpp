@@ -67,9 +67,19 @@ bool MainApp::isInReplayMode()
     return m_dataSourceMode == DataSourceMode::Replay;
 }
 
+bool MainApp::isInReviewMode()
+{
+    return m_dataSourceMode == DataSourceMode::Review;
+}
+
 DataSourceMode MainApp::getDataSourceMode()
 {
     return m_dataSourceMode;
+}
+
+QString MainApp::getReviewSessionId()
+{
+    return m_instance != nullptr ? m_instance->m_activeReviewSessionId : QString();
 }
 
 namespace
@@ -94,6 +104,8 @@ namespace
     {
         switch (p_mode)
         {
+        case DataSourceMode::Review:
+            return "review";
         case DataSourceMode::Replay:
             return "replay";
         case DataSourceMode::Live:
@@ -171,6 +183,13 @@ namespace
             return QJsonValue(QJsonValue::Null);
         }
         return p_value.value();
+    }
+
+    [[nodiscard]] bool isMutatingControlCommand(const QString& p_command)
+    {
+        return p_command == PlatformControlProtocol::kCommandPlaceOrder ||
+               p_command == PlatformControlProtocol::kCommandCancelOrder ||
+               p_command == PlatformControlProtocol::kCommandClosePositions;
     }
 
     [[nodiscard]] QJsonObject serializeBar(const Bar& p_bar)
@@ -1726,6 +1745,75 @@ void MainApp::exitReplayMode()
     qInfo() << "Replay mode exited, live mode resumed";
 }
 
+void MainApp::enterReviewMode(const QString& p_sessionId)
+{
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Live && "enterReviewMode called when not in live mode");
+    ASSUME_FALSE(p_sessionId.isEmpty());
+
+    qInfo() << "Entering review mode for session" << p_sessionId;
+
+    m_activeReviewSessionId = p_sessionId;
+    m_dataSourceMode = DataSourceMode::Review;
+
+    QMetaObject::invokeMethod(
+        mainAlgo,
+        [this]()
+        {
+            mainAlgo->stopAllStrategies();
+            mainAlgo->pauseLiveStreams();
+            mainAlgo->deleteAllSymbolContext();
+        },
+        Qt::BlockingQueuedConnection);
+
+    OrdersDatabase::destroyInstance();
+    PositionsDatabase::destroyInstance();
+
+    appFrontend->onReviewModeEntered();
+
+    qInfo() << "Review mode entered";
+}
+
+void MainApp::exitReviewMode()
+{
+    ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Review && "exitReviewMode called when not in review mode");
+
+    qInfo() << "Exiting review mode";
+
+    const QString displayedSymbol = mainAlgo->getDisplayedSymbol();
+
+    QMetaObject::invokeMethod(mainAlgo, [this]() { mainAlgo->deleteAllSymbolContext(); }, Qt::BlockingQueuedConnection);
+
+    m_dataSourceMode = DataSourceMode::Live;
+
+    OrdersDatabase::destroyInstance();
+    PositionsDatabase::destroyInstance();
+
+    QMetaObject::invokeMethod(
+        mainAlgo,
+        [this, displayedSymbol]()
+        {
+            if (MainApp::getDataSourceMode() != DataSourceMode::Live)
+            {
+                qInfo()
+                    << "Skipping live-stream restore because data source mode changed before queued restore executed";
+                return;
+            }
+
+            mainAlgo->resumeLiveStreams();
+
+            if (!displayedSymbol.isEmpty())
+            {
+                mainAlgo->createAndSetDisplayedSymbolContext(displayedSymbol);
+            }
+        },
+        Qt::QueuedConnection);
+
+    appFrontend->onReviewModeExited();
+    m_activeReviewSessionId.clear();
+
+    qInfo() << "Review mode exited";
+}
+
 void MainApp::startReplayPlayback(QDate p_date, QTime p_startTime, Playback::Speed p_speed)
 {
     ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Replay && "startReplayPlayback called when not in replay mode");
@@ -1805,6 +1893,8 @@ QJsonObject MainApp::getControlStatus() const
     status["activeAccountId"] = activeAccountId.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(activeAccountId);
     status["replayState"] = replayStateToString(replayState);
     status["replayPaused"] = isReplayPaused();
+    status["reviewSessionId"] =
+        m_activeReviewSessionId.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(m_activeReviewSessionId);
     status["currentAppTime"] = getCurrentAppTime().toString(Qt::ISODateWithMs);
     status["currentReplayTime"] =
         isInReplayMode() ? QJsonValue(currentAppReplayTime.toString(Qt::ISODateWithMs)) : QJsonValue(QJsonValue::Null);
@@ -1843,6 +1933,14 @@ QJsonObject MainApp::handleControlRequest(const QJsonObject& p_request)
     if (command == PlatformControlProtocol::kCommandStatus)
     {
         return makeControlResponse(true, "Platform status retrieved.", getControlStatus());
+    }
+
+    if (isInReviewMode() && isMutatingControlCommand(command))
+    {
+        return makeControlResponse(false,
+                                   "Platform control request rejected.",
+                                   {},
+                                   QString("Command '%1' is unavailable while Review mode is active").arg(command));
     }
 
     if (command == PlatformControlProtocol::kCommandGetDisplayedSymbol)

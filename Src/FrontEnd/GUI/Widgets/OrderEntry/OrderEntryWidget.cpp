@@ -14,6 +14,7 @@
 #include "Assume.h"
 #include "TSClient.h"
 #include "MainAlgo.h"
+#include "Core/MainApp.h"
 
 OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     : QWidget(p_parent)
@@ -58,6 +59,29 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
 OrderEntryWidget::~OrderEntryWidget()
 {
     // Qt will handle deletion of child widgets
+}
+
+void OrderEntryWidget::setReviewModeEnabled(const bool p_enabled)
+{
+    const bool interactive = !p_enabled;
+    m_buyRadio->setEnabled(interactive);
+    m_buyToCoverRadio->setEnabled(interactive);
+    m_sellRadio->setEnabled(interactive);
+    m_sellToCoverRadio->setEnabled(interactive);
+    m_orderTypeCombo->setEnabled(interactive);
+    m_quantityInput->setEnabled(interactive);
+    m_limitPriceInput->setEnabled(interactive);
+    m_stopPriceInput->setEnabled(interactive);
+    m_durationCombo->setEnabled(interactive);
+    m_submitButton->setEnabled(interactive);
+    m_stickyCheckBox->setEnabled(interactive);
+    m_aggressiveRadio->setEnabled(interactive);
+    m_passiveRadio->setEnabled(interactive);
+    m_stickyOffsetInput->setEnabled(interactive);
+    m_settingsButton->setEnabled(interactive);
+
+    m_headerLabel->setText(p_enabled ? "ORDER ENTRY (READ-ONLY)" : "ORDER ENTRY");
+    m_submitButton->setText(p_enabled ? "Review Mode" : "Submit Order");
 }
 
 void OrderEntryWidget::setupUI()
@@ -615,6 +639,12 @@ void OrderEntryWidget::updatePriceFieldsVisibility()
 
 bool OrderEntryWidget::validateInputs()
 {
+    if (MainApp::isInReviewMode())
+    {
+        QMessageBox::information(this, "Review Mode", "Order entry is disabled while Review mode is active.");
+        return false;
+    }
+
     // Check GUIFrontend reference
     OBJ_ASSUME_TRUE(m_guiFrontend);
 

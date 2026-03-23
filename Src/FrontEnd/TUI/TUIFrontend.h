@@ -43,6 +43,8 @@ class TUIFrontend : public FrontEnd
     void onReplayModeExited() override;
     void onReplayConfigurationChanged(const QDate& date, const QTime& startTime, Playback::Speed speed) override;
     void onReplayPlaybackStateChanged(Playback::State state) override;
+    void onReviewModeEntered() override;
+    void onReviewModeExited() override;
 
   private slots:
     void handleInput();
