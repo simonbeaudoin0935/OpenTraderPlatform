@@ -128,3 +128,35 @@ database is a no-op.
 
 - `sqlite3` command-line tool (SQLite 3.38+ for `json_valid` / `json_extract`)
 - Bash shell
+
+## migrate_split_ledgers_to_combined.sh
+
+Migrates the legacy split trading ledgers:
+
+- `Orders/...`
+- `Positions/...`
+
+into the new combined layout:
+
+- `Ledgers/Live/Ledger.db`
+- `Ledgers/Simulation/Ledger.db`
+- `Ledgers/Replay/Ledger_<timestamp>.db`
+
+The script performs basic verification by comparing source and destination row
+counts for `orders`, `positions`, and `strategy_logs`, then deletes the legacy
+pair only after the combined ledger has been created successfully.
+
+### Usage
+
+```bash
+# Migrate the default L2Trader data directory
+./migrate_split_ledgers_to_combined.sh
+
+# Migrate a custom data root
+./migrate_split_ledgers_to_combined.sh ~/.local/share/L2Trader
+```
+
+### Requirements
+
+- `sqlite3` command-line tool
+- Bash shell
