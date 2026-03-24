@@ -222,7 +222,7 @@ class MainApp
     /**
      * @brief Exit review mode and resume live operation.
      */
-    void exitReviewMode();
+    void exitReviewMode(bool p_restoreLiveState = true);
 
 
   private:

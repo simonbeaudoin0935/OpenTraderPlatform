@@ -1773,7 +1773,7 @@ void MainApp::enterReviewMode(const QString& p_sessionId)
     qInfo() << "Review mode entered";
 }
 
-void MainApp::exitReviewMode()
+void MainApp::exitReviewMode(const bool p_restoreLiveState)
 {
     ASSUME_TRUE(m_dataSourceMode == DataSourceMode::Review && "exitReviewMode called when not in review mode");
 
@@ -1788,25 +1788,28 @@ void MainApp::exitReviewMode()
     OrdersDatabase::destroyInstance();
     PositionsDatabase::destroyInstance();
 
-    QMetaObject::invokeMethod(
-        mainAlgo,
-        [this, displayedSymbol]()
-        {
-            if (MainApp::getDataSourceMode() != DataSourceMode::Live)
+    if (p_restoreLiveState)
+    {
+        QMetaObject::invokeMethod(
+            mainAlgo,
+            [this, displayedSymbol]()
             {
-                qInfo()
-                    << "Skipping live-stream restore because data source mode changed before queued restore executed";
-                return;
-            }
+                if (MainApp::getDataSourceMode() != DataSourceMode::Live)
+                {
+                    qInfo()
+                        << "Skipping live-stream restore because data source mode changed before queued restore executed";
+                    return;
+                }
 
-            mainAlgo->resumeLiveStreams();
+                mainAlgo->resumeLiveStreams();
 
-            if (!displayedSymbol.isEmpty())
-            {
-                mainAlgo->createAndSetDisplayedSymbolContext(displayedSymbol);
-            }
-        },
-        Qt::QueuedConnection);
+                if (!displayedSymbol.isEmpty())
+                {
+                    mainAlgo->createAndSetDisplayedSymbolContext(displayedSymbol);
+                }
+            },
+            Qt::QueuedConnection);
+    }
 
     appFrontend->onReviewModeExited();
     m_activeReviewSessionId.clear();

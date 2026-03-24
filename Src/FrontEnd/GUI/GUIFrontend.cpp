@@ -560,7 +560,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
             {
                 if (MainApp::isInReviewMode())
                 {
-                    MainApp::getInstance()->exitReviewMode();
+                    MainApp::getInstance()->exitReviewMode(false);
                 }
                 m_replayControlsBar->scanAndPopulateReplayDays();
                 if (!m_replayControlsBar->getSelectedReplayDay().isValid())
@@ -650,7 +650,7 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : FrontEnd(paren
                     return;
                 }
 
-                MainApp::getInstance()->exitReviewMode();
+                MainApp::getInstance()->exitReviewMode(false);
                 MainApp::getInstance()->enterReviewMode(sessionId);
             });
 

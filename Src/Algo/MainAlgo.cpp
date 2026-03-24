@@ -2199,51 +2199,46 @@ void MainAlgo::startReplayOrderStreams()
 
 void MainAlgo::resumeLiveStreams()
 {
-    if (MainApp::isInReviewMode())
+    if (MainApp::getDataSourceMode() != DataSourceMode::Live)
     {
-        INFO << "Skipping live-stream resume while review mode is active";
+        INFO << "Skipping live-stream resume because the app is not in live mode";
         return;
     }
 
-    INFO << "Resuming live streams after replay mode";
+    INFO << "Resuming live streams while returning to live mode";
 
-    // Receivers exist but their streams were stopped in pauseLiveStreams
-    OBJ_ASSUME_DIFF(m_positionReceiver, nullptr);
-    OBJ_ASSUME_DIFF(m_orderReceiver, nullptr);
-
-    // Skip account fetch if not authenticated (e.g. replay-only without TS credentials)
+    // Skip account fetch if not authenticated (e.g. app launched directly into Review without TS credentials)
     if (!TSClient::getInstance()->isAuthenticated())
     {
-        INFO
-            << "Not authenticated with TradeStation — stopping balance polling and skipping account fetch after replay mode";
+        INFO << "Not authenticated with TradeStation — stopping balance polling and skipping live account fetch";
         stopBalancePolling();
         m_balancePollingStarted = false;
         return;
     }
 
-    // Fetch real accounts from API (replay mode uses fake "SIM123456")
-    INFO << "Fetching real accounts from API after replay mode";
+    // Fetch real accounts from API; replay mode uses fake "SIM123456", and Review may have no live receivers yet.
+    INFO << "Fetching real accounts from API while returning to live mode";
     QFuture<std::expected<QVector<Account>, TSClient::Error>> future = TSClient::getInstance()->getAccounts();
 
     future.then(this,
                 [this](std::expected<QVector<Account>, TSClient::Error> results)
                 {
-                    if (MainApp::isInReviewMode())
+                    if (MainApp::getDataSourceMode() != DataSourceMode::Live)
                     {
-                        INFO << "Discarding live account refresh because review mode became active";
+                        INFO << "Discarding live account refresh because the app left live mode";
                         return;
                     }
 
                     if (!results.has_value())
                     {
-                        CRITICAL << "Failed to fetch accounts after replay mode";
+                        CRITICAL << "Failed to fetch accounts while returning to live mode";
                         return;
                     }
 
                     QVector<Account> accounts = results.value();
                     if (accounts.isEmpty())
                     {
-                        CRITICAL << "No accounts returned after replay mode";
+                        CRITICAL << "No accounts returned while returning to live mode";
                         return;
                     }
 
@@ -2252,7 +2247,7 @@ void MainAlgo::resumeLiveStreams()
 
                     // Use first account as active (or find previous active if still exists)
                     m_activeAccount = accounts.first();
-                    INFO << "Using account" << m_activeAccount.getAccountId() << "after replay mode";
+                    INFO << "Using account" << m_activeAccount.getAccountId() << "after leaving replay/review mode";
 
                     // Delete and recreate receivers with real account
                     delete m_positionReceiver;
