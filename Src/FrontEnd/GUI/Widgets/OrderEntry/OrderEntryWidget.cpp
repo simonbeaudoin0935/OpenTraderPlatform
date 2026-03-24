@@ -48,12 +48,14 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     , m_cancelAllConfirmationEnabled(true) // Default to enabled
     , m_stickyEnabled(false)               // Default to disabled
     , m_stickyAggressiveMode(true)         // Default to aggressive
+    , m_reviewModeEnabled(false)
     , m_lastBestBid(0.0)
     , m_lastBestAsk(0.0)
     , m_guiFrontend(nullptr)
 {
     setupUI();
     setupStyles();
+    updateInteractivity();
 }
 
 OrderEntryWidget::~OrderEntryWidget()
@@ -63,25 +65,59 @@ OrderEntryWidget::~OrderEntryWidget()
 
 void OrderEntryWidget::setReviewModeEnabled(const bool p_enabled)
 {
-    const bool interactive = !p_enabled;
-    m_buyRadio->setEnabled(interactive);
-    m_buyToCoverRadio->setEnabled(interactive);
-    m_sellRadio->setEnabled(interactive);
-    m_sellToCoverRadio->setEnabled(interactive);
-    m_orderTypeCombo->setEnabled(interactive);
-    m_quantityInput->setEnabled(interactive);
-    m_limitPriceInput->setEnabled(interactive);
-    m_stopPriceInput->setEnabled(interactive);
-    m_durationCombo->setEnabled(interactive);
-    m_submitButton->setEnabled(interactive);
-    m_stickyCheckBox->setEnabled(interactive);
-    m_aggressiveRadio->setEnabled(interactive);
-    m_passiveRadio->setEnabled(interactive);
-    m_stickyOffsetInput->setEnabled(interactive);
-    m_settingsButton->setEnabled(interactive);
+    m_reviewModeEnabled = p_enabled;
+    updateInteractivity();
+}
 
-    m_headerLabel->setText(p_enabled ? "ORDER ENTRY (READ-ONLY)" : "ORDER ENTRY");
-    m_submitButton->setText(p_enabled ? "Review Mode" : "Submit Order");
+void OrderEntryWidget::updateInteractivity()
+{
+    const bool hasSymbol = !m_currentSymbol.isEmpty();
+    const bool controlsInteractive = !m_reviewModeEnabled && hasSymbol;
+    const bool hasAccounts = !m_accounts.isEmpty();
+
+    m_buyRadio->setEnabled(controlsInteractive);
+    m_buyToCoverRadio->setEnabled(controlsInteractive);
+    m_sellRadio->setEnabled(controlsInteractive);
+    m_sellToCoverRadio->setEnabled(controlsInteractive);
+    m_orderTypeCombo->setEnabled(controlsInteractive);
+    m_quantityInput->setEnabled(controlsInteractive);
+    m_limitPriceInput->setEnabled(controlsInteractive);
+    m_stopPriceInput->setEnabled(controlsInteractive);
+    m_durationCombo->setEnabled(controlsInteractive);
+    m_submitButton->setEnabled(controlsInteractive && hasAccounts);
+    m_stickyCheckBox->setEnabled(controlsInteractive);
+    m_aggressiveRadio->setEnabled(controlsInteractive);
+    m_passiveRadio->setEnabled(controlsInteractive);
+    m_stickyOffsetInput->setEnabled(controlsInteractive);
+    m_settingsButton->setEnabled(controlsInteractive);
+
+    if (m_reviewModeEnabled)
+    {
+        m_headerLabel->setText("ORDER ENTRY (READ-ONLY)");
+        m_submitButton->setText("Review Mode");
+        m_submitButton->setToolTip("Order entry is disabled while Review mode is active.");
+        return;
+    }
+
+    onTradeActionChanged(m_tradeActionGroup->checkedId());
+
+    if (!hasSymbol)
+    {
+        m_headerLabel->setText("ORDER ENTRY (NO SYMBOL)");
+        m_submitButton->setText("Select Symbol");
+        m_submitButton->setToolTip("Select a symbol before placing an order.");
+        return;
+    }
+
+    m_headerLabel->setText("ORDER ENTRY");
+    m_submitButton->setToolTip(hasAccounts ? QString() : "Select an account before placing an order.");
+}
+
+void OrderEntryWidget::setAccounts(const QList<Account>& accounts)
+{
+    m_accounts = accounts.toVector();
+
+    updateInteractivity();
 }
 
 void OrderEntryWidget::setupUI()
@@ -426,18 +462,10 @@ void OrderEntryWidget::setGUIFrontend(GUIFrontend* guiFrontend)
     m_guiFrontend = guiFrontend;
 }
 
-void OrderEntryWidget::setAccounts(const QList<Account>& accounts)
-{
-    m_accounts = accounts.toVector();
-
-    // Enable/disable submit button based on account availability
-    bool hasAccounts = !accounts.isEmpty();
-    m_submitButton->setEnabled(hasAccounts);
-}
-
 void OrderEntryWidget::setSymbol(const QString& symbol)
 {
     m_currentSymbol = symbol.toUpper();
+    updateInteractivity();
 }
 
 void OrderEntryWidget::executeBuyOrder()
@@ -667,6 +695,12 @@ bool OrderEntryWidget::validateInputs()
     if (accountID.isEmpty())
     {
         QMessageBox::warning(this, "Invalid Input", "Please select an account.");
+        return false;
+    }
+
+    if (m_currentSymbol.isEmpty())
+    {
+        QMessageBox::warning(this, "Invalid Input", "Please select a symbol before placing an order.");
         return false;
     }
 

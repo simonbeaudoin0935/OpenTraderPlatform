@@ -2083,6 +2083,16 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order)
         return;
     }
 
+    if (!order.isValid())
+    {
+        qWarning() << "Rejected invalid GUI order request:" << order.toJsonString();
+        QMessageBox::warning(nullptr,
+                             "Invalid Order",
+                             "The order request is missing required fields.\n\n"
+                             "Please reselect a symbol and try again.");
+        return;
+    }
+
     qInfo() << "Placing order:" << order.toJsonString();
 
     // Submit order to TSClient
@@ -2776,8 +2786,9 @@ void GUIFrontend::onReplayModeEntered()
         currentlyDisplayedSymbol.clear();
         ui->stockSymbolInput->clear();
         ui->priceChart->setSymbol(QString());
-        ui->orderEntryWidget->setSymbol(QString());
     }
+
+    ui->orderEntryWidget->setSymbol(ui->priceChart->getCurrentSymbol());
 
     // Switch all secondary chart windows to the replay symbol
     const QString replaySymbol =

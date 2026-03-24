@@ -103,6 +103,7 @@ class OrderEntryWidget : public QWidget
     void setupUI();
     void setupStyles();
     void updatePriceFieldsVisibility();
+    void updateInteractivity();
     void loadSavedSettings();
     [[nodiscard]] bool validateInputs();
     [[nodiscard]] PlaceOrderRequest buildOrderRequest();
@@ -149,6 +150,7 @@ class OrderEntryWidget : public QWidget
     // Sticky price state
     bool m_stickyEnabled;
     bool m_stickyAggressiveMode; // true = aggressive, false = passive
+    bool m_reviewModeEnabled;
     double m_lastBestBid;
     double m_lastBestAsk;
 
