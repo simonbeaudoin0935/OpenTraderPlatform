@@ -14,6 +14,7 @@
 #include "CONSTANTS.h"
 #include "MainApp.h"
 #include "ThreadNames.h"
+#include "SecureStorage.h"
 
 #define LOGGING_CATEGORY TSClientLog
 
@@ -113,6 +114,18 @@ TSClient::TSClient()
 
     qInfo() << "TSClient connecting to:" << m_baseUrl.host();
 
+    if (SecureStorage::activeBackend() == SecureStorage::Backend::YubiKey)
+    {
+        connect(&m_thread, &QThread::started, this, &TSClient::loadStartupCredentials);
+    }
+    else
+    {
+        loadStartupCredentials();
+    }
+}
+
+void TSClient::loadStartupCredentials()
+{
     m_clientToken = ClientToken::loadFromSettings();
     m_authToken = AuthToken::loadFromSettings();
 

@@ -382,6 +382,7 @@ class TSClient final : public QObject
     [[nodiscard]] QNetworkRequest buildNetworkRequest(const QString& endpoint,
                                                       const QUrlQuery& query = QUrlQuery()) const;
     void scheduleNextRefreshFromCurrentToken(const char* p_context);
+    void loadStartupCredentials();
 
 
     // Auth and refresh stuff implemented in TSClientRefreshToken.cpp

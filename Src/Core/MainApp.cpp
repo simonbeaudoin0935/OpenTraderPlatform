@@ -11,6 +11,7 @@
 #include "OrdersDatabase.h"
 #include "PositionsDatabase.h"
 #include "DBClient.h"
+#include "SecureStorage.h"
 #include "Replay/OrderEmulator/OrderEmulator.h"
 #include <QCoreApplication>
 #include <QEventLoop>
@@ -1369,6 +1370,14 @@ MainApp::MainApp() : tradeStationClient(TSClient::getInstance()), mainAlgo(MainA
     QThread::currentThread()->setObjectName("GUI/Main Thread");
 
     appFrontend = new GUIFrontend(mainAlgo);
+    if (SecureStorage::activeBackend() == SecureStorage::Backend::YubiKey)
+    {
+        QObject::connect(appFrontend,
+                         &GUIFrontend::platformWindowPainted,
+                         appFrontend,
+                         [this]() { start(); },
+                         Qt::QueuedConnection);
+    }
     // Connect memory usage updates to frontend
     QObject::connect(&memoryMonitor,
                      &MemoryMonitor::memoryUsageUpdated,
@@ -1459,6 +1468,15 @@ MainApp::~MainApp()
 
 void MainApp::start()
 {
+    if (SecureStorage::activeBackend() == SecureStorage::Backend::YubiKey)
+    {
+        QString error;
+        if (!SecureStorage::unlockYubiKey(error))
+        {
+            qWarning() << "Startup YubiKey unlock failed:" << error;
+            QMessageBox::warning(nullptr, "YubiKey unlock failed", error);
+        }
+    }
     // Start the database thread first (other threads may depend on it)
     DatabaseThread::getInstance()->start();
 

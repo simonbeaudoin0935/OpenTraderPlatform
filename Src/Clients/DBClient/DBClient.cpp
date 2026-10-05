@@ -441,12 +441,13 @@ DBClient::DBClient() : QObject(nullptr)
         m_dataset = k_defaultDataset;
     }
 
-    // Load API key eagerly so hasApiKey() is valid before thread starts.
-    // GUIFrontend::loadApiKey() will re-load on the DBClient thread later,
-    // emitting connectionStateChanged once the frontend is connected.
-    SecureStorage storage;
-    const QMap<QString, QString> values = storage.retrieveValuesSync(k_service, {k_keyName});
-    m_apiKey = values.value(k_keyName);
+    // Hardware-backed credentials are loaded after the platform is visible and unlocked.
+    if (SecureStorage::activeBackend() == SecureStorage::Backend::OSKeyring)
+    {
+        SecureStorage storage;
+        const QMap<QString, QString> values = storage.retrieveValuesSync(k_service, {k_keyName});
+        m_apiKey = values.value(k_keyName);
+    }
 
     m_thread.setObjectName("DBClient");
     this->moveToThread(&m_thread);

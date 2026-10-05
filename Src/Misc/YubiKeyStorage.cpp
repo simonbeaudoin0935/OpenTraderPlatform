@@ -58,7 +58,8 @@ namespace
                 "Unlock YubiKey credentials",
                 "Insert your YubiKey and touch it when it blinks.\n"
                 "Slot 2 must already be configured for HMAC challenge-response with touch required.",
-                QMessageBox::Cancel);
+                QMessageBox::Cancel,
+                QApplication::activeWindow());
             QObject::connect(prompt.get(), &QMessageBox::rejected, &loop, &QEventLoop::quit);
             prompt->setWindowModality(Qt::ApplicationModal);
             prompt->show();

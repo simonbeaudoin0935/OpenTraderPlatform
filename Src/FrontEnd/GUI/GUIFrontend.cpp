@@ -5197,6 +5197,12 @@ void GUIFrontend::onTradingModeConfigured(const TradingMode p_mode)
 
 bool GUIFrontend::eventFilter(QObject* p_watched, QEvent* p_event)
 {
+    if (p_watched == m_mainWindow && p_event->type() == QEvent::Paint && !m_platformWindowPainted)
+    {
+        m_platformWindowPainted = true;
+        // Defer delivery until the paint event has finished.
+        QTimer::singleShot(0, this, [this]() { emit platformWindowPainted(); });
+    }
     if (p_event->type() == QEvent::KeyPress && m_mainWindow->isVisible() && m_mainWindow->isActiveWindow())
     {
         auto* keyEvent = static_cast<QKeyEvent*>(p_event);

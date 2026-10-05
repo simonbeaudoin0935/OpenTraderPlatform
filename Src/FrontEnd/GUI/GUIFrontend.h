@@ -78,6 +78,11 @@ class GUIFrontend : public QObject
     void onStrategyOrderConfirmationResolved(QString confirmationID);
 
   signals:
+    /**
+     * @brief The main window has completed its first paint.
+     * Thread context: Emitted from the Main/GUI thread.
+     */
+    void platformWindowPainted();
     void tradeStationAuthStateChanged(bool isAuthenticated, TSClient::AuthStateReason reason, QString message);
     void tradeStationAccountsReceived(QVector<Account> results);
     void tradeStationDataUsageUpdated(qsizetype newDataUsage);
@@ -168,6 +173,7 @@ class GUIFrontend : public QObject
 
     std::unique_ptr<Ui::GUIFrontend> ui;  // Pointer to the UI object
     QMainWindow* m_mainWindow = nullptr;  // Main application window (owned by this)
+    bool m_platformWindowPainted = false;
     QPushButton* tradeStationLoginButton; // TradeStation connection action button (top controls)
     QPushButton* m_databentoButton;       // Databento connection action button (top controls)
     QPushButton* m_stopLossTightenOnlyLockButton = nullptr;

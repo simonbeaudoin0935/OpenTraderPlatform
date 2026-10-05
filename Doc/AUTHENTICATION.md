@@ -274,6 +274,11 @@ with fresh random nonces on every atomic write. The version/challenge/nonce
 header is authenticated. The challenge remains stable for the vault so the
 cached session key can save refreshed tokens without another touch.
 
+At startup in YubiKey mode, the platform window is painted first, then the modal
+unlock prompt appears. Client credential loading and worker startup follow that
+unlock attempt. Cancellation or failure leaves credentials locked; the platform
+still starts, and **Unlock / retry YubiKey** remains available in Credentials.
+
 One unlock authorizes both TradeStation and Databento credential storage for the
 session. The encryption key and decrypted credentials remain in process memory;
 removing the device does not disconnect services, block orders, or prevent
