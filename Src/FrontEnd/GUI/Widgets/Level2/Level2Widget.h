@@ -1,0 +1,59 @@
+#pragma once
+
+#include <QWidget>
+#include <QStandardItemModel>
+
+#include "Level2.h"
+
+class QLabel;
+class Level2TableView;
+
+class Level2Widget : public QWidget
+{
+    Q_OBJECT
+  public:
+    /// Display mode for market depth data
+    enum class DisplayMode
+    {
+        Level2, ///< Full order book depth (10 levels)
+        NoData  ///< No data available
+    };
+
+    explicit Level2Widget(QWidget* parent = nullptr);
+    ~Level2Widget();
+
+    /// Update market depth display with Level 2 data (full book)
+    /// @param bids Vector of bid levels (price, size, MPID)
+    /// @param asks Vector of ask levels (price, size, MPID)
+    void updateData(const std::array<Level2Row, 10>& bids, const std::array<Level2Row, 10>& asks);
+
+    /// Get the current display mode
+    [[nodiscard]] DisplayMode getDisplayMode() const
+    {
+        return m_displayMode;
+    }
+
+    /// Clear all data and show NoData state
+    void clearData();
+
+    /// Pre-set the display mode indicator without adding any data rows.
+    /// Called when entering replay mode to show what data will be available
+    /// before any replay data has been emitted.
+    /// @param p_hasLevel2 True if Level 2 depth data exists in the replay DB for this symbol
+    void setExpectedDataMode(bool p_hasLevel2);
+
+  private:
+    void setupUI();
+    void setupStyles();
+    void setMarketDepthItem(QStandardItem* item, const Level2Row& level, const QString& field, int rowIndex);
+    void updateDataSourceIndicator();
+
+    Level2TableView* tableView;
+    QStandardItemModel* model;
+    QLabel* bidLabel;
+    QLabel* askLabel;
+    QLabel* spreadLabel;
+    QLabel* m_dataSourceLabel = nullptr; ///< Shows L2/L1/-- indicator
+
+    DisplayMode m_displayMode = DisplayMode::NoData;
+};

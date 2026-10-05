@@ -1,0 +1,872 @@
+#pragma once
+
+#include <QWidget>
+#include <array>
+#include <QMouseEvent>
+#include <QTimeZone>
+#include <QMap>
+#include <QLoggingCategory>
+#include <QVBoxLayout>
+#include <QColor>
+#include <QTimer>
+#include <QLabel>
+#include <atomic>
+#include <functional>
+#include <deque>
+#include <optional>
+
+#include "qcustomplot.h"
+#include "Bar.h"
+#include "Level2.h"
+#include "ChartToolbar.h"
+#include "Indicators/ChartIndicatorManager.h"
+#include "ChartTimeUtils.h"
+#include "Widgets/ReplayControlsBar/ReplayControlsBar.h"
+#include "CONSTANTS.h"
+#include "Misc/TimeFrame.h"
+#include "QCPItemTriangle.h"
+#include "QCPItemLogDot.h"
+#include "OrdersDatabase.h"
+
+// Forward declarations
+class Order;
+class Position;
+class VwapIndicator;
+class MacdIndicator;
+class EmaIndicator;
+class VolumeIndicator;
+class RsiIndicator;
+
+Q_DECLARE_LOGGING_CATEGORY(ChartLog)
+
+/**
+ * @brief Represents a visual marker for an order on the chart.
+ *
+ * Each order (pending, filled, or cancelled) gets a marker showing its
+ * exact price and time position. Markers scale with zoom level and support
+ * click interaction to show order details.
+ */
+struct OrderMarker
+{
+    QString orderID;
+    QString symbol;
+    QDateTime timestamp; // Fill time for filled, placement time for pending
+    double price;        // Fill price for filled, order price for pending
+    int quantity;
+    bool isBuy;   // true = buy/buytocover, false = sell/sellshort
+    bool isEntry; // true = opening position (green), false = closing (red)
+    QString accountID;
+
+    enum class State
+    {
+        Pending,   // Text with "(pending)"
+        Filled,    // Solid triangle text
+        Cancelled, // Gray X text
+        Rejected   // Gray X (similar to cancelled)
+    };
+    State state = State::Pending;
+
+    // Visual element (owned by QCustomPlot)
+    // QCPItemTriangle for filled markers, QCPItemText for pending/cancelled/rejected
+    QCPAbstractItem* markerItem = nullptr;
+    bool isTriangleMarker = false; ///< true when markerItem is QCPItemTriangle
+};
+
+/**
+ * @brief Represents a position's visual elements on the chart.
+ *
+ * A position is a round-trip from 0 shares to some quantity back to 0.
+ * Multiple entries (DCA) are connected sequentially, and the position
+ * shows a dynamic line to current price while open.
+ */
+struct PositionVisualization
+{
+    QString positionID;
+    QString symbol;
+    QString accountID;
+    QDateTime lastUpdateTimestamp;
+
+    // Filled order markers that form this position
+    QVector<OrderMarker*> entryMarkers; // Opening fills
+    QVector<OrderMarker*> exitMarkers;  // Closing fills
+    QVector<OrderMarker*> fillMarkers;  // All fills in chronological order
+
+    // Dotted line segments connecting consecutive fills
+    QVector<QCPItemLine*> traceSegments;
+
+    // Dynamic line from the latest fill to current price (open positions only)
+    QCPItemLine* dynamicLine = nullptr;
+
+    // P&L label near last exit (closed positions only)
+    QCPItemText* plLabel = nullptr;
+
+    // Position state
+    bool isClosed = false;
+    bool isShort = false; // true for short positions (inverted P&L logic)
+    double avgEntryPrice = 0.0;
+    int currentQuantity = 0;
+    int totalBought = 0;
+    int totalSold = 0;
+    double realizedPL = 0.0;
+};
+
+/**
+ * @class StockPriceChart
+ * @brief A chart widget that displays stock price data using candlesticks via qcustomplot.
+ *
+ * This chart displays bars continuously without gaps for closed market periods.
+ * It uses an index-based positioning system where each bar is assigned a sequential
+ * index (0, 1, 2, ...) for continuous display, while maintaining mappings to actual
+ * timestamps. This allows the chart to show:
+ * - Last bar Friday 7:59pm → next to Monday 4:00am (no weekend gap)
+ * - Last bar 7:59pm → next to next day 4:00am (no overnight gap)
+ * - Only 4am-8pm ET trading hours on weekdays
+ *
+ * Uses qcustomplot library for rendering instead of Qt Charts.
+ */
+class StockPriceChart : public QWidget
+{
+    Q_OBJECT
+
+  public:
+    explicit StockPriceChart(QWidget* parent = nullptr);
+    ~StockPriceChart() override;
+
+    void setSymbol(const QString& symbol);
+    bool recenterToCurrentPriceAction(bool p_deferIfNoData = false);
+    void clearSymbol();
+
+    /**
+     * @brief Clears all chart data, index mappings, and background rects.
+     * Used when entering replay mode to start fresh.
+     */
+    void clearChart(bool p_replot = true);
+
+    /**
+     * @brief Populates the replay day dropdown with available dates from cache.
+     */
+    void populateAvailableReplayDays();
+
+    /**
+     * @brief Gets the currently displayed symbol.
+     * @return The current symbol string.
+     */
+    [[nodiscard]] QString getCurrentSymbol() const
+    {
+        return m_symbol;
+    }
+
+    [[nodiscard]] std::optional<double> getLatestClosePrice() const
+    {
+        if (m_latestBarIndex < 0)
+        {
+            return std::nullopt;
+        }
+        return m_latestBar.getClose();
+    }
+
+    [[nodiscard]] bool hasManagedBracketOverlayActive() const
+    {
+        return m_activeBracketOverlay.has_value() && !m_activeBracketOverlay->isManualArmedPreview;
+    }
+
+    [[nodiscard]] bool isExpectedMissingBarsRequest(const QString& p_symbol, uint64_t p_requestToken) const
+    {
+        return p_requestToken != 0 && m_symbol == p_symbol && m_currentMissingBarsRequestToken.load() == p_requestToken;
+    }
+
+  signals:
+    void
+    requestMissingBars(QString symbol, QDateTime viewStartTimeRounded, QDateTime firstBarTime, uint64_t requestToken);
+    void
+    adjustManagedBracketRequested(QString symbol, bool adjustStop, double stopPrice, bool adjustTake, double takePrice);
+    void manualArmedBracketAdjusted(QString symbol, double stopPrice, double takePrice);
+
+  public slots:
+    void addLiveBar(const QString& symbol, const Bar& bar);
+    void onLevel2Update(const QString& symbol, const Level2& level2);
+    void onRequestedMissingBarsReceived(const QString& p_symbol,
+                                        uint64_t p_requestToken,
+                                        const std::shared_ptr<QVector<Bar>>& barsPtr);
+    void onRequestedMissingBarsFailed(const QString& p_symbol, uint64_t p_requestToken);
+    void setReplayModeActive(bool active);
+    void showManualConfirmationCue(const QString& p_text, bool p_flashEnabled = true);
+    void clearManualConfirmationCue();
+    void setManualConfirmationMutedWatermarkVisible(bool p_visible);
+
+    /**
+     * @brief Snapshots the current X and Y axis ranges so that
+     *        the next clearChart() + bar reload restores them instead of auto-scaling.
+     * Call this immediately before clearChart() when switching timescale (not a full reset).
+     */
+    void preserveCurrentRanges();
+    [[nodiscard]] bool
+    snapshotCurrentViewRanges(double& p_xLower, double& p_xUpper, double& p_yLower, double& p_yUpper) const;
+    void applyViewRanges(double p_xLower,
+                         double p_xUpper,
+                         double p_yLower,
+                         double p_yUpper,
+                         bool p_preserveYForInitialBarBatch = false);
+
+    /**
+     * @brief Updates the active display timescale and scales candlestick + volume bar widths.
+     *
+     * Must be called whenever the user switches timescale so that candles visually fill
+     * their correct time slot.  Width = minutesPerBar(tf) × CANDLESTICK_BODY_WIDTH.
+     * Only intraday timescales (1m–4h) are handled; daily+ are no-ops pending multi-day view.
+     * Thread context: Called from Main/GUI thread.
+     * @param tf New display timescale.
+     */
+    void setDisplayTimeFrame(TimeFrame tf);
+
+    /**
+     * @brief Gets the chart toolbar widget.
+     * @return Pointer to the ChartToolbar.
+     */
+    [[nodiscard]] ChartToolbar* toolbar() const
+    {
+        return chartToolbar;
+    }
+
+    /**
+     * @brief Connects the application-level ReplayControlsBar to this chart.
+     *
+     * Must be called once after both StockPriceChart and ReplayControlsBar have been
+     * constructed.  Wires day/time/speed/play signals from the bar to the chart's
+     * replay handlers so the chart can respond to user input without knowing that the
+     * controls live outside its own hierarchy.
+     *
+     * @param controls Pointer to the ReplayControlsBar owned by GUIFrontend.
+     */
+    void connectReplayControls(ReplayControlsBar* controls);
+
+    // ========== Order Visualization Slots ==========
+
+    /**
+     * @brief Called when a new order is placed (pending state).
+     * Creates a hollow yellow rectangle marker at the order price.
+     */
+    void onOrderPlaced(const Order& order);
+
+    /**
+     * @brief Called when an order is filled.
+     * Converts the pending marker to a filled triangle, updates position visualization.
+     */
+    void onOrderFilled(const Order& order);
+
+    /**
+     * @brief Called when an order is cancelled.
+     * Converts pending marker to gray X.
+     */
+    void onOrderCancelled(const Order& order);
+
+    /**
+     * @brief Called when an order is amended (price changed).
+     * Moves the marker to the new price.
+     */
+    void onOrderAmended(const Order& order);
+
+    /**
+     * @brief Called when a new position is opened.
+     * Creates position visualization with entry marker.
+     */
+    void onPositionOpened(const Position& position);
+
+    /**
+     * @brief Called when a position is updated (quantity changed).
+     * Updates position lines and P&L display.
+     */
+    void onPositionUpdated(const Position& position);
+
+    /**
+     * @brief Called when a position is closed (quantity reaches 0).
+     * Finalizes position lines and adds realized P&L label.
+     */
+    void onPositionClosed(const Position& position);
+
+    /**
+     * @brief Toggles visibility of all order visualizations.
+     */
+    void setOrderVisualizationsVisible(bool visible);
+
+    /**
+     * @brief Called when a strategy emits a log-to-chart message.
+     * Creates a log marker on the chart in real time.
+     */
+    void onStrategyLogEmitted(const StrategyLogEntry& entry);
+    void onStrategyStatusEmitted(const StrategyStatusEntry& entry);
+
+    /**
+     * @brief Called when a strategy emits a bracket-overlay upsert/clear event.
+     * Updates the logical stop/take visualization in real time.
+     */
+    void onStrategyBracketOverlayEmitted(const StrategyBracketOverlayEntry& entry);
+    void upsertManualArmedBracketOverlay(const QString& symbol,
+                                         StrategyBracketOverlayEntry::Side side,
+                                         double stopPrice,
+                                         double takePrice,
+                                         const QDateTime& armTimestamp,
+                                         double referenceEntryPrice = 0.0,
+                                         int previewQuantity = 0);
+    void clearManualArmedBracketOverlay(const QString& symbol = {});
+
+  public slots:
+    void onReplayDataLoadFailed(const QString& errorMessage);
+
+  private slots:
+    void onAxisRangeChanged();
+    void onVolumeChartVisibilityChanged(bool visible);
+    void onVolumeSettingsChanged(bool autoScaleEnabled, int autoScaleMode);
+    void onOrderVisualizationsVisibilityChanged(bool visible);
+    void onBboOverlayVisibilityChanged(bool visible);
+    void onLevel2DepthOverlayVisibilityChanged(bool visible);
+    void onVwapVisibilityChanged(bool visible);
+    void onVwapSettingsChanged(int sourceMode, const QTime& sessionResetTime, const QColor& lineColor);
+    void onEmaVisibilityChanged(int slot, bool visible);
+    void onEmaSettingsChanged(int slot, int period, const QColor& color);
+    void onMacdVisibilityChanged(bool visible);
+    void onStrategyStatusPanelVisibilityChanged(bool visible);
+    void onMacdSettingsChanged(int fastLength,
+                               int slowLength,
+                               int signalLength,
+                               int macdMaType,
+                               int signalMaType,
+                               bool showHistogram);
+    void onRsiVisibilityChanged(bool visible);
+    void onRsiSettingsChanged(int period, int overboughtLevel, int oversoldLevel, const QColor& color);
+    void onSessionBackgroundColorsChanged(const QColor& earlyPreMarketColor,
+                                          const QColor& preMarketColor,
+                                          const QColor& afterHoursColor);
+    void onReplayDayChanged(const QDate& date);
+    void onReplayTimeChanged(const QTime& time);
+    void updateCurrentTimeLine();
+    void onManualConfirmationFlashTick();
+
+  protected:
+    void resizeEvent(QResizeEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override;
+    bool eventFilter(QObject* obj, QEvent* event) override;
+
+  private:
+    enum class BracketWheelMode : quint8
+    {
+        Normal,
+        Take,
+        Stop
+    };
+
+    // Track the current open bar
+    Bar m_latestBar;
+    int m_latestBarIndex = -1;
+
+    // Index of the live (open) bar currently stored in the QCP data containers.
+    // Used to do incremental candle updates (in-place mutation) instead of
+    // rebuilding all N bars on every trade tick.
+    int m_chartLiveBarIndex = -1;
+
+    void redrawLastPriceLine();
+    [[nodiscard]] bool handleBracketWheelAdjustment(QWheelEvent* event);
+    void cycleBracketWheelMode();
+    void setBracketWheelMode(BracketWheelMode p_mode, const QString& p_reason = {});
+    void resetBracketWheelMode(const QString& reason = {});
+    void updateBracketWheelModeBadge();
+    [[nodiscard]] bool canAdjustBracketTakeFromOverlay() const;
+    void handleVerticalPanning(QWheelEvent* event);
+    void handleHorizontalPanning(QWheelEvent* event);
+    void handleHorizontalZoom(QWheelEvent* event, qreal zoomFactor);
+    void handleVerticalZoom(QWheelEvent* event,
+                            bool isOverVolumeChart,
+                            bool isOverMacdChart,
+                            bool isOverRsiChart,
+                            qreal zoomFactor);
+    void handleBothAxesZoom(QWheelEvent* event,
+                            bool isOverVolumeChart,
+                            bool isOverMacdChart,
+                            bool isOverRsiChart,
+                            qreal zoomFactor);
+    void checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime);
+    QDateTime getTimestampForIndex(int index) const;
+    int getIndexForTimestamp(const QDateTime& timestamp) const;
+
+    // Index-based positioning helpers
+    void addHistoricalBarsToIndexMapping(const std::shared_ptr<QVector<Bar>>& bars);
+    void initializeTimeAnchor();
+
+    QDateTime getPreviousTradingMinute(const QDateTime& timestamp) const;
+    QDateTime adjustToValidTradingTime(const QDateTime& timestamp) const;
+    QDate getPreviousFriday(const QDate& date) const;
+    void updateAxisLabelsDensity();
+    [[nodiscard]] static double chartIndexUnitsPerBar(TimeFrame p_tf);
+    [[nodiscard]] static double chartIndexKeyOffset(TimeFrame p_tf);
+    [[nodiscard]] static double chartSecondsPerIndexUnit(TimeFrame p_tf);
+    void updateCandlestickData();
+    void rescaleVolumeAxisToVisibleRange();
+
+    // Background rendering methods
+    void drawSessionBackgroundsForDate(const QDate& date);
+    void drawBackgroundsForReceivedBars(const QVector<Bar>& bars);
+    void clearBackgroundRects();
+    void updateSessionBackgroundRectBrushes();
+    void drawFixedBackgroundRect(const QDate& date,
+                                 const QTime& rangeStart,
+                                 const QTime& rangeEnd,
+                                 const QColor& color,
+                                 QList<QCPItemRect*>& rectList);
+    void drawHolidayDayMarker(const QDate& date, const QString& holidayName);
+    void startLoadingSpinner();
+    void stopLoadingSpinner();
+    void showChartStatusMessage(const QString& p_message);
+    void updateBboOverlay();
+    void updateLevel2DepthOverlay();
+    void updateDateWatermark(const QDate& p_date);
+    void updateTimeFrameWatermark(TimeFrame p_tf);
+    void refreshIndicators();
+    void updateLowerPaneLayout();
+    void applyManualConfirmationFlashState(bool p_flashOn);
+    void enterReplayNoDataState(const QString& p_message);
+    [[nodiscard]] QDateTime resolveReplayAnchorDateTime() const;
+
+    QString m_symbol;
+    QCustomPlot* m_customPlot;
+    QCPFinancial* m_candlesticks;
+    QCPItemLine* m_lastPriceLine;
+    QCPItemText* m_priceLabel;
+
+    // Current time vertical line and timer
+    QCPItemLine* m_currentTimeLine;
+    QTimer* m_timeLineTimer;
+    QCPItemLine* m_bestBidLine = nullptr;
+    QCPItemLine* m_bestAskLine = nullptr;
+    QCPItemText* m_bestBidLabel = nullptr;
+    QCPItemText* m_bestAskLabel = nullptr;
+    std::array<QCPItemLine*, 10> m_depthBidLines{
+        {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr}};
+    std::array<QCPItemLine*, 10> m_depthAskLines{
+        {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr}};
+    std::optional<double> m_bestBidPrice;
+    std::optional<double> m_bestAskPrice;
+    bool m_showBboOverlay = false;
+    std::optional<Level2> m_latestLevel2Snapshot;
+    bool m_showLevel2DepthOverlay = false;
+
+    struct Level2DepthSizeSample
+    {
+        qint64 timestampMs = 0;
+        int maxSize = 0;
+    };
+    std::deque<Level2DepthSizeSample> m_level2DepthSizeSamples;
+
+    // Loading spinner shown while a missing-bars request is in flight
+    QCPItemText* m_loadingSpinner; // Text item on the overlay layer
+    QTimer* m_loadingSpinnerTimer; // Drives the animation frames
+    int m_loadingSpinnerFrame = 0;
+
+    // Debounce timer for onAxisRangeChanged — coalesces rapid successive calls
+    // (e.g. both X and Y fire rangeChanged in a single wheel event)
+    bool m_axisRangeChangePending = false;
+
+    // Chart watermarks
+    QCPItemText* m_symbolWatermark;              // Stock symbol at bottom-right
+    QCPItemText* m_dateWatermark = nullptr;      // Current chart date at bottom-left
+    QCPItemText* m_timeFrameWatermark = nullptr; // Current timescale at top-right
+    QCPItemText* m_manualConfirmationHeader = nullptr;
+    QCPItemText* m_manualConfirmationWatermark = nullptr;
+    QCPItemText* m_manualConfirmationMutedWatermark = nullptr;
+    QCPItemRect* m_manualConfirmationMainBorder = nullptr;
+    QCPItemRect* m_manualConfirmationVolumeBorder = nullptr;
+    QTimer* m_manualConfirmationFlashTimer = nullptr;
+    bool m_manualConfirmationFlashOn = false;
+    bool m_isReplayModeActive = false;
+    static constexpr QColor NORMAL_BACKGROUND_COLOR{75, 75, 80};
+    static constexpr QColor REPLAY_BACKGROUND_COLOR{60, 60, 75}; // Slightly bluer tint
+
+    // Legacy volume subpane (kept collapsed); blended volume bars now use main pane left axis.
+    QCPAxisRect* m_volumeAxisRect;
+    QCPAxisRect* m_macdAxisRect = nullptr;
+    QCPAxisRect* m_statusAxisRect = nullptr;
+    QCPAxisRect* m_rsiAxisRect = nullptr;
+
+    // Background rectangles for different market sessions
+    QList<QCPItemRect*> m_earlyPreMarketRects;
+    QList<QCPItemRect*> m_preMarketRects;
+    QList<QCPItemRect*> m_afterHoursRects;
+    QList<QCPItemRect*> m_holidayDayRects;
+    QSet<QDate> m_datesWithBackgrounds;  // Track which dates already have backgrounds drawn
+    QList<QCPItemText*> m_holidayLabels; // Watermark text items for holidays, cleared with clearBackgroundRects()
+    QColor m_earlyPreMarketBackgroundColor = QColor(255, 165, 0, 90);
+    QColor m_preMarketBackgroundColor = QColor(255, 165, 0, 180);
+    QColor m_afterHoursBackgroundColor = QColor(138, 43, 226, 180);
+    // The double associatives maps indexToBar and timestampToIndex are used to avoid caring about
+    // the time when the market is
+    //QList<QCPItemRect*> m_closedMarketRects;
+
+    // Index-based positioning maps
+    QMap<int, Bar> indexToBar;             // Map from index to Bar
+    QMap<QDateTime, int> timestampToIndex; // Map from timestamp to index
+
+    // Time-anchored chart index 0 (set on symbol selection, not on first bar receipt)
+    QDateTime m_index0Timestamp;
+
+    // Active display timescale — controls candlestick and volume bar widths
+    TimeFrame m_displayTimeFrame = TimeFrame::ONE_MINUTE;
+
+    // Timeframe selector widget
+    ChartToolbar* chartToolbar;
+
+    // Replay controls bar (owned by GUIFrontend, connected via connectReplayControls)
+    ReplayControlsBar* m_replayControls = nullptr;
+
+    std::unique_ptr<ChartIndicatorManager> m_indicatorManager;
+    static constexpr int EMA_SLOT_COUNT = 3;
+    VolumeIndicator* m_volumeIndicator = nullptr;
+    VwapIndicator* m_vwapIndicator = nullptr;
+    std::array<EmaIndicator*, EMA_SLOT_COUNT> m_emaIndicators{{nullptr, nullptr, nullptr}};
+    MacdIndicator* m_macdIndicator = nullptr;
+    RsiIndicator* m_rsiIndicator = nullptr;
+
+    /// Monotonic sequence for missing-bars request tokens.
+    /// Never reset during runtime so stale callbacks can never collide with a newly issued token.
+    std::atomic<uint64_t> m_missingBarsRequestSequence{1};
+
+    /// Active in-flight missing-bars request token (0 means idle).
+    /// When a response arrives, it's only processed if its token matches this value.
+    /// This prevents stale responses (from cancelled requests due to rapid symbol/timescale switching) from
+    /// being processed.
+    std::atomic<uint64_t> m_currentMissingBarsRequestToken{0};
+
+    /// Date of the most recently issued missing-bars request.
+    /// Used in onRequestedMissingBarsFailed to record which date returned no data (holiday/non-trading day).
+    QDate m_lastRequestedDate;
+
+    /// Dates known to have no trading data (holidays, early closes with zero bars).
+    /// Populated by onRequestedMissingBarsFailed; skipped when computing the previous trading day.
+    /// Cleared on symbol change.
+    QSet<QDate> m_knownEmptyDates;
+
+    // Wheel zoom sensitivity ratio
+    qreal wheelZoomRatio = 1.0;
+
+    // Helper to convert index to time for axis labels
+    QString indexToTimeString(double index) const;
+
+    void checkAutoTimeFrame();
+
+    bool startedReceivingRealtimeBars = false;
+
+    /// True after first batch of historical bars sets Y-axis range (prevents resetting on subsequent loads)
+    bool m_initialYAxisRangeSet = false;
+
+    /// When set, the next initial Y-axis range computation is skipped and this range is used instead.
+    /// Set by onReplayTimeChanged to preserve the user's zoom level across start-time changes.
+    std::optional<QCPRange> m_preservedYRange;
+
+    /// When set, the next X-axis range setup is skipped and this range is used instead.
+    /// Set by preserveCurrentRanges() to preserve zoom level across timescale changes.
+    std::optional<QCPRange> m_preservedXRange;
+    bool m_isReplayNoDataState = false;
+    bool m_pendingRecenterToPriceAction = false;
+
+    // ========== Order Visualization Members ==========
+
+    // Storage for order markers by orderID
+    QMap<QString, OrderMarker*> m_orderMarkers;
+
+    // Storage for position visualizations by positionID
+    QMap<QString, PositionVisualization*> m_positionVisualizations;
+
+    // Current open position for the displayed symbol (nullptr if none)
+    PositionVisualization* m_currentOpenPosition = nullptr;
+
+    // P&L box for open position (top-right corner)
+    QCPItemText* m_openPositionPLBox = nullptr;
+
+    // Whether order visualizations are visible (toggle support)
+    bool m_orderVisualizationsVisible = true;
+
+    // ========== Hover Tooltip ==========
+
+    /**
+     * @brief Associates a QCustomPlot item with a pixel-anchor getter + tooltip text.
+     * Used in eventFilter to hit-test all tooltipped items on every mouse move.
+     */
+    struct HoverTarget
+    {
+        QCPAbstractItem* item;           ///< Owned by QCustomPlot; used as a live/removed guard
+        std::function<QPointF()> getPos; ///< Returns current pixel coordinates of the item's anchor
+        QString tooltip;
+    };
+
+    QVector<HoverTarget> m_hoverTargets;
+
+    /**
+     * @brief Register an item for hover tooltip hit-testing.
+     */
+    void registerTooltip(QCPAbstractItem* item, std::function<QPointF()> getPos, const QString& tooltip);
+
+    /**
+     * @brief Remove a previously registered item from tooltip hit-testing.
+     */
+    void unregisterTooltip(QCPAbstractItem* item);
+
+    // ========== Log Markers ==========
+
+    /** @brief Represents a strategy log marker on the chart. */
+    struct LogMarker
+    {
+        int dbId = 0;
+        QString symbol;
+        QDateTime timestamp;
+        QString message;
+        QString strategyID;
+        QCPItemLogDot* markerItem = nullptr; ///< Owned by QCustomPlot
+    };
+
+    QVector<LogMarker*> m_logMarkers;
+
+    std::optional<StrategyStatusEntry> m_activeStrategyStatus;
+    QLabel* m_strategyStatusLabel = nullptr;
+    bool m_strategyStatusPanelVisible = ChartIndicatorConstants::DEFAULT_SHOW_STRATEGY_STATUS_PANEL;
+    void updateStrategyStatusVisual();
+    void repositionStrategyStatusVisual();
+    void clearStrategyStatusVisual();
+
+    // ========== Bracket Overlay ==========
+
+    struct BracketOverlayState
+    {
+        QString strategyID;
+        QString symbol;
+        QDateTime armTimestamp;
+        StrategyBracketOverlayEntry::Side side = StrategyBracketOverlayEntry::Side::Long;
+        double stopPrice = 0.0;
+        double takePrice = 0.0;
+        double referenceEntryPrice = 0.0;
+        int previewQuantity = 0;
+        bool triggered = false;
+        QString triggerReason;
+        bool isManualArmedPreview = false;
+    };
+
+    std::optional<BracketOverlayState> m_activeBracketOverlay;
+    QCPItemRect* m_bracketBand = nullptr;
+    QCPItemLine* m_bracketStopLine = nullptr;
+    QCPItemLine* m_bracketTakeLine = nullptr;
+    QCPItemText* m_bracketStopLabel = nullptr;
+    QCPItemText* m_bracketTakeLabel = nullptr;
+    QCPItemText* m_bracketTriggeredBadge = nullptr;
+    enum class BracketDragTarget : quint8
+    {
+        None,
+        Stop,
+        Take
+    };
+    BracketWheelMode m_bracketWheelMode = BracketWheelMode::Normal;
+    QCPItemText* m_bracketWheelModeBadge = nullptr;
+
+    bool m_bracketDragActive = false;
+    BracketDragTarget m_bracketDragTarget = BracketDragTarget::None;
+    double m_bracketDragOriginalStopPrice = 0.0;
+    double m_bracketDragOriginalTakePrice = 0.0;
+    QCP::Interactions m_interactionsBeforeBracketDrag = QCP::iRangeDrag;
+
+    void applyBracketOverlayEvent(const StrategyBracketOverlayEntry& p_entry, bool p_replot);
+    void updateBracketOverlayVisuals();
+    void clearBracketOverlayVisuals();
+    void loadStrategyBracketOverlays();
+
+    /**
+     * @brief Create and add a single log marker to the chart.
+     * @param entry The log entry to visualise
+     * @return Pointer to the created LogMarker (owned by m_logMarkers)
+     */
+    LogMarker* createLogMarker(const StrategyLogEntry& entry);
+
+    /**
+     * @brief Load all strategy log entries for the current symbol from OrdersDatabase.
+     * Must be called after bars are loaded.
+     */
+    void loadStrategyLogMarkers();
+
+    // Colors for order visualization
+    static constexpr QColor ORDER_VIZ_GREEN{0, 255, 100};  // #00FF64 - Bright lime green
+    static constexpr QColor ORDER_VIZ_RED{255, 80, 0};     // #FF5000 - Bright orange-red
+    static constexpr QColor ORDER_VIZ_GRAY{128, 128, 128}; // Gray for cancelled
+    static constexpr QColor ORDER_VIZ_YELLOW{255, 255, 0}; // #FFFF00 - Pending order outline
+    static constexpr int ORDER_VIZ_LINE_WIDTH = 2;         // Line thickness
+    static constexpr int ORDER_VIZ_MARKER_SIZE = 8;        // Marker size in pixels
+    static constexpr int ORDER_VIZ_PL_FONT_SIZE = 9;       // P&L label font size
+
+    // Index clamping constants for marker positioning
+    static constexpr double FIRST_CANDLE_WINDOW = -1.0; // Allow markers within first candle
+    static constexpr int FUTURE_BAR_TOLERANCE = 10;     // Allow markers slightly ahead of current bar
+
+    // ========== Order Visualization Helper Methods ==========
+
+    /**
+     * @brief Gets exact fractional index for a timestamp (sub-candle precision).
+     * @param timestamp The timestamp to convert
+     * @return Fractional index (e.g., 2.35 = 35% through bar at index 2)
+     */
+    double getExactIndexForTimestamp(const QDateTime& timestamp) const;
+    void refreshOpenPositionVisualsFromLatestBar();
+
+    /**
+     * @brief Creates an order marker (common implementation for buy/sell).
+     * @param orderID Unique order identifier
+     * @param index Chart X-axis position (can be fractional)
+     * @param price Chart Y-axis position
+     * @param isBuy true for buy (upward triangle), false for sell (downward triangle)
+     * @param filled Whether the order is filled (solid) or pending (lighter color)
+     * @return Pointer to the created OrderMarker
+     */
+    OrderMarker*
+    createOrderMarker(const QString& orderID, double index, double price, bool isBuy, bool isEntry, bool filled);
+
+    /**
+     * @brief Creates a buy marker (upward triangle) at the specified position.
+     * @param orderID Unique order identifier
+     * @param index Chart X-axis position (can be fractional)
+     * @param price Chart Y-axis position
+     * @param filled Whether the order is filled (solid) or pending (hollow)
+     * @return Pointer to the created OrderMarker
+     */
+    OrderMarker* createBuyMarker(const QString& orderID, double index, double price, bool isEntry, bool filled);
+
+    /**
+     * @brief Creates a sell marker (downward triangle) at the specified position.
+     * @param orderID Unique order identifier
+     * @param index Chart X-axis position (can be fractional)
+     * @param price Chart Y-axis position
+     * @param filled Whether the order is filled (solid) or pending (hollow)
+     * @return Pointer to the created OrderMarker
+     */
+    OrderMarker* createSellMarker(const QString& orderID, double index, double price, bool isEntry, bool filled);
+
+    /**
+     * @brief Creates a cancelled/rejected marker (gray X) at the specified position.
+     * @param orderID Unique order identifier
+     * @param index Chart X-axis position
+     * @param price Chart Y-axis position
+     * @return Pointer to the created OrderMarker
+     */
+    OrderMarker* createCancelledMarker(const QString& orderID, double index, double price);
+
+    /**
+     * @brief Updates an existing marker to a new state.
+     * @param marker The marker to update
+     * @param newState The new state (Pending, Filled, Cancelled)
+     */
+    void updateMarkerState(OrderMarker* marker, OrderMarker::State newState);
+
+    /**
+      * @brief Moves an existing marker to new chart coordinates.
+      * @param marker The marker to move
+      * @param newIndex The new X-axis position
+      * @param newPrice The new Y-axis position
+      */
+    void moveMarkerToCoords(OrderMarker* marker, double newIndex, double newPrice);
+
+    /**
+      * @brief Moves an existing marker to a new price (for order amendments).
+      * @param marker The marker to move
+      * @param newPrice The new price position
+      */
+    void moveMarkerToPrice(OrderMarker* marker, double newPrice);
+    [[nodiscard]] QPointF getOrderMarkerCoords(const OrderMarker* marker) const;
+    void registerOrderMarkerTooltip(OrderMarker* marker, const QString& tooltip);
+
+    /**
+     * @brief Removes and deletes an order marker.
+     * @param orderID The order ID of the marker to remove
+     */
+    void removeOrderMarker(const QString& orderID);
+
+    /**
+     * @brief Clamps marker placement to the trading-session span of its timestamp's day.
+     * @param index The calculated chart index from the marker timestamp
+     * @param timestamp The marker timestamp used to derive the session bounds
+     * @return Clamped index within that trading day's supported chart range
+     */
+    double clampIndexToValidRange(double index, const QDateTime& timestamp) const;
+
+    /**
+     * @brief Creates a dotted line connecting two points.
+     * @param x1 Start X position
+     * @param y1 Start Y position
+     * @param x2 End X position
+     * @param y2 End Y position
+     * @param profitable Whether the line represents a profitable trade (green) or loss (red)
+     * @return Pointer to the created line
+     */
+    QCPItemLine* createPositionLine(double x1, double y1, double x2, double y2, bool profitable);
+
+    /**
+     * @brief Updates the dynamic line for an open position to the current price.
+     * @param currentPrice The current stock price
+     * @param currentIndex The current time index
+     */
+    void updateOpenPositionDynamicLine(double currentPrice, double currentIndex);
+
+    /**
+     * @brief Updates the P&L box display for the open position.
+     * @param currentPrice The current stock price
+     */
+    void updateOpenPositionPLBox(double currentPrice);
+
+    /**
+     * @brief Creates or updates the P&L box for open positions.
+     */
+    void ensureOpenPositionPLBox();
+
+    /**
+     * @brief Hides the P&L box for open positions.
+     */
+    void hideOpenPositionPLBox();
+
+    /**
+     * @brief Creates a P&L label for a closed position.
+     * @param posViz The position visualization to add the label to
+     */
+    void createClosedPositionPLLabel(PositionVisualization* posViz);
+
+    /**
+     * @brief Calculates the DCA (dollar cost average) entry price.
+     * @param posViz The position visualization
+     * @return The average entry price
+     */
+    double calculateDCAPrice(const PositionVisualization* posViz) const;
+
+    /**
+      * @brief Finalizes a position when it closes (shares reach 0).
+      * @param posViz The position visualization to finalize
+     */
+    void finalizeClosedPosition(PositionVisualization* posViz);
+    void clearPositionTraceVisuals(PositionVisualization* posViz);
+    void rebuildPositionTraces();
+
+    /**
+      * @brief Clears all order visualizations (markers, lines, labels).
+      * Called when symbol changes or chart is cleared.
+     */
+    void clearOrderVisualizations();
+
+    /**
+     * @brief Loads historical orders for the current symbol from database.
+     */
+    void loadHistoricalOrders();
+
+    /**
+     * @brief Loads historical positions for the current symbol from database.
+     */
+    void loadHistoricalPositions();
+
+    /**
+     * @brief Updates visibility of all order visualization elements.
+     */
+    void updateOrderVisualizationsVisibility();
+
+    /**
+     * @brief Culls (hides) markers and lines outside visible range for performance.
+     */
+    void cullOrderVisualizationsToVisibleRange();
+};

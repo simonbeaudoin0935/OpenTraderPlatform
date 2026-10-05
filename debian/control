@@ -1,0 +1,54 @@
+Source: opentraderplatform
+Section: misc
+Priority: optional
+Maintainer: Simon Beaudoin <29244395+simonbeaudoin0935@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13),
+               cmake,
+               ninja-build,
+               python3,
+               qt6-base-dev,
+               qtkeychain-qt6-dev,
+               libqt6sql6-sqlite,
+               libprotobuf-dev,
+               protobuf-compiler,
+               libssl-dev,
+               libzstd-dev
+Standards-Version: 4.6.0
+Homepage: https://github.com/simonbeaudoin0935/OpenTraderPlatform
+
+Package: opentraderplatform
+Architecture: any
+Suggests: yubikey-manager
+Depends: ${shlibs:Depends}, ${misc:Depends},
+         libqt6sql6-sqlite
+Description: Real-time algorithmic trading application
+ OpenTraderPlatform is a sophisticated trading platform built with Qt6 that connects
+ to TradeStation APIs to provide real-time market data analysis, Level 2
+ market depth visualization, and position tracking. The package also ships
+ bundled out-of-process strategy executables plus the initial MCP/control
+ command-line scaffolding.
+ .
+ Key Features:
+  * Real-Time Market Data with Level 2 quotes
+  * Interactive Price Charts
+  * Position Tracking
+  * Algorithmic Trading capabilities
+  * Replay of downloaded Databento market data archives
+
+Package: opentraderplatform-strategy-sdk
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Runtime library for external OpenTraderPlatform strategy executables
+ Provides the shared client runtime used by external OpenTraderPlatform strategies.
+ It includes the length-prefixed Protobuf transport helpers and public
+ protocol/runtime support needed by out-of-process strategy processes.
+
+Package: opentraderplatform-strategy-sdk-dev
+Section: libdevel
+Architecture: any
+Depends: opentraderplatform-strategy-sdk (= ${binary:Version}), ${misc:Depends}, libprotobuf-dev
+Description: Development files for building external OpenTraderPlatform strategies
+ Provides the installable C++ SDK headers, generated Protobuf headers,
+ raw .proto schema files, and CMake package metadata for building external
+ strategy executables against the OpenTraderPlatform strategy SDK.

@@ -1,0 +1,4 @@
+[submodule "Lib/Databento"]
+	path = Lib/Databento
+	url = https://github.com/databento/databento-cpp
+	branch = v0.49.0

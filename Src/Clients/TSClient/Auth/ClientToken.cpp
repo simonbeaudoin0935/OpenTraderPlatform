@@ -1,0 +1,108 @@
+#include <QDebug>
+#include <QEventLoop>
+#include <QTimer>
+#include <QObject>
+
+#include "ClientToken.h"
+#include "SecureStorage.h"
+
+Q_LOGGING_CATEGORY(tsClientToken, "TSClient.token.client")
+
+ClientToken::ClientToken(const QString& p_clientId, const QString& p_clientSecret)
+    : clientId(p_clientId), clientSecret(p_clientSecret)
+{
+}
+
+bool ClientToken::isValid() const
+{
+    return !clientId.isEmpty() && !clientSecret.isEmpty() && validateClientId(clientId) &&
+           validateClientSecret(clientSecret);
+}
+
+QString ClientToken::toString() const
+{
+    return QString("Client ID: [REDACTED]\n"
+                   "Client Secret: [REDACTED]");
+}
+
+ClientToken ClientToken::loadFromSettings()
+{
+    ClientToken token;
+    SecureStorage storage;
+
+    // Load client credentials from SecureStorage synchronously
+    QMap<QString, QString> credentials = storage.retrieveValuesSync("TradeStation", {"client_id", "client_secret"});
+
+    token.clientId = credentials.value("client_id");
+    token.clientSecret = credentials.value("client_secret");
+
+    if (token.clientId.isEmpty() || token.clientSecret.isEmpty())
+    {
+        qCWarning(tsClientToken) << "No credentials found in secure storage";
+        qCDebug(tsClientToken) << "Debug: clientId empty:" << token.clientId.isEmpty()
+                               << "clientSecret empty:" << token.clientSecret.isEmpty();
+    }
+    else
+    {
+        qCInfo(tsClientToken) << "Credentials loaded successfully from secure storage";
+    }
+
+    return token;
+}
+
+bool ClientToken::storeToSettings(const ClientToken& token)
+{
+    SecureStorage storage;
+
+    // Store client credentials in SecureStorage synchronously
+    QMap<QString, QString> credentials;
+    credentials["client_id"] = token.clientId;
+    credentials["client_secret"] = token.clientSecret;
+
+    bool success = storage.storeValuesSync("TradeStation", credentials);
+
+    if (success)
+    {
+        qCDebug(tsClientToken) << "Credentials stored successfully in secure storage";
+    }
+    else
+    {
+        qCWarning(tsClientToken) << "Failed to store credentials in secure storage";
+    }
+
+    return success;
+}
+
+void ClientToken::clearSettings()
+{
+    SecureStorage storage;
+
+    // Clear client credentials from SecureStorage synchronously
+    storage.deleteValuesSync("TradeStation", {"client_id", "client_secret"});
+
+    qCDebug(tsClientToken) << "Credential settings cleared from secure storage";
+}
+
+bool ClientToken::validateClientId(const QString& clientId)
+{
+    if (clientId.isEmpty())
+    {
+        qCWarning(tsClientToken) << "Client ID is empty";
+        qCDebug(tsClientToken) << "Debug: clientId length:" << clientId.length();
+        return false;
+    }
+    qCDebug(tsClientToken) << "Debug: clientId length:" << clientId.length();
+    return true;
+}
+
+bool ClientToken::validateClientSecret(const QString& clientSecret)
+{
+    if (clientSecret.isEmpty())
+    {
+        qCWarning(tsClientToken) << "Client Secret is empty";
+        qCDebug(tsClientToken) << "Debug: clientSecret length:" << clientSecret.length();
+        return false;
+    }
+    qCDebug(tsClientToken) << "Debug: clientSecret length:" << clientSecret.length();
+    return true;
+}

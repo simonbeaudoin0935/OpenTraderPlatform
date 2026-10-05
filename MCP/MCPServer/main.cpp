@@ -1,0 +1,785 @@
+#include <QCommandLineParser>
+#include <QCoreApplication>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QSet>
+#include <QTextStream>
+
+#include <iostream>
+
+#include "Core/PlatformControlProtocol.h"
+#include "PlatformControlClient.h"
+
+namespace
+{
+    inline constexpr auto kMCPProtocolVersion = "2025-06-18";
+    inline constexpr int kLongRunningDownloadTimeoutMs = 10 * 60 * 1000;
+
+    [[nodiscard]] QJsonObject makeJsonRpcResponse(const QJsonValue& p_id, const QJsonObject& p_result)
+    {
+        QJsonObject response;
+        response["jsonrpc"] = "2.0";
+        response["id"] = p_id;
+        response["result"] = p_result;
+        return response;
+    }
+
+    [[nodiscard]] QJsonObject makeJsonRpcError(const QJsonValue& p_id, int p_code, const QString& p_message)
+    {
+        QJsonObject response;
+        response["jsonrpc"] = "2.0";
+        response["id"] = p_id;
+
+        QJsonObject error;
+        error["code"] = p_code;
+        error["message"] = p_message;
+        response["error"] = error;
+        return response;
+    }
+
+    [[nodiscard]] QJsonObject
+    makeTextContentResult(const QString& p_text, const bool p_isError, const QJsonObject& p_structuredContent = {})
+    {
+        QJsonObject content;
+        content["type"] = "text";
+        content["text"] = p_text;
+
+        QJsonArray contents;
+        contents.append(content);
+
+        QJsonObject result;
+        result["content"] = contents;
+        result["isError"] = p_isError;
+        if (!p_structuredContent.isEmpty())
+        {
+            result["structuredContent"] = p_structuredContent;
+        }
+        return result;
+    }
+
+    [[nodiscard]] QByteArray compactJsonLine(const QJsonObject& p_payload)
+    {
+        return PlatformControlProtocol::serializeMessage(p_payload);
+    }
+
+    void writeJsonRpcLine(const QJsonObject& p_payload)
+    {
+        std::cout << compactJsonLine(p_payload).constData();
+    }
+
+    [[nodiscard]] QJsonObject emptyObjectSchema()
+    {
+        return QJsonObject{{"type", "object"}, {"properties", QJsonObject{}}};
+    }
+
+    [[nodiscard]] QJsonObject tradingModeSchema()
+    {
+        QJsonObject properties;
+        properties["mode"] = QJsonObject{
+            {"type", "string"},
+            {"enum", QJsonArray{"sim", "paper"}},
+            {"description",
+             "Trading mode to persist. 'paper' is accepted as an alias for 'sim'. Live mode switching is "
+             "intentionally blocked by the MCP server."},
+        };
+
+        return QJsonObject{
+            {"type", "object"},
+            {"properties", properties},
+            {"required", QJsonArray{"mode"}},
+        };
+    }
+
+    [[nodiscard]] std::expected<QJsonObject, QString> normalizeToolArguments(const QString& p_toolName,
+                                                                             const QJsonObject& p_arguments)
+    {
+        if (p_toolName != PlatformControlProtocol::kCommandSetTradingMode)
+        {
+            return p_arguments;
+        }
+
+        QJsonObject normalizedArguments = p_arguments;
+        const QString mode = normalizedArguments.value("mode").toString().trimmed().toLower();
+        if (mode == "live")
+        {
+            return std::unexpected(
+                "The MCP server refuses to switch OpenTraderPlatform into live mode. Use 'sim'/'paper' or the replay tools "
+                "instead.");
+        }
+
+        if (mode == "paper")
+        {
+            normalizedArguments["mode"] = "sim";
+        }
+
+        return normalizedArguments;
+    }
+
+    [[nodiscard]] QJsonObject replayArgsSchema()
+    {
+        QJsonObject properties;
+        properties["date"] = QJsonObject{{"type", "string"}, {"description", "Replay date in YYYY-MM-DD format."}};
+        properties["startTime"] =
+            QJsonObject{{"type", "string"}, {"description", "Replay start time in HH:MM[:SS] format."}};
+        properties["speed"] = QJsonObject{
+            {"type", "string"},
+            {"enum", PlatformControlProtocol::supportedReplaySpeedsJson()},
+            {"description", "Replay speed."},
+        };
+
+        return QJsonObject{
+            {"type", "object"},
+            {"properties", properties},
+            {"required", QJsonArray{"date", "startTime", "speed"}},
+        };
+    }
+
+    [[nodiscard]] QJsonObject replayStartArgsSchema()
+    {
+        QJsonObject properties;
+        properties["date"] = QJsonObject{{"type", "string"}, {"description", "Replay date in YYYY-MM-DD format."}};
+        properties["startTime"] =
+            QJsonObject{{"type", "string"}, {"description", "Replay start time in HH:MM[:SS] format."}};
+        properties["speed"] = QJsonObject{
+            {"type", "string"},
+            {"enum", PlatformControlProtocol::supportedReplaySpeedsJson()},
+            {"description", "Replay speed. Omit to reuse the platform's configured replay speed."},
+        };
+
+        return QJsonObject{
+            {"type", "object"},
+            {"properties", properties},
+        };
+    }
+
+    [[nodiscard]] QJsonObject replaySpeedSchema()
+    {
+        QJsonObject properties;
+        properties["speed"] = QJsonObject{
+            {"type", "string"},
+            {"enum", PlatformControlProtocol::supportedReplaySpeedsJson()},
+            {"description", "Replay speed."},
+        };
+
+        return QJsonObject{
+            {"type", "object"},
+            {"properties", properties},
+            {"required", QJsonArray{"speed"}},
+        };
+    }
+
+    [[nodiscard]] QJsonObject optionalSymbolSchema()
+    {
+        return QJsonObject{
+            {"type", "string"},
+            {"description",
+             "Optional ticker symbol. If omitted, OpenTraderPlatform uses the currently displayed symbol. Arbitrary symbols are auto-activated for polling."},
+        };
+    }
+
+    [[nodiscard]] QJsonObject optionalAccountIdSchema()
+    {
+        return QJsonObject{
+            {"type", "string"},
+            {"description", "Optional account ID. If omitted, OpenTraderPlatform uses the currently active account."},
+        };
+    }
+
+    [[nodiscard]] QJsonObject symbolPollingSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties", QJsonObject{{"symbol", optionalSymbolSchema()}}},
+        };
+    }
+
+    [[nodiscard]] QJsonObject tradesSnapshotSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"symbol", optionalSymbolSchema()},
+                 {"maxCount",
+                  QJsonObject{
+                      {"type", "integer"},
+                      {"minimum", 1},
+                      {"maximum", PlatformControlConstants::MAX_TRADES_SNAPSHOT_MAX_COUNT},
+                      {"description",
+                       QString("Maximum number of recent trades to return. Defaults to %1.")
+                           .arg(PlatformControlConstants::DEFAULT_TRADES_SNAPSHOT_MAX_COUNT)},
+                  }},
+             }},
+        };
+    }
+
+    [[nodiscard]] QJsonObject barsSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"symbol", optionalSymbolSchema()},
+                 {"date", QJsonObject{{"type", "string"}, {"description", "Trading day in YYYY-MM-DD format."}}},
+                 {"startTime", QJsonObject{{"type", "string"}, {"description", "Range start in HH:MM[:SS] format."}}},
+                 {"endTime", QJsonObject{{"type", "string"}, {"description", "Range end in HH:MM[:SS] format."}}},
+                 {"timeFrame",
+                  QJsonObject{
+                      {"type", "string"},
+                      {"enum", PlatformControlProtocol::supportedBarTimeFramesJson()},
+                      {"description", "Bar timeframe. Defaults to 1m."},
+                  }},
+             }},
+            {"required", QJsonArray{"date", "startTime", "endTime"}},
+        };
+    }
+
+    [[nodiscard]] QJsonObject replayDateSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"date", QJsonObject{{"type", "string"}, {"description", "Trading day in YYYY-MM-DD format."}}},
+             }},
+            {"required", QJsonArray{"date"}},
+        };
+    }
+
+    [[nodiscard]] QJsonObject downloadReplayDataSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"date", QJsonObject{{"type", "string"}, {"description", "Trading day in YYYY-MM-DD format."}}},
+                 {"symbols",
+                  QJsonObject{
+                      {"type", "array"},
+                      {"items", QJsonObject{{"type", "string"}}},
+                      {"minItems", 1},
+                      {"description",
+                       "Ticker symbols to download. Already-complete symbol/day datasets are skipped automatically."},
+                  }},
+             }},
+            {"required", QJsonArray{"date", "symbols"}},
+        };
+    }
+
+    [[nodiscard]] QJsonObject getBalanceSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties", QJsonObject{{"accountId", optionalAccountIdSchema()}}},
+        };
+    }
+
+    [[nodiscard]] QJsonArray orderStatusValues()
+    {
+        return QJsonArray{
+            "ACK", "BRO", "CAN", "EXP", "FLL", "FLP", "FPR", "LAT", "OPN", "OUT",
+            "REJ", "UCH", "UCN", "TSC", "RJC", "DON", "RSN", "CND", "OSO", "SUS",
+        };
+    }
+
+    [[nodiscard]] QJsonObject getPositionsSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"accountId", optionalAccountIdSchema()},
+                 {"symbol", optionalSymbolSchema()},
+             }},
+        };
+    }
+
+    [[nodiscard]] QJsonObject closePositionsSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"accountId", optionalAccountIdSchema()},
+                 {"symbols",
+                  QJsonObject{
+                      {"type", "array"},
+                      {"items", QJsonObject{{"type", "string"}}},
+                      {"description",
+                       "Optional list of symbols to flatten. Omit to close all open positions for the resolved account."},
+                  }},
+             }},
+        };
+    }
+
+    [[nodiscard]] QJsonObject getOrdersSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"accountId", optionalAccountIdSchema()},
+                 {"symbol", optionalSymbolSchema()},
+                 {"status",
+                  QJsonObject{
+                      {"type", "string"},
+                      {"enum", orderStatusValues()},
+                      {"description", "Optional TradeStation order status filter."},
+                  }},
+                 {"maxCount",
+                  QJsonObject{
+                      {"type", "integer"},
+                      {"minimum", 1},
+                      {"maximum", PlatformControlConstants::MAX_TRADES_SNAPSHOT_MAX_COUNT},
+                      {"description",
+                       QString("Maximum number of matching orders to return. Defaults to %1.")
+                           .arg(PlatformControlConstants::DEFAULT_TRADES_SNAPSHOT_MAX_COUNT)},
+                  }},
+             }},
+        };
+    }
+
+    [[nodiscard]] QJsonObject createChartLogSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"symbol",
+                  QJsonObject{{"type", "string"}, {"description", "Ticker symbol to annotate on the chart."}}},
+                 {"message",
+                  QJsonObject{{"type", "string"},
+                              {"description", "Log message to persist and show in the chart tooltip."}}},
+                 {"source",
+                  QJsonObject{{"type", "string"},
+                              {"description", "Optional source label shown as the log owner. Defaults to openclaw."}}},
+             }},
+            {"required", QJsonArray{"symbol", "message"}},
+        };
+    }
+
+    [[nodiscard]] QJsonArray tradeActionValues()
+    {
+        return QJsonArray{
+            "buy",
+            "sell",
+            "buy-to-cover",
+            "sell-short",
+            "buy-to-open",
+            "buy-to-close",
+            "sell-to-open",
+            "sell-to-close",
+        };
+    }
+
+    [[nodiscard]] QJsonArray orderTypeValues()
+    {
+        return QJsonArray{
+            "market",
+            "limit",
+            "stop-market",
+            "stop-limit",
+        };
+    }
+
+    [[nodiscard]] QJsonArray orderDurationValues()
+    {
+        return QJsonArray{
+            "day",
+            "day-plus",
+            "gtc",
+            "gtc-plus",
+            "ioc",
+            "fok",
+        };
+    }
+
+    [[nodiscard]] QJsonObject placeOrderSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"accountId",
+                  QJsonObject{
+                      {"type", "string"},
+                      {"description", "Optional account ID. Defaults to the platform's currently active account."}}},
+                 {"symbol", QJsonObject{{"type", "string"}, {"description", "Ticker symbol to trade."}}},
+                 {"tradeAction",
+                  QJsonObject{{"type", "string"},
+                              {"enum", tradeActionValues()},
+                              {"description", "Trade action such as buy, sell, or sell-short."}}},
+                 {"orderType",
+                  QJsonObject{
+                      {"type", "string"},
+                      {"enum", orderTypeValues()},
+                      {"description",
+                       "Order type. limitPrice is required for limit/stop-limit; stopPrice is required for stop-market/stop-limit."}}},
+                 {"quantity", QJsonObject{{"type", "integer"}, {"minimum", 1}, {"description", "Share quantity."}}},
+                 {"duration",
+                  QJsonObject{{"type", "string"},
+                              {"enum", orderDurationValues()},
+                              {"description", "Optional time-in-force. Defaults to day."}}},
+                 {"strategyLog",
+                  QJsonObject{
+                      {"type", "string"},
+                      {"description", "Optional log text to bind to the order and display in order/chart tooltips."}}},
+                 {"limitPrice", QJsonObject{{"type", "number"}, {"description", "Optional limit price."}}},
+                 {"stopPrice", QJsonObject{{"type", "number"}, {"description", "Optional stop price."}}},
+             }},
+            {"required", QJsonArray{"symbol", "tradeAction", "orderType", "quantity"}},
+        };
+    }
+
+    [[nodiscard]] QJsonObject cancelOrderSchema()
+    {
+        return QJsonObject{
+            {"type", "object"},
+            {"properties",
+             QJsonObject{
+                 {"orderId", QJsonObject{{"type", "string"}, {"description", "Order ID to cancel."}}},
+             }},
+            {"required", QJsonArray{"orderId"}},
+        };
+    }
+
+    [[nodiscard]] QJsonArray buildToolList()
+    {
+        QJsonArray tools;
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandStatus},
+            {"title", "Get platform status"},
+            {"description", "Read current OpenTraderPlatform platform status, replay state, and control socket details."},
+            {"inputSchema", emptyObjectSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetDisplayedSymbol},
+            {"title", "Get displayed symbol"},
+            {"description", "Read the symbol currently displayed in the OpenTraderPlatform frontend."},
+            {"inputSchema", emptyObjectSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetAccounts},
+            {"title", "Get accounts"},
+            {"description", "List the brokerage accounts currently available to the platform."},
+            {"inputSchema", emptyObjectSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetBalance},
+            {"title", "Get balance"},
+            {"description", "Read the current account balance for the active or requested account."},
+            {"inputSchema", getBalanceSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetPositions},
+            {"title", "Get positions"},
+            {"description", "Read the current open positions for the active or requested account."},
+            {"inputSchema", getPositionsSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandClosePositions},
+            {"title", "Close positions"},
+            {"description",
+             "Flatten open positions for the active or requested account, with optional symbol filtering. Regular hours "
+             "use market orders; extended hours use aggressive Day+ limit orders."},
+            {"inputSchema", closePositionsSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetOrders},
+            {"title", "Get orders"},
+            {"description",
+             "Read recent orders for the active or requested account, with optional symbol/status filters."},
+            {"inputSchema", getOrdersSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetLevel2},
+            {"title", "Get level 2 snapshot"},
+            {"description", "Poll the latest 10-level order-book snapshot for the displayed or requested symbol."},
+            {"inputSchema", symbolPollingSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetTradesSnapshot},
+            {"title", "Get recent trades"},
+            {"description", "Poll the recent trade snapshot for the displayed or requested symbol."},
+            {"inputSchema", tradesSnapshotSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetBars},
+            {"title", "Get historical bars"},
+            {"description",
+             "Fetch historical bars for the displayed or requested symbol over a single trading-day range."},
+            {"inputSchema", barsSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetReplayDates},
+            {"title", "Get replay dates"},
+            {"description", "List replay dates currently available in the configured replay-data directory."},
+            {"inputSchema", emptyObjectSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetReplaySymbols},
+            {"title", "Get replay symbols"},
+            {"description", "List replay symbols/files available for a requested replay date."},
+            {"inputSchema", replayDateSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandDownloadReplayData},
+            {"title", "Download replay data"},
+            {"description",
+             "Download Databento replay data for a requested date and symbol list. Existing complete downloads are skipped automatically."},
+            {"inputSchema", downloadReplayDataSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandGetActivityMetrics},
+            {"title", "Get activity metrics"},
+            {"description", "Read current trade/L2 activity metrics for the displayed or requested symbol."},
+            {"inputSchema", symbolPollingSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandCreateChartLog},
+            {"title", "Create chart log"},
+            {"description", "Persist a chart log marker at the current app time for a symbol."},
+            {"inputSchema", createChartLogSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandPlaceOrder},
+            {"title", "Place order"},
+            {"description",
+             "Submit a platform order through the current live/sim/replay trading mode, with optional order-bound log text."},
+            {"inputSchema", placeOrderSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandCancelOrder},
+            {"title", "Cancel order"},
+            {"description", "Cancel an existing platform order by order ID."},
+            {"inputSchema", cancelOrderSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandEnterReplay},
+            {"title", "Enter replay mode"},
+            {"description", "Switch OpenTraderPlatform into replay mode and preload the chart in a paused state."},
+            {"inputSchema", replayArgsSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandStartReplay},
+            {"title", "Start replay playback"},
+            {"description",
+             "Start replay playback after replay mode is entered. Omitted date/time/speed fields reuse the platform's current replay configuration."},
+            {"inputSchema", replayStartArgsSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandPauseReplay},
+            {"title", "Pause replay playback"},
+            {"description", "Pause replay playback while remaining in replay mode."},
+            {"inputSchema", emptyObjectSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandResumeReplay},
+            {"title", "Resume replay playback"},
+            {"description", "Resume replay playback from the current paused position."},
+            {"inputSchema", emptyObjectSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandSetReplaySpeed},
+            {"title", "Set replay speed"},
+            {"description", "Update replay speed while already in replay mode."},
+            {"inputSchema", replaySpeedSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandPreloadReplay},
+            {"title", "Preload replay chart"},
+            {"description", "Reload replay data for a different date/time while staying in replay mode."},
+            {"inputSchema", replayArgsSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandExitReplay},
+            {"title", "Exit replay mode"},
+            {"description", "Leave replay mode and resume live data mode."},
+            {"inputSchema", emptyObjectSchema()},
+        });
+        tools.append(QJsonObject{
+            {"name", PlatformControlProtocol::kCommandSetTradingMode},
+            {"title", "Set trading mode"},
+            {"description",
+             "Persist the requested TradeStation mode for sim/paper trading. Live mode switching is intentionally "
+             "blocked by the MCP server. A platform restart is required."},
+            {"inputSchema", tradingModeSchema()},
+        });
+        return tools;
+    }
+} // namespace
+
+int main(int argc, char* argv[])
+{
+    QCoreApplication app(argc, argv);
+    app.setApplicationName("opentraderplatform-mcp-server");
+    app.setApplicationVersion("0.1.0");
+
+    QCommandLineParser parser;
+    parser.setApplicationDescription("OpenClaw-facing MCP bridge for OpenTraderPlatform.");
+    parser.addHelpOption();
+    parser.addVersionOption();
+    parser.process(app);
+
+    std::cout << std::unitbuf;
+
+    QTextStream err(stderr);
+    err << "opentraderplatform-mcp-server ready - exposing OpenTraderPlatform control tools over MCP stdio\n";
+    err.flush();
+
+    PlatformControlClient controlClient;
+    PlatformControlClient::Options longRunningControlOptions;
+    longRunningControlOptions.responseTimeoutMs = kLongRunningDownloadTimeoutMs;
+    PlatformControlClient longRunningControlClient(longRunningControlOptions);
+    bool initializeSeen = false;
+
+    const QSet<QString> supportedTools = {
+        PlatformControlProtocol::kCommandStatus,
+        PlatformControlProtocol::kCommandGetDisplayedSymbol,
+        PlatformControlProtocol::kCommandGetAccounts,
+        PlatformControlProtocol::kCommandGetBalance,
+        PlatformControlProtocol::kCommandGetPositions,
+        PlatformControlProtocol::kCommandClosePositions,
+        PlatformControlProtocol::kCommandGetOrders,
+        PlatformControlProtocol::kCommandGetLevel2,
+        PlatformControlProtocol::kCommandGetTradesSnapshot,
+        PlatformControlProtocol::kCommandGetBars,
+        PlatformControlProtocol::kCommandGetReplayDates,
+        PlatformControlProtocol::kCommandGetReplaySymbols,
+        PlatformControlProtocol::kCommandDownloadReplayData,
+        PlatformControlProtocol::kCommandGetActivityMetrics,
+        PlatformControlProtocol::kCommandCreateChartLog,
+        PlatformControlProtocol::kCommandPlaceOrder,
+        PlatformControlProtocol::kCommandCancelOrder,
+        PlatformControlProtocol::kCommandEnterReplay,
+        PlatformControlProtocol::kCommandStartReplay,
+        PlatformControlProtocol::kCommandPauseReplay,
+        PlatformControlProtocol::kCommandResumeReplay,
+        PlatformControlProtocol::kCommandSetReplaySpeed,
+        PlatformControlProtocol::kCommandPreloadReplay,
+        PlatformControlProtocol::kCommandExitReplay,
+        PlatformControlProtocol::kCommandSetTradingMode,
+    };
+
+    std::string line;
+    while (std::getline(std::cin, line))
+    {
+        if (line.empty())
+        {
+            continue;
+        }
+
+        const auto parsedMessage = PlatformControlProtocol::parseMessage(QByteArray::fromStdString(line));
+        if (!parsedMessage.has_value())
+        {
+            writeJsonRpcLine(makeJsonRpcError(QJsonValue(), -32700, parsedMessage.error()));
+            continue;
+        }
+
+        const QJsonObject message = parsedMessage.value();
+        const QString method = message.value("method").toString();
+        const QJsonValue id = message.value("id");
+        if (message.value("jsonrpc").toString() != "2.0" || method.isEmpty())
+        {
+            writeJsonRpcLine(makeJsonRpcError(id, -32600, "Invalid JSON-RPC request"));
+            continue;
+        }
+
+        if (method == "notifications/initialized")
+        {
+            initializeSeen = true;
+            continue;
+        }
+
+        if (method == "initialize")
+        {
+            initializeSeen = true;
+            const QJsonObject result{
+                {"protocolVersion", kMCPProtocolVersion},
+                {"capabilities", QJsonObject{{"tools", QJsonObject{{"listChanged", false}}}}},
+                {"serverInfo",
+                 QJsonObject{
+                     {"name", "opentraderplatform-mcp-server"},
+                     {"title", "OpenTraderPlatform MCP Server"},
+                     {"version", app.applicationVersion()},
+                 }},
+                {"instructions",
+                 "This MCP server exposes OpenTraderPlatform platform-control tools, including replay-data discovery/download, "
+                 "account/balance queries, position/order queries, poll-style market-data tools, chart-log creation, "
+                 "and order placement/cancellation (including optional order-bound logs) over the platform control "
+                 "socket."},
+            };
+            writeJsonRpcLine(makeJsonRpcResponse(id, result));
+            continue;
+        }
+
+        if (method == "ping")
+        {
+            writeJsonRpcLine(makeJsonRpcResponse(id, QJsonObject{}));
+            continue;
+        }
+
+        if (!initializeSeen)
+        {
+            writeJsonRpcLine(makeJsonRpcError(id, -32000, "Server not initialized"));
+            continue;
+        }
+
+        if (method == "tools/list")
+        {
+            writeJsonRpcLine(makeJsonRpcResponse(id, QJsonObject{{"tools", buildToolList()}}));
+            continue;
+        }
+
+        if (method == "tools/call")
+        {
+            const QJsonObject params = message.value("params").toObject();
+            const QString toolName = params.value("name").toString();
+            const QJsonObject arguments = params.value("arguments").toObject();
+
+            if (!supportedTools.contains(toolName))
+            {
+                writeJsonRpcLine(makeJsonRpcError(id, -32602, QString("Unknown tool: %1").arg(toolName)));
+                continue;
+            }
+
+            const auto normalizedArguments = normalizeToolArguments(toolName, arguments);
+            if (!normalizedArguments.has_value())
+            {
+                const QJsonObject blockedResponse{
+                    {"ok", false},
+                    {"error", normalizedArguments.error()},
+                    {"protocolVersion", PlatformControlProtocol::kProtocolVersion},
+                };
+                writeJsonRpcLine(
+                    makeJsonRpcResponse(id, makeTextContentResult(normalizedArguments.error(), true, blockedResponse)));
+                continue;
+            }
+
+            const PlatformControlClient& selectedControlClient =
+                toolName == PlatformControlProtocol::kCommandDownloadReplayData ? longRunningControlClient
+                                                                                : controlClient;
+            const auto controlResponse = selectedControlClient.sendCommand(
+                PlatformControlProtocol::makeRequest(toolName, normalizedArguments.value()));
+            if (!controlResponse.has_value())
+            {
+                const QJsonObject result = makeTextContentResult(controlResponse.error(), true);
+                writeJsonRpcLine(makeJsonRpcResponse(id, result));
+                continue;
+            }
+
+            const QByteArray controlJson = QJsonDocument(controlResponse.value()).toJson(QJsonDocument::Compact);
+            const bool isError = !controlResponse->value("ok").toBool(false);
+            const QJsonObject result =
+                makeTextContentResult(QString::fromUtf8(controlJson), isError, controlResponse.value());
+            writeJsonRpcLine(makeJsonRpcResponse(id, result));
+            continue;
+        }
+
+        writeJsonRpcLine(makeJsonRpcError(id, -32601, QString("Unknown method: %1").arg(method)));
+    }
+
+    return 0;
+}

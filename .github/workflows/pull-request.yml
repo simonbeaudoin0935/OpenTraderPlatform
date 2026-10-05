@@ -1,0 +1,556 @@
+name: Pull Request CI
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    # Always run on push and PRs (including drafts) to give quick build feedback
+
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/opentraderplatform-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{github.head_ref}}
+          submodules: true
+
+      # Check the formatting first as to not waste resources building if the code is not properly formatted.
+      - name: clang-format
+        uses: ./.github/actions/clang-format
+
+      - name: Set up ccache
+        run: |
+          export CCACHE_DIR=$HOME/.cache/ccache
+          echo "CCACHE_DIR=$HOME/.cache/ccache" >> $GITHUB_ENV
+          ccache --version
+          mkdir -p $CCACHE_DIR
+          ccache --set-config=max_size=500M
+          ccache --set-config=compression=true
+          ccache --set-config=compression_level=6
+          ccache --zero-stats
+
+      - name: Cache ccache directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-debian-noble-X86-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-debian-noble-X86-${{ github.ref }}
+            ccache-debian-noble-X86-refs/heads/main
+
+      - name: Configure with CMake
+        run: |
+          cmake --version
+          mkdir -p build
+          cmake -Wno-deprecated -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DENABLE_UBSAN=OFF -DENABLE_ASAN=OFF
+
+      - name: Build targets
+        run: cmake --build build -j$(nproc)
+
+      - name: Upload GUI executable and libraries artifact
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: opentraderplatform-gui-${{ github.sha }}
+          path: |
+            build/Src/OpenTraderPlatform
+            build/Src/*.so
+            build/lib/
+          retention-days: 1
+
+  build-ubsan:
+    if: false
+    runs-on: ubuntu-24.04
+    # Only run expensive sanitizer builds when PR is ready (not draft)
+    # if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    
+    permissions:
+      contents: read
+    
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/opentraderplatform-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{github.head_ref}}
+          submodules: true
+
+      - name: Set up ccache
+        run: |
+          export CCACHE_DIR=$HOME/.cache/ccache
+          echo "CCACHE_DIR=$HOME/.cache/ccache" >> $GITHUB_ENV
+          ccache --version
+          mkdir -p $CCACHE_DIR
+          ccache --set-config=max_size=500M
+          ccache --set-config=compression=true
+          ccache --set-config=compression_level=6
+          ccache --zero-stats
+
+      - name: Cache ccache directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-ubsan-noble-X86-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-ubsan-noble-X86-${{ github.ref }}
+            ccache-ubsan-noble-X86-refs/heads/main
+
+      - name: Configure UBSan build with CMake
+        run: |
+          cmake --version
+          mkdir -p build/UBSan
+          cmake -Wno-deprecated -S . -B build/UBSan -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DENABLE_UBSAN=ON
+
+      - name: Build UBSan targets
+        run: cmake --build build/UBSan -j$(nproc)
+
+      - name: Upload UBSan executable artifact
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: opentraderplatform-ubsan-${{ github.sha }}
+          path: |
+            build/UBSan/Src/OpenTraderPlatform
+            build/UBSan/Src/*.so
+            build/UBSan/lib/
+          retention-days: 1
+
+  test-ubsan:
+    if: false
+    runs-on: ubuntu-24.04
+    needs: build-ubsan
+    # Only run expensive sanitizer tests when PR is ready (not draft)
+    # if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    
+    permissions:
+      contents: read
+      actions: read
+    
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/opentraderplatform-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{github.head_ref}}
+          submodules: true
+
+      - name: Download UBSan executable
+        uses: actions/download-artifact@v4
+        with:
+          name: opentraderplatform-ubsan-${{ github.sha }}
+          path: ./build/UBSan
+
+      - name: Set executable permissions
+        run: chmod +x ./build/UBSan/Src/OpenTraderPlatform
+
+      - name: Setup test credentials
+        run: |
+          chmod +x .github/scripts/setup-test-credentials.sh
+          .github/scripts/setup-test-credentials.sh \
+            "${{ secrets.ACCESS_TOKEN }}" \
+            "${{ secrets.CLIENT_ID }}" \
+            "${{ secrets.CLIENT_SECRET }}" \
+            "${{ secrets.ID_TOKEN }}" \
+            "${{ secrets.REFRESH_TOKEN }}" \
+            "${{ vars.EXPIRES_IN }}" \
+            "${{ vars.RECEIVED_AT }}" \
+            "${{ vars.SCOPE }}" \
+            "${{ vars.TOKEN_TYPE }}"
+
+      - name: Set default stock in AppState.ini
+        run: |
+          cat > ~/.config/OpenTraderPlatform/AppState.ini << EOF
+          [UI]
+          LastDisplayedStock=TSLA
+          EOF
+
+      - name: Run UBSan test with Xvfb
+        run: |
+          # Configure UBSan environment
+          export UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0:log_path=.sanitizers/ubsan/ubsan-report.txt:suppressions=.sanitizers/ubsan/ubsan.supp"
+          
+          # Start Xvfb on display :99
+          Xvfb :99 -screen 0 1024x768x24 &
+          XVFB_PID=$!
+          export DISPLAY=:99
+          
+          # Wait for Xvfb to be ready
+          sleep 2
+          
+          # Verify display is available
+          xdpyinfo -display :99 > /dev/null 2>&1 || { 
+            echo "Display :99 not available"
+            kill $XVFB_PID 2>/dev/null || true
+            exit 1
+          }
+          
+          # Start the GUI application in background (redirect to file instead of using tee/pipe)
+          ./build/UBSan/Src/OpenTraderPlatform 2>&1 > .sanitizers/ubsan/ubsan-console.txt &
+          APP_PID=$!
+          
+          # Also capture the console output in real-time using tail for monitoring
+          tail -f .sanitizers/ubsan/ubsan-console.txt 2>/dev/null &
+          TAIL_PID=$!
+          
+          # Wait for application to start
+          sleep 5
+          
+          # Find the window and send Ctrl+Q
+          WINDOW_ID=$(xdotool search --sync --onlyvisible --class "OpenTraderPlatform" 2>/dev/null | head -1)
+          
+          if [ -n "$WINDOW_ID" ]; then
+            echo "Found window ID: $WINDOW_ID"
+            
+            # Send Ctrl+Q directly to the window
+            xdotool key --window "$WINDOW_ID" ctrl+q
+            
+            # Wait for application to exit (with timeout)
+            TIMEOUT=10
+            ELAPSED=0
+            while kill -0 $APP_PID 2>/dev/null && [ $ELAPSED -lt $TIMEOUT ]; do
+              sleep 1
+              ELAPSED=$((ELAPSED + 1))
+            done
+            
+            # Check if process exited
+            if kill -0 $APP_PID 2>/dev/null; then
+              echo "ERROR: Application did not exit after Ctrl+Q within ${TIMEOUT}s, killing it"
+              echo "This is a test failure - application should exit gracefully"
+              kill -9 $APP_PID
+              
+              # Wait with timeout for process to actually terminate
+              WAIT_TIMEOUT=5
+              WAIT_ELAPSED=0
+              while kill -0 $APP_PID 2>/dev/null && [ $WAIT_ELAPSED -lt $WAIT_TIMEOUT ]; do
+                sleep 1
+                WAIT_ELAPSED=$((WAIT_ELAPSED + 1))
+              done
+              
+              # Check if process is still alive after kill -9
+              if kill -0 $APP_PID 2>/dev/null; then
+                echo "ERROR: Process did not terminate after kill -9 within ${WAIT_TIMEOUT}s"
+                echo "This indicates a serious system issue"
+                exit 1
+              fi
+              
+              wait $APP_PID 2>/dev/null || true
+              EXIT_CODE=$?
+              
+              # Fail because we had to force kill
+              echo "Test FAILED: Application required kill -9 to terminate"
+              exit 1
+            else
+              # App exited gracefully, check exit code
+              wait $APP_PID 2>/dev/null || true
+              EXIT_CODE=$?
+              
+              if [ $EXIT_CODE -ne 0 ]; then
+                echo "ERROR: Application exited with non-zero exit code: $EXIT_CODE"
+                echo "This indicates a crash or error during shutdown"
+                exit 1
+              fi
+              
+              echo "Application exited gracefully with exit code: $EXIT_CODE"
+            fi
+          else
+            echo "ERROR: Window not found, application may have crashed or failed to start"
+            wait $APP_PID 2>/dev/null || true
+            EXIT_CODE=$?
+            echo "Application exit code: $EXIT_CODE"
+            exit 1
+          fi
+          
+          # Clean up tail process
+          kill $TAIL_PID 2>/dev/null || true
+          
+          # Clean up Xvfb
+          kill $XVFB_PID 2>/dev/null || true
+
+      - name: Analyze UBSan results
+        if: always()
+        run: |
+          chmod +x .sanitizers/ubsan/analyze-ubsan.sh
+          ./.sanitizers/ubsan/analyze-ubsan.sh || echo "UBSan analysis completed with findings"
+
+      - name: Upload UBSan reports
+        if: always()
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: ubsan-reports-${{ github.sha }}
+          path: |
+            .sanitizers/ubsan/*.txt*
+          retention-days: 7
+
+  build-asan:
+    if: false
+    runs-on: ubuntu-24.04
+    # Only run expensive sanitizer builds when PR is ready (not draft)
+    # if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    
+    permissions:
+      contents: read
+    
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/opentraderplatform-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{github.head_ref}}
+          submodules: true
+
+      - name: Set up ccache
+        run: |
+          export CCACHE_DIR=$HOME/.cache/ccache
+          echo "CCACHE_DIR=$HOME/.cache/ccache" >> $GITHUB_ENV
+          ccache --version
+          mkdir -p $CCACHE_DIR
+          ccache --set-config=max_size=500M
+          ccache --set-config=compression=true
+          ccache --set-config=compression_level=6
+          ccache --zero-stats
+
+      - name: Cache ccache directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-asan-noble-X86-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-asan-noble-X86-${{ github.ref }}
+            ccache-asan-noble-X86-refs/heads/main
+
+      - name: Configure ASan build with CMake
+        run: |
+          cmake --version
+          mkdir -p build/ASan
+          cmake -Wno-deprecated -S . -B build/ASan -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DENABLE_ASAN=ON
+
+      - name: Build ASan targets
+        run: cmake --build build/ASan -j$(nproc)
+
+      - name: Upload ASan executable artifact
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: opentraderplatform-asan-${{ github.sha }}
+          path: |
+            build/ASan/Src/OpenTraderPlatform
+            build/ASan/Src/*.so
+            build/ASan/lib/
+          retention-days: 1
+
+  test-asan:
+    if: false
+    runs-on: ubuntu-24.04
+    needs: build-asan
+    # Only run expensive sanitizer tests when PR is ready (not draft)
+    # if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    
+    permissions:
+      contents: read
+      actions: read
+    
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/opentraderplatform-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{github.head_ref}}
+          submodules: true
+
+      - name: Download ASan executable
+        uses: actions/download-artifact@v4
+        with:
+          name: opentraderplatform-asan-${{ github.sha }}
+          path: ./build/ASan
+
+      - name: Set executable permissions
+        run: chmod +x ./build/ASan/Src/OpenTraderPlatform
+
+      - name: Setup test credentials
+        run: |
+          chmod +x .github/scripts/setup-test-credentials.sh
+          .github/scripts/setup-test-credentials.sh \
+            "${{ secrets.ACCESS_TOKEN }}" \
+            "${{ secrets.CLIENT_ID }}" \
+            "${{ secrets.CLIENT_SECRET }}" \
+            "${{ secrets.ID_TOKEN }}" \
+            "${{ secrets.REFRESH_TOKEN }}" \
+            "${{ vars.EXPIRES_IN }}" \
+            "${{ vars.RECEIVED_AT }}" \
+            "${{ vars.SCOPE }}" \
+            "${{ vars.TOKEN_TYPE }}"
+
+      - name: Set default stock in AppState.ini
+        run: |
+          cat > ~/.config/OpenTraderPlatform/AppState.ini << EOF
+          [UI]
+          LastDisplayedStock=TSLA
+          EOF
+
+      - name: Run ASan test with Xvfb
+        run: |
+          # Configure ASan environment
+          export ASAN_OPTIONS="log_path=.sanitizers/asan/asan-report.txt:halt_on_error=0:detect_leaks=1:suppressions=.sanitizers/asan/asan.supp"
+          
+          # Start Xvfb on display :99
+          Xvfb :99 -screen 0 1024x768x24 &
+          XVFB_PID=$!
+          export DISPLAY=:99
+          
+          # Wait for Xvfb to be ready
+          sleep 2
+          
+          # Verify display is available
+          xdpyinfo -display :99 > /dev/null 2>&1 || { 
+            echo "Display :99 not available"
+            kill $XVFB_PID 2>/dev/null || true
+            exit 1
+          }
+          
+          # Start the GUI application in background (redirect to file instead of using tee/pipe)
+          ./build/ASan/Src/OpenTraderPlatform 2>&1 > .sanitizers/asan/asan-console.txt &
+          APP_PID=$!
+          
+          # Also capture the console output in real-time using tail for monitoring
+          tail -f .sanitizers/asan/asan-console.txt 2>/dev/null &
+          TAIL_PID=$!
+          
+          # Wait for application to start
+          sleep 5
+          
+          # Find the window and send Ctrl+Q
+          WINDOW_ID=$(xdotool search --sync --onlyvisible --class "OpenTraderPlatform" 2>/dev/null | head -1)
+          
+          if [ -n "$WINDOW_ID" ]; then
+            echo "Found window ID: $WINDOW_ID"
+            
+            # Send Ctrl+Q directly to the window
+            xdotool key --window "$WINDOW_ID" ctrl+q
+            
+            # Wait for application to exit (with timeout)
+            TIMEOUT=10
+            ELAPSED=0
+            while kill -0 $APP_PID 2>/dev/null && [ $ELAPSED -lt $TIMEOUT ]; do
+              sleep 1
+              ELAPSED=$((ELAPSED + 1))
+            done
+            
+            # Check if process exited
+            if kill -0 $APP_PID 2>/dev/null; then
+              echo "ERROR: Application did not exit after Ctrl+Q within ${TIMEOUT}s, killing it"
+              echo "This is a test failure - application should exit gracefully"
+              kill -9 $APP_PID
+              
+              # Wait with timeout for process to actually terminate
+              WAIT_TIMEOUT=5
+              WAIT_ELAPSED=0
+              while kill -0 $APP_PID 2>/dev/null && [ $WAIT_ELAPSED -lt $WAIT_TIMEOUT ]; do
+                sleep 1
+                WAIT_ELAPSED=$((WAIT_ELAPSED + 1))
+              done
+              
+              # Check if process is still alive after kill -9
+              if kill -0 $APP_PID 2>/dev/null; then
+                echo "ERROR: Process did not terminate after kill -9 within ${WAIT_TIMEOUT}s"
+                echo "This indicates a serious system issue"
+                exit 1
+              fi
+              
+              wait $APP_PID 2>/dev/null || true
+              EXIT_CODE=$?
+              
+              # Fail because we had to force kill
+              echo "Test FAILED: Application required kill -9 to terminate"
+              exit 1
+            else
+              # App exited gracefully, check exit code
+              wait $APP_PID 2>/dev/null || true
+              EXIT_CODE=$?
+              
+              if [ $EXIT_CODE -ne 0 ]; then
+                echo "ERROR: Application exited with non-zero exit code: $EXIT_CODE"
+                echo "This indicates a crash or error during shutdown"
+                exit 1
+              fi
+              
+              echo "Application exited gracefully with exit code: $EXIT_CODE"
+            fi
+          else
+            echo "ERROR: Window not found, application may have crashed or failed to start"
+            wait $APP_PID 2>/dev/null || true
+            EXIT_CODE=$?
+            echo "Application exit code: $EXIT_CODE"
+            exit 1
+          fi
+          
+          # Clean up tail process
+          kill $TAIL_PID 2>/dev/null || true
+          
+          # Clean up Xvfb
+          kill $XVFB_PID 2>/dev/null || true
+
+      - name: Analyze ASan results
+        if: always()
+        run: |
+          chmod +x .sanitizers/asan/analyze-asan.sh
+          ./.sanitizers/asan/analyze-asan.sh || echo "ASan analysis completed with findings"
+
+      - name: Upload ASan reports
+        if: always()
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: asan-reports-${{ github.sha }}
+          path: |
+            .sanitizers/asan/*.txt*
+          retention-days: 7

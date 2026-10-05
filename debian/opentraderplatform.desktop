@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=OpenTraderPlatform
+GenericName=Algorithmic Trading Platform
+Comment=Real-time algorithmic trading application with Level 2 market data
+Icon=opentraderplatform
+Exec=opentraderplatform
+Terminal=false
+Categories=Office;Finance;Qt;
+Keywords=trading;stock;market;finance;algorithm;level2;

@@ -1,0 +1,56 @@
+#!/usr/bin/make -f
+
+# Enable hardening
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# Use Ninja for faster builds
+export DEB_BUILD_OPTIONS = parallel=$(shell nproc)
+
+# Get the host architecture for cross-compilation support
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+DEB_HOST_GNU_TYPE ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	# Configure with CMake using Ninja for faster parallel builds
+	# FETCHCONTENT_FULLY_DISCONNECTED=OFF overrides the Debian default (ON) so that
+	# Databento can download its bundled dependencies (nlohmann_json, httplib, date)
+	# which do not have suitable system packages on Ubuntu Noble.
+	dh_auto_configure -- -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH) -DBUILD_TESTS=OFF -DBUILD_PRIVATE_STRATEGIES=OFF -DBUILD_STRATEGY_TEST_HARNESSES=OFF -DFETCHCONTENT_FULLY_DISCONNECTED=OFF
+
+override_dh_auto_build:
+	# Build with Ninja using all available cores
+	cmake --build obj-$(DEB_HOST_GNU_TYPE) --parallel $(shell nproc)
+
+override_dh_auto_test:
+	# Skip running tests during package build
+	# Tests will be run in separate CI jobs after package installation
+	@echo "Skipping tests during package build"
+
+override_dh_auto_install:
+	# Install main application binary
+	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/Src/OpenTraderPlatform debian/opentraderplatform/usr/bin/opentraderplatform
+	install -D -m 0755 obj-$(DEB_HOST_GNU_TYPE)/bin/opentraderplatform-mcp-server debian/opentraderplatform/usr/bin/opentraderplatform-mcp-server
+
+	# Install out-of-process strategy SDK runtime and development files
+	DESTDIR=$(CURDIR)/debian/opentraderplatform-strategy-sdk cmake --install obj-$(DEB_HOST_GNU_TYPE) --component strategy-sdk-runtime
+	DESTDIR=$(CURDIR)/debian/opentraderplatform-strategy-sdk-dev cmake --install obj-$(DEB_HOST_GNU_TYPE) --component strategy-sdk-dev
+	
+	# Install public strategy examples only; test harnesses and private strategies are excluded.
+	install -d debian/opentraderplatform/usr/share/opentraderplatform/strategies
+	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/bin/ExampleStrategyProcess debian/opentraderplatform/usr/share/opentraderplatform/strategies/
+	install -m 0755 obj-$(DEB_HOST_GNU_TYPE)/bin/HistoricalBarsStrategyProcess debian/opentraderplatform/usr/share/opentraderplatform/strategies/
+
+	# Install application icon
+	install -D -m 0644 Rsc/Icons/OpenTraderPlatform.png debian/opentraderplatform/usr/share/pixmaps/opentraderplatform.png
+	
+	# Install desktop file
+	install -D -m 0644 debian/opentraderplatform.desktop debian/opentraderplatform/usr/share/applications/opentraderplatform.desktop
+	
+override_dh_auto_clean:
+	dh_auto_clean
+
+override_dh_shlibdeps:
+	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info

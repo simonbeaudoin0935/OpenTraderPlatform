@@ -1,0 +1,660 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "clean",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build",
+                "--target",
+                "clean"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "configure",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-Wno-deprecated",
+                "-G",
+                "Ninja",
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DBUILD_TESTS=OFF",
+                "-DBUILD_PRIVATE_STRATEGIES=OFF",
+                "-DBUILD_STRATEGY_TEST_HARNESSES=OFF"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "configure-test",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-Wno-deprecated",
+                "-G",
+                "Ninja",
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build/test",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DBUILD_TESTS=ON",
+                "-DBUILD_PRIVATE_STRATEGIES=OFF",
+                "-DBUILD_STRATEGY_TEST_HARNESSES=OFF"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "configure-ubsan",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-Wno-deprecated",
+                "-G",
+                "Ninja",
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build/UBSan",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DBUILD_TESTS=OFF",
+                "-DBUILD_PRIVATE_STRATEGIES=OFF",
+                "-DBUILD_STRATEGY_TEST_HARNESSES=OFF",
+                "-DENABLE_UBSAN=ON"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "configure-asan",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-Wno-deprecated",
+                "-G",
+                "Ninja",
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build/ASan",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DBUILD_TESTS=OFF",
+                "-DBUILD_PRIVATE_STRATEGIES=OFF",
+                "-DBUILD_STRATEGY_TEST_HARNESSES=OFF",
+                "-DENABLE_ASAN=ON"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build",
+                "--parallel"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "configure"
+            ]
+        },
+        {
+            "label": "stage-strategy-sdk",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build",
+                "--target",
+                "stage-strategy-sdk"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "build"
+            ]
+        },
+        {
+            "label": "build-test",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/test",
+                "--parallel"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "configure-test"
+            ]
+        },
+        {
+            "label": "stage-strategy-sdk-test",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/test",
+                "--target",
+                "stage-strategy-sdk"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "build-test"
+            ]
+        },
+        {
+            "label": "build-ubsan",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/UBSan",
+                "--parallel"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "configure-ubsan"
+            ]
+        },
+        {
+            "label": "stage-strategy-sdk-ubsan",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/UBSan",
+                "--target",
+                "stage-strategy-sdk"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "build-ubsan"
+            ]
+        },
+        {
+            "label": "build-asan",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/ASan",
+                "--parallel"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "configure-asan"
+            ]
+        },
+        {
+            "label": "stage-strategy-sdk-asan",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/ASan",
+                "--target",
+                "stage-strategy-sdk"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "build-asan"
+            ]
+        },
+        {
+            "label": "run",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/Src/OpenTraderPlatform",
+            "args": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "build-then-run",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/Src/OpenTraderPlatform",
+            "args": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": [
+                "build"
+            ]
+        },
+        {
+            "label": "run-ubsan",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/UBSan/Src/OpenTraderPlatform",
+            "args": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": [
+                "build-ubsan"
+            ]
+        },
+        {
+            "label": "analyze-ubsan-report",
+            "type": "shell",
+            "command": "${workspaceFolder}/.sanitizers/ubsan/analyze-ubsan.sh",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run-ubsan-with-analysis",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "run-ubsan",
+                "analyze-ubsan-report"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run-asan",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/ASan/Src/OpenTraderPlatform",
+            "args": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": [
+                "build-asan"
+            ]
+        },
+        {
+            "label": "analyze-asan-report",
+            "type": "shell",
+            "command": "${workspaceFolder}/.sanitizers/asan/analyze-asan.sh",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run-asan-with-analysis",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "run-asan",
+                "analyze-asan-report"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run-valgrind",
+            "type": "shell",
+            "command": "valgrind",
+            "args": [
+                "--leak-check=full",
+                "--show-leak-kinds=all",
+                "--track-origins=yes",
+                "--verbose",
+                "--log-file=${workspaceFolder}/.sanitizers/valgrind/valgrind-report.txt",
+                "--suppressions=${workspaceFolder}/.sanitizers/valgrind/valgrind-qt.supp",
+                "${workspaceFolder}/build/Src/OpenTraderPlatform"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": [
+                "build"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "analyze-valgrind-report",
+            "type": "shell",
+            "command": "${workspaceFolder}/.sanitizers/valgrind/analyze-leaks.sh",
+            "args": [
+                "${workspaceFolder}/.sanitizers/valgrind/valgrind-report.txt"
+            ],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run-valgrind-with-analysis",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "run-valgrind",
+                "analyze-valgrind-report"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run-valgrind-quick",
+            "type": "shell",
+            "command": "valgrind",
+            "args": [
+                "--leak-check=yes",
+                "--show-reachable=no",
+                "--suppressions=${workspaceFolder}/.sanitizers/valgrind/valgrind-qt.supp",
+                "${workspaceFolder}/build/Src/OpenTraderPlatform"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": [
+                "build"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "run-lttng",
+            "type": "shell",
+            "command": "${workspaceFolder}/.sanitizers/lttng/run-with-lttng.sh",
+            "args": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": [
+                "build"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "configure-lttng",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-Wno-deprecated",
+                "-G",
+                "Ninja",
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build/LTTng",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DBUILD_TESTS=OFF",
+                "-DBUILD_PRIVATE_STRATEGIES=OFF",
+                "-DBUILD_STRATEGY_TEST_HARNESSES=OFF",
+                "-DLTTNG_ENABLED=ON"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "build-with-lttng",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/LTTng",
+                "--parallel"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "configure-lttng"
+            ]
+        },
+        {
+            "label": "run-lttng-instrumented",
+            "type": "shell",
+            "command": "APP=${workspaceFolder}/build/LTTng/Src/OpenTraderPlatform ${workspaceFolder}/.sanitizers/lttng/run-with-lttng.sh",
+            "args": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": [
+                "build-with-lttng"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "configure-lttng-flamegraph",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-Wno-deprecated",
+                "-G",
+                "Ninja",
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build/LTTng-Flamegraph",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DBUILD_TESTS=OFF",
+                "-DBUILD_PRIVATE_STRATEGIES=OFF",
+                "-DBUILD_STRATEGY_TEST_HARNESSES=OFF",
+                "-DLTTNG_ENABLED=ON",
+                "-DLTTNG_FLAMEGRAPH=ON"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "build-with-lttng-flamegraph",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/LTTng-Flamegraph",
+                "--parallel"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": [
+                "configure-lttng-flamegraph"
+            ]
+        },
+        {
+            "label": "run-lttng-flamegraph",
+            "type": "shell",
+            "command": "FLAMEGRAPH=true APP=${workspaceFolder}/build/LTTng-Flamegraph/Src/OpenTraderPlatform ${workspaceFolder}/.sanitizers/lttng/run-with-lttng.sh",
+            "args": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "dependsOn": [
+                "build-with-lttng-flamegraph"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "build-debian-package",
+            "type": "shell",
+            "command": "dpkg-buildpackage",
+            "args": [
+                "-us",
+                "-uc",
+                "-b"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated"
+            },
+            "problemMatcher": "$gcc",
+            "detail": "Build Debian binary packages with dpkg-buildpackage; Debian Build-Depends must be installed."
+        }
+    ]
+}

@@ -1,0 +1,587 @@
+#pragma once
+
+#include <atomic>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <variant>
+
+#include <QDateTime>
+#include <QFuture>
+#include <QHash>
+#include <QLoggingCategory>
+#include <QMutex>
+#include <QObject>
+#include <QSet>
+#include <QString>
+#include <QThread>
+#include <QTimer>
+#include <QVector>
+
+#include <databento/live_threaded.hpp>
+#include <databento/historical.hpp>
+#include <databento/symbol_map.hpp>
+
+#include "Core/Models/Bar.h"
+#include "Core/Models/Level2.h"
+#include "Core/Models/Trade.h"
+#include "Misc/TimeFrame.h"
+#include "PlaybackTypes.h"
+
+Q_DECLARE_LOGGING_CATEGORY(DBClientLog)
+
+/**
+ * @brief Databento API client — singleton on dedicated thread
+ *
+ * Manages the Databento API key, live streaming via LiveThreaded, and
+ * historical bar fetching via the Historical client. Translates raw Databento
+ * records into OpenTraderPlatform domain types and emits Qt signals for downstream
+ * consumers (MainAlgo receivers).
+ *
+ * ## Threading model
+ * - DBClient lives on its own QThread (like TSClient).
+ * - LiveThreaded spawns an internal thread; our RecordCallback runs on that thread.
+ *   Qt signals emitted from the callback are auto-queued to the receiver's thread.
+ * - Historical fetching runs on QThreadPool to avoid blocking the DBClient thread.
+ * - State-modifying methods self-route to the DBClient thread if called from elsewhere.
+ *
+ * ## Subscription model
+ * - Each symbol subscribes to Schema::Mbp10 (Level 2 book) + Schema::Trades.
+ * - Subscriptions accumulate for the session — Databento does NOT support unsubscribe.
+ * - Data for non-displayed symbols is silently ignored by receivers.
+ */
+class DBClient : public QObject
+{
+    Q_OBJECT
+
+  public:
+    /**
+     * @brief Connection lifecycle states
+     */
+    enum class ConnectionState : quint8
+    {
+        Disconnected, ///< No live session active
+        Connecting,   ///< LiveThreaded built, Start() called, waiting for metadata
+        Connected,    ///< Metadata received, session active and streaming
+        Reconnecting, ///< Exception occurred, auto-reconnect in progress
+    };
+    Q_ENUM(ConnectionState)
+
+    struct ReplayDayInfo
+    {
+        QDate date;
+        int fileCount = 0;
+        qint64 totalSizeBytes = 0;
+    };
+
+    struct ReplaySymbolInfo
+    {
+        QString symbol;
+        bool hasMbp10 = false;
+        bool hasMbp1 = false;
+        bool hasTrades = false;
+        qint64 mbp10SizeBytes = 0;
+        qint64 mbp1SizeBytes = 0;
+        qint64 tradesSizeBytes = 0;
+
+        [[nodiscard]] qint64 totalSizeBytes() const
+        {
+            return mbp10SizeBytes + mbp1SizeBytes + tradesSizeBytes;
+        }
+
+        [[nodiscard]] bool hasLevel2Data() const
+        {
+            return hasMbp10 || hasMbp1;
+        }
+
+        [[nodiscard]] bool isReducedFidelity() const
+        {
+            return !hasMbp10 && hasMbp1;
+        }
+
+        [[nodiscard]] QString preferredLevel2Schema() const
+        {
+            if (hasMbp10)
+            {
+                return "mbp10";
+            }
+            if (hasMbp1)
+            {
+                return "mbp1";
+            }
+
+            return {};
+        }
+
+        [[nodiscard]] bool isComplete() const
+        {
+            return hasLevel2Data() && hasTrades;
+        }
+    };
+
+    struct ReplayDownloadItemResult
+    {
+        QString symbol;
+        bool success = false;
+        QString errorMessage;
+    };
+
+    struct ReplayDownloadBatchResult
+    {
+        QStringList requestedSymbols;
+        QStringList queuedSymbols;
+        QStringList skippedSymbols;
+        QVector<ReplayDownloadItemResult> completedDownloads;
+    };
+
+    [[nodiscard]] static DBClient* getInstance();
+    static void destroyInstance();
+    [[nodiscard]] static bool isInstantiated()
+    {
+        return m_instance != nullptr;
+    }
+
+    Q_DISABLE_COPY_MOVE(DBClient)
+
+    void start()
+    {
+        m_thread.start();
+    }
+
+    // ── API Key management ─────────────────────────────────────────────
+
+    void loadApiKey();
+    void storeApiKey(const QString& p_apiKey);
+    [[nodiscard]] bool hasApiKey() const;
+    [[nodiscard]] QString getApiKey() const;
+
+    // ── Live streaming ─────────────────────────────────────────────────
+
+    /**
+     * @brief Build a LiveThreaded client and start the session.
+     * Requires a valid API key. Emits connectionStateChanged(Connecting).
+     * On metadata receipt, transitions to Connected.
+     */
+    void connectLive();
+
+    /**
+     * @brief Stop the live session and destroy the LiveThreaded client.
+     * Emits connectionStateChanged(Disconnected).
+     */
+    void disconnectLive();
+
+    /**
+     * @brief Subscribe a symbol to live Level 2 + Trades data.
+     * No-op if the symbol is already subscribed or not connected.
+     * @param p_symbol Ticker symbol (e.g. "AAPL")
+     */
+    void subscribeLive(const QString& p_symbol, std::optional<QDateTime> p_liveBackfillStart = std::nullopt);
+
+    // ── Historical data ────────────────────────────────────────────────
+
+    /**
+     * @brief Fetch historical OHLCV bars for a symbol at the requested timescale.
+     *
+     * Runs asynchronously on QThreadPool. Emits historicalBarsReceived on completion.
+     * Non-native timescales are fetched from their source schema and aggregated in-app:
+     *   5m / 15m / 30m  — fetched as 1m then aggregated
+     *   4h              — fetched as 1h then aggregated
+     *   1w / 1M         — fetched as 1d then aggregated
+     *
+     * @param p_symbol Ticker symbol
+     * @param p_start  Range start (inclusive, market timezone)
+     * @param p_end    Range end (inclusive, market timezone)
+     * @param p_tf     Timescale of bars to return (default: ONE_MINUTE)
+     */
+    void fetchHistoricalBars(const QString& p_symbol,
+                             const QDateTime& p_start,
+                             const QDateTime& p_end,
+                             TimeFrame p_tf = TimeFrame::ONE_MINUTE);
+
+    // ── Replay data download ──────────────────────────────────────────
+
+    /**
+     * @brief Download replay data (Mbp10 or Mbp1, plus Trades) for a symbol and date.
+     * Runs asynchronously on QThreadPool. Emits replayDownloadFinished on completion.
+     * Files are saved to ~/.local/share/OpenTraderPlatform/ReplayData/{YYYY-MM-DD}/
+     * @param p_symbol Ticker symbol
+     * @param p_date   Trading date to download
+     */
+    void downloadReplayData(const QString& p_symbol, const QDate& p_date);
+    void downloadReplayData(const QString& p_symbol, const QDate& p_date, const QString& p_requestId);
+
+    /**
+     * @brief Get or set the base directory where replay data is stored.
+     * Defaults to ~/.local/share/OpenTraderPlatform/ReplayData. Can be overridden to point
+     * to an external drive or transferred folder.
+     */
+    [[nodiscard]] static QString getReplayBaseDir();
+    static void setReplayBaseDir(const QString& p_dir);
+
+    /**
+     * @brief Get the directory path for replay data of a given date.
+     */
+    [[nodiscard]] static QString getReplayDataDir(const QDate& p_date);
+
+    /**
+     * @brief Get the file path for a specific schema's replay file.
+     * @param p_date Trading date
+     * @param p_symbol Ticker symbol
+     * @param p_schema "mbp10", "mbp1", or "trades"
+     */
+    [[nodiscard]] static QString
+    getReplayFilePath(const QDate& p_date, const QString& p_symbol, const QString& p_schema);
+
+    /**
+     * @brief Check if replay data exists for a symbol and date.
+     * @return true if both replay book data (Mbp10 or Mbp1) and Trades .dbn.zst files are parseable
+     *         and contain replay records
+     */
+    [[nodiscard]] static bool hasReplayData(const QDate& p_date, const QString& p_symbol);
+
+    /**
+     * @brief Reconstruct a full trading day of 1-minute bars from local replay trades data.
+     *
+     * Runs asynchronously on QThreadPool. Returns std::nullopt if the replay trades
+     * file is unavailable or cannot be parsed. Successful results always contain a
+     * contiguous full-day vector with Null bars for intervals that had no trades.
+     *
+     * @param p_symbol Ticker symbol
+     * @param p_date Trading date
+     */
+    [[nodiscard]] static QFuture<std::optional<std::shared_ptr<QVector<Bar>>>>
+    loadReplayOneMinuteBarsFromTrades(const QString& p_symbol, const QDate& p_date);
+
+    /**
+     * @brief Enumerate recorded replay days currently present on disk.
+     */
+    [[nodiscard]] static QVector<ReplayDayInfo> listAvailableReplayDates();
+
+    /**
+     * @brief Enumerate recorded replay days that contain complete data for one symbol.
+     */
+    [[nodiscard]] static QVector<QDate> listAvailableReplayDatesForSymbol(const QString& p_symbol);
+
+    /**
+     * @brief Get aggregate file information for one replay day.
+     */
+    [[nodiscard]] static std::optional<ReplayDayInfo> getReplayDateInfo(const QDate& p_date);
+
+    /**
+     * @brief Enumerate recorded replay symbols/files for one replay day.
+     */
+    [[nodiscard]] static QVector<ReplaySymbolInfo> listAvailableReplaySymbols(const QDate& p_date);
+
+    /**
+     * @brief Returns the date for which the current replay session was opened.
+     *        Invalid QDate if not in replay mode.
+     */
+    [[nodiscard]] static QDate getReplayDate();
+
+    // ── Replay playback ───────────────────────────────────────────────
+
+    using PlaybackState = Playback::State;
+    using PlaybackSpeed = Playback::Speed;
+
+    /**
+     * @brief Start replay from specified date and time.
+     * Opens .dbn.zst files for the symbol, merges Level2+Trade into a time-ordered
+     * stream, emits records via newLevel2/newTrade (same as live).
+     */
+    void startReplay(const QString& p_symbol, QDate p_date, QTime p_startTime, PlaybackSpeed p_speed);
+
+    /**
+     * @brief Start replay in paused state, emitting only the first data point(s).
+     * Used for chart pre-loading before user hits play.
+     */
+    void startReplayPaused(const QString& p_symbol, QDate p_date, QTime p_startTime, PlaybackSpeed p_speed);
+
+    void stopReplay();
+    void pauseReplay();
+    void resumeReplay();
+    void setReplaySpeed(PlaybackSpeed p_speed);
+
+    /**
+     * @brief Add a new symbol to the active replay, opening its data files.
+     * Call this after startReplay/startReplayPaused when a strategy subscribes
+     * to a secondary symbol mid-replay. Safe to call on any thread.
+     * @return true if data files were found and opened successfully
+     */
+    bool addReplaySymbol(const QString& p_symbol);
+
+    [[nodiscard]] PlaybackState getPlaybackState() const
+    {
+        return m_playbackState;
+    }
+    [[nodiscard]] PlaybackSpeed getPlaybackSpeed() const
+    {
+        return m_playbackSpeed;
+    }
+    [[nodiscard]] bool isReplayActive() const
+    {
+        return m_playbackState != PlaybackState::Stopped;
+    }
+
+    // ── State queries ──────────────────────────────────────────────────
+
+    [[nodiscard]] bool isConnected() const;
+    [[nodiscard]] ConnectionState getConnectionState() const;
+
+    /**
+     * @brief Get or set the Databento dataset identifier.
+     * Defaults to "XNAS.ITCH" (NASDAQ TotalView). Persisted in QSettings.
+     */
+    [[nodiscard]] QString getDataset() const;
+    void setDataset(const QString& p_dataset);
+
+  signals:
+    /**
+     * @brief Emitted when the API-key-based connection state changes (legacy, kept for GUI button)
+     * Thread context: Emitted from Main/GUI thread
+     * @param p_isConnected true if a valid API key is present
+     */
+    void connectionStateChanged(bool p_isConnected);
+
+    /**
+     * @brief API key could not be saved to the native keyring
+     * Thread context: Emitted from DBClient thread, received on Main/GUI thread
+     * @param p_errorMessage Safe error description without credential values
+     */
+    void credentialStorageFailed(const QString& p_errorMessage);
+
+    /**
+     * @brief Emitted on live connection lifecycle transitions
+     * Thread context: Emitted from Databento callback thread (auto-queued)
+     * @param p_state The new connection state
+     */
+    void liveConnectionStateChanged(DBClient::ConnectionState p_state);
+
+    /**
+     * @brief New Level 2 (10-level book) snapshot from live stream
+     * Thread context: Emitted from Databento callback thread
+     * @param p_symbol Resolved ticker symbol
+     * @param p_level2 The 10-level bid/ask snapshot
+     */
+    void newLevel2(const QString& p_symbol, const Level2& p_level2);
+
+    /**
+     * @brief New trade print from live stream
+     * Thread context: Emitted from Databento callback thread
+     * @param p_symbol Resolved ticker symbol
+     * @param p_trade  The trade data
+     */
+    void newTrade(const QString& p_symbol, const Trade& p_trade);
+
+    /**
+     * @brief Historical bars received for a symbol (async result)
+     * Thread context: Emitted from QThreadPool worker thread (auto-queued)
+     * @param p_symbol Ticker symbol
+     * @param p_bars   Vector of 1-minute OHLCV bars
+     */
+    void historicalBarsReceived(const QString& p_symbol, const QVector<Bar>& p_bars);
+
+    /**
+     * @brief Replay data download completed
+     * Thread context: Emitted from QThreadPool worker thread (auto-queued)
+     * @param p_symbol Ticker symbol
+     * @param p_date   Date downloaded
+     * @param p_success true if download succeeded
+     * @param p_errorMessage Error description (empty on success)
+     */
+    void
+    replayDownloadFinished(const QString& p_symbol, const QDate& p_date, bool p_success, const QString& p_errorMessage);
+
+    /**
+     * @brief Replay data download completed for a caller-specific request token
+     * Thread context: Emitted from QThreadPool worker thread (auto-queued)
+     * @param p_requestId Caller-supplied request token used to correlate a download batch
+     * @param p_symbol Ticker symbol
+     * @param p_date Date downloaded
+     * @param p_success true if download succeeded
+     * @param p_errorMessage Error description (empty on success)
+     */
+    void replayDownloadFinishedForRequest(const QString& p_requestId,
+                                          const QString& p_symbol,
+                                          const QDate& p_date,
+                                          bool p_success,
+                                          const QString& p_errorMessage);
+
+    /**
+     * @brief Trading status update for a symbol from the live status stream.
+     * Thread context: Emitted from Databento callback thread (auto-queued)
+     * @param p_symbol              Resolved ticker symbol
+     * @param p_isHalted            true if trading is halted/paused/suspended
+     * @param p_haltReason          Human-readable reason for the halt (empty if not halted)
+     * @param p_isShortSellRestricted true if short selling is restricted (SSR/HTB)
+     */
+    void newStatus(const QString& p_symbol, bool p_isHalted, const QString& p_haltReason, bool p_isShortSellRestricted);
+
+    /**
+     * @brief Error received from the Databento Live Subscription Gateway.
+     * Thread context: Emitted from Databento callback thread (auto-queued)
+     * @param p_errorText   Human-readable error message from the gateway
+     * @param p_isFatal     true if this error terminates the session (e.g. InvalidSubscription, AuthFailed)
+     */
+    void liveGatewayError(const QString& p_errorText, bool p_isFatal);
+
+    /**
+     * @brief Cumulative data usage updated (live + historical bytes received)
+     * Thread context: Emitted from Databento callback thread or QThreadPool worker
+     * @param p_totalBytes Total bytes received since application start
+     */
+    void dataUsageUpdated(qsizetype p_totalBytes);
+
+    // ── Replay lifecycle signals ──────────────────────────────────────
+    /// Thread context: Emitted from DBClient thread
+
+    void replayStarted();
+    void replayStopped();
+    void replayPaused();
+    void replayResumed();
+    void replayTimeUpdated(QDateTime p_currentTime);
+    void replayEndReached();
+    void replayDataLoadFailed(const QString& p_errorMessage);
+
+  private:
+    explicit DBClient();
+    ~DBClient() override;
+
+    // ── Live callbacks (run on Databento's internal thread) ────────────
+    void onMetadataReceived(databento::Metadata&& p_metadata);
+    databento::KeepGoing onRecordReceived(const databento::Record& p_record);
+    databento::LiveThreaded::ExceptionAction onException(const std::exception& p_exception);
+
+    // ── Helpers ────────────────────────────────────────────────────────
+    void setConnectionState(ConnectionState p_state);
+    [[nodiscard]] QString resolveSymbol(const databento::Record& p_record) const;
+    [[nodiscard]] QString effectiveLiveDataset() const;
+    void setResolvedLiveDataset(const QString& p_dataset);
+    void applyLiveSubscription(const QString& p_symbol,
+                               std::optional<QDateTime> p_liveBackfillStart,
+                               bool p_allowLiveBackfill);
+    void scheduleLiveQuoteBootstrap(const QString& p_symbol, int p_delayMs = 0);
+    void startLiveQuoteBootstrapAttempt(const QString& p_symbol);
+    void finishLiveQuoteBootstrapAttempt(const QString& p_symbol,
+                                         int p_attempt,
+                                         int p_windowSeconds,
+                                         std::optional<Level2> p_seedQuote,
+                                         const QString& p_errorText);
+    void recordObservedLiveQuote(const QString& p_symbol, const QDateTime& p_quoteTime);
+    [[nodiscard]] QDateTime latestObservedLiveQuote(const QString& p_symbol) const;
+
+    // ── Replay playback internals ─────────────────────────────────────
+
+    struct PeekedRecord
+    {
+        qint64 epochMs = 0;
+        std::variant<Level2, Trade> data;
+        bool valid = false;
+    };
+
+    /// Per-symbol replay stream: one Level2 file store (mbp10 or mbp1) plus trades with peeked heads.
+    struct SymbolStream
+    {
+        QString symbol;
+        std::unique_ptr<databento::DbnFileStore> level2Store;
+        std::unique_ptr<databento::DbnFileStore> tradesStore;
+        PeekedRecord nextLevel2;
+        PeekedRecord bufferedLevel2;
+        PeekedRecord nextTrade;
+        QString level2Schema;
+    };
+
+    /// Open replay streams for one symbol and append to m_replayStreams.
+    /// Returns true if at least one file was opened successfully.
+    bool openReplayStreamsForSymbol(const QString& p_symbol, QDate p_date);
+
+    void advanceLevel2(SymbolStream& p_stream);
+    void advanceTrade(SymbolStream& p_stream);
+
+    /// Pick the globally earliest record across all m_replayStreams and emit it.
+    void emitNextReplayRecord();
+
+    void startReplaySession(const QString& p_symbol,
+                            QDate p_date,
+                            QTime p_startTime,
+                            PlaybackSpeed p_speed,
+                            bool p_startPaused);
+    void scheduleNextReplayTick();
+    [[nodiscard]] qint64 calculateWallClockDelay(qint64 p_replayEpochMs) const;
+    [[nodiscard]] qint64 currentReplayEpochFromWallClock() const;
+    void syncReplayTimeToWallClock();
+    void updateReplayTime(qint64 p_epochMs);
+    void closeReplayStreams();
+
+    /// @brief Returns true if any stream still has valid records.
+    [[nodiscard]] bool hasAnyReplayRecord() const;
+
+    /// @brief Returns the earliest epochMs across all streams (or INT64_MAX if none).
+    [[nodiscard]] qint64 earliestReplayEpoch() const;
+
+  private slots:
+    void onReplayTimerTick();
+    void onThreadStarted();
+
+  private:
+    struct LiveQuoteBootstrapState
+    {
+        int attempt = 0;
+        int windowSeconds = 60;
+        int retryDelayMs = 1500;
+        bool timerPending = false;
+        bool inFlight = false;
+        bool completed = false;
+    };
+
+    static DBClient* m_instance;
+    static QString m_replayBaseDir; ///< Empty = use default cache location
+
+    // API key
+    QString m_apiKey;
+
+    // Live streaming
+    std::unique_ptr<databento::LiveThreaded> m_liveClient;
+    databento::PitSymbolMap m_symbolMap;
+    QSet<QString> m_subscribedSymbols;
+    QHash<QString, std::optional<QDateTime>> m_requestedLiveSubscriptions;
+    QHash<QString, LiveQuoteBootstrapState> m_liveQuoteBootstrapStates;
+    ConnectionState m_connectionState = ConnectionState::Disconnected;
+    mutable QMutex m_symbolMapMutex; ///< Guards m_symbolMap access across threads
+    mutable QMutex m_liveQuoteTimestampMutex;
+    QHash<QString, QDateTime> m_latestObservedLiveQuote;
+
+    // Historical
+    std::unique_ptr<databento::Historical> m_historicalClient;
+
+    // Configuration
+    QString m_dataset;
+    QString m_resolvedLiveDataset;
+
+    // Data usage tracking
+    std::atomic<qsizetype> m_totalDataReceivedBytes{0};
+    std::atomic<int> m_recordCounter{0};
+    static constexpr int k_emitEveryNRecords = 100; ///< Throttle dataUsageUpdated signal
+    static constexpr int k_liveQuoteBootstrapInitialWindowSeconds = 60;
+    static constexpr int k_liveQuoteBootstrapMaxWindowSeconds = 4 * 60 * 60;
+    static constexpr int k_liveQuoteBootstrapInitialRetryDelayMs = 1500;
+    static constexpr int k_liveQuoteBootstrapMaxRetryDelayMs = 60000;
+    static constexpr int k_liveQuoteBootstrapWaitForConnectedMs = 500;
+    static constexpr int k_liveQuoteBootstrapMaxAttempts = 10;
+
+    static constexpr const char* k_defaultDataset = "XNAS.ITCH";
+    static constexpr const char* k_basicFallbackDataset = "XNAS.BASIC";
+    static constexpr const char* k_settingsKeyDataset = "Databento/Dataset";
+
+    // Replay playback state
+    QTimer m_replayTimer;
+    std::vector<SymbolStream> m_replayStreams; ///< One entry per replayed symbol
+    qint64 m_startEpochMs = 0;
+    QDate m_replayDate;
+    PlaybackState m_playbackState = PlaybackState::Stopped;
+    PlaybackSpeed m_playbackSpeed = PlaybackSpeed::Normal;
+    qint64 m_wallClockAnchorMs = 0;
+    qint64 m_replayEpochAnchorMs = 0;
+    qint64 m_pauseWallClockMs = 0;
+
+    QThread m_thread;
+};

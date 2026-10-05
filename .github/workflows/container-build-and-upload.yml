@@ -1,0 +1,72 @@
+name: Container Build And Upload
+description: |
+  Builds and uploads to GHCR (GitHub Container Registry) the container used to build the app.
+  This workflow will assumes the build architecture is amd64 (x86_64) since the github's 'ubuntu-latest' runs-on tag
+  is used. Dockerfile in this repo's docker/ folder will be built for amd64 and cross-compiled
+  for arm64.
+
+on:
+  schedule:
+    # Runs at 00:00 UTC every Monday
+    - cron: '0 0 * * 1'
+
+  pull_request:
+    branches:
+      - main
+      - development
+    paths:
+      - '.github/workflows/container-build-and-upload.yml'
+      - '.github/docker/**'
+
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/container-build-and-upload.yml'
+      - '.github/docker/**'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+
+  # Build the amd64 natively on ubuntu-latest which is an x86_64 host
+  build-image-amd64-noble:
+    runs-on: ubuntu-24.04
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: build image
+        run: |
+          docker build -f .github/docker/Dockerfile.amd64.noble -t ghcr.io/${{ vars.USERNAME }}/opentraderplatform-builder:noble .
+
+      # Don't push to GHCR if build was triggered by a PR
+      - name: Push to GHCR
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          echo ${{ secrets.TOKEN_GHCR }} | docker login ghcr.io -u ${{ vars.USERNAME }} --password-stdin
+          docker push ghcr.io/${{ vars.USERNAME }}/opentraderplatform-builder:noble
+
+  # Build the RPI cross-compilation container on ubuntu-latest (amd64)
+  build-image-rpi-trixie:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: |
+          docker build -f .github/docker/Dockerfile.rpi.trixie -t ghcr.io/${{ vars.USERNAME }}/opentraderplatform-builder:rpi-trixie .
+
+      # Don't push to GHCR if build was triggered by a PR
+      - name: Push to GHCR
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          echo ${{ secrets.TOKEN_GHCR }} | docker login ghcr.io -u ${{ vars.USERNAME }} --password-stdin
+          docker push ghcr.io/${{ vars.USERNAME }}/opentraderplatform-builder:rpi-trixie

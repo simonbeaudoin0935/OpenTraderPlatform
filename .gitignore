@@ -1,0 +1,36 @@
+build/
+Src/Misc/Logging/Logging_generated.h
+compile_commands.json
+
+# CodeQL artifacts
+_codeql_build_dir/
+_codeql_detected_source_root/
+
+qcustomplot/examples/
+
+# Debian packaging artifacts
+obj-*/
+debian/.debhelper/
+debian/opentraderplatform/
+debian/opentraderplatform-tests/
+debian/opentraderplatform-strategy-sdk/
+debian/opentraderplatform-strategy-sdk-dev/
+debian/files
+debian/*.debhelper*
+debian/*.substvars
+debian/debhelper-build-stamp
+
+# Sanitizer and Valgrind reports
+.sanitizers/*/*.txt
+
+#TODO files
+TODO/
+
+# Local temp prompt transfer file
+prompt.txt
+
+# Local git worktree roots
+.worktrees/
+
+# Private strategy checkout (separate repository, never tracked here)
+/Strategies/Privates/

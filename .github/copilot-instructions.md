@@ -1,0 +1,501 @@
+# Copilot Instructions for OpenTraderPlatform Repository
+
+## Navigation Guide
+
+For detailed information about specific components, see the AGENTS.md files:
+- **Root AGENTS.md**: Project overview, architecture, and navigation to subsystems
+- **Src/AGENTS.md**: Source code structure and patterns
+- **Src/Clients/TSClient/AGENTS.md**: TradeStation API client details
+- **Src/Core/AGENTS.md**: Core application components
+- **Src/Algo/AGENTS.md**: Trading algorithm coordination
+- **Src/Misc/AGENTS.md**: Utilities, constants, logging
+- **Src/SQL/AGENTS.md**: SQL query management
+- **Src/Strategy/AGENTS.md**: External strategy runtime
+
+## Building the Project
+
+### Quick Build Commands
+
+> **Important**: Do NOT use `-j$(nproc)` in build commands — the `$(...)` expansion
+> is blocked by the shell security policy. Instead, query the core count first and
+> use a literal value: `CORES=$(nproc)` then `-j $CORES`, or just use `-j4`.
+
+```bash
+# Default build
+mkdir -p build
+cmake -Wno-deprecated -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF
+cmake --build build -j4
+
+# Format code before committing (REQUIRED)
+find Src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
+```
+
+### Build Times
+- Configure: ~10-15 seconds
+- Full build: ~2-5 minutes (with Ninja)
+- Incremental: ~10-30 seconds
+
+### Run Application
+
+```bash
+# GUI platform
+./build/Src/OpenTraderPlatform
+```
+
+
+## Core Coding Guidelines
+
+### ASSERT-First Strategy (MANDATORY)
+**Always use ASSUME macros instead of defensive null/pointer checks.** Defensive checks hide bugs by silently failing; ASSUME macros catch bugs early in testing.
+
+#### When to Use ASSUME Macros
+Use ASSUME macros for pointer/object validation in ALL cases EXCEPT:
+- ✅ Destructor cleanup (legitimate to check before deleteLater/reset)
+- ✅ Optional parameters explicitly documented as nullable
+- ✅ Explicit error handling paths (parsing user input, network responses)
+
+#### Required Patterns
+```cpp
+// ✗ WRONG - Defensive check hides bugs
+if (m_replayEngine != nullptr) {
+    m_replayEngine->pauseReplay();
+}
+
+// ✗ WRONG - Silent failure on null pointer
+if (m_strategyManager) {
+    m_strategyManager->loadStrategy();
+}
+
+// ✓ CORRECT - Assert expectation upfront (pre-condition)
+OBJ_ASSUME_DIFF(m_replayEngine, nullptr);
+m_replayEngine->pauseReplay();
+
+// ✓ CORRECT - Assert valid results (post-condition)
+auto result = processData();
+ASSUME_GT(result, 0);  // Ensure valid output
+
+// ✓ ACCEPTABLE - Destructor cleanup
+~MyClass() {
+    if (m_resource) {
+        m_resource->cleanup();
+    }
+}
+```
+
+#### Available ASSUME Macros
+From `Src/Misc/Assume.h`:
+- `OBJ_ASSUME_DIFF(ptr, nullptr)` - Assert pointer is not null
+- `OBJ_ASSUME_TRUE(condition)` - Assert condition is true
+- `OBJ_ASSUME_FALSE(condition)` - Assert condition is false
+- `OBJ_ASSUME_EQUAL(a, b)` - Assert equality
+- `OBJ_ASSUME_GT/GTE/LT/LTE(a, b)` - Assert comparisons
+- Non-OBJ variants (ASSUME_*) use function name instead of object name
+
+Use ASSUME macros from `Src/Misc/Assume.h` for both pre-conditions and post-conditions instead of Q_ASSERT.
+
+### Naming Conventions
+- Member variables: `m_` prefix (e.g., `m_barCache`)
+- Global variables: `g_` prefix (e.g., `g_mainAlgo`)
+- Parameters: `p_` prefix (e.g., `p_symbol`)
+
+### Code Style
+- Early exit: Handle errors first, minimize indentation
+- [[nodiscard]]: Mark functions where return values must be checked
+- Qt::UniqueConnection:
+  - **NEVER use with lambdas** — Qt::UniqueConnection silently **rejects the entire `connect()` call** when the slot is a lambda (not a QObject member function pointer). It returns an invalid handle and emits a runtime warning. The connection is NOT made at all.
+  - Only use with **named-slot** (pointer-to-member-function) connections.
+  - **Always assert the return value** — if you use UniqueConnection to catch double-wiring bugs, you must verify it worked:
+    ```cpp
+    // ✓ CORRECT — assert catches both "failed" and "duplicate already existed"
+    auto c = connect(sender, &Sender::signal, receiver, &Receiver::slot, Qt::UniqueConnection);
+    ASSUME_TRUE(c);  // fails if connection was rejected (duplicate or invalid)
+
+    // ✗ WRONG — lambda silently fails, connection is never made
+    connect(sender, &Sender::signal, receiver, [receiver](){ receiver->doWork(); }, Qt::UniqueConnection);
+
+    // ✓ CORRECT for lambdas — disconnect-then-reconnect pattern instead
+    disconnect(sender, &Sender::signal, receiver, nullptr);
+    connect(sender, &Sender::signal, receiver, [receiver](){ receiver->doWork(); });
+    ```
+- Q_CHECK_PTR(): Always validate dynamically allocated objects
+
+### Signal Documentation (REQUIRED)
+When creating new signals in Qt classes, **always** add thread context documentation:
+```cpp
+signals:
+    /**
+     * @brief Brief description of what the signal represents
+     * Thread context: Emitted from [ThreadName] thread
+     * @param paramName Parameter description (if applicable)
+     */
+    void mySignal(Type param);
+```
+
+Thread context patterns:
+- **TSClient thread**: For signals from TSClient, Stream*, StreamBars, StreamOrders, StreamPositions, StreamMarketDepthQuote, StreamQuote
+- **MainAlgo thread**: For signals from MainAlgo, receivers (BarReceiver, PositionsReceiver, OrdersReceiver, MarketDepthQuoteReceiver), ReplayEngine, OrderEmulator
+- **Main/GUI thread**: For signals from FrontEnd and GUI components
+
+For cross-thread signals, specify both source and destination:
+```cpp
+/**
+ * Thread context: Emitted from MainAlgo worker thread, received on TSClient thread
+ */
+```
+
+### Centralization Rules
+- **Constants**: ALL in `Src/Misc/CONSTANTS.h` with appropriate namespaces
+- **SQL Queries**: ALL in `Src/SQL/<ClassName>Queries.h` headers
+- **Documentation**: New .md files go in `Doc/` folder
+
+### GUI Input Logging (REQUIRED)
+- User-driven GUI actions must emit an `INPT` log through the centralized helpers in `Src/Misc/Logging/Logging.h`.
+- Add input logs whenever you introduce a new user-actionable control or workflow step: buttons, menu items, shortcuts, replay controls, mode switches, symbol/account selectors, order-entry actions, and context-menu actions.
+- Log the **user intent boundary**, not every low-level repaint or mouse-move event. Prefer one structured `INPT` line per meaningful action with key details such as symbol, account, mode, timeframe, or order ID.
+- Keep `INPT` messages safe and concise: never log secrets (API keys, tokens, passwords).
+
+### Memory Management
+- **Composition first**: Use direct member objects when possible
+- **Qt parent-child**: For Qt objects with parents (Qt manages memory)
+- **QPointer**: For Qt objects with uncertain lifetime
+- **std::unique_ptr**: For exclusive ownership
+- **std::shared_ptr**: For shared ownership across async operations
+- **Stack-allocated threads**: `QThread m_thread;` NOT `QThread* m_thread;`
+
+### Threading Pattern
+Always use stack-allocated threads with proper cleanup:
+```cpp
+~MyClass() {
+    m_thread.quit();
+    if (!m_thread.wait(5000)) {
+        qWarning() << "Thread did not finish, terminating";
+        m_thread.terminate();
+        m_thread.wait();
+    }
+}
+```
+
+## Graceful Teardown & Destructor Guidelines
+
+### Critical Threading Rules (MUST FOLLOW)
+
+**Rule 1: Stop threads BEFORE destroying thread-owned objects**
+```cpp
+// ✓ CORRECT - Stop thread first
+~MyClass() {
+    // 1. Stop thread
+    m_thread.quit();
+    m_thread.wait(5000);
+    
+    // 2. THEN destroy thread-owned objects
+    m_socketNotifier.reset();
+    m_timer.reset();
+}
+
+// ✗ WRONG - Destroys objects while thread running
+~MyClass() {
+    m_socketNotifier.reset();  // ❌ Thread still processing events!
+    m_thread.quit();
+}
+```
+
+**Rule 2: Delete child QObjects on their thread before stopping**
+```cpp
+// ✓ CORRECT - Delete children on their thread
+~MyWorkerClass() {
+    // Schedule deletion on correct thread
+    QMetaObject::invokeMethod(this, [this]() {
+        for (QObject* child : children()) {
+            child->deleteLater();
+        }
+    }, Qt::BlockingQueuedConnection);
+    
+    // Process deleteLater queue
+    QMetaObject::invokeMethod(this, []() {
+        QCoreApplication::processEvents();
+    }, Qt::BlockingQueuedConnection);
+    
+    // Now safe to stop thread
+    m_thread.quit();
+    m_thread.wait(5000);
+}
+```
+
+**Rule 3: Use deleteLater() for QObjects with signals/events**
+```cpp
+// ✓ CORRECT - Use deleteLater() for objects with pending events
+void cleanup() {
+    m_stream->deleteLater();        // Has timers, network replies, signals
+    m_networkReply->deleteLater();  // Qt requirement
+}
+
+// ✗ WRONG - Direct delete can crash
+void cleanup() {
+    delete m_stream;        // ❌ Signals may fire during destruction
+    delete m_networkReply;  // ❌ Violates Qt guidelines
+}
+```
+
+**Rule 4: Add thread affinity assertions in destructors**
+```cpp
+~MyThreadedClass() {
+    // Assert destructor called from expected thread
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
+    
+    // Or for objects that should be on their own thread:
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), this->thread());
+    
+    // Rest of cleanup...
+}
+```
+
+### When to Use delete vs deleteLater()
+
+**Use `deleteLater()` when QObject has:**
+- ✅ Signal connections (pending signals may fire)
+- ✅ Pending events in event queue
+- ✅ Child QObjects that emit signals
+- ✅ QTimer or QSocketNotifier members
+- ✅ QNetworkReply (Qt requirement)
+- ✅ Called from signal/slot handlers
+- ✅ Complex object graph with cross-dependencies
+
+**Use direct `delete` only when:**
+- ✅ Thread stopped and event loop exited
+- ✅ No signal connections exist
+- ✅ No pending events possible
+- ✅ Not a QNetworkReply
+- ✅ Simple utility objects with no Qt features
+
+**Example Patterns:**
+```cpp
+// QNetworkReply - ALWAYS use deleteLater()
+void onRequestFinished() {
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    reply->deleteLater();  // ✓ CORRECT
+}
+
+// Stream objects - Use deleteLater() (have timers/signals)
+void closeStream() {
+    m_stream->deleteLater();  // ✓ CORRECT
+}
+
+// After stopping thread - Direct delete is safe
+~TSClient() {
+    m_thread.quit();
+    m_thread.wait();
+    // Thread stopped, direct delete safe for simple objects
+    delete m_simpleResource;  // ✓ CORRECT (if no Qt features)
+}
+```
+
+### Destructor Best Practices
+
+**1. Document cleanup order:**
+```cpp
+~MyClass() {
+    DEBUG << "MyClass destructor - cleaning up";
+    
+    // 1. Stop timers/notifiers
+    m_timer->stop();
+    
+    // 2. Stop threads
+    m_thread.quit();
+    m_thread.wait(5000);
+    
+    // 3. Delete thread-owned objects
+    m_threadOwnedObject.reset();
+    
+    // 4. Cleanup in reverse order of initialization
+    m_networkResources.clear();
+    
+    DEBUG << "MyClass destroyed successfully";
+}
+```
+
+**2. Always log destruction:**
+```cpp
+~MyClass() {
+    DEBUG << "MyClass destructor - stopping thread";
+    // cleanup...
+    DEBUG << "Destroyed singleton instance";
+}
+```
+
+**3. Handle thread termination:**
+```cpp
+m_thread.quit();
+if (!m_thread.wait(5000)) {
+    CRITICAL << "Thread did not finish within timeout, terminating";
+    m_thread.terminate();
+    m_thread.wait();
+}
+```
+
+### Singleton Destruction Order
+
+In `MainApp::cleanupSingletons()`, destroy in dependency order:
+```cpp
+void MainApp::cleanupSingletons() {
+    Stream::setShuttingDown(true);    // Prevent promise resolution
+    
+    MainApp::destroyInstance();       // Frontend first
+    MainAlgo::destroyInstance();      // Algo before client
+    TSClient::destroyInstance();      // Client before database
+    DatabaseThread::destroyInstance(); // Database last
+}
+```
+
+### Common Pitfalls to Avoid
+
+❌ **Deleting QSocketNotifier while thread running**
+- Symptom: "Socket notifiers cannot be enabled from another thread"
+- Fix: Stop thread first, then delete
+
+❌ **Direct delete on Stream objects**
+- Symptom: Segfault in QNetworkAccessManager::finished()
+- Fix: Use deleteLater() to handle pending signals
+
+❌ **Cross-thread QObject deletion**
+- Symptom: Assertion failure "QThread::currentThread() != this->thread()"
+- Fix: Use BlockingQueuedConnection to delete on correct thread
+
+❌ **Forgetting to process deleteLater() before thread stop**
+- Symptom: Objects not deleted, memory leaks
+- Fix: Call QCoreApplication::processEvents() after deleteLater()
+
+### Lessons Learned from Real Bugs
+
+**Bug #1: QSocketNotifier cross-thread deletion (2026-02-07)**
+- Root cause: `m_crashNotifier.reset()` called before `thread.quit()`
+- Impact: Segfault during event processing
+- Fix: Reorder to stop thread first
+
+**Bug #2: Stream child deletion from wrong thread (2026-02-07)**
+- Root cause: Qt parent-child auto-deletion from main thread
+- Impact: Thread affinity assertion failure
+- Fix: Use BlockingQueuedConnection to delete on correct thread
+
+**Bug #3: QNetworkAccessManager signals during deletion (2026-02-07)**
+- Root cause: Direct `delete` on Stream objects with active network
+- Impact: Segfault in finished() signal during destruction
+- Fix: Use deleteLater() + processEvents()
+
+### References
+
+See `Doc/Improvements/Architecture_Improvements.md` section 1.1.1 for detailed analysis of these threading issues and fixes.
+
+## Trading Modes and Database Organization
+
+OpenTraderPlatform supports three distinct trading modes. Understanding the difference is critical:
+
+### Mode Definitions
+
+| Mode | API Endpoint | Database Path | Description |
+|------|--------------|---------------|-------------|
+| **Live** | `api.tradestation.com` | `Orders/Live/Orders.db` | Real money trading with actual funds |
+| **Simulation** | `sim-api.tradestation.com` | `Orders/Simulation/Orders.db` | Paper trading via **real API** |
+| **Replay** | (None - local emulation) | `Orders/Replay/Orders_YYYY-MM-DD_HHMMSS.db` | Historical playback with emulated orders |
+
+### Critical Distinction: Simulation vs Replay
+
+**Simulation Mode** (`TradingMode::Sim`):
+- Uses TradeStation's **real simulation API** endpoint (`sim-api.tradestation.com`)
+- Orders go through **real network requests** to TradeStation servers
+- Paper trading account with virtual money but real API behavior
+- Order fills, rejections, and latency match real market conditions
+- Requires authentication and API connection
+
+**Replay Mode** (`TSClient::Mode::Replay`):
+- **Completely local** - no network requests to any broker
+- Orders processed by `OrderEmulator` class
+- Market data comes from recorded SQLite databases (not live)
+- Fills based on recorded market depth snapshots
+- Simulated latency (100-500ms reception, 10-50ms execution)
+- No authentication required
+- One Orders.db file per replay session (timestamped)
+
+### Database Structure
+
+```
+~/.local/share/OpenTraderPlatform/
+├── Orders/
+│   ├── Live/
+│   │   └── Orders.db              (single file, all live orders)
+│   ├── Simulation/
+│   │   └── Orders.db              (single file, all paper orders)
+│   └── Replay/
+│       ├── Orders_2026-02-14_143022.db
+│       ├── Orders_2026-02-15_091533.db
+│       └── ...                    (one per replay session)
+└── Positions/
+    └── (same structure as Orders)
+```
+
+### Mode Detection in Code
+
+```cpp
+// Check trading mode (Live vs Sim API)
+if (MainApp::getTradingMode() == TradingMode::Live) {
+    // Real money trading
+} else if (MainApp::getTradingMode() == TradingMode::Sim) {
+    // Paper trading via real API
+}
+
+// Check client mode (Live vs Replay)
+if (TSClient::getInstance()->getMode() == TSClient::Mode::Replay) {
+    // Local emulation, no network
+} else {
+    // Real API (either Live or Sim endpoint)
+}
+```
+
+### Time Handling
+Use Qt time classes with proper timezone (always NewYork for stock market):
+- QDateTime/QTime/QDate with QTimeZone
+- NEVER use std::chrono or raw time_t/struct tm
+
+
+## Prerequisites
+
+- **Qt6**: Version 6.4.2+ (Ubuntu 24.04 default)
+- **CMake**: 3.16+
+- **Compiler**: GCC 7+ or Clang 5+ with C++23 support
+- **SQLite**: For database functionality
+- **Build optimization**: ccache (cached in CI)
+
+## Development Workflow
+
+### VSCode Tasks
+Use predefined tasks in `.vscode/tasks.json`:
+- **build**: Builds everything
+
+### Testing
+```bash
+cmake --build build --target test
+```
+
+### CI/CD
+GitHub Actions runs on push/PR:
+- Matrix builds (X86_64, ARM64)
+- Debian packaging
+- Installation tests
+
+## Project Architecture
+
+**Pattern**: Model-View-Controller (MVC)
+- **Model**: Data structures (Bar, Position, Order, MarketDepthQuote)
+- **View**: `GUIFrontend`
+- **Controller**: MainAlgo (trading algorithm coordination)
+
+**Key Directories**:
+- `Src/`: Source code (see Src/AGENTS.md for details)
+- `Doc/`: Documentation (ARCHITECTURE.md, AUTHENTICATION.md, etc.)
+- `Tests/`: Unit tests
+
+**Singletons** (run in dedicated threads):
+- **TSClient**: TradeStation API client
+- **MainAlgo**: Trading algorithm coordinator
+- **LogBroadcaster**: Centralized logging
+
+For detailed component information, refer to the AGENTS.md files in each directory.

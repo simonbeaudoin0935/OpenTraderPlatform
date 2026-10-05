@@ -1,0 +1,23 @@
+---
+# Configuration for clang-tidy
+# This file defines the checks and settings for static analysis
+
+# Enable analyzer, bugprone, and performance checks, but disable overly pedantic readability checks
+Checks: '-*,clang-analyzer-*,bugprone-*,performance-*,readability-*,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-braces-around-statements,
+  -readability-redundant-access-specifiers,
+  -readability-uppercase-literal-suffix,
+  -readability-convert-member-functions-to-static,
+  -readability-make-member-function-const,
+  -readability-function-cognitive-complexity,
+  -performance-enum-size,
+  -performance-unnecessary-value-param'
+
+# Warnings are not treated as errors
+WarningsAsErrors: ''
+
+# Header filter - analyze all headers in the project
+HeaderFilterRegex: '.*'
+

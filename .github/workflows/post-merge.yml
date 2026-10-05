@@ -1,0 +1,174 @@
+name: Post-Merge Package Build
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-debian-package-x64:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/opentraderplatform-builder:noble
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up ccache
+      run: |
+        export CCACHE_DIR=$HOME/.cache/ccache
+        echo "CCACHE_DIR=$HOME/.cache/ccache" >> $GITHUB_ENV
+        ccache --version
+        mkdir -p $CCACHE_DIR
+        ccache --set-config=max_size=500M
+        ccache --set-config=compression=true
+        ccache --set-config=compression_level=6
+        ccache --zero-stats
+
+    - name: Cache ccache directory
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ccache-debian-noble-X86-${{ github.ref }}-${{ github.sha }}
+        restore-keys: |
+          ccache-debian-noble-X86-${{ github.ref }}
+          ccache-debian-noble-X86-refs/heads/main
+
+    - name: Build Debian package for X64
+      run: |
+        cmake --version
+        git config --global --add safe.directory /__w/OpenTraderPlatform/OpenTraderPlatform
+        export GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown")
+        export GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        export GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        echo "Building with version: $GIT_TAG ~ $GIT_BRANCH@$GIT_HASH"
+        dpkg-buildpackage -us -uc -b
+
+    - name: Show ccache statistics
+      run: ccache --show-stats
+
+    - name: Prepare artifacts directory
+      run: |
+        mkdir -p artifacts
+        cp ../*.deb artifacts/
+
+    - name: List generated packages
+      run: ls -lh ../*.deb
+
+    - name: Upload X64 Debian packages
+      uses: actions/upload-artifact@v4.4.3
+      with:
+        name: debian-packages-x64-${{ github.sha }}
+        path: artifacts/*.deb
+        retention-days: 30
+
+  build-debian-package-arm64:
+    if: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+
+    defaults:
+      run:
+        shell: bash
+
+    container:
+      image: ghcr.io/${{ vars.USERNAME }}/opentraderplatform-builder:rpi-trixie
+      credentials:
+        username: ${{ vars.USERNAME }}
+        password: ${{secrets.TOKEN_GHCR}}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Set up ccache
+      run: |
+        export CCACHE_DIR=$HOME/.cache/ccache
+        echo "CCACHE_DIR=$HOME/.cache/ccache" >> $GITHUB_ENV
+        ccache --version
+        mkdir -p $CCACHE_DIR
+        ccache --set-config=max_size=500M
+        ccache --set-config=compression=true
+        ccache --set-config=compression_level=6
+        ccache --zero-stats
+
+    - name: Cache ccache directory
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ccache-debian-bookworm-ARM64-${{ github.ref }}-${{ github.sha }}
+        restore-keys: |
+          ccache-debian-bookworm-ARM64-${{ github.ref }}
+          ccache-debian-bookworm-ARM64-refs/heads/main
+
+    - name: Build Debian package for ARM64 (Raspberry Pi)
+      run: |
+        cmake --version
+        git config --global --add safe.directory /__w/OpenTraderPlatform/OpenTraderPlatform
+        export GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown")
+        export GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        export GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        echo "Building with version: $GIT_TAG ~ $GIT_BRANCH@$GIT_HASH"
+        dpkg-buildpackage -us -uc -b -aarm64 -Pcross
+
+    - name: Show ccache statistics
+      run: ccache --show-stats
+
+    - name: Prepare artifacts directory
+      run: |
+        mkdir -p artifacts
+        cp ../*.deb artifacts/
+
+    - name: List generated packages
+      run: ls -lh ../*.deb
+
+    - name: Upload ARM64 Debian packages
+      uses: actions/upload-artifact@v4.4.3
+      with:
+        name: debian-packages-arm64-${{ github.sha }}
+        path: artifacts/*.deb
+        retention-days: 30
+
+  upload-packages:
+    runs-on: ubuntu-latest
+    needs: [build-debian-package-x64]
+    if: success()
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+    - name: Download X64 packages
+      uses: actions/download-artifact@v4
+      with:
+        name: debian-packages-x64-${{ github.sha }}
+        path: ./packages/x64
+
+    - name: List all packages
+      run: |
+        echo "=== X64 Packages ==="
+        ls -lh ./packages/x64/
+
+    - name: Upload combined packages
+      uses: actions/upload-artifact@v4.4.3
+      with:
+        name: debian-packages-all-${{ github.sha }}
+        path: |
+          packages/x64/*.deb
+        retention-days: 90
