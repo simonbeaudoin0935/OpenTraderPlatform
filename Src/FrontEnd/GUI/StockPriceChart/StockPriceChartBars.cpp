@@ -649,6 +649,13 @@ void StockPriceChart::onRequestedMissingBarsFailed(const QString& p_symbol, uint
     m_currentMissingBarsRequestToken.store(0);
     stopLoadingSpinner();
 
+    if (!MainApp::isInReplayMode() && !MainApp::isInReviewMode() &&
+        !TSClient::getInstance()->isAuthenticated())
+    {
+        showChartStatusMessage("TradeStation authentication required - reconnect in Credentials");
+        return;
+    }
+
     // Record the failed date as a known-empty day (holiday or non-trading day)
     if (m_lastRequestedDate.isValid())
     {
@@ -768,6 +775,12 @@ void StockPriceChart::showChartStatusMessage(const QString& p_message)
 void StockPriceChart::checkForMissingBars(const QDateTime& viewStartTime, const QDateTime& viewEndTime)
 {
     Q_UNUSED(viewEndTime);
+
+    if (!MainApp::isInReplayMode() && !MainApp::isInReviewMode() &&
+        !TSClient::getInstance()->isAuthenticated())
+    {
+        return;
+    }
 
     if (m_isReplayNoDataState)
     {

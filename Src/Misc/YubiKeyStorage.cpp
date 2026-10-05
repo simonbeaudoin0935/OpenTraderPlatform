@@ -12,6 +12,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QScopedValueRollback>
 #include <QStandardPaths>
 #include <QThread>
 #include <QTimer>
@@ -34,6 +35,8 @@ namespace
         QJsonObject credentials;
         QString error;
         bool attempted = false;
+        bool unlocking = false;
+        bool reset = false;
         ~Session()
         {
             OPENSSL_cleanse(key.data(), key.size());
@@ -220,11 +223,41 @@ bool YubiKeyStorage::unlock(QString& p_error)
     return ensureUnlocked(p_error);
 }
 
+bool YubiKeyStorage::reset(QString& p_error)
+{
+    ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
+    p_error.clear();
+    if (g_session.unlocking)
+    {
+        p_error = "Cannot reset the vault while an unlock is in progress. Cancel the unlock first.";
+        return false;
+    }
+    QFile vault(filePath());
+    if (vault.exists() && !vault.remove())
+    {
+        p_error = "Could not delete the YubiKey vault: " + vault.errorString();
+        return false;
+    }
+    OPENSSL_cleanse(g_session.key.data(), g_session.key.size());
+    g_session.key.clear();
+    g_session.challenge.clear();
+    g_session.credentials = {};
+    g_session.reset = true;
+    g_session.attempted = true;
+    g_session.error = "YubiKey vault was reset. Restart the application to create a new vault.";
+    return true;
+}
+
 bool YubiKeyStorage::ensureUnlocked(QString& p_error)
 {
     using namespace CredentialStorageConstants;
     ASSUME_EQUAL(QThread::currentThread(), QCoreApplication::instance()->thread());
     p_error.clear();
+    if (g_session.reset)
+    {
+        p_error = g_session.error;
+        return false;
+    }
     if (!g_session.key.isEmpty())
     {
         return true;
@@ -235,6 +268,7 @@ bool YubiKeyStorage::ensureUnlocked(QString& p_error)
         return false;
     }
     g_session.attempted = true;
+    const QScopedValueRollback<bool> unlocking(g_session.unlocking, true);
     g_session.error = "YubiKey vault is locked. Use Unlock / retry YubiKey in Credentials.";
     QByteArray fileData;
     QFile file(filePath());

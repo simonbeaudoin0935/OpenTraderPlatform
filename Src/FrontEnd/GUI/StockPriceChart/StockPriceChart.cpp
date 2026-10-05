@@ -999,6 +999,27 @@ StockPriceChart::StockPriceChart(QWidget* parent) : QWidget(parent)
             this,
             &StockPriceChart::onAxisRangeChanged);
 
+    connect(TSClient::getInstance(),
+            &TSClient::authStateChanged,
+            this,
+            [this](bool p_authenticated, TSClient::AuthStateReason, const QString&)
+            {
+                if (MainApp::isInReplayMode() || MainApp::isInReviewMode() || m_symbol.isEmpty())
+                {
+                    return;
+                }
+                if (!p_authenticated)
+                {
+                    showChartStatusMessage("TradeStation authentication required - reconnect in Credentials");
+                    return;
+                }
+                if (m_currentMissingBarsRequestToken.load() == 0)
+                {
+                    stopLoadingSpinner();
+                }
+                onAxisRangeChanged();
+            });
+
     setSymbol("");
 }
 

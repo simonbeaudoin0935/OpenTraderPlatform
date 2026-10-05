@@ -291,6 +291,25 @@ Wrong keys, damaged files, missing software, cancellation, and timeouts are
 reported. Losing the key or reprogramming Slot 2 may make the vault unrecoverable.
 The old branch's `L2Trader/Tokens.ini.enc` format is not migrated.
 
+After losing or reprogramming a key, use **Reset YubiKey vault and exit...** in
+Credentials. The confirmation defaults to Cancel. Reset deletes the entire local
+vault (both TradeStation and Databento), requires no working key or decryption,
+clears the storage session and blocks further reads/writes until restart. A
+deletion failure is reported without clearing the session. The platform closes
+through its normal window-close workflow; restart and authenticate both services
+again using the new key. OS Keyring credentials remain untouched. This is not
+broker-side token revocation, order cancellation, position closure, or a guarantee
+of forensic secure erasure.
+
+When credentials are unavailable (including failed YubiKey unlocks), the live
+TradeStation network manager rejects API requests locally without opening a
+network connection. Chart backfill pauses instead of repeatedly retrying or
+marking authentication failures as empty trading days, and resumes on successful
+authentication. Token refresh remains allowed with valid client/refresh credentials,
+but an authentication rejection stops its automatic retry loop. Interactive OAuth
+login uses its separate authentication client; replay's local order emulation is
+not gated by broker authentication.
+
 Qt6Keychain is mandatory in all builds and supplies the default OS Keyring backend.
 TradeStation credentials/tokens and the Databento API key use the backend active
 for the session. QtKeychain's insecure fallback is disabled for every operation.

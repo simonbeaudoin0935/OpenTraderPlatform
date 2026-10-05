@@ -96,8 +96,13 @@ void TSClient::refreshAccessToken()
     OBJ_ASSUME_FALSE(m_authInProgress);
     // A refresh token is already in progress
     OBJ_ASSUME_FALSE(m_refreshInProgress);
-    OBJ_ASSUME_TRUE(m_authToken.isValid());
-    OBJ_ASSUME_TRUE(m_clientToken.isValid());
+    if (!m_authToken.isValid() || !m_clientToken.isValid())
+    {
+        m_authenticated = false;
+        qCWarning(TSClientLog) << "Skipping token refresh: credentials are unavailable";
+        emit authStateChanged(false, AuthStateReason::AuthFailed, "Authenticate in Credentials before reconnecting");
+        return;
+    }
     // Note we don't check if authToken is expired, as it can be logically both
 
     m_refreshInProgress = true;
@@ -205,6 +210,16 @@ void TSClient::refreshAccessToken()
                 qCCritical(TSClientLog) << ": refreshAccessToken(): Timeout with the reply: " << reply->errorString()
                                         << " : " << reply->error();
                 QTimer::singleShot(1000, this, [this]() { refreshAccessToken(); });
+                break;
+            }
+
+            case QNetworkReply::AuthenticationRequiredError:
+            {
+                m_authenticated = false;
+                m_apiKey.clear();
+                qCWarning(TSClientLog) << "Token refresh rejected; automatic retries stopped";
+                emit authStateChanged(false, AuthStateReason::TokenExpired,
+                                      "TradeStation rejected the refresh credentials; log in again");
                 break;
             }
 

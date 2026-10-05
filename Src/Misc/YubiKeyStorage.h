@@ -24,6 +24,8 @@ class YubiKeyStorage
     static Result
     execute(const QString& p_service, const QString& p_key, const QString& p_value, Operation p_operation);
     static bool unlock(QString& p_error);
+    // Terminal for this session: blocks all further credential operations until restart.
+    [[nodiscard]] static bool reset(QString& p_error);
     static QString filePath();
 
     // Shared authenticated file format, also exercised by hardware-independent tests.

@@ -1371,6 +1371,44 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : QObject(parent
             }
             updateBackendStatus();
         });
+    auto* resetYubiKeyButton = new QPushButton("Reset YubiKey vault and exit...", credentialsTab);
+    resetYubiKeyButton->setObjectName("resetYubiKeyVaultButton");
+    resetYubiKeyButton->setToolTip(
+        "Discard the local encrypted credentials after losing or reprogramming your key. "
+        "OS Keyring credentials are untouched. This is not a broker logout or token revocation.");
+    credentialsLayout->addWidget(resetYubiKeyButton, 0, Qt::AlignLeft);
+    connect(resetYubiKeyButton,
+            &QPushButton::clicked,
+            this,
+            [this]()
+            {
+                logInputEvent(u"GUIFrontend", u"request-reset-yubikey-vault");
+                const auto answer = QMessageBox::warning(
+                    m_mainWindow,
+                    "Reset YubiKey vault?",
+                    "Permanently delete ALL locally saved TradeStation credentials/tokens and the Databento API key "
+                    "in the YubiKey vault?\n\n"
+                    "This is useful after reprogramming Slot 2 or losing the original key. "
+                    "The old vault cannot be recovered without its original secret.\n\n"
+                    "The platform will close. On your next launch, unlock with your current key, log in to "
+                    "TradeStation and enter your Databento key again.\n\n"
+                    "OS Keyring credentials remain untouched. Broker-side tokens are not revoked, and "
+                    "existing orders or positions are NOT cancelled or closed.",
+                    QMessageBox::Yes | QMessageBox::Cancel,
+                    QMessageBox::Cancel);
+                if (answer != QMessageBox::Yes)
+                {
+                    return;
+                }
+                logInputEvent(u"GUIFrontend", u"confirm-reset-yubikey-vault");
+                QString error;
+                if (!SecureStorage::resetYubiKey(error))
+                {
+                    QMessageBox::warning(m_mainWindow, "YubiKey vault reset failed", error);
+                    return;
+                }
+                m_mainWindow->close();
+            });
     credentialsLayout->addWidget(m_connectivitySection, 0, Qt::AlignTop | Qt::AlignLeft);
     credentialsLayout->addStretch(1);
     const int configTabIndex = ui->tabWidget->indexOf(configTab);
