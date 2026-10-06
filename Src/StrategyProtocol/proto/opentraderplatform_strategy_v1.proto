@@ -89,10 +89,21 @@ message ShutdownCommand
 
 message StrategyReady {}
 
+message MarketDataSubscriptionError
+{
+    string symbol = 1;
+    string feed = 2;
+    string reason = 3;
+    bool terminal = 4;
+    uint32 retry_delay_ms = 5;
+}
+
 message ErrorMessage
 {
     string code = 1;
     string message = 2;
+    MarketDataSubscriptionError subscription_error = 3;
+    bool strategy_failure = 4;
 }
 
 message Bar

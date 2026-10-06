@@ -184,12 +184,13 @@ void RsiIndicator::rebuild(const UpdateContext& context)
     rebuildLevelLine(m_overboughtGraph, keys, static_cast<double>(m_settings.overboughtLevel));
     rebuildLevelLine(m_oversoldGraph, keys, static_cast<double>(m_settings.oversoldLevel));
 
-    m_yAxis->setRange(0.0, 100.0);
+    m_axisRange.setAutomaticRange(m_yAxis, QCPRange(0.0, 100.0));
     applyVisibility();
 }
 
 void RsiIndicator::clear()
 {
+    m_axisRange.reset();
     if (m_rsiGraph != nullptr)
     {
         m_rsiGraph->data()->clear();

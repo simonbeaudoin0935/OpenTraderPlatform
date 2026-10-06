@@ -58,6 +58,25 @@ Stream::~Stream()
 
 void Stream::onReplyFinished()
 {
+    if (m_finished)
+    {
+        return;
+    }
+    m_finished = true;
+    disconnect(m_networkReply, &QNetworkReply::finished, this, &Stream::onReplyFinished);
+
+    // HTTP errors may leave their final JSON body unread, without a trailing newline.
+    const QByteArray remainingData = m_networkReply->readAll();
+    if (!remainingData.isEmpty())
+    {
+        emit newAmountOfDataReceived(remainingData.size());
+        processRawData(remainingData);
+    }
+    if (!m_accumulatedData.isEmpty())
+    {
+        processRawData("\n");
+    }
+
     WARNING << "received the signal finished()";
 
     Q_CHECK_PTR(m_networkReply);
@@ -70,6 +89,14 @@ void Stream::onReplyFinished()
     if (m_streamError.has_value())
     {
         errorType = m_streamError.value();
+    }
+    else if (m_receivedTimeoutError)
+    {
+        errorType = StreamError::Timeout;
+    }
+    else if (m_networkReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 400)
+    {
+        errorType = StreamError::BadRequest;
     }
 
     QNetworkReply::NetworkError error = m_networkReply->error();
@@ -86,8 +113,6 @@ void Stream::onReplyFinished()
 
     emit streamClosed(errorType, description);
 
-    // The destructor will be called later, but we disconnect finished() so it won't emit again
-    disconnect(m_networkReply, &QNetworkReply::finished, this, &Stream::onReplyFinished);
     this->deleteLater();
 }
 

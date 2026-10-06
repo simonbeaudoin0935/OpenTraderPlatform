@@ -14,6 +14,14 @@ OpenTraderPlatform now uses a single frontend implementation:
 
 `GUIFrontend` runs on the main thread.
 
+Startup session restoration is enabled by `MainApp::start()` only after credential
+unlocking completes (including cancellation or failure) and all worker threads
+have been started. Authentication then triggers a one-time restoration, with a
+500 ms fallback for sessions without authentication. Secondary chart windows are
+restored after 600 ms. These timers are not armed during frontend construction:
+the YubiKey prompt runs a nested event loop, where restoring replay prematurely
+would block the GUI waiting for a worker thread that has not started.
+
 ---
 
 ## GUI Implementation
@@ -53,6 +61,20 @@ OpenTraderPlatform now uses a single frontend implementation:
 ```
 
 ### Visual Theme
+
+Order-entry settings offer an **Enable Success Popup** toggle, persisted under
+`OrderEntry/ResultPopupEnabled`. It controls successful placement notifications
+only; order failures, including risk rejections, always display an error dialog.
+
+Live TradeStation stream creation executes directly on the client thread and
+blocks only callers on other threads. Market-depth capacity checks and queued
+requests are serialized on that thread. Per-symbol bars, quotes, and depth
+subscriptions retain at most one pending retry or queued depth request per kind.
+Transient failures retry with exponential delays from 1 to 30 seconds, reset by
+valid market data. Bad-request/invalid-symbol and forbidden failures disable
+automatic retries for that subscription until its symbol context is recreated.
+Final stream error bodies are parsed before closure, including responses without
+a trailing newline; repeated completion callbacks emit only one error closure.
 
 The Qt Widgets interface uses a VS Code-inspired dark palette while retaining the
 existing trading workspace and panel arrangement. Shared surface, text, border,
@@ -109,6 +131,12 @@ Benefits: O(m) historical insertion, no full rebuild, stable existing indices.
 - `Shift+Scroll` — Vertical zoom
 - `Scroll` — Both axes zoom
 - `Right Click` — Reset to last 30 bars
+
+MACD and RSI subpanes retain their manually adjusted vertical range when new
+bars arrive or the forming bar changes. MACD continues automatic scaling until
+its range is adjusted; RSI initially uses 0–100. Hiding and showing an indicator
+preserves the adjustment. Clearing the chart for a new symbol or replay session
+restores automatic range initialization.
 
 **ChartToolbar**: Contains symbol display, timeframe selector, auto-TF checkbox, replay play/pause button, speed selector, and order-visualization toggle.
 

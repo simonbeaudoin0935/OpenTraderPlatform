@@ -49,6 +49,7 @@ class GUIFrontend : public QObject
     ~GUIFrontend() override;
 
   public slots:
+    void onPlatformStarted();
     void onTSClientDataUsageUpdate(qsizetype newDataUsage);
     void onDBClientDataUsageUpdate(qsizetype newDataUsage);
     void onTradeStationAccountsReceived(QVector<Account> results);
@@ -145,6 +146,7 @@ class GUIFrontend : public QObject
     void displayStock(const QString& symbol);
     void saveLastDisplayedStock(const QString& symbol);
     void restoreLastDisplayedStock();
+    void restoreStartupState();
     void saveReplayState(bool active, const QDate& date = QDate(), const QTime& startTime = QTime());
     void restoreReplayState();
     void saveReviewState(bool active, const QString& sessionId = QString());
@@ -214,6 +216,7 @@ class GUIFrontend : public QObject
 
     int maxLiveLogLines = 1000; // Maximum lines in live log display
 
+    bool m_platformStarted = false;
     bool m_hasRestoredLastStock = false; // Track if we've restored the last stock
     uint64_t m_symbolSelectionValidationToken = 0;
     bool m_hasShownDatabentoLiveFailureDialog = false;

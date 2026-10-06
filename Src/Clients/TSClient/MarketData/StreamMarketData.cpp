@@ -18,7 +18,8 @@ bool StreamMarketData::handleErrorOrStatus(const QJsonObject& jsonObj)
 
     m_jsonErrorString = errorStr + ": " + message;
 
-    if (errorStr == "BadRequest")
+    if (errorStr == "BadRequest" || errorStr == "InvalidSymbol" ||
+        errorStr.compare("FAILED, INVALID SYMBOL", Qt::CaseInsensitive) == 0)
     {
         m_streamError = StreamError::BadRequest;
         WARNING << "BadRequest error (market data request rejected):" << message;

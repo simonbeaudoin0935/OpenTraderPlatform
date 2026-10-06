@@ -954,6 +954,9 @@ void StrategyManager::markStrategyFailed(const QString& p_strategyID, const QStr
 
     m_mainAlgo->cancelManualOrderConfirmationsForStrategy(p_strategyID, QStringLiteral("Strategy failed"), true);
 
+    disconnectStrategyFromDataSources(instance);
+    releaseSymbols(p_strategyID);
+    instance->blockedSymbols.clear();
     setStrategyState(instance, StrategyState::STOPPED, p_errorMessage);
 
     // Stop the process if it's still running (it may have already crashed)
@@ -1467,6 +1470,26 @@ void StrategyManager::connectSymbolToStrategy(const QString& p_strategyID,
         Qt::QueuedConnection);
     ASSUME_TRUE(c3);
     instance->m_connections.push_back(c3);
+
+    const auto publishFailure = [this, p_strategyID](const MarketDataSubscriptionError& p_error)
+    {
+        if (auto* strategy = findStrategy(p_strategyID); strategy && strategy->p_backend)
+        {
+            strategy->p_backend->publishSubscriptionError(p_error);
+        }
+    };
+    const auto errorConnection =
+        connect(p_instrument, &SymbolContext::marketDataSubscriptionFailed, this, publishFailure, Qt::QueuedConnection);
+    ASSUME_TRUE(errorConnection);
+    instance->m_connections.push_back(errorConnection);
+    for (const auto* state:
+         {&p_instrument->m_barStreamRetry, &p_instrument->m_depthStreamRetry, &p_instrument->m_quoteStreamRetry})
+    {
+        if (state->lastError.has_value())
+        {
+            publishFailure(state->lastError.value());
+        }
+    }
 
     qInfo(StrategyManagerLog) << "Connected symbol" << p_symbol << "to strategy" << p_strategyID;
 }

@@ -24,6 +24,21 @@ target_include_directories(BarHistoryBackfillTests PRIVATE
 target_link_libraries(BarHistoryBackfillTests PRIVATE Qt6::Test Qt6::Core)
 add_test(NAME BarHistoryBackfillTests COMMAND BarHistoryBackfillTests)
 
+add_executable(IndicatorZoomTests IndicatorZoomTests.cpp)
+target_link_libraries(IndicatorZoomTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+add_test(NAME IndicatorZoomTests COMMAND IndicatorZoomTests)
+set_tests_properties(IndicatorZoomTests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(StreamRecoveryTests StreamRecoveryTests.cpp)
+target_link_libraries(StreamRecoveryTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+add_test(NAME StreamRecoveryTests COMMAND StreamRecoveryTests)
+set_tests_properties(StreamRecoveryTests PROPERTIES TIMEOUT 30)
+
+add_executable(StrategySubscriptionErrorTests StrategySubscriptionErrorTests.cpp)
+target_link_libraries(StrategySubscriptionErrorTests PRIVATE OpenTraderPlatformStrategySDK Qt6::Test Qt6::Network)
+add_test(NAME StrategySubscriptionErrorTests COMMAND StrategySubscriptionErrorTests)
+set_tests_properties(StrategySubscriptionErrorTests PROPERTIES TIMEOUT 20)
+
 add_executable(TradeStationAuthenticationGateTests
     TradeStationAuthenticationGateTests.cpp
     ../Src/Clients/TSClient/AuthenticatedNetworkAccessManager.cpp
@@ -42,6 +57,15 @@ set_tests_properties(OAuthKeyringRoundTripTests PROPERTIES
 )
 
 if(UNIX AND NOT APPLE)
+    add_executable(StartupRestoreTests StartupRestoreTests.cpp)
+    target_include_directories(StartupRestoreTests PRIVATE ../Src/Misc)
+    target_link_libraries(StartupRestoreTests PRIVATE Qt6::Test)
+    target_compile_definitions(StartupRestoreTests PRIVATE
+        OTP_PLATFORM_EXECUTABLE="$<TARGET_FILE:OpenTraderPlatform>"
+    )
+    add_dependencies(StartupRestoreTests OpenTraderPlatform)
+    add_test(NAME StartupRestoreTests COMMAND StartupRestoreTests)
+
     add_test(NAME YubiKeyStorageSessionTests COMMAND OAuthSecurityTests yubiKeySession)
     set_tests_properties(YubiKeyStorageSessionTests PROPERTIES
         ENVIRONMENT "OTP_TEST_YUBIKEY=1"

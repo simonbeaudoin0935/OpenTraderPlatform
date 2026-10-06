@@ -1581,34 +1581,6 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : QObject(parent
         bottomPane->setMinimumHeight(0);
     }
 
-    // NOTE: Don't restore the last displayed stock here - wait for authentication
-    // It will be restored in onTradeStationAuthStateChanged() when authenticated.
-    // As a fallback, schedule a restore in case TS auth never fires (e.g. no credentials).
-    QTimer::singleShot(
-        500,
-        this,
-        [this]()
-        {
-            if (!m_hasRestoredLastStock)
-            {
-                qInfo(GUIFrontendLog) << "TS auth never fired — restoring state via fallback timer";
-                m_hasRestoredLastStock = true;
-                restoreLastDisplayedStock();
-                restoreReviewState();
-                if (!MainApp::isInReviewMode())
-                {
-                    restoreReplayState();
-                }
-                // Restore strategies AFTER replay mode is set up (enterReplayMode posts
-                // stopAllStrategies via QueuedConnection; this queues behind it).
-                if (!MainApp::isInReviewMode())
-                {
-                    QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
-                }
-                QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
-            }
-        });
-
     // --- WindowManager: secondary chart windows ---
     m_windowManager = new WindowManager(mainAlgo, this);
 
@@ -1653,9 +1625,6 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : QObject(parent
                     cw->onStrategyBracketOverlayReceived(entry);
                 }
             });
-
-    // Restore chart windows from previous session (after a short delay so main window is settled)
-    QTimer::singleShot(600, this, [this]() { m_windowManager->restoreWindowState(); });
 }
 
 GUIFrontend::~GUIFrontend()
@@ -2476,25 +2445,7 @@ void GUIFrontend::onTradeStationAuthStateChanged(bool isAuthenticated,
 
         // Restore the last displayed stock now that we're authenticated
         // Only do this once on the first successful authentication
-        if (!m_hasRestoredLastStock)
-        {
-            m_hasRestoredLastStock = true;
-            restoreLastDisplayedStock();
-            restoreReviewState();
-            if (!MainApp::isInReviewMode())
-            {
-                restoreReplayState();
-            }
-            // Restore strategies AFTER replay mode is set up (enterReplayMode posts
-            // stopAllStrategies via QueuedConnection; this queues behind it).
-            if (!MainApp::isInReviewMode())
-            {
-                QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
-            }
-            // Clear focus from the stock input after restore — it should not
-            // have keyboard focus at startup (press 'i' to focus it explicitly)
-            QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
-        }
+        restoreStartupState();
 
         // Clear first-time flag on successful authentication
         isFirstTime = false;
@@ -2935,6 +2886,42 @@ void GUIFrontend::saveReplayState(bool active, const QDate& date, const QTime& s
         appStateSettings->setValue("Replay/StartTime", startTime.toString(Qt::ISODate));
     }
     appStateSettings->sync();
+}
+
+void GUIFrontend::onPlatformStarted()
+{
+    OBJ_ASSUME_FALSE(m_platformStarted);
+    m_platformStarted = true;
+    // Unlock dialogs run nested event loops; arm restoration only after workers have started.
+    QTimer::singleShot(500,
+                       this,
+                       [this]()
+                       {
+                           if (!m_hasRestoredLastStock)
+                           {
+                               qInfo(GUIFrontendLog) << "TS auth never fired — restoring state via fallback timer";
+                               restoreStartupState();
+                           }
+                       });
+    QTimer::singleShot(600, this, [this]() { m_windowManager->restoreWindowState(); });
+}
+
+void GUIFrontend::restoreStartupState()
+{
+    if (!m_platformStarted || m_hasRestoredLastStock)
+    {
+        return;
+    }
+    m_hasRestoredLastStock = true;
+    restoreLastDisplayedStock();
+    restoreReviewState();
+    if (!MainApp::isInReviewMode())
+    {
+        restoreReplayState();
+        // Queue strategy restoration behind replay setup.
+        QMetaObject::invokeMethod(mainAlgo, &MainAlgo::restoreStrategiesState, Qt::QueuedConnection);
+    }
+    QTimer::singleShot(0, m_mainWindow, [this]() { m_mainWindow->setFocus(); });
 }
 
 void GUIFrontend::restoreReplayState()
@@ -4209,17 +4196,11 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order)
                 }
             }
 
-            // Check if result popups are enabled
-            bool showPopup = ui->orderEntryWidget->isResultPopupEnabled();
-
             if (!expected_result.has_value())
             {
                 QString errorMsg = "Order placement failed with error code: " +
                                    QString::number(static_cast<int>(expected_result.error()));
-                if (showPopup)
-                {
-                    QMessageBox::critical(nullptr, "Order Error", errorMsg);
-                }
+                QMessageBox::critical(m_mainWindow, "Order Error", errorMsg);
                 qCritical() << "Order placement failed with error code:" << static_cast<int>(expected_result.error());
                 return;
             }
@@ -4237,10 +4218,7 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order)
                         errorMsg += "Error: " + error.getError().value() + "\n";
                     }
                 }
-                if (showPopup)
-                {
-                    QMessageBox::critical(nullptr, "Order Error", errorMsg);
-                }
+                QMessageBox::critical(m_mainWindow, "Order Error", errorMsg);
                 qCritical() << "Order placement failed:" << errorMsg;
             }
             else
@@ -4251,7 +4229,7 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order)
                     successMsg += "Order ID: " + orderItem.getOrderID() + "\n";
                     successMsg += orderItem.getMessage() + "\n";
                 }
-                if (showPopup)
+                if (ui->orderEntryWidget->isResultPopupEnabled())
                 {
                     QMessageBox::information(nullptr, "Order Success", successMsg);
                 }
@@ -4742,7 +4720,7 @@ void GUIFrontend::requestMissingBarsFromCache(const QString& p_symbol,
     else if (std::holds_alternative<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result))
     {
         std::get<QFuture<std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>>>(result).then(
-            [frontend = QPointer<GUIFrontend>(this), p_symbol, from, to, p_requestToken](
+            [frontend = QPointer<GUIFrontend>(this), p_symbol, p_requestToken](
                 std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& bars) mutable
             {
                 if (frontend.isNull())
@@ -4752,7 +4730,7 @@ void GUIFrontend::requestMissingBarsFromCache(const QString& p_symbol,
 
                 QMetaObject::invokeMethod(
                     frontend,
-                    [frontend, p_symbol, from, to, p_requestToken, bars = std::move(bars)]() mutable
+                    [frontend, p_symbol, p_requestToken, bars = std::move(bars)]() mutable
                     {
                         if (frontend.isNull())
                         {
@@ -4785,31 +4763,13 @@ void GUIFrontend::requestMissingBarsFromCache(const QString& p_symbol,
                             qCritical() << "Failed to get missing bars from BarCache - Error:"
                                         << QtEnum::toString(bars.error());
 
-                            // Notify the chart that the request failed so it can release the semaphore
-                            frontend->ui->priceChart->onRequestedMissingBarsFailed(p_symbol, p_requestToken);
-
-                            // Retry after 1 second using the same pattern as TSClient error handling
-                            QTimer::singleShot(
-                                1000,
-                                frontend,
-                                [frontend, p_symbol, from, to, p_requestToken]()
-                                {
-                                    if (frontend.isNull())
-                                    {
-                                        return;
-                                    }
-
-                                    if (!frontend->ui->priceChart->isExpectedMissingBarsRequest(p_symbol,
-                                                                                                p_requestToken))
-                                    {
-                                        qCDebug(GUIFrontendLog) << "Skipping stale missing bars retry for" << p_symbol
-                                                                << "token" << p_requestToken;
-                                        return;
-                                    }
-
-                                    qInfo() << "Retrying missing bars request from" << from << "to" << to;
-                                    frontend->requestMissingBarsFromCache(p_symbol, from, to, p_requestToken);
-                                });
+                            const bool terminal = bars.error() == TSClient::Error::RejectedByValidator;
+                            frontend->ui->priceChart->onRequestedMissingBarsError(
+                                p_symbol,
+                                p_requestToken,
+                                terminal,
+                                terminal ? QString("Invalid symbol: %1 - historical requests stopped").arg(p_symbol)
+                                         : QString("Historical data unavailable for %1 - retrying").arg(p_symbol));
                         }
                     },
                     Qt::QueuedConnection);

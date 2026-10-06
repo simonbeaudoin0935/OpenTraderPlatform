@@ -32,8 +32,8 @@ class OrderEntryWidget : public QWidget
     /// @param guiFrontend Pointer to parent GUIFrontend instance
     void setGUIFrontend(GUIFrontend* guiFrontend);
 
-    /// Check if result popup notification is enabled
-    /// @return True if popup should appear after order execution
+    /// Check if successful order notifications are enabled; errors always show a popup.
+    /// @return True if a popup should appear after successful order placement
     bool isResultPopupEnabled() const
     {
         return m_resultPopupEnabled;

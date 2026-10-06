@@ -9,7 +9,7 @@ namespace OpenTraderPlatform::StrategySDK
     inline constexpr std::string_view kStrategyIdEnvVar = "OPENTRADERPLATFORM_STRATEGY_ID";
     inline constexpr std::string_view kStrategySocketEnvVar = "OPENTRADERPLATFORM_STRATEGY_SOCKET";
     inline constexpr std::string_view kStrategySdkName = "OpenTraderPlatformStrategySDK";
-    inline constexpr std::string_view kStrategySdkVersion = "1.0.0-alpha1";
+    inline constexpr std::string_view kStrategySdkVersion = "2.0.0-alpha1";
 
     struct RuntimeEnvironment
     {

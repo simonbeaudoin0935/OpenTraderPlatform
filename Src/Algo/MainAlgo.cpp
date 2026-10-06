@@ -7,6 +7,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QSemaphore>
+#include <QMetaEnum>
 #include <unistd.h>
 
 #include <algorithm>
@@ -1005,6 +1006,53 @@ void MainAlgo::subscribeExistingLiveSymbols()
     }
 }
 
+void MainAlgo::scheduleLiveStreamRetry(SymbolContext* p_symbolContext,
+                                       LiveStreamRetryState& p_state,
+                                       const QString& p_feed,
+                                       Stream::StreamError p_reason,
+                                       const QString& p_message)
+{
+    OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
+    OBJ_ASSUME_DIFF(p_symbolContext, nullptr);
+    const std::optional<int> retryDelay = p_state.schedule(p_reason);
+    if (retryDelay.has_value() || p_state.terminal)
+    {
+        const QString reason =
+            QString::fromLatin1(QMetaEnum::fromType<Stream::StreamError>().valueToKey(static_cast<int>(p_reason)));
+        p_state.lastError = MarketDataSubscriptionError{p_symbolContext->symbol,
+                                                        p_feed,
+                                                        reason,
+                                                        p_message,
+                                                        p_state.terminal,
+                                                        retryDelay.value_or(0)};
+        emit p_symbolContext->marketDataSubscriptionFailed(p_state.lastError.value());
+    }
+    if (p_state.terminal)
+    {
+        WARNING << "Live subscription rejected; automatic retry disabled for" << p_symbolContext->symbol
+                << "message=" << p_message;
+        return;
+    }
+    if (!retryDelay.has_value())
+    {
+        return;
+    }
+    const int delayMs = retryDelay.value();
+    WARNING << "Scheduling live stream retry for" << p_symbolContext->symbol << "delayMs=" << delayMs;
+    QPointer<SymbolContext> context = p_symbolContext;
+    QTimer::singleShot(delayMs,
+                       this,
+                       [this, context, state = &p_state]()
+                       {
+                           if (context.isNull())
+                           {
+                               return;
+                           }
+                           state->pending = false;
+                           subscribeLiveSymbol(context);
+                       });
+}
+
 void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
@@ -1072,7 +1120,8 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
 
     const auto ensureBarStream = [this, tsClient, p_symbolContext, symbol]()
     {
-        if (!p_symbolContext->m_streamBars.isNull())
+        if (!p_symbolContext->m_streamBars.isNull() || p_symbolContext->m_barStreamRetry.pending ||
+            p_symbolContext->m_barStreamRetry.terminal)
         {
             return;
         }
@@ -1082,15 +1131,32 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
         if (p_symbolContext->m_streamBars.isNull())
         {
             WARNING << "Failed to open bars stream for" << symbol;
+            scheduleLiveStreamRetry(p_symbolContext,
+                                    p_symbolContext->m_barStreamRetry,
+                                    QStringLiteral("bars"),
+                                    Stream::StreamError::Failed,
+                                    QStringLiteral("Bars stream creation failed"));
             return;
         }
 
         connect(p_symbolContext->m_streamBars,
+                &StreamBars::newBarReceived,
+                this,
+                [context = QPointer<SymbolContext>(p_symbolContext)](const Bar&)
+                {
+                    if (!context.isNull())
+                    {
+                        context->m_barStreamRetry.delayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
+                        context->m_barStreamRetry.lastError.reset();
+                    }
+                });
+        connect(p_symbolContext->m_streamBars,
                 &Stream::streamClosed,
                 this,
-                [this, symbol](Stream::StreamError p_reason, const QString& p_message)
+                [this, symbol, context = QPointer<SymbolContext>(p_symbolContext)](Stream::StreamError p_reason,
+                                                                                   const QString& p_message)
                 {
-                    if (p_reason == Stream::StreamError::Closed)
+                    if (p_reason == Stream::StreamError::Closed || context.isNull())
                     {
                         return;
                     }
@@ -1098,51 +1164,56 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
                     WARNING << "Bars stream closed for" << symbol << "reason=" << static_cast<int>(p_reason)
                             << "message=" << p_message;
 
-                    QMetaObject::invokeMethod(
-                        this,
-                        [this, symbol]()
-                        {
-                            QReadLocker lock(&m_symbolContextsLock);
-                            QPointer<SymbolContext> sc = m_symbolContexts.value(symbol);
-                            lock.unlock();
-                            if (sc.isNull())
-                            {
-                                return;
-                            }
-
-                            sc->m_streamBars = nullptr;
-                            subscribeLiveSymbol(sc);
-                        },
-                        Qt::QueuedConnection);
+                    context->m_streamBars = nullptr;
+                    scheduleLiveStreamRetry(context,
+                                            context->m_barStreamRetry,
+                                            QStringLiteral("bars"),
+                                            p_reason,
+                                            p_message);
                 });
     };
 
-    const auto attachDepthStream = [this, symbol](QPointer<StreamMarketDepthAggregate> p_stream)
+    const auto attachDepthStream = [this, symbol, context = QPointer<SymbolContext>(p_symbolContext)](
+                                       QPointer<StreamMarketDepthAggregate> p_stream)
     {
+        if (context.isNull())
+        {
+            if (!p_stream.isNull())
+            {
+                TSClient::getInstance()->closeStream(p_stream);
+            }
+            return;
+        }
+        context->m_depthStreamRetry.pending = false;
         if (p_stream.isNull())
         {
             WARNING << "Failed to open queued market-depth stream for" << symbol;
+            scheduleLiveStreamRetry(context,
+                                    context->m_depthStreamRetry,
+                                    QStringLiteral("depth"),
+                                    Stream::StreamError::Failed,
+                                    QStringLiteral("Queued market-depth stream creation failed"));
             return;
         }
 
-        QPointer<SymbolContext> sc;
-        {
-            QReadLocker lock(&m_symbolContextsLock);
-            sc = m_symbolContexts.value(symbol);
-        }
-        if (sc.isNull())
-        {
-            TSClient::getInstance()->closeStream(p_stream);
-            return;
-        }
-
-        sc->m_streamMarketDepthAggregate = p_stream;
+        context->m_streamMarketDepthAggregate = p_stream;
+        connect(p_stream,
+                &StreamMarketDepthAggregate::newLevel2Received,
+                this,
+                [context](const Level2&)
+                {
+                    if (!context.isNull())
+                    {
+                        context->m_depthStreamRetry.delayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
+                        context->m_depthStreamRetry.lastError.reset();
+                    }
+                });
         connect(p_stream,
                 &Stream::streamClosed,
                 this,
-                [this, symbol](Stream::StreamError p_reason, const QString& p_message)
+                [this, symbol, context](Stream::StreamError p_reason, const QString& p_message)
                 {
-                    if (p_reason == Stream::StreamError::Closed)
+                    if (p_reason == Stream::StreamError::Closed || context.isNull())
                     {
                         return;
                     }
@@ -1150,32 +1221,24 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
                     WARNING << "Level2 stream closed for" << symbol << "reason=" << static_cast<int>(p_reason)
                             << "message=" << p_message;
 
-                    QMetaObject::invokeMethod(
-                        this,
-                        [this, symbol]()
-                        {
-                            QReadLocker lock(&m_symbolContextsLock);
-                            QPointer<SymbolContext> symbolContext = m_symbolContexts.value(symbol);
-                            lock.unlock();
-                            if (symbolContext.isNull())
-                            {
-                                return;
-                            }
-
-                            symbolContext->m_streamMarketDepthAggregate = nullptr;
-                            subscribeLiveSymbol(symbolContext);
-                        },
-                        Qt::QueuedConnection);
+                    context->m_streamMarketDepthAggregate = nullptr;
+                    scheduleLiveStreamRetry(context,
+                                            context->m_depthStreamRetry,
+                                            QStringLiteral("depth"),
+                                            p_reason,
+                                            p_message);
                 });
     };
 
     const auto ensureDepthStream = [this, tsClient, p_symbolContext, attachDepthStream, symbol]()
     {
-        if (!p_symbolContext->m_streamMarketDepthAggregate.isNull())
+        if (!p_symbolContext->m_streamMarketDepthAggregate.isNull() || p_symbolContext->m_depthStreamRetry.pending ||
+            p_symbolContext->m_depthStreamRetry.terminal)
         {
             return;
         }
 
+        p_symbolContext->m_depthStreamRetry.pending = true;
         auto streamResult = tsClient->openStreamMarketDepthAggregate(
             symbol,
             static_cast<unsigned int>(MarketDepthConstants::DEFAULT_MARKET_DEPTH_LEVELS));
@@ -1193,7 +1256,8 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
 
     const auto ensureQuoteStream = [this, tsClient, p_symbolContext, symbol]()
     {
-        if (!p_symbolContext->m_streamQuote.isNull())
+        if (!p_symbolContext->m_streamQuote.isNull() || p_symbolContext->m_quoteStreamRetry.pending ||
+            p_symbolContext->m_quoteStreamRetry.terminal)
         {
             return;
         }
@@ -1202,15 +1266,32 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
         if (p_symbolContext->m_streamQuote.isNull())
         {
             WARNING << "Failed to open quote stream for" << symbol;
+            scheduleLiveStreamRetry(p_symbolContext,
+                                    p_symbolContext->m_quoteStreamRetry,
+                                    QStringLiteral("quotes"),
+                                    Stream::StreamError::Failed,
+                                    QStringLiteral("Quote stream creation failed"));
             return;
         }
 
         connect(p_symbolContext->m_streamQuote,
+                &StreamQuote::newQuoteReceived,
+                this,
+                [context = QPointer<SymbolContext>(p_symbolContext)](const Quote&)
+                {
+                    if (!context.isNull())
+                    {
+                        context->m_quoteStreamRetry.delayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
+                        context->m_quoteStreamRetry.lastError.reset();
+                    }
+                });
+        connect(p_symbolContext->m_streamQuote,
                 &Stream::streamClosed,
                 this,
-                [this, symbol](Stream::StreamError p_reason, const QString& p_message)
+                [this, symbol, context = QPointer<SymbolContext>(p_symbolContext)](Stream::StreamError p_reason,
+                                                                                   const QString& p_message)
                 {
-                    if (p_reason == Stream::StreamError::Closed)
+                    if (p_reason == Stream::StreamError::Closed || context.isNull())
                     {
                         return;
                     }
@@ -1218,22 +1299,12 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
                     WARNING << "Quote stream closed for" << symbol << "reason=" << static_cast<int>(p_reason)
                             << "message=" << p_message;
 
-                    QMetaObject::invokeMethod(
-                        this,
-                        [this, symbol]()
-                        {
-                            QReadLocker lock(&m_symbolContextsLock);
-                            QPointer<SymbolContext> sc = m_symbolContexts.value(symbol);
-                            lock.unlock();
-                            if (sc.isNull())
-                            {
-                                return;
-                            }
-
-                            sc->m_streamQuote = nullptr;
-                            subscribeLiveSymbol(sc);
-                        },
-                        Qt::QueuedConnection);
+                    context->m_streamQuote = nullptr;
+                    scheduleLiveStreamRetry(context,
+                                            context->m_quoteStreamRetry,
+                                            QStringLiteral("quotes"),
+                                            p_reason,
+                                            p_message);
                 });
     };
 

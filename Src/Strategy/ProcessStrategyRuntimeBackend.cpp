@@ -950,6 +950,26 @@ void ProcessStrategyRuntimeBackend::publishTrade(const QString& p_symbol, const 
     [[maybe_unused]] const bool sent = sendHostEnvelope(envelope, QString("send trade update for %1").arg(p_symbol));
 }
 
+void ProcessStrategyRuntimeBackend::publishSubscriptionError(const MarketDataSubscriptionError& p_error)
+{
+    Protocol::HostToStrategyEnvelope envelope;
+    envelope.set_sequence(m_outboundSequence++);
+    auto* error = envelope.mutable_error();
+    error->set_code(p_error.terminal ? "market_data_subscription_rejected" : "market_data_subscription_retrying");
+    error->set_message(QString("%1 %2 subscription failed (%3): %4")
+                           .arg(p_error.symbol, p_error.feed, p_error.reason, p_error.message)
+                           .toStdString());
+    auto* subscription = error->mutable_subscription_error();
+    subscription->set_symbol(p_error.symbol.toStdString());
+    subscription->set_feed(p_error.feed.toStdString());
+    subscription->set_reason(p_error.reason.toStdString());
+    subscription->set_terminal(p_error.terminal);
+    subscription->set_retry_delay_ms(p_error.retryDelayMs);
+    ASSUME_DIFF(m_logger.get(), nullptr);
+    m_logger->log(QtWarningMsg, QString::fromStdString(error->message()));
+    [[maybe_unused]] const bool sent = sendHostEnvelope(envelope, "send subscription error");
+}
+
 void ProcessStrategyRuntimeBackend::publishOrder(const Order& p_order)
 {
     if (m_sdk != nullptr)
@@ -1124,6 +1144,8 @@ void ProcessStrategyRuntimeBackend::setupProcessObservers()
                      [this](const int p_exitCode, const QProcess::ExitStatus p_exitStatus)
                      {
                          captureProcessStream(QProcess::StandardError);
+                         // A child can report its failure immediately before exiting.
+                         drainInboundSocket();
                          cleanupSocketResources();
 
                          if (m_shutdownRequested || m_runtimeDestroyed)
@@ -1176,6 +1198,7 @@ void ProcessStrategyRuntimeBackend::drainInboundSocket()
     }
 
     std::array<char, kSocketReadChunkSize> buffer{};
+    QString readError;
     while (true)
     {
         const ssize_t result = ::read(m_clientFd, buffer.data(), buffer.size());
@@ -1187,8 +1210,8 @@ void ProcessStrategyRuntimeBackend::drainInboundSocket()
 
         if (result == 0)
         {
-            scheduleSocketCleanup("Strategy process socket disconnected unexpectedly");
-            return;
+            readError = "Strategy process socket disconnected unexpectedly";
+            break;
         }
 
         if (errno == EINTR)
@@ -1201,9 +1224,8 @@ void ProcessStrategyRuntimeBackend::drainInboundSocket()
             break;
         }
 
-        scheduleSocketCleanup(
-            QString("Failed to read strategy socket: %1").arg(QString::fromUtf8(std::strerror(errno))));
-        return;
+        readError = QString("Failed to read strategy socket: %1").arg(QString::fromUtf8(std::strerror(errno)));
+        break;
     }
 
     while (m_receiveBuffer.size() >= static_cast<qsizetype>(OpenTraderPlatform::StrategySDK::kFramePrefixSize))
@@ -1217,12 +1239,16 @@ void ProcessStrategyRuntimeBackend::drainInboundSocket()
             static_cast<qsizetype>(OpenTraderPlatform::StrategySDK::kFramePrefixSize + payloadSize);
         if (m_receiveBuffer.size() < totalFrameSize)
         {
-            return;
+            break;
         }
 
         handleInboundPayload(
             std::span<const std::uint8_t>(rawData + OpenTraderPlatform::StrategySDK::kFramePrefixSize, payloadSize));
         m_receiveBuffer.remove(0, totalFrameSize);
+    }
+    if (!readError.isEmpty())
+    {
+        scheduleSocketCleanup(readError);
     }
 }
 
@@ -1257,6 +1283,10 @@ void ProcessStrategyRuntimeBackend::handleInboundPayload(const std::span<const s
                           QString("[protocol-error] %1: %2")
                               .arg(QString::fromStdString(envelope.error().code()),
                                    QString::fromStdString(envelope.error().message())));
+        }
+        if (envelope.error().strategy_failure())
+        {
+            reportFailure(QString::fromStdString(envelope.error().message()));
         }
         break;
 
