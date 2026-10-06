@@ -1,4 +1,5 @@
 #include "ProcessStrategyRuntimeBackend.h"
+#include "StrategyFrameReader.h"
 
 #include <algorithm>
 #include <QDir>
@@ -1210,6 +1211,25 @@ void ProcessStrategyRuntimeBackend::drainInboundSocket()
         if (result > 0)
         {
             m_receiveBuffer.append(buffer.data(), static_cast<qsizetype>(result));
+            while (true)
+            {
+                auto frame = StrategyFrameReader::takeFrame(m_receiveBuffer);
+                if (!frame.has_value())
+                {
+                    readError = frame.error();
+                    break;
+                }
+                if (!frame->has_value())
+                    break;
+                handleInboundPayload(frame->value());
+                if (m_failureReported)
+                {
+                    readError = m_lastFailureMessage;
+                    break;
+                }
+            }
+            if (!readError.isEmpty())
+                break;
             continue;
         }
 
@@ -1233,29 +1253,6 @@ void ProcessStrategyRuntimeBackend::drainInboundSocket()
         break;
     }
 
-    while (m_receiveBuffer.size() >= static_cast<qsizetype>(OpenTraderPlatform::StrategySDK::kFramePrefixSize))
-    {
-        const auto* const rawData = reinterpret_cast<const std::uint8_t*>(m_receiveBuffer.constData());
-        std::array<std::uint8_t, OpenTraderPlatform::StrategySDK::kFramePrefixSize> prefix{};
-        std::copy_n(rawData, prefix.size(), prefix.begin());
-
-        const std::uint32_t payloadSize = OpenTraderPlatform::StrategySDK::decodeFrameSize(prefix);
-        if (payloadSize > OpenTraderPlatform::StrategySDK::kMaxFramePayloadSize)
-        {
-            readError = "Strategy frame exceeds the 16 MiB payload limit";
-            break;
-        }
-        const qsizetype totalFrameSize =
-            static_cast<qsizetype>(OpenTraderPlatform::StrategySDK::kFramePrefixSize + payloadSize);
-        if (m_receiveBuffer.size() < totalFrameSize)
-        {
-            break;
-        }
-
-        handleInboundPayload(
-            std::span<const std::uint8_t>(rawData + OpenTraderPlatform::StrategySDK::kFramePrefixSize, payloadSize));
-        m_receiveBuffer.remove(0, totalFrameSize);
-    }
     if (!readError.isEmpty())
     {
         scheduleSocketCleanup(readError);

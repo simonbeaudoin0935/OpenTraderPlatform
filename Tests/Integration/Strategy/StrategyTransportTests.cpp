@@ -9,6 +9,7 @@
 
 #include "OpenTraderPlatform/StrategySDK/MessageFraming.h"
 #include "OpenTraderPlatform/StrategySDK/UnixSocketConnection.h"
+#include "OpenTraderPlatform/StrategySDK/ExternalStrategyRuntime.h"
 #include "opentraderplatform_strategy_v1.pb.h"
 
 namespace SDK = OpenTraderPlatform::StrategySDK;
@@ -58,6 +59,77 @@ class StrategyTransportTests : public QObject
         Protocol::HostToStrategyEnvelope envelope;
         envelope.mutable_shutdown()->set_reason(std::string(SDK::kMaxFramePayloadSize, 'x'));
         QVERIFY(SDK::serializeFramedMessage(envelope).empty());
+    }
+
+    void runtimeRejectsMalformedOrTruncatedFrame_data()
+    {
+        QTest::addColumn<bool>("truncatePayload");
+        QTest::newRow("malformed-protobuf") << false;
+        QTest::newRow("disconnect-mid-payload") << true;
+    }
+
+    void runtimeRejectsMalformedOrTruncatedFrame()
+    {
+        QFETCH(bool, truncatePayload);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QByteArray oldID = qgetenv("OPENTRADERPLATFORM_STRATEGY_ID");
+        const QByteArray oldSocket = qgetenv("OPENTRADERPLATFORM_STRATEGY_SOCKET");
+        const bool hadID = qEnvironmentVariableIsSet("OPENTRADERPLATFORM_STRATEGY_ID");
+        const bool hadSocket = qEnvironmentVariableIsSet("OPENTRADERPLATFORM_STRATEGY_SOCKET");
+        const auto restore = qScopeGuard(
+            [&]()
+            {
+                if (hadID)
+                    qputenv("OPENTRADERPLATFORM_STRATEGY_ID", oldID);
+                else
+                    qunsetenv("OPENTRADERPLATFORM_STRATEGY_ID");
+                if (hadSocket)
+                    qputenv("OPENTRADERPLATFORM_STRATEGY_SOCKET", oldSocket);
+                else
+                    qunsetenv("OPENTRADERPLATFORM_STRATEGY_SOCKET");
+            });
+        const QString path = directory.path() + "/runtime.sock";
+        qputenv("OPENTRADERPLATFORM_STRATEGY_ID", "transport-runtime-test");
+        qputenv("OPENTRADERPLATFORM_STRATEGY_SOCKET", path.toUtf8());
+        QLocalServer server;
+        QVERIFY(server.listen(path));
+        struct Handler : SDK::ExternalStrategyHandler
+        {
+            void onStart(const Protocol::StrategyConfiguration&) override
+            {
+                started = true;
+            }
+            bool started = false;
+        } handler;
+        SDK::ExternalStrategyRuntime runtime({"TransportRuntimeTest", "1.0.0", {}}, handler);
+        int exitCode = -1;
+        std::unique_ptr<QThread> worker(QThread::create([&]() { exitCode = runtime.run(); }));
+        QLocalSocket* peer = nullptr;
+        const auto cleanup = qScopeGuard(
+            [&]()
+            {
+                if (peer)
+                    peer->abort();
+                if (!worker->wait(5000))
+                    qFatal("Malformed-frame runtime failed to stop");
+            });
+        worker->start();
+        QTRY_VERIFY_WITH_TIMEOUT(server.hasPendingConnections(), 5000);
+        peer = server.nextPendingConnection();
+        QVERIFY(peer);
+        const auto prefix = SDK::encodeFrameSize(truncatePayload ? 8 : 1);
+        QByteArray wire(reinterpret_cast<const char*>(prefix.data()), prefix.size());
+        wire.append(char(0xff));
+        QCOMPARE(peer->write(wire), wire.size());
+        peer->flush();
+        QTRY_COMPARE_WITH_TIMEOUT(peer->bytesToWrite(), qint64(0), 5000);
+        if (truncatePayload)
+            peer->disconnectFromServer();
+        QTRY_VERIFY_WITH_TIMEOUT(worker->isFinished(), 5000);
+        QVERIFY(worker->wait(5000));
+        QCOMPARE(exitCode, 1);
+        QVERIFY(!handler.started);
     }
 
   private:

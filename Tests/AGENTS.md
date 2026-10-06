@@ -56,7 +56,7 @@ different validation outcomes and must be reported separately.
 
 Temporary-SQLite BarCache persistence/range and SDK socket fragmentation tests
 now exist under Integration/Core and Integration/Strategy. Live/history overlap,
-host-side socket buffering, and provider error/retry integration remain to be
+full host child-process transport, and provider error/retry integration remain to be
 implemented. Read-only API and separately gated paper-order lifecycle scenarios
 are compiled but authenticated execution has not been verified. Keep order
 opt-in, bounded cleanup, exact account checks, and cleanup restricted to IDs

@@ -43,6 +43,12 @@ target_link_libraries(MessageFramingTests PRIVATE OpenTraderPlatformStrategySDK 
 add_test(NAME MessageFramingTests COMMAND MessageFramingTests)
 set_tests_properties(MessageFramingTests PROPERTIES LABELS "unit")
 
+add_executable(StrategyFrameReaderTests Strategy/StrategyFrameReaderTests.cpp)
+target_include_directories(StrategyFrameReaderTests PRIVATE ${PROJECT_SOURCE_DIR}/Src/Strategy)
+target_link_libraries(StrategyFrameReaderTests PRIVATE OpenTraderPlatformStrategySDK Qt6::Test)
+add_test(NAME StrategyFrameReaderTests COMMAND StrategyFrameReaderTests)
+set_tests_properties(StrategyFrameReaderTests PROPERTIES LABELS "unit")
+
 add_executable(TradeStationOrderTestPolicyTests Clients/TradeStationOrderTestPolicyTests.cpp)
 target_link_libraries(TradeStationOrderTestPolicyTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
 add_test(NAME TradeStationOrderTestPolicyTests COMMAND TradeStationOrderTestPolicyTests)

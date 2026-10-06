@@ -70,6 +70,8 @@ ExternalStrategyRuntime + ExternalStrategyHandler
   advertised lengths before allocating the payload; serialization enforces the
   same limit. An oversized inbound frame is a fatal protocol error, not a frame
   to skip and resume after.
+  The host validates and consumes buffered frames after each socket read, so
+  an incoming burst cannot accumulate unchecked before length validation.
 - **Human-readable output**: child `stdout` and `stderr` are captured by the host and appended to the per-strategy log with `[stdout]` / `[stderr]` prefixes.
 - **Isolation boundary**: one child process per loaded strategy. If a strategy crashes, only that strategy instance transitions to `ERROR`.
 - **Process supervision**: the host is responsible for launching, stopping, and force-cleaning the child when needed.

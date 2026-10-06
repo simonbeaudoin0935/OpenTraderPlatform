@@ -15,9 +15,10 @@ cases should drive the actual transport with bounded shutdown.
 [StrategyTransportTests.cpp](StrategyTransportTests.cpp) drives the SDK's actual
 UnixSocketConnection with a temporary local server: bytewise writes, split
 payloads, coalesced frames, partial-prefix/payload disconnects, oversized
-advertised lengths, and oversized outbound serialization. Reader threads are
-joined before fixture destruction. Runtime-level malformed-message callbacks
-and host-side buffering still need dedicated coverage.
+advertised lengths, oversized outbound serialization, and actual SDK runtime
+failure on malformed protobuf or mid-payload disconnect. Reader/runtime threads
+are joined before fixture destruction. Host-side parser coverage lives under
+Unit/Strategy; full host child-process integration still needs dedicated coverage.
 
 The shared host/SDK payload limit is 16 MiB. It lives beside the wire-prefix
 constant in the public SDK header because the standalone SDK cannot depend on
