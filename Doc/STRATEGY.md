@@ -228,6 +228,21 @@ add_opentraderplatform_process_strategy(MyStrategyProcess
 
 That helper builds the executable into `build/<config>/bin/`.
 
+Normal full builds also stage every configured strategy executable linked to the
+SDK into `~/.local/share/OpenTraderPlatform/Strategies`. Staging runs even when
+the executable is already up to date, using `copy_if_different` to restore missing
+or stale deployed copies without rewriting unchanged files. Existing explicit
+calls to `stage_opentraderplatform_process_strategy` remain supported.
+
+The default VS Code `build` / `build-and-run` workflow enables
+`BUILD_PRIVATE_STRATEGIES=ON` and requires the `Strategies/Privates` checkout.
+Other configurations can keep private strategies disabled. Only strategies whose
+source is included in the configured CMake project can be rebuilt and staged;
+old executables left in the deployment directory are not automatically rebuilt
+or deleted. A targeted build of only the platform is not a full strategy build.
+Restart a loaded strategy to use its updated executable; stop strategies before
+building to avoid replacing an executable that is still running.
+
 #### 3. Minimal Strategy Process
 
 ```cpp

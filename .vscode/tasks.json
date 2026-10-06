@@ -33,7 +33,7 @@
                 "${workspaceFolder}/build",
                 "-DCMAKE_BUILD_TYPE=Debug",
                 "-DBUILD_TESTS=OFF",
-                "-DBUILD_PRIVATE_STRATEGIES=OFF",
+                "-DBUILD_PRIVATE_STRATEGIES=ON",
                 "-DBUILD_STRATEGY_TEST_HARNESSES=OFF"
             ],
             "group": "build",
