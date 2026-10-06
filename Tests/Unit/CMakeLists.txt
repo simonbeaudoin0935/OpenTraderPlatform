@@ -31,6 +31,18 @@ target_link_libraries(BarAggregatorTests PRIVATE OpenTraderPlatformCommon Qt6::T
 add_test(NAME BarAggregatorTests COMMAND BarAggregatorTests)
 set_tests_properties(BarAggregatorTests PROPERTIES LABELS "unit")
 
+foreach(test_name BarUtilsTests LiveBarAccumulatorTests)
+    add_executable(${test_name} MarketData/${test_name}.cpp)
+    target_link_libraries(${test_name} PRIVATE OpenTraderPlatformCommon Qt6::Test)
+    add_test(NAME ${test_name} COMMAND ${test_name})
+    set_tests_properties(${test_name} PROPERTIES LABELS "unit")
+endforeach()
+
+add_executable(MessageFramingTests Strategy/MessageFramingTests.cpp)
+target_link_libraries(MessageFramingTests PRIVATE OpenTraderPlatformStrategySDK Qt6::Test)
+add_test(NAME MessageFramingTests COMMAND MessageFramingTests)
+set_tests_properties(MessageFramingTests PROPERTIES LABELS "unit")
+
 add_executable(IndicatorZoomTests FrontEnd/IndicatorZoomTests.cpp)
 target_link_libraries(IndicatorZoomTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
 target_compile_options(IndicatorZoomTests PRIVATE -Wno-float-equal)

@@ -1,5 +1,9 @@
 # Testing
 
+Contributor and AI-session guidance starts at [Tests/AGENTS.md](../Tests/AGENTS.md).
+Each suite/domain has a local guide with scenario coverage, isolation rules,
+and remaining test gaps.
+
 Use the VS Code `build-then-run-tests` task for the unit and local integration
 suites. External TradeStation API tests are excluded from this task.
 

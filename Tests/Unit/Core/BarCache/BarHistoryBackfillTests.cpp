@@ -15,6 +15,37 @@ class BarHistoryBackfillTests : public QObject
     }
 
   private slots:
+    void replacementStatusMatrix()
+    {
+        const QList<Bar::BarStatus> statuses{Bar::BarStatus::Uninitialized,
+                                             Bar::BarStatus::Null,
+                                             Bar::BarStatus::Open,
+                                             Bar::BarStatus::Closed};
+        const bool expected[4][4] = {{true, true, true, true},
+                                     {true, true, true, true},
+                                     {false, false, false, true},
+                                     {false, false, false, true}};
+        for (qsizetype existing = 0; existing < statuses.size(); ++existing)
+        {
+            for (qsizetype incoming = 0; incoming < statuses.size(); ++incoming)
+            {
+                Bar oldBar = closed(0);
+                Bar newBar = closed(0);
+                oldBar.setBarStatus(statuses[existing]);
+                newBar.setBarStatus(statuses[incoming]);
+                QCOMPARE(BarHistoryBackfill::shouldReplace(oldBar, newBar), expected[existing][incoming]);
+            }
+        }
+    }
+
+    void unsortedSnapshotSelectsLatestClosed()
+    {
+        const auto start =
+            BarHistoryBackfill::start({closed(100), closed(360), closed(200)}, m_dayStart, closed(399).getTimeStamp());
+        QVERIFY(start.has_value());
+        QCOMPARE(*start, closed(360).getTimeStamp());
+    }
+
     void emptyCacheStartsAtSessionOpen()
     {
         const auto start = BarHistoryBackfill::start({}, m_dayStart, m_dayStart.addSecs(60 * 400));
