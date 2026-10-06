@@ -276,6 +276,14 @@ namespace CredentialStorageConstants
     inline constexpr int VAULT_PREFIX_SIZE = 8 + CHALLENGE_SIZE + IV_SIZE + TAG_SIZE;
 } // namespace CredentialStorageConstants
 
+namespace TradeStationApiTestConstants
+{
+    inline constexpr auto OPT_IN_ENV = "OTP_TEST_TRADESTATION_API";
+    inline constexpr auto ACCOUNT_ENV = "OTP_TEST_TRADESTATION_ACCOUNT";
+    inline constexpr int AUTH_TIMEOUT_MS = 45000;
+    inline constexpr int REQUEST_TIMEOUT_MS = 15000;
+} // namespace TradeStationApiTestConstants
+
 /**
  * @namespace ChartConstants
  * @brief Constants related to chart display and rendering

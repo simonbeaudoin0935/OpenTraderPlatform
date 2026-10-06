@@ -1,3 +1,13 @@
+add_executable(TradeStationApiSmokeTests TradeStation/TradeStationApiSmokeTests.cpp)
+target_link_libraries(TradeStationApiSmokeTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+add_test(NAME TradeStationApiSmokeTests COMMAND TradeStationApiSmokeTests)
+set_tests_properties(TradeStationApiSmokeTests PROPERTIES
+    LABELS "tradestation-api"
+    TIMEOUT 90
+    RUN_SERIAL TRUE
+    SKIP_RETURN_CODE 77
+)
+
 add_executable(StreamRecoveryTests Clients/StreamRecoveryTests.cpp)
 target_link_libraries(StreamRecoveryTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
 add_test(NAME StreamRecoveryTests COMMAND StreamRecoveryTests)

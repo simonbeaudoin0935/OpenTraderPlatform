@@ -245,7 +245,9 @@
                 "--test-dir",
                 "${workspaceFolder}/build/test",
                 "--output-on-failure",
-                "--parallel"
+                "--parallel",
+                "-LE",
+                "tradestation-api"
             ],
             "group": "test",
             "presentation": {
@@ -255,6 +257,32 @@
                 "panel": "shared"
             },
             "problemMatcher": []
+        },
+        {
+            "label": "build-then-run-tradestation-api-tests",
+            "type": "shell",
+            "command": "ctest",
+            "args": [
+                "--test-dir",
+                "${workspaceFolder}/build/test",
+                "--output-on-failure",
+                "-L",
+                "tradestation-api"
+            ],
+            "options": {
+                "env": {
+                    "OTP_TEST_TRADESTATION_API": "1",
+                    "OTP_TEST_TRADESTATION_ACCOUNT": "SIM2956555M"
+                }
+            },
+            "dependsOn": ["build-test"],
+            "group": "test",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
         },
         {
             "label": "build-then-run-tests",
