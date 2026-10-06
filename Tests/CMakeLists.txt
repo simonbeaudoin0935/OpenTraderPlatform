@@ -34,6 +34,11 @@ target_link_libraries(StreamRecoveryTests PRIVATE OpenTraderPlatformCommon Qt6::
 add_test(NAME StreamRecoveryTests COMMAND StreamRecoveryTests)
 set_tests_properties(StreamRecoveryTests PROPERTIES TIMEOUT 30)
 
+add_executable(StrategySubscriptionErrorTests StrategySubscriptionErrorTests.cpp)
+target_link_libraries(StrategySubscriptionErrorTests PRIVATE OpenTraderPlatformStrategySDK Qt6::Test Qt6::Network)
+add_test(NAME StrategySubscriptionErrorTests COMMAND StrategySubscriptionErrorTests)
+set_tests_properties(StrategySubscriptionErrorTests PROPERTIES TIMEOUT 20)
+
 add_executable(TradeStationAuthenticationGateTests
     TradeStationAuthenticationGateTests.cpp
     ../Src/Clients/TSClient/AuthenticatedNetworkAccessManager.cpp

@@ -950,6 +950,26 @@ void ProcessStrategyRuntimeBackend::publishTrade(const QString& p_symbol, const 
     [[maybe_unused]] const bool sent = sendHostEnvelope(envelope, QString("send trade update for %1").arg(p_symbol));
 }
 
+void ProcessStrategyRuntimeBackend::publishSubscriptionError(const MarketDataSubscriptionError& p_error)
+{
+    Protocol::HostToStrategyEnvelope envelope;
+    envelope.set_sequence(m_outboundSequence++);
+    auto* error = envelope.mutable_error();
+    error->set_code(p_error.terminal ? "market_data_subscription_rejected" : "market_data_subscription_retrying");
+    error->set_message(QString("%1 %2 subscription failed (%3): %4")
+                           .arg(p_error.symbol, p_error.feed, p_error.reason, p_error.message)
+                           .toStdString());
+    auto* subscription = error->mutable_subscription_error();
+    subscription->set_symbol(p_error.symbol.toStdString());
+    subscription->set_feed(p_error.feed.toStdString());
+    subscription->set_reason(p_error.reason.toStdString());
+    subscription->set_terminal(p_error.terminal);
+    subscription->set_retry_delay_ms(p_error.retryDelayMs);
+    ASSUME_DIFF(m_logger.get(), nullptr);
+    m_logger->log(QtWarningMsg, QString::fromStdString(error->message()));
+    [[maybe_unused]] const bool sent = sendHostEnvelope(envelope, "send subscription error");
+}
+
 void ProcessStrategyRuntimeBackend::publishOrder(const Order& p_order)
 {
     if (m_sdk != nullptr)

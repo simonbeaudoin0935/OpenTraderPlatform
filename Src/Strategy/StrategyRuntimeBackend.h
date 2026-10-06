@@ -15,6 +15,7 @@ struct Trade;
 class Order;
 class Position;
 struct StrategyConfig;
+struct MarketDataSubscriptionError;
 
 enum class StrategyManualOrderDecision : quint8
 {
@@ -42,6 +43,7 @@ class IStrategyRuntimeBackend
     virtual void publishBar(const QString& p_symbol, const Bar& p_bar) = 0;
     virtual void publishLevel2(const QString& p_symbol, const Level2& p_level2) = 0;
     virtual void publishTrade(const QString& p_symbol, const Trade& p_trade) = 0;
+    virtual void publishSubscriptionError(const MarketDataSubscriptionError& p_error) = 0;
     virtual void publishOrder(const Order& p_order) = 0;
     virtual void publishClaimedSymbols(const QStringList& p_claimedSymbols) = 0;
     virtual void publishManualOrderDecision(const QString& p_requestID,

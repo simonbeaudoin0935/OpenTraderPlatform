@@ -338,6 +338,31 @@ The external process implements `ExternalStrategyHandler` and is typically drive
 - `onBalanceUpdate(const Protocol::BalanceUpdate&)`
 - `onHostError(const Protocol::ErrorMessage&)`
 
+#### Live subscription failures
+
+A successful subscription/claim registers the symbol with the host; it does not
+guarantee that the broker has accepted every feed. Later bars, depth, or quote
+failures are delivered asynchronously to each strategy monitoring the symbol
+through `onHostError`. The host also writes the failure into that strategy's log.
+
+Subscription errors use code `market_data_subscription_rejected` for terminal
+errors or `market_data_subscription_retrying` for transient errors. The message
+includes the symbol, feed, broker reason and description. SDKs built with the
+updated protocol can additionally inspect `error.has_subscription_error()` and
+`error.subscription_error()` for `symbol`, `feed` (`bars`, `depth`, `quotes`),
+`reason`, `terminal`, and `retry_delay_ms` (zero when terminal).
+
+For example, an invalid symbol produces a terminal `BadRequest` error; the host
+stops retrying that feed. The strategy decides whether to stop, alert, or select
+another symbol. Other feeds or strategies are not automatically stopped.
+An already-failed subscription's last error is also sent when another strategy
+attaches to that symbol context; receiving valid data clears the cached error.
+
+This is an additive field on the existing error envelope, so older strategy
+binaries still receive the code and descriptive message through `onHostError`.
+No new handler virtual method or protocol-major change is required. Rebuild
+against the updated SDK to access structured subscription details.
+
 #### `ExternalStrategyRuntime` helpers
 
 - `log(...)`

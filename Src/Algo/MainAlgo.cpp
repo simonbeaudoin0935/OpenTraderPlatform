@@ -7,6 +7,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QSemaphore>
+#include <QMetaEnum>
 #include <unistd.h>
 
 #include <algorithm>
@@ -1007,12 +1008,25 @@ void MainAlgo::subscribeExistingLiveSymbols()
 
 void MainAlgo::scheduleLiveStreamRetry(SymbolContext* p_symbolContext,
                                        LiveStreamRetryState& p_state,
+                                       const QString& p_feed,
                                        Stream::StreamError p_reason,
                                        const QString& p_message)
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &thread);
     OBJ_ASSUME_DIFF(p_symbolContext, nullptr);
     const std::optional<int> retryDelay = p_state.schedule(p_reason);
+    if (retryDelay.has_value() || p_state.terminal)
+    {
+        const QString reason =
+            QString::fromLatin1(QMetaEnum::fromType<Stream::StreamError>().valueToKey(static_cast<int>(p_reason)));
+        p_state.lastError = MarketDataSubscriptionError{p_symbolContext->symbol,
+                                                        p_feed,
+                                                        reason,
+                                                        p_message,
+                                                        p_state.terminal,
+                                                        retryDelay.value_or(0)};
+        emit p_symbolContext->marketDataSubscriptionFailed(p_state.lastError.value());
+    }
     if (p_state.terminal)
     {
         WARNING << "Live subscription rejected; automatic retry disabled for" << p_symbolContext->symbol
@@ -1117,6 +1131,11 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
         if (p_symbolContext->m_streamBars.isNull())
         {
             WARNING << "Failed to open bars stream for" << symbol;
+            scheduleLiveStreamRetry(p_symbolContext,
+                                    p_symbolContext->m_barStreamRetry,
+                                    QStringLiteral("bars"),
+                                    Stream::StreamError::Failed,
+                                    QStringLiteral("Bars stream creation failed"));
             return;
         }
 
@@ -1128,6 +1147,7 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
                     if (!context.isNull())
                     {
                         context->m_barStreamRetry.delayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
+                        context->m_barStreamRetry.lastError.reset();
                     }
                 });
         connect(p_symbolContext->m_streamBars,
@@ -1145,7 +1165,11 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
                             << "message=" << p_message;
 
                     context->m_streamBars = nullptr;
-                    scheduleLiveStreamRetry(context, context->m_barStreamRetry, p_reason, p_message);
+                    scheduleLiveStreamRetry(context,
+                                            context->m_barStreamRetry,
+                                            QStringLiteral("bars"),
+                                            p_reason,
+                                            p_message);
                 });
     };
 
@@ -1166,6 +1190,7 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
             WARNING << "Failed to open queued market-depth stream for" << symbol;
             scheduleLiveStreamRetry(context,
                                     context->m_depthStreamRetry,
+                                    QStringLiteral("depth"),
                                     Stream::StreamError::Failed,
                                     QStringLiteral("Queued market-depth stream creation failed"));
             return;
@@ -1180,6 +1205,7 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
                     if (!context.isNull())
                     {
                         context->m_depthStreamRetry.delayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
+                        context->m_depthStreamRetry.lastError.reset();
                     }
                 });
         connect(p_stream,
@@ -1196,7 +1222,11 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
                             << "message=" << p_message;
 
                     context->m_streamMarketDepthAggregate = nullptr;
-                    scheduleLiveStreamRetry(context, context->m_depthStreamRetry, p_reason, p_message);
+                    scheduleLiveStreamRetry(context,
+                                            context->m_depthStreamRetry,
+                                            QStringLiteral("depth"),
+                                            p_reason,
+                                            p_message);
                 });
     };
 
@@ -1236,6 +1266,11 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
         if (p_symbolContext->m_streamQuote.isNull())
         {
             WARNING << "Failed to open quote stream for" << symbol;
+            scheduleLiveStreamRetry(p_symbolContext,
+                                    p_symbolContext->m_quoteStreamRetry,
+                                    QStringLiteral("quotes"),
+                                    Stream::StreamError::Failed,
+                                    QStringLiteral("Quote stream creation failed"));
             return;
         }
 
@@ -1247,6 +1282,7 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
                     if (!context.isNull())
                     {
                         context->m_quoteStreamRetry.delayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
+                        context->m_quoteStreamRetry.lastError.reset();
                     }
                 });
         connect(p_symbolContext->m_streamQuote,
@@ -1264,7 +1300,11 @@ void MainAlgo::subscribeLiveSymbol(SymbolContext* p_symbolContext)
                             << "message=" << p_message;
 
                     context->m_streamQuote = nullptr;
-                    scheduleLiveStreamRetry(context, context->m_quoteStreamRetry, p_reason, p_message);
+                    scheduleLiveStreamRetry(context,
+                                            context->m_quoteStreamRetry,
+                                            QStringLiteral("quotes"),
+                                            p_reason,
+                                            p_message);
                 });
     };
 

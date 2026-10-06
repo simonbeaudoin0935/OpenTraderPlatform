@@ -37,6 +37,7 @@
 #include "ClosePositions.h"
 #include "RiskTypes.h"
 #include "Misc/CONSTANTS.h"
+#include "Core/MarketDataSubscriptionError.h"
 #include "TSClient.h"       // For TSClient::AuthStateReason enum
 #include "OrdersDatabase.h" // For StrategyLogEntry
 #include "MarketData/Bars/StreamBars.h"
@@ -177,6 +178,7 @@ struct LiveStreamRetryState
     bool pending = false;
     bool terminal = false;
     int delayMs = StreamConstants::LIVE_RETRY_INITIAL_DELAY_MS;
+    std::optional<MarketDataSubscriptionError> lastError;
 
     [[nodiscard]] std::optional<int> schedule(Stream::StreamError p_reason)
     {
@@ -249,6 +251,12 @@ class SymbolContext : public QObject
     DisplaySnapshot m_displaySnapshot;
 
   signals:
+    /**
+     * @brief A live market-data subscription failed.
+     * Thread context: Emitted and received on the MainAlgo thread.
+     * @param p_error Symbol, feed, reason and retry policy for the failure.
+     */
+    void marketDataSubscriptionFailed(const MarketDataSubscriptionError& p_error);
     /**
      * @brief Forwarded trade event (for strategy subscriptions)
      * Thread context: Emitted from QThreadPool drain thread
@@ -903,6 +911,7 @@ class MainAlgo final : public QObject
     void subscribeLiveSymbol(SymbolContext* p_symbolContext);
     void scheduleLiveStreamRetry(SymbolContext* p_symbolContext,
                                  LiveStreamRetryState& p_state,
+                                 const QString& p_feed,
                                  Stream::StreamError p_reason,
                                  const QString& p_message);
     void subscribeExistingLiveSymbols();

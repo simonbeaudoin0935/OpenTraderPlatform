@@ -40,6 +40,7 @@ class ProcessStrategyRuntimeBackend final : public IStrategyRuntimeBackend
     void publishBar(const QString& p_symbol, const Bar& p_bar) override;
     void publishLevel2(const QString& p_symbol, const Level2& p_level2) override;
     void publishTrade(const QString& p_symbol, const Trade& p_trade) override;
+    void publishSubscriptionError(const MarketDataSubscriptionError& p_error) override;
     void publishOrder(const Order& p_order) override;
     void publishClaimedSymbols(const QStringList& p_claimedSymbols) override;
     void publishManualOrderDecision(const QString& p_requestID,
