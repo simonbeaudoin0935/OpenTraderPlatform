@@ -63,9 +63,10 @@ class BarCache : public QObject
 
     std::optional<std::unique_ptr<QVector<Bar>>>
     getBarsFromCache(TimeFrame tf, const QDate& date, const QTime& start, const QTime& end) const;
-    [[nodiscard]] std::optional<QDateTime>
-    currentDayBackfillStart(TimeFrame tf, const QDate& date, const QDateTime& now,
-                           const QVector<Bar>* savedBars = nullptr);
+    [[nodiscard]] std::optional<QDateTime> currentDayBackfillStart(TimeFrame tf,
+                                                                   const QDate& date,
+                                                                   const QDateTime& now,
+                                                                   const QVector<Bar>* savedBars = nullptr);
 
     void storeBarInCache(TimeFrame tf, const Bar& bar);
     void prefillNullBarsThrough(TimeFrame tf, const QDate& date, const QTime& lastInclusive);

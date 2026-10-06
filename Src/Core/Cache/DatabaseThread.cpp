@@ -128,7 +128,8 @@ DatabaseThread::getBarsFromDatabase(const QString& symbol, TimeFrame tf, QDate d
     return future;
 }
 
-QFuture<std::shared_ptr<QVector<Bar>>> DatabaseThread::getCachedBarsForDate(const QString& symbol, TimeFrame tf, QDate date)
+QFuture<std::shared_ptr<QVector<Bar>>>
+DatabaseThread::getCachedBarsForDate(const QString& symbol, TimeFrame tf, QDate date)
 {
     OBJ_ASSUME_FALSE(this->thread() == QThread::currentThread());
 
@@ -148,7 +149,8 @@ QFuture<std::shared_ptr<QVector<Bar>>> DatabaseThread::getCachedBarsForDate(cons
     return future;
 }
 
-QFuture<std::optional<QDateTime>> DatabaseThread::getLatestClosedBarTimestamp(const QString& symbol, TimeFrame tf, QDate date)
+QFuture<std::optional<QDateTime>>
+DatabaseThread::getLatestClosedBarTimestamp(const QString& symbol, TimeFrame tf, QDate date)
 {
     OBJ_ASSUME_FALSE(this->thread() == QThread::currentThread());
 
@@ -395,12 +397,12 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, TimeFrame tf,
             DEBUG << "Database has" << bars->size() << "of" << expectedCount
                   << "expected bars — accepting as sufficiently complete";
             LTTnG_TP(opentraderplatform,
-                   barcache_l2_hit,
-                   symbol.toUtf8().constData(),
-                   static_cast<int>(tf),
-                   date.toString("yyyy-MM-dd").toUtf8().constData(),
-                   static_cast<int>(bars->size()),
-                   expectedCount);
+                     barcache_l2_hit,
+                     symbol.toUtf8().constData(),
+                     static_cast<int>(tf),
+                     date.toString("yyyy-MM-dd").toUtf8().constData(),
+                     static_cast<int>(bars->size()),
+                     expectedCount);
             return bars;
         }
 
@@ -410,37 +412,38 @@ DatabaseThread::getBarsFromDatabaseInternal(const QString& symbol, TimeFrame tf,
         if (bars->isEmpty())
         {
             LTTnG_TP(opentraderplatform,
-                   barcache_l2_miss,
-                   symbol.toUtf8().constData(),
-                   static_cast<int>(tf),
-                   date.toString("yyyy-MM-dd").toUtf8().constData());
+                     barcache_l2_miss,
+                     symbol.toUtf8().constData(),
+                     static_cast<int>(tf),
+                     date.toString("yyyy-MM-dd").toUtf8().constData());
         }
         else
         {
             LTTnG_TP(opentraderplatform,
-                   barcache_l2_partial,
-                   symbol.toUtf8().constData(),
-                   static_cast<int>(tf),
-                   date.toString("yyyy-MM-dd").toUtf8().constData(),
-                   expectedCount,
-                   static_cast<int>(bars->size()));
+                     barcache_l2_partial,
+                     symbol.toUtf8().constData(),
+                     static_cast<int>(tf),
+                     date.toString("yyyy-MM-dd").toUtf8().constData(),
+                     expectedCount,
+                     static_cast<int>(bars->size()));
         }
 
         return std::nullopt;
     }
 
     LTTnG_TP(opentraderplatform,
-           barcache_l2_hit,
-           symbol.toUtf8().constData(),
-           static_cast<int>(tf),
-           date.toString("yyyy-MM-dd").toUtf8().constData(),
-           static_cast<int>(bars->size()),
-           expectedCount);
+             barcache_l2_hit,
+             symbol.toUtf8().constData(),
+             static_cast<int>(tf),
+             date.toString("yyyy-MM-dd").toUtf8().constData(),
+             static_cast<int>(bars->size()),
+             expectedCount);
 
     return bars;
 }
 
-std::shared_ptr<QVector<Bar>> DatabaseThread::getCachedBarsForDateInternal(const QString& symbol, TimeFrame tf, QDate date)
+std::shared_ptr<QVector<Bar>>
+DatabaseThread::getCachedBarsForDateInternal(const QString& symbol, TimeFrame tf, QDate date)
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
     OBJ_ASSUME_TRUE(m_databases.contains(symbol));
@@ -489,7 +492,8 @@ std::shared_ptr<QVector<Bar>> DatabaseThread::getCachedBarsForDateInternal(const
     return bars;
 }
 
-std::optional<QDateTime> DatabaseThread::getLatestClosedBarTimestampInternal(const QString& symbol, TimeFrame tf, QDate date)
+std::optional<QDateTime>
+DatabaseThread::getLatestClosedBarTimestampInternal(const QString& symbol, TimeFrame tf, QDate date)
 {
     OBJ_ASSUME_EQUAL(QThread::currentThread(), &m_thread);
     OBJ_ASSUME_TRUE(m_databases.contains(symbol));

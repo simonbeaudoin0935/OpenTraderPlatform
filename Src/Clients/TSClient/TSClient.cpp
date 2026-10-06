@@ -71,22 +71,13 @@ TSClient::~TSClient()
         Qt::BlockingQueuedConnection);
 
     // Process events to delete Streams (while QNetworkAccessManager still valid)
-    QMetaObject::invokeMethod(
-        this,
-        []() { QCoreApplication::processEvents(); },
-        Qt::BlockingQueuedConnection);
+    QMetaObject::invokeMethod(this, []() { QCoreApplication::processEvents(); }, Qt::BlockingQueuedConnection);
 
     // Now delete QNetworkAccessManager after all Streams are gone
-    QMetaObject::invokeMethod(
-        this,
-        [this]() { m_networkManager->deleteLater(); },
-        Qt::BlockingQueuedConnection);
+    QMetaObject::invokeMethod(this, [this]() { m_networkManager->deleteLater(); }, Qt::BlockingQueuedConnection);
 
     // Process final deleteLater
-    QMetaObject::invokeMethod(
-        this,
-        []() { QCoreApplication::processEvents(); },
-        Qt::BlockingQueuedConnection);
+    QMetaObject::invokeMethod(this, []() { QCoreApplication::processEvents(); }, Qt::BlockingQueuedConnection);
 
     // Now safe to stop thread (all objects deleted in correct order)
     m_thread.quit();
@@ -115,7 +106,8 @@ TSClient::TSClient()
               if (!authorized && m_authenticated)
               {
                   m_authenticated = false;
-                  emit authStateChanged(false, AuthStateReason::Connecting,
+                  emit authStateChanged(false,
+                                        AuthStateReason::Connecting,
                                         "TradeStation requests paused pending authentication or token refresh");
               }
               return authorized;

@@ -19,7 +19,7 @@
 #include "LTTng/opentraderplatform_tp.h"
 #define LTTnG_TP(provider, event, ...) tracepoint(provider, event, ##__VA_ARGS__)
 #else
-#define LTTnG_TP(provider, event, ...)                                                                                   \
+#define LTTnG_TP(provider, event, ...)                                                                                 \
     do                                                                                                                 \
     {                                                                                                                  \
     } while (0)

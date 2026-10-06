@@ -396,8 +396,8 @@ class TSClient final : public QObject
     ClientToken m_clientToken;
 
     std::atomic<bool> m_authenticated{false}; // Read by GUI/MainAlgo; written on the client thread
-    bool m_refreshInProgress = false; // Track if authentication process is in progress
-    bool m_authInProgress = false;    // Track if authentication process is in progress
+    bool m_refreshInProgress = false;         // Track if authentication process is in progress
+    bool m_authInProgress = false;            // Track if authentication process is in progress
     std::atomic<bool> m_shuttingDown{false};
 
     QUrl m_baseUrl;

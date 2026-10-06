@@ -233,11 +233,11 @@ QVector<Bar>& BarCache::getOrCreateDayVector(TimeFrame tf, const QDate& date)
         dayMap[date] = QVector<Bar>(BarUtils::barsPerDay(tf));
 
         LTTnG_TP(opentraderplatform,
-               barcache_day_alloc,
-               m_symbol.toUtf8().constData(),
-               static_cast<int>(tf),
-               date.toString("yyyy-MM-dd").toUtf8().constData(),
-               BarUtils::barsPerDay(tf));
+                 barcache_day_alloc,
+                 m_symbol.toUtf8().constData(),
+                 static_cast<int>(tf),
+                 date.toString("yyyy-MM-dd").toUtf8().constData(),
+                 BarUtils::barsPerDay(tf));
     }
 
     return dayMap[date];
@@ -267,12 +267,12 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(TimeFrame tf,
     [[maybe_unused]] const int expectedSlots = stepSecs > 0 ? static_cast<int>(totalSecs / stepSecs) + 1 : 0;
 
     LTTnG_TP(opentraderplatform,
-           fillholes_run,
-           "unknown", // symbol not in scope here; use tf+step as signal
-           static_cast<int>(tf),
-           static_cast<int>(stepSecs),
-           static_cast<int>(barsFromAPI.size()),
-           expectedSlots);
+             fillholes_run,
+             "unknown", // symbol not in scope here; use tf+step as signal
+             static_cast<int>(tf),
+             static_cast<int>(stepSecs),
+             static_cast<int>(barsFromAPI.size()),
+             expectedSlots);
 
     for (QDateTime expectedTime = first; expectedTime <= last; expectedTime = expectedTime.addSecs(stepSecs))
     {
@@ -310,11 +310,11 @@ QVector<Bar> BarCache::fillHolesOfReceivedRequest(TimeFrame tf,
     }
 
     LTTnG_TP(opentraderplatform,
-           fillholes_done,
-           "unknown",
-           static_cast<int>(tf),
-           static_cast<int>(resultBars.size()),
-           voidBarsCreated);
+             fillholes_done,
+             "unknown",
+             static_cast<int>(tf),
+             static_cast<int>(resultBars.size()),
+             voidBarsCreated);
 
     return resultBars;
 }
@@ -563,45 +563,203 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
                                    return bars;
                                })
                      : DatabaseThread::getInstance()->getBarsFromDatabase(m_symbol, tf, date, fullDayStart, fullDayEnd);
-    databaseBars
-        .then(
-            [barCache = QPointer<BarCache>(this),
-             symbol = m_symbol,
-             tf,
-             date,
-             first = firstAligned,
-             last = lastAligned,
-             fullDayStart,
-             fullDayEnd,
-             isCurrentDay,
-             now,
-             bypassDatabaseForCurrentDayTailBackfill,
-             backfillStart,
-             sharedPromise](std::optional<std::shared_ptr<QVector<Bar>>>&& dbBars) mutable
+    databaseBars.then(
+        [barCache = QPointer<BarCache>(this),
+         symbol = m_symbol,
+         tf,
+         date,
+         first = firstAligned,
+         last = lastAligned,
+         fullDayStart,
+         fullDayEnd,
+         isCurrentDay,
+         now,
+         bypassDatabaseForCurrentDayTailBackfill,
+         backfillStart,
+         sharedPromise](std::optional<std::shared_ptr<QVector<Bar>>>&& dbBars) mutable
+        {
+            if (barCache.isNull())
             {
-                if (barCache.isNull())
-                {
-                    sharedPromise->addResult(std::unexpected(TSClient::Error::Other));
-                    sharedPromise->finish();
-                    return;
-                }
+                sharedPromise->addResult(std::unexpected(TSClient::Error::Other));
+                sharedPromise->finish();
+                return;
+            }
 
-                QMetaObject::invokeMethod(
-                    barCache,
-                    [barCache,
-                     symbol,
-                     tf,
-                     date,
-                     first,
-                     last,
-                     fullDayStart,
-                     fullDayEnd,
-                     isCurrentDay,
-                     now,
-                     bypassDatabaseForCurrentDayTailBackfill,
-                     backfillStart,
-                     sharedPromise,
-                     dbBars = std::move(dbBars)]() mutable
+            QMetaObject::invokeMethod(
+                barCache,
+                [barCache,
+                 symbol,
+                 tf,
+                 date,
+                 first,
+                 last,
+                 fullDayStart,
+                 fullDayEnd,
+                 isCurrentDay,
+                 now,
+                 bypassDatabaseForCurrentDayTailBackfill,
+                 backfillStart,
+                 sharedPromise,
+                 dbBars = std::move(dbBars)]() mutable
+                {
+                    if (barCache.isNull())
+                    {
+                        sharedPromise->addResult(std::unexpected(TSClient::Error::Other));
+                        sharedPromise->finish();
+                        return;
+                    }
+
+                    BarCache* const self = barCache.data();
+
+                    if (isCurrentDay && (tf == TimeFrame::ONE_MINUTE || tf == TimeFrame::TEN_SECONDS) &&
+                        !bypassDatabaseForCurrentDayTailBackfill && dbBars.has_value())
+                    {
+                        self->m_currentDayBackfillStartByTimeFrame[tf].remove(date);
+                        backfillStart = self->currentDayBackfillStart(tf, date, now, dbBars->get());
+                        self->storeBarsInCache(tf, date, *dbBars);
+                        if (backfillStart.has_value())
+                        {
+                            bypassDatabaseForCurrentDayTailBackfill = true;
+                        }
+                    }
+
+                    // Check if we got bars from database
+                    if (dbBars.has_value() && !bypassDatabaseForCurrentDayTailBackfill)
+                    {
+                        std::shared_ptr<QVector<Bar>> fullDayBars = std::move(dbBars.value());
+
+                        qCDebug(LOGGING_CATEGORY)
+                            << self->objectName() << "Loaded full day from database:" << fullDayBars->size() << "bars";
+
+                        // Store the complete day in memory cache
+                        self->storeBarsInCache(tf, date, fullDayBars);
+
+                        // Now filter to the requested range and return
+                        auto filteredBars = std::make_shared<QVector<Bar>>();
+                        for (const auto& bar: *fullDayBars)
+                        {
+                            if (bar.getTimeStamp().time() >= first && bar.getTimeStamp().time() <= last)
+                            {
+                                filteredBars->append(bar);
+                            }
+                        }
+
+                        qCDebug(LOGGING_CATEGORY)
+                            << self->objectName() << "Returning filtered bars:" << filteredBars->size()
+                            << "out of full day:" << fullDayBars->size();
+
+                        sharedPromise->addResult(filteredBars);
+                        sharedPromise->finish();
+                        return;
+                    }
+
+                    if (dbBars.has_value() && bypassDatabaseForCurrentDayTailBackfill)
+                    {
+                        qCDebug(LOGGING_CATEGORY)
+                            << self->objectName()
+                            << "Bypassing current-day database cache hit to force API tail backfill";
+                    }
+
+                    // Database doesn't have complete day.
+                    // Before going to the API, check if the source timescale is already in
+                    // memory and aggregate from it — avoids a redundant Databento fetch.
+                    // Example: switching 1m→5m when 1m bars are already cached in memory.
+                    const TimeFrame sourceTf = BarUtils::aggregateSourceTimeFrame(tf);
+                    if (sourceTf != tf)
+                    {
+                        auto sourceIt = self->m_barCacheByTimeFrame.constFind(sourceTf);
+                        if (sourceIt != self->m_barCacheByTimeFrame.constEnd())
+                        {
+                            auto dayIt = sourceIt->constFind(date);
+                            if (dayIt != sourceIt->constEnd() && !dayIt->isEmpty())
+                            {
+                                qCDebug(LOGGING_CATEGORY) << self->objectName() << "Aggregating" << static_cast<int>(tf)
+                                                          << "m bars from in-memory" << static_cast<int>(sourceTf)
+                                                          << "m cache (no API fetch needed)";
+
+                                QVector<Bar> aggregated = BarUtils::aggregateBars(*dayIt, tf);
+
+                                auto fullDayBars = std::make_shared<QVector<Bar>>(self->fillHolesOfReceivedRequest(
+                                    tf,
+                                    QDateTime(date,
+                                              TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
+                                              TradingHours::MARKET_TIMEZONE),
+                                    QDateTime(date,
+                                              TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
+                                              TradingHours::MARKET_TIMEZONE),
+                                    aggregated));
+
+                                self->storeBarsInCache(tf, date, fullDayBars);
+
+                                // Persist to database (fire-and-forget)
+                                [[maybe_unused]] auto dbFuture =
+                                    DatabaseThread::getInstance()->storeBarsInDatabase(symbol, tf, date, fullDayBars);
+
+                                auto filteredBars = std::make_shared<QVector<Bar>>();
+                                for (const auto& bar: *fullDayBars)
+                                {
+                                    if (bar.getTimeStamp().time() >= first && bar.getTimeStamp().time() <= last)
+                                        filteredBars->append(bar);
+                                }
+
+                                sharedPromise->addResult(filteredBars);
+                                sharedPromise->finish();
+                                return;
+                            }
+                        }
+                    }
+
+                    if (isCurrentDay && tf != TimeFrame::ONE_MINUTE && tf != TimeFrame::TEN_SECONDS &&
+                        tf != TimeFrame::ONE_SECOND)
+                    {
+                        auto oneMinuteIt = self->m_barCacheByTimeFrame.constFind(TimeFrame::ONE_MINUTE);
+                        if (oneMinuteIt != self->m_barCacheByTimeFrame.constEnd())
+                        {
+                            auto dayIt = oneMinuteIt->constFind(date);
+                            if (dayIt != oneMinuteIt->constEnd() && !dayIt->isEmpty())
+                            {
+                                qCDebug(LOGGING_CATEGORY) << self->objectName() << "Aggregating current-day"
+                                                          << static_cast<int>(tf) << "bars from in-memory 1m cache";
+
+                                QVector<Bar> aggregated = BarUtils::aggregateBars(*dayIt, tf);
+                                auto fullDayBars = std::make_shared<QVector<Bar>>(self->fillHolesOfReceivedRequest(
+                                    tf,
+                                    QDateTime(date,
+                                              TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
+                                              TradingHours::MARKET_TIMEZONE),
+                                    QDateTime(date,
+                                              TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
+                                              TradingHours::MARKET_TIMEZONE),
+                                    aggregated));
+
+                                self->storeBarsInCache(tf, date, fullDayBars);
+
+                                auto filteredBars = std::make_shared<QVector<Bar>>();
+                                for (const auto& bar: *fullDayBars)
+                                {
+                                    if (bar.getTimeStamp().time() >= first && bar.getTimeStamp().time() <= last)
+                                    {
+                                        filteredBars->append(bar);
+                                    }
+                                }
+
+                                sharedPromise->addResult(filteredBars);
+                                sharedPromise->finish();
+                                return;
+                            }
+                        }
+                    }
+
+                    auto fetchFromApi = [barCache,
+                                         symbol,
+                                         tf,
+                                         date,
+                                         first,
+                                         last,
+                                         isCurrentDay,
+                                         now,
+                                         backfillStart,
+                                         sharedPromise]() mutable
                     {
                         if (barCache.isNull())
                         {
@@ -610,430 +768,118 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
                             return;
                         }
 
-                        BarCache* const self = barCache.data();
+                        BarCache* const apiCache = barCache.data();
 
-                        if (isCurrentDay && (tf == TimeFrame::ONE_MINUTE || tf == TimeFrame::TEN_SECONDS) &&
-                            !bypassDatabaseForCurrentDayTailBackfill && dbBars.has_value())
-                        {
-                            self->m_currentDayBackfillStartByTimeFrame[tf].remove(date);
-                            backfillStart = self->currentDayBackfillStart(tf, date, now, dbBars->get());
-                            self->storeBarsInCache(tf, date, *dbBars);
-                            if (backfillStart.has_value())
+                        qCDebug(LOGGING_CATEGORY) << apiCache->objectName() << "No local replay warmup path for"
+                                                  << static_cast<int>(tf) << "— fetching historical bars from API";
+
+                        LTTnG_TP(opentraderplatform,
+                                 barcache_api_fetch_start,
+                                 symbol.toUtf8().constData(),
+                                 static_cast<int>(tf),
+                                 date.toString("yyyy-MM-dd").toUtf8().constData());
+
+                        QDateTime startDateTime =
+                            backfillStart.value_or(QDateTime(date,
+                                                             TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
+                                                             TradingHours::MARKET_TIMEZONE));
+
+                        QDateTime endDayTime = QDateTime(
+                            date,
+                            [now, isCurrentDay]() -> QTime
                             {
-                                bypassDatabaseForCurrentDayTailBackfill = true;
-                            }
-                        }
-
-                        // Check if we got bars from database
-                        if (dbBars.has_value() && !bypassDatabaseForCurrentDayTailBackfill)
-                        {
-                            std::shared_ptr<QVector<Bar>> fullDayBars = std::move(dbBars.value());
-
-                            qCDebug(LOGGING_CATEGORY)
-                                << self->objectName() << "Loaded full day from database:" << fullDayBars->size()
-                                << "bars";
-
-                            // Store the complete day in memory cache
-                            self->storeBarsInCache(tf, date, fullDayBars);
-
-                            // Now filter to the requested range and return
-                            auto filteredBars = std::make_shared<QVector<Bar>>();
-                            for (const auto& bar: *fullDayBars)
-                            {
-                                if (bar.getTimeStamp().time() >= first && bar.getTimeStamp().time() <= last)
+                                if (isCurrentDay)
                                 {
-                                    filteredBars->append(bar);
-                                }
-                            }
-
-                            qCDebug(LOGGING_CATEGORY)
-                                << self->objectName() << "Returning filtered bars:" << filteredBars->size()
-                                << "out of full day:" << fullDayBars->size();
-
-                            sharedPromise->addResult(filteredBars);
-                            sharedPromise->finish();
-                            return;
-                        }
-
-                        if (dbBars.has_value() && bypassDatabaseForCurrentDayTailBackfill)
-                        {
-                            qCDebug(LOGGING_CATEGORY)
-                                << self->objectName()
-                                << "Bypassing current-day database cache hit to force API tail backfill";
-                        }
-
-                        // Database doesn't have complete day.
-                        // Before going to the API, check if the source timescale is already in
-                        // memory and aggregate from it — avoids a redundant Databento fetch.
-                        // Example: switching 1m→5m when 1m bars are already cached in memory.
-                        const TimeFrame sourceTf = BarUtils::aggregateSourceTimeFrame(tf);
-                        if (sourceTf != tf)
-                        {
-                            auto sourceIt = self->m_barCacheByTimeFrame.constFind(sourceTf);
-                            if (sourceIt != self->m_barCacheByTimeFrame.constEnd())
-                            {
-                                auto dayIt = sourceIt->constFind(date);
-                                if (dayIt != sourceIt->constEnd() && !dayIt->isEmpty())
-                                {
-                                    qCDebug(LOGGING_CATEGORY)
-                                        << self->objectName() << "Aggregating" << static_cast<int>(tf)
-                                        << "m bars from in-memory" << static_cast<int>(sourceTf)
-                                        << "m cache (no API fetch needed)";
-
-                                    QVector<Bar> aggregated = BarUtils::aggregateBars(*dayIt, tf);
-
-                                    auto fullDayBars = std::make_shared<QVector<Bar>>(self->fillHolesOfReceivedRequest(
-                                        tf,
-                                        QDateTime(date,
-                                                  TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
-                                                  TradingHours::MARKET_TIMEZONE),
-                                        QDateTime(date,
-                                                  TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
-                                                  TradingHours::MARKET_TIMEZONE),
-                                        aggregated));
-
-                                    self->storeBarsInCache(tf, date, fullDayBars);
-
-                                    // Persist to database (fire-and-forget)
-                                    [[maybe_unused]] auto dbFuture =
-                                        DatabaseThread::getInstance()->storeBarsInDatabase(symbol,
-                                                                                           tf,
-                                                                                           date,
-                                                                                           fullDayBars);
-
-                                    auto filteredBars = std::make_shared<QVector<Bar>>();
-                                    for (const auto& bar: *fullDayBars)
-                                    {
-                                        if (bar.getTimeStamp().time() >= first && bar.getTimeStamp().time() <= last)
-                                            filteredBars->append(bar);
-                                    }
-
-                                    sharedPromise->addResult(filteredBars);
-                                    sharedPromise->finish();
-                                    return;
-                                }
-                            }
-                        }
-
-                        if (isCurrentDay && tf != TimeFrame::ONE_MINUTE && tf != TimeFrame::TEN_SECONDS &&
-                            tf != TimeFrame::ONE_SECOND)
-                        {
-                            auto oneMinuteIt = self->m_barCacheByTimeFrame.constFind(TimeFrame::ONE_MINUTE);
-                            if (oneMinuteIt != self->m_barCacheByTimeFrame.constEnd())
-                            {
-                                auto dayIt = oneMinuteIt->constFind(date);
-                                if (dayIt != oneMinuteIt->constEnd() && !dayIt->isEmpty())
-                                {
-                                    qCDebug(LOGGING_CATEGORY) << self->objectName() << "Aggregating current-day"
-                                                              << static_cast<int>(tf) << "bars from in-memory 1m cache";
-
-                                    QVector<Bar> aggregated = BarUtils::aggregateBars(*dayIt, tf);
-                                    auto fullDayBars = std::make_shared<QVector<Bar>>(self->fillHolesOfReceivedRequest(
-                                        tf,
-                                        QDateTime(date,
-                                                  TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
-                                                  TradingHours::MARKET_TIMEZONE),
-                                        QDateTime(date,
-                                                  TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
-                                                  TradingHours::MARKET_TIMEZONE),
-                                        aggregated));
-
-                                    self->storeBarsInCache(tf, date, fullDayBars);
-
-                                    auto filteredBars = std::make_shared<QVector<Bar>>();
-                                    for (const auto& bar: *fullDayBars)
-                                    {
-                                        if (bar.getTimeStamp().time() >= first && bar.getTimeStamp().time() <= last)
-                                        {
-                                            filteredBars->append(bar);
-                                        }
-                                    }
-
-                                    sharedPromise->addResult(filteredBars);
-                                    sharedPromise->finish();
-                                    return;
-                                }
-                            }
-                        }
-
-                        auto fetchFromApi = [barCache,
-                                             symbol,
-                                             tf,
-                                             date,
-                                             first,
-                                             last,
-                                             isCurrentDay,
-                                             now,
-                                             backfillStart,
-                                             sharedPromise]() mutable
-                        {
-                            if (barCache.isNull())
-                            {
-                                sharedPromise->addResult(std::unexpected(TSClient::Error::Other));
-                                sharedPromise->finish();
-                                return;
-                            }
-
-                            BarCache* const apiCache = barCache.data();
-
-                            qCDebug(LOGGING_CATEGORY) << apiCache->objectName() << "No local replay warmup path for"
-                                                      << static_cast<int>(tf) << "— fetching historical bars from API";
-
-                            LTTnG_TP(opentraderplatform,
-                                     barcache_api_fetch_start,
-                                     symbol.toUtf8().constData(),
-                                     static_cast<int>(tf),
-                                     date.toString("yyyy-MM-dd").toUtf8().constData());
-
-                            QDateTime startDateTime = backfillStart.value_or(
-                                QDateTime(date,
-                                          TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
-                                          TradingHours::MARKET_TIMEZONE));
-
-                            QDateTime endDayTime = QDateTime(
-                                date,
-                                [now, isCurrentDay]() -> QTime
-                                {
-                                    if (isCurrentDay)
-                                    {
-                                        if (now.time() > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION)
-                                        {
-                                            return TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;
-                                        }
-                                        else
-                                        {
-                                            return now.time();
-                                        }
-                                    }
-                                    else
+                                    if (now.time() > TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION)
                                     {
                                         return TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;
                                     }
-                                }(),
-                                TradingHours::MARKET_TIMEZONE);
-
-                            qCDebug(LOGGING_CATEGORY)
-                                << apiCache->objectName() << "Fetching historical bars from API:" << startDateTime
-                                << "to" << endDayTime;
-
-                            TSClient::BarUnit barUnit = TSClient::BarUnit::Minute;
-                            unsigned int interval = 1;
-                            switch (tf)
-                            {
-                            case TimeFrame::ONE_SECOND:
-                            case TimeFrame::TEN_SECONDS:
-                                qCWarning(LOGGING_CATEGORY)
-                                    << apiCache->objectName()
-                                    << "TradeStation historical API does not support sub-minute bars for" << symbol
-                                    << "tf" << static_cast<int>(tf);
-                                sharedPromise->addResult(std::unexpected(TSClient::Error::Other));
-                                sharedPromise->finish();
-                                return;
-                            case TimeFrame::ONE_MINUTE:
-                                interval = 1;
-                                barUnit = TSClient::BarUnit::Minute;
-                                break;
-                            case TimeFrame::FIVE_MINUTES:
-                                interval = 5;
-                                barUnit = TSClient::BarUnit::Minute;
-                                break;
-                            case TimeFrame::FIFTEEN_MINUTES:
-                                interval = 15;
-                                barUnit = TSClient::BarUnit::Minute;
-                                break;
-                            case TimeFrame::THIRTY_MINUTES:
-                                interval = 30;
-                                barUnit = TSClient::BarUnit::Minute;
-                                break;
-                            case TimeFrame::ONE_HOUR:
-                                interval = 60;
-                                barUnit = TSClient::BarUnit::Minute;
-                                break;
-                            case TimeFrame::FOUR_HOURS:
-                                interval = 240;
-                                barUnit = TSClient::BarUnit::Minute;
-                                break;
-                            case TimeFrame::ONE_DAY:
-                                interval = 1;
-                                barUnit = TSClient::BarUnit::Daily;
-                                break;
-                            case TimeFrame::ONE_WEEK:
-                                interval = 1;
-                                barUnit = TSClient::BarUnit::Weekly;
-                                break;
-                            case TimeFrame::ONE_MONTH:
-                                interval = 1;
-                                barUnit = TSClient::BarUnit::Monthly;
-                                break;
-                            }
-
-                            TSClient::getInstance()
-                                ->getBars(symbol,
-                                          interval,
-                                          barUnit,
-                                          0,
-                                          TSClient::BarSessionTemplate::USEQ24Hour,
-                                          startDateTime,
-                                          endDayTime)
-                                .then(
-                                    [barCache,
-                                     sharedPromise,
-                                     symbol,
-                                     tf,
-                                     date,
-                                     first,
-                                     last,
-                                     isCurrentDay,
-                                     startDateTime,
-                                     endDayTime](
-                                        std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& barsResult)
+                                    else
                                     {
-                                        if (barCache.isNull())
-                                        {
-                                            sharedPromise->addResult(std::unexpected(TSClient::Error::Other));
-                                            sharedPromise->finish();
-                                            return;
-                                        }
+                                        return now.time();
+                                    }
+                                }
+                                else
+                                {
+                                    return TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION;
+                                }
+                            }(),
+                            TradingHours::MARKET_TIMEZONE);
 
-                                        QMetaObject::invokeMethod(
-                                            barCache,
-                                            [barCache,
-                                             sharedPromise,
-                                             symbol,
-                                             tf,
-                                             date,
-                                             first,
-                                             last,
-                                             isCurrentDay,
-                                             startDateTime,
-                                             endDayTime,
-                                             barsResult = std::move(barsResult)]() mutable
-                                            {
-                                                if (barCache.isNull())
-                                                {
-                                                    sharedPromise->addResult(std::unexpected(TSClient::Error::Other));
-                                                    sharedPromise->finish();
-                                                    return;
-                                                }
+                        qCDebug(LOGGING_CATEGORY)
+                            << apiCache->objectName() << "Fetching historical bars from API:" << startDateTime << "to"
+                            << endDayTime;
 
-                                                if (!barsResult.has_value())
-                                                {
-                                                    qCCritical(LOGGING_CATEGORY)
-                                                        << barCache->objectName()
-                                                        << "TradeStation historical fetch failed for" << symbol
-                                                        << "error" << static_cast<int>(barsResult.error());
-                                                    sharedPromise->addResult(std::unexpected(barsResult.error()));
-                                                    sharedPromise->finish();
-                                                    return;
-                                                }
-
-                                                BarCache* const fetchedCache = barCache.data();
-                                                const std::shared_ptr<QVector<Bar>> fullDayBars = barsResult.value();
-                                                if (fullDayBars->isEmpty() && !isCurrentDay)
-                                                {
-                                                    qCDebug(LOGGING_CATEGORY)
-                                                        << fetchedCache->objectName()
-                                                        << "Historical fetch returned 0 bars for" << symbol;
-                                                    sharedPromise->addResult(std::make_shared<QVector<Bar>>());
-                                                    sharedPromise->finish();
-                                                    return;
-                                                }
-                                                if (!fullDayBars->isEmpty())
-                                                {
-                                                    qCDebug(LOGGING_CATEGORY)
-                                                        << fetchedCache->objectName()
-                                                        << "TradeStation historical fetch returned"
-                                                        << fullDayBars->size() << "bars for" << symbol << "— first:"
-                                                        << fullDayBars->first().getTimeStamp().toString(Qt::ISODate)
-                                                        << "last:"
-                                                        << fullDayBars->last().getTimeStamp().toString(Qt::ISODate);
-                                                }
-
-                                                LTTnG_TP(opentraderplatform,
-                                                         barcache_api_fetch_done,
-                                                         symbol.toUtf8().constData(),
-                                                         static_cast<int>(tf),
-                                                         date.toString("yyyy-MM-dd").toUtf8().constData(),
-                                                         static_cast<int>(fullDayBars->size()));
-
-                                                const QDateTime fullDayFirst = startDateTime;
-                                                const QDateTime fullDayLast(
-                                                    date,
-                                                    floorTimeToBarBoundary(tf, endDayTime.time()),
-                                                    TradingHours::MARKET_TIMEZONE);
-                                                auto filledBars = std::make_shared<QVector<Bar>>(
-                                                    fetchedCache->fillHolesOfReceivedRequest(tf,
-                                                                                             fullDayFirst,
-                                                                                             fullDayLast,
-                                                                                             *fullDayBars));
-
-                                                fetchedCache->storeBarsInCache(tf, date, filledBars);
-                                                if (isCurrentDay)
-                                                {
-                                                    fetchedCache
-                                                        ->m_currentDayHistoryVerifiedThroughByTimeFrame[tf][date] =
-                                                        fullDayLast.addSecs(-BarUtils::secondsPerBar(tf));
-                                                    fetchedCache->m_currentDayBackfillStartByTimeFrame[tf].remove(date);
-                                                    // Persist the merged request range, never null placeholders over live bars.
-                                                    filledBars = std::shared_ptr<QVector<Bar>>(
-                                                        std::move(fetchedCache
-                                                                      ->getBarsFromCache(tf,
-                                                                                         date,
-                                                                                         fullDayFirst.time(),
-                                                                                         fullDayLast.time())
-                                                                      .value()));
-                                                }
-
-                                                [[maybe_unused]] auto dbFuture =
-                                                    DatabaseThread::getInstance()->storeBarsInDatabase(symbol,
-                                                                                                       tf,
-                                                                                                       date,
-                                                                                                       filledBars);
-
-                                                auto filteredBars = std::make_shared<QVector<Bar>>();
-                                                const auto resultBars =
-                                                    fetchedCache->getBarsFromCache(tf, date, first, last);
-                                                if (!resultBars.has_value())
-                                                {
-                                                    qCWarning(LOGGING_CATEGORY)
-                                                        << fetchedCache->objectName()
-                                                        << "Historical backfill did not populate the requested range";
-                                                    sharedPromise->addResult(std::unexpected(TSClient::Error::Other));
-                                                    sharedPromise->finish();
-                                                    return;
-                                                }
-                                                *filteredBars = **resultBars;
-
-                                                qCDebug(LOGGING_CATEGORY)
-                                                    << fetchedCache->objectName()
-                                                    << "Historical backfill complete:" << filteredBars->size()
-                                                    << "bars (of" << filledBars->size() << "total)";
-
-                                                sharedPromise->addResult(filteredBars);
-                                                sharedPromise->finish();
-                                            },
-                                            Qt::QueuedConnection);
-                                    });
-                        };
-
-                        const bool canWarmFromReplayTrades = MainApp::isInReplayMode() && tf != TimeFrame::ONE_SECOND &&
-                                                             tf != TimeFrame::TEN_SECONDS &&
-                                                             DBClient::hasReplayData(date, symbol);
-
-                        if (!canWarmFromReplayTrades)
+                        TSClient::BarUnit barUnit = TSClient::BarUnit::Minute;
+                        unsigned int interval = 1;
+                        switch (tf)
                         {
-                            fetchFromApi();
+                        case TimeFrame::ONE_SECOND:
+                        case TimeFrame::TEN_SECONDS:
+                            qCWarning(LOGGING_CATEGORY)
+                                << apiCache->objectName()
+                                << "TradeStation historical API does not support sub-minute bars for" << symbol << "tf"
+                                << static_cast<int>(tf);
+                            sharedPromise->addResult(std::unexpected(TSClient::Error::Other));
+                            sharedPromise->finish();
                             return;
+                        case TimeFrame::ONE_MINUTE:
+                            interval = 1;
+                            barUnit = TSClient::BarUnit::Minute;
+                            break;
+                        case TimeFrame::FIVE_MINUTES:
+                            interval = 5;
+                            barUnit = TSClient::BarUnit::Minute;
+                            break;
+                        case TimeFrame::FIFTEEN_MINUTES:
+                            interval = 15;
+                            barUnit = TSClient::BarUnit::Minute;
+                            break;
+                        case TimeFrame::THIRTY_MINUTES:
+                            interval = 30;
+                            barUnit = TSClient::BarUnit::Minute;
+                            break;
+                        case TimeFrame::ONE_HOUR:
+                            interval = 60;
+                            barUnit = TSClient::BarUnit::Minute;
+                            break;
+                        case TimeFrame::FOUR_HOURS:
+                            interval = 240;
+                            barUnit = TSClient::BarUnit::Minute;
+                            break;
+                        case TimeFrame::ONE_DAY:
+                            interval = 1;
+                            barUnit = TSClient::BarUnit::Daily;
+                            break;
+                        case TimeFrame::ONE_WEEK:
+                            interval = 1;
+                            barUnit = TSClient::BarUnit::Weekly;
+                            break;
+                        case TimeFrame::ONE_MONTH:
+                            interval = 1;
+                            barUnit = TSClient::BarUnit::Monthly;
+                            break;
                         }
 
-                        qCDebug(LOGGING_CATEGORY) << self->objectName() << "Reconstructing full trading day from local"
-                                                  << "replay trades before API fallback for" << symbol << "on" << date
-                                                  << "tf" << static_cast<int>(tf);
-
-                        DBClient::loadReplayOneMinuteBarsFromTrades(symbol, date)
+                        TSClient::getInstance()
+                            ->getBars(symbol,
+                                      interval,
+                                      barUnit,
+                                      0,
+                                      TSClient::BarSessionTemplate::USEQ24Hour,
+                                      startDateTime,
+                                      endDayTime)
                             .then(
-                                [barCache, symbol, tf, date, first, last, sharedPromise, fetchFromApi](
-                                    std::optional<std::shared_ptr<QVector<Bar>>>&& replayBars) mutable
+                                [barCache,
+                                 sharedPromise,
+                                 symbol,
+                                 tf,
+                                 date,
+                                 first,
+                                 last,
+                                 isCurrentDay,
+                                 startDateTime,
+                                 endDayTime](std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error>&& barsResult)
                                 {
                                     if (barCache.isNull())
                                     {
@@ -1045,14 +891,16 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
                                     QMetaObject::invokeMethod(
                                         barCache,
                                         [barCache,
+                                         sharedPromise,
                                          symbol,
                                          tf,
                                          date,
                                          first,
                                          last,
-                                         sharedPromise,
-                                         fetchFromApi,
-                                         replayBars = std::move(replayBars)]() mutable
+                                         isCurrentDay,
+                                         startDateTime,
+                                         endDayTime,
+                                         barsResult = std::move(barsResult)]() mutable
                                         {
                                             if (barCache.isNull())
                                             {
@@ -1061,78 +909,219 @@ BarCache::GetBarsResult_t BarCache::getBars(TimeFrame tf, const QDate& date, con
                                                 return;
                                             }
 
-                                            if (!replayBars.has_value())
+                                            if (!barsResult.has_value())
                                             {
-                                                qCDebug(LOGGING_CATEGORY)
+                                                qCCritical(LOGGING_CATEGORY)
                                                     << barCache->objectName()
-                                                    << "Local replay trade reconstruction unavailable for" << symbol
-                                                    << "on" << date << "- falling back to API";
-                                                fetchFromApi();
+                                                    << "TradeStation historical fetch failed for" << symbol << "error"
+                                                    << static_cast<int>(barsResult.error());
+                                                sharedPromise->addResult(std::unexpected(barsResult.error()));
+                                                sharedPromise->finish();
                                                 return;
                                             }
 
-                                            BarCache* const replayCache = barCache.data();
-                                            auto oneMinuteBars = std::move(replayBars.value());
-                                            ASSUME_EQUAL(oneMinuteBars->size(),
-                                                         BarUtils::barsPerDay(TimeFrame::ONE_MINUTE));
-
-                                            replayCache->storeBarsInCache(TimeFrame::ONE_MINUTE, date, oneMinuteBars);
-                                            [[maybe_unused]] auto minuteDbFuture =
-                                                DatabaseThread::getInstance()->storeBarsInDatabase(
-                                                    symbol,
-                                                    TimeFrame::ONE_MINUTE,
-                                                    date,
-                                                    oneMinuteBars);
-
-                                            std::shared_ptr<QVector<Bar>> requestedFullDayBars = oneMinuteBars;
-                                            if (tf != TimeFrame::ONE_MINUTE)
+                                            BarCache* const fetchedCache = barCache.data();
+                                            const std::shared_ptr<QVector<Bar>> fullDayBars = barsResult.value();
+                                            if (fullDayBars->isEmpty() && !isCurrentDay)
                                             {
-                                                const QDateTime fullDayFirst(
-                                                    date,
-                                                    TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
-                                                    TradingHours::MARKET_TIMEZONE);
-                                                const QDateTime fullDayLast(
-                                                    date,
-                                                    TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
-                                                    TradingHours::MARKET_TIMEZONE);
-
-                                                QVector<Bar> aggregated = BarUtils::aggregateBars(*oneMinuteBars, tf);
-                                                requestedFullDayBars = std::make_shared<QVector<Bar>>(
-                                                    replayCache->fillHolesOfReceivedRequest(tf,
-                                                                                            fullDayFirst,
-                                                                                            fullDayLast,
-                                                                                            aggregated));
-
-                                                replayCache->storeBarsInCache(tf, date, requestedFullDayBars);
-                                                [[maybe_unused]] auto requestedDbFuture =
-                                                    DatabaseThread::getInstance()
-                                                        ->storeBarsInDatabase(symbol, tf, date, requestedFullDayBars);
+                                                qCDebug(LOGGING_CATEGORY)
+                                                    << fetchedCache->objectName()
+                                                    << "Historical fetch returned 0 bars for" << symbol;
+                                                sharedPromise->addResult(std::make_shared<QVector<Bar>>());
+                                                sharedPromise->finish();
+                                                return;
                                             }
+                                            if (!fullDayBars->isEmpty())
+                                            {
+                                                qCDebug(LOGGING_CATEGORY)
+                                                    << fetchedCache->objectName()
+                                                    << "TradeStation historical fetch returned" << fullDayBars->size()
+                                                    << "bars for" << symbol << "— first:"
+                                                    << fullDayBars->first().getTimeStamp().toString(Qt::ISODate)
+                                                    << "last:"
+                                                    << fullDayBars->last().getTimeStamp().toString(Qt::ISODate);
+                                            }
+
+                                            LTTnG_TP(opentraderplatform,
+                                                     barcache_api_fetch_done,
+                                                     symbol.toUtf8().constData(),
+                                                     static_cast<int>(tf),
+                                                     date.toString("yyyy-MM-dd").toUtf8().constData(),
+                                                     static_cast<int>(fullDayBars->size()));
+
+                                            const QDateTime fullDayFirst = startDateTime;
+                                            const QDateTime fullDayLast(date,
+                                                                        floorTimeToBarBoundary(tf, endDayTime.time()),
+                                                                        TradingHours::MARKET_TIMEZONE);
+                                            auto filledBars = std::make_shared<QVector<Bar>>(
+                                                fetchedCache->fillHolesOfReceivedRequest(tf,
+                                                                                         fullDayFirst,
+                                                                                         fullDayLast,
+                                                                                         *fullDayBars));
+
+                                            fetchedCache->storeBarsInCache(tf, date, filledBars);
+                                            if (isCurrentDay)
+                                            {
+                                                fetchedCache->m_currentDayHistoryVerifiedThroughByTimeFrame[tf][date] =
+                                                    fullDayLast.addSecs(-BarUtils::secondsPerBar(tf));
+                                                fetchedCache->m_currentDayBackfillStartByTimeFrame[tf].remove(date);
+                                                // Persist the merged request range, never null placeholders over live bars.
+                                                filledBars = std::shared_ptr<QVector<Bar>>(
+                                                    std::move(fetchedCache
+                                                                  ->getBarsFromCache(tf,
+                                                                                     date,
+                                                                                     fullDayFirst.time(),
+                                                                                     fullDayLast.time())
+                                                                  .value()));
+                                            }
+
+                                            [[maybe_unused]] auto dbFuture =
+                                                DatabaseThread::getInstance()->storeBarsInDatabase(symbol,
+                                                                                                   tf,
+                                                                                                   date,
+                                                                                                   filledBars);
 
                                             auto filteredBars = std::make_shared<QVector<Bar>>();
-                                            for (const auto& bar: *requestedFullDayBars)
+                                            const auto resultBars =
+                                                fetchedCache->getBarsFromCache(tf, date, first, last);
+                                            if (!resultBars.has_value())
                                             {
-                                                if (bar.getTimeStamp().time() >= first &&
-                                                    bar.getTimeStamp().time() <= last)
-                                                {
-                                                    filteredBars->append(bar);
-                                                }
+                                                qCWarning(LOGGING_CATEGORY)
+                                                    << fetchedCache->objectName()
+                                                    << "Historical backfill did not populate the requested range";
+                                                sharedPromise->addResult(std::unexpected(TSClient::Error::Other));
+                                                sharedPromise->finish();
+                                                return;
                                             }
+                                            *filteredBars = **resultBars;
 
                                             qCDebug(LOGGING_CATEGORY)
-                                                << replayCache->objectName()
-                                                << "Local replay warmup complete:" << filteredBars->size()
-                                                << "bars returned from" << requestedFullDayBars->size()
-                                                << "cached full-day bars";
+                                                << fetchedCache->objectName()
+                                                << "Historical backfill complete:" << filteredBars->size() << "bars (of"
+                                                << filledBars->size() << "total)";
 
                                             sharedPromise->addResult(filteredBars);
                                             sharedPromise->finish();
                                         },
                                         Qt::QueuedConnection);
                                 });
-                    },
-                    Qt::QueuedConnection);
-            });
+                    };
+
+                    const bool canWarmFromReplayTrades = MainApp::isInReplayMode() && tf != TimeFrame::ONE_SECOND &&
+                                                         tf != TimeFrame::TEN_SECONDS &&
+                                                         DBClient::hasReplayData(date, symbol);
+
+                    if (!canWarmFromReplayTrades)
+                    {
+                        fetchFromApi();
+                        return;
+                    }
+
+                    qCDebug(LOGGING_CATEGORY) << self->objectName() << "Reconstructing full trading day from local"
+                                              << "replay trades before API fallback for" << symbol << "on" << date
+                                              << "tf" << static_cast<int>(tf);
+
+                    DBClient::loadReplayOneMinuteBarsFromTrades(symbol, date)
+                        .then(
+                            [barCache, symbol, tf, date, first, last, sharedPromise, fetchFromApi](
+                                std::optional<std::shared_ptr<QVector<Bar>>>&& replayBars) mutable
+                            {
+                                if (barCache.isNull())
+                                {
+                                    sharedPromise->addResult(std::unexpected(TSClient::Error::Other));
+                                    sharedPromise->finish();
+                                    return;
+                                }
+
+                                QMetaObject::invokeMethod(
+                                    barCache,
+                                    [barCache,
+                                     symbol,
+                                     tf,
+                                     date,
+                                     first,
+                                     last,
+                                     sharedPromise,
+                                     fetchFromApi,
+                                     replayBars = std::move(replayBars)]() mutable
+                                    {
+                                        if (barCache.isNull())
+                                        {
+                                            sharedPromise->addResult(std::unexpected(TSClient::Error::Other));
+                                            sharedPromise->finish();
+                                            return;
+                                        }
+
+                                        if (!replayBars.has_value())
+                                        {
+                                            qCDebug(LOGGING_CATEGORY)
+                                                << barCache->objectName()
+                                                << "Local replay trade reconstruction unavailable for" << symbol << "on"
+                                                << date << "- falling back to API";
+                                            fetchFromApi();
+                                            return;
+                                        }
+
+                                        BarCache* const replayCache = barCache.data();
+                                        auto oneMinuteBars = std::move(replayBars.value());
+                                        ASSUME_EQUAL(oneMinuteBars->size(),
+                                                     BarUtils::barsPerDay(TimeFrame::ONE_MINUTE));
+
+                                        replayCache->storeBarsInCache(TimeFrame::ONE_MINUTE, date, oneMinuteBars);
+                                        [[maybe_unused]] auto minuteDbFuture =
+                                            DatabaseThread::getInstance()->storeBarsInDatabase(symbol,
+                                                                                               TimeFrame::ONE_MINUTE,
+                                                                                               date,
+                                                                                               oneMinuteBars);
+
+                                        std::shared_ptr<QVector<Bar>> requestedFullDayBars = oneMinuteBars;
+                                        if (tf != TimeFrame::ONE_MINUTE)
+                                        {
+                                            const QDateTime fullDayFirst(
+                                                date,
+                                                TradingHours::TIME_FIRST_CANDLE_EARLY_PRE_MARKET_SESSION,
+                                                TradingHours::MARKET_TIMEZONE);
+                                            const QDateTime fullDayLast(
+                                                date,
+                                                TradingHours::TIME_LAST_CANDLE_AFTER_MARKET_SESSION,
+                                                TradingHours::MARKET_TIMEZONE);
+
+                                            QVector<Bar> aggregated = BarUtils::aggregateBars(*oneMinuteBars, tf);
+                                            requestedFullDayBars = std::make_shared<QVector<Bar>>(
+                                                replayCache->fillHolesOfReceivedRequest(tf,
+                                                                                        fullDayFirst,
+                                                                                        fullDayLast,
+                                                                                        aggregated));
+
+                                            replayCache->storeBarsInCache(tf, date, requestedFullDayBars);
+                                            [[maybe_unused]] auto requestedDbFuture =
+                                                DatabaseThread::getInstance()
+                                                    ->storeBarsInDatabase(symbol, tf, date, requestedFullDayBars);
+                                        }
+
+                                        auto filteredBars = std::make_shared<QVector<Bar>>();
+                                        for (const auto& bar: *requestedFullDayBars)
+                                        {
+                                            if (bar.getTimeStamp().time() >= first && bar.getTimeStamp().time() <= last)
+                                            {
+                                                filteredBars->append(bar);
+                                            }
+                                        }
+
+                                        qCDebug(LOGGING_CATEGORY)
+                                            << replayCache->objectName()
+                                            << "Local replay warmup complete:" << filteredBars->size()
+                                            << "bars returned from" << requestedFullDayBars->size()
+                                            << "cached full-day bars";
+
+                                        sharedPromise->addResult(filteredBars);
+                                        sharedPromise->finish();
+                                    },
+                                    Qt::QueuedConnection);
+                            });
+                },
+                Qt::QueuedConnection);
+        });
 
     return future;
 }
@@ -1148,10 +1137,10 @@ BarCache::getBarsFromCache(TimeFrame tf, const QDate& date, const QTime& start, 
     {
         DEBUG << "Cache miss for timescale" << static_cast<int>(tf) << "day" << date;
         LTTnG_TP(opentraderplatform,
-               barcache_l1_miss,
-               m_symbol.toUtf8().constData(),
-               static_cast<int>(tf),
-               date.toString("yyyy-MM-dd").toUtf8().constData());
+                 barcache_l1_miss,
+                 m_symbol.toUtf8().constData(),
+                 static_cast<int>(tf),
+                 date.toString("yyyy-MM-dd").toUtf8().constData());
         return std::nullopt;
     }
 
@@ -1180,11 +1169,11 @@ BarCache::getBarsFromCache(TimeFrame tf, const QDate& date, const QTime& start, 
     DEBUG << "Loaded complete day from memory cache:" << date << "with" << result->size() << "bars";
 
     LTTnG_TP(opentraderplatform,
-           barcache_l1_hit,
-           m_symbol.toUtf8().constData(),
-           static_cast<int>(tf),
-           date.toString("yyyy-MM-dd").toUtf8().constData(),
-           static_cast<int>(result->size()));
+             barcache_l1_hit,
+             m_symbol.toUtf8().constData(),
+             static_cast<int>(tf),
+             date.toString("yyyy-MM-dd").toUtf8().constData(),
+             static_cast<int>(result->size()));
 
     return result;
 }

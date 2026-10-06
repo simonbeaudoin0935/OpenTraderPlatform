@@ -422,8 +422,7 @@ ChartToolbar::ChartToolbar(QWidget* parent)
     indicatorsLayout->setContentsMargins(8, 6, 8, 6);
     indicatorsLayout->setSpacing(6);
 
-    auto addIndicatorRow =
-        [indicatorsLayout](QCheckBox* p_toggle, QToolButton* p_settingsButton = nullptr)
+    auto addIndicatorRow = [indicatorsLayout](QCheckBox* p_toggle, QToolButton* p_settingsButton = nullptr)
     {
         QWidget* row = new QWidget();
         QHBoxLayout* rowLayout = new QHBoxLayout(row);
@@ -468,41 +467,47 @@ ChartToolbar::ChartToolbar(QWidget* parent)
     layout->addWidget(settingsButton);
 
     connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ChartToolbar::onComboBoxChanged);
-    connect(autoCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
-        onAutoCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked);
-    });
-    connect(volumeCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
-        onVolumeCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked);
-    });
-        connect(volumeAutoScaleCheckBox,
+    connect(autoCheckBox,
             &QCheckBox::toggled,
             this,
-            &ChartToolbar::onVolumeSettingsWidgetChanged);
+            [this](bool checked) { onAutoCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked); });
+    connect(volumeCheckBox,
+            &QCheckBox::toggled,
+            this,
+            [this](bool checked) { onVolumeCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked); });
+    connect(volumeAutoScaleCheckBox, &QCheckBox::toggled, this, &ChartToolbar::onVolumeSettingsWidgetChanged);
     connect(volumeAutoScaleModeCombo,
             QOverload<int>::of(&QComboBox::currentIndexChanged),
             this,
             &ChartToolbar::onVolumeSettingsWidgetChanged);
-    connect(ordersCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
-        onOrdersCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked);
-    });
-    connect(bboCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
-        onBboCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked);
-    });
-    connect(level2DepthCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
-        onLevel2DepthCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked);
-    });
-    connect(vwapCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
-        onVwapCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked);
-    });
-    connect(macdCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
-        onMacdCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked);
-    });
-    connect(strategyStatusCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
-        onStrategyStatusCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked);
-    });
-    connect(rsiCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
-        onRsiCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked);
-    });
+    connect(ordersCheckBox,
+            &QCheckBox::toggled,
+            this,
+            [this](bool checked) { onOrdersCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked); });
+    connect(bboCheckBox,
+            &QCheckBox::toggled,
+            this,
+            [this](bool checked) { onBboCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked); });
+    connect(level2DepthCheckBox,
+            &QCheckBox::toggled,
+            this,
+            [this](bool checked) { onLevel2DepthCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked); });
+    connect(vwapCheckBox,
+            &QCheckBox::toggled,
+            this,
+            [this](bool checked) { onVwapCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked); });
+    connect(macdCheckBox,
+            &QCheckBox::toggled,
+            this,
+            [this](bool checked) { onMacdCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked); });
+    connect(strategyStatusCheckBox,
+            &QCheckBox::toggled,
+            this,
+            [this](bool checked) { onStrategyStatusCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked); });
+    connect(rsiCheckBox,
+            &QCheckBox::toggled,
+            this,
+            [this](bool checked) { onRsiCheckBoxChanged(checked ? Qt::Checked : Qt::Unchecked); });
     connect(vwapSourceCombo,
             QOverload<int>::of(&QComboBox::currentIndexChanged),
             this,
@@ -511,9 +516,10 @@ ChartToolbar::ChartToolbar(QWidget* parent)
     connect(vwapColorButton, &QPushButton::clicked, this, [this]() { chooseVwapColor(); });
     for (int slot = 0; slot < EMA_SLOT_COUNT; ++slot)
     {
-        connect(m_emaCheckBoxes[slot], &QCheckBox::toggled, this, [this, slot](bool checked) {
-            onEmaCheckBoxChanged(slot, checked ? Qt::Checked : Qt::Unchecked);
-        });
+        connect(m_emaCheckBoxes[slot],
+                &QCheckBox::toggled,
+                this,
+                [this, slot](bool checked) { onEmaCheckBoxChanged(slot, checked ? Qt::Checked : Qt::Unchecked); });
         connect(m_emaPeriodSpins[slot],
                 QOverload<int>::of(&QSpinBox::valueChanged),
                 this,
@@ -543,10 +549,7 @@ ChartToolbar::ChartToolbar(QWidget* parent)
             QOverload<int>::of(&QComboBox::currentIndexChanged),
             this,
             &ChartToolbar::onMacdSettingsWidgetChanged);
-        connect(macdShowHistogramCheckBox,
-            &QCheckBox::toggled,
-            this,
-            &ChartToolbar::onMacdSettingsWidgetChanged);
+    connect(macdShowHistogramCheckBox, &QCheckBox::toggled, this, &ChartToolbar::onMacdSettingsWidgetChanged);
     connect(rsiPeriodSpin,
             QOverload<int>::of(&QSpinBox::valueChanged),
             this,

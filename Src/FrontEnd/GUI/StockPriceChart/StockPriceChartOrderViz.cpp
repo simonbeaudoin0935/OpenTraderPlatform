@@ -235,10 +235,7 @@ OrderMarker* StockPriceChart::createCancelledMarker(const QString& orderID, doub
     // Register for hover tooltip
     {
         QString tooltipText = QString("Cancelled  |  price: %1").arg(price, 0, 'f', 2);
-        registerTooltip(
-            textLabel,
-            [textLabel]() { return textLabel->position->pixelPosition(); },
-            tooltipText);
+        registerTooltip(textLabel, [textLabel]() { return textLabel->position->pixelPosition(); }, tooltipText);
     }
 
     m_orderMarkers.insert(orderID, marker);
@@ -359,18 +356,12 @@ void StockPriceChart::registerOrderMarkerTooltip(OrderMarker* marker, const QStr
     if (marker->isTriangleMarker)
     {
         auto* triangle = static_cast<QCPItemTriangle*>(marker->markerItem);
-        registerTooltip(
-            marker->markerItem,
-            [triangle]() { return triangle->tip->pixelPosition(); },
-            tooltip);
+        registerTooltip(marker->markerItem, [triangle]() { return triangle->tip->pixelPosition(); }, tooltip);
         return;
     }
 
     auto* label = static_cast<QCPItemText*>(marker->markerItem);
-    registerTooltip(
-        marker->markerItem,
-        [label]() { return label->position->pixelPosition(); },
-        tooltip);
+    registerTooltip(marker->markerItem, [label]() { return label->position->pixelPosition(); }, tooltip);
 }
 
 void StockPriceChart::removeOrderMarker(const QString& orderID)
@@ -1532,10 +1523,7 @@ StockPriceChart::LogMarker* StockPriceChart::createLogMarker(const StrategyLogEn
     // Tooltip text
     const QString tip = QString("● Strategy Log  [%1]\n\"%2\"\nStrategy: %3")
                             .arg(normalizedTimestamp.toString("HH:mm:ss"), entry.message, entry.strategyID);
-    registerTooltip(
-        dot,
-        [dot]() { return dot->dotPixelPosition(); },
-        tip);
+    registerTooltip(dot, [dot]() { return dot->dotPixelPosition(); }, tip);
 
     return lm;
 }
@@ -1988,14 +1976,8 @@ void StockPriceChart::updateBracketOverlayVisuals()
                                 .arg(state.takePrice, 0, 'f', 2)
                                 .arg(edgeTooltipSuffix(takePlacement.edge))
                                 .arg(takeTipTarget);
-    registerTooltip(
-        m_bracketStopLabel,
-        [this]() { return m_bracketStopLabel->position->pixelPosition(); },
-        stopTip);
-    registerTooltip(
-        m_bracketTakeLabel,
-        [this]() { return m_bracketTakeLabel->position->pixelPosition(); },
-        takeTip);
+    registerTooltip(m_bracketStopLabel, [this]() { return m_bracketStopLabel->position->pixelPosition(); }, stopTip);
+    registerTooltip(m_bracketTakeLabel, [this]() { return m_bracketTakeLabel->position->pixelPosition(); }, takeTip);
 
     if (state.triggered && !isManualArmedPreview)
     {

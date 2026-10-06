@@ -218,7 +218,8 @@ void TSClient::refreshAccessToken()
                 m_authenticated = false;
                 m_apiKey.clear();
                 qCWarning(TSClientLog) << "Token refresh rejected; automatic retries stopped";
-                emit authStateChanged(false, AuthStateReason::TokenExpired,
+                emit authStateChanged(false,
+                                      AuthStateReason::TokenExpired,
                                       "TradeStation rejected the refresh credentials; log in again");
                 break;
             }

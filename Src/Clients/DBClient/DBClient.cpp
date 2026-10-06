@@ -523,10 +523,7 @@ void DBClient::storeApiKey(const QString& p_apiKey)
 {
     if (QThread::currentThread() != thread())
     {
-        QMetaObject::invokeMethod(
-            this,
-            [this, p_apiKey]() { storeApiKey(p_apiKey); },
-            Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, p_apiKey]() { storeApiKey(p_apiKey); }, Qt::QueuedConnection);
         return;
     }
 
@@ -1404,8 +1401,7 @@ void DBClient::downloadReplayData(const QString& p_symbol, const QDate& p_date, 
     {
         initialReplayDataset = kMiniFallbackDataset;
         INFO << "Current-day replay download for" << symbol
-             << "skipping XNAS.ITCH due to previously detected missing live license;"
-             << "using EQUS.MINI directly";
+             << "skipping XNAS.ITCH due to previously detected missing live license;" << "using EQUS.MINI directly";
     }
     const std::string stdSymbol = symbol.toStdString();
 
@@ -1909,10 +1905,7 @@ void DBClient::setDataset(const QString& p_dataset)
 {
     if (QThread::currentThread() != thread())
     {
-        QMetaObject::invokeMethod(
-            this,
-            [this, p_dataset]() { setDataset(p_dataset); },
-            Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, p_dataset]() { setDataset(p_dataset); }, Qt::QueuedConnection);
         return;
     }
 
@@ -2603,10 +2596,7 @@ void DBClient::setReplaySpeed(PlaybackSpeed p_speed)
 {
     if (QThread::currentThread() != thread())
     {
-        QMetaObject::invokeMethod(
-            this,
-            [this, p_speed]() { setReplaySpeed(p_speed); },
-            Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, p_speed]() { setReplaySpeed(p_speed); }, Qt::QueuedConnection);
         return;
     }
 

@@ -995,9 +995,8 @@ GUIFrontend::GUIFrontend(MainAlgo* p_mainAlgo, QObject* parent) : QObject(parent
                 return;
             }
 
-            qInfo(GUIFrontendLog) << "Strategy requested chart symbol switch:"
-                                  << "strategyID=" << strategyID << "symbol=" << normalizedSymbol
-                                  << "reason=" << reason;
+            qInfo(GUIFrontendLog) << "Strategy requested chart symbol switch:" << "strategyID=" << strategyID
+                                  << "symbol=" << normalizedSymbol << "reason=" << reason;
             displayStock(normalizedSymbol);
         },
         Qt::QueuedConnection);
@@ -2236,9 +2235,9 @@ void GUIFrontend::onDisplayRefreshTick()
                     if (!isStaleDisplayedPayload())
                     {
                         LTTnG_TP(opentraderplatform,
-                               gui_bar_received,
-                               sc->symbol.toUtf8().constData(),
-                               BarUtils::secondsPerBar(m_currentTimeFrame));
+                                 gui_bar_received,
+                                 sc->symbol.toUtf8().constData(),
+                                 BarUtils::secondsPerBar(m_currentTimeFrame));
                         ui->priceChart->addLiveBar(sc->symbol, bar);
                     }
 
@@ -2308,9 +2307,9 @@ void GUIFrontend::onPositionDeleted(QString account, QString positionID)
 void GUIFrontend::onNewOrderReceived(QString account, Order order)
 {
     LTTnG_TP(opentraderplatform,
-           gui_order_received,
-           order.getSymbol().toUtf8().constData(),
-           static_cast<int>(order.getOrderStatus()));
+             gui_order_received,
+             order.getSymbol().toUtf8().constData(),
+             static_cast<int>(order.getOrderStatus()));
 
     ui->orderWidget->updateOrder(account, order);
     maybeActivateManualArmedBracketFromOrderUpdate(order);
@@ -2620,37 +2619,36 @@ void GUIFrontend::onNewDisplayedStockSelection()
     const QString previousSymbol = currentlyDisplayedSymbol;
     TSClient::getInstance()
         ->getBars(symbol, 1, TSClient::BarUnit::Minute, 1, TSClient::BarSessionTemplate::USEQ24Hour)
-        .then(
-            this,
-            [this, symbol, previousSymbol, validationToken](
-                std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error> result)
-            {
-                if (validationToken != m_symbolSelectionValidationToken)
-                {
-                    return;
-                }
+        .then(this,
+              [this, symbol, previousSymbol, validationToken](
+                  std::expected<std::shared_ptr<QVector<Bar>>, TSClient::Error> result)
+              {
+                  if (validationToken != m_symbolSelectionValidationToken)
+                  {
+                      return;
+                  }
 
-                if (!result.has_value() && result.error() == TSClient::Error::RejectedByValidator)
-                {
-                    logInputEvent(u"GUIFrontend", u"reject-symbol-selection", {inputDetail(u"symbol", symbol)});
-                    QMessageBox::warning(nullptr,
-                                         "Unknown Symbol",
-                                         QString("Symbol '%1' was rejected by TradeStation.\n\n"
-                                                 "Keeping current symbol: %2")
-                                             .arg(symbol, previousSymbol.isEmpty() ? "<none>" : previousSymbol));
-                    if (!previousSymbol.isEmpty())
-                    {
-                        ui->stockSymbolInput->setText(previousSymbol);
-                    }
-                    ui->stockSymbolInput->setFocus();
-                    ui->stockSymbolInput->selectAll();
-                    return;
-                }
+                  if (!result.has_value() && result.error() == TSClient::Error::RejectedByValidator)
+                  {
+                      logInputEvent(u"GUIFrontend", u"reject-symbol-selection", {inputDetail(u"symbol", symbol)});
+                      QMessageBox::warning(nullptr,
+                                           "Unknown Symbol",
+                                           QString("Symbol '%1' was rejected by TradeStation.\n\n"
+                                                   "Keeping current symbol: %2")
+                                               .arg(symbol, previousSymbol.isEmpty() ? "<none>" : previousSymbol));
+                      if (!previousSymbol.isEmpty())
+                      {
+                          ui->stockSymbolInput->setText(previousSymbol);
+                      }
+                      ui->stockSymbolInput->setFocus();
+                      ui->stockSymbolInput->selectAll();
+                      return;
+                  }
 
-                // Non-validation failures (timeouts/transient API issues) should not block symbol switch.
-                displayStock(symbol);
-                ui->stockSymbolInput->clearFocus();
-            });
+                  // Non-validation failures (timeouts/transient API issues) should not block symbol switch.
+                  displayStock(symbol);
+                  ui->stockSymbolInput->clearFocus();
+              });
 }
 
 void GUIFrontend::displayStock(const QString& symbol)
@@ -3909,8 +3907,8 @@ void GUIFrontend::onManagedBracketProtectionDropped(const QString& p_accountID,
     const QString reason =
         p_reason.trimmed().isEmpty() ? QStringLiteral("Native bracket placement failed.") : p_reason.trimmed();
 
-    qCWarning(GUIFrontendLog) << "Managed bracket protection dropped:"
-                              << "symbol=" << symbol << "account=" << accountID << "reason=" << reason;
+    qCWarning(GUIFrontendLog) << "Managed bracket protection dropped:" << "symbol=" << symbol << "account=" << accountID
+                              << "reason=" << reason;
 
     QMessageBox::warning(nullptr,
                          "Managed Bracket Dropped",

@@ -70,7 +70,8 @@ namespace
         return false;
     }
 
-    [[nodiscard]] std::expected<ExternalStrategyFieldDefinition, QString> parseFieldDefinition(const QJsonValue& p_value)
+    [[nodiscard]] std::expected<ExternalStrategyFieldDefinition, QString>
+    parseFieldDefinition(const QJsonValue& p_value)
     {
         if (!p_value.isObject())
         {
@@ -147,8 +148,8 @@ ExternalStrategyDescription::describeExecutable(const QString& p_executablePath)
     if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0)
     {
         const QString suffix = stderrOutput.isEmpty() ? QString{} : QString("\n\nstderr:\n%1").arg(stderrOutput);
-        return std::unexpected(QString("Strategy description command failed for %1%2")
-                                   .arg(executableInfo.absoluteFilePath(), suffix));
+        return std::unexpected(
+            QString("Strategy description command failed for %1%2").arg(executableInfo.absoluteFilePath(), suffix));
     }
 
     QJsonParseError parseError;
@@ -161,8 +162,8 @@ ExternalStrategyDescription::describeExecutable(const QString& p_executablePath)
 
     if (!document.isObject())
     {
-        return std::unexpected(QString("Strategy description for %1 is not a JSON object")
-                                   .arg(executableInfo.absoluteFilePath()));
+        return std::unexpected(
+            QString("Strategy description for %1 is not a JSON object").arg(executableInfo.absoluteFilePath()));
     }
 
     const QJsonObject object = document.object();
@@ -175,8 +176,8 @@ ExternalStrategyDescription::describeExecutable(const QString& p_executablePath)
 
     if (description.name.isEmpty())
     {
-        return std::unexpected(QString("Strategy description for %1 is missing a non-empty name")
-                                   .arg(executableInfo.absoluteFilePath()));
+        return std::unexpected(
+            QString("Strategy description for %1 is missing a non-empty name").arg(executableInfo.absoluteFilePath()));
     }
 
     if (description.version.isEmpty())
@@ -192,15 +193,14 @@ ExternalStrategyDescription::describeExecutable(const QString& p_executablePath)
         const auto parsedField = parseFieldDefinition(schemaEntry);
         if (!parsedField.has_value())
         {
-            return std::unexpected(
-                QString("Invalid parameter schema from %1: %2").arg(executableInfo.absoluteFilePath(), parsedField.error()));
+            return std::unexpected(QString("Invalid parameter schema from %1: %2")
+                                       .arg(executableInfo.absoluteFilePath(), parsedField.error()));
         }
 
         if (seenKeys.contains(parsedField->key))
         {
-            return std::unexpected(
-                QString("Strategy description for %1 contains duplicate field key: %2")
-                    .arg(executableInfo.absoluteFilePath(), parsedField->key));
+            return std::unexpected(QString("Strategy description for %1 contains duplicate field key: %2")
+                                       .arg(executableInfo.absoluteFilePath(), parsedField->key));
         }
 
         seenKeys.append(parsedField->key);
