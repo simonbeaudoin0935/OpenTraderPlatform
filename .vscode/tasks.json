@@ -246,8 +246,13 @@
                 "${workspaceFolder}/build/test",
                 "--output-on-failure",
                 "--parallel",
+                "-L",
+                {
+                    "value": "^(unit|local-integration)$",
+                    "quoting": "strong"
+                },
                 "-LE",
-                "tradestation-api"
+                "^tradestation-"
             ],
             "group": "test",
             "presentation": {
@@ -283,6 +288,36 @@
                 "focus": false,
                 "panel": "shared"
             }
+        },
+        {
+            "label": "build-then-run-tradestation-order-tests",
+            "type": "process",
+            "command": "ctest",
+            "args": [
+                "--test-dir",
+                "${workspaceFolder}/build/test",
+                "--output-on-failure",
+                "-L",
+                "^tradestation-orders$"
+            ],
+            "options": {
+                "env": {
+                    "OTP_TEST_TRADESTATION_API": "1",
+                    "OTP_TEST_TRADESTATION_ORDERS": "1",
+                    "OTP_TEST_TRADESTATION_ACCOUNT": "SIM2956555M",
+                    "OTP_TEST_TRADESTATION_ORDER_SYMBOL": "${input:paperOrderSymbol}",
+                    "OTP_TEST_TRADESTATION_ORDER_LIMIT_PRICE": "${input:paperOrderLimitPrice}"
+                }
+            },
+            "dependsOn": ["build-test"],
+            "group": "test",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "Places one paper BUY limit order and cancels it. A fill is possible; never touches unrelated orders or liquidates positions."
         },
         {
             "label": "build-then-run-tests",
@@ -763,6 +798,18 @@
             },
             "problemMatcher": "$gcc",
             "detail": "Build Debian binary packages with dpkg-buildpackage; Debian Build-Depends must be installed."
+        }
+    ],
+    "inputs": [
+        {
+            "id": "paperOrderSymbol",
+            "type": "promptString",
+            "description": "Explicit equity symbol for a ONE-SHARE PAPER BUY in SIM2956555M (an order can fill)"
+        },
+        {
+            "id": "paperOrderLimitPrice",
+            "type": "promptString",
+            "description": "Explicit positive buy limit price BELOW the current bid; the test will attempt cancellation"
         }
     ]
 }

@@ -280,8 +280,13 @@ namespace TradeStationApiTestConstants
 {
     inline constexpr auto OPT_IN_ENV = "OTP_TEST_TRADESTATION_API";
     inline constexpr auto ACCOUNT_ENV = "OTP_TEST_TRADESTATION_ACCOUNT";
+    inline constexpr auto ORDER_OPT_IN_ENV = "OTP_TEST_TRADESTATION_ORDERS";
+    inline constexpr auto ORDER_SYMBOL_ENV = "OTP_TEST_TRADESTATION_ORDER_SYMBOL";
+    inline constexpr auto ORDER_PRICE_ENV = "OTP_TEST_TRADESTATION_ORDER_LIMIT_PRICE";
+    inline constexpr auto ORDER_ACCOUNT = "SIM2956555M";
     inline constexpr int AUTH_TIMEOUT_MS = 45000;
     inline constexpr int REQUEST_TIMEOUT_MS = 15000;
+    inline constexpr int ORDER_CLEANUP_TIMEOUT_MS = 30000;
 } // namespace TradeStationApiTestConstants
 
 /**

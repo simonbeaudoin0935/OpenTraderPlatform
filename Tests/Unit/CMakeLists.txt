@@ -43,6 +43,11 @@ target_link_libraries(MessageFramingTests PRIVATE OpenTraderPlatformStrategySDK 
 add_test(NAME MessageFramingTests COMMAND MessageFramingTests)
 set_tests_properties(MessageFramingTests PROPERTIES LABELS "unit")
 
+add_executable(TradeStationOrderTestPolicyTests Clients/TradeStationOrderTestPolicyTests.cpp)
+target_link_libraries(TradeStationOrderTestPolicyTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+add_test(NAME TradeStationOrderTestPolicyTests COMMAND TradeStationOrderTestPolicyTests)
+set_tests_properties(TradeStationOrderTestPolicyTests PROPERTIES LABELS "unit")
+
 add_executable(IndicatorZoomTests FrontEnd/IndicatorZoomTests.cpp)
 target_link_libraries(IndicatorZoomTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
 target_compile_options(IndicatorZoomTests PRIVATE -Wno-float-equal)

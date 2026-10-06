@@ -39,3 +39,24 @@ login. The YubiKey vault is not unlocked or modified.
 
 Never include tokens, client secrets, authorization headers, or raw OAuth
 responses in test assertions, reports, or committed files.
+
+## Separately opted-in paper-order lifecycle
+
+`build-then-run-tradestation-order-tests` is the only task that enables paper
+orders. It prompts for an explicit equity symbol and buy limit price, then submits
+**one share** to **SIM2956555M** with Day duration. The buy limit must be below the
+current bid, but **a fill is still possible**. Normal completion requires
+acknowledgment, cancellation, and a terminal cancellation update.
+
+This task sets `OTP_TEST_TRADESTATION_API=1`,
+`OTP_TEST_TRADESTATION_ORDERS=1`, `OTP_TEST_TRADESTATION_ACCOUNT=SIM2956555M`,
+`OTP_TEST_TRADESTATION_ORDER_SYMBOL`, and
+`OTP_TEST_TRADESTATION_ORDER_LIMIT_PRICE`.
+The `tradestation-orders` label is separate from read-only `tradestation-api`.
+Routine tests use a local-label allowlist and exclude all `tradestation-` labels.
+
+Cleanup cancels only IDs returned by this test's placement. It never cancels all
+account orders or liquidates any position. An unknown placement outcome, cleanup
+failure, unexpected fill, timeout, or crash requires **manual paper-account
+inspection**. Do not repeat placement automatically. Credential-refresh
+concurrency restrictions apply to this task too.

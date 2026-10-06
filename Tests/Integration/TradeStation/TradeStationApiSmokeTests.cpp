@@ -3,6 +3,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QScopeGuard>
+#include <QElapsedTimer>
+#include <QSet>
 #include <cmath>
 #include <memory>
 
@@ -12,6 +14,7 @@
 #include "SecureStorage.h"
 #include "Settings.h"
 #include "TSClient.h"
+#include "TradeStationOrderTestPolicy.h"
 
 class TradeStationApiSmokeTests : public QObject
 {
@@ -256,16 +259,209 @@ class TradeStationApiSmokeTests : public QObject
         QTRY_VERIFY_WITH_TIMEOUT(destroyed, 5000);
     }
 
+    void paperOrderLifecycle()
+    {
+        if (!QCoreApplication::arguments().contains("paperOrderLifecycle") ||
+            qEnvironmentVariable(TradeStationApiTestConstants::ORDER_OPT_IN_ENV) != "1")
+            QSKIP("Select paperOrderLifecycle explicitly with the separate order opt-in.");
+        const auto configuration = orderConfiguration();
+        QVERIFY2(configuration.has_value(), configuration.has_value() ? "" : qPrintable(configuration.error()));
+        auto* client = TSClient::getInstance();
+        QCOMPARE(MainApp::getTradingMode(), TradingMode::Sim);
+        QCOMPARE(client->getMode(), TSClient::Mode::Live);
+        QVERIFY(TradeStationOrderTestPolicy::isSimulationEndpoint(client->getApiBaseUrl()));
+        QCOMPARE(m_account, configuration->account);
+
+        auto quoteFuture = client->getQuoteSnapshots({configuration->symbol});
+        QTRY_VERIFY_WITH_TIMEOUT(quoteFuture.isFinished(), TradeStationApiTestConstants::REQUEST_TIMEOUT_MS);
+        QVERIFY(quoteFuture.result().has_value());
+        const auto quotes = quoteFuture.result().value();
+        QCOMPARE(quotes.size(), qsizetype(1));
+        QCOMPARE(quotes.first().getSymbol(), configuration->symbol);
+        QVERIFY(std::isfinite(quotes.first().getBid()) && quotes.first().getBid() > 0.0);
+        QVERIFY2(configuration->limitPrice < quotes.first().getBid(),
+                 "The explicit buy limit must be below the current bid; fills are still possible.");
+
+        QVERIFY(QMetaObject::invokeMethod(
+            client,
+            [&]()
+            {
+                m_orderStream = client->openStreamOrders(m_account);
+                if (!m_orderStream)
+                    return;
+                connect(
+                    m_orderStream,
+                    &Stream::endSnapshotReceived,
+                    this,
+                    [this]() { m_orderSnapshotComplete = true; },
+                    Qt::QueuedConnection);
+                connect(
+                    m_orderStream,
+                    &Stream::streamClosed,
+                    this,
+                    [this]() { m_orderStreamClosed = true; },
+                    Qt::QueuedConnection);
+                connect(
+                    m_orderStream,
+                    &StreamOrders::newOrderReceived,
+                    this,
+                    [this](const Order& p_order)
+                    {
+                        m_orderUpdates.insert(p_order.getOrderID(), p_order);
+                        if (p_order.getOrderStatus() == Order::Status::FLL ||
+                            p_order.getOrderStatus() == Order::Status::FPR ||
+                            p_order.getOrderStatus() == Order::Status::FLP)
+                            m_filledOrders.insert(p_order.getOrderID());
+                    },
+                    Qt::QueuedConnection);
+            },
+            Qt::BlockingQueuedConnection));
+        QVERIFY(m_orderStream);
+        QTRY_VERIFY_WITH_TIMEOUT(m_orderSnapshotComplete || m_orderStreamClosed,
+                                 TradeStationApiTestConstants::REQUEST_TIMEOUT_MS);
+        QVERIFY(m_orderSnapshotComplete && !m_orderStreamClosed);
+
+        PlaceOrderRequest request;
+        request.setAccountID(configuration->account);
+        request.setSymbol(configuration->symbol);
+        request.setQuantity(1);
+        request.setTradeAction(TradeAction::Buy);
+        request.setOrderType(OrderType::Type::Limit);
+        request.setLimitPrice(configuration->limitPrice);
+        request.setTimeInForce(TimeInForce(OrderDuration::Day));
+        QVERIFY(request.isValid());
+        // Recheck the account/endpoint immediately before the only placement.
+        QCOMPARE(MainApp::getTradingMode(), TradingMode::Sim);
+        QVERIFY(TradeStationOrderTestPolicy::isSimulationEndpoint(client->getApiBaseUrl()));
+        m_placement = client->placeOrder(request);
+        QTRY_VERIFY_WITH_TIMEOUT(m_placement->isFinished(), TradeStationApiTestConstants::REQUEST_TIMEOUT_MS);
+        rememberPlacedOrderIDs();
+        QVERIFY2(m_placement->result().has_value(), "Placement failed or is ambiguous; do not retry automatically.");
+        const auto result = m_placement->result().value();
+        QVERIFY(!result.hasErrors());
+        QCOMPARE(result.getOrders().size(), qsizetype(1));
+        QVERIFY(!result.getOrders().first().isError());
+        QCOMPARE(m_createdOrderIDs.size(), qsizetype(1));
+        const QString id = *m_createdOrderIDs.cbegin();
+        QTRY_VERIFY_WITH_TIMEOUT(m_orderUpdates.contains(id) || m_orderStreamClosed,
+                                 TradeStationApiTestConstants::REQUEST_TIMEOUT_MS);
+        QVERIFY(!m_orderStreamClosed);
+        QVERIFY(m_orderUpdates.contains(id));
+        const Order observed = m_orderUpdates.constFind(id).value();
+        QCOMPARE(observed.getAccountID(), configuration->account);
+        QCOMPARE(observed.getSymbol(), configuration->symbol);
+        QVERIFY2(!isTerminal(observed.getOrderStatus()), "Test order was already terminal before cancellation.");
+        auto cancel = client->cancelOrder(id);
+        QTRY_VERIFY_WITH_TIMEOUT(cancel.isFinished(), TradeStationApiTestConstants::REQUEST_TIMEOUT_MS);
+        QVERIFY(cancel.result().has_value());
+        QVERIFY(!cancel.result()->isError());
+        QCOMPARE(cancel.result()->getOrderID(), id);
+        QTRY_VERIFY_WITH_TIMEOUT(isCreatedOrderTerminal(id) || m_orderStreamClosed,
+                                 TradeStationApiTestConstants::ORDER_CLEANUP_TIMEOUT_MS);
+        QVERIFY(isCreatedOrderTerminal(id));
+        QVERIFY2(!m_filledOrders.contains(id),
+                 "The paper order filled; existing positions are not liquidated by tests.");
+        const auto status = m_orderUpdates.constFind(id)->getOrderStatus();
+        QVERIFY(status == Order::Status::CAN || status == Order::Status::OUT || status == Order::Status::TSC);
+    }
+
     void cleanupTestCase()
     {
         if (m_clientCreated)
         {
+            cleanupCreatedOrders();
+            closeOwnedStream(TSClient::getInstance(), m_orderStream);
             TSClient::destroyInstance();
         }
         appStateSettings = nullptr;
     }
 
   private:
+    static std::expected<TradeStationOrderTestPolicy::Configuration, QString> orderConfiguration()
+    {
+        return TradeStationOrderTestPolicy::configuration(
+            qEnvironmentVariable(TradeStationApiTestConstants::OPT_IN_ENV),
+            qEnvironmentVariable(TradeStationApiTestConstants::ORDER_OPT_IN_ENV),
+            qEnvironmentVariable(TradeStationApiTestConstants::ACCOUNT_ENV),
+            qEnvironmentVariable(TradeStationApiTestConstants::ORDER_SYMBOL_ENV),
+            qEnvironmentVariable(TradeStationApiTestConstants::ORDER_PRICE_ENV));
+    }
+
+    static bool isTerminal(Order::Status p_status)
+    {
+        return p_status == Order::Status::CAN || p_status == Order::Status::EXP || p_status == Order::Status::FLL ||
+               p_status == Order::Status::OUT || p_status == Order::Status::REJ || p_status == Order::Status::TSC ||
+               p_status == Order::Status::BRO || p_status == Order::Status::FLP;
+    }
+
+    bool isCreatedOrderTerminal(const QString& p_id) const
+    {
+        const auto it = m_orderUpdates.constFind(p_id);
+        return it != m_orderUpdates.cend() && isTerminal(it->getOrderStatus());
+    }
+
+    void rememberPlacedOrderIDs()
+    {
+        if (!m_placement.has_value() || !m_placement->isFinished() || !m_placement->result().has_value())
+            return;
+        const auto result = m_placement->result();
+        for (const auto& order: result->getOrders())
+        {
+            if (!order.getOrderID().isEmpty())
+                m_createdOrderIDs.insert(order.getOrderID());
+        }
+    }
+
+    void cleanupCreatedOrders()
+    {
+        if (!m_placement)
+            return;
+        QElapsedTimer timer;
+        timer.start();
+        while (!m_placement->isFinished() && timer.elapsed() < TradeStationApiTestConstants::ORDER_CLEANUP_TIMEOUT_MS)
+            QTest::qWait(10);
+        rememberPlacedOrderIDs();
+        if (m_createdOrderIDs.isEmpty())
+        {
+            QTest::qFail("No test-created order ID was recovered. Placement may be ambiguous: inspect the dedicated "
+                         "paper account manually; the test will not guess IDs or repeat placement.",
+                         __FILE__,
+                         __LINE__);
+            return;
+        }
+        for (const QString& id: m_createdOrderIDs)
+        {
+            if (!isCreatedOrderTerminal(id))
+            {
+                auto future = TSClient::getInstance()->cancelOrder(id);
+                timer.restart();
+                while (!future.isFinished() && timer.elapsed() < TradeStationApiTestConstants::ORDER_CLEANUP_TIMEOUT_MS)
+                    QTest::qWait(10);
+                if (!future.isFinished() || !future.result().has_value() || future.result()->isError())
+                    QTest::qFail(qPrintable(QString("Cleanup cancellation failed for test-created order %1. Inspect "
+                                                    "the dedicated paper account manually.")
+                                                .arg(id)),
+                                 __FILE__,
+                                 __LINE__);
+                timer.restart();
+                while (!isCreatedOrderTerminal(id) &&
+                       timer.elapsed() < TradeStationApiTestConstants::ORDER_CLEANUP_TIMEOUT_MS)
+                    QTest::qWait(10);
+            }
+            if (!isCreatedOrderTerminal(id))
+                QTest::qFail(qPrintable(QString("No terminal update for test-created order %1. Manual inspection "
+                                                "is required.")
+                                            .arg(id)),
+                             __FILE__,
+                             __LINE__);
+            if (m_filledOrders.contains(id))
+                QTest::qFail("A test-created paper order filled. Tests never liquidate existing positions; "
+                             "inspect the paper position manually.",
+                             __FILE__,
+                             __LINE__);
+        }
+    }
+
     template<typename StreamType> static void closeOwnedStream(TSClient* p_client, QPointer<StreamType> p_stream)
     {
         if (!QMetaObject::invokeMethod(
@@ -283,6 +479,13 @@ class TradeStationApiSmokeTests : public QObject
     std::unique_ptr<QSettings> m_settings;
     bool m_clientCreated = false;
     QString m_account;
+    QPointer<StreamOrders> m_orderStream;
+    bool m_orderSnapshotComplete = false;
+    bool m_orderStreamClosed = false;
+    QMap<QString, Order> m_orderUpdates;
+    QSet<QString> m_createdOrderIDs;
+    QSet<QString> m_filledOrders;
+    std::optional<QFuture<std::expected<PlaceOrderResult, TSClient::Error>>> m_placement;
 };
 
 int main(int p_argc, char** p_argv)
@@ -292,6 +495,26 @@ int main(int p_argc, char** p_argv)
     {
         qInfo("TradeStation API smoke test skipped: explicit opt-in is required.");
         return 77;
+    }
+    const bool selectsOrders = application.arguments().contains("paperOrderLifecycle");
+    if (selectsOrders)
+    {
+        if (qEnvironmentVariable(TradeStationApiTestConstants::ORDER_OPT_IN_ENV) != "1")
+        {
+            qInfo("Paper-order test skipped: separate order opt-in is required.");
+            return 77;
+        }
+        const auto configuration = TradeStationOrderTestPolicy::configuration(
+            qEnvironmentVariable(TradeStationApiTestConstants::OPT_IN_ENV),
+            qEnvironmentVariable(TradeStationApiTestConstants::ORDER_OPT_IN_ENV),
+            qEnvironmentVariable(TradeStationApiTestConstants::ACCOUNT_ENV),
+            qEnvironmentVariable(TradeStationApiTestConstants::ORDER_SYMBOL_ENV),
+            qEnvironmentVariable(TradeStationApiTestConstants::ORDER_PRICE_ENV));
+        if (!configuration.has_value())
+        {
+            qCritical().noquote() << configuration.error();
+            return 1;
+        }
     }
     TradeStationApiSmokeTests tests;
     return QTest::qExec(&tests, p_argc, p_argv);

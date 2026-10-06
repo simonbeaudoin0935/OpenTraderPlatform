@@ -1,12 +1,31 @@
 add_executable(TradeStationApiSmokeTests TradeStation/TradeStationApiSmokeTests.cpp)
 target_link_libraries(TradeStationApiSmokeTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
-add_test(NAME TradeStationApiSmokeTests COMMAND TradeStationApiSmokeTests)
+add_test(NAME TradeStationApiSmokeTests COMMAND TradeStationApiSmokeTests
+    discoversSimulationAccount readsAccountBalances readsQuoteSnapshot readsHistoricalRange
+    reportsInvalidSymbol receivesPositionSnapshotAndCloses receivesQuoteStreamAndCloses)
 set_tests_properties(TradeStationApiSmokeTests PROPERTIES
     LABELS "tradestation-api"
     TIMEOUT 240
     RUN_SERIAL TRUE
     SKIP_RETURN_CODE 77
 )
+
+add_test(NAME TradeStationPaperOrderTests COMMAND TradeStationApiSmokeTests paperOrderLifecycle)
+set_tests_properties(TradeStationPaperOrderTests PROPERTIES
+    LABELS "tradestation-orders"
+    TIMEOUT 240
+    RUN_SERIAL TRUE
+    SKIP_RETURN_CODE 77
+)
+
+add_executable(TradeStationOptInGuardTests TradeStation/TradeStationOptInGuardTests.cpp)
+target_link_libraries(TradeStationOptInGuardTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+target_compile_definitions(TradeStationOptInGuardTests PRIVATE
+    OTP_TRADESTATION_TEST_EXECUTABLE="$<TARGET_FILE:TradeStationApiSmokeTests>"
+)
+add_dependencies(TradeStationOptInGuardTests TradeStationApiSmokeTests)
+add_test(NAME TradeStationOptInGuardTests COMMAND TradeStationOptInGuardTests)
+set_tests_properties(TradeStationOptInGuardTests PROPERTIES TIMEOUT 30 LABELS "local-integration")
 
 add_executable(StreamRecoveryTests Clients/StreamRecoveryTests.cpp)
 target_link_libraries(StreamRecoveryTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
