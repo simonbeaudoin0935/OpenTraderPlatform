@@ -62,6 +62,10 @@ would block the GUI waiting for a worker thread that has not started.
 
 ### Visual Theme
 
+Order-entry settings offer an **Enable Success Popup** toggle, persisted under
+`OrderEntry/ResultPopupEnabled`. It controls successful placement notifications
+only; order failures, including risk rejections, always display an error dialog.
+
 The Qt Widgets interface uses a VS Code-inspired dark palette while retaining the
 existing trading workspace and panel arrangement. Shared surface, text, border,
 selection, and accent colors are defined in `GUIThemeConstants` in

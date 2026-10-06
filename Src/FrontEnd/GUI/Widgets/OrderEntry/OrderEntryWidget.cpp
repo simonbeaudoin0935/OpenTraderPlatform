@@ -41,7 +41,7 @@ OrderEntryWidget::OrderEntryWidget(QWidget* p_parent)
     , m_settingsButton(new QToolButton(this))
     , m_settingsMenu(new QMenu(this))
     , m_confirmationCheckBox(new QCheckBox("Enable Order Confirmation", this))
-    , m_resultPopupCheckBox(new QCheckBox("Enable Result Popup", this))
+    , m_resultPopupCheckBox(new QCheckBox("Enable Success Popup", this))
     , m_cancelAllConfirmationCheckBox(new QCheckBox("Enable Cancel All Confirmation", this))
     , m_confirmationEnabled(true)          // Default to enabled
     , m_resultPopupEnabled(true)           // Default to enabled

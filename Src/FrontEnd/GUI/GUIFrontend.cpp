@@ -4196,17 +4196,11 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order)
                 }
             }
 
-            // Check if result popups are enabled
-            bool showPopup = ui->orderEntryWidget->isResultPopupEnabled();
-
             if (!expected_result.has_value())
             {
                 QString errorMsg = "Order placement failed with error code: " +
                                    QString::number(static_cast<int>(expected_result.error()));
-                if (showPopup)
-                {
-                    QMessageBox::critical(nullptr, "Order Error", errorMsg);
-                }
+                QMessageBox::critical(m_mainWindow, "Order Error", errorMsg);
                 qCritical() << "Order placement failed with error code:" << static_cast<int>(expected_result.error());
                 return;
             }
@@ -4224,10 +4218,7 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order)
                         errorMsg += "Error: " + error.getError().value() + "\n";
                     }
                 }
-                if (showPopup)
-                {
-                    QMessageBox::critical(nullptr, "Order Error", errorMsg);
-                }
+                QMessageBox::critical(m_mainWindow, "Order Error", errorMsg);
                 qCritical() << "Order placement failed:" << errorMsg;
             }
             else
@@ -4238,7 +4229,7 @@ void GUIFrontend::onOrderPlaced(const PlaceOrderRequest& order)
                     successMsg += "Order ID: " + orderItem.getOrderID() + "\n";
                     successMsg += orderItem.getMessage() + "\n";
                 }
-                if (showPopup)
+                if (ui->orderEntryWidget->isResultPopupEnabled())
                 {
                     QMessageBox::information(nullptr, "Order Success", successMsg);
                 }
