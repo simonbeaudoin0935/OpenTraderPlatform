@@ -12,5 +12,14 @@ organization to match the platform's settings namespace; the fixture verifies
 saved content by read-back rather than solely checking QSettings status.
 Investigate that namespace/status behavior before changing product settings.
 
-Temporary-SQLite BarCache public-API persistence/range tests are planned here
-or in a dedicated Cache subfolder; they do not exist yet.
+[BarCachePersistenceTests.cpp](BarCachePersistenceTests.cpp) uses public BarCache
+and DatabaseThread APIs with temporary SQLite files. It covers full-day reload,
+inclusive memory/database ranges, last-session candle, symbol/date/timeframe
+isolation, duplicate replacement, latest closed timestamps, transient forming
+bars, and incomplete database ranges. It redirects both Qt settings formats and
+cacheRootDir; a locked isolated YubiKey backend prevents host-keyring access.
+The TSClient thread runs only for cache validation dependencies with no tokens.
+Drain queued cache closes before destroying DatabaseThread.
+
+Live/history overlap, request coalescing, and provider error/retry paths remain
+uncovered; no fixture should silently fall through to a real provider.

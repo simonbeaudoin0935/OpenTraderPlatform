@@ -54,7 +54,9 @@ different validation outcomes and must be reported separately.
 
 ## Expansion roadmap (not existing coverage)
 
-Temporary-SQLite BarCache persistence/range tests, protocol socket fragmentation
-tests, and additional TradeStation read-only endpoints remain to be implemented.
+Temporary-SQLite BarCache persistence/range and SDK socket fragmentation tests
+now exist under Integration/Core and Integration/Strategy. Live/history overlap,
+host-side socket buffering, and additional TradeStation read-only endpoints
+remain to be implemented.
 Paper-order lifecycle tests need a separate order opt-in, bounded cleanup,
 exact account checks, and cleanup restricted to orders created by that test.

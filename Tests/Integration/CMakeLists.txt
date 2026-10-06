@@ -16,6 +16,11 @@ set_tests_properties(StreamRecoveryTests PROPERTIES
     LABELS "local-integration"
 )
 
+add_executable(BarCachePersistenceTests Core/BarCachePersistenceTests.cpp)
+target_link_libraries(BarCachePersistenceTests PRIVATE OpenTraderPlatformCommon Qt6::Test)
+add_test(NAME BarCachePersistenceTests COMMAND BarCachePersistenceTests)
+set_tests_properties(BarCachePersistenceTests PROPERTIES TIMEOUT 45 LABELS "local-integration")
+
 add_executable(StrategySubscriptionErrorTests Strategy/StrategySubscriptionErrorTests.cpp)
 target_link_libraries(StrategySubscriptionErrorTests PRIVATE OpenTraderPlatformStrategySDK Qt6::Test Qt6::Network)
 add_test(NAME StrategySubscriptionErrorTests COMMAND StrategySubscriptionErrorTests)
