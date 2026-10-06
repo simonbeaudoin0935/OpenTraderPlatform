@@ -138,6 +138,78 @@ class BarCachePersistenceTests : public QObject
         QVERIFY(!missing.result().has_value());
     }
 
+    void warmupHistoryDoesNotReplaceClosedLiveBars_data()
+    {
+        QTest::addColumn<int>("incomingStatus");
+        QTest::newRow("forming-history") << static_cast<int>(Bar::BarStatus::Open);
+        QTest::newRow("no-trade-history") << static_cast<int>(Bar::BarStatus::Null);
+    }
+
+    void warmupHistoryDoesNotReplaceClosedLiveBars()
+    {
+        QFETCH(int, incomingStatus);
+        const QDateTime now = MainApp::getCurrentAppTime();
+        if (now.date().dayOfWeek() > Qt::Friday || now.time() < QTime(4, 3))
+            QSKIP("Current-day live merge requires a weekday after 04:03 New York time.");
+        const QDate day = now.date();
+        const QString symbol = "CACHE_LIVE_MERGE_" + QString::number(incomingStatus);
+        BarCache cache(symbol, &m_owner);
+        auto history = std::make_shared<QVector<Bar>>();
+        history->append(bar(day, 0, 60, 10.0f));
+        Bar provisional = bar(day, 2, 60, 20.0f);
+        if (incomingStatus == static_cast<int>(Bar::BarStatus::Null))
+            provisional = Bar::nullBar(provisional.getTimeStamp());
+        else
+            provisional.setBarStatus(Bar::BarStatus::Open);
+        history->append(provisional);
+        auto stored = DatabaseThread::getInstance()->storeBarsInDatabase(symbol, TimeFrame::ONE_MINUTE, day, history);
+        QTRY_VERIFY_WITH_TIMEOUT(stored.isFinished(), 5000);
+        QCOMPARE(stored.result(), 2);
+
+        // Simulate an older historical snapshot being persisted after a live update.
+        const Bar live = bar(day, 2, 60, 40.0f);
+        cache.storeBar(TimeFrame::ONE_MINUTE, live);
+        auto staleWrite =
+            DatabaseThread::getInstance()->storeBarsInDatabase(symbol, TimeFrame::ONE_MINUTE, day, history);
+        QTRY_VERIFY_WITH_TIMEOUT(staleWrite.isFinished(), 5000);
+        QCOMPARE(staleWrite.result(), 2);
+        auto snapshot = DatabaseThread::getInstance()->getCachedBarsForDate(symbol, TimeFrame::ONE_MINUTE, day);
+        QTRY_VERIFY_WITH_TIMEOUT(snapshot.isFinished(), 5000);
+        QCOMPARE(snapshot.result()->last().getBarStatus(), static_cast<Bar::BarStatus>(incomingStatus));
+        cache.warmCurrentDayCacheForLive(QDateTime(day, QTime(4, 3), TradingHours::MARKET_TIMEZONE));
+        QCOMPARE(cache.getLatestClosedBarTimestamp(TimeFrame::ONE_MINUTE, day),
+                 std::optional<QDateTime>(live.getTimeStamp()));
+    }
+
+    void databaseCoverageThreshold_data()
+    {
+        QTest::addColumn<int>("storedCount");
+        QTest::addColumn<bool>("accepted");
+        QTest::newRow("below-90-percent") << 8 << false;
+        QTest::newRow("exactly-90-percent") << 9 << true;
+        QTest::newRow("complete") << 10 << true;
+    }
+
+    void databaseCoverageThreshold()
+    {
+        QFETCH(int, storedCount);
+        QFETCH(bool, accepted);
+        const QDate day(2024, 1, 8);
+        const QString symbol = "CACHE_COVERAGE_" + QString::number(storedCount);
+        BarCache cache(symbol, &m_owner);
+        for (int index = 0; index < storedCount; ++index)
+            cache.storeBar(TimeFrame::ONE_MINUTE, bar(day, index, 60, 10.0f));
+        auto future = DatabaseThread::getInstance()->getBarsFromDatabase(symbol,
+                                                                         TimeFrame::ONE_MINUTE,
+                                                                         day,
+                                                                         QTime(4, 0),
+                                                                         QTime(4, 9));
+        QTRY_VERIFY_WITH_TIMEOUT(future.isFinished(), 5000);
+        QCOMPARE(future.result().has_value(), accepted);
+        if (accepted)
+            QCOMPARE(future.result().value()->size(), static_cast<qsizetype>(storedCount));
+    }
+
     void cleanupTestCase()
     {
         if (m_databaseCreated)
